@@ -471,7 +471,7 @@ describe('a guide in the reader\'s language, or the other one under a notice (01
 
   it('words the notice as the plan gives it, in both languages', () => {
     expect(STRINGS.nl['docs.otherLanguage']).toBe(
-      'Deze handleiding is er nog niet in het Nederlands; hieronder staat de Engelse versie.',
+      'Deze handleiding is nog niet beschikbaar in het Nederlands; hieronder staat de Engelse versie.',
     );
     expect(STRINGS.en['docs.otherLanguage']).toBe(
       'This guide is not yet available in English; the Dutch version follows.',
@@ -604,7 +604,7 @@ describe('the appliance\'s /docs points to the operator documents (0148 D9)', ()
     // line on screen got until the owner dropped that cap on 2026-09-25
     // (workplan 0118).
     expect(STRINGS.en['docs.operatorDocs']).toBe(
-      'Running your own appliance? Settings and commands are in the operator documents in the repository.',
+      'Running your own appliance? Settings and commands are in the operator documents in the Ownpace repository.',
     );
     expect(STRINGS.nl['docs.operatorDocs']).toBe(
       'Draait u een eigen appliance? Instellingen en commando\'s staan in de beheerdersdocumenten in de repository.',

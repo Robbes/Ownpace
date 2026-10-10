@@ -93,8 +93,8 @@ The folder can hold the `.zip` parts or what they extract to: either works. Two 
 On a self-hosted appliance, the **Accounts** page offers it: press **Add an account** and choose **Export archive**. It asks for three things:
 
 - **Which export**: Google Takeout, or Apple Data & Privacy (to be tested: we cannot read it yet).
-- **Where the export is**: **In a folder of your destination's files (Nextcloud or WebDAV)**, or **On this appliance's disk**.
-- The folder, in a box whose name follows that choice. **Folder in your destination's files**: the folder as your files show it, from the top, such as `Exports/takeout-20260904`, or one `.zip` in it (see [Your export in your own Nextcloud](#own-nextcloud)). **Where the archive is**, for a disk: the folder you extracted the download into, or the `.zip` itself.
+- **Where the export is**: **In a folder on your destination (Nextcloud or WebDAV)**, or **On this appliance's disk**.
+- The folder, in a box whose name follows that choice. **Folder in your destination for files**: the folder as your files show it, from the top, such as `Exports/takeout-20260904`, or one `.zip` in it (see [Your export in your own Nextcloud](#own-nextcloud)). **Where the archive is**, for a disk: the folder you extracted the download into, or the `.zip` itself.
 
 Then press **Add and test**. Testing does not move anything. For an export on a disk, it opens the archive and tells you what is in it; for an export in your destination's files, it says the export is counted at the preflight, because the destination comes with a migration and until then there is nowhere to look. Either way, before anything moves, you learn:
 

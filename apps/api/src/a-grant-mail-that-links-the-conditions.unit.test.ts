@@ -71,11 +71,8 @@ const GUIDE = {
 
 /** The two lines, in the mail's language, that the addresses follow. */
 const SAYS = {
-  en: { conditions: 'Read the Alpha conditions here:', guide: 'Read the guide to the Alpha before you start:' },
-  nl: {
-    conditions: 'Lees hier de voorwaarden voor de Alpha:',
-    guide: 'Lees de handleiding voor de Alpha voordat u begint:',
-  },
+  en: { conditions: 'Read the Alpha conditions:', guide: 'Read the guide before you start:' },
+  nl: { conditions: 'Lees de voorwaarden:', guide: 'Lees de handleiding:' },
 } as const;
 
 const channel = () =>

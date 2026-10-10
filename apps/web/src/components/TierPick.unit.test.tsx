@@ -108,7 +108,7 @@ describe('the tiers offered', () => {
     expect(small.getByText('6 migrations at the same time, up to 500 GB.')).toBeVisible();
     expect(within(items[3]!).getByText('50 migrations at the same time, up to 15 TB.')).toBeVisible();
     // Every paid tier runs at the same pace: said once, above the list.
-    expect(screen.getAllByText(/Every tier here copies pass after pass until the first copy is done/)).toHaveLength(1);
+    expect(screen.getAllByText(/Every tier here copies pass after pass until the first migration is done/)).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Pick Small' })).toBeVisible();
     expect(screen.queryByRole('button', { name: /Lower to|Drop the pick/ })).toBeNull();
   });
@@ -148,7 +148,7 @@ describe('a pick', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Order with obligation to pay' }));
     await waitFor(() => expect(pickTier).toHaveBeenCalledWith({ tierId: 'small', priceEur: 5 }));
     expect(await screen.findByRole('status')).toHaveTextContent(
-      "Done: Small's pace and room are yours now, and each month bills at least Small.",
+      "Done: Small's pace and data room are yours now, and each month bills at least Small.",
     );
     expect(screen.getByText('You picked Small. Each month bills at least Small, until you lower it.')).toBeVisible();
     expect(screen.queryByRole('alertdialog')).toBeNull();
@@ -248,13 +248,13 @@ describe('in Dutch', () => {
     getPick.mockResolvedValue(PICKED_SMALL);
     renderCard('nl');
     expect(await screen.findByRole('heading', { name: STRINGS.nl['billing.pick.title'] })).toBeVisible();
-    expect(screen.getByText('U koos Small. U betaalt elke maand minstens Small, tot u het verlaagt.')).toBeVisible();
+    expect(screen.getByText('U koos Small. Als basis betaalt u elke maand Small, tot u het verlaagt; gebruikt u meer, dan betaalt u het pakket dat daarbij hoort.')).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Kies Medium' }));
     expect(
       within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Bestelling met betalingsverplichting' }),
     ).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Nu niet' }));
     fireEvent.click(screen.getByRole('button', { name: 'Keuze laten vervallen' }));
-    expect(within(screen.getByRole('alertdialog')).getByText(/^Vanaf 1 november 2026 bepaalt wat u gebruikt/)).toBeVisible();
+    expect(within(screen.getByRole('alertdialog')).getByText(/^Vanaf 1 november 2026 bepaalt uw gebruik weer uw pakket/)).toBeVisible();
   });
 });

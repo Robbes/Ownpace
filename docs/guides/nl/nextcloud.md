@@ -42,7 +42,7 @@ U kunt het account ook vooraf toevoegen, onder **Accounts** → **Account toevoe
 - **Bestanden** komen in uw eigen bestanden, met de mappen waarin ze staan.
 - Elke afspraak wordt geschreven met een markering, `SCHEDULE-AGENT=CLIENT`, die de server vraagt er geen uitnodigingen voor te versturen. Deelnemers en organisator blijven in uw kopie van elke afspraak staan. Een server die de markering negeert, kan toch uitnodigingen versturen.
 - **E-mail** gaat niet naar een Nextcloud: bij **Waar gaat het naartoe?** biedt de rij voor e-mail haar niet aan.
-- Een migratie mag vaker lopen: wat al in het doel staat, wordt herkend en niet nog eens gekopieerd.
+- Een migratie mag vaker lopen: wat al in het doel staat, wordt herkend en niet nog eens gemigreerd.
 
 ## Als de test iets meldt {#when-test-says}
 
@@ -55,6 +55,6 @@ Wat Nextcloud zelf antwoordt, toont deze dienst woordelijk, in de taal van de se
 
 ## Stoppen {#leaving}
 
-- Een migratie verwijdert u onder **Migraties**. De bevestiging zegt wat dat doet: **Verwijdert instellingen en registratie van de migratie; bij uw bron of bestemming wordt niets aangeraakt.** Wat al gekopieerd is, blijft in uw Nextcloud staan.
-- Een account verwijdert u onder **Accounts** met **Verwijderen**. Daarmee verdwijnt de kopie van het app-wachtwoord bij deze dienst. Het app-wachtwoord zelf blijft bij Nextcloud geldig, en het scherm zegt dat ook: **Wij hebben onze kopie verwijderd; deze aanbieder biedt geen intrekking die wij kunnen aanroepen.**
+- Een migratie verwijdert u onder **Migraties**. De bevestiging zegt wat dat doet: **Verwijdert enkel instellingen en registratie van uw migratie in Ownpace, niets bij uw bron of bestemming.** Wat al gemigreerd is, blijft in uw Nextcloud staan.
+- Een account verwijdert u onder **Accounts** met **Verwijderen**. Daarmee verdwijnt de kopie van het app-wachtwoord bij deze dienst. Het app-wachtwoord zelf blijft bij Nextcloud geldig, en het scherm zegt dat ook: **Wij hebben onze kopie verwijderd; deze aanbieder biedt geen manier om intrekking door ons te forceren.**
 - Trek daarom het app-wachtwoord in bij Nextcloud, onder **Instellingen** → **Beveiliging** → **Apparaten & sessies**, waar u het maakte.

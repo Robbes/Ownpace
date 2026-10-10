@@ -42,7 +42,7 @@ describe('how long, during the copy, in Dutch', () => {
 
   it('how many passes it has, before three', () => {
     inDutch({ kind: 'afterThreePasses', passesSoFar: 2 });
-    expect(screen.getByText('Na drie rondes weten we het; 2 tot nu toe.')).toBeInTheDocument();
+    expect(screen.getByText('Na drie rondes weten we meer; 2 tot nu toe.')).toBeInTheDocument();
     expect(screen.getByText('Hoe lang:')).toBeInTheDocument();
   });
 });

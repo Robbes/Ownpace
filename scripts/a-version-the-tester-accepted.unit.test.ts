@@ -100,6 +100,10 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   'privacy.nl.md@1.2': '8b942baf4b22770b98353ffedc08d6d7ccbb562eede37d0146d858f1b20ad329',
   'terms.md@1.3': 'e1d2f884198bc419089594bc29fad33e2d22c10c56bd2a23a832f093704004d1',
   'terms.nl.md@1.3': '842e61fa4ea93c52094bc5fa02cb746fb742a7d730df9e161cfcacc6449c47f0',
+  // 1.4 on 2026-10-10: the owner's own text review, in both languages (terms.md's briefing). 1.3
+  // had been final since 2026-10-07, so the new words take a new number and 1.3's pins stay.
+  'terms.md@1.4': 'd0577ca2eb1090eef1ab9a1d22aa374254009d1088cdded1f9d292a9eb83a4c2',
+  'terms.nl.md@1.4': '6ace99da834540703d59cc81447b9924402482d319d82746c39dcde5f4fcc95b',
 };
 
 /** The digest `ACCEPTED_WORDS` pins: the text outside HTML comments, white space collapsed. */

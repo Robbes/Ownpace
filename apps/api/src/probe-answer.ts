@@ -79,12 +79,12 @@ export function whatHappenedSentence(said: WhatHappened): string {
     }
     case 'unreachable':
       return (
-        'Nothing answered at that address: the name did not resolve, the connection was ' +
-        'refused, or no answer came in time. Check the host name and the port.'
+        'Nothing answered at that address: name did not resolve, connection was refused, ' +
+        'or a timeout. Check the host name and the port.'
       );
     case 'certificate':
       return (
-        "The server's certificate did not verify for that name, or it has expired, so the " +
+        "The server's certificate did not verify for that name, or has expired, so the " +
         'test stopped before signing in.'
       );
     case 'insideOurNetwork':

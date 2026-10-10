@@ -162,11 +162,11 @@ describe('inviting mails the invited person', () => {
     const mail = SENT[0]!;
     expect(mail.to).toEqual(['test@ownpace.test']);
     // In the organisation's language, which is Dutch here.
-    expect(mail.subject).toBe('Ownpace — u bent uitgenodigd voor een organisatie');
+    expect(mail.subject).toBe('Ownpace — u bent uitgenodigd deel te nemen');
     expect(mail.body).toContain('Organisatie: Familie Berentsen');
     expect(mail.body).toContain('De uitnodiging komt van: rob@example.test');
     expect(mail.body).toContain('Meld u hier aan: https://app.example.test');
-    expect(mail.body).toContain('hieraan is uw uitnodiging gekoppeld: test@ownpace.test');
+    expect(mail.body).toContain('Gebruik dit e-mailadres: test@ownpace.test');
     // Privacy §4.6, at the first communication.
     expect(mail.body).toContain('https://site.example.test/');
     expect(mail.body).toMatch(/privacyverklaring/);
@@ -182,16 +182,16 @@ describe('inviting mails the invited person', () => {
   it.each([
     {
       locale: 'nl' as const,
-      lead: /^Welkom bij de Alpha! /m,
-      conditions: 'Lees hier de voorwaarden voor de Alpha: https://site.example.test/nl/alpha.html',
-      guide: 'Lees de handleiding voor de Alpha voordat u begint: https://site.example.test/nl/alpha-handleiding.html',
+      lead: /^Welkom bij Ownpace in de Alpha-fase! /m,
+      conditions: 'Lees de voorwaarden: https://site.example.test/nl/alpha.html',
+      guide: 'Lees de handleiding: https://site.example.test/nl/alpha-handleiding.html',
       never: ['https://site.example.test/alpha.html', 'https://site.example.test/alpha-guide.html'],
     },
     {
       locale: 'en' as const,
       lead: /^Welcome to the Alpha! /m,
-      conditions: 'Read the Alpha conditions here: https://site.example.test/alpha.html',
-      guide: 'Read the guide to the Alpha before you start: https://site.example.test/alpha-guide.html',
+      conditions: 'Read the Alpha conditions: https://site.example.test/alpha.html',
+      guide: 'Read the guide before you start: https://site.example.test/alpha-guide.html',
       never: ['https://site.example.test/nl/alpha.html', 'https://site.example.test/nl/alpha-handleiding.html'],
     },
   ])(

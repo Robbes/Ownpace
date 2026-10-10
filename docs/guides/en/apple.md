@@ -30,7 +30,7 @@ You do not type any of those hosts. They are Apple's published values, recorded 
 
 ### 2. Add the account {#apple}
 
-On **Which account are you leaving?**, tick **Apple iCloud**. On **Connect your accounts**, its form has two boxes:
+On **Which account are you leaving or moving?**, tick **Apple iCloud**. On **Connect your accounts**, its form has two boxes:
 
 - **Username** — your iCloud address, `you@icloud.com`.
 - **App-specific password** — paste what Apple showed you.

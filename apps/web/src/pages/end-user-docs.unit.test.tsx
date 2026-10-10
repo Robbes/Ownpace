@@ -595,7 +595,7 @@ describe('the Apple export carries its to-be-tested tag and line (0148 D7)', () 
       '**To be tested.** We cannot read an Apple export yet. Request one only for your own records.',
     );
     expect(LINE.nl).toBe(
-      '**Nog te testen.** Een Apple-export kunnen we nog niet lezen. Vraag die alleen aan voor uw eigen archief.',
+      '**Te testen.** Een Apple-export kunnen we nog niet lezen. Vraag die alleen aan voor uw eigen archief.',
     );
   });
 

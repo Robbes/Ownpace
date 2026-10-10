@@ -90,7 +90,7 @@ function refused(status: number, data: unknown): AxiosError {
 describe('what a person sees before consenting', () => {
   it('names who is asking — consenting to an anonymous request is not consenting', async () => {
     renderPage();
-    expect(await screen.findByText(/Acme Legal is moving your account/)).toBeInTheDocument();
+    expect(await screen.findByText(/Acme Legal is migrating your account/)).toBeInTheDocument();
   });
 
   it('says what will be read, and that nothing is deleted or changed', async () => {
@@ -148,7 +148,7 @@ describe('what a person sees before consenting', () => {
     expect(screen.getByText('Nextcloud at cloud.example.org')).toBeInTheDocument();
     // With the question that makes the two facts worth reading.
     const check = screen.getByText(
-      'Do you know who asked? Is the destination yours or your organisation’s? Only then continue.',
+      'Only continue if you know who asked and the destination is yours or your organisation’s.',
     );
     // Both before the button: a check read after the redirect is no check.
     const button = screen.getByRole('button', { name: /Continue with Google/ });
@@ -344,7 +344,7 @@ describe("a person's link", () => {
     expect(screen.getByRole('heading', { level: 2, name: 'anna@work.example' })).toBeInTheDocument();
     expect(screen.getByText('To anna, Nextcloud at cloud.example.org: your calendars and their events.')).toBeInTheDocument();
     expect(screen.getByText('To anna@soverin.net, Soverin: your contacts.')).toBeInTheDocument();
-    expect(screen.getByText(/is moving your accounts to a new provider/)).toBeInTheDocument();
+    expect(screen.getByText(/is moving your accounts and\/or content to a new provider/)).toBeInTheDocument();
   });
 
   it('offers no button for a connected account, and says why an account cannot be asked', async () => {
@@ -363,7 +363,7 @@ describe("a person's link", () => {
     authorizeMock.mockResolvedValue({ url: 'https://accounts.google.com/o/oauth2/v2/auth?z=3' });
     renderPage();
     expect(
-      await screen.findByText(/^This account was connected before\. Whoever sent this link asks you to connect it again/),
+      await screen.findByText(/^This account was connected before\. Whoever sent this link asks you to connect again/),
     ).toBeInTheDocument();
     expect(screen.queryByText('Connected. Nothing more is needed for this account.')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Connect again with Google as anna@gmail.com' }));
@@ -383,6 +383,6 @@ describe("a person's link", () => {
     renderPage();
     expect(await screen.findByRole('button', { name: 'Doorgaan met Google als anna@work.example' })).toBeInTheDocument();
     expect(screen.getByText('Twee applicaties, één aanmelding.')).toBeInTheDocument();
-    expect(screen.getByText('Verbonden. Voor dit account is niets meer nodig.')).toBeInTheDocument();
+    expect(screen.getByText('Verbonden. Dit account is klaar om te gebruiken in een migratie.')).toBeInTheDocument();
   });
 });

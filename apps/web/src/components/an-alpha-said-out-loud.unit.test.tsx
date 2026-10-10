@@ -15,11 +15,12 @@
  * receives the grant mail, so that screen is where they first meet the
  * service. And `/request-access` keeps the note after the request is sent.
  *
- * WHAT IT SAYS IS THE OWNER'S WELCOME (0131 D4's amendment, 2026-10-04): *"Welkom
- * bij de Alpha! Probeer Ownpace rustig aan uit, en help anderen makkelijker over
- * te stappen naar Europese alternatieven."*, and its English translation
- * *"Welcome to the Alpha! Try Ownpace at your own pace, and help others move to
- * European alternatives more easily."* Then its two links, and nothing else (the
+ * WHAT IT SAYS IS THE OWNER'S WELCOME (0131 D4's amendment, 2026-10-04; the
+ * owner's text review, 2026-10-10): *"Welkom bij de Alpha! Probeer Ownpace
+ * rustig uit, op uw eigen tempo en stap geleidelijk aan over op Europese
+ * alternatieven."*, and its English translation *"Welcome to the Alpha! Try
+ * Ownpace at your own pace, and move to European alternatives step by step."*
+ * Then its two links, and nothing else (the
  * owner: *"Welcome only"*). Until then the note said what the Alpha means:
  * nothing charged, it can end, no backups apart from one copy, keep the old
  * account. Those facts are no longer in the note. Both mails carry them, word
@@ -134,14 +135,14 @@ const SAID = {
   en: {
     lead: 'Welcome to the Alpha!',
     welcome:
-      'Welcome to the Alpha! Try Ownpace at your own pace, and help others move to European ' +
-      'alternatives more easily.',
+      'Welcome to the Alpha! Try Ownpace at your own pace, and move to European alternatives ' +
+      'step by step.',
   },
   nl: {
     lead: 'Welkom bij de Alpha!',
     welcome:
-      'Welkom bij de Alpha! Probeer Ownpace rustig aan uit, en help anderen makkelijker over te ' +
-      'stappen naar Europese alternatieven.',
+      'Welkom bij de Alpha! Probeer Ownpace rustig uit, op uw eigen tempo en stap geleidelijk aan ' +
+      'over op Europese alternatieven.',
   },
 } as const;
 
@@ -162,16 +163,30 @@ const LINKS = {
  * the Alpha conditions §6 and privacy §9 (0139 T4, ops-app-sentences (a)).
  */
 const FACTS = {
+  // The mails' facts, as the owner's text review of 2026-10-10 left them (with
+  // the one copy before each update kept, the owner's answer of that day).
   en: [
-    'Nothing is charged, and the Alpha can end.',
+    'Nothing is charged during the Alpha.',
     'There are no backups, apart from one copy before each update, kept up to 7 days.',
-    'Keep your old account until you have checked what arrived.',
+    'So do keep your old account until you have checked what arrived at your new destination.',
   ],
   nl: [
-    'Er wordt niets in rekening gebracht en de Alpha kan stoppen.',
+    'Gedurende de Alpha-fase zijn alle pakketten gratis: er wordt niets in rekening gebracht.',
     'Er worden geen back-ups gemaakt, op één kopie vlak voor elke update na, die hoogstens 7 dagen wordt bewaard.',
-    'Houd uw oude account tot u hebt gecontroleerd wat er is aangekomen.',
+    'Controleer dus goed of alles is aangekomen op de nieuwe bestemming voordat u iets verwijdert uit uw oude systeem.',
   ],
+} as const;
+
+/**
+ * The mails' own welcome. Until the owner's text review of 2026-10-10 the
+ * mails opened with the note's words; the review gave the mails a welcome of
+ * their own (it asks the reader to help others), so the mail no longer follows
+ * the note word for word. What stays held: one paragraph opens with it, the
+ * facts follow it word for word, and the note carries none of them.
+ */
+const MAIL_WELCOME = {
+  en: 'Welcome to the Alpha! Try Ownpace at your own pace, and help others move to European alternatives.',
+  nl: 'Welkom bij Ownpace in de Alpha-fase! Probeer Ownpace rustig uit op uw eigen tempo, en help anderen makkelijker over te stappen naar Europese alternatieven.',
 } as const;
 
 type Locale = keyof typeof SAID;
@@ -337,7 +352,7 @@ describe('with the alpha setting on', () => {
     // asks the API what it accepts, the request form's first field, the way
     // back to sign-in once the request has gone, and the invitation screen's
     // closing line.
-    ['login', 2, () => screen.getByText(/checking how this deployment/i)],
+    ['login', 2, () => screen.getByText(/checking how to sign in/i)],
     ['requestAccess', 2, () => screen.getByLabelText(/email address/i)],
     ['requestAccessSent', 2, () => screen.getByRole('link', { name: /sign in/i })],
     ['invitations', 1, () => screen.getByText(/not now changes nothing/i)],
@@ -432,7 +447,7 @@ describe('on an appliance, never', () => {
   }
 });
 
-describe('both Alpha mails open with the note\'s welcome, then say what the note no longer does', () => {
+describe('both Alpha mails open with their welcome, then say what the note does not', () => {
   /**
    * The two mails that carry the Alpha paragraph, as the API builds them during
    * the Alpha (`accessGrantedEvent`, and the invitation route, 0156 T3).
@@ -461,19 +476,14 @@ describe('both Alpha mails open with the note\'s welcome, then say what the note
   });
 
   for (const [kind, event] of Object.entries(MAILS)) {
-    it.each(LOCALES)(`${kind}, in %s: the note's words, as the page shows them, then the facts word for word`, (locale) => {
-      inLocale(locale);
-      PAGES.layout();
-      // Read from the note itself, so the mail follows what a tester sees.
-      const welcome = flat(theNote(locale).querySelector('p')!.textContent);
-      expect(welcome).toBe(SAID[locale].welcome);
+    it.each(LOCALES)(`${kind}, in %s: the mail's welcome, then the facts word for word`, (locale) => {
       const alpha = renderEvent(event, locale)
         .body.split('\n\n')
-        .filter((paragraph) => paragraph.startsWith(SAID[locale].lead));
+        .filter((paragraph) => paragraph.startsWith(MAIL_WELCOME[locale]));
       expect(alpha, 'no paragraph of the mail opens with the welcome, or more than one does').toHaveLength(1);
       // The paragraph's first line; the conditions and the guide follow it
       // when the API hands their addresses (`an-invitation-that-says-who-asked`).
-      expect(alpha[0]!.split('\n')[0]).toBe([welcome, ...FACTS[locale]].join(' '));
+      expect(alpha[0]!.split('\n')[0]).toBe([MAIL_WELCOME[locale], ...FACTS[locale]].join(' '));
     });
   }
 

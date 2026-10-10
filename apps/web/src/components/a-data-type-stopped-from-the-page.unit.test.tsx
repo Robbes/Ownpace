@@ -127,7 +127,7 @@ describe('the press', () => {
     expect(stopOrResumeDataType).toHaveBeenCalledWith('m-1', 'email', 'stop');
     await waitFor(() =>
       expect(
-        screen.getByText('Email is stopped. Its copies stay; resume it to continue where it stopped.'),
+        screen.getByText('Email is stopped. What was migrated stays; resume to continue.'),
       ).toBeTruthy(),
     );
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['mapping', 'm-1'] });
@@ -142,7 +142,7 @@ describe('the press', () => {
 
     expect(stopOrResumeDataType).toHaveBeenCalledWith('m-1', 'calendar', 'resume');
     await waitFor(() =>
-      expect(screen.getByText('Calendar is resumed. The next pass continues where it stopped.')).toBeTruthy(),
+      expect(screen.getByText('Calendar is resumed. The next pass continues where we left off.')).toBeTruthy(),
     );
   });
 

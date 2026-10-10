@@ -56,5 +56,5 @@ What Nextcloud itself answers, this service shows word for word, in the server's
 ## Stopping {#leaving}
 
 - A migration is deleted under **Migrations**. The confirmation says what that does: **Removes the migration’s settings and record; nothing at your source or destination is touched.** What was already copied stays in your Nextcloud.
-- An account is deleted under **Accounts**, with **Delete**. That deletes this service's copy of the app password. The app password itself stays valid at Nextcloud, and the screen says so too: **We deleted our copy; this provider has no revocation we can call.**
+- An account is deleted under **Accounts**, with **Delete**. That deletes this service's copy of the app password. The app password itself stays valid at Nextcloud, and the screen says so too: **We deleted our copy; this provider has no revocation we can trigger.**
 - So revoke the app password at Nextcloud, under **Settings** → **Security** → **Devices & sessions**, where you created it.

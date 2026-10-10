@@ -42,9 +42,22 @@ const ALLOWED_OVER: Readonly<Record<string, string>> = {};
 
 export type Budget = { readonly words: number; readonly oneSentence: boolean };
 
+/**
+ * key → a budget raised above its shape's, for a line the owner chose to keep
+ * as written. Keep this SHORT.
+ *
+ * - `setup.intro`: the owner's Dutch says *uw oude aanbieder* and runs to 16
+ *   words; the owner kept it (2026-10-10, text review decision 25).
+ */
+const RAISED: Readonly<Record<string, Budget>> = {
+  'setup.intro': { words: 16, oneSentence: false },
+};
+
 /** What a key of this shape may spend on screen. */
 export function budgetFor(key: string): Budget | null {
   if (FOLDED.test(key)) return null;
+  const raised = RAISED[key];
+  if (raised) return raised;
   if (/\.hint(\.|$)/.test(key)) return { words: 12, oneSentence: true };
   if (/\.intro$/.test(key)) return { words: 15, oneSentence: false };
   if (/\.placeholder$/.test(key)) return { words: 8, oneSentence: false };

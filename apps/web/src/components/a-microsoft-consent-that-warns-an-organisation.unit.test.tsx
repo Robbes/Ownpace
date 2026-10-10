@@ -74,7 +74,7 @@ const words = (locale: Locale, key: string): string => {
 /** What the line has to say, in §3's words: who may be asked, for which account, and which not. */
 const SAYS: Readonly<Record<Locale, ReadonlyArray<RegExp>>> = {
   en: [/work or school account/, /organisation['’]s administrator/, /approve Ownpace first/, /personal Microsoft account does not/],
-  nl: [/werk- of schoolaccount/, /beheerder van uw organisatie/, /persoonlijk Microsoft-account niet/],
+  nl: [/werk- of schoolaccount/, /eerst goedkeuring nodig zijn van uw beheerder/, /persoonlijk Microsoft-account is dat niet nodig/],
 };
 
 /** What a screen reader hears for the button beyond its name: the text of every element it points at. */

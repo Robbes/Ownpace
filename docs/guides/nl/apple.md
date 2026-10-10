@@ -30,7 +30,7 @@ U typt geen van die servers. Het zijn de gepubliceerde waarden van Apple, in dit
 
 ### 2. Voeg het account toe {#apple}
 
-Vink bij **Welk account verlaat u?** **Apple iCloud** aan. Bij **Uw accounts verbinden** heeft het formulier twee vakken:
+Vink bij **Welk account verlaat of migreert u?** **Apple iCloud** aan. Bij **Uw accounts verbinden** heeft het formulier twee vakken:
 
 - **Gebruikersnaam**: uw iCloud-adres, `you@icloud.com`.
 - **App-specifiek wachtwoord**: plak wat Apple u toonde.
@@ -63,7 +63,7 @@ De Apple-kaart toont **Bestanden: nee**, met een zin erbij, nooit een `?` en noo
 
 De enige weg naar die bestanden is **uw eigen export via Data & Privacy** op [`privacy.apple.com`](https://privacy.apple.com), die Apple u als downloadlink geeft. Dat is iets heel anders: een archief met een datum erop, geen account dat leeft.
 
-**Nog te testen.** Een Apple-export kunnen we nog niet lezen. Vraag die alleen aan voor uw eigen archief. De [handleiding voor het exportarchief](archive.md#apple-privacy) heeft de stappen.
+**Te testen.** Een Apple-export kunnen we nog niet lezen. Vraag die alleen aan voor uw eigen archief. De [handleiding voor het exportarchief](archive.md#apple-privacy) heeft de stappen.
 
 ### Wat de export van Apple u echt geeft {#export}
 

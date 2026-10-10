@@ -219,9 +219,10 @@ describe('the grant mail says alpha when the deployment does', () => {
   });
 
   it.each([
-    // The welcome's first sentence (the owner, 2026-10-04, 0131 D4's amendment).
+    // The welcome's first sentence (the owner, 2026-10-04, 0131 D4's amendment;
+    // the Dutch mail's own since the owner's text review, 2026-10-10).
     ['en', 'Welcome to the Alpha!'],
-    ['nl', 'Welkom bij de Alpha!'],
+    ['nl', 'Welkom bij Ownpace in de Alpha-fase!'],
   ] as const)('what is sent in %s carries the paragraph with the setting, and not without', async (locale, lead) => {
     __setChannelForTests(channel() as never);
 

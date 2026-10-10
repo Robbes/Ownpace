@@ -130,9 +130,9 @@ const SAID = {
     package: /which package looks right/i,
   },
   nl: {
-    charged: 'Tijdens de Alpha wordt niets in rekening gebracht.',
+    charged: 'Tijdens de Alpha-fase wordt niets in rekening gebracht.',
     line:
-      'Tijdens de Alpha wordt niets in rekening gebracht. Niet nodig zolang uw pakket gratis is: ' +
+      'Tijdens de Alpha-fase wordt niets in rekening gebracht. Niet nodig zolang uw pakket gratis is: ' +
       'er wordt niets gefactureerd.',
     notNeeded: 'Niet nodig zolang uw pakket gratis is: er wordt niets gefactureerd.',
     missing: 'Nog niet ingevuld. Er kunnen geen facturen worden uitgereikt totdat dit is ingevuld.',
@@ -146,7 +146,7 @@ const SAID = {
     currentUsage: 'Huidig verbruik',
     paymentMethods: 'Betaalmethoden',
     free: 'Gratis: op dit pakket wordt niets gefactureerd',
-    package: /welk pakket lijkt te passen/i,
+    package: /welk pakket zou passen/i,
   },
 } as const;
 

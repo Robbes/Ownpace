@@ -288,7 +288,7 @@ describe('the morning mail, one per organisation (0157 T7)', () => {
     const [mail] = sent;
     expect([...mail!.to].sort()).toEqual(['admin@example.invalid', 'owner@example.invalid']);
     expect(mail!.locale).toBe('nl');
-    expect(mail!.message.subject).toBe('Ownpace — alles is bijgewerkt, dus we kijken minder vaak');
+    expect(mail!.message.subject).toBe('Ownpace — alles is bijgewerkt, dus we doen het wat rustiger aan');
     expect(mail!.message.body).toContain('Migratie: Anna mail\n  - Persoon: Anna Jansen\n  - Nu elke 6 uur');
     expect(mail!.message.body).toContain('Migratie: Family mail and calendars\n  - Nu eens per dag');
     expect(mail!.message.body).not.toContain('Visited');

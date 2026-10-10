@@ -125,7 +125,7 @@ describe('past the tier', () => {
   it('past Extra large, says talk to us instead of a tier', async () => {
     getPathsAtStart.mockResolvedValue({ ...PAST, needs: null });
     renderQuestion();
-    expect(await screen.findByText(/No tier runs that many at the same time. Talk to us/)).toBeInTheDocument();
+    expect(await screen.findByText(/No tier runs that many at the same time. Contact us/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Move up/ })).toBeNull();
   });
 

@@ -132,7 +132,7 @@ describe('Who is it for? (screen 1)', () => {
     expect(next()).toBeEnabled();
     await user.click(next());
     // A new screen starts with focus on its heading (0145 T3 (a)).
-    expect(screen.getByRole('heading', { level: 2, name: 'Which account are you leaving?' })).toHaveFocus();
+    expect(screen.getByRole('heading', { level: 2, name: 'Which account are you leaving or moving?' })).toHaveFocus();
     expect(screen.getByText('Step 2 of 6')).toBeInTheDocument();
   });
 
@@ -162,7 +162,7 @@ describe('Who is it for? (screen 1)', () => {
   });
 });
 
-describe('Which account are you leaving? (screen 2)', () => {
+describe('Which account are you leaving or moving? (screen 2)', () => {
   it('draws six tiles with none ticked, and waits for one', async () => {
     const user = userEvent.setup();
     renderAt();
@@ -811,9 +811,9 @@ describe('someone else connects their own accounts, by a link where one reaches 
     expect(screen.getByText('No link reaches Google Drive: sign in together with Anna Jansen.')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Connect with Google' })).toHaveLength(2);
 
-    const save = screen.getByRole('button', { name: 'Save the address' });
-    expect(save).toHaveAccessibleDescription('Type their address first.');
-    await user.type(screen.getByLabelText('Their address at Google'), 'anna@gmail.com');
+    const save = screen.getByRole('button', { name: 'Save the email address' });
+    expect(save).toHaveAccessibleDescription('Type their email address first.');
+    await user.type(screen.getByLabelText('Their email address at Google'), 'anna@gmail.com');
     await user.click(save);
     expect(addMock).toHaveBeenCalledWith({
       role: 'source',
@@ -843,8 +843,8 @@ describe('someone else connects their own accounts, by a link where one reaches 
       await user.click(within(google).getByRole('checkbox', { name: face }));
     }
     await onTo(user, 'Connect your accounts');
-    await user.type(await screen.findByLabelText('Their address at Google'), 'anna@gmail.com');
-    await user.click(screen.getByRole('button', { name: 'Save the address' }));
+    await user.type(await screen.findByLabelText('Their email address at Google'), 'anna@gmail.com');
+    await user.click(screen.getByRole('button', { name: 'Save the email address' }));
     await screen.findByText('By link: anna@gmail.com');
     await onTo(user, 'Where does it go?');
     await user.click(next());
@@ -862,7 +862,7 @@ describe('someone else connects their own accounts, by a link where one reaches 
     // ONE link for the person (ADR-0035, amended 2026-09-29), not one per
     // migration: the migration waits on it by name.
     expect(screen.getAllByRole('button', { name: /Create grant link/ })).toHaveLength(1);
-    expect(screen.getByText('Its count appears here once Anna Jansen has connected through the link above.')).toBeInTheDocument();
+    expect(screen.getByText('Its status and counts appear here once Anna Jansen has connected through the link above.')).toBeInTheDocument();
     expect(linksMock).toHaveBeenCalledWith(expect.any(String));
     expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
     // Nothing of theirs is counted, so nothing could be started yet, and a
@@ -914,7 +914,7 @@ describe('someone else connects their own accounts, by a link where one reaches 
     renderAt();
     await toCheckByLink(user);
     expect(await screen.findByText(/Waiting for Anna Jansen to connect/)).toBeInTheDocument();
-    expect(screen.getByText('Its count appears here once Anna Jansen has connected through the link above.')).toBeInTheDocument();
+    expect(screen.getByText('Its status and counts appear here once Anna Jansen has connected through the link above.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
   });
 });
@@ -981,7 +981,7 @@ describe('Start once one count is in, and the rest when they connect', () => {
     const user = userEvent.setup();
     renderCheck([MAIL, GOOGLE], onStarted);
 
-    expect(await screen.findByText('Once you have started the others, it starts by itself when Anna Jansen connects.')).toBeInTheDocument();
+    expect(await screen.findByText('Once you have started, it starts by itself when Anna Jansen connects.')).toBeInTheDocument();
     const start = screen.getByRole('button', { name: 'Start' });
     await vi.waitFor(() => expect(start).toBeEnabled());
     await user.click(start);

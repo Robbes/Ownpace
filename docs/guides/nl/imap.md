@@ -15,14 +15,14 @@ Aan beide kanten vraagt de kaart **IMAP** dezelfde velden. In **Migratie starten
 
 ### IMAP als bron {#imap-source}
 
-1. Vink bij **Welk account verlaat u?** **Een andere mailaanbieder** aan. Ook **Andere manieren om te verbinden (IMAP)** leidt ernaartoe.
+1. Vink bij **Welk account verlaat of migreert u?** **Een andere mailaanbieder** aan. Ook **Andere manieren om te verbinden (IMAP)** leidt ernaartoe.
 2. Vul bij **Uw accounts verbinden** de naam van de IMAP-server in bij **Host**, zoals `imap.example.com`: alleen de naam, zonder `https://` of een pad erachter.
 3. **Poort** is ingevuld met `993`, de gebruikelijke poort voor IMAP met SSL. Verander die alleen als uw aanbieder een andere opgeeft. Er is geen vakje voor SSL/TLS: deze dienst verbindt altijd daarmee.
 4. Vul bij **Gebruikersnaam** de gebruikersnaam van het postvak in.
 5. Vul bij **Wachtwoord** het app-wachtwoord in, of het wachtwoord van het postvak als de aanbieder dat voor IMAP toelaat.
 6. Druk op **Aanmelding controleren**.
 
-De test meldt zich alleen-lezen aan en schrijft niets. Werkt het, dan staat er **Verbonden.**, met daaronder wat hij vond, en is het account bewaard. Bij een volgende migratie biedt **Uw accounts verbinden** het aan, zodat u niets opnieuw hoeft in te vullen. De link **Instelstappen** onder het formulier zet de voorbereiding op een lijst die onthoudt wat u al gedaan hebt.
+De test meldt zich alleen-lezen aan en schrijft niets. Werkt het, dan staat er **Verbonden.**, met daaronder wat hij vond, en is het account bewaard. Bij een volgende migratie biedt **Uw accounts verbinden** het aan, zodat u niets opnieuw hoeft in te vullen. De link **Instellen** onder het formulier zet de voorbereiding op een lijst die onthoudt wat u al gedaan hebt.
 
 ### IMAP als doel {#imap-target}
 
@@ -43,7 +43,7 @@ U kunt een IMAP-account ook vooraf toevoegen, onder **Accounts** → **Account t
 - **Als bron** leest deze kaart mail: de mappen van het postvak en de berichten daarin. Bij **Wat wilt u migreren?** biedt een mailaanbieder alleen **E-mail** aan, en zegt waarom: via IMAP wordt alleen mail gelezen. Agenda's en contacten meet deze dienst op een IMAP-account ook niet.
 - **Als doel** ontvangt deze kaart alleen mail: bij **Waar gaat het naartoe?** biedt alleen de rij voor e-mail haar aan. Agenda's, contacten, bestanden en taken gaan naar een CalDAV-, CardDAV- of WebDAV-doel ([de DAV-handleiding](dav.md)) of naar een Nextcloud ([de Nextcloud-handleiding](nextcloud.md)), gekozen in hun eigen rijen, en **Migratie starten** maakt voor elk een migratie.
 - Mappen die in het doel nog niet bestaan, worden aangemaakt. Verzonden en Concepten worden de Verzonden en Concepten van het doelaccount zelf. In een eigen map komen ze als gewone mappen daarbinnen terecht, want een mailprogramma kan er maar één van elk hebben.
-- Een migratie mag vaker lopen: een bericht dat al in het doel staat, wordt herkend en niet nog eens gekopieerd.
+- Een migratie mag vaker lopen: een bericht dat al in het doel staat, wordt herkend en niet nog eens gemigreerd.
 
 ## Als de test iets meldt {#when-test-says}
 
@@ -56,6 +56,6 @@ Wat een mailserver zelf antwoordt, toont deze dienst woordelijk, in de taal van 
 
 ## Stoppen {#leaving}
 
-- Een migratie verwijdert u onder **Migraties**. De bevestiging zegt wat dat doet: **Verwijdert instellingen en registratie van de migratie; bij uw bron of bestemming wordt niets aangeraakt.** Wat al gekopieerd is, blijft in het doel staan.
-- Een account verwijdert u onder **Accounts** met **Verwijderen**. Daarmee verdwijnt de kopie van het wachtwoord bij deze dienst. Het wachtwoord zelf blijft bij de aanbieder geldig, en het scherm zegt dat ook: **Wij hebben onze kopie verwijderd; deze aanbieder biedt geen intrekking die wij kunnen aanroepen.**
+- Een migratie verwijdert u onder **Migraties**. De bevestiging zegt wat dat doet: **Verwijdert enkel instellingen en registratie van uw migratie in Ownpace, niets bij uw bron of bestemming.** Wat al gemigreerd is, blijft in het doel staan.
+- Een account verwijdert u onder **Accounts** met **Verwijderen**. Daarmee verdwijnt de kopie van het wachtwoord bij deze dienst. Het wachtwoord zelf blijft bij de aanbieder geldig, en het scherm zegt dat ook: **Wij hebben onze kopie verwijderd; deze aanbieder biedt geen manier om intrekking door ons te forceren.**
 - Trek daarom het app-wachtwoord in bij uw aanbieder, of wijzig het wachtwoord van het postvak. Dat kan alleen de houder van het account. Een app-wachtwoord kan ingetrokken worden zonder het wachtwoord van de persoon te wijzigen.

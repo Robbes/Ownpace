@@ -36,7 +36,7 @@ De derde waarde is het **numerieke** gebruikers-ID van het account dat u migreer
 
 ### 4. Vul het in {#box}
 
-Vink bij **Welk account verlaat u?** **Box** aan. Bij **Uw accounts verbinden** vraagt het formulier alles: het adres van het account onder **Gebruikersnaam**, het getal uit stap 3 onder **Box-gebruikers-ID (numeriek)**, en de twee waarden uit stap 1 onder **Client-ID (applicatie-ID)** en **Clientgeheim**; het geheim wordt versleuteld bewaard. **Aanmelding controleren** haalt één keer een lijst op, alleen lezend, via precies wat een ronde zou opbouwen.
+Vink bij **Welk account verlaat of migreert u?** **Box** aan. Bij **Uw accounts verbinden** vraagt het formulier alles: het adres van het account onder **Gebruikersnaam**, het getal uit stap 3 onder **Box-gebruikers-ID (numeriek)**, en de twee waarden uit stap 1 onder **Client-ID (applicatie-ID)** en **Clientsecret**; het geheim wordt versleuteld bewaard. **Aanmelding controleren** haalt één keer een lijst op, alleen lezend, via precies wat een ronde zou opbouwen.
 
 Wilt u één map migreren in plaats van het hele account, kies dan **Alleen één map**, onder **Bestanden** bij **Wat wilt u migreren?**. Is het account verbonden, plak dan het adres van de map uit Box: het getal aan het eind is de map-ID. De mappen van Box worden daar niet opgesomd.
 

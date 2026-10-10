@@ -30,11 +30,11 @@ U kunt een JMAP-account ook vooraf toevoegen, onder **Accounts** → **Account t
 - **Contacten**.
 - **Bestanden**, met één grens: het grootste bestand dat de JMAP-server in één upload aanneemt. De server geeft die grens zelf op. Een groter bestand meldt de migratie als mislukt, onder **Mislukkingen**, met de grens van de server, en de migratie gaat verder met de rest. Wilt u zo'n bestand meenemen, verhoog dan de uploadgrens van de server, of kies voor de bestanden een WebDAV-doel ([de DAV-handleiding](dav.md)) of een Nextcloud ([de Nextcloud-handleiding](nextcloud.md)).
 - **Agenda** en **Taken** gaan niet naar een JMAP-doel. Terugkerende afspraken komen via JMAP nog niet heel over: een reeks zou als losse afspraken aankomen. Deze dienst schrijft agenda's en takenlijsten daarom via CalDAV: bij **Waar gaat het naartoe?** bieden hun rijen geen JMAP aan, en gaan ze in hun eigen rijen naar een CalDAV-doel, waarvoor **Migratie starten** een eigen migratie maakt.
-- Een migratie mag vaker lopen: wat al in het doel staat, wordt herkend en niet nog eens gekopieerd.
+- Een migratie mag vaker lopen: wat al in het doel staat, wordt herkend en niet nog eens gemigreerd.
 
 ## Als de test iets meldt {#when-test-says}
 
-- **De server op … antwoordde 401. Hij is bereikbaar en weigerde de inloggegevens.** De gebruikersnaam of het wachtwoord klopt niet. Controleer beide, of maak een nieuw app-wachtwoord.
+- **De server op … antwoordde 401. Is bereikbaar en weigerde de inloggegevens.** De gebruikersnaam of het wachtwoord klopt niet. Controleer beide, of maak een nieuw app-wachtwoord.
 - **De server op … antwoordde** met een ander getal, gevolgd door **Controleer de host en poort van het doel.** Op dat adres antwoordt geen JMAP-server. Controleer **Host** en **Poort**.
 - **Geen antwoord binnen 20 seconden.** De test zegt dat.
 - **Een mislukte test begint opnieuw.** **Opnieuw proberen** haalt het account weg dat de mislukte test bewaarde en opent het formulier weer met wat u typte, zodat een verbeterde **Host** of **Poort** getest wordt zoals getypt. Verwijder op de pagina **Accounts** het account dat mislukte, en voeg het opnieuw toe.
@@ -43,6 +43,6 @@ Wat de server zelf antwoordt, toont deze dienst woordelijk, in de taal van de se
 
 ## Stoppen {#leaving}
 
-- Een migratie verwijdert u onder **Migraties**. De bevestiging zegt wat dat doet: **Verwijdert instellingen en registratie van de migratie; bij uw bron of bestemming wordt niets aangeraakt.** Wat al gekopieerd is, blijft in het doel staan.
-- Een account verwijdert u onder **Accounts** met **Verwijderen**. Daarmee verdwijnt de kopie van het wachtwoord bij deze dienst. Het wachtwoord zelf blijft bij de server geldig, en het scherm zegt dat ook: **Wij hebben onze kopie verwijderd; deze aanbieder biedt geen intrekking die wij kunnen aanroepen.**
+- Een migratie verwijdert u onder **Migraties**. De bevestiging zegt wat dat doet: **Verwijdert enkel instellingen en registratie van uw migratie in Ownpace, niets bij uw bron of bestemming.** Wat al gemigreerd is, blijft in het doel staan.
+- Een account verwijdert u onder **Accounts** met **Verwijderen**. Daarmee verdwijnt de kopie van het wachtwoord bij deze dienst. Het wachtwoord zelf blijft bij de server geldig, en het scherm zegt dat ook: **Wij hebben onze kopie verwijderd; deze aanbieder biedt geen manier om intrekking door ons te forceren.**
 - Trek daarom het app-wachtwoord in bij de server, of wijzig het wachtwoord. Dat kan alleen de houder van het account.
