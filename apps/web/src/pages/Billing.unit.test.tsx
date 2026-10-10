@@ -627,6 +627,43 @@ describe('the invoice contract is the server contract (0039 T3)', () => {
   });
 });
 
+describe('the number the books gave it (0111 slice 5)', () => {
+  it("names an issued invoice by Moneybird's number, with its invoice date and due date", async () => {
+    invoicesMock.mockResolvedValue({
+      invoices: [
+        invoiceFixture({
+          id: 'inv-issued',
+          status: 'sent',
+          periodStart: '2026-10-01',
+          periodEnd: '2026-10-31',
+          invoiceNumber: '2026-0001',
+          invoiceDate: '2026-10-01',
+          dueDate: '2026-10-15',
+        }),
+      ],
+    });
+
+    renderBilling();
+
+    expect(await screen.findByText('Invoice 2026-0001')).toBeInTheDocument();
+    // The day written, wherever the browser is: read in UTC.
+    expect(screen.getByText('Invoice date: October 1, 2026 · due date: October 15, 2026')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pay' })).toBeInTheDocument();
+  });
+
+  it('says a draft is being prepared, and offers no Pay: there is nothing to pay until it is numbered', async () => {
+    invoicesMock.mockResolvedValue({ invoices: [invoiceFixture({ id: 'inv-draft', status: 'draft' })] });
+
+    renderBilling();
+
+    expect(await screen.findByText('Being prepared')).toBeInTheDocument();
+    expect(screen.getByText('Invoice')).toBeInTheDocument();
+    expect(screen.queryByText(/inv-draf/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Invoice date/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pay' })).not.toBeInTheDocument();
+  });
+});
+
 describe('the pay loop is reachable and role-gated (0039 T1/T4)', () => {
   it('an admin can pay an overdue invoice — createPayment is called and the checkout URL followed', async () => {
     invoicesMock.mockResolvedValue({ invoices: [invoiceFixture({ status: 'overdue' })] });

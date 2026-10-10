@@ -2,7 +2,18 @@
 
 > **In one line:** The invoice as a legal document, numbered and rendered by Moneybird: `billing_party` buyer data, VIES checks in `vat_consultation`, VAT treatment and OSS, the Moneybird adapter and mirror, an immutability trigger, credit notes and VAT-inclusive prices.
 
-## Status — 2026-10-06 (update this block at the end of every session)
+## Status — 2026-10-10 (update this block at the end of every session)
+
+**2026-10-10: slice 5b — the Billing page names an invoice by its number.** Once Moneybird has
+numbered it, an invoice is *Invoice 2026-0001*, with *Invoice date: October 1, 2026 · due date:
+October 15, 2026* under its period (`GET /api/billing/invoices` serves the number and the date; the
+days are read in UTC, so the day is the one written wherever the browser is). A draft is *Being
+prepared* / *Wordt opgemaakt* (the chip's word for `draft`, the glossary's too) and has no Pay
+button: the API refuses to pay a draft since slice 3, and the page no longer offers it. An invoice
+from before the books keeps its id.
+
+- **Guards:** `Billing.unit.test.tsx` (an issued invoice by its number, with both dates and Pay; a
+  draft *Being prepared*, without an id, dates or Pay).
 
 **2026-10-06, later: slice 5a — each draft numbered by Moneybird.** `managed-invoice-push`, hourly
 at :41, takes each active organisation's drafts to the books and writes back what Moneybird made
@@ -33,7 +44,7 @@ with a draft still a draft two days after it was made is said as an error, by re
   alert; a 429 stops the run). The column pin knows `push_lease_until` (lifecycle) and the grant
   pin the two columns 0047 grants. The split-job guard has six, the task count seventeen, and the
   runbook's switch table a row for the push.
-- **Not yet:** the Billing page showing the legal number and paying only an issued invoice (5b);
+- **Not yet:** the Billing page showing the legal number and paying only an issued invoice (5b, above);
   reading back `paid` and `late`; the invoice e-mail address and invoice details before leaving
   Free (decisions 11 and 14); `operator.sh moneybird proof` and the nightly sandbox invoice
   (decision 12).
@@ -699,7 +710,7 @@ slice 5. The annual credit is not in this chain (decision 6).
 5. **Moneybird numbers it.** A daily task pushes each draft, one writer by construction, a lease
    on the row, paced under the 150-requests-per-5-minutes limit, then reads the state back
    (`paid`, `late`). **The push built 2026-10-06** (slice 5a, managed 0047, hourly, Status). The Billing page shows the legal number and date; Pay shows only where an
-   invoice can be paid. `operator.sh moneybird proof` makes one invoice in the sandbox, by hand,
+   invoice can be paid: **built 2026-10-10** (slice 5b, Status). `operator.sh moneybird proof` makes one invoice in the sandbox, by hand,
    never by e-mail, and running it again answers that it exists; the nightly managed run makes one
    with a payment registered (12). Invoice details first (14).
 6. **Moneybird's PDF in the app** (T6). The app streams Moneybird's own document and keeps no
