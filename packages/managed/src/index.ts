@@ -50,6 +50,7 @@ export * from './moneybird-nightly.ts';
 export * from './moneybird-sales-invoices.ts';
 export * from './line-price.ts';
 export * from './moneybird-push.ts';
+export * from './moneybird-documents.ts';
 export * from './occupancy-peak.ts';
 export * from './bytes-moved.ts';
 export * from './tier-calculator.ts';

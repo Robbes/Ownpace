@@ -1004,6 +1004,9 @@ const en = {
   // Moneybird's dates, once it numbered the invoice (0111 slice 5).
   'billing.invoiceDate': 'Invoice date: {date}',
   'billing.invoiceDue': 'due date: {date}',
+  // Moneybird's PDF of a numbered invoice (0111 T6); the format is in the file's name.
+  'billing.invoice.download': 'Download the invoice',
+  'billing.invoice.downloadFailed': 'The invoice could not be downloaded.',
   'billing.paymentMethods': 'Payment Methods',
   // The channel's state, shown only when it is OFF (0043 T3). "On" is not worth
   // a banner; "off" is the state somebody has to act on, and until now it was
@@ -4046,6 +4049,8 @@ const nl: Record<keyof typeof en, string> = {
   'billing.period': 'Periode:',
   'billing.invoiceDate': 'Factuurdatum: {date}',
   'billing.invoiceDue': 'vervaldatum: {date}',
+  'billing.invoice.download': 'Factuur downloaden',
+  'billing.invoice.downloadFailed': 'De factuur kon niet worden gedownload.',
   'billing.paymentMethods': 'Betaalmethoden',
   'notifications.off': 'E-mailmeldingen staan uit',
   'notifications.offHint':

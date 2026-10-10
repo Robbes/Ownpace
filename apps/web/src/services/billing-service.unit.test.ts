@@ -6,9 +6,16 @@
  * numeric and arrive as strings over JSON, which the old hand-written
  * `number` types hid behind implicit coercion.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
-import { InvoiceSchema, UsageResponseSchema, PaymentMethodSchema } from './billing-service.ts';
+import { AxiosError, type AxiosResponse } from 'axios';
+import { InvoiceSchema, UsageResponseSchema, PaymentMethodSchema, billingApi } from './billing-service.ts';
+import apiClient, { serverMessage } from './api.ts';
+
+vi.mock('./api.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./api.ts')>()),
+  default: { get: vi.fn() },
+}));
 
 /** GET /billing/invoices — a row as the route's Drizzle select serves it. */
 const invoiceRow = {
@@ -200,5 +207,34 @@ describe('PaymentMethodSchema vs the payment-methods route', () => {
     ]);
     expect(parsed[0]!.lastFour).toBe('4242');
     expect(parsed[0]!.isDefault).toBe(true);
+  });
+});
+
+describe("an invoice's document, as bytes (0111 T6)", () => {
+  it('names the file as the server did, and asks for bytes', async () => {
+    const blob = new Blob(['%PDF-1.7'], { type: 'application/pdf' });
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: blob,
+      headers: { 'content-disposition': 'attachment; filename="Ownpace-invoice-2026_0007.pdf"' },
+    });
+
+    expect(await billingApi.downloadInvoicePdf('inv-1')).toEqual({ blob, filename: 'Ownpace-invoice-2026_0007.pdf' });
+    expect(apiClient.get).toHaveBeenCalledWith('/billing/invoices/inv-1/pdf', { responseType: 'blob' });
+  });
+
+  it('reads back a refusal that arrived as bytes too, so its sentence is what the page shows', async () => {
+    const reason = 'This invoice is being prepared and has no document yet: it has one once it is numbered.';
+    vi.mocked(apiClient.get).mockRejectedValue(
+      new AxiosError('Request failed with status code 409', 'ERR_BAD_REQUEST', undefined, undefined, {
+        status: 409,
+        statusText: 'Conflict',
+        headers: {},
+        config: {},
+        data: new Blob([JSON.stringify({ error: 'no_document_yet', reason })], { type: 'application/json' }),
+      } as AxiosResponse),
+    );
+
+    const err = await billingApi.downloadInvoicePdf('inv-1').catch((e: unknown) => e);
+    expect(serverMessage(err)).toBe(reason);
   });
 });
