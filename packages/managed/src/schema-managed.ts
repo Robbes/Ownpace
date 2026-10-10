@@ -197,6 +197,8 @@ export const billingParty = pgTable('billing_party', {
   /** ISO 3166-1 alpha-2, uppercase (CHECK-pinned in the migration). */
   countryCode: text('country_code').notNull(),
   vatNumber: text('vat_number'),
+  /** Where Moneybird e-mails the invoice (0111 decision 11, managed 0048); optional. */
+  invoiceEmail: text('invoice_email'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

@@ -53,7 +53,7 @@ import * as schema from '@openmig/managed/schema-managed';
 import { run as runTable } from '@openmig/ledger/schema-pg';
 // The live slot count, through the ONE authority on which states hold a slot
 // (`holdsASlot`, wrapped by `slotsHeld`) rather than a second list here.
-import { PgPathLifecycleStore } from '@openmig/ledger';
+import { PgPathLifecycleStore, type PgDatabase } from '@openmig/ledger';
 import { log, type TenantId } from '@openmig/shared';
 import { readPathsForecast } from './paths-at-start.ts';
 import {
@@ -137,6 +137,15 @@ const BillingPartySchema = z
       .toUpperCase()
       .regex(/^[A-Z]{2}$/, 'countryCode must be a two-letter ISO 3166-1 code'),
     vatNumber: z.string().trim().max(32).optional(),
+    // Where Moneybird e-mails the invoice (0111 decision 11, managed 0048).
+    // Optional; empty is none. One `@` with something either side, as the
+    // column's check: whether the mailbox exists is the delivery's to find out.
+    invoiceEmail: z
+      .string()
+      .trim()
+      .max(254)
+      .regex(/^([^@\s]+@[^@\s]+)?$/, 'invoiceEmail must be an e-mail address, or empty')
+      .optional(),
   })
   .superRefine((body, ctx) => {
     if (body.kind !== 'business' && body.vatNumber) {
@@ -377,6 +386,29 @@ const YesSchema = z.object({
 });
 
 /**
+ * INVOICE DETAILS COME FIRST (workplan 0111, decision 14, the owner,
+ * 2026-10-05: "ok"; "a yes or a pick that leaves Free asks for them
+ * first"). Every yes and every pick of a paid tier is something an invoice
+ * will charge, and an invoice is made out to somebody: the name and address
+ * under Invoice details. Without them the invoice could be made and never
+ * sent (invoice-push.ts refuses it by name), so the yes is refused instead,
+ * before anything is recorded, and the page shows the way to the card.
+ * Asked inside the yes's own transaction, after its lock.
+ */
+const INVOICE_DETAILS_FIRST =
+  'Your invoice details come first: the name and address an invoice is made out to. ' +
+  'Add them under Invoice details, then say yes again.';
+
+async function hasInvoiceDetails(db: PgDatabase, tenantId: string): Promise<boolean> {
+  const rows = await db
+    .select({ tenantId: schema.billingParty.tenantId })
+    .from(schema.billingParty)
+    .where(eq(schema.billingParty.tenantId, tenantId))
+    .limit(1);
+  return rows.length === 1;
+}
+
+/**
  * POST /api/billing/ceiling/yes
  *
  * The customer's yes to the offer they were shown: a move up, or a top-up.
@@ -402,6 +434,7 @@ router.post('/ceiling/yes', authenticate, requireBillingWrite, async (req: Authe
       // One yes at a time per organisation: two presses of the same offer
       // must not buy two bands. Released with the transaction.
       await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'data_allowance:' + tenantId}))`);
+      if (!(await hasInvoiceDetails(db, tenantId))) return { detailsFirst: true } as const;
       const before = await readCeiling(db, asTenantId(tenantId));
       const alphaGb = await alphaGbOf(db, tenantId);
       const decision = decideYes(before, parsed.data);
@@ -409,6 +442,11 @@ router.post('/ceiling/yes', authenticate, requireBillingWrite, async (req: Authe
       await new PgDataAllowanceStore(db).record(asTenantId(tenantId), decision.grant, req.userId ?? 'unknown');
       return { ceiling: await readCeiling(db, asTenantId(tenantId)), alphaGb } as const;
     });
+    if ('detailsFirst' in outcome) {
+      return void res
+        .status(409)
+        .json({ error: 'invoice_details_first', message: INVOICE_DETAILS_FIRST, reason: INVOICE_DETAILS_FIRST });
+    }
     const holds = holdsAtCeiling(process.env.OWNPACE_STAGE);
     if ('refused' in outcome) {
       const reason =
@@ -516,12 +554,18 @@ router.post('/paths/yes', authenticate, requireBillingWrite, async (req: Authent
       // The data ceiling's lock: one yes at a time per organisation, on either
       // axis, so two presses of the same offer move up once.
       await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'data_allowance:' + tenantId}))`);
+      if (!(await hasInvoiceDetails(db, tenantId))) return { detailsFirst: true } as const;
       const store = new PgDataAllowanceStore(db);
       const decision = decidePathsYes(allowanceOf(await store.grants(asTenantId(tenantId))), parsed.data);
       if (!decision.ok) return { refused: decision.reason } as const;
       await store.record(asTenantId(tenantId), decision.grant, req.userId ?? 'unknown', 'paths');
       return { tier: allowanceOf(await store.grants(asTenantId(tenantId))).tier } as const;
     });
+    if ('detailsFirst' in outcome) {
+      return void res
+        .status(409)
+        .json({ error: 'invoice_details_first', message: INVOICE_DETAILS_FIRST, reason: INVOICE_DETAILS_FIRST });
+    }
     if ('refused' in outcome) {
       const reason =
         outcome.refused === 'offer_changed'
@@ -625,6 +669,8 @@ router.post('/pick', authenticate, requireBillingWrite, async (req: Authenticate
       // The yeses' lock: one pick or yes at a time per organisation, so two
       // presses pick once, and a pick and a yes at the ceiling do not cross.
       await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'data_allowance:' + tenantId}))`);
+      // A paid tier is invoiced; Free, the lower pick of none, is not.
+      if (parsed.data.tierId !== 'free' && !(await hasInvoiceDetails(db, tenantId))) return { detailsFirst: true } as const;
       // One moment for the decision and the row, so the month the pick counts
       // in is the one the decision read.
       const now = new Date();
@@ -636,6 +682,11 @@ router.post('/pick', authenticate, requireBillingWrite, async (req: Authenticate
       if (decision.yes) await new PgDataAllowanceStore(db).record(asTenantId(tenantId), decision.yes, by, 'pick');
       return { from: decision.from, state: await readBilledNow(db, asTenantId(tenantId), now) } as const;
     });
+    if ('detailsFirst' in outcome) {
+      return void res
+        .status(409)
+        .json({ error: 'invoice_details_first', message: INVOICE_DETAILS_FIRST, reason: INVOICE_DETAILS_FIRST });
+    }
     const holds = holdsAtCeiling(process.env.OWNPACE_STAGE);
     if ('refused' in outcome) {
       const reason = 'What may be picked has changed since the page was shown. Look at the tiers again before picking.';
@@ -901,6 +952,7 @@ router.put('/party', authenticate, requireBillingWrite, async (req: Authenticate
       city: body.city,
       countryCode: body.countryCode,
       vatNumber: body.kind === 'business' && body.vatNumber ? body.vatNumber : null,
+      invoiceEmail: body.invoiceEmail || null,
     };
 
     const [party] = await withTenantDb(tenantId, getSharedPool(), async (db) =>

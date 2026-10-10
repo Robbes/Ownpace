@@ -103,6 +103,12 @@ beforeAll(async () => {
     [OTHER, OTHER_CONN, OTHER_BOX],
   ] as const) {
     await owner('INSERT INTO tenant (id, name) VALUES ($1, $2)', [id, `org ${id.slice(-2)}`]);
+    // Invoice details come first (0111 decision 14): given here, so the yes is
+    // asked about the paths alone. The refusal without them is its own case.
+    await owner(
+      `INSERT INTO billing_party (tenant_id, kind, name, address_line1, postal_code, city, country_code) VALUES ($1, 'consumer', 'Sam de Vries', 'Dorpsstraat 1', '1234 AB', 'Ons Dorp', 'NL')`,
+      [id],
+    );
     await owner(
       `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
        VALUES ($1, $2, 'source', 'imap', 'i', '{}'::jsonb, 'connected')`,

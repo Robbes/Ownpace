@@ -29,8 +29,8 @@
  *
  * A draft with no invoice details has nobody to be addressed to, and one that
  * Moneybird would e-mail has nowhere to go without an invoice address (the
- * Invoice details card asks for it, decision 11; until it does, `email`
- * delivery is refused by name). Neither costs a request to find out.
+ * Invoice details card asks for it, decision 11, managed 0048; without one,
+ * `email` delivery is refused by name). Neither costs a request to find out.
  *
  * ## The buyer, as Moneybird holds it
  *
@@ -148,7 +148,7 @@ export function planPush(tenantId: string, draft: DraftToPush, standing: BuyerSt
       reason: `invoice ${draft.reference}: the organisation has given no invoice details, so there is nobody to address it to`,
     };
   }
-  if (context.delivery === 'email') {
+  if (context.delivery === 'email' && !party.invoiceEmail) {
     return {
       kind: 'refused',
       reason:
@@ -181,7 +181,11 @@ export function planPush(tenantId: string, draft: DraftToPush, standing: BuyerSt
         city: party.city,
         country: party.countryCode,
         taxNumber: business ? party.vatNumber : null,
-        email: null,
+        // Where Moneybird e-mails it, the invoice address the card asks for
+        // (managed 0048), and only when it is to e-mail it: under `Manual`, on
+        // the sandbox and the OTA stack, a tester's address has no business in
+        // the books, and the contact follows the buyer once delivery changes.
+        email: context.delivery === 'email' ? (party.invoiceEmail ?? null) : null,
       },
       lines: draft.lines.map((line) => ({
         description: words ? `${line.description}. ${words}` : line.description,
