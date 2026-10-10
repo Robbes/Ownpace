@@ -82,7 +82,7 @@ const FIXED_HOSTS: ReadonlyArray<{ readonly file: string; readonly uses: number;
   { file: 'packages/connectors/src/token-provider.ts', uses: 1, host: "Microsoft's token endpoint" },
   { file: 'packages/connectors/src/token-revoker.ts', uses: 1, host: "Google's revocation endpoint" },
   { file: 'packages/core/src/dns-verify-only.ts', uses: 1, host: 'three public DNS-over-HTTPS resolvers' },
-  { file: 'packages/managed/src/moneybird-sales-invoices.ts', uses: 4, host: 'Moneybird' },
+  { file: 'packages/managed/src/moneybird-sales-invoices.ts', uses: 6, host: 'Moneybird' },
   { file: 'packages/managed/src/moneybird-tax-rates.ts', uses: 1, host: 'Moneybird' },
   { file: 'packages/managed/src/moneybird-workflows.ts', uses: 1, host: 'Moneybird' },
   { file: 'packages/managed/src/vies.ts', uses: 1, host: "the EU's VIES service" },

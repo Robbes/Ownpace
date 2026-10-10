@@ -45,6 +45,8 @@ export * from './moneybird-config.ts';
 export * from './moneybird-tax-rates.ts';
 export * from './moneybird-workflows.ts';
 export * from './moneybird-check.ts';
+export * from './moneybird-proof.ts';
+export * from './moneybird-nightly.ts';
 export * from './moneybird-sales-invoices.ts';
 export * from './line-price.ts';
 export * from './moneybird-push.ts';
