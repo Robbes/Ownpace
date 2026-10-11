@@ -160,8 +160,14 @@ fi
 
 echo; echo "== CALL 3: a refund through Mollie (test mode), booked on the credit note"
 # A test payment of 12.00 on Mollie's hosted checkout. It names no webhook, so no stack hears of it.
-body=$(jq -nc --arg d "Ownpace proof 7d $STAMP" \
-  '{amount:{currency:"EUR", value:"12.00"}, description:$d, redirectUrl:"https://www.ownpace.eu/"}')
+# After paying, Mollie sends the browser to this stack's own app (WEB_URL), a page that answers;
+# with no https WEB_URL, to example.org, which always does.
+case "${WEB_URL:-}" in
+  https://*) BACK="$WEB_URL" ;;
+  *) BACK="https://example.org/" ;;
+esac
+body=$(jq -nc --arg d "Ownpace proof 7d $STAMP" --arg b "$BACK" \
+  '{amount:{currency:"EUR", value:"12.00"}, description:$d, redirectUrl:$b}')
 s=$(mollie POST /payments "$body"); need "$s" 201 "make a test payment at Mollie"
 TR=$(jq -r .id "$OUT")
 echo "payment: $TR"

@@ -26,6 +26,14 @@
  * with nothing paid above is set against its invoice in the books; one whose
  * invoice was paid by transfer is said to the operator, to pay back by hand.
  *
+ * REFUNDS, FOLLOWED TO THEIR END (slice 7d; the owner, 2026-10-11). Mollie
+ * accepting a refund is not Mollie paying it out, so each refund that has not
+ * ended is asked after every hour (`refund-follow.ts`, managed 0053) until
+ * Mollie says refunded, failed or canceled. Failed or canceled is said to the
+ * operator once, for a transfer by hand, and is not booked in the books if it
+ * was not yet; one still going seven days after it was made is said once.
+ * Before the refunds are booked, so a refund known to have failed never is.
+ *
  * PAID AND LATE, READ BACK (slice 5f, its second half). Once every
  * organisation has been pushed, one question to Moneybird: every invoice it
  * changed in the last day that is late, reminded or paid
@@ -80,6 +88,7 @@ import {
   claimNextDraft,
   claimNextPaymentToBook,
   draftsBehind,
+  followRefund,
   listChangedSalesInvoices,
   makeMoneyBack,
   moneybirdFromEnv,
@@ -97,6 +106,10 @@ import {
   READ_BACK_PAGES,
   READ_BACK_WINDOW_HOURS,
   recordPaymentBooked,
+  recordRefundLateSaid,
+  recordRefundStatus,
+  REFUND_LATE_DAYS,
+  refundsToFollow,
   whyNobodyIsInvoiced,
   type MoneybirdSettings,
   type PushContext,
@@ -127,6 +140,12 @@ export interface PushCounts {
   settled: number;
   /** Credit notes whose money goes back by transfer, by hand: the invoice was not paid through Mollie. */
   byHand: number;
+  /** Refunds Mollie said paid out, this run (managed 0053). */
+  refundsEnded: number;
+  /** Refunds Mollie ended failed or canceled, this run: said for a transfer by hand. */
+  refundsFailed: number;
+  /** Refunds said still going seven days after they were made, this run. */
+  refundsLate: number;
   refused: number;
   unavailable: number;
   slowed: number;
@@ -278,6 +297,47 @@ export async function pushOrganisation(
       notIssued(outcome, organisation, budget, counts);
     }
     if (budget.left > 0 && !budget.stopped) await (options.pace ?? (() => sleep(PUSH_SPACING_MS)))();
+  }
+  // Then each refund that has not ended, asked after at Mollie (refund-follow.ts):
+  // Mollie's calls, not the books', so outside the budget. Before the booking,
+  // so a refund known to have failed is never booked.
+  const mollieApiKey = options.mollieApiKey ?? null;
+  if (mollieApiKey !== null) {
+    const going = await withTenant(pool, organisation, (db) => refundsToFollow(db, tenantId));
+    for (const refund of going) {
+      const name = refund.invoiceNumber ?? refund.reference;
+      const read = await followRefund(mollieApiKey, refund, now, options.fetchImpl);
+      if (read.kind === 'unavailable') {
+        // Asked again the next hour.
+        counts.unavailable++;
+        log.error(`[invoice-push] organisation ${organisation}: ${read.reason}.`);
+        continue;
+      }
+      const wrote = await withTenant(pool, organisation, (db) => recordRefundStatus(db, tenantId, refund.id, read.status, now));
+      if (wrote && read.status === 'refunded') {
+        counts.refundsEnded++;
+      } else if (wrote && (read.status === 'failed' || read.status === 'canceled')) {
+        // Once: the end is written once, and only its writer says it.
+        counts.refundsFailed++;
+        log.error(
+          `[invoice-push] organisation ${organisation}: Mollie's refund ${refund.refundId} of ${refund.refundCents} cents ` +
+            `for credit note ${name} ended ${read.status}: the money did not go back. Pay it back by transfer within ` +
+            '14 days of the withdrawal (terms §7)' +
+            (refund.inTheBooks
+              ? `, and take its payment off the credit note in Moneybird (booked under ${refund.refundId}).`
+              : '; it was not booked in Moneybird, and will not be.'),
+        );
+      } else if (read.late && !refund.lateSaid) {
+        if (await withTenant(pool, organisation, (db) => recordRefundLateSaid(db, tenantId, refund.id, now))) {
+          counts.refundsLate++;
+          log.error(
+            `[invoice-push] organisation ${organisation}: Mollie's refund ${refund.refundId} of ${refund.refundCents} ` +
+              `cents for credit note ${name} is still ${read.status} ${REFUND_LATE_DAYS} days after it was made. A ` +
+              "queued refund waits until Mollie's balance covers it; terms §7 promises the money back within 14 days.",
+          );
+        }
+      }
+    }
   }
   // Then each refund booked on its credit note in the books, on Mollie's account.
   while (mollieAccountId !== null && budget.left > 0 && !budget.stopped) {
@@ -447,6 +507,9 @@ export const managedInvoicePush = schedules.task({
       refunded: 0,
       settled: 0,
       byHand: 0,
+      refundsEnded: 0,
+      refundsFailed: 0,
+      refundsLate: 0,
       refused: 0,
       unavailable: 0,
       slowed: 0,

@@ -112,7 +112,7 @@ describe("one organisation's payments through Mollie, booked as the hourly run b
 
   const fresh = (): { budget: PushBudget; counts: PushCounts } => ({
     budget: { left: 60, stopped: false },
-    counts: { issued: 0, credited: 0, adopted: 0, booked: 0, held: 0, refunded: 0, settled: 0, byHand: 0, refused: 0, unavailable: 0, slowed: 0 },
+    counts: { issued: 0, credited: 0, adopted: 0, booked: 0, held: 0, refunded: 0, settled: 0, byHand: 0, refundsEnded: 0, refundsFailed: 0, refundsLate: 0, refused: 0, unavailable: 0, slowed: 0 },
   });
 
   beforeAll(async () => {

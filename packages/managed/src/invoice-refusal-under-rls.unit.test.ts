@@ -388,7 +388,11 @@ describe('the catalog pin', () => {
       // The push's claim on a draft (0047).
       'push_lease_until',
       'refund_cents',
+      // That refund, followed to its end, written once (0053).
+      'refund_ended_at',
       'refund_id',
+      'refund_late_said_at',
+      'refund_status',
       'sent_at',
       'status',
       'subtotal',
@@ -458,6 +462,9 @@ describe('the column pin (0045)', () => {
     money_back_at: 'lifecycle',
     refund_id: 'lifecycle',
     refund_cents: 'lifecycle',
+    refund_status: 'lifecycle',
+    refund_ended_at: 'lifecycle',
+    refund_late_said_at: 'lifecycle',
     tenant_id: 'detach',
     billed_to_name: 'detach',
   };

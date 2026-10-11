@@ -194,7 +194,7 @@ describe('a credit note pushed as the hourly run pushes it', () => {
 
   const fresh = (): { budget: PushBudget; counts: PushCounts } => ({
     budget: { left: 60, stopped: false },
-    counts: { issued: 0, credited: 0, adopted: 0, booked: 0, held: 0, refunded: 0, settled: 0, byHand: 0, refused: 0, unavailable: 0, slowed: 0 },
+    counts: { issued: 0, credited: 0, adopted: 0, booked: 0, held: 0, refunded: 0, settled: 0, byHand: 0, refundsEnded: 0, refundsFailed: 0, refundsLate: 0, refused: 0, unavailable: 0, slowed: 0 },
   });
 
   beforeAll(async () => {
@@ -226,7 +226,7 @@ describe('a credit note pushed as the hourly run pushes it', () => {
     const { budget, counts } = fresh();
     await pushOrganisation(pool(), ORG, OCT_3, SETTINGS, CONTEXT, budget, counts, { fetchImpl: books.impl, ...noPace });
 
-    expect(counts).toEqual({ issued: 2, credited: 1, adopted: 0, booked: 0, held: 0, refunded: 0, settled: 1, byHand: 0, refused: 0, unavailable: 0, slowed: 0 });
+    expect(counts).toEqual({ issued: 2, credited: 1, adopted: 0, booked: 0, held: 0, refunded: 0, settled: 1, byHand: 0, refundsEnded: 0, refundsFailed: 0, refundsLate: 0, refused: 0, unavailable: 0, slowed: 0 });
     expect(await rowsOf(ORG)).toEqual([
       {
         reference: `ownpace-${ORG}-m-2026-10-medium`,

@@ -71,12 +71,14 @@ the owner's job.
    used. A credit note's amount is made real once the books number it (slice 7d, its second
    half): refunded through Mollie with live's `MOLLIE_API_KEY`, which `set-task-env.sh` hands to
    the tasks, settled against its invoice in the books, or said to the operator for a transfer
-   by hand.
+   by hand. Each refund is followed until Mollie says it ended: one that failed is said for a
+   transfer by hand and not booked, and one still going a week after it was made is said once.
 
    Terms 1.5 §7 has the lawyer's agreement, and the two Moneybird calls of slice 7d passed in the
    sandbox (`register_payment_creditinvoice` on a credit note crediting part of an open invoice,
    and a negative payment booked on a credit note; the owner, 2026-10-11, with
-   `./deploy/compose/moneybird-money-back-proof.sh`). Before invoices reach customers, one thing
+   `./deploy/compose/moneybird-money-back-proof.sh`), and so did Mollie's refund in test mode
+   (the same script with `refund`). Before invoices reach customers, one thing
    is the owner's: live's `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE` and `MOLLIE_API_KEY` set and
    uploaded to the tasks. Leave `OWNPACE_BILLING_FROM` empty until it is done.
 3. **Tell the testers, with their numbers.** No yes could be taken during the alpha, so every
