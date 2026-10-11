@@ -110,6 +110,8 @@ export const InvoiceSchema = z.object({
   /** Moneybird's legal number and its date (`YYYY-MM-DD`), once it numbered the invoice (0111 slice 5). */
   invoiceNumber: z.string().nullish(),
   invoiceDate: z.string().nullish(),
+  /** A credit note corrects an invoice (0111 T7): credited, never paid. */
+  kind: z.enum(['invoice', 'credit_note']).optional(),
 });
 
 export const PaymentMethodSchema = z.object({
@@ -261,6 +263,35 @@ export const PickSchema = z.object({
   raise: z.array(PickTierSchema),
   lower: z.array(PickTierSchema),
 });
+
+/**
+ * GET /billing/withdrawal (workplan 0111 T7, terms §7): whether the paid
+ * contract may be withdrawn from now, until when, at which tier, and what the
+ * form fills in for the person to confirm. `reason` says why it is closed.
+ */
+export const WithdrawalStateSchema = z.object({
+  open: z.boolean(),
+  reason: z.enum(['nothing_paid', 'business', 'past']).optional(),
+  since: z.string().nullable(),
+  /** The moment it is too late, UTC, exclusive: the end of the last day. */
+  until: z.string().nullable(),
+  tier: z.object({ id: z.string(), name: z.string() }).nullable(),
+  name: z.string().nullable(),
+  confirmTo: z.string().nullable(),
+});
+
+/** What POST /billing/withdrawal answers: when, and whether the acknowledgement went. */
+export const WithdrawnSchema = z.object({
+  withdrawnAt: z.string(),
+  since: z.string(),
+  tier: z.object({ id: z.string(), name: z.string() }),
+  credits: z.number(),
+  beganOnRequest: z.boolean(),
+  confirmation: z.enum(['sent', 'off', 'failed']),
+});
+
+export type WithdrawalState = z.infer<typeof WithdrawalStateSchema>;
+export type Withdrawn = z.infer<typeof WithdrawnSchema>;
 
 /** What POST /billing/pick answers: when the pick counts, and what may be picked now. */
 export const PickedSchema = PickSchema.extend({ from: z.enum(['now', 'next_month']) });
@@ -424,6 +455,18 @@ export const billingApi = {
   pickTier: async (pick: { tierId: string; priceEur: number }): Promise<Picked> => {
     const response = await apiClient.post('/billing/pick', pick);
     return PickedSchema.parse(response.data);
+  },
+
+  /** Whether the paid contract may be withdrawn from now (0111 T7). */
+  getWithdrawal: async (): Promise<WithdrawalState> => {
+    const response = await apiClient.get('/billing/withdrawal');
+    return WithdrawalStateSchema.parse(response.data);
+  },
+
+  /** Withdraw from the paid contract, with the name and address confirmed. A 409 carries a `reason`. Owner/admin. */
+  withdraw: async (statement: { name: string; confirmTo: string }): Promise<Withdrawn> => {
+    const response = await apiClient.post('/billing/withdrawal', statement);
+    return WithdrawnSchema.parse(response.data);
   },
 
   // List payment methods

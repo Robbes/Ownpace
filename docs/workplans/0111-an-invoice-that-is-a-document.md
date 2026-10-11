@@ -4,6 +4,35 @@
 
 ## Status — 2026-10-11 (update this block at the end of every session)
 
+**2026-10-11: slice 7c — the withdrawal function on the Billing page** (T7; 0152 T6 (f); terms
+§7). While a consumer may withdraw (`GET /api/billing/withdrawal` open), the Billing page shows a
+card above the invoices: the last day, and the button in article 11a's words, *Withdraw from
+contract here* / *Hier de overeenkomst herroepen* (the owner, 2026-10-05). It opens the second
+step, with the focus on it: the name (filled in from the invoice details), the contract said
+(*Ownpace Small, concluded on October 1, 2026*), the address the confirmation goes to (filled in
+from the signed-in address), and *Confirm withdrawal* / *Herroeping bevestigen*. Then the card
+says when it was withdrawn, that the organisation is on Free, and where the confirmation went, or
+that it could not be sent and goes by hand; the tier, the pace, the picks and the invoices are
+read again. A refusal is said in the server's words, and the form stays. On Free, for a business
+and after the fourteen days, there is no card. The invoice list says a credit note as one
+(*Credit note 2026-0008* / *Creditnota*), offers its document, and never *Pay*.
+
+- **Guards:** `Withdrawal.unit.test.tsx` (the last day and the button; the second step with the
+  focus on it, the name, the contract and the address; what was confirmed sent, trimmed, and what
+  followed said; a mail not sent, in Dutch; a refusal in the server's words; no card when closed);
+  `Billing.unit.test.tsx` (a credit note named as one, with its document and no *Pay*). Four
+  mutants, all red: *Pay* on a credit note, the card when closed, the focus, the name trimmed.
+- **Walked in a real browser, the same day, and one fault found.** The card kept what was
+  withdrawn in its own state, and the card is drawn anew whenever the Billing page draws itself as
+  loading: a usage read that had failed and is tried again after the withdrawal does that. Coming
+  back from another page draws it anew too. Either way the sentence was gone, and the card
+  offered the button again from the open window the app keeps for five minutes. Now what was
+  withdrawn is kept in the query cache, per organisation, and the window is read again with the
+  rest. Guards in `Billing.unit.test.tsx`: the sentence stays after a failed read is tried again;
+  the button is not offered to someone who comes back; and another organisation is not told it
+  withdrew. All three were red on the card as it was, and the last one also fails with the
+  organisation dropped from the key.
+
 **2026-10-11: slice 7b — the withdrawal, back to Free** (T7; decision 15; terms §7). A consumer
 withdraws from the paid contract through `POST /api/billing/withdrawal`, the second step of the
 withdrawal function (article 11a of the Consumer Rights Directive): the name and the address the
