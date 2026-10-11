@@ -4,6 +4,25 @@
 
 ## Status — 2026-10-11 (update this block at the end of every session)
 
+**2026-10-11: slice 7d, its first half — nothing paid that was credited.** An invoice a
+withdrawal credits may not have been paid yet. The pay route now asks Mollie for its total less
+what its credit notes take off (`creditedCents`, credit-note.ts: every credit note recorded for
+it that is not void, issued or still a draft, since a credit decided is a credit owed), and
+refuses with 409, asking Mollie nothing, when nothing is left. The invoice list returns the same
+amount per row (`credited`), so the Billing page offers *Pay* only on what is left and says
+*Credited in full: nothing left to pay.* / *Volledig gecrediteerd: er is niets meer te betalen.*,
+or *€4.00 credited; €8.00 left to pay.* The second half is the money back for an invoice already
+paid: a refund through Mollie under the credit note's reference as its idempotency key (the
+client takes one, `@mollie/api-client` 4.6), and an unpaid one settled against its credit note
+in the books (`register_payment_creditinvoice`, read from Moneybird's own description); a
+payment that did not come through Mollie is said to the operator for a transfer by hand.
+
+- **Guards:** `a-draft-is-not-paid.unit.test.ts` (credited in full: 409 and Mollie asked
+  nothing; credited 400 of 1200 by a credit note still a draft: Mollie asked for 800);
+  `Billing.unit.test.tsx` (no *Pay* and the sentence on an invoice credited in full; *Pay* and
+  what is left on one credited in part). Four mutants, all red: the refusal, the amount, a draft
+  credit not counted, *Pay* on a credited invoice.
+
 **2026-10-11: slice 7c — the withdrawal function on the Billing page** (T7; 0152 T6 (f); terms
 §7). While a consumer may withdraw (`GET /api/billing/withdrawal` open), the Billing page shows a
 card above the invoices: the last day, and the button in article 11a's words, *Withdraw from
@@ -929,10 +948,11 @@ slice 5. The annual credit is not in this chain (decision 6).
    then Moneybird's draft under its own reference, so a retry adopts the draft instead of making a
    second. The withdrawal is recorded append-only and read where the tier is read, as decided
    in 15. **The credit note built 2026-10-11** (slice 7a, Status), and **the withdrawal** (slice 7b,
-   Status): recorded, read where the tier is read, its credit notes and its acknowledgement. Next,
-   each its own pull request: (7c) the button on the Billing page; (7d) the money back, through
-   Mollie or said for a transfer, and an unpaid invoice settled against its credit note; (7e) the
-   yes that asks to begin before the fourteen days are over, from which the days used are billed.
+   Status): recorded, read where the tier is read, its credit notes and its acknowledgement; **the
+   button** (slice 7c), and **nothing paid that was credited** (slice 7d's first half). Next, each
+   its own pull request: (7d, second half) the money back, through Mollie or said for a transfer,
+   and an unpaid invoice settled against its credit note in the books; (7e) the yes that asks to
+   begin before the fourteen days are over, from which the days used are billed.
 
 **What the build holds to.** A retried push never mints a second invoice: only a 404 creates, one
 writer, a lease, and the reference fixed once used. Nothing after issue is editable, the new

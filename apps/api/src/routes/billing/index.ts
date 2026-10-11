@@ -55,6 +55,8 @@ import {
   readWithdrawalWindow,
   withdraw,
   type WithdrawalWindow,
+  creditedCents,
+  CREDITED_CENTS_SQL,
 } from '@openmig/managed';
 import { tell } from '../../access-notify.ts';
 import * as schema from '@openmig/managed/schema-managed';
@@ -1238,6 +1240,9 @@ router.get('/invoices', authenticate, requireBillingRead, async (req: Authentica
         invoiceDate: schema.invoice.invoiceDate,
         // A credit note is said as one, and never offered to pay (0111 T7).
         kind: schema.invoice.kind,
+        // What its credit notes take off it, in cents (0111 slice 7d): the
+        // page offers Pay only on what is left.
+        credited: sql<string>`${CREDITED_CENTS_SQL}`,
       })
       .from(schema.invoice)
       .where(eq(schema.invoice.tenantId, tenantId))
@@ -1464,13 +1469,28 @@ router.post('/invoices/:invoiceId/pay', authenticate, requireBillingWrite, async
       return;
     }
 
+    // What is left to pay: the total less what its credit notes take off
+    // (0111 slice 7d). A withdrawal credits an unpaid invoice before anyone
+    // pays it, and the customer pays only the rest, or nothing.
+    const credited = await withTenantDb(tenantId, getSharedPool(), (db) =>
+      creditedCents(db, asTenantId(tenantId), invoiceId),
+    );
+    const due = Number(invoice.total) - credited;
+    if (due <= 0) {
+      res.status(409).json({
+        error: 'Conflict',
+        message: 'This invoice is credited in full: there is nothing left to pay.',
+      });
+      return;
+    }
+
     // Get Mollie service
     const mollieService = getMollieService();
 
     // Create payment via Mollie
     const payment = await mollieService.createPayment({
       tenantId,
-      amount: Number(invoice.total), // Amount in cents
+      amount: due, // Amount in cents: the total, less what is credited
       description: `Invoice ${invoice.id} for period ${invoice.periodStart} to ${invoice.periodEnd}`,
       // /billing, not /billing/invoices/:id — the SPA defines no invoice
       // detail route, so the old value landed the customer on a BLANK PAGE

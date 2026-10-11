@@ -112,6 +112,8 @@ export const InvoiceSchema = z.object({
   invoiceDate: z.string().nullish(),
   /** A credit note corrects an invoice (0111 T7): credited, never paid. */
   kind: z.enum(['invoice', 'credit_note']).optional(),
+  /** What its credit notes take off it, in cents (0111 slice 7d). */
+  credited: z.coerce.number().optional(),
 });
 
 export const PaymentMethodSchema = z.object({

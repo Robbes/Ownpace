@@ -307,3 +307,24 @@ export async function recordCreditIssued(
     .returning({ id: invoice.id });
   return rows.length === 1;
 }
+
+/**
+ * What the credit notes of the invoice `invoiceId` take off it, in cents, as a
+ * positive amount (0111 T7, slice 7d): every credit note recorded for it that
+ * is not void, issued or still a draft, since a credit decided is a credit owed.
+ * The pay route asks for the invoice's total less this, and refuses when
+ * nothing is left; the Billing page offers *Pay* on the same rule.
+ */
+export async function creditedCents(db: PgDatabase, tenantId: TenantId, invoiceId: string): Promise<number> {
+  const result = await db.execute(sql`
+    SELECT COALESCE(-sum(total), 0)::bigint::text AS credited FROM invoice
+     WHERE tenant_id = ${tenantId} AND credited_invoice_id = ${invoiceId}
+       AND kind = 'credit_note' AND status <> 'void'`);
+  const row = (result as unknown as { rows: { credited: string }[] }).rows[0];
+  return Number(row?.credited ?? 0);
+}
+
+/** The SQL the invoice list reads the same amount with, per row: credit-note.ts's `creditedCents`, inline. */
+export const CREDITED_CENTS_SQL = sql`COALESCE((
+  SELECT -sum(c.total) FROM invoice c
+   WHERE c.credited_invoice_id = invoice.id AND c.kind = 'credit_note' AND c.status <> 'void'), 0)`;

@@ -1002,6 +1002,8 @@ const en = {
   'billing.noInvoices': 'No invoices yet',
   'billing.invoice': 'Invoice',
   'billing.creditNote': 'Credit note',
+  'billing.creditedInFull': 'Credited in full: nothing left to pay.',
+  'billing.creditedPart': '{credited} credited; {left} left to pay.',
   'billing.period': 'Period:',
   // Moneybird's dates, once it numbered the invoice (0111 slice 5).
   'billing.invoiceDate': 'Invoice date: {date}',
@@ -4074,6 +4076,8 @@ const nl: Record<keyof typeof en, string> = {
   'billing.noInvoices': 'Nog geen facturen',
   'billing.invoice': 'Factuur',
   'billing.creditNote': 'Creditnota',
+  'billing.creditedInFull': 'Volledig gecrediteerd: er is niets meer te betalen.',
+  'billing.creditedPart': '{credited} gecrediteerd; nog {left} te betalen.',
   'billing.period': 'Periode:',
   'billing.invoiceDate': 'Factuurdatum: {date}',
   'billing.invoiceDue': 'vervaldatum: {date}',
