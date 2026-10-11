@@ -200,7 +200,7 @@ const renderPanel = (locale: Locale, type: string) =>
 
 /** Whether the line sits beside this button: inside the block the button is in. */
 function lineBeside(locale: Locale, button: HTMLElement): HTMLElement | null {
-  const line = screen.queryByText(words(locale, 'wizard.google.readsOnly'));
+  const line = screen.queryByText(words(locale, 'account.google.readsOnly'));
   if (line) expect(button.parentElement, 'the line is not beside the button').toContainElement(line);
   return line;
 }
@@ -208,7 +208,7 @@ function lineBeside(locale: Locale, button: HTMLElement): HTMLElement | null {
 describe('one line beside Connect with Google, in the consent panel (0144 T3 (a))', () => {
   for (const locale of LOCALES) {
     const connect = () =>
-      screen.getByRole('button', { name: words(locale, 'wizard.google.connect') });
+      screen.getByRole('button', { name: words(locale, 'account.google.connect') });
 
     it(`${locale}: a Google account with calendars ticked shows it`, async () => {
       renderPanel(locale, 'google');
@@ -246,9 +246,9 @@ describe('one line beside Connect with Google, in the consent panel (0144 T3 (a)
       it(`${locale}: ${type}'s own button carries no Google line`, async () => {
         renderPanel(locale, type);
         expect(
-          await screen.findByRole('button', { name: words(locale, `wizard.${provider}.connect`) }),
+          await screen.findByRole('button', { name: words(locale, `account.${provider}.connect`) }),
         ).toBeTruthy();
-        expect(screen.queryByText(words(locale, 'wizard.google.readsOnly'))).toBeNull();
+        expect(screen.queryByText(words(locale, 'account.google.readsOnly'))).toBeNull();
       });
     }
   }

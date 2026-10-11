@@ -81,7 +81,7 @@ export interface FrontDoorCard {
  * nor "365" — under the family heading each card names its connection method.
  */
 export const SOURCE_CARDS = [
-  { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint', guide: 'imap#imap-source' },
+  { id: 'imap', name: 'IMAP', hintKey: 'account.proto.imap.hint', guide: 'imap#imap-source' },
   // The ACCOUNT (workplan 0114), first among the Microsoft cards for the same
   // reason `google` leads its family: it is the usual choice, and it is the
   // only one of the three that a person without an IT department can finish.
@@ -90,70 +90,70 @@ export const SOURCE_CARDS = [
   {
     id: 'microsoft',
     name: 'Microsoft 365 account',
-    hintKey: 'wizard.proto.microsoft.hint',
+    hintKey: 'account.proto.microsoft.hint',
     guide: 'microsoft#microsoft',
   },
-  { id: 'oauth2', nameKey: 'wizard.m365.viaImap', hintKey: 'wizard.proto.oauth2.hint', guide: 'microsoft#oauth2' },
-  { id: 'graph', nameKey: 'wizard.m365.viaGraph', hintKey: 'wizard.proto.graph.hint', guide: 'microsoft#graph' },
+  { id: 'oauth2', nameKey: 'account.m365.viaImap', hintKey: 'account.proto.oauth2.hint', guide: 'microsoft#oauth2' },
+  { id: 'graph', nameKey: 'account.m365.viaGraph', hintKey: 'account.proto.graph.hint', guide: 'microsoft#graph' },
   // The ACCOUNT (workplan 0106 T3b), first among the Google cards because
   // `FRONT_DOOR_FAMILIES` puts it first — "the usual choice first". Drive and
   // Gmail stay beside it and are the only way to mail and files on a
   // deployment that has not declared the restricted scope class.
-  { id: 'google', name: 'Google account', hintKey: 'wizard.proto.google.hint', guide: 'google#google' },
+  { id: 'google', name: 'Google account', hintKey: 'account.proto.google.hint', guide: 'google#google' },
   {
     id: 'google-drive',
     name: 'Google Drive',
-    hintKey: 'wizard.proto.googleDrive.hint',
+    hintKey: 'account.proto.googleDrive.hint',
     guide: 'google#google-drive',
   },
-  { id: 'gmail', name: 'Gmail', hintKey: 'wizard.proto.gmail.hint', guide: 'google#gmail' },
+  { id: 'gmail', name: 'Gmail', hintKey: 'account.proto.gmail.hint', guide: 'google#gmail' },
   // Retired for new migrations (0153 open question 5, item 3): the account
   // above carries both, so they are offered on Accounts only (`connectionOnly`).
   {
     id: 'google-calendar',
     name: 'Google Calendar',
-    hintKey: 'wizard.proto.googleCalendar.hint',
+    hintKey: 'account.proto.googleCalendar.hint',
     guide: 'google#google-calendar',
     connectionOnly: true,
   },
   {
     id: 'google-contacts',
     name: 'Google Contacts',
-    hintKey: 'wizard.proto.googleContacts.hint',
+    hintKey: 'account.proto.googleContacts.hint',
     guide: 'google#google-contacts',
     connectionOnly: true,
   },
-  { id: 'dropbox', name: 'Dropbox', hintKey: 'wizard.proto.dropbox.hint', guide: 'dropbox#dropbox' },
-  { id: 'box', name: 'Box', hintKey: 'wizard.proto.box.hint', guide: 'box#box' },
+  { id: 'dropbox', name: 'Dropbox', hintKey: 'account.proto.dropbox.hint', guide: 'dropbox#dropbox' },
+  { id: 'box', name: 'Box', hintKey: 'account.proto.box.hint', guide: 'box#box' },
   // The Apple ACCOUNT (workplan 0115). A card on its own, not a family: there
   // is no second Apple method to sit beside it, because Apple publishes no API
   // one could have been built on. Its hint has to do more work than the
   // others' — it is the only source card where the credential is not obvious
   // from the name, and the first question everyone asks is why there is no
   // button.
-  { id: 'apple', name: 'Apple account (iCloud)', hintKey: 'wizard.proto.apple.hint', guide: 'apple#apple' },
+  { id: 'apple', name: 'Apple account (iCloud)', hintKey: 'account.proto.apple.hint', guide: 'apple#apple' },
   // The EXPORT ARCHIVE (workplan 0116 T1) — one card for both exports, because
   // which export it is (`ARCHIVE_PROVIDERS`) is a field ON the connection and
   // not a kind of its own. Named for what it is rather than for either
   // gatekeeper, so a third export joins it without renaming anything. It was
   // `connectionOnly` for one slice; since T5/T6 the wizard offers it too.
-  { id: 'archive', name: 'Export archive', hintKey: 'wizard.proto.archive.hint', guide: 'archive#archive' },
+  { id: 'archive', name: 'Export archive', hintKey: 'account.proto.archive.hint', guide: 'archive#archive' },
 ] as const satisfies ReadonlyArray<FrontDoorCard>;
 
 export const TARGET_CARDS = [
-  { id: 'jmap', name: 'JMAP', hintKey: 'wizard.proto.jmap.hint', guide: 'jmap#jmap' },
+  { id: 'jmap', name: 'JMAP', hintKey: 'account.proto.jmap.hint', guide: 'jmap#jmap' },
   // The IMAP card is on both sides and its guide is one: the section says which.
-  { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint', guide: 'imap#imap-target' },
+  { id: 'imap', name: 'IMAP', hintKey: 'account.proto.imap.hint', guide: 'imap#imap-target' },
   // The three protocol cards share one guide, `dav`, a section each.
-  { id: 'caldav', name: 'CalDAV', hintKey: 'wizard.proto.caldav.hint', guide: 'dav#caldav' },
-  { id: 'carddav', name: 'CardDAV', hintKey: 'wizard.proto.carddav.hint', guide: 'dav#carddav' },
-  { id: 'webdav', name: 'WebDAV', hintKey: 'wizard.proto.webdav.hint', guide: 'dav#webdav' },
-  { id: 'soverin', name: 'Soverin', hintKey: 'wizard.proto.soverin.hint', guide: 'soverin#soverin' },
+  { id: 'caldav', name: 'CalDAV', hintKey: 'account.proto.caldav.hint', guide: 'dav#caldav' },
+  { id: 'carddav', name: 'CardDAV', hintKey: 'account.proto.carddav.hint', guide: 'dav#carddav' },
+  { id: 'webdav', name: 'WebDAV', hintKey: 'account.proto.webdav.hint', guide: 'dav#webdav' },
+  { id: 'soverin', name: 'Soverin', hintKey: 'account.proto.soverin.hint', guide: 'soverin#soverin' },
   // ONE CARD FOR A NEXTCLOUD, not three (owner's ask, 2026-09-07). The three
   // protocol cards above it stay: somebody with a DAV server that is not a
   // Nextcloud still needs them, and somebody with an atypical Nextcloud path
   // may still prefer them.
-  { id: 'nextcloud', name: 'Nextcloud', hintKey: 'wizard.proto.nextcloud.hint', guide: 'nextcloud#nextcloud' },
+  { id: 'nextcloud', name: 'Nextcloud', hintKey: 'account.proto.nextcloud.hint', guide: 'nextcloud#nextcloud' },
 ] as const satisfies ReadonlyArray<FrontDoorCard>;
 
 export type SourceCard = (typeof SOURCE_CARDS)[number];

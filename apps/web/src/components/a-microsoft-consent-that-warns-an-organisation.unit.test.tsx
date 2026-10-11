@@ -128,18 +128,18 @@ afterEach(() => {
 describe('the sentence a tester reads before Connect with Microsoft (0140 T6 (b))', () => {
   for (const locale of LOCALES) {
     const lineBeside = (button: HTMLElement): HTMLElement => {
-      const line = screen.getByText(words(locale, 'wizard.microsoft.orgApproval'));
+      const line = screen.getByText(words(locale, 'account.microsoft.orgApproval'));
       expect(button.parentElement, 'the line is not beside the button').toContainElement(line);
       expect(
         describedBy(button),
         'the line comes after the button, so the button must point at it or a screen reader presses first',
-      ).toContain(words(locale, 'wizard.microsoft.orgApproval'));
+      ).toContain(words(locale, 'account.microsoft.orgApproval'));
       return line;
     };
 
     it(`${locale}: the consent panel, with the deployment's app, says what an organisation may ask`, async () => {
       wrap(locale, <Panel type="microsoft" />, '/connections', '/connections');
-      const button = await screen.findByRole('button', { name: words(locale, 'wizard.microsoft.connect') });
+      const button = await screen.findByRole('button', { name: words(locale, 'account.microsoft.connect') });
       const line = lineBeside(button);
       for (const says of SAYS[locale]) expect(line.textContent).toMatch(says);
     });
@@ -148,9 +148,9 @@ describe('the sentence a tester reads before Connect with Microsoft (0140 T6 (b)
       it(`${locale}: ${provider}'s button carries no Microsoft line`, async () => {
         wrap(locale, <Panel type={provider} />, '/connections', '/connections');
         expect(
-          await screen.findByRole('button', { name: words(locale, `wizard.${provider}.connect`) }),
+          await screen.findByRole('button', { name: words(locale, `account.${provider}.connect`) }),
         ).toBeTruthy();
-        expect(screen.queryByText(words(locale, 'wizard.microsoft.orgApproval'))).toBeNull();
+        expect(screen.queryByText(words(locale, 'account.microsoft.orgApproval'))).toBeNull();
       });
     }
   }

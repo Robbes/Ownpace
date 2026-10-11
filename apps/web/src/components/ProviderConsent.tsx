@@ -264,7 +264,7 @@ export function useProviderConsent(opts: {
         // Never silently Google's. A descriptor naming a provider this table
         // has no row for is a defect, and saying so beats consenting to the
         // wrong company on somebody's behalf.
-        setNote(t('wizard.consent.noProvider'));
+        setNote(t('account.consent.noProvider'));
         return;
       }
       // THE WINDOW OPENS IN THE PRESS (workplan 0145 T5), before anything is
@@ -296,7 +296,7 @@ export function useProviderConsent(opts: {
     setUnopened(null);
   };
 
-  const words = (suffix: ConsentWord) => t(`wizard.${provider ?? 'google'}.${suffix}` as StringKey);
+  const words = (suffix: ConsentWord) => t(`account.${provider ?? 'google'}.${suffix}` as StringKey);
 
   return {
     provider,
@@ -423,18 +423,18 @@ export const ConsentLines: React.FC<{
   const t = useT();
   if (provider === undefined) return null;
   const beforePressing = consentLineIds(provider, idBase);
-  const word = (suffix: 'connect.hint' | 'connect.why') => t(`wizard.${provider}.${suffix}` as StringKey);
+  const word = (suffix: 'connect.hint' | 'connect.why') => t(`account.${provider}.${suffix}` as StringKey);
   return (
     <>
       <Hint text={word('connect.hint')} why={word('connect.why')} />
       {provider === 'google' && googleConsentAllowsChanges(asked) && (
-        <Hint text={t('wizard.google.readsOnly')} />
+        <Hint text={t('account.google.readsOnly')} />
       )}
-      {provider === 'google' && <Hint id={beforePressing} text={t('wizard.google.inAppBrowser')} />}
-      {provider === 'microsoft' && <Hint id={beforePressing} text={t('wizard.microsoft.orgApproval')} />}
+      {provider === 'google' && <Hint id={beforePressing} text={t('account.google.inAppBrowser')} />}
+      {provider === 'microsoft' && <Hint id={beforePressing} text={t('account.microsoft.orgApproval')} />}
       {!isSelfHost() && (
         <p className="mt-1 text-sm text-gray-500">
-          {t('wizard.consent.legal')} <LegalLinks pages={['privacy', 'terms']} />
+          {t('account.consent.legal')} <LegalLinks pages={['privacy', 'terms']} />
         </p>
       )}
     </>
@@ -486,7 +486,7 @@ export const ConsentNote: React.FC<{ readonly note: string | null }> = ({ note }
   if (!note) return null;
   return note === 'received' ? (
     <p key="received" role="status" className="mt-1 text-sm text-green-700">
-      {t('wizard.consent.received')}
+      {t('account.consent.received')}
     </p>
   ) : (
     <p key="refused" role="alert" className="mt-1 text-sm text-amber-800">
@@ -538,16 +538,16 @@ export const ConsentWindowLink: React.FC<{
   if (provider === undefined || unopened === null) return null;
   const name = consentProviderName(provider);
   if (expired === unopened) {
-    const button = t(`wizard.${provider}.connect` as StringKey);
+    const button = t(`account.${provider}.connect` as StringKey);
     return (
       <p role="status" className="mt-1 text-sm text-amber-800">
-        {t('wizard.consent.windowExpired', { provider: name, button })}
+        {t('account.consent.windowExpired', { provider: name, button })}
       </p>
     );
   }
   return (
     <p role="status" className="mt-1 text-sm text-amber-800">
-      {t('wizard.consent.windowBlocked', { provider: name })}{' '}
+      {t('account.consent.windowBlocked', { provider: name })}{' '}
       <a
         href={unopened.url}
         target={consentWindowName(provider)}
@@ -607,9 +607,9 @@ export const ProviderConsentPanel: React.FC<{
       ? words('connect.halfClient')
       : words('connect.needsClient')
     : consent.facesMissing
-      ? t('wizard.google.connect.needsDomains')
+      ? t('account.google.connect.needsDomains')
       : consent.accountMissing
-        ? t('wizard.consent.needsAccount')
+        ? t('account.consent.needsAccount')
         : undefined;
   return (
     <div className={className}>

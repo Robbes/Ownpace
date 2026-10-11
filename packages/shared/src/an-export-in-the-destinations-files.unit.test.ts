@@ -98,7 +98,7 @@ describe('the archive form asks where the export is', () => {
     expect(where, 'the archive form does not ask where the export is').toBeDefined();
     expect(where!.options?.map((o) => o.value)).toEqual(['target', 'disk']);
     // Our own words, so keys and not verbatim labels.
-    for (const option of where!.options ?? []) expect(option.labelKey).toMatch(/^wizard\.archiveWhere\./);
+    for (const option of where!.options ?? []) expect(option.labelKey).toMatch(/^account\.archiveWhere\./);
     expect(secretFieldKeys('source', 'archive')).toEqual([]);
   });
 
@@ -115,7 +115,7 @@ describe('the archive form asks where the export is', () => {
   it('marks the disk as the appliance’s only, with the line a managed form shows beside it', () => {
     const disk = where!.options!.find((o) => o.value === 'disk')!;
     expect(disk.applianceOnly).toBe(true);
-    expect(disk.applianceOnlyKey).toBe('wizard.archiveWhere.disk.onlyAppliance');
+    expect(disk.applianceOnlyKey).toBe('account.archiveWhere.disk.onlyAppliance');
     const target = where!.options!.find((o) => o.value === 'target')!;
     expect(target.applianceOnly).toBeFalsy();
   });
@@ -125,11 +125,11 @@ describe('the archive form asks where the export is', () => {
       fields.findIndex((f) => f.key === 'path'),
     );
     const inTarget = followedField(path!, { where: 'target' });
-    expect(inTarget.labelKey).toBe('wizard.archivePath.target');
-    expect(inTarget.hintKey).toBe('wizard.archivePath.target.hint');
+    expect(inTarget.labelKey).toBe('account.archivePath.target');
+    expect(inTarget.hintKey).toBe('account.archivePath.target.hint');
     expect(inTarget.placeholder).toBe('Exports/takeout-20260904');
     const onDisk = followedField(path!, { where: 'disk' });
-    expect(onDisk.labelKey).toBe('wizard.archivePath');
+    expect(onDisk.labelKey).toBe('account.archivePath');
     expect(onDisk.placeholder).toBe('/srv/exports/takeout-20260904');
   });
 });

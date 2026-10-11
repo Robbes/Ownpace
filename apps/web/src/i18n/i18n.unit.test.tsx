@@ -54,7 +54,7 @@ describe('the dictionary', () => {
 
   it('sends nobody to the wizard, in either language: it retired (0153 D5)', () => {
     // The setup checklist still said "complete the wizard" the day the wizard
-    // went. Its keys keep the `wizard.` prefix the descriptor named them by;
+    // went. Its keys were `wizard.*` until 2026-10-11 and are `account.*` now;
     // what a person reads names *Start a migration*, the form or Accounts.
     const saying = LOCALES.flatMap((locale) =>
       Object.entries(STRINGS[locale])

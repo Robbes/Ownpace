@@ -53,7 +53,7 @@ async function press(values: Record<string, string>) {
       <Panel values={values} />
     </QueryClientProvider>,
   );
-  const button = screen.getByRole('button', { name: STRINGS.en['wizard.microsoft.connect'] });
+  const button = screen.getByRole('button', { name: STRINGS.en['account.microsoft.connect'] });
   await waitFor(() => expect(button).toBeEnabled());
   fireEvent.click(button);
 }

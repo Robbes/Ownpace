@@ -40,7 +40,7 @@ describe('secrets', () => {
 describe('the provider\'s own vocabulary', () => {
   it("calls Dropbox's client id an App key, because Dropbox does", () => {
     const appKey = credentialFieldsFor('source', 'dropbox').find((f) => f.key === 'clientId');
-    expect(appKey?.labelKey).toBe('wizard.dropboxAppKey');
+    expect(appKey?.labelKey).toBe('account.dropboxAppKey');
   });
 
   it("names whose consent mints each token, and pairs Dropbox's App key with its secret (2026-09-02)", () => {

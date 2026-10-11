@@ -87,7 +87,7 @@ const SchedulePanel: React.FC<{
   // does not offer, which the line inside says.
   const inForce =
     stored === null
-      ? t('wizard.schedule.automatic')
+      ? t('account.schedule.automatic')
       : (() => {
           const preset = SCHEDULE_PRESETS.find((p) => p.value === stored);
           return preset ? t(preset.labelKey) : undefined;

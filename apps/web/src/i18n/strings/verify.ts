@@ -22,7 +22,6 @@ export const en = {
   'verify.notAResult':
     'Nothing is known about the migration’s completeness either way; this is not a result.',
   'verify.restarted': 'The appliance restarted while the check ran. Run it again.',
-  'verify.didNotStart': 'The check did not start.',
   'verify.ready': 'This migration is ready to cut over.',
   'verify.notReady': 'Not ready to cut over. See the domains and issues below.',
   'verify.countsOnly': 'No content was compared. This rests on counts and sizes alone.',
@@ -72,7 +71,6 @@ export const nl: Record<keyof typeof en, string> = {
   'verify.notAResult':
     'De verificatie is niet afgerond: dit zegt niets over de volledigheid, en is geen resultaat.',
   'verify.restarted': 'De appliance is herstart terwijl de verificatie liep. Voer hem opnieuw uit.',
-  'verify.didNotStart': 'De verificatie is niet gestart.',
   'verify.ready': 'Deze migratie is klaar voor overstap.',
   'verify.notReady': 'Nog niet klaar voor overstap. Zie hieronder.',
   'verify.countsOnly': 'Er is geen inhoud vergeleken. Dit rust alleen op aantallen en groottes.',

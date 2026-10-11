@@ -1,6 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
- * Connecting an account: the provider consent and its hints (still named wizard.*), the Accounts page, provider setup, a test of a connection, and the guides.
+ * Connecting an account: the account form and the provider consent (`account.*`, `wizard.*` until
+ * 2026-10-11), the Accounts page, provider setup, a test of a connection, and the guides.
  *
  * One area of the dictionary (`../strings.ts`), English and Dutch in one
  * file, the Dutch in the English order. `nl` is typed against `en`, so a
@@ -8,54 +9,54 @@
  */
 
 export const en = {
-  'wizard.proto.imap.hint': 'Standard email protocol',
+  'account.proto.imap.hint': 'Standard email protocol',
   // The consent you can click (0089 T1): the button that replaces the OAuth
   // Playground walk. The full evidence stays in the API's refusals; these
   // are the button's own words.
-  'wizard.google.connect': 'Connect with Google',
+  'account.google.connect': 'Connect with Google',
   'connections.googleFaces': 'What this account will serve',
-  'wizard.google.connect.hint': 'Opens Google’s consent screen and fills in the refresh token.',
-  'wizard.google.connect.why': 'Pasting a token you already have keeps working.',
-  'wizard.google.connect.needsDomains':
+  'account.google.connect.hint': 'Opens Google’s consent screen and fills in the refresh token.',
+  'account.google.connect.why': 'Pasting a token you already have keeps working.',
+  'account.google.connect.needsDomains':
     'Tick what to migrate first; the consent asks only for that.',
-  'wizard.google.connect.needsClient': 'Enter the Client ID and client secret first.',
+  'account.google.connect.needsClient': 'Enter the Client ID and client secret first.',
   // One sentence for every provider's consent: what lands is the same
   // token in the same box, and the same save-and-test follows.
-  'wizard.consent.received': 'Consent received — saving and testing this connection.',
+  'account.consent.received': 'Consent received — saving and testing this connection.',
   // The arm that must never be silent (workplan 0114): a credential field
   // naming a provider no door has a consent for. Nothing sends a person to
   // the wrong company's consent screen; the form says so and the manual
   // token field is still there.
-  'wizard.consent.noProvider':
+  'account.consent.noProvider':
     'This deployment has no consent button for this type; paste a refresh token instead.',
   // The account first (owner's walk, 2026-09-02): the consent saves and
   // tests in one go, and the save needs the address.
-  'wizard.consent.needsAccount': 'Enter the account address first.',
+  'account.consent.needsAccount': 'Enter the account address first.',
   // A consent window the browser did not open (workplan 0145 T5): the window
   // opens in the press now, and when it still does not, this sentence and a
   // link to the provider's page take its place. Tapping the link is a new
   // press. Written to read on from the in-app browser line above it.
-  'wizard.consent.windowBlocked': 'Your browser did not open {provider}’s page. Open it with this link:',
+  'account.consent.windowBlocked': 'Your browser did not open {provider}’s page. Open it with this link:',
   // That link past the consent's ten minutes (CONSENT_STATE_TTL_MS): the
   // server has forgotten it, and a tap would end on its English "expired"
   // refusal. So the link goes, and this asks for the press that starts anew.
-  'wizard.consent.windowExpired': 'The link to {provider}’s page has expired. Press {button} again.',
+  'account.consent.windowExpired': 'The link to {provider}’s page has expired. Press {button} again.',
   // Beside every Connect button, on the managed service (0139 T4;
   // docs/google-oauth-verification.md §5: "Links to the privacy policy and
   // terms sit beside the button, not in a footer."). The two links follow,
   // named as the texts name themselves (`acceptance.doc.*`).
-  'wizard.consent.legal': 'What we do with your data, and on what terms:',
+  'account.consent.legal': 'What we do with your data, and on what terms:',
   // The deployment's own client (ADR-0041, owner decision 2026-09-01): the
   // pair becomes optional as a whole, and a half-typed pair is named rather
   // than silently completed with the deployment's other half.
-  'wizard.google.deploymentClient':
+  'account.google.deploymentClient':
     'This deployment has its own Google client; enter both to use yours instead.',
-  'wizard.google.connect.halfClient': 'Enter both the Client ID and the client secret, or neither.',
-  'wizard.google.ownClient': 'Use your own Google client',
+  'account.google.connect.halfClient': 'Enter both the Client ID and the client secret, or neither.',
+  'account.google.ownClient': 'Use your own Google client',
   // The string Google matches against the client's registered list. It was
   // always in the route's answer and the wizard threw it away, so
   // `redirect_uri_mismatch` arrived naming no address (2026-09-01).
-  'wizard.google.redirectUri':
+  'account.google.redirectUri':
     'Register this exact address in your Google client under Authorised redirect URIs:',
   // Beside Connect with Google when the consent asks for mail, calendars or
   // contacts (workplan 0144 T3 (a)): Google's screen describes those scopes
@@ -63,7 +64,7 @@ export const en = {
   // with what Ownpace does. Drive and Tasks are read-only at Google and get no
   // line; `googleConsentAllowsChanges` in shared decides. §3's two sentences,
   // whole: a consent sentence, which 0118 §2 keeps verbatim, not a `.hint`.
-  'wizard.google.readsOnly':
+  'account.google.readsOnly':
     'For mail, calendars and contacts, Google describes a broader permission than Ownpace uses. Ownpace only reads: it changes and deletes nothing in this account.',
   // Beside Connect with Google, always (workplan 0140 T3 (a)): Google is
   // reported to refuse its consent inside another app's built-in browser, and
@@ -71,36 +72,36 @@ export const en = {
   // works"; this one ends by signing in again, because the wizard and the
   // Connections page have no grant link to reopen. A consent sentence, kept
   // whole (0118 §2), not a `.hint`.
-  'wizard.google.inAppBrowser':
+  'account.google.inAppBrowser':
     'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into your favorite browser, such as Safari or Chrome, then sign in to Ownpace there.',
   // Connect with Dropbox (2026-09-02): the same button, Dropbox's words.
-  'wizard.dropbox.connect': 'Connect with Dropbox',
-  'wizard.dropbox.connect.hint': 'Opens Dropbox’s consent screen and fills in the refresh token.',
-  'wizard.dropbox.connect.why': 'Pasting a token you already have keeps working.',
-  'wizard.dropbox.connect.needsClient': 'Enter the App key and App secret first.',
-  'wizard.dropbox.connect.halfClient': 'Enter both the App key and the App secret, or neither.',
-  'wizard.dropbox.deploymentClient':
+  'account.dropbox.connect': 'Connect with Dropbox',
+  'account.dropbox.connect.hint': 'Opens Dropbox’s consent screen and fills in the refresh token.',
+  'account.dropbox.connect.why': 'Pasting a token you already have keeps working.',
+  'account.dropbox.connect.needsClient': 'Enter the App key and App secret first.',
+  'account.dropbox.connect.halfClient': 'Enter both the App key and the App secret, or neither.',
+  'account.dropbox.deploymentClient':
     'This deployment has its own Dropbox app; enter both to use yours instead.',
-  'wizard.dropbox.ownClient': 'Use your own Dropbox app',
-  'wizard.dropbox.redirectUri':
+  'account.dropbox.ownClient': 'Use your own Dropbox app',
+  'account.dropbox.redirectUri':
     'Register this exact address in your Dropbox app under OAuth 2 → Redirect URIs:',
   // Connect with Microsoft (workplan 0114): the same button a third time.
   // Two things say Microsoft rather than Google or Dropbox — the words
   // "app registration" and "Microsoft Entra ID", which are the provider's
   // own, and the TENANT, which neither of the other two has.
-  'wizard.microsoft.connect': 'Connect with Microsoft',
-  'wizard.microsoft.connect.hint':
+  'account.microsoft.connect': 'Connect with Microsoft',
+  'account.microsoft.connect.hint':
     'Opens Microsoft’s consent screen and fills in the refresh token.',
-  'wizard.microsoft.connect.why':
+  'account.microsoft.connect.why':
     'It asks you which account, so a migration cannot quietly read the wrong mailbox. Pasting a token you already have keeps working.',
-  'wizard.microsoft.connect.needsClient':
+  'account.microsoft.connect.needsClient':
     'Enter the Application (client) ID and client secret first.',
-  'wizard.microsoft.connect.halfClient':
+  'account.microsoft.connect.halfClient':
     'Enter both the Application (client) ID and the client secret, or neither.',
-  'wizard.microsoft.deploymentClient':
+  'account.microsoft.deploymentClient':
     'This deployment has its own Microsoft app registration; enter both to use yours instead.',
-  'wizard.microsoft.ownClient': 'Use your own app registration',
-  'wizard.microsoft.redirectUri':
+  'account.microsoft.ownClient': 'Use your own app registration',
+  'account.microsoft.redirectUri':
     'Register this exact address in your app registration under Authentication → Redirect URIs:',
   // Beside Connect with Microsoft, before anything is pressed (workplan 0140
   // T6 (b)): an organisation decides who in it may consent, and a tester met
@@ -108,13 +109,13 @@ export const en = {
   // whether or not publisher verification (T5) is done. The second sentence is
   // Microsoft's documented default as understood in 0140 §4.3; T6's personal
   // account confirms or corrects it.
-  'wizard.microsoft.orgApproval':
+  'account.microsoft.orgApproval':
     'A work or school account may need its organisation’s administrator to approve Ownpace first. A personal Microsoft account does not.',
   // The tenant, which is the field Google and Dropbox have no equivalent of.
   // Empty is the RIGHT answer for almost everybody, and a hint that only said
   // "optional" would leave the one person it matters to guessing.
-  'wizard.microsoft.tenantId.hint': 'Leave empty unless your app registration is single-tenant.',
-  'wizard.microsoft.tenantId.why':
+  'account.microsoft.tenantId.hint': 'Leave empty unless your app registration is single-tenant.',
+  'account.microsoft.tenantId.why':
     'Empty means this deployment’s own directory setting, which accepts any work, school or personal Microsoft account. A single-tenant registration sent to the wrong directory fails with a message about the application not being found, which reads like a typo and is not one.',
   // Apple's ONE credential field, and the hint carries the whole setup
   // (workplan 0115). Somebody who types their Apple Account password gets a
@@ -122,12 +123,12 @@ export const en = {
   // password of a kind Apple refuses on these protocols by design, because the
   // account has two-factor authentication and every Apple Account does. So the
   // hint names the page rather than describing the rule.
-  'wizard.proto.apple.hint':
+  'account.proto.apple.hint':
     'One Apple Account: mail, calendars, contacts and reminders, whichever you tick.',
-  'wizard.appleAppPassword': 'App-specific password',
-  'wizard.appleAppPassword.hint':
+  'account.appleAppPassword': 'App-specific password',
+  'account.appleAppPassword.hint':
     'Not your Apple Account password: an app-specific password you generate at account.apple.com.',
-  'wizard.appleAppPassword.why':
+  'account.appleAppPassword.why':
     'Apple refuses the account password here by design. Make one at account.apple.com → Sign-In and Security → App-Specific Passwords and paste it. It reaches your mail, calendars, contacts and reminders, and you can revoke it there whenever you like.',
   // THE EXPORT ARCHIVE (workplan 0116 T1; a migration source since T5/T6).
   // One card for two exports, and the hint has to carry the two things the
@@ -140,80 +141,80 @@ export const en = {
   // place a landed reader is answered by hand; `an-export-we-cannot-read-yet`
   // fails until it is. "download" rather than "export you downloaded" keeps
   // it inside the twelve words a hint may spend.
-  'wizard.proto.archive.hint':
+  'account.proto.archive.hint':
     'A Google Takeout or Apple (to be tested) download: photos and files.',
-  'wizard.archiveProvider': 'Which export',
-  'wizard.archiveProvider.hint': 'Which company made the archive; the wrong choice finds nothing.',
-  'wizard.archiveProvider.why':
+  'account.archiveProvider': 'Which export',
+  'account.archiveProvider.hint': 'Which company made the archive; the wrong choice finds nothing.',
+  'account.archiveProvider.why':
     'It decides how we read the export; the files themselves do not say. Google exports are requested at takeout.google.com, Apple exports at privacy.apple.com.',
   // An export no reader opens yet (0148 T3, D7): the tag inside the option's
   // name, and the line under the field while it is chosen, keyed per export
   // because it names the company. Both leave the form when a reader lands.
-  'wizard.archiveProvider.untested': 'To be tested',
-  'wizard.archiveProvider.noReader.apple-privacy':
+  'account.archiveProvider.untested': 'To be tested',
+  'account.archiveProvider.noReader.apple-privacy':
     'We cannot read an Apple export yet. Request one only for your own records.',
-  'wizard.archivePath': 'Where the archive is',
-  'wizard.archivePath.hint': 'The folder you extracted the download into, or the .zip itself.',
-  'wizard.archivePath.why':
+  'account.archivePath': 'Where the archive is',
+  'account.archivePath.hint': 'The folder you extracted the download into, or the .zip itself.',
+  'account.archivePath.why':
     'If the export arrived in several parts, keep them in one folder and name any one of them: we read them all, and we say so if one is missing. Or extract them all into the same folder first. Nothing is written there: we only read.',
   // WHERE THE EXPORT IS KEPT (workplan 0148 T9, D11): in a folder of the
   // destination's own files, or on the appliance's disk. On managed the disk
   // is shown, disabled, with the line under it (the owner: "'Only on a
   // self-hosted appliance': ok").
-  'wizard.archiveWhere': 'Where the export is',
-  'wizard.archiveWhere.target': "In a folder on your destination (Nextcloud or WebDAV)",
-  'wizard.archiveWhere.disk': "On this appliance's disk",
-  'wizard.archiveWhere.disk.onlyAppliance': 'Only on a self-hosted appliance',
-  'wizard.archivePath.target': "Folder in your destination for files",
-  'wizard.archivePath.target.hint': 'The folder as your files show it, from the top.',
-  'wizard.archivePath.target.why':
+  'account.archiveWhere': 'Where the export is',
+  'account.archiveWhere.target': "In a folder on your destination (Nextcloud or WebDAV)",
+  'account.archiveWhere.disk': "On this appliance's disk",
+  'account.archiveWhere.disk.onlyAppliance': 'Only on a self-hosted appliance',
+  'account.archivePath.target': "Folder in your destination for files",
+  'account.archivePath.target.hint': 'The folder as your files show it, from the top.',
+  'account.archivePath.target.why':
     'For example Exports/takeout-20260904, or one .zip in that folder: we read the other parts beside it too. Upload the .zip parts of the export into one folder of the files this migration writes to, and name that folder here. The parts stay there after the migration and take up space; delete them once you have checked the result.',
   // The ACCOUNT card. Four faces, and the sentence says why that is more than
   // Google offers rather than leaving it looking like an oversight there.
-  'wizard.proto.microsoft.hint':
+  'account.proto.microsoft.hint':
     'One Microsoft 365 account, one sign-in: mail, calendars, tasks, contacts and files.',
   // The two Microsoft 365 connection methods (0107 T1): the family heading
   // says WHO, the card says HOW — "OAuth2" as a card name said neither.
-  'wizard.group.provider': 'Your provider',
-  'wizard.group.protocol': 'Any server, by protocol',
-  'wizard.m365.viaImap': 'Via IMAP',
-  'wizard.m365.viaGraph': 'Via the Graph API',
-  'wizard.proto.oauth2.hint': 'IMAP with XOAUTH2, Graph fallback behind it (app registration)',
-  'wizard.proto.graph.hint': 'Graph API only (app registration)',
+  'account.group.provider': 'Your provider',
+  'account.group.protocol': 'Any server, by protocol',
+  'account.m365.viaImap': 'Via IMAP',
+  'account.m365.viaGraph': 'Via the Graph API',
+  'account.proto.oauth2.hint': 'IMAP with XOAUTH2, Graph fallback behind it (app registration)',
+  'account.proto.graph.hint': 'Graph API only (app registration)',
   // The ACCOUNT card (workplan 0106 T3b). It names the faces it serves (three
   // since Tasks joined, 0126 T2), because "why is Gmail a separate card" is
   // the first question this card raises.
-  'wizard.proto.google.hint': 'One Google account, one sign-in: calendars, contacts and tasks.',
-  'wizard.proto.googleDrive.hint': 'Files from a Google Drive (read-only OAuth)',
-  'wizard.proto.dropbox.hint': 'Files from a Dropbox (read-only OAuth app)',
-  'wizard.proto.box.hint': 'Files from a Box account (read-only platform app)',
-  'wizard.boxUserId': 'Box user ID (numeric)',
-  'wizard.boxUserId.placeholder': 'e.g. 1234567890',
-  'wizard.boxRootFolderId': 'Root folder ID',
-  'wizard.boxRootFolderId.placeholder': 'Empty = All Files',
-  'wizard.dropboxAppKey': 'App key',
-  'wizard.dropboxRootPath': 'Root folder path',
-  'wizard.dropboxRootPath.placeholder': 'e.g. /Team Docs',
-  'wizard.proto.gmail.hint': 'Email from a Gmail mailbox (OAuth over IMAP)',
-  'wizard.proto.googleCalendar.hint': 'Calendars from a Google account (OAuth over CalDAV)',
-  'wizard.proto.googleContacts.hint': 'Contacts from a Google account (OAuth over CardDAV)',
-  'wizard.gmailAppPassword': 'App password',
-  'wizard.gmailAppPassword.hint': 'Personal Google accounts only; leave empty to use OAuth.',
-  'wizard.gmailAppPassword.why':
+  'account.proto.google.hint': 'One Google account, one sign-in: calendars, contacts and tasks.',
+  'account.proto.googleDrive.hint': 'Files from a Google Drive (read-only OAuth)',
+  'account.proto.dropbox.hint': 'Files from a Dropbox (read-only OAuth app)',
+  'account.proto.box.hint': 'Files from a Box account (read-only platform app)',
+  'account.boxUserId': 'Box user ID (numeric)',
+  'account.boxUserId.placeholder': 'e.g. 1234567890',
+  'account.boxRootFolderId': 'Root folder ID',
+  'account.boxRootFolderId.placeholder': 'Empty = All Files',
+  'account.dropboxAppKey': 'App key',
+  'account.dropboxRootPath': 'Root folder path',
+  'account.dropboxRootPath.placeholder': 'e.g. /Team Docs',
+  'account.proto.gmail.hint': 'Email from a Gmail mailbox (OAuth over IMAP)',
+  'account.proto.googleCalendar.hint': 'Calendars from a Google account (OAuth over CalDAV)',
+  'account.proto.googleContacts.hint': 'Contacts from a Google account (OAuth over CardDAV)',
+  'account.gmailAppPassword': 'App password',
+  'account.gmailAppPassword.hint': 'Personal Google accounts only; leave empty to use OAuth.',
+  'account.gmailAppPassword.why':
     'Google recommends against it, and so do we: an app password opens the whole mailbox read and write, while a consented token opens only parts. It needs 2-step verification on the account, does not exist on a Workspace account, and is withdrawn in the account’s own app-password list without touching Ownpace, which is the one real advantage it has.',
-  'wizard.refreshToken': 'Refresh token',
-  'wizard.refreshToken.hint': 'The account’s delegated token; treat it as a password.',
-  'wizard.rootFolderId': 'Root folder ID',
-  'wizard.rootFolderId.placeholder': 'Empty = all of My Drive',
-  'wizard.serviceAccountKey': 'Service account key',
-  'wizard.serviceAccountKey.placeholder': 'Paste the whole JSON key file',
-  'wizard.serviceAccountKey.width':
+  'account.refreshToken': 'Refresh token',
+  'account.refreshToken.hint': 'The account’s delegated token; treat it as a password.',
+  'account.rootFolderId': 'Root folder ID',
+  'account.rootFolderId.placeholder': 'Empty = all of My Drive',
+  'account.serviceAccountKey': 'Service account key',
+  'account.serviceAccountKey.placeholder': 'Paste the whole JSON key file',
+  'account.serviceAccountKey.width':
     'This key can read every user in the domain; revoke it at cutover.',
-  'wizard.serviceAccountKey.why':
+  'account.serviceAccountKey.why':
     "Domain-wide delegation can read much of any Workspace user's data, though each migration still names one account. Authorise only the scopes you need in the Admin console, and revoke the delegation at cutover.",
-  'wizard.nativePolicy': 'Google Docs, Sheets, Slides and Drawings',
-  'wizard.nativePolicy.hint': 'They have no file format to copy, only a rendering Google makes.',
-  'wizard.nativePolicy.hint.why':
+  'account.nativePolicy': 'Google Docs, Sheets, Slides and Drawings',
+  'account.nativePolicy.hint': 'They have no file format to copy, only a rendering Google makes.',
+  'account.nativePolicy.hint.why':
     'A Google Doc lives in Google, not in a file: there is nothing to migrate. Drive can (automatically) render one as a document or a PDF, and we can migrate that rendering for you. The alternative (and default) is leaving them behind.',
   // ONE SELECT PER KIND (0042 T9; the owner, 2026-09-23: "a per kind choice
   // makes more sense for the fileformats. Split that up."). Each select offers
@@ -221,74 +222,73 @@ export const en = {
   // behind while looking as though it would copy it. Every format carries every
   // kind since the refusals of measured-unstable exports went (ADR-0046,
   // amended 2026-09-23).
-  'wizard.nativePolicy.leave': 'Leave behind, and report each one',
-  'wizard.nativePolicy.as.odf': 'OpenDocument ({ext})',
-  'wizard.nativePolicy.as.office': 'Microsoft Office ({ext})',
-  'wizard.nativePolicy.as.pdf': 'PDF ({ext}), not editable',
-  'wizard.nativePolicy.as.image': 'Image ({ext})',
+  'account.nativePolicy.leave': 'Leave behind, and report each one',
+  'account.nativePolicy.as.odf': 'OpenDocument ({ext})',
+  'account.nativePolicy.as.office': 'Microsoft Office ({ext})',
+  'account.nativePolicy.as.pdf': 'PDF ({ext}), not editable',
+  'account.nativePolicy.as.image': 'Image ({ext})',
   // The format in force for a kind it does not carry, shown as what it does.
-  'wizard.nativePolicy.as.leftBehind': '{format}: left behind',
-  'wizard.nativePolicy.editable': 'Use an editable format for every kind',
+  'account.nativePolicy.as.leftBehind': '{format}: left behind',
+  'account.nativePolicy.editable': 'Use an editable format for every kind',
   // WHAT THE CHOICE LEAVES BEHIND, AND WHAT CANNOT BE EDITED, on the screen
   // where it is made. Read off the same tables the selects are built from.
-  'wizard.nativePolicy.leftBehind': '{kinds} stay behind in Google, each reported by name.',
-  'wizard.nativePolicy.leftBehind.why':
+  'account.nativePolicy.leftBehind': '{kinds} stay behind in Google, each reported by name.',
+  'account.nativePolicy.leftBehind.why':
     'Not copied, not lost: each one appears on the Failures screen, and you accept or retry them one at a time or all at once. Forms, My Maps, Sites and Apps Scripts always stay behind: Google cannot export those in a file format...',
-  'wizard.nativePolicy.notEditable': '{kinds} arrive as PDF.',
-  'wizard.nativePolicy.notEditable.why':
+  'account.nativePolicy.notEditable': '{kinds} arrive as PDF.',
+  'account.nativePolicy.notEditable.why':
     'A PDF is a copy of how the document can look; formatting can shift. Choose it for a kind you want copied but do not need to edit anymore.',
-  'wizard.nativePolicy.allEditable': 'All four kinds arrive as files you can edit.',
-  'wizard.nativePolicy.allEditable.why':
+  'account.nativePolicy.allEditable': 'All four kinds arrive as files you can edit.',
+  'account.nativePolicy.allEditable.why':
     'Each arrives as a rendering Google makes, not the original: fine formatting can shift, and drawings arrive as .svg images because Drive offers no editable drawing export file format. You can change a format later; files already copied keep the format they arrived in.',
   // THE SAME QUESTION FOR DROPBOX PAPER DOCS (workplan 0150 T3 (d)). One
   // select, since Paper is the one kind a Dropbox migration chooses a format
   // for (D7). The wizard suggests Markdown (D1): Nextcloud's Text app opens it.
-  'wizard.paperFormat': 'Dropbox Paper docs',
-  'wizard.paperFormat.hint': 'They have no file to copy, only an export Dropbox makes.',
-  'wizard.paperFormat.hint.why':
+  'account.paperFormat': 'Dropbox Paper docs',
+  'account.paperFormat.hint': 'They have no file to copy, only an export Dropbox makes.',
+  'account.paperFormat.hint.why':
     'A Paper doc lives in Dropbox without a file format: there is nothing to download. Dropbox can export one as Markdown or HTML, and that export is what we can migrate for you, like under the doc’s own name with the format’s suffix added: Notes.paper arrives as Notes.paper.md. Paper templates follow the same choice. The alternative is leaving them behind.',
-  'wizard.paperFormat.leave': 'Leave behind, and report each one',
-  'wizard.paperFormat.as.markdown': 'Markdown (.md), for example opens in Nextcloud Text',
-  'wizard.paperFormat.as.html': 'HTML (.html), opens in a web browser',
-  'wizard.paperFormat.leftBehind': 'Paper docs stay behind in Dropbox, each reported by name.',
-  'wizard.paperFormat.leftBehind.why':
+  'account.paperFormat.leave': 'Leave behind, and report each one',
+  'account.paperFormat.as.markdown': 'Markdown (.md), for example opens in Nextcloud Text',
+  'account.paperFormat.as.html': 'HTML (.html), opens in a web browser',
+  'account.paperFormat.leftBehind': 'Paper docs stay behind in Dropbox, each reported by name.',
+  'account.paperFormat.leftBehind.why':
     'Not copied, not lost: each one appears on the Failures screen, and you can choose a format for them later, or leave them behind.',
-  'wizard.paperFormat.arrives': 'Each Paper doc arrives as a file you can edit.',
-  'wizard.paperFormat.arrives.why':
+  'account.paperFormat.arrives': 'Each Paper doc arrives as a file you can edit.',
+  'account.paperFormat.arrives.why':
     'An export is a rendering Dropbox makes, not the Paper doc itself: fine formatting can shift, and nothing you change on the new system goes back to Dropbox. You can change the format later; docs already copied keep the format they arrived in.',
-  'wizard.proto.jmap.hint': 'Modern email protocol',
-  'wizard.proto.caldav.hint': 'Calendar protocol',
-  'wizard.proto.carddav.hint': 'Contact protocol',
-  'wizard.proto.webdav.hint': 'File storage',
-  'wizard.proto.soverin.hint': 'One account — email, calendars and contacts',
+  'account.proto.jmap.hint': 'Modern email protocol',
+  'account.proto.caldav.hint': 'Calendar protocol',
+  'account.proto.carddav.hint': 'Contact protocol',
+  'account.proto.webdav.hint': 'File storage',
+  'account.proto.soverin.hint': 'One account — email, calendars and contacts',
   // Says what it carries AND what it does not: a person whose mail is
   // elsewhere should not have to discover that by ticking Email and
   // finding no writer behind it.
-  'wizard.proto.nextcloud.hint': 'One account — calendars, contacts, files and tasks (no email)',
-  'wizard.host': 'Host',
-  'wizard.port': 'Port',
+  'account.proto.nextcloud.hint': 'One account — calendars, contacts, files and tasks (no email)',
+  'account.host': 'Host',
+  'account.port': 'Port',
   // The DAV escape hatch (0105 T1) — see credential-fields.ts. It is the
   // ADDRESS rather than an escape hatch on the Nextcloud door, which is why
   // the label no longer calls itself optional: the descriptor says whether
   // it is demanded, and the asterisk repeats that answer.
-  'wizard.targetDavUrl': 'DAV base URL',
-  'wizard.targetDavUrl.hint': 'Only when the server’s DAV root is not at the host root.',
+  'account.targetDavUrl': 'DAV base URL',
+  'account.targetDavUrl.hint': 'Only when the server’s DAV root is not at the host root.',
   // The SAME field on the Nextcloud door, where it is not an escape hatch:
   // the hint above talks about a host root, and that door has no host at all.
-  'wizard.nextcloudDavUrl.hint':
+  'account.nextcloudDavUrl.hint':
     'The address you open Nextcloud at, with /remote.php/dav on the end.',
-  'wizard.nextcloudDavUrl.why':
+  'account.nextcloudDavUrl.why':
     'Nextcloud serves calendars, contacts, tasks and files under /remote.php/dav rather than at the root of the site, so a host and a port cannot say where it is. Paste the address from your browser’s bar — https://cloud.example.com — and add /remote.php/dav.',
-  'wizard.soverinMailHost': 'Mail server',
-  'wizard.soverinMailHost.hint': 'Only needed if this account will also receive mail.',
-  'wizard.soverinMailHost.why':
+  'account.soverinMailHost': 'Mail server',
+  'account.soverinMailHost.hint': 'Only needed if this account will also receive mail.',
+  'account.soverinMailHost.why':
     'Calendars, tasks and contacts need no mail server. Test measures what the host you enter actually supports.',
-  'wizard.soverinMailPort': 'Mail port',
+  'account.soverinMailPort': 'Mail port',
   // The provider directory (0106 T5): whose published settings sit in the
   // boxes, read when. They are measured by Test, never assumed.
-  'wizard.providerDefaults.note':
+  'account.providerDefaults.note':
     'Pre-filled from {provider}’s published settings, read {seen}. Test checks them.',
-  'wizard.credentials': 'Credentials',
   // NO SIDE IN THE LABEL (2026-09-07). These read "Source Username" and
   // "Target Password" because the wizard was once one screen with both sides
   // on it. It has had a step per side for some time, each under its own
@@ -296,33 +296,33 @@ export const en = {
   // account added there was asking for a "Source Username" that is simply
   // the address. The two keys stay separate because each side's gate and
   // form map are keyed by them; only the words lost the prefix.
-  'wizard.sourceUsername': 'Username',
-  'wizard.sourcePassword': 'Password',
-  'wizard.targetUsername': 'Username',
-  'wizard.targetPassword': 'Password',
+  'account.sourceUsername': 'Username',
+  'account.sourcePassword': 'Password',
+  'account.targetUsername': 'Username',
+  'account.targetPassword': 'Password',
   // The automatic cadence (workplan 0157 T7; the owner, 2026-10-05: "sync
   // slow down once a migration is in step: yes"): no schedule of its own,
   // what Start a migration makes, first in the chooser.
-  'wizard.schedule.automatic': 'Automatic',
-  'wizard.schedule.automatic.hint': 'Hourly for 14 days, then every 6 hours, daily from day 30.',
-  'wizard.schedule.hourly': 'Hourly',
-  'wizard.schedule.hourly.hint': 'Every hour',
-  'wizard.schedule.daily': 'Daily',
-  'wizard.schedule.daily.hint': 'Every day',
-  'wizard.schedule.sixHourly': 'Every 6 hours',
-  'wizard.schedule.sixHourly.hint': 'Four times a day',
-  'wizard.schedule.quarterHourly': 'Every 15 minutes',
-  'wizard.schedule.quarterHourly.hint': 'Frequent sync',
-  'wizard.back': 'Back',
-  'wizard.next': 'Next',
+  'account.schedule.automatic': 'Automatic',
+  'account.schedule.automatic.hint': 'Hourly for 14 days, then every 6 hours, daily from day 30.',
+  'account.schedule.hourly': 'Hourly',
+  'account.schedule.hourly.hint': 'Every hour',
+  'account.schedule.daily': 'Daily',
+  'account.schedule.daily.hint': 'Every day',
+  'account.schedule.sixHourly': 'Every 6 hours',
+  'account.schedule.sixHourly.hint': 'Four times a day',
+  'account.schedule.quarterHourly': 'Every 15 minutes',
+  'account.schedule.quarterHourly.hint': 'Frequent sync',
+  'account.back': 'Back',
+  'account.next': 'Next',
   // Field-level honesty (0037 T3): the line beside a disabled Next names what
   // is missing instead of leaving a silently dead button.
-  'wizard.missing.lead': 'To continue, fill in:',
+  'account.missing.lead': 'To continue, fill in:',
   // 0037 T6, answered 2026-08-10: oauth2/graph collect the per-customer
   // Entra app registration (ADR-0006's row-14 model).
-  'wizard.tenantId': 'Tenant ID',
-  'wizard.clientId': 'Client ID (application ID)',
-  'wizard.sourceClientSecret': 'Client secret',
+  'account.tenantId': 'Tenant ID',
+  'account.clientId': 'Client ID (application ID)',
+  'account.sourceClientSecret': 'Client secret',
   'docs.title': 'Setup guides',
   'docs.all': '← All setup guides',
   'docs.notFound': 'There is no guide by that name; these ship with this version:',
@@ -451,7 +451,6 @@ export const en = {
   // The account's per-domain qualification line (0106 T0). Three marks,
   // deliberately three: '?' is unmeasured, never a quiet yes or no.
   'probe.qualify.lead': 'Carries:',
-  'probe.qualify.unknownHint': "'?' is unmeasured — not safe to assume either way",
   // The measured-volume line (2026-09-02): how much each reached face holds.
   'probe.measured.lead': 'Found:',
   // A face that answered with nothing. "Tasks ✓ 0 task lists" read as a
@@ -668,211 +667,210 @@ export const en = {
 } as const;
 
 export const nl: Record<keyof typeof en, string> = {
-  'wizard.proto.imap.hint': 'Standaard e-mailprotocol',
-  'wizard.google.connect': 'Verbinden met Google',
+  'account.proto.imap.hint': 'Standaard e-mailprotocol',
+  'account.google.connect': 'Verbinden met Google',
   'connections.googleFaces': 'Wat dit account gaat leveren',
-  'wizard.google.connect.hint':
+  'account.google.connect.hint':
     'Opent het toestemmingsscherm van Google en vult het refreshtoken in.',
-  'wizard.google.connect.why': 'Een token plakken dat u al heeft, blijft gewoon werken.',
-  'wizard.google.connect.needsDomains':
+  'account.google.connect.why': 'Een token plakken dat u al heeft, blijft gewoon werken.',
+  'account.google.connect.needsDomains':
     'Vink eerst aan wat u wilt migreren; de toestemming vraagt alleen daarom.',
-  'wizard.google.connect.needsClient': 'Vul eerst de Client-ID en het clientsecret in.',
-  'wizard.consent.received': 'Toestemming ontvangen — de verbinding wordt opgeslagen en getest.',
-  'wizard.consent.noProvider':
+  'account.google.connect.needsClient': 'Vul eerst de Client-ID en het clientsecret in.',
+  'account.consent.received': 'Toestemming ontvangen — de verbinding wordt opgeslagen en getest.',
+  'account.consent.noProvider':
     'Deze installatie heeft geen toestemmingsknop voor dit type; plak in plaats daarvan een refreshtoken.',
-  'wizard.consent.needsAccount': 'Vul eerst het accountadres in.',
-  'wizard.consent.windowBlocked':
+  'account.consent.needsAccount': 'Vul eerst het accountadres in.',
+  'account.consent.windowBlocked':
     'Uw browser heeft de pagina van {provider} niet geopend. Open die met deze link:',
-  'wizard.consent.windowExpired': 'De link naar de pagina van {provider} is verlopen. Druk opnieuw op {button}.',
-  'wizard.consent.legal': 'Wat we met uw gegevens doen, en onder welke voorwaarden:',
-  'wizard.google.deploymentClient':
+  'account.consent.windowExpired': 'De link naar de pagina van {provider} is verlopen. Druk opnieuw op {button}.',
+  'account.consent.legal': 'Wat we met uw gegevens doen, en onder welke voorwaarden:',
+  'account.google.deploymentClient':
     'Deze installatie heeft een eigen Google-oauth-client; vul beide in om uw eigen te gebruiken.',
-  'wizard.google.connect.halfClient':
+  'account.google.connect.halfClient':
     'Vul zowel de Client-ID als het clientsecret in, of geen van beide.',
-  'wizard.google.ownClient': 'Uw eigen Google-client gebruiken',
+  'account.google.ownClient': 'Uw eigen Google-client gebruiken',
   // Zie het Engelse blok.
-  'wizard.google.redirectUri':
+  'account.google.redirectUri':
     'Registreer dit exacte adres in uw Google-client onder Geautoriseerde redirect/callbacks-URI’s:',
-  'wizard.google.readsOnly':
+  'account.google.readsOnly':
     'Voor e-mail, agenda’s en contacten beschrijft Google een ruimere toestemming dan Ownpace gebruikt. Ownpace leest alleen; het wijzigt en verwijdert niets in dit account.',
-  'wizard.google.inAppBrowser':
+  'account.google.inAppBrowser':
     'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar uw favoriete browser, zoals Safari of Chrome, en meld u in die browser aan bij Ownpace.',
-  'wizard.dropbox.connect': 'Verbinden met Dropbox',
-  'wizard.dropbox.connect.hint':
+  'account.dropbox.connect': 'Verbinden met Dropbox',
+  'account.dropbox.connect.hint':
     'Opent het toestemmingsscherm van Dropbox en vult het refreshtoken in.',
-  'wizard.dropbox.connect.why': 'Een token plakken dat u al heeft, blijft gewoon werken.',
-  'wizard.dropbox.connect.needsClient': 'Vul eerst de App key en het App secret in.',
-  'wizard.dropbox.connect.halfClient':
+  'account.dropbox.connect.why': 'Een token plakken dat u al heeft, blijft gewoon werken.',
+  'account.dropbox.connect.needsClient': 'Vul eerst de App key en het App secret in.',
+  'account.dropbox.connect.halfClient':
     'Vul zowel de App key als het App secret in, of geen van beide.',
-  'wizard.dropbox.deploymentClient':
+  'account.dropbox.deploymentClient':
     'Deze installatie heeft een eigen Dropbox-oauth-app; vul beide in om uw eigen te gebruiken.',
-  'wizard.dropbox.ownClient': 'Uw eigen Dropbox-app gebruiken',
-  'wizard.dropbox.redirectUri':
+  'account.dropbox.ownClient': 'Uw eigen Dropbox-app gebruiken',
+  'account.dropbox.redirectUri':
     'Registreer dit exacte adres in uw Dropbox-app onder OAuth 2 → Redirect URIs:',
-  'wizard.microsoft.connect': 'Verbinden met Microsoft',
-  'wizard.microsoft.connect.hint':
+  'account.microsoft.connect': 'Verbinden met Microsoft',
+  'account.microsoft.connect.hint':
     'Opent het toestemmingsscherm van Microsoft en vult het vernieuwingstoken in.',
-  'wizard.microsoft.connect.why':
+  'account.microsoft.connect.why':
     'Het vraagt u welk account, zodat een migratie niet stilletjes de verkeerde postbus leest. Een token plakken dat u al heeft, blijft gewoon werken.',
-  'wizard.microsoft.connect.needsClient':
+  'account.microsoft.connect.needsClient':
     'Vul eerst de toepassings-id (client) en het clientsecret in.',
-  'wizard.microsoft.connect.halfClient':
+  'account.microsoft.connect.halfClient':
     'Vul zowel de toepassings-id (client) als het clientsecret in, of geen van beide.',
-  'wizard.microsoft.deploymentClient':
+  'account.microsoft.deploymentClient':
     'Deze installatie heeft een eigen Microsoft-appregistratie; vul beide in om uw eigen te gebruiken.',
-  'wizard.microsoft.ownClient': 'Uw eigen appregistratie gebruiken',
-  'wizard.microsoft.redirectUri':
+  'account.microsoft.ownClient': 'Uw eigen appregistratie gebruiken',
+  'account.microsoft.redirectUri':
     'Registreer dit exacte adres in uw appregistratie onder Verificatie → redirect/callback-URI’s:',
-  'wizard.microsoft.orgApproval':
+  'account.microsoft.orgApproval':
     'Voor een werk- of schoolaccount kan eerst goedkeuring nodig zijn van uw beheerder. Voor een persoonlijk Microsoft-account is dat niet nodig.',
-  'wizard.microsoft.tenantId.hint': 'Laat leeg tenzij uw appregistratie voor één specifieke tenant is.',
-  'wizard.microsoft.tenantId.why':
+  'account.microsoft.tenantId.hint': 'Laat leeg tenzij uw appregistratie voor één specifieke tenant is.',
+  'account.microsoft.tenantId.why':
     'Leeg betekent de instelling van deze installatie, die elk werk-, school- of persoonlijk Microsoft-account accepteert. Een registratie voor één specifieke tenant die naar de verkeerde wordt gestuurd, mislukt met een melding dat de toepassing niet is gevonden, wat op een typefout lijkt, maar het niet is.',
-  'wizard.proto.apple.hint':
+  'account.proto.apple.hint':
     'Eén Apple-account: e-mail, agenda’s, contacten en herinneringen, wat u aanvinkt.',
-  'wizard.appleAppPassword': 'App-specifiek wachtwoord',
-  'wizard.appleAppPassword.hint':
+  'account.appleAppPassword': 'App-specifiek wachtwoord',
+  'account.appleAppPassword.hint':
     'Niet uw Apple-accountwachtwoord: een app-specifiek wachtwoord van account.apple.com.',
-  'wizard.appleAppPassword.why':
+  'account.appleAppPassword.why':
     'Apple weigert het accountwachtwoord hier met opzet. Maak een App-specifieke aan op account.apple.com → Aanmelden en beveiliging → App-specifieke wachtwoorden en plak het hier. Het bereikt uw e-mail, agenda’s, contacten en herinneringen, en u kunt het daar altijd weer intrekken.',
-  'wizard.proto.archive.hint':
+  'account.proto.archive.hint':
     'Een gedownloade Google Takeout- of Apple-export (nog te testen): foto’s en bestanden.',
-  'wizard.archiveProvider': 'Welke export',
-  'wizard.archiveProvider.hint':
+  'account.archiveProvider': 'Welke export',
+  'account.archiveProvider.hint':
     'Welk bedrijf het archief maakte; bij de verkeerde keuze vinden we niets.',
-  'wizard.archiveProvider.why':
+  'account.archiveProvider.why':
     'Dat bepaalt hoe wij de export lezen; aan de bestanden zelf is dit niet te zien. Google-exports vraagt u aan op takeout.google.com, Apple-exports op privacy.apple.com.',
-  'wizard.archiveProvider.untested': 'Te testen',
-  'wizard.archiveProvider.noReader.apple-privacy':
+  'account.archiveProvider.untested': 'Te testen',
+  'account.archiveProvider.noReader.apple-privacy':
     'Een Apple-export kunnen we nog niet lezen. Vraag die alleen aan voor uw eigen archief.',
-  'wizard.archivePath': 'Waar het archief staat',
-  'wizard.archivePath.hint':
+  'account.archivePath': 'Waar het archief staat',
+  'account.archivePath.hint':
     'De map waarin u de download hebt uitgepakt, of het .zip-bestand zelf.',
-  'wizard.archivePath.why':
+  'account.archivePath.why':
     'Bestaat de export uit meerdere delen, zet die dan in één map en wijs er een willekeurig deel van aan: wij lezen ze allemaal, en zeggen het als er een ontbreekt. Of pak ze eerst allemaal uit in dezelfde map. Er wordt niets naar geschreven: wij lezen alleen.',
-  'wizard.archiveWhere': 'Waar de export staat',
-  'wizard.archiveWhere.target': 'In een map in uw bestemming (Nextcloud of WebDAV)',
-  'wizard.archiveWhere.disk': 'Op de schijf van deze appliance',
-  'wizard.archiveWhere.disk.onlyAppliance': 'Alleen op een eigen appliance',
-  'wizard.archivePath.target': 'Map in de bestanden van uw bestemming',
-  'wizard.archivePath.target.hint': 'De map zoals u die in uw bestanden ziet, vanaf de hoofdmap.',
-  'wizard.archivePath.target.why':
+  'account.archiveWhere': 'Waar de export staat',
+  'account.archiveWhere.target': 'In een map in uw bestemming (Nextcloud of WebDAV)',
+  'account.archiveWhere.disk': 'Op de schijf van deze appliance',
+  'account.archiveWhere.disk.onlyAppliance': 'Alleen op een eigen appliance',
+  'account.archivePath.target': 'Map in de bestanden van uw bestemming',
+  'account.archivePath.target.hint': 'De map zoals u die in uw bestanden ziet, vanaf de hoofdmap.',
+  'account.archivePath.target.why':
     'Bijvoorbeeld Exports/takeout-20260904, of één .zip in die map: de andere delen ernaast lezen wij ook. Zet de .zip-bestanden in één map in waar deze migratie naartoe schrijft, en vul die map hier in. De delen blijven daar na de migratie staan en nemen ruimte in; verwijder ze zodra u het resultaat hebt gecontroleerd.',
-  'wizard.proto.microsoft.hint':
+  'account.proto.microsoft.hint':
     'Eén Microsoft 365-account, één aanmelding: e-mail, agenda’s, taken, contacten en bestanden.',
-  'wizard.group.provider': 'Uw aanbieder',
-  'wizard.group.protocol': 'Elke server, via protocol',
-  'wizard.m365.viaImap': 'Via IMAP',
-  'wizard.m365.viaGraph': 'Via de Graph-API',
-  'wizard.proto.oauth2.hint': 'IMAP met XOAUTH2, met Graph-terugval erachter (appregistratie)',
-  'wizard.proto.graph.hint': 'Alleen de Graph-API (appregistratie)',
-  'wizard.proto.google.hint': 'Eén Google-account, één aanmelding: agenda’s, contacten en taken.',
-  'wizard.proto.googleDrive.hint': 'Bestanden uit een Google Drive (alleen-lezen OAuth)',
-  'wizard.proto.dropbox.hint': 'Bestanden uit een Dropbox (alleen-lezen OAuth-app)',
-  'wizard.proto.box.hint': 'Bestanden uit een Box-account (alleen-lezen platform-app)',
-  'wizard.boxUserId': 'Box-gebruikers-ID (numeriek)',
-  'wizard.boxUserId.placeholder': 'bijv. 1234567890',
-  'wizard.boxRootFolderId': 'ID van de hoofdmap',
-  'wizard.boxRootFolderId.placeholder': 'Leeg = All Files',
-  'wizard.dropboxAppKey': 'App-sleutel',
-  'wizard.dropboxRootPath': 'Pad van de hoofdmap',
-  'wizard.dropboxRootPath.placeholder': 'bijv. /Team Docs',
-  'wizard.proto.gmail.hint': 'E-mail uit een Gmail-postvak (OAuth via IMAP)',
-  'wizard.proto.googleCalendar.hint': "Agenda's uit een Google-account (OAuth via CalDAV)",
-  'wizard.proto.googleContacts.hint': 'Contacten uit een Google-account (OAuth via CardDAV)',
-  'wizard.gmailAppPassword': 'App-wachtwoord',
-  'wizard.gmailAppPassword.hint':
+  'account.group.provider': 'Uw aanbieder',
+  'account.group.protocol': 'Elke server, via protocol',
+  'account.m365.viaImap': 'Via IMAP',
+  'account.m365.viaGraph': 'Via de Graph-API',
+  'account.proto.oauth2.hint': 'IMAP met XOAUTH2, met Graph-terugval erachter (appregistratie)',
+  'account.proto.graph.hint': 'Alleen de Graph-API (appregistratie)',
+  'account.proto.google.hint': 'Eén Google-account, één aanmelding: agenda’s, contacten en taken.',
+  'account.proto.googleDrive.hint': 'Bestanden uit een Google Drive (alleen-lezen OAuth)',
+  'account.proto.dropbox.hint': 'Bestanden uit een Dropbox (alleen-lezen OAuth-app)',
+  'account.proto.box.hint': 'Bestanden uit een Box-account (alleen-lezen platform-app)',
+  'account.boxUserId': 'Box-gebruikers-ID (numeriek)',
+  'account.boxUserId.placeholder': 'bijv. 1234567890',
+  'account.boxRootFolderId': 'ID van de hoofdmap',
+  'account.boxRootFolderId.placeholder': 'Leeg = All Files',
+  'account.dropboxAppKey': 'App-sleutel',
+  'account.dropboxRootPath': 'Pad van de hoofdmap',
+  'account.dropboxRootPath.placeholder': 'bijv. /Team Docs',
+  'account.proto.gmail.hint': 'E-mail uit een Gmail-postvak (OAuth via IMAP)',
+  'account.proto.googleCalendar.hint': "Agenda's uit een Google-account (OAuth via CalDAV)",
+  'account.proto.googleContacts.hint': 'Contacten uit een Google-account (OAuth via CardDAV)',
+  'account.gmailAppPassword': 'App-wachtwoord',
+  'account.gmailAppPassword.hint':
     'Alleen voor persoonlijke Google-accounts; laat leeg om OAuth te gebruiken.',
-  'wizard.gmailAppPassword.why':
+  'account.gmailAppPassword.why':
     'Google raadt het af (wij ook): een app-wachtwoord opent de hele mailbox, terwijl een token met gerichte toestemming één ding opent. Het vereist tweestapsverificatie op het account, bestaat niet op een Workspace-account en wordt ingetrokken in de app-wachtwoordenlijst van het account zelf, zonder dat u iets hoeft met Ownpace.',
-  'wizard.refreshToken': 'Refresh-token',
-  'wizard.refreshToken.hint':
+  'account.refreshToken': 'Refresh-token',
+  'account.refreshToken.hint':
     'Het gedelegeerde token van het account; behandel het als een wachtwoord.',
-  'wizard.rootFolderId': 'Hoofdmap-ID',
-  'wizard.rootFolderId.placeholder': 'Leeg = heel Mijn Drive',
-  'wizard.serviceAccountKey': 'Serviceaccount-sleutel',
-  'wizard.serviceAccountKey.placeholder': 'Plak het volledige JSON-sleutelbestand',
-  'wizard.serviceAccountKey.width':
+  'account.rootFolderId': 'Hoofdmap-ID',
+  'account.rootFolderId.placeholder': 'Leeg = heel Mijn Drive',
+  'account.serviceAccountKey': 'Serviceaccount-sleutel',
+  'account.serviceAccountKey.placeholder': 'Plak het volledige JSON-sleutelbestand',
+  'account.serviceAccountKey.width':
     'Deze sleutel kan elke gebruiker in het domein lezen; trek hem bij de overstap in.',
-  'wizard.serviceAccountKey.why':
+  'account.serviceAccountKey.why':
     'Domeinbrede delegatie kan veel van elke Workspace-gebruiker lezen, al benoemt elke migratie nog steeds één account. Autoriseer alleen de benodigde scopes in de Admin-console en trek de delegatie bij de overstap weer in.',
-  'wizard.nativePolicy': 'Google Documenten, Spreadsheets, Presentaties en Tekeningen',
-  'wizard.nativePolicy.hint':
+  'account.nativePolicy': 'Google Documenten, Spreadsheets, Presentaties en Tekeningen',
+  'account.nativePolicy.hint':
     'Hiervan is geen bestand te migreren, alleen een weergave van Google.',
-  'wizard.nativePolicy.hint.why':
+  'account.nativePolicy.hint.why':
     'Een Google-document is geen bestand: er is niets om over te zetten. Drive kan er een document of een PDF-export van maken, en dat bestand kan worden gemigreerd. Het alternatief is deze achterlaten in de bron (de standaard).',
-  'wizard.nativePolicy.leave': 'Laten staan, en elk bestand melden',
-  'wizard.nativePolicy.as.odf': 'OpenDocument ({ext})',
-  'wizard.nativePolicy.as.office': 'Microsoft Office ({ext})',
-  'wizard.nativePolicy.as.pdf': 'PDF ({ext}), niet bewerkbaar',
-  'wizard.nativePolicy.as.image': 'Afbeelding ({ext})',
-  'wizard.nativePolicy.as.leftBehind': '{format}: blijft staan',
-  'wizard.nativePolicy.editable': 'Kies voor elke soort een bewerkbaar formaat',
-  'wizard.nativePolicy.leftBehind': '{kinds} blijven staan in Google, elk met naam gemeld.',
-  'wizard.nativePolicy.leftBehind.why':
+  'account.nativePolicy.leave': 'Laten staan, en elk bestand melden',
+  'account.nativePolicy.as.odf': 'OpenDocument ({ext})',
+  'account.nativePolicy.as.office': 'Microsoft Office ({ext})',
+  'account.nativePolicy.as.pdf': 'PDF ({ext}), niet bewerkbaar',
+  'account.nativePolicy.as.image': 'Afbeelding ({ext})',
+  'account.nativePolicy.as.leftBehind': '{format}: blijft staan',
+  'account.nativePolicy.editable': 'Kies voor elke soort een bewerkbaar formaat',
+  'account.nativePolicy.leftBehind': '{kinds} blijven staan in Google, elk met naam gemeld.',
+  'account.nativePolicy.leftBehind.why':
     'Hier wordt niets van gemigreerd of verwijderd: elk bestand verschijnt met naam op het scherm Mislukkingen, waar u ze per stuk of allemaal tegelijk accepteert of opnieuw probeert. Formulieren, My Maps, Sites en Apps Scripts blijven altijd achter, omdat Google daar geen exportformaat voor heeft.',
-  'wizard.nativePolicy.notEditable': '{kinds} komen aan als PDF.',
-  'wizard.nativePolicy.notEditable.why':
+  'account.nativePolicy.notEditable': '{kinds} komen aan als PDF.',
+  'account.nativePolicy.notEditable.why':
     'Een PDF legt vast hoe het document eruitziet, maar bij export kan fijnere opmaak verloren gaan. Kies deze weergave als u dit bestand nooit meer hoeft te bewerken.',
-  'wizard.nativePolicy.allEditable': 'Alle vier de soorten komen aan als bestanden die u kunt bewerken.',
-  'wizard.nativePolicy.allEditable.why':
+  'account.nativePolicy.allEditable': 'Alle vier de soorten komen aan als bestanden die u kunt bewerken.',
+  'account.nativePolicy.allEditable.why':
     'Elk bestand komt aan in door Google gegenereerd export-bestandsformaat, niet als origineel: fijnere opmaak kan verschuiven, en tekeningen komen als .svg-afbeelding omdat Drive geen bewerkbaar formaat voor tekeningen aanbiedt. U kunt een formaat later wijzigen, maar de al gemigreerde bestanden houden het formaat waarin ze aankwamen.',
-  'wizard.paperFormat': 'Dropbox Paper-documenten',
-  'wizard.paperFormat.hint': 'Geen te migreren bestandsformaat, kan alleen via Dropbox-export-bestandsformaat.',
-  'wizard.paperFormat.hint.why':
+  'account.paperFormat': 'Dropbox Paper-documenten',
+  'account.paperFormat.hint': 'Geen te migreren bestandsformaat, kan alleen via Dropbox-export-bestandsformaat.',
+  'account.paperFormat.hint.why':
     'Een Paper-document is geen bestand: er is niets om over te zetten. Dropbox kan er een Markdown- of HTML-export van maken, en dat bestand kan worden gemigreerd. Het krijgt dan aanvullend aan de naam een andere bestandsextensie: Notities.paper komt over als Notities.paper.md. Paper-sjablonen volgen dezelfde keuze. Het alternatief is deze bestanden achterlaten in de bron.',
-  'wizard.paperFormat.leave': 'Laten staan, en elk document melden',
-  'wizard.paperFormat.as.markdown': 'Markdown (.md), opent in Nextcloud Text',
-  'wizard.paperFormat.as.html': 'HTML (.html), opent in een webbrowser',
-  'wizard.paperFormat.leftBehind': 'Paper-documenten blijven staan in Dropbox, elk met naam gemeld.',
-  'wizard.paperFormat.leftBehind.why':
+  'account.paperFormat.leave': 'Laten staan, en elk document melden',
+  'account.paperFormat.as.markdown': 'Markdown (.md), opent in Nextcloud Text',
+  'account.paperFormat.as.html': 'HTML (.html), opent in een webbrowser',
+  'account.paperFormat.leftBehind': 'Paper-documenten blijven staan in Dropbox, elk met naam gemeld.',
+  'account.paperFormat.leftBehind.why':
     'Wordt niet gemigreerd, maar is ook niet verloren: elk document staat in de lijst bij Mislukkingen, en u kunt voor alle items nog een export-bestandsformaat kiezen, of deze bestanden achterlaten.',
-  'wizard.paperFormat.arrives': 'Elk Paper-document komt aan als bestand dat u kunt bewerken.',
-  'wizard.paperFormat.arrives.why':
+  'account.paperFormat.arrives': 'Elk Paper-document komt aan als bestand dat u kunt bewerken.',
+  'account.paperFormat.arrives.why':
     'Een export is een weergave die Dropbox maakt in een ander bestandsformaat, niet het Paper-document zelf: fijne opmaak kan verschuiven, en wat u op het nieuwe systeem wijzigt, gaat niet terug naar Dropbox. U kunt het bestandsformaat later nog wijzigen, maar de al gemigreerde documenten houden het formaat waarin deze al waren gemigreerd.',
-  'wizard.proto.jmap.hint': 'Modern e-mailprotocol',
-  'wizard.proto.caldav.hint': 'Agendaprotocol',
-  'wizard.proto.carddav.hint': 'Contactenprotocol',
-  'wizard.proto.webdav.hint': 'Bestandsopslag',
-  'wizard.proto.soverin.hint': 'Eén account — e-mail, agenda’s en contacten',
-  'wizard.proto.nextcloud.hint':
+  'account.proto.jmap.hint': 'Modern e-mailprotocol',
+  'account.proto.caldav.hint': 'Agendaprotocol',
+  'account.proto.carddav.hint': 'Contactenprotocol',
+  'account.proto.webdav.hint': 'Bestandsopslag',
+  'account.proto.soverin.hint': 'Eén account — e-mail, agenda’s en contacten',
+  'account.proto.nextcloud.hint':
     'Eén account — agenda’s, contacten, bestanden en taken (geen e-mail)',
-  'wizard.host': 'Host',
-  'wizard.port': 'Poort',
-  'wizard.targetDavUrl': 'DAV-basis-URL',
-  'wizard.targetDavUrl.hint': 'Alleen wanneer de DAV-root van de server niet op de hostroot staat.',
-  'wizard.nextcloudDavUrl.hint':
+  'account.host': 'Host',
+  'account.port': 'Poort',
+  'account.targetDavUrl': 'DAV-basis-URL',
+  'account.targetDavUrl.hint': 'Alleen wanneer de DAV-root van de server niet op de hostroot staat.',
+  'account.nextcloudDavUrl.hint':
     'Het adres waarop u Nextcloud opent, met /remote.php/dav erachter.',
-  'wizard.nextcloudDavUrl.why':
+  'account.nextcloudDavUrl.why':
     'Nextcloud biedt agenda’s, contacten, taken en bestanden aan onder /remote.php/dav en niet op de root van de site, dus een host en poort kunnen niet zeggen waar het staat. Plak het adres uit de adresbalk — https://cloud.example.com — en zet er /remote.php/dav achter.',
-  'wizard.soverinMailHost': 'Mailserver',
-  'wizard.soverinMailHost.hint': 'Alleen nodig als dit account ook e-mail gaat ontvangen.',
-  'wizard.soverinMailHost.why':
+  'account.soverinMailHost': 'Mailserver',
+  'account.soverinMailHost.hint': 'Alleen nodig als dit account ook e-mail gaat ontvangen.',
+  'account.soverinMailHost.why':
     'Agenda’s, taken en contacten hebben geen mailserver nodig. Test meet wat de host die u invult daadwerkelijk kan ondersteunen.',
-  'wizard.soverinMailPort': 'Mailpoort',
-  'wizard.providerDefaults.note':
+  'account.soverinMailPort': 'Mailpoort',
+  'account.providerDefaults.note':
     'Vooraf ingevuld met de gepubliceerde instellingen van {provider}, gelezen op {seen}. Test controleert deze.',
-  'wizard.credentials': 'Inloggegevens',
-  'wizard.sourceUsername': 'Gebruikersnaam',
-  'wizard.sourcePassword': 'Wachtwoord',
-  'wizard.targetUsername': 'Gebruikersnaam',
-  'wizard.targetPassword': 'Wachtwoord',
-  'wizard.schedule.automatic': 'Automatisch',
-  'wizard.schedule.automatic.hint': '14 dagen elk uur, daarna elke 6 uur, vanaf dag 30 dagelijks.',
-  'wizard.schedule.hourly': 'Elk uur',
-  'wizard.schedule.hourly.hint': 'Ieder uur',
-  'wizard.schedule.daily': 'Dagelijks',
-  'wizard.schedule.daily.hint': 'Elke dag',
-  'wizard.schedule.sixHourly': 'Elke 6 uur',
-  'wizard.schedule.sixHourly.hint': 'Vier keer per dag',
-  'wizard.schedule.quarterHourly': 'Elk kwartier',
-  'wizard.schedule.quarterHourly.hint': 'Frequente synchronisatie',
-  'wizard.back': 'Terug',
-  'wizard.next': 'Volgende',
-  'wizard.missing.lead': 'Nog invullen om verder te gaan:',
-  'wizard.tenantId': 'Tenant-ID',
-  'wizard.clientId': 'Client-ID (applicatie-ID)',
-  'wizard.sourceClientSecret': 'Clientsecret',
+  'account.sourceUsername': 'Gebruikersnaam',
+  'account.sourcePassword': 'Wachtwoord',
+  'account.targetUsername': 'Gebruikersnaam',
+  'account.targetPassword': 'Wachtwoord',
+  'account.schedule.automatic': 'Automatisch',
+  'account.schedule.automatic.hint': '14 dagen elk uur, daarna elke 6 uur, vanaf dag 30 dagelijks.',
+  'account.schedule.hourly': 'Elk uur',
+  'account.schedule.hourly.hint': 'Ieder uur',
+  'account.schedule.daily': 'Dagelijks',
+  'account.schedule.daily.hint': 'Elke dag',
+  'account.schedule.sixHourly': 'Elke 6 uur',
+  'account.schedule.sixHourly.hint': 'Vier keer per dag',
+  'account.schedule.quarterHourly': 'Elk kwartier',
+  'account.schedule.quarterHourly.hint': 'Frequente synchronisatie',
+  'account.back': 'Terug',
+  'account.next': 'Volgende',
+  'account.missing.lead': 'Nog invullen om verder te gaan:',
+  'account.tenantId': 'Tenant-ID',
+  'account.clientId': 'Client-ID (applicatie-ID)',
+  'account.sourceClientSecret': 'Clientsecret',
   'docs.title': 'Handleidingen',
   'docs.all': '← Alle handleidingen',
   'docs.notFound': 'Er is geen handleiding met die naam; deze horen bij deze versie:',
@@ -956,7 +954,6 @@ export const nl: Record<keyof typeof en, string> = {
   'probe.unit.collection.one': 'verzameling',
   'probe.unit.collection.many': 'verzamelingen',
   'probe.qualify.lead': 'Omvat:',
-  'probe.qualify.unknownHint': "'?' is niet gemeten — geen van beide aannemen is veilig",
   'probe.measured.lead': 'Gevonden:',
   'probe.found.none': 'geen',
   'probe.measured.message.one': '{count} bericht',

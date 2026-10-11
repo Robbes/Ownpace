@@ -177,18 +177,18 @@ const Panel: React.FC<{ type: string }> = ({ type }) => {
 describe('the consent panel says it beside Connect with Google (0140 T3 (a))', () => {
   for (const locale of LOCALES) {
     const lineFor = (button: HTMLElement): HTMLElement => {
-      const line = screen.getByText(words(locale, 'wizard.google.inAppBrowser'));
+      const line = screen.getByText(words(locale, 'account.google.inAppBrowser'));
       expect(button.parentElement, 'the line is not beside the button').toContainElement(line);
       expect(
         describedBy(button),
         'the line comes after the button, so the button must point at it or a screen reader presses first',
-      ).toContain(words(locale, 'wizard.google.inAppBrowser'));
+      ).toContain(words(locale, 'account.google.inAppBrowser'));
       return line;
     };
 
     it(`${locale}: a Google account's panel carries it, ending with signing in again`, async () => {
       wrap(locale, <Panel type="google" />, '/connections', '/connections');
-      const button = await screen.findByRole('button', { name: words(locale, 'wizard.google.connect') });
+      const button = await screen.findByRole('button', { name: words(locale, 'account.google.connect') });
       const line = lineFor(button);
       expect(line.textContent).toMatch(A_REAL_BROWSER[locale]);
       expect(line.textContent).toMatch(THE_OTHER_APPS_OPTION[locale]);
@@ -199,7 +199,7 @@ describe('the consent panel says it beside Connect with Google (0140 T3 (a))', (
     for (const type of ['gmail', 'google-drive'] as const) {
       it(`${locale}: the ${type} card's panel carries it too, whatever it asks for`, async () => {
         wrap(locale, <Panel type={type} />, '/connections', '/connections');
-        lineFor(await screen.findByRole('button', { name: words(locale, 'wizard.google.connect') }));
+        lineFor(await screen.findByRole('button', { name: words(locale, 'account.google.connect') }));
       });
     }
 
@@ -207,9 +207,9 @@ describe('the consent panel says it beside Connect with Google (0140 T3 (a))', (
       it(`${locale}: ${provider}'s button carries no Google line`, async () => {
         wrap(locale, <Panel type={provider} />, '/connections', '/connections');
         expect(
-          await screen.findByRole('button', { name: words(locale, `wizard.${provider}.connect`) }),
+          await screen.findByRole('button', { name: words(locale, `account.${provider}.connect`) }),
         ).toBeTruthy();
-        expect(screen.queryByText(words(locale, 'wizard.google.inAppBrowser'))).toBeNull();
+        expect(screen.queryByText(words(locale, 'account.google.inAppBrowser'))).toBeNull();
       });
     }
   }

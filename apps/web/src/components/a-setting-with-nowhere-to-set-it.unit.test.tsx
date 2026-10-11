@@ -491,7 +491,7 @@ describe('a Dropbox migration’s Paper docs, on the same panel (workplan 0150 T
    * after the press is the same fact as Drive's, about Paper docs: a new format
    * gives each one a new name, so it is copied again and the old copy stays.
    */
-  const paperBox = () => screen.getByLabelText(EN['wizard.paperFormat']) as HTMLSelectElement;
+  const paperBox = () => screen.getByLabelText(EN['account.paperFormat']) as HTMLSelectElement;
   const dropbox = (current?: { nativeFilePolicies?: unknown }) =>
     renderPanel({ sourceType: 'dropbox', domains: ['file'], current });
   const save = () => userEvent.click(screen.getByRole('button', { name: EN['settings.exportPolicy.save'] }));

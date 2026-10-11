@@ -40,8 +40,8 @@ import { Hint } from './Hint.tsx';
 
 /** What each format is called in the select, and the suffix a doc arrives under (D4). */
 const FORMAT: Readonly<Record<DropboxPaperFormat, { readonly label: StringKey; readonly ext: string }>> = {
-  markdown: { label: 'wizard.paperFormat.as.markdown', ext: '.md' },
-  html: { label: 'wizard.paperFormat.as.html', ext: '.html' },
+  markdown: { label: 'account.paperFormat.as.markdown', ext: '.md' },
+  html: { label: 'account.paperFormat.as.html', ext: '.html' },
 };
 
 /** What the wizard starts from (D1): Markdown, which Nextcloud's Text app opens. */
@@ -60,10 +60,10 @@ export const PaperFormatChooser: React.FC<{
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700" htmlFor={id}>
-        {t('wizard.paperFormat')}
+        {t('account.paperFormat')}
       </label>
       {/* One line, the rest folded (0118 T1). */}
-      <Hint text={t('wizard.paperFormat.hint')} why={t('wizard.paperFormat.hint.why')} />
+      <Hint text={t('account.paperFormat.hint')} why={t('account.paperFormat.hint.why')} />
       <select
         id={id}
         className="input mt-2 w-full"
@@ -71,7 +71,7 @@ export const PaperFormatChooser: React.FC<{
         disabled={disabled}
         onChange={(e) => onChange(e.target.value as DropboxPaperPolicy)}
       >
-        <option value="refuse">{t('wizard.paperFormat.leave')}</option>
+        <option value="refuse">{t('account.paperFormat.leave')}</option>
         {DROPBOX_PAPER_FORMATS.map((format) => (
           <option key={format} value={format}>
             {t(FORMAT[format].label)}
@@ -81,13 +81,13 @@ export const PaperFormatChooser: React.FC<{
       {value === 'refuse' ? (
         <Hint
           tone="caution"
-          text={t('wizard.paperFormat.leftBehind')}
-          why={t('wizard.paperFormat.leftBehind.why')}
+          text={t('account.paperFormat.leftBehind')}
+          why={t('account.paperFormat.leftBehind.why')}
         />
       ) : (
         <Hint
-          text={t('wizard.paperFormat.arrives', { ext: FORMAT[value].ext })}
-          why={t('wizard.paperFormat.arrives.why')}
+          text={t('account.paperFormat.arrives', { ext: FORMAT[value].ext })}
+          why={t('account.paperFormat.arrives.why')}
         />
       )}
     </div>

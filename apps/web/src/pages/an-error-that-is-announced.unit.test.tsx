@@ -176,7 +176,7 @@ const connectionsPage = (locale: Locale) => wrap(locale, <Connections />, '/conn
 
 /** The Connect button once it is live: the deployment carries Google's application. */
 const liveConnect = async (locale: Locale): Promise<HTMLElement> => {
-  const connect = await screen.findByRole('button', { name: words(locale, 'wizard.google.connect') });
+  const connect = await screen.findByRole('button', { name: words(locale, 'account.google.connect') });
   await waitFor(() => expect(connect).toBeEnabled());
   return connect;
 };
@@ -238,7 +238,7 @@ describe('an error that is announced (0145 T4)', () => {
         const refused = theAlert(REFUSED);
 
         await consentLands();
-        const received = words(locale, 'wizard.consent.received');
+        const received = words(locale, 'account.consent.received');
         await screen.findByText(received);
         const status = theStatus(received);
         expect(screen.queryByRole('alert'), 'good news announced as an alert').toBeNull();
@@ -286,7 +286,7 @@ describe('an error that is announced (0145 T4)', () => {
         fireEvent.click(connect);
         await screen.findByText(REFUSED);
         theAlert(REFUSED);
-        const received = words(locale, 'wizard.consent.received');
+        const received = words(locale, 'account.consent.received');
         await consentLands();
         await screen.findByText(received);
         theStatus(received);
@@ -320,7 +320,7 @@ describe('an error that is announced (0145 T4)', () => {
         fireEvent.click(again);
         await screen.findByText(REFUSED);
         theAlert(REFUSED);
-        const received = words(locale, 'wizard.consent.received');
+        const received = words(locale, 'account.consent.received');
         await consentLands();
         await screen.findByText(received);
         theStatus(received);
