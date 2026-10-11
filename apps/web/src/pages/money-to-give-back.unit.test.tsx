@@ -99,6 +99,7 @@ describe('money to give back', () => {
     expect(open.getAllByText('Mutsaers BV')[0]!.closest('a')).toHaveAttribute('href', '/support/tenants/t-1');
     const byHandRow = within(open.getByText('2026-0010').closest('tr')!);
     expect(byHandRow.getByText(/4\.00/)).toBeInTheDocument();
+    expect(byHandRow.getByText('on invoice 2026-0009')).toBeInTheDocument();
     expect(open.getByText(O['support.money.reason.by_hand'])).toBeInTheDocument();
 
     const done = within(section(O['support.money.done.heading']));

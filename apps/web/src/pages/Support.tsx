@@ -80,7 +80,8 @@ import {
 import { readApplianceLog } from '../services/operating-service.ts';
 import { idpConsoleUserUrl, localSubjectKind } from '../services/idp-console.ts';
 import { serverMessage } from '../services/api.ts';
-import { useOperatorT, useFormatters, type OperatorScreenKey } from '../i18n/index.tsx';
+import { useOperatorT, useFormatters, useLocale, type OperatorScreenKey } from '../i18n/index.tsx';
+import { formatDateTime } from '../i18n/datetime.ts';
 import { Hint } from '../components/Hint.tsx';
 import { AuditExportDownload } from '../components/AuditExportDownload.tsx';
 import { FAILURE_KEY, FAILURE_SIDE_KEY } from '../i18n/failure-key.ts';
@@ -1215,6 +1216,9 @@ const MONEY_REASON_KEY: Record<MoneyToGiveBack['reason'], OperatorScreenKey> = {
 const MoneyRow: React.FC<{ item: MoneyToGiveBack }> = ({ item }) => {
   const t = useOperatorT();
   const { dateTime, currency } = useFormatters();
+  const { locale } = useLocale();
+  // The day is what the 14 days count; the time is on hover.
+  const day = (iso: string) => formatDateTime(iso, locale, { timeStyle: undefined });
   const client = useQueryClient();
   const [asking, setAsking] = React.useState(false);
   const mark = useMutation({
@@ -1232,10 +1236,14 @@ const MoneyRow: React.FC<{ item: MoneyToGiveBack }> = ({ item }) => {
           {item.organisation}
         </Link>
       </td>
-      <td className="px-3 py-2 text-gray-600">{item.creditNoteNumber}</td>
-      <td className="px-3 py-2 text-gray-600">{item.invoiceNumber}</td>
-      <td className="px-3 py-2 text-gray-900">{currency(item.cents, item.currency)}</td>
-      <td className="px-3 py-2 text-gray-600">
+      <td className="whitespace-nowrap px-3 py-2 text-gray-600">
+        <div>{item.creditNoteNumber}</div>
+        {item.invoiceNumber && (
+          <div className="text-xs text-gray-500">{t('support.money.onInvoice', { number: item.invoiceNumber })}</div>
+        )}
+      </td>
+      <td className="whitespace-nowrap px-3 py-2 text-gray-900">{currency(item.cents, item.currency)}</td>
+      <td className="min-w-[12rem] px-3 py-2 text-gray-600">
         {t(MONEY_REASON_KEY[item.reason], {
           refund: item.refundId ?? '',
           status: item.refundStatus ?? '',
@@ -1244,14 +1252,18 @@ const MoneyRow: React.FC<{ item: MoneyToGiveBack }> = ({ item }) => {
           <> {t('support.money.reason.inTheBooks')}</>
         )}
       </td>
-      <td className="px-3 py-2 text-gray-600">{dateTime(item.saidAt)}</td>
+      {!item.givenBackAt && (
+        <td className="whitespace-nowrap px-3 py-2 text-gray-600" title={dateTime(item.saidAt)}>
+          {day(item.saidAt)}
+        </td>
+      )}
       <td className="px-3 py-2">
         {item.givenBackAt ? (
-          <span className="text-gray-600">
-            {t('support.money.givenBackBy', {
-              when: dateTime(item.givenBackAt),
-              who: item.givenBackBy ?? t('support.money.someone'),
-            })}
+          <span className="whitespace-nowrap text-gray-600" title={dateTime(item.givenBackAt)}>
+            {day(item.givenBackAt)}
+            <span className="block text-xs text-gray-500">
+              {t('support.money.givenBackBy', { who: item.givenBackBy ?? t('support.money.someone') })}
+            </span>
           </span>
         ) : late ? (
           <span className="text-gray-500">{t('support.money.watching')}</span>
@@ -1262,7 +1274,7 @@ const MoneyRow: React.FC<{ item: MoneyToGiveBack }> = ({ item }) => {
               type="button"
               disabled={mark.isPending}
               onClick={() => mark.mutate()}
-              className="rounded-md bg-blue-600 px-3 py-1 text-white hover:bg-blue-700 disabled:opacity-50"
+              className="whitespace-nowrap rounded-md bg-blue-600 px-3 py-1 text-white hover:bg-blue-700 disabled:opacity-50"
             >
               {t('support.money.mark.yes')}
             </button>
@@ -1279,7 +1291,7 @@ const MoneyRow: React.FC<{ item: MoneyToGiveBack }> = ({ item }) => {
           <button
             type="button"
             onClick={() => setAsking(true)}
-            className="rounded-md border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50"
+            className="whitespace-nowrap rounded-md border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50"
           >
             {t('support.money.mark')}
           </button>
@@ -1302,10 +1314,9 @@ const MoneyTable: React.FC<{ items: MoneyToGiveBack[]; done: boolean }> = ({ ite
         <tr>
           <th className="px-3 py-2">{t('support.money.col.organisation')}</th>
           <th className="px-3 py-2">{t('support.money.col.creditNote')}</th>
-          <th className="px-3 py-2">{t('support.money.col.invoice')}</th>
           <th className="px-3 py-2">{t('support.money.col.amount')}</th>
           <th className="px-3 py-2">{t('support.money.col.what')}</th>
-          <th className="px-3 py-2">{t('support.money.col.since')}</th>
+          {!done && <th className="px-3 py-2">{t('support.money.col.since')}</th>}
           <th className="px-3 py-2">{done ? t('support.money.col.givenBack') : t('support.money.col.action')}</th>
         </tr>
       </thead>

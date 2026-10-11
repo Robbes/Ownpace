@@ -312,7 +312,7 @@ export const OPERATOR_STRINGS = {
   'support.money.done.none': 'Nothing marked given back yet.',
   'support.money.col.organisation': 'Organisation',
   'support.money.col.creditNote': 'Credit note',
-  'support.money.col.invoice': 'Invoice',
+  'support.money.onInvoice': 'on invoice {number}',
   'support.money.col.amount': 'Amount',
   'support.money.col.what': 'What happened',
   'support.money.col.since': 'Since',
@@ -330,7 +330,7 @@ export const OPERATOR_STRINGS = {
   'support.money.mark.confirm': 'Paid back by transfer, and booked in Moneybird?',
   'support.money.mark.yes': 'Yes, mark it',
   'support.money.mark.failed': 'Could not mark it: {message}',
-  'support.money.givenBackBy': '{when}, by {who}',
+  'support.money.givenBackBy': 'by {who}',
   'support.money.someone': 'an operator no longer listed',
 } as const;
 
