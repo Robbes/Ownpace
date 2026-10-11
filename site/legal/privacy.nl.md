@@ -15,7 +15,7 @@
 # Privacyverklaring
 
 **Geldt voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`, en deze website.
-**Versie:** 1.3
+**Versie:** 1.4
 **Laatst bijgewerkt:** 2026-10-11
 
 > **Draait u Ownpace zelf**, dan geldt deze verklaring niet voor u en valt er voor ons niets
@@ -188,9 +188,9 @@ bijhoudt (§6).
 gegevens er zijn gemigreerd. **Tijdens de Alpha wordt niets in rekening gebracht**: er zijn geen
 facturen, en u legt geen betaalwijze vast. Zodra er betalingen zijn, lopen die via onze
 betaaldienstverlener (§7); **wij vragen of bewaren uw kaartnummer niet**. Vult u op de pagina
-*Facturering* toch factuurgegevens in — een naam, een adres, een btw-nummer — dan bewaren we die
-tot uw gegevens worden gewist, en laat u de app een btw-nummer controleren, dan gebeurt dat bij
-de VIES-dienst van de Europese Commissie.
+*Facturering* toch factuurgegevens in — een naam, een adres, een btw-nummer, het e-mailadres
+waarheen uw facturen worden gestuurd — dan bewaren we die tot uw gegevens worden gewist, en laat
+u de app een btw-nummer controleren, dan gebeurt dat bij de VIES-dienst van de Europese Commissie.
 
 ### 4.5 Support en operationele logs
 
