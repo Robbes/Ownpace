@@ -172,6 +172,20 @@ overrides:
   # configurations getAuthContext reports an unauthorised certificate as authorised. Fixed in
   # 1.14.5; the tree has one copy, on 1.x.
   "@grpc/grpc-js@<1.14.5": ^1.14.5
+  # Raised 2026-10-07 for three advisories the gate named on a branch that touched
+  # no dependency (the gate fails on main too — this is the tree, not the diff):
+  #   proxy-addr GHSA-jqcg-44mw-7w3h (CRITICAL, PRODUCTION via express): IP spoofing
+  #     through IPv4-mapped IPv6 in a trust subnet. 2.0.8, published 2026-09-15.
+  #   seroval GHSA-p6vx-979v-rg4c (CRITICAL) + GHSA-jp82-f5mq-hwhp (HIGH), PRODUCTION
+  #     via solid-js: fromJSON() assimilation invokes plugin-produced callables, and
+  #     unchecked TypedArray length exhausts memory. Two floors, one bound: 1.6.3.
+  #   source-map-js GHSA-68fv-2mgg-jv7q (HIGH, dev-only via vite/postcss):
+  #     event-loop DoS through indexed source-map section offsets. 1.2.2.
+  # All three fix versions predate the 3-day cooldown below, so no
+  # minimumReleaseAgeExclude entry is needed.
+  "proxy-addr@<2.0.8": ^2.0.8
+  "seroval@<1.6.3": ^1.6.3
+  "source-map-js@<1.2.2": ^1.2.2
   #
   # libxmljs2 is NOT INSTALLED, on purpose. It is optional for the CycloneDX SBOM tool (an
   # optional dependency of cyclonedx-npm and an optional peer of cyclonedx-library), which uses it

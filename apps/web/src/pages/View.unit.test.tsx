@@ -96,17 +96,17 @@ beforeEach(() => {
 describe('what the page says', () => {
   it('names who is doing this, in a sentence rather than a chip', async () => {
     renderPage();
-    expect(await screen.findByText(/Example family is moving your account/)).toBeInTheDocument();
+    expect(await screen.findByText(/Example family is migrating your account/)).toBeInTheDocument();
     // `active` reads as "Active" everywhere else in the product. Here it is a
     // whole sentence, because the reader is not scanning twenty migrations —
     // they are reading about their own.
-    expect(screen.getByText('Your things are being copied across now.')).toBeInTheDocument();
+    expect(screen.getByText('Your things are being migrated across now.')).toBeInTheDocument();
     expect(screen.queryByText('Active')).not.toBeInTheDocument();
   });
 
   it('counts what has been copied, and says how much has moved', async () => {
     renderPage();
-    expect(await screen.findByText('4211 copied')).toBeInTheDocument();
+    expect(await screen.findByText('4211 migrated')).toBeInTheDocument();
     expect(screen.getByText('Email')).toBeInTheDocument();
     expect(screen.getByText(/86.8 MB moved so far/)).toBeInTheDocument();
   });
@@ -117,7 +117,7 @@ describe('what the page says', () => {
     readMock.mockResolvedValue(payload({ started: false, domains: [] }));
     renderPage();
     expect(await screen.findByText('Nothing has been copied yet.')).toBeInTheDocument();
-    expect(screen.queryByText(/copied$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/migrated$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/moved so far/)).not.toBeInTheDocument();
   });
 
@@ -126,7 +126,7 @@ describe('what the page says', () => {
     // that has never completed gets the weaker sentence, worded as weaker.
     readMock.mockResolvedValue(payload({ domains: [row({ lastActiveAt: YESTERDAY })] }));
     renderPage();
-    expect(await screen.findByText(/Still copying; last worked on/)).toBeInTheDocument();
+    expect(await screen.findByText(/Still migrating; last worked on/)).toBeInTheDocument();
     expect(screen.queryByText(/Up to date as of/)).not.toBeInTheDocument();
   });
 
@@ -195,7 +195,7 @@ describe('when something is wrong', () => {
     // whose reader cannot check anything.
     readMock.mockResolvedValue(payload({ domains: [row({ pausedReason: { kind: 'hibernating' } })] }));
     renderPage();
-    await screen.findByText('4211 copied');
+    await screen.findByText('4211 migrated');
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
   });
 
@@ -214,7 +214,7 @@ describe('when something is wrong', () => {
     renderPage();
     expect(await screen.findByText(/Ask them for a fresh link/)).toBeInTheDocument();
     // And no counts of any kind: a refusal is not a migration with nothing in it.
-    expect(screen.queryByText(/copied/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/copied|migrated/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Nothing has been copied yet/)).not.toBeInTheDocument();
   });
 });
@@ -231,7 +231,7 @@ describe('the access they gave, and taking it back (0108 T8 (c))', () => {
     // Said before the second press: what stops, what stays, and that Google
     // takes it back for the whole app.
     expect(screen.getByText(/Example Care reads your Google account/)).toBeInTheDocument();
-    expect(screen.getByText(/What was already copied stays/)).toBeInTheDocument();
+    expect(screen.getByText(/What was already copied over stays/)).toBeInTheDocument();
     expect(screen.getByText(/any other migration you allowed stops too/)).toBeInTheDocument();
     expect(screen.getByText(/Continuing later needs a new link/)).toBeInTheDocument();
     expect(withdrawMock).not.toHaveBeenCalled();
@@ -294,8 +294,8 @@ describe('the access they gave, and taking it back (0108 T8 (c))', () => {
     readMock.mockResolvedValue(payload({ grant: { state: 'withdrawn', withdrawnAt: WITHDRAWN_AT } }));
     renderPage();
 
-    expect(await screen.findByText(/Copying has stopped: on .* you withdrew the access you gave\./)).toBeInTheDocument();
-    expect(screen.queryByText('Your things are being copied across now.')).not.toBeInTheDocument();
+    expect(await screen.findByText(/Migrating stopped: on .* you withdrew the access you gave\./)).toBeInTheDocument();
+    expect(screen.queryByText('Your things are being migrated across now.')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Withdraw access' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'myaccount.google.com/connections' })).toBeInTheDocument();
   });
@@ -303,7 +303,7 @@ describe('the access they gave, and taking it back (0108 T8 (c))', () => {
   it('offers nothing where there is no grant to take back', async () => {
     renderPage();
 
-    expect(await screen.findByText('Your things are being copied across now.')).toBeInTheDocument();
+    expect(await screen.findByText('Your things are being migrated across now.')).toBeInTheDocument();
     expect(screen.queryByText('The access you gave')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Withdraw access' })).not.toBeInTheDocument();
   });
@@ -345,14 +345,14 @@ describe('a person’s progress page', () => {
 
     const account = screen.getByRole('region', { name: 'Your Google account' });
     expect(within(account).getByRole('heading', { name: 'Google to Nextcloud' })).toBeInTheDocument();
-    expect(within(account).getByText('12 copied')).toBeInTheDocument();
-    expect(within(account).getByText('Your things are being copied across now.')).toBeInTheDocument();
+    expect(within(account).getByText('12 migrated')).toBeInTheDocument();
+    expect(within(account).getByText('Your things are being migrated across now.')).toBeInTheDocument();
     expect(within(account).getByRole('heading', { name: 'Google to Soverin' })).toBeInTheDocument();
     expect(within(account).getByText('Nothing has been copied yet.')).toBeInTheDocument();
     expect(within(account).getByText(/reads this Google account for the migrations above/)).toBeInTheDocument();
 
     const others = screen.getByRole('region', { name: 'Your other migrations' });
-    expect(within(others).getByText('4211 copied')).toBeInTheDocument();
+    expect(within(others).getByText('4211 migrated')).toBeInTheDocument();
     expect(within(others).queryByRole('button', { name: 'Withdraw access' })).not.toBeInTheDocument();
   });
 
@@ -399,7 +399,7 @@ describe('a person’s progress page', () => {
     );
     renderPage();
     const account = await screen.findByRole('region', { name: 'Your Google account' });
-    expect(within(account).getAllByText(/Copying has stopped: on .* you withdrew the access you gave\./)).toHaveLength(2);
+    expect(within(account).getAllByText(/Migrating stopped: on .* you withdrew the access you gave\./)).toHaveLength(2);
     expect(within(account).queryByRole('button', { name: 'Withdraw access' })).not.toBeInTheDocument();
   });
 
@@ -440,7 +440,7 @@ describe('stage, totals and time, as the owner’s pages say them (0154 T8)', ()
     // The line says when, so the page does not say it twice.
     expect(within(mail).queryByText(/Up to date as of/)).not.toBeInTheDocument();
     // The stage stands where the bare count stood.
-    expect(within(mail).queryByText('4211 copied')).not.toBeInTheDocument();
+    expect(within(mail).queryByText('4211 migrated')).not.toBeInTheDocument();
   });
 
   it('keeps its own *last worked* where the line does not say when, as while copying', async () => {
@@ -450,7 +450,7 @@ describe('stage, totals and time, as the owner’s pages say them (0154 T8)', ()
     renderPage();
     const mail = (await screen.findByText('Copying')).closest('li')!;
     expect(within(mail).getByText('4,211 of ~5,000')).toBeInTheDocument();
-    expect(within(mail).getByText(/Still copying; last worked on/)).toBeInTheDocument();
+    expect(within(mail).getByText(/Still migrating; last worked on/)).toBeInTheDocument();
   });
 
   it('does not say *still copying* under *Paused*, nor *not started yet* under *Not started*', async () => {
@@ -465,7 +465,7 @@ describe('stage, totals and time, as the owner’s pages say them (0154 T8)', ()
     renderPage();
     await screen.findByText('Paused');
     expect(screen.getByText('Not started')).toBeInTheDocument();
-    expect(screen.queryByText(/Still copying/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Still migrating/)).not.toBeInTheDocument();
     expect(screen.queryByText('Not started yet.')).not.toBeInTheDocument();
   });
 

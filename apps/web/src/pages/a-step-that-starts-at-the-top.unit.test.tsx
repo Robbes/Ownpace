@@ -13,9 +13,9 @@
  *
  * What now holds:
  *
- * - every screen opens with its heading, *"Which account are you leaving?"* /
- *   *"Welk account verlaat u?"*, under the line that says which screen of six
- *   it is;
+ * - every screen opens with its heading, *"Which account are you leaving or
+ *   moving?"* / *"Welk account verlaat of migreert u?"*, under the line that
+ *   says which screen of six it is;
  * - Next and Back scroll the page to the top and put focus on that heading,
  *   so a screen reader reads the new screen without a live region. The first
  *   render moves nothing;
@@ -220,7 +220,7 @@ describe('a screen of Start a migration starts at the top', () => {
     await passWho();
 
     expect(scrollsToTheTop()).toBe(1);
-    expect(focusedHeading()).toEqual({ level: 'H2', text: 'Which account are you leaving?', tabIndex: -1 });
+    expect(focusedHeading()).toEqual({ level: 'H2', text: 'Which account are you leaving or moving?', tabIndex: -1 });
   });
 
   it('says the screen in Dutch for a Dutch reader', async () => {
@@ -230,7 +230,7 @@ describe('a screen of Start a migration starts at the top', () => {
     await passWho('nl');
 
     expect(scrollsToTheTop()).toBe(1);
-    expect(focusedHeading()).toEqual({ level: 'H2', text: 'Welk account verlaat u?', tabIndex: -1 });
+    expect(focusedHeading()).toEqual({ level: 'H2', text: 'Welk account verlaat of migreert u?', tabIndex: -1 });
   });
 
   it('Back does the same for the screen it returns to', async () => {
@@ -381,7 +381,7 @@ describe('with the phone menu (0145 T1)', () => {
     fireEvent.click(screen.getByRole('link', { name: 'to-start' }));
     expect(scrollsToTheTop()).toBe(1);
     await passWho();
-    expect(focusedHeading().text).toBe('Which account are you leaving?');
+    expect(focusedHeading().text).toBe('Which account are you leaving or moving?');
     expect(scrollsToTheTop()).toBe(2);
 
     const menu = screen.getByRole('button', { name: 'Menu' });

@@ -133,7 +133,7 @@ describe('what will be read, from the dictionary (0145 T6)', () => {
     renderAt('/grant/abc.def');
     expect(
       await screen.findByText(
-        'U staat op het punt toegang te geven tot uw e-mail: berichten, mappen en labels en uw agenda’s en de afspraken erin.',
+        'U staat op het punt (lees)toegang te geven tot uw e-mail: berichten, mappen en labels en uw agenda’s en de afspraken daarin.',
       ),
     ).toBeInTheDocument();
     const page = document.body.textContent ?? '';
@@ -145,7 +145,7 @@ describe('what will be read, from the dictionary (0145 T6)', () => {
     renderAt('/grant/abc.def');
     expect(
       await screen.findByText(
-        'You are about to give access to your email — messages, folders and labels, your calendars and their events, and your tasks.',
+        'You are about to give (read) access to your email — messages, folders and labels, your calendars and their events, and your tasks.',
       ),
     ).toBeInTheDocument();
   });
@@ -156,7 +156,7 @@ describe('what will be read, from the dictionary (0145 T6)', () => {
     renderAt('/grant/abc.def');
     expect(
       await screen.findByText(
-        'U staat op het punt toegang te geven tot uw contactpersonen, uw bestanden in Google Drive en uw taken.',
+        'U staat op het punt (lees)toegang te geven tot uw contactpersonen, uw bestanden in Google Drive en uw taken.',
       ),
     ).toBeInTheDocument();
   });
@@ -221,8 +221,8 @@ describe('a failure with no sentence from the server', () => {
   const UNREACHABLE_NL =
     'Deze pagina kon de server niet bereiken. Controleer uw verbinding en probeer het opnieuw.';
   const UNREADABLE_NL =
-    'Er ging iets mis op deze pagina. Probeer het later opnieuw; blijft het misgaan, laat het dan ' +
-    'de persoon weten die u de link stuurde.';
+    'Er ging iets mis op deze pagina. Probeer het later opnieuw; blijft het misgaan, vraag dan ' +
+    'de persoon die u de link stuurde om contact op te nemen met support.';
   const UNREACHABLE_EN = 'This page could not reach the server. Check your connection and try again.';
 
   /** What the subject's parse throws for a data type this page has no words for. */
@@ -288,11 +288,11 @@ describe('the language switch on the grant page', () => {
 
   it('changes what will be read', async () => {
     renderAt('/grant/abc.def');
-    await screen.findByText(/You are about to give access to your email/);
+    await screen.findByText(/You are about to give \(read\) access to your email/);
     await userEvent.click(screen.getByRole('button', { name: 'NL' }));
     expect(
       await screen.findByText(
-        'U staat op het punt toegang te geven tot uw e-mail: berichten, mappen en labels en uw agenda’s en de afspraken erin.',
+        'U staat op het punt (lees)toegang te geven tot uw e-mail: berichten, mappen en labels en uw agenda’s en de afspraken daarin.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'NL' })).toHaveAttribute('aria-pressed', 'true');
@@ -309,7 +309,7 @@ describe('the language switch on the grant page', () => {
   it('asks for the ending in the language the page is in', async () => {
     authorizeMock.mockResolvedValue({ url: 'https://accounts.google.com/o/oauth2/v2/auth?x=1' });
     renderAt('/grant/abc.def');
-    await screen.findByText(/You are about to give access/);
+    await screen.findByText(/You are about to give \(read\) access/);
     await userEvent.click(screen.getByRole('button', { name: 'NL' }));
     await userEvent.click(screen.getByRole('button', { name: 'Doorgaan met Google' }));
     expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'nl');

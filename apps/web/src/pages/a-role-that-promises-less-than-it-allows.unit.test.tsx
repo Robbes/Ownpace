@@ -184,7 +184,7 @@ describe('what an admin can do, said once', () => {
       "An admin can do everything an owner can, except close or reopen the organisation, turn deleting by hand or the automatic removal of moved files' old copies on or off, make somebody an owner, and change or remove an owner.",
     );
     expect(STRINGS.nl['tenants.invite.adminCan']).toBe(
-      'Een beheerder kan alles wat een eigenaar kan, behalve de organisatie sluiten of heropenen, handmatig verwijderen of het automatisch verwijderen van oude kopieën van verplaatste bestanden aan- of uitzetten, iemand eigenaar maken en een eigenaar een andere rol geven of verwijderen.',
+      'Een beheerder kan alles wat een eigenaar kan, behalve de organisatie sluiten of heropenen, handmatig verwijderen of het automatisch verwijderen van oude kopieën van inmiddels verplaatste bestanden aan- of uitzetten, iemand eigenaar maken en een eigenaar een andere rol geven of verwijderen.',
     );
     // The product's own words for the two flags, so the line names what the
     // Deletions panel names (`applyFlag.on`, `autoApply.on`; renamed in 0156
@@ -193,7 +193,7 @@ describe('what an admin can do, said once', () => {
     expect(STRINGS.en['autoApply.on']).toContain("Automatic removal of moved files' old copies");
     expect(STRINGS.nl['applyFlag.on']).toContain('Handmatig verwijderen');
     expect(STRINGS.nl['autoApply.on']).toContain(
-      'Automatisch verwijderen van oude kopieën van verplaatste bestanden',
+      'Automatisch verwijderen van oude kopieën van inmiddels verplaatste bestanden',
     );
   });
 });

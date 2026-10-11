@@ -65,6 +65,22 @@ vi.mock('./middleware/auth.ts', async (importOriginal) => {
       req.tenantId = TENANT;
       next();
     },
+    // The subject-only door, for the routes that ask about the service and not
+    // about an organisation: signed in, and deliberately NO tenant.
+    authenticateSubject: (
+      req: Record<string, unknown> & { headers: Record<string, string> },
+      res: { status: (code: number) => { json: (body: unknown) => void } },
+      next: () => void,
+    ) => {
+      if (req.headers['x-test-user'] === 'none') {
+        res.status(401).json({ error: 'Unauthorized', message: 'Missing or invalid Authorization header' });
+        return;
+      }
+      req.userId = req.headers['x-test-user'] ?? 'user-1';
+      const email = req.headers['x-test-email'];
+      if (email !== 'none') req.userEmail = email ?? 'someone@example.invalid';
+      next();
+    },
   };
 });
 

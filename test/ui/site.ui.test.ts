@@ -652,7 +652,7 @@ describe('during the Alpha, every page says it under the header (0152 T1 (a))', 
   /** The line as a reader meets it, in each language: literals, so a slipped word shows. */
   const SAID = {
     en: 'Ownpace is in its Alpha, by invitation. Nothing is charged during the Alpha. Request access',
-    nl: 'Ownpace is in de Alpha, op uitnodiging. Tijdens de Alpha wordt niets in rekening gebracht. Toegang aanvragen',
+    nl: 'Ownpace is gedurende de Alpha-fase enkel op uitnodiging. Tijdens de Alpha-fase wordt niets in rekening gebracht. Toegang aanvragen',
   } as const;
 
   let alpha: { server: Server; origin: string } | undefined;

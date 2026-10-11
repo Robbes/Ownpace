@@ -20,15 +20,17 @@
  * was the owner's connection, a superuser.
  *
  * THE RUN PRUNE IS THE EXCEPTION, and it is partitioned deliberately (0121 T5).
- * Deleting a run row deletes billing evidence, and what makes that safe is the
- * invoice freeze — `invoice-generation.ts` writes the measured quantities onto
- * the invoice, so an issued bill does not re-read the ledger. That proof is PER
- * TENANT: tenant A billed through July and tenant B through May do not share a
- * safe point. One global maximum would delete B's June evidence; one global
- * minimum would let a tenant who signed up yesterday stop retention for
- * everybody. So this loops, and each tenant is pruned only as far as its own
- * newest ISSUED invoice — a tenant with none is skipped entirely, keeping all
- * of its runs and none of anybody else's.
+ * Under the retired metered model a run row was billing evidence, and what
+ * made deleting it safe was the invoice freeze: the generator wrote the
+ * measured quantities onto the invoice, so an issued bill did not re-read the
+ * ledger. A tier bill reads the recorded peak and the first-copy meter, never
+ * the runs, so the clamp now keeps the runs for the metered usage history
+ * rather than for a bill. It stays PER TENANT: tenant A billed through July
+ * and tenant B through May do not share a safe point. So this loops, and each
+ * tenant is pruned only as far as its own newest ISSUED invoice for a month
+ * that is OVER (0111 decision 6: invoiced in advance, an issued invoice can
+ * name a month still running) — a tenant with none is skipped entirely,
+ * keeping all of its runs and none of anybody else's.
  */
 
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
@@ -80,16 +82,18 @@ export const managedRetention = schedules.task({
     const days = retentionDaysFromEnv(process.env.LEDGER_RETENTION_DAYS);
     const result = await pruneRunEvents(db, now, { olderThanDays: days });
 
-    // Only invoices that have LEFT DRAFT count as proof. A draft can still be
-    // regenerated from the ledger, which is precisely the re-read the freeze is
-    // supposed to have made unnecessary — and `void` is excluded because a
-    // voided period may yet be billed again.
+    // Only invoices that have LEFT DRAFT count as proof, and only for months
+    // that are over. A draft is not a record of anything yet; `void` is
+    // excluded because a voided period may yet be billed again; and invoiced
+    // in advance (0111 decision 6), an issued invoice can name a month still
+    // running, whose end is no safe point at all.
     const runDays = runRetentionDaysFromEnv(process.env.LEDGER_RUN_RETENTION_DAYS);
     const billed = (await db.execute(sql`
       SELECT tenant_id::text AS tenant_id, MAX(period_end) AS through
         FROM invoice
        WHERE tenant_id IS NOT NULL
          AND status IN ('sent', 'paid', 'overdue')
+         AND period_end < (now() AT TIME ZONE 'UTC')::date
        GROUP BY tenant_id
     `)) as unknown as { rows?: { tenant_id: string; through: string }[] };
 

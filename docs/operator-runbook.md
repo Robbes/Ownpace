@@ -220,6 +220,25 @@ on a machine that keeps to it, and `stand-up-live.sh` refuses any other answer; 
 journal would keep every line past its container (managed-bring-up.md, *Before you
 start*, says how to undo that).
 
+**Counting visits to the website** from the `www` log (privacy §4.5; the owner,
+2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip
+for now, no netbird api tokens..."*): `./deploy/compose/site-visits.sh`, from
+`~/ownpace-live`, once a day as the duty `visits` and by hand before a deploy. It
+hands GoAccess only the requests that came through the public name, each address
+replaced by a number that lasts as long as the run, with no query string, no path
+of a request that found no page (`/(not shown)`), the Referer cut to its site and
+the browser string to its versions, and keeps GoAccess's HTML report of totals,
+one per container of the site, in `~/.persistent/ownpace-live/site-visits/`: no
+address, no database, and no copy of the log at all, since the log streams
+through the filter into GoAccess. It refuses while the checkout's privacy text
+does not yet say visits are counted (privacy 1.2). Reading it, and why GoAccess
+keeps no database of its own: [managed-bring-up.md](managed-bring-up.md),
+*Counting its visits*. Never point GoAccess, or anything else, at this log in
+another way: its `--persist` keeps a fingerprint of each visitor's address, it
+copies a campaign's, a missing page's and a browser version's text into its
+report word for word, and its format errors print the piece of a line they could
+not read.
+
 **Keeping a container's output** past a deploy, for an incident: copy it first,
 `docker compose -f deploy/compose/managed.yml logs --no-color --timestamps > containers-$(date +%F).txt`
 ([breach-procedure.md](breach-procedure.md), step 2). A recreated container starts
@@ -388,6 +407,24 @@ Four things send email on managed, all through the operator's own SMTP relay con
   brings back the hour and deletes the row, and the page says once what it ended. Nothing is
   said on Free outside the alpha, where a migration runs one pass a day whatever its cadence.
   The run logs `{ tenants, free_pace, none, sent, no_channel, no_recipients, failed }`.
+- **`managed-month-invoices`** (workplan 0111, slice 4) — a scheduled task, hourly at **:23**.
+  Not an e-mail: it keeps each active organisation's month invoiced in advance. On a month's
+  first day it makes a draft for the tier the month starts on, and after a move up a draft for
+  the difference, each under `ownpace-{organisation}-m-{YYYY-MM}-{tier}`, in the
+  organisation's language. Free makes none. While `OWNPACE_BILLING_FROM` is empty, during the
+  alpha, and before that month, the run says `nobody is invoiced` and reads nothing about any
+  organisation. Otherwise it logs `{ invoicing, month, tenants, made, made_elsewhere, in_step,
+  free, nothing_to_add, failed }`, and one line per draft it made.
+- **`managed-invoice-push`** (workplan 0111, slice 5) — a scheduled task, hourly at **:41**.
+  Takes each draft to Moneybird, which numbers it, and writes the number, the dates and the
+  figures back. A draft is claimed for one attempt (managed 0047); one Moneybird could not take
+  is tried again the next hour, and one refused (no invoice details, say) is said as an error
+  with its reason. At most 60 a run, one every 25 seconds, under Moneybird's 150 requests in 5
+  minutes; a 429 stops the run. Off as the month task is, and while no `MONEYBIRD_*` key reaches
+  the tasks (`nothing is pushed: Moneybird is off`). It logs `{ pushing, tenants, issued, adopted,
+  refused, unavailable, slowed, failed, left }`, one line per invoice numbered, and an error for
+  every organisation with a draft still a draft two days after it was made, naming them
+  (decision 6's alert).
 
 Two behaviours worth knowing before you go looking for a missing email:
 
@@ -918,9 +955,10 @@ it. Without the setting nobody is asked and nothing is refused.
 **While any text is a draft, nobody is asked either** (`LEGAL_DRAFTS` in
 `packages/managed/src/legal-versions.ts`). A draft's number is the one its final
 text will carry, so an acceptance of it would be recorded as the final's. On
-2026-09-29 the privacy policy 1.2 and the terms 1.3 are drafts, so live asks
-nobody until the owner's final-text pull request drops the draft words and sets
-`LEGAL_DRAFTS` to match. The API says which at start, in its log:
+2026-09-29 the privacy policy 1.2 and the terms 1.3 were drafts. The owner's
+final-text pull request (workplan 0139, 2026-10-05) drops the draft words and
+sets `LEGAL_DRAFTS` to match; live asks from the release that carries it. The
+API says which at start, in its log:
 
 ```bash
 docker compose -f deploy/compose/managed.yml logs api | grep -F '[api] ' | grep -iE 'accept|draft'

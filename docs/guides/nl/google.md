@@ -12,7 +12,7 @@ Deze handleiding gaat over de Google-kaarten: de kaart **Google-account**, en de
 
 ## Koppelen {#connect}
 
-Elke kaart vraagt het adres van het account, onder **Gebruikersnaam**, en een **Refresh-token**, dat **Verbinden met Google** invult: druk op de knop, kies het account bij Google en geef toestemming. Het token komt vanzelf in het veld, en het account wordt in één keer bewaard en getest: de test leest het één keer, via precies wat een ronde zou opbouwen, voordat er iets wordt gekopieerd.
+Elke kaart vraagt het adres van het account, onder **Gebruikersnaam**, en een **Refresh-token**, dat **Verbinden met Google** invult: druk op de knop, kies het account bij Google en geef toestemming. Het token komt vanzelf in het veld, en het account wordt in één keer bewaard en getest: de test leest het één keer, via precies wat een ronde zou opbouwen, voordat er iets wordt gemigreerd.
 
 ### Google-account {#google}
 
@@ -26,11 +26,11 @@ Het token is **gedelegeerd**: het leest de Drive van de persoon die toestemming 
 
 Een migratie kan ergens anders beginnen dan in Mijn Drive: een **gedeelde Drive** heeft een eigen ID, en een **map die iemand met dit account deelde** ook. "Gedeeld met mij" is een weergave en geen map, dus wat erin staat verschijnt nooit onder de boom van Mijn Drive; een aparte migratie die bij de gedeelde map begint, is hoe zo'n map meegaat. Losse gedeelde bestanden, die met u gedeeld zijn maar niet in een map staan, vallen erbuiten.
 
-De keuze heet **Alleen één map**, onder **Bestanden** bij **Wat wilt u migreren?**, voor het Google-account zoals voor deze kaart. Is het account verbonden, plak dan het adres van de map uit Google Drive; de ID wordt eruit gelezen. Of druk op **Gedeelde drives en gedeelde mappen tonen** en kies er een: een lijst, alleen lezend, via dezelfde koppeling die een migratie gebruikt. De pagina van de migratie zegt daarna uit welke map de bestanden worden gelezen. De map kan veranderen tot het eerste bestand is gekopieerd; daarna is een andere map een andere migratie.
+De keuze heet **Alleen één map**, onder **Bestanden** bij **Wat wilt u migreren?**, voor het Google-account zoals voor deze kaart. Is het account verbonden, plak dan het adres van de map uit Google Drive; de ID wordt eruit gelezen. Of druk op **Gedeelde drives en gedeelde mappen tonen** en kies er een: een lijst, alleen lezend, via dezelfde koppeling die een migratie gebruikt. De pagina van de migratie zegt daarna uit welke map de bestanden worden gelezen. De map kan veranderen tot het eerste bestand is gemigreerd; daarna is een andere map een andere migratie.
 
 Op de pagina **Accounts** heeft het formulier van deze kaart ook een veld **Hoofdmap-ID**, dat elke migratie van dat account laat beginnen bij de map met die ID.
 
-**Google Documenten, Spreadsheets, Presentaties en Tekeningen** hebben geen bestand om te kopiëren, alleen een weergave die Google maakt, en **Wat wilt u migreren?** vraagt onder **Bestanden** in welk formaat elke soort moet aankomen. Bij elke keuze zet Drive het document om; hier wordt niets geconverteerd.
+**Google Documenten, Spreadsheets, Presentaties en Tekeningen** hebben geen bestand om te migreren, alleen een weergave die Google maakt, en **Wat wilt u migreren?** vraagt onder **Bestanden** in welk formaat elke soort moet aankomen. Bij elke keuze zet Drive het document om; hier wordt niets geconverteerd.
 
 - Documenten komen aan als `.odt` (OpenDocument), `.docx` (Microsoft Office) of `.pdf`.
 - Spreadsheets komen aan als `.ods`, `.xlsx` of `.pdf`.
@@ -41,7 +41,7 @@ Op de pagina **Accounts** heeft het formulier van deze kaart ook een veld **Hoof
 
 **Formulieren, My Maps, Sites, Jamboards en Apps Scripts zijn in geen enkel formaat te exporteren.** Geen keuze verandert dat. Ze worden één voor één gemeld, met een reden die dat zegt, en niet met een verwijzing naar een instelling die niet zou helpen.
 
-Het geëxporteerde bestand krijgt de naam van het document **plus de extensie van wat er is gemaakt**: een Document "Voorbeeldtekst" komt aan als `Voorbeeldtekst.odt`. **Ze laten staan is de standaard**, en nog steeds de eerlijke: er wordt niets gekopieerd en niets gegokt, elk bestand wordt bij naam gemeld, en u beslist. De afweging tussen de formaten gaat over bewerken: OpenDocument en Office houden een bestand bewerkbaar, en een PDF is een afbeelding van het document, geen document dat nog iemand kan bewerken.
+Het geëxporteerde bestand krijgt de naam van het document **plus de extensie van wat er is gemaakt**: een Document "Voorbeeldtekst" komt aan als `Voorbeeldtekst.odt`. **Ze laten staan is de standaard**, en nog steeds de eerlijke: er wordt niets gemigreerd en niets gegokt, elk bestand wordt bij naam gemeld, en u beslist. De afweging tussen de formaten gaat over bewerken: OpenDocument en Office houden een bestand bewerkbaar, en een PDF is een afbeelding van het document, geen document dat nog iemand kan bewerken.
 
 ### Gmail {#gmail}
 
@@ -112,13 +112,13 @@ De schermen van Google staan hieronder met hun Engelse namen; Google toont ze in
 
 ## Wat er meegaat {#what-moves}
 
-**Wat er met labels gebeurt.** Via IMAP toont Gmail elk label als een map, en die gaan mee als mappen. Gmail toont ook drie weergaven die berichten uit andere mappen nog eens bevatten: All Mail, Starred en Important. Die kopiëren zou elk bericht dubbel opleveren, één keer per weergave waarin het staat. Daarom slaat Ownpace die drie weergaven over (herkend aan de eigen kenmerken `\All`/`\Flagged`/`\Important` van Google, die in elke taal gelijk blijven) en migreert alles wat echt is: INBOX, uw labels, Sent, Drafts. Prullenbak en Spam worden standaard niet gekopieerd, zoals bij elke IMAP-bron, terwijl de prullenbak wel wordt gelezen als bewijs van verwijderingen. Een bericht met meerdere labels staat in meerdere mappen, maar mail wordt herkend aan de Message-ID, dus het wordt **één keer gekopieerd**, naar de map waar een ronde het eerst ziet. Wordt het later onder een ander label gezien, dan wordt het niet opnieuw gekopieerd; het kan wel in de wachtrij **Verplaatsingen** verschijnen als melding van een plaatsing aan de bronkant. Dat is informatie, geen opdracht. Labelt u veel, dan beschrijft die wachtrij vooral de labels van Gmail, en niet iets wat u deed.
+**Wat er met labels gebeurt.** Via IMAP toont Gmail elk label als een map, en die gaan mee als mappen. Gmail toont ook drie weergaven die berichten uit andere mappen nog eens bevatten: All Mail, Starred en Important. Die migreren zou elk bericht dubbel opleveren, één keer per weergave waarin het staat. Daarom slaat Ownpace die drie weergaven over (herkend aan de eigen kenmerken `\All`/`\Flagged`/`\Important` van Google, die in elke taal gelijk blijven) en migreert alles wat echt is: INBOX, uw labels, Sent, Drafts. Prullenbak en Spam worden standaard niet gemigreerd, zoals bij elke IMAP-bron, terwijl de prullenbak wel wordt gelezen als bewijs van verwijderingen. Een bericht met meerdere labels staat in meerdere mappen, maar mail wordt herkend aan de Message-ID, dus het wordt **één keer gemigreerd**, naar de map waar een ronde het eerst ziet. Wordt het later onder een ander label gezien, dan wordt het niet opnieuw gemigreerd; het kan wel in de wachtrij **Verplaatsingen** verschijnen als melding van een plaatsing aan de bronkant. Dat is informatie, geen opdracht. Labelt u veel, dan beschrijft die wachtrij vooral de labels van Gmail, en niet iets wat u deed.
 
 ### Wat een Drive-migratie nog niet doet {#drive-not-yet}
 
 Hier gezegd, zodat u het niet zelf hoeft te ontdekken:
 
-- **Geen lijst van alleen de wijzigingen.** Elke ronde loopt elke map langs. De tweede ronde kopieert niets wat er al staat: het kost een lijst, geen nieuwe kopie.
+- **Geen lijst van alleen de wijzigingen.** Elke ronde loopt elke map langs. De tweede ronde migreert niets wat er al staat: het kost een lijst, geen nieuwe kopie.
 - **Verwijderingen worden nooit uit het verwijdersignaal van Drive gehaald.** Google zet dat ook bij verloren toegang en bij gewijzigd delen, en dat zijn geen verwijderingen. Wat een ronde WEL leest, is de **prullenbak** van de eigenaar: een bestand in de prullenbak is een verwijdering door de eigenaar, meteen gemeld met echt bewijs, en de wachtrij **Verwijderingen** kan dan aanbieden om de kopie op het doel weg te halen. Is de prullenbak geleegd, dan valt het terug op tellen wat ontbreekt.
 - **Een verplaatst of hernoemd bestand laat de oude kopie op het doel staan.** Het wordt herkend en gemeld; het doel laten volgen is iets wat u per bestand goedkeurt, in de wachtrij **Verplaatsingen**. Een Google Document, Spreadsheet, Presentatie of Tekening wordt herkend aan de Drive-ID, dus hernoemen wordt als verplaatsing gemeld en nooit als verwijdering, in welk formaat het ook wordt geëxporteerd.
 - **Twee bestanden met dezelfde naam in dezelfde map kunnen niet allebei mee.** Een bestand wordt herkend aan zijn pad, dus twee met hetzelfde pad zijn een harde stop, geen instelling.

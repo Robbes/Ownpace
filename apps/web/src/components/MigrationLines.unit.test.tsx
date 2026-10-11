@@ -54,7 +54,7 @@ describe('a migration’s lines, in Dutch', () => {
     inDutch(progress({ state: 'not_run' }));
     expect(screen.getByText('Wordt bijgehouden')).toBeInTheDocument();
     expect(screen.getByText('18.234 van ~19.000 · laatste ronde 2 minuten geleden')).toBeInTheDocument();
-    expect(screen.getByText('1.204 gekopieerd · totaal niet bekend')).toBeInTheDocument();
+    expect(screen.getByText('1.204 gemigreerd · totaal niet bekend')).toBeInTheDocument();
   });
 
   it('says when the check passed, in Dutch word order', () => {

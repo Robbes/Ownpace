@@ -52,5 +52,5 @@ What Soverin itself answers, this service shows word for word, in the server's l
 ## Stopping {#leaving}
 
 - A migration is deleted under **Migrations**. The confirmation says what that does: **Removes the migration’s settings and record; nothing at your source or destination is touched.** What was already copied stays at Soverin.
-- An account is deleted under **Accounts**, with **Delete**. That deletes this service's copy of the password. The password itself stays valid at Soverin, and the screen says so too: **We deleted our copy; this provider has no revocation we can call.**
+- An account is deleted under **Accounts**, with **Delete**. That deletes this service's copy of the password. The password itself stays valid at Soverin, and the screen says so too: **We deleted our copy; this provider has no revocation we can trigger.**
 - So revoke the app password at Soverin, or change the account's password. Only the account holder can.

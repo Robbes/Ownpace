@@ -6,7 +6,8 @@
  * What is asserted is what the person reads before anything is sent (where it
  * goes, and that it is not to the organisation that asked; what goes with it;
  * what the address is for), what is sent, and what they are told afterwards:
- * on the grant page that they need not continue, on the progress page that
+ * on the grant page that nothing is read unless they allow it at Google (so
+ * they need not continue), on the progress page that
  * withdrawing stops the copying, while there is access to withdraw. And that
  * neither page offers a report that can reach nobody.
  */
@@ -103,7 +104,7 @@ describe('on the grant page', () => {
   it('is not offered when a report could reach nobody', async () => {
     availableMock.mockResolvedValue(false);
     renderAt('/grant/abc.def');
-    expect(await screen.findByText(/Acme Legal is moving your account/)).toBeInTheDocument();
+    expect(await screen.findByText(/Acme Legal is migrating your account/)).toBeInTheDocument();
     await waitFor(() => expect(availableMock).toHaveBeenCalledWith('grant', 'abc.def'));
     expect(screen.queryByRole('button', { name: 'Report this link' })).not.toBeInTheDocument();
   });
@@ -119,11 +120,11 @@ describe('on the grant page', () => {
     expect(
       screen.getByText(
         'Sent with it, from our records: which link this is; the organisation and the migration it belongs to, ' +
-          'with the state of the migration; the address of whoever made the link; the account the migration ' +
+          'the state of the migration; the address of whoever made the link; the account the migration ' +
           'copies from and the account it copies to; and whether you have given access.',
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText('Only if you want an answer; we use it for nothing else.')).toBeInTheDocument();
+    expect(screen.getByText('Only for us to answer your report.')).toBeInTheDocument();
     // Nothing to send until they say what makes them doubt it; the address may stay empty.
     expect(screen.getByRole('button', { name: 'Send the report' })).toBeDisabled();
     await user.type(screen.getByLabelText('What makes you doubt this link?'), '   ');
@@ -155,7 +156,7 @@ describe('on the grant page', () => {
     expect(screen.queryByLabelText('What makes you doubt this link?')).not.toBeInTheDocument();
   });
 
-  it('sends what they wrote from this link, and tells them they need not continue', async () => {
+  it('sends what they wrote from this link, and tells them nothing is read unless they allow it', async () => {
     const user = userEvent.setup();
     renderAt('/grant/abc.def');
     await fillIn(user);
@@ -169,7 +170,7 @@ describe('on the grant page', () => {
       await screen.findByText('Sent. Your report is number 41001, and we will reply to reporter@example.invalid.'),
     ).toBeInTheDocument();
     expect(
-      screen.getByText('You need not continue: nothing is read unless you allow it at Google.'),
+      screen.getByText('Nothing is read unless you allow it at Google.'),
     ).toBeInTheDocument();
     // The button that was pressed is gone, so the answer has the focus, and is read out.
     expect(screen.getByRole('status')).toHaveFocus();
@@ -185,7 +186,7 @@ describe('on the grant page', () => {
 
     expect(sendMock).toHaveBeenCalledWith('grant', 'abc.def', { description: 'I do not know them.' });
     expect(
-      await screen.findByText('Sent. Your report is number 41001. Without an address, we cannot answer you.'),
+      await screen.findByText('Sent. Your report is number 41001. Without an email address, we cannot answer you.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveFocus();
   });
@@ -207,7 +208,7 @@ describe('on the grant page', () => {
     const user = userEvent.setup();
     renderAt('/grant/abc.def');
     await user.click(await screen.findByRole('button', { name: 'Deze link melden' }));
-    expect(screen.getByText('Uw melding gaat naar het team van Ownpace, niet naar Acme Legal.')).toBeInTheDocument();
+    expect(screen.getByText('Uw melding gaat naar het Ownpace-supportteam, niet naar Acme Legal.')).toBeInTheDocument();
     expect(screen.getByLabelText('Uw e-mailadres (niet verplicht)')).toBeInTheDocument();
   });
 });

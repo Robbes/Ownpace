@@ -4,9 +4,9 @@
  * D4; T5 slice 7b).
  *
  * Three defects, found together: the lane's line said "End it whenever you
- * like" over nothing to press; *Keep copying* failed on the appliance with
- * nothing but "could not switch it on"; and there it spoke of a tier the
- * appliance does not have. Since slice 7b each data type is ended or kept on
+ * like" over nothing to press; *Keep copying* (now *Keep migrating*) failed
+ * on the appliance with nothing but "could not switch it on"; and there it
+ * spoke of a tier the appliance does not have. Since slice 7b each data type is ended or kept on
  * its own, past the cutover too. These pin the End of a data type kept in the
  * lane, the Keep of one ended, the reason a press failed, and the appliance's
  * own words (0128 D4: the same choice, on its own terms).
@@ -205,7 +205,7 @@ describe('a data type ended, kept copying again', () => {
     endOrKeepDataType.mockRejectedValue(axiosError(404, { error: 'Not found', message: reason }));
     renderScreen();
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Keep copying Email' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Keep migrating Email' }));
     await userEvent.click(screen.getByRole('button', { name: EN['lane.confirm'] }));
 
     await waitFor(() => expect(screen.getByText(`${EN['finish.ending.failed']} ${reason}`)).toBeInTheDocument());
@@ -217,7 +217,7 @@ describe('a data type ended, kept copying again', () => {
     endOrKeepDataType.mockResolvedValue({ changed: true });
     renderScreen();
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Keep copying Email' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Keep migrating Email' }));
     expect(screen.getByText(EN['lane.selfhost.why'])).toBeInTheDocument();
     expect(screen.queryByText(EN['lane.why'])).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: EN['lane.selfhost.confirm'] }));
@@ -227,7 +227,7 @@ describe('a data type ended, kept copying again', () => {
   it('on managed, says what the tier does before the press, and Not now takes it back', async () => {
     fetchStatus.mockResolvedValue(statusReport('continuous'));
     renderScreen();
-    await userEvent.click(await screen.findByRole('button', { name: 'Keep copying Email' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Keep migrating Email' }));
     expect(screen.getByText(EN['lane.why'])).toBeInTheDocument();
     expect(screen.getByRole('button', { name: EN['lane.confirm'] })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: EN['lane.cancel'] }));

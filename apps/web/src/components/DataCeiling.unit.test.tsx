@@ -124,7 +124,7 @@ describe('from 80%, both ways on', () => {
   it('says on Free that the way on is moving up', async () => {
     getCeiling.mockResolvedValue({ ...UNDER_ON_FREE, gbMoved: 250, share: 1, state: 'reached' });
     renderCard();
-    expect(await screen.findByText('Free has no top-up: the way on is moving up.')).toBeVisible();
+    expect(await screen.findByText('Free has no top-up: move up a tier.')).toBeVisible();
     expect(screen.getByText(/Your data ceiling is reached/)).toBeVisible();
   });
 });

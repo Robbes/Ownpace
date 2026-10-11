@@ -120,13 +120,13 @@ describe('what starts again by itself when a hold lifts (0132 T6 (b))', () => {
   const PINNED = {
     en: {
       scheduled:
-        'Migrations already running finish normally, and scheduled copying starts again by itself once the update is done, from exactly where it stopped.',
-      press: 'Any copying you tried to start during the pause did not start: start it again after the update.',
+        'Migrations already running finish normally, and scheduled copying picks up again by itself once the update is done.',
+      press: 'Any migrations you tried to start during the pause did not start: start them again after the update.',
     },
     nl: {
       scheduled:
-        'Migraties die al liepen worden normaal afgerond, en het geplande kopiëren start vanzelf weer zodra de update klaar is, precies waar het stopte.',
-      press: 'Kopiëren dat u tijdens de pauze probeerde te starten, is niet gestart: start het na de update opnieuw.',
+        'Een migratierun die al liep wordt normaal afgerond, en geplande migratieruns starten vanzelf weer zodra de update klaar is.',
+      press: 'Migraties die u tijdens de pauze probeerde te starten, zijn niet gestart: probeer het na de update opnieuw.',
     },
   } as const;
   const ITSELF = { en: /by itself/i, nl: /vanzelf/i } as const;

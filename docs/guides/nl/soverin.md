@@ -11,7 +11,7 @@ De kaart **Soverin** is één account voor een Soverin-account: mail, agenda's, 
 
 ### Soverin {#soverin}
 
-Kies bij **Waar gaat het naartoe?** **Soverin toevoegen** onder **Een nieuw account**, in elke rij waarvan de gegevens daarheen gaan: e-mail, agenda's, contacten of taken. Eén formulier voegt het account voor allemaal toe. De servers zijn al ingevuld, ingeklapt onder **Serverinstellingen (ingevuld voor Soverin)**, met de regel **Vooraf ingevuld met de gepubliceerde instellingen van Soverin, gelezen op …. Test controleert ze.** Het zijn de waarden die Soverin publiceert, niet gemeten waarden: de test meet ze.
+Kies bij **Waar gaat het naartoe?** **Soverin toevoegen** onder **Een nieuw account**, in elke rij waarvan de gegevens daarheen gaan: e-mail, agenda's, contacten of taken. Eén formulier voegt het account voor allemaal toe. De servers zijn al ingevuld, ingeklapt onder **Serverinstellingen (ingevuld voor Soverin)**, met de regel **Vooraf ingevuld met de gepubliceerde instellingen van Soverin, gelezen op …. Test controleert deze.** Het zijn de waarden die Soverin publiceert, niet gemeten waarden: de test meet ze.
 
 - **Host**: `caldav.soverin.net`, de server voor agenda's en contacten.
 - **Poort**: `443`.
@@ -36,7 +36,7 @@ U kunt het account ook vooraf toevoegen, onder **Accounts** → **Account toevoe
 - **Agenda**, **Contacten** en **Taken**. Takenlijsten zijn agenda's die taken bevatten, op dezelfde server als uw agenda's.
 - Elke afspraak wordt geschreven met een markering, `SCHEDULE-AGENT=CLIENT`, die de server vraagt er geen uitnodigingen voor te versturen. Deelnemers en organisator blijven in uw kopie van elke afspraak staan. Een server die de markering negeert, kan toch uitnodigingen versturen.
 - **Bestanden** gaan niet naar Soverin: bij **Waar gaat het naartoe?** biedt de rij voor bestanden het niet aan.
-- Een migratie mag vaker lopen: wat al in het doel staat, wordt herkend en niet nog eens gekopieerd.
+- Een migratie mag vaker lopen: wat al in het doel staat, wordt herkend en niet nog eens gemigreerd.
 
 ## Als de test iets meldt {#when-test-says}
 
@@ -51,6 +51,6 @@ Wat Soverin zelf antwoordt, toont deze dienst woordelijk, in de taal van de serv
 
 ## Stoppen {#leaving}
 
-- Een migratie verwijdert u onder **Migraties**. De bevestiging zegt wat dat doet: **Verwijdert instellingen en registratie van de migratie; bij uw bron of bestemming wordt niets aangeraakt.** Wat al gekopieerd is, blijft bij Soverin staan.
-- Een account verwijdert u onder **Accounts** met **Verwijderen**. Daarmee verdwijnt de kopie van het wachtwoord bij deze dienst. Het wachtwoord zelf blijft bij Soverin geldig, en het scherm zegt dat ook: **Wij hebben onze kopie verwijderd; deze aanbieder biedt geen intrekking die wij kunnen aanroepen.**
+- Een migratie verwijdert u onder **Migraties**. De bevestiging zegt wat dat doet: **Verwijdert enkel instellingen en registratie van uw migratie in Ownpace, niets bij uw bron of bestemming.** Wat al gemigreerd is, blijft bij Soverin staan.
+- Een account verwijdert u onder **Accounts** met **Verwijderen**. Daarmee verdwijnt de kopie van het wachtwoord bij deze dienst. Het wachtwoord zelf blijft bij Soverin geldig, en het scherm zegt dat ook: **Wij hebben onze kopie verwijderd; deze aanbieder biedt geen manier om intrekking door ons te forceren.**
 - Trek daarom het app-wachtwoord in bij Soverin, of wijzig het wachtwoord van het account. Dat kan alleen de houder van het account.

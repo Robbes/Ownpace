@@ -91,7 +91,7 @@ const SAID = {
     line: 'We cannot read an Apple export yet. Request one only for your own records.',
   },
   nl: {
-    tag: 'Nog te testen',
+    tag: 'Te testen',
     line: 'Een Apple-export kunnen we nog niet lezen. Vraag die alleen aan voor uw eigen archief.',
   },
 } as const;

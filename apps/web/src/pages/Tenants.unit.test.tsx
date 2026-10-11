@@ -159,7 +159,7 @@ describe('inviting', () => {
   // mail, because every outcome but the first leaves telling them to you.
   it.each([
     ['sent', 'Invitation emailed to nieuw@acme.nl.'],
-    ['off', 'Invitation saved for nieuw@acme.nl, but this installation sends no email: tell them yourself.'],
+    ['off', 'Invitation saved for nieuw@acme.nl, but this deployment sends no email: tell them yourself.'],
     ['failed', 'Invitation saved for nieuw@acme.nl, but its email could not be sent. Send it again, or tell them yourself.'],
     ['limited', "Invitation saved for nieuw@acme.nl, but today's invitation emails are used up. Send it again tomorrow, or tell them yourself."],
   ])('says what became of the mail when it was %s', async (notified, said) => {

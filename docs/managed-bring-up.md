@@ -335,15 +335,25 @@ port on every interface or on an address `EXPOSURE_ALLOW` does not list is a
 note (*"note: someones-app publishes 5555/tcp on every interface; not Ownpace's,
 accepted in EXPOSURE_NOT_OURS"*), not a failure, and the closing `ok:` line
 counts them. So the check no longer holds every publish on the machine to
-loopback and `EXPOSURE_ALLOW`: those containers' are the owner's to judge. **An
-Ownpace container can never be accepted this way:** a name beginning with
-`ownpace` (every container Ownpace starts here is named so), or a running
-container whose Compose project is Ownpace's (`ownpace…`, or `compose`, which
-`dev.yml` gets without a name of its own), stops the check (exit 2), and so
-does an entry that is not a container name. A listed name that is not running
-is a note. `deploy-live.sh` (workplan 0132 T6) runs it
-after each deploy of live, and a deploy it fails did not take; T7 will run it
-daily. Until live stands it is run by hand (T0 step 5). The same question from
+loopback and `EXPOSURE_ALLOW`: those containers' are the owner's to judge. **The
+check refuses an Ownpace container it recognises** (exit 2): a name beginning
+with `ownpace` (every container Ownpace starts here but `dev.yml`'s Postgres is
+named so), or a running container Docker labels as Ownpace's Compose stack: its
+project `ownpace…`, its files under `deploy/compose/` or `deploy/selfhost/`
+whatever the project, or its project `compose` with no files said. `compose` is
+what `dev.yml`'s stack runs as without a `name:` of its own, and what any
+compose file in a directory called `compose` runs as, so one of the owner's own
+there is told apart by its files. An entry that is not a container name is
+refused too. **Not every Ownpace container is recognised:** one started without
+Compose and without an `ownpace` name, by hand or by tests (a `docker run` of an
+Ownpace image, the Postgres `scripts/squash-migrations.sh` starts, the CI jobs'
+testcontainers, Trigger.dev's task runs), is not, so list only the owner's own
+services. A listed name that is not running is a note naming the entry by its
+place in the list, never repeating it. Live's `.env` needs the key too, and a
+tag cut before it was added runs a check that ignores it.
+
+`deploy-live.sh` (workplan 0132 T6) runs `exposure-check.sh` after each deploy
+of live, and a deploy it fails did not take; T7 will run it daily. Until live stands it is run by hand (T0 step 5). The same question from
 outside is the dispatch-only workflow *Exposure probe*
 (`.github/workflows/exposure-probe.yml`), on a GitHub-hosted runner. It needs
 the repository variable `EXPOSURE_PROBE_LIVE_PORTS`, live's `*_PORT` values, and
@@ -1407,6 +1417,42 @@ exits 1 while its report names something to do; the outside-EU rate is
 optional, so its refusal is printed and does not count. The token is in no line
 it prints. Half a set also gets a warning when the API starts.
 
+To prove that an invoice goes through, on a test stack against a sandbox
+administration:
+
+```bash
+./deploy/compose/operator.sh moneybird proof
+```
+
+It makes one invoice the way the hourly push does, under the reference
+`ownpace-proof-{YYYY-MM}`, to Ownpace's own proof contact (no e-mail address),
+sent by hand, and prints the number, date and total Moneybird gave it. Run again
+in the same month, it answers that the invoice exists and makes nothing, so a
+repeated command spends nothing of the sandbox's 50 invoices a month. It refuses
+before asking Moneybird anything on a stack that runs `NODE_ENV=production`, as
+live does, or names no `NODE_ENV`, and unless `MONEYBIRD_DELIVERY` is `manual`:
+live's books are real, and the sandbox allows ten e-mails a month.
+
+The managed nightly gate proves the books every night with the same keys:
+`smoke-managed.sh` runs `./deploy/compose/operator.sh moneybird nightly`, which
+makes the night's invoice (`ownpace-nightly-{YYYY-MM-DD}`), sends it by hand,
+registers a payment for it and reads it back as paid. It counts the month's
+invoices first and, from 40 of the sandbox's 50, makes none and says so. With no
+`MONEYBIRD_*` key in the nightly stack's `.env` it makes nothing, and the verdict
+lists the books as not proven; give that stack the sandbox's keys, with
+`MONEYBIRD_DELIVERY=manual`, for the gate to prove them.
+
+What is invoiced, and from when, is a second switch: `OWNPACE_BILLING_FROM`, the
+first month invoiced, written `YYYY-MM`. Empty, nobody is invoiced. Set, the
+hourly `managed-month-invoices` task makes each organisation's invoice for a
+month in advance, as a draft: on its first day at the tier it starts on, and
+after a move up for the difference (workplan 0111, slice 4), and the hourly
+`managed-invoice-push` has Moneybird number each draft (slice 5). Neither runs
+while `OWNPACE_STAGE` is `alpha`. The tasks read the `MONEYBIRD_*` keys too, so
+`./deploy/compose/set-task-env.sh` must run after any of them changes; it
+deletes an emptied one from the tasks. [ending-the-alpha.md](./ending-the-alpha.md)
+is when to set the month.
+
 **Verify** — the queue answers, and answers only for them:
 
 ```bash
@@ -2110,9 +2156,11 @@ While any text is a draft (`LEGAL_DRAFTS` in
 and nothing is recorded, as with the setting off: a draft's number is the one
 its final text will carry, so an acceptance of the draft would be recorded as
 one of the final text. On 2026-09-29 the privacy policy 1.2 and the terms 1.3
-are drafts, so deploying this to live asks nobody yet; it starts asking with
-the release that carries the owner's final texts. The API's start log says
-which (`[api] OWNPACE_STAGE=alpha, but … are drafts: nobody is asked …`). The
+were drafts, so deploying that to live asked nobody; asking starts with the
+release that carries the owner's final texts (workplan 0139, 2026-10-05: the
+final-text pull request, merged after v0.2.0-alpha.1 and released in alpha.2).
+The API's start log says which (`[api] OWNPACE_STAGE=alpha, but … are drafts:
+nobody is asked …`). The
 links point at the site `VITE_LEGAL_SITE_URL` names, so the texts must be
 served there before the first invitation (0139 T10). Who accepted what is under
 *Acceptance* in the
@@ -2340,10 +2388,11 @@ not. A `--public` build with unfilled legal placeholders is refused too — the
 output used to claim "every placeholder must be filled" and then publish
 anyway. So is one while a legal page it renders says on its *Version* line
 that it is a draft or not yet published, naming the file (workplan 0139 T2).
-Today every one of them does, until the owner's final text replaces it.
-`--public --check` refuses it as well: it prints how many legal pages are
-marked draft and exits 1, so a check run before a deploy stops what the build
-would stop. Its last line is still the placeholder count.
+Since the owner's final-text pull request (2026-10-05) none of them does, and
+`--public --check` prints `0 legal page(s) marked draft` and exits 0; until then
+all four did. `--public --check` refuses a draft as well: it prints how many
+legal pages are marked draft and exits 1, so a check run before a deploy stops
+what the build would stop. Its last line is still the placeholder count.
 
 **`OWNPACE_APP_URL` has no default and the build refuses without it.** It is
 where every *Request access* button points, and the environment is a domain
@@ -2489,6 +2538,104 @@ last served, the texts of an older release. Take it down then, with the same
 `-p`: `docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file
 deploy/compose/.env down`.
 
+**Taking it down for good**, when we stop running the website and not only
+live's copy for a while: switch it off as above, take it down with
+`docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env down`,
+and delete its visit reports with it,
+`rm -rf ~/.persistent/ownpace-live/site-visits`. Privacy §9 keeps the visit
+totals *"as long as we run this website"* (privacy 1.2, workplan 0139), and
+nothing else ends them. With `WWW_LIVE` no longer true, the duty `visits` reads
+nothing from then on.
+
+**Counting its visits** (privacy §4.5; the owner, 2026-10-05: *"go with GoAccess
+on the logs and the sentence. id and status we skip for now, no netbird api
+tokens..."*). The visits to `www.ownpace.eu` are counted from the site's own
+access log, by GoAccess, as totals that identify nobody. Nothing is added to the
+pages, nothing leaves the machine, `app.`, `id.` and `status.ownpace.eu` are not
+counted, and NetBird's own log is not read (no NetBird API token).
+[`site-visits.sh`](../deploy/compose/site-visits.sh) does it once a day, as the
+duty `visits` (*Live's daily duties*), and by hand whenever you want a fresh
+report, from `~/ownpace-live`:
+
+```bash
+./deploy/compose/site-visits.sh
+```
+
+- **Only once the site says so.** It refuses, reading nothing, while the
+  checkout's `site/legal/privacy.md` or `privacy.nl.md`, the texts the site
+  publishes, lack privacy 1.2's §4.5 sentence (*"From these logs we also count
+  visits to this website ..."*) or §5's purpose (*"and counting visits in
+  totals"*), outside a comment. Live's duty runs from the tag live serves, so
+  the counting starts with the first deploy of a tag that carries privacy 1.2,
+  and not before; until then the duty `visits` fails, naming the file.
+- **What it reads:** the output of `ownpace-live-www`'s container, where Docker
+  keeps it, the whole of it on every run, so running it twice changes nothing
+  (with the `local` log driver, which rotates by size, a report covers what the
+  log still holds). It counts only the requests that came through the public
+  name, the ones NetBird gave an `X-Forwarded-For`. The healthcheck every 30
+  seconds and the deploy's own checks on loopback have none. The status page's
+  *Website* row, once `STATUS_SITE_ENABLED=true`, asks through the public name
+  every 60 seconds as `Gatus/1.0`, and is left out by that name. The run says
+  how many of each it left out. nginx's error lines are never read.
+- **What GoAccess is given: no address, and no text a visitor or a link
+  chose.** GoAccess copies such text into its report word for word, so:
+  - each visitor's address becomes a number that exists only while the run
+    lasts, so GoAccess still tells visitors apart; NetBird's own address is
+    dropped;
+  - no query string, so no campaign (`utm_content`, `utm_term` and the rest
+    can carry a name or an email address);
+  - a page's path only when the site answered it 2xx or 3xx and it is a plain
+    path of the site; every other request, a 404 among them, is counted as
+    `/(not shown)`, since nginx answers any path;
+  - the page a visitor came from cut to its site, or `(an address)` when the
+    site is an IP address;
+  - every version in the browser string cut to its digits and dots, and every
+    word of it that holds a character no browser's own string holds (an `@`,
+    a `%`) left out whole.
+  It streams from Docker through that filter into GoAccess: no copy of the log
+  is ever written. GoAccess (`allinurl/goaccess`, pinned by digest) runs with
+  `--network none`, on a read-only disk, as an unprivileged user with no
+  capability, no port and nothing of ours mounted (the image's own empty
+  volume, which that user cannot write to, goes with `--rm`), and keeps **no
+  database**: its `--persist` would keep, for every day, a fingerprint of each
+  visitor's address and browser and the pages each one asked for, and its
+  `--anonymize-ip` hides the address only in the report it draws.
+- **What is kept:** one HTML report per container of the site, in
+  `~/.persistent/ownpace-live/site-visits/`, named after the day and time that
+  container was made, readable by this account only, and never on a port, until
+  the website is taken down for good (*Taking it down for good*, above). A
+  deploy recreates the container and its log, so each report covers one
+  release's time on the site; the earlier reports stay, and together they are
+  the totals. What no run counted before a deploy is not counted: with the
+  daily duty, at most the hours since its last run. **Run it by hand right
+  before `deploy-live.sh` to lose none.**
+- **What the report shows:** requests per page, per day and per hour, with
+  `/(not shown)` for those that found no page of ours; the sites visitors came
+  from; browsers and systems, by name and version; statuses; and visitors as
+  GoAccess counts them, one address and one browser per day. No address, no
+  place, no campaign, and no whole address of the page a visitor came from.
+  What it cannot stop: a word a visitor writes into their own browser's
+  User-Agent, joined to a browser's or a system's name, shows as they wrote it.
+- **While `WWW_LIVE` is not true** it reads nothing, says so, and exits 0.
+
+**Reading the report,** from the mesh only: it is a file on the machine, and
+nothing serves it. On your laptop, which is on the mesh:
+
+```bash
+mkdir -p ~/ownpace-visits
+scp 'you@the-box:.persistent/ownpace-live/site-visits/*.html' ~/ownpace-visits/
+```
+
+and open the newest file in a browser. It loads nothing from anywhere: its
+scripts, styles and map are inside the file. The run's own lines (how many
+requests came through the public name, and from how many addresses) are in the
+journal with the other duties' (`journalctl --user -u ownpace-box-duties`).
+**The first run on the machine is Docker's own test.** The pinned digest was
+read back from Docker Hub, and the amd64 image's own GoAccess was run through
+the script as an unprivileged user on a read-only disk with no network, which
+is how its refusal of `-o` was found; Docker's own `--read-only`,
+`--network none` and `--cap-drop ALL` were not.
+
 ## What cannot work on a mesh-only host
 
 A box that is reachable only over a private mesh (NetBird, Tailscale, a
@@ -2595,6 +2742,17 @@ starts it only in its demo phase and only with `--with-demo`, which
 refuses on live's `.env` (`scripts/a-demo-on-a-real-address.unit.test.ts`).
 Run by hand, `setup-managed-demo.sh` is not refused on live's `.env` yet; that
 refusal is a follow-up in workplan 0139. So the downloads stay on, as they are.
+
+The site's visit count (*Counting its visits*, above) runs GoAccess with
+`docker run`, outside every compose file, from live's checkout once a day.
+GoAccess 1.12 (`allinurl/goaccess:1.12`, pinned by the digest of the tag's
+index, read back from Docker Hub on 2026-10-06; its source read at the tag
+`v1.12`) has no telemetry, update check or error report. What in it can reach a
+network is its lookup of hosts' names (`src/gdns.c`, for the hosts panel, which
+`site-visits.sh` ignores) and its WebSocket server (`src/websocket.c`, only with
+`--real-time-html`, which it never passes). It runs with `--network none` all
+the same, so nothing could leave if a later version added a report. Docker pulls
+the image from Docker Hub the first time, as it pulls any other.
 
 The deploy CLI, which runs on the host, was read only this far: at 4.5.16 its
 `src/telemetry/tracing.ts` is gone, and no exporter of its own was found. The
@@ -3469,7 +3627,7 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    so `sudo loginctl enable-linger "$USER"`, then
    `systemctl --user enable --now ownpace-box-duties.timer`, one
    `systemctl --user start ownpace-box-duties.service`, and the journal: all
-   seven duties pass.
+   eight duties pass.
 4. **Rehearse the next deploy.** Open a hold on the support screen with a Dutch
    sentence, wait five minutes, then `./deploy/compose/deploy-live.sh --dry-run <tag>`:
    every refusal passes, it says reversible (the same tag), and nothing moves.
@@ -3564,19 +3722,20 @@ them:** it runs on the test stack only, in the gate (workplan 0139, the
 owner's answer rec-drill (a) of 2026-09-28). On live it kept a daily dump of
 the task runner's database, and live keeps one copy of its databases, made
 right before an update; `trigger-version.sh` refuses `drill` there. It does
-seven duties, each one whatever the one before it did:
+eight duties, each one whatever the one before it did:
 
 | Duty | What it runs | What it does |
 |---|---|---|
 | `token` | `setup-zitadel.sh --token-only` | The token's clock and nothing else: no secrets generated, the provider not started or reconfigured. It writes `ZITADEL_PAT_EXPIRY`, as every run does. |
 | `copies` | `copy-before-update.sh expire` | The backstop of the copy made before an update (workplan 0139), in `~/.persistent/ownpace-live/copy-before-update`: deleted once it is older than six days less an hour, whether or not its update was proven, so it is never kept past day 7, even when this run starts late; a dump made there by hand goes by its own age. The run before the one that deletes it keeps it and fails the duty, saying to roll back from it today or to delete it (the operator runbook's *The copy before an update*). It reads no database. The copy is **secret-bearing** (testers' data, the provider's password hashes); the scripts make it readable by this account only. |
-| `exposure` | `exposure-check.sh` | Every port any container on the machine publishes, both stacks (0132 T3). Needs `EXPOSURE_ALLOW` in live's `.env`. |
+| `exposure` | `exposure-check.sh` | Every port any container on the machine publishes, both stacks (0132 T3). Needs `EXPOSURE_ALLOW` in live's `.env`, and `EXPOSURE_NOT_OURS` where the machine runs containers that are not Ownpace's. |
 | `organisations` | `setup-zitadel.sh --count-organisations` | 0135 T3's count on live's identity provider, read-only. A count that is not one fails the duty. |
 | `site` | `www-live.sh check` | Read-only (0139 T10). Fails when a container of live's project has the compose service `www`, where a `www.yml` command without `-p` puts the site; and, when live's `.env` says `WWW_LIVE=true`, when `ownpace-live-www` is not running and healthy (*`www.ownpace.eu`: live's copy*). |
 | `strays` | `idp-strays.sh --remove --at-most 20` | Removes the sign-in accounts nobody let in, older than 30 days, and those of members removed from an organisation 7 or more days ago, as privacy §9 says (0135 T8 and open question 13; the runbook's *Sign-in accounts nobody let in*). A removed member's account stays while the removal is younger than 7 days, or while they are a member again, an operator, or hold an open request or invitation; so does an account of another organisation at the provider or with a role there. More than 20 at once removes none and fails the duty: run `./deploy/compose/idp-strays.sh` from `~/ownpace-live` to see them, then `--remove` by hand if they are right. A database with no operator row (*Become the operator*, above) removes none and fails the duty too. One that has its operator row back and not its members, after a reset or restore that kept the provider's accounts, is not seen: turn the duties off before such a reset and on again once the members are back (the runbook says how). Its lines name an account's id, never its address. |
 | `searches` | `support-read-prune.sh --delete` | Deletes the support screens' reads recorded with no organisation (a search by address, a download of the audit log, the organisation list, the invoices kept after an erasure, a log page not filtered to one organisation) 12 months after they were recorded, as privacy §4.5 and §9 say (0139 T6; the runbook's *Searches and downloads on the support screens*). As the database's owner: `app_user` cannot delete from that log, and the tasks' system role (0138 T3 step 2) can, for the purge of an erased organisation, but its grant (`SELECT` on `tenant_id`, and `DELETE`) lets it pick rows by organisation, never by age. It stops, deleting nothing, and fails the duty when that connection does not pass row security. It prints a count. |
+| `visits` | `site-visits.sh` | The visits in the log of live's copy of the site, counted by GoAccess as totals that identify nobody (privacy §4.5; the owner's GoAccess decision of 2026-10-05), into one HTML report per container of the site under `~/.persistent/ownpace-live/site-visits/` (*Counting its visits*). Daily because a deploy replaces the container and its log, and what no run counted before then is never counted. GoAccess is given no address and no text a visitor or a link chose, and keeps no database. With `WWW_LIVE` not true it reads nothing and passes; while the checkout's privacy text does not say visits are counted (privacy 1.2, §4.5 and §5) it refuses, and the duty fails. It prints counts, never an address. |
 
-It exits 0 when all seven pass, 1 naming every duty that failed, and 2 when it
+It exits 0 when all eight pass, 1 naming every duty that failed, and 2 when it
 refused before any duty: a `.env` without live's marker (the OTA stack's duties
 are the gate's), a project the reader refuses, or an argument. A duty that runs
 past 20 minutes (`BOX_DUTY_TIMEOUT`, in seconds) is a failed duty. Ctrl-C in a
@@ -3599,9 +3758,10 @@ and reaches Docker. Both are in
 # ownpace-box-duties.service — live's daily duties (workplan 0132 T7): the
 # provisioning token's clock, the backstop of the copy before an update
 # (0139), the exposure check, the organisation count, the site's (0139 T10),
-# the accounts nobody let in (0135 T8) and the support screens' searches kept
-# a year (0139 T6). A user unit, started by ownpace-box-duties.timer; the
-# install steps are in docs/managed-bring-up.md, "Live's daily duties".
+# the accounts nobody let in (0135 T8), the support screens' searches kept
+# a year (0139 T6) and the site's visits, counted as totals (privacy §4.5). A
+# user unit, started by ownpace-box-duties.timer; the install steps are in
+# docs/managed-bring-up.md, "Live's daily duties".
 [Unit]
 Description=ownpace-live: the duties the nightly gate does for the OTA stack
 
@@ -3610,9 +3770,9 @@ Type=oneshot
 WorkingDirectory=%h/ownpace-live
 ExecStart=%h/ownpace-live/deploy/compose/box-duties.sh
 SyslogIdentifier=ownpace-box-duties
-# Seven duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
+# Eight duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
 # which failed.
-TimeoutStartSec=150min
+TimeoutStartSec=170min
 ```
 
 ```ini
@@ -3661,7 +3821,10 @@ journalctl --user -u ownpace-box-duties -n 200 --no-pager
   (the `docker` group). `systemctl --user edit ownpace-box-duties.service`
   adds an `Environment=` line if not.
 - **After a deploy that changed the units,** copy them again and run
-  `systemctl --user daemon-reload`.
+  `systemctl --user daemon-reload`. The first tag with the duty `visits`
+  does: `TimeoutStartSec` goes from 150 to 170 minutes, eight duties of 20.
+  A unit copied before it still runs all eight, and cuts a run short only
+  when nearly every duty runs to its 20 minutes.
 - **A run after a stop.** `Persistent=true` runs a missed day at the next
   start, which may fall inside the appliance nightly's hours; its dev
   Nextcloud then fails `exposure`, by name.
@@ -3862,9 +4025,14 @@ does not move either.
 on `main` since #1271, and it reads the whole machine: set `EXPOSURE_ALLOW` in
 live's `.env` to every address any container on it is published on on purpose
 (*Checking every publish on the machine at once*, under *Which address a port
-answers on*), or it fails for each of them. And the tag must be cut from a
-commit that has `deploy/compose/exposure-check.sh`; the script runs the tag's
-own copy, and refuses a tag without one before anything moves.
+answers on*), or it fails for each of them; where the machine runs containers
+that are not Ownpace's and publish beyond loopback, set `EXPOSURE_NOT_OURS` to
+their names too (*Containers on the machine that are not Ownpace's*, same
+section). And the tag must be cut from a commit that has
+`deploy/compose/exposure-check.sh`; the script runs the tag's own copy, and
+refuses a tag without one before anything moves. With `EXPOSURE_NOT_OURS` set,
+that copy must be one that reads it (workplan 0132's Status of 2026-10-05): an
+older one ignores the key and fails for each of those containers.
 
 **`--dry-run`** runs everything up to the checkout (every refusal above, the tag
 fetch, one-way or reversible, by the same comparison, and `copy-before-update.sh

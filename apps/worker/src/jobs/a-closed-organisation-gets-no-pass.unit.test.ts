@@ -8,8 +8,9 @@
  * starts a pass read it. The tick chose each due migration by the migration's
  * own status, so an active migration, a continuous lane, a cutover in its
  * grace period and a data type kept in the lane got a pass every few minutes
- * until the purge, up to 90 days later. They ran on the stored access that the
- * alpha conditions say nothing uses after closing (`site/legal/alpha.md` §10).
+ * until the purge, up to 90 days later. They ran on the stored access with
+ * which, the alpha conditions say, no new work starts after closing
+ * (`site/legal/alpha.md` §10).
  * A pass already queued, or a retry, read only the migration's own phases
  * between its data types, and went on copying.
  *

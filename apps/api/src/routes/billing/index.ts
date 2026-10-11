@@ -47,15 +47,16 @@ import {
   type ManagedTier,
   type PathsForecast,
   type ViesRequester,
+  downloadInvoicePdf,
+  moneybirdFromEnv,
 } from '@openmig/managed';
 import * as schema from '@openmig/managed/schema-managed';
 // The run ledger lives in @openmig/ledger (ADR-0036): compute derives from it.
 import { run as runTable } from '@openmig/ledger/schema-pg';
 // The live slot count, through the ONE authority on which states hold a slot
 // (`holdsASlot`, wrapped by `slotsHeld`) rather than a second list here.
-import { PgPathLifecycleStore } from '@openmig/ledger';
+import { PgPathLifecycleStore, type PgDatabase } from '@openmig/ledger';
 import { log, type TenantId } from '@openmig/shared';
-import { NO_TIER_BILLING_CODE, NO_TIER_BILLING_REASON } from './no-bill-we-do-not-sell.ts';
 import { readPathsForecast } from './paths-at-start.ts';
 import {
   billingPartyColumns,
@@ -63,7 +64,7 @@ import {
   vatConsultationColumns,
 } from '../../services/vat-standing.ts';
 
-/** Decimal GB, as `invoice-generation.ts` uses — a price list is not binary. */
+/** Decimal GB, as the tier table uses — a price list is not binary. */
 const BYTES_PER_GB = 1_000_000_000;
 
 /** The authenticated tenant id in the ledger's branded type, said once. */
@@ -138,6 +139,15 @@ const BillingPartySchema = z
       .toUpperCase()
       .regex(/^[A-Z]{2}$/, 'countryCode must be a two-letter ISO 3166-1 code'),
     vatNumber: z.string().trim().max(32).optional(),
+    // Where Moneybird e-mails the invoice (0111 decision 11, managed 0048).
+    // Optional; empty is none. One `@` with something either side, as the
+    // column's check: whether the mailbox exists is the delivery's to find out.
+    invoiceEmail: z
+      .string()
+      .trim()
+      .max(254)
+      .regex(/^([^@\s]+@[^@\s]+)?$/, 'invoiceEmail must be an e-mail address, or empty')
+      .optional(),
   })
   .superRefine((body, ctx) => {
     if (body.kind !== 'business' && body.vatNumber) {
@@ -227,7 +237,7 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
     );
 
     // DECIMAL GB, like every other reader of these bytes: `usage/history`
-    // below, `invoice-generation.ts`, and the tier table's own data axis
+    // below, and the tier table's own data axis
     // ("1 TB = 1000 GB, the site's convention" — ADR-0014, tier-calculator).
     //
     // These two lines divided by 1024³ until 2026-09-09 — with BYTES_PER_GB
@@ -378,6 +388,29 @@ const YesSchema = z.object({
 });
 
 /**
+ * INVOICE DETAILS COME FIRST (workplan 0111, decision 14, the owner,
+ * 2026-10-05: "ok"; "a yes or a pick that leaves Free asks for them
+ * first"). Every yes and every pick of a paid tier is something an invoice
+ * will charge, and an invoice is made out to somebody: the name and address
+ * under Invoice details. Without them the invoice could be made and never
+ * sent (invoice-push.ts refuses it by name), so the yes is refused instead,
+ * before anything is recorded, and the page shows the way to the card.
+ * Asked inside the yes's own transaction, after its lock.
+ */
+const INVOICE_DETAILS_FIRST =
+  'Your invoice details come first: the name and address an invoice is made out to. ' +
+  'Add them under Invoice details, then say yes again.';
+
+async function hasInvoiceDetails(db: PgDatabase, tenantId: string): Promise<boolean> {
+  const rows = await db
+    .select({ tenantId: schema.billingParty.tenantId })
+    .from(schema.billingParty)
+    .where(eq(schema.billingParty.tenantId, tenantId))
+    .limit(1);
+  return rows.length === 1;
+}
+
+/**
  * POST /api/billing/ceiling/yes
  *
  * The customer's yes to the offer they were shown: a move up, or a top-up.
@@ -403,6 +436,7 @@ router.post('/ceiling/yes', authenticate, requireBillingWrite, async (req: Authe
       // One yes at a time per organisation: two presses of the same offer
       // must not buy two bands. Released with the transaction.
       await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'data_allowance:' + tenantId}))`);
+      if (!(await hasInvoiceDetails(db, tenantId))) return { detailsFirst: true } as const;
       const before = await readCeiling(db, asTenantId(tenantId));
       const alphaGb = await alphaGbOf(db, tenantId);
       const decision = decideYes(before, parsed.data);
@@ -410,6 +444,11 @@ router.post('/ceiling/yes', authenticate, requireBillingWrite, async (req: Authe
       await new PgDataAllowanceStore(db).record(asTenantId(tenantId), decision.grant, req.userId ?? 'unknown');
       return { ceiling: await readCeiling(db, asTenantId(tenantId)), alphaGb } as const;
     });
+    if ('detailsFirst' in outcome) {
+      return void res
+        .status(409)
+        .json({ error: 'invoice_details_first', message: INVOICE_DETAILS_FIRST, reason: INVOICE_DETAILS_FIRST });
+    }
     const holds = holdsAtCeiling(process.env.OWNPACE_STAGE);
     if ('refused' in outcome) {
       const reason =
@@ -517,12 +556,18 @@ router.post('/paths/yes', authenticate, requireBillingWrite, async (req: Authent
       // The data ceiling's lock: one yes at a time per organisation, on either
       // axis, so two presses of the same offer move up once.
       await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'data_allowance:' + tenantId}))`);
+      if (!(await hasInvoiceDetails(db, tenantId))) return { detailsFirst: true } as const;
       const store = new PgDataAllowanceStore(db);
       const decision = decidePathsYes(allowanceOf(await store.grants(asTenantId(tenantId))), parsed.data);
       if (!decision.ok) return { refused: decision.reason } as const;
       await store.record(asTenantId(tenantId), decision.grant, req.userId ?? 'unknown', 'paths');
       return { tier: allowanceOf(await store.grants(asTenantId(tenantId))).tier } as const;
     });
+    if ('detailsFirst' in outcome) {
+      return void res
+        .status(409)
+        .json({ error: 'invoice_details_first', message: INVOICE_DETAILS_FIRST, reason: INVOICE_DETAILS_FIRST });
+    }
     if ('refused' in outcome) {
       const reason =
         outcome.refused === 'offer_changed'
@@ -626,6 +671,8 @@ router.post('/pick', authenticate, requireBillingWrite, async (req: Authenticate
       // The yeses' lock: one pick or yes at a time per organisation, so two
       // presses pick once, and a pick and a yes at the ceiling do not cross.
       await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'data_allowance:' + tenantId}))`);
+      // A paid tier is invoiced; Free, the lower pick of none, is not.
+      if (parsed.data.tierId !== 'free' && !(await hasInvoiceDetails(db, tenantId))) return { detailsFirst: true } as const;
       // One moment for the decision and the row, so the month the pick counts
       // in is the one the decision read.
       const now = new Date();
@@ -637,6 +684,11 @@ router.post('/pick', authenticate, requireBillingWrite, async (req: Authenticate
       if (decision.yes) await new PgDataAllowanceStore(db).record(asTenantId(tenantId), decision.yes, by, 'pick');
       return { from: decision.from, state: await readBilledNow(db, asTenantId(tenantId), now) } as const;
     });
+    if ('detailsFirst' in outcome) {
+      return void res
+        .status(409)
+        .json({ error: 'invoice_details_first', message: INVOICE_DETAILS_FIRST, reason: INVOICE_DETAILS_FIRST });
+    }
     const holds = holdsAtCeiling(process.env.OWNPACE_STAGE);
     if ('refused' in outcome) {
       const reason = 'What may be picked has changed since the page was shown. Look at the tiers again before picking.';
@@ -902,6 +954,7 @@ router.put('/party', authenticate, requireBillingWrite, async (req: Authenticate
       city: body.city,
       countryCode: body.countryCode,
       vatNumber: body.kind === 'business' && body.vatNumber ? body.vatNumber : null,
+      invoiceEmail: body.invoiceEmail || null,
     };
 
     const [party] = await withTenantDb(tenantId, getSharedPool(), async (db) =>
@@ -1020,46 +1073,6 @@ router.post('/party/check-vat', authenticate, requireBillingWrite, async (req: A
 });
 
 /**
- * POST /api/billing/invoices/generate
- *
- * Generate (or refresh) the invoice for a billing period from metered usage.
- * Body: { period?: "YYYY-MM" } — defaults to the current month. Idempotent; a
- * paid/void invoice is returned unchanged. Intended to be called by a
- * managed-mode scheduled job at period close (self-host never loads billing).
- */
-router.post('/invoices/generate', authenticate, requireBillingWrite, (req: AuthenticatedRequest, res: Response) => {
-  // REFUSED, and the body that used to be here is GONE rather than left
-  // unreachable behind the refusal (workplan 0109 T0, the owner's decision of
-  // 2026-08-27). Dead code under a `return` is code nobody maintains and
-  // everybody assumes still works; git has the old body, and 0109 T5 writes
-  // the real one against tiers.
-  //
-  // What it did, so the next reader need not dig: it read metered usage for a
-  // period and called `generateInvoiceForPeriod`. That service still exists and
-  // is now unreachable from the API — and, stated plainly because the opposite
-  // would be more comfortable, it is no longer covered by a test: its only
-  // coverage was through this route. Re-pinning its arithmetic was considered
-  // and rejected, because the doc comment in `no-bill-we-do-not-sell.ts` names
-  // three faults in exactly that arithmetic; a test asserting the old total
-  // would be asserting a number this same change calls wrong. 0109 T5 replaces
-  // the service, and `no-bill-we-do-not-sell.unit.test.ts` goes red the moment
-  // it does.
-  //
-  // What is refused is MINTING A BILL, which is the one operation that turns a
-  // retired model into a number somebody could be asked to pay. Every other
-  // billing route is untouched.
-  //
-  // 409 rather than 501: the request is well-formed and this caller is
-  // entitled to make it; the deployment cannot honour it. No tenant scoping
-  // and no database work happens first, so a refused call leaves nothing
-  // behind — not even a draft.
-  if (!req.tenantId) {
-    return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
-  }
-  res.status(409).json({ error: NO_TIER_BILLING_CODE, reason: NO_TIER_BILLING_REASON });
-});
-
-/**
  * GET /api/billing/invoices
  *
  * List all invoices for the tenant
@@ -1091,6 +1104,10 @@ router.get('/invoices', authenticate, requireBillingRead, async (req: Authentica
         metadata: schema.invoice.metadata,
         createdAt: schema.invoice.createdAt,
         updatedAt: schema.invoice.updatedAt,
+        // Moneybird's legal number and its date, once it numbered the
+        // invoice (0111 slice 5): what the customer's own books will quote.
+        invoiceNumber: schema.invoice.invoiceNumber,
+        invoiceDate: schema.invoice.invoiceDate,
       })
       .from(schema.invoice)
       .where(eq(schema.invoice.tenantId, tenantId))
@@ -1166,6 +1183,70 @@ router.get('/invoices/:invoiceId', authenticate, requireBillingRead, async (req:
 });
 
 /**
+ * GET /api/billing/invoices/:invoiceId/pdf
+ *
+ * The invoice's document, Moneybird's own PDF (workplan 0111, T6): streamed
+ * from the books to the person who asks, and kept nowhere here. Only an
+ * invoice Moneybird has numbered has one; a draft is refused by name. Read in
+ * the organisation's own scope, so an invoice of another organisation is not
+ * found. The file is named by the invoice's legal number.
+ */
+router.get('/invoices/:invoiceId/pdf', authenticate, requireBillingRead, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const invoiceId = req.params.invoiceId;
+    if (!invoiceId || Array.isArray(invoiceId)) {
+      return void res.status(400).json({ error: 'Bad Request', message: 'Invoice ID required' });
+    }
+    const tenantId = req.tenantId;
+    if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
+
+    const rows = await withTenantDb(tenantId, getSharedPool(), async (db) =>
+      db
+        .select({
+          status: schema.invoice.status,
+          moneybirdId: schema.invoice.moneybirdId,
+          moneybirdAdministrationId: schema.invoice.moneybirdAdministrationId,
+          invoiceNumber: schema.invoice.invoiceNumber,
+        })
+        .from(schema.invoice)
+        .where(and(eq(schema.invoice.id, invoiceId), eq(schema.invoice.tenantId, tenantId))),
+    );
+    const invoice = rows[0];
+    if (!invoice) return void res.status(404).json({ error: 'Not found', message: 'Invoice not found' });
+    if (!invoice.moneybirdId || !invoice.invoiceNumber || invoice.status === 'draft') {
+      const reason = 'This invoice is being prepared and has no document yet: it has one once it is numbered.';
+      return void res.status(409).json({ error: 'no_document_yet', message: reason, reason });
+    }
+
+    const books = moneybirdFromEnv(process.env);
+    if (books.kind !== 'on' || books.config.administrationId !== invoice.moneybirdAdministrationId) {
+      // Moneybird off, half set, or set to other books than the ones that
+      // numbered this invoice: nothing here can fetch its document.
+      log.warn('[billing] invoice pdf: the books that numbered it are not the ones configured', {
+        invoiceId,
+        configured: books.kind,
+      });
+      const reason = "The invoice's document cannot be fetched right now. Ask us for it, and name the invoice number.";
+      return void res.status(503).json({ error: 'document_unavailable', message: reason, reason });
+    }
+
+    const fetched = await downloadInvoicePdf(books.config, invoice.moneybirdId);
+    if (fetched.kind !== 'pdf') {
+      log.warn('[billing] invoice pdf: not fetched', { invoiceId, kind: fetched.kind, reason: fetched.reason });
+      const reason = "The invoice's document cannot be fetched right now. Try again in a minute.";
+      return void res.status(503).json({ error: 'document_unavailable', message: reason, reason });
+    }
+    const filename = `Ownpace-invoice-${invoice.invoiceNumber.replace(/[^A-Za-z0-9._-]/g, '_')}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(Buffer.from(fetched.bytes));
+  } catch (error) {
+    serverFault(res, 'invoice_pdf_failed', "fetching the invoice's document", error);
+  }
+});
+
+/**
  * POST /api/billing/invoices/:invoiceId/pay
  * 
  * Create payment for invoice using Mollie
@@ -1229,6 +1310,19 @@ router.post('/invoices/:invoiceId/pay', authenticate, requireBillingWrite, async
       });
       return;
     }
+    // Nor a draft (workplan 0111 T5, managed 0045). This route used to set a
+    // draft `sent` while asking Mollie for money, which issued an invoice
+    // Moneybird never numbered. An invoice is issued when Moneybird numbers
+    // it; until then there is nothing to pay, and the database now refuses
+    // draft -> sent without the number anyway, after Mollie would have been
+    // asked. So the refusal comes first.
+    if (invoice.status === 'draft') {
+      res.status(409).json({
+        error: 'Conflict',
+        message: 'This invoice has not been issued yet, so there is nothing to pay.',
+      });
+      return;
+    }
 
     // Get Mollie service
     const mollieService = getMollieService();
@@ -1249,13 +1343,14 @@ router.post('/invoices/:invoiceId/pay', authenticate, requireBillingWrite, async
       metadata: { invoiceId },
     });
 
-    // Update invoice status in database
+    // Record the payment on the invoice. Its status stays what it is (sent
+    // or overdue): the webhook moves it to paid. The metadata is added to,
+    // never replaced: whatever else it holds stays.
     await withTenantDb(tenantId, getSharedPool(), async (db) => {
       await db.update(schema.invoice)
         .set({
-          status: 'sent',
           paymentId: payment.id,
-          metadata: { mollieInvoiceId: payment.id },
+          metadata: sql`${schema.invoice.metadata} || ${JSON.stringify({ mollieInvoiceId: payment.id })}::jsonb`,
           updatedAt: new Date(),
         })
         .where(

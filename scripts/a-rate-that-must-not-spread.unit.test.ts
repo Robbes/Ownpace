@@ -29,9 +29,9 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'apps/api/src/services/billing-service.ts':
     'The POST /estimate projection and the usage-history rows — the surfaces the constant ' +
     'survives for, rewired against Moneybird in 0111 T4/T8.',
-  'apps/api/src/services/invoice-generation.ts':
-    'The RETIRED generator (unreachable since 0109 T0; replaced by 0109 T5). It keeps ' +
-    'importing rather than redeclaring, per its own comment about the third copy.',
+  // apps/api/src/services/invoice-generation.ts was here until 0111 slice 4a,
+  // the retired generator, unreachable since 0109 T0. It is deleted, and the
+  // list is one entry shorter again.
   // apps/web/src/pages/Billing.tsx was here until 2026-09-09, for a comment
   // beside the VAT line of the usage screen's cost breakdown. That breakdown
   // is gone — the screen shows ADR-0014's tier now (0121 T4) — so the web app

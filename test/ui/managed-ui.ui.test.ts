@@ -1238,14 +1238,14 @@ describe('signed in as a platform operator', () => {
  */
 describe('signed in by somebody who has not accepted the texts yet', () => {
   const ME = FIXTURES['GET /api/me'];
-  const VERSIONS = { alpha: '1.0', privacy: '1.2', terms: '1.3' } as const;
+  const VERSIONS = { alpha: '1.0', privacy: '1.2', terms: '1.4' } as const;
   const documents = (accepted: boolean) =>
     (['alpha', 'privacy', 'terms'] as const).map((document) => ({
       document,
       version: VERSIONS[document],
       accepted,
     }));
-  const REFUSAL = 'Nothing was stored: accept the Alpha conditions, the privacy policy and the terms first.';
+  const REFUSAL = 'Please accept the Alpha conditions, privacy policy and terms.';
 
   it('meets the texts at a refusal, linked in their language, and the page after accepting', async () => {
     FIXTURES['GET /api/me'] = { ...(ME as object), acceptance: { due: true, documents: documents(false) } };

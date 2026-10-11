@@ -45,7 +45,7 @@ describe('what it says before anybody clicks', () => {
     // Somebody who never opens the file should still learn that FullAccess
     // and Send-As cannot be read at all.
     expect(screen.getByText(/FullAccess or Send-As/)).toBeInTheDocument();
-    expect(screen.getByText(/does not expose that to us at all/)).toBeInTheDocument();
+    expect(screen.getByText(/does not expose that to us to migrate/)).toBeInTheDocument();
   });
 
   it('does not promise file sharing this installation may not have read', () => {

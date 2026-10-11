@@ -3,9 +3,10 @@
  * Billing Service
  *
  * Pricing types and the single cost-calculation function (ADR-0014 cost-recovery
- * pricing, integer cents). The live billing data path is Drizzle-backed
- * (routes/billing + services/invoice-generation); the previous in-memory
- * `billingApi` mock was removed once those moved to real persistence.
+ * pricing, integer cents), for the usage estimate and the metered usage
+ * history: the retired model's arithmetic, which no invoice uses any more (the
+ * generator went in 0111 slice 4a). The previous in-memory `billingApi` mock
+ * was removed once those moved to real persistence.
  */
 
 // Pricing lives in @openmig/managed (ONE copy — the worker meters against the

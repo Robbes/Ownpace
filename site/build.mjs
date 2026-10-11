@@ -1689,9 +1689,10 @@ export function build({ alpha = ALPHA } = {}) {
  * the build then refuses is a deploy that moves the app first and finds out
  * about the site after, which is what a check before a deploy exists to stop.
  *
- * Until the owner's final-text pull request removes the words, every `--public`
- * build refuses. That is intended: privacy and terms say "not yet published"
- * about themselves.
+ * Until 2026-10-05 every `--public` build refused, as intended: privacy and
+ * terms said "not yet published" about themselves. The owner's final-text
+ * pull request (0139) removed the words, and since then the real texts
+ * publish; `site/site.unit.test.ts`'s case for the real texts holds them to it.
  *
  * Exported so `scripts/legal-docs.unit.test.ts` reads each document's version
  * line the way this build does, instead of keeping a copy of the pattern.

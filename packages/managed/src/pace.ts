@@ -39,8 +39,8 @@ import type { TenantId } from '@openmig/shared';
 import { allowanceOf, holdsAtCeiling, PgDataAllowanceStore, type Allowance } from './data-ceiling.ts';
 import { billedTierOf, type BilledTier } from './billed-tier.ts';
 import { PgBytesMovedStore } from './bytes-moved.ts';
-import { PgOccupancyPeakStore } from './occupancy-peak.ts';
-import { observedTier, type ManagedTier } from './tier-calculator.ts';
+import { PgOccupancyPeakStore, type OccupancyPeak } from './occupancy-peak.ts';
+import { observedTier, type ManagedTier, type TenantTier } from './tier-calculator.ts';
 import { pickedFloorOf, PgTierPickStore, type PickedFloor } from './tier-pick.ts';
 
 /** Free's pace: one pass a day, measured from when the last one started. */
@@ -66,6 +66,14 @@ export interface BilledNow {
   readonly allowance: Allowance;
   /** The least the picks let this month and the next bill. */
   readonly floor: PickedFloor;
+  /**
+   * What was used: the tier the higher of the month's recorded peak and the
+   * paths held now, and the data counted, derive (`observedTier`), with the
+   * axis that decided it. The invoice's line quotes it (0111 slice 4).
+   */
+  readonly measured: TenantTier;
+  /** The month's recorded peak, with the moment it was set; null when nothing raised it. */
+  readonly peak: OccupancyPeak | null;
 }
 
 /**
@@ -92,6 +100,8 @@ export async function readBilledNow(db: PgDatabase, tenantId: TenantId, now: Dat
     billed: billedTierOf(measured.tier, allowance, measured.evidence.peakPaths, gb, floor.now),
     allowance,
     floor,
+    measured,
+    peak,
   };
 }
 

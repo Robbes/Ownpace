@@ -141,9 +141,9 @@ let owner: ReturnType<typeof createPgDb>;
 const rowsOf = <R>(result: unknown): R[] => (result as { rows: R[] }).rows;
 
 /** The digest's words for two of its lines, as the mail writes them in English. */
-const AUTO_APPLIED = 'old copies of moved or renamed files removed automatically (auto-apply — each is recorded)';
+const AUTO_APPLIED = 'old copies of moved or renamed files removed automatically (auto-apply)';
 const GRACE_ENDED =
-  'grace period over and nobody chose, so no longer copying (end each, or keep it copying, on the Finish page):';
+  'grace period ended without a decision, so migration ended (on the Finish page: end each or keep it active):';
 
 /** What a digest says of one migration: the lines under its heading, each without its dash. */
 function linesUnder(body: string, name: string): string[] {

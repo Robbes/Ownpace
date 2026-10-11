@@ -4,8 +4,9 @@
  * AN ORGANISATION CLOSED AT EVERY DOOR (workplan 0085 T2; the owner's report of
  * 2026-09-28, and their answer "Every write door (Recommended)").
  *
- * Closing an organisation promised that nothing uses the access it gave from
- * then on (`site/legal/alpha.md` §10), and the account went read-only in name
+ * Closing an organisation promised that no new work starts with the access it
+ * gave from then on (`site/legal/alpha.md` §10; until 2026-10-05 it said that
+ * nothing uses that access), and the account went read-only in name
  * only. Every door that starts work, re-arms it, or uses the stored access
  * went on working for a closed organisation, until the purge: *Sync now*, a
  * cutover, a discovery, *Start*, a verification, both applies, a

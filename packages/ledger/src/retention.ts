@@ -26,11 +26,13 @@
  * historical body of `run` had NO reader — every consumer touches the newest 21
  * rows of a mapping, or the rows still `running`/`queued`. T3 gave it one, by
  * deriving billed compute from it, and then immediately took it away again by
- * FREEZING the derived quantities onto the invoice. `invoice-generation.ts`
- * writes the measured figures into the invoice metadata, so an issued bill does
- * not re-read the ledger and cannot change when the ledger is pruned. §4a of
+ * FREEZING the derived quantities onto the invoice. The retired generator wrote
+ * the measured figures into the invoice metadata, so an issued bill did not
+ * re-read the ledger and could not change when the ledger was pruned. §4a of
  * that plan says so in as many words: *"with it, those rows are audit trail and
- * T5 is possible."*
+ * T5 is possible."* A tier bill (ADR-0014) reads no run at all; the generator is
+ * gone (0111 slice 4a), and the managed caller's safe point now keeps runs for
+ * the metered usage history.
  *
  * THAT FREEZE IS A PRECONDITION, NOT A BACKGROUND FACT, and this module cannot
  * check it: `invoice` is a managed-edition table and `packages/` must not
@@ -237,11 +239,9 @@ export interface PruneRunsOptions extends PruneOptions {
    * How far back it is proved safe to forget — and it is REQUIRED, because the
    * two ways of having no date mean opposite things.
    *
-   * A `Date` is the managed answer: the end of the newest invoiced period.
-   * `invoice-generation.ts` freezes the measured quantities onto the invoice,
-   * so an issued bill does not re-read the ledger and cannot change when the
-   * ledger is pruned. Nothing at or after that instant is deleted, however old
-   * the window says it is.
+   * A `Date` is the managed answer: the end of the newest invoiced period
+   * that is over. Nothing at or after that instant is deleted, however old the
+   * window says it is.
    *
    * `'nothing-is-billed'` is the appliance answer: it bills nobody, has no
    * invoice table to ask, and every run row older than the window is therefore

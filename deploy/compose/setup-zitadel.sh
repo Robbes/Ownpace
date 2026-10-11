@@ -1099,6 +1099,40 @@ fi
 SMTP_RELAY="$(read_env SMTP_HOST '')"
 SMTP_RELAY_PORT="$(read_env SMTP_PORT 1025)"
 SMTP_SENDER="$(read_env NOTIFY_FROM '')"
+# SPLIT THE FROM LINE, BECAUSE ZITADEL HAS TWO FIELDS WHERE THE API HAS ONE.
+#
+# `senderAddress` is a bare address. Handing it `"Ownpace [no-reply]" <no-reply@
+# ownpace.eu>` — the form live carries so the API's mail shows a name — makes
+# Zitadel stamp that whole string into the envelope, and the relay refuses it.
+# `senderName` goes into the From header VERBATIM AND UNQUOTED, so a name holding
+# brackets arrives as `Ownpace [no-reply] <addr>`, which Proton reads as a header
+# whose address does not match the envelope (5.7.26) and rejects outright.
+#
+# So: the address is taken from the angle brackets, and the name is carried over
+# only when it is plain enough to survive unquoted. A name the relay would choke
+# on is replaced by the stack's own name, which is what every Zitadel mail said
+# before this split existed.
+#
+# split_from_line <from-line> — sets SMTP_SENDER_ADDR and SMTP_SENDER_NAME.
+split_from_line() {
+  SMTP_SENDER_ADDR="$1"
+  SMTP_SENDER_NAME="Ownpace"
+  case "$1" in
+    *"<"*">"*)
+      SMTP_SENDER_ADDR="${1##*<}"
+      SMTP_SENDER_ADDR="${SMTP_SENDER_ADDR%%>*}"
+      local display="${1%%<*}"
+      display="${display% }"
+      display="${display#\"}"
+      display="${display%\"}"
+      local plain="${display//[A-Za-z0-9 ._-]/}"
+      if [ -n "$display" ] && [ -z "$plain" ]; then
+        SMTP_SENDER_NAME="$display"
+      fi
+      ;;
+  esac
+}
+split_from_line "$SMTP_SENDER"
 # TLS FOR EVERY RELAY BUT THE CATCHER (workplan 0133 T2, item 2). This read
 # SMTP_SECURE, which the example leaves empty for 587, the usual relay port.
 # Zitadel v4.17.3 with TLS off makes a plain connection and never tries
@@ -1178,10 +1212,10 @@ else
     # NOT FATAL, by the rule the test send below follows: a refused update is
     # reported, and the bring-up goes on with the provider as it was.
     if ! update_out="$( ( api PUT "/admin/v1/email/smtp/${SMTP_ID}" "$(jq -nc \
-        --arg from "$SMTP_SENDER" --arg host "$SMTP_ADDR" --argjson tls "$SMTP_TLS" \
+        --arg from "$SMTP_SENDER_ADDR" --arg name "$SMTP_SENDER_NAME" --arg host "$SMTP_ADDR" --argjson tls "$SMTP_TLS" \
         --arg user "$SMTP_AUTH_USER" --arg pw "$SMTP_AUTH_PASSWORD" --arg stack "$COMPOSE_PROJECT" '{
           senderAddress: $from,
-          senderName: "Ownpace",
+          senderName: $name,
           host: $host,
           tls: $tls,
           user: $user,
@@ -1203,10 +1237,10 @@ else
     # The description names the stack: the provider's console says which
     # stack's relay this is, and the next run finds it by that name above.
     CREATED="$(api POST /admin/v1/email/smtp "$(jq -nc \
-      --arg from "$SMTP_SENDER" --arg host "$SMTP_ADDR" --argjson tls "$SMTP_TLS" \
+      --arg from "$SMTP_SENDER_ADDR" --arg name "$SMTP_SENDER_NAME" --arg host "$SMTP_ADDR" --argjson tls "$SMTP_TLS" \
       --arg user "$SMTP_AUTH_USER" --arg pw "$SMTP_AUTH_PASSWORD" --arg stack "$COMPOSE_PROJECT" '{
         senderAddress: $from,
-        senderName: "Ownpace",
+        senderName: $name,
         host: $host,
         tls: $tls,
         user: $user,

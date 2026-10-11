@@ -76,6 +76,12 @@ beforeAll(async () => {
     [OTHER, 'Beta BV'],
   ]) {
     await owner('INSERT INTO tenant (id, name) VALUES ($1,$2)', [id, name]);
+    // Invoice details come first (0111 decision 14): given here, so the yes is
+    // asked about the ceiling alone.
+    await owner(
+      `INSERT INTO billing_party (tenant_id, kind, name, address_line1, postal_code, city, country_code) VALUES ($1, 'consumer', 'Sam de Vries', 'Dorpsstraat 1', '1234 AB', 'Ons Dorp', 'NL')`,
+      [id],
+    );
   }
 }, 120_000);
 

@@ -220,7 +220,7 @@ describe('once it is running', () => {
     // PowerShell cannot disagree.
     expect(screen.getByText(/1,149|1\.149/)).toBeInTheDocument();
     expect(screen.queryByText(/Nothing has been copied yet/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Migrations here have started/)).toBeInTheDocument();
+    expect(screen.getByText(/Migrations have started/)).toBeInTheDocument();
     // A skipped domain earns no progress row.
     expect(screen.queryByText('Skipped')).not.toBeInTheDocument();
   });

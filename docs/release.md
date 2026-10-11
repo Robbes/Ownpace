@@ -110,9 +110,12 @@ in [managed-bring-up.md](./managed-bring-up.md#updating-a-running-deployment),
 - [ ] Its commit has `deploy/compose/exposure-check.sh` (on `main` since
       #1271), and live's `.env` has `EXPOSURE_ALLOW` naming every address,
       other than loopback, that a container on the machine is published on on
-      purpose. A tag without the script cannot pass the exposure check, and
-      neither can a machine with such an address the list leaves out: the
-      deploy does not take.
+      purpose, and, when containers that are not Ownpace's publish beyond
+      loopback, `EXPOSURE_NOT_OURS` naming them. A tag without the script
+      cannot pass the exposure check, and neither can a machine with such an
+      address or container the lists leave out, nor a tag whose script
+      predates `EXPOSURE_NOT_OURS` (workplan 0132's Status of 2026-10-05) on a
+      machine that needs it: the deploy does not take.
 - [ ] With the hold on and the drain done, `deploy-live.sh --dry-run <tag>`
       said one-way or reversible, and moved nothing. If one-way, and you want
       a way back that is not forward, dump live's database then, before the

@@ -46,7 +46,7 @@ Pakt u hem liever uit, pak dan elk deel in dezelfde map uit. U houdt een map ove
 
 ### Apple Data & Privacy {#apple-privacy}
 
-**Nog te testen.** Een Apple-export kunnen we nog niet lezen. Vraag die alleen aan voor uw eigen archief.
+**Te testen.** Een Apple-export kunnen we nog niet lezen. Vraag die alleen aan voor uw eigen archief.
 
 De stappen hieronder zijn hoe u Apple om een export vraagt, en wat u erover moet weten, voor wanneer hij wel te lezen is.
 
@@ -86,7 +86,7 @@ In de contact- en agendagegevens die Apple exporteert, zijn **e-mailadressen ged
 2. Kies bij **Waar gaat het naartoe?** waar de foto's heen gaan: een Nextcloud, of een ander account waarvan de bestanden via WebDAV bereikbaar zijn. De export wordt gelezen uit een map `Takeout` bovenaan in diezelfde bestanden.
 3. Rond de stappen af. De migratie van de foto's wordt klaargezet en wacht op de export; de rest start zoals altijd. Tot u de migratie start, staat er **Wacht op de Takeout-export** bij.
 4. Is de export binnen, upload dan de `.zip`-bestanden, precies zoals Google ze leverde, naar die map `Takeout`. Zet er alle delen in, en niets anders.
-5. Open de migratie en druk op **Controleren en starten**. Die telt eerst wat er in de export zit, zodat u de gevonden foto's ziet voordat er iets wordt gekopieerd.
+5. Open de migratie en druk op **Controleer en start**. Die telt eerst wat er in de export zit, zodat u de gevonden foto's ziet voordat er iets wordt gemigreerd.
 
 De map mag de `.zip`-delen bevatten of wat ze uitgepakt opleveren: allebei werkt. Staan er twee verschillende exports in, dan wordt dat geweigerd en worden ze allebei genoemd, zodat we nooit de ene lezen en de andere weglaten.
 
@@ -95,10 +95,10 @@ De map mag de `.zip`-delen bevatten of wat ze uitgepakt opleveren: allebei werkt
 Op een eigen appliance biedt de pagina **Accounts** het aan: druk op **Account toevoegen** en kies **Exportarchief**. Die vraagt drie dingen:
 
 - **Welke export**: Google Takeout, of Apple Data & Privacy (nog te testen: die kunnen we nog niet lezen).
-- **Waar de export staat**: **In een map in de bestanden van uw bestemming (Nextcloud of WebDAV)**, of **Op de schijf van deze appliance**.
+- **Waar de export staat**: **In een map in uw bestemming (Nextcloud of WebDAV)**, of **Op de schijf van deze appliance**.
 - De map, in een vak waarvan de naam die keuze volgt. **Map in de bestanden van uw bestemming**: de map zoals uw bestanden die tonen, vanaf de hoofdmap, zoals `Exports/takeout-20260904`, of één `.zip` daarin (zie [Uw export in uw eigen Nextcloud](#own-nextcloud)). **Waar het archief staat**, voor een schijf: de map waarin u de download uitpakte, of de `.zip` zelf.
 
-Druk dan op **Toevoegen en testen**. Testen verplaatst niets. Voor een export op een schijf opent het het archief en vertelt het u wat erin zit. Voor een export in de bestanden van uw bestemming zegt het dat de export bij de preflight wordt geteld, omdat de bestemming bij een migratie hoort en er tot dan nergens te kijken valt. Hoe dan ook weet u, voordat er iets wordt gekopieerd:
+Druk dan op **Toevoegen en testen**. Testen verplaatst niets. Voor een export op een schijf opent het het archief en vertelt het u wat erin zit. Voor een export in de bestanden van uw bestemming zegt het dat de export bij de preflight wordt geteld, omdat de bestemming bij een migratie hoort en er tot dan nergens te kijken valt. Hoe dan ook weet u, voordat er iets wordt gemigreerd:
 
 - hoeveel items,
 - hoeveel bytes,
@@ -115,7 +115,7 @@ De export hoeft niet op een schijf te staan. Staan de bestanden waar u naartoe m
 
 1. Vink bij **Wat wilt u migreren?** onder Google **Foto's: uit een Takeout-export** aan, en kies bij **Waar gaat het naartoe?** het Nextcloud- of WebDAV-account waar de foto's heen gaan. [Vanuit Migratie starten](#from-the-flow) beschrijft de hele weg.
 2. Upload de `.zip`-delen naar de map `Takeout`, bovenaan in de bestanden van datzelfde account. Doe dat zoals u altijd bestanden toevoegt, bijvoorbeeld via de website van Nextcloud of de desktopapp.
-3. Open de migratie en druk op **Controleren en starten**. Die telt wat er in de export zit, voordat er iets wordt gekopieerd.
+3. Open de migratie en druk op **Controleer en start**. Die telt wat er in de export zit, voordat er iets wordt gemigreerd.
 
 **Uw foto's komen aan als gewone bestanden en mappen.** Wat wij in uw bestanden schrijven, is nooit een `.zip`: elk album wordt een map, een foto in geen enkel album komt in een map voor zijn jaar, zoals `Photos from 2019`, en één bestand bovenaan somt alles op wat de export over elke foto wist. Zie [Waar alles terechtkomt](#where-things-land).
 

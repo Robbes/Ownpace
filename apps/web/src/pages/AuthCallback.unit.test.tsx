@@ -168,7 +168,7 @@ describe('AuthCallback', () => {
     renderCallback();
 
     expect(
-      await screen.findByRole('heading', { name: /not part of an organisation yet/i }),
+      await screen.findByRole('heading', { name: /not part of an organisation \(family, team, etc\.\) yet/i }),
     ).toBeInTheDocument();
     expect(navigateMock).not.toHaveBeenCalled();
   });
@@ -188,7 +188,7 @@ describe('AuthCallback', () => {
 
     renderCallback();
 
-    await screen.findByRole('heading', { name: /not part of an organisation yet/i });
+    await screen.findByRole('heading', { name: /not part of an organisation \(family, team, etc\.\) yet/i });
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.queryByText(/did not complete/i)).toBeNull();
     expect(screen.queryByRole('button', { name: /try again/i })).toBeNull();
@@ -246,7 +246,7 @@ describe('AuthCallback', () => {
 
     renderCallback();
 
-    await screen.findByRole('heading', { name: /not part of an organisation yet/i });
+    await screen.findByRole('heading', { name: /not part of an organisation \(family, team, etc\.\) yet/i });
     expect(screen.queryByText(/we will email you when it is ready/i)).toBeNull();
   });
 

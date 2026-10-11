@@ -98,7 +98,7 @@ const THE_THREE: Readonly<Record<Locale, RegExp>> = {
  * about, and a line that dropped it would answer the smaller fear.
  */
 const THE_PROMISE: Readonly<Record<Locale, RegExp>> = {
-  en: /Ownpace only reads; it changes and deletes nothing/,
+  en: /Ownpace only reads: it changes and deletes nothing/,
   nl: /Ownpace leest alleen; het wijzigt en verwijdert niets/,
 };
 

@@ -196,8 +196,8 @@ describe('the 0035 T5 copy corrections stay corrected', () => {
   });
 
   it('NL: the failures count agrees in number (1 kon / 2 konden)', () => {
-    expect(STRINGS.nl['finish.step2.failures.one']).toBe('kon niet worden gekopieerd');
-    expect(STRINGS.nl['finish.step2.failures.many']).toBe('konden niet worden gekopieerd');
+    expect(STRINGS.nl['finish.step2.failures.one']).toBe('kon niet worden gemigreerd');
+    expect(STRINGS.nl['finish.step2.failures.many']).toBe('konden niet worden gemigreerd');
   });
 
   it('EN: moves.intro has its comparator back', () => {

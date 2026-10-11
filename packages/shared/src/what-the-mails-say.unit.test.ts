@@ -11,8 +11,9 @@
  *  - The access-granted mail said the password "lives with the sign-in
  *    service, never with us". The sign-in service is ours: we run it, on the
  *    same machine as the service, and it keeps a hash of the password (privacy
- *    §4.4). The mail now says so, in the README's words: *"we store only a
- *    hash of it, in the sign-in service we run"*.
+ *    §4.4). The mail said so, in the README's words (*"we store only a hash of
+ *    it, in the sign-in service we run"*), until the owner's text review of
+ *    2026-10-10 took the sentence out; it still never says "never with us".
  *  - Its alpha paragraph said "nothing is backed up". Since 0139 T6 one copy
  *    is made right before each update and kept up to 7 days (privacy §9,
  *    Alpha conditions §6). The paragraph now names that copy. The alpha note
@@ -52,16 +53,10 @@ const GRANTED = {
 } as const;
 
 describe('the access-granted mail, about the password', () => {
-  /** The one sentence about the password: it is ours, and only its hash is kept. */
-  const HASH = {
-    en: /password[^.]*\bwe store only a hash of it, in the sign-in service we run\./i,
-    nl: /wachtwoord[^.]*\bbewaren we alleen een hash, in de aanmeldservice die we zelf draaien\./i,
-  } as const;
-
-  it.each(LOCALES)('says only a hash of it is stored, in the sign-in service we run, in %s', (locale) => {
-    expect(renderEvent(GRANTED, locale).body).toMatch(HASH[locale]);
-  });
-
+  // Until the owner's text review of 2026-10-10 the mail also said that only
+  // a hash of the password is kept, in the sign-in service we run (0139 T4);
+  // the owner took that sentence out. What must stay true is that it never
+  // again claims the password is never with us.
   it.each(LOCALES)('no longer says the password is never with us, in %s', (locale) => {
     // We run the sign-in service (privacy §4.4), so "never with us" was the
     // one claim in the mail the policy contradicts.

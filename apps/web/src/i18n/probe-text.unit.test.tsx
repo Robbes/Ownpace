@@ -74,7 +74,7 @@ describe('probeText — the deadline and the floor (2026-09-02)', () => {
   it('a probe that did not answer says so, with the seconds, in both languages', () => {
     const late: ProbeOutcome = { code: 'timedOut', seconds: 20 };
     expect(probeText(en, late, 'ignored')).toBe(
-      'No answer within 20 seconds; kept anyway, so test later or narrow the root folder.',
+      'No answer within 20 seconds; kept anyway, so test later.',
     );
     expect(probeText(nl, late, 'ignored')).toContain('binnen 20 seconden');
   });

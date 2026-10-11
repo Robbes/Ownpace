@@ -368,15 +368,16 @@ describe('the hold’s hint says what the sentence also answers (0132 T6 (b))', 
     en: {
       hint: 'Stops new passes, buttons included; the ones already running finish.',
       answers:
-        "Your message is also the answer, word for word, to every button that would start work while the hold is on ('Trigger sync', 'Start migration', a check), and a refused press is not remembered.",
+        "Your message is also shown to every button-press that would start work while the hold is on ('Trigger sync', 'Start migration', a check), and a refused press is not remembered.",
       ask: "So say when copying resumes and ask them to try again after that, for example: 'We are updating the platform and copying resumes around 15:00. Nothing starts until then. Please try again after that.'",
     },
     nl: {
-      hint: 'Stopt nieuwe rondes, ook via een knop; wat al loopt wordt afgerond.',
+      hint: 'Stopt nieuwe rondes, ook via een knop; wat al liep wordt afgerond.',
+      // The owner's words of the text review (2026-10-10), with "die werk zou starten" kept.
       answers:
-        "Uw tekst is ook, woord voor woord, het antwoord op elke knop die werk zou starten terwijl de pauze aanstaat ('Synchroniseer nu', 'Start migratie', een controle), en wat zo geweigerd wordt, onthoudt het platform niet.",
-      // 0132 T6 step 2's example, verbatim.
-      ask: "Zeg dus wanneer het kopiëren weer begint en vraag de klant het daarna opnieuw te proberen, bijvoorbeeld: 'We werken het platform bij en kopiëren rond 15:00 weer. Tot die tijd start er niets. Probeer het daarna opnieuw.'",
+        "Uw tekst wordt ook weergegeven bij elke knop die werk zou starten waarop een klant klikt terwijl de pauze aanstaat ('Synchroniseer nu', 'Start migratie', een controle). Wat zo wordt geweigerd, wordt niet opgeslagen.",
+      // 0132 T6 step 2's example, in the owner's words of the text review (2026-10-10).
+      ask: "Beschrijf dus wanneer de migraties hervatten en vraag de klant daarna opnieuw te proberen. Bijvoorbeeld: 'We werken het platform bij en migreren rond 15:00 weer verder. Tot die tijd start er niets. Probeer het daarna opnieuw.'",
     },
   } as const;
 

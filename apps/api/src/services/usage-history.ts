@@ -52,7 +52,7 @@
 /** The invoice statuses that count as a settled record of a period. */
 export const ISSUED_INVOICE_STATUSES = ['sent', 'paid', 'overdue'] as const;
 
-/** Decimal GB, as `invoice-generation.ts` uses — a price list is not binary. */
+/** Decimal GB, as the tier table uses — a price list is not binary. */
 const BYTES_PER_GB = 1_000_000_000;
 
 /** The cost breakdown both sides report, shaped as `calculateCost` returns it. */

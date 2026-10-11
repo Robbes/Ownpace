@@ -211,7 +211,11 @@ describe('what we send with this', () => {
 
   it('says the lines are shown as the support team reads them, and not that they all come from the records', () => {
     for (const L of [EN, NL]) {
-      expect(L['report.facts.more']).toMatch(L === EN ? /in English:$/ : /in het Engels:$/);
+      // English needs no "in English" (the lines are in the reader's language);
+      // Dutch says it (the owner's text review, 2026-10-10).
+      expect(L['report.facts.more']).toMatch(
+        L === EN ? /exactly as our support team reads them:$/ : /precies zoals ons supportteam ze leest, in het Engels:$/,
+      );
       for (const key of ['report.facts.more', 'report.facts.known', 'report.facts.reading', 'report.facts.unshown'] as const) {
         expect(L[key], key).not.toMatch(/our records|onze gegevens/);
       }

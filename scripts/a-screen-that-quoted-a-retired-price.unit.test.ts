@@ -40,7 +40,6 @@ const read = (rel: string): string => readFileSync(join(ROOT, rel), 'utf8');
 
 const BILLING_ROUTES = 'apps/api/src/routes/billing/index.ts';
 const USAGE_HISTORY = 'apps/api/src/services/usage-history.ts';
-const INVOICE_GEN = 'apps/api/src/services/invoice-generation.ts';
 const WEB_SCHEMA = 'apps/web/src/services/billing-service.ts';
 const WEB_SCREEN = 'apps/web/src/pages/Billing.tsx';
 
@@ -70,7 +69,7 @@ describe('a screen that quoted a retired price', () => {
   it('no billing surface converts bytes to GB in BINARY', () => {
     // 1024³ written any of the three ways a hurried edit reaches for.
     const binary = /1024\s*\*\s*1024\s*\*\s*1024|1024\s*\*\*\s*3|1073741824/;
-    const offenders = [BILLING_ROUTES, USAGE_HISTORY, INVOICE_GEN].filter((f) =>
+    const offenders = [BILLING_ROUTES, USAGE_HISTORY].filter((f) =>
       binary.test(read(f)),
     );
     expect(
@@ -81,15 +80,16 @@ describe('a screen that quoted a retired price', () => {
     ).toEqual([]);
   });
 
-  it('all three readers of these bytes agree on the divisor, to the digit', () => {
-    const divisors = [BILLING_ROUTES, USAGE_HISTORY, INVOICE_GEN].map((f) => {
+  it('both readers of these bytes agree on the divisor, to the digit', () => {
+    // Three until 0111 slice 4a removed the retired generator, the third.
+    const divisors = [BILLING_ROUTES, USAGE_HISTORY].map((f) => {
       const m = /BYTES_PER_GB\s*=\s*([0-9_]+)/.exec(read(f));
       expect(m, `${f} no longer declares BYTES_PER_GB`).not.toBeNull();
       return Number(m![1]!.replace(/_/g, ''));
     });
     expect(
       new Set(divisors).size,
-      `the three copies disagree: ${divisors.join(', ')}. They read the SAME bytes for the ` +
+      `the copies disagree: ${divisors.join(', ')}. They read the SAME bytes for the ` +
         'same tenant and render them on the same screen.',
     ).toBe(1);
     expect(divisors[0], 'decimal GB, per ADR-0014').toBe(1_000_000_000);

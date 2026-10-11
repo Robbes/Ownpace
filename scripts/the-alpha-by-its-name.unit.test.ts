@@ -94,6 +94,11 @@ const WHY =
 
 /** The welcome's first sentence, which names the Alpha (the owner, 2026-10-04). */
 const WELCOMED = { en: 'Welcome to the Alpha!', nl: 'Welkom bij de Alpha!' } as const;
+/**
+ * How the mails' Alpha paragraph opens: the note's welcome in English, and in
+ * Dutch the owner's own mail welcome (their text review, 2026-10-10).
+ */
+const MAIL_WELCOMED = { en: 'Welcome to the Alpha!', nl: 'Welkom bij Ownpace in de Alpha-fase!' } as const;
 
 describe('1. the web dictionary', () => {
   it('has the values this reads, so an empty dictionary cannot pass', () => {
@@ -144,8 +149,8 @@ describe('2. the mails that speak of the Alpha', () => {
     it.each(['en', 'nl'] as const)(`${kind} says Alpha, never alfa or a lower-case alpha, in %s`, (locale) => {
       const { subject, body } = renderEvent(event as unknown as NotificationEvent, locale);
       // The vacuity check: the mail does speak of the Alpha. Its paragraph
-      // opens with the note's welcome.
-      expect(body.split('\n')).toContainEqual(expect.stringMatching(new RegExp(`^${WELCOMED[locale]} `)));
+      // opens with the mail's welcome.
+      expect(body.split('\n')).toContainEqual(expect.stringMatching(new RegExp(`^${MAIL_WELCOMED[locale]} `)));
       expect(misspelt(`${subject}\n${body}`), WHY).toEqual([]);
     });
   }

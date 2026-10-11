@@ -189,7 +189,7 @@ describe('one table says which sources have met a real account', () => {
     expect(STRINGS.en['frontDoor.experimental']).toBe('Experimental');
     expect(STRINGS.nl['frontDoor.experimental']).toBe('Experimenteel');
     expect(STRINGS.en['frontDoor.experimental.why']).toBe(
-      'Built, not yet run against a real account of this kind. Keep your old account and check what arrives.',
+      'Built, but needs more testing against a real account of this kind. Keep your old account and check what arrives.',
     );
   });
 

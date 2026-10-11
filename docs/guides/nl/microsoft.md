@@ -20,7 +20,7 @@ Eén Microsoft 365-account, één aanmelding: e-mail, agenda's, contacten en One
 
 Het scherm vraagt eerst **welk account**, en dat is met opzet. Zonder die vraag geeft iemand die al met het verkeerde Microsoft-account is aangemeld stilzwijgend toestemming voor dát account, en leest de migratie het verkeerde postvak. Dat ziet eruit als succes, tot iemand merkt wiens mail er is aangekomen.
 
-U kunt ook uw eigen registratie gebruiken: open **Uw eigen appregistratie gebruiken** en vul de **Client-ID (applicatie-ID)** en het **Clientgeheim** in, **als paar**. Een half paar wordt geweigerd en niet aangevuld met de andere helft van deze dienst: een client-ID die niet van deze dienst is, samen met een geheim dat dat wel is, zou Entra uren later weigeren, midden in een ronde. [Met een eigen app](#own-app) heeft de stappen.
+U kunt ook uw eigen registratie gebruiken: open **Uw eigen appregistratie gebruiken** en vul de **Client-ID (applicatie-ID)** en het **Clientsecret** in, **als paar**. Een half paar wordt geweigerd en niet aangevuld met de andere helft van deze dienst: een client-ID die niet van deze dienst is, samen met een geheim dat dat wel is, zou Entra uren later weigeren, midden in een ronde. [Met een eigen app](#own-app) heeft de stappen.
 
 #### Wat de test laat zien {#what-test-shows}
 
@@ -28,7 +28,7 @@ U kunt ook uw eigen registratie gebruiken: open **Uw eigen appregistratie gebrui
 
 ### Via de Graph-API {#graph}
 
-**Via IMAP** en **Via de Graph-API** melden zich aan met uw eigen registratie, met **toepassingsrechten** die een beheerder in uw eigen tenant verleent. Dat is wat een beheerder nodig heeft die de postvakken van anderen migreert; de gedelegeerde toestemming van de kaart **Microsoft 365-account** kan dat nooit. Vink daarvoor bij **Wat wilt u migreren?** onder Microsoft 365 **E-mail** aan, beantwoord **Is dit een bedrijfsaccount met een beheerder?** met **Ja**, en kies **Via onze eigen app, met Microsoft Graph** of **Via onze eigen app, met IMAP**. **Uw accounts verbinden** vraagt dan het adres van het postvak, onder **Gebruikersnaam**, en de **Tenant-ID**, de **Client-ID (applicatie-ID)** en het **Clientgeheim** van die registratie.
+**Via IMAP** en **Via de Graph-API** melden zich aan met uw eigen registratie, met **toepassingsrechten** die een beheerder in uw eigen tenant verleent. Dat is wat een beheerder nodig heeft die de postvakken van anderen migreert; de gedelegeerde toestemming van de kaart **Microsoft 365-account** kan dat nooit. Vink daarvoor bij **Wat wilt u migreren?** onder Microsoft 365 **E-mail** aan, beantwoord **Is dit een bedrijfsaccount met een beheerder?** met **Ja**, en kies **Via onze eigen app, met Microsoft Graph** of **Via onze eigen app, met IMAP**. **Uw accounts verbinden** vraagt dan het adres van het postvak, onder **Gebruikersnaam**, en de **Tenant-ID**, de **Client-ID (applicatie-ID)** en het **Clientsecret** van die registratie.
 
 Beide kaarten lezen de mail van één postvak. Agenda's, contacten, OneDrive en To Do lopen via de kaart **Microsoft 365-account**.
 
@@ -44,7 +44,7 @@ Deze twee kaarten vragen altijd een eigen registratie, wat deze dienst ook heeft
 
 1. [Entra-beheercentrum](https://entra.microsoft.com) → Identity → Applications → **App registrations** → New registration. Kies **Accounts in this organizational directory only**, laat het omleidingsadres leeg en registreer.
 2. Kopieer op de pagina Overview de **Application (client) ID** en de **Directory (tenant) ID**. Die horen in de velden **Client-ID (applicatie-ID)** en **Tenant-ID** van het formulier.
-3. **Certificates & secrets** → New client secret. Kopieer de **Value** meteen, want Entra toont die maar één keer. Die hoort in het veld **Clientgeheim**.
+3. **Certificates & secrets** → New client secret. Kopieer de **Value** meteen, want Entra toont die maar één keer. Die hoort in het veld **Clientsecret**.
 4. Voeg het recht toe van de kaart die u gebruikt, en geef er als beheerder toestemming voor: de twee delen hieronder hebben de stappen. Een toepassingsrecht heeft geen aangemelde persoon om het aan te vragen, dus het werkt pas als een beheerder toestemming heeft gegeven.
 
 Er komt geen refresh-token aan te pas: deze kaarten melden zich aan als de toepassing zelf, en het formulier vraagt er ook geen.

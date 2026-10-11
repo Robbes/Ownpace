@@ -291,11 +291,14 @@ machinery lives in `@openmig/managed` ([ADR-0036](./0036-the-managed-edition-is-
 
 ## Consequences
 
-**Billing a tier is not built yet.** `POST /api/billing/invoices/generate` refuses with a 409
-(`billing_model_retired`, `apps/api/src/routes/billing/no-bill-we-do-not-sell.ts`) rather than mint
-an invoice from the retired metered model; the tier invoice is workplan 0109 T5, and top-ups,
-step-ups and the floor are 0109 T6, *"published in ADR-0014, implemented nowhere"*. Nothing is
-charged during the Alpha (0131 T3 (a)). What is built is the measurement the bill will read.
+**Billing a tier is not built yet.** `POST /api/billing/invoices/generate` refused with a 409
+(`billing_model_retired`) from 2026-08-27 rather than mint an invoice from the retired metered
+model, and on 2026-10-05 the route and the metered generator were removed (workplan 0111, slice
+4a). A month is invoiced in advance, on its first day at the tier it starts on, and a move up
+during it for the difference (0111 decision 6, the owner, 2026-10-05); what a month bills is
+unchanged. The tier invoice is workplan 0109 T5, built as 0111's slices 4 and 5, and top-ups,
+step-ups and the floor are 0109 T6. Nothing is charged during the Alpha (0131 T3 (a)). What is
+built is the measurement the bill will read.
 
 **Schema consequences 1–5.** The 2026-08-20 record named five, none solved then.
 

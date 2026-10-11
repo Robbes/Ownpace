@@ -218,7 +218,7 @@ describe('when acceptance is due', () => {
     expect(got.privacy).toHaveAccessibleName(/Privacyverklaring.*1\.2/);
     expect(got.terms).toHaveAccessibleName(/Servicevoorwaarden.*1\.3/);
     // The texts' own word (terms §1, Alpha §2, privacy §4.4), and the nav's.
-    expect(screen.getByRole('button', { name: 'Alle drie aanvaarden' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Allemaal aanvaarden' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Nu niet, uitloggen' })).toBeInTheDocument();
     expect(screen.getByRole('list', { name: 'De teksten om te aanvaarden' })).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/accepte/i);
@@ -351,7 +351,7 @@ describe('when a door refuses because the texts are not accepted', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'The texts have changed' })).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'A note' }), 'the page is still offered').not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Accept all three' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Accept all three to proceed' }));
     expect(await screen.findByRole('textbox', { name: 'A note' })).toHaveValue('half a form');
   });
 
@@ -441,7 +441,7 @@ describe('when the answer could not be read', () => {
     getMock.mockRejectedValue(refused(500, { error: 'me_failed', message: 'the database is unreachable' }));
     renderGate('en');
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/could not be read.*fault is on our side/);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not be read.*error on our side/);
     expect(screen.queryByText('screen:dashboard')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
   });

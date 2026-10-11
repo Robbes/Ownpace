@@ -337,18 +337,18 @@ export function wantsAttention(m: MappingAttention): boolean {
 
 const DIGEST_SUBJECT: Record<NotificationLocale, Record<DigestCadence, string>> = {
   en: {
-    daily: 'Ownpace — what needs your attention today',
-    weekly: 'Ownpace — what needs your attention this week',
+    daily: 'Ownpace — what needs your attention today?',
+    weekly: 'Ownpace — what needs your attention this week?',
   },
   nl: {
-    daily: 'Ownpace — wat vandaag uw aandacht vraagt',
-    weekly: 'Ownpace — wat deze week uw aandacht vraagt',
+    daily: 'Ownpace — wat vraagt uw aandacht vandaag?',
+    weekly: 'Ownpace — wat vraagt uw aandacht deze week?',
   },
 };
 
 const DIGEST_INTRO: Record<NotificationLocale, string> = {
-  en: 'These items are waiting for a decision. Nothing happens until you answer.',
-  nl: 'Deze zaken wachten op een beslissing. Er gebeurt niets totdat u antwoordt.',
+  en: 'These items are waiting for your decision.',
+  nl: 'Deze zaken wachten op uw beslissing.',
 };
 
 /**
@@ -403,13 +403,13 @@ const LINE: Record<NotificationLocale, DigestLines> = {
     failures: 'items that could not be copied',
     readyForCutover: 'checked and ready to finish',
     autoApplied:
-      'old copies of moved or renamed files removed automatically (auto-apply — each is recorded)',
+      'old copies of moved or renamed files removed automatically (auto-apply)',
     sharingOpen: 'rows open on the sharing checklist',
     graceEnded:
-      'grace period over and nobody chose, so no longer copying (end each, or keep it copying, on the Finish page):',
+      'grace period ended without a decision, so migration ended (on the Finish page: end each or keep it active):',
     couldNotRead: 'COULD NOT BE READ — this summary is incomplete:',
     footer:
-      'You are receiving this because Ownpace is configured to send you a summary. ' +
+      'You are receiving this because you configured to receive a summary. ' +
       'Open the app to act on any of the above.',
   },
   nl: {
@@ -418,16 +418,16 @@ const LINE: Record<NotificationLocale, DigestLines> = {
     decisions: 'wijzigingen die een beslissing vragen',
     deletions: 'verwijderingen om te bevestigen',
     moves: 'verplaatsingen om te bevestigen',
-    failures: 'items die niet gekopieerd konden worden',
+    failures: 'items die niet gemigreerd konden worden',
     readyForCutover: 'gecontroleerd en klaar om af te ronden',
     autoApplied:
-      'oude kopieën van verplaatste of hernoemde bestanden automatisch verwijderd (automatisch toepassen — elk is vastgelegd)',
-    sharingOpen: 'regels open op de deel-checklist',
+      'oude kopieën van verplaatste of hernoemde bestanden automatisch verwijderd (automatisch toepassen)',
+    sharingOpen: 'regels open op de Delen-checklist',
     graceEnded:
-      'overgangsperiode voorbij en niets gekozen, dus kopieert niet meer (beëindig elk, of laat het blijven kopiëren, op de afrondpagina):',
+      'overgangsperiode voorbij en geen keuze gemaakt, dus het migreren staat uit (Op de afrondingspagina: beëindig alles, of laat de migratie actief):',
     couldNotRead: 'KON NIET GELEZEN WORDEN — deze samenvatting is onvolledig:',
     footer:
-      'U ontvangt dit omdat Ownpace is ingesteld om u een samenvatting te sturen. ' +
+      'U ontvangt dit omdat u ingesteld hebt staan een samenvatting te willen ontvangen. ' +
       'Open de app om actie te ondernemen.',
   },
 };
@@ -1066,9 +1066,9 @@ const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string
     access_requested: 'Ownpace — iemand vraagt toegang',
     access_granted: 'Ownpace — uw toegang staat klaar',
     access_declined: 'Ownpace — over uw aanvraag',
-    member_invited: 'Ownpace — u bent uitgenodigd voor een organisatie',
+    member_invited: 'Ownpace — u bent uitgenodigd deel te nemen',
     first_copy_complete: 'Ownpace — alles is aangekomen',
-    looking_less_often: 'Ownpace — alles is bijgewerkt, dus we kijken minder vaak',
+    looking_less_often: 'Ownpace — alles is bijgewerkt, dus we doen het wat rustiger aan',
   },
 };
 
@@ -1130,10 +1130,10 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     // this at 22:00 actually has: where is my mail arriving?
     rolledBack:
       'This migration was rolled back. The old system is authoritative again ' +
-      'and syncing has resumed. If the MX record was changed, revert it by hand — ' +
+      'and syncing has resumed. If the MX mail record was changed, revert it by hand — ' +
       'this system does not change DNS.',
     rollbackReason: 'The reason given was:',
-    requestedIntro: 'Somebody has asked for access. Nothing has been granted.',
+    requestedIntro: 'Someone has asked for access. Nothing has been granted.',
     requestedFrom: 'From:',
     requestedOrganisation: 'Organisation:',
     requestedTier: 'Package they guessed at:',
@@ -1144,57 +1144,56 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     // The instruction that actually matters. The invitation is bound to an
     // ADDRESS, so registering with a different one succeeds and lands the
     // person in an organisation-less account wondering what went wrong.
-    grantedUseThisAddress: 'Use this email address — it is the one your access is tied to:',
+    grantedUseThisAddress: 'Use this account:',
     grantedVerify:
-      'If you do not have an account yet, create one there with that address and confirm the ' +
+      'If you do not have an account yet, create one with this address and confirm the ' +
       'confirmation email. Your organisation appears the first time you sign in.',
     // Said out loud so nobody waits for a link that is never coming, and so the
-    // next person to touch this knows the absence is deliberate. The password's
-    // sentence is privacy §4.4's: the sign-in service is ours, on the same
-    // machine, and keeps a hash of it (0139 T4, ops-app-sentences (a); it said
-    // "never with us" until then). `what-the-mails-say.unit.test.ts`.
+    // next person to touch this knows the absence is deliberate. It said once
+    // "never with us" of the password, which privacy §4.4 contradicts, and then
+    // that only a hash is kept (0139 T4); the owner's text review of 2026-10-10
+    // took the password sentence out. `what-the-mails-say.unit.test.ts`.
     grantedNoLink:
-      'There is no link or code in this email to keep: it is safe to forward and it grants ' +
-      'nobody anything. As for your password, we store only a hash of it, in the sign-in ' +
-      'service we run.',
-    // The Alpha paragraph (workplan 0131 T1). It opens with the note's welcome,
-    // word for word what the app's pages say (`alpha.note.*` in apps/web's
-    // strings.ts; `an-alpha-said-out-loud.unit.test.tsx` holds the two
-    // together). Then the facts, word for word as the note said them until the
+      'There is no link or code in this email: it is safe to forward, it grants ' +
+      'nobody anything.',
+    // The Alpha paragraph (workplan 0131 T1). It opened with the note's
+    // welcome, word for word, until the owner's text review of 2026-10-10
+    // gave the mails a welcome of their own (it asks the reader to help
+    // others); `an-alpha-said-out-loud.unit.test.tsx` holds the paragraph. Then the facts, word for word as the note said them until the
     // owner's welcome replaced it (0131 D4's amendment, 2026-10-04: "Welcome,
     // then the facts"). The copy before an update is the Alpha conditions §6
     // and privacy §9 (0139 T4, ops-app-sentences (a)). One line, so the
     // conditions' and the guide's lines follow it in the same paragraph.
     grantedAlpha:
       'Welcome to the Alpha! Try Ownpace at your own pace, and help others move to European ' +
-      'alternatives more easily. Nothing is charged, and the Alpha can end. There are no backups, ' +
-      'apart from one copy before each update, kept up to 7 days. Keep your old account until you ' +
-      'have checked what arrived.',
+      'alternatives. Nothing is charged during the Alpha. There are no backups, apart from one copy ' +
+      'before each update, kept up to 7 days. So do keep your old account until you have checked ' +
+      'what arrived at your new destination.',
     // Under the alpha paragraph, with the conditions' address after it (0139
     // T4, with 0131 T1). The texts' own title, as the acceptance screen and
     // the site name them.
-    grantedConditions: 'Read the Alpha conditions here:',
+    grantedConditions: 'Read the Alpha conditions:',
     // After it, the tester guide's address (0131 T1 (b), 0144 T1): the guide
     // page's own title, in the conditions line's form, and when to read it.
-    grantedGuide: 'Read the guide to the Alpha before you start:',
+    grantedGuide: 'Read the guide before you start:',
     // No reason, and no false hope. "We are not able to offer you a place right
     // now" is what is true; dressing it as "not yet" would be a promise nobody
     // made, and listing criteria would invite an argument about them.
     declinedIntro:
-      'Thank you for asking about Ownpace. A person read your request, and we are not able to ' +
-      'offer you a place at the moment.',
+      'Thank you for your request to join Ownpace, but currently we run an invite-only Alpha.' +
+      ' We will inform you when the Alpha has ended and Ownpace is open for everyone to join.' +
+      ' If you cannot wait, check out the open source repo: you can run this yourself.',
     declinedReply:
-      'If you think we have misunderstood what you need, reply to this email and it will reach ' +
-      'a person.',
+      'If you think we have misunderstood what you need, reply to this email with your request.',
     // The invitation (0156 T3). Who asked comes first: the reader never
     // asked us for anything, and a mail from a stranger that names nobody
     // they know reads as phishing.
     invitedIntro: 'You are invited to join this organisation on Ownpace.',
     invitedFrom: 'The invitation is from:',
     invitedUseThisAddress:
-      'Use this email address — it is the one your invitation is tied to:',
+      'Use this email address:',
     invitedVerify:
-      'If you do not have an account yet, create one there with that address and confirm the ' +
+      'If you do not have an account yet, create one with that address and confirm the ' +
       'confirmation email. You are then asked whether to join the organisation or decline.',
     invitedIgnore:
       'If you did not expect this, you can ignore it: nothing happens unless you sign in and join.',
@@ -1209,10 +1208,10 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     // arrived" is true of both.
     person: 'Person',
     arrived: 'Everything has arrived:',
-    arrivedKept: 'It is kept in step until you switch. Nothing is needed from you.',
+    arrivedKept: 'It is kept in step until you switch. Nothing needs your attention urgently.',
     // Free's pace (workplan 0157 T5): what keeping in step means on Free.
     arrivedOnFree:
-      'On Free that is one pass a day. A higher tier looks for changes as often as every 15 minutes: see Billing in the app.',
+      'On Free that is one pass a day. A higher tier looks for changes as often as every 15 minutes: check tiers in the Billing section in the app.',
     // The automatic cadence's slower steps (workplan 0157 T7), in the owner's
     // words of 2026-10-05: *"Everything is in step. We now look every 6 hours;
     // choose more often any time."* Then what a visit does (`visits.ts`).
@@ -1220,14 +1219,14 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     nowSixHourly: 'Now every 6 hours',
     nowDaily: 'Now once a day',
     moreOften:
-      'Choose more often any time, under How often to look for changes on each migration in the app. ' +
+      'Choose more often any time, under \'How often to look for changes\' on each migration in the app. ' +
       'Open a migration and we look every hour again, for 14 days.',
     and: 'and',
     domain: { email: 'email', calendar: 'calendar', contact: 'contacts', file: 'files', task: 'tasks' },
   },
   nl: {
     migration: 'Migratie',
-    decisionIntro: 'Er is iets veranderd waarover alleen u kunt beslissen:',
+    decisionIntro: 'Er is iets veranderd wat uw aandacht vraagt:',
     failingIntro: 'Deze migratie is',
     failingTail: 'keer achter elkaar mislukt. De laatste fout was:',
     verifyPassed: 'De controle is geslaagd: het nieuwe systeem komt overeen met het oude.',
@@ -1237,8 +1236,8 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'Deze migratie is teruggedraaid. Het oude systeem is weer leidend en de ' +
       'synchronisatie loopt weer. Is het MX-record gewijzigd, zet het dan handmatig ' +
       'terug — dit systeem wijzigt geen DNS.',
-    rollbackReason: 'De opgegeven reden was:',
-    requestedIntro: 'Iemand vraagt toegang. Er is nog niets toegekend.',
+    rollbackReason: 'Met als reden:',
+    requestedIntro: 'Iemand vraagt toegang.',
     requestedFrom: 'Van:',
     requestedOrganisation: 'Organisatie:',
     requestedTier: 'Pakket dat zij inschatten:',
@@ -1246,41 +1245,37 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     grantedIntro:
       'Uw aanvraag is toegekend en uw organisatie staat klaar. Er is nog één ding te doen:',
     grantedSignIn: 'Meld u hier aan:',
-    grantedUseThisAddress: 'Gebruik dit e-mailadres — hieraan is uw toegang gekoppeld:',
+    grantedUseThisAddress: 'Gebruik dit account:',
     grantedVerify:
-      'Heeft u nog geen account, maak er daar dan een aan met dat adres en bevestig de ' +
+      'Heeft u nog geen account, maak er daar dan een aan met dit adres en bevestig de ' +
       'bevestigingsmail. Uw organisatie verschijnt zodra u zich voor het eerst aanmeldt.',
     grantedNoLink:
-      'Deze e-mail bevat geen link of code om te bewaren: u kunt hem gerust doorsturen en hij ' +
-      'geeft niemand toegang. Van uw wachtwoord bewaren we alleen een hash, in de ' +
-      'aanmeldservice die we zelf draaien.',
+      'Deze e-mail bevat geen link of code: u kunt hem gerust doorsturen, het geeft niemand toegang.',
     grantedAlpha:
-      'Welkom bij de Alpha! Probeer Ownpace rustig aan uit, en help anderen makkelijker over te ' +
-      'stappen naar Europese alternatieven. Er wordt niets in rekening gebracht en de Alpha kan ' +
-      'stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor elke update na, die ' +
-      'hoogstens 7 dagen wordt bewaard. Houd uw oude account tot u hebt gecontroleerd wat er is ' +
-      'aangekomen.',
-    grantedConditions: 'Lees hier de voorwaarden voor de Alpha:',
-    grantedGuide: 'Lees de handleiding voor de Alpha voordat u begint:',
+      'Welkom bij Ownpace in de Alpha-fase! Probeer Ownpace rustig uit op uw eigen tempo, en help anderen makkelijker over te ' +
+      'stappen naar Europese alternatieven. Gedurende de Alpha-fase zijn alle pakketten gratis: er wordt niets in rekening gebracht. ' +
+      'Er worden geen back-ups gemaakt, op één kopie vlak voor elke update na, die hoogstens 7 dagen ' +
+      'wordt bewaard. Controleer dus goed of alles is aangekomen op de nieuwe bestemming voordat u ' +
+      'iets verwijdert uit uw oude systeem.',
+    grantedConditions: 'Lees de voorwaarden:',
+    grantedGuide: 'Lees de handleiding:',
     declinedIntro:
-      'Bedankt voor uw interesse in Ownpace. Een mens heeft uw aanvraag gelezen en wij kunnen u ' +
-      'op dit moment geen plek aanbieden.',
+      'Bedankt voor uw interesse in Ownpace. Momenteel draaien we een besloten Alpha en kunnen wij u geen plek aanbieden. Maar als u niet kunt wachten, kunt u altijd al aan de slag met Ownpace, het is open source.',
     declinedReply:
-      'Denkt u dat wij verkeerd hebben begrepen wat u nodig heeft, beantwoord deze e-mail dan; ' +
-      'hij komt bij een mens terecht.',
-    invitedIntro: 'U bent uitgenodigd voor deze organisatie bij Ownpace.',
+      'Neem even contact op als u denkt dat dit een onjuiste beslissing was.',
+    invitedIntro: 'U bent uitgenodigd om deel te nemen in een organisatie bij Ownpace.',
     invitedFrom: 'De uitnodiging komt van:',
     invitedUseThisAddress:
-      'Gebruik dit e-mailadres — hieraan is uw uitnodiging gekoppeld:',
+      'Gebruik dit e-mailadres:',
     invitedVerify:
-      'Heeft u nog geen account, maak er daar dan een aan met dat adres en bevestig de ' +
-      'bevestigingsmail. Daarna wordt u gevraagd of u de organisatie wilt toetreden of de ' +
+      'Heeft u nog geen account, maak er daar dan een aan met dit e-mailadres en bevestig de ' +
+      'bevestigingsmail. Daarna wordt u gevraagd of u wilt deelnemen aan de organisatie of de ' +
       'uitnodiging afwijst.',
     invitedIgnore:
-      'Verwachtte u dit niet, dan kunt u deze e-mail negeren: er gebeurt niets tenzij u zich ' +
+      'Verwachtte u deze uitnodiging niet, dan kunt u deze e-mail negeren: er gebeurt niets tenzij u zich ' +
       'aanmeldt en toetreedt.',
     invitedPrivacy:
-      'Ownpace, de migratiedienst die dit bericht verstuurde, bewaart uw adres, de rol waarvoor ' +
+      'Ownpace, de migratiedienst die dit bericht verstuurde, bewaart uw e-mailadres, de rol waarvoor ' +
       'u bent uitgenodigd en of u bent toegetreden; waarom en hoelang staat in de ' +
       'privacyverklaring:',
     act: 'Open de app om actie te ondernemen.',
@@ -1288,12 +1283,12 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     arrived: 'Alles is aangekomen:',
     arrivedKept: 'Het wordt bijgehouden tot u overstapt. U hoeft niets te doen.',
     arrivedOnFree:
-      'Op Free is dat één ronde per dag. Een hoger pakket kijkt zo vaak als elke 15 minuten naar wijzigingen: zie Facturering in de app.',
-    lessOften: 'Alles is bijgewerkt, dus we kijken nu minder vaak naar wijzigingen:',
+      'Op Free is dat één ronde per dag. Bij een hoger pakket kijken we tot maximaal iedere 15 minuten naar wijzigingen: pas het pakket aan via Facturering in de app.',
+    lessOften: 'Alles is bijgewerkt, dus we doen het nu wat rustiger aan:',
     nowSixHourly: 'Nu elke 6 uur',
     nowDaily: 'Nu eens per dag',
     moreOften:
-      'Kies op elk moment vaker, onder Hoe vaak naar wijzigingen kijken bij elke migratie in de app. ' +
+      'Kies hoe vaak moet worden gecontroleerd op wijzigingen via \'Frequentie om naar wijzigingen te kijken\' per migratie in de app. ' +
       'Opent u een migratie, dan kijken we weer 14 dagen elk uur.',
     and: 'en',
     domain: { email: 'e-mail', calendar: 'agenda', contact: 'contacten', file: 'bestanden', task: 'taken' },

@@ -1353,8 +1353,8 @@ describe('one language through the grant (0145 T6)', () => {
     expect(get.status).toBe(409);
     expect(get.body.reason).toMatch(/it does not name the Google account it reads/);
     expect(get.body.reasonNl).toBe(
-      'Deze migratie is nog niet klaar om te verbinden: die noemt niet welk Google-account ze ' +
-        'leest. U kunt dat vanaf hier niet oplossen; laat het de persoon weten die u de link stuurde.',
+      'Deze migratie is nog niet klaar om te verbinden: die noemt niet welk Google-account wordt ' +
+        'gelezen. U kunt dat vanaf hier niet oplossen; laat het de persoon weten die u de link stuurde.',
     );
     const post = await request(app).post(`/api/grant/${token}/google/authorize`).send({ locale: 'nl' });
     expect(post.status).toBe(409);

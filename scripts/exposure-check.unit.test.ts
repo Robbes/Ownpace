@@ -408,11 +408,59 @@ describe("a container that is not Ownpace's, accepted by its name (EXPOSURE_NOT_
     expect(example.split('\n')).toContain('EXPOSURE_NOT_OURS=');
   });
 
-  it('(5) notes a listed name that is not running, and passes', () => {
+  it('(5) notes a listed name that is not running, by its place in the list, and passes', () => {
     const r = check([...HOST, ...FOREIGN], [...ALLOW, `${NOT_OURS},gone-svc`]);
     expect(r.status, r.stdout + r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/note: gone-svc, in EXPOSURE_NOT_OURS, is not running/);
+    expect(r.stdout).toContain('note: entry 4 of EXPOSURE_NOT_OURS names no running container');
     expect(r.stdout).toMatch(/3 accepted as not Ownpace's/);
+    // Only a name Docker printed is repeated: an entry shaped like a host or
+    // mesh name, mistyped into the list, never reaches a log.
+    const typo = check(HOST, [...ALLOW, 'EXPOSURE_NOT_OURS=gone-svc,box.mesh.example']);
+    expect(typo.status, typo.stdout + typo.stderr).toBe(0);
+    expect(typo.stdout).toContain('note: entry 1 of EXPOSURE_NOT_OURS names no running container');
+    expect(typo.stdout).toContain('note: entry 2 of EXPOSURE_NOT_OURS names no running container');
+    expect(`${typo.stdout}${typo.stderr}`).not.toContain('box.mesh.example');
+    expect(`${typo.stdout}${typo.stderr}`).not.toContain('gone-svc');
+  });
+
+  // dev.yml has no `name:`, so Compose names its project after the directory,
+  // `compose`; so does it any other compose file kept in a directory called
+  // compose, the owner's own among them. Docker's config_files label, the
+  // fifth field, says which files a container came from.
+  const OWN_FILES = '/home/someone/checkout/deploy/compose/dev.yml,/home/someone/checkout/deploy/compose/dev.ci.yml';
+  const THEIR_FILES = '/srv/someone/compose/docker-compose.yml';
+
+  it("(3) accepts a listed container of a project named compose whose files are not Ownpace's", () => {
+    const line = `db-1\t0.0.0.0:5433->5432/tcp\tcompose_default\tcompose\t${THEIR_FILES}`;
+    const r = check([...HOST, line], [...ALLOW, 'EXPOSURE_NOT_OURS=db-1']);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).toContain("note: db-1 publishes 5433/tcp on every interface; not Ownpace's, accepted in EXPOSURE_NOT_OURS");
+    expect(`${r.stdout}${r.stderr}`).not.toContain('/srv/');
+  });
+
+  it.each([
+    ['the dev stack (dev.yml), project compose', 'compose', OWN_FILES],
+    ['project compose, the files not said (cannot tell)', 'compose', ''],
+    ['the dev stack (dev.yml) under another project name', 'scratch', OWN_FILES],
+    ["the appliance's files under another project name", 'scratch', '/home/someone/checkout/deploy/selfhost/compose.yml'],
+  ])("(3) refuses a running container from Ownpace's own Compose files (%s)", (_what, project, files) => {
+    const line = `db-1\t0.0.0.0:5433->5432/tcp\t${project}_default\t${project}\t${files}`;
+    const r = check([...HOST, line], [...ALLOW, 'EXPOSURE_NOT_OURS=db-1']);
+    expect(r.status, r.stdout + r.stderr).toBe(2);
+    expect(r.stderr).toContain('EXPOSURE_NOT_OURS');
+    expect(r.stderr).toContain('db-1');
+    expect(r.stderr).toMatch(/Ownpace's own/);
+    expect(`${r.stdout}${r.stderr}`).not.toContain('/home/someone');
+  });
+
+  it('reports a listing line with no container name as a finding, as before, whether or not a list is set', () => {
+    for (const env of [ALLOW, [...ALLOW, NOT_OURS]]) {
+      const r = check([`\t0.0.0.0:80->80/tcp\tbridge`], env);
+      expect(r.status, r.stdout + r.stderr).toBe(1);
+      expect(r.stderr).not.toMatch(/subscript/);
+      expect(r.stdout).toContain('exposure-check:  publishes 80/tcp on every interface');
+      expect(r.stdout).toMatch(/FAIL: 1 publish\(es\)/);
+    }
   });
 
   it('(6) still reads the three-field and two-field formats, and the fourth field when it is there', () => {
@@ -427,6 +475,10 @@ describe("a container that is not Ownpace's, accepted by its name (EXPOSURE_NOT_
     const four = check([`mesh-client\t\thost\tmesh`], ALLOW);
     expect(four.status).toBe(0);
     expect(four.stdout).toMatch(/mesh-client .*host's network/);
+    // Nor does the fifth end up in the project.
+    const five = check([`someones-app\t0.0.0.0:5555->5555/tcp\tbridge\tsomeones\t/srv/someone/compose.yml`, `mesh-client\t\thost\tmesh\t`], [...ALLOW, 'EXPOSURE_NOT_OURS=someones-app']);
+    expect(five.status, five.stdout + five.stderr).toBe(0);
+    expect(five.stdout).toMatch(/mesh-client .*host's network/);
   });
 
   it("(7) still fails an Ownpace container on every interface while the list names other containers", () => {
@@ -474,6 +526,9 @@ describe('asking Docker itself', () => {
     // The Compose project, so a container of an Ownpace project can never be
     // accepted as not Ownpace's (EXPOSURE_NOT_OURS).
     expect(call).toContain('{{.Label "com.docker.compose.project"}}');
+    // And the files it came from: `compose` is dev.yml's project, and any other
+    // directory's called compose too.
+    expect(call).toContain('{{.Label "com.docker.compose.project.config_files"}}');
     expectNoAddress(r, `0.0.0.0\n${FRONT}`);
   });
 

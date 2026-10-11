@@ -15,7 +15,7 @@ The **IMAP** card asks for the same fields on both sides. In **Start a migration
 
 ### IMAP as the source {#imap-source}
 
-1. On **Which account are you leaving?**, tick **Another mail provider**. **Other ways to connect (IMAP)** leads to it too.
+1. On **Which account are you leaving or moving?**, tick **Another mail provider**. **Other ways to connect (IMAP)** leads to it too.
 2. On **Connect your accounts**, type the IMAP server's name in **Host**, such as `imap.example.com`: the name alone, with no `https://` or path.
 3. **Port** is filled in with `993`, the usual port for IMAP with SSL. Change it only if your provider gives another. There is no box for SSL/TLS: this service always connects with it.
 4. In **Username**, type the mailbox's user name.
@@ -57,5 +57,5 @@ What a mail server itself answers, this service shows word for word, in the serv
 ## Stopping {#leaving}
 
 - A migration is deleted under **Migrations**. The confirmation says what that does: **Removes the migration’s settings and record; nothing at your source or destination is touched.** What was already copied stays in the target.
-- An account is deleted under **Accounts**, with **Delete**. That deletes this service's copy of the password. The password itself stays valid at the provider, and the screen says so too: **We deleted our copy; this provider has no revocation we can call.**
+- An account is deleted under **Accounts**, with **Delete**. That deletes this service's copy of the password. The password itself stays valid at the provider, and the screen says so too: **We deleted our copy; this provider has no revocation we can trigger.**
 - So revoke the app password at your provider, or change the mailbox's password. Only the account holder can. An app password can be revoked without changing the person's own password.

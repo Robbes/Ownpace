@@ -414,7 +414,7 @@ async function expectRefused(door: Door): Promise<void> {
   );
   expect(res.body.message).toMatch(/accept/i);
   expect(res.body.reason).toBe(res.body.message);
-  expect(res.body.messageNl).toMatch(/aanvaard/i);
+  expect(res.body.messageNl).toMatch(/aanvaard|accepteren/i);
   expect(res.body.reasonNl).toBe(res.body.messageNl);
   expect(probed, 'a refused door used the access it was given').toEqual([]);
   if (door.wrote) expect(await door.wrote(), 'a refused door wrote').toBe(before);

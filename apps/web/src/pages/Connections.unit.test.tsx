@@ -794,8 +794,8 @@ describe('adding a connection through the front door', () => {
     fireEvent.change(which, { target: { value: 'google-takeout' } });
     // The export in a folder of the destination's files (0148 T9), so the path
     // is asked for as that folder, and the store is posted with it.
-    fireEvent.click(screen.getByRole('radio', { name: /^In a folder of your destination's files/ }));
-    fireEvent.change(screen.getByLabelText(/^Folder in your destination's files/), {
+    fireEvent.click(screen.getByRole('radio', { name: /^In a folder on your destination \(Nextcloud or WebDAV\)/ }));
+    fireEvent.change(screen.getByLabelText(/^Folder in your destination for files/), {
       target: { value: 'Exports/takeout-20260904' },
     });
     fireEvent.change(screen.getByLabelText(/^Name for this account/), { target: { value: 'my photos' } });
@@ -1662,7 +1662,7 @@ describe('what is standing against a connection (workplan 0094 T5)', () => {
     renderPage();
 
     expect(await screen.findByText('Acme mail')).toBeInTheDocument();
-    expect(screen.getByText(/It failed on this account\./)).toBeInTheDocument();
+    expect(screen.getByText(/Failed on this account\./)).toBeInTheDocument();
     // No guessing left, so no invitation to Test.
     expect(screen.queryByText(/Test this one to find out/)).toBeNull();
   });

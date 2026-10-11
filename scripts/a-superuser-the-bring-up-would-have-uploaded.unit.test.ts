@@ -270,6 +270,7 @@ describe('every bring-up runs the question, and stops, before set-task-env.sh', 
     for (const [script, exitWith] of [
       ['set-task-env.sh', 'STAND_IN_UPLOAD'],
       ['plane-limit.sh', 'STAND_IN_PLANE'],
+      ['plane-tokens.sh', 'STAND_IN_TOKENS'],
       ['deploy-tasks.sh', 'STAND_IN_DEPLOY'],
       ['ensure-env-secrets.sh', 'STAND_IN_ENSURE'],
     ] as const) {
@@ -315,6 +316,7 @@ describe('every bring-up runs the question, and stops, before set-task-env.sh', 
       'prove',
       'set-task-env.sh',
       'plane-limit.sh',
+      'plane-tokens.sh',
       'deploy-tasks.sh',
       'set-task-env.sh --forget-owner-names',
     ]);
@@ -343,7 +345,7 @@ describe('every bring-up runs the question, and stops, before set-task-env.sh', 
   it('a deploy that fails leaves the owner names stored, for the tasks still deployed, and stops', () => {
     const r = phaseTasks({ STAND_IN_DEPLOY: '1' }, withPassword());
     expect(r.status, r.out).not.toBe(0);
-    expect(r.steps).toEqual(['fit', 'set', 'prove', 'set-task-env.sh', 'plane-limit.sh', 'deploy-tasks.sh']);
+    expect(r.steps).toEqual(['fit', 'set', 'prove', 'set-task-env.sh', 'plane-limit.sh', 'plane-tokens.sh', 'deploy-tasks.sh']);
   });
 
   it("a plane limit that could not be set deploys nothing and forgets nothing (0143 T1 step 3)", () => {
@@ -387,8 +389,10 @@ describe('every bring-up runs the question, and stops, before set-task-env.sh', 
       'die "TRIGGER_PROJECT_REF is not set — the \'account\' phase has not been completed."',
       'system_role_ready',
       '"${SCRIPT_DIR}/set-task-env.sh"',
-      // The plane's limit before the deploy that carries it (0143 T1 step 3).
+      // The plane's limit before the deploy that carries it (0143 T1 step 3),
+      // and the tokens it leaks released before the deploy jams on them.
       '"${SCRIPT_DIR}/plane-limit.sh"',
+      '"${SCRIPT_DIR}/plane-tokens.sh"',
       '"${SCRIPT_DIR}/deploy-tasks.sh"',
       '"${SCRIPT_DIR}/set-task-env.sh" --forget-owner-names',
     ]);

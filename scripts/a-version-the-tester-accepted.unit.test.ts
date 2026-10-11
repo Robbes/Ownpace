@@ -80,10 +80,35 @@ const FILES = {
  * some text is still a draft (the header says why).
  */
 const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
-  'alpha.md@1.0': '63c2f0b986aa6bf7fbe9d8539d558207c41d71332d1c9e49fe63a25263acac2a',
-  // Re-pinned under 1.0 on 2026-09-29, while privacy and terms were drafts and so nobody had accepted
-  // it: the Dutch says migratie (0152 D6).
-  'alpha.nl.md@1.0': '2fd5efe3e13905d1c47ad2b900a58e1dc9b3a1359e6cb30d911146bb17002029',
+  // The Last updated line is part of the words, in all six files: moving it to the merge day means
+  // pinning all six again, in the owner's final-text pull request (0139), before it merges.
+  //
+  // Re-pinned under 1.0 on 2026-09-29 (the Dutch says migratie, 0152 D6) and again on 2026-10-05,
+  // in that pull request: §8's "change or remove an owner or an invitation as owner" and §10's
+  // closing said as the code does it. Both times privacy and terms were still drafts, so the API
+  // asked nobody and nobody can have accepted 1.0.
+  //
+  // Pinned a third time on 2026-10-07, in this pull request, the day it merges: the Last updated
+  // line moved to the merge day (the files' own briefing), and merging main's #1537 — billing in
+  // advance, §7 and §8 — changed the terms' words under 1.3. All six are pinned together, as the
+  // header's note requires. No tester has accepted any of these numbers: privacy and terms carried
+  // their draft markers until this pull request, and the API asks nobody while any text is a draft.
+  'alpha.md@1.0': '241b73f563475774af1d539fb64d9f13876146dce3a1dda49e3dc3cb2631b257',
+  'alpha.nl.md@1.0': '1d3cfaa24fbdf051f78a14936ef9a855d3f7a59585d66cf6a7c71deed070102f',
+  // Final on 2026-10-05, in the same pull request, which set LEGAL_DRAFTS to match.
+  'privacy.md@1.2': 'a6b517ec8f8aeddd0b4ad709508ce6b1551cd1e595e5fadc85ac979329cf2a22',
+  'privacy.nl.md@1.2': '8b942baf4b22770b98353ffedc08d6d7ccbb562eede37d0146d858f1b20ad329',
+  // 1.3 on 2026-10-11: privacy says visits to the website are counted from its server logs, as
+  // totals (the owner's GoAccess decision of 2026-10-05). 1.2 had been final since 2026-10-07, so
+  // the new words take a new number and 1.2's pins stay.
+  'privacy.md@1.3': '0fce310cfc336406d9f0fa25d96929f953f750e41767b64ab006d876b914cd97',
+  'privacy.nl.md@1.3': '1e789ac54fe3380eb11f963fcf7594658f2e2a0b3b64d8a34ce242e01d988d34',
+  'terms.md@1.3': 'e1d2f884198bc419089594bc29fad33e2d22c10c56bd2a23a832f093704004d1',
+  'terms.nl.md@1.3': '842e61fa4ea93c52094bc5fa02cb746fb742a7d730df9e161cfcacc6449c47f0',
+  // 1.4 on 2026-10-10: the owner's own text review, in both languages (terms.md's briefing). 1.3
+  // had been final since 2026-10-07, so the new words take a new number and 1.3's pins stay.
+  'terms.md@1.4': 'd0577ca2eb1090eef1ab9a1d22aa374254009d1088cdded1f9d292a9eb83a4c2',
+  'terms.nl.md@1.4': '6ace99da834540703d59cc81447b9924402482d319d82746c39dcde5f4fcc95b',
 };
 
 /** The digest `ACCEPTED_WORDS` pins: the text outside HTML comments, white space collapsed. */

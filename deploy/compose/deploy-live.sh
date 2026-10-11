@@ -33,8 +33,9 @@
 #      /api/auth/mode answers `managed`, the api container's NODE_ENV is
 #      production (0132 T4, asked as stand-up-live.sh asks it); and runs exposure-check.sh
 #      (0132 T3 (b), on main since #1271), the tag's own copy, which must
-#      pass. It reads EXPOSURE_ALLOW from live's .env, which the owner sets;
-#      a tag cut before #1271 has no such script, and cannot pass. Before
+#      pass. It reads EXPOSURE_ALLOW and EXPOSURE_NOT_OURS from live's .env,
+#      which the owner sets; a tag cut before #1271 has no such script, and
+#      cannot pass, and one cut before EXPOSURE_NOT_OURS ignores it. Before
 #      that check, when live's .env switches the site on, the site step
 #      (below), so the exposure check covers the site too
 #   9. appends one line to deploys.log (below)

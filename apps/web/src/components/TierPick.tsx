@@ -35,6 +35,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { billingApi, PickSchema, type PickOffer, type PickTier } from '../services/billing-service.ts';
 import { serverMessage } from '../services/api.ts';
+import InvoiceDetailsFirst from './InvoiceDetailsFirst.tsx';
 import { useFormatters, useLocale, useT } from '../i18n/index.tsx';
 import { formatDateTime } from '../i18n/datetime.ts';
 
@@ -169,17 +170,20 @@ const PickBody: React.FC<{
             : t('billing.pick.done', { tier: done.tier.name })}
         </p>
       )}
-      {refusal != null && (
-        <p className="text-red-800">
-          {refusedCode === 'offer_changed' ? (
-            t('billing.pick.offerChanged')
-          ) : (
-            <>
-              <span className="font-medium">{t('billing.pick.failed')}</span> {serverMessage(refusal)}
-            </>
-          )}
-        </p>
-      )}
+      {refusal != null &&
+        (refusedCode === 'invoice_details_first' ? (
+          <InvoiceDetailsFirst />
+        ) : (
+          <p className="text-red-800">
+            {refusedCode === 'offer_changed' ? (
+              t('billing.pick.offerChanged')
+            ) : (
+              <>
+                <span className="font-medium">{t('billing.pick.failed')}</span> {serverMessage(refusal)}
+              </>
+            )}
+          </p>
+        ))}
 
       {raise.length > 0 ? (
         <>

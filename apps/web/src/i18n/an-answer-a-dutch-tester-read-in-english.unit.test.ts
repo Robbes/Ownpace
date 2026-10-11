@@ -75,26 +75,26 @@ describe('what happened at a typed address, in the reader’s language', () => {
     [
       'nothing that answered',
       { kind: 'unreachable', reference: REF },
-      `Nothing answered at that address: the name did not resolve, the connection was refused, or no answer came in time. Check the host name and the port. Reference ${REF}.`,
-      `Op dat adres antwoordde niets: de naam werd niet gevonden, de verbinding werd geweigerd, of er kwam niet op tijd antwoord. Controleer de hostnaam en de poort. Referentie ${REF}.`,
+      `Nothing answered at that address: name did not resolve, connection was refused, or a timeout. Check the host name and the port. Reference ${REF}.`,
+      `Op dat adres antwoordde niets: de naam werd niet gevonden, de verbinding werd geweigerd, of er kwam een timeout. Controleer de hostnaam en de poort. Referentie ${REF}.`,
     ],
     [
       'a certificate that did not verify',
       { kind: 'certificate', reference: REF },
-      `The server's certificate did not verify for that name, or it has expired, so the test stopped before signing in. Reference ${REF}.`,
-      `Het certificaat van de server klopte niet voor die naam, of het is verlopen, dus de test stopte voordat er werd ingelogd. Referentie ${REF}.`,
+      `The server's certificate did not verify for that name, or has expired, so the test stopped before signing in. Reference ${REF}.`,
+      `Het certificaat van de server kwam niet overeen of is verlopen, waardoor de test stopte voordat er werd ingelogd. Referentie ${REF}.`,
     ],
     [
       'an address inside our own network',
       { kind: 'insideOurNetwork', reference: REF },
       `That address is inside this service's own network, or the server sent the test on to one that is, so we did not connect to it. Give the address the server has on the internet. Reference ${REF}.`,
-      `Dat adres ligt binnen het eigen netwerk van deze dienst, of de server stuurde de test door naar een adres dat daar ligt, dus we hebben er geen verbinding mee gemaakt. Geef het adres dat de server op internet heeft. Referentie ${REF}.`,
+      `Dat adres ligt binnen het eigen netwerk van deze dienst, of de server stuurde de test door naar een adres dat daar ligt: geen verbinding gemaakt. Gebruik het adres dat de server op internet heeft. Referentie ${REF}.`,
     ],
     [
       'anything else',
       { kind: 'unknown', reference: REF },
       `The test failed, and what came back is not shown here. Check the address and the port. Reference ${REF}.`,
-      `De test mislukte, en wat terugkwam wordt hier niet getoond. Controleer het adres en de poort. Referentie ${REF}.`,
+      `De test mislukte door onbekende reden. Controleer het adres en de poort. Referentie ${REF}.`,
     ],
   ])('%s', (_what, said, english, dutch) => {
     expect(saidText(en, said)).toBe(english);
@@ -175,8 +175,8 @@ describe('the limit on tests is ours, so it reads in the reader’s language', (
 
   it('has a sentence in both languages', () => {
     expect(en('probe.tooManyTests')).toBe(
-      'You have tested a lot of connections in the last hour. Wait a little, then test again.',
+      'You have tested too many connections in the last hour. Wait a little, then test again.',
     );
-    expect(nl('probe.tooManyTests')).toBe('U hebt het afgelopen uur veel verbindingen getest. Wacht even en test dan opnieuw.');
+    expect(nl('probe.tooManyTests')).toBe('U hebt het afgelopen uur (te) veel verbindingen getest. Wacht even en test dan opnieuw.');
   });
 });

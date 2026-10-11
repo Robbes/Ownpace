@@ -519,7 +519,7 @@ describe('Migrations — Delete takes two presses, and says what it does (0037 T
 
     fireEvent.click(await screen.findByTitle('Delete'));
 
-    expect(screen.getByText(/copies only what is new/)).toBeInTheDocument();
+    expect(screen.getByText(/migrates only what is new/)).toBeInTheDocument();
     expect(screen.getByText(/no longer updated when it changes at the source/)).toBeInTheDocument();
     expect(screen.getByText(/deleted or moved on the new side comes back/)).toBeInTheDocument();
     expect(screen.getByText(/pause the migration instead/)).toBeInTheDocument();

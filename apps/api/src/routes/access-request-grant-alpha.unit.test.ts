@@ -77,12 +77,13 @@ app.use(express.json());
 app.use('/api/access-requests', accessRoutes);
 
 /**
- * The welcome's first sentence (the owner, 2026-10-04, 0131 D4's amendment), in
- * each language: enough to know the paragraph is there.
+ * The welcome's first sentence (the owner, 2026-10-04, 0131 D4's amendment; in
+ * Dutch the owner's own mail welcome of 2026-10-10), in each language: enough
+ * to know the paragraph is there.
  */
 const LEAD = {
   en: 'Welcome to the Alpha!',
-  nl: 'Welkom bij de Alpha!',
+  nl: 'Welkom bij Ownpace in de Alpha-fase!',
 } as const;
 
 async function rows(sql: string, params: unknown[] = []): Promise<Array<Record<string, unknown>>> {

@@ -786,10 +786,10 @@ describe('the site is warm paper, always light (the owner, 2026-10-05)', () => {
  * moved (the review of 0139 T2).
  *
  * Run against a COPY of `site/` with fixture legal files, in a child process:
- * the refusal lives where the build is run directly, and the real texts carry
- * placeholders (which refuse first) and draft version lines on purpose until
- * the owner's final-text PR. A copy also keeps these builds out of the real
- * `site/dist`.
+ * the refusal lives where the build is run directly, and fixtures can say draft
+ * where the real texts no longer do (final since the owner's final-text pull
+ * request, 2026-10-05; the last case holds them to it). A copy also keeps these
+ * builds out of the real `site/dist`.
  */
 describe('a public build refuses a legal page whose version line says draft', () => {
   const SITE = HERE;
@@ -980,21 +980,19 @@ describe('a public build refuses a legal page whose version line says draft', ()
     expect(r.out).toContain('site/legal/privacy.nl.md');
   });
 
-  it("refuses today's real texts on their version lines, once their placeholders are filled", () => {
-    // The owner's final-text PR removes the words. Until then --public refuses
-    // every one of the four, which is intended: they say "not yet published".
-    for (const [file] of LEGAL_DOCS) {
-      const real = read(`site/legal/${file}`).replace(/«[A-Z_]+»/g, 'filled');
-      writeFileSync(join(copy, 'legal', file), real);
-    }
+  it("publishes today's real texts: the owner's final-text pull request took the draft words off", () => {
+    // Until 2026-10-05 --public refused every one of the four, as intended: they
+    // said "not yet published". The owner's final-text pull request (workplan
+    // 0139) dropped the words, so the real texts are what a public build now
+    // writes, with nothing to fill and nothing marked draft. A text that says
+    // draft again turns this red, before a deploy finds it.
+    for (const [file] of LEGAL_DOCS) writeFileSync(join(copy, 'legal', file), read(`site/legal/${file}`));
     const r = build({ public: true });
-    expect(r.status, r.out).not.toBe(0);
-    for (const [file] of LEGAL_DOCS) expect(r.out).toContain(`site/legal/${file}`);
-    // And --public --check says so before a deploy, where it used to report
-    // `0 unfilled placeholder(s)` and pass.
+    expect(r.status, r.out).toBe(0);
+    expect(r.wrote).toBe(true);
     const check = build({ public: true, check: true });
-    expect(check.status, check.out).not.toBe(0);
-    expect(counts(check.out), check.out).toEqual({ placeholders: '0', draftLines: '4' });
+    expect(check.status, check.out).toBe(0);
+    expect(counts(check.out), check.out).toEqual({ placeholders: '0', draftLines: '0' });
   });
 });
 

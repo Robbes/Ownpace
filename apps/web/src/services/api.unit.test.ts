@@ -117,7 +117,7 @@ describe('serverMessage — an answer the page could not read', () => {
   const EN =
     /^The server answered in a form this page does not know\. Reload the page; if it stays like this, report it to support, and mention: reference ([0-9a-f]{8})\.$/;
   const NL =
-    /^De server antwoordde in een vorm die deze pagina niet kent\. Laad de pagina opnieuw; blijft het zo, meld het en geef daarbij het volgende door: referentie ([0-9a-f]{8})\.$/;
+    /^De server antwoordde in een vorm die deze pagina niet kent\. Laad de pagina opnieuw; blijft het zo, meld dit en geef daarbij het volgende door: referentie ([0-9a-f]{8})\.$/;
 
   const sent = vi.fn(async (_url: string, _init?: RequestInit) => new Response(null, { status: 204 }));
   /** Every report sent, as the server receives it. */

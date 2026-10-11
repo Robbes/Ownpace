@@ -106,7 +106,7 @@ const CASES = [
     locale: 'nl',
     lead: 'De migratielijst kon niet worden geladen.',
     notEmpty: /Nog geen migraties/,
-    said: /^De server antwoordde in een vorm die deze pagina niet kent\. Laad de pagina opnieuw; blijft het zo, meld het en geef daarbij het volgende door: referentie ([0-9a-f]{8})\.$/,
+    said: /^De server antwoordde in een vorm die deze pagina niet kent\. Laad de pagina opnieuw; blijft het zo, meld dit en geef daarbij het volgende door: referentie ([0-9a-f]{8})\.$/,
     queueLead: 'Deze wachtrij kon niet worden geladen.',
   },
 ] as const;

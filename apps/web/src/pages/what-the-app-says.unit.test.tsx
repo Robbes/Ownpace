@@ -64,7 +64,7 @@ afterEach(() => {
 describe('the request form says why it keeps what is typed', () => {
   const WHY = {
     en: [/to decide on your request/, /to answer you/, /creates no account/],
-    nl: [/over uw aanvraag te beslissen/, /u te antwoorden/, /maakt geen account aan/],
+    nl: [/uw aanvraag te beoordelen/, /u te antwoorden/, /maakt geen account aan/],
   } as const;
 
   it.each(LOCALES)('to decide on the request and to answer, and that asking creates no account, in %s', (locale) => {

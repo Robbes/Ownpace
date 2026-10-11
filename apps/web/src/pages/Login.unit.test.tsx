@@ -71,7 +71,7 @@ const renderLogin = async () => {
     </MemoryRouter>
   );
   await vi.waitFor(() =>
-    expect(screen.queryByText(/checking how this deployment/i)).toBeNull()
+    expect(screen.queryByText(/checking how to sign in/i)).toBeNull()
   );
   return utils;
 };
@@ -431,7 +431,7 @@ describe('the paste box follows the API, not the bundle', () => {
     );
 
     expect(screen.queryByLabelText(/access token/i)).toBeNull();
-    expect(screen.getByText(/checking how this deployment/i)).toBeVisible();
+    expect(screen.getByText(/checking how to sign in/i)).toBeVisible();
 
     settle({ mode: 'local', acceptsSeedToken: true });
     expect(await screen.findByLabelText(/access token/i)).toBeVisible();

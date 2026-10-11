@@ -34,7 +34,7 @@ The third value is the **numeric** user id of the account being migrated — Adm
 
 ### 4. Enter it {#box}
 
-On **Which account are you leaving?**, tick **Box**. On **Connect your accounts**, its form asks for everything: the account's address under **Username**, the number from step 3 under **Box user ID (numeric)**, and the two values from step 1 under **Client ID (application ID)** and **Client secret**, the secret stored encrypted. **Check the sign-in** runs one read-only listing through exactly what a pass would build.
+On **Which account are you leaving or moving?**, tick **Box**. On **Connect your accounts**, its form asks for everything: the account's address under **Username**, the number from step 3 under **Box user ID (numeric)**, and the two values from step 1 under **Client ID (application ID)** and **Client secret**, the secret stored encrypted. **Check the sign-in** runs one read-only listing through exactly what a pass would build.
 
 To move one folder rather than the whole account, choose **Only one folder**, under **Files** on **What moves?**. Once the account is connected, paste the folder's address from Box: the number at its end is the folder id. Box's folders are not listed there.
 

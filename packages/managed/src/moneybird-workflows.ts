@@ -20,7 +20,7 @@
  * missing `active` is not an archived workflow.
  */
 
-import { moneybirdRead, type MoneybirdAccess } from './moneybird-http.ts';
+import { moneybirdRead, type MoneybirdAccess, type SlowDown } from './moneybird-http.ts';
 
 export interface MoneybirdWorkflow {
   readonly id: string;
@@ -37,7 +37,8 @@ export interface MoneybirdWorkflow {
 
 export type FetchWorkflowsOutcome =
   | { readonly kind: 'ok'; readonly workflows: readonly MoneybirdWorkflow[] }
-  | { readonly kind: 'unavailable'; readonly reason: string };
+  | { readonly kind: 'unavailable'; readonly reason: string }
+  | SlowDown;
 
 /** The administration's workflows, invoice and estimate alike, from Moneybird's own API. */
 export async function fetchWorkflows(
@@ -45,7 +46,7 @@ export async function fetchWorkflows(
   fetchImpl: typeof fetch = fetch,
 ): Promise<FetchWorkflowsOutcome> {
   const read = await moneybirdRead(access, 'workflows.json', fetchImpl);
-  if (read.kind === 'unavailable') return { kind: 'unavailable', reason: read.reason };
+  if (read.kind !== 'ok') return read;
   if (!Array.isArray(read.body)) {
     return { kind: 'unavailable', reason: 'Moneybird answered a shape this client does not recognise.' };
   }
