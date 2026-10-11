@@ -295,10 +295,20 @@ During the grace period (72 hours on the ledger row; running `complete` ends
 it sooner):
 
 - A migration that was running at `execute` keeps being copied, under the
-  after-cutover rules: new and changed items are copied, deletions at the
-  source are not mirrored. `status` prints until when; after that no pass runs,
+  after-cutover rules: new items are copied, deletions at the source are not
+  mirrored, and a change at the source no longer overwrites a copy already made
+  (counted as `changedAfterCutover`; the owner, 2026-10-05, "Stop overwriting"). `status` prints until when; after that no pass runs,
   and the migration's own ending (finish, or keep copying in the continuous
   lane) is the Finish page's.
+- A pass that was already running when `execute` landed finishes its copying,
+  but asks the data type's phase again before it concludes anything, and after
+  cutover concludes nothing: it does not read the old system's bin, resolve a
+  removal the old system reported, or count anything missing or moved there
+  (ADR-0048, *The grace period copies*).
+- A deletion or a move still in the queues from before `execute` can no longer
+  be applied: `apply` is refused with `after_cutover` and the screens offer no
+  button for a data type past its cutover (ADR-0024's amendment of
+  2026-10-05). `rollback` makes the old system decide again and brings it back.
 - Monitor mail flow and delivery failures
 - Watch for user complaints or support tickets
 - Keep the rollback procedure ready — `rollback --yes` is still accepted in

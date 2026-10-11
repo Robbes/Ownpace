@@ -91,6 +91,7 @@ function source(rfc822: string): MemorySource {
 function pass(src: MemorySource, target: MemoryTarget, ledger: MemoryLedger) {
   return runShadowPass({
     sourceIsAuthorityOnExistence: true,
+    stillTheAuthority: async () => true,
     tenantId: TENANT,
     mappingId: MAPPING,
     source: src,

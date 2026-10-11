@@ -25,7 +25,8 @@ migration stops.
 ## 3. We copy, and then we keep copying
 
 The first pass moves everything. After that, every change on the old account — new mail,
-a moved file, an edited contact — arrives on the new one, for as long as you want.
+a moved file, an edited contact — arrives on the new one, until you switch over. Keep copying
+after that, and only new items keep arriving.
 
 This is the part most tools do not do. A one-shot copy means the copy starts going stale
 the moment it finishes, which is why one-shot migrations happen over a weekend and feel

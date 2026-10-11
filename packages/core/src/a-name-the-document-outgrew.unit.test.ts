@@ -106,6 +106,7 @@ function world(initial: ReadonlyArray<Listed>, opts: { cursors?: boolean; listKe
     ledger,
     ...(opts.cursors ? { cursors: new MemoryCursorStore() } : {}),
     sourceIsAuthorityOnExistence: true,
+    stillTheAuthority: async () => true,
   };
   return { state, ledger, stored: onTarget.stored, pass: () => runFileSync(deps) };
 }
@@ -456,6 +457,7 @@ describe('through the real Google Drive connector', () => {
       ledger,
       cursors,
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
     };
 
     // Under the default, `refuse`, the deck stays behind, on the Failures

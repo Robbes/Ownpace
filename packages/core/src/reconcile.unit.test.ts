@@ -14,7 +14,7 @@ function seededSource(): MemorySource {
 
 function deps(source: MemorySource, target: MemoryTarget, ledger: MemoryLedger): ReconcileDeps {
   return {
-    sourceIsAuthorityOnExistence: true, tenantId: asTenantId('t1'), mappingId: asMappingId('m1'), source, target, ledger };
+    sourceIsAuthorityOnExistence: true, stillTheAuthority: async () => true, tenantId: asTenantId('t1'), mappingId: asMappingId('m1'), source, target, ledger };
 }
 
 describe('runShadowPass (idempotent one-way shadow)', () => {

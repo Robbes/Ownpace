@@ -1238,7 +1238,7 @@ describe('signed in as a platform operator', () => {
  */
 describe('signed in by somebody who has not accepted the texts yet', () => {
   const ME = FIXTURES['GET /api/me'];
-  const VERSIONS = { alpha: '1.0', privacy: '1.2', terms: '1.4' } as const;
+  const VERSIONS = { alpha: '1.0', privacy: '1.4', terms: '1.4' } as const;
   const documents = (accepted: boolean) =>
     (['alpha', 'privacy', 'terms'] as const).map((document) => ({
       document,

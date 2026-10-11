@@ -12,7 +12,7 @@
  *
  * And, when the appliance asks, whether each data type still runs: the pass
  * moves on past one that no longer does while the others do, as the managed
- * pass does. The standalone worker does not ask, and runs what it is handed.
+ * pass does. A caller that does not ask runs what it is handed.
  *
  * The calendar and contact syncs are replaced by recorders, so what is
  * asserted is the answer each was handed, not what a server did with it.
@@ -96,7 +96,10 @@ async function passWith(
   runsNow?: (domain: string) => boolean,
 ): Promise<Record<string, unknown>> {
   handed.length = 0;
-  await runAllDomains(mapping(), store, phaseOf, { ledgerDb }, runsNow);
+  // The reader the pass asks when each data type starts (2026-10-05),
+  // answering what the firing's reading answers: no cutover between the two.
+  const phasesNow = async () => ({ anyRuns: true, grantWithdrawnAt: null, phaseOf });
+  await runAllDomains(mapping(), store, phaseOf, phasesNow, { ledgerDb }, runsNow);
   return Object.fromEntries(handed.map((h) => [h.domain, h.sourceIsAuthorityOnExistence]));
 }
 
@@ -146,7 +149,7 @@ describe("the appliance's pass", () => {
     }
   });
 
-  it('runs every data type it is handed when nobody asks, as the standalone worker always has', async () => {
+  it('runs every data type it is handed when nobody asks', async () => {
     expect(await passWith(phasesOfTheMigration('done'))).toEqual({ calendar: false, contact: false });
   });
 });

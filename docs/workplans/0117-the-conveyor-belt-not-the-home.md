@@ -2,7 +2,149 @@
 
 > **In one line:** A `continuous` lane keeping a mapping copying after cutover with deletion detectors off, a confirmed list (`Confirmed.tsx`) checking each target item by hash or fingerprint, and safety rules for draining the source with attributed tombstones.
 
-## Status — 2026-09-09 (update this block at the end of every session)
+## Status — 2026-10-11 (update this block at the end of every session)
+
+**2026-10-05: D4, ASKED AGAIN WHERE IT WAS ASKED ONCE — after cutover nothing is read
+from the old system's bin, and nothing is concluded from it.** The owner, 2026-10-05:
+
+> *"after cross over the bin reading and deleting on target should stop, because perhaps
+> source-leavers clean up ALL after the cross over."*
+
+That is D4 (below, 2026-09-09) said from the leaver's side, and an audit of both editions
+against it found the rule held for every pass that STARTED after cutover and for none that
+was already running. A pass decided `sourceIsAuthorityOnExistence` once, at its start;
+`execute` neither waits for a running pass nor stops it, and during the grace period it is
+told to carry on. So a managed pass of up to fifty minutes, or an appliance firing that read
+the phases once and can run for days, drew its end-of-pass conclusions by the rules from
+before the cutover: it resolved the removals the old system reported, read its bin, and
+counted what had gone missing or moved there. A file pass halted by a declared cutover
+(`no_longer_runs`) still counted absence in the folders it had finished.
+
+**Built (fix 2 of the after-cutover findings).** The pass is handed the question again,
+REQUIRED beside the answer it re-asks (`SourceAuthority.stillTheAuthority`, shared), built by
+each edition from the one reader every gate asks (`readPathPhases` → `sourceStillDecides`):
+the managed deps builder for every pass it builds, and the appliance's `runAllDomains` from
+the reader it is now handed (`phasesNow`), which it also asks when each data type starts
+rather than once per firing. `runDomainSync` asks it once, right before its conclusions; a
+"no" leaves out all three producers, not run rather than filtered. A question that cannot be
+answered fails the pass (hard rule 9). Guards:
+`packages/core/src/a-cutover-during-a-pass.unit.test.ts` (each producer, each with its
+before-cutover half; the halted file pass; mail's Trash and its scan cursor) and
+`packages/orchestration/src/a-cutover-between-two-data-types.unit.test.ts`. ADR-0048's
+grace-period sentence and the cutover runbook now say it.
+
+**Built (fix 1): after cutover, unattended relocation apply removes nothing.** The one
+deletion that still happened after cutover. §7b below accepted that after cutover a rename
+leaves two copies, because a move is not correlated; but a move recorded BEFORE the cutover
+stayed open (nothing closes open moves at cutover, and the last pass before it always leaves
+its own for one more pass), and the first file pass after cutover applied it unattended,
+removing the old copy on the new system as `system:auto-apply` — "the operation D4 forbids
+wearing a different name", in this plan's own words of 2026-09-10. Now
+`autoApplyRelocations` (core, so both editions) takes the same REQUIRED question, asks it
+after the opt-in and before it reads the moves queue, and after cutover returns
+`stoppedCode: 'after_cutover'` having removed nothing; both run logs say *"relocation
+auto-apply not run: after cutover the old system no longer decides what exists"*. Turning
+the switch on after cutover applies none of the old moves. Guards:
+`packages/core/src/a-move-applied-after-cutover.unit.test.ts`, the appliance's half in
+`packages/orchestration/src/a-pass-told-to-stop-on-the-appliance.unit.test.ts`, the managed
+half in `apps/worker/src/jobs/a-move-applied-after-cutover.unit.test.ts`. ADR-0031 amended.
+
+**Built (fix 3): the standalone worker reads the phases on every firing.** The dev tool
+(`apps/worker/src/index.ts`, shipped, deployed by neither edition) read
+`mailbox_mapping.status` once, when the process started, and assumed `active` when it could
+not: a process left in scheduled mode kept its deletion detectors through a cutover, and
+ignored a data type cut over on its own. Now each firing, `--once` and every cron tick, reads
+`readPathPhases` itself, hands `runAllDomains` the reader, `pathRunsNow` and the stop question
+the appliance hands (`stopReasonOf(stepFrom(…))`), and refuses the firing when the phases
+cannot be read: a database that does not answer throws, a mapping with no row is refused by
+name. Guard: the CLI case in `scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts`.
+
+**Guarded (fix 4): a mail pass that starts after cutover.** No behaviour changed; the rule
+held, and nothing would have said so if it stopped. The per-producer guard calls
+`runDomainSync` directly, so a mail wrapper (`runShadowPass`) that lost the answer on its
+way down, a literal `true` where `reconcile.ts` passes `deps.sourceIsAuthorityOnExistence`,
+left every unit test green. `packages/core/src/mail-after-cutover.unit.test.ts` runs the
+leaver through the mail wrapper: a message thrown in the bin and another deleted outright
+(Graph's `@removed`) after the switch. Trash is never listed, no removal is resolved, the
+Deletions queue stays empty, the bin's scan cursor stays where the last pass before the
+cutover left it, and the pass still copies what is new; the same leaver before the cutover
+is heard, so the fixture can produce both signals. Proven to bite on main's sync code:
+with that literal `true` it fails on Trash being listed. On this branch fix 2's question is a
+second wall behind the first, so the same mutation is caught by the assertion that a pass
+which started after cutover never asks it (and, with both pass-throughs mutated, by every
+behavioural assertion). Beside it, `scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts`
+read `mailbox_mapping.status`'s legal values from migration 0001's CHECK, which migration
+0044 replaced to add `continuous`: the one status that keeps copying after cutover was never
+classified there, and `isAfterCutover` could drop it with that guard green. It now reads the
+last migration that defines the CHECK.
+
+**Corrected (fix 5): comments that said more than the code does.** No behaviour changed.
+`runDomainSync`'s docblock said moves stop after cutover; only path-keyed moves do (§7b's
+consequence stands). A folder move of mail, calendar, contacts or tasks is still recorded by the
+loop and listed in the Moves queue after cutover, and nothing can act on it: it records no
+arrival, so `relocationCheck` refuses it (`not_relocated`) and auto-apply never selects it.
+ADR-0031's 2026-10-05 amendment now says the same. The Graph mail source's header said
+`@removed` entries are skipped; they are returned by id, and the pass collects them only while
+the old system decides what exists. The Google Tasks header, the bin comment in `reconcile.ts`
+(the bin is mail's only deletion evidence over IMAP, not over Graph), the pass-through comments
+in `reconcile.ts` and `dav-sync.ts`, `SourceAuthority`'s docblock and `build-deps.ts` now name
+each data type's own phase (`readPathPhases`) instead of the migration's status, and no longer
+claim that every data type of a firing shares one reading.
+
+**Built (fix 6): after cutover, an apply pressed by hand removes nothing.** The owner, asked
+on 2026-10-05 *"should pressing Apply on a deletion or move that was queued before cutover be
+refused?"*, chose **"Refuse after cutover (Recommended)"**. After cutover no pass draws a
+deletion or a move from the old system any more, but the queues keep what was recorded
+before it, or by a pass still running when execute was pressed, and the Apply button on
+each entry removed the copy on the new system by the rules from before: nothing in the four
+functions that remove (`evaluateApplyDeletion`, `applyDeletion`, `evaluateApplyRelocation`,
+`applyRelocation`, core) asked the phase, and the button showed regardless, even after
+Finish. Now `ApplyDeletionDeps` carries the same REQUIRED question (`stillTheAuthority`), and
+each of the four asks it, for the data type that holds the item, after the item is found and
+before any evidence or relocation gate, and refuses with the stable code `after_cutover`
+(403 on both editions) and a sentence that says nothing was removed and the copy stays. The
+managed route asks it on the request, in the request's own transaction; the two jobs ask it
+again at the removal through their deps builder's own question, so a cutover executed
+between the press and the job wins; the appliance's two routes hand
+`applyMappingDeletion`/`applyMappingRelocation` its reader (`phasesNow`, now a required
+argument). Auto-apply, which goes through `applyRelocation`, asks it per item as well as
+before the queue (fix 1's check stays). The Deletions and Moves queues of both editions now
+carry `afterCutover` (`dataTypesPastCutover`, shared, from the same reading), and
+`mayOfferApply`/`mayOfferRelocationApply` take it as a REQUIRED argument: no Apply button
+for a data type past its cutover, and one sentence above the rows, in English and Dutch
+(`queue.afterCutover`), saying why and naming the data types whose rows lost the button (none
+named, no sentence). A rollback makes the old system decide again (ADR-0047) and brings the
+button and the press back. Each guard below was shown red with the code reverted first
+(26 failures across core, shared, orchestration, the jobs and both screens). Guards:
+`packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`
+(the four functions in `cutover`, `continuous` and `done`, a data type cut over on its own, a
+cutover between evaluate and apply, a rollback, an unanswerable question),
+`packages/shared/src/a-button-offered-after-cutover.unit.test.ts`,
+`packages/orchestration/src/an-apply-pressed-after-cutover-on-the-appliance.unit.test.ts`
+(PGlite, the migration's own row moved), `apps/worker/src/jobs/an-apply-pressed-after-cutover.unit.test.ts`,
+the Deletions and Moves screen tests, and against real Postgres
+`apps/api/src/routes/migrations/apply-routes.integration.test.ts` and
+`apps/selfhost/src/an-apply-pressed-after-cutover.integration.test.ts`.
+
+**Built (fix 7): after cutover, a change at the old system overwrites nothing.** D4 kept
+deletions out; 0128 D1 (a) said new and changed items are still copied after cutover, so a
+leaver who blanked a contact or an event, or emptied a file, at the old system had the next
+pass write that version over the copy on the new system, which for calendars and contacts
+keeps no history. Asked whether that should stop, the owner chose **"Stop overwriting"**
+(2026-10-05). Now `runDomainSync`, when `sourceIsAuthorityOnExistence` is false, turns
+`classifyKnownItem`'s `'rewrite'` into a counted no-op before any fetch
+(`DomainSyncResult.changedAfterCutover`); the ledger's source version is not advanced, so the
+divergence is counted on every pass, as `changedButAdopted` is, and a rollback carries the
+change over on its next pass. New items are still copied; mail, which carries no version, was
+never rewritten. Both editions say it in the run log (the appliance's outcome and log line,
+managed's `run-delta-sync` event). The lane's door says it in one more sentence (`lane.why`,
+English and Dutch, the rest of the owner's approved wording of 2026-10-10 kept word for word).
+Guard: the last describe block of
+`packages/core/src/a-lane-that-runs-with-the-detector-present.unit.test.ts` (before cutover the
+change IS written, so the fixture can overwrite; after it the copy, the count, the new item
+still arriving, the version not advanced, a rollback carrying it over, and no fetch at all),
+shown red before the change. ADR-0048, `lifecycle.ts`, the cutover and operator runbooks, and
+0128's Status block now say it.
 
 **2026-09-10, later still again: THE TWO HALVES DID NOT FIT, and finding that out
 found a shipped bug.** Building slice 4 began by connecting the pass to the store, and
@@ -725,6 +867,14 @@ the lane *refusing* to mirror a post-cutover deletion is the one that matters.
 old provider after cutover, and the copy in their new home stays. That is correct, and it
 is the opposite of what the product did before cutover — so it belongs in T5's words, along
 with the still-open choice of whether we simply stop noticing or say that we have.
+
+**Amended 2026-10-05: an apply pressed by hand is held to it too.** D4 was built as a
+detector that does not run; the entries recorded before the cutover stayed in the queues,
+and pressing Apply on one still removed the copy in the target. Asked *"should pressing
+Apply on a deletion or move that was queued before cutover be refused?"*, the owner chose
+**"Refuse after cutover (Recommended)"**. So after cutover the apply is refused
+(`after_cutover`) and not offered, until a rollback makes the source the authority again
+(ADR-0047). See the Status block, fix 6.
 
 **2026-09-09: D1 TAKEN — the continuous lane yes, the drain not yet.** The owner's words:
 

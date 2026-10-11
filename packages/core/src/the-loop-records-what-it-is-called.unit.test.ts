@@ -73,6 +73,7 @@ function onePass(
 ) {
   return runDomainSync<unknown, unknown, Item, { path: string }>({
     sourceIsAuthorityOnExistence: true,
+    stillTheAuthority: async () => true,
     tenantId: TENANT,
     mappingId: MAPPING,
     domain: 'contact',
@@ -157,6 +158,7 @@ describe('each domain names its own items, or honestly names none', () => {
     const ledger = new MemoryLedger();
     await runCalendarSync({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source: {
@@ -191,6 +193,7 @@ describe('each domain names its own items, or honestly names none', () => {
     const ledger = new MemoryLedger();
     await runTaskSync({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source: {
@@ -224,6 +227,7 @@ describe('each domain names its own items, or honestly names none', () => {
     const ledger = new MemoryLedger();
     await runContactSync({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source: {
@@ -255,6 +259,7 @@ describe('each domain names its own items, or honestly names none', () => {
     const ledger = new MemoryLedger();
     await runFileSync({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source: {
@@ -279,6 +284,7 @@ describe('each domain names its own items, or honestly names none', () => {
     const ledger = new MemoryLedger();
     await runCalendarSync({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source: {

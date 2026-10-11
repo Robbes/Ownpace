@@ -28,6 +28,9 @@ import {
 import { runAllDomains } from './orchestration.ts';
 import type { PgDatabase } from '@openmig/ledger';
 
+/** The reader the pass asks again (2026-10-05), answering what the firing's own reading answers. */
+const ACTIVE_NOW = async () => ({ anyRuns: true, grantWithdrawnAt: null, phaseOf: phasesOfTheMigration('active') });
+
 /** The pass is handed its ledger (0138 T1 part 2); nothing here reaches a query through it. */
 const NO_QUERIES = { ledgerDb: {} as unknown as PgDatabase };
 
@@ -73,7 +76,7 @@ describe('a data type that fails', () => {
       getStatus: async () => [],
     };
 
-    await runAllDomains(mapping(), store, phasesOfTheMigration('active'), NO_QUERIES);
+    await runAllDomains(mapping(), store, phasesOfTheMigration('active'), ACTIVE_NOW, NO_QUERIES);
 
     expect(events).toHaveLength(1);
     expect(marked).toEqual([events[0]!.reference]);

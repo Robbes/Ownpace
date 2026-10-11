@@ -104,7 +104,11 @@ statement runs in the config's tenant's scope, and `SYSTEM_DATABASE_URL`, the
 system role's (`ownpace_system`, which has no password until one is set on it,
 as the bring-up does), for the audit key alone. It calls the same `runAllDomains` the editions run, so it cannot
 drift from them silently, and the sync it runs is the ordinary
-non-destructive shadow pass. Use it to debug a connector or reproduce a
+non-destructive shadow pass. Each firing (`--once`, and every cron tick in
+scheduled mode) reads the migration's phases from that database first, as the
+appliance does: a data type past its cutover gets no deletion detectors, one
+paused or stopped does not run, and a mapping whose phases cannot be read (no
+row, or a database that does not answer) is a firing refused, not a guess. Use it to debug a connector or reproduce a
 support case end to end without booting an edition; it has no live caller
 in either edition, by design.
 

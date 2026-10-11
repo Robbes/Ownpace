@@ -59,6 +59,9 @@ vi.mock('@openmig/core', async (importOriginal) => {
 
 const { runAllDomains } = await import('./orchestration.ts');
 
+/** The reader the pass asks again (2026-10-05), answering what the firing's own reading answers. */
+const ACTIVE_NOW = async () => ({ anyRuns: true, grantWithdrawnAt: null, phaseOf: phasesOfTheMigration('active') });
+
 const TENANT = '00000000-0000-4000-8000-0000000002a0';
 const MAPPING = '11111111-1111-4111-8111-1111111102a0';
 const PASSWORD_ENV = 'A_PASSWORD_FOR_THE_2A_UNREAD_FOLDER_TEST';
@@ -136,7 +139,7 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 const pass = (withNote = true) =>
-  runAllDomains(mapping(), recording(withNote), phasesOfTheMigration('active'), { ledgerDb });
+  runAllDomains(mapping(), recording(withNote), phasesOfTheMigration('active'), ACTIVE_NOW, { ledgerDb });
 
 describe("the appliance's pass, for a data type with a folder it could not list", () => {
   it('does not mark it completed, and names the folder', async () => {

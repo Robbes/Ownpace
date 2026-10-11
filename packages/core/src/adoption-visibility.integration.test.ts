@@ -93,6 +93,7 @@ describe('adoption is counted and recorded apart from a skip (integration)', () 
   function pass(source: MemorySource, target: MemoryTarget) {
     return runShadowPass({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: asTenantId(TENANT as never),
       mappingId: asMappingId(MAPPING as never),
       source,

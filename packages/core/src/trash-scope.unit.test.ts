@@ -77,6 +77,7 @@ describe('the default: trash and junk are left behind', () => {
     const target = new MemoryTarget();
     const result = await runShadowPass({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source: fourFolders(),
@@ -93,6 +94,7 @@ describe('the default: trash and junk are left behind', () => {
     // A default nobody is told about is just a different silent answer.
     const result = await runShadowPass({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source: fourFolders(),
@@ -109,6 +111,7 @@ describe('the default: trash and junk are left behind', () => {
 
     const result = await runShadowPass({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source,
@@ -127,6 +130,7 @@ describe('the owner overrides it', () => {
     const target = new MemoryTarget();
     const result = await runShadowPass({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source: fourFolders(),
@@ -145,6 +149,7 @@ describe('the owner overrides it', () => {
     // deleted mail as an archive.
     const result = await runShadowPass({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source: fourFolders(),
@@ -205,6 +210,7 @@ describe('the source href reaches the ledger row', () => {
 
     await runShadowPass({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source,
