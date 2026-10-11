@@ -37,6 +37,7 @@ const pass = (
 ) =>
   runShadowPass({
     sourceIsAuthorityOnExistence: true,
+    stillTheAuthority: async () => true,
     tenantId: TENANT,
     mappingId: MAPPING,
     source,

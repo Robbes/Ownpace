@@ -59,6 +59,7 @@ const keyOf = (id: string) => `hash:${id}`;
 function onePass(ledger: MemoryLedger, message: Message) {
   return runDomainSync<unknown, unknown, Message, { path: string }>({
     sourceIsAuthorityOnExistence: true,
+    stillTheAuthority: async () => true,
     tenantId: TENANT,
     mappingId: MAPPING,
     domain: 'email',
@@ -115,6 +116,7 @@ describe('the hook stays optional', () => {
     const ledger = new MemoryLedger();
     await runDomainSync<unknown, unknown, Message, { path: string }>({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       domain: 'email',

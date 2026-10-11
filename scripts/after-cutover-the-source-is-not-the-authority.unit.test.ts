@@ -34,14 +34,18 @@
  *
  * ## The vocabulary comes from the database, not from here
  *
- * `mailbox_mapping.status` has four legal values and migration 0001's CHECK is
- * the authority. Restating them here would be a fifth copy that could go stale
- * exactly when a fifth status is added — which is the moment this guard most
- * needs to be right — so the list is parsed out of the SQL.
+ * `mailbox_mapping.status` has five legal values, and the CHECK that last
+ * defines them is the authority: today
+ * `packages/ledger/migrations/0044_a_lane_that_does_not_end.sql`, since the
+ * continuous lane (0117 T1) added `continuous`. Restating them here would be another copy that
+ * could go stale exactly when a status is added — which is the moment this
+ * guard most needs to be right — so the list is parsed out of the SQL. Out of
+ * the LAST migration that defines it: this read 0001's four until 2026-10-05,
+ * and so classified every status but the one that keeps copying after cutover.
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   isAfterCutover,
@@ -55,15 +59,29 @@ import { pathRunsNow, pathSourceAuthority } from '../packages/shared/src/path-ph
 const ROOT = join(import.meta.dirname, '..');
 const read = (rel: string): string => readFileSync(join(ROOT, rel), 'utf8');
 
-/** The legal `mailbox_mapping.status` values, from the CHECK that enforces them. */
+/**
+ * The legal `mailbox_mapping.status` values, from the CHECK that enforces them
+ * NOW: the last migration that (re)defines it, since a later one replaces the
+ * constraint rather than adding to it. 0001 wrote four; 0044 replaced them
+ * with five (`continuous`, 0117 T1), and this read 0001 until 2026-10-05, so
+ * the one status that keeps copying after cutover was never classified here.
+ */
 function statusesFromTheDatabase(): string[] {
-  const sql = read('packages/ledger/migrations/0001_baseline.sql');
-  const check = /CONSTRAINT mailbox_mapping_status_check CHECK \(\(status = ANY \(ARRAY\[([^\]]+)\]\)\)\)/
-    .exec(sql);
-  expect(check, 'migration 0001 no longer constrains mailbox_mapping.status — has it moved?')
-    .not.toBeNull();
-  const values = [...check![1]!.matchAll(/'([a-z_]+)'::text/g)].map((m) => m[1]!);
-  expect(values.length, 'the CHECK parsed to no values').toBeGreaterThanOrEqual(4);
+  const dir = 'packages/ledger/migrations';
+  // Both spellings: pg_dump's `CONSTRAINT … CHECK ((status = ANY (ARRAY[…])))`
+  // in the baseline, and a hand-written `ADD CONSTRAINT …\n  CHECK (status = …)`.
+  const constraint = /CONSTRAINT mailbox_mapping_status_check\s+CHECK\s*\(+status = ANY \(ARRAY\[([^\]]+)\]/;
+  const defining = readdirSync(join(ROOT, dir))
+    .filter((f) => f.endsWith('.sql'))
+    .sort()
+    .flatMap((f) => {
+      const check = constraint.exec(read(`${dir}/${f}`));
+      return check ? [{ file: f, list: check[1]! }] : [];
+    });
+  const latest = defining.at(-1);
+  expect(latest, 'no migration constrains mailbox_mapping.status any more — has it moved?').toBeDefined();
+  const values = [...latest!.list.matchAll(/'([a-z_]+)'::text/g)].map((m) => m[1]!);
+  expect(values.length, `the CHECK in ${latest!.file} parsed to no values`).toBeGreaterThanOrEqual(4);
   return values;
 }
 
@@ -77,7 +95,11 @@ describe('after cutover the source is not the authority', () => {
     // ended, so the source is still the authority. Reading it as "after"
     // would silently stop mirroring for a customer who merely pressed pause.
     expect(before.sort()).toEqual(['active', 'paused']);
-    expect(after.sort()).toEqual(['cutover', 'done']);
+    // `continuous` is AFTER cutover, by definition: it keeps copying, and the
+    // old system no longer decides what exists. Read as "before", the one
+    // status that keeps reading the old account after the switch would carry
+    // every deletion detector with it.
+    expect(after.sort()).toEqual(['continuous', 'cutover', 'done']);
   });
 
   it('an unknown status is treated as BEFORE cutover — the direction that keeps looking', () => {

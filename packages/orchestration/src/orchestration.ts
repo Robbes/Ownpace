@@ -65,7 +65,7 @@ import { discoverDomains, type DomainDiscoveryTask, type DomainDiscoveryOutcome 
 import { log, metrics as registry, MAX_ITEM_ATTEMPTS, type PassMetrics } from '@openmig/shared';
 import { domainFailedEvent, recordAppEvent } from '@openmig/shared';
 import { DISCOVERY_DOMAINS, DOMAIN_CONFIG_KEY } from '@openmig/shared';
-import { sourceAuthorityFor, type PathPhaseOf } from '@openmig/shared';
+import { sourceStillDecides, type PassPhases, type PathPhaseOf, type SourceAuthority } from '@openmig/shared';
 
 /**
  * Feed one completed pass into the Prometheus registry (§19 dashboards).
@@ -153,6 +153,11 @@ export interface DomainSyncResult {
    * only place it is visible.
    */
   changedButAdopted?: number;
+  /**
+   * Changed on the source after cutover and left as the target has them (the
+   * owner, 2026-10-05: "Stop overwriting"; `DomainSyncResult.changedAfterCutover`).
+   */
+  changedAfterCutover?: number;
   failed: number;
   /** Failures that have run out of automatic retries and need an owner decision. */
   needsDecision?: number;
@@ -389,24 +394,30 @@ export async function recordSwitchedOff(
  * Run all enabled domains for one mapping config, with status tracking.
  *
  * `phaseOf` is each data type's phase (`readPathPhases`, ledger), read by the
- * caller immediately before the pass. It is REQUIRED and comes before
- * `ledger` on purpose: this is the appliance's half of 0117 D4, and a pass
- * that does not know which phase it is running in must not compile. `ledger`
- * is required too since workplan 0138 T1 part 2: a pass is handed its ledger
- * and opens none from `DATABASE_URL`.
- * From it, `sourceAuthorityFor` decides, per data type, whether that data
- * type carries deletion detectors at all — see `runDomainSync`'s
- * `sourceIsAuthorityOnExistence` (workplan 0128 T5). Until a data type can have
- * a phase of its own, every one has the migration's, so the answer is the one
- * the whole migration gave.
+ * caller immediately before the pass, and what it schedules by: which data
+ * types it moves past, and in which words. `phasesNow` is the same reader,
+ * handed in so it can be asked AGAIN (2026-10-05). Both are REQUIRED and come
+ * before `ledger` on purpose: this is the appliance's half of 0117 D4, and a
+ * pass that does not know which phase it is running in must not compile.
+ * `ledger` is required too since workplan 0138 T1 part 2: a pass is handed its
+ * ledger and opens none from `DATABASE_URL`.
+ *
+ * From `phasesNow`, read when each data type STARTS, `sourceStillDecides`
+ * decides whether that data type carries deletion detectors at all — see
+ * `runDomainSync`'s `sourceIsAuthorityOnExistence` (workplan 0128 T5) — and
+ * the same question is handed to its pass to ask again before it concludes
+ * anything (`stillTheAuthority`), and to the relocation auto-apply before it
+ * removes anything. Read once per firing, as it was until 2026-10-05, a data
+ * type that started hours after the owner pressed execute was handed the
+ * answer from before it, and read the old system's bin after cutover.
  *
  * `runsNow` is whether one data type's passes run now. The appliance hands it
  * `pathRunsNow` of the same phases, so its pass moves on past a data type that
  * no longer runs while the others do (its own cutover past its grace period, or
  * ended), as the managed pass does (`passStepBefore`, worker). The standalone
- * worker hands nothing, and runs every data type its configuration enables, as
- * it always has: it has never refused a pass for the migration's state, and
- * gains no refusal here.
+ * worker hands the same since 2026-10-05, read on every firing; until then it
+ * read its migration once, when it started, and ran every data type its
+ * configuration enabled. Absent, every data type runs.
  *
  * `whyItStops` is the migration's answer asked AGAIN, per data type, once the
  * firing is under way (2026-09-29): null to go on, or why this data type must
@@ -417,13 +428,15 @@ export async function recordSwitchedOff(
  * `passStepBefore`, which it never had — and handed to each data type's pass,
  * which asks it from inside at most once every `PASS_REREAD_EVERY_MS`. The
  * appliance hands `stopReasonOf(stepFrom(readPathPhases(…), domain))`, the
- * decision the managed pass makes. The standalone worker hands nothing: it
- * reads its migration once, from a file, and no Pause reaches it.
+ * decision the managed pass makes, and so does the standalone worker since
+ * 2026-10-05. Absent, nothing can tell the pass to stop: the tests that
+ * script the loop's clock.
  */
 export async function runAllDomains(
   config: MappingConfig,
   statusStore: MigrationStatusStore,
   phaseOf: PathPhaseOf,
+  phasesNow: () => Promise<PassPhases>,
   ledger: LedgerOptions,
   runsNow: (domain: DiscoveryDomain) => boolean = () => true,
   whyItStops?: (domain: DiscoveryDomain) => Promise<PassStopReason | null>,
@@ -435,8 +448,13 @@ export async function runAllDomains(
   const mappingId = config.mappingId as MappingId;
 
   // Each data type's own phase, from the database and never from the config,
-  // spread onto that data type's deps below (0117 D4, 0128 T5).
-  const authority = (domain: DiscoveryDomain) => sourceAuthorityFor(phaseOf(domain).phase);
+  // spread onto that data type's deps below (0117 D4, 0128 T5): read when the
+  // data type starts, and asked again by its pass before it concludes anything
+  // (2026-10-05). Not the firing's reading, which can be hours old by then.
+  const authority = async (domain: DiscoveryDomain): Promise<SourceAuthority> => ({
+    sourceIsAuthorityOnExistence: sourceStillDecides(await phasesNow(), domain),
+    stillTheAuthority: async () => sourceStillDecides(await phasesNow(), domain),
+  });
 
   // The question the loop asks from inside a data type's pass, about that data
   // type (2026-09-29), spread onto its deps beside `authority`. Nothing at all
@@ -546,10 +564,13 @@ export async function runAllDomains(
 
       await statusStore.markInProgress(tenantId, mappingId, domain);
 
+      // This data type's phase as it starts, and its question for later.
+      const startsAs = await authority(domain);
+
       // Each builder opens a Postgres pool; always release it after the pass
       // (finally) so a long-running scheduler never leaks a pool per domain.
       if (domain === 'email') {
-        const deps = { ...(await buildDeps(config, ledger)), ...authority(domain), ...askedWhy(domain) };
+        const deps = { ...(await buildDeps(config, ledger)), ...startsAs, ...askedWhy(domain) };
         try {
           const result = await runShadowPass(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
@@ -577,7 +598,7 @@ export async function runAllDomains(
           await deps.close();
         }
       } else if (domain === 'calendar') {
-        const deps = { ...buildDomainDeps(config, 'calendar', ledger), ...authority(domain), ...askedWhy(domain) };
+        const deps = { ...buildDomainDeps(config, 'calendar', ledger), ...startsAs, ...askedWhy(domain) };
         try {
           const result = await runCalendarSync(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
@@ -595,6 +616,7 @@ export async function runAllDomains(
             adopted: result.adopted,
             updated: result.updated,
             changedButAdopted: result.changedButAdopted,
+            changedAfterCutover: result.changedAfterCutover,
             failed: result.failed,
             needsDecision: result.needsDecision,
             leftBehind: result.leftBehind,
@@ -606,7 +628,7 @@ export async function runAllDomains(
           await deps.close();
         }
       } else if (domain === 'contact') {
-        const deps = { ...buildDomainDeps(config, 'contact', ledger), ...authority(domain), ...askedWhy(domain) };
+        const deps = { ...buildDomainDeps(config, 'contact', ledger), ...startsAs, ...askedWhy(domain) };
         try {
           const result = await runContactSync(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
@@ -624,6 +646,7 @@ export async function runAllDomains(
             adopted: result.adopted,
             updated: result.updated,
             changedButAdopted: result.changedButAdopted,
+            changedAfterCutover: result.changedAfterCutover,
             failed: result.failed,
             needsDecision: result.needsDecision,
             leftBehind: result.leftBehind,
@@ -651,7 +674,7 @@ export async function runAllDomains(
         // `else` is never a compile error either. It is the meaner of the two,
         // because an absent branch omits work while a catch-all does the wrong
         // work and says it went fine.
-        const deps = { ...buildDomainDeps(config, 'task', ledger), ...authority(domain), ...askedWhy(domain) };
+        const deps = { ...buildDomainDeps(config, 'task', ledger), ...startsAs, ...askedWhy(domain) };
         try {
           const result = await runTaskSync(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
@@ -669,6 +692,7 @@ export async function runAllDomains(
             adopted: result.adopted,
             updated: result.updated,
             changedButAdopted: result.changedButAdopted,
+            changedAfterCutover: result.changedAfterCutover,
             failed: result.failed,
             needsDecision: result.needsDecision,
             leftBehind: result.leftBehind,
@@ -679,7 +703,7 @@ export async function runAllDomains(
           await deps.close();
         }
       } else if (domain === 'file') {
-        const deps = { ...buildDomainDeps(config, 'file', ledger), ...authority(domain), ...askedWhy(domain) };
+        const deps = { ...buildDomainDeps(config, 'file', ledger), ...startsAs, ...askedWhy(domain) };
         // Captured BEFORE the pass: ADR-0031's survived-a-pass gate compares
         // each relocation's recording date against this, so a move this very
         // pass records is never auto-applied by the same pass that made it.
@@ -706,6 +730,7 @@ export async function runAllDomains(
             adopted: result.adopted,
             updated: result.updated,
             changedButAdopted: result.changedButAdopted,
+            changedAfterCutover: result.changedAfterCutover,
             failed: result.failed,
             needsDecision: result.needsDecision,
             leftBehind: result.leftBehind,
@@ -728,7 +753,7 @@ export async function runAllDomains(
           // item, so a stop set during the last large upload is one it never
           // hears. Only when there is an apply to withhold, so a mapping that
           // never opted in pays nothing for it, and only when somebody handed
-          // the question in, as the standalone worker does not.
+          // the question in.
           if (config.autoApplyRelocations === true) {
             const toldToStop = haltPause?.reason ?? (whyItStops ? await whyItStops('file') : null);
             if (toldToStop === null) {
@@ -741,6 +766,10 @@ export async function runAllDomains(
                   target: deps.target,
                   allowApplyDeletions: config.allowApplyDeletions,
                   autoApplyRelocations: true,
+                  // The file data type's phase, asked fresh at the apply from
+                  // the reader this firing was handed: after cutover the apply
+                  // removes nothing, and says so itself (2026-10-05).
+                  stillTheAuthority: deps.stillTheAuthority,
                   ...(config.targetFolderPrefix !== undefined
                     ? { targetFolderPrefix: config.targetFolderPrefix }
                     : {}),
@@ -868,6 +897,13 @@ export async function runAllDomains(
           `[Worker] ${domain}: ${outcome.changedButAdopted} item(s) changed on the source but ` +
             'were left as the destination already had them (adopted, never written by us). ' +
             'Non-destructive by hard rule 2; the owner decides whether to replace them.',
+        );
+      }
+      if (outcome.changedAfterCutover) {
+        log.info(
+          `[Worker] ${domain}: ${outcome.changedAfterCutover} item(s) changed on the source after ` +
+            'cutover and were left as the destination has them: after cutover a change there no ' +
+            'longer overwrites a copy here. New items are still copied.',
         );
       }
       if (outcome.deletions) {
@@ -1324,11 +1360,20 @@ async function openSyncDomainDeps(
  * calendar event never produces a misleading "the mail target cannot remove
  * items" refusal — the mail domain is simply skipped because it has no row
  * under that key.
+ *
+ * AND THE DATA TYPE'S PHASE, asked at the press (2026-10-05). `phasesNow` is
+ * the appliance's reader of this migration's phases (`readPathPhases`), read
+ * fresh each time core asks whether the old system still decides what exists
+ * for the data type that holds the item; after cutover core refuses
+ * (`after_cutover`). The owner, asked whether such a press should be refused:
+ * *"Refuse after cutover (Recommended)"*. REQUIRED: a route that cannot ask
+ * must not compile.
  */
 export async function applyMappingDeletion(
   config: MappingConfig,
   naturalKeyHash: string,
   ledger: LedgerOptions,
+  phasesNow: () => Promise<PassPhases>,
 ): Promise<ApplyDeletionOutcome> {
   const tenantId = config.tenantId as TenantId;
   const mappingId = config.mappingId as MappingId;
@@ -1358,6 +1403,7 @@ export async function applyMappingDeletion(
           ledger: deps.ledger,
           target: deps.target,
           allowApplyDeletions: config.allowApplyDeletions,
+          stillTheAuthority: async () => sourceStillDecides(await phasesNow(), domain),
           ...(config.targetFolderPrefix !== undefined
             ? { targetFolderPrefix: config.targetFolderPrefix }
             : {}),
@@ -1388,11 +1434,14 @@ export async function applyMappingDeletion(
  * two are chosen by DIFFERENT owner actions in the UI and API, and a boolean
  * threaded through the appliance's route to pick between two destructive
  * behaviours is one typo away from performing the other one.
+ *
+ * `phasesNow`, as for `applyMappingDeletion`: after cutover core refuses.
  */
 export async function applyMappingRelocation(
   config: MappingConfig,
   naturalKeyHash: string,
   ledger: LedgerOptions,
+  phasesNow: () => Promise<PassPhases>,
 ): Promise<ApplyDeletionOutcome> {
   const tenantId = config.tenantId as TenantId;
   const mappingId = config.mappingId as MappingId;
@@ -1420,6 +1469,7 @@ export async function applyMappingRelocation(
           ledger: deps.ledger,
           target: deps.target,
           allowApplyDeletions: config.allowApplyDeletions,
+          stillTheAuthority: async () => sourceStillDecides(await phasesNow(), domain),
           ...(config.targetFolderPrefix !== undefined
             ? { targetFolderPrefix: config.targetFolderPrefix }
             : {}),

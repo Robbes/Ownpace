@@ -71,6 +71,7 @@ function world(ledger: Ledger = new MemoryLedger()) {
     const byPath = new Map(holdings.map(([f, items]) => [f.path, items]));
     return runDomainSync<unknown, unknown, Item, Folder>({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       domain: 'file',

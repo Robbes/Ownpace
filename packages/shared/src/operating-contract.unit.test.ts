@@ -43,10 +43,14 @@ function deletion(over: Partial<ItemDeletion> = {}): ItemDeletion {
   };
 }
 
+// Every case here is before cutover: no data type is past it. The cases after
+// it (2026-10-05) are in `a-button-offered-after-cutover.unit.test.ts`.
+const NONE_PAST_CUTOVER = [] as const;
+
 describe('mayOfferApply', () => {
   it('offers apply for positive evidence that is confirmed', () => {
-    expect(mayOfferApply(deletion({ evidence: 'reported' }))).toBe(true);
-    expect(mayOfferApply(deletion({ evidence: 'trashed' }))).toBe(true);
+    expect(mayOfferApply(deletion({ evidence: 'reported' }), NONE_PAST_CUTOVER)).toBe(true);
+    expect(mayOfferApply(deletion({ evidence: 'trashed' }), NONE_PAST_CUTOVER)).toBe(true);
   });
 
   it('never offers apply for inferred evidence, however many passes it repeats', () => {
@@ -60,11 +64,11 @@ describe('mayOfferApply', () => {
       absentPasses: DELETION_CONFIRMATIONS * 50,
     });
     expect(stubborn.confirmed).toBe(true);
-    expect(mayOfferApply(stubborn)).toBe(false);
+    expect(mayOfferApply(stubborn, NONE_PAST_CUTOVER)).toBe(false);
   });
 
   it('does not offer apply for an unconfirmed item even with positive evidence', () => {
-    expect(mayOfferApply(deletion({ evidence: 'reported', confirmed: false }))).toBe(false);
+    expect(mayOfferApply(deletion({ evidence: 'reported', confirmed: false }), NONE_PAST_CUTOVER)).toBe(false);
   });
 });
 

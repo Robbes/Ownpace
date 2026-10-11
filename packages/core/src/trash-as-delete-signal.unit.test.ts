@@ -63,6 +63,7 @@ const pass = (
 ) =>
   runShadowPass({
     sourceIsAuthorityOnExistence: true,
+    stillTheAuthority: async () => true,
     tenantId: TENANT,
     mappingId: MAPPING,
     source,
@@ -207,6 +208,7 @@ describe('what the bin must NOT be read as', () => {
 
     const first = await runShadowPass({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source,
@@ -219,6 +221,7 @@ describe('what the bin must NOT be read as', () => {
     source.move('<a@dev.local>', 'INBOX', 'Trash');
     const second = await runShadowPass({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source,
@@ -301,6 +304,7 @@ describe('the bin scan and the cursors', () => {
     // copied, rather than skipped past by a cursor the scan had advanced.
     const adopted = await runShadowPass({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source,

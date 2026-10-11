@@ -141,9 +141,16 @@ describe('the lane runs, in both editions and by one authority', () => {
     // Today the two are the same answer; the day mail can be cut over on its
     // own, a builder still asking the migration would give mail's pass the
     // detectors back while the migration reads `active` for its files.
+    //
+    // The appliance's `runAllDomains` reads it through `sourceStillDecides`
+    // since 2026-10-05, from the reader it is handed and asks afresh when each
+    // data type starts; the managed builder still spreads `sourceAuthorityFor`
+    // of the phase it read. Both are held to the phase, never to a literal.
+    expect(source('packages/orchestration/src/orchestration.ts')).toContain(
+      'sourceIsAuthorityOnExistence: sourceStillDecides(await phasesNow(), domain),',
+    );
     for (const file of [
       'packages/orchestration/src/build-deps-from-mapping.ts',
-      'packages/orchestration/src/orchestration.ts',
     ]) {
       const src = source(file);
       const calls = src
@@ -160,15 +167,29 @@ describe('the lane runs, in both editions and by one authority', () => {
         `${file} hard-codes the phase instead of reading it from the database`,
       ).toBe(false);
     }
+    expect(
+      /sourceIsAuthorityOnExistence:\s*(true|false)|stillTheAuthority:\s*async\s*\(\)\s*=>\s*(true|false)/.test(
+        source('packages/orchestration/src/orchestration.ts'),
+      ),
+      'the appliance hard-codes the phase, or the question that asks it again',
+    ).toBe(false);
   });
 
   it('each asks the one reader, for the data type it is building', () => {
     // Managed: mail asks for mail's phase, and the other four for their own,
     // through `readPathPhases`, the reader the pass's stop check asks too.
     const managed = source('packages/orchestration/src/build-deps-from-mapping.ts');
-    expect(managed.match(/readPathPhases\(txDb, tenantId, mappingId\)/g)?.length).toBe(2);
+    // Three: mail's phase, the other four's, and the question every pass asks
+    // again before it concludes anything (2026-10-05, `stillTheAuthorityOf`).
+    expect(managed.match(/readPathPhases\(txDb, tenantId, mappingId\)/g)?.length).toBe(3);
     expect(managed).toContain(".phaseOf('email')");
     expect(managed).toContain('sourceAuthorityFor(phaseOf(domain).phase)');
+    // Both builders hand their pass that question, for the data type they build.
+    expect(managed).toContain("stillTheAuthority: stillTheAuthorityOf(pool, tenantId, mappingId, 'email'),");
+    expect(managed).toContain('stillTheAuthority: stillTheAuthorityOf(pool, tenantId, mappingId, domain),');
+    expect(managed).toMatch(
+      /sourceStillDecides\(await readPathPhases\(txDb, tenantId, mappingId\), domain\)/,
+    );
     // The appliance: the pass is handed the reader's phases, read just before
     // it, and asks that one reading both questions — whether each data type
     // still runs, and whether its source still decides what exists.
@@ -176,12 +197,47 @@ describe('the lane runs, in both editions and by one authority', () => {
     const pass = appliance.slice(appliance.indexOf('const results = await runAllDomains('));
     expect(appliance).toContain('readPathPhases(tdb, tenantId, mappingId)');
     expect(appliance).toContain('const phaseOf = phases?.phaseOf ?? phasesOfTheMigration(currentStatus);');
+    // And hands over the reader itself (`phasesNow`), so a data type that
+    // starts after the owner pressed execute is not handed the answer from
+    // before it (2026-10-05).
     expect(pass.slice(0, pass.indexOf(');'))).toMatch(
-      /statusStore,\s*phaseOf,\s*ledgerOptions,\s*\(domain\) => pathRunsNow\(phaseOf\(domain\)\),/,
+      /statusStore,\s*phaseOf,\s*phasesNow,\s*ledgerOptions,\s*\(domain\) => pathRunsNow\(phaseOf\(domain\)\),/,
     );
-    expect(source('packages/orchestration/src/orchestration.ts')).toContain(
-      'const authority = (domain: DiscoveryDomain) => sourceAuthorityFor(phaseOf(domain).phase);',
+    expect(appliance).toMatch(
+      /const phasesNow = \(\) =>\s*withTenant\(persistenceBackend\.driver, tenantId, \(tdb\) => readPathPhases\(tdb, tenantId, mappingId\)\);/,
     );
+    const orchestration = source('packages/orchestration/src/orchestration.ts');
+    expect(orchestration).toContain('stillTheAuthority: async () => sourceStillDecides(await phasesNow(), domain),');
+    // Read when the data type starts, inside its own run, not once per firing.
+    const runOne = orchestration.slice(orchestration.indexOf('async function runOneDomain('));
+    expect(runOne).toContain('const startsAs = await authority(domain);');
+  });
+
+  it('the standalone worker asks the same reader on every firing, and refuses when it cannot', () => {
+    // A third caller of `runAllDomains`, not deployed by either edition but
+    // shipped (apps/worker/README.md). It read `mailbox_mapping.status` once,
+    // when the process started, assumed `active` when it could not, and so
+    // never heard a cutover, a Pause, or a data type cut over on its own
+    // (2026-10-05). Now each firing — `--once` and every cron tick — reads
+    // the phases the appliance reads, hands the pass the reader and the
+    // question it stops by, and a phase it cannot read is a firing refused,
+    // never a guess.
+    const cli = source('apps/worker/src/index.ts');
+    expect(cli, 'the CLI reads the migration status alone again').not.toMatch(/mailboxMapping\.status/);
+    expect(cli, "the CLI assumes a phase it did not read").not.toMatch(/'active'/);
+    const firing = cli.slice(cli.indexOf('const fire = async'), cli.indexOf('if (once) {'));
+    expect(firing, 'no firing reads the phases for itself').toContain('const phases = await phasesNow();');
+    expect(firing, 'a migration with no row is run anyway').toMatch(/if \(phases === null\) \{\s*throw new Error\(/);
+    const call = firing.slice(firing.indexOf('runAllDomains('));
+    expect(call.slice(0, call.indexOf(');'))).toMatch(
+      /statusStore,\s*phases\.phaseOf,\s*phasesNow,\s*ledgerOptions,\s*\(domain\) => pathRunsNow\(phases\.phaseOf\(domain\)\),\s*\(domain\) => phasesNow\(\)\.then\(\(current\) => stopReasonOf\(stepFrom\(current, domain\)\)\),/,
+    );
+    expect(cli).toMatch(
+      /const phasesNow = \(\) =>\s*withTenant\(pools\.tenant, config\.tenantId, \(tx\) => readPathPhases\(tx, config\.tenantId, config\.mappingId\)\);/,
+    );
+    // Both ways of firing go through it, and nothing else runs a pass.
+    expect(cli.match(/await fire\(\)/g)?.length, 'a firing that does not read the phases').toBe(2);
+    expect(cli.match(/runAllDomains\(/g)?.length).toBe(1);
   });
 
   it('the refusal stops telling somebody a post-cutover mapping never syncs', () => {

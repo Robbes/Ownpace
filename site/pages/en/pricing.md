@@ -32,8 +32,9 @@ comes down as each thing finishes. We do not steer you either way.
 second, which is the point of it. Finishing is what frees the space.
 
 **Unless you ask us to keep copying.** Some people want the old account to keep feeding the
-new one after they have moved — a shared calendar somebody else still writes to, a folder a
-colleague still drops things into. That is a migration that never finishes, so it never stops
+new one after they have moved — new events in a shared calendar somebody else still writes to,
+new files in a folder a colleague still drops things into. Only new items keep arriving: what is
+changed or removed there no longer reaches your new home. That is a migration that never finishes, so it never stops
 counting: the tier stays where it is until you end it. We will not switch it on for you, and
 we will not bill past twelve months without asking you again.
 

@@ -800,9 +800,12 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
   /**
    * Whether the SOURCE is still the authority on what exists (0117 D4).
    *
-   * `!isAfterCutover(mailbox_mapping.status)`, decided once per pass by
+   * `!isAfterCutover(phase)`, where the phase is this data type's own
+   * (`readPathPhases`, ledger; 0128 T5), read when the pass starts by
    * whoever assembled these deps, and the ONE thing that keeps a deletion
-   * detector away from the continuous lane.
+   * detector away from the continuous lane. Asked AGAIN, through
+   * `stillTheAuthority`, right before the pass concludes anything, because
+   * a cutover executed while the pass runs does not wait for it.
    *
    * ## Why it is here rather than at the apply, and why it is required
    *
@@ -818,16 +821,18 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    * within this pass:
    *
    *  1. **the reported stream** — a source announcing its own removals
-   *     (OneDrive's delta). The hrefs are not even collected, so
-   *     `resolveReportedRemovals` has nothing to resolve.
+   *     (OneDrive's delta, Graph mail's `@removed`, a DAV `sync-collection`,
+   *     Google Tasks' `deleted`). The sources still return them; the hrefs
+   *     are not collected here, so `resolveReportedRemovals` has nothing to
+   *     resolve.
    *  2. **the owner's bin** — `listDiscardedKeys`, positive evidence that a
-   *     person deleted something, and the mail domain's ONLY deletion
-   *     evidence. Stripped from the deps in `withSides`, so the closure is
+   *     person deleted something, and the only deletion evidence mail has
+   *     over IMAP. Stripped from the deps in `withSides`, so the closure is
    *     not present to be called.
    *  3. **absence-counting** — `detectPathKeyedMoves`, where a file's
    *     deletions come from. Not called.
    *
-   * `moves` and the path-keyed `drift` count go with the third, because they
+   * The path-keyed `moves` and `drift` go with the third, because they
    * are the same correlation: a move is a disappearance matched to an
    * arrival, and the disappearance half is the deletion signal. The visible
    * consequence, said out loud rather than discovered: **after cutover, a
@@ -836,12 +841,38 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    * of this trade; the alternative is `applyRelocation` removing a target
    * copy because the old system was reorganised.
    *
+   * NOT the folder moves the loop itself writes down (`classifyKnownItem`'s
+   * `'moved'`). Mail, calendar, contacts and tasks keep their key when an
+   * item changes folder, so the loop sees the same item somewhere else and
+   * records it, after cutover as before it, and it still reaches the Moves
+   * queue. That concludes nothing about what exists, and nothing can act on
+   * it: it records no arrival, so `relocationCheck` refuses it
+   * (`not_relocated`) and `autoApplyRelocations` never selects it.
+   *
+   * AND NO OVERWRITE (the owner, 2026-10-05: "Stop overwriting"). When this
+   * is `false`, a change at the source to an item we copied is not written
+   * over our copy either: `classifyKnownItem`'s `'rewrite'` becomes a counted
+   * no-op before any fetch (`changedAfterCutover`). Only new items are copied.
+   *
    * REQUIRED, with no default, so that adding a caller is a decision rather
    * than an omission. Every `runDomainSync` in this repository is inside
    * `packages/core`, and each one's wrapper carries the same field up to the
-   * dep builders, which read it from the mapping's own lifecycle row.
+   * dep builders, which read it from the data type's own phase
+   * (`readPathPhases`).
    */
   readonly sourceIsAuthorityOnExistence: boolean;
+  /**
+   * The same question asked again, fresh, right before the end-of-pass
+   * conclusions (2026-10-05; `SourceAuthority.stillTheAuthority`). Asked once,
+   * and only by a pass that started with the source as the authority: one that
+   * started after cutover has no conclusions to withhold. A "no" leaves out all
+   * three producers above for this pass, exactly as if it had started after
+   * cutover: no reported removal is resolved, the bin is not read, nothing is
+   * counted absent or moved. What it copied stays copied.
+   *
+   * REQUIRED, for the reason the answer it re-asks is.
+   */
+  readonly stillTheAuthority: () => Promise<boolean>;
 }
 
 /** Summary of a domain sync pass. */
@@ -925,6 +956,19 @@ export interface DomainSyncResult {
    * decides about their own data.
    */
   readonly changedButAdopted: number;
+  /**
+   * Items that changed on the source AFTER CUTOVER and were left as the target
+   * has them (the owner, 2026-10-05: "Stop overwriting").
+   *
+   * After cutover the old system no longer decides what exists (0117 D4), and
+   * no longer what an item we copied says either: a `'rewrite'` becomes this
+   * count, decided before any fetch, so blanking a contact or an event, or
+   * emptying a file, at the old system reaches nothing on the new one. New
+   * items are still copied. The source version is NOT advanced, so the
+   * divergence is counted on every pass, as `changedButAdopted` is, and a
+   * rollback (ADR-0047) carries the change over on its next pass.
+   */
+  readonly changedAfterCutover: number;
   /**
    * Items that failed THIS pass and will be retried on the next one.
    *
@@ -1143,6 +1187,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     listCollectionKeys,
     listDiscardedKeys,
     sourceIsAuthorityOnExistence,
+    stillTheAuthority,
     downloadMeter,
     firstCopyAllowed,
     snapshot,
@@ -1195,6 +1240,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // Changed on the source, but the target copy is the customer's own — left
   // alone by hard rule 2, and counted so that is a fact rather than a silence.
   let changedButAdopted = 0;
+  let changedAfterCutover = 0;
   let moved = 0;
   // Rewrites REFUSED because somebody edited our copy in the new system.
   let conflicted = 0;
@@ -1439,8 +1485,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
    * share the one in flight instead.
    *
    * Never asked again once it said stop, and never asked at all, with no
-   * clock read, when nobody handed it in — the standalone CLI's case, and
-   * every test that scripts this loop's clock gate by gate.
+   * clock read, when nobody handed it in — every test that scripts this
+   * loop's clock gate by gate.
    *
    * NOT caught. A question that could not be answered is not "go on": that
    * would be the swallowed error hard rule 9 forbids, on the one read that
@@ -1846,6 +1892,14 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           }
           if (action === 'leave-adopted') {
             changedButAdopted += 1;
+            return;
+          }
+          if (action === 'rewrite' && !sourceIsAuthorityOnExistence) {
+            // AFTER CUTOVER A CHANGE AT THE OLD SYSTEM OVERWRITES NOTHING (the
+            // owner, 2026-10-05: "Stop overwriting"). Counted, before any
+            // fetch, and the source version is left where it was: see
+            // `DomainSyncResult.changedAfterCutover`.
+            changedAfterCutover += 1;
             return;
           }
           if (action === 'left-behind') {
@@ -2524,6 +2578,39 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // mailbox of two folders that both refuse is not two folder notes.
   if (unreadCollections.length > 0 && !listedOne) throw firstUnreadError;
 
+  // IS THE OLD SYSTEM STILL THE AUTHORITY, NOW? (2026-10-05)
+  //
+  // `sourceIsAuthorityOnExistence` is the answer from when this pass started.
+  // Execute neither waits for a running pass nor stops it, and during the
+  // grace period the pass is told to carry on, so a pass that was copying
+  // when the owner pressed execute used to draw every conclusion below by the
+  // rules from before it: it resolved the removals the old system reported,
+  // read the old system's bin, and counted what had gone missing or moved
+  // there. The owner, 2026-10-05: *"after cross over the bin reading and
+  // deleting on target should stop, because perhaps source-leavers clean up
+  // ALL after the cross over."*
+  //
+  // So the question is asked again, once, here, before any of them. A "no"
+  // leaves all three out for this pass, exactly as a pass that started after
+  // cutover leaves them out: not run, rather than run and filtered. That also
+  // covers a file pass halted by a declared cutover (`no_longer_runs`), which
+  // still counted absence in the folders it had finished. Not caught: a
+  // question that cannot be answered fails the pass, rather than reading as
+  // "still the authority" on the one read that decides whether these
+  // conclusions may be drawn at all (hard rule 9).
+  const stillDecides = sourceIsAuthorityOnExistence && (await stillTheAuthority());
+  if (sourceIsAuthorityOnExistence && !stillDecides) {
+    log.info(
+      `[sync] ${domain}: the cutover was executed while this pass ran, so it concludes nothing ` +
+        'about what the old system deleted or moved: no removal it reported is resolved, its bin ' +
+        'is not read, and nothing is counted missing or moved. What this pass copied stays copied. ' +
+        'After cutover the old system no longer decides what exists.',
+    );
+  }
+  // The bin as this pass may still read it: absent after cutover, whether
+  // `withSides` stripped it at the start or the cutover came while it ran.
+  const bin = stillDecides ? listDiscardedKeys : undefined;
+
   // What the SOURCE said outright, which likewise can only be resolved once
   // every folder has been listed — a UID moved between two collections is a
   // removal from one and an arrival in the other.
@@ -2561,7 +2648,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     ? 'this pass stopped before listing a single collection'
     : `this pass stopped before finishing ${unfinishedCollections.size} collection(s)`;
   if (!reachedEveryCollection) {
-    if (reportedRemovals.length > 0) {
+    if (stillDecides && reportedRemovals.length > 0) {
       log.info(
         `[sync] ${domain}: ${whatItDidNotReach}, so the ${new Set(reportedRemovals).size} ` +
           'removal(s) the source reported are not resolved yet: an item reported removed may ' +
@@ -2570,7 +2657,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       );
     }
   } else {
-    if (reportedRemovals.length > 0) {
+    if (stillDecides && reportedRemovals.length > 0) {
       const reported = await resolveReportedRemovals({
         tenantId,
         mappingId,
@@ -2581,7 +2668,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       });
       deletions.push(...reported);
     }
-    // Written down, so the cursors may move past the removals now.
+    // Written down, so the cursors may move past the removals now. And past
+    // them too when the cutover came while this pass ran: a pass after it
+    // collects no removal, so holding a cursor for one waits for nothing.
     if (cursors) {
       for (const held of cursorsHeldForRemovals) {
         await cursors.set(tenantId, mappingId, held.collectionPath, held.cursor);
@@ -2624,24 +2713,24 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // for the reason `stopIfToldTo` gives. `a-pass-told-to-stop.unit.test.ts`
   // (gate 5) holds it.
   const toldToStopBeforeTheBin =
-    listDiscardedKeys && reachedEveryCollection && whyItStops !== undefined ? await whyItStops() : null;
-  if (listDiscardedKeys && !reachedEveryCollection) {
+    bin && reachedEveryCollection && whyItStops !== undefined ? await whyItStops() : null;
+  if (bin && !reachedEveryCollection) {
     log.info(
       `[sync] ${domain}: ${whatItDidNotReach}, so the owner's bin is not read for deletions ` +
         'this pass: a message in it may still be alive in a collection this pass did not look ' +
         'through. The next pass that reaches every collection reads it.',
     );
-  } else if (listDiscardedKeys && toldToStopBeforeTheBin !== null) {
+  } else if (bin && toldToStopBeforeTheBin !== null) {
     log.info(
       `[sync] ${domain}: this pass was told to stop after its last item, because ` +
         `${HALT_IN_WORDS[toldToStopBeforeTheBin]}, so the owner's bin is not read for deletions ` +
         'this pass: reading the account is work too. Nothing failed, and the next pass that ' +
         'reaches every collection reads it.',
     );
-  } else if (listDiscardedKeys) {
+  } else if (bin) {
     let discarded: DiscardedListing | undefined;
     try {
-      discarded = await listDiscardedKeys();
+      discarded = await bin();
     } catch (err) {
       // Degrade the DETECTOR, not the pass. This listing moves no data; failing
       // a whole migration because a scan of Deleted Items hiccuped would trade a
@@ -2738,12 +2827,15 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
 
   // The path-keyed half, which can only run once every folder has been listed.
   //
-  // The third deletion producer, and the one that also yields `moves` and the
-  // path-keyed `drift`. All three go together after cutover, because they are
+  // The third deletion producer, and the one that also yields the path-keyed
+  // `moves` and `drift`. All three go together after cutover, because they are
   // one correlation: a move is a disappearance matched to an arrival, and the
-  // disappearance is the deletion signal. See `sourceIsAuthorityOnExistence`
-  // for the consequence that leaves behind.
-  if (domain === 'file' && fullyEnumerated && sourceIsAuthorityOnExistence) {
+  // disappearance is the deletion signal. A folder move the loop recorded
+  // above is not one of them: it keeps being listed after cutover, and cannot
+  // be applied. See `sourceIsAuthorityOnExistence` for both, and for the
+  // consequence this leaves behind. `stillDecides`, not the answer from the
+  // start: see above.
+  if (domain === 'file' && fullyEnumerated && stillDecides) {
     if (unfinishedCollections.size > 0) {
       log.info(
         `[sync] ${domain}: this pass stopped before finishing ${unfinishedCollections.size} ` +
@@ -2842,6 +2934,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     firstCopyBytes,
     heldAtCeiling,
     changedButAdopted,
+    changedAfterCutover,
     conflicted,
     needsDecision,
     leftBehind,

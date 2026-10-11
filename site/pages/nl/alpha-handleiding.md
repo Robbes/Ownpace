@@ -89,7 +89,8 @@ uitgenodigd. De Alpha duurt enkele weken.
   gewijzigd? Dan verwijdert het dat niet. Bij e-mail controleert het dat niet. Staat handmatig
   verwijderen aan, dan ziet u een tweede knop, ook standaard uit: *Automatisch verwijderen
   inschakelen*. Die ruimt de oude kopie op van een bestand dat u in uw oude account verplaatste.
-  U kiest dan niet per bestand.
+  U kiest dan niet per bestand. Na de overstap verwijdert Ownpace op geen van beide manieren nog
+  iets: uw oude account bepaalt dan niet meer wat er bestaat.
 
 ## Zo begint u {#zo-begint-u}
 
