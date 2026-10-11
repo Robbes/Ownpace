@@ -71,6 +71,7 @@ export * from './payment-book.ts';
 export * from './money-back.ts';
 export * from './mollie-refunds.ts';
 export * from './refund-follow.ts';
+export * from './money-to-give-back.ts';
 export * from './books-read-back.ts';
 export * from './since-a-withdrawal.ts';
 export * from './withdrawal.ts';

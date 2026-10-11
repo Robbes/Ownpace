@@ -63,6 +63,9 @@ import type { PgDatabase } from '@openmig/ledger';
  *             0026): a page of every customer's audit lines, pseudonymised.
  *             Records where it started and how many lines it served; names no
  *             tenant, because it reads them all.
+ *   money_to_give_back — the money the operator gives back by hand or
+ *             watches (0111, managed migration 0055): credit notes of every
+ *             customer. Names no tenant, like the list.
  */
 export const SUPPORT_VIEWS = [
   'tenants',
@@ -73,6 +76,7 @@ export const SUPPORT_VIEWS = [
   'person',
   'log',
   'audit_export',
+  'money_to_give_back',
 ] as const;
 export type SupportView = (typeof SUPPORT_VIEWS)[number];
 

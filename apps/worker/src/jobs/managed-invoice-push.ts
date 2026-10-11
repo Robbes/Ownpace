@@ -77,7 +77,8 @@ import './refuse-internal-addresses.ts';
 import { schedules } from '@trigger.dev/sdk';
 import type { Pool } from 'pg';
 import { withTenant } from '@openmig/ledger';
-import { log, type TenantId } from '@openmig/shared';
+import { log, renderEvent, type MoneyToGiveBackEvent, type TenantId } from '@openmig/shared';
+import { notifierFromEnv } from '@openmig/connectors';
 import {
   applyReadBack,
   bookPayment,
@@ -176,8 +177,28 @@ export async function pushOrganisation(
     readonly pace?: () => Promise<void>;
     /** Mollie's API key, for a refund (slice 7d); null, a refund waits and is said. */
     readonly mollieApiKey?: string | null;
+    /**
+     * Tells the operator of money owed back (the owner, 2026-10-11): by mail to
+     * `NOTIFY_TO` in the task, a recorder in the tests. Called once for each
+     * thing said once below, after it is written down.
+     */
+    readonly tell?: (event: MoneyToGiveBackEvent) => Promise<void>;
   } = {},
 ): Promise<void> {
+  // A mail that cannot go is said, and the run goes on: the support screen's
+  // list holds what the mail would have said (managed 0055).
+  const tell = async (event: MoneyToGiveBackEvent) => {
+    if (!options.tell) return;
+    try {
+      await options.tell(event);
+    } catch (err) {
+      log.error(
+        `[invoice-push] organisation ${organisation}: the operator could not be mailed about credit note ` +
+          `${event.creditNote}; the support screen lists it:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  };
   const tenantId = organisation as TenantId;
   while (budget.left > 0 && !budget.stopped) {
     const draft = await withTenant(pool, organisation, (db) => claimNextDraft(db, tenantId, now));
@@ -288,6 +309,14 @@ export async function pushOrganisation(
             'was paid above what is owed by transfer, within 14 days of the withdrawal (terms §7), and book it on ' +
             'the credit note in Moneybird.',
         );
+        await tell({
+          kind: 'money_to_give_back',
+          reason: 'by_hand',
+          organisationId: organisation,
+          creditNote: name,
+          invoice: due.original.invoiceNumber ?? due.original.id,
+          cents: outcome.cents,
+        });
       }
     } else if (outcome.kind === 'waiting') {
       // Held until its lease runs out, and tried again the next hour.
@@ -327,6 +356,16 @@ export async function pushOrganisation(
               ? `, and take its payment off the credit note in Moneybird (booked under ${refund.refundId}).`
               : '; it was not booked in Moneybird, and will not be.'),
         );
+        await tell({
+          kind: 'money_to_give_back',
+          reason: read.status === 'failed' ? 'refund_failed' : 'refund_canceled',
+          organisationId: organisation,
+          creditNote: name,
+          invoice: refund.creditedInvoiceNumber ?? refund.reference,
+          cents: refund.refundCents,
+          refundId: refund.refundId,
+          inTheBooks: refund.inTheBooks,
+        });
       } else if (read.late && !refund.lateSaid) {
         if (await withTenant(pool, organisation, (db) => recordRefundLateSaid(db, tenantId, refund.id, now))) {
           counts.refundsLate++;
@@ -335,6 +374,16 @@ export async function pushOrganisation(
               `cents for credit note ${name} is still ${read.status} ${REFUND_LATE_DAYS} days after it was made. A ` +
               "queued refund waits until Mollie's balance covers it; terms §7 promises the money back within 14 days.",
           );
+          await tell({
+            kind: 'money_to_give_back',
+            reason: 'refund_late',
+            organisationId: organisation,
+            creditNote: name,
+            invoice: refund.creditedInvoiceNumber ?? refund.reference,
+            cents: refund.refundCents,
+            refundId: refund.refundId,
+            refundStatus: read.status,
+          });
         }
       }
     }
@@ -522,12 +571,17 @@ export const managedInvoicePush = schedules.task({
     }
     // The API's own key, for a refund (slice 7d); unset, a refund waits and each run says so.
     const mollieApiKey = process.env.MOLLIE_API_KEY?.trim() || null;
+    // The operator's mail (NOTIFY_TO), for money owed back: in English, whatever
+    // NOTIFY_LOCALE says. Off, it says so once and the support screen still lists it.
+    const channel = notifierFromEnv(process.env, (m) => log.warn(`[invoice-push] ${m}`));
+    const tell = (event: MoneyToGiveBackEvent) => channel.notifier.notify(renderEvent(event, 'en'));
     let failed = 0;
     for (const organisation of organisations) {
       try {
         // Each organisation as itself, on the tenant pool.
         await pushOrganisation(pools.tenant, organisation, now, moneybird.config, context, budget, counts, {
           mollieApiKey,
+          tell,
         });
       } catch (err) {
         // Said, and the next organisation still pushed (hard rule 9).

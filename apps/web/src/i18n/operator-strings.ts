@@ -296,6 +296,40 @@ export const OPERATOR_STRINGS = {
   'support.export.done': 'Lines downloaded: {count}. The field now holds where the next download starts.',
   'support.export.nothing': 'Nothing new after that point. An event comes once it is five minutes old.',
   'support.export.stopped': 'The download stopped: {message}',
-  'support.export.kept': 'Lines saved: {count}. The field holds where to carry on.',} as const;
+  'support.export.kept': 'Lines saved: {count}. The field holds where to carry on.',  // ---- Money to give back (workplan 0111; the owner, 2026-10-11): what the
+  // hourly invoice push asks the operator to pay back by hand, or watch.
+  'support.money.link': 'Money to give back',
+  'support.money.heading': 'Money to give back',
+  'support.money.lead':
+    'Credit notes whose money you pay back by bank transfer, and refunds to watch.',
+  'support.money.lead.why':
+    'The hourly invoice push puts each here and mails it to NOTIFY_TO once. Terms §7 promises the money back within 14 days of the withdrawal.',
+  'support.money.open.heading': 'To give back or watch',
+  'support.money.open.none': 'Nothing to give back.',
+  'support.money.done.heading': 'Given back',
+  'support.money.done.none': 'Nothing marked given back yet.',
+  'support.money.col.organisation': 'Organisation',
+  'support.money.col.creditNote': 'Credit note',
+  'support.money.col.invoice': 'Invoice',
+  'support.money.col.amount': 'Amount',
+  'support.money.col.what': 'What happened',
+  'support.money.col.since': 'Since',
+  'support.money.col.action': 'Done?',
+  'support.money.col.givenBack': 'Given back',
+  'support.money.reason.by_hand':
+    'Paid, but not through Mollie: pay back by bank transfer, and book it on the credit note in Moneybird.',
+  'support.money.reason.refund_failed': 'Mollie’s refund {refund} failed: pay back by bank transfer.',
+  'support.money.reason.refund_canceled': 'Mollie’s refund {refund} was canceled: pay back by bank transfer.',
+  'support.money.reason.inTheBooks': 'It was booked in Moneybird: take its payment off the credit note.',
+  'support.money.reason.refund_late':
+    'Mollie’s refund {refund} is still {status} a week on. A queued refund waits for Mollie’s balance.',
+  'support.money.watching': 'Leaves the list when Mollie ends it',
+  'support.money.mark': 'Given back',
+  'support.money.mark.confirm': 'Paid back by transfer, and booked in Moneybird?',
+  'support.money.mark.yes': 'Yes, mark it',
+  'support.money.mark.failed': 'Could not mark it: {message}',
+  'support.money.givenBackBy': '{when}, by {who}',
+  'support.money.someone': 'an operator no longer listed',
+} as const;
 
 export type OperatorKey = keyof typeof OPERATOR_STRINGS;

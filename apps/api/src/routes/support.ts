@@ -66,7 +66,7 @@ import {
   auditExportPageQuery,
 } from '@openmig/ledger';
 import type { LedgerDriver, PathState } from '@openmig/ledger';
-import { recordSupportRead, observedTier } from '@openmig/managed';
+import { recordSupportRead, observedTier, listMoneyToGiveBack, markMoneyGivenBack } from '@openmig/managed';
 import { auditPseudonymKey } from '../audit-key.ts';
 import {
   LOG_FILTERS,
@@ -586,6 +586,84 @@ router.get(
         'reading the invoices kept after erasure',
         error,
       );
+    }
+  },
+);
+
+/**
+ * MONEY TO GIVE BACK (workplan 0111; the owner, 2026-10-11): the credit notes
+ * whose money the operator gives back by hand, or watches. The hourly push says
+ * each once and mails it to `NOTIFY_TO`; this is where it stays until done.
+ *
+ * Read through `support_money_to_give_back` (managed migration 0055), with the
+ * predicate every support view carries, and recorded as one read with a null
+ * tenant, like the list of organisations: it is a list of everybody's.
+ */
+router.get(
+  '/money-to-give-back',
+  authenticateSubject,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.userId;
+      if (!userId) {
+        return void res
+          .status(401)
+          .json({ error: 'Unauthorized', message: 'No subject on this request' });
+      }
+      const items = await withSubject(pool(), userId, async (db) => {
+        const listed = await listMoneyToGiveBack(db);
+        // Logged even when empty, for the reason `/tenants` gives.
+        await recordSupportRead(db, { operatorUserId: userId, tenantId: null, view: 'money_to_give_back' });
+        return listed;
+      });
+      res.json({ items });
+    } catch (error) {
+      serverFault(res, 'support_money_to_give_back_failed', 'reading the money to give back', error);
+    }
+  },
+);
+
+/**
+ * The operator's mark that one was paid back by hand: by transfer, and for a
+ * failed refund booked in the books, its payment taken off the credit note.
+ * Once, in their own name, never changed (`money_given_back`). The mark is its
+ * own record of who and when, as a hold is (0023), so no read is logged.
+ *
+ * 204 when marked; 409 when it was marked before, or is a late refund, which
+ * leaves the list by itself when Mollie ends it; 404 for a credit note not on
+ * the list, or a subject who is not an operator (the same answer, as ever).
+ */
+router.post(
+  '/money-to-give-back/:creditNoteId/given-back',
+  authenticateSubject,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const operator = req.userId;
+      if (!operator) {
+        return void res
+          .status(401)
+          .json({ error: 'Unauthorized', message: 'No subject on this request' });
+      }
+      const creditNoteId = oneUuid(req.params.creditNoteId);
+      if (!creditNoteId) {
+        return void res.status(400).json({ error: 'Bad request', message: 'creditNoteId must be one uuid' });
+      }
+      const outcome = await withSubject(pool(), operator, (db) =>
+        markMoneyGivenBack(db, creditNoteId, operator, new Date()),
+      );
+      if (outcome === 'marked') return void res.status(204).end();
+      if (outcome === 'already') {
+        return void res.status(409).json({ error: 'Conflict', message: 'It was marked given back before' });
+      }
+      if (outcome === 'watched') {
+        return void res.status(409).json({
+          error: 'Conflict',
+          message: 'A late refund takes no mark: it leaves the list when Mollie ends it',
+        });
+      }
+      res.status(404).json({ error: 'Not found', message: 'No such credit note to give back' });
+    } catch (error) {
+      serverFault(res, 'support_money_given_back_failed', 'marking money given back', error);
     }
   },
 );

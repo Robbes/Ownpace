@@ -894,3 +894,87 @@ describe('finding a person, and recording that it happened', () => {
     expect(await logRows()).toEqual([]);
   });
 });
+
+describe('money to give back (0111; the owner, 2026-10-11)', () => {
+  /** A credit note of 4.00 on an invoice of 12.00 of Beta, both in the books, its money said as `shape`. */
+  async function creditNote(n: number, shape: 'by_hand' | 'late'): Promise<string> {
+    const invoice = `5f5c0000-e29b-41d4-a716-4466554423${String(n).padStart(2, '0')}`;
+    const note = `5f5c0000-e29b-41d4-a716-4466554424${String(n).padStart(2, '0')}`;
+    for (const [id, kind, total, corrects] of [
+      [invoice, 'invoice', 1200, null],
+      [note, 'credit_note', -400, invoice],
+    ] as const) {
+      await rows(
+        `INSERT INTO invoice (id, tenant_id, period_start, period_end, status, total, reference, kind, credited_invoice_id)
+         VALUES ($1, $2, DATE '2026-10-01', DATE '2026-10-31', 'draft', $3, $4, $5, $6)`,
+        [id, TENANT_B, total, `ownpace-${id}`, kind, corrects],
+      );
+      await rows(
+        `UPDATE invoice SET status = 'sent', invoice_number = $2, invoice_date = DATE '2026-10-01', moneybird_id = $3,
+                moneybird_administration_id = '123456789012345678', sent_at = now() WHERE id = $1`,
+        [id, `2026-9${String(n).padStart(2, '0')}${kind === 'invoice' ? '1' : '2'}`, `9${n}${kind === 'invoice' ? 1 : 2}`],
+      );
+    }
+    if (shape === 'by_hand') {
+      await rows(`UPDATE invoice SET money_back = 'by_hand', money_back_at = now() WHERE id = $1`, [note]);
+    } else {
+      await rows(
+        `UPDATE invoice SET money_back = 'refunded', money_back_at = now() - interval '8 days', refund_id = 're_late',
+                refund_cents = 300 WHERE id = $1`,
+        [note],
+      );
+      await rows(`UPDATE invoice SET refund_status = 'queued', refund_late_said_at = now() WHERE id = $1`, [note]);
+    }
+    return note;
+  }
+
+  let byHand: string;
+  let late: string;
+  beforeAll(async () => {
+    byHand = await creditNote(1, 'by_hand');
+    late = await creditNote(2, 'late');
+  });
+
+  const post = (path: string) => request(app).post(path).set('Authorization', 'Bearer stub');
+
+  it('serves what is owed back by hand and what is watched, and records one read with no organisation', async () => {
+    caller = OPERATOR;
+    const res = await get('/api/support/money-to-give-back');
+    expect(res.status).toBe(200);
+    expect(
+      (res.body.items as Array<Record<string, unknown>>).map((i) => [i.creditNoteId, i.reason, i.cents, i.organisation]),
+    ).toEqual([
+      [late, 'refund_late', 300, 'Beta BV'],
+      [byHand, 'by_hand', 400, 'Beta BV'],
+    ]);
+    expect(await logRows()).toEqual([{ operator_user_id: OPERATOR, tenant_id: null, view_name: 'money_to_give_back' }]);
+  });
+
+  it('marks one paid back once; a late refund takes no mark; an unknown one is not found', async () => {
+    caller = OPERATOR;
+    expect((await post(`/api/support/money-to-give-back/${byHand}/given-back`)).status).toBe(204);
+    expect((await post(`/api/support/money-to-give-back/${byHand}/given-back`)).status).toBe(409);
+    expect((await post(`/api/support/money-to-give-back/${late}/given-back`)).status).toBe(409);
+    expect((await post(`/api/support/money-to-give-back/${ABSENT}/given-back`)).status).toBe(404);
+    expect((await post('/api/support/money-to-give-back/not-a-uuid/given-back')).status).toBe(400);
+    expect(await rows('SELECT invoice_id, given_back_by FROM money_given_back')).toEqual([
+      { invoice_id: byHand, given_back_by: OPERATOR },
+    ]);
+    // A mark is its own record; no read is logged for it.
+    expect(await logRows()).toEqual([]);
+  });
+
+  it('tells a non-operator nothing, lets them mark nothing, and writes nothing about them', async () => {
+    caller = NOT_OPERATOR;
+    const res = await get('/api/support/money-to-give-back');
+    expect(res.body.items).toEqual([]);
+    expect((await post(`/api/support/money-to-give-back/${late}/given-back`)).status).toBe(404);
+    expect(await logRows()).toEqual([]);
+  });
+
+  it('refuses a request with no subject', async () => {
+    caller = undefined;
+    expect((await get('/api/support/money-to-give-back')).status).toBe(401);
+    expect((await post(`/api/support/money-to-give-back/${byHand}/given-back`)).status).toBe(401);
+  });
+});

@@ -2332,7 +2332,9 @@ back, and reads paid and late back from Moneybird. Neither runs while
 when to set the month, and the
 [operator runbook](./operator-runbook.md#email-notifications-workplan-0030)
 says what each hourly run says, and what to do when it names money to give
-back by hand.
+back by hand. It mails each of those to `NOTIFY_TO`, through the same SMTP
+settings the digests use, and the support screen lists them under *Money to
+give back* until they are marked given back.
 
 ### 9. `tasks` — the system role, the task environment, the deploy, then the owner names forgotten
 

@@ -452,28 +452,33 @@ Four things send email on managed, all through the operator's own SMTP relay con
   | `Mollie's refund re_… is still queued 7 days after it was made` (or `pending`, `processing`) | A queued refund waits until Mollie's balance covers it. Look at the balance in Mollie's dashboard; the 14 days run from the withdrawal. |
   | `N invoice(s) still drafts two days after they were made` | Said every run while it is true (decision 6's alert). The errors before it, for the same organisation, say why each draft was refused. |
 
-  **These errors live only as long as the run's container.** Each is a line on the output of
-  the task run that said it, and a task run's container is removed when its run ends, with its
-  output ([managed-bring-up.md](./managed-bring-up.md), the audit lines' paragraph). So a line
-  is read only by a collector that reads the worker's output as it is written. The three said
-  once are also written down on the credit note, so this query finds every one of them
-  afterwards: credit notes given back by hand, refunds that failed or were canceled, and
-  refunds said to be late that have not ended:
+  **The three said once reach you twice** (the owner, 2026-10-11), because each error is a line
+  on the output of a run whose container is removed when the run ends:
+  - **a mail to `NOTIFY_TO`**, in English, with the credit note's and the invoice's numbers, the
+    amount and what to do, and the organisation's id, never its name. It goes once, when the push
+    writes it down; a mail that cannot go is an error on the run, and the list still has it. With
+    no SMTP settings in the task environment, the run says once that it is not sending;
+  - **the support screen's *Money to give back*** (*Support*, then *Money to give back*), which
+    lists them from what the invoice table records (managed 0055): what is still owed or watched
+    first, with the organisation, both numbers, the amount, what happened and since when; then
+    what was marked. Once you have paid one back by transfer, and booked it in Moneybird, press
+    **Given back** and confirm: the mark is yours, with the time, and is never changed. A late
+    refund takes no mark; it leaves the list when Mollie ends it, or comes back as failed.
+
+  The same rows, read at the database:
 
   ```bash
   docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrate -d openmigrate -c \
     "SELECT c.tenant_id, c.invoice_number AS credit_note, o.invoice_number AS invoice,
-            c.money_back, c.money_back_at, c.refund_id, c.refund_cents, c.refund_status
+            c.money_back, c.money_back_at, c.refund_id, c.refund_cents, c.refund_status, g.given_back_at
        FROM invoice c JOIN invoice o ON o.id = c.credited_invoice_id
+       LEFT JOIN money_given_back g ON g.invoice_id = c.id
       WHERE c.kind = 'credit_note'
         AND (c.money_back = 'by_hand'
              OR c.refund_status IN ('failed', 'canceled')
              OR (c.refund_late_said_at IS NOT NULL AND c.refund_ended_at IS NULL))
       ORDER BY c.money_back_at DESC;"
   ```
-
-  A credit note given back by hand stays on this list; which of them you have paid is your own
-  record, and Moneybird's, once it is booked there.
 
 Two behaviours worth knowing before you go looking for a missing email:
 

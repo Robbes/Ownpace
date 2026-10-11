@@ -108,6 +108,7 @@ const SUPPORT_VIEWS = [
   'support_tenant_members',
   'support_log',
   'support_audit_export',
+  'support_money_to_give_back',
 ] as const;
 
 beforeAll(async () => {

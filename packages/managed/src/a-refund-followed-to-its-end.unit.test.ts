@@ -64,6 +64,7 @@ const toFollow = (over: Partial<RefundToFollow> = {}): RefundToFollow => ({
   id: 'c',
   reference: 'ownpace-x-c-2026-10-small',
   invoiceNumber: '2026-0010',
+  creditedInvoiceNumber: '2026-0009',
   refundId: 're_made',
   refundCents: 400,
   paymentId: 'tr_paid',
