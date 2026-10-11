@@ -30,7 +30,9 @@ unset, a refund waits and each run says so.
   the fetch guard list the new columns and `mollie-refunds.ts`.
 - **For the owner's sandbox:** Moneybird's two calls here are read from its description, not yet
   proved: `register_payment_creditinvoice` on a credit invoice crediting part of an open invoice,
-  and a negative payment on a credit invoice. Mollie's refund in test mode with a test key.
+  and a negative payment on a credit invoice. `deploy/compose/moneybird-money-back-proof.sh` makes
+  both, from the OTA checkout once `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE` is set, and prints what
+  Moneybird answered. Mollie's refund in test mode with a test key.
 
 **2026-10-11: slice 7e — the yes that asks to begin, without a tick box** (T7; terms §6, §7, 1.5;
 the owner: *"i do not want the tickbox, everyone who agrees with the terms would normally start

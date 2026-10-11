@@ -76,7 +76,8 @@ the owner's job.
    Terms 1.5 §7 has the lawyer's agreement (the owner, 2026-10-11). Before invoices reach
    customers, two things are the owner's: the two Moneybird calls of slice 7d proved in the
    sandbox (`register_payment_creditinvoice` on a credit note crediting part of an open invoice,
-   and a negative payment booked on a credit note); and live's
+   and a negative payment booked on a credit note), which
+   `./deploy/compose/moneybird-money-back-proof.sh` makes from the OTA checkout; and live's
    `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE` and `MOLLIE_API_KEY` set and uploaded to the tasks.
    Leave `OWNPACE_BILLING_FROM` empty until they are done.
 3. **Tell the testers, with their numbers.** No yes could be taken during the alpha, so every
