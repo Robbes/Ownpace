@@ -68,10 +68,18 @@ the owner's job.
    every hour (slice 5f; the owner, 2026-10-11). Every yes is given at an order button that
    says, for a consumer within the fourteen days, that ordering asks us to begin at once, and
    each order is confirmed by email (slice 7e, terms 1.5): a withdrawal then bills the days
-   used. What is still to build before invoices reach customers: the money back when a paid
-   invoice is credited (slice 7d, its second half).
+   used. A credit note's amount is made real once the books number it (slice 7d, its second
+   half): refunded through Mollie with live's `MOLLIE_API_KEY`, which `set-task-env.sh` hands to
+   the tasks, settled against its invoice in the books, or said to the operator for a transfer
+   by hand.
 
-   Leave `OWNPACE_BILLING_FROM` empty until it is built.
+   Terms 1.5 §7 has the lawyer's agreement (the owner, 2026-10-11). Before invoices reach
+   customers, two things are the owner's: the two Moneybird calls of slice 7d proved in the
+   sandbox (`register_payment_creditinvoice` on a credit note crediting part of an open invoice,
+   and a negative payment booked on a credit note), which
+   `./deploy/compose/moneybird-money-back-proof.sh` makes from the OTA checkout; and live's
+   `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE` and `MOLLIE_API_KEY` set and uploaded to the tasks.
+   Leave `OWNPACE_BILLING_FROM` empty until they are done.
 3. **Tell the testers, with their numbers.** No yes could be taken during the alpha, so every
    organisation is on Free at the switch: one migration at a time (each kind of data counts as
    one), and 250 GB, counted from the switch. Everything moved during the alpha never counts

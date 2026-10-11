@@ -19,6 +19,13 @@
  * Moneybird, on `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE`, so Moneybird never
  * reminds anybody who paid. Unset, nothing is booked, and the run says so.
  *
+ * MONEY BACK (slice 7d, its second half). Then each issued credit note's
+ * amount is made real, once (`money-back.ts`): what was paid through Mollie
+ * above what is owed goes back as a Mollie refund (`MOLLIE_API_KEY`, the
+ * API's own), then is booked on the credit note in the books; a credit note
+ * with nothing paid above is set against its invoice in the books; one whose
+ * invoice was paid by transfer is said to the operator, to pay back by hand.
+ *
  * PAID AND LATE, READ BACK (slice 5f, its second half). Once every
  * organisation has been pushed, one question to Moneybird: every invoice it
  * changed in the last day that is late, reminded or paid
@@ -66,11 +73,15 @@ import { log, type TenantId } from '@openmig/shared';
 import {
   applyReadBack,
   bookPayment,
+  bookRefund,
   claimNextCreditNote,
+  claimNextMoneyBack,
+  claimNextRefundToBook,
   claimNextDraft,
   claimNextPaymentToBook,
   draftsBehind,
   listChangedSalesInvoices,
+  makeMoneyBack,
   moneybirdFromEnv,
   organisationOf,
   planCreditPush,
@@ -81,6 +92,7 @@ import {
   recordCreditDraft,
   recordCreditIssued,
   recordIssued,
+  recordMoneyBack,
   READ_BACK_PAGE,
   READ_BACK_PAGES,
   READ_BACK_WINDOW_HOURS,
@@ -109,6 +121,12 @@ export interface PushCounts {
   booked: number;
   /** Payments the books held already: booked before, or the invoice paid there by other means. */
   held: number;
+  /** Credit notes whose amount went back through Mollie (slice 7d). */
+  refunded: number;
+  /** Credit notes set against their invoice in the books: nothing paid above what is owed. */
+  settled: number;
+  /** Credit notes whose money goes back by transfer, by hand: the invoice was not paid through Mollie. */
+  byHand: number;
   refused: number;
   unavailable: number;
   slowed: number;
@@ -134,7 +152,12 @@ export async function pushOrganisation(
   context: PushContext,
   budget: PushBudget,
   counts: PushCounts,
-  options: { readonly fetchImpl?: typeof fetch; readonly pace?: () => Promise<void> } = {},
+  options: {
+    readonly fetchImpl?: typeof fetch;
+    readonly pace?: () => Promise<void>;
+    /** Mollie's API key, for a refund (slice 7d); null, a refund waits and is said. */
+    readonly mollieApiKey?: string | null;
+  } = {},
 ): Promise<void> {
   const tenantId = organisation as TenantId;
   while (budget.left > 0 && !budget.stopped) {
@@ -213,6 +236,59 @@ export async function pushOrganisation(
       } else {
         counts.held++;
       }
+    } else {
+      notIssued(outcome, organisation, budget, counts);
+    }
+    if (budget.left > 0 && !budget.stopped) await (options.pace ?? (() => sleep(PUSH_SPACING_MS)))();
+  }
+  // Then each issued credit note's amount made real, once (money-back.ts):
+  // refunded through Mollie, settled in the books, or said for a transfer by
+  // hand. Under the same budget and pace.
+  while (budget.left > 0 && !budget.stopped) {
+    const due = await withTenant(pool, organisation, (db) => claimNextMoneyBack(db, tenantId, now));
+    if (!due) break;
+    budget.left--;
+    const outcome = await makeMoneyBack(settings, options.mollieApiKey ?? null, due, { fetchImpl: options.fetchImpl });
+    const name = due.invoiceNumber ?? due.reference;
+    if (outcome.kind === 'refunded' || outcome.kind === 'settled' || outcome.kind === 'by_hand') {
+      await withTenant(pool, organisation, (db) => recordMoneyBack(db, tenantId, due.id, outcome, now));
+      if (outcome.kind === 'refunded') {
+        counts.refunded++;
+        log.info(
+          `[invoice-push] organisation ${organisation}: credit note ${name} refunded ${outcome.cents} cents through ` +
+            `Mollie (${outcome.refundId}${outcome.adopted ? ', found made before' : ''}).`,
+        );
+      } else if (outcome.kind === 'settled') {
+        counts.settled++;
+      } else {
+        counts.byHand++;
+        // Once: the row now says by hand, and is never claimed again.
+        log.error(
+          `[invoice-push] organisation ${organisation}: credit note ${name} credits ${outcome.cents} cents on invoice ` +
+            `${due.original.invoiceNumber ?? due.original.id}, which was paid, but not through Mollie: pay back what ` +
+            'was paid above what is owed by transfer, within 14 days of the withdrawal (terms §7), and book it on ' +
+            'the credit note in Moneybird.',
+        );
+      }
+    } else if (outcome.kind === 'waiting') {
+      // Held until its lease runs out, and tried again the next hour.
+      counts.unavailable++;
+      log.error(`[invoice-push] organisation ${organisation}: ${outcome.reason}.`);
+    } else {
+      notIssued(outcome, organisation, budget, counts);
+    }
+    if (budget.left > 0 && !budget.stopped) await (options.pace ?? (() => sleep(PUSH_SPACING_MS)))();
+  }
+  // Then each refund booked on its credit note in the books, on Mollie's account.
+  while (mollieAccountId !== null && budget.left > 0 && !budget.stopped) {
+    const refund = await withTenant(pool, organisation, (db) => claimNextRefundToBook(db, tenantId, now));
+    if (!refund) break;
+    budget.left--;
+    const outcome = await bookRefund(settings, mollieAccountId, refund, options.fetchImpl);
+    if (outcome.kind === 'booked' || outcome.kind === 'held') {
+      await withTenant(pool, organisation, (db) => recordPaymentBooked(db, tenantId, refund.id, now));
+      if (outcome.kind === 'booked') counts.booked++;
+      else counts.held++;
     } else {
       notIssued(outcome, organisation, budget, counts);
     }
@@ -368,6 +444,9 @@ export const managedInvoicePush = schedules.task({
       adopted: 0,
       booked: 0,
       held: 0,
+      refunded: 0,
+      settled: 0,
+      byHand: 0,
       refused: 0,
       unavailable: 0,
       slowed: 0,
@@ -378,11 +457,15 @@ export const managedInvoicePush = schedules.task({
           'MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE is not set (workplan 0111, slice 5f).',
       );
     }
+    // The API's own key, for a refund (slice 7d); unset, a refund waits and each run says so.
+    const mollieApiKey = process.env.MOLLIE_API_KEY?.trim() || null;
     let failed = 0;
     for (const organisation of organisations) {
       try {
         // Each organisation as itself, on the tenant pool.
-        await pushOrganisation(pools.tenant, organisation, now, moneybird.config, context, budget, counts);
+        await pushOrganisation(pools.tenant, organisation, now, moneybird.config, context, budget, counts, {
+          mollieApiKey,
+        });
       } catch (err) {
         // Said, and the next organisation still pushed (hard rule 9).
         failed++;

@@ -377,6 +377,7 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU="${MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU:-}" \
   MONEYBIRD_DELIVERY="${MONEYBIRD_DELIVERY:-}" \
   MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE="${MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE:-}" \
+  MOLLIE_API_KEY="${MOLLIE_API_KEY:-}" \
   OWNPACE_SELLER_COUNTRY="${OWNPACE_SELLER_COUNTRY:-}" \
   VAT_OSS_ACTIVE="${VAT_OSS_ACTIVE:-}" \
   FORCE_REWRITE="${SET_TASK_ENV_FORCE_REWRITE:-0}" \
@@ -485,6 +486,8 @@ const { envvars } = require("@trigger.dev/sdk");
     "MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU", "MONEYBIRD_DELIVERY",
     // The account a payment through Mollie is booked on (0111 slice 5f).
     "MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE",
+    // The Mollie key of the API, for the refund of a credit note (0111 slice 7d).
+    "MOLLIE_API_KEY",
     "OWNPACE_SELLER_COUNTRY", "VAT_OSS_ACTIVE",
   ]) {
     const value = process.env[name];
@@ -523,6 +526,7 @@ const { envvars } = require("@trigger.dev/sdk");
     MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU: process.env.MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU,
     MONEYBIRD_DELIVERY: process.env.MONEYBIRD_DELIVERY,
     MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE: process.env.MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE,
+    MOLLIE_API_KEY: process.env.MOLLIE_API_KEY,
     OWNPACE_SELLER_COUNTRY: process.env.OWNPACE_SELLER_COUNTRY,
     VAT_OSS_ACTIVE: process.env.VAT_OSS_ACTIVE,
   })) {

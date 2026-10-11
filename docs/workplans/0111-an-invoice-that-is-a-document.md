@@ -4,6 +4,36 @@
 
 ## Status — 2026-10-11 (update this block at the end of every session)
 
+**2026-10-11: slice 7d, its second half — money back for a credit note** (T7; terms §7: *"whatever
+you paid above it we refund within 14 days, by the means of payment you used"*). Once the books
+have numbered a credit note, the hourly push makes its amount real, one way, once
+(`money-back.ts`, managed 0052): what was paid through Mollie above what is owed now (the total
+less every credit note on it) goes back as a Mollie refund of that payment, never more than the
+credit note, never more than was paid, less what went back before; then the refund is booked on
+the credit note in the books, negative, on `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE`, under the
+refund's id. A credit note with nothing paid above (the invoice unpaid, or paid only what was left
+after it, slice 7d's first half) is set against its invoice in the books
+(`register_payment_creditinvoice`), and no money moves. One whose invoice was paid by transfer (the
+books saw it, slice 5f) is said to the operator once, with the amount, for a transfer by hand.
+Never twice: claimed with the push's lease; the refund carries the credit note's reference as
+Mollie's idempotency key and in its metadata, and a refund found on the payment with that
+reference is adopted, never made again; a credit invoice the books hold paid is written down, not
+settled again; and the database writes the outcome once (0052's trigger) and only on a credit note.
+The refunds use the API's own `MOLLIE_API_KEY`, which `set-task-env.sh` now hands to the tasks;
+unset, a refund waits and each run says so.
+
+- **Guards:** `money-back-for-a-credit-note.unit.test.ts` (what is given back, in five cases and
+  three bounds; refunded once with the reference as key and metadata; adopted; waiting without a
+  key; settled once; by hand asking nobody; the refund booked negative on Mollie's account, once;
+  a second money back refused, and any on an invoice); `money-back-once.unit.test.ts` (the hourly
+  run: refunded and booked, then nothing; waiting, said; by hand said once). The column pins and
+  the fetch guard list the new columns and `mollie-refunds.ts`.
+- **For the owner's sandbox:** Moneybird's two calls here are read from its description, not yet
+  proved: `register_payment_creditinvoice` on a credit invoice crediting part of an open invoice,
+  and a negative payment on a credit invoice. `deploy/compose/moneybird-money-back-proof.sh` makes
+  both, from the OTA checkout once `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE` is set, and prints what
+  Moneybird answered. Mollie's refund in test mode with a test key.
+
 **2026-10-11: slice 7e — the yes that asks to begin, without a tick box** (T7; terms §6, §7, 1.5;
 the owner: *"i do not want the tickbox, everyone who agrees with the terms would normally start
 within 14 days"*). Every yes is given at an order button that says *Order with obligation to pay*
@@ -32,9 +62,10 @@ languages, and names the withdrawal function by the app's own words; terms preco
   Dutch); `DataCeiling`, `PathsAtStart` and `TierPick` tests (the sentence beside the order button
   and `beginNow` sent only when said; a kept pick asks nothing). Two mutants, both red: the server
   recording the request without `beginNow`, and the window reading any yes's request.
-- **For the lawyer** (terms.md's briefing, 1.5): whether one sentence beside an order button is an
-  express request under articles 7(3) and 8(8), and the proportionate amount read pro rata
-  temporis (CJEU C-641/19).
+- **The lawyer agreed** (the owner, 2026-10-11: *"Lawyer agreed"*), on the questions in
+  terms.md's briefing for 1.5: whether one sentence beside an order button is an express request
+  under articles 7(3) and 8(8), and the proportionate amount read pro rata temporis (CJEU
+  C-641/19).
 
 **2026-10-11: the owner's answers of the day.**
 
@@ -1046,9 +1077,9 @@ slice 5. The annual credit is not in this chain (decision 6).
    Status): recorded, read where the tier is read, its credit notes and its acknowledgement; **the
    button** (slice 7c), **nothing paid that was credited** (slice 7d's first half), and **the yes
    that asks to begin** before the fourteen days are over, from which the days used are billed,
-   with the order button at every yes and the order's confirming email (slice 7e, terms 1.5). Next,
-   its own pull request: (7d, second half) the money back, through Mollie or said for a transfer,
-   and an unpaid invoice settled against its credit note in the books.
+   with the order button at every yes and the order's confirming email (slice 7e, terms 1.5), and
+   **the money back** (slice 7d's second half): refunded through Mollie and booked, settled
+   against its invoice in the books, or said for a transfer by hand.
 
 **What the build holds to.** A retried push never mints a second invoice: only a 404 creates, one
 writer, a lease, and the reference fixed once used. Nothing after issue is editable, the new

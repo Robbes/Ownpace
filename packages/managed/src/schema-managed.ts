@@ -131,6 +131,12 @@ export const invoice = pgTable(
     // what Mollie took, and when Moneybird held it.
     paidCents: bigint('paid_cents', { mode: 'number' }),
     moneybirdPaidAt: timestamp('moneybird_paid_at', { withTimezone: true }),
+    // On a credit note, how its amount was made real, once (managed 0052,
+    // slice 7d): refunded through Mollie, settled in the books, or by hand.
+    moneyBack: text('money_back').$type<'refunded' | 'settled' | 'by_hand'>(),
+    moneyBackAt: timestamp('money_back_at', { withTimezone: true }),
+    refundId: text('refund_id'),
+    refundCents: bigint('refund_cents', { mode: 'number' }),
   },
   (t) => [
     index('ix_invoice_tenant').on(t.tenantId, t.periodStart),

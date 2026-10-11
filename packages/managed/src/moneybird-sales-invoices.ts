@@ -560,6 +560,40 @@ export async function registerPayment(
   return { kind: 'unavailable', reason: `Moneybird answered HTTP ${status} to the payment.` };
 }
 
+export type SettleCreditOutcome =
+  | { readonly kind: 'settled' }
+  | { readonly kind: 'refused'; readonly reason: string }
+  | { readonly kind: 'unavailable'; readonly reason: string }
+  | SlowDown;
+
+/**
+ * Set a credit invoice against the invoice it credits (slice 7d): Moneybird's
+ * `register_payment_creditinvoice`, which books the credit note's amount as a
+ * payment on the original and marks the credit note paid. Asked of a credit
+ * invoice only.
+ */
+export async function registerCreditInvoicePayment(
+  access: MoneybirdAccess,
+  creditInvoiceId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<SettleCreditOutcome> {
+  const answer = await moneybirdRequest(
+    access,
+    'PATCH',
+    `/sales_invoices/${encodeURIComponent(creditInvoiceId)}/register_payment_creditinvoice.json`,
+    {},
+    fetchImpl,
+  );
+  const settleFailed = failed(answer);
+  if (settleFailed) return settleFailed;
+  if (answer.kind === 'response' && answer.status === 422) {
+    return { kind: 'refused', reason: `Moneybird refused to settle the credit note: ${bodyText(answer.body)}` };
+  }
+  if (answer.kind === 'response' && answer.status >= 200 && answer.status < 300) return { kind: 'settled' };
+  const status = answer.kind === 'response' ? answer.status : 0;
+  return { kind: 'unavailable', reason: `Moneybird answered HTTP ${status} to settling the credit note.` };
+}
+
 // ------------------------------------------------------------- the month's count
 
 export type CountInvoicesOutcome =
