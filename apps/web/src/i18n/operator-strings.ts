@@ -296,7 +296,9 @@ export const OPERATOR_STRINGS = {
   'support.export.done': 'Lines downloaded: {count}. The field now holds where the next download starts.',
   'support.export.nothing': 'Nothing new after that point. An event comes once it is five minutes old.',
   'support.export.stopped': 'The download stopped: {message}',
-  'support.export.kept': 'Lines saved: {count}. The field holds where to carry on.',  // ---- Money to give back (workplan 0111; the owner, 2026-10-11): what the
+  'support.export.kept': 'Lines saved: {count}. The field holds where to carry on.',
+
+  // ---- Money to give back (workplan 0111; the owner, 2026-10-11): what the
   // hourly invoice push asks the operator to pay back by hand, or watch.
   'support.money.link': 'Money to give back',
   'support.money.heading': 'Money to give back',
