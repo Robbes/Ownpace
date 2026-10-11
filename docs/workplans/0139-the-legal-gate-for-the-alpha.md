@@ -95,8 +95,8 @@ its server logs, as totals.**
   - The reports are deleted when the website is taken down for good, so §9's *"As long as we
     run this website"* ends; the run's pull request adds that to the site's take-down in
     `docs/managed-bring-up.md`.
-  - The log is read where Docker keeps it, and a working copy is deleted when the run ends, a
-    killed run's too, so §9's *Server logs* row holds.
+  - The log is read where Docker keeps it and streamed to GoAccess; no copy of it is written, so
+    §9's *Server logs* row holds.
   - The run counts on live only once the site publishes the sentence and §5's purpose; before
     then it would count for a purpose the policy does not state.
   The comment beside §4.5 in both files, the briefing at the top of `privacy.md` and the legal

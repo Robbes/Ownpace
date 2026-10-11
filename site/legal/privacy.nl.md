@@ -302,8 +302,8 @@ toegang wordt gelogd met het e-mailadres dat erin staat, net als ons besluit ero
        reads from the same User-Agent as the browser: "the kind of browser" is read to include
        it. With very few visitors a total of one still describes one visit; the briefing asks
        the lawyer (question 21).
-     - The log is read where Docker keeps it; a working copy of it is deleted when the run ends,
-       a killed run's too, so §9's Server logs row holds.
+     - The log is read where Docker keeps it and streamed to GoAccess; no copy of it is written,
+       so §9's Server logs row holds.
      - The run counts on live only once the site publishes this sentence and §5's purpose "and
        counting visits in totals": before then it would count for a purpose this policy does not
        state. -->
@@ -650,7 +650,7 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
        referring site (beside §4.5). The period ends: when we take this website down for good,
        its reports are deleted with it, which the run's pull request must add to the site's
        take-down in docs/managed-bring-up.md. Reading the log does not lengthen the Serverlogs
-       row: a working copy is deleted when the run ends, a killed run's too. -->
+       row: the run streams the log and writes no copy of it. -->
 
 | Wat | Bewaard |
 |---|---|
