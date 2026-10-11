@@ -104,6 +104,11 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // had been final since 2026-10-07, so the new words take a new number and 1.3's pins stay.
   'terms.md@1.4': 'd0577ca2eb1090eef1ab9a1d22aa374254009d1088cdded1f9d292a9eb83a4c2',
   'terms.nl.md@1.4': '6ace99da834540703d59cc81447b9924402482d319d82746c39dcde5f4fcc95b',
+  // 1.3 on 2026-10-11: §4.4 names the email address invoices are sent to (the owner: "Privacy
+  // policy: ok, add e-mail to it"; privacy.md's briefing). 1.2 had been final since 2026-10-07,
+  // so the new words take a new number and 1.2's pins stay.
+  'privacy.md@1.3': '6df3940257ac5fc9fe9646a535e28797e9f4fb98afcf23d63e55c2c089b2aecd',
+  'privacy.nl.md@1.3': 'fcb3bef6a758f84ee9fb6cdd74ba3281a60b18ff087eab4e8f608d5802586878',
 };
 
 /** The digest `ACCEPTED_WORDS` pins: the text outside HTML comments, white space collapsed. */
