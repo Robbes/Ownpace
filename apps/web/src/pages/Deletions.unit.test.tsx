@@ -519,7 +519,10 @@ describe('after cutover', () => {
     );
     renderScreen();
 
-    expect(await screen.findByText(STRINGS.en['queue.afterCutover'])).toBeInTheDocument();
+    // Names only the data type whose rows lost the button: Email, not Calendar.
+    expect(
+      await screen.findByText(STRINGS.en['queue.afterCutover'].replace('{dataTypes}', 'Email')),
+    ).toBeInTheDocument();
     // The calendar is still before its cutover: its row keeps the button.
     expect(screen.getAllByText('Delete it here too')).toHaveLength(1);
     expect(screen.getAllByText('Keep our copy')).toHaveLength(2);
@@ -532,6 +535,20 @@ describe('after cutover', () => {
     renderScreen();
 
     expect(await screen.findByText('Delete it here too')).toBeInTheDocument();
-    expect(screen.queryByText(STRINGS.en['queue.afterCutover'])).not.toBeInTheDocument();
+    expect(screen.queryByText(/Past the cutover of/)).not.toBeInTheDocument();
+  });
+
+  it('says nothing when the data types past their cutover have no row that would have offered it', async () => {
+    // Past its cutover, but its only waiting row is inferred: it had no button to lose.
+    fetchDeletions.mockResolvedValue(
+      queue({
+        afterCutover: ['email', 'calendar', 'contact', 'file', 'task'],
+        confirmed: [deletion({ naturalKeyHash: 'h-mail', evidence: 'inferred' })],
+      }),
+    );
+    renderScreen();
+
+    expect(await screen.findByText('Keep our copy')).toBeInTheDocument();
+    expect(screen.queryByText(/Past the cutover of/)).not.toBeInTheDocument();
   });
 });

@@ -57,8 +57,8 @@ personally. The Alpha lasts a few weeks.
   entry or contact changed at your new provider? Then it does not delete it. With mail it does
   not check that. Once deleting by hand is on, you see a second button, also off by default:
   *Turn on automatic removal*. It clears up the old copy of a file you moved in your old account.
-  You then do not choose per file. After you switch over, Ownpace deletes nothing this way any
-  more: your old account then no longer decides what exists.
+  You then do not choose per file. After you switch over, Ownpace no longer deletes anything
+  either way: your old account then no longer decides what exists.
 
 ## How to start {#how-to-start}
 

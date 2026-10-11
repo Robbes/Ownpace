@@ -2,7 +2,7 @@
 
 > **In one line:** A `continuous` lane keeping a mapping copying after cutover with deletion detectors off, a confirmed list (`Confirmed.tsx`) checking each target item by hash or fingerprint, and safety rules for draining the source with attributed tombstones.
 
-## Status — 2026-10-05 (update this block at the end of every session)
+## Status — 2026-10-11 (update this block at the end of every session)
 
 **2026-10-05: D4, ASKED AGAIN WHERE IT WAS ASKED ONCE — after cutover nothing is read
 from the old system's bin, and nothing is concluded from it.** The owner, 2026-10-05:
@@ -112,8 +112,11 @@ before the queue (fix 1's check stays). The Deletions and Moves queues of both e
 carry `afterCutover` (`dataTypesPastCutover`, shared, from the same reading), and
 `mayOfferApply`/`mayOfferRelocationApply` take it as a REQUIRED argument: no Apply button
 for a data type past its cutover, and one sentence above the rows, in English and Dutch
-(`queue.afterCutover`), saying why. A rollback makes the old system decide again (ADR-0047)
-and brings the button and the press back. Guards: `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`
+(`queue.afterCutover`), saying why and naming the data types whose rows lost the button (none
+named, no sentence). A rollback makes the old system decide again (ADR-0047) and brings the
+button and the press back. Each guard below was shown red with the code reverted first
+(26 failures across core, shared, orchestration, the jobs and both screens). Guards:
+`packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`
 (the four functions in `cutover`, `continuous` and `done`, a data type cut over on its own, a
 cutover between evaluate and apply, a rollback, an unanswerable question),
 `packages/shared/src/a-button-offered-after-cutover.unit.test.ts`,

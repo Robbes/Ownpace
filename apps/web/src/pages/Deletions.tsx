@@ -219,7 +219,10 @@ const Deletions: React.FC<{
         {/* Gate 1, visible where it bites (0019 T3): the delete buttons below
             are refused by the server while this is off. */}
         <ApplyDeletionsPanel mappingId={mappingId} />
-        <AfterCutoverNote afterCutover={queue.afterCutover} />
+        {/* Only the rows whose button the cutover took away (2026-10-05). */}
+        <AfterCutoverNote
+          withheld={queue.confirmed.filter((d) => mayOfferApply(d, []) && !mayOfferApply(d, queue.afterCutover))}
+        />
         <QueueSection
           title={t('queue.waitingOnYou')}
           count={queue.confirmed.length}

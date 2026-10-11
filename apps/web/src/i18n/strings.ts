@@ -1515,11 +1515,12 @@ const en = {
   'runs.status.cancelled': 'Cancelled',
   'queue.waitingOnYou': 'Waiting on you',
   'queue.alreadyDecided': 'Already decided',
-  // A kind past its cutover offers no remove button (2026-10-05; the owner's
-  // "Refuse after cutover (Recommended)"): the server refuses it, and this
-  // says why once, above the rows. Undoing the cutover is a rollback (ADR-0047).
+  // A data type past its cutover offers no remove button (2026-10-05; the
+  // owner's "Refuse after cutover (Recommended)"): the server refuses it, and
+  // this says why once, above the rows, naming the data types whose rows lost
+  // it. Undoing the cutover is a rollback (ADR-0047).
   'queue.afterCutover':
-    'Past its cutover, the old system no longer decides what exists, so nothing is removed here on its account: those kinds have no remove button. Keeping still works, and undoing the cutover brings the button back.',
+    'Past the cutover of {dataTypes}, the old system no longer decides what exists, so nothing is removed from the new system because of what happened there. Those rows have no remove button. Undoing the cutover brings it back.',
   'moves.title': 'Moved on the old system',
   'moves.intro':
     'Items the owner filed elsewhere since the migration; nothing has changed on either side.',
@@ -4487,7 +4488,7 @@ const nl: Record<keyof typeof en, string> = {
   'queue.waitingOnYou': 'Wacht op u',
   'queue.alreadyDecided': 'Al besloten',
   'queue.afterCutover':
-    'Na de overstap bepaalt het oude systeem niet meer wat er bestaat, dus wordt hier niets verwijderd omdat het daar weg is: soorten die zijn overgestapt hebben geen verwijderknop. Behouden kan nog steeds, en wordt de overstap teruggedraaid, dan komt de knop terug.',
+    'Na de overstap van {dataTypes} bepaalt het oude systeem niet meer wat er bestaat, dus wordt er op het nieuwe systeem niets verwijderd vanwege wat daar is gebeurd. Die regels hebben geen verwijderknop. Wordt de overstap teruggedraaid, dan komt die terug.',
   'moves.title': 'Verplaatst op het oude systeem',
   'moves.intro':
     'Items die de eigenaar had verplaatst; aan geen van beide kanten is iets veranderd.',

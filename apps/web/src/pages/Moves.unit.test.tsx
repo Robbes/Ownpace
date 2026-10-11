@@ -289,7 +289,10 @@ describe('after cutover', () => {
     fetchMovesMock.mockResolvedValue(queue({ afterCutover: ['file'], open: [RELOCATION] }));
     renderScreen();
 
-    expect(await screen.findByText(STRINGS.en['queue.afterCutover'])).toBeInTheDocument();
+    // Names the data type whose rows lost the button, in its screen name.
+    expect(
+      await screen.findByText(STRINGS.en['queue.afterCutover'].replace('{dataTypes}', 'Files')),
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Leave it where it is/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Remove the old copy/ })).not.toBeInTheDocument();
   });
@@ -299,5 +302,7 @@ describe('after cutover', () => {
     renderScreen();
 
     expect(await screen.findByRole('button', { name: /Remove the old copy/ })).toBeInTheDocument();
+    // No row lost its button, so there is nothing to explain.
+    expect(screen.queryByText(/Past the cutover of/)).not.toBeInTheDocument();
   });
 });

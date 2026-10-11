@@ -238,7 +238,12 @@ const Moves: React.FC<{
     fetcher={() => fetchMoves(mappingId)}
     renderMapping={(mappingId, queue, act, outcomes, setOutcome, refresh) => (
       <>
-        <AfterCutoverNote afterCutover={queue.afterCutover} />
+        {/* Only the rows whose button the cutover took away (2026-10-05). */}
+        <AfterCutoverNote
+          withheld={queue.open.filter(
+            (mv) => mayOfferRelocationApply(mv, []) && !mayOfferRelocationApply(mv, queue.afterCutover),
+          )}
+        />
         <QueueSection
           title={t('queue.waitingOnYou')}
           count={queue.open.length}
