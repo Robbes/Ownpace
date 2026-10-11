@@ -4,6 +4,19 @@
 
 ## Status — 2026-10-11 (update this block at the end of every session)
 
+**2026-10-11, later still: Mollie's refund, proved in test mode.** The owner ran
+`moneybird-money-back-proof.sh refund` from the OTA checkout with a `test_` key, and paid the test
+payment of 12.00 on Mollie's checkout. The refund of 4.00, asked as `createRefund` asks it (the
+credit note's reference as the `Idempotency-Key` and in the metadata), answered HTTP 201 with a
+refund `re_…` of `{ value: "4.00", currency: "EUR" }`, status `pending`, the reference in its
+metadata. The same request again, under the same key, answered HTTP 201 with the same refund:
+Mollie made no second. The payment's refunds then listed that one refund for the credit note, which
+`creditNoteRefundOf` adopts (only `failed` and `canceled` are passed over). Booked on the credit
+note as a payment of -4.00 under the refund id, it answered HTTP 201, and the books held the
+invoice paid under Mollie's payment id and the credit note paid under its refund id. Every answer
+is one `createRefund` (200 or 201), `listRefunds` and `registerPayment` read as done. The script's
+test payment now returns the browser to the stack's own `WEB_URL`, not to the site.
+
 **2026-10-11, later: slice 7d's two Moneybird calls, proved in the owner's sandbox.** The owner
 ran `deploy/compose/moneybird-money-back-proof.sh` from the OTA checkout, on a hand-made account as
 `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE`. `register_payment_creditinvoice` on a credit note of 4.00
@@ -13,8 +26,8 @@ with a transaction identifier. A payment of -4.00 on the credit note of an invoi
 Mollie, on that account under a refund id, answered HTTP 201 with the payment as sent: the credit
 note paid, the refund id on its payment. Both are answers `registerCreditInvoicePayment` (any 2xx)
 and `registerPayment` (200 or 201) take as done, and the read-back (5f) already leaves alone an
-invoice its credit notes take off in full, which the books call paid. Still untried: Mollie's
-refund itself. `moneybird-money-back-proof.sh refund` tries it in Mollie's test mode, with a
+invoice its credit notes take off in full, which the books call paid. Mollie's refund itself was
+proved after (above): `moneybird-money-back-proof.sh refund` tries it in Mollie's test mode, with a
 `test_` key and nothing else: a test payment the owner pays on Mollie's checkout, booked on a
 sandbox invoice, a credit note of 4.00, then the refund as `createRefund` asks it (the credit
 note's reference as the idempotency key and in the metadata), asked twice to show one refund, and
@@ -47,8 +60,8 @@ unset, a refund waits and each run says so.
 - **In the owner's sandbox:** Moneybird's two calls here, `register_payment_creditinvoice` on a
   credit invoice crediting part of an open invoice and a negative payment on a credit invoice,
   were proved on 2026-10-11 (above) with `deploy/compose/moneybird-money-back-proof.sh`, which
-  makes both from the OTA checkout and prints what Moneybird answered. Mollie's refund in test
-  mode is still to try: the same script with `refund` and a `test_` key.
+  makes both from the OTA checkout and prints what Moneybird answered. Mollie's refund was proved
+  the same day in test mode (above), with the same script's `refund` and a `test_` key.
 
 **2026-10-11: slice 7e — the yes that asks to begin, without a tick box** (T7; terms §6, §7, 1.5;
 the owner: *"i do not want the tickbox, everyone who agrees with the terms would normally start
