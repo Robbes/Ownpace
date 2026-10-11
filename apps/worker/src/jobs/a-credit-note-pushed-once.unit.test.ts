@@ -125,6 +125,13 @@ function moneybird() {
       invoices.set(send[1]!, sent);
       return json(sent);
     }
+    // The credit note set against the open invoice it credits (slice 7d, its second half).
+    const settle = /^\/sales_invoices\/(\d+)\/register_payment_creditinvoice\.json$/.exec(path);
+    if (settle && method === 'PATCH') {
+      const credit = { ...invoices.get(settle[1]!)!, state: 'paid' };
+      invoices.set(settle[1]!, credit);
+      return json(credit);
+    }
     const one = /^\/sales_invoices\/(\d+)\.json$/.exec(path);
     if (one && method === 'PATCH') {
       const invoice = invoices.get(one[1]!)!;
@@ -187,7 +194,7 @@ describe('a credit note pushed as the hourly run pushes it', () => {
 
   const fresh = (): { budget: PushBudget; counts: PushCounts } => ({
     budget: { left: 60, stopped: false },
-    counts: { issued: 0, credited: 0, adopted: 0, booked: 0, held: 0, refused: 0, unavailable: 0, slowed: 0 },
+    counts: { issued: 0, credited: 0, adopted: 0, booked: 0, held: 0, refunded: 0, settled: 0, byHand: 0, refused: 0, unavailable: 0, slowed: 0 },
   });
 
   beforeAll(async () => {
@@ -208,7 +215,7 @@ describe('a credit note pushed as the hourly run pushes it', () => {
     await driver?.end();
   });
 
-  it('numbers the invoice, then its credit note, in one run; the next run asks nothing', async () => {
+  it('numbers the invoice, then its credit note, and settles it against the open invoice, in one run; the next run asks nothing', async () => {
     const invoiceId = ((await draft(ORG)).rows[0] as { id: string }).id;
     const recorded = await withTenant(driver, ORG, (db) =>
       recordCreditNote(db, ORG, invoiceId, { description: DESCRIPTION, numerator: 28, denominator: 31, evidence: {} }),
@@ -219,7 +226,7 @@ describe('a credit note pushed as the hourly run pushes it', () => {
     const { budget, counts } = fresh();
     await pushOrganisation(pool(), ORG, OCT_3, SETTINGS, CONTEXT, budget, counts, { fetchImpl: books.impl, ...noPace });
 
-    expect(counts).toEqual({ issued: 2, credited: 1, adopted: 0, booked: 0, held: 0, refused: 0, unavailable: 0, slowed: 0 });
+    expect(counts).toEqual({ issued: 2, credited: 1, adopted: 0, booked: 0, held: 0, refunded: 0, settled: 1, byHand: 0, refused: 0, unavailable: 0, slowed: 0 });
     expect(await rowsOf(ORG)).toEqual([
       {
         reference: `ownpace-${ORG}-m-2026-10-medium`,

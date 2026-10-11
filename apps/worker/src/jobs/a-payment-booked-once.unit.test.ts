@@ -112,7 +112,7 @@ describe("one organisation's payments through Mollie, booked as the hourly run b
 
   const fresh = (): { budget: PushBudget; counts: PushCounts } => ({
     budget: { left: 60, stopped: false },
-    counts: { issued: 0, credited: 0, adopted: 0, booked: 0, held: 0, refused: 0, unavailable: 0, slowed: 0 },
+    counts: { issued: 0, credited: 0, adopted: 0, booked: 0, held: 0, refunded: 0, settled: 0, byHand: 0, refused: 0, unavailable: 0, slowed: 0 },
   });
 
   beforeAll(async () => {
@@ -141,7 +141,7 @@ describe("one organisation's payments through Mollie, booked as the hourly run b
     const moneybird = books();
     const { budget, counts } = fresh();
     await pushOrganisation(pool(), BOOKED, NOW, SETTINGS, CONTEXT, budget, counts, { fetchImpl: moneybird.impl, ...noPace });
-    expect(counts).toMatchObject({ booked: 1, held: 0, refused: 0 });
+    expect(counts).toMatchObject({ booked: 1, held: 0, refunded: 0, settled: 0, byHand: 0, refused: 0 });
     expect(moneybird.calls.find((call) => call.method === 'POST')?.body).toEqual({
       payment: {
         payment_date: '2026-10-05',

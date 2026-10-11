@@ -376,6 +376,9 @@ describe('the catalog pin', () => {
       'metadata',
       'moneybird_administration_id',
       'moneybird_id',
+      // A credit note's money back, written once (0052).
+      'money_back',
+      'money_back_at',
       // A payment through Mollie, booked in the books (0050).
       'moneybird_paid_at',
       'paid_at',
@@ -384,6 +387,8 @@ describe('the catalog pin', () => {
       'payment_method',
       // The push's claim on a draft (0047).
       'push_lease_until',
+      'refund_cents',
+      'refund_id',
       'sent_at',
       'status',
       'subtotal',
@@ -449,6 +454,10 @@ describe('the column pin (0045)', () => {
     push_lease_until: 'lifecycle',
     paid_cents: 'lifecycle',
     moneybird_paid_at: 'lifecycle',
+    money_back: 'lifecycle',
+    money_back_at: 'lifecycle',
+    refund_id: 'lifecycle',
+    refund_cents: 'lifecycle',
     tenant_id: 'detach',
     billed_to_name: 'detach',
   };
