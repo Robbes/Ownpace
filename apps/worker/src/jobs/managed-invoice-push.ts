@@ -19,6 +19,13 @@
  * Moneybird, on `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE`, so Moneybird never
  * reminds anybody who paid. Unset, nothing is booked, and the run says so.
  *
+ * PAID AND LATE, READ BACK (slice 5f, its second half). Once every
+ * organisation has been pushed, one question to Moneybird: every invoice it
+ * changed in the last day that is late, reminded or paid
+ * (`books-read-back.ts`), each copied back onto its row in its organisation's
+ * own scope, forwards only: a bank transfer is seen as paid, and Moneybird's
+ * late as overdue.
+ *
  * Hourly at :41, eighteen minutes after the month task, so a draft made on a
  * month's first hour is numbered within it.
  *
@@ -57,12 +64,15 @@ import type { Pool } from 'pg';
 import { withTenant } from '@openmig/ledger';
 import { log, type TenantId } from '@openmig/shared';
 import {
+  applyReadBack,
   bookPayment,
   claimNextCreditNote,
   claimNextDraft,
   claimNextPaymentToBook,
   draftsBehind,
+  listChangedSalesInvoices,
   moneybirdFromEnv,
+  organisationOf,
   planCreditPush,
   planPush,
   pushCreditNote,
@@ -71,6 +81,9 @@ import {
   recordCreditDraft,
   recordCreditIssued,
   recordIssued,
+  READ_BACK_PAGE,
+  READ_BACK_PAGES,
+  READ_BACK_WINDOW_HOURS,
   recordPaymentBooked,
   whyNobodyIsInvoiced,
   type MoneybirdSettings,
@@ -214,6 +227,69 @@ export async function pushOrganisation(
   }
 }
 
+/** What one read-back did, counted. */
+export interface ReadBackCounts {
+  /** Whether Moneybird answered the list. */
+  read: boolean;
+  overdue: number;
+  paid: number;
+  /** Changed invoices with no organisation of ours in their reference: a proof, the nightly's, one by hand. */
+  notOurs: number;
+  failed: number;
+}
+
+/**
+ * The read-back (books-read-back.ts): one list of what Moneybird changed in
+ * the last day, each change written in its organisation's own scope. Exported
+ * so the tests run it on a database and a Moneybird of their own.
+ */
+export async function readBackFromTheBooks(
+  pool: Pool,
+  settings: MoneybirdSettings,
+  now: Date,
+  options: { readonly fetchImpl?: typeof fetch } = {},
+): Promise<ReadBackCounts> {
+  const counts: ReadBackCounts = { read: false, overdue: 0, paid: 0, notOurs: 0, failed: 0 };
+  const since = new Date(now.getTime() - READ_BACK_WINDOW_HOURS * 3_600_000);
+  const listed = await listChangedSalesInvoices(settings, since, now, options.fetchImpl);
+  if (listed.kind === 'slow_down') {
+    log.warn('[invoice-push] Moneybird asked to slow down before the read-back; it waits for the next run.');
+    return counts;
+  }
+  if (listed.kind === 'unavailable') {
+    log.warn(`[invoice-push] paid and late not read back: ${listed.reason}`);
+    return counts;
+  }
+  counts.read = true;
+  for (const invoice of listed.invoices) {
+    const organisation = organisationOf(invoice.reference);
+    if (!organisation) {
+      counts.notOurs++;
+      continue;
+    }
+    try {
+      const change = await withTenant(pool, organisation, (db) =>
+        applyReadBack(db, organisation as TenantId, settings.administrationId, invoice, now),
+      );
+      if (change) counts[change]++;
+    } catch (err) {
+      // Said, and the next invoice still read back (hard rule 9).
+      counts.failed++;
+      log.error(
+        `[invoice-push] organisation ${organisation}: invoice ${invoice.moneybirdId} could not be read back:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+  if (listed.more) {
+    log.warn(
+      `[invoice-push] more than ${READ_BACK_PAGE * READ_BACK_PAGES} invoices changed in the books in the last ` +
+        `${READ_BACK_WINDOW_HOURS} hours; the rest is read back by the next run.`,
+    );
+  }
+  return counts;
+}
+
 /** A push that issued nothing: counted, and said; a 429 stops the run where it is. */
 function notIssued(
   outcome:
@@ -317,7 +393,9 @@ export const managedInvoicePush = schedules.task({
       if (budget.stopped) break;
     }
 
-    const result = { pushing: true, tenants: organisations.length, ...counts, failed, left: budget.left };
+    // Then paid and late, read back from the books, once a 429 has not stopped the run.
+    const readBack = budget.stopped ? null : await readBackFromTheBooks(pools.tenant, moneybird.config, now);
+    const result = { pushing: true, tenants: organisations.length, ...counts, failed, left: budget.left, readBack };
     log.info('[invoice-push]', result);
     return result;
   }),

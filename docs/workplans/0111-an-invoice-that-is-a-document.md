@@ -23,6 +23,28 @@
   tick box; terms §7 changes with it (terms 1.5, the owner's and the lawyer's to read). Until 7e
   is built, every withdrawal is credited in full (`docs/ending-the-alpha.md`).
 
+**2026-10-11: slice 5f, its second half — paid and late, read back from the books.** What
+Mollie never sees, the books do: a bank transfer, and Moneybird's own judgement that an invoice is
+late. Every hour, once every organisation has been pushed, the run asks Moneybird one question
+(`books-read-back.ts`): every invoice it changed in the last day and two hours that is late,
+reminded or paid, over an explicit period (Moneybird's default is this year alone), a page of 100
+at a time, at most 20 pages a run. Each answer names its organisation in our own reference, and is
+written in that organisation's scope, forwards only: `late` and `reminded` move a sent invoice to
+overdue; `paid` moves a sent or overdue one to paid, on Moneybird's day, noting that the books
+hold it, so the first half never books it again. A credit note, another administration's
+invoice, one without our reference (a proof, the nightly's) and one its credit notes take off in
+full are left alone: Moneybird calls that settled, and nobody paid it. Asked about a day every
+hour, a change is seen within the hour, and a night the worker did not run is caught up the next
+morning, with nothing kept between runs.
+
+- **Guards:** `paid-and-late-read-back.unit.test.ts` (the question asked, its pages and when
+  more waits; the organisation from the reference only; overdue and paid, once each, on the
+  books' day; never backwards, never a credit note, another administration's or another
+  organisation's; credited in full left, credited in part paid);
+  `paid-and-late-read-back-hourly.unit.test.ts` (one question per run, each change in its own
+  scope, the next hour moving nothing; Moneybird unavailable said and nothing read). Two
+  mutants, both red: the credited-in-full guard, and the invoices-only condition on late.
+
 **2026-10-11: slice 5f, its first half — a payment through Mollie, booked in the books.** When
 Mollie's webhook moves an invoice to paid, it now notes what Mollie took (`paid_cents`, managed
 0050: after a credit note decided before the payment, less than the total). Each hour, after an
