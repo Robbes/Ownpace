@@ -128,6 +128,17 @@
  * 0139), never on live: `a-demo-on-a-real-address.unit.test.ts` holds the
  * scripted bring-up to starting it only with `--with-demo`.
  *
+ * And the site's visit count (`site-visits.sh`, `docker run`, from live's
+ * checkout once a day; the owner, 2026-10-05: *"go with GoAccess on the logs
+ * and the sentence"*). GoAccess 1.12 (`allinurl/goaccess`, read at the tag
+ * `v1.12`, `ef3c4f3c`) has no telemetry, update check or error report: what
+ * in it can reach a network is its reverse lookup of hosts (`src/gdns.c`, for the HOSTS
+ * panel, which the script ignores) and its WebSocket server (`src/websocket.c`,
+ * only with `--real-time-html`, which it never passes). And it runs with
+ * `--network none`, so nothing could leave if a later version added
+ * something. The image is pinned by digest, and the row below fails on
+ * another pin or on a run that has a network.
+ *
  * WHAT THIS CANNOT SEE. A running container, or a machine's `.env`: live's own
  * `TRIGGER_IMAGE_TAG` would run another webapp than the default read here, which
  * is why `docs/managed-bring-up.md`, *Nothing phones home*, has the check to run
@@ -493,6 +504,15 @@ const MAILPIT =
 const NEXTCLOUD = 'nextcloud:34-apache';
 /** The demo's Stalwart, outside every compose file; its fetches were read at this tag. */
 const STALWART = 'stalwartlabs/stalwart:v0.16.10';
+/**
+ * The site's visit count, outside every compose file (`site-visits.sh`); read
+ * at the tag `v1.12` (`ef3c4f3c`). The digest is Docker Hub's index for the tag
+ * `1.12` (amd64 and arm64), read from its listing on 2026-10-05 and read back
+ * from the registry on 2026-10-06 (a HEAD of the tag returns it); not pulled
+ * through Docker here.
+ */
+const GOACCESS =
+  'allinurl/goaccess:1.12@sha256:9e6dfd4abce94bd7c2907c1840b7b35f666587d56b24ffbb930b4782a87ea172';
 
 const NEXTCLOUD_PHONES =
   'its version and PHP version to updates.nextcloud.com, the app store at apps.nextcloud.com, the announcements feed and a ' +
@@ -788,6 +808,27 @@ describe('what runs outside every compose file is named, at the version it was r
     for (const host of ['github.com/stalwartlabs/webui', 'github.com/stalwartlabs/spam-filter', 'cdn.jsdelivr.net']) {
       expect(doc, `Nothing phones home no longer names Stalwart's ${host}`).toContain(host);
     }
+  });
+
+  it("the site's visit count (site-visits.sh, docker run) is GoAccess at the version read, pinned by digest, with no network", () => {
+    const script = read('deploy/compose/site-visits.sh');
+    const image = /^GOACCESS_IMAGE="([^"]+)"$/m.exec(script)?.[1];
+    expect(
+      image,
+      'GoAccess was read at 1.12 for what it sends (nothing: no telemetry, update check or report). Re-read src/gdns.c and src/websocket.c at the new pin',
+    ).toBe(GOACCESS);
+    expect(image, 'pinned by digest, as the images in managed.yml are').toMatch(/^[^@]+:[^@]+@sha256:[0-9a-f]{64}$/);
+    const code = script
+      .split('\n')
+      .filter((l) => !/^\s*#/.test(l))
+      .join('\n');
+    expect(code, 'site-visits.sh no longer runs its image').toMatch(/\bdocker run\b/);
+    expect(code, 'site-visits.sh no longer runs its image').toMatch(/"\$\{?GOACCESS_IMAGE\}?"/);
+    expect(code, 'GoAccess runs with a network: nothing it might send could be stopped').toMatch(/--network none\b/);
+    const doc = read('docs/managed-bring-up.md');
+    const section = /^## Nothing phones home\n([\s\S]*?)^## /m.exec(doc)?.[1] ?? '';
+    expect(section, 'Nothing phones home no longer names the visit count').toContain('allinurl/goaccess');
+    expect(section, 'Nothing phones home no longer says GoAccess runs with no network').toContain('--network none');
   });
 });
 

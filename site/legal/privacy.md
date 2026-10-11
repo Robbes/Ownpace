@@ -13,6 +13,49 @@
   owner, 2026-10-05), read as the Alpha on the owner's own approval, with the
   lawyer's pass before the first paid tier.
 
+  v1.3, 2026-10-11: the policy says that visits to this website are counted
+  from its server logs, as totals. Drafted under 1.2 on 2026-10-05, but the
+  final-text pull request merged without it, and 1.2 has been final since
+  2026-10-07, so the words take a new number (1.3, both languages,
+  LEGAL_VERSIONS and ACCEPTED_WORDS; 1.2's pins stay). The owner, 2026-10-05, verbatim: "go with GoAccess on the logs and
+  the sentence. id and status we skip for now, no netbird api tokens..." It
+  answers the recommendation to count visits to www.ownpace.eu with GoAccess,
+  reading the access log the website's nginx already writes
+  (deploy/compose/www-nginx.conf, format ownpace_site), on live's copy of the
+  site: no script, no cookie and no banner on the page, nothing sent to
+  anyone, nothing counted on app., id. or status.ownpace.eu, and no NetBird
+  API token, so NetBird's own log is not read. What changed:
+
+  - §4.5: after the server-logs paragraph, the recommended sentence, word for
+    word: "From these logs we also count visits to this website (pages, the
+    site you came from, the kind of browser), as totals only, which identify
+    nobody." What makes it true, read in GoAccess's own source, is the
+    comment beside it: GoAccess keeps its report of totals and no database of
+    its own, because --persist keeps a fingerprint per visitor and per day
+    (of the full IP address and the browser) and which pages each one asked
+    for, and --anonymize-ip changes only the report. And nothing but totals
+    reaches that report (review, 2026-10-06), because GoAccess copies text a
+    visitor or a link chose into it word for word: so no campaigns (it keeps
+    nine utm_ values as the link carried them, and the sentence names no
+    campaigns), the path of a request that found no page under a fixed name,
+    a browser and a system by name and a version of digits and dots, and a
+    referring site by its name, never an IP address.
+  - §5: the server logs' purpose gains "and counting visits in totals". "There
+    is no analytics tracker on the application or on this website" stays,
+    because it stays true (nothing is added to the pages; the counting reads
+    our own log on our own machine), and says where the counting comes from:
+    "we count visits to this website only from our server logs (§4.5)".
+  - §9: a row for the totals: "As long as we run this website. They are
+    totals only, and identify nobody." The period is this pull request's, for
+    the owner's reading.
+  - Unchanged, and still true: the Applies-to line (this website was already
+    covered); the self-host box (the appliance serves no website and counts
+    nothing: deploy/selfhost has no website service; the site runs from
+    deploy/compose/www.yml on our machine only); §7 and §8 (no new party;
+    nothing is sent to anyone, and the owner reads the report on the machine
+    or on their own device over the mesh); §9's Server logs row (the logs are
+    kept no longer: the run streams the log and writes no copy of it); §10's right to object, which already names our logs.
+
   Drafted as v1.2 on 2026-09-28, for the owner's review. This comment never renders
   (the site generator strips HTML comments). It is the briefing for the
   reviewing lawyer, beside the ones at the top of terms.md and alpha.md. The
@@ -388,6 +431,16 @@
       owner's own rule, as it stands). A sign-in code or a progress summary
       answers no question, so the rule gives it no clear end. Is it precise
       enough for Art. 5(1)(e) and 13(2)(a)?
+  21. Visits counted from the server logs (§4.5, §5, §9; the owner,
+      2026-10-05). Counting reads the logs, which hold the visitor's IP
+      address, so it is processing, on the server logs' basis, legitimate
+      interests; the totals it keeps identify nobody. Is §5's purpose enough,
+      and may §9 give totals that are not personal data a period ("As long as
+      we run this website") rather than none? And with very few visitors, as
+      in the Alpha, a total of one describes one visit: its day and hour, its
+      page, the site it came from, its browser and its system. Does such a
+      report single somebody out (Recital 26) for someone who knows to whom a
+      link was sent?
 
   Still to do before the first invitation (facts, checks and code; written
   as the list before the draft marker came off on 2026-10-05, and kept as the
@@ -476,13 +529,23 @@
   - By hand until something does it: pruning the support mailbox and its Sent
     folder at Proton under §9's rule.
   - Proton: where its agreement says it processes (question 11).
+  - The visit totals (§4.5, §9; the owner, 2026-10-05: "go with GoAccess on
+    the logs and the sentence"): the run that counts them, on live's copy of
+    the site, with what the comment beside §4.5 lists: no --persist or
+    --restore, HOSTS, GEO_LOCATION, ASN, REFERRERS and REMOTE_USER ignored,
+    no campaigns (UTM_CAMPAIGNS ignored), only totals in the report and only
+    the report kept, the reports deleted when the website is taken down for
+    good, and no copy of the log left behind. It counts on live only once
+    the site publishes the sentence. Not a blocker for the first invitation:
+    until it runs, nothing is counted, which is less than the sentence says,
+    never more.
 -->
 
 # Privacy policy
 
 **Applies to:** the Ownpace **managed service** at `ownpace.eu`, and this website.
-**Version:** 1.2
-**Last updated:** 2026-10-07
+**Version:** 1.3
+**Last updated:** 2026-10-11
 
 > **If you run Ownpace yourself**, this policy does not apply to you and there is nothing for
 > us to state: the software runs on your infrastructure, your data never reaches us, and we
@@ -701,6 +764,71 @@ process that met it, beside a reference, so that we can help you with it; that t
 folder, a file or an address. And a request for access is logged with the email address it
 gives, as is our decision on it.
 
+<!-- NOT YET TRUE ON live: nothing counts yet. The owner, 2026-10-05, verbatim: "go with GoAccess
+     on the logs and the sentence. id and status we skip for now, no netbird api tokens..." It
+     answers the recommendation to count visits to www.ownpace.eu with GoAccess, from the access
+     log the website's nginx already writes (deploy/compose/www-nginx.conf, format ownpace_site:
+     the request line with any UTM parameters, the Referer, the User-Agent, and the visitor's
+     address from X-Forwarded-For), on live's copy (deploy-live.sh, the compose project
+     ownpace-live-www, once WWW_LIVE=true: docs/managed-bring-up.md, "www.ownpace.eu: live's
+     copy"): no script, cookie or banner on the page, nothing sent to anyone (the owner reads the
+     report of totals on the machine, or on their own device over the mesh), nothing counted on
+     app., id. or status.ownpace.eu, and no NetBird API token, so NetBird's own log is not read.
+     The sentence below holds only for a run that keeps what it says: totals, and no text that a
+     visitor or a link chose. GoAccess's source, read at the tag v1.12 (ef3c4f3c,
+     github.com/allinurl/goaccess), the version the run is to be pinned to:
+     - No on-disk database. --persist writes, per day, one fingerprint per visitor, a 64-bit FNV
+       hash of the full IP address and the User-Agent (U6432_UNIQUE_KEYS.db; util.c
+       visitor_fingerprint; before 1.11 the key string itself, date|IP|agent), and, per panel,
+       which visitor asked for which page, came from which site and used which browser
+       (U648_<panel>_MTRC_UNIQMAP.db; gkmhash.h). Those are rows per visitor, and an unsalted hash
+       of an IPv4 address and a known browser string is undone by trying every address. So no
+       --persist and no --restore (or a --db-path emptied after every run). --keep-last bounds
+       the days, not what each day keeps.
+     - --anonymize-ip and --anonymize-level mask the address only when the HOSTS panel is drawn
+       (gholder.c): the fingerprint, and a persisted HOSTS panel, keep the full address. They are
+       no substitute for the point above.
+     - --ignore-panel for HOSTS (the addresses), GEO_LOCATION and ASN (a location, which the
+       sentence does not name), REFERRERS (the whole address of the page you came from, which can
+       carry a search or a mailbox's link; "the site you came from" is REFERRING_SITES, the host
+       only; GoAccess's sample configuration turns REFERRERS off, a run without that file does
+       not) and REMOTE_USER. --no-query-string keeps parameters out of the pages.
+     - No campaigns: --ignore-panel=UTM_CAMPAIGNS, or the query string cut before GoAccess reads
+       the line. GoAccess keeps the decoded value of nine utm_ parameters word for word (utm.c),
+       taken before --no-query-string cuts the query (parser.c), so a name or an email address
+       that somebody put in a link's utm_content or utm_term would stand in the report. The
+       sentence names no campaigns, so the run keeps none. Should the owner want them: only
+       utm_source, utm_medium and utm_campaign, each value from a short list of our own campaign
+       names, and the sentence then says "(pages, the site you came from, the campaign a link
+       named, the kind of browser)" / "(pagina's, de site waar u vandaan kwam, de campagne die
+       een link noemde, het soort browser)", after their reading.
+     - Pages are our own. A request answered with a 4xx or 5xx status found none of our pages,
+       and it is counted under a fixed name, not its path: nginx answers any path (try_files
+       ... =404), and GoAccess keeps the path word for word, a 404's in NOT_FOUND and any other
+       status's in REQUESTS or REQUESTS_STATIC, a mistyped personal link or a path holding an
+       email address among them.
+     - Browsers and systems by name and version only. GoAccess takes both from the User-Agent
+       and ends a version only at ';', ')', a space or a backslash (browsers.c parse_browser;
+       opesys.c), so text joined to a version ("Firefox/128.0-" and a name) reaches the report.
+       The User-Agent is therefore reduced before GoAccess reads it, so that nothing but a name
+       and a version of digits and dots can come out of it.
+     - The site you came from, by its name. A Referer whose host is an IP address (a home
+       server, a NAS, a machine on a mesh) is counted under a fixed name, not the address.
+     - What is kept: GoAccess's report of those totals (HTML or JSON), on the machine, until we
+       take this website down for good (§9). Beside what the sentence names, it counts the same
+       visits by day and hour, by status, and by the system the browser runs on, which GoAccess
+       reads from the same User-Agent as the browser: "the kind of browser" is read to include
+       it. With very few visitors a total of one still describes one visit; the briefing asks
+       the lawyer (question 21).
+     - The log is read where Docker keeps it and streamed to GoAccess; no copy of it is written,
+       so §9's Server logs row holds.
+     - The run counts on live only once the site publishes this sentence and §5's purpose "and
+       counting visits in totals": before then it would count for a purpose this policy does not
+       state. -->
+
+From these logs we also count visits to this website (pages, the site you came from, the kind of
+browser), as totals only, which identify nobody.
+
 **What the people who run the service can see.** To run and support the service, the people on
 our side who operate it — during the Alpha, one person — can view **service metadata** about
 your account on our support screens: your organisation's name and status; its members'
@@ -775,16 +903,16 @@ A migration touches people who never signed up with us. This is what we hold abo
 | Other people's data (§4.6): in what you migrate, a family member's access and address, the people you invite, and the mail to people you shared items with | Carrying out the migration you asked for, letting in the people you invite, and telling people, at your request, where their shared items went | Legitimate interests (Art. 6(1)(f)): yours, in moving your household's mail and files, and ours, in doing it; the limits in §4 and §9 protect theirs |
 | The audit log of who did what in your organisation, and when | Showing you, and us, what was done in your organisation and by whom | Legitimate interests (Art. 6(1)(f)) |
 | The copy made right before an update | Undoing a failed update, so that your data stays intact | Legitimate interests (Art. 6(1)(f)) |
-| Server logs, for the app and this website | Keeping the service secure and working | Legitimate interests (Art. 6(1)(f)) |
+| Server logs, for the app and this website | Keeping the service secure and working, and counting visits in totals | Legitimate interests (Art. 6(1)(f)) |
 | Support mail and problem reports | Answering you, and fixing what went wrong | Contract / legitimate interests (Art. 6(1)(f)) |
 | Support read-log (which of us viewed which account metadata, and when) | Accountability for our own access to your account | Legitimate interests (Art. 6(1)(f)) — yours as much as ours |
 
 **We do not use your data for advertising, we do not profile you, and we do not sell or rent
-your data to anyone.** There is no analytics tracker on the application or on this website. The
-app keeps your sign-in in your browser's own storage until you sign out, and remembers your
-language and a few choices there; it sets no cookie of its own, and neither does this website.
-Our sign-in page sets the cookies that signing in needs. This website loads nothing from other
-servers.
+your data to anyone.** There is no analytics tracker on the application or on this website; we
+count visits to this website only from our server logs (§4.5). The app keeps your sign-in in
+your browser's own storage until you sign out, and remembers your language and a few choices
+there; it sets no cookie of its own, and neither does this website. Our sign-in page sets the
+cookies that signing in needs. This website loads nothing from other servers.
 
 We make no decision about you by automated means alone: a person decides every request for
 access. To take part, you give us your email address; to connect a Google account during the
@@ -1022,7 +1150,19 @@ target. We show you the target before anything is written.
        owner: "needs checking"). Checked on the machine on 2026-10-05: docker info --format
        '{{.LoggingDriver}}' printed "json-file". The journald step is out of
        docs/managed-bring-up.md, and stand-up-live.sh refuses a machine whose driver is not
-       json-file or local (#1362, bfdfbf66). -->
+       json-file or local (#1362, bfdfbf66).
+     - The visit totals, "As long as we run this website" (the owner, 2026-10-05: "go with
+       GoAccess on the logs and the sentence. id and status we skip for now, no netbird api
+       tokens..."; the period is this pull request's, for the owner's reading): NOT YET TRUE ON
+       live, nothing counts yet. Totals that identify nobody are not personal data, so the row
+       states a period rather than needing one. It holds only while GoAccess keeps its report of
+       totals and no database of its own (--persist would keep a fingerprint per visitor and per
+       day), and only while nothing but totals reaches the report: no campaigns, no path of a
+       request that found no page, no text joined to a browser's version, no address as a
+       referring site (beside §4.5). The period ends: when we take this website down for good,
+       its reports are deleted with it, which the run's pull request must add to the site's
+       take-down in docs/managed-bring-up.md. Reading the log does not lengthen the Server logs
+       row: the run streams the log and writes no copy of it. -->
 
 | What | Kept for |
 |---|---|
@@ -1045,6 +1185,7 @@ target. We show you the target before anything is written.
 | The copy made right before an update | Until the update it was made for is shown to work, and never longer than 7 days. It holds the service's database and our sign-in service's database; before the system that runs the background tasks is upgraded, also its database. Such a copy is made only to undo a failed update, and it does not leave the hosting environment. Data erased from the service can remain in it for at most 7 days. |
 | Records of the background tasks that run your migrations (identifiers, counts, and a category and a reference for an error; no names, addresses or content, apart from the reason one of us types when a switch-over is undone) | Until the end of the Alpha at the latest: then the background tasks start with an empty history. They are not deleted when your data is erased. |
 | Server logs (§4.5) | Until the part of the service that wrote them is replaced: for the app and this website, at each update of the service; for our sign-in service, when its version or its settings change; for a background task, when its run ends. There is no fixed period. |
+| The visit totals counted from this website's server logs (§4.5) | As long as we run this website. They are totals only, and identify nobody. |
 | Invoices and the usage figures behind them | **7 years**, because Dutch tax law requires it. During the Alpha nothing is charged: there are no invoices, and the usage figures go when your data is erased. |
 
 **During the Alpha we make no backups**, apart from the copy made right before an update, in the
