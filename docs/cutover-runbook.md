@@ -295,8 +295,9 @@ During the grace period (72 hours on the ledger row; running `complete` ends
 it sooner):
 
 - A migration that was running at `execute` keeps being copied, under the
-  after-cutover rules: new and changed items are copied, deletions at the
-  source are not mirrored. `status` prints until when; after that no pass runs,
+  after-cutover rules: new items are copied, deletions at the source are not
+  mirrored, and a change at the source no longer overwrites a copy already made
+  (counted as `changedAfterCutover`; the owner, 2026-10-05, "Stop overwriting"). `status` prints until when; after that no pass runs,
   and the migration's own ending (finish, or keep copying in the continuous
   lane) is the Finish page's.
 - A pass that was already running when `execute` landed finishes its copying,

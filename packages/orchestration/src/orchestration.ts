@@ -153,6 +153,11 @@ export interface DomainSyncResult {
    * only place it is visible.
    */
   changedButAdopted?: number;
+  /**
+   * Changed on the source after cutover and left as the target has them (the
+   * owner, 2026-10-05: "Stop overwriting"; `DomainSyncResult.changedAfterCutover`).
+   */
+  changedAfterCutover?: number;
   failed: number;
   /** Failures that have run out of automatic retries and need an owner decision. */
   needsDecision?: number;
@@ -611,6 +616,7 @@ export async function runAllDomains(
             adopted: result.adopted,
             updated: result.updated,
             changedButAdopted: result.changedButAdopted,
+            changedAfterCutover: result.changedAfterCutover,
             failed: result.failed,
             needsDecision: result.needsDecision,
             leftBehind: result.leftBehind,
@@ -640,6 +646,7 @@ export async function runAllDomains(
             adopted: result.adopted,
             updated: result.updated,
             changedButAdopted: result.changedButAdopted,
+            changedAfterCutover: result.changedAfterCutover,
             failed: result.failed,
             needsDecision: result.needsDecision,
             leftBehind: result.leftBehind,
@@ -685,6 +692,7 @@ export async function runAllDomains(
             adopted: result.adopted,
             updated: result.updated,
             changedButAdopted: result.changedButAdopted,
+            changedAfterCutover: result.changedAfterCutover,
             failed: result.failed,
             needsDecision: result.needsDecision,
             leftBehind: result.leftBehind,
@@ -722,6 +730,7 @@ export async function runAllDomains(
             adopted: result.adopted,
             updated: result.updated,
             changedButAdopted: result.changedButAdopted,
+            changedAfterCutover: result.changedAfterCutover,
             failed: result.failed,
             needsDecision: result.needsDecision,
             leftBehind: result.leftBehind,
@@ -888,6 +897,13 @@ export async function runAllDomains(
           `[Worker] ${domain}: ${outcome.changedButAdopted} item(s) changed on the source but ` +
             'were left as the destination already had them (adopted, never written by us). ' +
             'Non-destructive by hard rule 2; the owner decides whether to replace them.',
+        );
+      }
+      if (outcome.changedAfterCutover) {
+        log.info(
+          `[Worker] ${domain}: ${outcome.changedAfterCutover} item(s) changed on the source after ` +
+            'cutover and were left as the destination has them: after cutover a change there no ' +
+            'longer overwrites a copy here. New items are still copied.',
         );
       }
       if (outcome.deletions) {

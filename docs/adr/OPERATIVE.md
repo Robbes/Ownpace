@@ -605,8 +605,8 @@ live in [README.md](./README.md), the register.
   `mapping.status` record (`via: 'cutover'`) commit together, through the rollback's port; only
   paths in the phase the mapping leaves move, where its rows add up to its status (`pathFollows`).
   See *One transaction, and the paths*.
-- **A migration `active` at `execute` copies until its grace period ends**, mirroring no deletion
-  and holding no slot; a `paused` one stays stopped. Gates ask `runsPassesNow` with each data
+- **A migration `active` at `execute` copies until its grace period ends**, mirroring no deletion,
+  overwriting no copy, and holding no slot; a `paused` one stays stopped. Gates ask `runsPassesNow` with each data
   type's window. A pass already running asks its phase again before concluding anything
   (`stillTheAuthority`). Guards: `a-grace-period-that-copies.unit.test.ts`,
   `a-cutover-during-a-pass.unit.test.ts`; see *The window rule*.

@@ -108,7 +108,9 @@ export function runsPasses(status: string): boolean {
  * "both systems active", and the window in which mail still reaches the old
  * server while the MX record propagates. A pass then runs under the
  * after-cutover rules it always had in that state (`sourceAuthorityFor`): it
- * copies what is new or changed and mirrors no deletion. `cutover` holds no
+ * copies what is new, mirrors no deletion, and since 2026-10-05 (the owner:
+ * "Stop overwriting") writes no later change over a copy it already made
+ * (`changedAfterCutover`, core). `cutover` holds no
  * slot (`holdsASlot`), so the grace period adds no path to anyone's bill;
  * what it copies joins the data meter, as every first copy does. When the
  * window closes,
@@ -212,7 +214,8 @@ export const PASS_RUNNING_STATES: readonly string[] = ['active', 'continuous'];
  * same reason: one docblock, one name, and a field a new sync path cannot
  * silently omit. `runDomainSync` documents what it does with it — in short,
  * `false` means the three deletion detectors are not assembled at all
- * (0117 D4 and §4D).
+ * (0117 D4 and §4D), and a change at the source no longer overwrites a copy
+ * already made (2026-10-05, "Stop overwriting").
  *
  * The value is always `!isAfterCutover(phase)`, where the phase is the data
  * type's own (`readPathPhases`, ledger; workplan 0128 T5), read from the

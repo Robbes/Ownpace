@@ -1489,6 +1489,15 @@ Two limits worth knowing:
   target versions of that item diverge from then on, which is exactly what the
   `changedButAdopted` count is telling you.
 
+**After cutover nothing is overwritten at all** (the owner, 2026-10-05: *"Stop
+overwriting"*). Once a data type is in `cutover`, `done` or `continuous`, a
+change at the old system to an item the migration already copied is not written
+over the copy on the target, whoever owns it: the pass counts it as
+`changedAfterCutover` (both editions' run logs say so), fetches nothing, and
+leaves the ledger's source version where it was. New items are still copied. A
+rollback makes the old system decide again (ADR-0047), and its next pass carries
+those changes over.
+
 **Deletions on the target are not repaired**, deliberately: putting an item back
 that somebody deleted on purpose would be its own kind of destructive. It is
 reported instead, and the §20 gate will not pass a cutover with items missing.

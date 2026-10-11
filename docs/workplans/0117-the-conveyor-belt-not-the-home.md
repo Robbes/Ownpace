@@ -126,6 +126,26 @@ the Deletions and Moves screen tests, and against real Postgres
 `apps/api/src/routes/migrations/apply-routes.integration.test.ts` and
 `apps/selfhost/src/an-apply-pressed-after-cutover.integration.test.ts`.
 
+**Built (fix 7): after cutover, a change at the old system overwrites nothing.** D4 kept
+deletions out; 0128 D1 (a) said new and changed items are still copied after cutover, so a
+leaver who blanked a contact or an event, or emptied a file, at the old system had the next
+pass write that version over the copy on the new system, which for calendars and contacts
+keeps no history. Asked whether that should stop, the owner chose **"Stop overwriting"**
+(2026-10-05). Now `runDomainSync`, when `sourceIsAuthorityOnExistence` is false, turns
+`classifyKnownItem`'s `'rewrite'` into a counted no-op before any fetch
+(`DomainSyncResult.changedAfterCutover`); the ledger's source version is not advanced, so the
+divergence is counted on every pass, as `changedButAdopted` is, and a rollback carries the
+change over on its next pass. New items are still copied; mail, which carries no version, was
+never rewritten. Both editions say it in the run log (the appliance's outcome and log line,
+managed's `run-delta-sync` event). The lane's door says it in one more sentence (`lane.why`,
+English and Dutch, the rest of the owner's approved wording of 2026-10-10 kept word for word).
+Guard: the last describe block of
+`packages/core/src/a-lane-that-runs-with-the-detector-present.unit.test.ts` (before cutover the
+change IS written, so the fixture can overwrite; after it the copy, the count, the new item
+still arriving, the version not advanced, a rollback carrying it over, and no fetch at all),
+shown red before the change. ADR-0048, `lifecycle.ts`, the cutover and operator runbooks, and
+0128's Status block now say it.
+
 **2026-09-10, later still again: THE TWO HALVES DID NOT FIT, and finding that out
 found a shipped bug.** Building slice 4 began by connecting the pass to the store, and
 they would not connect — which is how both of these surfaced.

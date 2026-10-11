@@ -849,6 +849,11 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    * it: it records no arrival, so `relocationCheck` refuses it
    * (`not_relocated`) and `autoApplyRelocations` never selects it.
    *
+   * AND NO OVERWRITE (the owner, 2026-10-05: "Stop overwriting"). When this
+   * is `false`, a change at the source to an item we copied is not written
+   * over our copy either: `classifyKnownItem`'s `'rewrite'` becomes a counted
+   * no-op before any fetch (`changedAfterCutover`). Only new items are copied.
+   *
    * REQUIRED, with no default, so that adding a caller is a decision rather
    * than an omission. Every `runDomainSync` in this repository is inside
    * `packages/core`, and each one's wrapper carries the same field up to the
@@ -951,6 +956,19 @@ export interface DomainSyncResult {
    * decides about their own data.
    */
   readonly changedButAdopted: number;
+  /**
+   * Items that changed on the source AFTER CUTOVER and were left as the target
+   * has them (the owner, 2026-10-05: "Stop overwriting").
+   *
+   * After cutover the old system no longer decides what exists (0117 D4), and
+   * no longer what an item we copied says either: a `'rewrite'` becomes this
+   * count, decided before any fetch, so blanking a contact or an event, or
+   * emptying a file, at the old system reaches nothing on the new one. New
+   * items are still copied. The source version is NOT advanced, so the
+   * divergence is counted on every pass, as `changedButAdopted` is, and a
+   * rollback (ADR-0047) carries the change over on its next pass.
+   */
+  readonly changedAfterCutover: number;
   /**
    * Items that failed THIS pass and will be retried on the next one.
    *
@@ -1222,6 +1240,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // Changed on the source, but the target copy is the customer's own — left
   // alone by hard rule 2, and counted so that is a fact rather than a silence.
   let changedButAdopted = 0;
+  let changedAfterCutover = 0;
   let moved = 0;
   // Rewrites REFUSED because somebody edited our copy in the new system.
   let conflicted = 0;
@@ -1873,6 +1892,14 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           }
           if (action === 'leave-adopted') {
             changedButAdopted += 1;
+            return;
+          }
+          if (action === 'rewrite' && !sourceIsAuthorityOnExistence) {
+            // AFTER CUTOVER A CHANGE AT THE OLD SYSTEM OVERWRITES NOTHING (the
+            // owner, 2026-10-05: "Stop overwriting"). Counted, before any
+            // fetch, and the source version is left where it was: see
+            // `DomainSyncResult.changedAfterCutover`.
+            changedAfterCutover += 1;
             return;
           }
           if (action === 'left-behind') {
@@ -2907,6 +2934,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     firstCopyBytes,
     heldAtCeiling,
     changedButAdopted,
+    changedAfterCutover,
     conflicted,
     needsDecision,
     leftBehind,

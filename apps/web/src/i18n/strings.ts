@@ -2524,8 +2524,9 @@ const en = {
   'lane.why':
     'Your tier will not fall while this runs: the path keeps its slot until you end it, ' +
     'the same as a migration that has not finished. Deletions at the old provider stop ' +
-    'being mirrored — anything you remove there stays in your new home. We will not bill ' +
-    'past twelve months without asking you again.',
+    'being mirrored — anything you remove there stays in your new home. Changes you make ' +
+    'there no longer overwrite the copies in your new home. We will not bill past twelve ' +
+    'months without asking you again.',
   'lane.confirm': 'Keep syncing, and keep the tier',
   'lane.cancel': 'Not now',
   // The lane on the appliance (0128 D4): the same choice, and no tier to keep.
@@ -5071,7 +5072,7 @@ const nl: Record<keyof typeof en, string> = {
     'Het verzoek is mislukt; mogelijk loopt er nog een migratieronde, controleer de wachtrijen straks opnieuw.',
   'lane.intro': 'Het oude account blijft het nieuwe voeden en er wordt niets verwijderd.',
   'lane.why':
-    'Uw pakket daalt niet zolang dit loopt: het pad houdt zijn plek tot u het beëindigt, net als een migratie die nog niet klaar is. Verwijderingen in uw oude bron worden niet meer gesynchroniseerd — wat u daar weghaalt, blijft op uw nieuwe bestemming staan. We factureren niet langer dan twaalf maanden zonder het u opnieuw te vragen.',
+    'Uw pakket daalt niet zolang dit loopt: het pad houdt zijn plek tot u het beëindigt, net als een migratie die nog niet klaar is. Verwijderingen in uw oude bron worden niet meer gesynchroniseerd — wat u daar weghaalt, blijft op uw nieuwe bestemming staan. Wat u daar wijzigt, overschrijft de kopieën op uw nieuwe bestemming niet meer. We factureren niet langer dan twaalf maanden zonder het u opnieuw te vragen.',
   'lane.confirm': 'Blijven synchroniseren, uw pakket blijft gelijk',
   'lane.cancel': 'Nu niet',
   'lane.selfhost.why':

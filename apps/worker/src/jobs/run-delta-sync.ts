@@ -592,6 +592,12 @@ export const runDeltaSync = schemaTask({
             firstCopyBytes?: number;
             /** New first copies that waited at the data ceiling (0109 T6). */
             heldAtCeiling?: number;
+            /**
+             * Changes at the old system after cutover, left as the new system
+             * has them (the owner, 2026-10-05: "Stop overwriting"). Absent on
+             * the mail branch: mail carries no version, so it is never rewritten.
+             */
+            changedAfterCutover?: number;
             budgetPause?: BudgetPause;
             deadlinePause?: DeadlinePause;
             haltPause?: HaltPause;
@@ -860,6 +866,22 @@ export const runDeltaSync = schemaTask({
                   'Billing page. Changes to what was already copied carried on, nothing failed, ' +
                   'and the cursors stayed where they are, so the pass after the yes copies them.',
                 { domain, heldAtCeiling: held, ceilingGb: ceiling.allowance.ceilingGb },
+              );
+            });
+          }
+          if (result.changedAfterCutover) {
+            // Said in the run log, as the appliance's log says it: a divergence
+            // left in place on purpose is still one an operator can ask about.
+            const changed = result.changedAfterCutover;
+            await withTenant(pool, tenantId, async (db) => {
+              await new RunStore(db).logEvent(
+                tenantId,
+                runId,
+                'info',
+                `${domain}: ${changed} item(s) changed at the old system after cutover and were left ` +
+                  'as the new system has them: after cutover a change there no longer overwrites a copy ' +
+                  'here. Nothing failed; new items are still copied.',
+                { domain, changedAfterCutover: changed },
               );
             });
           }

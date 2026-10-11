@@ -1,7 +1,8 @@
 # ADR-0048: The mapping hears the cutover
 
 - **Status:** Accepted 2026-09-19; built 2026-09-20; amended six times and corrected twice, latest
-  2026-09-27 (workplan 0128); consolidated 2026-10-03 (ADR-0051)
+  2026-09-27 (workplan 0128); consolidated 2026-10-03 (ADR-0051); amended since, latest
+  2026-10-05 (after cutover nothing is overwritten)
 - **Date:** 2026-09-19 (decided); 2026-09-20 (built); consolidated 2026-10-03
 - **Deciders:** owner
 - **Relates to:** [ADR-0047](./0047-a-rollback-is-a-setback.md) (the rollback, the other half),
@@ -25,8 +26,8 @@
   `mapping.status` record (`via: 'cutover'`) commit together, through the rollback's port; only
   paths in the phase the mapping leaves move, where its rows add up to its status (`pathFollows`).
   See *One transaction, and the paths*.
-- **A migration `active` at `execute` copies until its grace period ends**, mirroring no deletion
-  and holding no slot; a `paused` one stays stopped. Gates ask `runsPassesNow` with each data
+- **A migration `active` at `execute` copies until its grace period ends**, mirroring no deletion,
+  overwriting no copy, and holding no slot; a `paused` one stays stopped. Gates ask `runsPassesNow` with each data
   type's window. A pass already running asks its phase again before concluding anything
   (`stillTheAuthority`). Guards: `a-grace-period-that-copies.unit.test.ts`,
   `a-cutover-during-a-pass.unit.test.ts`; see *The window rule*.
@@ -117,7 +118,10 @@ The owner, 2026-09-24, D1 (a): *"bounded by the grace period, and slotless"*. Th
 promises both systems active, and mail still reaches the old server while the MX record
 propagates. So until it ends, a migration `active` at `execute` keeps being scheduled, and a running
 pass keeps going, under the after-cutover rules: no deletion detectors, nothing deleted on the
-target because it went at the source, no slot held; its copies join the data meter. Then passes
+target because it went at the source, nothing overwritten on the target because it changed at the
+source (2026-10-05, the owner's *"Stop overwriting"*: a change to an item already copied is
+counted as `changedAfterCutover`, before any fetch, and only new items are copied), no slot held;
+its copies join the data meter. Then passes
 stop; finishing, or the lane, stays the owner's. A pass that was already running when `execute`
 landed started under the rules from before it, so it asks its data type's phase again right before
 its end-of-pass conclusions (`stillTheAuthority`, from `readPathPhases`; 2026-10-05) and, after
@@ -285,6 +289,12 @@ both editions, so the decision is in `shared` and the write in `core` and the le
   type's phase when it starts (the owner, 2026-10-05: *"after cross over the bin reading and
   deleting on target should stop, because perhaps source-leavers clean up ALL after the cross
   over."*). Recorded in workplan 0117's Status block. Now *The grace period copies*.
+- **2026-10-05** — after cutover a change at the source overwrites nothing. 0128 D1 (a) said new
+  and changed items are copied; asked whether a change at the old system after cutover should
+  still overwrite the copy on the new one, the owner chose *"Stop overwriting"*. A `'rewrite'`
+  after cutover is a counted no-op (`changedAfterCutover`). Guard:
+  `a-lane-that-runs-with-the-detector-present.unit.test.ts`. Recorded in workplan 0117's and
+  0128's Status blocks. Now *The grace period copies*.
 
 The full record, word for word as it read before this consolidation:
 [history/0048-the-mapping-hears-the-cutover.md](./history/0048-the-mapping-hears-the-cutover.md).

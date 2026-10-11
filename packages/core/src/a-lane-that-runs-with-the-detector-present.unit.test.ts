@@ -94,6 +94,8 @@ interface Doc {
   readonly path: string;
   readonly href: string;
   readonly body: string;
+  /** The source's version of it (an ETag), where the test needs one. */
+  readonly version?: string;
 }
 
 /**
@@ -150,6 +152,7 @@ function world() {
         if (options?.overwrite) return { targetId: at, created: false, updated: true };
         if (existed) return { targetId: at, created: false, adopted: true };
         await ledger.recordIfAbsent({
+          ...(d.version !== undefined ? { sourceVersion: d.version } : {}),
           tenantId: TENANT,
           mappingId: MAPPING,
           itemType: 'file',
@@ -165,6 +168,7 @@ function world() {
         return { targetId: at, created: true };
       },
       naturalKey: (d) => d.path,
+      sourceVersion: (d) => d.version,
       sourceRef: (d) => d.href,
       contentHash: (raw) => `h:${raw as string}`,
       ensureCollection: async (folder) => folder.path,
@@ -327,5 +331,98 @@ describe('after cutover, a pass reports no deletion because it looked for none',
       'the apply-time gate on `allowApplyDeletions` is gone. Making detection ' +
         'absent after cutover does not make the switch redundant before it.',
     ).toContain('allowApplyDeletions');
+  });
+});
+
+/**
+ * A CHANGE AT THE OLD SYSTEM AFTER CUTOVER NO LONGER OVERWRITES THE NEW ONE
+ * (the owner, 2026-10-05: "Stop overwriting").
+ *
+ * D4 kept deletions out of the continuous lane, and 0128 D1 (a) said new and
+ * changed items are copied. A change is the same leaver's tool as a deletion:
+ * blank a contact or an event, or empty a file, at the old system, and the next
+ * pass wrote that version over the copy on the new system, which for calendars
+ * and contacts keeps no history. Asked whether that should stop, the owner
+ * chose "Stop overwriting". So after cutover a `'rewrite'` is a counted no-op,
+ * before any fetch: `changedAfterCutover`, reported as `changedButAdopted` is.
+ * New items are still copied. The source version is not advanced, so a
+ * rollback, which makes the old system decide again (ADR-0047), carries the
+ * change over on its next pass.
+ */
+describe('after cutover, a change at the old system does not overwrite the copy', () => {
+  const scenario = async (authority: boolean) => {
+    const w = world();
+    w.files.set('/docs', [{ path: '/docs/notes.txt', href: 'h-n', body: 'the owner\'s notes', version: 'v1' }]);
+    const ledger = await seeded(w);
+    // The leaver empties it at the old system, which gives it a new version,
+    // and adds a file beside it.
+    w.files.set('/docs', [
+      { path: '/docs/notes.txt', href: 'h-n', body: '', version: 'v2' },
+      { path: '/docs/new.txt', href: 'h-new', body: 'N', version: 'v1' },
+    ]);
+    const result = await w.run(ledger, authority);
+    return { result, target: w.target, ledger, w };
+  };
+
+  it('before cutover the change is written over our copy, so the fixture can overwrite', async () => {
+    const before = await scenario(true);
+    expect(before.result.updated).toBe(1);
+    expect(before.target.get('/docs:/docs/notes.txt')).toBe('');
+  });
+
+  it('after cutover the copy stays as it was, the change is counted, and new items still arrive', async () => {
+    const after = await scenario(false);
+    expect(after.target.get('/docs:/docs/notes.txt'), 'the old system overwrote the new one').toBe(
+      "the owner's notes",
+    );
+    expect(after.result.updated, 'a pass after cutover rewrote a copy').toBe(0);
+    expect(after.result.changedAfterCutover, 'the change was left out silently').toBe(1);
+    expect(after.result.created, 'the lane stopped copying what is new').toBe(1);
+    expect(after.target.get('/docs:/docs/new.txt')).toBe('N');
+
+    // Not advanced: the ledger still says the copy is the old version, so the
+    // divergence is counted again on every pass, and a rollback carries it over.
+    const row = await after.ledger.find(TENANT, MAPPING, 'file', '/docs/notes.txt');
+    expect(row?.sourceVersion).toBe('v1');
+    const again = await after.w.run(after.ledger, false);
+    expect(again.changedAfterCutover).toBe(1);
+    expect(again.updated).toBe(0);
+    const rolledBack = await after.w.run(after.ledger, true);
+    expect(rolledBack.updated, 'after a rollback the old system decides again').toBe(1);
+    expect(after.target.get('/docs:/docs/notes.txt')).toBe('');
+  });
+
+  it('decides before any fetch: an overwrite is not read from the old system at all', async () => {
+    const w = world();
+    w.files.set('/docs', [{ path: '/docs/notes.txt', href: 'h-n', body: 'kept', version: 'v1' }]);
+    const ledger = await seeded(w);
+    w.files.set('/docs', [{ path: '/docs/notes.txt', href: 'h-n', body: '', version: 'v2' }]);
+    const reads: string[] = [];
+    const result = await runDomainSync<unknown, unknown, Doc, { path: string }>({
+      sourceIsAuthorityOnExistence: false,
+      stillTheAuthority: async () => false,
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      domain: 'file',
+      source: {},
+      target: {},
+      ledger,
+      listFolders: async () => [{ path: '/docs' }],
+      listSince: async () => ({ items: w.files.get('/docs') ?? [], nextCursor: { value: 'x' } }),
+      fetchRaw: async (d) => {
+        reads.push(d.path);
+        return { raw: d.body, sizeBytes: d.body.length };
+      },
+      upsert: async () => {
+        throw new Error('nothing may be written');
+      },
+      naturalKey: (d) => d.path,
+      sourceVersion: (d) => d.version,
+      contentHash: (raw) => `h:${raw as string}`,
+      ensureCollection: async (folder) => folder.path,
+    });
+    expect(reads).toEqual([]);
+    expect(result.changedAfterCutover).toBe(1);
+    expect(result.failed).toBe(0);
   });
 });
