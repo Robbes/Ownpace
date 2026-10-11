@@ -19,6 +19,7 @@ const { authState } = vi.hoisted(() => ({
   authState: {
     isAuthenticated: true,
     user: null as null | { name: string; email: string; role: string },
+    tenantId: 't1' as string | null,
     logout: () => {},
   },
 }));
@@ -205,6 +206,7 @@ beforeEach(() => {
   putPartyMock.mockReset();
   checkVatMock.mockReset();
   authState.user = { name: 'Robbe', email: 'r@acme.test', role: 'admin' };
+  authState.tenantId = 't1';
   usageMock.mockResolvedValue(usageFixture);
   invoicesMock.mockResolvedValue({ invoices: [] });
   methodsMock.mockResolvedValue({ paymentMethods: [] });
@@ -904,5 +906,98 @@ describe('the payment methods card asks before it answers (0039 T4)', () => {
     renderBilling();
 
     expect(await screen.findByText('No payment methods stored.')).toBeInTheDocument();
+  });
+});
+
+describe('the withdrawal, on the page (0111 T7, slice 7c)', () => {
+  const OPEN = {
+    open: true,
+    since: '2026-10-05T09:30:00.000Z',
+    until: '2026-10-20T00:00:00.000Z',
+    tier: { id: 'small', name: 'Small' },
+    name: 'Sam de Vries',
+    confirmTo: 'sam@example.invalid',
+  };
+  const SAID = 'Withdrawn on October 11, 2026. Your organisation is on Free. A confirmation is on its way to sam@example.invalid.';
+
+  beforeEach(() => {
+    vi.mocked(billingApi.getWithdrawal).mockResolvedValue(OPEN);
+    vi.mocked(billingApi.withdraw).mockReset();
+    vi.mocked(billingApi.withdraw).mockResolvedValue({
+      withdrawnAt: '2026-10-11T08:00:00.000Z',
+      since: OPEN.since,
+      tier: { id: 'small', name: 'Small' },
+      credits: 1,
+      beganOnRequest: false,
+      confirmation: 'sent',
+    });
+  });
+
+  // Found in a real browser: the page reads the tier and the invoices again
+  // after a withdrawal, and a usage read that had failed before draws the
+  // whole page as loading for a moment, which took the card, and what it said,
+  // away; it came back offering the button again.
+  it('keeps saying it was withdrawn while the page reads again, even after a failed read', async () => {
+    usageMock
+      .mockRejectedValueOnce(new Error('usage metrics store unavailable'))
+      // The second read takes a moment, as one over the network does.
+      .mockImplementationOnce(() => new Promise((answer) => setTimeout(() => answer(usageFixture), 50)));
+    renderBilling();
+    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw from contract here' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm withdrawal' }));
+
+    // Once the page has read everything again, the sentence is what the card says.
+    await waitFor(() => expect(usageMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(invoicesMock).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText(SAID)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Withdraw from contract here' })).not.toBeInTheDocument();
+  });
+
+  it('does not offer the button again to someone who comes back to the page', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 5 * 60 * 1000 }, mutations: { retry: false } },
+    });
+    const page = () => (
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/billing']}>
+          <Billing />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    const first = render(page());
+    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw from contract here' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm withdrawal' }));
+    expect(await screen.findByText(SAID)).toBeInTheDocument();
+    first.unmount();
+
+    // Another page, and back: what the app keeps for five minutes is not the open window.
+    render(page());
+    expect(await screen.findByText(SAID)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Withdraw from contract here' })).not.toBeInTheDocument();
+    expect(billingApi.withdraw).toHaveBeenCalledTimes(1);
+  });
+
+  it('says it only to the organisation that withdrew', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const page = () => (
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/billing']}>
+          <Billing />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    const first = render(page());
+    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw from contract here' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm withdrawal' }));
+    expect(await screen.findByText(SAID)).toBeInTheDocument();
+    first.unmount();
+
+    // The same person, signed in to another organisation whose window is open.
+    authState.tenantId = 't2';
+    render(page());
+    expect(await screen.findByRole('button', { name: 'Withdraw from contract here' })).toBeInTheDocument();
+    expect(screen.queryByText(SAID)).not.toBeInTheDocument();
   });
 });
