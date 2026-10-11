@@ -13,19 +13,18 @@
   owner, 2026-10-05), read as the Alpha on the owner's own approval, with the
   lawyer's pass before the first paid tier.
 
-  Under 1.2 too, the same day and before that pull request merged, the policy
-  says that visits to this website are counted from its server logs, as
-  totals. The owner, 2026-10-05, verbatim: "go with GoAccess on the logs and
+  v1.3, 2026-10-11: the policy says that visits to this website are counted
+  from its server logs, as totals. Drafted under 1.2 on 2026-10-05, but the
+  final-text pull request merged without it, and 1.2 has been final since
+  2026-10-07, so the words take a new number (1.3, both languages,
+  LEGAL_VERSIONS and ACCEPTED_WORDS; 1.2's pins stay). The owner, 2026-10-05, verbatim: "go with GoAccess on the logs and
   the sentence. id and status we skip for now, no netbird api tokens..." It
   answers the recommendation to count visits to www.ownpace.eu with GoAccess,
   reading the access log the website's nginx already writes
   (deploy/compose/www-nginx.conf, format ownpace_site), on live's copy of the
   site: no script, no cookie and no banner on the page, nothing sent to
   anyone, nothing counted on app., id. or status.ownpace.eu, and no NetBird
-  API token, so NetBird's own log is not read. Still 1.2, because nobody can
-  have accepted 1.2: on main, privacy is a draft in LEGAL_DRAFTS until this
-  pull request merges, and while any text is a draft the API asks nobody.
-  What changed:
+  API token, so NetBird's own log is not read. What changed:
 
   - §4.5: after the server-logs paragraph, the recommended sentence, word for
     word: "From these logs we also count visits to this website (pages, the
@@ -54,7 +53,7 @@
     nothing: deploy/selfhost has no website service; the site runs from
     deploy/compose/www.yml on our machine only); §7 and §8 (no new party;
     nothing is sent to anyone, and the owner reads the report on the machine
-    or on his own device over the mesh); §9's Server logs row (the logs are
+    or on their own device over the mesh); §9's Server logs row (the logs are
     kept no longer: a working copy is deleted when the run ends, a killed
     run's too); §10's right to object, which already names our logs.
 
@@ -546,8 +545,8 @@
 # Privacy policy
 
 **Applies to:** the Ownpace **managed service** at `ownpace.eu`, and this website.
-**Version:** 1.2
-**Last updated:** 2026-10-07
+**Version:** 1.3
+**Last updated:** 2026-10-11
 
 > **If you run Ownpace yourself**, this policy does not apply to you and there is nothing for
 > us to state: the software runs on your infrastructure, your data never reaches us, and we
@@ -774,7 +773,7 @@ gives, as is our decision on it.
      address from X-Forwarded-For), on live's copy (deploy-live.sh, the compose project
      ownpace-live-www, once WWW_LIVE=true: docs/managed-bring-up.md, "www.ownpace.eu: live's
      copy"): no script, cookie or banner on the page, nothing sent to anyone (the owner reads the
-     report of totals on the machine, or on his own device over the mesh), nothing counted on
+     report of totals on the machine, or on their own device over the mesh), nothing counted on
      app., id. or status.ownpace.eu, and no NetBird API token, so NetBird's own log is not read.
      The sentence below holds only for a run that keeps what it says: totals, and no text that a
      visitor or a link chose. GoAccess's source, read at the tag v1.12 (ef3c4f3c,
@@ -803,7 +802,7 @@ gives, as is our decision on it.
        utm_source, utm_medium and utm_campaign, each value from a short list of our own campaign
        names, and the sentence then says "(pages, the site you came from, the campaign a link
        named, the kind of browser)" / "(pagina's, de site waar u vandaan kwam, de campagne die
-       een link noemde, het soort browser)", after his reading.
+       een link noemde, het soort browser)", after their reading.
      - Pages are our own. A request answered with a 4xx or 5xx status found none of our pages,
        and it is counted under a fixed name, not its path: nginx answers any path (try_files
        ... =404), and GoAccess keeps the path word for word, a 404's in NOT_FOUND and any other

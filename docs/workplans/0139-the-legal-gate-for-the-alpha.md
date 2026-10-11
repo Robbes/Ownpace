@@ -13,11 +13,15 @@ words and keeps 1.3's. Proved: `scripts/a-version-the-tester-accepted.unit.test.
 new pins. Alpha conditions 1.0 and privacy 1.2 are unchanged. Still owed before the first paid
 tier: the *Withdraw from contract* button §7 names (0111 T7, 0152 T6 (f)).
 
-**2026-10-05, later: privacy 1.2 says that visits to the website are counted from its server
-logs, as totals.** Same branch and draft pull request as the entry below, not merged; privacy
-stays 1.2, because nobody can have accepted it: on `main` privacy is a draft in `LEGAL_DRAFTS`
-(`packages/managed/src/legal-versions.ts`) until this pull request merges, and while any text is
-a draft the API asks nobody.
+**2026-10-11: privacy 1.3 says that visits to the website are counted from its server logs, as
+totals.** Drafted under 1.2 on 2026-10-05 (the entry kept below), but #1532 merged on 2026-10-07
+without it, and 1.2 was final from then: the words take 1.3 (both files, `LEGAL_VERSIONS.privacy`
+`'1.3'`, `ACCEPTED_WORDS` pins 1.3 and keeps 1.2's), together with the GoAccess job that does the
+counting (`deploy/compose/site-visits.sh`, run by the box duties only once the privacy text says
+so). Testers accept privacy 1.3 and terms 1.4 together, at alpha.2.
+
+**2026-10-05, later (drafted under 1.2): privacy says that visits to the website are counted from
+its server logs, as totals.**
 
 - **The owner's decision, 2026-10-05, verbatim:** *"go with GoAccess on the logs and the
   sentence. id and status we skip for now, no netbird api tokens..."* It answers the
@@ -26,7 +30,7 @@ a draft the API asks nobody.
   live's copy of the site (`deploy/compose/deploy-live.sh`, compose project `ownpace-live-www`,
   once `WWW_LIVE=true`: `docs/managed-bring-up.md`, *`www.ownpace.eu`: live's copy*): no
   script, no cookie and no banner on the page, nothing sent to anyone (the owner reads the
-  report of totals on the machine, or on his own device over the mesh), nothing counted on
+  report of totals on the machine, or on their own device over the mesh), nothing counted on
   `app.`, `id.` or `status.ownpace.eu`, and no NetBird API token, so NetBird's own log is not
   read.
 - **The words, in both languages.**
@@ -119,7 +123,7 @@ a draft the API asks nobody.
   beside §9 (both files) and the legal README; the sentence stays the owner's, word for word,
   because the run is to keep no campaigns. Also: GoAccess cited at the tag v1.12 (`ef3c4f3c`),
   not master's `c4fadb8e`; *"step I5"*, which exists nowhere, gone; *"nothing leaves the
-  machine"* now *"nothing sent to anyone"*, since the owner copies the report to his own
+  machine"* now *"nothing sent to anyone"*, since the owner copies the report to their own
   device; question 21 asks about a total of one (Recital 26); §5's English paragraph re-wrapped.
   Not changed: the sentence, for the operating systems the report also counts. GoAccess reads
   them from the same User-Agent as the browser, and the comment beside §4.5 reads *"the kind of

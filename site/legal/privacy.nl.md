@@ -15,8 +15,8 @@
 # Privacyverklaring
 
 **Geldt voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`, en deze website.
-**Versie:** 1.2
-**Laatst bijgewerkt:** 2026-10-07
+**Versie:** 1.3
+**Laatst bijgewerkt:** 2026-10-11
 
 > **Draait u Ownpace zelf**, dan geldt deze verklaring niet voor u en valt er voor ons niets
 > te verklaren: de software draait op uw eigen infrastructuur, uw gegevens bereiken ons nooit,
@@ -254,7 +254,7 @@ toegang wordt gelogd met het e-mailadres dat erin staat, net als ons besluit ero
      address from X-Forwarded-For), on live's copy (deploy-live.sh, the compose project
      ownpace-live-www, once WWW_LIVE=true: docs/managed-bring-up.md, "www.ownpace.eu: live's
      copy"): no script, cookie or banner on the page, nothing sent to anyone (the owner reads the
-     report of totals on the machine, or on his own device over the mesh), nothing counted on
+     report of totals on the machine, or on their own device over the mesh), nothing counted on
      app., id. or status.ownpace.eu, and no NetBird API token, so NetBird's own log is not read.
      The sentence below holds only for a run that keeps what it says: totals, and no text that a
      visitor or a link chose. GoAccess's source, read at the tag v1.12 (ef3c4f3c,
@@ -283,7 +283,7 @@ toegang wordt gelogd met het e-mailadres dat erin staat, net als ons besluit ero
        utm_source, utm_medium and utm_campaign, each value from a short list of our own campaign
        names, and the sentence then says "(pages, the site you came from, the campaign a link
        named, the kind of browser)" / "(pagina's, de site waar u vandaan kwam, de campagne die
-       een link noemde, het soort browser)", after his reading.
+       een link noemde, het soort browser)", after their reading.
      - Pages are our own. A request answered with a 4xx or 5xx status found none of our pages,
        and it is counted under a fixed name, not its path: nginx answers any path (try_files
        ... =404), and GoAccess keeps the path word for word, a 404's in NOT_FOUND and any other

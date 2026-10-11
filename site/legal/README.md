@@ -63,8 +63,8 @@ any of them: the API records an acceptance only when no text is a draft (`accept
 `LEGAL_DRAFTS` had privacy and terms as drafts from the commit that made the table and the route
 (#1360) until this one.
 
-**Visits to this website, counted from its server logs** (the same pull request, under 1.2, for
-the same reason). The owner, 2026-10-05, verbatim: *"go with GoAccess on the logs and the
+**Visits to this website, counted from its server logs** (privacy 1.3, 2026-10-11: drafted under
+1.2 for that pull request, which merged without it; 1.2 was final by then, so the words take 1.3). The owner, 2026-10-05, verbatim: *"go with GoAccess on the logs and the
 sentence. id and status we skip for now, no netbird api tokens..."* Privacy §4.5 now says, after
 the server-logs paragraph, *"From these logs we also count visits to this website (pages, the
 site you came from, the kind of browser), as totals only, which identify nobody."* / *"Uit deze
@@ -621,7 +621,7 @@ commit.
   `www.ownpace.eu`, from the access log its nginx writes (`deploy/compose/www-nginx.conf`,
   format `ownpace_site`), on our machine; nothing on `app.`, `id.` or `status.ownpace.eu`, no
   script, cookie or banner on the page, nothing sent to anyone (the owner reads the report of
-  totals on the machine, or on his own device over the mesh), and NetBird's own log not read.
+  totals on the machine, or on their own device over the mesh), and NetBird's own log not read.
   The sentence is true only of a GoAccess run that keeps its report of totals and **no database
   of its own**: `--persist` keeps, per day, a fingerprint of each visitor (a hash of the full IP
   address and the browser) and which pages each one asked for, and `--anonymize-ip` masks the
