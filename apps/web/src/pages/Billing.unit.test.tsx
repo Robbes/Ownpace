@@ -219,7 +219,7 @@ beforeEach(() => {
   // tests look for; the card has its own tests (TierPick.unit.test.tsx).
   vi.mocked(billingApi.getPick).mockResolvedValue(NOTHING_TO_PICK);
   // On Free, nothing to withdraw from: the withdrawal card is not there (0111 T7).
-  vi.mocked(billingApi.getWithdrawal).mockResolvedValue({ open: false, reason: 'nothing_paid', since: null, until: null, tier: null, name: null, confirmTo: null });
+  vi.mocked(billingApi.getWithdrawal).mockResolvedValue({ open: false, reason: 'nothing_paid', since: null, until: null, tier: null, name: null, confirmTo: null, yesAsksToBegin: false });
 });
 
 describe('Billing — failed reads say so (hard rule 9)', () => {
@@ -917,6 +917,7 @@ describe('the withdrawal, on the page (0111 T7, slice 7c)', () => {
     tier: { id: 'small', name: 'Small' },
     name: 'Sam de Vries',
     confirmTo: 'sam@example.invalid',
+    yesAsksToBegin: true,
   };
   const SAID = 'Withdrawn on October 11, 2026. Your organisation is on Free. A confirmation is on its way to sam@example.invalid.';
 

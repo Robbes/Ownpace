@@ -35,6 +35,7 @@ const OPEN: WithdrawalState = {
   tier: { id: 'small', name: 'Small' },
   name: 'Sam de Vries',
   confirmTo: 'sam@example.invalid',
+  yesAsksToBegin: true,
 };
 
 function renderCard(locale: 'en' | 'nl' = 'en') {
