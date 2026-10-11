@@ -4,6 +4,18 @@
 
 ## Status — 2026-10-11 (update this block at the end of every session)
 
+**2026-10-11, later: slice 7d's two Moneybird calls, proved in the owner's sandbox.** The owner
+ran `deploy/compose/moneybird-money-back-proof.sh` from the OTA checkout, on a hand-made account as
+`MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE`. `register_payment_creditinvoice` on a credit note of 4.00
+against an open invoice of 12.00 answered HTTP 200: the books then held the invoice open with 8.00
+unpaid and the credit note paid, a payment of 4.00 on the one and of -4.00 on the other, neither
+with a transaction identifier. A payment of -4.00 on the credit note of an invoice paid through
+Mollie, on that account under a refund id, answered HTTP 201 with the payment as sent: the credit
+note paid, the refund id on its payment. Both are answers `registerCreditInvoicePayment` (any 2xx)
+and `registerPayment` (200 or 201) take as done, and the read-back (5f) already leaves alone an
+invoice its credit notes take off in full, which the books call paid. Still untried: Mollie's
+refund itself, in test mode with a test key.
+
 **2026-10-11: slice 7d, its second half — money back for a credit note** (T7; terms §7: *"whatever
 you paid above it we refund within 14 days, by the means of payment you used"*). Once the books
 have numbered a credit note, the hourly push makes its amount real, one way, once
@@ -28,11 +40,11 @@ unset, a refund waits and each run says so.
   a second money back refused, and any on an invoice); `money-back-once.unit.test.ts` (the hourly
   run: refunded and booked, then nothing; waiting, said; by hand said once). The column pins and
   the fetch guard list the new columns and `mollie-refunds.ts`.
-- **For the owner's sandbox:** Moneybird's two calls here are read from its description, not yet
-  proved: `register_payment_creditinvoice` on a credit invoice crediting part of an open invoice,
-  and a negative payment on a credit invoice. `deploy/compose/moneybird-money-back-proof.sh` makes
-  both, from the OTA checkout once `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE` is set, and prints what
-  Moneybird answered. Mollie's refund in test mode with a test key.
+- **In the owner's sandbox:** Moneybird's two calls here, `register_payment_creditinvoice` on a
+  credit invoice crediting part of an open invoice and a negative payment on a credit invoice,
+  were proved on 2026-10-11 (above) with `deploy/compose/moneybird-money-back-proof.sh`, which
+  makes both from the OTA checkout and prints what Moneybird answered. Mollie's refund in test
+  mode with a test key is still to try.
 
 **2026-10-11: slice 7e — the yes that asks to begin, without a tick box** (T7; terms §6, §7, 1.5;
 the owner: *"i do not want the tickbox, everyone who agrees with the terms would normally start
