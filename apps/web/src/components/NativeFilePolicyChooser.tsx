@@ -169,13 +169,13 @@ function useChoiceLabel(): (choice: NativeFormatChoice) => string {
     const ext = choice.extension;
     const format =
       choice.policy === 'export-pdf'
-        ? t('wizard.nativePolicy.as.pdf', { ext })
+        ? t('account.nativePolicy.as.pdf', { ext })
         : ext === '.svg'
-          ? t('wizard.nativePolicy.as.image', { ext })
+          ? t('account.nativePolicy.as.image', { ext })
           : choice.policy === 'export-odf'
-            ? t('wizard.nativePolicy.as.odf', { ext })
-            : t('wizard.nativePolicy.as.office', { ext });
-    return choice.carries ? format : t('wizard.nativePolicy.as.leftBehind', { format });
+            ? t('account.nativePolicy.as.odf', { ext })
+            : t('account.nativePolicy.as.office', { ext });
+    return choice.carries ? format : t('account.nativePolicy.as.leftBehind', { format });
   };
 }
 
@@ -200,9 +200,9 @@ export const NativeFilePolicyChooser: React.FC<{
   const asPdf = kindsAsPdf(value);
   return (
     <fieldset>
-      <legend className="block text-sm font-medium text-gray-700">{t('wizard.nativePolicy')}</legend>
+      <legend className="block text-sm font-medium text-gray-700">{t('account.nativePolicy')}</legend>
       {/* One line, the rest folded (0118 T1). */}
-      <Hint text={t('wizard.nativePolicy.hint')} why={t('wizard.nativePolicy.hint.why')} />
+      <Hint text={t('account.nativePolicy.hint')} why={t('account.nativePolicy.hint.why')} />
       <div className="mt-2 grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2">
         {GOOGLE_EDITOR_KINDS.map((kind) => (
           <React.Fragment key={kind}>
@@ -218,7 +218,7 @@ export const NativeFilePolicyChooser: React.FC<{
                 onChange({ ...value, [kind]: e.target.value as GoogleNativeFilePolicy })
               }
             >
-              <option value="refuse">{t('wizard.nativePolicy.leave')}</option>
+              <option value="refuse">{t('account.nativePolicy.leave')}</option>
               {formatChoicesFor(kind, value[kind]).map((choice) => (
                 <option key={choice.policy} value={choice.policy}>
                   {label(choice)}
@@ -234,7 +234,7 @@ export const NativeFilePolicyChooser: React.FC<{
         disabled={disabled}
         onClick={() => onChange(editableFormats(value))}
       >
-        {t('wizard.nativePolicy.editable')}
+        {t('account.nativePolicy.editable')}
       </button>
       {behind.length > 0 && (
         // `caution`, like the other line somebody must read before typing:
@@ -242,20 +242,20 @@ export const NativeFilePolicyChooser: React.FC<{
         // where that is still a choice.
         <Hint
           tone="caution"
-          text={t('wizard.nativePolicy.leftBehind', { kinds: names(behind) })}
-          why={t('wizard.nativePolicy.leftBehind.why')}
+          text={t('account.nativePolicy.leftBehind', { kinds: names(behind) })}
+          why={t('account.nativePolicy.leftBehind.why')}
         />
       )}
       {asPdf.length > 0 && (
         <Hint
-          text={t('wizard.nativePolicy.notEditable', { kinds: names(asPdf) })}
-          why={t('wizard.nativePolicy.notEditable.why')}
+          text={t('account.nativePolicy.notEditable', { kinds: names(asPdf) })}
+          why={t('account.nativePolicy.notEditable.why')}
         />
       )}
       {behind.length === 0 && asPdf.length === 0 && (
         <Hint
-          text={t('wizard.nativePolicy.allEditable')}
-          why={t('wizard.nativePolicy.allEditable.why')}
+          text={t('account.nativePolicy.allEditable')}
+          why={t('account.nativePolicy.allEditable.why')}
         />
       )}
     </fieldset>

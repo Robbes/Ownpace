@@ -227,7 +227,7 @@ export function choiceDefaults(
 /** Fields for one wizard source type, in the order a person meets them. */
 const USER = {
   key: 'username',
-  labelKey: 'wizard.sourceUsername',
+  labelKey: 'account.sourceUsername',
   required: true,
   placeholder: 'someone@example.com',
   autoComplete: 'username',
@@ -235,7 +235,7 @@ const USER = {
 
 const SECRET = {
   key: 'clientSecret',
-  labelKey: 'wizard.sourceClientSecret',
+  labelKey: 'account.sourceClientSecret',
   required: true,
   secret: true,
   placeholder: '••••••••',
@@ -245,20 +245,20 @@ const SECRET = {
 
 const REFRESH = {
   key: 'refreshToken',
-  labelKey: 'wizard.refreshToken',
+  labelKey: 'account.refreshToken',
   secret: true,
   placeholder: '1//…',
-  hintKey: 'wizard.refreshToken.hint',
+  hintKey: 'account.refreshToken.hint',
   autoComplete: 'off',
 } as const;
 
 const SERVICE_ACCOUNT_KEY = {
   key: 'serviceAccountKey',
-  labelKey: 'wizard.serviceAccountKey',
+  labelKey: 'account.serviceAccountKey',
   secret: true,
   multiline: true,
-  placeholderKey: 'wizard.serviceAccountKey.placeholder',
-  hintKey: 'wizard.serviceAccountKey.width',
+  placeholderKey: 'account.serviceAccountKey.placeholder',
+  hintKey: 'account.serviceAccountKey.width',
   autoComplete: 'off',
 } as const;
 
@@ -272,7 +272,7 @@ function googleFields(): ReadonlyArray<CredentialField> {
     USER,
     {
       key: 'clientId',
-      labelKey: 'wizard.clientId',
+      labelKey: 'account.clientId',
       placeholder: '…apps.googleusercontent.com',
       pairedWith: 'clientSecret',
     },
@@ -313,7 +313,7 @@ function microsoftAccountFields(): ReadonlyArray<CredentialField> {
     USER,
     {
       key: 'clientId',
-      labelKey: 'wizard.clientId',
+      labelKey: 'account.clientId',
       placeholder: '00000000-0000-0000-0000-000000000000',
       pairedWith: 'clientSecret',
     },
@@ -321,9 +321,9 @@ function microsoftAccountFields(): ReadonlyArray<CredentialField> {
     { ...REFRESH, required: true, consent: 'microsoft', placeholder: '0.AXoA…' },
     {
       key: 'tenantId',
-      labelKey: 'wizard.tenantId',
+      labelKey: 'account.tenantId',
       placeholder: 'contoso.onmicrosoft.com',
-      hintKey: 'wizard.microsoft.tenantId.hint',
+      hintKey: 'account.microsoft.tenantId.hint',
     },
   ];
 }
@@ -356,11 +356,11 @@ function appleAccountFields(): ReadonlyArray<CredentialField> {
     { ...USER, placeholder: 'someone@icloud.com' },
     {
       key: 'password',
-      labelKey: 'wizard.appleAppPassword',
+      labelKey: 'account.appleAppPassword',
       required: true,
       secret: true,
       placeholder: 'abcd-efgh-ijkl-mnop',
-      hintKey: 'wizard.appleAppPassword.hint',
+      hintKey: 'account.appleAppPassword.hint',
       autoComplete: 'new-password',
       revealable: true,
     },
@@ -400,7 +400,7 @@ function archiveFields(): ReadonlyArray<CredentialField> {
   return [
     {
       key: 'provider',
-      labelKey: 'wizard.archiveProvider',
+      labelKey: 'account.archiveProvider',
       required: true,
       // Derived from the shared vocabulary rather than written out: this list
       // and `ARCHIVE_PROVIDERS` disagreeing would mean a form offering an
@@ -418,22 +418,22 @@ function archiveFields(): ReadonlyArray<CredentialField> {
         ...(hasArchiveReader(value)
           ? {}
           : {
-              tagKey: 'wizard.archiveProvider.untested',
-              hintKey: `wizard.archiveProvider.noReader.${value}`,
+              tagKey: 'account.archiveProvider.untested',
+              hintKey: `account.archiveProvider.noReader.${value}`,
             }),
       })),
-      hintKey: 'wizard.archiveProvider.hint',
+      hintKey: 'account.archiveProvider.hint',
     },
     {
       key: 'where',
-      labelKey: 'wizard.archiveWhere',
+      labelKey: 'account.archiveWhere',
       options: [
-        { value: 'target', labelKey: 'wizard.archiveWhere.target' },
+        { value: 'target', labelKey: 'account.archiveWhere.target' },
         {
           value: 'disk',
-          labelKey: 'wizard.archiveWhere.disk',
+          labelKey: 'account.archiveWhere.disk',
           applianceOnly: true,
-          applianceOnlyKey: 'wizard.archiveWhere.disk.onlyAppliance',
+          applianceOnlyKey: 'account.archiveWhere.disk.onlyAppliance',
         },
       ],
       defaultValue: { managed: 'target', selfhost: 'disk' },
@@ -441,17 +441,17 @@ function archiveFields(): ReadonlyArray<CredentialField> {
     },
     {
       key: 'path',
-      labelKey: 'wizard.archivePath',
+      labelKey: 'account.archivePath',
       required: true,
       placeholder: '/srv/exports/takeout-20260904',
-      hintKey: 'wizard.archivePath.hint',
+      hintKey: 'account.archivePath.hint',
       perMapping: true,
       follows: {
         key: 'where',
         byValue: {
           target: {
-            labelKey: 'wizard.archivePath.target',
-            hintKey: 'wizard.archivePath.target.hint',
+            labelKey: 'account.archivePath.target',
+            hintKey: 'account.archivePath.target.hint',
             placeholder: 'Exports/takeout-20260904',
           },
         },
@@ -470,13 +470,13 @@ function o365Fields(): ReadonlyArray<CredentialField> {
     USER,
     {
       key: 'tenantId',
-      labelKey: 'wizard.tenantId',
+      labelKey: 'account.tenantId',
       required: true,
       placeholder: 'contoso.onmicrosoft.com',
     },
     {
       key: 'clientId',
-      labelKey: 'wizard.clientId',
+      labelKey: 'account.clientId',
       required: true,
       placeholder: '00000000-0000-0000-0000-000000000000',
     },
@@ -497,17 +497,17 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
     // and a person who has just typed one is holding the other.
     {
       key: 'userId',
-      labelKey: 'wizard.boxUserId',
+      labelKey: 'account.boxUserId',
       required: true,
-      placeholderKey: 'wizard.boxUserId.placeholder',
+      placeholderKey: 'account.boxUserId.placeholder',
       perMapping: true,
     },
-    { key: 'clientId', labelKey: 'wizard.clientId', required: true },
+    { key: 'clientId', labelKey: 'account.clientId', required: true },
     SECRET,
     {
       key: 'rootFolderId',
-      labelKey: 'wizard.boxRootFolderId',
-      placeholderKey: 'wizard.boxRootFolderId.placeholder',
+      labelKey: 'account.boxRootFolderId',
+      placeholderKey: 'account.boxRootFolderId.placeholder',
       perMapping: true,
     },
   ],
@@ -517,13 +517,13 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
     // with its secret and no longer required on its own (2026-09-02: Connect
     // with Dropbox): the deployment may carry the app, as it may Google's
     // client, and a screen folds the pair away where it does.
-    { key: 'clientId', labelKey: 'wizard.dropboxAppKey', pairedWith: 'clientSecret' },
+    { key: 'clientId', labelKey: 'account.dropboxAppKey', pairedWith: 'clientSecret' },
     { ...SECRET, required: false, pairedWith: 'clientId' },
     { ...REFRESH, required: true, consent: 'dropbox' },
     {
       key: 'rootPath',
-      labelKey: 'wizard.dropboxRootPath',
-      placeholderKey: 'wizard.dropboxRootPath.placeholder',
+      labelKey: 'account.dropboxRootPath',
+      placeholderKey: 'account.dropboxRootPath.placeholder',
       perMapping: true,
     },
   ],
@@ -531,8 +531,8 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
     ...googleFields(),
     {
       key: 'rootFolderId',
-      labelKey: 'wizard.rootFolderId',
-      placeholderKey: 'wizard.rootFolderId.placeholder',
+      labelKey: 'account.rootFolderId',
+      placeholderKey: 'account.rootFolderId.placeholder',
       perMapping: true,
     },
   ],
@@ -555,8 +555,8 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
     ...googleFields(),
     {
       key: 'appPassword',
-      labelKey: 'wizard.gmailAppPassword',
-      hintKey: 'wizard.gmailAppPassword.hint',
+      labelKey: 'account.gmailAppPassword',
+      hintKey: 'account.gmailAppPassword.hint',
       secret: true,
       autoComplete: 'off',
       placeholder: 'xxxx xxxx xxxx xxxx',
@@ -583,12 +583,12 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
   graph: o365Fields(),
   oauth2: o365Fields(),
   imap: [
-    { key: 'host', labelKey: 'wizard.host', required: true, placeholder: 'imap.example.com' },
-    { key: 'port', labelKey: 'wizard.port', required: true, numeric: true, placeholder: '993' },
+    { key: 'host', labelKey: 'account.host', required: true, placeholder: 'imap.example.com' },
+    { key: 'port', labelKey: 'account.port', required: true, numeric: true, placeholder: '993' },
     USER,
     {
       key: 'password',
-      labelKey: 'wizard.sourcePassword',
+      labelKey: 'account.sourcePassword',
       required: true,
       secret: true,
       placeholder: '••••••••',
@@ -618,18 +618,18 @@ const TARGET_HOST_EXAMPLE: Readonly<Record<string, { host: string; port: string 
 
 /** Every target speaks host/port/user/password; only the protocol differs. */
 const TARGET_FIELDS: ReadonlyArray<CredentialField> = [
-  { key: 'host', labelKey: 'wizard.host', required: true, placeholder: 'jmap.example.com' },
-  { key: 'port', labelKey: 'wizard.port', required: true, numeric: true, placeholder: '443' },
+  { key: 'host', labelKey: 'account.host', required: true, placeholder: 'jmap.example.com' },
+  { key: 'port', labelKey: 'account.port', required: true, numeric: true, placeholder: '443' },
   {
     key: 'username',
-    labelKey: 'wizard.targetUsername',
+    labelKey: 'account.targetUsername',
     required: true,
     placeholder: 'someone@example.com',
     autoComplete: 'username',
   },
   {
     key: 'password',
-    labelKey: 'wizard.targetPassword',
+    labelKey: 'account.targetPassword',
     required: true,
     secret: true,
     placeholder: '••••••••',
@@ -652,9 +652,9 @@ const TARGET_TYPES = ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 
  */
 const TARGET_DAV_URL: CredentialField = {
   key: 'url',
-  labelKey: 'wizard.targetDavUrl',
+  labelKey: 'account.targetDavUrl',
   placeholder: 'https://cloud.example.com/remote.php/dav',
-  hintKey: 'wizard.targetDavUrl.hint',
+  hintKey: 'account.targetDavUrl.hint',
 };
 
 // `soverin` is DAV-shaped at the door (0106 T4a): one account, the DAV base
@@ -695,7 +695,7 @@ function withDavUrl(fields: ReadonlyArray<CredentialField>): ReadonlyArray<Crede
 const NEXTCLOUD_TARGET_FIELDS: ReadonlyArray<CredentialField> = [
   // Its own hint: `TARGET_DAV_URL`'s says "only when the DAV root is not at
   // the host root", and this door has no host to compare a root against.
-  { ...TARGET_DAV_URL, required: true, hintKey: 'wizard.nextcloudDavUrl.hint' },
+  { ...TARGET_DAV_URL, required: true, hintKey: 'account.nextcloudDavUrl.hint' },
   ...TARGET_FIELDS.filter((f) => f.key !== 'host' && f.key !== 'port'),
 ];
 
@@ -710,11 +710,11 @@ const NEXTCLOUD_TARGET_FIELDS: ReadonlyArray<CredentialField> = [
 const SOVERIN_MAIL_FIELDS: ReadonlyArray<CredentialField> = [
   {
     key: 'mailHost',
-    labelKey: 'wizard.soverinMailHost',
+    labelKey: 'account.soverinMailHost',
     placeholder: 'imap.example.com',
-    hintKey: 'wizard.soverinMailHost.hint',
+    hintKey: 'account.soverinMailHost.hint',
   },
-  { key: 'mailPort', labelKey: 'wizard.soverinMailPort', numeric: true, placeholder: '993' },
+  { key: 'mailPort', labelKey: 'account.soverinMailPort', numeric: true, placeholder: '993' },
 ];
 
 /** TARGET_FIELDS with the host/port example this protocol actually uses. */

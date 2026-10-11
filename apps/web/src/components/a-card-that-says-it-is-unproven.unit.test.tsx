@@ -325,9 +325,9 @@ describe('the whole-domain option on the Google cards carries the tag', () => {
     expect(box).toHaveAccessibleName(tagIn(STRINGS.en['frontDoor.experimental']));
     // The key's own line stays on screen, and its why folds with the tag's,
     // as the wizard drew them until it retired (0153 D5).
-    expect(screen.getByText(STRINGS.en['wizard.serviceAccountKey.width'])).toBeVisible();
+    expect(screen.getByText(STRINGS.en['account.serviceAccountKey.width'])).toBeVisible();
     const why = screen.getByText((text) => text.includes(STRINGS.en['frontDoor.experimental.wholeDomain.why']));
-    expect(why.textContent).toContain(STRINGS.en['wizard.serviceAccountKey.why']);
+    expect(why.textContent).toContain(STRINGS.en['account.serviceAccountKey.why']);
     expect(why.closest('details'), 'the why is not behind a fold').not.toBeNull();
     // Beside the box, not inside its label: a fold inside the label would be
     // read as part of the box's name.

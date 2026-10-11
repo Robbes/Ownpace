@@ -117,7 +117,7 @@ const SENTENCE: Readonly<Record<Locale, string>> = {
   nl: 'Uw browser heeft de pagina van Google niet geopend. Open die met deze link:',
 };
 const blockedSentence = (locale: Locale): string =>
-  words(locale, 'wizard.consent.windowBlocked').replace('{provider}', 'Google');
+  words(locale, 'account.consent.windowBlocked').replace('{provider}', 'Google');
 
 /**
  * What takes the link's place once its consent has expired, filled in for
@@ -254,7 +254,7 @@ const pickGmail = async (locale: Locale): Promise<HTMLElement> => {
 
 /** *Connect with Google* once it is live. */
 const liveConnect = async (locale: Locale): Promise<HTMLElement> => {
-  const connect = await screen.findByRole('button', { name: words(locale, 'wizard.google.connect') });
+  const connect = await screen.findByRole('button', { name: words(locale, 'account.google.connect') });
   await waitFor(() => expect(connect).toBeEnabled());
   return connect;
 };
@@ -392,7 +392,7 @@ describe('a consent window opened by the press (0145 T5)', () => {
 
             // The consent lands through the link: the sentence has done its job.
             await consentLands();
-            await screen.findByText(words(locale, 'wizard.consent.received'));
+            await screen.findByText(words(locale, 'account.consent.received'));
             expect(blockedLine(locale), 'the blocked line stayed after the consent landed').toBeUndefined();
           });
 

@@ -256,7 +256,7 @@ describe('a fact the server computed and the screen must show', () => {
 
   it('and RENDERS it, because a value in state nobody can read is the same defect', () => {
     const consent = read(CONSENT);
-    // In the provider's own words: `words` reads `wizard.<provider>.redirectUri`.
+    // In the provider's own words: `words` reads `account.<provider>.redirectUri`.
     expect(consent).toContain("words('redirectUri')");
     expect(consent, 'the address itself, not only the label').toContain('{consent.redirect}');
   });
@@ -266,7 +266,7 @@ describe('a fact the server computed and the screen must show', () => {
     // instruction, because the address is useless until it is registered in
     // the right box of somebody else's console.
     const strings = dictionarySource(REPO_ROOT);
-    const at = strings.indexOf("'wizard.google.redirectUri':");
+    const at = strings.indexOf("'account.google.redirectUri':");
     expect(at, 'the string is gone').toBeGreaterThan(-1);
     const sentence = strings.slice(at, at + 400);
     expect(sentence).toContain('Register this exact address');
@@ -274,7 +274,7 @@ describe('a fact the server computed and the screen must show', () => {
       'Authorised redirect URIs',
     );
     // Dropbox's sentence names Dropbox's box (App Console → OAuth 2).
-    const dbx = strings.indexOf("'wizard.dropbox.redirectUri':");
+    const dbx = strings.indexOf("'account.dropbox.redirectUri':");
     expect(dbx, 'the Dropbox string is gone').toBeGreaterThan(-1);
     const dbxSentence = strings.slice(dbx, dbx + 400);
     expect(dbxSentence).toContain('Register this exact address');

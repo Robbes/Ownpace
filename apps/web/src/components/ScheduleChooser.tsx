@@ -35,18 +35,18 @@ export interface SchedulePreset {
 }
 
 export const SCHEDULE_PRESETS: ReadonlyArray<SchedulePreset> = [
-  { value: '0 * * * *', labelKey: 'wizard.schedule.hourly', hintKey: 'wizard.schedule.hourly.hint', everyMinutes: 60 },
-  { value: '0 2 * * *', labelKey: 'wizard.schedule.daily', hintKey: 'wizard.schedule.daily.hint', everyMinutes: 1440 },
+  { value: '0 * * * *', labelKey: 'account.schedule.hourly', hintKey: 'account.schedule.hourly.hint', everyMinutes: 60 },
+  { value: '0 2 * * *', labelKey: 'account.schedule.daily', hintKey: 'account.schedule.daily.hint', everyMinutes: 1440 },
   {
     value: '0 */6 * * *',
-    labelKey: 'wizard.schedule.sixHourly',
-    hintKey: 'wizard.schedule.sixHourly.hint',
+    labelKey: 'account.schedule.sixHourly',
+    hintKey: 'account.schedule.sixHourly.hint',
     everyMinutes: 360,
   },
   {
     value: '*/15 * * * *',
-    labelKey: 'wizard.schedule.quarterHourly',
-    hintKey: 'wizard.schedule.quarterHourly.hint',
+    labelKey: 'account.schedule.quarterHourly',
+    hintKey: 'account.schedule.quarterHourly.hint',
     everyMinutes: 15,
   },
 ];
@@ -65,8 +65,8 @@ const AUTOMATIC: Omit<SchedulePreset, 'value' | 'everyMinutes'> & {
   readonly everyMinutes: 0;
 } = {
   value: null,
-  labelKey: 'wizard.schedule.automatic',
-  hintKey: 'wizard.schedule.automatic.hint',
+  labelKey: 'account.schedule.automatic',
+  hintKey: 'account.schedule.automatic.hint',
   everyMinutes: 0,
 };
 

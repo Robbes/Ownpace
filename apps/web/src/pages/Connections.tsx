@@ -99,8 +99,8 @@ const CARDS_OF_ONE_KIND: ReadonlyMap<string, ReadonlyArray<{ type: string; nameK
   [
     'o365',
     [
-      { type: 'oauth2', nameKey: 'wizard.m365.viaImap' },
-      { type: 'graph', nameKey: 'wizard.m365.viaGraph' },
+      { type: 'oauth2', nameKey: 'account.m365.viaImap' },
+      { type: 'graph', nameKey: 'account.m365.viaGraph' },
     ],
   ],
 ]);

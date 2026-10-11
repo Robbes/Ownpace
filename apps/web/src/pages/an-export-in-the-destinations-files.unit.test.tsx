@@ -61,9 +61,9 @@ const { connectionsApi } = await import('../services/mapping-service.ts');
 const { default: Connections } = await import('./Connections.tsx');
 
 const en = STRINGS.en;
-const TO_TARGET = en['wizard.archiveWhere.target'];
-const ON_DISK = en['wizard.archiveWhere.disk'];
-const ONLY_APPLIANCE = en['wizard.archiveWhere.disk.onlyAppliance'];
+const TO_TARGET = en['account.archiveWhere.target'];
+const ON_DISK = en['account.archiveWhere.disk'];
+const ONLY_APPLIANCE = en['account.archiveWhere.disk.onlyAppliance'];
 
 beforeEach(() => {
   globalThis.sessionStorage.clear();
@@ -118,10 +118,10 @@ describe.each([['the Connections page', openConnectionsForm]])('%s asks where th
     expect(radio(ON_DISK).disabled).toBe(false);
     expect(radio(TO_TARGET).disabled).toBe(false);
     expect(screen.queryByText(ONLY_APPLIANCE)).toBeNull();
-    expect(screen.getByText(en['wizard.archivePath'], { selector: 'label, span' })).toBeTruthy();
+    expect(screen.getByText(en['account.archivePath'], { selector: 'label, span' })).toBeTruthy();
     // And the choice moves the path's label with it.
     fireEvent.click(radio(TO_TARGET));
-    expect(screen.getByText(en['wizard.archivePath.target'], { selector: 'label, span' })).toBeTruthy();
+    expect(screen.getByText(en['account.archivePath.target'], { selector: 'label, span' })).toBeTruthy();
   });
 });
 
@@ -132,7 +132,7 @@ describe('the doors post where', () => {
     pickArchive();
     fireEvent.change(screen.getByLabelText(/^Which export/), { target: { value: 'google-takeout' } });
     fireEvent.click(radio(TO_TARGET));
-    fireEvent.change(screen.getByLabelText(new RegExp(`^${escape(en['wizard.archivePath.target'])}`)), {
+    fireEvent.change(screen.getByLabelText(new RegExp(`^${escape(en['account.archivePath.target'])}`)), {
       target: { value: 'Exports/takeout-20260904' },
     });
     fireEvent.change(screen.getByLabelText(/^Name for this account/), { target: { value: 'my photos' } });

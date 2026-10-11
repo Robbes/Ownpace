@@ -277,16 +277,16 @@ describe("each new profile names what its card's guide names (0148 T5 (a))", () 
       expect(steps, locale).toContain(values!.mailHost!);
       expect(steps, locale).toContain(values!.mailPort!);
       // The wizard's own labels for the two boxes, as that language shows them.
-      expect(steps, locale).toContain(words(locale, 'wizard.soverinMailHost'));
-      expect(steps, locale).toContain(words(locale, 'wizard.soverinMailPort'));
+      expect(steps, locale).toContain(words(locale, 'account.soverinMailHost'));
+      expect(steps, locale).toContain(words(locale, 'account.soverinMailPort'));
     }
   });
 
   it("the Nextcloud steps name the wizard's DAV base URL box and its /remote.php/dav", () => {
     for (const locale of LOCALES) {
       const steps = profileText(locale, 'target', 'nextcloud');
-      expect(steps, locale).toContain(words(locale, 'wizard.targetDavUrl'));
-      expect(words(locale, 'wizard.nextcloudDavUrl.hint'), locale).toContain('/remote.php/dav');
+      expect(steps, locale).toContain(words(locale, 'account.targetDavUrl'));
+      expect(words(locale, 'account.nextcloudDavUrl.hint'), locale).toContain('/remote.php/dav');
     }
   });
 
@@ -296,7 +296,7 @@ describe("each new profile names what its card's guide names (0148 T5 (a))", () 
       nl: 'account.apple.com → Aanmelden en beveiliging → App-specifieke wachtwoorden',
     };
     for (const locale of LOCALES) {
-      expect(words(locale, 'wizard.appleAppPassword.why'), locale).toContain(path[locale]);
+      expect(words(locale, 'account.appleAppPassword.why'), locale).toContain(path[locale]);
       expect(profileText(locale, 'source', 'apple'), locale).toContain(path[locale]);
     }
   });

@@ -103,7 +103,7 @@ export function FrontDoorChooser<C extends FrontDoorCard>({
     <div className="space-y-5">
       {(grouped.families.length > 0 || grouped.providers.length > 0) && (
         <div>
-          <h4 className="text-sm font-semibold text-gray-700 mb-2">{t('wizard.group.provider')}</h4>
+          <h4 className="text-sm font-semibold text-gray-700 mb-2">{t('account.group.provider')}</h4>
           <div className="space-y-3">
             {grouped.families.map((family) => (
               <div key={family.id}>
@@ -122,7 +122,7 @@ export function FrontDoorChooser<C extends FrontDoorCard>({
       )}
       {grouped.protocols.length > 0 && (
         <div>
-          <h4 className="text-sm font-semibold text-gray-700 mb-2">{t('wizard.group.protocol')}</h4>
+          <h4 className="text-sm font-semibold text-gray-700 mb-2">{t('account.group.protocol')}</h4>
           <div className={grid}>{grouped.protocols.map(renderCard)}</div>
         </div>
       )}

@@ -30,16 +30,10 @@ export const en = {
     'Everything was in step, so we switched to sync once a day. Opening this migration brought back every hour, for 14 days.',
   'cadence.broughtBack.keep': 'To keep it hourly, choose Hourly under How often to look for changes.',
   'mappings.title': 'Migrations',
-  'mappings.subtitle': 'Manage your data migration configurations',
   'mappings.new': 'Start a migration',
   'mappings.empty.title': 'No migrations yet',
   'mappings.empty.hint': 'Start one: who it is for, where from, what, and where to.',
   'mappings.empty.cta': 'Start a migration',
-  'mappings.th.name': 'Name',
-  'mappings.th.sourceTarget': 'Source → Target',
-  'mappings.th.status': 'Status',
-  'mappings.th.lastSync': 'Last Sync',
-  'mappings.th.actions': 'Actions',
   'mappings.action.triggerSync': 'Trigger sync',
   // Free's pace held a press (workplan 0157 T2, `free_pace`): one pass a day,
   // and when the next one starts. The server's `message` is the English.
@@ -259,8 +253,6 @@ export const en = {
   'runs.status.success': 'Succeeded',
   'runs.status.failed': 'Failed',
   'runs.status.cancelled': 'Cancelled',
-  'mappings.lastSync': 'Last sync:',
-  'mappings.never': 'Never',
   'mappings.filtered.lead': 'Showing only:',
   'mappings.filtered.clear': 'Show all migrations',
   'mappings.loadFailed': 'Could not load the migrations list.',
@@ -356,9 +348,7 @@ export const en = {
   'failure.reference': 'Reference: {reference}',
   'failure.side.source': 'It happened on the source side.',
   'failure.side.target': 'It happened on the destination side.',
-  // One state, three reasons (see pause-reason.ts). The word is the same
-  // wherever it appears; the sentence under it says which of the three.
-  'pause.label': 'Paused',
+  // One state, three reasons (see pause-reason.ts); the sentence says which.
   'pause.ceiling':
     '{provider} reached its daily download limit. Migration continues after {resets}.',
   // Same fact, no window to name: the meter reported no running window, and
@@ -439,16 +429,10 @@ export const nl: Record<keyof typeof en, string> = {
     'Alles was bijgewerkt, dus we gingen het iets rustiger aan doen en keken nog eenmaal per dag naar nieuwe items en wijzigingen. Nu u deze migratie hebt geopend, kijken we 14 dagen lang weer elk uur.',
   'cadence.broughtBack.keep': 'Wilt u dat het elk uur blijft, kies dan Elk uur onder Frequentie om naar wijzigingen te kijken.',
   'mappings.title': 'Migraties',
-  'mappings.subtitle': 'Beheer uw datamigratieconfiguraties',
   'mappings.new': 'Migratie starten',
   'mappings.empty.title': 'Nog geen migraties',
   'mappings.empty.hint': 'Start er een: voor wie gaan we wat migreren?',
   'mappings.empty.cta': 'Migratie starten',
-  'mappings.th.name': 'Naam',
-  'mappings.th.sourceTarget': 'Bron → Doel',
-  'mappings.th.status': 'Status',
-  'mappings.th.lastSync': 'Laatste synchronisatie',
-  'mappings.th.actions': 'Acties',
   'mappings.action.triggerSync': 'Synchroniseer nu',
   'mappings.sync.freePace':
     'Free omvat één migratieronde per dag. De volgende ronde begint op {time}. Een hoger pakket kijkt zo vaak als tot elke 15 minuten naar wijzigingen en migreert deze.',
@@ -632,8 +616,6 @@ export const nl: Record<keyof typeof en, string> = {
   'runs.status.success': 'Geslaagd',
   'runs.status.failed': 'Mislukt',
   'runs.status.cancelled': 'Geannuleerd',
-  'mappings.lastSync': 'Laatste synchronisatie:',
-  'mappings.never': 'Nooit',
   'mappings.filtered.lead': 'Alleen zichtbaar:',
   'mappings.filtered.clear': 'Toon alle migraties',
   'mappings.loadFailed': 'De migratielijst kon niet worden geladen.',
@@ -664,7 +646,6 @@ export const nl: Record<keyof typeof en, string> = {
   'failure.reference': 'Referentie: {reference}',
   'failure.side.source': 'Trad op aan de bronkant.',
   'failure.side.target': 'Trad op aan de doelkant.',
-  'pause.label': 'Gepauzeerd',
   'pause.ceiling':
     '{provider} heeft de daglimiet voor downloaden bereikt. Migreren gaat verder na {resets}.',
   'pause.ceiling.unknown':

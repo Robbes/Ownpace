@@ -191,7 +191,6 @@ describe('the progress strip', () => {
 
 describe('the words exist in both languages', () => {
   const KEYS = [
-    'pause.label',
     'pause.ceiling',
     'pause.ceiling.unknown',
     'pause.ceiling.why',

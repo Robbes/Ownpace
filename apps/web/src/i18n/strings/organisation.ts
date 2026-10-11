@@ -249,7 +249,6 @@ export const en = {
   'tenants.notify.locale': 'Language',
   'tenants.notify.recipients':
     'Sent to every owner and admin below; urgent events are emailed as they happen.',
-  'tenants.notify.save': 'Save',
   'tenants.notify.saved': 'Saved.',
   'tenants.notify.readError': 'Could not read the setting; try again later.',
   'tenants.invite.submit': 'Invite',
@@ -431,7 +430,6 @@ export const nl: Record<keyof typeof en, string> = {
   'tenants.notify.locale': 'Taal',
   'tenants.notify.recipients':
     'Gaat naar elke eigenaar en beheerder hieronder; dringende gebeurtenissen worden direct gemaild.',
-  'tenants.notify.save': 'Opslaan',
   'tenants.notify.saved': 'Opgeslagen.',
   'tenants.notify.readError':
     'De instelling kon niet worden gelezen, probeer het later opnieuw.',

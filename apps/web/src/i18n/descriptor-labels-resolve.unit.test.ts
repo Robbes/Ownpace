@@ -6,7 +6,7 @@
  *
  * `Connections.tsx` renders its form straight from `credentialFieldsFor`, so a
  * label key with no string behind it does not throw — it renders the KEY, and
- * somebody is asked for `wizard.dropboxAppKey` instead of an App key. Nothing
+ * somebody is asked for `account.dropboxAppKey` instead of an App key. Nothing
  * else catches that: the descriptor lives in `@openmig/shared`, which has no
  * access to the web app's strings, so the two can only be checked from here.
  *

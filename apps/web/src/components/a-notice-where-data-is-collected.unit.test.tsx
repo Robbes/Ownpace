@@ -251,7 +251,7 @@ describe('the Connect buttons', () => {
       it(`${locale}: the consent panel links the privacy policy and the terms beside Connect with ${type}`, async () => {
         wrap(locale, <Panel type={type} />, '/connections', '/connections');
         const button = await screen.findByRole('button', {
-          name: (STRINGS[locale] as Record<string, string>)[`wizard.${type}.connect`],
+          name: (STRINGS[locale] as Record<string, string>)[`account.${type}.connect`],
         });
         await bothBeside(button, locale);
       });
@@ -276,7 +276,7 @@ describe('the Connect buttons', () => {
         '/start',
         '/start',
       );
-      const name = STRINGS[locale]['wizard.google.connect'];
+      const name = STRINGS[locale]['account.google.connect'];
       await waitFor(() => expect(screen.getByRole('button', { name })).toBeTruthy());
       await bothBeside(screen.getByRole('button', { name }), locale);
     });
@@ -284,7 +284,7 @@ describe('the Connect buttons', () => {
     it(`${locale}: an appliance links neither, because this policy is not its owner's`, async () => {
       editionFlag.selfhost = true;
       wrap(locale, <Panel type="google" />, '/connections', '/connections');
-      expect(await screen.findByRole('button', { name: STRINGS[locale]['wizard.google.connect'] })).toBeTruthy();
+      expect(await screen.findByRole('button', { name: STRINGS[locale]['account.google.connect'] })).toBeTruthy();
       expect(linksTo(await address('privacy', locale))).toHaveLength(0);
       expect(linksTo(await address('terms', locale))).toHaveLength(0);
     });

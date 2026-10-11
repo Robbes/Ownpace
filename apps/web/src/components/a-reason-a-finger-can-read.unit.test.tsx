@@ -152,11 +152,11 @@ describe('a reason a finger can read (0145 T7 (a))', () => {
           it('with nothing ticked, says why Connect is greyed out, as text under it and not in a tooltip', async () => {
             clients.mockResolvedValue({ google: 'deployment', dropbox: 'deployment', microsoft: 'deployment' });
             await door.open(locale);
-            const connect = await screen.findByRole('button', { name: words(locale, 'wizard.google.connect') });
+            const connect = await screen.findByRole('button', { name: words(locale, 'account.google.connect') });
             await waitFor(() => expect(screen.getAllByRole('checkbox').length).toBeGreaterThan(0));
             untickEverything();
 
-            const why = words(locale, 'wizard.google.connect.needsDomains');
+            const why = words(locale, 'account.google.connect.needsDomains');
             await waitFor(() => expect(connect).toBeDisabled());
             expect(connect, 'the reason is still a tooltip a finger cannot open').not.toHaveAttribute('title');
             const reason = theReasonUnder(connect, why);
@@ -172,7 +172,7 @@ describe('a reason a finger can read (0145 T7 (a))', () => {
           it('without the deployment’s client, asks for the pair the same way', async () => {
             clients.mockResolvedValue({ google: 'connection', dropbox: 'connection', microsoft: 'connection' });
             await door.open(locale);
-            const connect = await screen.findByRole('button', { name: words(locale, 'wizard.google.connect') });
+            const connect = await screen.findByRole('button', { name: words(locale, 'account.google.connect') });
             await waitFor(() => expect(screen.getAllByRole('checkbox').length).toBeGreaterThan(0));
             if (!screen.getAllByRole('checkbox').some((box) => (box as HTMLInputElement).checked)) {
               fireEvent.click(screen.getAllByRole('checkbox')[0]!);
@@ -180,7 +180,7 @@ describe('a reason a finger can read (0145 T7 (a))', () => {
 
             await waitFor(() => expect(connect).toBeDisabled());
             expect(connect).not.toHaveAttribute('title');
-            theReasonUnder(connect, words(locale, 'wizard.google.connect.needsClient'));
+            theReasonUnder(connect, words(locale, 'account.google.connect.needsClient'));
           });
         });
       }

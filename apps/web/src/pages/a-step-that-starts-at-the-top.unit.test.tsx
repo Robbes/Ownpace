@@ -177,7 +177,7 @@ async function passWho(locale: Locale = 'en'): Promise<void> {
   fireEvent.change(await screen.findByLabelText(STRINGS[locale]['people.new.name']), {
     target: { value: 'Anna Jansen' },
   });
-  fireEvent.click(screen.getByRole('button', { name: STRINGS[locale]['wizard.next'] }));
+  fireEvent.click(screen.getByRole('button', { name: STRINGS[locale]['account.next'] }));
 }
 
 /** Whether a call to `scrollTo` asked for the top, in either of its two forms. */
