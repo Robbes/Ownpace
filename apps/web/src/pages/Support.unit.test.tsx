@@ -41,7 +41,8 @@ import {
   type SupportTenantMember,
   type PlatformStatus,
 } from '../services/support.ts';
-import { STRINGS, LOCALES } from '../i18n/strings.ts';
+import { STRINGS } from '../i18n/strings.ts';
+import { OPERATOR_STRINGS } from '../i18n/operator-strings.ts';
 
 vi.mock('../services/support.ts', () => ({
   listSupportTenants: vi.fn(),
@@ -126,13 +127,13 @@ describe('the list of organisations', () => {
   it('says every screen here is recorded, before showing anything', async () => {
     listMock.mockResolvedValue([TENANT]);
     mount(<SupportTenants />);
-    expect(await screen.findByText(STRINGS.en['support.recorded'])).toBeInTheDocument();
+    expect(await screen.findByText(OPERATOR_STRINGS['support.recorded'])).toBeInTheDocument();
   });
 
   it('names the boundary, so nobody goes looking for a screen that should not exist', async () => {
     listMock.mockResolvedValue([TENANT]);
     mount(<SupportTenants />);
-    expect(await screen.findByText(STRINGS.en['support.metadataOnly'])).toBeInTheDocument();
+    expect(await screen.findByText(OPERATOR_STRINGS['support.metadataOnly'])).toBeInTheDocument();
   });
 
   it('shows the organisations, with the failing count called out', async () => {
@@ -146,7 +147,7 @@ describe('the list of organisations', () => {
   it('leads to the log, across every organisation (0129 T2)', async () => {
     listMock.mockResolvedValue([TENANT]);
     mount(<SupportTenants />);
-    expect(await screen.findByRole('link', { name: STRINGS.en['support.log.link'] })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: OPERATOR_STRINGS['support.log.link'] })).toHaveAttribute(
       'href',
       '/support/log',
     );
@@ -158,7 +159,7 @@ describe('the list of organisations', () => {
     // refusal into a support ticket about the support screen.
     listMock.mockResolvedValue([]);
     mount(<SupportTenants />);
-    expect(await screen.findByText(STRINGS.en['support.noOrganisations'])).toBeInTheDocument();
+    expect(await screen.findByText(OPERATOR_STRINGS['support.noOrganisations'])).toBeInTheDocument();
   });
 });
 
@@ -214,7 +215,7 @@ describe('one organisation', () => {
     tenantMock.mockResolvedValue(DETAIL);
     mount(<SupportTenantDetail />, `/support/tenants/${TENANT.tenant_id}`, '/support/tenants/:tenantId');
     expect(
-      await screen.findByRole('link', { name: STRINGS.en['support.log.forOrganisation'] }),
+      await screen.findByRole('link', { name: OPERATOR_STRINGS['support.log.forOrganisation'] }),
     ).toHaveAttribute('href', `/support/log?tenantId=${TENANT.tenant_id}`);
   });
 
@@ -223,7 +224,7 @@ describe('one organisation', () => {
     // would let somebody use this screen to discover which ids are real.
     tenantMock.mockRejectedValue(new Error('Request failed with status code 404'));
     mount(<SupportTenantDetail />, `/support/tenants/${TENANT.tenant_id}`, '/support/tenants/:tenantId');
-    expect(await screen.findByText(STRINGS.en['support.notFound'])).toBeInTheDocument();
+    expect(await screen.findByText(OPERATOR_STRINGS['support.notFound'])).toBeInTheDocument();
   });
 });
 
@@ -279,14 +280,14 @@ describe('one migration', () => {
   it('says there is no screen below this one', async () => {
     migrationMock.mockResolvedValue(MIGRATION);
     mount(<SupportMigrationDetail />, '/support/migrations/m1', '/support/migrations/:mappingId');
-    expect(await screen.findByText(STRINGS.en['support.noFourthLevel'])).toBeInTheDocument();
+    expect(await screen.findByText(OPERATOR_STRINGS['support.noFourthLevel'])).toBeInTheDocument();
   });
 
   it('opens the log narrowed to this migration (0129 T2)', async () => {
     migrationMock.mockResolvedValue(MIGRATION);
     mount(<SupportMigrationDetail />, '/support/migrations/m1', '/support/migrations/:mappingId');
     expect(
-      await screen.findByRole('link', { name: STRINGS.en['support.log.forMigration'] }),
+      await screen.findByRole('link', { name: OPERATOR_STRINGS['support.log.forMigration'] }),
     ).toHaveAttribute('href', '/support/log?mappingId=m1');
   });
 
@@ -337,15 +338,14 @@ describe('the log stays a record of reads somebody made', () => {
   });
 });
 
-describe('both languages carry every sentence these screens ask for', () => {
-  it('has an nl entry for each support key', () => {
-    // The screens read `t(...)`; a key present in en and missing in nl renders
-    // English to a Dutch operator, which is the failure mode a dictionary of
-    // this size hides well.
-    const keys = Object.keys(STRINGS.en).filter((k) => k.startsWith('support.'));
-    expect(keys.length).toBeGreaterThan(15);
-    const missing = keys.filter((k) => !(k in STRINGS.nl));
-    expect(missing).toEqual([]);
+describe('these screens are in English only (ADR-0013, amended 2026-10-11)', () => {
+  it('keeps every support sentence in the operator’s table, and none in the dictionary', () => {
+    // An operator reads these screens, not a customer: their words have no
+    // Dutch to keep in step, and a key in both places would say two things.
+    const own = Object.keys(OPERATOR_STRINGS).filter((k) => k.startsWith('support.'));
+    expect(own.length).toBeGreaterThan(15);
+    expect(Object.keys(STRINGS.en).filter((k) => k.startsWith('support.'))).toEqual([]);
+    expect(Object.keys(STRINGS.nl).filter((k) => k.startsWith('support.'))).toEqual([]);
   });
 });
 
@@ -365,43 +365,30 @@ describe('the hold’s hint says what the sentence also answers (0132 T6 (b))', 
    * the confirm screen starts has no button.
    */
   const PINNED = {
-    en: {
-      hint: 'Stops new passes, buttons included; the ones already running finish.',
-      answers:
-        "Your message is also shown to every button-press that would start work while the hold is on ('Trigger sync', 'Start migration', a check), and a refused press is not remembered.",
-      ask: "So say when copying resumes and ask them to try again after that, for example: 'We are updating the platform and copying resumes around 15:00. Nothing starts until then. Please try again after that.'",
-    },
-    nl: {
-      hint: 'Stopt nieuwe rondes, ook via een knop; wat al liep wordt afgerond.',
-      // The owner's words of the text review (2026-10-10), with "die werk zou starten" kept.
-      answers:
-        "Uw tekst wordt ook weergegeven bij elke knop die werk zou starten waarop een klant klikt terwijl de pauze aanstaat ('Synchroniseer nu', 'Start migratie', een controle). Wat zo wordt geweigerd, wordt niet opgeslagen.",
-      // 0132 T6 step 2's example, in the owner's words of the text review (2026-10-10).
-      ask: "Beschrijf dus wanneer de migraties hervatten en vraag de klant daarna opnieuw te proberen. Bijvoorbeeld: 'We werken het platform bij en migreren rond 15:00 weer verder. Tot die tijd start er niets. Probeer het daarna opnieuw.'",
-    },
+    hint: 'Stops new passes, buttons included; the ones already running finish.',
+    answers:
+      "Your message is also shown to every button-press that would start work while the hold is on ('Trigger sync', 'Start migration', a check), and a refused press is not remembered.",
+    ask: "So say when copying resumes and ask them to try again after that, for example: 'We are updating the platform and copying resumes around 15:00. Nothing starts until then. Please try again after that.'",
   } as const;
+  const why = OPERATOR_STRINGS['support.hold.hint.why'];
 
-  for (const locale of LOCALES) {
-    const why = STRINGS[locale]['support.hold.hint.why'];
+  it('the visible line says the buttons are held too', () => {
+    expect(OPERATOR_STRINGS['support.hold.hint']).toBe(PINNED.hint);
+  });
 
-    it(`${locale}: the visible line says the buttons are held too`, () => {
-      expect(STRINGS[locale]['support.hold.hint']).toBe(PINNED[locale].hint);
-    });
+  it('the fold says the sentence answers the refused buttons, word for word', () => {
+    expect(why).toContain(PINNED.answers);
+  });
 
-    it(`${locale}: the fold says the sentence answers the refused buttons, word for word`, () => {
-      expect(why).toContain(PINNED[locale].answers);
-    });
+  it('the fold asks for when copying resumes, and to try again after', () => {
+    expect(why).toContain(PINNED.ask);
+  });
 
-    it(`${locale}: the fold asks for when copying resumes, and to try again after`, () => {
-      expect(why).toContain(PINNED[locale].ask);
-    });
-
-    it(`${locale}: the buttons named are ones the hold refuses`, () => {
-      // Their labels, as the migration's page shows them.
-      expect(why).toContain(`'${STRINGS[locale]['mappings.action.triggerSync']}'`);
-      expect(why).toContain(`'${STRINGS[locale]['confirm.start']}'`);
-    });
-  }
+  it('the buttons named are ones the hold refuses', () => {
+    // Their labels, as the migration's page shows them in English.
+    expect(why).toContain(`'${STRINGS.en['mappings.action.triggerSync']}'`);
+    expect(why).toContain(`'${STRINGS.en['confirm.start']}'`);
+  });
 });
 
 describe('failing and waiting are two different conversations (workplan 0110 T5)', () => {
@@ -412,8 +399,8 @@ describe('failing and waiting are two different conversations (workplan 0110 T5)
     listMock.mockResolvedValue([TENANT]);
     mount(<SupportTenants />);
     await screen.findByText('Alpha BV');
-    expect(screen.getByText(STRINGS.en['support.col.failing'])).toBeInTheDocument();
-    expect(screen.getByText(STRINGS.en['support.col.waiting'])).toBeInTheDocument();
+    expect(screen.getByText(OPERATOR_STRINGS['support.col.failing'])).toBeInTheDocument();
+    expect(screen.getByText(OPERATOR_STRINGS['support.col.waiting'])).toBeInTheDocument();
     // The failing count and the waiting count are the fixture's two different
     // numbers, so a cell reading the wrong column is visible here.
     expect(screen.getByText('1')).toBeInTheDocument();
@@ -433,7 +420,7 @@ describe('failing and waiting are two different conversations (workplan 0110 T5)
       `/support/tenants/${TENANT.tenant_id}`,
       '/support/tenants/:tenantId',
     );
-    expect(await screen.findByText(STRINGS.en['support.waiting.some'])).toBeInTheDocument();
+    expect(await screen.findByText(OPERATOR_STRINGS['support.waiting.some'])).toBeInTheDocument();
   });
 
   it('says the opposite when nothing is', async () => {
@@ -449,7 +436,7 @@ describe('failing and waiting are two different conversations (workplan 0110 T5)
       `/support/tenants/${TENANT.tenant_id}`,
       '/support/tenants/:tenantId',
     );
-    expect(await screen.findByText(STRINGS.en['support.waiting.none'])).toBeInTheDocument();
+    expect(await screen.findByText(OPERATOR_STRINGS['support.waiting.none'])).toBeInTheDocument();
   });
 
   it('shows nothing of usage when the API sends none — an older server, not a broken screen', async () => {
@@ -468,8 +455,8 @@ describe('failing and waiting are two different conversations (workplan 0110 T5)
       `/support/tenants/${TENANT.tenant_id}`,
       '/support/tenants/:tenantId',
     );
-    await screen.findByText(STRINGS.en['support.waiting.some']);
-    expect(screen.queryByText(STRINGS.en['support.usage'])).not.toBeInTheDocument();
+    await screen.findByText(OPERATOR_STRINGS['support.waiting.some']);
+    expect(screen.queryByText(OPERATOR_STRINGS['support.usage'])).not.toBeInTheDocument();
   });
 
   it('never shows the decisions themselves — only how many', async () => {
@@ -489,7 +476,7 @@ describe('failing and waiting are two different conversations (workplan 0110 T5)
       `/support/tenants/${TENANT.tenant_id}`,
       '/support/tenants/:tenantId',
     );
-    await screen.findByText(STRINGS.en['support.waiting.some']);
+    await screen.findByText(OPERATOR_STRINGS['support.waiting.some']);
     expect(container.textContent).not.toContain('summary');
     expect(container.textContent).not.toContain('@');
   });
@@ -536,12 +523,12 @@ describe('the package the month has earned so far (0109 T4, surfaced)', () => {
     // say more than the recorded peak" is answered by the live count.
     const { container } = mountWithUsage(USAGE);
     expect(await screen.findByText('Small')).toBeInTheDocument();
-    expect(screen.getByText(STRINGS.en['support.usage.decidedBy.paths'])).toBeInTheDocument();
+    expect(screen.getByText(OPERATOR_STRINGS['support.usage.decidedBy.paths'])).toBeInTheDocument();
     // The paused path is visible in the breakdown — the classic "why am I
     // still billed" answer, without naming any path.
     expect(container.textContent).toContain('active 2 · cutover 1 · paused 1');
     expect(container.textContent).toContain('100 GB');
-    expect(screen.getByText(STRINGS.en['support.usage.note'])).toBeInTheDocument();
+    expect(screen.getByText(OPERATOR_STRINGS['support.usage.note'])).toBeInTheDocument();
   });
 
   it('says a quiet month plainly rather than rendering a bare zero', async () => {
@@ -555,11 +542,11 @@ describe('the package the month has earned so far (0109 T4, surfaced)', () => {
       paths_now: 0,
       paths_by_state: {},
     });
-    expect(await screen.findByText(STRINGS.en['support.usage.noPeak'])).toBeInTheDocument();
+    expect(await screen.findByText(OPERATOR_STRINGS['support.usage.noPeak'])).toBeInTheDocument();
     // Free is free (ADR-0014, 2026-09-24): the operator reads "free", which is
     // what they quote to the customer, not "€0.00 per month".
-    expect(container.textContent).toContain(`Free · ${STRINGS.en['support.usage.free']}`);
-    expect(container.textContent).not.toContain(STRINGS.en['support.usage.perMonth']);
+    expect(container.textContent).toContain(`Free · ${OPERATOR_STRINGS['support.usage.free']}`);
+    expect(container.textContent).not.toContain(OPERATOR_STRINGS['support.usage.perMonth']);
   });
 
   it("renders the table's deliberate end as words, never as a missing package", async () => {
@@ -567,7 +554,7 @@ describe('the package the month has earned so far (0109 T4, surfaced)', () => {
     // pricing page publishes. A blank cell here would read as a bug in
     // exactly the conversation where the operator needs the sentence.
     mountWithUsage({ ...USAGE, tier: null });
-    expect(await screen.findByText(STRINGS.en['support.usage.beyondTable'])).toBeInTheDocument();
+    expect(await screen.findByText(OPERATOR_STRINGS['support.usage.beyondTable'])).toBeInTheDocument();
   });
 });
 
@@ -682,7 +669,7 @@ describe('the people on an organisation', () => {
     // from a deployment that never configured one — a setting, not a person.
     expect(screen.getByText('invited@acme.test')).toHaveAttribute(
       'title',
-      STRINGS.en['support.notArrivedYet'],
+      OPERATOR_STRINGS['support.notArrivedYet'],
     );
   });
 
@@ -713,7 +700,7 @@ describe('the people on an organisation', () => {
     ).not.toBeInTheDocument();
     expect(screen.getByText('owner-a@demo.openmigrate.test')).toHaveAttribute(
       'title',
-      STRINGS.en['support.seededDemoAccount'],
+      OPERATOR_STRINGS['support.seededDemoAccount'],
     );
   });
 
@@ -731,7 +718,7 @@ describe('the people on an organisation', () => {
 
   it('says so when nobody belongs to it', async () => {
     await withMembers([]);
-    expect(screen.getByText(STRINGS.en['support.noPeople'])).toBeInTheDocument();
+    expect(screen.getByText(OPERATOR_STRINGS['support.noPeople'])).toBeInTheDocument();
   });
 });
 
@@ -768,7 +755,7 @@ describe('finding a person', () => {
   /** Type a term and submit, the way somebody actually uses the box. */
   async function search(term: string) {
     mount(<SupportTenants />);
-    const box = await screen.findByLabelText(STRINGS.en['support.findPerson']);
+    const box = await screen.findByLabelText(OPERATOR_STRINGS['support.findPerson']);
     await act(async () => {
       fireEvent.change(box, { target: { value: term } });
       fireEvent.submit(box.closest('form') as HTMLFormElement);
@@ -806,9 +793,9 @@ describe('finding a person', () => {
     // enter" is not a reason to read every customer's people. The server
     // refuses too; this is the half that says so before the press.
     mount(<SupportTenants />);
-    const box = await screen.findByLabelText(STRINGS.en['support.findPerson']);
+    const box = await screen.findByLabelText(OPERATOR_STRINGS['support.findPerson']);
     fireEvent.change(box, { target: { value: 'j' } });
-    expect(screen.getByRole('button', { name: STRINGS.en['support.find'] })).toBeDisabled();
+    expect(screen.getByRole('button', { name: OPERATOR_STRINGS['support.find'] })).toBeDisabled();
     expect(searchMock).not.toHaveBeenCalled();
   });
 
@@ -818,14 +805,14 @@ describe('finding a person', () => {
     // beside the box rather than in a policy.
     mount(<SupportTenants />);
     expect(
-      await screen.findByText(STRINGS.en['support.findPersonRecorded']),
+      await screen.findByText(OPERATOR_STRINGS['support.findPersonRecorded']),
     ).toBeInTheDocument();
   });
 
   it('says so when nobody matches', async () => {
     searchMock.mockResolvedValue({ people: [], limit: 50 });
     await search('nobody');
-    expect(await screen.findByText(STRINGS.en['support.noPeopleFound'])).toBeInTheDocument();
+    expect(await screen.findByText(OPERATOR_STRINGS['support.noPeopleFound'])).toBeInTheDocument();
   });
 });
 
@@ -857,7 +844,7 @@ describe('the platform status the customer sees (workplan 0110 T5)', () => {
     });
     show();
 
-    expect(await screen.findByText(STRINGS.en['support.platform'])).toBeInTheDocument();
+    expect(await screen.findByText(OPERATOR_STRINGS['support.platform'])).toBeInTheDocument();
     // The data arrives after the heading: wait for the first line of it.
     expect(await screen.findByText('Google Workspace down')).toBeInTheDocument();
     expect(screen.getByText('Google Workspace down').className).toContain('text-red-700');
@@ -872,7 +859,7 @@ describe('the platform status the customer sees (workplan 0110 T5)', () => {
 
   it('says a deployment without a page has none, rather than showing an empty list', async () => {
     show();
-    expect(await screen.findByText(STRINGS.en['support.platform.page.off'])).toBeInTheDocument();
+    expect(await screen.findByText(OPERATOR_STRINGS['support.platform.page.off'])).toBeInTheDocument();
     expect(screen.queryByText(/^Checked /)).toBeNull();
   });
 
@@ -880,14 +867,14 @@ describe('the platform status the customer sees (workplan 0110 T5)', () => {
     platformMock.mockResolvedValue({ ...PLATFORM_OK, statusPage: { state: 'unreachable' } });
     show();
     expect(
-      await screen.findByText(STRINGS.en['support.platform.page.unreachable']),
+      await screen.findByText(OPERATOR_STRINGS['support.platform.page.unreachable']),
     ).toBeInTheDocument();
   });
 
   it('does not take the tenant screen down with it when it cannot be read', async () => {
     platformMock.mockRejectedValue(new Error('boom'));
     show();
-    expect(await screen.findByText(STRINGS.en['support.platform.unread'])).toBeInTheDocument();
+    expect(await screen.findByText(OPERATOR_STRINGS['support.platform.unread'])).toBeInTheDocument();
     // The tenant's own facts are still there.
     expect(screen.getByText('Alpha BV')).toBeInTheDocument();
   });

@@ -17,6 +17,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { STRINGS } from '../i18n/strings.ts';
+import { OPERATOR_STRINGS } from '../i18n/operator-strings.ts';
 import { readSupportLog, type SupportLogEntry, type SupportLogPage } from '../services/support.ts';
 import { SupportLog } from './Support.tsx';
 
@@ -31,7 +32,8 @@ vi.mock('../services/support.ts', () => ({
   readSupportLog: vi.fn(),
 }));
 
-const EN = STRINGS.en;
+// The operator's own words are English only (operator-strings.ts).
+const EN = { ...STRINGS.en, ...OPERATOR_STRINGS };
 const logMock = vi.mocked(readSupportLog);
 
 const TENANT = '0e2b0000-e29b-41d4-a716-446655440001';

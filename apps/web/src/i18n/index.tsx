@@ -10,6 +10,7 @@
 
 import React from 'react';
 import { STRINGS, type Locale, type StringKey } from './strings.ts';
+import { OPERATOR_STRINGS, type OperatorKey } from './operator-strings.ts';
 import { formatRelativeToNow, formatDateTime, formatDay, formatNumber, formatCurrency, formatList } from './datetime.ts';
 import { publishLocale } from './active-locale.ts';
 import { fill, type TemplateVars } from './fill.ts';
@@ -119,6 +120,44 @@ export function useT(): (key: StringKey, vars?: TemplateVars) => string {
   return useLocale().t;
 }
 
+/** A key an operator's screen says: one of its own, or one the dictionary has. */
+export type OperatorScreenKey = OperatorKey | StringKey;
+
+const englishT = (key: StringKey, vars?: TemplateVars) => fill(STRINGS.en[key], vars);
+
+/**
+ * The operator's screens, in English whatever language the app is in
+ * (`operator-strings.ts`; ADR-0013, amended 2026-10-11). Everything rendered
+ * under it reads the English half of the dictionary and formats dates and
+ * numbers in English, so a shared button or the log's table on such a screen
+ * does not turn Dutch inside an English page. `lang="en"` tells a screen
+ * reader in a Dutch app which voice to use (WCAG 3.1.2), on a box that draws
+ * nothing. Choosing a language still works: it is the menu's, outside this.
+ */
+export const EnglishOnly: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { setLocale } = useLocale();
+  const value = React.useMemo<LocaleContextValue>(() => ({ locale: 'en', setLocale, t: englishT }), [setLocale]);
+  return (
+    <LocaleContext.Provider value={value}>
+      <div lang="en" className="contents">
+        {children}
+      </div>
+    </LocaleContext.Provider>
+  );
+};
+
+const operatorT = (key: OperatorScreenKey, vars?: TemplateVars): string =>
+  fill(key in OPERATOR_STRINGS ? OPERATOR_STRINGS[key as OperatorKey] : STRINGS.en[key as StringKey], vars);
+
+/**
+ * `t` for an operator's screen: its own words (English only), and the
+ * dictionary's English for the words it shares with every screen. English
+ * whatever the app's language, inside `EnglishOnly` or not.
+ */
+export function useOperatorT(): (key: OperatorScreenKey, vars?: TemplateVars) => string {
+  return operatorT;
+}
+
 /**
  * The date/time/number formatters bound to the active locale — the only form
  * components should reach for (workplan 0024 T3). The pure functions live in
@@ -147,4 +186,4 @@ export function useFormatters(): {
   );
 }
 
-export type { Locale, StringKey, TemplateVars };
+export type { Locale, StringKey, TemplateVars, OperatorKey };

@@ -157,7 +157,7 @@ describe('telling the operator that somebody knocked (0093 T3)', () => {
     expect(SENT[0]?.body).toContain('stranger@example.test');
   });
 
-  it('renders in NOTIFY_LOCALE, and falls back to en when it is unset', async () => {
+  it('renders in English, whatever NOTIFY_LOCALE says: it is the operator’s mail (ADR-0013, amended 2026-10-11)', async () => {
     SENT.length = 0;
     __setChannelForTests(
       channel({
@@ -165,7 +165,7 @@ describe('telling the operator that somebody knocked (0093 T3)', () => {
       }) as never,
     );
     await tellOperator(KNOCK);
-    expect(SENT[0]?.subject).toContain('iemand vraagt toegang');
+    expect(SENT[0]?.subject).toContain('somebody asked for access');
 
     SENT.length = 0;
     // No locale at all: NOTIFY_LOCALE is optional and `en` is what the rest of

@@ -462,7 +462,6 @@ describe('access requested — the knock, addressed to the operator (0093 T3)', 
     // The operator is being told to LOOK, not that a decision was made. A
     // subject line somebody skims at 23:00 must not read like a completed act.
     expect(renderEvent(full, 'en').body).toMatch(/[Nn]othing has been granted/);
-    expect(renderEvent(full, 'nl').body).toContain('Iemand vraagt toegang.');
   });
 
   it('omits the optional fields rather than printing them empty', () => {
@@ -484,9 +483,9 @@ describe('access requested — the knock, addressed to the operator (0093 T3)', 
     expect(renderEvent(full, 'en').body).toMatch(/[Oo]pen the app/);
   });
 
-  it('is a different subject and body in each language', () => {
-    expect(renderEvent(full, 'en').subject).not.toEqual(renderEvent(full, 'nl').subject);
-    expect(renderEvent(full, 'en').body).not.toEqual(renderEvent(full, 'nl').body);
+  it('is in English whatever language is asked for: it is the operator’s (ADR-0013, amended 2026-10-11)', () => {
+    expect(renderEvent(full, 'nl')).toEqual(renderEvent(full, 'en'));
+    expect(renderEvent(full, 'nl').subject).toBe('Ownpace — somebody asked for access');
   });
 });
 

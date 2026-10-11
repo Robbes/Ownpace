@@ -25,11 +25,11 @@ import { useQuery } from '@tanstack/react-query';
 import { Link2, AlertTriangle } from 'lucide-react';
 import { redirectUriApi } from '../services/mapping-service.ts';
 import type { RedirectUriEntry } from '../services/mapping-service.ts';
-import { useT } from '../i18n/index.tsx';
+import { useOperatorT } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
-import type { StringKey } from '../i18n/index.tsx';
+import type { OperatorKey } from '../i18n/index.tsx';
 
-const GROUP_HEADING: Record<string, StringKey> = {
+const GROUP_HEADING: Record<string, OperatorKey> = {
   migration: 'redirects.group.migration',
   signIn: 'redirects.group.signIn',
   socialSignIn: 'redirects.group.socialSignIn',
@@ -38,7 +38,7 @@ const GROUP_HEADING: Record<string, StringKey> = {
 const ORDER = ['migration', 'signIn', 'socialSignIn'] as const;
 
 const RedirectUris: React.FC = () => {
-  const t = useT();
+  const t = useOperatorT();
   const { data, isLoading, isError } = useQuery({
     queryKey: ['redirect-uris'],
     queryFn: redirectUriApi.get,

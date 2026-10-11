@@ -20,12 +20,14 @@ import userEvent from '@testing-library/user-event';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { STRINGS } from '../i18n/strings.ts';
+import { OPERATOR_STRINGS } from '../i18n/operator-strings.ts';
 import { readAuditExportPage, type AuditExportPage } from '../services/support.ts';
 import { AuditExportDownload } from './AuditExportDownload.tsx';
 
 vi.mock('../services/support.ts', () => ({ readAuditExportPage: vi.fn() }));
 
-const EN = STRINGS.en;
+// The operator's own words are English only (operator-strings.ts).
+const EN = { ...STRINGS.en, ...OPERATOR_STRINGS };
 const pageMock = vi.mocked(readAuditExportPage);
 
 const ID = (n: string) => `0e2d0000-e29b-41d4-a716-4466554401${n}`;

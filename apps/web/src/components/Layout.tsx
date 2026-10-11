@@ -22,7 +22,7 @@ import { mappingApi } from '../services/mapping-service.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { isSelfHost } from '../services/edition.ts';
 import { useSignOut } from './SignOut.tsx';
-import { useLocale } from '../i18n/index.tsx';
+import { useLocale, useOperatorT } from '../i18n/index.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import { LOCALES } from '../i18n/strings.ts';
 import BuildStamp from './BuildStamp.tsx';
@@ -177,6 +177,7 @@ const Layout: React.FC = () => {
   // says why, and the acceptance screen's *Not now* shares it (0139 T3).
   const signOut = useSignOut();
   const { locale, setLocale, t } = useLocale();
+  const ot = useOperatorT();
 
   // Tenants and Billing are managed-edition concepts: the appliance is
   // single-tenant and is not billed for (ADR-0026). Hidden rather than shown
@@ -236,7 +237,9 @@ const Layout: React.FC = () => {
    * on the guides too. The appliance and an operator in no organisation keep
    * the menus they had.
    */
-  const navigation: { name: string; href: string; icon: LucideIcon; also?: readonly string[] }[] = [
+  // `lang` on the operator's three entries: their names are English only
+  // (operator-strings.ts), so a screen reader in a Dutch menu reads them so.
+  const navigation: { name: string; href: string; icon: LucideIcon; also?: readonly string[]; lang?: 'en' }[] = [
     // The appliance's one person's page (0153 T8), first, as a member's
     // Migrations is: every migration it is configured with, and the steps
     // before switching. Its landing once every migration has started.
@@ -303,14 +306,14 @@ const Layout: React.FC = () => {
     // anybody else, because to the database that is what the rows are.
     ...(selfHost || !operator
       ? []
-      : [{ name: t('nav.accessRequests'), href: '/access-requests', icon: DoorOpen }]),
+      : [{ name: ot('nav.accessRequests'), href: '/access-requests', icon: DoorOpen, lang: 'en' as const }]),
     // The support surface (workplan 0110 T4), on the same terms as the access
     // queue above: operator-only in the NAV, and cosmetically so — the screens
     // behind it answer an empty list and a "nothing here" to anybody else,
     // because that is what the views return them.
     ...(selfHost || !operator
       ? []
-      : [{ name: t('nav.support'), href: '/support', icon: LifeBuoy }]),
+      : [{ name: ot('nav.support'), href: '/support', icon: LifeBuoy, lang: 'en' as const }]),
     // Every address this deployment needs registered elsewhere (2026-09-01).
     // Operator-only in the NAV on the same terms as the two above, and
     // cosmetically so: the route behind it names no customer and no secret —
@@ -319,7 +322,7 @@ const Layout: React.FC = () => {
     // because it is a secret.
     ...(selfHost || !operator
       ? []
-      : [{ name: t('nav.redirectUris'), href: '/redirect-uris', icon: Link2 }]),
+      : [{ name: ot('nav.redirectUris'), href: '/redirect-uris', icon: Link2, lang: 'en' as const }]),
     // Billing reads are owner/admin (owner decision 2026-08-10), so for a
     // lesser role the entry would only lead to a "not for your role"
     // sentence — hidden like the appliance hides what it cannot serve. The
@@ -382,6 +385,7 @@ const Layout: React.FC = () => {
                 <div key={item.href} className="relative">
                   <Link
                     to={item.href}
+                    lang={item.lang}
                     onClick={() => followLink(item.href)}
                     aria-describedby={badge ? 'nav-needs-you-count' : undefined}
                     className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
