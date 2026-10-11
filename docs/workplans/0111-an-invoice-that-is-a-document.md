@@ -14,7 +14,11 @@ Mollie, on that account under a refund id, answered HTTP 201 with the payment as
 note paid, the refund id on its payment. Both are answers `registerCreditInvoicePayment` (any 2xx)
 and `registerPayment` (200 or 201) take as done, and the read-back (5f) already leaves alone an
 invoice its credit notes take off in full, which the books call paid. Still untried: Mollie's
-refund itself, in test mode with a test key.
+refund itself. `moneybird-money-back-proof.sh refund` tries it in Mollie's test mode, with a
+`test_` key and nothing else: a test payment the owner pays on Mollie's checkout, booked on a
+sandbox invoice, a credit note of 4.00, then the refund as `createRefund` asks it (the credit
+note's reference as the idempotency key and in the metadata), asked twice to show one refund, and
+booked on the credit note under Mollie's refund id.
 
 **2026-10-11: slice 7d, its second half — money back for a credit note** (T7; terms §7: *"whatever
 you paid above it we refund within 14 days, by the means of payment you used"*). Once the books
@@ -44,7 +48,7 @@ unset, a refund waits and each run says so.
   credit invoice crediting part of an open invoice and a negative payment on a credit invoice,
   were proved on 2026-10-11 (above) with `deploy/compose/moneybird-money-back-proof.sh`, which
   makes both from the OTA checkout and prints what Moneybird answered. Mollie's refund in test
-  mode with a test key is still to try.
+  mode is still to try: the same script with `refund` and a `test_` key.
 
 **2026-10-11: slice 7e — the yes that asks to begin, without a tick box** (T7; terms §6, §7, 1.5;
 the owner: *"i do not want the tickbox, everyone who agrees with the terms would normally start
