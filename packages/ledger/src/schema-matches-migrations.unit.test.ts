@@ -215,6 +215,14 @@ const NARROWER_ON_PURPOSE: Record<string, { privileges: string[]; why: string }>
       'from the default the baseline grants. The one deleter is the erasure purge, through the ' +
       'system role (PURGED_TABLES).',
   },
+  money_given_back: {
+    privileges: ['INSERT', 'SELECT'],
+    why:
+      'An operator\'s mark that a credit note\'s money was paid back by hand (workplan 0111, managed ' +
+      'migration 0055): who and when. A mark that could be changed or taken back records nothing, ' +
+      'so the request path appends and reads, and UPDATE and DELETE are REVOKED from the default ' +
+      'the baseline grants. It goes with its credit note, by the cascade, when an erasure purges it.',
+  },
   platform_operator: {
     privileges: ['SELECT'],
     why:

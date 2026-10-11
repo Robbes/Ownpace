@@ -944,8 +944,9 @@ describe('money to give back (0111; the owner, 2026-10-11)', () => {
     expect(
       (res.body.items as Array<Record<string, unknown>>).map((i) => [i.creditNoteId, i.reason, i.cents, i.organisation]),
     ).toEqual([
-      [late, 'refund_late', 300, 'Beta BV'],
+      // Oldest first, by when the push said it: the by-hand one was written down first.
       [byHand, 'by_hand', 400, 'Beta BV'],
+      [late, 'refund_late', 300, 'Beta BV'],
     ]);
     expect(await logRows()).toEqual([{ operator_user_id: OPERATOR, tenant_id: null, view_name: 'money_to_give_back' }]);
   });
