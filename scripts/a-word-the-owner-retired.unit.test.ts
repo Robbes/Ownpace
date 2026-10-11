@@ -105,7 +105,8 @@ describe('no form of verhuizen where the product speaks Dutch (0152 D6)', () => 
     const read = files.map((f) => relative(ROOT, f));
     expect(read.length).toBeGreaterThan(500);
     for (const known of [
-      'apps/web/src/i18n/strings.ts',
+      'apps/web/src/i18n/strings/migrations.ts',
+      'apps/web/src/i18n/strings/start.ts',
       'packages/shared/src/share-announcement.ts',
       'packages/shared/src/erasure-scope.ts',
       'docs/cutover-communication-templates.md',
@@ -133,7 +134,7 @@ describe('no draagt for what an account holds: the owner chose omvat (2026-10-05
 
   it('reads the line and the guides it was in, and lets afdragen be', () => {
     const read = files.map((f) => relative(ROOT, f));
-    for (const known of ['apps/web/src/i18n/strings.ts', 'docs/guides/nl/soverin.md', 'docs/guides/nl/dav.md']) {
+    for (const known of ['apps/web/src/i18n/strings/connect.ts', 'docs/guides/nl/soverin.md', 'docs/guides/nl/dav.md']) {
       expect(read, `the walk missed ${known}`).toContain(known);
     }
     expect(saying(['uw bedrijf draagt de btw in eigen land af.'])).toEqual([]);

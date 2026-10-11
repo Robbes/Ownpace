@@ -65,6 +65,11 @@ import { isAfterCutover, MAPPING_LIFECYCLES } from '@openmig/shared';
 
 const ROOT = join(import.meta.dirname, '..');
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
+/** The dictionary's source: its composer and every area file (`strings/`). */
+const dictionarySource = (root: string): string =>
+  ['strings.ts', ...readdirSync(join(root, 'apps/web/src/i18n/strings')).map((f) => `strings/${f}`)]
+    .map((f) => readFileSync(join(root, 'apps/web/src/i18n', f), 'utf8'))
+    .join('\n');
 
 /** The lane, named once so every assertion below is about the same thing. */
 const LANE = 'continuous';
@@ -250,7 +255,7 @@ describe('but the DOOR into the lane is deliberately still shut', () => {
     // The words themselves, not merely a key: a `lane.why` that had been
     // emptied or reworded past the point of saying it would satisfy a
     // key-exists check and tell nobody anything.
-    const strings = read('apps/web/src/i18n/strings.ts');
+    const strings = dictionarySource(ROOT);
     const why = /'lane\.why':\s*([\s\S]*?),\n\s*'lane\.confirm'/.exec(strings);
     expect(why, 'lane.why is gone — the screen no longer says what entering costs').not.toBeNull();
     expect(why![1]!).toMatch(/tier will not fall/);
