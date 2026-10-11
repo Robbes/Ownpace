@@ -38,6 +38,8 @@ vi.mock('../services/billing-service', async (importOriginal) => ({
     sayYesToCeiling: vi.fn(),
     getPick: vi.fn(),
     pickTier: vi.fn(),
+    getWithdrawal: vi.fn(),
+    withdraw: vi.fn(),
   },
 }));
 
@@ -214,6 +216,8 @@ beforeEach(() => {
   // Nothing above to pick, so the pick card names no tier beside the ones these
   // tests look for; the card has its own tests (TierPick.unit.test.tsx).
   vi.mocked(billingApi.getPick).mockResolvedValue(NOTHING_TO_PICK);
+  // On Free, nothing to withdraw from: the withdrawal card is not there (0111 T7).
+  vi.mocked(billingApi.getWithdrawal).mockResolvedValue({ open: false, reason: 'nothing_paid', since: null, until: null, tier: null, name: null, confirmTo: null });
 });
 
 describe('Billing — failed reads say so (hard rule 9)', () => {
@@ -708,6 +712,20 @@ describe('the number the books gave it (0111 slice 5)', () => {
     // The day written, wherever the browser is: read in UTC.
     expect(screen.getByText('Invoice date: October 1, 2026 · due date: October 15, 2026')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pay' })).toBeInTheDocument();
+  });
+
+  it('says a credit note as one, and offers no Pay on it: it is credited, never paid (0111 T7)', async () => {
+    invoicesMock.mockResolvedValue({
+      invoices: [
+        invoiceFixture({ id: 'inv-credit', status: 'sent', kind: 'credit_note', invoiceNumber: '2026-0008', total: -1084 }),
+      ],
+    });
+
+    renderBilling();
+
+    expect(await screen.findByText('Credit note 2026-0008')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pay' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download the invoice' })).toBeInTheDocument();
   });
 
   it('says a draft is being prepared, and offers no Pay: there is nothing to pay until it is numbered', async () => {

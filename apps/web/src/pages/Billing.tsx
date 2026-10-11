@@ -32,6 +32,7 @@ import StateChip from '../components/StateChip.tsx';
 import { isAlpha } from '../components/AlphaNote.tsx';
 import DataCeiling from '../components/DataCeiling.tsx';
 import TierPick from '../components/TierPick.tsx';
+import Withdrawal from '../components/Withdrawal.tsx';
 import InvoiceDownload from '../components/InvoiceDownload.tsx';
 import { INVOICE_DETAILS_ANCHOR, useBroughtIntoView } from '../components/InvoiceDetailsFirst.tsx';
 import { DataTypeIcon, ICON_OF_DOMAIN } from '../components/icons/data-type-icons.tsx';
@@ -841,6 +842,10 @@ const Billing: React.FC = () => {
           free tier, instead of asking for details nobody needs yet. */}
       <InvoiceDetailsCard free={isAlpha() || (usage != null && shownTier(usage) != null && isFreeTier(shownTier(usage)!))} />
 
+      {/* The withdrawal function (0111 T7, terms §7): there while a consumer
+          may withdraw from the paid contract, above the invoices it credits. */}
+      <Withdrawal />
+
       {/* Invoices */}
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="px-6 py-4 border-b border-gray-200">
@@ -866,11 +871,15 @@ const Billing: React.FC = () => {
                           in its chip; an invoice from before the books has
                           only its id. */}
                       <p className="font-medium text-gray-900">
-                        {invoice.invoiceNumber
-                          ? `${t('billing.invoice')} ${invoice.invoiceNumber}`
-                          : invoice.status === 'draft'
-                            ? t('billing.invoice')
-                            : `${t('billing.invoice')} ${invoice.id.slice(0, 8)}`}
+                        {(() => {
+                          // A credit note is said as one (0111 T7).
+                          const word = invoice.kind === 'credit_note' ? t('billing.creditNote') : t('billing.invoice');
+                          return invoice.invoiceNumber
+                            ? `${word} ${invoice.invoiceNumber}`
+                            : invoice.status === 'draft'
+                              ? word
+                              : `${word} ${invoice.id.slice(0, 8)}`;
+                        })()}
                       </p>
                       {/* The period the server actually serves —
                           periodStart/periodEnd. The old field ("period")
@@ -894,8 +903,11 @@ const Billing: React.FC = () => {
                         {currency(invoice.total, invoice.currency)}
                       </span>
                       {/* Only an issued invoice is paid: the API refuses a
-                          draft (0111 slice 3), so the page does not offer it. */}
-                      {canManage && (invoice.status === 'sent' || invoice.status === 'overdue') && (
+                          draft (0111 slice 3) and a credit note (slice 7a),
+                          so the page does not offer either. */}
+                      {canManage &&
+                        invoice.kind !== 'credit_note' &&
+                        (invoice.status === 'sent' || invoice.status === 'overdue') && (
                         <button
                           onClick={() => {
                             setPayError(null);

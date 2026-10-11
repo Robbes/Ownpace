@@ -1236,6 +1236,8 @@ router.get('/invoices', authenticate, requireBillingRead, async (req: Authentica
         // invoice (0111 slice 5): what the customer's own books will quote.
         invoiceNumber: schema.invoice.invoiceNumber,
         invoiceDate: schema.invoice.invoiceDate,
+        // A credit note is said as one, and never offered to pay (0111 T7).
+        kind: schema.invoice.kind,
       })
       .from(schema.invoice)
       .where(eq(schema.invoice.tenantId, tenantId))

@@ -87,6 +87,8 @@ vi.mock('../services/billing-service.ts', async (importOriginal) => ({
     sayYesToCeiling: vi.fn(),
     getPick: vi.fn(),
     pickTier: vi.fn(),
+    getWithdrawal: vi.fn(),
+    withdraw: vi.fn(),
   },
 }));
 
@@ -292,6 +294,16 @@ beforeEach(() => {
   });
   // Nothing above to pick, so the pick card names no tier beside the ones these
   // tests look for; the card has its own tests (TierPick.unit.test.tsx).
+  // Nothing to withdraw from (0111 T7): the withdrawal card is not there.
+  vi.mocked(billingApi.getWithdrawal).mockResolvedValue({
+    open: false,
+    reason: 'nothing_paid',
+    since: null,
+    until: null,
+    tier: null,
+    name: null,
+    confirmTo: null,
+  });
   vi.mocked(billingApi.getPick).mockResolvedValue({
     holds: true,
     billed: { id: 'xl', name: 'Extra large', paths: 50, dataGb: 15000, monthlyEur: 80, annualEur: 480 },
