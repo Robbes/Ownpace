@@ -1274,16 +1274,26 @@ The purge deletes from an explicit list of tables (`PURGED_TABLES` in
 `packages/managed/src/offboarding.ts`), **written out rather than derived from
 the cascade** — that list is reviewable and the cascade is not. It writes an
 `erasure_record` holding the tenant's sha256 reference (never the id), the
-window, the retention promise, what was purged per table, and which invoices
-were kept.
+window, the retention promise, what was purged per table, the Moneybird numbers
+of the invoice copies it deleted, and which invoices were kept.
 
 The record is written **at close**, not at purge, so a purge that never ran
 leaves `purged_at` NULL — the signal that something owed did not happen.
 
 ### 3. What survives, and what is never touched
 
-**Survives:** invoices and payment records, **detached** from the tenant
-(`tenant_id` set NULL, `billed_to_name` retained). GDPR art. 17(3)(b).
+**Survives:** the invoices' **numbers**. The books (Moneybird) issue each
+invoice and credit note and keep it for the retention period, so the purge
+deletes our copy of each one they hold, and each draft, and keeps only its
+Moneybird number on the erasure record (workplan 0111 T10, managed 0054; the
+owner: *"delete the copy, keep the numbers"*). Asked *"what about my
+invoices?"*, the answer is those numbers, held in Moneybird: the *Invoices kept
+after an erasure* screen lists them per erasure, and Moneybird finds each by
+number. An issued invoice the books do not hold, one from before them, is the
+only record of itself, so it survives **detached** from the tenant
+(`tenant_id` set NULL, `billed_to_name` retained), GDPR art. 17(3)(b), on the
+same screen. Only an erasure deletes an invoice: the database refuses the
+service's roles any other delete; the owner's connection is not held to it.
 
 **Never touched, ever:** the **source** (hard rule 2 — it is the rollback path)
 and the **target** (the migrated mail is the customer's, in the customer's own

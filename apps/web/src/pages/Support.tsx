@@ -65,6 +65,7 @@ import {
   searchSupportPeople,
   recordPersonOpened,
   type SupportMigrationDomain,
+  type SupportErasedInvoiceNumbers,
   type SupportRetainedInvoice,
   getSupportPlatform,
   type PlatformStatus,
@@ -1055,12 +1056,15 @@ export const SupportMigrationDetail: React.FC = () => {
 /* --------------------------------------------- not a level: what an erasure kept */
 
 /**
- * The invoices an erasure kept, which no tenant page can reach.
+ * What an erasure kept of the invoices, which no tenant page can reach.
  *
- * A purge detaches invoices — `tenant_id` to NULL, `billed_to_name` stamped —
- * because tax retention outlives the customer relationship. Every other screen
- * here filters by tenant, and the tenant is gone, so before this the rows kept
- * for an administrative obligation were readable only from a database prompt.
+ * The books keep the invoices (workplan 0111 T10): a purge deletes our copy of
+ * each one they hold and keeps its Moneybird number, listed first, to look up
+ * there. An issued invoice the books do not hold is the only record of itself,
+ * so the purge detaches it instead — `tenant_id` to NULL, `billed_to_name`
+ * stamped — and it is listed second. Every other screen here filters by
+ * tenant, and the tenant is gone, so before this what was kept for an
+ * administrative obligation was readable only from a database prompt.
  *
  * Grouped by `tenant_ref`, the sha256 the erasure record holds so that it
  * cannot be turned back into a list of former customers. The hash is shown
@@ -1076,7 +1080,8 @@ export const SupportRetainedInvoices: React.FC = () => {
     ...ONCE,
   });
 
-  const invoices: SupportRetainedInvoice[] = query.data ?? [];
+  const invoices: SupportRetainedInvoice[] = query.data?.invoices ?? [];
+  const numbers: SupportErasedInvoiceNumbers[] = query.data?.numbers ?? [];
 
   return (
     <div>
@@ -1091,8 +1096,42 @@ export const SupportRetainedInvoices: React.FC = () => {
       {query.isError && <p className="text-sm text-red-700">{t('common.requestFailed')}</p>}
 
       {!query.isLoading && !query.isError && (
+        // The books keep the invoices (0111 T10): an erasure leaves their
+        // numbers, to look up there, and keeps here only an issued invoice
+        // the books do not hold.
         <Section
-          title={t('support.retained.heading')}
+          title={t('support.retained.numbers.heading')}
+          empty={t('support.retained.numbers.none')}
+          rows={numbers.length}
+        >
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+              <tr>
+                <th className="px-3 py-2">{t('support.retained.col.numbers')}</th>
+                <th className="px-3 py-2">{t('support.retained.col.erased')}</th>
+                <th className="px-3 py-2">{t('support.retained.col.erasure')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {numbers.map((n) => (
+                <tr key={n.tenant_ref}>
+                  <td className="px-3 py-2 text-gray-900">{n.invoice_numbers.join(', ')}</td>
+                  <td className="px-3 py-2 text-gray-600">
+                    {n.purged_at ? dateTime(n.purged_at) : t('support.retained.notPurged')}
+                  </td>
+                  <td className="px-3 py-2">
+                    <code className="text-xs text-gray-400">{n.tenant_ref.slice(0, 12)}</code>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
+      )}
+
+      {!query.isLoading && !query.isError && (
+        <Section
+          title={t('support.retained.kept.heading')}
           empty={t('support.retained.none')}
           rows={invoices.length}
         >

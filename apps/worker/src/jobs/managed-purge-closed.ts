@@ -275,7 +275,8 @@ export const managedPurgeClosed = schedules.task({
         // the row it named is gone. The erasure record holds only its hash.
         log.info(
           `[purge] erased tenant ${row.id}: ${Object.values(result.counts).reduce((a, b) => a + b, 0)} rows removed, ` +
-            `${result.retainedInvoiceIds.length} invoice(s) retained and detached, ` +
+            `${result.invoiceNumbers.length} invoice copy(ies) deleted with their numbers kept, ` +
+            `${result.retainedInvoiceIds.length} invoice(s) the books do not hold retained and detached, ` +
             `credentials revoked ${rev.revoked}/${result.revocations.length}.`,
         );
         if (rev.failed > 0) {

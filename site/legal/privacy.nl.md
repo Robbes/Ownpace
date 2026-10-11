@@ -15,7 +15,7 @@
 # Privacyverklaring
 
 **Geldt voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`, en deze website.
-**Versie:** 1.4
+**Versie:** 1.5
 **Laatst bijgewerkt:** 2026-10-11
 
 > **Draait u Ownpace zelf**, dan geldt deze verklaring niet voor u en valt er voor ons niets
@@ -674,7 +674,7 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
 | Vastleggingen van de achtergrondtaken die uw migraties uitvoeren (kenmerken, aantallen, en bij een fout een categorie en een referentie; geen namen, adressen of inhoud, op de reden na die een van ons typt wanneer een overstap wordt teruggedraaid) | Uiterlijk tot het einde van de Alpha: dan beginnen de achtergrondtaken met een lege geschiedenis. Ze worden niet verwijderd wanneer uw gegevens worden gewist. |
 | Serverlogs (§4.5) | Tot het onderdeel van de dienst dat ze schreef wordt vervangen: voor de app en deze website bij elke update van de dienst; voor onze inlogdienst wanneer de versie of de instellingen ervan veranderen; voor een achtergrondtaak wanneer die klaar is. Er is geen vaste termijn. |
 | De bezoektotalen die uit de serverlogs van deze website worden geteld (§4.5) | Zolang we deze website draaien. Het zijn alleen totalen, die niemand identificeren. |
-| Facturen en de gebruikscijfers eronder | **7 jaar**, omdat de Nederlandse belastingwet dat vereist. Tijdens de Alpha wordt niets in rekening gebracht: er zijn dan geen facturen, en de gebruikscijfers verdwijnen wanneer uw gegevens worden gewist. |
+| Facturen en de gebruikscijfers eronder | **7 jaar**, omdat de Nederlandse belastingwet dat vereist, in ons boekhoudsysteem, dat ze uitreikt. Worden uw gegevens gewist, dan verwijderen we onze eigen kopie van uw facturen en bewaren we alleen hun nummers, zodat elke factuur in de boekhouding terug te vinden blijft. Tijdens de Alpha wordt niets in rekening gebracht: er zijn dan geen facturen, en de gebruikscijfers verdwijnen wanneer uw gegevens worden gewist. |
 
 **Tijdens de Alpha maken we geen back-ups**, op de kopie vlak voor een update na, in de tabel
 hierboven (§6 van de Voorwaarden voor de Alpha). Tijdens de Alpha sluiten we uw account binnen 7

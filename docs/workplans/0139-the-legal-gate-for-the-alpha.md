@@ -4,6 +4,17 @@
 
 ## Status — 2026-10-11 (update this block at the end of every session)
 
+**2026-10-11: privacy 1.5, invoices kept in the books, our copy deleted on erasure.** §9's row
+for invoices now says the 7 years run *"in our bookkeeping system, which issues them"*, and that an
+erasure deletes our own copy and keeps only the invoice numbers (*"ons boekhoudsysteem, dat ze
+uitreikt"*), as workplan 0111 T10 builds it (the owner, 2026-10-03: *"delete the copy, keep the
+numbers"*). The row names no company: during the Alpha nothing is invoiced, and §7 gains Moneybird
+before the first invoice (`subprocessors.md`). 1.4 was final from the moment #1559 merged, so the
+words take 1.5 (both files, `LEGAL_VERSIONS.privacy` `'1.5'`, `ACCEPTED_WORDS` pins 1.5 and keeps
+1.4's). Testers accept privacy 1.5 with terms 1.5. Marked for the lawyer's read with question 7 in
+`privacy.md`'s briefing. Proved: `scripts/a-version-the-tester-accepted.unit.test.ts` green on the
+new pins.
+
 **2026-10-11: privacy 1.4, the invoice email address.** The *Billing* page asks for the address
 invoices are sent to since 0111 slice 5e (#1552), and §4.4 listed the invoice details it keeps
 without it. The owner, 2026-10-11: *"Privacy policy: ok, add e-mail to it"*. §4.4 now names it in

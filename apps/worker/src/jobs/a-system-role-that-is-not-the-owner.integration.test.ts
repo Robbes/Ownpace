@@ -195,7 +195,8 @@ const asPsqlPrints = (row: unknown[]): string =>
  *     cadence.
  *   - The rest, each for its one job: the hold and the beat (the tick),
  *     invoices up to their period and their status (retention) and detached
- *     with the buyer's name (the purge), declined requests by their decision
+ *     with the buyer's name, or, a copy the books hold, deleted with its
+ *     number kept (the purge, 0111 T10), declined requests by their decision
  *     (retention), the erasure receipt (the purge), the audit key, and the
  *     operator's log page, written by every one of them and pruned by
  *     retention.
@@ -217,8 +218,17 @@ const EXPECTED: Record<string, readonly string[]> = {
   platform_pause: ['SELECT'],
   sync_tick_beat: ['SELECT', 'INSERT', 'UPDATE(beat_at)'],
   deployment_key: ['SELECT', 'INSERT'],
-  invoice: ['SELECT(billed_to_name,id,period_end,status,tenant_id)', 'UPDATE(billed_to_name,tenant_id)'],
-  erasure_record: ['SELECT(purged_at,tenant_ref)', 'UPDATE(purged_at,purged_counts,retained_invoice_ids,revocations)'],
+  // The copies the books hold deleted by the purge, their numbers kept (0111 T10, managed 0054),
+  // held to the erasure by a trigger; still never an amount, a payment or a line.
+  invoice: [
+    'SELECT(billed_to_name,id,invoice_number,kind,moneybird_id,period_end,status,tenant_id)',
+    'UPDATE(billed_to_name,tenant_id)',
+    'DELETE',
+  ],
+  erasure_record: [
+    'SELECT(purged_at,tenant_ref)',
+    'UPDATE(invoice_numbers,purged_at,purged_counts,retained_invoice_ids,revocations)',
+  ],
   access_request: PURGED_ONLY('decided_at,id,state,tenant_id'),
   billing_party: PURGED_ONLY('name,tenant_id'),
   item: PURGED_ONLY(),
@@ -559,11 +569,29 @@ describe('it is refused what it was not given', () => {
     ["reading the operator's screens", 'SELECT * FROM support_tenants LIMIT 1', /permission denied/],
     ['writing an organisation', "INSERT INTO tenant (name) VALUES ('x0138f')", /permission denied/],
     ['changing a connection', "UPDATE connection SET display_name = 'x' WHERE false", /permission denied/],
-    ['deleting an invoice', 'DELETE FROM invoice WHERE false', /permission denied/],
     ['emptying a table in one go', 'TRUNCATE run', /permission denied/],
     ['a hold of its own', "INSERT INTO platform_pause (message) VALUES ('x')", /permission denied/],
   ])('%s', async (_label, statement, why) => {
     expect(await refused(statement, !statement.startsWith('CREATE DATABASE'))).toMatch(why);
+  });
+
+  it("deleting an invoice of an organisation that is not being erased (managed 0054's trigger)", async () => {
+    // DELETE is the purge's since 0111 T10, held to the erasure by a trigger: a
+    // statement that touches no row says nothing, so this one touches a real one.
+    const kept = `${P}47`;
+    await owner.execute(sql`
+      INSERT INTO tenant (id, name, status) VALUES (${A}, 'A the system role reads', 'active') ON CONFLICT (id) DO NOTHING`);
+    await owner.execute(sql`
+      INSERT INTO invoice (id, tenant_id, period_start, period_end, status) VALUES
+        (${kept}, ${A}, (now() - interval '40 days')::date, (now() - interval '10 days')::date, 'paid')
+      ON CONFLICT (id) DO NOTHING`);
+    try {
+      expect(await refused(`DELETE FROM invoice WHERE id = '${kept}'`)).toMatch(
+        /only its organisation's erasure deletes an invoice/,
+      );
+    } finally {
+      await owner.execute(sql`DELETE FROM invoice WHERE id = ${kept}`);
+    }
   });
 
   it('and the owner, by name, too', async () => {

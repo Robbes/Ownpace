@@ -532,6 +532,11 @@ router.post(
  * say", which is the administrative question this exists for. They cannot walk
  * it back to a person, which is the question the erasure closed.
  *
+ * Since 0111 T10 the books keep the invoices: an erasure deletes our copy of
+ * each invoice the books hold and keeps its Moneybird number. So the answer
+ * is mostly `numbers`, per erasure, to look up in Moneybird; `invoices` holds
+ * only an issued invoice the books do not hold, kept detached here.
+ *
  * Recorded with a NULL tenant, like the tenant LIST and for a stronger version
  * of the same reason: there is no tenant to name, and no tenant left to name
  * it about.
@@ -547,7 +552,7 @@ router.get(
           .status(401)
           .json({ error: 'Unauthorized', message: 'No subject on this request' });
       }
-      const invoices = await withSubject(pool(), userId, async (db) => {
+      const { invoices, numbers } = await withSubject(pool(), userId, async (db) => {
         const result = await db.execute(
           sql`SELECT tenant_ref, erasure_requested_at, purged_at, invoice_id,
                      billed_to_name, period_start, period_end, status, total,
@@ -555,7 +560,13 @@ router.get(
                 FROM public.support_retained_invoices
                ORDER BY purged_at DESC NULLS LAST, period_start DESC`,
         );
-        const rows = result.rows as Row[];
+        // The numbers of the copies an erasure deleted (0111 T10): what the
+        // books hold, found there by number. One screen, so one read below.
+        const held = await db.execute(
+          sql`SELECT tenant_ref, erasure_requested_at, purged_at, invoice_numbers
+                FROM public.support_erased_invoice_numbers
+               ORDER BY purged_at DESC NULLS LAST`,
+        );
         // Logged even when empty, for the reason `/tenants` gives: an operator
         // on a platform that has erased nobody and a non-operator who may see
         // nothing produce the same empty list, and only the log row tells them
@@ -565,9 +576,9 @@ router.get(
           tenantId: null,
           view: 'retained_invoices',
         });
-        return rows;
+        return { invoices: result.rows as Row[], numbers: held.rows as Row[] };
       });
-      res.json({ invoices });
+      res.json({ invoices, numbers });
     } catch (error) {
       serverFault(
         res,

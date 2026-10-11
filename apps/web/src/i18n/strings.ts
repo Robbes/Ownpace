@@ -2181,13 +2181,17 @@ const en = {
   'support.retained.link': 'Invoices kept after an erasure',
   'support.retained.heading': 'Invoices kept after an erasure',
   'support.retained.why':
-    'When an organisation is erased its invoices are kept on purpose — tax retention ' +
-    'outlives the customer relationship — and detached from the organisation. They ' +
-    'belong to no tenant, so no organisation page can show them. This is where they ' +
-    'are. The reference is a one-way hash of the erased id, shown so that invoices ' +
-    'from the same erasure can be seen to belong together; it does not lead back to ' +
-    'anyone.',
-  'support.retained.none': 'No invoices have been kept — nothing has been erased yet.',
+    'When an organisation is erased, our copy of each invoice the books hold is deleted ' +
+    'and its number kept: the books keep the invoice as long as tax law asks, so look it ' +
+    'up there by its number. An issued invoice the books do not hold is the only record ' +
+    'of itself, so it is kept here, detached from the organisation. The reference is a ' +
+    'one-way hash of the erased id, shown so that what comes from the same erasure can ' +
+    'be seen to belong together; it does not lead back to anyone.',
+  'support.retained.numbers.heading': 'Invoice numbers, held in the books',
+  'support.retained.numbers.none': 'No invoice numbers have been kept: no erasure has deleted an invoice yet.',
+  'support.retained.col.numbers': 'Invoice numbers',
+  'support.retained.kept.heading': 'Invoices the books do not hold',
+  'support.retained.none': 'No invoices are kept here.',
   'support.retained.noName': 'not recorded',
   'support.retained.notPurged': 'not yet erased',
   'support.retained.col.billedTo': 'Billed to',
@@ -3413,12 +3417,18 @@ const nl: Record<keyof typeof en, string> = {
   'support.retained.link': 'Facturen bewaard na een wissing',
   'support.retained.heading': 'Facturen bewaard na een wissing',
   'support.retained.why':
-    'Wanneer een organisatie wordt gewist, blijven de facturen bewaard vanwege fiscale bewaarplicht. ' +
-    'Vanaf dan horen ze bij geen enkele (operationele) klant meer, dus geen enkele ' +
-    'organisatiepagina kan ze tonen. Hier staan ze. De referentie is een eenrichtings- ' +
-    'hash van het gewiste id, getoond zodat facturen uit dezelfde opschoning bij elkaar ' +
-    'te zien zijn, zonder terug te leiden naar iemand in het systeem.',
-  'support.retained.none': 'Er zijn geen facturen bewaard — er is nog niets gewist.',
+    'Wanneer een organisatie wordt gewist, verwijderen we onze kopie van elke factuur die de ' +
+    'boekhouding bewaart, en bewaren we het nummer: de boekhouding bewaart de factuur zo lang ' +
+    'de belastingwet dat vraagt, dus zoek hem daar op aan de hand van het nummer. Een uitgereikte ' +
+    'factuur die de boekhouding niet bewaart, is het enige exemplaar, en blijft daarom hier ' +
+    'bewaard, losgekoppeld van de organisatie. De referentie is een eenrichtings-hash van het ' +
+    'gewiste id, getoond zodat wat uit dezelfde opschoning komt bij elkaar te zien is, zonder ' +
+    'terug te leiden naar iemand.',
+  'support.retained.numbers.heading': 'Factuurnummers, bewaard in de boekhouding',
+  'support.retained.numbers.none': 'Er zijn geen factuurnummers bewaard: er is nog geen factuur gewist.',
+  'support.retained.col.numbers': 'Factuurnummers',
+  'support.retained.kept.heading': 'Facturen die de boekhouding niet bewaart',
+  'support.retained.none': 'Er worden hier geen facturen bewaard.',
   'support.retained.noName': 'niet vastgelegd',
   'support.retained.notPurged': 'nog niet gewist',
   'support.retained.col.billedTo': 'Gefactureerd aan',
