@@ -58,23 +58,40 @@ describe('moneybirdFromEnv', () => {
           outsideEu: null,
         },
         delivery: 'manual',
+        mollieAccountId: null,
       },
     });
     // The trap is real: through a number, the administration is a different one.
     expect(String(Number(FULL.MONEYBIRD_ADMINISTRATION_ID))).not.toBe(FULL.MONEYBIRD_ADMINISTRATION_ID);
   });
 
-  it('takes the optional two: an outside-EU rate, and email delivery in any case', () => {
+  it('takes the optional three: an outside-EU rate, email delivery in any case, and the Mollie account', () => {
     const outcome = moneybirdFromEnv({
       ...FULL,
       MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU: ' 123456789012345633 ',
       MONEYBIRD_DELIVERY: ' Email ',
+      MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE: ' 123456789012345644 ',
     });
     expect(outcome.kind).toBe('on');
     if (outcome.kind === 'on') {
       expect(outcome.config.taxRates.outsideEu).toBe('123456789012345633');
       expect(outcome.config.delivery).toBe('email');
+      // Slice 5f: the account a payment through Mollie is booked on, kept as written.
+      expect(outcome.config.mollieAccountId).toBe('123456789012345644');
     }
+  });
+
+  it('refuses a Mollie account that is not an id, by key, and its value nowhere', () => {
+    const reason = reasonOf({ ...FULL, MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE: 'Mollie' });
+    expect(reason).toMatch(/^MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE must be Moneybird's id/);
+    expect(reason).not.toContain('Mollie,');
+    expect(reason).not.toContain(TOKEN);
+  });
+
+  it('a Mollie account alone is half a set, as any key alone is', () => {
+    expect(reasonOf({ MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE: '123456789012345644' })).toContain(
+      'MONEYBIRD_API_TOKEN',
+    );
   });
 
   it('refuses half a set by naming each missing key and each set one, never a value', () => {

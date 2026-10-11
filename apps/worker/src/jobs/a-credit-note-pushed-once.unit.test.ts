@@ -31,6 +31,7 @@ const SETTINGS: MoneybirdSettings = {
   workflowId: '702',
   taxRates: { domesticStandard: '611', reverseCharge: '622', outsideEu: null },
   delivery: 'manual',
+  mollieAccountId: null,
 };
 const CONTEXT: PushContext = { sellerCountry: 'NL', ossActive: false, delivery: 'manual' };
 const RATES = [{ id: '611', name: '21% btw', percentage: '21.0', tax_rate_type: 'sales_invoice', active: true, country: null }];
@@ -186,7 +187,7 @@ describe('a credit note pushed as the hourly run pushes it', () => {
 
   const fresh = (): { budget: PushBudget; counts: PushCounts } => ({
     budget: { left: 60, stopped: false },
-    counts: { issued: 0, credited: 0, adopted: 0, refused: 0, unavailable: 0, slowed: 0 },
+    counts: { issued: 0, credited: 0, adopted: 0, booked: 0, held: 0, refused: 0, unavailable: 0, slowed: 0 },
   });
 
   beforeAll(async () => {
@@ -218,7 +219,7 @@ describe('a credit note pushed as the hourly run pushes it', () => {
     const { budget, counts } = fresh();
     await pushOrganisation(pool(), ORG, OCT_3, SETTINGS, CONTEXT, budget, counts, { fetchImpl: books.impl, ...noPace });
 
-    expect(counts).toEqual({ issued: 2, credited: 1, adopted: 0, refused: 0, unavailable: 0, slowed: 0 });
+    expect(counts).toEqual({ issued: 2, credited: 1, adopted: 0, booked: 0, held: 0, refused: 0, unavailable: 0, slowed: 0 });
     expect(await rowsOf(ORG)).toEqual([
       {
         reference: `ownpace-${ORG}-m-2026-10-medium`,

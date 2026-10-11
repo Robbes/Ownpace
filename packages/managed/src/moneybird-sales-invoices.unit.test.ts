@@ -17,6 +17,7 @@ import {
   ensureContact,
   ensureSalesInvoiceByReference,
   readSalesInvoice,
+  registerPayment,
   sendSalesInvoice,
   type MoneybirdSalesInvoice,
 } from './moneybird-sales-invoices.ts';
@@ -67,6 +68,7 @@ const INVOICE: MoneybirdSalesInvoice = {
   totalInclTaxCents: 1200,
   totalExclTaxCents: 992,
   totalUnpaidCents: 1200,
+  transactionIdentifiers: [],
 };
 
 const ENSURE = {
@@ -274,6 +276,48 @@ describe('readSalesInvoice', () => {
 
   it('anything but the invoice is unavailable', async () => {
     expect((await readSalesInvoice(ACCESS, 'x', fakeFetch(() => json({}, 404)).impl)).kind).toBe('unavailable');
+  });
+
+  it("keeps each payment's transaction identifier, and none that is empty or missing (slice 5f)", async () => {
+    const paid = {
+      ...WIRE_INVOICE,
+      state: 'paid',
+      payments: [
+        { id: '9001', transaction_identifier: 'tr_WDqYK6vllg', price: '8.0' },
+        { id: '9002', transaction_identifier: '', price: '1.0' },
+        { id: '9003', price: '3.0' },
+      ],
+    };
+    const read = await readSalesInvoice(ACCESS, '555000111', fakeFetch(() => json(paid)).impl);
+    expect(read.kind === 'ok' && read.invoice.transactionIdentifiers).toEqual(['tr_WDqYK6vllg']);
+  });
+});
+
+describe('registerPayment', () => {
+  it('books on the account named, under the payment’s own id, for the cents as a decimal', async () => {
+    const { impl, calls } = fakeFetch(() => json({ id: '9001' }, 201));
+    const booked = await registerPayment(
+      ACCESS,
+      '555000111',
+      { paymentDate: '2026-10-05', cents: 800, financialAccountId: '987654321', transactionIdentifier: 'tr_WDqYK6vllg' },
+      impl,
+    );
+    expect(booked).toEqual({ kind: 'registered' });
+    expect(calls[0]!.url).toContain('/sales_invoices/555000111/payments.json');
+    expect(calls[0]!.body).toEqual({
+      payment: {
+        payment_date: '2026-10-05',
+        price: '8.00',
+        financial_account_id: '987654321',
+        transaction_identifier: 'tr_WDqYK6vllg',
+      },
+    });
+  });
+
+  it('names neither when not given, as the nightly books in the sandbox', async () => {
+    const { impl, calls } = fakeFetch(() => json({ id: '9001' }, 201));
+    await registerPayment(ACCESS, '555000111', { paymentDate: '2026-10-05', cents: 1200 }, impl);
+    expect(calls[0]!.body).toEqual({ payment: { payment_date: '2026-10-05', price: '12.00' } });
   });
 });
 

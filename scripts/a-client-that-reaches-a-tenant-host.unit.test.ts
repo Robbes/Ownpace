@@ -84,6 +84,7 @@ const FIXED_HOSTS: ReadonlyArray<{ readonly file: string; readonly uses: number;
   { file: 'packages/core/src/dns-verify-only.ts', uses: 1, host: 'three public DNS-over-HTTPS resolvers' },
   { file: 'packages/managed/src/moneybird-credit-invoices.ts', uses: 4, host: 'Moneybird' },
   { file: 'packages/managed/src/moneybird-documents.ts', uses: 1, host: "Moneybird, and the short-lived link its download_pdf answers with" },
+  { file: 'packages/managed/src/moneybird-financial-accounts.ts', uses: 1, host: 'Moneybird' },
   { file: 'packages/managed/src/moneybird-sales-invoices.ts', uses: 6, host: 'Moneybird' },
   { file: 'packages/managed/src/moneybird-tax-rates.ts', uses: 1, host: 'Moneybird' },
   { file: 'packages/managed/src/moneybird-workflows.ts', uses: 1, host: 'Moneybird' },

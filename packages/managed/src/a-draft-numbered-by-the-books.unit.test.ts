@@ -265,6 +265,7 @@ describe('a draft claimed, numbered and written back, on a real database', () =>
         totalInclTaxCents: 1200,
         totalExclTaxCents: 992,
         totalUnpaidCents: 1200,
+        transactionIdentifiers: [],
       },
     };
     const NOW = new Date('2026-10-01T00:42:00Z');

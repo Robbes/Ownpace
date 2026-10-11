@@ -376,7 +376,10 @@ describe('the catalog pin', () => {
       'metadata',
       'moneybird_administration_id',
       'moneybird_id',
+      // A payment through Mollie, booked in the books (0050).
+      'moneybird_paid_at',
       'paid_at',
+      'paid_cents',
       'payment_id',
       'payment_method',
       // The push's claim on a draft (0047).
@@ -444,6 +447,8 @@ describe('the column pin (0045)', () => {
     metadata: 'lifecycle',
     updated_at: 'lifecycle',
     push_lease_until: 'lifecycle',
+    paid_cents: 'lifecycle',
+    moneybird_paid_at: 'lifecycle',
     tenant_id: 'detach',
     billed_to_name: 'detach',
   };

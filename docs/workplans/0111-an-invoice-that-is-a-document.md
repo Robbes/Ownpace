@@ -4,6 +4,47 @@
 
 ## Status — 2026-10-11 (update this block at the end of every session)
 
+**2026-10-11: the owner's answers of the day.**
+
+- **Paid and late, read back (5f):** *"OK on 1 and 2: Ownpace follows Mollie, and Ownpace asks
+  every invoice changed since last hour."* (1) A payment Mollie confirms is booked on its invoice
+  in Moneybird, on the financial account Mollie pays out from, under Mollie's payment id.
+  (2) Every hour, paid and late are read back from Moneybird. The account's id goes in each
+  stack's `.env` as `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE`; *"The .env already contains the ID
+  or you ask me to set an ID there"*: no key carried it, so this slice adds that one.
+- **Paying for what was used before a withdrawal (T7, slice 7e):** the owner quoted the rule
+  (*"kunt u verplicht zijn te betalen voor het reeds geleverde deel, mits de onderneming u
+  hierover vooraf correct heeft geïnformeerd"*) and asked how Ownpace keeps anyone from moving
+  half the room and then withdrawing all that was paid. The proportionate amount is in principle
+  by time (CJEU C-641/19, *PE Digital*), which terms §7 already says and slice 7b already bills,
+  once the consumer asked to begin within the fourteen days. On asking: *"i do not want the
+  tickbox, everyone who agrees with the terms would normally start within 14 days."* So 7e puts
+  the request in one sentence at the order button and in the order's confirmation, not in a
+  tick box; terms §7 changes with it (terms 1.5, the owner's and the lawyer's to read). Until 7e
+  is built, every withdrawal is credited in full (`docs/ending-the-alpha.md`).
+
+**2026-10-11: slice 5f, its first half — a payment through Mollie, booked in the books.** When
+Mollie's webhook moves an invoice to paid, it now notes what Mollie took (`paid_cents`, managed
+0050: after a credit note decided before the payment, less than the total). Each hour, after an
+organisation's documents, the push books each such payment on its invoice in Moneybird
+(`payment-book.ts`): on `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE`, under Mollie's payment id, for
+what Mollie took, on the day it was paid, and writes down when the books held it
+(`moneybird_paid_at`). Once, whatever happens between: the invoice is claimed by the push's lease,
+and read first; a payment there already under Mollie's id, or the invoice paid in the books by
+other means, is written down as held and never booked again. Unset, nothing is booked, and the
+run says so. `operator.sh moneybird check` lists the administration's financial accounts with
+their ids, and fails when the account set is not there or not active. The second half is the
+hourly read-back of paid and late.
+
+- **Guards:** `a-payment-booked-in-the-books.unit.test.ts` (claimed once, never a credit note, a
+  bank payment or another organisation's; booked with the account, Mollie's id, the cents and
+  the day; held when booked before or paid in the books; another administration refused before
+  anything is asked; written once); `a-payment-booked-once.unit.test.ts` (the hourly run books
+  once, then asks nothing; nothing without the account; a refusal said and tried again);
+  `what-mollie-took.unit.test.ts`; `moneybird-check.unit.test.ts`; `moneybird-config.unit.test.ts`;
+  the column pins in `invoice-refusal-under-rls.unit.test.ts`. Three mutants, all red: the
+  booked-before check, the account guard, the claim's lease.
+
 **2026-10-11: slice 7d, its first half — nothing paid that was credited.** An invoice a
 withdrawal credits may not have been paid yet. The pay route now asks Mollie for its total less
 what its credit notes take off (`creditedCents`, credit-note.ts: every credit note recorded for

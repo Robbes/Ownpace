@@ -24,6 +24,18 @@ import { serverFault } from '../../server-fault.ts';
 
 const router = Router();
 
+/**
+ * What Mollie took, in cents, from its amount (`"12.00"`, always two
+ * decimals), or null for a shape this client cannot read exactly: the books
+ * are then told nothing, rather than a guess (0111 slice 5f).
+ */
+export function centsOfMollieAmount(amount: MolliePayment['amount'] | undefined): number | null {
+  if (amount?.currency !== 'EUR' || !/^\d+\.\d{2}$/.test(amount.value)) return null;
+  const [euros, cents] = amount.value.split('.');
+  const total = Number(euros) * 100 + Number(cents);
+  return Number.isSafeInteger(total) && total > 0 ? total : null;
+}
+
 /** Map a Mollie payment status to the invoice status it drives. */
 function invoiceStatusFor(paymentStatus: MolliePayment['status']): 'paid' | null {
   switch (paymentStatus) {
@@ -98,12 +110,14 @@ router.post('/mollie', async (req: Request, res: Response) => {
 
       // `nextStatus` can only be 'paid' now (see invoiceStatusFor), so this
       // is always the sent → paid landing — a transition migration 0014's
-      // machine allows, touching only lifecycle columns.
+      // machine allows, touching only lifecycle columns. What Mollie took
+      // goes with it, for the push to book in Moneybird (0111 slice 5f).
       await db
         .update(schema.invoice)
         .set({
           status: nextStatus,
           paidAt: new Date(payment.paidAt ?? Date.now()),
+          paidCents: centsOfMollieAmount(payment.amount),
           updatedAt: new Date(),
         })
         .where(

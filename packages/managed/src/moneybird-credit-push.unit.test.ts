@@ -23,6 +23,7 @@ const SETTINGS: MoneybirdSettings = {
   workflowId: '702',
   taxRates: { domesticStandard: '611', reverseCharge: '622', outsideEu: null },
   delivery: 'manual',
+  mollieAccountId: null,
 };
 
 const ORIGINAL = {

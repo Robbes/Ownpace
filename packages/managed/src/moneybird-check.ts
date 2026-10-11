@@ -5,18 +5,21 @@
  * asked of the administration itself (workplan 0111, slice 1 of §"The build,
  * sliced").
  *
- * Two reads and nothing else: the sales tax rates and the workflows. No
- * contact, no invoice, no e-mail, so it costs nothing of a sandbox's monthly
- * allowance. It prints each rate and workflow with its id, what each VAT
- * treatment resolves to, and the workflow invoices would go through, with
- * whether its prices include VAT.
+ * Three reads and nothing else: the sales tax rates, the workflows and the
+ * financial accounts. No contact, no invoice, no e-mail, so it costs nothing
+ * of a sandbox's monthly allowance. It prints each rate, workflow and account
+ * with its id, what each VAT treatment resolves to, the workflow invoices
+ * would go through, with whether its prices include VAT, and the account a
+ * payment through Mollie is booked on (slice 5f).
  *
  * It is useful before the set is complete: with the token and the
  * administration id alone it lists the ids to pick from and names the keys
  * still unset. `ok` is true only when nothing needs doing: Moneybird off, or
  * every required piece set and found in the administration. The outside-EU
  * rate is optional, so its refusal is printed and does not fail the check;
- * OSS refuses by design until the threshold decision flips.
+ * OSS refuses by design until the threshold decision flips. The Mollie
+ * account is optional too, but one set and not found fails it: a payment
+ * would then be refused at every push.
  *
  * The token appears in no line. The guard is `moneybird-check.unit.test.ts`.
  */
@@ -25,6 +28,11 @@ import { moneybirdAccessFromEnv, moneybirdFromEnv, type MoneybirdSettings } from
 import type { MoneybirdAccess } from './moneybird-http.ts';
 import { fetchSalesTaxRates, resolveTaxRateId, type MoneybirdTaxRate } from './moneybird-tax-rates.ts';
 import { fetchWorkflows, resolveInvoiceWorkflow, type MoneybirdWorkflow } from './moneybird-workflows.ts';
+import {
+  fetchFinancialAccounts,
+  resolveFinancialAccount,
+  type MoneybirdFinancialAccount,
+} from './moneybird-financial-accounts.ts';
 import type { VatTreatment } from './vat-treatment.ts';
 
 export interface MoneybirdCheck {
@@ -61,6 +69,13 @@ function workflowLine(workflow: MoneybirdWorkflow): string {
   if (workflow.active === false) notes.push('INACTIVE');
   notes.push(pricesOf(workflow));
   return `  ${workflow.id}  ${workflow.name}  (${notes.join(', ')})`;
+}
+
+function accountLine(account: MoneybirdFinancialAccount): string {
+  const notes = [account.type ?? 'type not given'];
+  if (account.provider) notes.push(account.provider);
+  if (account.active === false) notes.push('INACTIVE');
+  return `  ${account.id}  ${account.name}  (${notes.join(', ')})`;
 }
 
 /** Reads the administration the environment names and says what it would invoice with. */
@@ -133,6 +148,32 @@ export async function checkMoneybird(
       } else {
         lines.push(`The invoice workflow: refused. ${resolved.reason}`);
         ok = false;
+      }
+    }
+  }
+
+  const accounts = await fetchFinancialAccounts(administration, fetchImpl);
+  lines.push('');
+  if (accounts.kind !== 'ok') {
+    lines.push(`Financial accounts: not read. ${accounts.reason}`);
+    ok = false;
+  } else {
+    lines.push(`Financial accounts (${accounts.accounts.length}):`, ...accounts.accounts.map(accountLine));
+    if (config) {
+      lines.push('');
+      if (config.mollieAccountId === null) {
+        lines.push(
+          'Payments through Mollie: not booked in Moneybird, as MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE is not set. ' +
+            'Set it to the id of the account above that Mollie pays out from.',
+        );
+      } else {
+        const resolved = resolveFinancialAccount(config.mollieAccountId, accounts.accounts);
+        if (resolved.kind === 'resolved') {
+          lines.push(`Payments through Mollie are booked on ${resolved.account.id} "${resolved.account.name}".`);
+        } else {
+          lines.push(`Payments through Mollie: refused. ${resolved.reason}`);
+          ok = false;
+        }
       }
     }
   }

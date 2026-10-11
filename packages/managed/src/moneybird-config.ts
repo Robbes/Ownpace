@@ -21,8 +21,10 @@
  * Required together: the API token, the administration, the invoice workflow
  * every document is sent through, and the two tax rates a buyer can need
  * today (`domestic_standard`, `reverse_charge`). Optional: the outside-EU rate
- * (unset refuses a non-EU buyer by name, as `resolveTaxRateId` already does)
- * and the delivery, `manual` unless `email`. Off the live stack it stays
+ * (unset refuses a non-EU buyer by name, as `resolveTaxRateId` already does),
+ * the delivery, `manual` unless `email`, and the financial account a payment
+ * Mollie confirms is booked on (`MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE`; slice
+ * 5f, the owner, 2026-10-11): unset, nothing is booked and the push says so. Off the live stack it stays
  * `manual`: a sandbox administration really sends what it is asked to e-mail,
  * ten a month.
  *
@@ -52,7 +54,11 @@ export const MONEYBIRD_REQUIRED_KEYS = [
 ] as const;
 
 /** The keys that may be set or not, once the required set is. */
-export const MONEYBIRD_OPTIONAL_KEYS = ['MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU', 'MONEYBIRD_DELIVERY'] as const;
+export const MONEYBIRD_OPTIONAL_KEYS = [
+  'MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU',
+  'MONEYBIRD_DELIVERY',
+  'MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE',
+] as const;
 
 /** How Moneybird hands a document over: by its own e-mail, or not at all. */
 export type MoneybirdDelivery = 'manual' | 'email';
@@ -63,6 +69,8 @@ export interface MoneybirdSettings {
   readonly workflowId: string;
   readonly taxRates: TaxRateIdConfig;
   readonly delivery: MoneybirdDelivery;
+  /** The financial account Mollie's payments are booked on, or null: none is booked (slice 5f). */
+  readonly mollieAccountId: string | null;
 }
 
 export type MoneybirdSettingsOutcome =
@@ -81,6 +89,7 @@ const ID_KEYS = [
   'MONEYBIRD_TAX_RATE_ID_DOMESTIC',
   'MONEYBIRD_TAX_RATE_ID_REVERSE_CHARGE',
   'MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU',
+  'MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE',
 ] as const;
 
 /** A value as set: trimmed, and empty counts as unset (the example's `KEY=`). */
@@ -139,6 +148,7 @@ export function moneybirdFromEnv(env: Env): MoneybirdSettingsOutcome {
         outsideEu: valueOf(env, 'MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU') ?? null,
       },
       delivery,
+      mollieAccountId: valueOf(env, 'MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE') ?? null,
     },
   };
 }

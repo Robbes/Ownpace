@@ -85,9 +85,11 @@
 # change writes an audit row.
 #
 # `moneybird check` asks the books, not the database (workplan 0111): it reads
-# the sales tax rates and the workflows of the administration this checkout's
-# `.env` names in MONEYBIRD_*, and says what each VAT treatment resolves to and
-# which workflow invoices would go through. Two reads, no invoice, no e-mail.
+# the sales tax rates, the workflows and the financial accounts of the
+# administration this checkout's `.env` names in MONEYBIRD_*, and says what
+# each VAT treatment resolves to, which workflow invoices would go through,
+# and which account a payment through Mollie is booked on (slice 5f). Three
+# reads, no invoice, no e-mail.
 # With only the token and the administration id set, it lists the ids to pick
 # the rest from. See moneybird-check.ts. It queries no table; Postgres must be
 # up only because this wrapper composes the owner connection before any verb.

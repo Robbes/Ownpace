@@ -56,6 +56,7 @@ process.env.APP_DATABASE_URL = getAppUserConnectionString(PG_CONNECTION_STRING);
 let mollieWebhookResult: {
   id: string;
   status: string;
+  amount?: { value: string; currency: string };
   paidAt?: string;
   metadata: Record<string, unknown> | null;
 };
@@ -201,12 +202,13 @@ describe('T5 — invoice generation + Mollie webhook', () => {
       return rows[0]?.status;
     };
 
-    it('drives the invoice to paid, and double delivery is a no-op', async () => {
+    it('drives the invoice to paid, with what Mollie took, and double delivery is a no-op', async () => {
       const paymentId = 'tr_paidtest';
       const invoiceId = await seedSentInvoice(TENANT_A, paymentId);
       mollieWebhookResult = {
         id: paymentId,
         status: 'paid',
+        amount: { value: '12.10', currency: 'EUR' },
         paidAt: '2026-05-15T10:00:00Z',
         metadata: { tenantId: TENANT_A, invoiceId },
       };
@@ -214,6 +216,12 @@ describe('T5 — invoice generation + Mollie webhook', () => {
       const first = await request.post('/api/billing/webhooks/mollie').send({ id: paymentId });
       expect(first.status).toBe(200);
       expect(await statusOf(invoiceId)).toBe('paid');
+      // What Mollie took, for the push to book in Moneybird (0111 slice 5f).
+      const { rows } = await superuserPool.query(
+        `SELECT paid_cents::text AS paid_cents, moneybird_paid_at FROM invoice WHERE id = $1`,
+        [invoiceId],
+      );
+      expect(rows[0]).toEqual({ paid_cents: '1210', moneybird_paid_at: null });
 
       // Re-deliver the same event — must remain paid, still 200.
       const second = await request.post('/api/billing/webhooks/mollie').send({ id: paymentId });

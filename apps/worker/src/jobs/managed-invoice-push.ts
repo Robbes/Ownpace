@@ -9,9 +9,15 @@
  * number, the date and the figures come back onto the row. Claiming a draft,
  * deciding what to send, sending it and writing it back are
  * `invoice-push.ts`'s and `moneybird-push.ts`'s, and a credit note's
- * `credit-note.ts`'s and `moneybird-credit-push.ts`'s (slice 7a), tested
- * there with a Moneybird of their own. THIS FILE IS ONLY THE WIRING: the switches, the
- * list, each organisation's scopes, the pace and the alert.
+ * `credit-note.ts`'s and `moneybird-credit-push.ts`'s (slice 7a), and a
+ * payment through Mollie booked on its invoice `payment-book.ts`'s (slice 5f),
+ * tested there with a Moneybird of their own. THIS FILE IS ONLY THE WIRING:
+ * the switches, the list, each organisation's scopes, the pace and the alert.
+ *
+ * PAYMENTS, BOOKED (slice 5f; the owner, 2026-10-11). After an organisation's
+ * documents, each payment Mollie confirmed is booked on its invoice in
+ * Moneybird, on `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE`, so Moneybird never
+ * reminds anybody who paid. Unset, nothing is booked, and the run says so.
  *
  * Hourly at :41, eighteen minutes after the month task, so a draft made on a
  * month's first hour is numbered within it.
@@ -51,8 +57,10 @@ import type { Pool } from 'pg';
 import { withTenant } from '@openmig/ledger';
 import { log, type TenantId } from '@openmig/shared';
 import {
+  bookPayment,
   claimNextCreditNote,
   claimNextDraft,
+  claimNextPaymentToBook,
   draftsBehind,
   moneybirdFromEnv,
   planCreditPush,
@@ -63,6 +71,7 @@ import {
   recordCreditDraft,
   recordCreditIssued,
   recordIssued,
+  recordPaymentBooked,
   whyNobodyIsInvoiced,
   type MoneybirdSettings,
   type PushContext,
@@ -83,6 +92,10 @@ export interface PushCounts {
   /** Of `issued`, the credit notes (slice 7a). */
   credited: number;
   adopted: number;
+  /** Payments through Mollie booked on their invoice in Moneybird (slice 5f). */
+  booked: number;
+  /** Payments the books held already: booked before, or the invoice paid there by other means. */
+  held: number;
   refused: number;
   unavailable: number;
   slowed: number;
@@ -96,8 +109,9 @@ export interface PushBudget {
 
 /**
  * One organisation's drafts, each claimed, decided, sent and written back,
- * then its credit notes the same way, then its alert. Exported so the tests run it on a database and a Moneybird
- * of their own.
+ * then its credit notes the same way, then its payments through Mollie booked
+ * in the books, then its alert. Exported so the tests run it on a database and
+ * a Moneybird of their own.
  */
 export async function pushOrganisation(
   pool: Pool,
@@ -161,6 +175,31 @@ export async function pushOrganisation(
         `[invoice-push] organisation ${organisation}: ${note.reference} is ${outcome.invoice.invoiceNumber}, ` +
           `crediting ${note.credited.invoiceNumber}.`,
       );
+    } else {
+      notIssued(outcome, organisation, budget, counts);
+    }
+    if (budget.left > 0 && !budget.stopped) await (options.pace ?? (() => sleep(PUSH_SPACING_MS)))();
+  }
+  // Then each payment Mollie confirmed, booked on its invoice in the books
+  // (payment-book.ts), on the account Mollie pays out from: two requests, the
+  // read and the booking, under the same budget and pace.
+  const mollieAccountId = settings.mollieAccountId;
+  while (mollieAccountId !== null && budget.left > 0 && !budget.stopped) {
+    const payment = await withTenant(pool, organisation, (db) => claimNextPaymentToBook(db, tenantId, now));
+    if (!payment) break;
+    budget.left--;
+    const outcome = await bookPayment(settings, mollieAccountId, payment, options.fetchImpl);
+    if (outcome.kind === 'booked' || outcome.kind === 'held') {
+      await withTenant(pool, organisation, (db) => recordPaymentBooked(db, tenantId, payment.id, now));
+      if (outcome.kind === 'booked') {
+        counts.booked++;
+        log.info(
+          `[invoice-push] organisation ${organisation}: ${payment.paymentId} booked on ` +
+            `${payment.invoiceNumber ?? payment.reference ?? payment.id} in Moneybird.`,
+        );
+      } else {
+        counts.held++;
+      }
     } else {
       notIssued(outcome, organisation, budget, counts);
     }
@@ -230,6 +269,7 @@ export const managedInvoicePush = schedules.task({
       MONEYBIRD_TAX_RATE_ID_REVERSE_CHARGE: process.env.MONEYBIRD_TAX_RATE_ID_REVERSE_CHARGE,
       MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU: process.env.MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU,
       MONEYBIRD_DELIVERY: process.env.MONEYBIRD_DELIVERY,
+      MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE: process.env.MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE,
     });
     if (moneybird.kind === 'refused') throw new Error(`[invoice-push] ${moneybird.reason}`);
     if (moneybird.kind === 'off') {
@@ -245,7 +285,22 @@ export const managedInvoicePush = schedules.task({
     // The one question across organisations.
     const organisations = await activeOrganisations();
     const budget: PushBudget = { left: PUSHES_PER_RUN, stopped: false };
-    const counts: PushCounts = { issued: 0, credited: 0, adopted: 0, refused: 0, unavailable: 0, slowed: 0 };
+    const counts: PushCounts = {
+      issued: 0,
+      credited: 0,
+      adopted: 0,
+      booked: 0,
+      held: 0,
+      refused: 0,
+      unavailable: 0,
+      slowed: 0,
+    };
+    if (moneybird.config.mollieAccountId === null) {
+      log.info(
+        '[invoice-push] payments through Mollie are not booked in Moneybird: ' +
+          'MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE is not set (workplan 0111, slice 5f).',
+      );
+    }
     let failed = 0;
     for (const organisation of organisations) {
       try {
