@@ -263,7 +263,11 @@ export async function recordIssued(
   return rows.length === 1;
 }
 
-/** The organisation's drafts still drafts two days after they were made, by reference: decision 6's alert. */
+/**
+ * The organisation's drafts still drafts two days after they were made, by
+ * reference: decision 6's alert. Credit notes too (slice 7a): one waits for
+ * its invoice to be numbered, which takes an hour, not two days.
+ */
 export async function draftsBehind(db: PgDatabase, tenantId: TenantId, now: Date): Promise<string[]> {
   const before = new Date(now.getTime() - DRAFT_BEHIND_AFTER_HOURS * 3_600_000);
   const rows = await db
@@ -273,7 +277,6 @@ export async function draftsBehind(db: PgDatabase, tenantId: TenantId, now: Date
       and(
         eq(invoice.tenantId, tenantId),
         eq(invoice.status, 'draft'),
-        eq(invoice.kind, 'invoice'),
         lt(invoice.createdAt, before),
       ),
     )

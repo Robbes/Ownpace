@@ -1271,6 +1271,7 @@ router.post('/invoices/:invoiceId/pay', authenticate, requireBillingWrite, async
         periodEnd: schema.invoice.periodEnd,
         status: schema.invoice.status,
         total: schema.invoice.total,
+        kind: schema.invoice.kind,
       })
       .from(schema.invoice)
       .where(
@@ -1320,6 +1321,15 @@ router.post('/invoices/:invoiceId/pay', authenticate, requireBillingWrite, async
       res.status(409).json({
         error: 'Conflict',
         message: 'This invoice has not been issued yet, so there is nothing to pay.',
+      });
+      return;
+    }
+    // Nor a credit note (0111 slice 7a): it is money owed to the
+    // organisation, never money it pays, and its total is negative.
+    if (invoice.kind === 'credit_note') {
+      res.status(409).json({
+        error: 'Conflict',
+        message: 'This is a credit note: it is credited to you, and there is nothing to pay.',
       });
       return;
     }
