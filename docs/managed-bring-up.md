@@ -1399,59 +1399,8 @@ why it is a question worth asking; `operator-housekeeping.integration.test.ts`
 runs all of them against a real database, because SQL nobody has executed is SQL
 nobody has checked.
 
-**The books** (workplan 0111). Invoices are numbered in a Moneybird
-administration that the `MONEYBIRD_*` keys in `.env` name (`managed.env.example`
-lists them: all five of the first group, or none). With none set, Moneybird is
-off and nothing is asked of it. To see what a set resolves to:
-
-```bash
-./deploy/compose/operator.sh moneybird check
-```
-
-It makes two reads, the administration's sales tax rates and its workflows, and
-prints each with its id, what each VAT treatment resolves to, and the workflow
-invoices would go through, with whether its prices include VAT. It makes no
-contact, no invoice and no e-mail. With only `MONEYBIRD_API_TOKEN` and
-`MONEYBIRD_ADMINISTRATION_ID` set it lists the ids to pick the rest from. It
-exits 1 while its report names something to do; the outside-EU rate is
-optional, so its refusal is printed and does not count. The token is in no line
-it prints. Half a set also gets a warning when the API starts.
-
-To prove that an invoice goes through, on a test stack against a sandbox
-administration:
-
-```bash
-./deploy/compose/operator.sh moneybird proof
-```
-
-It makes one invoice the way the hourly push does, under the reference
-`ownpace-proof-{YYYY-MM}`, to Ownpace's own proof contact (no e-mail address),
-sent by hand, and prints the number, date and total Moneybird gave it. Run again
-in the same month, it answers that the invoice exists and makes nothing, so a
-repeated command spends nothing of the sandbox's 50 invoices a month. It refuses
-before asking Moneybird anything on a stack that runs `NODE_ENV=production`, as
-live does, or names no `NODE_ENV`, and unless `MONEYBIRD_DELIVERY` is `manual`:
-live's books are real, and the sandbox allows ten e-mails a month.
-
-The managed nightly gate proves the books every night with the same keys:
-`smoke-managed.sh` runs `./deploy/compose/operator.sh moneybird nightly`, which
-makes the night's invoice (`ownpace-nightly-{YYYY-MM-DD}`), sends it by hand,
-registers a payment for it and reads it back as paid. It counts the month's
-invoices first and, from 40 of the sandbox's 50, makes none and says so. With no
-`MONEYBIRD_*` key in the nightly stack's `.env` it makes nothing, and the verdict
-lists the books as not proven; give that stack the sandbox's keys, with
-`MONEYBIRD_DELIVERY=manual`, for the gate to prove them.
-
-What is invoiced, and from when, is a second switch: `OWNPACE_BILLING_FROM`, the
-first month invoiced, written `YYYY-MM`. Empty, nobody is invoiced. Set, the
-hourly `managed-month-invoices` task makes each organisation's invoice for a
-month in advance, as a draft: on its first day at the tier it starts on, and
-after a move up for the difference (workplan 0111, slice 4), and the hourly
-`managed-invoice-push` has Moneybird number each draft (slice 5). Neither runs
-while `OWNPACE_STAGE` is `alpha`. The tasks read the `MONEYBIRD_*` keys too, so
-`./deploy/compose/set-task-env.sh` must run after any of them changes; it
-deletes an emptied one from the tasks. [ending-the-alpha.md](./ending-the-alpha.md)
-is when to set the month.
+**The books** (`operator.sh moneybird`, workplan 0111) are a step of their own:
+*8i. The books and payments*, below.
 
 **Verify** — the queue answers, and answers only for them:
 
@@ -2215,6 +2164,175 @@ GIT_SHA=$(git rev-parse --short HEAD) \
 ```
 
 Open the sign-in page: the line is above the status link.
+
+### 8i. The books and payments *(before the first invoice, and on the OTA stack to prove them)*
+
+Invoices go through two services, each with its keys in `.env`:
+
+- **Moneybird**, the books (workplan 0111): it numbers each invoice, keeps it
+  for the retention period, and, on live, e-mails it.
+- **Mollie**, the payments: a customer pays an invoice through it, and what a
+  credit note gives back goes back through it (slice 7d).
+
+**None of this is needed for the alpha**, which invoices nobody. With none of
+these keys set, nothing is asked of either service and everything else runs.
+Live sets them before the alpha ends ([ending-the-alpha.md](./ending-the-alpha.md),
+*Before*, step 2). The OTA stack uses a Moneybird **sandbox** administration
+and Mollie's **test mode**, and is where the proofs in step 6 run.
+
+Run each command below from the stack's own checkout: `./deploy/compose/.env`
+is that stack's. Steps 1 to 5 are the same on both stacks; only the values
+differ.
+
+**1. The administration and its token.** Each stack has its own Moneybird
+administration: live a real one, the OTA stack a sandbox. An id from one is no
+use in the other, so nothing is copied between their `.env` files. The token
+is a personal API token (Moneybird, *Instellingen > Ontwikkelaars*). The
+administration's id is the long number in Moneybird's address bar while it is
+open. The token is a secret, so it goes in on standard input:
+
+```bash
+read -rs -p 'Moneybird token: ' v; echo
+printf 'MONEYBIRD_API_TOKEN=%s\n' "$v" | ./deploy/compose/env-upsert.sh --stdin deploy/compose/.env; unset v
+./deploy/compose/env-upsert.sh deploy/compose/.env MONEYBIRD_ADMINISTRATION_ID=500000000000000000   # yours, from the address bar
+./deploy/compose/operator.sh moneybird check
+```
+
+The check makes three reads and nothing else: no contact, no invoice and no
+e-mail. It lists the administration's sales tax rates, its workflows and its
+financial accounts, each with its id, and says what each VAT treatment
+resolves to and which workflow invoices would go through, with whether its
+prices include VAT. The token is in no line it prints. It exits 1 while its
+report names something to do; the outside-EU rate is optional, so its refusal
+is printed and does not count. With only these two keys set, its list is what
+the next steps pick from. Half a set also gets a warning when the API starts,
+and the hourly push refuses it by key name.
+
+**2. The ids, from the check's list.** Digits only, copied exactly. The
+numbers in the commands here are examples; use the ones the check lists.
+
+- `MONEYBIRD_WORKFLOW_ID`: the invoice workflow.
+- `MONEYBIRD_TAX_RATE_ID_DOMESTIC`: the Dutch VAT rate.
+- `MONEYBIRD_TAX_RATE_ID_REVERSE_CHARGE`: VAT reverse-charged, for a business
+  elsewhere in the EU.
+- `MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU`: optional. Empty refuses a buyer outside
+  the EU by name. Which rate it is, is the accountant's answer.
+- `MONEYBIRD_DELIVERY`: empty off live, which is manual: Moneybird numbers each
+  invoice and e-mails nothing, because a sandbox really sends what it is asked
+  to, ten a month. `email` on live only.
+
+```bash
+./deploy/compose/env-upsert.sh deploy/compose/.env \
+  MONEYBIRD_WORKFLOW_ID=500000000000000001 \
+  MONEYBIRD_TAX_RATE_ID_DOMESTIC=500000000000000002 \
+  MONEYBIRD_TAX_RATE_ID_REVERSE_CHARGE=500000000000000003
+./deploy/compose/operator.sh moneybird check
+```
+
+**3. Mollie's key.** `MOLLIE_API_KEY` is in Mollie's dashboard, under its API
+keys: the `test_` key on the OTA stack, the `live_` key on live. Mollie gives
+the live key once it has finished checking the business (its onboarding).
+The API takes payments with it, and the tasks refund with it and follow each
+refund until Mollie says it ended. There is no webhook secret: the webhook
+trusts nothing in its body and asks Mollie about the payment with this key.
+
+```bash
+read -rs -p 'Mollie API key: ' v; echo
+printf 'MOLLIE_API_KEY=%s\n' "$v" | ./deploy/compose/env-upsert.sh --stdin deploy/compose/.env; unset v
+```
+
+Mollie's servers confirm each payment at `API_URL`, so it must be a public
+https address they can reach (*What cannot work on a mesh-only host*, below),
+and Mollie sends the customer back to `WEB_URL` after paying. With
+`MOLLIE_API_KEY` set, the API refuses to start in production on a localhost
+`API_URL` (phase 2).
+
+**4. The account Mollie pays out from.** Each payment through Mollie is booked
+on its invoice in Moneybird, under Mollie's payment id, so Moneybird reminds
+nobody who paid (slice 5f), and each refund is booked on its credit note,
+negative, under the refund's id (slice 7d). Both are booked on one financial
+account in the administration, the one Mollie pays out from. A new
+administration holds none, and the check prints `Financial accounts (0)`
+until one is made in Moneybird. Once it is there, the check lists it with its
+id:
+
+```bash
+./deploy/compose/env-upsert.sh deploy/compose/.env MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE=500000000000000004
+./deploy/compose/operator.sh moneybird check
+```
+
+The check says `Payments through Mollie are booked on …` with the account's
+name, and ends `RESULT: ready`. Empty, nothing is booked and the hourly push
+says so: a refund is still made, and waits to be booked. If Moneybird's own link to Mollie also
+brings Mollie's transactions into that account, ask the accountant how they
+match the payments and refunds Ownpace books there, so that nothing is
+counted twice.
+
+**5. Hand the keys to what reads them.** The API reads them when it starts,
+and the tasks from the task environment, which inherits nothing from
+`.env`:
+
+```bash
+docker compose -f deploy/compose/managed.yml up -d --force-recreate api
+./deploy/compose/set-task-env.sh
+```
+
+Run both again after any of these keys changes. `set-task-env.sh` also
+deletes an emptied key from the tasks.
+
+**6. The proofs, on the OTA stack only.** Each one refuses before asking
+Moneybird or Mollie anything when the checkout's `.env` says
+`NODE_ENV=production` or names no `NODE_ENV`, as live's does: live's books are
+real. All of them passed on the OTA stack on 2026-10-11 (workplan 0111,
+Status).
+
+```bash
+./deploy/compose/operator.sh moneybird proof
+```
+
+It makes one invoice the way the hourly push does, under the reference
+`ownpace-proof-{YYYY-MM}`, to Ownpace's own proof contact (no e-mail address),
+sent by hand, and prints the number, date and total Moneybird gave it. Run
+again in the same month, it answers that the invoice exists and makes
+nothing, so a repeated command spends nothing of the sandbox's 50 invoices a
+month. It also refuses unless `MONEYBIRD_DELIVERY` is `manual`: the sandbox
+allows ten e-mails a month.
+
+```bash
+./deploy/compose/moneybird-money-back-proof.sh
+./deploy/compose/moneybird-money-back-proof.sh refund
+```
+
+The money back of a credit note, called as the hourly push calls it. Without
+an argument, the two Moneybird calls: a credit note set against an open
+invoice, and a refund booked negative on a credit note, on the account of
+step 4. With `refund`, Mollie's refund itself: a test payment you pay on
+Mollie's test checkout, then the refund, made twice under one idempotency key
+so that only one exists, then booked. It needs a `test_` key and refuses any
+other. Each prints what Moneybird and Mollie answered.
+
+The managed nightly gate proves the books every night with the same keys:
+`smoke-managed.sh` runs `./deploy/compose/operator.sh moneybird nightly`, which
+makes the night's invoice (`ownpace-nightly-{YYYY-MM-DD}`), sends it by hand,
+registers a payment for it and reads it back as paid. It counts the month's
+invoices first and, from 40 of the sandbox's 50, makes none and says so. With no
+`MONEYBIRD_*` key in the nightly stack's `.env` it makes nothing, and the verdict
+lists the books as not proven; give that stack the sandbox's keys, with
+`MONEYBIRD_DELIVERY=manual`, for the gate to prove them.
+
+**7. When invoicing starts.** What is invoiced, and from when, is a second
+switch: `OWNPACE_BILLING_FROM`, the first month invoiced, written `YYYY-MM`.
+Empty, nobody is invoiced. Set, the hourly `managed-month-invoices` task makes
+each organisation's invoice for a month in advance, as a draft: on its first
+day at the tier it starts on, and after a move up for the difference (workplan
+0111, slice 4), and the hourly `managed-invoice-push` has Moneybird number each
+draft (slice 5), books what Mollie was paid, makes each credit note's money
+back, and reads paid and late back from Moneybird. Neither runs while
+`OWNPACE_STAGE` is `alpha`. [ending-the-alpha.md](./ending-the-alpha.md) is
+when to set the month, and the
+[operator runbook](./operator-runbook.md#email-notifications-workplan-0030)
+says what each hourly run says, and what to do when it names money to give
+back by hand.
 
 ### 9. `tasks` — the system role, the task environment, the deploy, then the owner names forgotten
 
@@ -3707,6 +3825,13 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    outcome in workplan 0142's Status block.
 8. **The record.** The date, the tag and each check's outcome, never a value, in
    workplan 0132's Status block (T0 step 6).
+
+**Not part of the stand-up: the books and payments.** Live runs the alpha,
+which invoices nobody, so the script sets no `MONEYBIRD_*` key and no
+`MOLLIE_API_KEY`, and live runs without them. They come before the alpha ends:
+*8i. The books and payments* above, with live's own Moneybird administration
+and Mollie's live key, and [ending-the-alpha.md](./ending-the-alpha.md) for
+when.
 
 ## Live's daily duties
 

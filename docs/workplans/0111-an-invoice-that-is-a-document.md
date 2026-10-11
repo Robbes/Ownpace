@@ -581,7 +581,7 @@ what each treatment resolves to, and whether the workflow's prices include VAT, 
 something is named. With only the token and the administration set, it lists the ids to pick
 from, which is how the sandbox's workflow id is found. Compose passes the keys optional, the
 example lists them, and the API warns at start on half a set
-([managed-bring-up.md](../managed-bring-up.md), "The books").
+([managed-bring-up.md](../managed-bring-up.md), *8i. The books and payments*).
 
 - **Guards:** `moneybird-config.unit.test.ts` (off with the example's empty keys; an 18-digit id
   kept exact, where `Number` would make it another id; half a set named by keys, never values);
