@@ -29,6 +29,7 @@ import { runManagedMigrations } from './migrate-managed.ts';
 import { PgDataAllowanceStore } from './data-ceiling.ts';
 import { openTheMonth } from './month-invoice.ts';
 import { readBilledNow } from './pace.ts';
+import { PgTierPickStore } from './tier-pick.ts';
 import { MANAGED_TIERS } from './tier-calculator.ts';
 import { readWithdrawalWindow, withdraw, type WithdrawalStatement } from './withdrawal.ts';
 
@@ -36,6 +37,7 @@ import { readWithdrawalWindow, withdraw, type WithdrawalStatement } from './with
 const CONSUMER = '01117c00-e29b-41d4-a716-446655440001' as TenantId;
 const BUSINESS = '01117c00-e29b-41d4-a716-446655440002' as TenantId;
 const TOO_LATE = '01117c00-e29b-41d4-a716-446655440003' as TenantId;
+const PICKED = '01117c00-e29b-41d4-a716-446655440004' as TenantId;
 const GB = 1_000_000_000n;
 const OCT_1 = new Date('2026-10-01T10:23:00Z');
 const OCT_3 = new Date('2026-10-03T10:04:00Z');
@@ -88,15 +90,15 @@ describe('a withdrawal, and every reader of the tier back to Free', () => {
     driver = pgliteDriver({ role: 'app_user' });
     await runMigrations({ driver, logger: () => {} });
     await runManagedMigrations({ driver, logger: () => {} });
-    await owner(`INSERT INTO tenant (id, name) VALUES ($1, 'Withdraws'), ($2, 'A Business BV'), ($3, 'Too Late')`, [
-      CONSUMER,
-      BUSINESS,
-      TOO_LATE,
-    ]);
+    await owner(
+      `INSERT INTO tenant (id, name) VALUES ($1, 'Withdraws'), ($2, 'A Business BV'), ($3, 'Too Late'), ($4, 'Picked Medium')`,
+      [CONSUMER, BUSINESS, TOO_LATE, PICKED],
+    );
     for (const [tenantId, kind] of [
       [CONSUMER, 'consumer'],
       [BUSINESS, 'business'],
       [TOO_LATE, 'consumer'],
+      [PICKED, 'consumer'],
     ] as const) {
       await owner(
         `INSERT INTO billing_party (tenant_id, kind, name, address_line1, postal_code, city, country_code)
@@ -198,13 +200,36 @@ describe('a withdrawal, and every reader of the tier back to Free', () => {
     expect((await withTenant(driver, BUSINESS, (db) => readBilledNow(db, BUSINESS, OCT_3))).allowance.tier.id).toBe('small');
   });
 
+  it('takes a pick back with the yes it came with: no floor after a withdrawal', async () => {
+    // A pick above the agreed tier is a pick and a yes (0157 T6): Medium, for its pace.
+    await withTenant(driver, PICKED, async (db) => {
+      await new PgTierPickStore(db).record(PICKED, { tierId: 'medium', priceEur: 12 }, 'the-owner', new Date('2026-10-01T09:30:00Z'));
+      await new PgDataAllowanceStore(db).record(
+        PICKED,
+        { kind: 'tier', tierId: 'medium', bandGb: tier('medium').dataGb, priceEur: 12 },
+        'the-owner',
+        'pick',
+      );
+    });
+    await owner(`UPDATE data_allowance SET consented_at = '2026-10-01T09:30:00Z' WHERE tenant_id = $1`, [PICKED]);
+    const before = await withTenant(driver, PICKED, (db) => readBilledNow(db, PICKED, OCT_3));
+    expect([before.billed.tier.id, before.floor.now?.id]).toEqual(['medium', 'medium']);
+
+    await withTenant(driver, PICKED, (db) => withdraw(db, PICKED, STATEMENT, OCT_3));
+
+    const after = await withTenant(driver, PICKED, (db) => readBilledNow(db, PICKED, OCT_3));
+    expect([after.billed.tier.id, after.floor.now ?? null]).toEqual(['free', null]);
+  });
+
   it('cannot be changed or removed by the app; the system role reads when, never who', async () => {
-    await expect(
-      withTenant(driver, CONSUMER, (db) => db.execute(sql`UPDATE contract_withdrawal SET name = 'Someone Else'`)),
-    ).rejects.toThrow(/permission denied/);
-    await expect(withTenant(driver, CONSUMER, (db) => db.execute(sql`DELETE FROM contract_withdrawal`))).rejects.toThrow(
-      /permission denied/,
-    );
+    // The database's words are the cause; the query builder's are around them.
+    const refusal = (statement: string): Promise<string | null> =>
+      withTenant(driver, CONSUMER, (db) => db.execute(sql.raw(statement))).then(
+        () => null,
+        (e: Error & { cause?: Error }) => `${e.message} ${e.cause?.message ?? ''}`,
+      );
+    expect(await refusal(`UPDATE contract_withdrawal SET name = 'Someone Else'`)).toMatch(/permission denied/);
+    expect(await refusal(`DELETE FROM contract_withdrawal`)).toMatch(/permission denied/);
     const grants = (
       await owner(
         `SELECT has_column_privilege('ownpace_system', 'contract_withdrawal', 'withdrawn_at', 'SELECT') AS reads_when,

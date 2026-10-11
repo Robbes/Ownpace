@@ -42,14 +42,16 @@ yes, which is where the question belongs. The wording is the owner's and the law
   `a-withdrawal-back-to-free.unit.test.ts` (PGlite: recorded with what was given, the month
   credited in full in Dutch, Free from then on for the tier the month bills, the month's invoice
   this month and next, and the window; a second withdrawal closed and nothing written; a yes after
-  it a new contract with its own fourteen days; a business and a late consumer closed; the row
-  neither changed nor removed by the app; the system role reads when, never the name or the
-  address); `a-withdrawal-from-the-billing-page.unit.test.ts` (the routes: open with what the form
+  it a new contract with its own fourteen days; a business and a late consumer closed; a pick
+  above the agreed tier no floor after it; the row neither changed nor removed by the app; the
+  system role reads when, never the name or the address); `a-withdrawal-from-the-billing-page.unit.test.ts` (the routes: open with what the form
   fills in; a missing name or a bad address refused; recorded, credited and told in the
   organisation's language; closed after, with a sentence; a mail that failed leaves it standing);
   `notifications.unit.test.ts` (the acknowledgement, word for word in Dutch, and in English with
   the days used billed; nothing invoiced; no "open the app"). The spec documents both routes, the
-  purge deletes the rows, and the system role's grant is pinned.
+  purge deletes the rows, and the system role's grant is pinned. Each arm proved by breaking it
+  once: nine mutants (both stores' filter, the weekend, a business, the past, the request to begin,
+  the mail, the system role's columns, the app's UPDATE and DELETE), all red.
 
 **2026-10-11: slice 7a — a credit note, as a document** (T7, the document's half; the owner,
 2026-10-11: *"Credit notes and the withdrawal button (T7): go ahead"*). A credit note is our row
