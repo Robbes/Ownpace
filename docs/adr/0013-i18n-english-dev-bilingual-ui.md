@@ -11,6 +11,7 @@
 
 - **English** for code, comments, docs and ADRs; the end-user UI is **bilingual EN+NL** (built: typed dictionary in `@openmig/shared`, `Intl` formatting keyed on app locale).
 - The prose boundary (docs/i18n-prose-boundary.md): **translate the frame, never the finding** — server refusal prose renders verbatim, untranslated.
+- **The platform operator's screens and mail are English only**: the support screens, the access queue, the redirect URIs and their menu entries (`apps/web/src/i18n/operator-strings.ts`, rendered inside `EnglishOnly`), and the access-request mail. They are not end-user UI; what a customer reads stays bilingual, including what an operator writes for them.
 
 > **Update 2026-08-02 (workplan 0021 T5, owner decision: keep + build).** The
 > bilingual promise had zero i18n behind it for the project's whole life —
@@ -44,3 +45,7 @@ The project is built with coding agents and may attract international contributo
 
 ## Alternatives considered
 - Dutch-first: rejected — limits contribution and reuse.
+
+## Amendment log
+
+- **2026-10-11** — The platform operator's screens and mail are English only; the bilingual rule is the end user's (the owner, 2026-10-11: *"for me as operator English would suffice; multi language is only important for end users"*). Record: *Operative rules*; `docs/i18n-prose-boundary.md`.

@@ -47,9 +47,9 @@ import {
   type NotifiedOutcome,
   type RequestState,
 } from '../services/access-requests.ts';
-import { useT, useFormatters } from '../i18n/index.tsx';
+import { useOperatorT, useFormatters } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
-import type { StringKey } from '../i18n/strings.ts';
+import type { OperatorKey } from '../i18n/operator-strings.ts';
 
 const TABS: ReadonlyArray<RequestState> = ['open', 'granted', 'declined'];
 
@@ -68,18 +68,18 @@ interface Decision {
  * that refused, and the operator does something different about each.
  */
 const MAIL_LINE = {
-  sent: 'queue.mailSent',
-  off: 'queue.mailOff',
-  failed: 'queue.mailFailed',
-  skipped: 'queue.mailSkipped',
-} as const satisfies Record<NotifiedOutcome, StringKey>;
+  sent: 'accessQueue.mailSent',
+  off: 'accessQueue.mailOff',
+  failed: 'accessQueue.mailFailed',
+  skipped: 'accessQueue.mailSkipped',
+} as const satisfies Record<NotifiedOutcome, OperatorKey>;
 
 /** One request, with the decision controls when it is still open. */
 const RequestCard: React.FC<{
   request: AccessRequest;
   onDecided: (decision: Decision) => void;
 }> = ({ request, onDecided }) => {
-  const t = useT();
+  const t = useOperatorT();
   const { dateTime } = useFormatters();
   // Prefilled with what they told us, which is usually right and occasionally a
   // typo somebody wants to fix before it becomes a customer's name.
@@ -157,7 +157,7 @@ const RequestCard: React.FC<{
           </p>
         </div>
         <p className="text-xs text-gray-500">
-          {t('queue.asked')} {dateTime(request.createdAt)} · {request.locale}
+          {t('accessQueue.asked')} {dateTime(request.createdAt)} · {request.locale}
           {request.tier ? ` · ${request.tier}` : ''}
         </p>
       </div>
@@ -172,7 +172,7 @@ const RequestCard: React.FC<{
 
       {!open && (
         <p className="text-xs text-gray-500">
-          {t('queue.decidedBy')} {request.decidedBy}
+          {t('accessQueue.decidedBy')} {request.decidedBy}
           {request.decidedAt ? ` · ${dateTime(request.decidedAt)}` : ''}
           {request.decisionNote ? ` · ${request.decisionNote}` : ''}
         </p>
@@ -185,7 +185,7 @@ const RequestCard: React.FC<{
               htmlFor={`org-${request.id}`}
               className="block text-sm font-medium text-gray-700"
             >
-              {t('queue.orgLabel')}
+              {t('accessQueue.orgLabel')}
             </label>
             <input
               id={`org-${request.id}`}
@@ -193,7 +193,7 @@ const RequestCard: React.FC<{
               onChange={(e) => setName(e.target.value)}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md sm:text-sm"
             />
-            <p className="mt-1 text-xs text-gray-500">{t('queue.orgHelp')}</p>
+            <p className="mt-1 text-xs text-gray-500">{t('accessQueue.orgHelp')}</p>
           </div>
 
           <div>
@@ -201,7 +201,7 @@ const RequestCard: React.FC<{
               htmlFor={`note-${request.id}`}
               className="block text-sm font-medium text-gray-700"
             >
-              {t('queue.noteLabel')}
+              {t('accessQueue.noteLabel')}
             </label>
             <input
               id={`note-${request.id}`}
@@ -219,9 +219,9 @@ const RequestCard: React.FC<{
                 onChange={(e) => setTellThem(e.target.checked)}
                 className="mt-0.5 h-4 w-4 rounded border-gray-300"
               />
-              <span>{t('queue.tellThem')}</span>
+              <span>{t('accessQueue.tellThem')}</span>
             </label>
-            <Hint className="mt-1 ml-6" text={t('queue.tellThemHelp')} why={t('queue.tellThemHelp.why')} />
+            <Hint className="mt-1 ml-6" text={t('accessQueue.tellThemHelp')} why={t('accessQueue.tellThemHelp.why')} />
           </div>
 
           {error !== null && (
@@ -241,7 +241,7 @@ const RequestCard: React.FC<{
             >
               <p className="flex items-start gap-2 text-sm font-medium text-amber-900">
                 <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-                {t('queue.alreadyOwnsHeading')}
+                {t('accessQueue.alreadyOwnsHeading')}
               </p>
               {/* The organisations by name, because "they already own one" sends
                   an operator off to go and look, and the answer is usually
@@ -251,7 +251,7 @@ const RequestCard: React.FC<{
                   <li key={org}>{org}</li>
                 ))}
               </ul>
-              <Hint className="ml-6" tone="caution" text={t('queue.alreadyOwnsHelp')} why={t('queue.alreadyOwnsHelp.why')} />
+              <Hint className="ml-6" tone="caution" text={t('accessQueue.alreadyOwnsHelp')} why={t('accessQueue.alreadyOwnsHelp.why')} />
               <div className="ml-6 flex flex-wrap gap-2 pt-1">
                 <button
                   type="button"
@@ -260,7 +260,7 @@ const RequestCard: React.FC<{
                   className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-md text-white bg-amber-700 hover:bg-amber-800 disabled:opacity-50"
                 >
                   <Check className="w-4 h-4" />
-                  {decide.isPending ? t('queue.granting') : t('queue.grantAnyway')}
+                  {decide.isPending ? t('accessQueue.granting') : t('accessQueue.grantAnyway')}
                 </button>
                 {/* No `confirm()` on the way out. The block above IS the
                     confirmation — it names what they own and what a second one
@@ -274,7 +274,7 @@ const RequestCard: React.FC<{
                   onClick={() => setAlreadyOwns(null)}
                   className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-md text-amber-900 border border-amber-300 hover:bg-amber-100 disabled:opacity-50"
                 >
-                  {t('queue.grantAnywayCancel')}
+                  {t('accessQueue.grantAnywayCancel')}
                 </button>
               </div>
             </div>
@@ -288,7 +288,7 @@ const RequestCard: React.FC<{
               className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
             >
               <Check className="w-4 h-4" />
-              {decide.isPending ? t('queue.granting') : t('queue.grant')}
+              {decide.isPending ? t('accessQueue.granting') : t('accessQueue.grant')}
             </button>
             <button
               type="button"
@@ -300,13 +300,13 @@ const RequestCard: React.FC<{
                 // to somebody is the half of this that reaches outside, so the
                 // confirmation says which of the two is about to happen rather
                 // than making the operator remember what they ticked.
-                const ask = tellThem ? 'queue.confirmDecline' : 'queue.confirmDeclineQuiet';
+                const ask = tellThem ? 'accessQueue.confirmDecline' : 'accessQueue.confirmDeclineQuiet';
                 if (globalThis.confirm(t(ask))) decide.mutate('decline');
               }}
               className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-md text-gray-700 border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
             >
               <X className="w-4 h-4" />
-              {t('queue.decline')}
+              {t('accessQueue.decline')}
             </button>
           </div>
         </div>
@@ -316,7 +316,7 @@ const RequestCard: React.FC<{
 };
 
 const AccessRequests: React.FC = () => {
-  const t = useT();
+  const t = useOperatorT();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<RequestState>('open');
   const [last, setLast] = useState<Decision | null>(null);
@@ -342,8 +342,8 @@ const AccessRequests: React.FC = () => {
       <div className="flex items-center gap-3">
         <DoorOpen className="w-6 h-6 text-gray-500" />
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">{t('queue.title')}</h1>
-          <p className="text-sm text-gray-600">{t('queue.subtitle')}</p>
+          <h1 className="text-2xl font-semibold text-gray-900">{t('accessQueue.title')}</h1>
+          <p className="text-sm text-gray-600">{t('accessQueue.subtitle')}</p>
         </div>
       </div>
 
@@ -359,7 +359,7 @@ const AccessRequests: React.FC = () => {
               tab === state ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'
             }`}
           >
-            {t(`queue.tab.${state}` as 'queue.tab.open')}
+            {t(`accessQueue.tab.${state}` as 'accessQueue.tab.open')}
           </button>
         ))}
       </div>
@@ -376,14 +376,14 @@ const AccessRequests: React.FC = () => {
               : 'text-amber-700'
           }`}
         >
-          {t(last.kind === 'granted' ? 'queue.granted' : 'queue.declined')}{' '}
+          {t(last.kind === 'granted' ? 'accessQueue.granted' : 'accessQueue.declined')}{' '}
           {t(MAIL_LINE[last.notified], { email: last.email })}
         </p>
       )}
 
       {isLoading ? null : requests.length === 0 ? (
         <p className="text-sm text-gray-600">
-          {tab === 'open' ? t('queue.empty') : t('queue.emptyDecided')}
+          {tab === 'open' ? t('accessQueue.empty') : t('accessQueue.emptyDecided')}
         </p>
       ) : (
         <ul className="space-y-3">

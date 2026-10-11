@@ -22,6 +22,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { OperatorLogEntry, OperatorLogPage } from '@openmig/shared';
 import { STRINGS } from '../i18n/strings.ts';
+import { OPERATOR_STRINGS } from '../i18n/operator-strings.ts';
 import { readSupportLog } from '../services/support.ts';
 import { readApplianceLog } from '../services/operating-service.ts';
 import { ApplianceLog } from './Support.tsx';
@@ -41,7 +42,8 @@ vi.mock('../services/operating-service.ts', async (importOriginal) => ({
   readApplianceLog: vi.fn(),
 }));
 
-const EN = STRINGS.en;
+// The operator's own words are English only (operator-strings.ts).
+const EN = { ...STRINGS.en, ...OPERATOR_STRINGS };
 const logMock = vi.mocked(readApplianceLog);
 
 const TENANT = '0e2c0000-e29b-41d4-a716-446655440001';

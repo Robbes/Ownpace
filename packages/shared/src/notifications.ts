@@ -1096,7 +1096,19 @@ export function createFailureStreakGate(threshold = 3): FailureStreakGate {
   };
 }
 
-const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string>> = {
+/**
+ * The events addressed to the platform operator, written in English only
+ * whatever `NOTIFY_LOCALE` says (ADR-0013, amended 2026-10-11: the operator's
+ * screens and mail are English; the owner, *"for me as operator English would
+ * suffice"*). Every other event is a customer's, in both languages.
+ */
+type OperatorEventKind = 'access_requested';
+type CustomerEventKind = Exclude<NotificationEvent['kind'], OperatorEventKind>;
+
+const EVENT: {
+  readonly en: Record<NotificationEvent['kind'], string>;
+  readonly nl: Record<CustomerEventKind, string>;
+} = {
   en: {
     decision_raised: 'Ownpace — a change needs your decision',
     runs_failing: 'Ownpace — a migration keeps failing',
@@ -1118,7 +1130,6 @@ const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string
     verification_finished: 'Ownpace — de controle is afgerond',
     migration_finished: 'Ownpace — de migratie is afgerond',
     rollback_finished: 'Ownpace — de migratie is teruggedraaid',
-    access_requested: 'Ownpace — iemand vraagt toegang',
     access_granted: 'Ownpace — uw toegang staat klaar',
     access_declined: 'Ownpace — over uw aanvraag',
     member_invited: 'Ownpace — u bent uitgenodigd deel te nemen',
@@ -1141,10 +1152,6 @@ interface EventLines {
   readonly rolledBack: string;
   readonly rollbackReason: string;
   readonly act: string;
-  readonly requestedIntro: string;
-  readonly requestedFrom: string;
-  readonly requestedOrganisation: string;
-  readonly requestedTier: string;
   readonly grantedOrganisation: string;
   readonly grantedIntro: string;
   readonly grantedSignIn: string;
@@ -1213,10 +1220,6 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'and syncing has resumed. If the MX mail record was changed, revert it by hand — ' +
       'this system does not change DNS.',
     rollbackReason: 'The reason given was:',
-    requestedIntro: 'Someone has asked for access. Nothing has been granted.',
-    requestedFrom: 'From:',
-    requestedOrganisation: 'Organisation:',
-    requestedTier: 'Package they guessed at:',
     grantedOrganisation: 'Organisation',
     grantedIntro:
       'Your request has been granted and your organisation is ready. One thing left to do:',
@@ -1348,10 +1351,6 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'synchronisatie loopt weer. Is het MX-record gewijzigd, zet het dan handmatig ' +
       'terug — dit systeem wijzigt geen DNS.',
     rollbackReason: 'Met als reden:',
-    requestedIntro: 'Iemand vraagt toegang.',
-    requestedFrom: 'Van:',
-    requestedOrganisation: 'Organisatie:',
-    requestedTier: 'Pakket dat zij inschatten:',
     grantedOrganisation: 'Organisatie',
     grantedIntro:
       'Uw aanvraag is toegekend en uw organisatie staat klaar. Er is nog één ding te doen:',
@@ -1433,13 +1432,29 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
   },
 };
 
+/** The knock's own lines, to the operator: English only (`OperatorEventKind`). */
+const ACCESS_REQUESTED = {
+  intro: 'Someone has asked for access. Nothing has been granted.',
+  from: 'From:',
+  organisation: 'Organisation:',
+  tier: 'Package they guessed at:',
+} as const;
+
+/** The subject, in the event's language: an operator's is English. */
+function subjectOf(event: NotificationEvent, locale: NotificationLocale): string {
+  if (locale === 'en' || event.kind === 'access_requested') return EVENT.en[event.kind];
+  return EVENT.nl[event.kind];
+}
+
 /** One immediate event, rendered. Always sends — these are not summaries. */
 export function renderEvent(
   event: NotificationEvent,
-  locale: NotificationLocale,
+  requested: NotificationLocale,
 ): NotificationMessage {
+  // An event addressed to the operator is English, whatever was asked for.
+  const locale: NotificationLocale = event.kind === 'access_requested' ? 'en' : requested;
   const b = EVENT_BODY[locale];
-  const subject = EVENT[locale][event.kind];
+  const subject = subjectOf(event, locale);
   const lines: string[] = [];
 
   switch (event.kind) {
@@ -1462,13 +1477,13 @@ export function renderEvent(
       lines.push(b.finished);
       break;
     case 'access_requested':
-      lines.push(b.requestedIntro, '');
-      lines.push(`${b.requestedFrom} ${event.email}`);
+      lines.push(ACCESS_REQUESTED.intro, '');
+      lines.push(`${ACCESS_REQUESTED.from} ${event.email}`);
       // Only what they actually filled in. An empty `Organisation:` reads like
       // a value that went missing rather than a field left blank, and the
       // operator would go looking for it.
-      if (event.organisation) lines.push(`${b.requestedOrganisation} ${event.organisation}`);
-      if (event.tier) lines.push(`${b.requestedTier} ${event.tier}`);
+      if (event.organisation) lines.push(`${ACCESS_REQUESTED.organisation} ${event.organisation}`);
+      if (event.tier) lines.push(`${ACCESS_REQUESTED.tier} ${event.tier}`);
       break;
     case 'access_granted':
       lines.push(`${b.grantedOrganisation}: ${event.organisation}`, '');

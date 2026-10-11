@@ -57,6 +57,7 @@ import Report from './pages/Report.tsx';
 import Finish from './pages/Finish.tsx';
 import Confirm from './pages/Confirm.tsx';
 import { isSelfHost } from './services/edition.ts';
+import { EnglishOnly } from './i18n/index.tsx';
 import NotFound from './pages/NotFound.tsx';
 
 /**
@@ -474,6 +475,8 @@ const AppRoutes: React.FC = () => {
             </ManagedOnly>
           }
         />
+        {/* The operator's screens below are in English whatever the app's
+            language (EnglishOnly; ADR-0013, amended 2026-10-11). */}
         {/* The access queue (workplan 0093 T7). Managed only — the appliance
             has one owner and nobody to let in — and deliberately NOT gated on
             being an operator: the nav hides it from everybody else, and a typed
@@ -485,7 +488,9 @@ const AppRoutes: React.FC = () => {
           path="access-requests"
           element={
             <ManagedOnly>
-              <AccessRequests />
+              <EnglishOnly>
+                <AccessRequests />
+              </EnglishOnly>
             </ManagedOnly>
           }
         />
@@ -500,7 +505,9 @@ const AppRoutes: React.FC = () => {
           path="support"
           element={
             <ManagedOnly>
-              <SupportTenants />
+              <EnglishOnly>
+                <SupportTenants />
+              </EnglishOnly>
             </ManagedOnly>
           }
         />
@@ -513,7 +520,9 @@ const AppRoutes: React.FC = () => {
           path="redirect-uris"
           element={
             <ManagedOnly>
-              <RedirectUris />
+              <EnglishOnly>
+                <RedirectUris />
+              </EnglishOnly>
             </ManagedOnly>
           }
         />
@@ -521,7 +530,9 @@ const AppRoutes: React.FC = () => {
           path="support/tenants/:tenantId"
           element={
             <ManagedOnly>
-              <SupportTenantDetail />
+              <EnglishOnly>
+                <SupportTenantDetail />
+              </EnglishOnly>
             </ManagedOnly>
           }
         />
@@ -529,7 +540,9 @@ const AppRoutes: React.FC = () => {
           path="support/migrations/:mappingId"
           element={
             <ManagedOnly>
-              <SupportMigrationDetail />
+              <EnglishOnly>
+                <SupportMigrationDetail />
+              </EnglishOnly>
             </ManagedOnly>
           }
         />
@@ -541,7 +554,9 @@ const AppRoutes: React.FC = () => {
           path="support/retained-invoices"
           element={
             <ManagedOnly>
-              <SupportRetainedInvoices />
+              <EnglishOnly>
+                <SupportRetainedInvoices />
+              </EnglishOnly>
             </ManagedOnly>
           }
         />
@@ -551,7 +566,9 @@ const AppRoutes: React.FC = () => {
           path="support/log"
           element={
             <ManagedOnly>
-              <SupportLog />
+              <EnglishOnly>
+                <SupportLog />
+              </EnglishOnly>
             </ManagedOnly>
           }
         />

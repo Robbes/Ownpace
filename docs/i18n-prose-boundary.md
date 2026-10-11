@@ -110,6 +110,30 @@ of* it.
    The `docs/*-setup.md` files are the operator and self-host documents, in
    English, and are not served (0148 T1).
 
+## Not translated at all: the operator's screens
+
+ADR-0013 makes what a **customer** reads bilingual. What only the platform
+operator reads is English only (amended 2026-10-11; the owner, *"for me as
+operator English would suffice; multi language is only important for end
+users"*):
+
+- **The screens:** the support screens, the access queue, the redirect URIs,
+  and their three entries in the menu. Their words are in
+  `apps/web/src/i18n/operator-strings.ts`, which has no Dutch, and
+  `strings.ts` holds none of them (`operator-strings.unit.test.tsx`). Their
+  pages say them through `useOperatorT()`.
+- **What is shared on them:** their routes render inside `EnglishOnly`, so a
+  dictionary word on such a screen (a button, the log's table, a date) is
+  English too, under `lang="en"`, and the page does not turn Dutch halfway.
+  The menu around it keeps the app's language; the three entries carry
+  `lang="en"`.
+- **The mail:** *somebody asked for access*, to `NOTIFY_TO`, is English
+  whatever `NOTIFY_LOCALE` says.
+
+Not part of it: anything a customer reads, even when an operator writes it.
+The hold's sentence is typed by the operator for the organisations and shown
+to each in its own language, and the access request page is a stranger's.
+
 ## For future prose
 
 Adding a field to the operating contract that a person will read? Decide its
@@ -124,6 +148,9 @@ class **in the contract**, at authoring time:
   which is 0071 T2's defect from the other direction.
 - Operator prose that must exist in Dutch → author both languages in
   `@openmig/shared`, adjacent, with the update-both-or-neither comment.
+- A screen or mail only the platform operator reads → English only, in
+  `operator-strings.ts` (above). "Operator" in the paragraph before means the
+  appliance's owner and the person running a migration, who are customers.
 
 Notifications do not exist yet; when they are built, their prose is
 day-one-bilingual under the same classes (workplan 0024 T3's transfer note).

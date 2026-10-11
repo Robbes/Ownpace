@@ -19,7 +19,7 @@
  */
 
 import React from 'react';
-import { useT } from '../i18n/index.tsx';
+import { useOperatorT } from '../i18n/index.tsx';
 import { readAuditExportPage } from '../services/support.ts';
 import { serverMessage } from '../services/api.ts';
 import { Hint } from './Hint.tsx';
@@ -42,7 +42,7 @@ function save(pages: readonly string[]): void {
 }
 
 export const AuditExportDownload: React.FC = () => {
-  const t = useT();
+  const t = useOperatorT();
   const [after, setAfter] = React.useState('');
   const [state, setState] = React.useState<State>({ kind: 'idle' });
 

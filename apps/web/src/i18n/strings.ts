@@ -7,6 +7,9 @@
  * set; `nl` is TYPED against it, so a missing or extra Dutch key is a
  * typecheck failure, not a runtime English leak.
  *
+ * The platform operator's screens are NOT here: they are English only, in
+ * `operator-strings.ts` (ADR-0013, amended 2026-10-11).
+ *
  * Server prose is NOT here: refusals render verbatim (rule 2/ADR-0024), and
  * shared operator prose lives in @openmig/shared next to its English source
  * (e.g. APPLY_FLAG_WARNING / APPLY_FLAG_WARNING_NL) so editions and languages
@@ -319,32 +322,6 @@ const en = {
     'Already asked? Then you will have to wait for an owner or operator to grant access.',
   'login.noOrganisation.already.why':
     'Asking again doesn\'t help: a second request while the first is open is not recorded twice.',
-  // ---- The access QUEUE, which an operator reads (workplan 0093 T7). The
-  // `access.*` keys further down are the PUBLIC page somebody asks on (T3);
-  // these are the screen where somebody answers, hence a separate prefix.
-  'nav.accessRequests': 'Access requests',
-  'nav.support': 'Support',
-  'nav.redirectUris': 'Redirect URIs',
-  // ---- Every address this deployment needs registered elsewhere
-  // (2026-09-01). The owner registered the right Google callback, got
-  // `redirect_uri_mismatch` because API_URL disagreed with it, and asked for
-  // the surface: four consoles, near-identical strings, and each wrong one
-  // fails with the same unhelpful sentence from a different vendor.
-  'redirects.title': 'Redirect URIs',
-  'redirects.intro':
-    'The addresses other services send a browser back to; register each exactly as shown.',
-  'redirects.intro.more':
-    'They are built from this deployment’s settings, so what is here is what will actually be requested; each one has to be registered in that service’s own console.',
-  'redirects.loading': 'Reading this deployment’s settings…',
-  'redirects.failed': 'Could not read them; the API builds the list, so check that it is up.',
-  'redirects.group.migration': 'Migration sources — in the provider’s own OAuth client',
-  'redirects.group.signIn': 'Signing in — in your identity provider',
-  'redirects.group.socialSignIn': 'Social sign-in — in each upstream provider',
-  'redirects.none': 'No redirect URI to register.',
-  'redirects.unconfigured':
-    'This deployment has not been told its own address, so nothing shows yet.',
-  'redirects.unconfigured.why':
-    'Set it first: registering a guess produces a mismatch later, at the provider’s screen.',
   // ---- Answering an invitation (workplan 0099). ----
   'invite.title': 'You have been invited',
   'invite.subtitle': 'Join if you want to migrate.',
@@ -395,53 +372,6 @@ const en = {
   // yet (409 conditions_not_accepted). Read after accepting as well as before.
   'acceptance.refused':
     'Nothing was stored: the conditions, privacy policy and terms had not been accepted yet. Try again after you accepted them.',
-  'queue.title': 'Access requests',
-  'queue.subtitle': 'People who asked to be let in.',
-  'queue.empty': 'Nobody is waiting.',
-  'queue.emptyDecided': 'Nothing has been decided yet.',
-  'queue.tab.open': 'Waiting',
-  'queue.tab.granted': 'Granted',
-  'queue.tab.declined': 'Declined',
-  'queue.asked': 'Asked',
-  'queue.orgLabel': 'Organisation name',
-  'queue.orgHelp': 'What this organisation will be called.',
-  'queue.noteLabel': 'Note (for you, not for them)',
-  'queue.grant': 'Grant access',
-  'queue.decline': 'Decline',
-  'queue.granting': 'Creating the organisation…',
-  'queue.granted': 'Granted. They become the owner the first time they sign in.',
-  'queue.declined': 'Declined. The request stays on the record.',
-  'queue.decidedBy': 'Decided by',
-  'queue.confirmDecline': 'Decline this request and email them?',
-  'queue.confirmDeclineQuiet':
-    'Decline this request without emailing them?',
-  // The default is ON: staying silent should be something somebody chose, not
-  // something they forgot. The help text says what the email does NOT contain,
-  // because the field right above it is labelled "not for them" and an operator
-  // deserves to know that promise survives the send.
-  'queue.tellThem': 'Email them if you decline',
-  'queue.tellThemHelp':
-    'A short refusal in their language, without reason or your note; untick for junk.',
-  'queue.tellThemHelp.why':
-    'This form is public, so anyone can register made-up addresses. Granting always emails them, and only someone who signs in with that verified address gets in.',
-  // THE OVERRIDE (owner decision 2026-08-31). Granting a person who already
-  // owns an organisation creates a SECOND one with them as owner of both, and
-  // `/api/me` then has two tenants for somebody who asked once and pressed
-  // twice. The server refuses and names what they already own; this is the
-  // operator saying they meant it. Not a checkbox beside the button — a
-  // deliberate second press, after seeing the list.
-  'queue.alreadyOwnsHeading': 'This address already owns an organisation',
-  'queue.alreadyOwnsHelp':
-    'Granting again creates another organisation with them as owner of both; usually a double press.',
-  'queue.alreadyOwnsHelp.why':
-    'The app then has to ask them which they meant every time they sign in. If it is genuinely a second organisation, say so below.',
-  'queue.grantAnyway': 'Create a second organisation',
-  'queue.grantAnywayCancel': 'Leave it as it is',
-  'queue.mailSent': 'We emailed {email}.',
-  'queue.mailOff': 'Nobody was emailed — this deployment sends no mail. Tell {email} yourself.',
-  'queue.mailFailed':
-    'The email to {email} could not be sent; tell them yourself, check the mail settings.',
-  'queue.mailSkipped': 'Nobody was emailed, as you asked.',
   'wizard.proto.imap.hint': 'Standard email protocol',
   // The consent you can click (0089 T1): the button that replaces the OAuth
   // Playground walk. The full evidence stays in the API's refusals; these
@@ -2046,210 +1976,10 @@ const en = {
   'failure.reference': 'Reference: {reference}',
   'failure.side.source': 'It happened on the source side.',
   'failure.side.target': 'It happened on the destination side.',
-  // ---------------------------------------------------------------------
-  // The operator's support surface (workplan 0110 T4)
-  //
-  // Addressed to the OPERATOR, not to a customer. `support.recorded` is the
-  // one that matters: the owner chose standing, disclosed support access over
-  // a consent switch, so the log is what a customer can point at — and a
-  // record nobody is told about is surveillance with paperwork. The
-  // customer-facing half of this disclosure is 0110 T6.
-  // ---------------------------------------------------------------------
-  'support.heading': 'Support',
-  'support.recorded':
-    'Every screen you open here is logged against your name, and customers can view that.',
-  'support.recorded.why':
-    'The support read log records the organisation and time with each screen, and customers can view that record.',
-  'support.metadataOnly':
-    'Names, states, counts and timings only; no message, event, contact or file is shown here.',
-  'support.metadataOnly.why':
-    'None can be: the database serves this surface a fixed list of columns.',
-  'support.noOrganisations': 'No organisations to show.',
-  'support.notFound': 'Nothing here to show.',
-  'support.back': 'All organisations',
-  'support.backToOrganisation': 'Back to the organisation',
-  'support.joinedOn': 'Joined',
-  // Who may act on the organisation, and the way through to their account at
-  // the identity provider (migration 0018). "People" rather than "Members":
-  // the row can be somebody who was removed, and the screen says so.
-  // Finding a person across every organisation (owner request 2026-08-31). The
-  // question an operator starts from is "somebody contacted me, who are they" —
-  // the organisation list answers a question nobody's support day begins with.
-  'support.findPerson': 'Find a person',
-  'support.find': 'Find',
-  'support.findPersonHint': 'Part of an email address',
-  'support.findPersonRecorded':
-    'A search reads every organisation; the query and hit count are logged to your name.',
-  'support.noPeopleFound': 'Nobody matches that.',
-  'support.findPersonCapped':
-    'Showing the first matches only — narrow the search rather than scrolling.',
-  'support.people': 'People',
-  'support.noPeople': 'Nobody belongs to this organisation.',
-  'support.col.email': 'Email',
-  // The title on the link out. It names what happens — a different application
-  // opens — because an operator clicking an address expects to mail it.
-  // WHY there is no link, for the half of the cases that has a reason. The
-  // other half — no console configured — is a deployment setting and says
-  // nothing here, because there is nothing about the PERSON to say.
-  'support.notArrivedYet':
-    'Has not signed in yet; this becomes a link once the invitation is taken up.',
-  // And the other reason a person has no account to open: there is no person.
-  // Demo fixtures are written straight into the database, so the provider has
-  // never heard of them and never will — which is a different sentence from
-  // "not yet", and reading the wrong one sends somebody looking for an account
-  // that was never going to exist.
-  'support.seededDemoAccount':
-    'A demo fixture from the seed; no identity-provider account exists to open, nor will one.',
-  'support.openAtProvider': 'Open this account at the identity provider',
-  'support.connections': 'Connections',
-  'support.migrations': 'Migrations',
-  'support.invoices': 'Invoices',
-  'support.domains': 'Per domain',
-  'support.noConnections': 'No connections.',
-  'support.noMigrations': 'No migrations.',
-  'support.noInvoices': 'No invoices.',
-  // The platform status the customer sees (workplan 0110 T5): readiness and
-  // the status page's endpoints. The group names are the page's own.
-  // The drain (managed migration 0023): the one thing on these screens that
-  // writes, and the only pause a customer can neither derive nor wait out.
-  'support.hold': 'Hold new passes',
-  // Since 0132 T6 (b) the message is also every refused button's answer, and
-  // a refused press is not remembered, so the fold says what it should say.
-  'support.hold.hint': 'Stops new passes, buttons included; the ones already running finish.',
-  'support.hold.hint.why':
-    'This is the drain: the sync tick stops enqueueing within a minute, and whatever is mid-pass finishes normally. Every signed-in customer sees a notice with your message on it, or a default sentence when left empty. Your message is also shown to every button-press that would start work while the hold is on (\'Trigger sync\', \'Start migration\', a check), and a refused press is not remembered. So say when copying resumes and ask them to try again after that, for example: \'We are updating the platform and copying resumes around 15:00. Nothing starts until then. Please try again after that.\' Lifting the hold starts the scheduled passes again on the next tick.',
-  'support.hold.on': 'Held since {since}. No new passes are starting.',
-  'support.hold.off': 'Not held. New passes start on the usual schedule.',
-  'support.hold.start': 'Hold new passes',
-  'support.hold.end': 'Lift the hold',
-  'support.hold.message': 'What customers will read',
-  'support.hold.message.placeholder': 'Back in about an hour.',
-  'support.platform': 'Platform, as the customer sees it',
-  'support.platform.database': 'Database',
-  'support.platform.signIn': 'Sign-in',
-  'support.platform.state.up': 'up',
-  'support.platform.state.down': 'down',
-  'support.platform.state.off': 'off',
-  'support.platform.state.unchecked': 'not checked yet',
-  'support.platform.page.off': 'This deployment has no status page.',
-  'support.platform.page.unreachable': 'The status page did not answer.',
-  'support.platform.unread': 'The platform status could not be read.',
-  'support.platform.checked': 'Checked {when}.',
-  'support.noDomains': 'Nothing has run yet.',
-  'support.waiting.none': 'Nothing is waiting on them.',
-  'support.waiting.some':
-    'Decisions are waiting on this customer; their own screen says which, here you see only counts.',
-  'support.noFourthLevel': 'There is no screen with more detail.',
-  'support.col.organisation': 'Organisation',
-  'support.col.status': 'Status',
-  'support.col.joined': 'Joined',
-  'support.col.migrations': 'Migrations',
-  'support.col.failing': 'Failing',
-  'support.col.waiting': 'Waiting on them',
-  'support.col.name': 'Name',
-  'support.col.role': 'Role',
-  'support.col.kind': 'Kind',
-  'support.col.lifecycle': 'Lifecycle',
-  'support.col.mode': 'Mode',
-  'support.col.updated': 'Updated',
-  'support.col.period': 'Period',
-  'support.col.total': 'Total',
-  'support.col.domain': 'Domain',
-  'support.col.state': 'State',
-  'support.col.whatToDo': 'What to do',
-  // The tier evidence (0109 T4 surfaced). "Package" and not "tier": the same
-  // customer-facing word `access.tier` uses — the operator reads what the
-  // customer would recognise.
-  'support.usage': 'Usage and package this month',
-  'support.usage.beyondTable': 'Beyond the tiers — a talk-to-us size.',
-  'support.usage.perMonth': 'per month',
-  'support.usage.free': 'free',
-  'support.usage.decidedBy.paths':
-    'Decided by the paths axis — how many run at the same time.',
-  'support.usage.decidedBy.data':
-    'Decided by the data axis — what has moved sets the floor.',
-  'support.usage.decidedBy.both': 'Both axes land on the same package.',
-  'support.usage.peak': 'Recorded peak this month',
-  'support.usage.noPeak': 'nothing recorded yet',
-  'support.usage.now': 'Holding a slot right now',
-  // As the tier counts it: the alpha's data does not (managed 0040).
-  'support.usage.data': 'Data moved (first copies, without the Alpha)',
-  'support.usage.note': 'The higher axis decides; a future invoice uses this same derivation.',
-  'support.usage.why':
-    'Paths running at the same time, or data moved since the start: first copies only, and a paused path keeps its slot.',
-  // What an erasure kept, and could not be read until there was a screen.
-  'support.retained.link': 'Invoices kept after an erasure',
-  'support.retained.heading': 'Invoices kept after an erasure',
-  'support.retained.why':
-    'When an organisation is erased, our copy of each invoice the books hold is deleted ' +
-    'and its number kept: the books keep the invoice as long as tax law asks, so look it ' +
-    'up there by its number. An issued invoice the books do not hold is the only record ' +
-    'of itself, so it is kept here, detached from the organisation. The reference is a ' +
-    'one-way hash of the erased id, shown so that what comes from the same erasure can ' +
-    'be seen to belong together; it does not lead back to anyone.',
-  'support.retained.numbers.heading': 'Invoice numbers, held in the books',
-  'support.retained.numbers.none': 'No invoice numbers have been kept: no erasure has deleted an invoice yet.',
-  'support.retained.col.numbers': 'Invoice numbers',
-  'support.retained.kept.heading': 'Invoices the books do not hold',
-  'support.retained.none': 'No invoices are kept here.',
-  'support.retained.noName': 'not recorded',
-  'support.retained.notPurged': 'not yet erased',
-  'support.retained.col.billedTo': 'Billed to',
-  'support.retained.col.erased': 'Erased',
-  'support.retained.col.erasure': 'Erasure',
-  // The log page (workplan 0129 T2): the audit log and the application's
-  // errors and warnings, one timeline. Metadata only, as the view serves it.
-  'support.log.link': 'The log: audit events, errors and warnings',
-  'support.log.heading': 'Log',
-  'support.log.lead': 'The audit log and the application’s errors and warnings, newest first. Metadata only.',
-  'support.log.lead.why':
-    'What an audit event changed is not shown here: it stays in the database, for an investigation to query. The text of an error stays in the server’s output, on the line with the same reference. Every page of this log you open is recorded, with its filters.',
   // The appliance's own log page (0129 D5): the same page, for its owner, and
   // nothing recorded about reading it.
   'log.lead.why':
     'What an audit event changed is not shown here: it stays in the database, for an investigation to query. The text of an error stays in the appliance\u2019s output, on the line with the same reference.',
-  'support.log.level': 'Level',
-  'support.log.level.any': 'Any',
-  'support.log.level.error': 'Error',
-  'support.log.level.warn': 'Warning',
-  'support.log.level.info': 'Audit',
-  'support.log.event': 'Event starts with',
-  'support.log.category': 'Error category',
-  'support.log.category.any': 'Any',
-  'support.log.reference': 'Reference',
-  'support.log.from': 'From (UTC)',
-  'support.log.to': 'To (UTC)',
-  'support.log.search': 'Search',
-  'support.log.organisation': 'Organisation: {name}',
-  'support.log.migration': 'Migration: {name}',
-  'support.log.remove': 'Remove this filter',
-  'support.log.none': 'Nothing in the log matches.',
-  'support.log.older': 'Older',
-  'support.log.newest': 'Back to the newest',
-  'support.log.byTheService': 'the service',
-  'support.log.col.time': 'Time',
-  'support.log.col.level': 'Level',
-  'support.log.col.organisation': 'Organisation',
-  'support.log.col.migration': 'Migration',
-  'support.log.col.event': 'Event',
-  'support.log.col.category': 'Category',
-  'support.log.col.reference': 'Reference',
-  'support.log.col.actor': 'Who',
-  'support.log.forOrganisation': 'This organisation’s log',
-  'support.log.forMigration': 'This migration’s log',
-  // The audit export's download (0129 T4, managed; the owner, 2026-09-24: "an
-  // operator-only route using your own session").
-  'support.export.heading': 'Audit export',
-  'support.export.lead': 'Every audit event as a JSON line, oldest first, for your log store.',
-  'support.export.lead.why':
-    'The same lines the API prints as each event is recorded, read back from the audit log: an address or a file name is its pseudonym. Leave the field empty to start at the first event, or give the cursor from the last download to carry on from there. Events from the last five minutes come with the next download. Every page fetched is recorded as one read of every customer.',
-  'support.export.after': 'Start after (optional)',
-  'support.export.download': 'Download',
-  'support.export.busy': 'Downloading… lines so far: {count}',
-  'support.export.done': 'Lines downloaded: {count}. The field now holds where the next download starts.',
-  'support.export.nothing': 'Nothing new after that point. An event comes once it is five minutes old.',
-  'support.export.stopped': 'The download stopped: {message}',
-  'support.export.kept': 'Lines saved: {count}. The field holds where to carry on.',
   'confirm.progress.heading': 'Live progress',
   // OF ABOUT HOW MANY (0154 T2): what arrived, set against what discovery
   // found. *About* is literal: discovery is a snapshot, and the source keeps
@@ -3310,177 +3040,8 @@ const nl: Record<keyof typeof en, string> = {
   'failure.reference': 'Referentie: {reference}',
   'failure.side.source': 'Trad op aan de bronkant.',
   'failure.side.target': 'Trad op aan de doelkant.',
-  // De supportschermen van de beheerder (werkplan 0110 T4). Gericht aan de
-  // BEHEERDER, niet aan een klant.
-  'support.heading': 'Support',
-  'support.recorded':
-    'Elk scherm dat u hier opent wordt op uw naam vastgelegd; klanten kunnen dat zien.',
-  'support.recorded.why':
-    'Het supportleeslogboek legt bij elk scherm de organisatie en het tijdstip vast, en klanten kunnen dat logboek inzien.',
-  'support.metadataOnly':
-    'Alleen namen, statussen, aantallen en tijden; hier wordt geen inhoud getoond.',
-  'support.metadataOnly.why':
-    'Dat kan ook niet: de database levert dit scherm een beperkt aantal vaste kolommen.',
-  'support.noOrganisations': 'Geen organisaties om te tonen.',
-  'support.notFound': 'Hier is niets te tonen.',
-  'support.back': 'Alle organisaties',
-  'support.backToOrganisation': 'Terug naar de organisatie',
-  'support.joinedOn': 'Klant sinds',
-  'support.findPerson': 'Iemand zoeken',
-  'support.find': 'Zoeken',
-  'support.findPersonHint': 'Deel van een e-mailadres',
-  'support.findPersonRecorded':
-    'Een zoekopdracht leest alle organisaties; zoekterm en aantal treffers worden op uw naam vastgelegd.',
-  'support.noPeopleFound': 'Niemand komt overeen.',
-  'support.findPersonCapped':
-    'Alleen de eerste resultaten — verfijn de zoekopdracht in plaats van te scrollen.',
-  'support.people': 'Mensen',
-  'support.noPeople': 'Niemand hoort bij deze organisatie.',
-  'support.col.email': 'E-mailadres',
-  'support.notArrivedYet':
-    'Nog niet eerder aangemeld; dit wordt een link zodra de uitnodiging is aangenomen.',
-  'support.seededDemoAccount':
-    'Een demovoorbeeld uit het seed-script; er is geen identiteitsprovider-account, en dat komt er niet.',
-  'support.openAtProvider': 'Dit account openen bij de identiteitsprovider',
-  'support.connections': 'Verbindingen',
-  'support.migrations': 'Migraties',
-  'support.invoices': 'Facturen',
-  'support.domains': 'Per soort',
-  'support.noConnections': 'Geen verbindingen.',
-  'support.noMigrations': 'Geen migraties.',
-  'support.noInvoices': 'Geen facturen.',
-  'support.hold': 'Nieuwe migratierondes pauzeren',
-  'support.hold.hint': 'Stopt nieuwe rondes, ook via een knop; wat al liep wordt afgerond.',
-  'support.hold.hint.why':
-    'Dit is de drain: de synchronisatietick stopt binnen een minuut met inplannen, en wat liep wordt normaal afgerond. Elke ingelogde klant ziet een melding met uw tekst, of een standaardzin bij leeg laten van het veld. Uw tekst wordt ook weergegeven bij elke knop die werk zou starten waarop een klant klikt terwijl de pauze aanstaat (\'Synchroniseer nu\', \'Start migratie\', een controle). Wat zo wordt geweigerd, wordt niet opgeslagen. Beschrijf dus wanneer de migraties hervatten en vraag de klant daarna opnieuw te proberen. Bijvoorbeeld: \'We werken het platform bij en migreren rond 15:00 weer verder. Tot die tijd start er niets. Probeer het daarna opnieuw.\' Zodra u de pauze opheft, starten uw migraties weer.',
-  'support.hold.on': 'Gepauzeerd sinds {since}. Er starten geen nieuwe migratierondes.',
-  'support.hold.off': 'Niet gepauzeerd. Nieuwe migratierondes starten volgens schema.',
-  'support.hold.start': 'Nieuwe migratierondes pauzeren',
-  'support.hold.end': 'Pauze opheffen',
-  'support.hold.message': 'Wat klanten te lezen krijgen',
-  'support.hold.message.placeholder': 'Over ongeveer een uur weer terug.',
-  'support.platform': 'Platform, zoals de klant het ziet',
-  'support.platform.database': 'Database',
-  'support.platform.signIn': 'Inloggen',
-  'support.platform.state.up': 'in orde',
-  'support.platform.state.down': 'uitgevallen',
-  'support.platform.state.off': 'uit',
-  'support.platform.state.unchecked': 'nog niet gecontroleerd',
-  'support.platform.page.off': 'Deze installatie heeft geen statuspagina.',
-  'support.platform.page.unreachable':
-    'De statuspagina antwoordde niet...',
-  'support.platform.unread': 'De platformstatus kon niet worden gelezen.',
-  'support.platform.checked': 'Gecontroleerd {when}.',
-  'support.noDomains': 'Er is nog niets gedraaid.',
-  'support.waiting.none': 'Er wacht niets.',
-  'support.waiting.some':
-    'Er wachten beslissingen op deze klant; hun eigen scherm zegt welke.',
-  'support.noFourthLevel':
-    'Er is geen scherm met dieper inzicht.',
-  'support.col.organisation': 'Organisatie',
-  'support.col.status': 'Status',
-  'support.col.joined': 'Klant sinds',
-  'support.col.migrations': 'Migraties',
-  'support.col.failing': 'Mislukt',
-  'support.col.waiting': 'Wacht op hen',
-  'support.col.name': 'Naam',
-  'support.col.role': 'Rol',
-  'support.col.kind': 'Soort',
-  'support.col.lifecycle': 'Fase',
-  'support.col.mode': 'Modus',
-  'support.col.updated': 'Bijgewerkt',
-  'support.col.period': 'Periode',
-  'support.col.total': 'Totaal',
-  'support.col.domain': 'Soort',
-  'support.col.state': 'Status',
-  'support.col.whatToDo': 'Wat te doen',
-  // Het staffelbewijs (0109 T4 zichtbaar gemaakt). "Pakket", hetzelfde woord
-  // dat `access.tier` richting de klant gebruikt.
-  'support.usage': 'Gebruik en pakket deze maand',
-  'support.usage.beyondTable': 'Voorbij de pakketten — neem contact op.',
-  'support.usage.perMonth': 'per maand',
-  'support.usage.free': 'gratis',
-  'support.usage.decidedBy.paths':
-    'Bepaald door het aantal gelijktijdige migraties — hoeveel er tegelijk lopen.',
-  'support.usage.decidedBy.data':
-    'Bepaald door de hoeveelheid data — wat verplaatst is, zet de ondergrens.',
-  'support.usage.decidedBy.both': 'Beide assen komen op hetzelfde pakket uit.',
-  'support.usage.peak': 'Vastgelegde piek deze maand',
-  'support.usage.noPeak': 'nog niets vastgelegd',
-  'support.usage.now': 'Houdt nu een plek vast',
-  'support.usage.data': 'Verplaatste data (eerste kopieën, zonder de Alpha)',
-  'support.usage.note':
-    'De hoogste bepaalt; een toekomstige factuur gebruikt dezelfde afleiding.',
-  'support.usage.why':
-    'Migraties die gelijktijdig lopen, of data die sinds het begin is verplaatst: alleen eerste kopieën, en een gepauzeerd pad houdt zijn plek.',
-  // Wat na een wissing bewaard is gebleven.
-  'support.retained.link': 'Facturen bewaard na een wissing',
-  'support.retained.heading': 'Facturen bewaard na een wissing',
-  'support.retained.why':
-    'Wanneer een organisatie wordt gewist, verwijderen we onze kopie van elke factuur die de ' +
-    'boekhouding bewaart, en bewaren we het nummer: de boekhouding bewaart de factuur zo lang ' +
-    'de belastingwet dat vraagt, dus zoek hem daar op aan de hand van het nummer. Een uitgereikte ' +
-    'factuur die de boekhouding niet bewaart, is het enige exemplaar, en blijft daarom hier ' +
-    'bewaard, losgekoppeld van de organisatie. De referentie is een eenrichtings-hash van het ' +
-    'gewiste id, getoond zodat wat uit dezelfde opschoning komt bij elkaar te zien is, zonder ' +
-    'terug te leiden naar iemand.',
-  'support.retained.numbers.heading': 'Factuurnummers, bewaard in de boekhouding',
-  'support.retained.numbers.none': 'Er zijn geen factuurnummers bewaard: er is nog geen factuur gewist.',
-  'support.retained.col.numbers': 'Factuurnummers',
-  'support.retained.kept.heading': 'Facturen die de boekhouding niet bewaart',
-  'support.retained.none': 'Er worden hier geen facturen bewaard.',
-  'support.retained.noName': 'niet vastgelegd',
-  'support.retained.notPurged': 'nog niet gewist',
-  'support.retained.col.billedTo': 'Gefactureerd aan',
-  'support.retained.col.erased': 'Opgeschoond',
-  'support.retained.col.erasure': 'Opschoning',
-  'support.log.link': 'Het logboek: auditgebeurtenissen, fouten en waarschuwingen',
-  'support.log.heading': 'Logboek',
-  'support.log.lead': 'Het auditlog en de fouten en waarschuwingen van de applicatie, nieuwste eerst. Alleen metadata.',
-  'support.log.lead.why':
-    'Wat een auditgebeurtenis veranderde staat hier niet: dat blijft in de database, opvraagbaar. De tekst van een fout blijft in de uitvoer van de server, op de regel met dezelfde referentie. Iedere handeling in dit scherm wordt vastgelegd, inclusief zoekfilters.',
   'log.lead.why':
     'Wat een auditgebeurtenis veranderde staat hier niet: dat blijft in de database, opvraagbaar. De tekst van een fout blijft in de uitvoer van de appliance, op de regel met dezelfde referentie.',
-  'support.log.level': 'Niveau',
-  'support.log.level.any': 'Alle',
-  'support.log.level.error': 'Fout',
-  'support.log.level.warn': 'Waarschuwing',
-  'support.log.level.info': 'Audit',
-  'support.log.event': 'Gebeurtenis begint met',
-  'support.log.category': 'Foutcategorie',
-  'support.log.category.any': 'Alle',
-  'support.log.reference': 'Referentie',
-  'support.log.from': 'Vanaf (UTC)',
-  'support.log.to': 'Tot en met (UTC)',
-  'support.log.search': 'Zoeken',
-  'support.log.organisation': 'Organisatie: {name}',
-  'support.log.migration': 'Migratie: {name}',
-  'support.log.remove': 'Filter weghalen',
-  'support.log.none': 'Niets in het logboek komt overeen.',
-  'support.log.older': 'Ouder',
-  'support.log.newest': 'Terug naar nieuwste',
-  'support.log.byTheService': 'de dienst',
-  'support.log.col.time': 'Tijd',
-  'support.log.col.level': 'Niveau',
-  'support.log.col.organisation': 'Organisatie',
-  'support.log.col.migration': 'Migratie',
-  'support.log.col.event': 'Gebeurtenis',
-  'support.log.col.category': 'Categorie',
-  'support.log.col.reference': 'Referentie',
-  'support.log.col.actor': 'Wie',
-  'support.log.forOrganisation': 'Het logboek van deze organisatie',
-  'support.log.forMigration': 'Het logboek van deze migratie',
-  'support.export.heading': 'Auditexport',
-  'support.export.lead': 'Elke auditgebeurtenis als JSON-regel, oudste eerst, voor je eigen logopslag.',
-  'support.export.lead.why':
-    'Dezelfde regels die de API geeft wanneer een gebeurtenis wordt vastgelegd, teruggelezen uit het auditlog: een adres of een bestandsnaam staat erin als pseudoniem. Laat het veld leeg om bij de eerste gebeurtenis te beginnen, of vul de cursor van de vorige download in om daar verder te gaan. Gebeurtenissen van de laatste vijf minuten komen mee met de volgende download. Elke opgehaalde pagina wordt vastgelegd als één inzage van alle klanten.',
-  'support.export.after': 'Beginnen na (optioneel)',
-  'support.export.download': 'Downloaden',
-  'support.export.busy': 'Bezig met downloaden… regels tot nu toe: {count}',
-  'support.export.done': 'Regels gedownload: {count}. In het veld staat nu waar de volgende download begint.',
-  'support.export.nothing': 'Niets nieuws na dat punt. Een gebeurtenis komt mee zodra die vijf minuten oud is.',
-  'support.export.stopped': 'De download is gestopt: {message}',
-  'support.export.kept': 'Regels bewaard: {count}. In het veld staat waar je verder kunt gaan.',
   'confirm.progress.lastSynced': 'laatst gesynchroniseerd',
   'verify.checkedAt': 'Geverifieerd',
   'queue.itemId': 'ID',
@@ -3595,27 +3156,6 @@ const nl: Record<keyof typeof en, string> = {
     'Al aangevraagd? Dan wacht u tot een eigenaar of wie deze dienst beheert u toegang geeft.',
   'login.noOrganisation.already.why':
     'Nogmaals aanvragen kan geen kwaad: een tweede aanvraag terwijl de eerste openstaat wordt echter niet dubbel vastgelegd.',
-  // ---- The access QUEUE (workplan 0093 T7) — see the English block. ----
-  'nav.accessRequests': 'Toegangsverzoeken',
-  'nav.support': 'Support',
-  'nav.redirectUris': 'Omleidings-URI\u2019s',
-  // ---- Zie het Engelse blok. ----
-  'redirects.title': 'Omleidings-URI\u2019s',
-  'redirects.intro':
-    'De adressen waarnaar andere diensten een browser terugsturen; registreer elk adres exact zoals getoond.',
-  'redirects.intro.more':
-    'Ze worden opgebouwd uit de instellingen van deze omgeving, dus wat hier staat is wat er daadwerkelijk wordt gevraagd; elk adres moet in de console van die dienst worden geregistreerd.',
-  'redirects.loading': 'Instellingen van deze omgeving lezen\u2026',
-  'redirects.failed':
-    'Kon niet lezen. De lijst wordt door de API opgebouwd; controleer of deze draait.',
-  'redirects.group.migration': 'Migratiebronnen \u2014 in de eigen OAuth-client van de aanbieder',
-  'redirects.group.signIn': 'Aanmelden \u2014 in uw identiteitsprovider',
-  'redirects.group.socialSignIn': 'Sociaal aanmelden \u2014 bij elke bovenliggende aanbieder',
-  'redirects.none': 'Geen omleidings-URI te registreren.',
-  'redirects.unconfigured':
-    'Deze omgeving kent haar eigen adres nog niet, dus hier valt nog niets te tonen.',
-  'redirects.unconfigured.why':
-    'Stel dat eerst in: een gok registreren levert later een mismatch op...',
   // ---- Een uitnodiging beantwoorden (workplan 0099) — zie het Engelse blok. ----
   'invite.title': 'U bent uitgenodigd',
   'invite.subtitle': 'Wilt u migreren?',
@@ -3659,44 +3199,6 @@ const nl: Record<keyof typeof en, string> = {
     'Dit account heeft geen toegang tot deze organisatie. Log uit en log in met het account waarmee u bent uitgenodigd.',
   'acceptance.refused':
     'Er is niets opgeslagen: de voorwaarden waren nog niet aanvaard. Probeer het opnieuw zodra u ze hebt aanvaard.',
-  'queue.title': 'Toegangsverzoeken',
-  'queue.subtitle': 'Mensen die toegang wensen.',
-  'queue.empty': 'Er wacht niemand.',
-  'queue.emptyDecided': 'Nog niets besloten.',
-  'queue.tab.open': 'Wachtend',
-  'queue.tab.granted': 'Toegelaten',
-  'queue.tab.declined': 'Afgewezen',
-  'queue.asked': 'Gevraagd',
-  'queue.orgLabel': 'Naam van de organisatie',
-  'queue.orgHelp': 'Hoe deze organisatie gaat heten.',
-  'queue.noteLabel': 'Notitie (intern)',
-  'queue.grant': 'Toegang geven',
-  'queue.decline': 'Afwijzen',
-  'queue.granting': 'Organisatie wordt aangemaakt…',
-  'queue.granted': 'Toegekend. Zij worden eigenaar zodra zij zich voor het eerst aanmelden.',
-  'queue.declined': 'Afgewezen. Het verzoek blijft vastgelegd.',
-  'queue.decidedBy': 'Besloten door',
-  'queue.confirmDecline': 'Dit verzoek afwijzen en mailen?',
-  'queue.confirmDeclineQuiet':
-    'Dit verzoek afwijzen zonder hen te mailen?',
-  'queue.tellThem': 'Mail hen als u afwijst',
-  'queue.tellThemHelp':
-    'Een korte afwijzing in eigen taal, zonder reden of uw notitie; uitvinken bij spam.',
-  'queue.tellThemHelp.why':
-    'Dit formulier is openbaar, dus men kan ook e-mailadressen verzinnen. Bij toekennen mailen wij altijd en dient men een e-mailadres te valideren.',
-  'queue.alreadyOwnsHeading': 'Dit adres is al eigenaar van een organisatie',
-  'queue.alreadyOwnsHelp':
-    'Nogmaals toekennen maakt nóg een organisatie, met hen als eigenaar van beide; is dat de bedoeling?',
-  'queue.alreadyOwnsHelp.why':
-    'Diegene moet bij iedere aanmelding kiezen namens welke organisatie men wil inloggen. Gaat het echt om een tweede organisatie, geef dat dan hieronder aan.',
-  'queue.grantAnyway': 'Tweede organisatie aanmaken',
-  'queue.grantAnywayCancel': 'Laat het zoals het is',
-  'queue.mailSent': 'Wij hebben {email} gemaild.',
-  'queue.mailOff':
-    'Er is niemand gemaild — deze deployment verstuurt geen e-mail. Laat het {email} zelf weten.',
-  'queue.mailFailed':
-    'De e-mail aan {email} is niet verstuurd; laat het hen zelf weten, controleer de e-mailinstellingen.',
-  'queue.mailSkipped': 'Er is niemand gemaild.',
   'wizard.proto.imap.hint': 'Standaard e-mailprotocol',
   'wizard.google.connect': 'Verbinden met Google',
   'connections.googleFaces': 'Wat dit account gaat leveren',

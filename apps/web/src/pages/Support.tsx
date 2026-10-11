@@ -77,7 +77,7 @@ import {
 import { readApplianceLog } from '../services/operating-service.ts';
 import { idpConsoleUserUrl, localSubjectKind } from '../services/idp-console.ts';
 import { serverMessage } from '../services/api.ts';
-import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
+import { useOperatorT, useFormatters, type OperatorScreenKey } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
 import { AuditExportDownload } from '../components/AuditExportDownload.tsx';
 import { FAILURE_KEY, FAILURE_SIDE_KEY } from '../i18n/failure-key.ts';
@@ -98,7 +98,7 @@ const ONCE = {
 
 /** The line every one of these screens carries, first. */
 const Disclosure: React.FC = () => {
-  const t = useT();
+  const t = useOperatorT();
   return (
     <Hint
       className="mb-4 rounded-md bg-amber-50 px-3 py-2"
@@ -158,7 +158,7 @@ const Section: React.FC<{ title: string; empty: string; rows: number; children: 
  * they are what the customer sees, and translating them here would make the
  * two screens disagree.
  */
-const PLATFORM_STATE_KEY: Readonly<Record<'up' | 'down' | 'off' | 'unchecked', StringKey>> = {
+const PLATFORM_STATE_KEY: Readonly<Record<'up' | 'down' | 'off' | 'unchecked', OperatorScreenKey>> = {
   up: 'support.platform.state.up',
   down: 'support.platform.state.down',
   off: 'support.platform.state.off',
@@ -168,7 +168,7 @@ const PLATFORM_STATE_KEY: Readonly<Record<'up' | 'down' | 'off' | 'unchecked', S
 type PageEndpoint = Extract<PlatformStatus['statusPage'], { state: 'up' }>['endpoints'][number];
 
 const Platform: React.FC = () => {
-  const t = useT();
+  const t = useOperatorT();
   const { relativeToNow } = useFormatters();
   const query = useQuery({
     queryKey: ['support', 'platform'],
@@ -269,7 +269,7 @@ const Platform: React.FC = () => {
  * somebody calls the route directly.
  */
 const FindAPerson: React.FC = () => {
-  const t = useT();
+  const t = useOperatorT();
   const [term, setTerm] = React.useState('');
   const [asked, setAsked] = React.useState<string | null>(null);
 
@@ -396,7 +396,7 @@ const FindAPerson: React.FC = () => {
  * is ten minutes or overnight.
  */
 const PlatformHold: React.FC = () => {
-  const t = useT();
+  const t = useOperatorT();
   const { dateTime } = useFormatters();
   const client = useQueryClient();
   const [message, setMessage] = React.useState('');
@@ -488,7 +488,7 @@ const PlatformHold: React.FC = () => {
 };
 
 export const SupportTenants: React.FC = () => {
-  const t = useT();
+  const t = useOperatorT();
   const { dateTime } = useFormatters();
   const query = useQuery({ queryKey: ['support', 'tenants'], queryFn: listSupportTenants, ...ONCE });
 
@@ -616,7 +616,7 @@ const DECIDED_KEY = {
  * lifecycle and status column on these screens.
  */
 const TenantUsage: React.FC<{ usage: SupportTenantUsage }> = ({ usage }) => {
-  const t = useT();
+  const t = useOperatorT();
   const { dateTime, number, currency } = useFormatters();
   const byState = Object.entries(usage.paths_by_state).sort(([a], [b]) => a.localeCompare(b));
   return (
@@ -712,7 +712,7 @@ const PersonLink: React.FC<{ tenantId: string; userId: string; email: string }> 
   userId,
   email,
 }) => {
-  const t = useT();
+  const t = useOperatorT();
   const href = idpConsoleUserUrl(userId);
   if (!href) {
     // THREE reasons there is no link, and they are not the same answer. A
@@ -755,7 +755,7 @@ const People: React.FC<{ tenantId: string; members: ReadonlyArray<SupportTenantM
   tenantId,
   members,
 }) => {
-  const t = useT();
+  const t = useOperatorT();
   const { dateTime } = useFormatters();
   return (
     <Section title={t('support.people')} empty={t('support.noPeople')} rows={members.length}>
@@ -790,7 +790,7 @@ const People: React.FC<{ tenantId: string; members: ReadonlyArray<SupportTenantM
 };
 
 export const SupportTenantDetail: React.FC = () => {
-  const t = useT();
+  const t = useOperatorT();
   const { dateTime } = useFormatters();
   const { tenantId } = useParams<{ tenantId: string }>();
   const query = useQuery({
@@ -947,7 +947,7 @@ export const SupportTenantDetail: React.FC = () => {
 
 /** The remedy sentence, or nothing — never a category name on its own. */
 const Remedy: React.FC<{ domain: SupportMigrationDomain }> = ({ domain }) => {
-  const t = useT();
+  const t = useOperatorT();
   // Read back through the guard rather than cast: the column is `text` with no
   // CHECK, so a value written by an older or newer build must not become a
   // category this screen has no sentence for.
@@ -963,7 +963,7 @@ const Remedy: React.FC<{ domain: SupportMigrationDomain }> = ({ domain }) => {
 };
 
 export const SupportMigrationDetail: React.FC = () => {
-  const t = useT();
+  const t = useOperatorT();
   const { dateTime } = useFormatters();
   const { mappingId } = useParams<{ mappingId: string }>();
   const query = useQuery({
@@ -1072,7 +1072,7 @@ export const SupportMigrationDetail: React.FC = () => {
  * same erasure can be seen to belong together, not so anybody can look one up.
  */
 export const SupportRetainedInvoices: React.FC = () => {
-  const t = useT();
+  const t = useOperatorT();
   const { dateTime } = useFormatters();
   const query = useQuery({
     queryKey: ['support', 'retained-invoices'],
@@ -1195,7 +1195,7 @@ const LOG_FILTER_KEYS = [
   'beforeId',
 ] as const;
 
-const LOG_LEVEL_KEY: Record<SupportLogEntry['level'], StringKey> = {
+const LOG_LEVEL_KEY: Record<SupportLogEntry['level'], OperatorScreenKey> = {
   error: 'support.log.level.error',
   warn: 'support.log.level.warn',
   info: 'support.log.level.info',
@@ -1242,7 +1242,7 @@ interface LogPageProps {
  * again behind the operator's back (`ONCE`).
  */
 const LogPage: React.FC<LogPageProps> = ({ read, path, operator }) => {
-  const t = useT();
+  const t = useOperatorT();
   const { dateTime } = useFormatters();
   const [params, setParams] = useSearchParams();
   // Checked by the API, which answers a malformed one with a sentence naming it.
