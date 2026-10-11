@@ -114,6 +114,11 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // merged the same morning, so the new words take a new number and 1.3's pins stay.
   'privacy.md@1.4': '076c5230a82ee3846065d52ededb0ecefa708ed7acbaafb2a763bfd9aa90a0e7',
   'privacy.nl.md@1.4': '609d0979f9b3c62566b2b27222d28da8191f7a2dca92edce9a91d9c95c28182a',
+  // 1.5 on 2026-10-11: §7's request to begin within the 14 days is one sentence beside the order
+  // button, not a confirmation step (0111 slice 7e; the owner: "i do not want the tickbox"). 1.4
+  // had been final since 2026-10-10, so the new words take a new number and 1.4's pins stay.
+  'terms.md@1.5': '6d069e99622709a01a4f78effac859f58bfd7de703c16f0e218b5f4436328f4e',
+  'terms.nl.md@1.5': '38338648fc44b76a2530459b9f82918d27ebb9cb40d6b6615fa3841eaa19bfe4',
 };
 
 /** The digest `ACCEPTED_WORDS` pins: the text outside HTML comments, white space collapsed. */

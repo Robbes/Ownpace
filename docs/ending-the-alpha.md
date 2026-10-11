@@ -65,14 +65,13 @@ the owner's job.
    before leaving Free (decision 14, slice 5e), and a consumer can withdraw (slices 7a to 7c).
    A payment Mollie confirms is booked on its invoice in Moneybird, on the account
    `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE` names, and paid and late are read back from Moneybird
-   every hour (slice 5f; the owner, 2026-10-11). What is still to build before invoices reach
-   customers:
-   - the money back when a paid invoice is credited (slice 7d, its second half);
-   - the yes that asks to begin before the fourteen days are over (slice 7e). Without it the
-     law lets a consumer who withdraws pay nothing for what was used, so every withdrawal is
-     credited in full, whatever was moved by then.
+   every hour (slice 5f; the owner, 2026-10-11). Every yes is given at an order button that
+   says, for a consumer within the fourteen days, that ordering asks us to begin at once, and
+   each order is confirmed by email (slice 7e, terms 1.5): a withdrawal then bills the days
+   used. What is still to build before invoices reach customers: the money back when a paid
+   invoice is credited (slice 7d, its second half).
 
-   Leave `OWNPACE_BILLING_FROM` empty until they are built.
+   Leave `OWNPACE_BILLING_FROM` empty until it is built.
 3. **Tell the testers, with their numbers.** No yes could be taken during the alpha, so every
    organisation is on Free at the switch: one migration at a time (each kind of data counts as
    one), and 250 GB, counted from the switch. Everything moved during the alpha never counts

@@ -507,6 +507,12 @@ export const dataAllowance = pgTable(
      * the agreed one (managed 0044).
      */
     axis: text('axis').notNull().default('data').$type<'data' | 'paths' | 'pick'>(),
+    /**
+     * Whether the order button this yes was given at said that we begin at
+     * once, within the fourteen days, and what a withdrawal then costs
+     * (managed 0051, 0111 slice 7e; terms §7).
+     */
+    beganOnRequest: boolean('began_on_request').notNull().default(false),
   },
   (t) => [index('data_allowance_tenant_idx').on(t.tenantId, t.consentedAt)],
 );

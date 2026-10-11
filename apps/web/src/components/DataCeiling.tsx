@@ -27,6 +27,7 @@ import { billingApi, CeilingSchema, type Ceiling, type CeilingYes } from '../ser
 import { serverMessage } from '../services/api.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
 import InvoiceDetailsFirst from './InvoiceDetailsFirst.tsx';
+import { BeginNow, useYesAsksToBegin } from './BeginNow.tsx';
 
 const QUERY_KEY = ['billing-ceiling'] as const;
 
@@ -48,11 +49,14 @@ const DataCeiling: React.FC = () => {
   const [done, setDone] = React.useState(false);
 
   const { data: ceiling, isLoading, error } = useQuery({ queryKey: QUERY_KEY, queryFn: () => billingApi.getCeiling() });
+  const asksToBegin = useYesAsksToBegin();
 
   const yes = useMutation({
     mutationFn: (body: CeilingYes) => billingApi.sayYesToCeiling(body),
     onSuccess: (fresh) => {
       queryClient.setQueryData(QUERY_KEY, fresh);
+      // The first yes after Free opens the withdrawal window.
+      void queryClient.invalidateQueries({ queryKey: ['billing-withdrawal'] });
       setAsking(null);
       setDone(true);
     },
@@ -96,6 +100,7 @@ const DataCeiling: React.FC = () => {
             setAsking(choice);
           }}
           pending={yes.isPending}
+          asksToBegin={asksToBegin}
           onYes={(body) => yes.mutate(body)}
           done={done}
           refusal={yes.isError ? yes.error : null}
@@ -112,10 +117,12 @@ const CeilingBody: React.FC<{
   asking: CeilingYes['choice'] | null;
   setAsking: (choice: CeilingYes['choice'] | null) => void;
   pending: boolean;
+  /** Whether a yes now begins within a withdrawal window: the order button then says so. */
+  asksToBegin: boolean;
   onYes: (yes: CeilingYes) => void;
   done: boolean;
   refusal: unknown;
-}> = ({ ceiling, size, eur, asking, setAsking, pending, onYes, done, refusal }) => {
+}> = ({ ceiling, size, eur, asking, setAsking, pending, asksToBegin, onYes, done, refusal }) => {
   const t = useT();
   const { moveUp, topUp, breakEven, tier, state, holds } = ceiling;
   const percent = Math.round(Math.min(ceiling.share, 1) * 100);
@@ -123,11 +130,13 @@ const CeilingBody: React.FC<{
   const offered = state !== 'under';
   const refusedCode = refusal ? refusalOf(refusal).code : null;
 
+  // `beginNow` only when the order button says so (slice 7e).
+  const beginNow = asksToBegin ? ({ beginNow: true } as const) : {};
   const pendingYes: CeilingYes | null =
     asking === 'move_up' && moveUp
-      ? { choice: 'move_up', tierId: moveUp.tierId, priceEur: moveUp.monthlyEur }
+      ? { choice: 'move_up', tierId: moveUp.tierId, priceEur: moveUp.monthlyEur, ...beginNow }
       : asking === 'top_up' && topUp
-        ? { choice: 'top_up', tierId: topUp.tierId, priceEur: topUp.priceEur }
+        ? { choice: 'top_up', tierId: topUp.tierId, priceEur: topUp.priceEur, ...beginNow }
         : null;
 
   return (
@@ -238,6 +247,11 @@ const CeilingBody: React.FC<{
                 ? t('billing.ceiling.confirm.topUp', { price: eur(topUp.priceEur), band: size(topUp.bandGb) })
                 : null}
           </p>
+          {asksToBegin && (
+            <div className="text-gray-700">
+              <BeginNow />
+            </div>
+          )}
           <div className="flex gap-2">
             <button
               type="button"
@@ -246,7 +260,7 @@ const CeilingBody: React.FC<{
               className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
             >
               {pending && <Loader2 className="w-4 h-4 animate-spin" />}
-              {t('billing.ceiling.confirm.yes')}
+              {t('billing.order.button')}
             </button>
             <button
               type="button"

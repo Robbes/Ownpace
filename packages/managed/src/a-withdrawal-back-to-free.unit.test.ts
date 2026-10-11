@@ -7,8 +7,8 @@
  *
  *  - a consumer who said yes to Small withdraws within the fourteen days: the
  *    withdrawal is recorded with what they gave, the month's invoice gets a
- *    credit note in their language, in full (no yes records a request to begin
- *    early yet), and from that moment every reader of the tier reads Free: the
+ *    credit note in their language, in full (their yes did not ask to begin
+ *    early, slice 7e), and from that moment every reader of the tier reads Free: the
  *    tier the month bills, the month's invoice (nothing more this month,
  *    nothing next month) and the window, closed;
  *  - a yes after it counts again, and opens a new contract and a new window;

@@ -238,6 +238,15 @@ describe('immediate events', () => {
         credits: 1,
         beganOnRequest: false,
       },
+      {
+        kind: 'order_confirmed',
+        organisation: 'o',
+        order: { kind: 'top_up', band: '100 GB', price: '€19.00' },
+        orderedAt: '1 October 2026 at 09:30 UTC',
+        withdrawUntil: null,
+        beganOnRequest: false,
+        terms: 'https://www.ownpace.eu/terms.html',
+      },
     ] as const;
     for (const event of events) {
       for (const locale of ['en', 'nl'] as const) {
@@ -655,5 +664,76 @@ describe('open sharing-checklist rows are narrated (ADR-0032, workplan 0052 T6a)
     expect(en?.body).toContain('4 rows open on the sharing checklist');
     const nl = renderDigest([m], 'nl', 'weekly');
     expect(nl?.body).toContain('4 regels open op de Delen-checklist');
+  });
+});
+
+/**
+ * An order, confirmed (workplan 0111 T7, slice 7e; terms §6, §7; article 8(7)
+ * of the Consumer Rights Directive): what was ordered, at which price and
+ * when; while a consumer's fourteen days run, how to withdraw, and the
+ * request to begin in the order button's own words when it was made; the
+ * terms; and nothing asked of its reader.
+ */
+describe('an order, confirmed by email (0111 T7, slice 7e)', () => {
+  const ordered = {
+    kind: 'order_confirmed',
+    organisation: 'De Vries thuis',
+    order: { kind: 'tier', tier: 'Small', monthly: '€ 5,00' },
+    orderedAt: '1 oktober 2026 om 09:30 UTC',
+    withdrawUntil: '15 oktober 2026',
+    beganOnRequest: true,
+    terms: 'https://www.ownpace.eu/nl/voorwaarden.html',
+  } as const;
+
+  it('says what was ordered and when, how to withdraw, and the request to begin, in Dutch', () => {
+    const nl = renderEvent(ordered, 'nl');
+    expect(nl.subject).toBe('Ownpace — uw bestelling');
+    expect(nl.body).toBe(
+      [
+        'Organisatie: De Vries thuis',
+        '',
+        'U bestelde met betalingsverplichting op 1 oktober 2026 om 09:30 UTC:',
+        '  - Ownpace Small, € 5,00 per maand',
+        '',
+        'Met deze e-mail bevestigen we dat. Elke maand wordt vooraf gefactureerd (voorwaarden §8).',
+        '',
+        'Als consument kunt u deze overeenkomst zonder opgave van redenen herroepen, tot het einde van 15 oktober 2026. ' +
+          'Gebruik Hier de overeenkomst herroepen op de pagina Facturering in de app, of stuur een ondubbelzinnige verklaring aan support@ownpace.eu. ' +
+          'U kunt het modelformulier in §15 van de voorwaarden gebruiken.',
+        '',
+        'U vroeg ons direct te beginnen, binnen die 14 dagen. Herroept u, dan betaalt u voor het deel van de dienst dat al geleverd is, ' +
+          'naar verhouding van de afgesproken prijs, en niet meer.',
+        '',
+        'De voorwaarden: https://www.ownpace.eu/nl/voorwaarden.html',
+      ].join('\n'),
+    );
+  });
+
+  it('says the days used cost nothing when the button did not ask, in English, for a band once', () => {
+    const en = renderEvent(
+      {
+        ...ordered,
+        order: { kind: 'top_up', band: '100 GB', price: '€19.00' },
+        orderedAt: '1 October 2026 at 09:30 UTC',
+        withdrawUntil: '15 October 2026',
+        beganOnRequest: false,
+        terms: 'https://www.ownpace.eu/terms.html',
+      },
+      'en',
+    );
+    expect(en.subject).toBe('Ownpace — your order');
+    expect(en.body).toContain('You ordered, with obligation to pay, on 1 October 2026 at 09:30 UTC:');
+    expect(en.body).toContain('  - 100 GB more data room, once, for €19.00');
+    expect(en.body).toContain('This email confirms it. It is billed once.');
+    expect(en.body).toContain('until the end of 15 October 2026. Use Withdraw from contract here on the Billing page');
+    expect(en.body).toContain('If you withdraw, you pay nothing for the days already used.');
+    expect(en.body).not.toContain('You asked us to begin');
+    expect(en.body.endsWith('The terms: https://www.ownpace.eu/terms.html')).toBe(true);
+  });
+
+  it('says nothing of withdrawing to a business, and asks nothing of its reader', () => {
+    const en = renderEvent({ ...ordered, withdrawUntil: null, beganOnRequest: false }, 'en');
+    expect(en.body).not.toMatch(/withdraw|consumer/i);
+    expect(en.body).not.toMatch(/open the app/i);
   });
 });

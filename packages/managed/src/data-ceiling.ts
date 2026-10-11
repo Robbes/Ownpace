@@ -363,12 +363,15 @@ export class PgDataAllowanceStore {
    * `axis` says which limit asked (managed 0039): the data ceiling, or the
    * paths at *Start*; or `pick`, a tier the person picked above the agreed one
    * (managed 0044, `tier-pick.ts`). The tier agreed is one for all three.
+   * `beganOnRequest`: whether its order button said that we begin at once,
+   * within the fourteen days (managed 0051, `withdrawal.ts`).
    */
   async record(
     tenantId: TenantId,
     grant: AllowanceGrant & { readonly priceEur: number },
     consentedBy: string,
     axis: 'data' | 'paths' | 'pick' = 'data',
+    beganOnRequest = false,
   ): Promise<void> {
     await this.db.insert(dataAllowance).values({
       tenantId,
@@ -378,6 +381,7 @@ export class PgDataAllowanceStore {
       priceEur: grant.priceEur,
       consentedBy,
       axis,
+      beganOnRequest,
     });
   }
 }

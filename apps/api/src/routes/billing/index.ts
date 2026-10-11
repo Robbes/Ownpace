@@ -53,7 +53,9 @@ import {
   momentInWords,
   MANAGED_TIERS,
   readWithdrawalWindow,
+  readYesAsksToBegin,
   withdraw,
+  type AllowanceGrant,
   type WithdrawalWindow,
   creditedCents,
   CREDITED_CENTS_SQL,
@@ -65,7 +67,7 @@ import { run as runTable, tenant as tenantTable } from '@openmig/ledger/schema-p
 // The live slot count, through the ONE authority on which states hold a slot
 // (`holdsASlot`, wrapped by `slotsHeld`) rather than a second list here.
 import { PgPathLifecycleStore, type PgDatabase } from '@openmig/ledger';
-import { log, readTenantNotificationPrefs, type TenantId } from '@openmig/shared';
+import { log, readTenantNotificationPrefs, termsUrl, type NotificationLocale, type TenantId } from '@openmig/shared';
 import { readPathsForecast } from './paths-at-start.ts';
 import {
   billingPartyColumns,
@@ -390,10 +392,19 @@ router.get('/ceiling', authenticate, requireBillingRead, async (req: Authenticat
   }
 });
 
+/**
+ * `beginNow`: the order button the yes was given at said, in one sentence,
+ * that we begin at once and what a withdrawal then costs (0111 slice 7e;
+ * terms §7). Sent by a page that showed it; recorded when the yes does begin
+ * within a withdrawal window (`readYesAsksToBegin`).
+ */
+const BeginNow = z.literal(true).optional();
+
 const YesSchema = z.object({
   choice: z.enum(['move_up', 'top_up']),
   tierId: z.string().min(1),
   priceEur: z.number().int().min(0),
+  beginNow: BeginNow,
 });
 
 /**
@@ -417,6 +428,79 @@ async function hasInvoiceDetails(db: PgDatabase, tenantId: string): Promise<bool
     .where(eq(schema.billingParty.tenantId, tenantId))
     .limit(1);
   return rows.length === 1;
+}
+
+/** A yes, recorded: what was ordered, when, whether its button asked to begin, and the window after it. */
+interface RecordedOrder {
+  readonly grant: AllowanceGrant & { readonly priceEur: number };
+  readonly at: Date;
+  readonly beganOnRequest: boolean;
+  readonly window: WithdrawalWindow;
+}
+
+/**
+ * Record one yes, in the yes's own transaction after its lock (0111 slice
+ * 7e): `began_on_request` when the page said the sentence at the order button
+ * (`beginNow`) and the yes does begin within a withdrawal window. Then the
+ * window as it stands after it, for the order's confirmation.
+ */
+async function recordOrder(
+  db: PgDatabase,
+  tenantId: string,
+  grant: AllowanceGrant & { readonly priceEur: number },
+  by: string,
+  axis: 'data' | 'paths' | 'pick',
+  beginNow: true | undefined,
+  now: Date = new Date(),
+): Promise<RecordedOrder> {
+  const beganOnRequest = beginNow === true && (await readYesAsksToBegin(db, asTenantId(tenantId), now));
+  await new PgDataAllowanceStore(db).record(asTenantId(tenantId), grant, by, axis, beganOnRequest);
+  return { grant, at: now, beganOnRequest, window: await readWithdrawalWindow(db, asTenantId(tenantId), now) };
+}
+
+/** Whole euros, as the mail says them in its language. */
+const euros = (whole: number, locale: NotificationLocale) =>
+  new Intl.NumberFormat(locale === 'nl' ? 'nl-NL' : 'en-IE', { style: 'currency', currency: 'EUR' }).format(whole);
+
+/**
+ * The order's confirmation (0111 T7, slice 7e; terms §6 and §7; article 8(7)
+ * of the Consumer Rights Directive): after the commit, to the signed-in
+ * address that gave the yes, in the organisation's language. What was
+ * ordered, at which price, and when; while a consumer's fourteen days run, how
+ * to withdraw and what it costs. Never a throw: the order stands whatever the
+ * mail server does, and one not sent is logged, to be sent by hand.
+ */
+async function confirmOrder(req: AuthenticatedRequest, tenantId: string, order: RecordedOrder): Promise<void> {
+  try {
+    const [organisation] = await withTenantDb(tenantId, getSharedPool(), (db) =>
+      db.select({ name: tenantTable.name, settings: tenantTable.settings }).from(tenantTable).where(eq(tenantTable.id, tenantId)),
+    );
+    const locale = readTenantNotificationPrefs(organisation?.settings).locale;
+    const { grant, window } = order;
+    const sent = req.userEmail
+      ? await tell(req.userEmail, locale, {
+          kind: 'order_confirmed',
+          organisation: organisation?.name ?? tenantId,
+          order:
+            grant.kind === 'tier'
+              ? { kind: 'tier', tier: tierName(grant.tierId), monthly: euros(grant.priceEur, locale) }
+              : { kind: 'top_up', band: `${grant.bandGb} GB`, price: euros(grant.priceEur, locale) },
+          orderedAt: momentInWords(order.at, locale),
+          // The last day: `until` is the end of it, exclusive.
+          withdrawUntil: window.kind === 'open' ? dayInWords(new Date(window.until.getTime() - 1), locale) : null,
+          beganOnRequest: order.beganOnRequest,
+          terms: termsUrl(locale, process.env),
+        })
+      : 'no_address';
+    if (sent !== 'sent') {
+      log.error(
+        `[billing] organisation ${tenantId} ordered at ${order.at.toISOString()}, and its confirmation was not sent ` +
+          `(${sent}): send it by hand to whoever gave the yes (terms §6, §7).`,
+      );
+    }
+  } catch (error) {
+    log.error(`[billing] organisation ${tenantId}: the order's confirmation could not be made:`, error);
+  }
 }
 
 /**
@@ -450,8 +534,8 @@ router.post('/ceiling/yes', authenticate, requireBillingWrite, async (req: Authe
       const alphaGb = await alphaGbOf(db, tenantId);
       const decision = decideYes(before, parsed.data);
       if (!decision.ok) return { refused: decision.reason, ceiling: before, alphaGb } as const;
-      await new PgDataAllowanceStore(db).record(asTenantId(tenantId), decision.grant, req.userId ?? 'unknown');
-      return { ceiling: await readCeiling(db, asTenantId(tenantId)), alphaGb } as const;
+      const order = await recordOrder(db, tenantId, decision.grant, req.userId ?? 'unknown', 'data', parsed.data.beginNow);
+      return { ceiling: await readCeiling(db, asTenantId(tenantId)), alphaGb, order } as const;
     });
     if ('detailsFirst' in outcome) {
       return void res
@@ -473,6 +557,7 @@ router.post('/ceiling/yes', authenticate, requireBillingWrite, async (req: Authe
         ceiling: ceilingBody(outcome.ceiling, holds, outcome.alphaGb),
       });
     }
+    await confirmOrder(req, tenantId, outcome.order);
     res.json(ceilingBody(outcome.ceiling, holds, outcome.alphaGb));
   } catch (error) {
     serverFault(res, 'ceiling_yes_failed', 'recording your yes', error);
@@ -536,6 +621,7 @@ router.get('/paths', authenticate, requireBillingRead, async (req: Authenticated
 const PathsYesSchema = z.object({
   tierId: z.string().min(1),
   priceEur: z.number().int().min(0),
+  beginNow: BeginNow,
 });
 
 /**
@@ -569,8 +655,8 @@ router.post('/paths/yes', authenticate, requireBillingWrite, async (req: Authent
       const store = new PgDataAllowanceStore(db);
       const decision = decidePathsYes(allowanceOf(await store.grants(asTenantId(tenantId))), parsed.data);
       if (!decision.ok) return { refused: decision.reason } as const;
-      await store.record(asTenantId(tenantId), decision.grant, req.userId ?? 'unknown', 'paths');
-      return { tier: allowanceOf(await store.grants(asTenantId(tenantId))).tier } as const;
+      const order = await recordOrder(db, tenantId, decision.grant, req.userId ?? 'unknown', 'paths', parsed.data.beginNow);
+      return { tier: allowanceOf(await store.grants(asTenantId(tenantId))).tier, order } as const;
     });
     if ('detailsFirst' in outcome) {
       return void res
@@ -584,6 +670,7 @@ router.post('/paths/yes', authenticate, requireBillingWrite, async (req: Authent
           : 'Your organisation already runs that many at the same time. Start again to see where it stands.';
       return void res.status(409).json({ error: outcome.refused, message: reason, reason });
     }
+    await confirmOrder(req, tenantId, outcome.order);
     res.json({ tier: pathsTier(outcome.tier) });
   } catch (error) {
     serverFault(res, 'paths_yes_failed', 'recording your yes', error);
@@ -649,6 +736,7 @@ router.get('/pick', authenticate, requireBillingRead, async (req: AuthenticatedR
 const PickSchema = z.object({
   tierId: z.string().min(1),
   priceEur: z.number().int().min(0),
+  beginNow: BeginNow,
 });
 
 /**
@@ -690,8 +778,11 @@ router.post('/pick', authenticate, requireBillingWrite, async (req: Authenticate
       if (!decision.ok) return { refused: decision.reason, state: before } as const;
       const by = req.userId ?? 'unknown';
       await new PgTierPickStore(db).record(asTenantId(tenantId), decision.pick, by, now);
-      if (decision.yes) await new PgDataAllowanceStore(db).record(asTenantId(tenantId), decision.yes, by, 'pick');
-      return { from: decision.from, state: await readBilledNow(db, asTenantId(tenantId), now) } as const;
+      // A pick above the agreed tier is an order; a lower one is not.
+      const order = decision.yes
+        ? await recordOrder(db, tenantId, decision.yes, by, 'pick', parsed.data.beginNow, now)
+        : null;
+      return { from: decision.from, state: await readBilledNow(db, asTenantId(tenantId), now), order } as const;
     });
     if ('detailsFirst' in outcome) {
       return void res
@@ -705,6 +796,7 @@ router.post('/pick', authenticate, requireBillingWrite, async (req: Authenticate
         .status(409)
         .json({ error: outcome.refused, message: reason, reason, pick: pickBody(outcome.state, holds) });
     }
+    if (outcome.order) await confirmOrder(req, tenantId, outcome.order);
     res.json({ from: outcome.from, ...pickBody(outcome.state, holds) });
   } catch (error) {
     serverFault(res, 'pick_save_failed', 'recording your pick', error);
@@ -739,19 +831,23 @@ const WITHDRAWAL_CLOSED: Record<Extract<WithdrawalWindow, { kind: 'closed' }>['r
  * 0111 T7, decision 15; terms §7): open from the first yes after Free until
  * the end of the fourteenth day after it, for a consumer. With what the
  * withdrawal function (article 11a) fills in for the person to confirm: the
- * name on the invoice details and the signed-in address. Read-only.
+ * name on the invoice details and the signed-in address. And whether a yes
+ * given now begins within a withdrawal window (`yesAsksToBegin`, slice 7e):
+ * then each order button says so in one sentence. Read-only.
  */
 router.get('/withdrawal', authenticate, requireBillingRead, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.tenantId;
     if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
-    const { window, party } = await withTenantDb(tenantId, getSharedPool(), async (db) => ({
-      window: await readWithdrawalWindow(db, asTenantId(tenantId), new Date()),
+    const now = new Date();
+    const { window, party, yesAsksToBegin } = await withTenantDb(tenantId, getSharedPool(), async (db) => ({
+      window: await readWithdrawalWindow(db, asTenantId(tenantId), now),
       party: (
         await db.select({ name: schema.billingParty.name }).from(schema.billingParty).where(eq(schema.billingParty.tenantId, tenantId))
       )[0],
+      yesAsksToBegin: await readYesAsksToBegin(db, asTenantId(tenantId), now),
     }));
-    res.json({ ...withdrawalBody(window), name: party?.name ?? null, confirmTo: req.userEmail ?? null });
+    res.json({ ...withdrawalBody(window), name: party?.name ?? null, confirmTo: req.userEmail ?? null, yesAsksToBegin });
   } catch (error) {
     serverFault(res, 'withdrawal_read_failed', 'reading whether you may withdraw', error);
   }

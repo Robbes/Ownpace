@@ -303,6 +303,7 @@ beforeEach(() => {
     tier: null,
     name: null,
     confirmTo: null,
+    yesAsksToBegin: false,
   });
   vi.mocked(billingApi.getPick).mockResolvedValue({
     holds: true,

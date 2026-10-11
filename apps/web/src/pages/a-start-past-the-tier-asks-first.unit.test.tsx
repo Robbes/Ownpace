@@ -37,7 +37,7 @@ vi.mock('../services/mapping-service', async (importOriginal) => ({
 }));
 vi.mock('../services/billing-service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/billing-service.ts')>()),
-  billingApi: { getCeiling: vi.fn(), getPathsAtStart: vi.fn(), sayYesToPaths: vi.fn() },
+  billingApi: { getCeiling: vi.fn(), getPathsAtStart: vi.fn(), sayYesToPaths: vi.fn(), getWithdrawal: vi.fn() },
 }));
 
 const plan = (sourceConnectionId: string): PlannedMigration => ({
@@ -106,6 +106,17 @@ beforeEach(() => {
   vi.mocked(billingApi.getCeiling).mockRejectedValue(new Error('not asked here'));
   vi.mocked(billingApi.getPathsAtStart).mockReset().mockResolvedValue(PAST);
   vi.mocked(billingApi.sayYesToPaths).mockReset().mockResolvedValue(undefined);
+  // A yes here asks nothing to begin: the sentence and `beginNow` are PathsAtStart's own test.
+  vi.mocked(billingApi.getWithdrawal).mockReset().mockResolvedValue({
+    open: false,
+    reason: 'business',
+    since: null,
+    until: null,
+    tier: null,
+    name: null,
+    confirmTo: null,
+    yesAsksToBegin: false,
+  });
 });
 
 describe('Start, past the tier', () => {
@@ -126,7 +137,7 @@ describe('Start, past the tier', () => {
     const user = userEvent.setup();
     const onStarted = renderCheck();
     await user.click(await screen.findByRole('button', { name: 'Move up to Small and start' }, { timeout: 5000 }));
-    await user.click(screen.getByRole('button', { name: 'Yes, I agree' }));
+    await user.click(screen.getByRole('button', { name: 'Order with obligation to pay' }));
     await vi.waitFor(() => expect(onStarted).toHaveBeenCalled());
     expect(vi.mocked(billingApi.sayYesToPaths)).toHaveBeenCalledWith({ tierId: 'small', priceEur: 5 });
     expect(vi.mocked(mappingApi.start).mock.calls).toEqual([['m-old'], ['m-new']]);

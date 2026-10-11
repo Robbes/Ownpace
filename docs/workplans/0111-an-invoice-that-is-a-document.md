@@ -4,6 +4,38 @@
 
 ## Status — 2026-10-11 (update this block at the end of every session)
 
+**2026-10-11: slice 7e — the yes that asks to begin, without a tick box** (T7; terms §6, §7, 1.5;
+the owner: *"i do not want the tickbox, everyone who agrees with the terms would normally start
+within 14 days"*). Every yes is given at an order button that says *Order with obligation to pay*
+(*Bestelling met betalingsverplichting*), the words of article 8(2): the data ceiling's and
+*Start*'s said *Yes, I agree* until now, and only a pick said them. While a yes begins within a
+consumer's withdrawal window (on Free, or within the fourteen days; never for a business, nor
+after them: `yesAsksToBegin`, read by `GET /api/billing/withdrawal`), one sentence stands beside
+the button: *By ordering, you ask us to begin at once, within your 14 days to withdraw. If you then
+withdraw, you pay for the part already provided, in proportion to the agreed price, and no more.*
+The yes then sends `beginNow`, and the server records it with the yes (`began_on_request`,
+managed 0051) when the yes does begin within a window; a page that did not say it asks nothing.
+The window reads the request from the yes that concluded the contract, and a withdrawal after it
+bills the days used, as slice 7b already prices them. After each order, its confirmation goes by
+email to the signed-in address, in the organisation's language (`order_confirmed`): what, at
+which price, when; while the fourteen days run, until when and how to withdraw, and the request in
+the button's words, or that the days used cost nothing; and the terms' address. A mail that did not
+go leaves the order standing and is logged for the operator. Terms 1.5 says §7 this way, in both
+languages, and names the withdrawal function by the app's own words; terms precondition C is built.
+
+- **Guards:** `a-yes-that-asks-to-begin.unit.test.ts` (who is asked; the request recorded and read
+  from the concluding yes; a withdrawal after it bills three days of thirty-one);
+  `an-order-that-asks-to-begin.unit.test.ts` (the three buttons over a real database: recorded for
+  a consumer who was told, not for one who was not, never for a business; the confirmation, in
+  Dutch and English, with and without the withdrawal; a pick that orders nothing confirms nothing;
+  a mail not sent leaves the order); `notifications.unit.test.ts` (the mail, word for word in
+  Dutch); `DataCeiling`, `PathsAtStart` and `TierPick` tests (the sentence beside the order button
+  and `beginNow` sent only when said; a kept pick asks nothing). Two mutants, both red: the server
+  recording the request without `beginNow`, and the window reading any yes's request.
+- **For the lawyer** (terms.md's briefing, 1.5): whether one sentence beside an order button is an
+  express request under articles 7(3) and 8(8), and the proportionate amount read pro rata
+  temporis (CJEU C-641/19).
+
 **2026-10-11: the owner's answers of the day.**
 
 - **Paid and late, read back (5f):** *"OK on 1 and 2: Ownpace follows Mollie, and Ownpace asks
@@ -1012,10 +1044,11 @@ slice 5. The annual credit is not in this chain (decision 6).
    second. The withdrawal is recorded append-only and read where the tier is read, as decided
    in 15. **The credit note built 2026-10-11** (slice 7a, Status), and **the withdrawal** (slice 7b,
    Status): recorded, read where the tier is read, its credit notes and its acknowledgement; **the
-   button** (slice 7c), and **nothing paid that was credited** (slice 7d's first half). Next, each
+   button** (slice 7c), **nothing paid that was credited** (slice 7d's first half), and **the yes
+   that asks to begin** before the fourteen days are over, from which the days used are billed,
+   with the order button at every yes and the order's confirming email (slice 7e, terms 1.5). Next,
    its own pull request: (7d, second half) the money back, through Mollie or said for a transfer,
-   and an unpaid invoice settled against its credit note in the books; (7e) the yes that asks to
-   begin before the fourteen days are over, from which the days used are billed.
+   and an unpaid invoice settled against its credit note in the books.
 
 **What the build holds to.** A retried push never mints a second invoice: only a 404 creates, one
 writer, a lease, and the reference fixed once used. Nothing after issue is editable, the new

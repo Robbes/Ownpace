@@ -22,11 +22,23 @@ import { STRINGS } from '../i18n/strings.ts';
 
 vi.mock('../services/billing-service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/billing-service.ts')>()),
-  billingApi: { getPick: vi.fn(), pickTier: vi.fn() },
+  billingApi: { getPick: vi.fn(), pickTier: vi.fn(), getWithdrawal: vi.fn() },
 }));
 
 const getPick = vi.mocked(billingApi.getPick);
 const pickTier = vi.mocked(billingApi.pickTier);
+const getWithdrawal = vi.mocked(billingApi.getWithdrawal);
+/** Whether a yes now asks to begin (0111 slice 7e): no, unless a test says so. */
+const WINDOW = {
+  open: false,
+  reason: 'nothing_paid' as const,
+  since: null,
+  until: null,
+  tier: null,
+  name: null,
+  confirmTo: null,
+  yesAsksToBegin: false,
+};
 
 const FREE: PickTier = { id: 'free', name: 'Free', paths: 6, dataGb: 150, monthlyEur: 0, annualEur: 0 };
 const SMALL: PickTier = { id: 'small', name: 'Small', paths: 6, dataGb: 500, monthlyEur: 5, annualEur: 30 };
@@ -91,6 +103,8 @@ function refused(body: Record<string, unknown>): AxiosError {
 beforeEach(() => {
   getPick.mockReset();
   pickTier.mockReset();
+  getWithdrawal.mockReset();
+  getWithdrawal.mockResolvedValue(WINDOW);
   localStorage.clear();
 });
 
@@ -186,7 +200,7 @@ describe('a pick', () => {
       fireEvent.click(
         await screen.findByRole('button', { name: words['billing.pick.button'].replace('{tier}', 'Small') }),
       );
-      fireEvent.click(screen.getByRole('button', { name: words['billing.pick.order'] }));
+      fireEvent.click(screen.getByRole('button', { name: words['billing.order.button'] }));
       const alert = await screen.findByRole('alert');
       expect(alert).toHaveTextContent(words['billing.detailsFirst']);
       expect(within(alert).getByRole('link', { name: words['billing.detailsFirst.link'] })).toHaveAttribute(
@@ -216,6 +230,31 @@ describe('lowering the pick', () => {
     expect(screen.getByText('You picked Small: this month bills at least Small.')).toBeVisible();
     expect(screen.getByText('From November 1, 2026, what you use decides your tier again.')).toBeVisible();
     expect(screen.queryByText(/until you lower it/)).toBeNull();
+  });
+
+  it('says beside the order button that ordering asks us to begin, and sends that it was said', async () => {
+    getWithdrawal.mockResolvedValue({ ...WINDOW, yesAsksToBegin: true });
+    getPick.mockResolvedValue(ON_FREE);
+    pickTier.mockResolvedValue({ ...PICKED_SMALL, from: 'now' });
+    renderCard();
+    fireEvent.click(await screen.findByRole('button', { name: 'Pick Small' }));
+    const dialog = screen.getByRole('alertdialog');
+    expect(await within(dialog).findByText(/By ordering, you ask us to begin at once/)).toBeVisible();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Order with obligation to pay' }));
+    await waitFor(() => expect(pickTier).toHaveBeenCalledWith({ tierId: 'small', priceEur: 5, beginNow: true }));
+  });
+
+  it('asks nothing to begin when a pick is kept: it orders nothing new', async () => {
+    getWithdrawal.mockResolvedValue({ ...WINDOW, open: true, yesAsksToBegin: true });
+    getPick.mockResolvedValue(DROPPED);
+    pickTier.mockResolvedValue({ ...PICKED_SMALL, from: 'now' });
+    renderCard();
+    fireEvent.click(await screen.findByRole('button', { name: 'Keep Small' }));
+    await waitFor(() => expect(getWithdrawal).toHaveBeenCalled());
+    const dialog = screen.getByRole('alertdialog');
+    expect(within(dialog).queryByText(/By ordering, you ask us to begin/)).toBeNull();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Order with obligation to pay' }));
+    await waitFor(() => expect(pickTier).toHaveBeenCalledWith({ tierId: 'small', priceEur: 5 }));
   });
 
   it('offers the tier picked now again while a lower pick waits, to keep it, by the order button', async () => {
