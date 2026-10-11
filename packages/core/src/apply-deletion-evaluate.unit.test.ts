@@ -33,6 +33,13 @@ import { asTenantId, asMappingId, type LedgerRecord } from '@openmig/shared';
 const TENANT = asTenantId('d2aa0000-e29b-41d4-a716-4466554406aa');
 const MAPPING = asMappingId('d2aa0000-e29b-41d4-a716-4466554406bb');
 
+/**
+ * Every case in this file is before cutover: the old system still decides
+ * what exists. The refusal after it (`after_cutover`, 2026-10-05) has its own
+ * file, `an-apply-pressed-after-cutover.unit.test.ts`.
+ */
+const BEFORE_CUTOVER = async (): Promise<boolean> => true;
+
 function baseRow(overrides: Partial<LedgerRecord> = {}): LedgerRecord {
   return {
     tenantId: TENANT,
@@ -58,6 +65,7 @@ async function both(ledger: MemoryLedger, allow: boolean, hash = 'nk-1') {
     domain: 'calendar' as const,
     ledger,
     allowApplyDeletions: allow,
+    stillTheAuthority: BEFORE_CUTOVER,
   };
   const evaluated = await evaluateApplyDeletion(shared, hash);
   const applied = await applyDeletion({ ...shared, target: { removeItem } }, hash);
@@ -225,6 +233,7 @@ async function bothRelocation(ledger: MemoryLedger, allow: boolean, hash = OLD) 
     domain: 'file' as const,
     ledger,
     allowApplyDeletions: allow,
+    stillTheAuthority: BEFORE_CUTOVER,
   };
   const evaluated = await evaluateApplyRelocation(shared, hash);
   const applied = await applyRelocation({ ...shared, target: { removeItem, hasItem } }, hash);

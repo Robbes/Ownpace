@@ -44,13 +44,17 @@ import {
   PgLedger,
   PgCursorStore,
   PgMigrationStatusStore,
+  readPathPhases,
   readShareGate,
   ShareListWithoutMigration,
+  type PgDatabase,
 } from '@openmig/ledger';
 import {
   DISCOVERY_DOMAINS,
   FAILURE_CATEGORIES,
+  dataTypesPastCutover,
   isFailureCategory,
+  sourceStillDecides,
   type DiscoveryDomain,
   type GroupDecisionAccepted,
 } from '@openmig/shared';
@@ -216,6 +220,28 @@ function shareGateOf(s: Scoped): Promise<(subject: string) => boolean> {
   return withTenantDb(s.tenantId, pool(), (db) => readShareGate(db, s.tenantId, s.mappingId));
 }
 
+/**
+ * The data types past their cutover (2026-10-05), read as every gate reads a
+ * data type's phase: what the Deletions and Moves queues carry as
+ * `afterCutover`, so the screen offers no Apply the routes below refuse.
+ */
+function afterCutoverOf(s: Scoped) {
+  return withTenantDb(s.tenantId, pool(), async (db) =>
+    dataTypesPastCutover(await readPathPhases(db, s.tenantId, s.mappingId)),
+  );
+}
+
+/**
+ * Whether one data type's old system still decides what exists, asked when
+ * core asks it, in the request's own transaction (2026-10-05): what the two
+ * apply routes hand `evaluateApplyDeletion` and `evaluateApplyRelocation`,
+ * which refuse after cutover (`after_cutover`). The jobs ask it again at the
+ * removal, through their deps builder's own question.
+ */
+function stillTheAuthorityIn(db: PgDatabase, s: Scoped, domain: DiscoveryDomain): () => Promise<boolean> {
+  return async () => sourceStillDecides(await readPathPhases(db, s.tenantId, s.mappingId), domain);
+}
+
 /** The sharing checklist's closing counts, for the completion report (0052 T6b). */
 function summariseSharing(rows: ReadonlyArray<ShareGrantRow>) {
   const summary = summariseShareGrants(rows);
@@ -263,6 +289,8 @@ router.get('/:mappingId/deletions', authenticate, async (req: AuthenticatedReque
       [s.mappingId]: {
         migrationStatus: s.lifecycle,
         ...closed(s.lifecycle),
+        // No Apply for a data type past its cutover (2026-10-05).
+        afterCutover: await afterCutoverOf(s),
         confirmed: all.filter((d) => d.confirmed && !d.acknowledgedAt),
         // Shown so the queue is not a black box; never actionable.
         watching: all.filter((d) => !d.confirmed && !d.acknowledgedAt),
@@ -291,6 +319,8 @@ router.get('/:mappingId/moves', authenticate, async (req: AuthenticatedRequest, 
       [s.mappingId]: {
         migrationStatus: s.lifecycle,
         ...closed(s.lifecycle),
+        // No Apply for a data type past its cutover (2026-10-05).
+        afterCutover: await afterCutoverOf(s),
         open: all.filter((m) => !m.acknowledgedAt),
         acknowledged: all.filter((m) => m.acknowledgedAt),
         whatThisMeans: MOVES_MEANING,
@@ -1579,6 +1609,9 @@ router.post(
               domain,
               ledger,
               allowApplyDeletions: flagRows[0]?.allow === true,
+              // After cutover nothing is removed: refused on this request
+              // (`after_cutover`, 2026-10-05).
+              stillTheAuthority: stillTheAuthorityIn(db, s, domain),
             },
             hash,
           );
@@ -1714,6 +1747,8 @@ router.post(
               domain,
               ledger,
               allowApplyDeletions: flagRows[0]?.allow === true,
+              // As the deletion's: refused after cutover (2026-10-05).
+              stillTheAuthority: stillTheAuthorityIn(db, s, domain),
             },
             hash,
           );

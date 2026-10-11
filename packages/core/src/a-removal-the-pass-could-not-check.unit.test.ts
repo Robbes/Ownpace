@@ -100,6 +100,7 @@ function world(
     let late = false;
     return runDomainSync<unknown, unknown, Obj, { path: string }>({
       sourceIsAuthorityOnExistence: !setup.afterCutover,
+      stillTheAuthority: async () => !setup.afterCutover,
       tenantId: TENANT,
       mappingId: MAPPING,
       domain: 'calendar',

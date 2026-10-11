@@ -109,6 +109,11 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // had been final since 2026-10-07, so the new words take a new number and 1.3's pins stay.
   'terms.md@1.4': 'd0577ca2eb1090eef1ab9a1d22aa374254009d1088cdded1f9d292a9eb83a4c2',
   'terms.nl.md@1.4': '6ace99da834540703d59cc81447b9924402482d319d82746c39dcde5f4fcc95b',
+  // 1.4 on 2026-10-11: §4.4 names the email address invoices are sent to (the owner: "Privacy
+  // policy: ok, add e-mail to it"; privacy.md's briefing). 1.3 was final from the moment #1557
+  // merged the same morning, so the new words take a new number and 1.3's pins stay.
+  'privacy.md@1.4': '076c5230a82ee3846065d52ededb0ecefa708ed7acbaafb2a763bfd9aa90a0e7',
+  'privacy.nl.md@1.4': '609d0979f9b3c62566b2b27222d28da8191f7a2dca92edce9a91d9c95c28182a',
   // 1.5 on 2026-10-11: §7's request to begin within the 14 days is one sentence beside the order
   // button, not a confirmation step (0111 slice 7e; the owner: "i do not want the tickbox"). 1.4
   // had been final since 2026-10-10, so the new words take a new number and 1.4's pins stay.

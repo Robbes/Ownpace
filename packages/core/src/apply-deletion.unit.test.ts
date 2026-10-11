@@ -25,6 +25,13 @@ import {
 const TENANT = asTenantId('d1990000-e29b-41d4-a716-4466554405aa');
 const MAPPING = asMappingId('d1990000-e29b-41d4-a716-4466554405bb');
 
+/**
+ * Every case in this file is before cutover: the old system still decides
+ * what exists. The refusal after it (`after_cutover`, 2026-10-05) has its own
+ * file, `an-apply-pressed-after-cutover.unit.test.ts`.
+ */
+const BEFORE_CUTOVER = async (): Promise<boolean> => true;
+
 /** A minimal, fully-specified ledger row — every test starts from this and overrides. */
 function baseRow(overrides: Partial<LedgerRecord> = {}): LedgerRecord {
   return {
@@ -83,7 +90,7 @@ describe('gate 1: the mapping must opt in', () => {
     const target = fakeRemover({ kind: 'deleted' });
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -98,7 +105,7 @@ describe('gate 1: the mapping must opt in', () => {
     const ledger = new MemoryLedger();
     const target = fakeRemover({ kind: 'deleted' });
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: false },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: false, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
     expect(outcome).toMatchObject({ ok: false, code: 'not_enabled' });
@@ -112,7 +119,7 @@ describe('gate 2: the target must be able to remove', () => {
     const target = targetWithNoRemover();
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -131,7 +138,7 @@ describe('gate 3: only positive evidence may be acted on', () => {
     const target = fakeRemover({ kind: 'deleted' });
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -145,7 +152,7 @@ describe('gate 3: only positive evidence may be acted on', () => {
     const target = fakeRemover({ kind: 'deleted' });
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -167,7 +174,7 @@ describe('gate 3: only positive evidence may be acted on', () => {
     const target = fakeRemover({ kind: 'deleted' });
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -182,7 +189,7 @@ describe('gate 3: only positive evidence may be acted on', () => {
     const target = fakeRemover({ kind: 'binned' });
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'email', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'email', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -199,7 +206,7 @@ describe('gate 4: only an item this tool wrote', () => {
     const target = fakeRemover({ kind: 'deleted' });
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -219,7 +226,7 @@ describe('gate 4: only an item this tool wrote', () => {
     const target = fakeRemover({ kind: 'deleted' });
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -234,7 +241,7 @@ describe('gate 4: only an item this tool wrote', () => {
     const target = fakeRemover({ kind: 'deleted' });
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -257,7 +264,7 @@ describe('gate 4: only an item this tool wrote', () => {
       const target = fakeRemover({ kind: 'deleted' });
 
       const outcome = await applyDeletion(
-        { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+        { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
         'nk-1',
       );
 
@@ -284,7 +291,7 @@ describe('gate 4: only an item this tool wrote', () => {
     const target = fakeRemover({ kind: 'deleted' });
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -309,6 +316,7 @@ describe('gate 4: only an item this tool wrote', () => {
         ledger,
         target: fakeRemover({ kind: 'deleted' }),
         allowApplyDeletions: true,
+        stillTheAuthority: BEFORE_CUTOVER,
       },
       'nk-1',
     );
@@ -342,6 +350,7 @@ describe('the mapping\'s targetFolderPrefix names the mailbox a removal opens', 
         target,
         allowApplyDeletions: true,
         targetFolderPrefix: 'Gmail',
+        stillTheAuthority: BEFORE_CUTOVER,
       },
       'nk-1',
     );
@@ -356,7 +365,7 @@ describe('the mapping\'s targetFolderPrefix names the mailbox a removal opens', 
     const target = fakeRemover({ kind: 'deleted' });
 
     await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -373,7 +382,7 @@ describe('gate 5: an edit on the target refuses the removal', () => {
     const target = fakeRemover({ conflicted: true });
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -396,7 +405,7 @@ describe('gate 5: an edit on the target refuses the removal', () => {
     const target = fakeRemover({ kind: 'deleted' });
 
     await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -417,7 +426,7 @@ describe('gate 5: an edit on the target refuses the removal', () => {
     const target = fakeRemover({ kind: 'binned' });
 
     await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -434,7 +443,7 @@ describe('gate 5: an edit on the target refuses the removal', () => {
     const target = fakeRemover({ unversioned: true });
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -454,7 +463,7 @@ describe('gate 5: an edit on the target refuses the removal', () => {
     const target = fakeRemover({ kind: 'deleted' });
 
     await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -469,7 +478,7 @@ describe('the write order: target first, ledger second', () => {
     const target = fakeRemover({ kind: 'binned' });
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -489,7 +498,7 @@ describe('the write order: target first, ledger second', () => {
     const target = fakeRemover({});
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -531,6 +540,7 @@ describe('the write order: target first, ledger second', () => {
         ledger: refusing,
         target,
         allowApplyDeletions: true,
+        stillTheAuthority: BEFORE_CUTOVER,
       },
       'nk-1',
     );
@@ -558,7 +568,7 @@ describe('not found and already applied', () => {
     const target = fakeRemover({ kind: 'deleted' });
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-missing',
     );
 
@@ -578,7 +588,7 @@ describe('not found and already applied', () => {
     const target = fakeRemover({ kind: 'deleted' });
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -625,7 +635,7 @@ describe('gate 6: the mass-deletion circuit breaker', () => {
     const target = fakeRemover({ kind: 'deleted' });
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'file', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'file', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       deleted,
     );
 
@@ -640,7 +650,7 @@ describe('gate 6: the mass-deletion circuit breaker', () => {
     const target = fakeRemover({ kind: 'deleted' });
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'nk-1',
     );
 
@@ -663,7 +673,7 @@ describe('gate 6: the mass-deletion circuit breaker', () => {
     // one, which is exactly the case the breaker has to catch: a single
     // seemingly-reasonable click during what is actually a bulk incident.
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'bulk-0',
     );
 
@@ -681,7 +691,7 @@ describe('gate 6: the mass-deletion circuit breaker', () => {
     const target = fakeRemover({ kind: 'deleted' });
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'bulk-0',
     );
 
@@ -703,7 +713,7 @@ describe('gate 6: the mass-deletion circuit breaker', () => {
     const target = fakeRemover({ kind: 'deleted' });
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'bulk-0',
     );
 
@@ -731,7 +741,7 @@ describe('gate 6: the mass-deletion circuit breaker', () => {
     const target = fakeRemover({ kind: 'deleted' });
 
     const outcome = await applyDeletion(
-      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
       'cal-item',
     );
 

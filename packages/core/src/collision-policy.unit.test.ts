@@ -83,6 +83,7 @@ describe('onCollision behaviour, through the real sync loop', () => {
   it('skip (the default) adopts and completes', async () => {
     const result = await runShadowPass({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source: sourceWith(),
@@ -101,6 +102,7 @@ describe('onCollision behaviour, through the real sync loop', () => {
     await expect(
       runShadowPass({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         tenantId: TENANT,
         mappingId: MAPPING,
         source: sourceWith(),
@@ -114,6 +116,7 @@ describe('onCollision behaviour, through the real sync loop', () => {
   it('fail does not fire when the destination is empty', async () => {
     const result = await runShadowPass({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source: sourceWith(),

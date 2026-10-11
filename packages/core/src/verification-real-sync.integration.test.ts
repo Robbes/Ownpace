@@ -113,6 +113,7 @@ describe('Verification against a real sync (integration)', () => {
   async function syncInto(target: MemoryTarget): Promise<void> {
     const result = await runShadowPass({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: asTenantId(TENANT as never),
       mappingId: asMappingId(MAPPING as never),
       source: seededSource(),
@@ -163,6 +164,7 @@ describe('Verification against a real sync (integration)', () => {
     }
     const pass1 = await runShadowPass({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: asTenantId(TENANT as never),
       mappingId: asMappingId(MAPPING as never),
       source: firstTwo,
@@ -178,6 +180,7 @@ describe('Verification against a real sync (integration)', () => {
     third.add({ folderPath: 'INBOX', messageId: MESSAGES[2]!.messageId, rfc822: MESSAGES[2]!.rfc822 });
     const pass2 = await runShadowPass({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: asTenantId(TENANT as never),
       mappingId: asMappingId(MAPPING as never),
       source: third,
@@ -234,6 +237,7 @@ describe('Verification against a real sync (integration)', () => {
     // still agree rather than double-counting.
     const second = await runShadowPass({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: asTenantId(TENANT as never),
       mappingId: asMappingId(MAPPING as never),
       source: seededSource(),

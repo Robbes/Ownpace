@@ -79,6 +79,7 @@ function world() {
       target,
       ledger,
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
     });
   return { files, exported, written, pass };
 }

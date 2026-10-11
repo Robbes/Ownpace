@@ -90,6 +90,9 @@ function deps(ledger: MemoryLedger, target: unknown, allow = true) {
     ledger,
     target,
     allowApplyDeletions: allow,
+    // Before cutover: the old system still decides what exists. The refusal
+    // after it has its own file (`an-apply-pressed-after-cutover`).
+    stillTheAuthority: async () => true,
   };
 }
 

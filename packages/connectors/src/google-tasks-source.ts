@@ -46,10 +46,13 @@ import type {
  * Every pass lists every task, as the To Do source does: a task list is small,
  * and a complete listing keeps the loop's cursorless semantics. A task Google
  * marks `deleted` is not an item. Its source path goes into `removed`, where the
- * loop matches it to the row that recorded the same path at copy time and puts
- * it on the owner's Deletions queue. Nothing is removed from the target. Google
- * keeps returning a deleted task for a while, and the ledger keeps the first
- * report (`recordReportedDeletion`), so repeating it is a no-op.
+ * loop matches it to the row that recorded the same path at copy time and, while
+ * the old system still decides what exists, puts it on the owner's Deletions
+ * queue. After cutover the loop does not collect it (0117 D4): Google still
+ * sends it, in the same answer as the live tasks, and it is dropped there.
+ * Nothing is removed from the target. Google keeps returning a deleted task for
+ * a while, and the ledger keeps the first report (`recordReportedDeletion`), so
+ * repeating it is a no-op.
  *
  * ## What cannot be carried
  *

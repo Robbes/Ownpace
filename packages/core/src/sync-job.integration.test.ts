@@ -587,6 +587,7 @@ describe('Sync Jobs with Encrypted Credentials (integration)', () => {
 
       const result = await runShadowPass({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         tenantId: TENANT_A_ID,
         mappingId: MAPPING_A_ID,
         source: mockSource as any,

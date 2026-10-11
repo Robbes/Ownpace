@@ -26,12 +26,11 @@ import { runAllDomains } from '@openmig/orchestration';
 import {
   PgLedger as _PgLedger,
   PgMigrationStatusStore,
-  mailboxMapping,
+  readPathPhases,
   tenantScopedDb,
   withTenant,
 } from '@openmig/ledger';
-import { log, phasesOfTheMigration } from '@openmig/shared';
-import { and, eq } from 'drizzle-orm';
+import { log, pathRunsNow, stepFrom, stopReasonOf } from '@openmig/shared';
 import { openTaskPools } from './jobs/task-pools.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -118,47 +117,53 @@ async function main() {
   // Every pass is handed its ledger and opens none of its own (0138 T1 part 2).
   const ledgerOptions = { ledgerDb: db };
 
+  // The reader every gate asks (0128 T5), handed to the pass so that each
+  // data type reads its phase when it starts and asks again before it
+  // concludes anything (2026-10-05).
+  const phasesNow = () =>
+    withTenant(pools.tenant, config.tenantId, (tx) => readPathPhases(tx, config.tenantId, config.mappingId));
+
   /**
-   * The mapping's phase, for the pass (0117 D4).
+   * ONE FIRING, which reads its migration's phases for itself (2026-10-05).
    *
-   * This CLI has never consulted `mailbox_mapping.status` — it runs the config
-   * it was handed, and that is deliberately unchanged here: no new refusal is
-   * introduced. The status is read only to answer the one question a pass now
-   * has to answer, whether the source is still the authority on what exists,
-   * so a `--once` run against a mapping past cutover does not detect deletions
-   * that must not be detected.
+   * This CLI read `mailbox_mapping.status` once, when the process started,
+   * and assumed `active` when it could not. A process left running in
+   * scheduled mode therefore never heard a cutover, a Pause, or a data type
+   * cut over on its own, and kept its deletion detectors after cutover: the
+   * owner, 2026-10-05, *"after cross over the bin reading and deleting on
+   * target should stop, because perhaps source-leavers clean up ALL after
+   * the cross over."* So every firing, `--once` and each cron tick, reads the
+   * phases the appliance reads before its pass, schedules by them, and hands
+   * the pass the reader and the question it stops by, decided as the
+   * appliance decides it (`stepFrom`).
    *
-   * A missing row falls back to `active`, which is exactly today's behaviour:
-   * the detectors run, as they always have for this tool.
+   * A phase it cannot read is a firing refused, never a guess (hard rule 9):
+   * a database that does not answer throws, and a migration with no row in
+   * it is not one this tool may assume is before its cutover.
    */
-  const lifecycle = await (async () => {
-    try {
-      const rows = await withTenant(pools.tenant, config.tenantId, (tx) =>
-        tx
-          .select({ status: mailboxMapping.status })
-          .from(mailboxMapping)
-          .where(
-            and(eq(mailboxMapping.tenantId, config.tenantId), eq(mailboxMapping.id, config.mappingId)),
-          ),
+  const fire = async () => {
+    const phases = await phasesNow();
+    if (phases === null) {
+      throw new Error(
+        `mapping ${config.mappingId} has no row in this database, so its phase cannot be read: ` +
+          'refusing to run a pass that would not know whether its cutover is behind it',
       );
-      return rows[0]?.status ?? 'active';
-    } catch (err) {
-      // Said out loud rather than swallowed (hard rule 9). Falling back keeps
-      // the CLI usable against a database this query cannot reach, at the cost
-      // of assuming the pre-cutover phase — which is the phase every mapping
-      // this tool has ever been pointed at was in.
-      log.warn(
-        `[Worker] could not read mailbox_mapping.status; assuming 'active': ` +
-          `${err instanceof Error ? err.message : String(err)}`,
-      );
-      return 'active';
     }
-  })();
+    return runAllDomains(
+      config,
+      statusStore,
+      phases.phaseOf,
+      phasesNow,
+      ledgerOptions,
+      (domain) => pathRunsNow(phases.phaseOf(domain)),
+      (domain) => phasesNow().then((current) => stopReasonOf(stepFrom(current, domain))),
+    );
+  };
 
   if (once) {
     // Run once mode
     log.info('[Worker] Running all enabled domains...');
-    const results = await runAllDomains(config, statusStore, phasesOfTheMigration(lifecycle), ledgerOptions);
+    const results = await fire();
     
     const totalScanned = results.reduce((sum, r) => sum + r.scanned, 0);
     const totalCreated = results.reduce((sum, r) => sum + r.created, 0);
@@ -179,7 +184,7 @@ async function main() {
     scheduler.schedule(config.mappingId, config.schedule.cron, async () => {
       log.info('[Worker] Running scheduled sync...');
       try {
-        const results = await runAllDomains(config, statusStore, phasesOfTheMigration(lifecycle), ledgerOptions);
+        const results = await fire();
         
         const totalScanned = results.reduce((sum, r) => sum + r.scanned, 0);
         const totalCreated = results.reduce((sum, r) => sum + r.created, 0);

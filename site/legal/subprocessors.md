@@ -124,7 +124,7 @@ data goes there.
 
 | Sub-processor | What they will process | Where | When |
 |---|---|---|---|
-| Moneybird B.V. | Invoice data: the buyer's name, address, country and — for businesses — VAT number, as bookkeeping and invoicing system | Netherlands (EU) | Before the first real invoice is issued; this row moves up on that day |
+| Moneybird B.V. | Invoice data: the buyer's name, address, country, the email address invoices are sent to and — for businesses — VAT number, and when each invoice was paid, with the payment provider's reference for that payment, as bookkeeping and invoicing system, which sends each invoice to that address | Netherlands (EU) | Before the first real invoice is issued; this row moves up on that day |
 
 ## Parties that are not sub-processors, listed so nobody wonders
 

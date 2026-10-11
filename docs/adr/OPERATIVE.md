@@ -195,6 +195,10 @@ live in [README.md](./README.md), the register.
 - **With no recorded version, nothing is removed** (`version_unknown`, workplan 0149 T3); a weak
   ETag counts as none. JMAP mail, which records no version by design, is exempt:
   `packages/engines/src/a-removal-the-server-checks.unit.test.ts`.
+- **After cutover nothing is applied, by hand either** (2026-10-05): the four removing functions
+  ask the item's data type's phase afresh (`stillTheAuthority`, required) and refuse
+  `after_cutover`; the queues carry `afterCutover`, and no Apply is offered. A rollback re-admits
+  it (ADR-0047). Guard: `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`.
 - Order is **remove-then-record**; rows are tombstoned, never deleted; a deleted item's
   reappearance is **never re-copied** (a relocated one's is: ADR-0030) (`packages/core/src/tombstone-not-restored.unit.test.ts`); outcomes state
   `kind: binned|deleted`, understating recoverability.
@@ -246,6 +250,7 @@ live in [README.md](./README.md), the register.
 - `autoApplyRelocations` per mapping, **default false**, and it **extends** `allowApplyDeletions` — never substitutes (auto ON with the base flag OFF refuses everything).
 - Four unattended gates atop every manual gate: pairing **unique corpus-wide** (empty files never eligible); the relocation **survived a completed pass** (`moved_recorded_at < passStartedAt`); the breaker decides **for the whole pass** (the cap must not nibble a mass event); cap **50 per mapping per pass**.
 - Attribution is `system:auto-apply` everywhere (audit log, managed apply receipts), counts narrated in the run summary. **Deletions never auto-apply**, either evidence class.
+- **After cutover nothing is auto-applied** (2026-10-05): before reading the moves queue, `autoApplyRelocations` asks the data type's phase afresh (`stillTheAuthority`) and refuses with `after_cutover`, in both editions, however old the move or late the switch. Guard: `a-move-applied-after-cutover.unit.test.ts`.
 
 ## [ADR-0032: The sharing queue — re-sharing on the target as an owner decision, invites through the target's own messaging](./0032-sharing-queue-target-native-invites.md)
 
@@ -600,9 +605,11 @@ live in [README.md](./README.md), the register.
   `mapping.status` record (`via: 'cutover'`) commit together, through the rollback's port; only
   paths in the phase the mapping leaves move, where its rows add up to its status (`pathFollows`).
   See *One transaction, and the paths*.
-- **A migration `active` at `execute` copies until its grace period ends**, mirroring no deletion
-  and holding no slot; a `paused` one stays stopped. Gates ask `runsPassesNow` with each data
-  type's window. Guard: `a-grace-period-that-copies.unit.test.ts`; see *The window rule*.
+- **A migration `active` at `execute` copies until its grace period ends**, mirroring no deletion,
+  overwriting no copy, and holding no slot; a `paused` one stays stopped. Gates ask `runsPassesNow` with each data
+  type's window. A pass already running asks its phase again before concluding anything
+  (`stillTheAuthority`). Guards: `a-grace-period-that-copies.unit.test.ts`,
+  `a-cutover-during-a-pass.unit.test.ts`; see *The window rule*.
 - **A data type can be cut over on its own** (`--kind`): its own ledger and path, the
   migration's status their roll-up; only mail waits for DNS. A data type's own cutover never
   begins while the whole one is under way, nor the whole once a data type has its own
