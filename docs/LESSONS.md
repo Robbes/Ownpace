@@ -1917,6 +1917,10 @@ reading a file drops off its entry by itself.
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 
+### `packages/managed/src/books-read-back.ts`
+
+- [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+
 ### `packages/managed/src/legal-versions.ts`
 
 - [a-version-the-tester-accepted](../scripts/a-version-the-tester-accepted.unit.test.ts) — A VERSION THE TESTER ACCEPTED (workplan 0139 T3).
@@ -2815,6 +2819,7 @@ Reads:
 - `packages/engines/src/caldav-target-writer.ts`
 - `packages/engines/src/carddav-target-writer.ts`
 - `packages/engines/src/webdav-target-writer.ts`
+- `packages/managed/src/books-read-back.ts`
 - `packages/managed/src/moneybird-credit-invoices.ts`
 - `packages/managed/src/moneybird-documents.ts`
 - `packages/managed/src/moneybird-financial-accounts.ts`

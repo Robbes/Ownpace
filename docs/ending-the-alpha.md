@@ -63,9 +63,10 @@ the owner's job.
    (`managed-invoice-push`, slice 5) once live's `MONEYBIRD_*` keys are set and uploaded to the
    tasks. The Billing page names the legal number (slice 5b), the invoice details are asked
    before leaving Free (decision 14, slice 5e), and a consumer can withdraw (slices 7a to 7c).
-   What is still to build before invoices reach customers:
-   - a payment Mollie confirms booked on its invoice in Moneybird, and paid and late read back
-     from Moneybird every hour (slice 5f; the owner, 2026-10-11);
+   A payment Mollie confirms is booked on its invoice in Moneybird, on the account
+   `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE` names, and paid and late are read back from Moneybird
+   every hour (slice 5f; the owner, 2026-10-11). What is still to build before invoices reach
+   customers:
    - the money back when a paid invoice is credited (slice 7d, its second half);
    - the yes that asks to begin before the fourteen days are over (slice 7e). Without it the
      law lets a consumer who withdraws pay nothing for what was used, so every withdrawal is
