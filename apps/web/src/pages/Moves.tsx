@@ -39,6 +39,7 @@ import {
 import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen.tsx';
 import {
   ActionButton,
+  AfterCutoverNote,
   DestructiveButton,
   DomainTag,
   GuidancePanel,
@@ -237,6 +238,7 @@ const Moves: React.FC<{
     fetcher={() => fetchMoves(mappingId)}
     renderMapping={(mappingId, queue, act, outcomes, setOutcome, refresh) => (
       <>
+        <AfterCutoverNote afterCutover={queue.afterCutover} />
         <QueueSection
           title={t('queue.waitingOnYou')}
           count={queue.open.length}
@@ -258,8 +260,9 @@ const Moves: React.FC<{
                     {t('moves.keep')}
                   </ActionButton>
                   {/* Relocations only — a key-preserving move has no second
-                      copy to point at, so nothing here may be removed. */}
-                  {mayOfferRelocationApply(mv) && (
+                      copy to point at, so nothing here may be removed. And
+                      none for a kind past its cutover (2026-10-05). */}
+                  {mayOfferRelocationApply(mv, queue.afterCutover) && (
                     <DestructiveButton
                       pending={outcomes[mv.naturalKeyHash]?.state === 'pending'}
                       label={t('moves.apply')}

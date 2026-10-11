@@ -45,6 +45,13 @@ import { MemoryLedger } from './__testing__/memory.ts';
 const TENANT = asTenantId('0e1d0000-e29b-41d4-a716-446655443a01');
 const MAPPING = asMappingId('0e1d0000-e29b-41d4-a716-446655443a02');
 
+/**
+ * Every case in this file is before cutover: the old system still decides
+ * what exists. The refusal after it (`after_cutover`, 2026-10-05) has its own
+ * file, `an-apply-pressed-after-cutover.unit.test.ts`.
+ */
+const BEFORE_CUTOVER = async (): Promise<boolean> => true;
+
 const key = (path: string) => fileNaturalKeyHash(path);
 
 /** One listed file. A Google document's bytes change on every fetch. */
@@ -262,6 +269,7 @@ describe('a renamed Google document', () => {
           }),
           hasItem: vi.fn(async () => true),
         },
+        stillTheAuthority: BEFORE_CUTOVER,
       },
       key('Plan.docx'),
     );
@@ -413,6 +421,7 @@ async function apply(ledger: MemoryLedger, present = true) {
     domain: 'file' as const,
     ledger,
     allowApplyDeletions: true,
+    stillTheAuthority: BEFORE_CUTOVER,
   };
   const evaluated = await evaluateApplyRelocation(shared, OLD);
   const applied = await applyRelocation({ ...shared, target: { removeItem, hasItem } }, OLD);

@@ -43,7 +43,7 @@ import {
   qualificationReportLines,
   qualifyAccount,
 } from '@openmig/orchestration/account-qualification';
-import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, foundByDomain, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow, stepFrom, stopReasonOf, HALT_IN_WORDS, firstCopyOf, type FirstCopyFacts } from '@openmig/shared';
+import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, foundByDomain, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow, stepFrom, stopReasonOf, dataTypesPastCutover, HALT_IN_WORDS, firstCopyOf, type FirstCopyFacts } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -882,6 +882,19 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     const tenantId = m.config.tenantId as string;
     return withTenant(persistenceBackend.driver, tenantId, (tdb) =>
       readShareGate(tdb, tenantId, m.mailboxMappingId),
+    );
+  };
+
+  /**
+   * This migration's phases, read when asked (`readPathPhases`, 2026-10-05):
+   * what the two apply routes hand core, which refuses after cutover
+   * (`after_cutover`), and what the Deletions and Moves queues read their
+   * `afterCutover` from, so the screen offers no Apply core would refuse.
+   */
+  const phasesOf = (m: LoadedMapping) => () => {
+    const tenantId = m.config.tenantId as string;
+    return withTenant(persistenceBackend.driver, tenantId, (tdb) =>
+      readPathPhases(tdb, tenantId, m.mailboxMappingId),
     );
   };
 
@@ -1997,6 +2010,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             // below are what WAS outstanding when it ended, not work still to do.
             migrationStatus: mStatus,
             ...(mStatus === 'done' ? { reportingClosed: REPORTING_CLOSED } : {}),
+            // The data types past their cutover, whose moves the apply route
+            // refuses (2026-10-05): the screen offers no Apply for them.
+            afterCutover: dataTypesPastCutover(await phasesOf(m)()),
             // Split, as with failures: one still wants a person, the other has
             // already had one.
             open: all.filter((mv) => !mv.acknowledgedAt),
@@ -2048,6 +2064,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             // below are what WAS outstanding when it ended, not work still to do.
             migrationStatus: mStatus,
             ...(mStatus === 'done' ? { reportingClosed: REPORTING_CLOSED } : {}),
+            // The data types past their cutover, whose deletions the apply
+            // route refuses (2026-10-05): the screen offers no Apply for them.
+            afterCutover: dataTypesPastCutover(await phasesOf(m)()),
             confirmed: all.filter((d) => d.confirmed && !d.acknowledgedAt),
             // Not yet worth acting on, shown so the queue is not a black box.
             watching: all.filter((d) => !d.confirmed && !d.acknowledgedAt),
@@ -3083,8 +3102,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // per-item decision, gated by `applyDeletion` in @openmig/core: off unless
       // the mapping opts in (`allowApplyDeletions`), refused for anything but
       // POSITIVE deletion evidence, refused for an item the target owner has
-      // since edited, and refused altogether behind the mass-deletion circuit
-      // breaker. See the runbook before wiring this into anything automated —
+      // since edited, refused altogether behind the mass-deletion circuit
+      // breaker, and refused once the item's data type is past its cutover
+      // (2026-10-05). See the runbook before wiring this into anything automated —
       // it is designed to be used one confirmed item at a time.
       const applyDeletionMatch =
         req.method === 'POST' && req.url
@@ -3098,15 +3118,17 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
 
         const configWithCorrectMappingId = { ...m.config, mappingId: m.mailboxMappingId };
-        const outcome = await applyMappingDeletion(configWithCorrectMappingId, hash, ledgerOptions);
+        // The data type's phase is asked at the press, from this reader: after
+        // cutover nothing is removed (`after_cutover`, 2026-10-05).
+        const outcome = await applyMappingDeletion(configWithCorrectMappingId, hash, ledgerOptions, phasesOf(m));
 
         if (!outcome.ok) {
           // Every refusal reason is written to be read verbatim by an operator —
           // see the comment on `ApplyDeletionOutcome` in apply-deletion.ts. 404
           // for "there is nothing here to act on" (not_found, not_confirmed,
           // already_applied); 403 for "this exists but you may not remove it"
-          // (everything else — not enabled, weak evidence, not ours, edited,
-          // mass-deletion breaker, target incapable).
+          // (everything else — not enabled, after cutover, weak evidence, not
+          // ours, edited, mass-deletion breaker, target incapable).
           // `removed_not_recorded` is neither: the copy IS gone and the ledger
           // would not say so. 404 would tell an operator there was nothing
           // here to act on, which is the opposite of what happened, and 403
@@ -3164,6 +3186,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           configWithCorrectMappingId,
           hash,
           ledgerOptions,
+          phasesOf(m),
         );
 
         if (!outcome.ok) {

@@ -91,6 +91,38 @@ in `reconcile.ts` and `dav-sync.ts`, `SourceAuthority`'s docblock and `build-dep
 each data type's own phase (`readPathPhases`) instead of the migration's status, and no longer
 claim that every data type of a firing shares one reading.
 
+**Built (fix 6): after cutover, an apply pressed by hand removes nothing.** The owner, asked
+on 2026-10-05 *"should pressing Apply on a deletion or move that was queued before cutover be
+refused?"*, chose **"Refuse after cutover (Recommended)"**. After cutover no pass draws a
+deletion or a move from the old system any more, but the queues keep what was recorded
+before it, or by a pass still running when execute was pressed, and the Apply button on
+each entry removed the copy on the new system by the rules from before: nothing in the four
+functions that remove (`evaluateApplyDeletion`, `applyDeletion`, `evaluateApplyRelocation`,
+`applyRelocation`, core) asked the phase, and the button showed regardless, even after
+Finish. Now `ApplyDeletionDeps` carries the same REQUIRED question (`stillTheAuthority`), and
+each of the four asks it, for the data type that holds the item, after the item is found and
+before any evidence or relocation gate, and refuses with the stable code `after_cutover`
+(403 on both editions) and a sentence that says nothing was removed and the copy stays. The
+managed route asks it on the request, in the request's own transaction; the two jobs ask it
+again at the removal through their deps builder's own question, so a cutover executed
+between the press and the job wins; the appliance's two routes hand
+`applyMappingDeletion`/`applyMappingRelocation` its reader (`phasesNow`, now a required
+argument). Auto-apply, which goes through `applyRelocation`, asks it per item as well as
+before the queue (fix 1's check stays). The Deletions and Moves queues of both editions now
+carry `afterCutover` (`dataTypesPastCutover`, shared, from the same reading), and
+`mayOfferApply`/`mayOfferRelocationApply` take it as a REQUIRED argument: no Apply button
+for a data type past its cutover, and one sentence above the rows, in English and Dutch
+(`queue.afterCutover`), saying why. A rollback makes the old system decide again (ADR-0047)
+and brings the button and the press back. Guards: `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`
+(the four functions in `cutover`, `continuous` and `done`, a data type cut over on its own, a
+cutover between evaluate and apply, a rollback, an unanswerable question),
+`packages/shared/src/a-button-offered-after-cutover.unit.test.ts`,
+`packages/orchestration/src/an-apply-pressed-after-cutover-on-the-appliance.unit.test.ts`
+(PGlite, the migration's own row moved), `apps/worker/src/jobs/an-apply-pressed-after-cutover.unit.test.ts`,
+the Deletions and Moves screen tests, and against real Postgres
+`apps/api/src/routes/migrations/apply-routes.integration.test.ts` and
+`apps/selfhost/src/an-apply-pressed-after-cutover.integration.test.ts`.
+
 **2026-09-10, later still again: THE TWO HALVES DID NOT FIT, and finding that out
 found a shipped bug.** Building slice 4 began by connecting the pass to the store, and
 they would not connect — which is how both of these surfaced.
@@ -812,6 +844,14 @@ the lane *refusing* to mirror a post-cutover deletion is the one that matters.
 old provider after cutover, and the copy in their new home stays. That is correct, and it
 is the opposite of what the product did before cutover — so it belongs in T5's words, along
 with the still-open choice of whether we simply stop noticing or say that we have.
+
+**Amended 2026-10-05: an apply pressed by hand is held to it too.** D4 was built as a
+detector that does not run; the entries recorded before the cutover stayed in the queues,
+and pressing Apply on one still removed the copy in the target. Asked *"should pressing
+Apply on a deletion or move that was queued before cutover be refused?"*, the owner chose
+**"Refuse after cutover (Recommended)"**. So after cutover the apply is refused
+(`after_cutover`) and not offered, until a rollback makes the source the authority again
+(ADR-0047). See the Status block, fix 6.
 
 **2026-09-09: D1 TAKEN — the continuous lane yes, the drain not yet.** The owner's words:
 

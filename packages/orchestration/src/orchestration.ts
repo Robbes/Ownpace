@@ -1344,11 +1344,20 @@ async function openSyncDomainDeps(
  * calendar event never produces a misleading "the mail target cannot remove
  * items" refusal — the mail domain is simply skipped because it has no row
  * under that key.
+ *
+ * AND THE DATA TYPE'S PHASE, asked at the press (2026-10-05). `phasesNow` is
+ * the appliance's reader of this migration's phases (`readPathPhases`), read
+ * fresh each time core asks whether the old system still decides what exists
+ * for the data type that holds the item; after cutover core refuses
+ * (`after_cutover`). The owner, asked whether such a press should be refused:
+ * *"Refuse after cutover (Recommended)"*. REQUIRED: a route that cannot ask
+ * must not compile.
  */
 export async function applyMappingDeletion(
   config: MappingConfig,
   naturalKeyHash: string,
   ledger: LedgerOptions,
+  phasesNow: () => Promise<PassPhases>,
 ): Promise<ApplyDeletionOutcome> {
   const tenantId = config.tenantId as TenantId;
   const mappingId = config.mappingId as MappingId;
@@ -1378,6 +1387,7 @@ export async function applyMappingDeletion(
           ledger: deps.ledger,
           target: deps.target,
           allowApplyDeletions: config.allowApplyDeletions,
+          stillTheAuthority: async () => sourceStillDecides(await phasesNow(), domain),
           ...(config.targetFolderPrefix !== undefined
             ? { targetFolderPrefix: config.targetFolderPrefix }
             : {}),
@@ -1408,11 +1418,14 @@ export async function applyMappingDeletion(
  * two are chosen by DIFFERENT owner actions in the UI and API, and a boolean
  * threaded through the appliance's route to pick between two destructive
  * behaviours is one typo away from performing the other one.
+ *
+ * `phasesNow`, as for `applyMappingDeletion`: after cutover core refuses.
  */
 export async function applyMappingRelocation(
   config: MappingConfig,
   naturalKeyHash: string,
   ledger: LedgerOptions,
+  phasesNow: () => Promise<PassPhases>,
 ): Promise<ApplyDeletionOutcome> {
   const tenantId = config.tenantId as TenantId;
   const mappingId = config.mappingId as MappingId;
@@ -1440,6 +1453,7 @@ export async function applyMappingRelocation(
           ledger: deps.ledger,
           target: deps.target,
           allowApplyDeletions: config.allowApplyDeletions,
+          stillTheAuthority: async () => sourceStillDecides(await phasesNow(), domain),
           ...(config.targetFolderPrefix !== undefined
             ? { targetFolderPrefix: config.targetFolderPrefix }
             : {}),

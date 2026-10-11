@@ -40,6 +40,13 @@ import { asTenantId, asMappingId, type UpsertResult } from '@openmig/shared';
 const TENANT = asTenantId('7c220000-e29b-41d4-a716-4466554401aa');
 const MAPPING = asMappingId('7c220000-e29b-41d4-a716-4466554401bb');
 
+/**
+ * Every case in this file is before cutover: the old system still decides
+ * what exists. The refusal after it (`after_cutover`, 2026-10-05) has its own
+ * file, `an-apply-pressed-after-cutover.unit.test.ts`.
+ */
+const BEFORE_CUTOVER = async (): Promise<boolean> => true;
+
 describe('classifyKnownItem: topology', () => {
   it('reports a move when the source lists the item in a different collection', () => {
     expect(
@@ -634,6 +641,7 @@ describe('a file moved between source folders', () => {
           hasItem: async () => true,
         },
         allowApplyDeletions: true,
+        stillTheAuthority: BEFORE_CUTOVER,
       },
       'a/report.pdf',
     );
@@ -948,6 +956,7 @@ describe('a removed copy takes no further part', () => {
           hasItem: async () => true,
         },
         allowApplyDeletions: true,
+        stillTheAuthority: BEFORE_CUTOVER,
       },
       'a/one.txt',
     );
@@ -1168,6 +1177,7 @@ describe('the old path after an applied relocation', () => {
             hasItem: async () => true,
           },
           allowApplyDeletions: true,
+          stillTheAuthority: BEFORE_CUTOVER,
         },
         'a/report.pdf',
       ),

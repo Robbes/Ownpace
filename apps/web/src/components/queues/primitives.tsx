@@ -10,7 +10,7 @@
 
 import React from 'react';
 import { AlertCircle, AlertTriangle, Check, Info, Loader2, Trash2 } from 'lucide-react';
-import type { ApplyReceipt, DeletionEvidence, MappingLifecycle } from '@openmig/shared';
+import type { ApplyReceipt, DeletionEvidence, DiscoveryDomain, MappingLifecycle } from '@openmig/shared';
 import { useT } from '../../i18n/index.tsx';
 import type { StringKey } from '../../i18n/index.tsx';
 
@@ -243,6 +243,20 @@ export const DestructiveButton: React.FC<{
 }> = (props) => <ConfirmButton {...props} tone="destructive" />;
 
 /** A decision that went through, shown where the buttons were. */
+/**
+ * Why some rows of a queue have no remove button (2026-10-05): their kind is
+ * past its cutover, the old system no longer decides what exists, and the
+ * server refuses such an apply (`after_cutover`). Said once, above the rows,
+ * and only when a kind is past it; the rows themselves simply offer none, as
+ * an inferred deletion offers none. The owner, asked whether such a press
+ * should be refused: "Refuse after cutover (Recommended)".
+ */
+export const AfterCutoverNote: React.FC<{ afterCutover: readonly DiscoveryDomain[] }> = ({ afterCutover }) => {
+  const t = useT();
+  if (afterCutover.length === 0) return null;
+  return <p className="mb-3 text-sm text-gray-600">{t('queue.afterCutover')}</p>;
+};
+
 export const Resolved: React.FC<{ effect: string }> = ({ effect }) => (
   <span className="inline-flex items-start gap-1 text-xs text-emerald-700">
     <Check className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />

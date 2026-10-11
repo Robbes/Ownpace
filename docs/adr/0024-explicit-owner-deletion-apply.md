@@ -1,6 +1,6 @@
 # ADR-0024: `apply` — an explicit, gated exception to non-destructiveness
 
-- **Status:** Accepted 2026-07-30; amended once (2026-09-27)
+- **Status:** Accepted 2026-07-30; amended twice (2026-09-27, 2026-10-05)
 - **Date:** 2026-07-30
 - **Relates to:** ADR-0005 (idempotency via ledger, non-destructive by default), ADR-0020 (ledger as rebuildable cache). Arch doc §11.1, §11.2, §20.
 
@@ -24,6 +24,10 @@
 - **With no recorded version, nothing is removed** (`version_unknown`, workplan 0149 T3); a weak
   ETag counts as none. JMAP mail, which records no version by design, is exempt:
   `packages/engines/src/a-removal-the-server-checks.unit.test.ts`.
+- **After cutover nothing is applied, by hand either** (2026-10-05): the four removing functions
+  ask the item's data type's phase afresh (`stillTheAuthority`, required) and refuse
+  `after_cutover`; the queues carry `afterCutover`, and no Apply is offered. A rollback re-admits
+  it (ADR-0047). Guard: `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`.
 - Order is **remove-then-record**; rows are tombstoned, never deleted; a deleted item's
   reappearance is **never re-copied** (a relocated one's is: ADR-0030) (`packages/core/src/tombstone-not-restored.unit.test.ts`); outcomes state
   `kind: binned|deleted`, understating recoverability.
@@ -95,7 +99,34 @@ A **rewrite** without a version still goes ahead, as the owner kept it (0149 D3)
 stop source changes from reaching every such row. What changed for rewrites is how the check is
 made, not which rows are rewritten.
 
+## Amendment, 2026-10-05: after cutover nothing is applied, by hand either
+
+After cutover the old system no longer decides what exists (workplan 0117 D4, 2026-09-09:
+*"after cutover the source is no longer the authority on what exists, so we will not delete in
+target based on changes in the source"*), and no pass draws a deletion or a move from it any
+more. But the Deletions and Moves queues keep what was recorded before the cutover, or by a pass
+still running when it was executed, and `apply` on one of those removed the copy on the target by
+the rules from before: none of `evaluateApplyDeletion`, `applyDeletion`,
+`evaluateApplyRelocation` and `applyRelocation` asked the phase, and the button showed regardless,
+after Finish too. Asked on 2026-10-05 *"should pressing Apply on a deletion or move that was
+queued before cutover be refused?"*, the owner chose **"Refuse after cutover (Recommended)"**.
+
+So `ApplyDeletionDeps` carries a REQUIRED `stillTheAuthority`, the data type's phase read afresh
+from `readPathPhases` through `sourceStillDecides` each time it is asked, and each of the four
+asks it once the item is found (an item already removed still answers `already_applied`) and
+before any evidence or relocation gate, refusing with the stable code `after_cutover` and a
+reason that says nothing was removed. The managed route asks it on the request and the job asks
+it again at the removal; the appliance hands its reader to `applyMappingDeletion` and
+`applyMappingRelocation`. Both editions' queues carry `afterCutover` (`dataTypesPastCutover`),
+and `mayOfferApply` and `mayOfferRelocationApply` take it as a required argument: no button for
+a data type past its cutover, and one sentence above the rows saying why. A rollback makes the
+old system the authority again (ADR-0047) and re-admits the same press.
+
 ## Amendment log
+
+- **2026-10-05** — After cutover nothing is applied, by hand either: `after_cutover`, and no Apply
+  offered (the owner's "Refuse after cutover (Recommended)"). Record: *Amendment, 2026-10-05: after
+  cutover nothing is applied, by hand either*.
 
 - **2026-09-27** — The server checks the version on removal and rewrite, and without a recorded
   version nothing is removed (workplan 0149 T3). Record: *Amendment, 2026-09-27: the server checks

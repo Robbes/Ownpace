@@ -53,6 +53,20 @@
  * 7. **The ledger still agrees.** The row is flipped by a conditional UPDATE that
  *    re-checks 3 and 4 in SQL, so two concurrent applies cannot both succeed.
  *
+ * AND NOTHING AFTER CUTOVER (2026-10-05), in front of 3 for both functions.
+ * Once a data type's cutover is executed its old system no longer decides
+ * what exists (0117 D4, 2026-09-09: *"after cutover the source is no longer
+ * the authority on what exists, so we will not delete in target based on
+ * changes in the source"*), and no pass draws a deletion or a move from it
+ * any more. But the queues keep what was recorded before, or by a pass still
+ * running when execute was pressed, and a press on one of those removed the
+ * copy on the new system by the rules from before. Asked whether such a press
+ * should be refused, the owner chose *"Refuse after cutover (Recommended)"*.
+ * So each of the four functions asks the data type's phase, fresh, through
+ * the question its caller hands in (`stillTheAuthority`), and refuses with
+ * `after_cutover`. A rollback makes the old system decide again (ADR-0047),
+ * and the same press is admitted again.
+ *
  * ORDER MATTERS: remove first, record second. A failure between them leaves the
  * row claiming the item is on the target when it is not, which §20 verification
  * reports as `missingOnTarget` — loud, and correctable by hand. The other order
@@ -133,6 +147,12 @@ export type ApplyRefusal =
   | 'weak_evidence'
   | 'not_ours'
   | 'already_applied'
+  /**
+   * The data type is past its cutover: its old system no longer decides what
+   * exists, so nothing is removed on its account (2026-10-05; the owner's
+   * "Refuse after cutover (Recommended)"). Until a rollback.
+   */
+  | 'after_cutover'
   | 'edited_on_target'
   /**
    * No version was recorded for this copy, so the writer removed nothing
@@ -203,6 +223,38 @@ export interface ApplyDeletionDeps {
    * two cannot drift.
    */
   readonly targetFolderPrefix?: string;
+  /**
+   * Whether this data type's old system still decides what exists, asked at
+   * the moment of the apply (`SourceAuthority.stillTheAuthority`, 2026-10-05):
+   * the data type's own phase, read fresh from `readPathPhases` each time it
+   * is asked. After cutover every function here refuses (`after_cutover`).
+   *
+   * REQUIRED, with no default, like `sourceIsAuthorityOnExistence` on a pass:
+   * a caller that cannot ask must not compile. A question that cannot be
+   * answered rejects, and nothing is removed (hard rule 9).
+   */
+  readonly stillTheAuthority: () => Promise<boolean>;
+}
+
+/**
+ * The refusal after cutover, written once so all four functions say the same
+ * thing. `what` is the queue the press came from.
+ */
+async function afterCutoverCheck(
+  deps: Pick<ApplyDeletionDeps, 'stillTheAuthority'>,
+  what: 'deletion' | 'move',
+): Promise<Extract<ApplyDeletionOutcome, { ok: false }> | undefined> {
+  if (await deps.stillTheAuthority()) return undefined;
+  return {
+    ok: false,
+    code: 'after_cutover',
+    reason:
+      `This data type is past its cutover, so the old system no longer decides what exists, and ` +
+      `nothing is removed from the new system on its account. This ${what} was recorded before the ` +
+      'cutover, or by a pass that was still running when it was executed. Nothing was removed: the ' +
+      'copy stays. Choose `keep` to clear it from the queue; a rollback of the cutover makes the old ' +
+      'system decide again.',
+  };
 }
 
 /**
@@ -259,6 +311,10 @@ export async function evaluateApplyDeletion(
       reason: 'The target copy of this item has already been removed.',
     };
   }
+
+  // NOTHING AFTER CUTOVER: the data type's phase, asked now.
+  const cutOver = await afterCutoverCheck(deps, 'deletion');
+  if (cutOver) return cutOver;
 
   // GATE 3: positive evidence only.
   const evidence =
@@ -342,6 +398,12 @@ export async function applyDeletion(
       reason: 'The target copy of this item has already been removed.',
     };
   }
+
+  // NOTHING AFTER CUTOVER (2026-10-05): the data type's phase, asked at the
+  // press, not when the route evaluated it. Asked of an item there is still
+  // something to decide about, and before anything is read from the target.
+  const cutOver = await afterCutoverCheck(deps, 'deletion');
+  if (cutOver) return cutOver;
 
   // GATE 3: positive evidence only. The whole safety argument in one condition.
   const evidence =
@@ -468,6 +530,9 @@ export async function evaluateApplyRelocation(
     };
   }
 
+  const cutOver = await afterCutoverCheck(deps, 'move');
+  if (cutOver) return cutOver;
+
   const relocation = await relocationCheck(deps, row);
   if (relocation) return relocation;
 
@@ -544,6 +609,11 @@ export async function applyRelocation(
       reason: 'The target copy of this item has already been removed.',
     };
   }
+
+  // NOTHING AFTER CUTOVER (2026-10-05), as for a deletion: the data type's
+  // phase, asked at the press. Auto-apply reaches here too, and asked first.
+  const cutOver = await afterCutoverCheck(deps, 'move');
+  if (cutOver) return cutOver;
 
   // GATE 3, in its relocation form: a recorded relocation whose arrival is
   // verifiably on the target. See the note above on why this is admissible.
@@ -1094,7 +1164,7 @@ export interface AutoApplyRelocationsReport {
    * Which of them, as a stable code for the caller's run log: `after_cutover`
    * (2026-10-05), or the breaker's own refusal code.
    */
-  readonly stoppedCode?: 'after_cutover' | ApplyRefusal;
+  readonly stoppedCode?: ApplyRefusal;
 }
 
 /**
@@ -1143,22 +1213,15 @@ export const AUTO_APPLY_AFTER_CUTOVER =
  * bin reading and deleting on target should stop, because perhaps
  * source-leavers clean up ALL after the cross over."* So the data type's phase
  * is asked HERE, fresh, through the question its deps builder made
- * (`stillTheAuthority`), before the queue is read; both editions call this
- * function, so neither can apply what the other refuses. Turning the switch on
- * after cutover applies none of the old moves either.
+ * (`stillTheAuthority`, the file deps' own), before the queue is read; both
+ * editions call this function, so neither can apply what the other refuses.
+ * Turning the switch on after cutover applies none of the old moves either.
+ * `applyRelocation` asks it again per item, as it does for a press by hand.
  */
 export async function autoApplyRelocations(
   deps: ApplyDeletionDeps & {
     /** ADR-0031's per-mapping opt-in. Defaults to FALSE, like every destructive capability. */
     readonly autoApplyRelocations?: boolean;
-    /**
-     * Whether this data type's old system still decides what exists, asked at
-     * the moment of the apply (`SourceAuthority.stillTheAuthority`): the file
-     * deps' own question, read fresh from `readPathPhases`. REQUIRED, with no
-     * default: an apply that cannot ask must not compile. A question that
-     * cannot be answered rejects, and nothing is removed (hard rule 9).
-     */
-    readonly stillTheAuthority: () => Promise<boolean>;
     /** Durable attribution, where the edition has somewhere to put it. */
     readonly onApplied?: (applied: {
       naturalKeyHash: string;

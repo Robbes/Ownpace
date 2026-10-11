@@ -195,6 +195,10 @@ live in [README.md](./README.md), the register.
 - **With no recorded version, nothing is removed** (`version_unknown`, workplan 0149 T3); a weak
   ETag counts as none. JMAP mail, which records no version by design, is exempt:
   `packages/engines/src/a-removal-the-server-checks.unit.test.ts`.
+- **After cutover nothing is applied, by hand either** (2026-10-05): the four removing functions
+  ask the item's data type's phase afresh (`stillTheAuthority`, required) and refuse
+  `after_cutover`; the queues carry `afterCutover`, and no Apply is offered. A rollback re-admits
+  it (ADR-0047). Guard: `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`.
 - Order is **remove-then-record**; rows are tombstoned, never deleted; a deleted item's
   reappearance is **never re-copied** (a relocated one's is: ADR-0030) (`packages/core/src/tombstone-not-restored.unit.test.ts`); outcomes state
   `kind: binned|deleted`, understating recoverability.

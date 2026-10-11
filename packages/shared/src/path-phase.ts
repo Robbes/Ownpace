@@ -21,6 +21,7 @@
  * the deletion detectors would have come back for it (0117 D4).
  */
 
+import { DISCOVERY_DOMAINS, type DiscoveryDomain } from './discovery.ts';
 import { runsPassesNow, sourceAuthorityFor, type SourceAuthorityAtStart } from './lifecycle.ts';
 
 /** A data type's lifecycle for one pass, as the gates read it. */
@@ -232,6 +233,19 @@ export function stepFrom(phases: PassPhases, domain: string): PassStep {
  */
 export function sourceStillDecides(phases: PassPhases, domain: string): boolean {
   return phases !== null && pathSourceAuthority(phases.phaseOf(domain)).sourceIsAuthorityOnExistence;
+}
+
+/**
+ * The data types whose old system no longer decides what exists, from the same
+ * reading (2026-10-05): each one `sourceStillDecides` says no for. What the
+ * Deletions and Moves queues carry as `afterCutover`, so a screen offers no
+ * Apply for them, as the servers refuse one (`after_cutover`, core). The
+ * owner, asked whether such a press should be refused: *"Refuse after cutover
+ * (Recommended)"*. A rollback makes the old system decide again (ADR-0047),
+ * and the list is empty again.
+ */
+export function dataTypesPastCutover(phases: PassPhases): DiscoveryDomain[] {
+  return DISCOVERY_DOMAINS.filter((domain) => !sourceStillDecides(phases, domain));
 }
 
 /** A step, as the one answer a pass inside a data type needs: why it stops, or null to go on. */

@@ -134,6 +134,8 @@ So `autoApplyRelocations` takes a REQUIRED `stillTheAuthority`, the file deps' o
 the opt-in and before the queue, and after cutover returns `stoppedCode: 'after_cutover'` having
 read and removed nothing. Each edition's run log says *"relocation auto-apply not run: after
 cutover the old system no longer decides what exists"*. Turning the switch on after cutover applies
-none of the old moves. A move recorded before cutover stays in the Moves queue; whether a person's
-own Apply on it is refused after cutover is a separate decision (manual apply, ADR-0024).
+none of the old moves. A move recorded before cutover stays in the Moves queue; a person's own
+Apply on it is refused after cutover too, by the owner's later answer the same day (ADR-0024's
+amendment of 2026-10-05), and `applyRelocation`, which auto-apply calls per item, now asks the
+same question itself.
 

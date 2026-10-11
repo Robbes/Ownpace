@@ -304,6 +304,10 @@ it sooner):
   cutover concludes nothing: it does not read the old system's bin, resolve a
   removal the old system reported, or count anything missing or moved there
   (ADR-0048, *The grace period copies*).
+- A deletion or a move still in the queues from before `execute` can no longer
+  be applied: `apply` is refused with `after_cutover` and the screens offer no
+  button for a data type past its cutover (ADR-0024's amendment of
+  2026-10-05). `rollback` makes the old system decide again and brings it back.
 - Monitor mail flow and delivery failures
 - Watch for user complaints or support tickets
 - Keep the rollback procedure ready — `rollback --yes` is still accepted in

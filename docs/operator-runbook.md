@@ -1598,6 +1598,13 @@ before anything is removed:
    the queue is trustworthy either, including the one you are looking at.
 5. **The target actually supports removal.** Not every writer does yet — see
    the table below.
+6. **The item's data type is not past its cutover** (2026-10-05). Once a data
+   type is in `cutover`, `done` or `continuous`, the old system no longer
+   decides what exists there, and `apply` on a deletion or a move recorded
+   before it is refused with `after_cutover`; the queue carries `afterCutover`
+   and the screen offers no button for that data type. Nothing is removed and
+   the copy stays: choose `keep` to clear the entry. A rollback makes the old
+   system decide again, and the same `apply` is admitted.
 
 A call that is refused always says why, in a `reason` you can read as-is —
 `not_enabled`, `target_cannot_remove`, `weak_evidence`, `not_ours`,

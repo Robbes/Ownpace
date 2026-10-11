@@ -195,7 +195,8 @@ describe('a rename in Drive, seen by the pass AFTER the copy (the production cas
       confirmed: true,
     });
     expect(
-      mayOfferApply(second.deletions[0]!),
+      // Before cutover: no data type is past it.
+      mayOfferApply(second.deletions[0]!, []),
       'the queue may offer the destructive action on this evidence',
     ).toBe(true);
   });
