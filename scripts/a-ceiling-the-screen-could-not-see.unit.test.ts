@@ -64,12 +64,17 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string): string => readFileSync(join(REPO_ROOT, rel), 'utf8');
+/** The dictionary's source: its composer and every area file (`strings/`). */
+const dictionarySource = (root: string): string =>
+  ['strings.ts', ...readdirSync(join(root, 'apps/web/src/i18n/strings')).map((f) => `strings/${f}`)]
+    .map((f) => readFileSync(join(root, 'apps/web/src/i18n', f), 'utf8'))
+    .join('\n');
 
 const ROUTE = 'apps/api/src/routes/provider-accounts.ts';
 const FLOW = 'apps/web/src/pages/StartMigration.tsx';
@@ -260,7 +265,7 @@ describe('a fact the server computed and the screen must show', () => {
     // "Redirect URI: https://…" is a fact. What a person needs is the
     // instruction, because the address is useless until it is registered in
     // the right box of somebody else's console.
-    const strings = read('apps/web/src/i18n/strings.ts');
+    const strings = dictionarySource(REPO_ROOT);
     const at = strings.indexOf("'wizard.google.redirectUri':");
     expect(at, 'the string is gone').toBeGreaterThan(-1);
     const sentence = strings.slice(at, at + 400);

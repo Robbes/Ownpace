@@ -32,11 +32,16 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = join(import.meta.dirname, '..');
 const read = (rel: string): string => readFileSync(join(ROOT, rel), 'utf8');
+/** The dictionary's source: its composer and every area file (`strings/`). */
+const dictionarySource = (root: string): string =>
+  ['strings.ts', ...readdirSync(join(root, 'apps/web/src/i18n/strings')).map((f) => `strings/${f}`)]
+    .map((f) => readFileSync(join(root, 'apps/web/src/i18n', f), 'utf8'))
+    .join('\n');
 
 const BILLING_ROUTES = 'apps/api/src/routes/billing/index.ts';
 const USAGE_HISTORY = 'apps/api/src/services/usage-history.ts';
@@ -155,7 +160,7 @@ describe('a screen that quoted a retired price', () => {
 
   it('every string the tier block renders exists in BOTH languages', () => {
     const screen = read(WEB_SCREEN);
-    const strings = read('apps/web/src/i18n/strings.ts');
+    const strings = dictionarySource(ROOT);
     const keys = [...screen.matchAll(/t\('(billing\.(?:tier|yourTier)[A-Za-z]*)'\)/g)].map(
       (m) => m[1]!,
     );

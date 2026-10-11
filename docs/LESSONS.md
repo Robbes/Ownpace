@@ -485,14 +485,28 @@ reading a file drops off its entry by itself.
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-list-somebody-deletes-on-the-strength-of](../scripts/a-list-somebody-deletes-on-the-strength-of.unit.test.ts) — A LIST SOMEBODY DELETES ON THE STRENGTH OF (workplan 0117 T2, D7 branch (a)).
-- [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts) — A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
 - [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 - [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)), AND NO *DRAAGT* FOR WHAT AN ACCOUNT HOLDS (the owner, 2026-10-05).
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
-- [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
 - [the-alpha-said-to-a-visitor](../scripts/the-alpha-said-to-a-visitor.unit.test.ts) — THE ALPHA, SAID TO A VISITOR WHO WAS NOT INVITED (workplan 0152 T1 (a), open question 5; the owner, 2026-10-05: *"Do suggestions for non alpha viewers"*).
 - [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
+
+### `apps/web/src/i18n/strings/app.ts`
+
+- [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
+
+### `apps/web/src/i18n/strings/connect.ts`
+
+- [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)), AND NO *DRAAGT* FOR WHAT AN ACCOUNT HOLDS (the owner, 2026-10-05).
+
+### `apps/web/src/i18n/strings/migrations.ts`
+
+- [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)), AND NO *DRAAGT* FOR WHAT AN ACCOUNT HOLDS (the owner, 2026-10-05).
+
+### `apps/web/src/i18n/strings/start.ts`
+
+- [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)), AND NO *DRAAGT* FOR WHAT AN ACCOUNT HOLDS (the owner, 2026-10-05).
 
 ### `apps/web/src/pages/Billing.tsx`
 
@@ -3928,7 +3942,6 @@ Reads:
 
 - `apps/api/src/routes/migrations/grant-link-readiness.unit.test.ts`
 - `apps/web/src/a-permission-described-as-it-is.unit.test.tsx`
-- `apps/web/src/i18n/strings.ts`
 - `docs/grant-links.md`
 - `site/pages/en/alpha-guide.md`
 - `site/pages/en/how-it-works.md`
@@ -4552,6 +4565,9 @@ Reads:
 - `apps/api/src/routes/billing/billing-party.unit.test.ts`
 - `apps/web/src/i18n/i18n.unit.test.tsx`
 - `apps/web/src/i18n/strings.ts`
+- `apps/web/src/i18n/strings/connect.ts`
+- `apps/web/src/i18n/strings/migrations.ts`
+- `apps/web/src/i18n/strings/start.ts`
 - `apps/web/src/pages/Docs.tsx`
 - `docs/cutover-communication-templates.md`
 - `docs/guides/nl/archive.md`
@@ -5261,7 +5277,7 @@ Reads:
 - `apps/api/src/config-guards.ts`
 - `apps/api/src/routes/billing/index.ts`
 - `apps/api/src/routes/tenants/members.ts`
-- `apps/web/src/i18n/strings.ts`
+- `apps/web/src/i18n/strings/app.ts`
 - `packages/core/src/largest-file.ts`
 - `packages/shared/src/notifications.ts`
 - `site/build.mjs`

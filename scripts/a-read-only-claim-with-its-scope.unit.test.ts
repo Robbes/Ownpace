@@ -48,7 +48,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -73,7 +73,7 @@ const CLAIM = /read-only|alleen-lezen|alleen lezen/i;
  */
 const SCOPED = /\b(?:Drive|Tasks|Taken)\b|\bConnect with Microsoft\b|\bVerbinden met Microsoft\b/;
 
-const STRINGS = 'apps/web/src/i18n/strings.ts';
+const STRINGS = 'apps/web/src/i18n/strings/';
 
 /** A surface is a Markdown file, or one dictionary key in one language. */
 type Surface = { readonly kind: 'markdown'; readonly path: string } | {
@@ -136,17 +136,21 @@ function markdownSentences(text: string): string[] {
     .filter((s) => s !== '');
 }
 
-/** One dictionary key's text in one language, read from the source as text. */
+/** One dictionary key's text in one language, read from its area's source as text. */
 function dictionaryText(key: string, locale: 'en' | 'nl'): string {
-  const source = read(STRINGS);
-  // `const en = {` opens the English table and `const nl` the Dutch one.
-  const nlStart = source.indexOf('\nconst nl');
-  expect(nlStart, `${STRINGS} no longer has a Dutch table where this guard looks`).toBeGreaterThan(0);
-  const table = locale === 'en' ? source.slice(0, nlStart) : source.slice(nlStart);
   const escaped = key.replace(/\./g, '\\.');
-  const found = new RegExp(`'${escaped}':\\s*'((?:[^'\\\\]|\\\\.)*)'`).exec(table);
-  expect(found, `${STRINGS} has no '${key}' in its ${locale} table`).not.toBeNull();
-  return found![1]!;
+  const pattern = new RegExp(`'${escaped}':\\s*'((?:[^'\\\\]|\\\\.)*)'`);
+  for (const file of readdirSync(join(REPO_ROOT, STRINGS))) {
+    const source = read(`${STRINGS}${file}`);
+    if (!source.includes(`'${key}':`)) continue;
+    // `export const en = {` opens an area's English table and `export const nl` its Dutch one.
+    const nlStart = source.indexOf('\nexport const nl');
+    expect(nlStart, `${STRINGS}${file} no longer has a Dutch table where this guard looks`).toBeGreaterThan(0);
+    const found = pattern.exec(locale === 'en' ? source.slice(0, nlStart) : source.slice(nlStart));
+    expect(found, `${STRINGS}${file} has no '${key}' in its ${locale} table`).not.toBeNull();
+    return found![1]!;
+  }
+  throw new Error(`no area in ${STRINGS} defines '${key}'`);
 }
 
 function sentencesOf(s: Surface): string[] {
