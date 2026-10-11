@@ -100,6 +100,7 @@ vi.mock('./pages/Support', () => ({
   SupportTenantDetail: () => <div>screen:support-tenant</div>,
   SupportMigrationDetail: () => <div>screen:support-migration</div>,
   SupportRetainedInvoices: () => <div>screen:support-invoices</div>,
+  SupportMoneyToGiveBack: () => <div>screen:support-money</div>,
   SupportLog: () => <div>screen:support-log</div>,
   ApplianceLog: () => <div>screen:appliance-log</div>,
 }));

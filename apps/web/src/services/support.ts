@@ -232,6 +232,41 @@ export async function listRetainedInvoices(): Promise<SupportKeptAfterErasure> {
   return { invoices: response.data.invoices, numbers: response.data.numbers ?? [] };
 }
 
+/** Why a credit note is on the list of money to give back. */
+export type MoneyReason = 'by_hand' | 'refund_failed' | 'refund_canceled' | 'refund_late';
+
+/**
+ * A credit note whose money the operator gives back by hand, or watches
+ * (workplan 0111; managed migration 0055). As `listMoneyToGiveBack` serves it.
+ */
+export interface MoneyToGiveBack {
+  readonly creditNoteId: string;
+  readonly tenantId: string;
+  readonly organisation: string;
+  readonly creditNoteNumber: string | null;
+  readonly invoiceNumber: string | null;
+  readonly reason: MoneyReason;
+  readonly cents: number;
+  readonly currency: string;
+  readonly refundId: string | null;
+  readonly refundStatus: string | null;
+  readonly refundInTheBooks: boolean;
+  readonly saidAt: string;
+  readonly givenBackAt: string | null;
+  readonly givenBackBy: string | null;
+}
+
+/** Everything on the list: what is still owed or watched first, then what was marked. */
+export async function listMoneyToGiveBack(): Promise<MoneyToGiveBack[]> {
+  const response = await apiClient.get<{ items: MoneyToGiveBack[] }>('/support/money-to-give-back');
+  return response.data.items;
+}
+
+/** Mark one paid back by hand, once, in the signed-in operator's name. */
+export async function markMoneyGivenBack(creditNoteId: string): Promise<void> {
+  await apiClient.post(`/support/money-to-give-back/${encodeURIComponent(creditNoteId)}/given-back`);
+}
+
 /**
  * One row of the log (workplan 0129 T2), and one page of it: the shared shape
  * both editions serve, so the page reads either (0129 D5).

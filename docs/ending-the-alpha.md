@@ -93,10 +93,11 @@ the owner's job.
      link to Mollie matches the payments and refunds Ownpace books there;
    - **the API recreated and `set-task-env.sh` run**, then the check again, which ends
      `RESULT: ready`.
-   - **a way to hear the money you owe**: the hourly push says a credit note to pay back by hand,
-     a refund that failed and one running late as errors on its run's output, which goes with the
-     run's container. The [operator runbook](./operator-runbook.md) (`managed-invoice-push`) says
-     what each asks of you and how to find them afterwards.
+   - **a way to hear the money you owe**: the hourly push mails a credit note to pay back by hand,
+     a refund that failed and one running late to `NOTIFY_TO`, so live's SMTP settings and
+     `NOTIFY_TO` reach the tasks, and lists each on the support screen's *Money to give back*
+     until you mark it given back. The [operator runbook](./operator-runbook.md)
+     (`managed-invoice-push`) says what each asks of you.
 
    The proofs do not run on live; each refuses it. Leave `OWNPACE_BILLING_FROM` empty until all
    of this is done.

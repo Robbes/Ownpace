@@ -1038,6 +1038,36 @@ export type NotificationEvent =
       readonly beganOnRequest: boolean;
       /** The terms' address, in the mail's language. */
       readonly terms: string;
+    }
+  | {
+      /**
+       * Money owed back to a customer that the operator gives back by hand,
+       * or watches (workplan 0111; the owner, 2026-10-11). Said once by the
+       * hourly push for each credit note it writes down: paid, but not
+       * through Mollie (`by_hand`); a refund Mollie ended failed or canceled;
+       * a refund still going a week after it was made (`refund_late`).
+       *
+       * ADDRESSED TO THE OPERATOR (`NOTIFY_TO`), in English, like the knock.
+       * It carries numbers and never a name: the support screen's *Money to
+       * give back* names the organisation, behind sign-in, and is where the
+       * operator marks it paid back.
+       */
+      readonly kind: 'money_to_give_back';
+      readonly reason: 'by_hand' | 'refund_failed' | 'refund_canceled' | 'refund_late';
+      /** The organisation's id, to find it on the support screen. */
+      readonly organisationId: string;
+      /** The credit note's number in the books. */
+      readonly creditNote: string;
+      /** The number of the invoice it credits. */
+      readonly invoice: string;
+      /** What goes back, in cents. */
+      readonly cents: number;
+      /** Mollie's refund, but by hand. */
+      readonly refundId?: string;
+      /** Mollie's word on a late refund: queued, pending or processing. */
+      readonly refundStatus?: string;
+      /** A failed refund was booked on the credit note in the books, and must come off it. */
+      readonly inTheBooks?: boolean;
     };
 
 /**
@@ -1102,7 +1132,7 @@ export function createFailureStreakGate(threshold = 3): FailureStreakGate {
  * screens and mail are English; the owner, *"for me as operator English would
  * suffice"*). Every other event is a customer's, in both languages.
  */
-type OperatorEventKind = 'access_requested';
+type OperatorEventKind = 'access_requested' | 'money_to_give_back';
 type CustomerEventKind = Exclude<NotificationEvent['kind'], OperatorEventKind>;
 
 const EVENT: {
@@ -1123,6 +1153,7 @@ const EVENT: {
     looking_less_often: 'Ownpace — everything is in step, so we look less often',
     contract_withdrawn: 'Ownpace — we received your withdrawal',
     order_confirmed: 'Ownpace — your order',
+    money_to_give_back: 'Ownpace — money owed back to a customer',
   },
   nl: {
     decision_raised: 'Ownpace — een wijziging vraagt uw beslissing',
@@ -1440,10 +1471,61 @@ const ACCESS_REQUESTED = {
   tier: 'Package they guessed at:',
 } as const;
 
+/** Money owed back to a customer, as the hourly push tells the operator of it. */
+export type MoneyToGiveBackEvent = Extract<NotificationEvent, { readonly kind: 'money_to_give_back' }>;
+
+/** Whether an event is addressed to the operator, and so in English. */
+function isOperatorEvent(
+  event: NotificationEvent,
+): event is Extract<NotificationEvent, { readonly kind: OperatorEventKind }> {
+  return event.kind === 'access_requested' || event.kind === 'money_to_give_back';
+}
+
 /** The subject, in the event's language: an operator's is English. */
 function subjectOf(event: NotificationEvent, locale: NotificationLocale): string {
-  if (locale === 'en' || event.kind === 'access_requested') return EVENT.en[event.kind];
+  if (locale === 'en' || isOperatorEvent(event)) return EVENT.en[event.kind];
   return EVENT.nl[event.kind];
+}
+
+/** An amount in cents as the books write it: `EUR 4.00`. */
+const euros = (cents: number): string => `EUR ${(cents / 100).toFixed(2)}`;
+
+/** Money owed back, in the operator's English (`OperatorEventKind`). */
+function moneyToGiveBackLines(event: MoneyToGiveBackEvent): string[] {
+  const amount = euros(event.cents);
+  const within = 'within 14 days of the withdrawal (terms §7)';
+  const lines: string[] = [];
+  if (event.reason === 'by_hand') {
+    lines.push(
+      `Credit note ${event.creditNote} credits ${amount} on invoice ${event.invoice}, which was paid, but not through Mollie.`,
+      '',
+      `Pay back what was paid above what is owed now by bank transfer, ${within}, and book it on the credit note in Moneybird.`,
+    );
+  } else if (event.reason === 'refund_late') {
+    lines.push(
+      `Mollie's refund ${event.refundId ?? ''} of ${amount} for credit note ${event.creditNote} is still ` +
+        `${event.refundStatus ?? 'going'} a week after it was made.`,
+      '',
+      "A queued refund waits until Mollie's balance covers it; terms §7 promises the money back within 14 days of the withdrawal.",
+    );
+  } else {
+    const ended = event.reason === 'refund_failed' ? 'failed' : 'canceled';
+    lines.push(
+      `Mollie's refund ${event.refundId ?? ''} of ${amount} for credit note ${event.creditNote} ended ${ended}: the money did not go back.`,
+      '',
+      `Pay it back by bank transfer, ${within}` +
+        (event.inTheBooks
+          ? `, and take its payment off the credit note in Moneybird (booked under ${event.refundId ?? 'the refund'}).`
+          : '. It was not booked in Moneybird, and will not be.'),
+    );
+  }
+  lines.push('', `Organisation: ${event.organisationId}`);
+  lines.push(
+    event.reason === 'refund_late'
+      ? 'The support screen lists it under Money to give back until Mollie ends it.'
+      : 'The support screen lists it under Money to give back; mark it there once it is paid back.',
+  );
+  return lines;
 }
 
 /** One immediate event, rendered. Always sends — these are not summaries. */
@@ -1452,7 +1534,7 @@ export function renderEvent(
   requested: NotificationLocale,
 ): NotificationMessage {
   // An event addressed to the operator is English, whatever was asked for.
-  const locale: NotificationLocale = event.kind === 'access_requested' ? 'en' : requested;
+  const locale: NotificationLocale = isOperatorEvent(event) ? 'en' : requested;
   const b = EVENT_BODY[locale];
   const subject = subjectOf(event, locale);
   const lines: string[] = [];
@@ -1581,6 +1663,9 @@ export function renderEvent(
       // boundary covers a human's words for the same reason it covers the
       // server's: whoever reads this needs what was actually said.
       lines.push(b.rollbackReason, event.reason);
+      break;
+    case 'money_to_give_back':
+      lines.push(...moneyToGiveBackLines(event));
       break;
   }
 

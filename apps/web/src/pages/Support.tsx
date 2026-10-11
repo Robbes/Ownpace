@@ -73,11 +73,15 @@ import {
   type SupportLogEntry,
   type SupportLogFilters,
   type SupportLogPage,
+  listMoneyToGiveBack,
+  markMoneyGivenBack,
+  type MoneyToGiveBack,
 } from '../services/support.ts';
 import { readApplianceLog } from '../services/operating-service.ts';
 import { idpConsoleUserUrl, localSubjectKind } from '../services/idp-console.ts';
 import { serverMessage } from '../services/api.ts';
-import { useOperatorT, useFormatters, type OperatorScreenKey } from '../i18n/index.tsx';
+import { useOperatorT, useFormatters, useLocale, type OperatorScreenKey } from '../i18n/index.tsx';
+import { formatDateTime } from '../i18n/datetime.ts';
 import { Hint } from '../components/Hint.tsx';
 import { AuditExportDownload } from '../components/AuditExportDownload.tsx';
 import { FAILURE_KEY, FAILURE_SIDE_KEY } from '../i18n/failure-key.ts';
@@ -511,9 +515,17 @@ export const SupportTenants: React.FC = () => {
       {/* Reachable from here because it is reachable from nowhere else: the
           organisations it concerns have been erased, so no tenant row leads to
           it. A screen nobody can navigate to is the gap this closed. */}
-      <p className="mb-4 text-sm">
+      <p className="mb-2 text-sm">
         <Link to="/support/retained-invoices" className="text-blue-700 hover:underline">
           {t('support.retained.link')}
+        </Link>
+      </p>
+
+      {/* What the hourly invoice push asks the operator to give back by hand,
+          or watch (0111; the owner, 2026-10-11). Its mail says to look here. */}
+      <p className="mb-4 text-sm">
+        <Link to="/support/money-to-give-back" className="text-blue-700 hover:underline">
+          {t('support.money.link')}
         </Link>
       </p>
 
@@ -1175,6 +1187,177 @@ export const SupportRetainedInvoices: React.FC = () => {
             </tbody>
           </table>
         </Section>
+      )}
+    </div>
+  );
+};
+
+/* ----------------------------------------------------- money to give back */
+
+/**
+ * MONEY TO GIVE BACK (workplan 0111; the owner, 2026-10-11): the credit notes
+ * whose money the operator gives back by hand, and the refunds to watch. The
+ * hourly invoice push writes each down once and mails it to `NOTIFY_TO`; this
+ * is where it stays until done, because the mail can be missed and the run's
+ * own output goes with its container.
+ *
+ * A row paid back by hand gets a mark: by transfer, and for a failed refund
+ * booked in the books, its payment taken off the credit note. Two presses,
+ * because the mark is written once and never taken back. A late refund takes
+ * no mark: it leaves the list when Mollie ends it.
+ */
+const MONEY_REASON_KEY: Record<MoneyToGiveBack['reason'], OperatorScreenKey> = {
+  by_hand: 'support.money.reason.by_hand',
+  refund_failed: 'support.money.reason.refund_failed',
+  refund_canceled: 'support.money.reason.refund_canceled',
+  refund_late: 'support.money.reason.refund_late',
+};
+
+const MoneyRow: React.FC<{ item: MoneyToGiveBack }> = ({ item }) => {
+  const t = useOperatorT();
+  const { dateTime, currency } = useFormatters();
+  const { locale } = useLocale();
+  // The day is what the 14 days count; the time is on hover.
+  const day = (iso: string) => formatDateTime(iso, locale, { timeStyle: undefined });
+  const client = useQueryClient();
+  const [asking, setAsking] = React.useState(false);
+  const mark = useMutation({
+    mutationFn: () => markMoneyGivenBack(item.creditNoteId),
+    onSuccess: async () => {
+      setAsking(false);
+      await client.invalidateQueries({ queryKey: ['support', 'money-to-give-back'] });
+    },
+  });
+  const late = item.reason === 'refund_late';
+  return (
+    <tr>
+      <td className="px-3 py-2 text-gray-900">
+        <Link to={`/support/tenants/${item.tenantId}`} className="text-blue-700 hover:underline">
+          {item.organisation}
+        </Link>
+      </td>
+      <td className="whitespace-nowrap px-3 py-2 text-gray-600">
+        <div>{item.creditNoteNumber}</div>
+        {item.invoiceNumber && (
+          <div className="text-xs text-gray-500">{t('support.money.onInvoice', { number: item.invoiceNumber })}</div>
+        )}
+      </td>
+      <td className="whitespace-nowrap px-3 py-2 text-gray-900">{currency(item.cents, item.currency)}</td>
+      <td className="min-w-[12rem] px-3 py-2 text-gray-600">
+        {t(MONEY_REASON_KEY[item.reason], {
+          refund: item.refundId ?? '',
+          status: item.refundStatus ?? '',
+        })}
+        {item.refundInTheBooks && !late && item.reason !== 'by_hand' && (
+          <> {t('support.money.reason.inTheBooks')}</>
+        )}
+      </td>
+      {!item.givenBackAt && (
+        <td className="whitespace-nowrap px-3 py-2 text-gray-600" title={dateTime(item.saidAt)}>
+          {day(item.saidAt)}
+        </td>
+      )}
+      <td className="px-3 py-2">
+        {item.givenBackAt ? (
+          <span className="whitespace-nowrap text-gray-600" title={dateTime(item.givenBackAt)}>
+            {day(item.givenBackAt)}
+            <span className="block text-xs text-gray-500">
+              {t('support.money.givenBackBy', { who: item.givenBackBy ?? t('support.money.someone') })}
+            </span>
+          </span>
+        ) : late ? (
+          <span className="text-gray-500">{t('support.money.watching')}</span>
+        ) : asking ? (
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="text-gray-900">{t('support.money.mark.confirm')}</span>
+            <button
+              type="button"
+              disabled={mark.isPending}
+              onClick={() => mark.mutate()}
+              className="whitespace-nowrap rounded-md bg-blue-600 px-3 py-1 text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {t('support.money.mark.yes')}
+            </button>
+            <button
+              type="button"
+              disabled={mark.isPending}
+              onClick={() => setAsking(false)}
+              className="rounded-md border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50"
+            >
+              {t('common.cancel')}
+            </button>
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setAsking(true)}
+            className="whitespace-nowrap rounded-md border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50"
+          >
+            {t('support.money.mark')}
+          </button>
+        )}
+        {mark.isError && (
+          <p role="alert" className="mt-1 text-red-700">
+            {t('support.money.mark.failed', { message: serverMessage(mark.error) })}
+          </p>
+        )}
+      </td>
+    </tr>
+  );
+};
+
+const MoneyTable: React.FC<{ items: MoneyToGiveBack[]; done: boolean }> = ({ items, done }) => {
+  const t = useOperatorT();
+  return (
+    <table className="min-w-full text-sm">
+      <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+        <tr>
+          <th className="px-3 py-2">{t('support.money.col.organisation')}</th>
+          <th className="px-3 py-2">{t('support.money.col.creditNote')}</th>
+          <th className="px-3 py-2">{t('support.money.col.amount')}</th>
+          <th className="px-3 py-2">{t('support.money.col.what')}</th>
+          {!done && <th className="px-3 py-2">{t('support.money.col.since')}</th>}
+          <th className="px-3 py-2">{done ? t('support.money.col.givenBack') : t('support.money.col.action')}</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-gray-100">
+        {items.map((item) => (
+          <MoneyRow key={item.creditNoteId} item={item} />
+        ))}
+      </tbody>
+    </table>
+  );
+};
+
+export const SupportMoneyToGiveBack: React.FC = () => {
+  const t = useOperatorT();
+  const query = useQuery({
+    queryKey: ['support', 'money-to-give-back'],
+    queryFn: listMoneyToGiveBack,
+    ...ONCE,
+  });
+  const items: MoneyToGiveBack[] = query.data ?? [];
+  const open = items.filter((i) => i.givenBackAt === null);
+  const done = items.filter((i) => i.givenBackAt !== null);
+
+  return (
+    <div>
+      <Heading title={t('support.money.heading')} back={{ to: '/support', label: t('support.back') }} />
+      <Disclosure />
+      <Hint className="mb-4" text={t('support.money.lead')} why={t('support.money.lead.why')} />
+
+      {query.isLoading && <p className="text-sm text-gray-500">{t('common.loading')}</p>}
+      {query.isError && <p className="text-sm text-red-700">{t('common.requestFailed')}</p>}
+
+      {!query.isLoading && !query.isError && (
+        <>
+          <Section title={t('support.money.open.heading')} empty={t('support.money.open.none')} rows={open.length}>
+            <MoneyTable items={open} done={false} />
+          </Section>
+          <Section title={t('support.money.done.heading')} empty={t('support.money.done.none')} rows={done.length}>
+            <MoneyTable items={done} done={true} />
+          </Section>
+        </>
       )}
     </div>
   );

@@ -736,3 +736,37 @@ describe('an order, confirmed by email (0111 T7, slice 7e)', () => {
     expect(en.body).not.toMatch(/open the app/i);
   });
 });
+
+describe('money to give back — addressed to the operator, in English (0111; 2026-10-11)', () => {
+  const base = { kind: 'money_to_give_back', organisationId: 'org-1', creditNote: '2026-0010', invoice: '2026-0009' } as const;
+
+  it('says a transfer by hand, with the amount and where to book it', () => {
+    const { subject, body } = renderEvent({ ...base, reason: 'by_hand', cents: 400 }, 'en');
+    expect(subject).toBe('Ownpace — money owed back to a customer');
+    expect(body).toContain('Credit note 2026-0010 credits EUR 4.00 on invoice 2026-0009, which was paid, but not through Mollie.');
+    expect(body).toContain('by bank transfer, within 14 days of the withdrawal (terms §7), and book it on the credit note in Moneybird.');
+    expect(body).toContain('Organisation: org-1');
+    expect(body).toContain('mark it there once it is paid back');
+  });
+
+  it('says a failed refund, and whether its payment must come off the credit note', () => {
+    const booked = renderEvent({ ...base, reason: 'refund_failed', cents: 300, refundId: 're_1', inTheBooks: true }, 'en').body;
+    expect(booked).toContain("Mollie's refund re_1 of EUR 3.00 for credit note 2026-0010 ended failed: the money did not go back.");
+    expect(booked).toContain('take its payment off the credit note in Moneybird (booked under re_1).');
+    const canceled = renderEvent({ ...base, reason: 'refund_canceled', cents: 300, refundId: 're_2', inTheBooks: false }, 'en').body;
+    expect(canceled).toContain('ended canceled');
+    expect(canceled).toContain('It was not booked in Moneybird, and will not be.');
+  });
+
+  it('says a late refund, which leaves the list by itself', () => {
+    const { body } = renderEvent({ ...base, reason: 'refund_late', cents: 300, refundId: 're_3', refundStatus: 'queued' }, 'en');
+    expect(body).toContain("Mollie's refund re_3 of EUR 3.00 for credit note 2026-0010 is still queued a week after it was made.");
+    expect(body).toContain('lists it under Money to give back until Mollie ends it');
+    expect(body).not.toContain('mark it there');
+  });
+
+  it('is in English whatever language is asked for, and names nobody', () => {
+    const event = { ...base, reason: 'by_hand', cents: 400 } as const;
+    expect(renderEvent(event, 'nl')).toEqual(renderEvent(event, 'en'));
+  });
+});

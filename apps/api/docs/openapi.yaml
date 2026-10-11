@@ -6766,6 +6766,86 @@ paths:
                     items: { $ref: '#/components/schemas/SupportRetainedInvoice' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /api/support/money-to-give-back:
+    get:
+      tags: [Support]
+      summary: Money the operator gives back by hand, or watches
+      description: |
+        Credit notes whose money the hourly invoice push asked the operator to
+        give back by hand (paid, but not through Mollie; a refund Mollie ended
+        failed or canceled) or to watch (a refund still going a week after it
+        was made), read through `support_money_to_give_back` (managed migration
+        0055). What is still owed or watched comes first, oldest first; what was
+        marked given back comes after, newest first. The push also mails each
+        to `NOTIFY_TO` once (workplan 0111; the owner, 2026-10-11).
+
+        Authorisation is the database's, as everywhere on this surface: a
+        non-operator gets `200` with an empty list. Every serving is recorded in
+        the support read log with no organisation named: it is a list of
+        everybody's.
+      responses:
+        '200':
+          description: The list. Empty for anybody who is not a platform operator.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        creditNoteId: { type: string, format: uuid }
+                        tenantId: { type: string, format: uuid }
+                        organisation: { type: string }
+                        creditNoteNumber: { type: string, nullable: true }
+                        invoiceNumber: { type: string, nullable: true }
+                        reason:
+                          type: string
+                          enum: [by_hand, refund_failed, refund_canceled, refund_late]
+                        cents: { type: integer, description: What goes back, in cents. }
+                        currency: { type: string }
+                        refundId: { type: string, nullable: true }
+                        refundStatus: { type: string, nullable: true }
+                        refundInTheBooks:
+                          type: boolean
+                          description: A failed refund booked on its credit note in the books, whose payment must come off it.
+                        saidAt: { type: string, format: date-time }
+                        givenBackAt: { type: string, format: date-time, nullable: true }
+                        givenBackBy:
+                          type: string
+                          nullable: true
+                          description: The address of the operator who marked it.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/support/money-to-give-back/{creditNoteId}/given-back:
+    post:
+      tags: [Support]
+      summary: Mark a credit note's money given back by hand
+      description: |
+        Once the operator has paid it back by bank transfer (and, for a failed
+        refund booked in the books, taken its payment off the credit note),
+        they mark it: once, in their own name, never changed
+        (`money_given_back`). A late refund takes no mark; it leaves the list
+        when Mollie ends it.
+      parameters:
+        - name: creditNoteId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Marked.
+        '400':
+          description: The creditNoteId is not a uuid.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No such credit note on the list, or a subject who is not an operator.
+        '409':
+          description: It was marked before, or it is a late refund, which takes no mark.
+
   /api/support/audit-export:
     get:
       tags: [Support]

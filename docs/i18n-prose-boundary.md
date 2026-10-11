@@ -130,8 +130,8 @@ users"*):
   English too, under `lang="en"`, and the page does not turn Dutch halfway.
   The menu around it keeps the app's language; the three entries carry
   `lang="en"`.
-- **The mail:** *somebody asked for access*, to `NOTIFY_TO`, is English
-  whatever `NOTIFY_LOCALE` says.
+- **The mail:** *somebody asked for access* and *money owed back to a
+  customer*, to `NOTIFY_TO`, are English whatever `NOTIFY_LOCALE` says.
 
 Not part of it: anything a customer reads, even when an operator writes it.
 The hold's sentence is typed by the operator for the organisations and shown

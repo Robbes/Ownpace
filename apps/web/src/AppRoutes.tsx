@@ -37,6 +37,7 @@ import {
   SupportTenantDetail,
   SupportMigrationDetail,
   SupportRetainedInvoices,
+  SupportMoneyToGiveBack,
   SupportLog,
   ApplianceLog,
 } from './pages/Support.tsx';
@@ -556,6 +557,19 @@ const AppRoutes: React.FC = () => {
             <ManagedOnly>
               <EnglishOnly>
                 <SupportRetainedInvoices />
+              </EnglishOnly>
+            </ManagedOnly>
+          }
+        />
+        {/* Money to give back (0111; the owner, 2026-10-11). Not about one
+            tenant: every customer's credit notes the operator pays back by
+            hand. The view's own predicate is the rule, as above. */}
+        <Route
+          path="support/money-to-give-back"
+          element={
+            <ManagedOnly>
+              <EnglishOnly>
+                <SupportMoneyToGiveBack />
               </EnglishOnly>
             </ManagedOnly>
           }

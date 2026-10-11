@@ -77,7 +77,7 @@ live in [README.md](./README.md), the register.
 
 - **English** for code, comments, docs and ADRs; the end-user UI is **bilingual EN+NL** (built: typed dictionary in `@openmig/shared`, `Intl` formatting keyed on app locale).
 - The prose boundary (docs/i18n-prose-boundary.md): **translate the frame, never the finding** — server refusal prose renders verbatim, untranslated.
-- **The platform operator's screens and mail are English only**: the support screens, the access queue, the redirect URIs and their menu entries (`apps/web/src/i18n/operator-strings.ts`, rendered inside `EnglishOnly`), and the access-request mail. They are not end-user UI; what a customer reads stays bilingual, including what an operator writes for them.
+- **The platform operator's screens and mail are English only**: the support screens, the access queue, the redirect URIs and their menu entries (`apps/web/src/i18n/operator-strings.ts`, rendered inside `EnglishOnly`), and the mail addressed to the operator (a request for access, money owed back). They are not end-user UI; what a customer reads stays bilingual, including what an operator writes for them.
 
 ## [ADR-0014: Cost-recovery billing for the managed edition](./0014-cost-recovery-billing.md)
 

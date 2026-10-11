@@ -4,6 +4,17 @@
 
 ## Status — 2026-10-11 (update this block at the end of every session)
 
+**2026-10-11, money to give back reaches the operator** (the owner, 2026-10-11: *"yes, build the
+support list and the email too"*). The push's three sentences that ask the operator to act (a
+credit note to pay back by hand, a refund Mollie ended failed or canceled, a refund still going a
+week on) were lines on a run's output, gone with its container. Each is now mailed once to
+`NOTIFY_TO`, in English with numbers and no name, and listed on the support screen's *Money to give
+back* from what the invoice table records (managed 0055, `support_money_to_give_back`), where the
+operator marks one given back, once, in their own name (`money_given_back`). A late refund takes no
+mark; it leaves the list when Mollie ends it. An erasure still purges a credit note that carries a
+mark. Proven by `money-to-give-back.unit.test.ts`, the support routes', the push's and the mail's
+tests, and the screen's.
+
 **2026-10-11, T10: on erasure the copies go and the numbers stay** (ADR-0044; the owner, 2026-10-03:
 *"delete the copy, keep the numbers"*, and 2026-10-11: *"yes, tidy the table and build T10"*). The
 purge of an erased organisation (`purgeTenant`, `offboarding.ts`) now deletes each invoice and

@@ -54,6 +54,8 @@ export interface RefundToFollow {
   readonly id: string;
   readonly reference: string;
   readonly invoiceNumber: string | null;
+  /** The number of the invoice the credit note corrects, for the operator's mail. */
+  readonly creditedInvoiceNumber: string | null;
   /** Mollie's `re_…`. */
   readonly refundId: string;
   readonly refundCents: number;
@@ -75,7 +77,8 @@ export async function refundsToFollow(
 ): Promise<RefundToFollow[]> {
   const rows = rowsOf(
     await db.execute(sql`
-      SELECT c.id, c.reference, c.invoice_number, c.refund_id, c.refund_cents::text AS refund_cents,
+      SELECT c.id, c.reference, c.invoice_number, o.invoice_number AS credited_number, c.refund_id,
+             c.refund_cents::text AS refund_cents,
              o.payment_id, c.refund_status, c.money_back_at::text AS made_at,
              (c.refund_late_said_at IS NOT NULL)::text AS late_said, (c.moneybird_paid_at IS NOT NULL)::text AS in_the_books
         FROM invoice c JOIN invoice o ON o.id = c.credited_invoice_id
@@ -88,6 +91,7 @@ export async function refundsToFollow(
     id: row.id!,
     reference: row.reference!,
     invoiceNumber: row.invoice_number ?? null,
+    creditedInvoiceNumber: row.credited_number ?? null,
     refundId: row.refund_id!,
     refundCents: Number(row.refund_cents),
     paymentId: row.payment_id!,

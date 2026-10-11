@@ -23,7 +23,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest
 import type { Pool } from 'pg';
 import { pgliteDriver, runMigrations, type LedgerDriver } from '@openmig/ledger';
 import { runManagedMigrations, type MoneybirdSettings, type PushContext } from '@openmig/managed';
-import { log } from '@openmig/shared';
+import { log, type MoneyToGiveBackEvent } from '@openmig/shared';
 import { pushOrganisation, type PushBudget, type PushCounts } from './managed-invoice-push.ts';
 
 const ADMINISTRATION = '123456789012345678';
@@ -218,17 +218,31 @@ describe("one organisation's money back, as the hourly run makes it", () => {
 
   it('says a transfer by hand once, for an invoice not paid through Mollie, asking nobody', async () => {
     const said = vi.spyOn(log, 'error').mockImplementation(() => {});
+    // The operator's mail (2026-10-11): told once, with the numbers and no name.
+    const told: MoneyToGiveBackEvent[] = [];
+    const tell = async (event: MoneyToGiveBackEvent) => void told.push(event);
     const world = services();
     const { budget, counts } = fresh();
     await pushOrganisation(pool(), BY_BANK, NOW, SETTINGS, CONTEXT, budget, counts, {
       fetchImpl: world.impl,
       mollieApiKey: MOLLIE_KEY,
+      tell,
       ...noPace,
     });
     expect(counts).toMatchObject({ byHand: 1, refunded: 0 });
     expect(world.calls).toEqual([]);
     expect(said.mock.calls.flat().join(' ')).toContain('but not through Mollie: pay back what was paid above what is owed');
     expect((await creditNote(BY_BANK))!.money_back).toBe('by_hand');
+    expect(told).toEqual([
+      {
+        kind: 'money_to_give_back',
+        reason: 'by_hand',
+        organisationId: BY_BANK,
+        creditNote: expect.any(String),
+        invoice: expect.any(String),
+        cents: expect.any(Number),
+      },
+    ]);
 
     // Once: the next run says nothing more.
     said.mockClear();
@@ -236,19 +250,28 @@ describe("one organisation's money back, as the hourly run makes it", () => {
     await pushOrganisation(pool(), BY_BANK, new Date(NOW.getTime() + 60 * 60_000), SETTINGS, CONTEXT, again.budget, again.counts, {
       fetchImpl: world.impl,
       mollieApiKey: MOLLIE_KEY,
+      tell,
       ...noPace,
     });
     expect(again.counts.byHand).toBe(0);
+    expect(told).toHaveLength(1);
     expect(said.mock.calls.flat().join(' ')).not.toContain('not through Mollie');
   });
   it('says a refund Mollie ended failed once, and never books it', async () => {
     const said = vi.spyOn(log, 'error').mockImplementation(() => {});
     // Mollie takes the refund, then fails it before the books are told.
     const world = services('failed', 're_f');
+    // The mail cannot go: said, and the run goes on (the support screen lists it).
+    const told: MoneyToGiveBackEvent[] = [];
+    const tell = async (event: MoneyToGiveBackEvent) => {
+      told.push(event);
+      throw new Error('SMTP is down');
+    };
     const { budget, counts } = fresh();
     await pushOrganisation(pool(), FAILS, NOW, SETTINGS, CONTEXT, budget, counts, {
       fetchImpl: world.impl,
       mollieApiKey: MOLLIE_KEY,
+      tell,
       ...noPace,
     });
     expect(counts).toMatchObject({ refunded: 1, refundsFailed: 1, refundsEnded: 0, booked: 0 });
@@ -258,6 +281,19 @@ describe("one organisation's money back, as the hourly run makes it", () => {
     );
     expect(world.payments.get('8704')).toBeUndefined();
     expect(await followed(FAILS)).toEqual({ refund_status: 'failed', ended: true, late_said: false });
+    expect(told).toEqual([
+      {
+        kind: 'money_to_give_back',
+        reason: 'refund_failed',
+        organisationId: FAILS,
+        creditNote: '2026-0010',
+        invoice: expect.any(String),
+        cents: 400,
+        refundId: 're_f1',
+        inTheBooks: false,
+      },
+    ]);
+    expect(said.mock.calls.flat().join(' ')).toContain('the operator could not be mailed about credit note 2026-0010');
 
     // Once: the next run says nothing, asks Mollie nothing, and books nothing.
     said.mockClear();
@@ -266,22 +302,27 @@ describe("one organisation's money back, as the hourly run makes it", () => {
     await pushOrganisation(pool(), FAILS, new Date(NOW.getTime() + 60 * 60_000), SETTINGS, CONTEXT, again.budget, again.counts, {
       fetchImpl: world.impl,
       mollieApiKey: MOLLIE_KEY,
+      tell,
       ...noPace,
     });
     expect(again.counts).toMatchObject({ refundsFailed: 0, booked: 0 });
     expect(world.calls.slice(before).filter((c) => c.includes('api.mollie.com'))).toEqual([]);
     expect(world.payments.get('8704')).toBeUndefined();
     expect(said.mock.calls.flat().join(' ')).not.toContain('ended failed');
+    expect(told).toHaveLength(1);
   });
 
   it('says a refund still queued a week on once, then lets it end quietly', async () => {
     const said = vi.spyOn(log, 'error').mockImplementation(() => {});
     const world = services('queued', 're_q');
+    const told: MoneyToGiveBackEvent[] = [];
+    const tell = async (event: MoneyToGiveBackEvent) => void told.push(event);
     const run = async (at: Date) => {
       const { budget, counts } = fresh();
       await pushOrganisation(pool(), QUEUED, at, SETTINGS, CONTEXT, budget, counts, {
         fetchImpl: world.impl,
         mollieApiKey: MOLLIE_KEY,
+        tell,
         ...noPace,
       });
       return counts;
@@ -296,6 +337,18 @@ describe("one organisation's money back, as the hourly run makes it", () => {
     expect(said.mock.calls.flat().join(' ')).toContain(
       "Mollie's refund re_q1 of 400 cents for credit note 2026-0010 is still queued 7 days after it was made.",
     );
+    expect(told).toEqual([
+      {
+        kind: 'money_to_give_back',
+        reason: 'refund_late',
+        organisationId: QUEUED,
+        creditNote: '2026-0010',
+        invoice: expect.any(String),
+        cents: 400,
+        refundId: 're_q1',
+        refundStatus: 'queued',
+      },
+    ]);
     said.mockClear();
     expect(await run(new Date(week.getTime() + 60 * 60_000))).toMatchObject({ refundsLate: 0 });
     expect(said.mock.calls.flat().join(' ')).not.toContain('still queued');
@@ -308,5 +361,6 @@ describe("one organisation's money back, as the hourly run makes it", () => {
     const before = world.calls.length;
     await run(new Date(week.getTime() + 3 * 60 * 60_000));
     expect(world.calls.slice(before).filter((c) => c.includes('api.mollie.com'))).toEqual([]);
+    expect(told).toHaveLength(1);
   });
 });

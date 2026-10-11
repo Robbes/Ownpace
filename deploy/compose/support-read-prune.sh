@@ -10,7 +10,8 @@
 # The rows that name none stay: a search by address across every customer
 # (`people`), a download of the audit log (`audit_export`), the organisation
 # list (`tenants`), the invoices kept after an erasure (`retained_invoices`,
-# managed migration 0011), a log page not filtered to one organisation (`log`).
+# managed migration 0011), a log page not filtered to one organisation (`log`),
+# the money to give back by hand (`money_to_give_back`, managed migration 0055).
 # Privacy §4.5: "they stay after that, and are deleted 12 months after they
 # were recorded". This deletes exactly those: `tenant_id IS NULL` and `at` more
 # than 12 months ago. A row that names an organisation is never touched here,

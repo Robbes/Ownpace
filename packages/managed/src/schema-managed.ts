@@ -811,3 +811,17 @@ export const legalAcceptance = pgTable(
     index('legal_acceptance_subject_idx').on(t.tenantId, t.subject),
   ],
 );
+
+/**
+ * An operator's mark that a credit note's money was paid back by hand (0111;
+ * managed migration 0055): who and when, once. The list it marks is the view
+ * `support_money_to_give_back`, read by `money-to-give-back.ts`.
+ */
+export const moneyGivenBack = pgTable('money_given_back', {
+  invoiceId: uuid('invoice_id')
+    .primaryKey()
+    .references(() => invoice.id, { onDelete: 'cascade' }),
+  givenBackAt: timestamp('given_back_at', { withTimezone: true }).notNull().defaultNow(),
+  /** The operator's subject. */
+  givenBackBy: text('given_back_by').notNull(),
+});
