@@ -49,14 +49,21 @@ import {
   type ViesRequester,
   downloadInvoicePdf,
   moneybirdFromEnv,
+  dayInWords,
+  momentInWords,
+  MANAGED_TIERS,
+  readWithdrawalWindow,
+  withdraw,
+  type WithdrawalWindow,
 } from '@openmig/managed';
+import { tell } from '../../access-notify.ts';
 import * as schema from '@openmig/managed/schema-managed';
 // The run ledger lives in @openmig/ledger (ADR-0036): compute derives from it.
-import { run as runTable } from '@openmig/ledger/schema-pg';
+import { run as runTable, tenant as tenantTable } from '@openmig/ledger/schema-pg';
 // The live slot count, through the ONE authority on which states hold a slot
 // (`holdsASlot`, wrapped by `slotsHeld`) rather than a second list here.
 import { PgPathLifecycleStore, type PgDatabase } from '@openmig/ledger';
-import { log, type TenantId } from '@openmig/shared';
+import { log, readTenantNotificationPrefs, type TenantId } from '@openmig/shared';
 import { readPathsForecast } from './paths-at-start.ts';
 import {
   billingPartyColumns,
@@ -702,6 +709,127 @@ router.post('/pick', authenticate, requireBillingWrite, async (req: Authenticate
   }
 });
 
+/** The tier's name, as the screen and the mail say it. */
+const tierName = (id: string) => MANAGED_TIERS.find((t) => t.id === id)?.name ?? id;
+
+/** The withdrawal function's state, as the Billing page shows it. */
+function withdrawalBody(window: WithdrawalWindow) {
+  return {
+    open: window.kind === 'open',
+    ...(window.kind === 'closed' ? { reason: window.reason } : {}),
+    since: window.since?.toISOString() ?? null,
+    until: window.until?.toISOString() ?? null,
+    tier: window.kind === 'open' ? { id: window.tier, name: tierName(window.tier) } : null,
+  };
+}
+
+/** Why a withdrawal cannot be made now, in a sentence the page shows. */
+const WITHDRAWAL_CLOSED: Record<Extract<WithdrawalWindow, { kind: 'closed' }>['reason'], string> = {
+  nothing_paid: 'There is no paid contract to withdraw from: the organisation is on Free.',
+  business: 'A business customer has no right of withdrawal (terms §7).',
+  past: 'The fourteen days to withdraw are over (terms §7). You can still cancel at the end of the month.',
+};
+
+/**
+ * GET /api/billing/withdrawal
+ *
+ * Whether the organisation may withdraw from its paid contract now (workplan
+ * 0111 T7, decision 15; terms §7): open from the first yes after Free until
+ * the end of the fourteenth day after it, for a consumer. With what the
+ * withdrawal function (article 11a) fills in for the person to confirm: the
+ * name on the invoice details and the signed-in address. Read-only.
+ */
+router.get('/withdrawal', authenticate, requireBillingRead, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
+    const { window, party } = await withTenantDb(tenantId, getSharedPool(), async (db) => ({
+      window: await readWithdrawalWindow(db, asTenantId(tenantId), new Date()),
+      party: (
+        await db.select({ name: schema.billingParty.name }).from(schema.billingParty).where(eq(schema.billingParty.tenantId, tenantId))
+      )[0],
+    }));
+    res.json({ ...withdrawalBody(window), name: party?.name ?? null, confirmTo: req.userEmail ?? null });
+  } catch (error) {
+    serverFault(res, 'withdrawal_read_failed', 'reading whether you may withdraw', error);
+  }
+});
+
+const WithdrawalSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  confirmTo: z.string().trim().email().max(320),
+});
+
+/**
+ * POST /api/billing/withdrawal
+ *
+ * Withdraw from the paid contract (workplan 0111 T7, decision 15; terms §7),
+ * the second step of the withdrawal function: the name and the address the
+ * person confirmed. In one transaction (`withdraw`): recorded, Free from this
+ * moment, and each invoice of the contract credited for the days it paid for
+ * and were not used. Then the acknowledgement goes to the address given, in
+ * the organisation's language, and the answer says whether it went. Refused
+ * with 409 and a sentence when there is nothing to withdraw from, for a
+ * business, and after the fourteen days.
+ */
+router.post('/withdrawal', authenticate, requireBillingWrite, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
+    const parsed = WithdrawalSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const reason = 'Say your name, and the email address the confirmation goes to.';
+      return void res.status(400).json({ error: 'invalid_withdrawal', message: reason, reason });
+    }
+    const pool = getSharedPool();
+    const [organisation] = await withTenantDb(tenantId, pool, (db) =>
+      db.select({ name: tenantTable.name, settings: tenantTable.settings }).from(tenantTable).where(eq(tenantTable.id, tenantId)),
+    );
+    const locale = readTenantNotificationPrefs(organisation?.settings).locale;
+    const outcome = await withTenantDb(tenantId, pool, (db) =>
+      withdraw(
+        db,
+        asTenantId(tenantId),
+        { by: req.userId ?? 'unknown', name: parsed.data.name, confirmTo: parsed.data.confirmTo, language: locale, via: 'screen' },
+        new Date(),
+      ),
+    );
+    if (outcome.kind === 'closed') {
+      const reason = WITHDRAWAL_CLOSED[outcome.reason];
+      return void res.status(409).json({ error: 'withdrawal_closed', why: outcome.reason, message: reason, reason });
+    }
+    // After the commit, and never a throw: the withdrawal stands whatever the
+    // mail server does, and the answer says what became of the mail.
+    const confirmation = await tell(parsed.data.confirmTo, locale, {
+      kind: 'contract_withdrawn',
+      organisation: organisation?.name ?? tenantId,
+      name: parsed.data.name,
+      tier: tierName(outcome.tier),
+      since: dayInWords(outcome.since, locale),
+      withdrawnAt: momentInWords(outcome.withdrawnAt, locale),
+      confirmTo: parsed.data.confirmTo,
+      credits: outcome.credits.length,
+      beganOnRequest: outcome.beganOnRequest,
+    });
+    if (confirmation !== 'sent') {
+      log.error(
+        `[billing] organisation ${tenantId} withdrew at ${outcome.withdrawnAt.toISOString()}, and its confirmation ` +
+          `was not sent (${confirmation}): send it by hand to the address on the withdrawal's row (terms §7).`,
+      );
+    }
+    res.json({
+      withdrawnAt: outcome.withdrawnAt.toISOString(),
+      since: outcome.since.toISOString(),
+      tier: { id: outcome.tier, name: tierName(outcome.tier) },
+      credits: outcome.credits.length,
+      beganOnRequest: outcome.beganOnRequest,
+      confirmation,
+    });
+  } catch (error) {
+    serverFault(res, 'withdrawal_failed', 'recording your withdrawal', error);
+  }
+});
+
 /**
  * GET /api/billing/usage/history
  *
@@ -1271,6 +1399,7 @@ router.post('/invoices/:invoiceId/pay', authenticate, requireBillingWrite, async
         periodEnd: schema.invoice.periodEnd,
         status: schema.invoice.status,
         total: schema.invoice.total,
+        kind: schema.invoice.kind,
       })
       .from(schema.invoice)
       .where(
@@ -1320,6 +1449,15 @@ router.post('/invoices/:invoiceId/pay', authenticate, requireBillingWrite, async
       res.status(409).json({
         error: 'Conflict',
         message: 'This invoice has not been issued yet, so there is nothing to pay.',
+      });
+      return;
+    }
+    // Nor a credit note (0111 slice 7a): it is money owed to the
+    // organisation, never money it pays, and its total is negative.
+    if (invoice.kind === 'credit_note') {
+      res.status(409).json({
+        error: 'Conflict',
+        message: 'This is a credit note: it is credited to you, and there is nothing to pay.',
       });
       return;
     }

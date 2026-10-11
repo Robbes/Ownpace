@@ -8,8 +8,9 @@
  * organisation's drafts are taken to Moneybird, which numbers them, and the
  * number, the date and the figures come back onto the row. Claiming a draft,
  * deciding what to send, sending it and writing it back are
- * `invoice-push.ts`'s and `moneybird-push.ts`'s, tested there with a
- * Moneybird of their own. THIS FILE IS ONLY THE WIRING: the switches, the
+ * `invoice-push.ts`'s and `moneybird-push.ts`'s, and a credit note's
+ * `credit-note.ts`'s and `moneybird-credit-push.ts`'s (slice 7a), tested
+ * there with a Moneybird of their own. THIS FILE IS ONLY THE WIRING: the switches, the
  * list, each organisation's scopes, the pace and the alert.
  *
  * Hourly at :41, eighteen minutes after the month task, so a draft made on a
@@ -50,16 +51,22 @@ import type { Pool } from 'pg';
 import { withTenant } from '@openmig/ledger';
 import { log, type TenantId } from '@openmig/shared';
 import {
+  claimNextCreditNote,
   claimNextDraft,
   draftsBehind,
   moneybirdFromEnv,
+  planCreditPush,
   planPush,
+  pushCreditNote,
   pushInvoice,
   readVatStanding,
+  recordCreditDraft,
+  recordCreditIssued,
   recordIssued,
   whyNobodyIsInvoiced,
   type MoneybirdSettings,
   type PushContext,
+  type SlowDown,
 } from '@openmig/managed';
 import { leavesAReference } from './what-a-run-leaves.ts';
 import { activeOrganisations, openTaskPools } from './task-pools.ts';
@@ -73,6 +80,8 @@ export const PUSH_SPACING_MS = 25_000;
 /** What one run did, counted. */
 export interface PushCounts {
   issued: number;
+  /** Of `issued`, the credit notes (slice 7a). */
+  credited: number;
   adopted: number;
   refused: number;
   unavailable: number;
@@ -87,7 +96,7 @@ export interface PushBudget {
 
 /**
  * One organisation's drafts, each claimed, decided, sent and written back,
- * then its alert. Exported so the tests run it on a database and a Moneybird
+ * then its credit notes the same way, then its alert. Exported so the tests run it on a database and a Moneybird
  * of their own.
  */
 export async function pushOrganisation(
@@ -119,19 +128,41 @@ export async function pushOrganisation(
       counts.issued++;
       if (outcome.adopted) counts.adopted++;
       log.info(`[invoice-push] organisation ${organisation}: ${draft.reference} is ${outcome.invoice.invoiceNumber}.`);
-    } else if (outcome.kind === 'refused') {
-      counts.refused++;
-      log.error(`[invoice-push] organisation ${organisation}: ${outcome.reason}`);
-    } else if (outcome.kind === 'unavailable') {
-      counts.unavailable++;
-      log.warn(`[invoice-push] organisation ${organisation}: ${outcome.reason}`);
     } else {
-      counts.slowed++;
-      budget.stopped = true;
-      log.warn(
-        `[invoice-push] Moneybird asked to slow down (retry after ${outcome.retryAfterSeconds ?? 'an unstated number of'} ` +
-          'seconds); the rest waits for the next run.',
+      notIssued(outcome, organisation, budget, counts);
+    }
+    if (budget.left > 0 && !budget.stopped) await (options.pace ?? (() => sleep(PUSH_SPACING_MS)))();
+  }
+  // Then its credit notes, each once the invoice it corrects is numbered
+  // (credit-note.ts): the same claim, the same pace, the same budget.
+  while (budget.left > 0 && !budget.stopped) {
+    const note = await withTenant(pool, organisation, (db) => claimNextCreditNote(db, tenantId, now));
+    if (!note) break;
+    budget.left--;
+    const plan = planCreditPush(note, settings, now);
+    if (plan.kind === 'refused') {
+      counts.refused++;
+      log.error(`[invoice-push] organisation ${organisation}: ${plan.reason}.`);
+      continue;
+    }
+    const outcome = await pushCreditNote(
+      settings,
+      plan.note,
+      // Written down the moment Moneybird gives it, before the draft is filled.
+      (moneybirdId) => withTenant(pool, organisation, (db) => recordCreditDraft(db, note, moneybirdId, settings, now)),
+      options.fetchImpl,
+    );
+    if (outcome.kind === 'issued') {
+      await withTenant(pool, organisation, (db) => recordCreditIssued(db, note, outcome, settings, now));
+      counts.issued++;
+      counts.credited++;
+      if (outcome.adopted) counts.adopted++;
+      log.info(
+        `[invoice-push] organisation ${organisation}: ${note.reference} is ${outcome.invoice.invoiceNumber}, ` +
+          `crediting ${note.credited.invoiceNumber}.`,
       );
+    } else {
+      notIssued(outcome, organisation, budget, counts);
     }
     if (budget.left > 0 && !budget.stopped) await (options.pace ?? (() => sleep(PUSH_SPACING_MS)))();
   }
@@ -140,6 +171,32 @@ export async function pushOrganisation(
     log.error(
       `[invoice-push] organisation ${organisation}: ${behind.length} invoice(s) still drafts two days after they ` +
         `were made (workplan 0111, decision 6): ${behind.join(', ')}.`,
+    );
+  }
+}
+
+/** A push that issued nothing: counted, and said; a 429 stops the run where it is. */
+function notIssued(
+  outcome:
+    | { readonly kind: 'refused'; readonly reason: string }
+    | { readonly kind: 'unavailable'; readonly reason: string }
+    | SlowDown,
+  organisation: string,
+  budget: PushBudget,
+  counts: PushCounts,
+): void {
+  if (outcome.kind === 'refused') {
+    counts.refused++;
+    log.error(`[invoice-push] organisation ${organisation}: ${outcome.reason}`);
+  } else if (outcome.kind === 'unavailable') {
+    counts.unavailable++;
+    log.warn(`[invoice-push] organisation ${organisation}: ${outcome.reason}`);
+  } else {
+    counts.slowed++;
+    budget.stopped = true;
+    log.warn(
+      `[invoice-push] Moneybird asked to slow down (retry after ${outcome.retryAfterSeconds ?? 'an unstated number of'} ` +
+        'seconds); the rest waits for the next run.',
     );
   }
 }
@@ -188,7 +245,7 @@ export const managedInvoicePush = schedules.task({
     // The one question across organisations.
     const organisations = await activeOrganisations();
     const budget: PushBudget = { left: PUSHES_PER_RUN, stopped: false };
-    const counts: PushCounts = { issued: 0, adopted: 0, refused: 0, unavailable: 0, slowed: 0 };
+    const counts: PushCounts = { issued: 0, credited: 0, adopted: 0, refused: 0, unavailable: 0, slowed: 0 };
     let failed = 0;
     for (const organisation of organisations) {
       try {

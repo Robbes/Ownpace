@@ -985,6 +985,33 @@ export type NotificationEvent =
         /** How often it looks now: the automatic cadence's two slower steps. */
         readonly step: 'six-hourly' | 'daily';
       }[];
+    }
+  | {
+      /**
+       * A withdrawal from the paid contract, received (workplan 0111 T7,
+       * decision 15; terms §7). The acknowledgement article 11a of the Consumer
+       * Rights Directive asks for, on a durable medium: what the consumer sent
+       * (their name, the contract, where this goes), and when it arrived; then
+       * what follows from it, in the organisation's language.
+       *
+       * Sent once, by the request that records the withdrawal
+       * (`routes/billing`), to the address the consumer gave.
+       */
+      readonly kind: 'contract_withdrawn';
+      readonly organisation: string;
+      /** The name the consumer gave. */
+      readonly name: string;
+      /** The tier the contract stood at, by its name: `Medium`. */
+      readonly tier: string;
+      /** When the contract was concluded, in words: `1 October 2026`. */
+      readonly since: string;
+      /** When the withdrawal arrived, in words: `3 October 2026 at 10:04 UTC`. */
+      readonly withdrawnAt: string;
+      readonly confirmTo: string;
+      /** How many invoices it credits; none when nothing was invoiced. */
+      readonly credits: number;
+      /** Whether we had been asked to begin before the fourteen days were over: then the days used are billed. */
+      readonly beganOnRequest: boolean;
     };
 
 /**
@@ -1056,6 +1083,7 @@ const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string
     member_invited: 'Ownpace — you are invited to join an organisation',
     first_copy_complete: 'Ownpace — everything has arrived',
     looking_less_often: 'Ownpace — everything is in step, so we look less often',
+    contract_withdrawn: 'Ownpace — we received your withdrawal',
   },
   nl: {
     decision_raised: 'Ownpace — een wijziging vraagt uw beslissing',
@@ -1069,6 +1097,7 @@ const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string
     member_invited: 'Ownpace — u bent uitgenodigd deel te nemen',
     first_copy_complete: 'Ownpace — alles is aangekomen',
     looking_less_often: 'Ownpace — alles is bijgewerkt, dus we doen het wat rustiger aan',
+    contract_withdrawn: 'Ownpace — uw herroeping is ontvangen',
   },
 };
 
@@ -1113,6 +1142,18 @@ interface EventLines {
   readonly nowSixHourly: string;
   readonly nowDaily: string;
   readonly moreOften: string;
+  readonly withdrawnReceived: string;
+  readonly withdrawnConfirms: string;
+  readonly withdrawnSent: string;
+  readonly withdrawnName: string;
+  readonly withdrawnContract: string;
+  readonly withdrawnConcluded: string;
+  readonly withdrawnConfirmTo: string;
+  readonly withdrawnFree: string;
+  readonly withdrawnCreditedInFull: string;
+  readonly withdrawnCreditedRest: string;
+  readonly withdrawnRefund: string;
+  readonly withdrawnNothingInvoiced: string;
   readonly and: string;
   readonly domain: Readonly<Record<DiscoveryDomain, string>>;
 }
@@ -1221,6 +1262,22 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     moreOften:
       'Choose more often any time, under \'How often to look for changes\' on each migration in the app. ' +
       'Open a migration and we look every hour again, for 14 days.',
+    // The acknowledgement of a withdrawal (0111 T7; terms §7): what was sent
+    // and when, then what follows from it, in the terms' own words.
+    withdrawnReceived: 'We received your withdrawal from the contract on',
+    withdrawnConfirms: 'This email confirms it.',
+    withdrawnSent: 'What you sent:',
+    withdrawnName: 'Name',
+    withdrawnContract: 'The contract',
+    withdrawnConcluded: 'concluded on',
+    withdrawnConfirmTo: 'Confirmation to',
+    withdrawnFree: 'From that moment your organisation is on Free. Your account and your migrations stay, at Free\'s pace.',
+    withdrawnCreditedInFull:
+      'Nothing is billed for the days before your withdrawal: what was invoiced is credited in full, with a credit note for each invoice.',
+    withdrawnCreditedRest:
+      'The days you used are billed in proportion to the agreed price. What was invoiced for the days after is credited, with a credit note for each invoice.',
+    withdrawnRefund: 'Whatever you paid above what you owe, we pay back within 14 days, by the means of payment you used.',
+    withdrawnNothingInvoiced: 'Nothing was invoiced that needs crediting.',
     and: 'and',
     domain: { email: 'email', calendar: 'calendar', contact: 'contacts', file: 'files', task: 'tasks' },
   },
@@ -1290,6 +1347,20 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     moreOften:
       'Kies hoe vaak moet worden gecontroleerd op wijzigingen via \'Frequentie om naar wijzigingen te kijken\' per migratie in de app. ' +
       'Opent u een migratie, dan kijken we weer 14 dagen elk uur.',
+    withdrawnReceived: 'We hebben uw herroeping van de overeenkomst ontvangen op',
+    withdrawnConfirms: 'Met deze e-mail bevestigen we dat.',
+    withdrawnSent: 'Wat u stuurde:',
+    withdrawnName: 'Naam',
+    withdrawnContract: 'De overeenkomst',
+    withdrawnConcluded: 'gesloten op',
+    withdrawnConfirmTo: 'Bevestiging naar',
+    withdrawnFree: 'Vanaf dat moment staat uw organisatie op Free. Uw account en uw migraties blijven, in het tempo van Free.',
+    withdrawnCreditedInFull:
+      'Voor de dagen vóór uw herroeping wordt niets in rekening gebracht: wat gefactureerd is, crediteren we volledig, met een creditnota per factuur.',
+    withdrawnCreditedRest:
+      'De dagen die u gebruikte, worden naar verhouding van de afgesproken prijs in rekening gebracht. Wat voor de dagen erna gefactureerd is, crediteren we, met een creditnota per factuur.',
+    withdrawnRefund: 'Wat u meer betaalde dan u verschuldigd bent, betalen we binnen 14 dagen terug, met het betaalmiddel dat u gebruikte.',
+    withdrawnNothingInvoiced: 'Er is niets gefactureerd dat gecrediteerd hoeft te worden.',
     and: 'en',
     domain: { email: 'e-mail', calendar: 'agenda', contact: 'contacten', file: 'bestanden', task: 'taken' },
   },
@@ -1395,6 +1466,17 @@ export function renderEvent(
       }
       lines.push(b.moreOften);
       break;
+    case 'contract_withdrawn':
+      lines.push(`${b.grantedOrganisation}: ${event.organisation}`, '');
+      lines.push(`${b.withdrawnReceived} ${event.withdrawnAt}. ${b.withdrawnConfirms}`, '');
+      lines.push(b.withdrawnSent);
+      lines.push(`  - ${b.withdrawnName}: ${event.name}`);
+      lines.push(`  - ${b.withdrawnContract}: Ownpace ${event.tier}, ${b.withdrawnConcluded} ${event.since}`);
+      lines.push(`  - ${b.withdrawnConfirmTo}: ${event.confirmTo}`, '');
+      lines.push(b.withdrawnFree, '');
+      if (event.credits === 0) lines.push(b.withdrawnNothingInvoiced);
+      else lines.push(event.beganOnRequest ? b.withdrawnCreditedRest : b.withdrawnCreditedInFull, '', b.withdrawnRefund);
+      break;
     case 'rollback_finished':
       lines.push(`${b.migration}: ${mappingLabel(event.mapping)}`, '');
       lines.push(b.rolledBack, '');
@@ -1416,7 +1498,13 @@ export function renderEvent(
   // Nor after the first copy, which has just said that nothing is needed:
   // "act on this" under it would contradict it (0154 T7). Nor after a slower
   // cadence, which has just said how to choose more often (0157 T7).
-  if (readerHasAnApp && event.kind !== 'first_copy_complete' && event.kind !== 'looking_less_often') {
+  // Nor after a withdrawal's acknowledgement, which asks nothing of its reader.
+  if (
+    readerHasAnApp &&
+    event.kind !== 'first_copy_complete' &&
+    event.kind !== 'looking_less_often' &&
+    event.kind !== 'contract_withdrawn'
+  ) {
     lines.push('', b.act);
   }
   return { subject, body: lines.join('\n') };

@@ -14,7 +14,9 @@
  *    without a number only after real money had started to move;
  *  - an issued invoice gets its payment: Mollie is asked once, for its total;
  *    the invoice stays `sent` (the webhook moves it to paid); the payment id
- *    is recorded; and the metadata is added to, never replaced.
+ *    is recorded; and the metadata is added to, never replaced;
+ *  - a credit note, issued, is refused with 409 and Mollie is asked nothing
+ *    (0111 slice 7a): it is credited to the organisation, never paid by it.
  *
  * UUID family 01110300-…, unused elsewhere in the repo.
  */
@@ -29,6 +31,7 @@ import { runManagedMigrations } from '@openmig/managed';
 const TENANT = '01110300-e29b-41d4-a716-446655440001';
 const DRAFT = '01110300-e29b-41d4-a716-446655440101';
 const ISSUED = '01110300-e29b-41d4-a716-446655440102';
+const CREDIT = '01110300-e29b-41d4-a716-446655440103';
 
 let driver: LedgerDriver;
 
@@ -97,6 +100,19 @@ beforeEach(async () => {
       WHERE id = $1`,
     [ISSUED],
   );
+  await owner(
+    `INSERT INTO invoice (id, tenant_id, period_start, period_end, status, subtotal, tax_rate, tax_amount, total, currency,
+                          reference, kind, credited_invoice_id, metadata)
+     VALUES ($1, $2, '2026-09-01', '2026-09-30', 'draft', '-640', '0.21', '-134', '-774', 'EUR',
+             'ownpace-pays-c-2026-09-medium', 'credit_note', $3, '{}')`,
+    [CREDIT, TENANT, ISSUED],
+  );
+  await owner(
+    `UPDATE invoice SET status = 'sent', invoice_number = '2026-0002', invoice_date = '2026-09-10',
+            moneybird_id = '556', moneybird_administration_id = '123456789012345678', sent_at = now()
+      WHERE id = $1`,
+    [CREDIT],
+  );
 });
 
 const row = async (id: string) =>
@@ -128,5 +144,14 @@ describe('POST /api/billing/invoices/:id/pay', () => {
       payment_id: 'tr_test',
       metadata: { kept: 'yes', mollieInvoiceId: 'tr_test' },
     });
+  });
+
+  it('refuses a credit note with 409, and asks Mollie nothing', async () => {
+    const res = await request(app).post(`/api/billing/invoices/${CREDIT}/pay`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toContain('credit note');
+    expect(payments).toEqual([]);
+    expect(await row(CREDIT)).toMatchObject({ status: 'sent', payment_id: null });
   });
 });

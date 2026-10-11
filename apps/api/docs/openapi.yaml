@@ -5974,6 +5974,89 @@ paths:
             application/json:
               schema: { type: object }
 
+  /api/billing/withdrawal:
+    get:
+      tags: [Billing]
+      summary: Whether the organisation may withdraw from its paid contract now
+      description: |
+        Workplan 0111 T7, decision 15; terms §7. Open for a consumer from the
+        first yes after Free (`since`) until `until`: the end of the fourteenth
+        day after it, moved past a Saturday or Sunday to the end of the Monday.
+        `reason` says why it is closed: `nothing_paid` (on Free, or withdrawn
+        already), `business` (no right of withdrawal) or `past`. `name` and
+        `confirmTo` are what the withdrawal function fills in for the person
+        to confirm: the name on the invoice details, and the signed-in address.
+        Read-only.
+      responses:
+        '200':
+          description: The withdrawal function's state.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  open: { type: boolean }
+                  reason: { type: string, enum: [nothing_paid, business, past] }
+                  since: { type: [string, 'null'], format: date-time }
+                  until: { type: [string, 'null'], format: date-time }
+                  tier:
+                    oneOf:
+                      - type: object
+                        properties:
+                          id: { type: string }
+                          name: { type: string }
+                      - type: 'null'
+                  name: { type: [string, 'null'] }
+                  confirmTo: { type: [string, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Billing]
+      summary: Withdraw from the paid contract
+      description: |
+        Owner/admin. The withdrawal function's second step (article 11a of the
+        Consumer Rights Directive): the name and the address the person
+        confirmed. In one transaction: an append-only `contract_withdrawal` row
+        (managed migration 0049), from whose moment the organisation is on
+        Free, and a credit note for each invoice of the contract, for the days
+        it paid for and were not used. Then the acknowledgement goes to
+        `confirmTo`, in the organisation's language; `confirmation` says
+        whether it went (`sent`, `off`, `failed`). Refused with 409
+        `withdrawal_closed` (`why`: `nothing_paid`, `business`, `past`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, confirmTo]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 200 }
+                confirmTo: { type: string, format: email }
+      responses:
+        '200':
+          description: Withdrawn.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  withdrawnAt: { type: string, format: date-time }
+                  since: { type: string, format: date-time }
+                  tier:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      name: { type: string }
+                  credits: { type: integer, description: How many invoices are credited. }
+                  beganOnRequest: { type: boolean }
+                  confirmation: { type: string, enum: [sent, off, failed] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: Nothing to withdraw from, a business customer, or the fourteen days are over.
+
   /api/billing/pick:
     get:
       tags: [Billing]
@@ -6320,6 +6403,10 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: >-
+            Nothing to pay, said before the provider is asked anything: the invoice is paid or void, it is
+            a draft Moneybird has not numbered yet, or it is a credit note (0111 slice 7a).
 
   /api/billing/payment-methods:
     get:
