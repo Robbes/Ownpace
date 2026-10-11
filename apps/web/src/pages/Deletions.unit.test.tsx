@@ -20,6 +20,7 @@ import {
   DELETIONS_MEANING,
   DELETION_CONFIRMATIONS,
   DELETION_GUIDANCE,
+  DISCOVERY_DOMAINS,
 } from '@openmig/shared';
 
 const {
@@ -542,7 +543,7 @@ describe('after cutover', () => {
     // Past its cutover, but its only waiting row is inferred: it had no button to lose.
     fetchDeletions.mockResolvedValue(
       queue({
-        afterCutover: ['email', 'calendar', 'contact', 'file', 'task'],
+        afterCutover: [...DISCOVERY_DOMAINS],
         confirmed: [deletion({ naturalKeyHash: 'h-mail', evidence: 'inferred' })],
       }),
     );
