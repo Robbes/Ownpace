@@ -254,6 +254,7 @@ if (!JMAP_URL) {
 
       const result1 = await runContactSync({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubContactSource(folder, contacts),
@@ -276,6 +277,7 @@ if (!JMAP_URL) {
       // the leg the connector's own tests cannot exercise.
       const result2 = await runContactSync({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubContactSource(folder, contacts),
@@ -302,6 +304,7 @@ if (!JMAP_URL) {
       const added = buildStubContacts(1, CONTACT_COUNT);
       const result3 = await runContactSync({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubContactSource(folder, [...contacts, ...added]),
@@ -327,6 +330,7 @@ if (!JMAP_URL) {
       const contacts = buildStubContacts(1);
       await runContactSync({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubContactSource(folder, contacts),
@@ -362,6 +366,7 @@ if (!JMAP_URL) {
       const contacts = buildStubContacts(1);
       await runContactSync({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubContactSource(folder, contacts),

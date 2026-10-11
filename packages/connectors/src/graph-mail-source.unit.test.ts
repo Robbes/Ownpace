@@ -6,8 +6,9 @@
  * A fake HTTP client scripted per-URL proves the wire behavior: well-known
  * folders drive special-use authoritatively (localized names included), delta
  * pages are followed to the deltaLink, unlisted messages are COUNTED rather
- * than dropped, `@removed` entries are skipped, and MIME comes back as the
- * exact bytes — never through a UTF-8 string round-trip.
+ * than dropped, `@removed` entries are reported by id rather than listed (the
+ * pass decides what they mean, and after cutover ignores them), and MIME comes
+ * back as the exact bytes — never through a UTF-8 string round-trip.
  */
 
 import { describe, it, expect, vi } from 'vitest';

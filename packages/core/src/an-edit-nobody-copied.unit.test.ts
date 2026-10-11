@@ -109,6 +109,7 @@ function deps(source: GoogleDriveSource, target: ReturnType<typeof memoryTarget>
     ledger: new MemoryLedger(),
     cursors: new MemoryCursorStore(),
     sourceIsAuthorityOnExistence: true,
+    stillTheAuthority: async () => true,
   };
 }
 

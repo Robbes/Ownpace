@@ -35,6 +35,13 @@ asked to accept the texts once, at their first sign-in on this release.
 
 ### Fixed
 
+- **After cutover the new system is left alone** (the owner's decisions of
+  2026-10-05): nothing there is removed or overwritten because of what happens
+  at the old system any more. A manual *Apply* of a deletion or a move is
+  refused, the button is gone for those data types (a rollback brings it back),
+  relocations are no longer auto-applied, a pass running across the cutover
+  concludes nothing about deletions, and changes at the old system no longer
+  overwrite the copies; new items still arrive.
 - `ci-complete` fails when a gate that should have run never did, whatever
   GitHub calls it (#1536).
 - The exposure check tells the development stack's compose project from the

@@ -108,7 +108,9 @@ export function runsPasses(status: string): boolean {
  * "both systems active", and the window in which mail still reaches the old
  * server while the MX record propagates. A pass then runs under the
  * after-cutover rules it always had in that state (`sourceAuthorityFor`): it
- * copies what is new or changed and mirrors no deletion. `cutover` holds no
+ * copies what is new, mirrors no deletion, and since 2026-10-05 (the owner:
+ * "Stop overwriting") writes no later change over a copy it already made
+ * (`changedAfterCutover`, core). `cutover` holds no
  * slot (`holdsASlot`), so the grace period adds no path to anyone's bill;
  * what it copies joins the data meter, as every first copy does. When the
  * window closes,
@@ -212,21 +214,53 @@ export const PASS_RUNNING_STATES: readonly string[] = ['active', 'continuous'];
  * same reason: one docblock, one name, and a field a new sync path cannot
  * silently omit. `runDomainSync` documents what it does with it — in short,
  * `false` means the three deletion detectors are not assembled at all
- * (0117 D4 and §4D).
+ * (0117 D4 and §4D), and a change at the source no longer overwrites a copy
+ * already made (2026-10-05, "Stop overwriting").
  *
  * The value is always `!isAfterCutover(phase)`, where the phase is the data
  * type's own (`readPathPhases`, ledger; workplan 0128 T5), read from the
- * database by whoever builds the deps. Until a data type can have a phase of
- * its own, it is the migration's `mailbox_mapping.status`. Nothing derives it
+ * database by whoever builds the deps: the migration's `mailbox_mapping.status`
+ * for a data type with no path row of its own, and for every data type when
+ * their rows do not add up to it (`phasesOfThePaths`). Nothing derives it
  * from a config file or a caller's opinion: the lifecycle is in the database,
  * and that is the only place that knows whether cutover has happened.
  */
 export interface SourceAuthority {
   readonly sourceIsAuthorityOnExistence: boolean;
+  /**
+   * THE SAME QUESTION, ASKED AGAIN BEFORE THE PASS CONCLUDES ANYTHING
+   * (2026-10-05).
+   *
+   * `sourceIsAuthorityOnExistence` is the answer when the pass started. A
+   * cutover executed while it runs neither waits for it nor stops it (during
+   * the grace period the pass is told to carry on), and a managed pass can
+   * run for fifty minutes, an appliance firing for days. Its end-of-pass
+   * conclusions (the removals the old system reported, the old system's bin,
+   * what has gone missing or moved there) were then drawn by the rules from
+   * before the cutover. The owner, 2026-10-05: *"after cross over the bin
+   * reading and deleting on target should stop, because perhaps
+   * source-leavers clean up ALL after the cross over."*
+   *
+   * So whoever builds the deps also hands over how to ask again: the same
+   * reader (`readPathPhases`, ledger), read fresh, for the same data type
+   * (`sourceStillDecides`). `runDomainSync` asks it once, right before those
+   * conclusions, and `autoApplyRelocations` asks it before it removes
+   * anything. REQUIRED, like the answer it re-asks: a pass that cannot ask
+   * must not compile. A question that cannot be answered rejects, and the
+   * pass fails rather than reading the silence as "still the authority"
+   * (hard rule 9).
+   */
+  readonly stillTheAuthority: () => Promise<boolean>;
 }
 
+/**
+ * The half of `SourceAuthority` a phase alone can give: the answer at the
+ * start. The other half reads the database again, and is the deps builder's.
+ */
+export type SourceAuthorityAtStart = Pick<SourceAuthority, 'sourceIsAuthorityOnExistence'>;
+
 /** Read the pass's authority off a mapping's lifecycle. One expression, one place. */
-export function sourceAuthorityFor(status: string): SourceAuthority {
+export function sourceAuthorityFor(status: string): SourceAuthorityAtStart {
   return { sourceIsAuthorityOnExistence: !isAfterCutover(status) };
 }
 

@@ -70,6 +70,7 @@ function pass(
     run: () =>
       runDomainSync<unknown, unknown, Item, { path: string }>({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         tenantId: TENANT,
         mappingId: MAPPING,
         domain: 'calendar',

@@ -18,9 +18,12 @@
  *   The trash/junk exclusion and the bin-as-deletion-signal design (SAD
  *   §11.1) key off this, so guessing from names alone is not acceptable.
  * - `listSince` is a delta query per folder; the persisted cursor is the
- *   deltaLink. `@removed` entries are SKIPPED: the mail port has no removal
- *   channel (mail deletion evidence stays on the trash/absence path), and
- *   hard rule 2 forbids acting on them here anyway.
+ *   deltaLink. `@removed` entries are RETURNED, as `removed`, by Graph id
+ *   (0026 T1 item 2): the pass matches each to the row that recorded the same
+ *   id at copy time and, while the old system still decides what exists,
+ *   puts it on the owner's Deletions queue. After cutover the pass does not
+ *   collect them at all (0117 D4). Nothing here acts on one: the source stays
+ *   read-only, and hard rule 2 forbids removing the target copy.
  * - `fetch` reads `/messages/{id}/$value` and returns `bodyBytes` — MIME must
  *   never round-trip through a UTF-8 string (see dav-http.types.ts on why).
  */

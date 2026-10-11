@@ -9,7 +9,9 @@
  * own final authority — and performs the parts a request thread must not: it
  * asks the TARGET whether the relocated copy is really there (ADR-0030's own
  * gate; the ledger's word is a claim, not proof), and only then removes the
- * OLD copy, holding real credentials.
+ * OLD copy, holding real credentials. A cutover executed since the press is
+ * asked here too, at the removal: after it nothing is removed
+ * (`after_cutover`, 2026-10-05).
  *
  * The outcome lands on the `apply_receipt` row the route created — the one
  * with `action = 'relocation'`, because the same item can have a deletion
@@ -82,23 +84,23 @@ async function openDeps(tenantId: string, mappingId: string, domain: (typeof DOM
   switch (domain) {
     case 'email': {
       const d = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'mail');
-      return { ledger: d.ledger, target: d.target as unknown, close: d.close };
+      return { ledger: d.ledger, target: d.target as unknown, stillTheAuthority: d.stillTheAuthority, close: d.close };
     }
     case 'calendar': {
       const d = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'calendar');
-      return { ledger: d.ledger, target: d.target as unknown, close: d.close };
+      return { ledger: d.ledger, target: d.target as unknown, stillTheAuthority: d.stillTheAuthority, close: d.close };
     }
     case 'contact': {
       const d = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'contact');
-      return { ledger: d.ledger, target: d.target as unknown, close: d.close };
+      return { ledger: d.ledger, target: d.target as unknown, stillTheAuthority: d.stillTheAuthority, close: d.close };
     }
     case 'file': {
       const d = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'file');
-      return { ledger: d.ledger, target: d.target as unknown, close: d.close };
+      return { ledger: d.ledger, target: d.target as unknown, stillTheAuthority: d.stillTheAuthority, close: d.close };
     }
     case 'task': {
       const d = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'task');
-      return { ledger: d.ledger, target: d.target as unknown, close: d.close };
+      return { ledger: d.ledger, target: d.target as unknown, stillTheAuthority: d.stillTheAuthority, close: d.close };
     }
   }
 }
@@ -157,6 +159,11 @@ export const runApplyRelocationTask = schemaTask({
               ledger: deps.ledger,
               target: deps.target,
               allowApplyDeletions,
+              // The data type's phase, asked at the removal through the
+              // question the deps builder made from `readPathPhases`, read
+              // fresh: a cutover executed since the press wins, and after it
+              // nothing is removed (`after_cutover`, 2026-10-05).
+              stillTheAuthority: deps.stillTheAuthority,
               ...(targetFolderPrefix ? { targetFolderPrefix } : {}),
             },
             naturalKeyHash,

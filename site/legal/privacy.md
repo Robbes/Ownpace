@@ -56,6 +56,17 @@
     or on their own device over the mesh); §9's Server logs row (the logs are
     kept no longer: the run streams the log and writes no copy of it); §10's right to object, which already names our logs.
 
+  v1.4, 2026-10-11: §4.4 names the email address invoices are sent to among
+  the invoice details the Billing page keeps (the owner, 2026-10-11:
+  "Privacy policy: ok, add e-mail to it"). The page asks for it since 0111
+  slice 5e (#1552), prefilled with the member's own address; it goes to our
+  bookkeeping system with the invoice, which sends the invoice there
+  (invoice-push.ts, only when invoices go by email). Kept and erased with
+  the other details. Nothing else changes. 1.3 (above) was final from the
+  moment #1557 merged the same morning, so these words take a new number too:
+  1.4, in both languages, LEGAL_VERSIONS and ACCEPTED_WORDS, with 1.3's pins
+  kept.
+
   Drafted as v1.2 on 2026-09-28, for the owner's review. This comment never renders
   (the site generator strips HTML comments). It is the briefing for the
   reviewing lawyer, beside the ones at the top of terms.md and alpha.md. The
@@ -544,7 +555,7 @@
 # Privacy policy
 
 **Applies to:** the Ownpace **managed service** at `ownpace.eu`, and this website.
-**Version:** 1.3
+**Version:** 1.4
 **Last updated:** 2026-10-11
 
 > **If you run Ownpace yourself**, this policy does not apply to you and there is nothing for
@@ -709,8 +720,9 @@ its address, and we enter it in the list of test users that Google keeps for our
 data was moved. **During the Alpha nothing is charged**: there are no invoices, and you register
 no payment method. Once there are payments, our payment provider handles them (§7); **we do not
 ask for or keep your card number**. If you fill in invoice details on the *Billing* page anyway —
-a name, an address, a VAT number — we keep them until your data is erased, and if you ask the
-app to check a VAT number, it is checked with the European Commission's VIES service.
+a name, an address, a VAT number, the email address your invoices are sent to — we keep them
+until your data is erased, and if you ask the app to check a VAT number, it is checked with the
+European Commission's VIES service.
 
 ### 4.5 Support and operational logs
 

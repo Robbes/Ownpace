@@ -126,6 +126,7 @@ function world(initial: DropboxEntry[]) {
       cursors: new MemoryCursorStore(),
       concurrency: 1,
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
     });
     return { result, written };
   }

@@ -34,8 +34,10 @@ beide kanten op.
 seconde verder, en dat is precies het nut ervan. Afronden is wat de plek vrijmaakt.
 
 **Tenzij u ons vraagt te blijven kopiëren.** Sommige mensen willen dat het oude account het
-nieuwe blijft aanvullen nadat ze zijn overgestapt: een gedeelde agenda waar iemand anders nog in
-schrijft, een map waar een collega nog dingen in zet. Dat is een migratie die nooit klaar is,
+nieuwe blijft aanvullen nadat ze zijn overgestapt: nieuwe afspraken in een gedeelde agenda waar
+iemand anders nog in schrijft, nieuwe bestanden in een map waar een collega nog dingen in zet.
+Alleen nieuwe items komen nog aan: wat daar wordt gewijzigd of verwijderd, bereikt uw nieuwe
+bestemming niet meer. Dat is een migratie die nooit klaar is,
 dus ze blijft meetellen: het pakket blijft staan waar het staat tot u haar beëindigt. We zetten
 het niet voor u aan, en we rekenen niet langer dan twaalf maanden zonder het u opnieuw te vragen.
 

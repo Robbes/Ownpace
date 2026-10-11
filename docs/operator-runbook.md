@@ -1489,6 +1489,15 @@ Two limits worth knowing:
   target versions of that item diverge from then on, which is exactly what the
   `changedButAdopted` count is telling you.
 
+**After cutover nothing is overwritten at all** (the owner, 2026-10-05: *"Stop
+overwriting"*). Once a data type is in `cutover`, `done` or `continuous`, a
+change at the old system to an item the migration already copied is not written
+over the copy on the target, whoever owns it: the pass counts it as
+`changedAfterCutover` (both editions' run logs say so), fetches nothing, and
+leaves the ledger's source version where it was. New items are still copied. A
+rollback makes the old system decide again (ADR-0047), and its next pass carries
+those changes over.
+
 **Deletions on the target are not repaired**, deliberately: putting an item back
 that somebody deleted on purpose would be its own kind of destructive. It is
 reported instead, and the §20 gate will not pass a cutover with items missing.
@@ -1636,6 +1645,13 @@ before anything is removed:
    the queue is trustworthy either, including the one you are looking at.
 5. **The target actually supports removal.** Not every writer does yet — see
    the table below.
+6. **The item's data type is not past its cutover** (2026-10-05). Once a data
+   type is in `cutover`, `done` or `continuous`, the old system no longer
+   decides what exists there, and `apply` on a deletion or a move recorded
+   before it is refused with `after_cutover`; the queue carries `afterCutover`
+   and the screen offers no button for that data type. Nothing is removed and
+   the copy stays: choose `keep` to clear the entry. A rollback makes the old
+   system decide again, and the same `apply` is admitted.
 
 A call that is refused always says why, in a `reason` you can read as-is —
 `not_enabled`, `target_cannot_remove`, `weak_evidence`, `not_ours`,
