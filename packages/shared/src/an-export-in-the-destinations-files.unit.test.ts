@@ -98,7 +98,7 @@ describe('the archive form asks where the export is', () => {
     expect(where, 'the archive form does not ask where the export is').toBeDefined();
     expect(where!.options?.map((o) => o.value)).toEqual(['target', 'disk']);
     // Our own words, so keys and not verbatim labels.
-    for (const option of where!.options ?? []) expect(option.labelKey).toMatch(/^wizard\.archiveWhere\./);
+    for (const option of where!.options ?? []) expect(option.labelKey).toMatch(/^account\.archiveWhere\./);
     expect(secretFieldKeys('source', 'archive')).toEqual([]);
   });
 

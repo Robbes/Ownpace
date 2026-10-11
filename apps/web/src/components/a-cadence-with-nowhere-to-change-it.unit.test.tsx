@@ -164,7 +164,7 @@ describe('what is offered', () => {
     // until it retired (0153 D5).
     const panel = readFileSync(join(import.meta.dirname, 'SchedulePanel.tsx'), 'utf-8');
     expect(panel).toContain('<ScheduleChooser');
-    expect(panel).not.toMatch(/labelKey: 'wizard\.schedule\./);
+    expect(panel).not.toMatch(/labelKey: 'account\.schedule\./);
   });
 
   it('offers Automatic first, before the four (0157 T7)', () => {
