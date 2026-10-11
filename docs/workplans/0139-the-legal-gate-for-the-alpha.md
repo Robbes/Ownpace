@@ -4,14 +4,15 @@
 
 ## Status — 2026-10-11 (update this block at the end of every session)
 
-**2026-10-11: privacy 1.3, the invoice email address.** The *Billing* page asks for the address
+**2026-10-11: privacy 1.4, the invoice email address.** The *Billing* page asks for the address
 invoices are sent to since 0111 slice 5e (#1552), and §4.4 listed the invoice details it keeps
 without it. The owner, 2026-10-11: *"Privacy policy: ok, add e-mail to it"*. §4.4 now names it in
 both languages (*"the email address your invoices are sent to"* / *"het e-mailadres waarheen uw
-facturen worden gestuurd"*); nothing else changes. 1.2 had been final since #1532 merged on
-2026-10-07, so the words take a new number: both files say 1.3, `LEGAL_VERSIONS.privacy` is
-`'1.3'`, `ACCEPTED_WORDS` pins the new words and keeps 1.2's, and every tester is asked to accept
-again. `subprocessors.md`'s planned Moneybird row (a draft, unrendered) names the address too.
+facturen worden gestuurd"*); nothing else changes. Drafted as 1.3, but #1557 made 1.3 (the visits
+sentence, the entry below) and merged first the same morning, and 1.3 was final from then: the
+words take 1.4 (both files, `LEGAL_VERSIONS.privacy` `'1.4'`, `ACCEPTED_WORDS` pins 1.4 and keeps
+1.3's and 1.2's). 1.4 carries 1.3's sentence too, so testers accept privacy 1.4 and terms 1.4
+together, at alpha.2, and nobody is asked twice. `subprocessors.md`'s planned Moneybird row (a draft, unrendered) names the address too.
 Proved: `scripts/a-version-the-tester-accepted.unit.test.ts` green on the new pins. Not changed
 here: §7's table does not name Moneybird yet; `subprocessors.md` lists it as planned, *"Before the
 first real invoice is issued"*, and during the Alpha nothing is invoiced.
@@ -24,6 +25,128 @@ number: both files say 1.4, `LEGAL_VERSIONS.terms` is `'1.4'`, `ACCEPTED_WORDS` 
 words and keeps 1.3's. Proved: `scripts/a-version-the-tester-accepted.unit.test.ts` green on the
 new pins. Alpha conditions 1.0 and privacy 1.2 are unchanged. Still owed before the first paid
 tier: the *Withdraw from contract* button §7 names (0111 T7, 0152 T6 (f)).
+
+**2026-10-11: privacy 1.3 says that visits to the website are counted from its server logs, as
+totals.** Drafted under 1.2 on 2026-10-05 (the entry kept below), but #1532 merged on 2026-10-07
+without it, and 1.2 was final from then: the words take 1.3 (both files, `LEGAL_VERSIONS.privacy`
+`'1.3'`, `ACCEPTED_WORDS` pins 1.3 and keeps 1.2's), together with the GoAccess job that does the
+counting (`deploy/compose/site-visits.sh`, run by the box duties only once the privacy text says
+so). Testers accept privacy 1.3 and terms 1.4 together, at alpha.2.
+
+**2026-10-05, later (drafted under 1.2): privacy says that visits to the website are counted from
+its server logs, as totals.**
+
+- **The owner's decision, 2026-10-05, verbatim:** *"go with GoAccess on the logs and the
+  sentence. id and status we skip for now, no netbird api tokens..."* It answers the
+  recommendation to count visits to `www.ownpace.eu` with GoAccess, reading the access log the
+  website's nginx already writes (`deploy/compose/www-nginx.conf`, format `ownpace_site`), on
+  live's copy of the site (`deploy/compose/deploy-live.sh`, compose project `ownpace-live-www`,
+  once `WWW_LIVE=true`: `docs/managed-bring-up.md`, *`www.ownpace.eu`: live's copy*): no
+  script, no cookie and no banner on the page, nothing sent to anyone (the owner reads the
+  report of totals on the machine, or on their own device over the mesh), nothing counted on
+  `app.`, `id.` or `status.ownpace.eu`, and no NetBird API token, so NetBird's own log is not
+  read.
+- **The words, in both languages.**
+  - §4.5, a paragraph of its own after the server-logs paragraph, the recommended sentence word
+    for word: *"From these logs we also count visits to this website (pages, the site you came
+    from, the kind of browser), as totals only, which identify nobody."* / *"Uit deze logs
+    tellen we ook bezoeken aan deze website (pagina's, de site waar u vandaan kwam, het soort
+    browser), alleen als totalen, die niemand identificeren."*
+  - §5, the purpose of *Server logs, for the app and this website*: *"Keeping the service
+    secure and working"* became *"Keeping the service secure and working, and counting visits
+    in totals"*; NL *"De dienst veilig en werkend houden"* became *"De dienst veilig en werkend
+    houden, en bezoeken in totalen tellen"*.
+  - §5, *"There is no analytics tracker on the application or on this website."* stays, because
+    it stays true (nothing is added to the pages; the counting reads our own log on our own
+    machine), and says where the counting comes from: *"…; we count visits to this website only
+    from our server logs (§4.5)."* / *"…; bezoeken aan deze website tellen we alleen uit onze
+    serverlogs (§4.5)."*
+  - §9, a row after *Server logs*: *"The visit totals counted from this website's server logs
+    (§4.5) | As long as we run this website. They are totals only, and identify nobody."* /
+    *"De bezoektotalen die uit de serverlogs van deze website worden geteld (§4.5) | Zolang we
+    deze website draaien. Het zijn alleen totalen, die niemand identificeren."* The period is
+    this pull request's, **for the owner's reading**; the briefing asks the lawyer (question 21).
+  - Unchanged, and still true: the *Applies to* line (this website was already covered); the
+    self-host box (the appliance serves no website and counts nothing: `deploy/selfhost` has no
+    website service, and the site runs from `deploy/compose/www.yml` on our machine only); §7
+    and §8 (no new party; nothing is sent to anyone); §9's *Server logs* row; §10's right to
+    object, which already names our logs.
+- **What the sentence needs of the run, read in GoAccess's source** (github.com/allinurl/goaccess
+  at the tag v1.12, `ef3c4f3c`, the version the run is to be pinned to). The recommended sentence
+  holds, so it is unchanged, but only for a run that keeps GoAccess's report of totals and **no
+  database of its own**, and lets nothing but totals into that report:
+  - `--persist` writes, per day, one fingerprint per visitor, a 64-bit FNV hash of the full IP
+    address and the User-Agent (`U6432_UNIQUE_KEYS.db`; `visitor_fingerprint` in `src/util.c`;
+    before 1.11 the key string itself, date|IP|agent), and per panel which visitor asked for
+    which page, came from which site and used which browser (`U648_<panel>_MTRC_UNIQMAP.db`).
+    Those are rows per visitor, and an unsalted hash of an IPv4 address and a known browser
+    string is undone by trying every address. So no `--persist` or `--restore` (or a
+    `--db-path` emptied after each run); `--keep-last` bounds the days, not what each day keeps.
+  - `--anonymize-ip` and `--anonymize-level` mask the address only when the HOSTS panel is drawn
+    (`src/gholder.c`); the fingerprint and a persisted HOSTS panel keep the full address.
+  - `--ignore-panel` for `HOSTS`, `GEO_LOCATION`, `ASN`, `REFERRERS` (the whole address of the
+    page you came from; the sentence's *"the site you came from"* is `REFERRING_SITES`, the host
+    only; GoAccess's sample configuration turns `REFERRERS` off, a run without that file does
+    not) and `REMOTE_USER`. `--no-query-string` keeps parameters out of the pages.
+  - No campaigns: `--ignore-panel=UTM_CAMPAIGNS`, or the query cut before GoAccess reads the
+    line. GoAccess keeps the decoded value of nine `utm_` parameters word for word (`src/utm.c`),
+    taken before `--no-query-string` cuts the query (`src/parser.c`), so a name or an email
+    address somebody put in a link's `utm_content` would stand in the report. The sentence
+    names no campaigns. Should the owner want them: only `utm_source`, `utm_medium` and
+    `utm_campaign`, each value from a short list of our own campaign names, and the sentence
+    then says *"(pages, the site you came from, the campaign a link named, the kind of
+    browser)"* / *"(pagina's, de site waar u vandaan kwam, de campagne die een link noemde, het
+    soort browser)"*, **after the owner's reading**.
+  - A request answered with a 4xx or 5xx status is counted under a fixed name, not its path:
+    nginx answers any path, and GoAccess keeps a 404's path in `NOT_FOUND` and any other
+    status's in `REQUESTS` or `REQUESTS_STATIC`, word for word.
+  - Browsers and systems by name and a version of digits and dots only: GoAccess ends a version
+    only at `;`, `)`, a space or a backslash (`src/browsers.c`, `parse_browser`), so text joined
+    to a version reaches the report unless the User-Agent is reduced first.
+  - A referring site by its name: a Referer whose host is an IP address is counted under a
+    fixed name.
+  - The reports are deleted when the website is taken down for good, so §9's *"As long as we
+    run this website"* ends; the run's pull request adds that to the site's take-down in
+    `docs/managed-bring-up.md`.
+  - The log is read where Docker keeps it and streamed to GoAccess; no copy of it is written, so
+    §9's *Server logs* row holds.
+  - The run counts on live only once the site publishes the sentence and §5's purpose; before
+    then it would count for a purpose the policy does not state.
+  The comment beside §4.5 in both files, the briefing at the top of `privacy.md` and the legal
+  README's *What must stay true in them* say the same.
+- **Proved, guard first.** On the edited texts, before the pins moved,
+  `a-version-the-tester-accepted` failed 2 of 23 (`privacy.md` and `privacy.nl.md` changed under
+  1.2); `privacy.md@1.2` and `privacy.nl.md@1.2` re-pinned, then 23 of 23. With
+  `scripts/legal-docs.unit.test.ts` and `site/site.unit.test.ts`, 80 of 80; the 16 unit files
+  that read the legal texts, 630 of 630. `OWNPACE_APP_URL=https://app.ownpace.eu node
+  site/build.mjs --public --check`: 0 marked draft, 28 pages, 0 placeholders, exit 0; with
+  `OWNPACE_STAGE=alpha`, 30 pages, exit 0. The built `privacy.html` and `nl/privacy.html` carry
+  the four changes and none of the comments. *Last updated* stays 2026-10-05 in all six files.
+- **Review, 2026-10-06: the list above tightened, the sentence unchanged.** A review of this
+  entry and of the counting run built beside it (`deploy/compose/site-visits.sh`, on a branch
+  of its own) ran that run's filter and flags through GoAccess 1.12 built from the tag: an email
+  address in a link's `utm_content`, a name in `utm_term`, a 404's path holding an email address
+  and text joined to a browser's version all reached the report word for word, and so did a
+  referring site that was an IP address. Re-read in the source at the tag for this entry
+  (`src/utm.c`, `src/parser.c`, `src/browsers.c`; only a 404 goes to `NOT_FOUND`). So *"which
+  identify nobody"* would have been false whenever somebody sent a personal link. The run was
+  wrong, not the sentence: the list above gained the campaigns, the paths of requests that
+  found no page, the browser's version, a referring site that is an address, the reports' end
+  and the order of merging, in the comment beside §4.5 (both files), the briefing, the comment
+  beside §9 (both files) and the legal README; the sentence stays the owner's, word for word,
+  because the run is to keep no campaigns. Also: GoAccess cited at the tag v1.12 (`ef3c4f3c`),
+  not master's `c4fadb8e`; *"step I5"*, which exists nowhere, gone; *"nothing leaves the
+  machine"* now *"nothing sent to anyone"*, since the owner copies the report to their own
+  device; question 21 asks about a total of one (Recital 26); §5's English paragraph re-wrapped.
+  Not changed: the sentence, for the operating systems the report also counts. GoAccess reads
+  them from the same User-Agent as the browser, and the comment beside §4.5 reads *"the kind of
+  browser"* to include them. Only comments and line breaks changed, so the pins hold: the guard
+  digests the words outside comments with white space collapsed, and passed 23 of 23 unchanged.
+- **Still to do.** The run that counts, which is not part of this pull request and must meet
+  the list above; it merges after this pull request, so that it cannot count on live before the
+  site says so. Until it runs nothing is counted, which is less than the text says, never more.
+  The owner's reading of §9's period, and of the campaigns' wording only if he wants campaigns
+  counted. Nothing here blocks the first invitation.
 
 **2026-10-05: the final texts testers accept (the owner's checklist of 2026-10-05, L2 to L4).
 A DRAFT pull request.** On branch

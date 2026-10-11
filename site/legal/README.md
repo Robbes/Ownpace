@@ -63,6 +63,20 @@ any of them: the API records an acceptance only when no text is a draft (`accept
 `LEGAL_DRAFTS` had privacy and terms as drafts from the commit that made the table and the route
 (#1360) until this one.
 
+**Visits to this website, counted from its server logs** (privacy 1.3, 2026-10-11: drafted under
+1.2 for that pull request, which merged without it; 1.2 was final by then, so the words take 1.3). The owner, 2026-10-05, verbatim: *"go with GoAccess on the logs and the
+sentence. id and status we skip for now, no netbird api tokens..."* Privacy §4.5 now says, after
+the server-logs paragraph, *"From these logs we also count visits to this website (pages, the
+site you came from, the kind of browser), as totals only, which identify nobody."* / *"Uit deze
+logs tellen we ook bezoeken aan deze website (pagina's, de site waar u vandaan kwam, het soort
+browser), alleen als totalen, die niemand identificeren."*; §5's server-logs purpose adds
+*"and counting visits in totals"* / *"en bezoeken in totalen tellen"*, and its *"There is no
+analytics tracker on the application or on this website"* stays, with where the counting comes
+from; §9 has a row for the totals, *"As long as we run this website"*, the period for the
+owner's reading. Nothing counts yet: the run that does is not part of this pull request, and
+what it must and must not keep is in *What must stay true in them*, below, and beside privacy
+§4.5. The privacy pins moved with it.
+
 The record of 2026-09-28, as it stood then:
 
 On 2026-09-28 the owner asked for the privacy policy and the terms to be revisited: *"Can you
@@ -86,7 +100,7 @@ placeholder is left in a text the site renders.
 
 | File | *Version* line | Where it stands |
 |---|---|---|
-| `privacy.md`, `privacy.nl.md` | `1.3`; 2026-10-11 | Final, on the owner's approval (2026-10-05), without the lawyer's pass. 1.3 (2026-10-11) adds the invoice email address to §4.4 (the owner: *"Privacy policy: ok, add e-mail to it"*). Pinned in `ACCEPTED_WORDS`, 1.2's pins kept; a change gets a new number. No placeholder. Until 2026-10-05: `1.2 (draft — not yet published)`, `1.2 (concept — nog niet gepubliceerd)` |
+| `privacy.md`, `privacy.nl.md` | `1.4`; 2026-10-11 | Final, on the owner's approval (2026-10-05), without the lawyer's pass. 1.3 (2026-10-11) says visits to this website are counted from its logs (below); 1.4 (the same day) adds the invoice email address to §4.4 (the owner: *"Privacy policy: ok, add e-mail to it"*). Pinned in `ACCEPTED_WORDS`, 1.2's and 1.3's pins kept; a change gets a new number. No placeholder. Until 2026-10-05: `1.2 (draft — not yet published)`, `1.2 (concept — nog niet gepubliceerd)` |
 | `terms.md`, `terms.nl.md` | `1.4`; 2026-10-10 (1.3 until then) | Final, on the owner's approval (2026-10-05), without the lawyer's pass. Pinned in `ACCEPTED_WORDS`; a change gets a new number. No placeholder. Until 2026-10-05: `1.3 (draft — not yet published)`, `1.3 (concept — nog niet gepubliceerd)` |
 | `alpha.md`, `alpha.nl.md` | `1.0`; 2026-10-05 (the merge day, once merged) | The owner's text for the Alpha, taken as final without the lawyer's pass. Edited in place with the owner's answers, and on 2026-10-05 in §8 and §10, because nobody had accepted it: it stays 1.0 (alpha-version-number (a)), and every change from the first acceptance on gets a new number. No placeholder. Rendered since 0139 T3, outside the site's nav, at `/alpha.html` and `/nl/alpha.html` (below) |
 | `subprocessors.md` | `0.2 (draft — not yet published)`; 2026-09-28 | English only. Unpublished until the first business customer: during the Alpha, privacy §7's table is the complete list (rec-subprocessors-url (a)). Not rendered (below) |
@@ -599,6 +613,32 @@ commit.
 
 - **Self-host sends us nothing.** No telemetry, no usage counts, no error reports. The privacy
   policy opens with it because it is the strongest thing there is to say and it is checkable.
+  Counting visits to this website (below) does not touch it: the appliance serves no website
+  (`deploy/selfhost` has no website service) and counts nothing.
+- **Visits to this website are counted from its server logs, as totals that identify nobody**
+  (privacy §4.5, §5 and §9; the owner, 2026-10-05: *"go with GoAccess on the logs and the
+  sentence. id and status we skip for now, no netbird api tokens..."*). Only
+  `www.ownpace.eu`, from the access log its nginx writes (`deploy/compose/www-nginx.conf`,
+  format `ownpace_site`), on our machine; nothing on `app.`, `id.` or `status.ownpace.eu`, no
+  script, cookie or banner on the page, nothing sent to anyone (the owner reads the report of
+  totals on the machine, or on their own device over the mesh), and NetBird's own log not read.
+  The sentence is true only of a GoAccess run that keeps its report of totals and **no database
+  of its own**: `--persist` keeps, per day, a fingerprint of each visitor (a hash of the full IP
+  address and the browser) and which pages each one asked for, and `--anonymize-ip` masks the
+  address only in the report. So no `--persist` or `--restore`; `--ignore-panel` for `HOSTS`,
+  `GEO_LOCATION`, `ASN`, `REFERRERS` and `REMOTE_USER`; and no copy of the log left behind, a
+  killed run's included, so §9's *Server logs* row holds. **And nothing but totals reaches the
+  report**, because GoAccess copies text a visitor or a link chose into it word for word: no
+  campaigns (`--ignore-panel=UTM_CAMPAIGNS`, or the query cut before GoAccess reads it: it keeps
+  nine `utm_` values as the link carried them, a name or an email address among them, and the
+  sentence names no campaigns); a request answered with a 4xx or 5xx status counted under a
+  fixed name, not its path; a browser and a system by name and a version of digits and dots;
+  and a referring site by its name, never an IP address. The reports are deleted when the
+  website is taken down for good (§9's *"As long as we run this website"*), and the run counts
+  on live only once the site publishes the sentence and §5's purpose. The comment beside privacy
+  §4.5 cites GoAccess's source (the tag v1.12, `ef3c4f3c`) for each. Unlike the claims around
+  it, this one has no code behind it yet: until the run exists, nothing is counted, which is
+  less than the text says, never more; the run must meet this bullet when it is built.
 - **We are controller for the account; for migration content it depends on the customer**
   (privacy §3): processor for an organisation (ADR-0035 §17), and — draft position, lawyer to
   confirm — controller for a household migration, because Art. 2(2)(c) leaves the migrating

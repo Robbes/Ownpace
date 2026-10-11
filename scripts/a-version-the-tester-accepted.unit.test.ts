@@ -98,17 +98,22 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // Final on 2026-10-05, in the same pull request, which set LEGAL_DRAFTS to match.
   'privacy.md@1.2': 'a6b517ec8f8aeddd0b4ad709508ce6b1551cd1e595e5fadc85ac979329cf2a22',
   'privacy.nl.md@1.2': '8b942baf4b22770b98353ffedc08d6d7ccbb562eede37d0146d858f1b20ad329',
+  // 1.3 on 2026-10-11: privacy says visits to the website are counted from its server logs, as
+  // totals (the owner's GoAccess decision of 2026-10-05). 1.2 had been final since 2026-10-07, so
+  // the new words take a new number and 1.2's pins stay.
+  'privacy.md@1.3': '0fce310cfc336406d9f0fa25d96929f953f750e41767b64ab006d876b914cd97',
+  'privacy.nl.md@1.3': '1e789ac54fe3380eb11f963fcf7594658f2e2a0b3b64d8a34ce242e01d988d34',
   'terms.md@1.3': 'e1d2f884198bc419089594bc29fad33e2d22c10c56bd2a23a832f093704004d1',
   'terms.nl.md@1.3': '842e61fa4ea93c52094bc5fa02cb746fb742a7d730df9e161cfcacc6449c47f0',
   // 1.4 on 2026-10-10: the owner's own text review, in both languages (terms.md's briefing). 1.3
   // had been final since 2026-10-07, so the new words take a new number and 1.3's pins stay.
   'terms.md@1.4': 'd0577ca2eb1090eef1ab9a1d22aa374254009d1088cdded1f9d292a9eb83a4c2',
   'terms.nl.md@1.4': '6ace99da834540703d59cc81447b9924402482d319d82746c39dcde5f4fcc95b',
-  // 1.3 on 2026-10-11: §4.4 names the email address invoices are sent to (the owner: "Privacy
-  // policy: ok, add e-mail to it"; privacy.md's briefing). 1.2 had been final since 2026-10-07,
-  // so the new words take a new number and 1.2's pins stay.
-  'privacy.md@1.3': '6df3940257ac5fc9fe9646a535e28797e9f4fb98afcf23d63e55c2c089b2aecd',
-  'privacy.nl.md@1.3': 'fcb3bef6a758f84ee9fb6cdd74ba3281a60b18ff087eab4e8f608d5802586878',
+  // 1.4 on 2026-10-11: §4.4 names the email address invoices are sent to (the owner: "Privacy
+  // policy: ok, add e-mail to it"; privacy.md's briefing). 1.3 was final from the moment #1557
+  // merged the same morning, so the new words take a new number and 1.3's pins stay.
+  'privacy.md@1.4': '076c5230a82ee3846065d52ededb0ecefa708ed7acbaafb2a763bfd9aa90a0e7',
+  'privacy.nl.md@1.4': '609d0979f9b3c62566b2b27222d28da8191f7a2dca92edce9a91d9c95c28182a',
 };
 
 /** The digest `ACCEPTED_WORDS` pins: the text outside HTML comments, white space collapsed. */

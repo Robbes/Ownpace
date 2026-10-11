@@ -220,6 +220,25 @@ on a machine that keeps to it, and `stand-up-live.sh` refuses any other answer; 
 journal would keep every line past its container (managed-bring-up.md, *Before you
 start*, says how to undo that).
 
+**Counting visits to the website** from the `www` log (privacy §4.5; the owner,
+2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip
+for now, no netbird api tokens..."*): `./deploy/compose/site-visits.sh`, from
+`~/ownpace-live`, once a day as the duty `visits` and by hand before a deploy. It
+hands GoAccess only the requests that came through the public name, each address
+replaced by a number that lasts as long as the run, with no query string, no path
+of a request that found no page (`/(not shown)`), the Referer cut to its site and
+the browser string to its versions, and keeps GoAccess's HTML report of totals,
+one per container of the site, in `~/.persistent/ownpace-live/site-visits/`: no
+address, no database, and no copy of the log at all, since the log streams
+through the filter into GoAccess. It refuses while the checkout's privacy text
+does not yet say visits are counted (privacy 1.2). Reading it, and why GoAccess
+keeps no database of its own: [managed-bring-up.md](managed-bring-up.md),
+*Counting its visits*. Never point GoAccess, or anything else, at this log in
+another way: its `--persist` keeps a fingerprint of each visitor's address, it
+copies a campaign's, a missing page's and a browser version's text into its
+report word for word, and its format errors print the piece of a line they could
+not read.
+
 **Keeping a container's output** past a deploy, for an incident: copy it first,
 `docker compose -f deploy/compose/managed.yml logs --no-color --timestamps > containers-$(date +%F).txt`
 ([breach-procedure.md](breach-procedure.md), step 2). A recreated container starts

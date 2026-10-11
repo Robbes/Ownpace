@@ -15,7 +15,7 @@
 # Privacyverklaring
 
 **Geldt voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`, en deze website.
-**Versie:** 1.3
+**Versie:** 1.4
 **Laatst bijgewerkt:** 2026-10-11
 
 > **Draait u Ownpace zelf**, dan geldt deze verklaring niet voor u en valt er voor ons niets
@@ -246,6 +246,71 @@ zelf in het log van het proces dat de fout tegenkwam, naast een referentie, zoda
 kunnen helpen; die tekst kan een map, een bestand of een adres noemen. En een aanvraag voor
 toegang wordt gelogd met het e-mailadres dat erin staat, net als ons besluit erover.
 
+<!-- NOT YET TRUE ON live: nothing counts yet. The owner, 2026-10-05, verbatim: "go with GoAccess
+     on the logs and the sentence. id and status we skip for now, no netbird api tokens..." It
+     answers the recommendation to count visits to www.ownpace.eu with GoAccess, from the access
+     log the website's nginx already writes (deploy/compose/www-nginx.conf, format ownpace_site:
+     the request line with any UTM parameters, the Referer, the User-Agent, and the visitor's
+     address from X-Forwarded-For), on live's copy (deploy-live.sh, the compose project
+     ownpace-live-www, once WWW_LIVE=true: docs/managed-bring-up.md, "www.ownpace.eu: live's
+     copy"): no script, cookie or banner on the page, nothing sent to anyone (the owner reads the
+     report of totals on the machine, or on their own device over the mesh), nothing counted on
+     app., id. or status.ownpace.eu, and no NetBird API token, so NetBird's own log is not read.
+     The sentence below holds only for a run that keeps what it says: totals, and no text that a
+     visitor or a link chose. GoAccess's source, read at the tag v1.12 (ef3c4f3c,
+     github.com/allinurl/goaccess), the version the run is to be pinned to:
+     - No on-disk database. --persist writes, per day, one fingerprint per visitor, a 64-bit FNV
+       hash of the full IP address and the User-Agent (U6432_UNIQUE_KEYS.db; util.c
+       visitor_fingerprint; before 1.11 the key string itself, date|IP|agent), and, per panel,
+       which visitor asked for which page, came from which site and used which browser
+       (U648_<panel>_MTRC_UNIQMAP.db; gkmhash.h). Those are rows per visitor, and an unsalted hash
+       of an IPv4 address and a known browser string is undone by trying every address. So no
+       --persist and no --restore (or a --db-path emptied after every run). --keep-last bounds
+       the days, not what each day keeps.
+     - --anonymize-ip and --anonymize-level mask the address only when the HOSTS panel is drawn
+       (gholder.c): the fingerprint, and a persisted HOSTS panel, keep the full address. They are
+       no substitute for the point above.
+     - --ignore-panel for HOSTS (the addresses), GEO_LOCATION and ASN (a location, which the
+       sentence does not name), REFERRERS (the whole address of the page you came from, which can
+       carry a search or a mailbox's link; "the site you came from" is REFERRING_SITES, the host
+       only; GoAccess's sample configuration turns REFERRERS off, a run without that file does
+       not) and REMOTE_USER. --no-query-string keeps parameters out of the pages.
+     - No campaigns: --ignore-panel=UTM_CAMPAIGNS, or the query string cut before GoAccess reads
+       the line. GoAccess keeps the decoded value of nine utm_ parameters word for word (utm.c),
+       taken before --no-query-string cuts the query (parser.c), so a name or an email address
+       that somebody put in a link's utm_content or utm_term would stand in the report. The
+       sentence names no campaigns, so the run keeps none. Should the owner want them: only
+       utm_source, utm_medium and utm_campaign, each value from a short list of our own campaign
+       names, and the sentence then says "(pages, the site you came from, the campaign a link
+       named, the kind of browser)" / "(pagina's, de site waar u vandaan kwam, de campagne die
+       een link noemde, het soort browser)", after their reading.
+     - Pages are our own. A request answered with a 4xx or 5xx status found none of our pages,
+       and it is counted under a fixed name, not its path: nginx answers any path (try_files
+       ... =404), and GoAccess keeps the path word for word, a 404's in NOT_FOUND and any other
+       status's in REQUESTS or REQUESTS_STATIC, a mistyped personal link or a path holding an
+       email address among them.
+     - Browsers and systems by name and version only. GoAccess takes both from the User-Agent
+       and ends a version only at ';', ')', a space or a backslash (browsers.c parse_browser;
+       opesys.c), so text joined to a version ("Firefox/128.0-" and a name) reaches the report.
+       The User-Agent is therefore reduced before GoAccess reads it, so that nothing but a name
+       and a version of digits and dots can come out of it.
+     - The site you came from, by its name. A Referer whose host is an IP address (a home
+       server, a NAS, a machine on a mesh) is counted under a fixed name, not the address.
+     - What is kept: GoAccess's report of those totals (HTML or JSON), on the machine, until we
+       take this website down for good (§9). Beside what the sentence names, it counts the same
+       visits by day and hour, by status, and by the system the browser runs on, which GoAccess
+       reads from the same User-Agent as the browser: "the kind of browser" is read to include
+       it. With very few visitors a total of one still describes one visit; the briefing asks
+       the lawyer (question 21).
+     - The log is read where Docker keeps it and streamed to GoAccess; no copy of it is written,
+       so §9's Server logs row holds.
+     - The run counts on live only once the site publishes this sentence and §5's purpose "and
+       counting visits in totals": before then it would count for a purpose this policy does not
+       state. -->
+
+Uit deze logs tellen we ook bezoeken aan deze website (pagina's, de site waar u vandaan kwam, het
+soort browser), alleen als totalen, die niemand identificeren.
+
 **Wat de mensen die de dienst draaien kunnen zien.** Om de dienst te kunnen leveren en
 ondersteunen, kunnen de mensen aan onze kant die de dienst draaien — tijdens de Alpha één
 persoon — op onze supportschermen **dienstmetadata** over uw account inzien: de naam en status
@@ -324,16 +389,16 @@ Een migratie raakt mensen die zich nooit bij ons hebben aangemeld. Dit bewaren w
 | Gegevens van andere mensen (§4.6): in wat u migreert, de toegang en het adres van een gezinslid, de mensen die u uitnodigt, en de mail aan mensen met wie u items deelde | De migratie uitvoeren die u vroeg, de mensen binnenlaten die u uitnodigt, en mensen op uw verzoek laten weten waar hun gedeelde items zijn | Gerechtvaardigd belang (art. 6 lid 1 sub f): het uwe, bij het migreren van de e-mail en bestanden van uw huishouden, en het onze, bij het uitvoeren daarvan; de grenzen in §4 en §9 beschermen het hunne |
 | Het auditlog van wie wat deed in uw organisatie, en wanneer | U, en ons, laten zien wat er in uw organisatie is gedaan en door wie | Gerechtvaardigd belang (art. 6 lid 1 sub f) |
 | De kopie vlak voor een update | Een mislukte update terugdraaien, zodat uw gegevens heel blijven | Gerechtvaardigd belang (art. 6 lid 1 sub f) |
-| Serverlogs, van de app en van deze website | De dienst veilig en werkend houden | Gerechtvaardigd belang (art. 6 lid 1 sub f) |
+| Serverlogs, van de app en van deze website | De dienst veilig en werkend houden, en bezoeken in totalen tellen | Gerechtvaardigd belang (art. 6 lid 1 sub f) |
 | Supportmail en probleemmeldingen | U antwoorden, en herstellen wat misging | Overeenkomst / gerechtvaardigd belang (art. 6 lid 1 sub f) |
 | Support-inzagelog (wie van ons welke accountmetadata bekeek, en wanneer) | Verantwoording van onze eigen toegang tot uw account | Gerechtvaardigd belang (art. 6 lid 1 sub f) — dat van u evenzeer als dat van ons |
 
 **We gebruiken uw gegevens niet voor advertenties, we stellen geen profielen op, en we
 verkopen of verhuren uw gegevens aan niemand.** Er zit geen analysetracker in de applicatie of
-op deze website. De app bewaart uw aanmelding in de eigen opslag van uw browser tot u uitlogt,
-en onthoudt daar uw taal en een paar keuzes; zelf plaatst ze geen cookie, en deze website ook
-niet. Onze inlogpagina plaatst de cookies die nodig zijn om in te loggen. Deze website laadt
-niets van andere servers.
+op deze website; bezoeken aan deze website tellen we alleen uit onze serverlogs (§4.5). De app
+bewaart uw aanmelding in de eigen opslag van uw browser tot u uitlogt, en onthoudt daar uw taal
+en een paar keuzes; zelf plaatst ze geen cookie, en deze website ook niet. Onze inlogpagina
+plaatst de cookies die nodig zijn om in te loggen. Deze website laadt niets van andere servers.
 
 We nemen geen besluit over u dat alleen op geautomatiseerde verwerking berust: over elke
 aanvraag voor toegang beslist een mens. Om mee te doen, geeft u ons uw e-mailadres; om tijdens
@@ -573,7 +638,19 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
        owner: "needs checking"). Checked on the machine on 2026-10-05: docker info --format
        '{{.LoggingDriver}}' printed "json-file". The journald step is out of
        docs/managed-bring-up.md, and stand-up-live.sh refuses any other driver than json-file
-       or local (#1362). -->
+       or local (#1362).
+     - De bezoektotalen, "Zolang we deze website draaien" (the owner, 2026-10-05: "go with
+       GoAccess on the logs and the sentence. id and status we skip for now, no netbird api
+       tokens..."; the period is this pull request's, for the owner's reading): NOT YET TRUE ON
+       live, nothing counts yet. Totals that identify nobody are not personal data, so the row
+       states a period rather than needing one. It holds only while GoAccess keeps its report of
+       totals and no database of its own (--persist would keep a fingerprint per visitor and per
+       day), and only while nothing but totals reaches the report: no campaigns, no path of a
+       request that found no page, no text joined to a browser's version, no address as a
+       referring site (beside §4.5). The period ends: when we take this website down for good,
+       its reports are deleted with it, which the run's pull request must add to the site's
+       take-down in docs/managed-bring-up.md. Reading the log does not lengthen the Serverlogs
+       row: the run streams the log and writes no copy of it. -->
 
 | Wat | Bewaard |
 |---|---|
@@ -596,6 +673,7 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
 | De kopie vlak voor een update | Tot vaststaat dat de update waarvoor ze is gemaakt werkt, en nooit langer dan 7 dagen. Ze bevat de database van de dienst en die van onze inlogdienst; vóór een upgrade van het systeem dat de achtergrondtaken uitvoert, ook de database daarvan. Zo'n kopie is er alleen om een mislukte update terug te draaien, en verlaat de hostingomgeving niet. Gegevens die uit de dienst zijn gewist, kunnen nog hoogstens 7 dagen in die kopie staan. |
 | Vastleggingen van de achtergrondtaken die uw migraties uitvoeren (kenmerken, aantallen, en bij een fout een categorie en een referentie; geen namen, adressen of inhoud, op de reden na die een van ons typt wanneer een overstap wordt teruggedraaid) | Uiterlijk tot het einde van de Alpha: dan beginnen de achtergrondtaken met een lege geschiedenis. Ze worden niet verwijderd wanneer uw gegevens worden gewist. |
 | Serverlogs (§4.5) | Tot het onderdeel van de dienst dat ze schreef wordt vervangen: voor de app en deze website bij elke update van de dienst; voor onze inlogdienst wanneer de versie of de instellingen ervan veranderen; voor een achtergrondtaak wanneer die klaar is. Er is geen vaste termijn. |
+| De bezoektotalen die uit de serverlogs van deze website worden geteld (§4.5) | Zolang we deze website draaien. Het zijn alleen totalen, die niemand identificeren. |
 | Facturen en de gebruikscijfers eronder | **7 jaar**, omdat de Nederlandse belastingwet dat vereist. Tijdens de Alpha wordt niets in rekening gebracht: er zijn dan geen facturen, en de gebruikscijfers verdwijnen wanneer uw gegevens worden gewist. |
 
 **Tijdens de Alpha maken we geen back-ups**, op de kopie vlak voor een update na, in de tabel

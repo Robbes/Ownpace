@@ -31,7 +31,11 @@
  * seventh, `searches` (0139 T6, privacy §4.5 and §9): `support-read-prune.sh
  * --delete`, which deletes the support screens' reads recorded with no
  * organisation 12 months after they were recorded, over the owner's
- * connection (its own guard is `a-search-kept-past-its-year`).
+ * connection (its own guard is `a-search-kept-past-its-year`). And an eighth,
+ * `visits` (privacy §4.5; the owner, 2026-10-05: *"go with GoAccess on the logs
+ * and the sentence"*): `site-visits.sh`, which counts the visits in the log of
+ * live's copy of the site as totals, before a deploy replaces that log (its
+ * own guard is `a-visit-count-that-kept-the-visitor`).
  *
  * THE DRILL IS NOT LIVE'S (workplan 0139; the owner's answer rec-drill (a),
  * 2026-09-28): it stays on the test stack, in the gate. On live it kept a daily
@@ -62,7 +66,7 @@
  *   comment says so.
  *
  *   `box-duties.sh`, run in a staged checkout with the scripts it calls
- *   replaced by stubs beside it: all seven duties run, in order, whatever the
+ *   replaced by stubs beside it: all eight duties run, in order, whatever the
  *   one before did; the exit is non-zero and names every duty that failed and
  *   no other; a missing script or a duty that hangs past its time is a failed
  *   duty, and the next one still runs; a Ctrl-C (SIGINT to the script's
@@ -210,8 +214,10 @@ const NOT_MAINTENANCE: Record<string, string> = {
 /**
  * The duties that are not a gate step: the copy's backstop (0139,
  * rec-copies (a)), T3's check and 0135 T3's count (T7), the site's (0139
- * T10), the accounts nobody let in (0135 T8), and the support screens' reads
- * with no organisation, deleted at 12 months (0139 T6).
+ * T10), the accounts nobody let in (0135 T8), the support screens' reads
+ * with no organisation, deleted at 12 months (0139 T6), and the site's
+ * visits, counted as totals (privacy §4.5, the owner's GoAccess decision of
+ * 2026-10-05).
  */
 const MORE_DUTIES = [
   'copy-before-update.sh expire',
@@ -220,6 +226,7 @@ const MORE_DUTIES = [
   'www-live.sh check',
   'idp-strays.sh --remove --at-most 20',
   'support-read-prune.sh --delete',
+  'site-visits.sh',
 ];
 
 interface Invocation {
@@ -328,7 +335,7 @@ describe("the rule: which of the gate's commands maintain the stack", () => {
   });
 });
 
-describe('box-duties.sh runs every maintenance command that has a form for live, and the duties T7, 0139, 0135 T8 and 0139 T6 add', () => {
+describe('box-duties.sh runs every maintenance command that has a form for live, and the duties T7, 0139, 0135 T8, 0139 T6 and the visit count add', () => {
   const text = readIfThere(DUTIES_REL);
   const lines = code(text).split('\n');
 
@@ -372,7 +379,7 @@ describe('box-duties.sh runs every maintenance command that has a form for live,
 // box-duties.sh, with the scripts it runs replaced by stubs
 // ===========================================================================
 
-const DUTY_NAMES = ['token', 'copies', 'exposure', 'organisations', 'site', 'strays', 'searches'] as const;
+const DUTY_NAMES = ['token', 'copies', 'exposure', 'organisations', 'site', 'strays', 'searches', 'visits'] as const;
 type Duty = (typeof DUTY_NAMES)[number];
 
 /** This machine, in a live `.env`: a mesh address, a front address, and a secret. */
@@ -416,6 +423,7 @@ const DUTY_STUB = [
   '  "www-live.sh check") duty=site ;;',
   '  "idp-strays.sh --remove --at-most 20") duty=strays ;;',
   '  "support-read-prune.sh --delete") duty=searches ;;',
+  '  "site-visits.sh") duty=visits ;;',
   '  *) duty="unknown" ;;',
   'esac',
   'printf "%s|%s|%s|%s|%s\\n" "$asked" "${MANAGED_BACKUP_DIR-unset}" "${MANAGED_ENV_PERSIST_DIR-unset}" "${TRIGGER_DB_CONTAINER-unset}" "$(umask)" >>"$STUB_LOG"',
@@ -452,6 +460,7 @@ function stage(dotEnv: string = LIVE_ENV): Stage {
     'www-live.sh',
     'idp-strays.sh',
     'support-read-prune.sh',
+    'site-visits.sh',
   ]) {
     writeExec(join(compose, f), DUTY_STUB);
   }
@@ -496,14 +505,15 @@ const IN_ORDER = [
   'www-live.sh check',
   'idp-strays.sh --remove --at-most 20',
   'support-read-prune.sh --delete',
+  'site-visits.sh',
 ];
 
 describe('box-duties.sh runs every duty, and names every one that failed', () => {
-  it('runs the seven duties in order, token first so the count and the strays use a live token, and passes when all pass', () => {
+  it('runs the eight duties in order, token first so the count and the strays use a live token, and passes when all pass', () => {
     const r = runDuties(stage());
     expect(r.status, r.out).toBe(0);
     expect(r.asked.map((a) => a[0])).toEqual(IN_ORDER);
-    expect(r.out).toMatch(/all 7 duties passed/);
+    expect(r.out).toMatch(/all 8 duties passed/);
     expect(failed(r.out)).toEqual([]);
   });
 
@@ -520,7 +530,7 @@ describe('box-duties.sh runs every duty, and names every one that failed', () =>
     expect(failed(two.out)).toEqual(['token', 'exposure']);
     const all = runDuties(stage(), { STUB_FAIL: DUTY_NAMES.join(',') });
     expect(all.status).toBe(1);
-    expect(all.asked).toHaveLength(7);
+    expect(all.asked).toHaveLength(DUTY_NAMES.length);
     expect(failed(all.out)).toEqual([...DUTY_NAMES]);
   });
 
@@ -701,7 +711,7 @@ describe('box-duties.sh keeps to live, and to what it may print', () => {
       TRIGGER_DB_CONTAINER: 'another-stacks-database',
     });
     expect(r.status, r.out).toBe(0);
-    expect(r.asked).toHaveLength(7);
+    expect(r.asked).toHaveLength(DUTY_NAMES.length);
     for (const a of r.asked) expect(a.slice(1, 4), a[0]).toEqual(['unset', 'unset', 'unset']);
   });
 
@@ -767,7 +777,7 @@ describe("the copy's backstop, run for real: nothing older than 6 days survives 
     const r = runDuties(s);
     expect(r.status, r.out).toBe(0);
     expect(left(dir)).toEqual([]);
-    expect(r.out).toMatch(/all 7 duties passed/);
+    expect(r.out).toMatch(/all 8 duties passed/);
   });
 
   it('a copy on day 6 stays, and fails copies, and only it, saying to roll back or delete', () => {
@@ -913,7 +923,7 @@ describe("the site's duty, run for real: www-live.sh check (0139 T10)", () => {
     const r = runDuties(s, { PATH: `${s.bin}:${process.env.PATH ?? ''}`, STUB_LIVE_WWW: 'ownpace-live' });
     expect(r.status, r.out).toBe(1);
     expect(failed(r.out)).toEqual(['site']);
-    expect(r.out).toMatch(/\(1 of 7 duties\)/);
+    expect(r.out).toMatch(/\(1 of 8 duties\)/);
     // The stubbed duties, in order; the site's duty asked docker itself.
     expect(r.asked.map((a) => a[0] ?? '').filter((a) => !a.startsWith('docker '))).toEqual(
       IN_ORDER.filter((a) => a !== 'www-live.sh check'),
@@ -1156,8 +1166,8 @@ describe('the default run is the one it was', () => {
 describe('end to end: the organisation count fails its duty, and only it', () => {
   function liveWithRealSetup(orgs: unknown) {
     const p = provider({ expiresInDays: 5, orgs });
-    // The real setup-zitadel.sh; the backstop, the exposure check, the site's duty and the two clean-ups stubbed.
-    for (const f of ['trigger-version.sh', 'copy-before-update.sh', 'exposure-check.sh', 'www-live.sh', 'idp-strays.sh', 'support-read-prune.sh']) {
+    // The real setup-zitadel.sh; the backstop, the exposure check, the site's duty, the two clean-ups and the visit count stubbed.
+    for (const f of ['trigger-version.sh', 'copy-before-update.sh', 'exposure-check.sh', 'www-live.sh', 'idp-strays.sh', 'support-read-prune.sh', 'site-visits.sh']) {
       writeExec(join(p.compose, f), DUTY_STUB);
     }
     if (!existsSync(join(p.compose, 'box-duties.sh'))) throw new Error(`${DUTIES_REL} does not exist`);
@@ -1185,7 +1195,7 @@ describe('end to end: the organisation count fails its duty, and only it', () =>
   it('one organisation: every duty passes', () => {
     const r = liveWithRealSetup(ONE_ORG);
     expect(r.status, r.out).toBe(0);
-    expect(r.out).toMatch(/all 7 duties passed/);
+    expect(r.out).toMatch(/all 8 duties passed/);
     expect(r.calls.filter((c) => c.includes('/projects')), 'a duty reconciled the project').toEqual([]);
   });
 });
