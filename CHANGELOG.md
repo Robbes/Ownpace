@@ -4,6 +4,49 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.2] - 2026-10-11
+
+The Alpha's texts, final, and what changed since `v0.2.0-alpha.1`. Testers are
+asked to accept the texts once, at their first sign-in on this release.
+
+### Changed
+
+- **The texts testers accept are final** (workplan 0139): the privacy policy
+  **1.3** and the terms of service **1.4**, beside the Alpha conditions 1.0, no
+  longer marked draft, so the app asks every member to accept them before the
+  first connection (#1532, #1556, and the privacy pull request that counts
+  website visits). Closing an account is said as the code does it; the Dutch
+  page's note keeps the exception for mandatory consumer law.
+- **The owner's own review of the app's words, in Dutch and English** (#1556):
+  plainer sentences throughout, the glossary's new Dutch terms (*gemigreerd*,
+  *Overgestapt*, *Frequentie om naar wijzigingen te kijken*, *Controleer en
+  start*), and the help pages and the tester guide quoting the new labels.
+- **Visits to www.ownpace.eu are counted from its own server log, as totals**
+  (privacy §4.5): GoAccess, run by the box duties, with no script, cookie or
+  banner on the pages, no address handed to it and no database kept.
+
+### Added
+
+- **Invoices through Moneybird** (workplan 0111, slices 5a–6): each month's
+  draft numbered by Moneybird, the Billing page naming an invoice by that
+  number and offering *Pay* and Moneybird's own PDF only on an issued one, an
+  invoice address on *Invoice details*, and the books proved by hand and every
+  night (`operator.sh moneybird proof`). Nothing is charged during the Alpha.
+
+### Fixed
+
+- `ci-complete` fails when a gate that should have run never did, whatever
+  GitHub calls it (#1536).
+- The exposure check tells the development stack's compose project from the
+  owner's other services by its files (#1538).
+- A first bring-up with no Zitadel role yet is said as such, not as a refused
+  password (#1545); the sender's display name reaches Zitadel split correctly
+  (#1548).
+- The report form is offered to a signed-in person, not only to a tenant
+  (#1549).
+- The managed smoke accepts the texts before it connects anything, and the
+  control plane's leaked tokens are released (#1550).
+
 ## [0.2.0-alpha.1] - 2026-10-07
 
 This section lists changes only up to mid-August 2026: apart from the pause
