@@ -1929,6 +1929,10 @@ reading a file drops off its entry by itself.
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
 
+### `packages/managed/src/moneybird-financial-accounts.ts`
+
+- [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+
 ### `packages/managed/src/moneybird-sales-invoices.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
@@ -2813,6 +2817,7 @@ Reads:
 - `packages/engines/src/webdav-target-writer.ts`
 - `packages/managed/src/moneybird-credit-invoices.ts`
 - `packages/managed/src/moneybird-documents.ts`
+- `packages/managed/src/moneybird-financial-accounts.ts`
 - `packages/managed/src/moneybird-sales-invoices.ts`
 - `packages/managed/src/moneybird-tax-rates.ts`
 - `packages/managed/src/moneybird-workflows.ts`

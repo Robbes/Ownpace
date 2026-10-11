@@ -42,7 +42,7 @@ import {
   type MoneybirdResponse,
   type SlowDown,
 } from './moneybird-http.ts';
-import type { MoneybirdSalesInvoice } from './moneybird-sales-invoices.ts';
+import { transactionIdentifiersOf, type MoneybirdSalesInvoice } from './moneybird-sales-invoices.ts';
 
 /** A credit invoice as Moneybird holds it: an invoice, the one it corrects, and its lines' ids. */
 export interface MoneybirdCreditInvoice extends MoneybirdSalesInvoice {
@@ -100,6 +100,7 @@ export function parseCreditInvoice(entry: unknown): MoneybirdCreditInvoice | nul
     totalInclTaxCents: centsFromDecimal(raw.total_price_incl_tax),
     totalExclTaxCents: centsFromDecimal(raw.total_price_excl_tax),
     totalUnpaidCents: centsFromDecimal(raw.total_unpaid),
+    transactionIdentifiers: transactionIdentifiersOf(raw.payments),
     originalSalesInvoiceId: idOf(raw.original_sales_invoice_id),
     detailIds,
   };

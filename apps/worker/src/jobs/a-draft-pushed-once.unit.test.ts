@@ -32,6 +32,7 @@ const SETTINGS: MoneybirdSettings = {
   workflowId: '702',
   taxRates: { domesticStandard: '611', reverseCharge: '622', outsideEu: null },
   delivery: 'manual',
+  mollieAccountId: null,
 };
 const CONTEXT: PushContext = { sellerCountry: 'NL', ossActive: false, delivery: 'manual' };
 
@@ -152,7 +153,7 @@ describe("one organisation's drafts, pushed as the hourly run pushes them", () =
 
   const fresh = (): { budget: PushBudget; counts: PushCounts } => ({
     budget: { left: 60, stopped: false },
-    counts: { issued: 0, credited: 0, adopted: 0, refused: 0, unavailable: 0, slowed: 0 },
+    counts: { issued: 0, credited: 0, adopted: 0, booked: 0, held: 0, refused: 0, unavailable: 0, slowed: 0 },
   });
 
   beforeAll(async () => {
@@ -196,7 +197,7 @@ describe("one organisation's drafts, pushed as the hourly run pushes them", () =
     const books = moneybird();
     const { budget, counts } = fresh();
     await pushOrganisation(pool(), AT_HOME, OCT_1, SETTINGS, CONTEXT, budget, counts, { fetchImpl: books.impl, ...noPace });
-    expect(counts).toEqual({ issued: 1, credited: 0, adopted: 0, refused: 0, unavailable: 0, slowed: 0 });
+    expect(counts).toEqual({ issued: 1, credited: 0, adopted: 0, booked: 0, held: 0, refused: 0, unavailable: 0, slowed: 0 });
     expect(await rowsOf(AT_HOME)).toEqual([
       {
         reference: `ownpace-${AT_HOME}-m-2026-10-medium`,

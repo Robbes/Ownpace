@@ -4,10 +4,12 @@
  * `operator.sh moneybird check` (workplan 0111, slice 1): what the
  * deployment would invoice with, asked of the administration.
  *
- * What matters here: off asks nothing; on makes exactly two reads, the rates
- * and the workflows, and nothing that costs a sandbox anything; each treatment
- * says what it resolves to, outside-EU refused by name without failing the
- * check; half a set still lists the ids to pick from and fails; and no line,
+ * What matters here: off asks nothing; on makes exactly three reads, the
+ * rates, the workflows and the financial accounts, and nothing that costs a
+ * sandbox anything; each treatment says what it resolves to, outside-EU
+ * refused by name without failing the check; the Mollie account (slice 5f)
+ * said unset without failing, and failing when set and not there or not
+ * active; half a set still lists the ids to pick from and fails; and no line,
  * in any of these, carries the token.
  */
 
@@ -49,8 +51,20 @@ const WORKFLOWS = [
   { id: '703', type: 'EstimateWorkflow', name: 'Offertes', default: true, active: true, prices_are_incl_tax: false },
 ];
 
-function sandbox(rates: unknown = RATES, workflows: unknown = WORKFLOWS) {
-  return fakeFetch((url) => (url.includes('/tax_rates.json') ? json(rates) : json(workflows)));
+const ACCOUNTS = [
+  { id: '801', type: 'FinancialAccount::BankAccount', name: 'Zakelijke rekening', provider: null, active: true },
+  { id: '802', type: 'FinancialAccount::PaymentServiceAccount', name: 'Mollie', provider: 'mollie', active: true },
+  { id: '803', type: 'FinancialAccount::BankAccount', name: 'Oude rekening', provider: null, active: false },
+];
+
+function sandbox(rates: unknown = RATES, workflows: unknown = WORKFLOWS, accounts: unknown = ACCOUNTS) {
+  return fakeFetch((url) =>
+    url.includes('/tax_rates.json')
+      ? json(rates)
+      : url.includes('/financial_accounts.json')
+        ? json(accounts)
+        : json(workflows),
+  );
 }
 
 const ON = {
@@ -74,7 +88,7 @@ describe('checkMoneybird', () => {
     expect(calls).toEqual([]);
   });
 
-  it('on: two reads, each treatment resolved or refused by name, the workflow and its VAT setting', async () => {
+  it('on: three reads, each treatment resolved or refused by name, the workflow and its VAT setting', async () => {
     const { impl, calls } = sandbox();
     const report = await checkMoneybird(ON, impl);
     const text = report.lines.join('\n');
@@ -82,6 +96,7 @@ describe('checkMoneybird', () => {
     expect(calls.map((url) => new URL(url).pathname)).toEqual([
       '/api/v2/123456789012345678/tax_rates.json',
       '/api/v2/123456789012345678/workflows.json',
+      '/api/v2/123456789012345678/financial_accounts.json',
     ]);
     expect(text).toContain('  622  Dienst binnen EU (btw verlegd)  (no percentage)');
     expect(text).toContain('  640  DE 19%  (19.0%, DE)');
@@ -90,10 +105,40 @@ describe('checkMoneybird', () => {
     expect(text).toMatch(/ {2}outside_eu: refused \(expected until it is set up\)\. .*MONEYBIRD_TAX_RATE_ID_/);
     expect(text).toMatch(/ {2}destination_oss: refused \(expected until it is set up\)\. OSS/);
     expect(text).toContain('Invoices go through workflow 702 "Ownpace sandbox" (prices include VAT).');
+    expect(text).toContain('  802  Mollie  (FinancialAccount::PaymentServiceAccount, mollie)');
+    expect(text).toContain('  803  Oude rekening  (FinancialAccount::BankAccount, INACTIVE)');
+    // Unset, the Mollie account is said, and the check still passes.
+    expect(text).toContain('Payments through Mollie: not booked in Moneybird, as MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE is not set.');
     expect(text).toContain('Delivery: manual.');
     expect(text).toContain('RESULT: ready.');
     expect(report.ok).toBe(true);
     noToken(report.lines);
+  });
+
+  it('the Mollie account, once set, is named; set and not there, or not active, fails the check', async () => {
+    const found = await checkMoneybird({ ...ON, MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE: '802' }, sandbox().impl);
+    expect(found.ok).toBe(true);
+    expect(found.lines.join('\n')).toContain('Payments through Mollie are booked on 802 "Mollie".');
+
+    const missing = await checkMoneybird({ ...ON, MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE: '899' }, sandbox().impl);
+    expect(missing.ok).toBe(false);
+    expect(missing.lines.join('\n')).toContain(
+      'Payments through Mollie: refused. MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE is 899, and the administration holds no financial account with that id.',
+    );
+
+    const archived = await checkMoneybird({ ...ON, MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE: '803' }, sandbox().impl);
+    expect(archived.ok).toBe(false);
+    expect(archived.lines.join('\n')).toContain('names "Oude rekening", which is not active in Moneybird.');
+  });
+
+  it('an account id that is not digits is refused by key, before anything is asked', async () => {
+    const { impl, calls } = sandbox();
+    const report = await checkMoneybird({ ...ON, MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE: 'mollie' }, impl);
+    expect(report.ok).toBe(false);
+    expect(report.lines[0]).toMatch(/^Moneybird is not ready: MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE must be Moneybird's id/);
+    noToken(report.lines);
+    // Half-read, as a refused set is: what the administration holds, to pick from.
+    expect(calls.some((url) => url.includes('/financial_accounts.json'))).toBe(true);
   });
 
   it('fails when a treatment a buyer needs today, or the workflow, is not in the administration', async () => {
@@ -122,7 +167,7 @@ describe('checkMoneybird', () => {
     const text = report.lines.join('\n');
     expect(report.ok).toBe(false);
     expect(report.lines[0]).toMatch(/^Moneybird is not ready: .*MONEYBIRD_WORKFLOW_ID/);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     expect(text).toContain('  622  Dienst binnen EU (btw verlegd)');
     expect(text).toContain('  702  Ownpace sandbox  (InvoiceWorkflow, prices include VAT)');
     expect(text).toContain('  701  Standaard  (InvoiceWorkflow, default, prices exclude VAT)');
@@ -143,6 +188,7 @@ describe('checkMoneybird', () => {
     expect(report.ok).toBe(false);
     expect(report.lines.join('\n')).toContain('Sales tax rates: not read. Moneybird refused the token (HTTP 401)');
     expect(report.lines.join('\n')).toContain('Workflows: not read.');
+    expect(report.lines.join('\n')).toContain('Financial accounts: not read.');
     noToken(report.lines);
   });
 });

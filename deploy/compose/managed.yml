@@ -1107,7 +1107,9 @@ services:
       # here, never `:?`, so a stack without books starts. Ids are Moneybird's
       # long numbers, kept as text. The outside-EU rate may stay empty (a
       # buyer outside the EU is then refused by name), and the delivery is
-      # `manual` unless it says `email`, which it says only on live.
+      # `manual` unless it says `email`, which it says only on live. The
+      # Mollie account is the financial account a payment through Mollie is
+      # booked on (slice 5f); empty, nothing is booked and the push says so.
       # `./deploy/compose/operator.sh moneybird check` reads the
       # administration and says what each of these resolves to.
       MONEYBIRD_API_TOKEN: ${MONEYBIRD_API_TOKEN:-}
@@ -1117,6 +1119,7 @@ services:
       MONEYBIRD_TAX_RATE_ID_REVERSE_CHARGE: ${MONEYBIRD_TAX_RATE_ID_REVERSE_CHARGE:-}
       MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU: ${MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU:-}
       MONEYBIRD_DELIVERY: ${MONEYBIRD_DELIVERY:-}
+      MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE: ${MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3123}
       WEB_URL: ${WEB_URL:-http://localhost:3123}
       # Which scope class this deployment's own Google application carries

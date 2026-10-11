@@ -65,6 +65,7 @@ const MONEYBIRD_CREDIT: MoneybirdCreditInvoice = {
   totalInclTaxCents: -1084,
   totalExclTaxCents: -896,
   totalUnpaidCents: -1084,
+  transactionIdentifiers: [],
   originalSalesInvoiceId: '700',
   detailIds: ['805'],
 };

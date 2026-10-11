@@ -127,6 +127,10 @@ export const invoice = pgTable(
     // Until when a push holds the draft (managed 0047): one writer talks to
     // Moneybird about it at a time. Cleared at issue.
     pushLeaseUntil: timestamp('push_lease_until', { withTimezone: true }),
+    // A payment through Mollie, booked in the books (managed 0050, slice 5f):
+    // what Mollie took, and when Moneybird held it.
+    paidCents: bigint('paid_cents', { mode: 'number' }),
+    moneybirdPaidAt: timestamp('moneybird_paid_at', { withTimezone: true }),
   },
   (t) => [
     index('ix_invoice_tenant').on(t.tenantId, t.periodStart),

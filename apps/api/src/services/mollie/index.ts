@@ -209,6 +209,8 @@ class MollieService {
   async processWebhook(paymentId: string): Promise<{
     id: string;
     status: MolliePayment['status'];
+    /** What the payment is for, as Mollie holds it: the books are told what was taken (0111 slice 5f). */
+    amount: MolliePayment['amount'];
     paidAt?: string;
     failedAt?: string;
     metadata: Record<string, unknown> | null;
@@ -218,6 +220,7 @@ class MollieService {
     return {
       id: payment.id,
       status: payment.status,
+      amount: payment.amount,
       paidAt: payment.paidAt,
       failedAt: payment.failedAt,
       metadata: payment.metadata ?? null,

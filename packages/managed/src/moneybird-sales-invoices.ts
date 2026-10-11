@@ -299,6 +299,12 @@ export interface MoneybirdSalesInvoice {
   readonly totalInclTaxCents: number | null;
   readonly totalExclTaxCents: number | null;
   readonly totalUnpaidCents: number | null;
+  /**
+   * The `transaction_identifier` of each payment booked on it, in Moneybird's
+   * order: a payment through Mollie is booked under Mollie's payment id, so
+   * one already there is never booked again (slice 5f).
+   */
+  readonly transactionIdentifiers: readonly string[];
 }
 
 export type EnsureInvoiceOutcome =
@@ -327,7 +333,17 @@ function parseInvoice(entry: unknown): MoneybirdSalesInvoice | null {
     totalInclTaxCents: centsFromDecimal(raw.total_price_incl_tax),
     totalExclTaxCents: centsFromDecimal(raw.total_price_excl_tax),
     totalUnpaidCents: centsFromDecimal(raw.total_unpaid),
+    transactionIdentifiers: transactionIdentifiersOf(raw.payments),
   };
+}
+
+/** Each payment's `transaction_identifier`, from an invoice's `payments`; none when absent. */
+export function transactionIdentifiersOf(payments: unknown): string[] {
+  if (!Array.isArray(payments)) return [];
+  return payments.flatMap((payment) => {
+    const identifier = (payment as { transaction_identifier?: unknown } | null)?.transaction_identifier;
+    return typeof identifier === 'string' && identifier !== '' ? [identifier] : [];
+  });
 }
 
 /**
@@ -502,21 +518,36 @@ export type RegisterPaymentOutcome =
 /**
  * Register a payment on a sent invoice (`POST sales_invoices/{id}/payments`,
  * which replaced `register_payment`): the nightly's sandbox proof that an
- * invoice reads back as `paid` (workplan 0111, decision 12). A customer's
- * invoice is paid through Mollie, never here. Not idempotent on its own: the
- * caller registers only on an invoice that reads back as not yet paid.
+ * invoice reads back as `paid` (workplan 0111, decision 12), and a payment
+ * Mollie confirmed, booked on the financial account Mollie pays out from and
+ * under Mollie's payment id (slice 5f). Not idempotent on its own: the caller
+ * books only when no payment on the invoice carries that id yet.
  */
 export async function registerPayment(
   access: MoneybirdAccess,
   invoiceId: string,
-  payment: { readonly paymentDate: string; readonly cents: number },
+  payment: {
+    readonly paymentDate: string;
+    readonly cents: number;
+    /** The financial account it is booked on; Moneybird's choice when absent (the nightly's sandbox). */
+    readonly financialAccountId?: string;
+    /** The payment's own id where it came from, such as Mollie's `tr_…`. */
+    readonly transactionIdentifier?: string;
+  },
   fetchImpl: typeof fetch = fetch,
 ): Promise<RegisterPaymentOutcome> {
   const answer = await moneybirdRequest(
     access,
     'POST',
     `/sales_invoices/${encodeURIComponent(invoiceId)}/payments.json`,
-    { payment: { payment_date: payment.paymentDate, price: decimalFromCents(payment.cents) } },
+    {
+      payment: {
+        payment_date: payment.paymentDate,
+        price: decimalFromCents(payment.cents),
+        ...(payment.financialAccountId ? { financial_account_id: payment.financialAccountId } : {}),
+        ...(payment.transactionIdentifier ? { transaction_identifier: payment.transactionIdentifier } : {}),
+      },
+    },
     fetchImpl,
   );
   const paymentFailed = failed(answer);
