@@ -41,7 +41,12 @@ import { moneybirdRead, type MoneybirdAccess, type SlowDown } from './moneybird-
 /** How far back each run asks: a day and two hours, so a missed night is caught up. */
 export const READ_BACK_WINDOW_HOURS = 26;
 
-/** Moneybird's page, and the most pages one run reads; the rest wait for the next hour. */
+/**
+ * Moneybird's page, and the most pages one run reads: 2,000 invoices changed in
+ * a day and two hours, far above what Ownpace issues. Past it, the next run
+ * asks the same window again, so the rest may never be read: the run says so
+ * as an error, and these are raised.
+ */
 export const READ_BACK_PAGE = 100;
 export const READ_BACK_PAGES = 20;
 

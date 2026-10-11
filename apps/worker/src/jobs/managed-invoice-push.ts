@@ -282,9 +282,10 @@ export async function readBackFromTheBooks(
     }
   }
   if (listed.more) {
-    log.warn(
+    // The next run asks the same window again, so the rest may never be read.
+    log.error(
       `[invoice-push] more than ${READ_BACK_PAGE * READ_BACK_PAGES} invoices changed in the books in the last ` +
-        `${READ_BACK_WINDOW_HOURS} hours; the rest is read back by the next run.`,
+        `${READ_BACK_WINDOW_HOURS} hours; only the first were read back. Raise READ_BACK_PAGES.`,
     );
   }
   return counts;
