@@ -172,6 +172,11 @@ export const PURGED_TABLES = [
   // yes above, whose pick it may carry. The key would cascade; named so the
   // receipt counts it.
   'tier_pick',
+  // Each withdrawal from a paid contract (0111 T7, managed 0049): it names the
+  // person who withdrew and where their confirmation went, and the credit notes
+  // that carried the money out are documents of their own, retained with the
+  // invoices. The key would cascade; named so the receipt counts it.
+  'contract_withdrawal',
   // The operator's number of live grant links for this organisation (0108
   // T8 (d), managed 0028): a setting about the customer, with nobody left to
   // apply it to. The key would cascade; named so the receipt counts it.

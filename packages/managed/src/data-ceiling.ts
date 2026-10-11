@@ -44,11 +44,12 @@
  * (`holdsAtCeiling`), not this file's arithmetic, which is the same either way.
  */
 
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import type { PgDatabase } from '@openmig/ledger/db';
 import type { PauseReason, TenantId } from '@openmig/shared';
 import { PgBytesMovedStore } from './bytes-moved.ts';
 import { dataAllowance } from './schema-managed.ts';
+import { sinceTheLatestWithdrawal } from './since-a-withdrawal.ts';
 import { MANAGED_TIERS, type ManagedTier } from './tier-calculator.ts';
 
 /** The tiers a yes can name: every one but Free, which is where everybody starts. */
@@ -343,11 +344,16 @@ export class PgDataAllowanceStore {
     this.db = db;
   }
 
+  /**
+   * Since the organisation's latest withdrawal, if it withdrew (0111 T7,
+   * managed 0049): a yes before it counts for nothing, so the agreed tier is
+   * Free again from that moment.
+   */
   async grants(tenantId: TenantId): Promise<AllowanceGrant[]> {
     const rows = await this.db
       .select({ kind: dataAllowance.kind, tierId: dataAllowance.tierId, bandGb: dataAllowance.bandGb })
       .from(dataAllowance)
-      .where(eq(dataAllowance.tenantId, tenantId))
+      .where(and(eq(dataAllowance.tenantId, tenantId), sinceTheLatestWithdrawal(dataAllowance.consentedAt, tenantId)))
       .orderBy(asc(dataAllowance.consentedAt));
     return rows;
   }

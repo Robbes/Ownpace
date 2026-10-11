@@ -227,6 +227,17 @@ describe('immediate events', () => {
       { kind: 'rollback_finished', mapping: { id: 'm' }, reason: 'r' },
       { kind: 'first_copy_complete', person: 'Anna Jansen', domains: ['email'] },
       { kind: 'looking_less_often', migrations: [{ mapping: { id: 'm' }, step: 'six-hourly' }] },
+      {
+        kind: 'contract_withdrawn',
+        organisation: 'o',
+        name: 'n',
+        tier: 'Small',
+        since: '1 October 2026',
+        withdrawnAt: '3 October 2026 at 10:04 UTC',
+        confirmTo: 'n@example.invalid',
+        credits: 1,
+        beganOnRequest: false,
+      },
     ] as const;
     for (const event of events) {
       for (const locale of ['en', 'nl'] as const) {
@@ -351,6 +362,65 @@ describe('everything is in step, so we look less often (0157 T7)', () => {
       expect(body).not.toContain('Open the app to act on this.');
       expect(body).not.toContain('Open de app om actie te ondernemen.');
     }
+  });
+});
+
+/**
+ * A WITHDRAWAL, RECEIVED (workplan 0111 T7; terms §7). What article 11a of the
+ * Consumer Rights Directive asks the acknowledgement to say: what was sent and
+ * when it arrived; then what follows from it, in the organisation's language,
+ * and nothing asked of its reader.
+ */
+describe('a withdrawal, received — the acknowledgement on a durable medium (0111 T7)', () => {
+  const withdrawn = {
+    kind: 'contract_withdrawn',
+    organisation: 'De Vries thuis',
+    name: 'Sam de Vries',
+    tier: 'Small',
+    since: '1 oktober 2026',
+    withdrawnAt: '3 oktober 2026 om 10:04 UTC',
+    confirmTo: 'sam@example.invalid',
+    credits: 1,
+    beganOnRequest: false,
+  } as const;
+
+  it('says what was sent and when, that the organisation is on Free, and that it is credited in full', () => {
+    const nl = renderEvent(withdrawn, 'nl');
+    expect(nl.subject).toBe('Ownpace — uw herroeping is ontvangen');
+    expect(nl.body).toBe(
+      [
+        'Organisatie: De Vries thuis',
+        '',
+        'We hebben uw herroeping van de overeenkomst ontvangen op 3 oktober 2026 om 10:04 UTC. Met deze e-mail bevestigen we dat.',
+        '',
+        'Wat u stuurde:',
+        '  - Naam: Sam de Vries',
+        '  - De overeenkomst: Ownpace Small, gesloten op 1 oktober 2026',
+        '  - Bevestiging naar: sam@example.invalid',
+        '',
+        'Vanaf dat moment staat uw organisatie op Free. Uw account en uw migraties blijven, in het tempo van Free.',
+        '',
+        'Voor de dagen vóór uw herroeping wordt niets in rekening gebracht: wat gefactureerd is, crediteren we volledig, met een creditnota per factuur.',
+        '',
+        'Wat u meer betaalde dan u verschuldigd bent, betalen we binnen 14 dagen terug, met het betaalmiddel dat u gebruikte.',
+      ].join('\n'),
+    );
+  });
+
+  it('says the days used are billed when we were asked to begin early, in English too', () => {
+    const en = renderEvent({ ...withdrawn, since: '1 October 2026', withdrawnAt: '3 October 2026 at 10:04 UTC', beganOnRequest: true }, 'en');
+    expect(en.subject).toBe('Ownpace — we received your withdrawal');
+    expect(en.body).toContain('We received your withdrawal from the contract on 3 October 2026 at 10:04 UTC. This email confirms it.');
+    expect(en.body).toContain('  - The contract: Ownpace Small, concluded on 1 October 2026');
+    expect(en.body).toContain('The days you used are billed in proportion to the agreed price.');
+    expect(en.body).toContain('we pay back within 14 days, by the means of payment you used.');
+  });
+
+  it('says nothing needs crediting when nothing was invoiced, and asks nothing of its reader', () => {
+    const en = renderEvent({ ...withdrawn, credits: 0 }, 'en');
+    expect(en.body).toContain('Nothing was invoiced that needs crediting.');
+    expect(en.body).not.toContain('pay back');
+    expect(en.body).not.toMatch(/open the app/i);
   });
 });
 

@@ -48,11 +48,12 @@
  * alpha ended it would bind them to a price they never ordered.
  */
 
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import type { PgDatabase } from '@openmig/ledger/db';
 import type { TenantId } from '@openmig/shared';
 import { monthlyEur, type Allowance, type AllowanceGrant, type PaidTierId } from './data-ceiling.ts';
 import { tierPick } from './schema-managed.ts';
+import { sinceTheLatestWithdrawal } from './since-a-withdrawal.ts';
 import { MANAGED_TIERS, type ManagedTier } from './tier-calculator.ts';
 
 /** One pick, as the floor reads it. */
@@ -180,13 +181,15 @@ export class PgTierPickStore {
 
   /**
    * Oldest first. Which tier and when, nothing else: what the system role may
-   * read when the tick asks what a month bills (managed 0044).
+   * read when the tick asks what a month bills (managed 0044). Since the
+   * organisation's latest withdrawal, if it withdrew (0111 T7, managed 0049):
+   * a pick before it is no floor any more.
    */
   async picks(tenantId: TenantId): Promise<TierPickRow[]> {
     return this.db
       .select({ tierId: tierPick.tierId, pickedAt: tierPick.pickedAt })
       .from(tierPick)
-      .where(eq(tierPick.tenantId, tenantId))
+      .where(and(eq(tierPick.tenantId, tenantId), sinceTheLatestWithdrawal(tierPick.pickedAt, tenantId)))
       .orderBy(asc(tierPick.pickedAt));
   }
 
