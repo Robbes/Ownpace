@@ -1012,6 +1012,32 @@ export type NotificationEvent =
       readonly credits: number;
       /** Whether we had been asked to begin before the fourteen days were over: then the days used are billed. */
       readonly beganOnRequest: boolean;
+    }
+  | {
+      /**
+       * An order, confirmed (workplan 0111 T7, slice 7e; terms §6 and §7;
+       * article 8(7) of the Consumer Rights Directive): what was ordered, at
+       * which price, and when; and, while a consumer's fourteen days run, how
+       * to withdraw and what that costs, repeating the sentence at the order
+       * button when it said it.
+       *
+       * Sent once, by the request that records the yes (`routes/billing`), to
+       * the signed-in address that gave it, in the organisation's language.
+       */
+      readonly kind: 'order_confirmed';
+      readonly organisation: string;
+      /** A tier by the month, or a band once: names and prices in words, `Medium` and `€29.00`. */
+      readonly order:
+        | { readonly kind: 'tier'; readonly tier: string; readonly monthly: string }
+        | { readonly kind: 'top_up'; readonly band: string; readonly price: string };
+      /** When the yes was given, in words: `11 October 2026 at 10:04 UTC`. */
+      readonly orderedAt: string;
+      /** The last day to withdraw, in words; null for a business, or once the fourteen days are over. */
+      readonly withdrawUntil: string | null;
+      /** Whether the order button said that we begin at once, within the fourteen days. */
+      readonly beganOnRequest: boolean;
+      /** The terms' address, in the mail's language. */
+      readonly terms: string;
     };
 
 /**
@@ -1084,6 +1110,7 @@ const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string
     first_copy_complete: 'Ownpace — everything has arrived',
     looking_less_often: 'Ownpace — everything is in step, so we look less often',
     contract_withdrawn: 'Ownpace — we received your withdrawal',
+    order_confirmed: 'Ownpace — your order',
   },
   nl: {
     decision_raised: 'Ownpace — een wijziging vraagt uw beslissing',
@@ -1098,6 +1125,7 @@ const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string
     first_copy_complete: 'Ownpace — alles is aangekomen',
     looking_less_often: 'Ownpace — alles is bijgewerkt, dus we doen het wat rustiger aan',
     contract_withdrawn: 'Ownpace — uw herroeping is ontvangen',
+    order_confirmed: 'Ownpace — uw bestelling',
   },
 };
 
@@ -1154,6 +1182,17 @@ interface EventLines {
   readonly withdrawnCreditedRest: string;
   readonly withdrawnRefund: string;
   readonly withdrawnNothingInvoiced: string;
+  readonly orderedOn: string;
+  readonly orderedConfirms: string;
+  readonly orderedMonthly: string;
+  readonly orderedOnce: string;
+  readonly orderedBilledMonthly: string;
+  readonly orderedBilledOnce: string;
+  readonly orderedWithdrawUntil: string;
+  readonly orderedWithdrawHow: string;
+  readonly orderedBeganOnRequest: string;
+  readonly orderedNotAsked: string;
+  readonly orderedTerms: string;
   readonly and: string;
   readonly domain: Readonly<Record<DiscoveryDomain, string>>;
 }
@@ -1278,6 +1317,21 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'The days you used are billed in proportion to the agreed price. What was invoiced for the days after is credited, with a credit note for each invoice.',
     withdrawnRefund: 'Whatever you paid above what you owe, we pay back within 14 days, by the means of payment you used.',
     withdrawnNothingInvoiced: 'Nothing was invoiced that needs crediting.',
+    // The order's confirmation (0111 T7, slice 7e; terms §6, §7): what was
+    // ordered and when, then the withdrawal, in the order button's own words.
+    orderedOn: 'You ordered, with obligation to pay, on',
+    orderedConfirms: 'This email confirms it.',
+    orderedMonthly: 'a month',
+    orderedOnce: 'more data room, once, for',
+    orderedBilledMonthly: 'Each month is billed in advance (terms §8).',
+    orderedBilledOnce: 'It is billed once.',
+    orderedWithdrawUntil: 'As a consumer you may withdraw from this contract without giving a reason, until the end of',
+    orderedWithdrawHow:
+      'Use Withdraw from contract here on the Billing page in the app, or send an unambiguous statement to support@ownpace.eu. You may use the model form in §15 of the terms.',
+    orderedBeganOnRequest:
+      'You asked us to begin at once, within those 14 days. If you withdraw, you pay for the part of the service already provided, in proportion to the agreed price, and no more.',
+    orderedNotAsked: 'If you withdraw, you pay nothing for the days already used.',
+    orderedTerms: 'The terms:',
     and: 'and',
     domain: { email: 'email', calendar: 'calendar', contact: 'contacts', file: 'files', task: 'tasks' },
   },
@@ -1361,6 +1415,19 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'De dagen die u gebruikte, worden naar verhouding van de afgesproken prijs in rekening gebracht. Wat voor de dagen erna gefactureerd is, crediteren we, met een creditnota per factuur.',
     withdrawnRefund: 'Wat u meer betaalde dan u verschuldigd bent, betalen we binnen 14 dagen terug, met het betaalmiddel dat u gebruikte.',
     withdrawnNothingInvoiced: 'Er is niets gefactureerd dat gecrediteerd hoeft te worden.',
+    orderedOn: 'U bestelde met betalingsverplichting op',
+    orderedConfirms: 'Met deze e-mail bevestigen we dat.',
+    orderedMonthly: 'per maand',
+    orderedOnce: 'extra data, eenmalig, voor',
+    orderedBilledMonthly: 'Elke maand wordt vooraf gefactureerd (voorwaarden §8).',
+    orderedBilledOnce: 'Het wordt eenmalig gefactureerd.',
+    orderedWithdrawUntil: 'Als consument kunt u deze overeenkomst zonder opgave van redenen herroepen, tot het einde van',
+    orderedWithdrawHow:
+      'Gebruik Hier de overeenkomst herroepen op de pagina Facturering in de app, of stuur een ondubbelzinnige verklaring aan support@ownpace.eu. U kunt het modelformulier in §15 van de voorwaarden gebruiken.',
+    orderedBeganOnRequest:
+      'U vroeg ons direct te beginnen, binnen die 14 dagen. Herroept u, dan betaalt u voor het deel van de dienst dat al geleverd is, naar verhouding van de afgesproken prijs, en niet meer.',
+    orderedNotAsked: 'Herroept u, dan betaalt u niets voor de dagen die al gebruikt zijn.',
+    orderedTerms: 'De voorwaarden:',
     and: 'en',
     domain: { email: 'e-mail', calendar: 'agenda', contact: 'contacten', file: 'bestanden', task: 'taken' },
   },
@@ -1477,6 +1544,21 @@ export function renderEvent(
       if (event.credits === 0) lines.push(b.withdrawnNothingInvoiced);
       else lines.push(event.beganOnRequest ? b.withdrawnCreditedRest : b.withdrawnCreditedInFull, '', b.withdrawnRefund);
       break;
+    case 'order_confirmed':
+      lines.push(`${b.grantedOrganisation}: ${event.organisation}`, '');
+      lines.push(`${b.orderedOn} ${event.orderedAt}:`);
+      lines.push(
+        event.order.kind === 'tier'
+          ? `  - Ownpace ${event.order.tier}, ${event.order.monthly} ${b.orderedMonthly}`
+          : `  - ${event.order.band} ${b.orderedOnce} ${event.order.price}`,
+      );
+      lines.push('', `${b.orderedConfirms} ${event.order.kind === 'tier' ? b.orderedBilledMonthly : b.orderedBilledOnce}`);
+      if (event.withdrawUntil !== null) {
+        lines.push('', `${b.orderedWithdrawUntil} ${event.withdrawUntil}. ${b.orderedWithdrawHow}`);
+        lines.push('', event.beganOnRequest ? b.orderedBeganOnRequest : b.orderedNotAsked);
+      }
+      lines.push('', `${b.orderedTerms} ${event.terms}`);
+      break;
     case 'rollback_finished':
       lines.push(`${b.migration}: ${mappingLabel(event.mapping)}`, '');
       lines.push(b.rolledBack, '');
@@ -1498,12 +1580,14 @@ export function renderEvent(
   // Nor after the first copy, which has just said that nothing is needed:
   // "act on this" under it would contradict it (0154 T7). Nor after a slower
   // cadence, which has just said how to choose more often (0157 T7).
-  // Nor after a withdrawal's acknowledgement, which asks nothing of its reader.
+  // Nor after a withdrawal's acknowledgement or an order's confirmation, which
+  // ask nothing of their reader.
   if (
     readerHasAnApp &&
     event.kind !== 'first_copy_complete' &&
     event.kind !== 'looking_less_often' &&
-    event.kind !== 'contract_withdrawn'
+    event.kind !== 'contract_withdrawn' &&
+    event.kind !== 'order_confirmed'
   ) {
     lines.push('', b.act);
   }

@@ -127,7 +127,8 @@ nothing holds, and no yes is taken; the hold and the yes go live when the alpha 
   to the offer shown, one at a time per organisation, and none during the alpha. The Billing page's
   *Your data ceiling* card (`DataCeiling.tsx`): where the data stands, and from 80% both ways on
   with their prices and the break-even (`breakEvenOf`); a press asks once more with the money said,
-  and only *Yes, I agree* sends the offer shown; a changed offer comes back and is shown. During
+  and only *Yes, I agree* sends the offer shown (since 0111 slice 7e the order button, *Order with
+  obligation to pay*); a changed offer comes back and is shown. During
   the alpha the card says the same and offers no button. The hold: the engine asks
   `PassClock.firstCopyAllowed` before each new first copy (`firstCopyGate`, from the ceiling read
   fresh per data type); a held item is not fetched and gets no row, updates carry on, the

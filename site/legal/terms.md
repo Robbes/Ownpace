@@ -33,6 +33,23 @@
   "Ownpace (Archico B.V.)", the signature line kept. 1.3 had been final since
   2026-10-07, so the words take a new number.
 
+  v1.5, 2026-10-11: §7 only (workplan 0111, slice 7e). The express request
+  to begin within the 14 days is no longer a confirmation step before the
+  first migration but one sentence beside the order button, wherever a paid
+  tier is ordered (the data ceiling, Start, a tier picked above the agreed
+  one): by ordering, the consumer asks us to begin at once, and a withdrawal
+  then costs the part already provided, in proportion to the agreed price,
+  and no more. The order's confirming email repeats it (article 8(7) of the
+  Consumer Rights Directive). The owner: "i do not want the tickbox, everyone
+  who agrees with the terms would normally start within 14 days". The
+  withdrawal function's name is now the app's own words, *Withdraw from
+  contract here* (article 11a; the owner, 2026-10-05). For the lawyer:
+  whether one sentence beside an order button labelled "Order with
+  obligation to pay" is an express request under articles 7(3) and 8(8);
+  and the proportionate amount, read pro rata temporis after CJEU C-641/19
+  (PE Digital), as slice 7b bills it. Precondition C below is built with
+  this version.
+
   Where things stand on 2026-09-28:
 
   - The lawyer's pass (workplan 0139 T1) is deferred by the owner: "legal:
@@ -105,8 +122,13 @@
      stops those too (their runs record the orchestrator's reference and the close cancels them, or
      they check the close between steps), or the owner rewords the sentence to what the code does.
      The comment beside §11 says so in both languages.
-  C. Settled (terms-unbuilt-paid-steps (a)): §6 and §7 keep the order button,
-     the confirmation before the first migration, the confirming email and
+  C. BUILT (2026-10-11, workplan 0111 T7: slices 7c and 7e). §6's order
+     button says "Order with obligation to pay" at every yes; §7's request to
+     begin is one sentence beside it (1.5), recorded with the yes; the
+     confirming email goes after each order; "Withdraw from contract here" is
+     on the Billing page. What it said before: Settled
+     (terms-unbuilt-paid-steps (a)): §6 and §7 keep the order button, the
+     confirmation before the first migration, the confirming email and
      "Withdraw from contract" in the app, though none of them is built. They
      are built before the first paid tier. Both sections are set aside during
      the Alpha, but they are rendered, so a tester can read of steps that are
@@ -514,8 +536,8 @@
 # Terms of service
 
 **Applies to:** the Ownpace **managed service** at `ownpace.eu`.
-**Version:** 1.4
-**Last updated:** 2026-10-10
+**Version:** 1.5
+**Last updated:** 2026-10-11
 
 > **These terms do not govern the software.** Ownpace is open source under the Apache
 > License 2.0, and running it yourself is governed by that licence, not by these terms. These
@@ -643,13 +665,13 @@ obligation to pay.
 If you are a **consumer**, you may withdraw from this contract within **14 days** of
 concluding it, without giving a reason.
 
-Before your first migration starts, the app asks you to confirm that you want us to begin before the 14 days are over, and
-that if you then withdraw, you pay for the part of the service already provided, **in
-proportion to the agreed price**, and no more. We confirm that choice to you by email.
-Withdrawing does not touch your data at your source or your target; the promises of §2 hold
-throughout.
+When you order a paid tier, the app says beside the order button that by ordering you ask us
+to begin at once, within the 14 days, and that if you then withdraw, you pay for the part of the
+service already provided, **in proportion to the agreed price**, and no more. We confirm your
+order, with that request, to you by email. Withdrawing does not touch your data at your source
+or your target; the promises of §2 hold throughout.
 
-To withdraw, use *Withdraw from contract* in the app, or send an unambiguous statement to
+To withdraw, use *Withdraw from contract here* in the app, or send an unambiguous statement to
 **support@ownpace.eu**, within the 14 days. You may use the model form in §15, but you do not
 have to. We confirm receipt by email without delay. You pay only the proportionate amount:
 whatever was invoiced above it we credit, and whatever you paid above it we refund within 14

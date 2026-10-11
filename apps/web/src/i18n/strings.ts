@@ -952,7 +952,6 @@ const en = {
     'Moving up is the better buy when you need more migrations at once: {next} runs {nextPaths} at the same time, {tier} {paths}.',
   'billing.ceiling.confirm.moveUp': 'You agree to pay {monthly} a month for {tier}.',
   'billing.ceiling.confirm.topUp': 'You agree to pay {price} once for another {band}.',
-  'billing.ceiling.confirm.yes': 'Yes, I agree',
   'billing.ceiling.confirm.no': 'Not now',
   'billing.ceiling.done': 'Done: your data ceiling is now {ceiling}.',
   'billing.ceiling.offerChanged':
@@ -983,8 +982,13 @@ const en = {
   'billing.pick.confirm':
     'From today each month bills at least {tier}, {monthly} a month, until you lower it. Lowering counts from the next month.',
   'billing.pick.confirm.keep': 'Each month keeps billing at least {tier}, {monthly} a month, until you lower it.',
-  // The words of article 8(2) of the Consumer Rights Directive.
-  'billing.pick.order': 'Order with obligation to pay',
+  // The order button, wherever a yes is given (the data ceiling, Start, a
+  // pick): the words of article 8(2) of the Consumer Rights Directive (terms §6).
+  'billing.order.button': 'Order with obligation to pay',
+  // Beside it while a yes begins within a consumer's withdrawal window: the
+  // request to begin, which is not a tick box (0111 slice 7e; terms §7).
+  'billing.order.beginNow':
+    'By ordering, you ask us to begin at once, within your 14 days to withdraw. If you then withdraw, you pay for the part already provided, in proportion to the agreed price, and no more.',
   'billing.pick.notNow': 'Not now',
   'billing.pick.done': "Done: {tier}'s pace and data room are yours now, and each month bills at least {tier}.",
   'billing.pick.lowerTo': 'Lower to {tier}',
@@ -4019,7 +4023,6 @@ const nl: Record<keyof typeof en, string> = {
     'Een groter pakket wordt aangeraden als u meer migraties gelijktijdig wenst te draaien: {next} draait er {nextPaths} tegelijk, {tier} {paths}.',
   'billing.ceiling.confirm.moveUp': 'U gaat akkoord met {monthly} per maand voor {tier}.',
   'billing.ceiling.confirm.topUp': 'U gaat akkoord met eenmalig {price} voor nog {band} data erbij.',
-  'billing.ceiling.confirm.yes': 'Ja, akkoord',
   'billing.ceiling.confirm.no': 'Nu niet',
   'billing.ceiling.done': 'Gedaan: uw datalimiet is nu {ceiling}.',
   'billing.ceiling.offerChanged':
@@ -4049,7 +4052,9 @@ const nl: Record<keyof typeof en, string> = {
   'billing.pick.confirm.keep':
     'U blijft als basis elke maand {tier} betalen, {monthly} per maand, tot u het verlaagt.',
   // De woorden van artikel 6:230v lid 3 BW.
-  'billing.pick.order': 'Bestelling met betalingsverplichting',
+  'billing.order.button': 'Bestelling met betalingsverplichting',
+  'billing.order.beginNow':
+    'Met uw bestelling vraagt u ons direct te beginnen, binnen uw bedenktijd van 14 dagen. Herroept u daarna, dan betaalt u voor het deel dat al geleverd is, naar verhouding van de afgesproken prijs, en niet meer.',
   'billing.pick.notNow': 'Nu niet',
   'billing.pick.done':
     'Klaar: uw migraties hebben nu de frequentie en datalimiet van {tier}; u betaalt als basis elke maand {tier}.',

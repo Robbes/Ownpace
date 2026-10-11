@@ -16,8 +16,8 @@
 # Servicevoorwaarden
 
 **Gelden voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`.
-**Versie:** 1.4
-**Laatst bijgewerkt:** 2026-10-10
+**Versie:** 1.5
+**Laatst bijgewerkt:** 2026-10-11
 
 > **Deze voorwaarden gelden niet voor de software.** Ownpace is open source onder de Apache
 > License 2.0, en het zelf draaien valt onder die licentie, niet onder deze voorwaarden. Deze
@@ -148,13 +148,13 @@ duidelijk zegt dat u bestelt met een betalingsverplichting.
 Bent u **consument**, dan kunt u deze overeenkomst binnen **14 dagen** na het sluiten ervan
 herroepen, zonder opgave van redenen.
 
-Voordat uw eerste migratie begint, vraagt de app u te bevestigen dat u wilt dat wij beginnen vóór
-het einde van de 14 dagen, en dat u bij herroeping daarna betaalt voor het deel van de dienst dat
-al is geleverd, **naar evenredigheid van de afgesproken prijs**, en niet meer. Die keuze
-bevestigen we u per e-mail. Herroepen raakt uw gegevens bij uw bron of uw doel niet; de beloften
-van §2 blijven onverkort gelden.
+Wanneer u een betaald pakket bestelt, zegt de app bij de bestelknop dat u ons met uw bestelling
+vraagt direct te beginnen, binnen de 14 dagen, en dat u bij herroeping daarna betaalt voor het
+deel van de dienst dat al is geleverd, **naar evenredigheid van de afgesproken prijs**, en niet
+meer. Uw bestelling, met dat verzoek, bevestigen we u per e-mail. Herroepen raakt uw gegevens bij
+uw bron of uw doel niet; de beloften van §2 blijven onverkort gelden.
 
-Herroepen doet u met *Overeenkomst herroepen* in de app, of met een ondubbelzinnige verklaring
+Herroepen doet u met *Hier de overeenkomst herroepen* in de app, of met een ondubbelzinnige verklaring
 aan **support@ownpace.eu**, binnen de 14 dagen. U mag het modelformulier uit §15 gebruiken, maar
 dat hoeft niet. Wij bevestigen de ontvangst onverwijld per e-mail. U betaalt alleen het
 evenredige bedrag: wat daarboven is gefactureerd, crediteren we, en wat u daarboven hebt betaald,

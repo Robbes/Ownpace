@@ -106,6 +106,17 @@ export function privacyPolicyUrl(locale: NotificationLocale, env: LegalSiteForMa
   return `${legalSiteForMailFrom(env)}/${PRIVACY_POLICY_FILE[locale]}`;
 }
 
+/** The terms' file on the site, per language, as the site build names it. */
+export const TERMS_FILE: Readonly<Record<NotificationLocale, string>> = {
+  en: 'terms.html',
+  nl: 'nl/voorwaarden.html',
+};
+
+/** The terms' address, in the mail's language (the order's confirmation, 0111 slice 7e). */
+export function termsUrl(locale: NotificationLocale, env: LegalSiteForMailEnv): string {
+  return `${legalSiteForMailFrom(env)}/${TERMS_FILE[locale]}`;
+}
+
 /** The Alpha conditions' file on the site, per language, as the site build names it. */
 export const ALPHA_CONDITIONS_FILE: Readonly<Record<NotificationLocale, string>> = {
   en: 'alpha.html',

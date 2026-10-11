@@ -5852,7 +5852,8 @@ paths:
         body names the offer the page
         showed; when the tier or the price is not what is offered now, the yes is
         refused with the current offer, so nobody agrees to a price they were not
-        shown. Refused during the alpha, where nothing is charged.
+        shown. Refused during the alpha, where nothing is charged. After it, the
+        order's confirmation goes by email to the signed-in address (slice 7e).
       requestBody:
         required: true
         content:
@@ -5864,6 +5865,13 @@ paths:
                 choice: { type: string, enum: [move_up, top_up] }
                 tierId: { type: string }
                 priceEur: { type: integer, minimum: 0 }
+                beginNow:
+                  type: boolean
+                  enum: [true]
+                  description: |
+                    The order button said, in one sentence, that we begin at once and
+                    what a withdrawal then costs (0111 slice 7e; terms §7). Recorded as
+                    `began_on_request` when the yes begins within a withdrawal window.
       responses:
         '200':
           description: The ceiling after the yes.
@@ -5932,7 +5940,8 @@ paths:
         carrying the tier's monthly price, in whole euros. Refused when the tier
         is not above the agreed one (`not_a_step_up`) or the price is not its
         monthly now (`offer_changed`), and during the alpha. The page starts the
-        migrations after it.
+        migrations after it. After it, the order's confirmation goes by email to
+        the signed-in address (slice 7e).
       requestBody:
         required: true
         content:
@@ -5943,6 +5952,13 @@ paths:
               properties:
                 tierId: { type: string }
                 priceEur: { type: integer, minimum: 0 }
+                beginNow:
+                  type: boolean
+                  enum: [true]
+                  description: |
+                    The order button said, in one sentence, that we begin at once and
+                    what a withdrawal then costs (0111 slice 7e; terms §7). Recorded as
+                    `began_on_request` when the yes begins within a withdrawal window.
       responses:
         '200':
           description: The agreed tier after the yes.
@@ -5973,6 +5989,9 @@ paths:
         already), `business` (no right of withdrawal) or `past`. `name` and
         `confirmTo` are what the withdrawal function fills in for the person
         to confirm: the name on the invoice details, and the signed-in address.
+        `yesAsksToBegin` says whether a yes given now begins within a
+        withdrawal window (slice 7e): then each order button says, in one
+        sentence, that we begin at once and what a withdrawal then costs.
         Read-only.
       responses:
         '200':
@@ -5995,6 +6014,7 @@ paths:
                       - type: 'null'
                   name: { type: [string, 'null'] }
                   confirmTo: { type: [string, 'null'] }
+                  yesAsksToBegin: { type: boolean }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
     post:
@@ -6088,7 +6108,9 @@ paths:
         from `raise` counts at once; one from `lower` from the next month
         (`from`: `now` or `next_month`). Refused with what is offered now when
         the tier or the price is not what is offered (`offer_changed`, with
-        `pick`), and during the alpha (`nothing_charged_during_the_alpha`).
+        `pick`), and during the alpha (`nothing_charged_during_the_alpha`). A
+        pick above the agreed tier is an order: its confirmation goes by email
+        to the signed-in address (slice 7e).
       requestBody:
         required: true
         content:
@@ -6099,6 +6121,13 @@ paths:
               properties:
                 tierId: { type: string }
                 priceEur: { type: integer, minimum: 0 }
+                beginNow:
+                  type: boolean
+                  enum: [true]
+                  description: |
+                    The order button said, in one sentence, that we begin at once and
+                    what a withdrawal then costs (0111 slice 7e; terms §7). Recorded as
+                    `began_on_request` when the yes begins within a withdrawal window.
       responses:
         '200':
           description: When the pick counts, and what may be picked now, as GET answers.

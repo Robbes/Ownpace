@@ -280,6 +280,8 @@ export const WithdrawalStateSchema = z.object({
   tier: z.object({ id: z.string(), name: z.string() }).nullable(),
   name: z.string().nullable(),
   confirmTo: z.string().nullable(),
+  /** Whether a yes given now begins within a withdrawal window: the order buttons then say so (0111 slice 7e). */
+  yesAsksToBegin: z.boolean().default(false),
 });
 
 /** What POST /billing/withdrawal answers: when, and whether the acknowledgement went. */
@@ -307,6 +309,8 @@ export interface CeilingYes {
   choice: 'move_up' | 'top_up';
   tierId: string;
   priceEur: number;
+  /** The order button said that we begin at once, within the fourteen days (0111 slice 7e). */
+  beginNow?: true;
 }
 
 export type UsageResponse = z.infer<typeof UsageResponseSchema>;
@@ -443,7 +447,7 @@ export const billingApi = {
   },
 
   /** Say yes, at *Start*, to the tier shown at the monthly shown. A 409 carries a `reason`. Owner/admin. */
-  sayYesToPaths: async (yes: { tierId: string; priceEur: number }): Promise<void> => {
+  sayYesToPaths: async (yes: { tierId: string; priceEur: number; beginNow?: true }): Promise<void> => {
     await apiClient.post('/billing/paths/yes', yes);
   },
 
@@ -454,7 +458,7 @@ export const billingApi = {
   },
 
   /** Pick a tier, at the monthly price the page showed. Owner/admin only server-side. */
-  pickTier: async (pick: { tierId: string; priceEur: number }): Promise<Picked> => {
+  pickTier: async (pick: { tierId: string; priceEur: number; beginNow?: true }): Promise<Picked> => {
     const response = await apiClient.post('/billing/pick', pick);
     return PickedSchema.parse(response.data);
   },

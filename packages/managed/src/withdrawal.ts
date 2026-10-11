@@ -28,9 +28,19 @@
  * gets its credit note (`credit-note.ts`), for the days it paid for and was
  * not used. The days used are billed only when the consumer asked us to begin
  * before the fourteen days were over (terms §7; without that request the
- * Consumer Rights Directive, article 14(4)(a)(ii), lets them bear no cost). No
- * yes records that request yet, so for now every invoice of the contract is
- * credited in full; the yes that asks for it is slice 7d.
+ * Consumer Rights Directive, article 14(4)(a)(ii), lets them bear no cost).
+ *
+ * ## The request to begin (slice 7e)
+ *
+ * Not a tick box (the owner, 2026-10-11: *"everyone who agrees with the terms
+ * would normally start within 14 days"*). The order button says, in one
+ * sentence, that we begin at once and what a withdrawal then costs, whenever
+ * the yes it records begins within a withdrawal window (`yesAsksToBegin`); the
+ * yes records that it was said (`began_on_request`, managed 0051), and the
+ * order's confirmation repeats it. The window reads it from the yes that
+ * concluded the contract. A yes given before the sentence was there, or at a
+ * page that did not say it, asked nothing, and its contract is credited in
+ * full.
  *
  * ## The days of an invoice
  *
@@ -74,10 +84,11 @@ export function withdrawalUntil(since: Date): Date {
   return new Date(lastDay + (moved + 1) * DAY_MS);
 }
 
-/** A yes on record since the latest withdrawal: when, and to which tier. */
+/** A yes on record since the latest withdrawal: when, to which tier, and whether its button asked to begin. */
 export interface PaidCommitment {
   readonly at: Date;
   readonly tierId: PaidTierId;
+  readonly beganOnRequest?: boolean;
 }
 
 export type WithdrawalWindow =
@@ -119,6 +130,18 @@ export function withdrawalWindow(
   const rank = (tierId: PaidTierId) => MANAGED_TIERS.findIndex((t) => t.id === tierId);
   const tier = facts.commitments.reduce<PaidTierId>((top, c) => (rank(c.tierId) > rank(top) ? c.tierId : top), first.tierId);
   return { kind: 'open', since, until, tier, beganOnRequest: facts.beganOnRequest };
+}
+
+/**
+ * Whether a yes given now begins within a withdrawal window, so its order
+ * button says that we begin at once and what a withdrawal then costs: for a
+ * consumer (or an organisation that gave no invoice details yet), when the yes
+ * concludes the contract (on Free, or after a withdrawal) or joins one still
+ * open. Not for a business, and not once the fourteen days are over.
+ */
+export function yesAsksToBegin(partyKind: 'consumer' | 'business' | null, window: WithdrawalWindow): boolean {
+  if (partyKind === 'business') return false;
+  return window.kind === 'open' || window.reason === 'nothing_paid';
 }
 
 /** The share of an invoice a withdrawal credits: the days it paid for and were not used. */
@@ -180,15 +203,34 @@ export function withdrawalCreditWords(share: CreditShare, withdrawnAt: Date, loc
  * invoice details' kind, and its yeses since its latest withdrawal.
  */
 export async function readWithdrawalWindow(db: PgDatabase, tenantId: TenantId, now: Date): Promise<WithdrawalWindow> {
+  return (await readWithdrawalFacts(db, tenantId, now)).window;
+}
+
+/**
+ * The window, and whether a yes given now asks to begin (`yesAsksToBegin`):
+ * what the order buttons say and what a yes records. Read in the yes's own
+ * transaction, after its lock.
+ */
+export async function readYesAsksToBegin(db: PgDatabase, tenantId: TenantId, now: Date): Promise<boolean> {
+  const { partyKind, window } = await readWithdrawalFacts(db, tenantId, now);
+  return yesAsksToBegin(partyKind, window);
+}
+
+async function readWithdrawalFacts(
+  db: PgDatabase,
+  tenantId: TenantId,
+  now: Date,
+): Promise<{ partyKind: 'consumer' | 'business' | null; window: WithdrawalWindow }> {
   const [party] = await db.select({ kind: billingParty.kind }).from(billingParty).where(eq(billingParty.tenantId, tenantId));
   const commitments = await db
-    .select({ at: dataAllowance.consentedAt, tierId: dataAllowance.tierId })
+    .select({ at: dataAllowance.consentedAt, tierId: dataAllowance.tierId, beganOnRequest: dataAllowance.beganOnRequest })
     .from(dataAllowance)
     .where(and(eq(dataAllowance.tenantId, tenantId), sinceTheLatestWithdrawal(dataAllowance.consentedAt, tenantId)))
     .orderBy(asc(dataAllowance.consentedAt));
-  // No yes records a request to begin before the fourteen days are over yet
-  // (slice 7d): without one, the days used are not billed.
-  return withdrawalWindow({ partyKind: party?.kind ?? null, commitments, beganOnRequest: false }, now);
+  // The request is the concluding yes's: the days used run from it (slice 7e).
+  const beganOnRequest = commitments[0]?.beganOnRequest ?? false;
+  const partyKind = party?.kind ?? null;
+  return { partyKind, window: withdrawalWindow({ partyKind, commitments, beganOnRequest }, now) };
 }
 
 /** What the consumer gives the withdrawal function (article 11a), and who pressed it. */

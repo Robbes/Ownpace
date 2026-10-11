@@ -14,15 +14,27 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AxiosError, type AxiosResponse } from 'axios';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import DataCeiling from './DataCeiling.tsx';
-import { billingApi, type Ceiling } from '../services/billing-service.ts';
+import { billingApi, type Ceiling, type WithdrawalState } from '../services/billing-service.ts';
 
 vi.mock('../services/billing-service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/billing-service.ts')>()),
-  billingApi: { getCeiling: vi.fn(), sayYesToCeiling: vi.fn() },
+  billingApi: { getCeiling: vi.fn(), sayYesToCeiling: vi.fn(), getWithdrawal: vi.fn() },
 }));
 
 const getCeiling = vi.mocked(billingApi.getCeiling);
 const sayYes = vi.mocked(billingApi.sayYesToCeiling);
+const getWithdrawal = vi.mocked(billingApi.getWithdrawal);
+/** On Free, a business or past the fourteen days: a yes asks nothing (slice 7e). */
+const ASKS_NOTHING: WithdrawalState = {
+  open: false,
+  reason: 'nothing_paid',
+  since: null,
+  until: null,
+  tier: null,
+  name: null,
+  confirmTo: null,
+  yesAsksToBegin: false,
+};
 
 /** On Small, past 80%: both ways on, and the break-even, on the list of 2026-09-29. */
 const NEAR_ON_SMALL: Ceiling = {
@@ -76,6 +88,8 @@ function refused(body: Record<string, unknown>): AxiosError {
 beforeEach(() => {
   getCeiling.mockReset();
   sayYes.mockReset();
+  getWithdrawal.mockReset();
+  getWithdrawal.mockResolvedValue(ASKS_NOTHING);
 });
 
 describe('where the data stands', () => {
@@ -153,7 +167,7 @@ describe('the yes', () => {
     });
     renderCard();
     fireEvent.click(await screen.findByRole('button', { name: 'Buy another 750 GB' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Yes, I agree' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Order with obligation to pay' }));
     await waitFor(() => expect(sayYes).toHaveBeenCalledWith({ choice: 'top_up', tierId: 'small', priceEur: 5 }));
     expect(await screen.findByText('Done: your data ceiling is now 1.5 TB.')).toBeVisible();
   });
@@ -163,7 +177,7 @@ describe('the yes', () => {
     sayYes.mockResolvedValue({ ...NEAR_ON_SMALL, tier: { id: 'medium', name: 'Medium', paths: 20, monthly: 12 } });
     renderCard();
     fireEvent.click(await screen.findByRole('button', { name: 'Move up to Medium' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Yes, I agree' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Order with obligation to pay' }));
     await waitFor(() => expect(sayYes).toHaveBeenCalledWith({ choice: 'move_up', tierId: 'medium', priceEur: 12 }));
   });
 
@@ -178,9 +192,40 @@ describe('the yes', () => {
     sayYes.mockRejectedValue(refused({ error: 'offer_changed', reason: 'What is offered has changed.', ceiling: now }));
     renderCard();
     fireEvent.click(await screen.findByRole('button', { name: 'Move up to Medium' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Yes, I agree' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Order with obligation to pay' }));
     expect(await screen.findByText(/nothing was agreed\. This is the offer now/)).toBeVisible();
     expect(screen.getByText(/Move up to Large: €40\.00 a month/)).toBeVisible();
+  });
+});
+
+/**
+ * The request to begin (0111 T7, slice 7e; terms §7): no tick box, one
+ * sentence beside the order button while a yes begins within a consumer's
+ * withdrawal window, and the yes says it was said; otherwise neither.
+ */
+describe('the order button asks to begin within the fourteen days', () => {
+  it('says the sentence beside the button and sends that it was said', async () => {
+    getWithdrawal.mockResolvedValue({ ...ASKS_NOTHING, yesAsksToBegin: true });
+    getCeiling.mockResolvedValue(NEAR_ON_SMALL);
+    sayYes.mockResolvedValue(NEAR_ON_SMALL);
+    renderCard();
+    fireEvent.click(await screen.findByRole('button', { name: 'Move up to Medium' }));
+    expect(await screen.findByText(/By ordering, you ask us to begin at once, within your 14 days to withdraw\./)).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Order with obligation to pay' }));
+    await waitFor(() =>
+      expect(sayYes).toHaveBeenCalledWith({ choice: 'move_up', tierId: 'medium', priceEur: 12, beginNow: true }),
+    );
+  });
+
+  it('says nothing and sends nothing when a yes asks nothing', async () => {
+    getCeiling.mockResolvedValue(NEAR_ON_SMALL);
+    sayYes.mockResolvedValue(NEAR_ON_SMALL);
+    renderCard();
+    fireEvent.click(await screen.findByRole('button', { name: 'Buy another 750 GB' }));
+    await waitFor(() => expect(getWithdrawal).toHaveBeenCalled());
+    expect(screen.queryByText(/By ordering, you ask us to begin/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Order with obligation to pay' }));
+    await waitFor(() => expect(sayYes).toHaveBeenCalledWith({ choice: 'top_up', tierId: 'small', priceEur: 5 }));
   });
 });
 

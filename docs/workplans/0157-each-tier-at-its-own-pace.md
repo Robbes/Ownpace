@@ -282,7 +282,8 @@ it works out the least tier the answers need.
   once the alpha ended, to a price they never ordered. The card lists the tiers with their prices
   and says so, as the data ceiling's card does. Picking opens with the stage (`docs/ending-the-alpha.md`).
 - **Not built here:** the invoice that bills the floor (0109 T5), and the order's confirming email
-  (terms precondition C), both before the first paid tier.
+  (terms precondition C), both before the first paid tier. Both are built since: 0109 T5, and the
+  confirming email with 0111 slice 7e.
 
 ## 7. T7 — the default slows once everything is in step (decided 2026-10-05)
 

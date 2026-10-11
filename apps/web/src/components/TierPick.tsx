@@ -36,6 +36,7 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 import { billingApi, PickSchema, type PickOffer, type PickTier } from '../services/billing-service.ts';
 import { serverMessage } from '../services/api.ts';
 import InvoiceDetailsFirst from './InvoiceDetailsFirst.tsx';
+import { BeginNow, useYesAsksToBegin } from './BeginNow.tsx';
 import { useFormatters, useLocale, useT } from '../i18n/index.tsx';
 import { formatDateTime } from '../i18n/datetime.ts';
 
@@ -65,14 +66,20 @@ const TierPick: React.FC = () => {
 
   const { data: offer, isLoading, error } = useQuery({ queryKey: QUERY_KEY, queryFn: () => billingApi.getPick() });
 
+  const asksToBegin = useYesAsksToBegin();
+
   const pick = useMutation({
-    mutationFn: (tier: PickTier) => billingApi.pickTier({ tierId: tier.id, priceEur: tier.monthlyEur }),
-    onSuccess: (fresh, tier) => {
+    // `beginNow` only when the order button said so (slice 7e).
+    mutationFn: ({ tier, beginNow }: { tier: PickTier; beginNow: boolean }) =>
+      billingApi.pickTier({ tierId: tier.id, priceEur: tier.monthlyEur, ...(beginNow ? { beginNow: true } : {}) }),
+    onSuccess: (fresh, { tier }) => {
       const { from: when, ...now } = fresh;
       queryClient.setQueryData(QUERY_KEY, now);
-      // What this month bills, the data ceiling and the pace follow the pick.
+      // What this month bills, the data ceiling and the pace follow the pick,
+      // and a pick above the agreed tier may open the withdrawal window.
       void queryClient.invalidateQueries({ queryKey: ['billing-usage'] });
       void queryClient.invalidateQueries({ queryKey: ['billing-ceiling'] });
+      void queryClient.invalidateQueries({ queryKey: ['billing-withdrawal'] });
       setAsking(null);
       setDone({ tier, lower: when === 'next_month' });
     },
@@ -108,7 +115,8 @@ const TierPick: React.FC = () => {
             setAsking(next);
           }}
           pending={pick.isPending}
-          onPick={(tier) => pick.mutate(tier)}
+          asksToBegin={asksToBegin}
+          onPick={(tier, beginNow) => pick.mutate({ tier, beginNow })}
           done={done}
           refusal={pick.isError ? pick.error : null}
         />
@@ -122,10 +130,12 @@ const PickBody: React.FC<{
   asking: Asking | null;
   setAsking: (asking: Asking | null) => void;
   pending: boolean;
-  onPick: (tier: PickTier) => void;
+  /** Whether a yes now begins within a withdrawal window: the order button then says so. */
+  asksToBegin: boolean;
+  onPick: (tier: PickTier, beginNow: boolean) => void;
   done: Done | null;
   refusal: unknown;
-}> = ({ offer, asking, setAsking, pending, onPick, done, refusal }) => {
+}> = ({ offer, asking, setAsking, pending, asksToBegin, onPick, done, refusal }) => {
   const t = useT();
   const { locale } = useLocale();
   const { currency, number } = useFormatters();
@@ -218,8 +228,10 @@ const PickBody: React.FC<{
                         ? t('billing.pick.confirm.keep', { tier: tier.name, monthly: eur(tier.monthlyEur) })
                         : t('billing.pick.confirm', { tier: tier.name, monthly: eur(tier.monthlyEur) })
                     }
-                    yes={t('billing.pick.order')}
-                    onYes={() => onPick(tier)}
+                    yes={t('billing.order.button')}
+                    // Keeping a pick orders nothing new, so it asks nothing.
+                    note={asksToBegin && !keeps(tier) ? <BeginNow /> : null}
+                    onYes={() => onPick(tier, asksToBegin && !keeps(tier))}
                     onNo={() => setAsking(null)}
                     pending={pending}
                   />
@@ -254,7 +266,7 @@ const PickBody: React.FC<{
                   : t('billing.pick.lower.confirm', { date: nextFrom, tier: asking.tier.name, now: picked.now?.name ?? '' })
               }
               yes={t('billing.pick.lower.yes')}
-              onYes={() => onPick(asking.tier)}
+              onYes={() => onPick(asking.tier, false)}
               onNo={() => setAsking(null)}
               pending={pending}
             />
@@ -273,11 +285,13 @@ const PickBody: React.FC<{
  */
 const Question: React.FC<{
   sentence: string;
+  /** Said beside the order button, under the sentence: the request to begin (slice 7e). */
+  note?: React.ReactNode;
   yes: string;
   onYes: () => void;
   onNo: () => void;
   pending: boolean;
-}> = ({ sentence, yes, onYes, onNo, pending }) => {
+}> = ({ sentence, note, yes, onYes, onNo, pending }) => {
   const t = useT();
   const box = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => box.current?.focus(), []);
@@ -291,6 +305,7 @@ const Question: React.FC<{
       aria-label={sentence}
     >
       <p className="text-gray-900">{sentence}</p>
+      {note && <div className="text-gray-700">{note}</div>}
       <div className="flex flex-wrap gap-2">
         <button
           type="button"

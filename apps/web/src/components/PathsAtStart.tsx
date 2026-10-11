@@ -28,6 +28,7 @@ import { Loader2 } from 'lucide-react';
 import { billingApi } from '../services/billing-service.ts';
 import { serverMessage } from '../services/api.ts';
 import InvoiceDetailsFirst, { isInvoiceDetailsFirst } from './InvoiceDetailsFirst.tsx';
+import { BeginNow, useYesAsksToBegin } from './BeginNow.tsx';
 import { isSelfHost } from '../services/edition.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
@@ -65,13 +66,18 @@ export const PathsAtStart: React.FC<PathsAtStartProps> = ({ mappingIds, disabled
   }, [asking, onAsking]);
   React.useEffect(() => () => onAsking(false), [onAsking]);
 
+  // Read only while an order is asked for here.
+  const asksToBegin = useYesAsksToBegin(asking);
+
   const yes = useMutation({
-    mutationFn: (body: { tierId: string; priceEur: number }) => billingApi.sayYesToPaths(body),
+    mutationFn: (body: { tierId: string; priceEur: number; beginNow?: true }) => billingApi.sayYesToPaths(body),
     onSuccess: async () => {
       setConfirming(false);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['billing-ceiling'] }),
         queryClient.invalidateQueries({ queryKey: ['billing-paths'] }),
+        // The first yes after Free opens the withdrawal window.
+        queryClient.invalidateQueries({ queryKey: ['billing-withdrawal'] }),
       ]);
       onStart();
     },
@@ -119,15 +125,19 @@ export const PathsAtStart: React.FC<PathsAtStartProps> = ({ mappingIds, disabled
               {confirming ? (
                 <div role="alertdialog" aria-live="polite" className="space-y-2">
                   <p>{t('billing.ceiling.confirm.moveUp', { monthly: eur(needs.monthlyEur), tier: needs.name })}</p>
+                  {asksToBegin && <BeginNow />}
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => yes.mutate({ tierId: needs.id, priceEur: needs.monthlyEur })}
+                      onClick={() =>
+                        // `beginNow` only when the order button says so (slice 7e).
+                        yes.mutate({ tierId: needs.id, priceEur: needs.monthlyEur, ...(asksToBegin ? { beginNow: true } : {}) })
+                      }
                       disabled={busy}
                       className="inline-flex items-center gap-1 min-h-[44px] px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
                     >
                       {yes.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                      {t('billing.ceiling.confirm.yes')}
+                      {t('billing.order.button')}
                     </button>
                     <button
                       type="button"

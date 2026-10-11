@@ -7,8 +7,10 @@
  * What the owner meets before the press when starting would run more at the
  * same time than their tier runs: the numbers, and beside each other, moving
  * up at the monthly said (and starting everything) or starting what fits now.
- * A press of *Move up* asks once more with the money said; only "Yes, I agree"
- * sends the tier and the price shown. Nothing at all where it does not apply:
+ * A press of *Move up* asks once more with the money said; only the order
+ * button, "Order with obligation to pay", sends the tier and the price shown,
+ * and while a yes begins within a consumer's withdrawal window it says, in one
+ * sentence beside it, that ordering asks us to begin (0111 slice 7e). Nothing at all where it does not apply:
  * within the tier, for a member, and on the appliance; during the alpha, a
  * note with nothing to press.
  */
@@ -36,11 +38,22 @@ vi.mock('../stores/auth-store.ts', () => ({
 
 vi.mock('../services/billing-service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/billing-service.ts')>()),
-  billingApi: { getPathsAtStart: vi.fn(), sayYesToPaths: vi.fn() },
+  billingApi: { getPathsAtStart: vi.fn(), sayYesToPaths: vi.fn(), getWithdrawal: vi.fn() },
 }));
 
 const getPathsAtStart = vi.mocked(billingApi.getPathsAtStart);
 const sayYesToPaths = vi.mocked(billingApi.sayYesToPaths);
+const getWithdrawal = vi.mocked(billingApi.getWithdrawal);
+const WINDOW = {
+  open: false,
+  reason: 'nothing_paid' as const,
+  since: null,
+  until: null,
+  tier: null,
+  name: null,
+  confirmTo: null,
+  yesAsksToBegin: false,
+};
 
 /** On Small, three running, two to start: m1 takes one slot, m2 three. */
 const PAST: Forecast = {
@@ -73,6 +86,8 @@ beforeEach(() => {
   sayYesToPaths.mockReset();
   getPathsAtStart.mockResolvedValue(PAST);
   sayYesToPaths.mockResolvedValue(undefined);
+  getWithdrawal.mockReset();
+  getWithdrawal.mockResolvedValue(WINDOW);
 });
 
 describe('past the tier', () => {
@@ -94,9 +109,18 @@ describe('past the tier', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Move up to Medium and start' }));
     expect(sayYesToPaths).not.toHaveBeenCalled();
     expect(screen.getByRole('alertdialog').textContent).toMatch(/You agree to pay €\s?12(\.00)? a month for Medium/);
-    await userEvent.click(screen.getByRole('button', { name: 'Yes, I agree' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Order with obligation to pay' }));
     await waitFor(() => expect(onStart).toHaveBeenCalledWith());
     expect(sayYesToPaths).toHaveBeenCalledWith({ tierId: 'medium', priceEur: 12 });
+  });
+
+  it('says beside the order button that ordering asks us to begin, and sends that it was said', async () => {
+    getWithdrawal.mockResolvedValue({ ...WINDOW, yesAsksToBegin: true });
+    renderQuestion();
+    await userEvent.click(await screen.findByRole('button', { name: 'Move up to Medium and start' }));
+    expect(await screen.findByText(/By ordering, you ask us to begin at once/)).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Order with obligation to pay' }));
+    await waitFor(() => expect(sayYesToPaths).toHaveBeenCalledWith({ tierId: 'medium', priceEur: 12, beginNow: true }));
   });
 
   it('takes nothing on "Not now"', async () => {
@@ -133,7 +157,7 @@ describe('past the tier', () => {
     sayYesToPaths.mockRejectedValue(new Error('The price has changed since the page was shown.'));
     const { onStart } = renderQuestion();
     await userEvent.click(await screen.findByRole('button', { name: 'Move up to Medium and start' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Yes, I agree' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Order with obligation to pay' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Your yes was not recorded:');
     expect(onStart).not.toHaveBeenCalled();
   });
@@ -173,5 +197,6 @@ describe('where it does not ask', () => {
     editionFlag.selfhost = true;
     renderQuestion();
     expect(getPathsAtStart).not.toHaveBeenCalled();
+    expect(getWithdrawal).not.toHaveBeenCalled();
   });
 });
