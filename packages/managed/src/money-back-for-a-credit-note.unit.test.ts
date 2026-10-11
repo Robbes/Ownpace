@@ -24,7 +24,6 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { sql } from 'drizzle-orm';
 import { pgliteDriver, runMigrations, withTenant } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
 import type { TenantId } from '@openmig/shared';
@@ -337,9 +336,7 @@ describe('money back, on a real database', () => {
       ),
     ).toBe(false);
     // ...and the database refuses a change to what is, and money back on an invoice.
-    await expect(
-      withTenant(driver, ORG, (db) => db.execute(sql`UPDATE invoice SET refund_id = 're_twice' WHERE id = ${note.id}`)),
-    ).rejects.toThrow(/written once/);
+    await expect(owner(`UPDATE invoice SET refund_id = 're_twice' WHERE id = $1`, [note.id])).rejects.toThrow(/written once/);
     await expect(
       owner(`UPDATE invoice SET money_back = 'settled', money_back_at = now() WHERE id = $1`, [paid]),
     ).rejects.toThrow(/invoice_money_back_check/);

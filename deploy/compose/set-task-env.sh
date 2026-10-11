@@ -486,7 +486,7 @@ const { envvars } = require("@trigger.dev/sdk");
     "MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU", "MONEYBIRD_DELIVERY",
     // The account a payment through Mollie is booked on (0111 slice 5f).
     "MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE",
-    // The API's own Mollie key, for a credit note's refund (0111 slice 7d).
+    // The Mollie key of the API, for the refund of a credit note (0111 slice 7d).
     "MOLLIE_API_KEY",
     "OWNPACE_SELLER_COUNTRY", "VAT_OSS_ACTIVE",
   ]) {

@@ -374,11 +374,11 @@ describe('the catalog pin', () => {
       'invoice_number',
       'lines',
       'metadata',
-      'moneybird_administration_id',
-      'moneybird_id',
       // A credit note's money back, written once (0052).
       'money_back',
       'money_back_at',
+      'moneybird_administration_id',
+      'moneybird_id',
       // A payment through Mollie, booked in the books (0050).
       'moneybird_paid_at',
       'paid_at',
