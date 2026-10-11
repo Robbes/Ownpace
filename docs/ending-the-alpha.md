@@ -78,9 +78,28 @@ the owner's job.
    sandbox (`register_payment_creditinvoice` on a credit note crediting part of an open invoice,
    and a negative payment booked on a credit note; the owner, 2026-10-11, with
    `./deploy/compose/moneybird-money-back-proof.sh`), and so did Mollie's refund in test mode
-   (the same script with `refund`). Before invoices reach customers, one thing
-   is the owner's: live's `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE` and `MOLLIE_API_KEY` set and
-   uploaded to the tasks. Leave `OWNPACE_BILLING_FROM` empty until it is done.
+   (the same script with `refund`). **Before invoices reach customers, live needs its books and
+   payments**, each step as *8i. The books and payments* in
+   [managed-bring-up.md](./managed-bring-up.md) says, run in live's checkout:
+   - **live's own Moneybird administration**, a real one: its token and id, then its workflow
+     and tax rate ids from `./deploy/compose/operator.sh moneybird check`, which only reads and is
+     safe on live. None of the sandbox's ids carry over;
+   - **`MONEYBIRD_DELIVERY=email`**, so that Moneybird e-mails each invoice;
+   - **the outside-EU rate**, or none, as the accountant answers;
+   - **Mollie's onboarding of the business finished**, and its `live_` key as `MOLLIE_API_KEY`,
+     with `API_URL` live's public https address, where Mollie confirms each payment;
+   - **the financial account Mollie pays out from**, made in live's administration, as
+     `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE`, and the accountant's answer on how Moneybird's own
+     link to Mollie matches the payments and refunds Ownpace books there;
+   - **the API recreated and `set-task-env.sh` run**, then the check again, which ends
+     `RESULT: ready`.
+   - **a way to hear the money you owe**: the hourly push says a credit note to pay back by hand,
+     a refund that failed and one running late as errors on its run's output, which goes with the
+     run's container. The [operator runbook](./operator-runbook.md) (`managed-invoice-push`) says
+     what each asks of you and how to find them afterwards.
+
+   The proofs do not run on live; each refuses it. Leave `OWNPACE_BILLING_FROM` empty until all
+   of this is done.
 3. **Tell the testers, with their numbers.** No yes could be taken during the alpha, so every
    organisation is on Free at the switch: one migration at a time (each kind of data counts as
    one), and 250 GB, counted from the switch. Everything moved during the alpha never counts

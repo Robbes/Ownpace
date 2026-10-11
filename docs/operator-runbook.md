@@ -415,16 +415,65 @@ Four things send email on managed, all through the operator's own SMTP relay con
   alpha, and before that month, the run says `nobody is invoiced` and reads nothing about any
   organisation. Otherwise it logs `{ invoicing, month, tenants, made, made_elsewhere, in_step,
   free, nothing_to_add, failed }`, and one line per draft it made.
-- **`managed-invoice-push`** (workplan 0111, slice 5) — a scheduled task, hourly at **:41**.
-  Takes each draft to Moneybird, which numbers it, and writes the number, the dates and the
-  figures back. A draft is claimed for one attempt (managed 0047); one Moneybird could not take
-  is tried again the next hour, and one refused (no invoice details, say) is said as an error
-  with its reason. At most 60 a run, one every 25 seconds, under Moneybird's 150 requests in 5
-  minutes; a 429 stops the run. Off as the month task is, and while no `MONEYBIRD_*` key reaches
-  the tasks (`nothing is pushed: Moneybird is off`). It logs `{ pushing, tenants, issued, adopted,
-  refused, unavailable, slowed, failed, left }`, one line per invoice numbered, and an error for
-  every organisation with a draft still a draft two days after it was made, naming them
-  (decision 6's alert).
+- **`managed-invoice-push`** (workplan 0111, slices 5 to 7d) — a scheduled task, hourly at
+  **:41**. For each organisation, in this order:
+  1. **Each draft numbered.** Takes each draft to Moneybird, which numbers it, and writes the
+     number, the dates and the figures back. A draft is claimed for one attempt (managed 0047);
+     one Moneybird could not take is tried again the next hour, and one refused (no invoice
+     details, say) is said as an error with its reason.
+  2. **Each credit note numbered** the same way, once the invoice it corrects is numbered.
+  3. **Each payment through Mollie booked** on its invoice in Moneybird, under Mollie's payment
+     id, on the account `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE` names (slice 5f), so Moneybird
+     reminds nobody who paid. With that key empty, nothing is booked and each run says so.
+  4. **Each credit note's money made real, once** (slice 7d): refunded through Mollie when its
+     invoice was paid through Mollie and more was paid than is owed now; set against its invoice
+     in the books when nothing was paid above that; or **said, for a transfer by hand**, when it
+     was paid another way. Without `MOLLIE_API_KEY` in the task environment, a refund waits and
+     each run says so.
+  5. **Each refund followed** at Mollie until it ends, refunded, failed or canceled. These are
+     Mollie's calls, outside the budget below.
+  6. **Each refund booked** on its credit note, negative, on the same account. A refund that
+     failed or was canceled is never booked.
+
+  Then, once for the deployment, **paid and late read back** from Moneybird: every invoice it
+  changed in the last day. At most 60 Moneybird requests a run, one every 25 seconds, under
+  Moneybird's 150 in 5 minutes; a 429 stops the run. Off as the month task is, and while no
+  `MONEYBIRD_*` key reaches the tasks (`nothing is pushed: Moneybird is off`). It logs
+  `{ pushing, tenants, issued, credited, adopted, booked, held, refunded, settled, byHand,
+  refundsEnded, refundsFailed, refundsLate, refused, unavailable, slowed, failed, left,
+  readBack }` and one line per invoice numbered.
+
+  **Four of its errors ask something of you.** The first three are said once each:
+
+  | The error says | What to do |
+  |---|---|
+  | `credit note … credits N cents on invoice …, which was paid, but not through Mollie` | Pay back what was paid above what is owed, by bank transfer, within 14 days of the withdrawal (terms §7), and book it on the credit note in Moneybird. |
+  | `Mollie's refund re_… of N cents for credit note … ended failed` (or `canceled`) | The money did not go back. Pay it back by transfer within the same 14 days. If the error says it was booked, take that payment (under the refund's id) off the credit note in Moneybird; otherwise nothing was booked, and nothing will be. |
+  | `Mollie's refund re_… is still queued 7 days after it was made` (or `pending`, `processing`) | A queued refund waits until Mollie's balance covers it. Look at the balance in Mollie's dashboard; the 14 days run from the withdrawal. |
+  | `N invoice(s) still drafts two days after they were made` | Said every run while it is true (decision 6's alert). The errors before it, for the same organisation, say why each draft was refused. |
+
+  **These errors live only as long as the run's container.** Each is a line on the output of
+  the task run that said it, and a task run's container is removed when its run ends, with its
+  output ([managed-bring-up.md](./managed-bring-up.md), the audit lines' paragraph). So a line
+  is read only by a collector that reads the worker's output as it is written. The three said
+  once are also written down on the credit note, so this query finds every one of them
+  afterwards: credit notes given back by hand, refunds that failed or were canceled, and
+  refunds said to be late that have not ended:
+
+  ```bash
+  docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrate -d openmigrate -c \
+    "SELECT c.tenant_id, c.invoice_number AS credit_note, o.invoice_number AS invoice,
+            c.money_back, c.money_back_at, c.refund_id, c.refund_cents, c.refund_status
+       FROM invoice c JOIN invoice o ON o.id = c.credited_invoice_id
+      WHERE c.kind = 'credit_note'
+        AND (c.money_back = 'by_hand'
+             OR c.refund_status IN ('failed', 'canceled')
+             OR (c.refund_late_said_at IS NOT NULL AND c.refund_ended_at IS NULL))
+      ORDER BY c.money_back_at DESC;"
+  ```
+
+  A credit note given back by hand stays on this list; which of them you have paid is your own
+  record, and Moneybird's, once it is booked there.
 
 Two behaviours worth knowing before you go looking for a missing email:
 
