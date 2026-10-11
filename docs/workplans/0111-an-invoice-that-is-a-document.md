@@ -60,9 +60,10 @@ languages, and names the withdrawal function by the app's own words; terms preco
   Dutch); `DataCeiling`, `PathsAtStart` and `TierPick` tests (the sentence beside the order button
   and `beginNow` sent only when said; a kept pick asks nothing). Two mutants, both red: the server
   recording the request without `beginNow`, and the window reading any yes's request.
-- **For the lawyer** (terms.md's briefing, 1.5): whether one sentence beside an order button is an
-  express request under articles 7(3) and 8(8), and the proportionate amount read pro rata
-  temporis (CJEU C-641/19).
+- **The lawyer agreed** (the owner, 2026-10-11: *"Lawyer agreed"*), on the questions in
+  terms.md's briefing for 1.5: whether one sentence beside an order button is an express request
+  under articles 7(3) and 8(8), and the proportionate amount read pro rata temporis (CJEU
+  C-641/19).
 
 **2026-10-11: the owner's answers of the day.**
 

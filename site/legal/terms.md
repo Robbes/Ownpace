@@ -47,8 +47,9 @@
   whether one sentence beside an order button labelled "Order with
   obligation to pay" is an express request under articles 7(3) and 8(8);
   and the proportionate amount, read pro rata temporis after CJEU C-641/19
-  (PE Digital), as slice 7b bills it. Precondition C below is built with
-  this version.
+  (PE Digital), as slice 7b bills it. The lawyer agreed (the owner,
+  2026-10-11: "Lawyer agreed"). Precondition C below is built with this
+  version.
 
   Where things stand on 2026-09-28:
 

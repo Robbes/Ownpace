@@ -73,11 +73,12 @@ the owner's job.
    the tasks, settled against its invoice in the books, or said to the operator for a transfer
    by hand.
 
-   Before invoices reach customers, three things are the owner's: the two Moneybird calls of
-   slice 7d proved in the sandbox (`register_payment_creditinvoice` on a credit note crediting
-   part of an open invoice, and a negative payment booked on a credit note); live's
-   `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE` and `MOLLIE_API_KEY` set and uploaded to the tasks; and
-   the lawyer's read of terms 1.5 §7. Leave `OWNPACE_BILLING_FROM` empty until they are done.
+   Terms 1.5 §7 has the lawyer's agreement (the owner, 2026-10-11). Before invoices reach
+   customers, two things are the owner's: the two Moneybird calls of slice 7d proved in the
+   sandbox (`register_payment_creditinvoice` on a credit note crediting part of an open invoice,
+   and a negative payment booked on a credit note); and live's
+   `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE` and `MOLLIE_API_KEY` set and uploaded to the tasks.
+   Leave `OWNPACE_BILLING_FROM` empty until they are done.
 3. **Tell the testers, with their numbers.** No yes could be taken during the alpha, so every
    organisation is on Free at the switch: one migration at a time (each kind of data counts as
    one), and 250 GB, counted from the switch. Everything moved during the alpha never counts
