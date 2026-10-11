@@ -144,6 +144,7 @@ const run = {
       ledger,
       cursors,
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
     }),
   events: (source: GraphCalendarSource, target: ReturnType<typeof memoryTarget>, ledger: MemoryLedger, cursors: MemoryCursorStore) =>
     runCalendarSync({
@@ -154,6 +155,7 @@ const run = {
       ledger,
       cursors,
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
     }),
 };
 

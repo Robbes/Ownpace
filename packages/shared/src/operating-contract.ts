@@ -186,6 +186,14 @@ export interface FailuresQueue extends QueueEnvelope {
  * applied (ADR-0030): removing the old copy there loses nothing.
  */
 export interface MovesQueue extends QueueEnvelope {
+  /**
+   * The data types past their cutover, whose old system no longer decides
+   * what exists (`dataTypesPastCutover`, 2026-10-05). An apply on a move of
+   * one of them is refused (`after_cutover`), so a screen offers none
+   * (`mayOfferRelocationApply`). Empty while every data type still follows
+   * the old system, and again after a rollback.
+   */
+  readonly afterCutover: readonly DiscoveryDomain[];
   readonly open: readonly ItemMove[];
   readonly acknowledged: readonly ItemMove[];
   readonly whatThisMeans: string;
@@ -201,6 +209,12 @@ export interface MovesQueue extends QueueEnvelope {
  * ADR-0024.
  */
 export interface DeletionsQueue extends QueueEnvelope {
+  /**
+   * The data types past their cutover (`dataTypesPastCutover`, 2026-10-05):
+   * an apply on a deletion of one of them is refused (`after_cutover`), so a
+   * screen offers none (`mayOfferApply`). See `MovesQueue.afterCutover`.
+   */
+  readonly afterCutover: readonly DiscoveryDomain[];
   readonly confirmed: readonly ItemDeletion[];
   readonly watching: readonly ItemDeletion[];
   readonly acknowledged: readonly ItemDeletion[];
@@ -963,7 +977,9 @@ export const MOVE_GUIDANCE: MoveGuidance = {
     `recognised by its Drive id. Off unless the mapping sets ` +
     `allowApplyDeletions — the same switch, because it is the same capability — ` +
     `and refused for a copy somebody has edited on the target, for one this ` +
-    `migration did not write, and while the mass-deletion breaker is up (ADR-0030). ` +
+    `migration did not write, while the mass-deletion breaker is up (ADR-0030), and ` +
+    `for a data type past its cutover, whose old system no longer decides what ` +
+    `exists (until a rollback). ` +
     `The result says how it ended: removed, refused with the reason, or failed ` +
     `with the error.`,
   byHand:
@@ -995,9 +1011,10 @@ export const DELETION_GUIDANCE: DeletionGuidance = {
     `PRODUCT: refused unless this mapping has \`allowApplyDeletions: true\` in its ` +
     `config, refused for "inferred" evidence (an absence is never enough, however ` +
     `many passes it repeats), refused for an item somebody has since edited on the ` +
-    `target, and refused altogether while an unusual share of the domain looks ` +
-    `pending deletion at once (the mass-deletion breaker). See the runbook before ` +
-    `using this.`,
+    `target, refused altogether while an unusual share of the domain looks ` +
+    `pending deletion at once (the mass-deletion breaker), and refused for a data ` +
+    `type past its cutover, whose old system no longer decides what exists (until ` +
+    `a rollback). See the runbook before using this.`,
   byHand:
     'To remove it from the target yourself instead, delete it there, then keep. ' +
     'This tool never deletes on a target without the explicit apply action above ' +
@@ -1030,7 +1047,13 @@ export function earlierExportsQueue(all: readonly EarlierExport[]): DeletionsQue
  * A UI using this to decide what to SHOW is correct; a UI using it to predict
  * that a click will succeed is not.
  */
-export function mayOfferApply(deletion: ItemDeletion): boolean {
+export function mayOfferApply(deletion: ItemDeletion, afterCutover: readonly DiscoveryDomain[]): boolean {
+  // AFTER CUTOVER, NONE (2026-10-05). The old system no longer decides what
+  // exists, so the server refuses (`after_cutover`); a button refused every
+  // time is one people try to make work. The owner, asked whether such a
+  // press should be refused: "Refuse after cutover (Recommended)". REQUIRED,
+  // the queue's own `afterCutover`: a screen that cannot say must not compile.
+  if (afterCutover.includes(deletion.domain)) return false;
   return deletion.confirmed && deletion.evidence !== 'inferred';
 }
 
@@ -1056,7 +1079,9 @@ export function mayOfferApply(deletion: ItemDeletion): boolean {
  * conditional UPDATE refuses it too, which is what settles it when two people
  * answer at once.
  */
-export function mayOfferRelocationApply(move: ItemMove): boolean {
+export function mayOfferRelocationApply(move: ItemMove, afterCutover: readonly DiscoveryDomain[]): boolean {
+  // After cutover, none: see `mayOfferApply` (2026-10-05).
+  if (afterCutover.includes(move.domain)) return false;
   return move.toNaturalKeyHash !== undefined && move.acknowledgedAt === undefined;
 }
 

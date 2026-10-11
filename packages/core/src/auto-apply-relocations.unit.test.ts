@@ -72,6 +72,9 @@ function deps(
     target,
     allowApplyDeletions: flags.allow ?? true,
     autoApplyRelocations: flags.auto ?? true,
+    // Before cutover: the old system still decides what exists. After it,
+    // nothing is applied at all (`a-move-applied-after-cutover.unit.test.ts`).
+    stillTheAuthority: async () => true,
     ...(onApplied ? { onApplied } : {}),
   };
 }

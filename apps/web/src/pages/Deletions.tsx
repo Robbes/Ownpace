@@ -32,6 +32,7 @@ import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen.
 import { ApplyDeletionsPanel } from '../components/queues/ApplyDeletionsPanel.tsx';
 import {
   ActionButton,
+  AfterCutoverNote,
   DestructiveButton,
   DomainTag,
   EvidenceBadge,
@@ -218,6 +219,10 @@ const Deletions: React.FC<{
         {/* Gate 1, visible where it bites (0019 T3): the delete buttons below
             are refused by the server while this is off. */}
         <ApplyDeletionsPanel mappingId={mappingId} />
+        {/* Only the rows whose button the cutover took away (2026-10-05). */}
+        <AfterCutoverNote
+          withheld={queue.confirmed.filter((d) => mayOfferApply(d, []) && !mayOfferApply(d, queue.afterCutover))}
+        />
         <QueueSection
           title={t('queue.waitingOnYou')}
           count={queue.confirmed.length}
@@ -247,8 +252,9 @@ const Deletions: React.FC<{
                       no destructive option at all, rather than a disabled one:
                       a greyed-out button invites somebody to find out how to
                       enable it, and there is no answer to that question here.
+                      The same for a kind past its cutover (2026-10-05).
                     */}
-                    {mayOfferApply(d) && (
+                    {mayOfferApply(d, queue.afterCutover) && (
                       <DestructiveButton
                         pending={pending}
                         label={t('deletions.apply')}

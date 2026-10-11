@@ -11,6 +11,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { STRINGS } from '../i18n/strings.ts';
 import type { MovesResponse } from '@openmig/shared';
 
 const { fetchMovesMock, applyMoveMock, fetchMoveApplyReceiptMock, isSelfHostMock } = vi.hoisted(
@@ -50,6 +51,8 @@ function queue(over: Partial<MovesResponse['x']> = {}): MovesResponse {
   return {
     'acme-mail': {
       migrationStatus: 'active',
+      // Before cutover: no kind is past it (the cases after it set their own).
+      afterCutover: [],
       open: [],
       acknowledged: [],
       whatThisMeans: 'The old system reorganised these after we copied them.',
@@ -265,5 +268,41 @@ describe('the relocation apply button', () => {
 
     expect(await screen.findByText('Archive/2026')).toBeInTheDocument();
     expect(screen.queryByText('renamed')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * After cutover (2026-10-05): no remove button for a kind past its cutover.
+ * See the same section of `Deletions.unit.test.tsx`; the owner chose "Refuse
+ * after cutover (Recommended)".
+ */
+describe('after cutover', () => {
+  const RELOCATION = {
+    naturalKeyHash: 'Docs/report.pdf',
+    domain: 'file' as const,
+    from: 'Docs',
+    to: 'Docs',
+    toNaturalKeyHash: 'Docs/summary.pdf',
+  };
+
+  it('offers no remove for a relocation of a kind past its cutover, says why, and still offers leave', async () => {
+    fetchMovesMock.mockResolvedValue(queue({ afterCutover: ['file'], open: [RELOCATION] }));
+    renderScreen();
+
+    // Names the data type whose rows lost the button, in its screen name.
+    expect(
+      await screen.findByText(STRINGS.en['queue.afterCutover'].replace('{dataTypes}', 'Files')),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Leave it where it is/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Remove the old copy/ })).not.toBeInTheDocument();
+  });
+
+  it('still offers it for a kind that has not been cut over', async () => {
+    fetchMovesMock.mockResolvedValue(queue({ afterCutover: ['email'], open: [RELOCATION] }));
+    renderScreen();
+
+    expect(await screen.findByRole('button', { name: /Remove the old copy/ })).toBeInTheDocument();
+    // No row lost its button, so there is nothing to explain.
+    expect(screen.queryByText(/Past the cutover of/)).not.toBeInTheDocument();
   });
 });

@@ -117,6 +117,7 @@ function deps(source: FileSource, target: ReturnType<typeof memoryTarget>, ledge
     ledger,
     concurrency: 2,
     sourceIsAuthorityOnExistence: true,
+    stillTheAuthority: async () => true,
   };
 }
 

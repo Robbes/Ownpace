@@ -419,6 +419,7 @@ describe('JMAP Reindex Integration Tests', () => {
       // Run shadow pass to sync messages from source to target
       await runShadowPass({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         source,
         target,
         mappingId: REINDEX_MAPPING_ID,
@@ -447,6 +448,7 @@ describe('JMAP Reindex Integration Tests', () => {
       // Run mirror to sync messages
       await runShadowPass({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         source,
         target,
         mappingId: REINDEX_MAPPING_ID,
@@ -477,6 +479,7 @@ describe('JMAP Reindex Integration Tests', () => {
       // First sync existing messages
       await runShadowPass({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         source,
         target,
         mappingId: REINDEX_MAPPING_ID,
@@ -545,6 +548,7 @@ This message was added directly to the target after the initial sync.
       // Setup: sync messages from source to target, so the target is populated.
       await runShadowPass({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         source,
         target,
         mappingId: REINDEX_MAPPING_ID,

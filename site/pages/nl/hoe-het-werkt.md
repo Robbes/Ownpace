@@ -26,7 +26,8 @@ en dan stopt de migratie.
 ## 3. Wij kopiëren, en blijven kopiëren
 
 De eerste ronde migreert alles. Daarna komt elke wijziging in het oude account — nieuwe
-e-mail, een verplaatst bestand, een aangepast contact — aan in het nieuwe, zolang u wilt.
+e-mail, een verplaatst bestand, een aangepast contact — aan in het nieuwe, tot u overstapt.
+Blijft u daarna migreren, dan komen alleen nieuwe items nog aan.
 
 Dit is het deel dat de meeste tools niet doen. Een eenmalige kopie begint te verouderen op
 het moment dat hij klaar is, en daarom gebeuren eenmalige migraties in een weekend en voelen

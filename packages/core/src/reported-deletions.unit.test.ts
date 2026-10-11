@@ -70,6 +70,7 @@ function world() {
   const run = (ledger: MemoryLedger, cursors?: MemoryCursorStore) =>
     runDomainSync<unknown, unknown, Obj, { path: string }>({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       domain: 'calendar',
@@ -439,6 +440,7 @@ describe('the two kinds of evidence stay apart', () => {
     const runFiles = () =>
       runDomainSync<unknown, unknown, { path: string }, { path: string }>({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         tenantId: TENANT,
         mappingId: MAPPING,
         domain: 'file',

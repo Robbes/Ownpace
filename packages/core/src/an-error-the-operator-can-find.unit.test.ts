@@ -35,6 +35,7 @@ function pass(readers: {
 }) {
   return runDomainSync<unknown, unknown, Obj, { path: string }>({
     sourceIsAuthorityOnExistence: true,
+    stillTheAuthority: async () => true,
     tenantId: TENANT,
     mappingId: MAPPING,
     domain: 'calendar',

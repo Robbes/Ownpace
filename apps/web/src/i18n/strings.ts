@@ -1515,6 +1515,12 @@ const en = {
   'runs.status.cancelled': 'Cancelled',
   'queue.waitingOnYou': 'Waiting on you',
   'queue.alreadyDecided': 'Already decided',
+  // A data type past its cutover offers no remove button (2026-10-05; the
+  // owner's "Refuse after cutover (Recommended)"): the server refuses it, and
+  // this says why once, above the rows, naming the data types whose rows lost
+  // it. Undoing the cutover is a rollback (ADR-0047).
+  'queue.afterCutover':
+    'Past the cutover of {dataTypes}, the old system no longer decides what exists, so nothing is removed from the new system because of what happened there. Those rows have no remove button. Undoing the cutover brings it back.',
   'moves.title': 'Moved on the old system',
   'moves.intro':
     'Items the owner filed elsewhere since the migration; nothing has changed on either side.',
@@ -2518,8 +2524,9 @@ const en = {
   'lane.why':
     'Your tier will not fall while this runs: the path keeps its slot until you end it, ' +
     'the same as a migration that has not finished. Deletions at the old provider stop ' +
-    'being mirrored — anything you remove there stays in your new home. We will not bill ' +
-    'past twelve months without asking you again.',
+    'being mirrored — anything you remove there stays in your new home. Changes you make ' +
+    'there no longer overwrite the copies in your new home. We will not bill past twelve ' +
+    'months without asking you again.',
   'lane.confirm': 'Keep syncing, and keep the tier',
   'lane.cancel': 'Not now',
   // The lane on the appliance (0128 D4): the same choice, and no tier to keep.
@@ -4481,6 +4488,8 @@ const nl: Record<keyof typeof en, string> = {
   'runs.status.cancelled': 'Geannuleerd',
   'queue.waitingOnYou': 'Wacht op u',
   'queue.alreadyDecided': 'Al besloten',
+  'queue.afterCutover':
+    'Na de overstap van {dataTypes} bepaalt het oude systeem niet meer wat er bestaat, dus wordt er op het nieuwe systeem niets verwijderd vanwege wat daar is gebeurd. Die regels hebben geen verwijderknop. Wordt de overstap teruggedraaid, dan komt die terug.',
   'moves.title': 'Verplaatst op het oude systeem',
   'moves.intro':
     'Items die de eigenaar had verplaatst; aan geen van beide kanten is iets veranderd.',
@@ -5063,7 +5072,7 @@ const nl: Record<keyof typeof en, string> = {
     'Het verzoek is mislukt; mogelijk loopt er nog een migratieronde, controleer de wachtrijen straks opnieuw.',
   'lane.intro': 'Het oude account blijft het nieuwe voeden en er wordt niets verwijderd.',
   'lane.why':
-    'Uw pakket daalt niet zolang dit loopt: het pad houdt zijn plek tot u het beëindigt, net als een migratie die nog niet klaar is. Verwijderingen in uw oude bron worden niet meer gesynchroniseerd — wat u daar weghaalt, blijft op uw nieuwe bestemming staan. We factureren niet langer dan twaalf maanden zonder het u opnieuw te vragen.',
+    'Uw pakket daalt niet zolang dit loopt: het pad houdt zijn plek tot u het beëindigt, net als een migratie die nog niet klaar is. Verwijderingen in uw oude bron worden niet meer gesynchroniseerd — wat u daar weghaalt, blijft op uw nieuwe bestemming staan. Wat u daar wijzigt, overschrijft de kopieën op uw nieuwe bestemming niet meer. We factureren niet langer dan twaalf maanden zonder het u opnieuw te vragen.',
   'lane.confirm': 'Blijven synchroniseren, uw pakket blijft gelijk',
   'lane.cancel': 'Nu niet',
   'lane.selfhost.why':

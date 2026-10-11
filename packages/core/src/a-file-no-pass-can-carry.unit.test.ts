@@ -86,6 +86,7 @@ async function pass(files: Array<{ path: string; size: number }>, largestFileByt
     ledger,
     cursors: new MemoryCursorStore(),
     sourceIsAuthorityOnExistence: true,
+    stillTheAuthority: async () => true,
     ...(largestFileBytes !== undefined ? { largestFileBytes } : {}),
   });
   const failures = await ledger.listFailures(TENANT, MAPPING, 'file');
