@@ -236,7 +236,7 @@ describe('3. the sentences written in the source', () => {
       'apps/api/src/routes/billing/index.ts',
       'packages/core/src/largest-file.ts',
       'packages/shared/src/notifications.ts',
-      'apps/web/src/i18n/strings.ts',
+      'apps/web/src/i18n/strings/app.ts',
       'site/build.mjs',
     ]) {
       expect(read, `the walk missed ${known}`).toContain(known);

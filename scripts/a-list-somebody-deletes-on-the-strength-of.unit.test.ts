@@ -46,7 +46,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   claimCeilingFor,
@@ -64,6 +64,11 @@ import {
 
 const ROOT = join(import.meta.dirname, '..');
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
+/** The dictionary's source: its composer and every area file (`strings/`). */
+const dictionarySource = (root: string): string =>
+  ['strings.ts', ...readdirSync(join(root, 'apps/web/src/i18n/strings')).map((f) => `strings/${f}`)]
+    .map((f) => readFileSync(join(root, 'apps/web/src/i18n', f), 'utf8'))
+    .join('\n');
 
 /** Whole-line comments stripped, so a guard never matches its own explanation. */
 const source = (rel: string) =>
@@ -305,7 +310,7 @@ describe('the three kinds of claim, and the one word that must not travel', () =
     // deletes their originals from. The page's own map is typed
     // `Record<ClaimKind, StringKey>`, so tsc catches a missing key — this
     // asserts the string EXISTS, which tsc cannot see.
-    const strings = read('apps/web/src/i18n/strings.ts');
+    const strings = dictionarySource(ROOT);
     const words: ReadonlyArray<ClaimKind> = ['byte-hash', 'fingerprint', 'container-parts', 'none'];
     const keyFor: Readonly<Record<ClaimKind, string>> = {
       'byte-hash': 'confirmed.claim.byteHash',

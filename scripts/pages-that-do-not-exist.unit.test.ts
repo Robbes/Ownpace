@@ -39,11 +39,17 @@
 
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/** The dictionary's source: its composer and every area file (`strings/`). */
+const dictionarySource = (root: string): string =>
+  ['strings.ts', ...readdirSync(join(root, 'apps/web/src/i18n/strings')).map((f) => `strings/${f}`)]
+    .map((f) => readFileSync(join(root, 'apps/web/src/i18n', f), 'utf8'))
+    .join('\n');
 const SITE = join(REPO_ROOT, 'site');
 const OTA = 'https://app.ota.ownpace.eu';
 
@@ -168,7 +174,7 @@ describe('the app answers a wrong address too', () => {
   });
 
   it('reassures in both languages', () => {
-    const strings = readFileSync(join(REPO_ROOT, 'apps/web/src/i18n/strings.ts'), 'utf8');
+    const strings = dictionarySource(REPO_ROOT);
     for (const key of ['notFound.heading', 'notFound.lede', 'notFound.back']) {
       // Twice: `en` defines the key set and `nl` is typed against it, so a key
       // present once is a typecheck failure — but a rule that counted one would

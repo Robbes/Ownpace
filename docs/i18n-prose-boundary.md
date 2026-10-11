@@ -26,7 +26,10 @@ of* it.
 
 1. **Client-authored copy** — titles, intros, buttons, empty states, table
    headers, plurals: the typed dictionary (`apps/web/src/i18n/strings.ts`,
-   compile-time key parity EN↔NL).
+   compile-time key parity EN↔NL). It is composed from one file per area of
+   the app in `apps/web/src/i18n/strings/`, each with its English and, below
+   it in the same order, its Dutch; a new word goes in the area of the screen
+   that says it (`one-area-per-key.unit.test.ts`).
 2. **Explanations keyed off stable codes/enums** — lifecycle notes keyed on
    the mapping-status enum, hover help on verdict words, hover titles on
    evidence badges. The server's token is the handle; the localized prose
