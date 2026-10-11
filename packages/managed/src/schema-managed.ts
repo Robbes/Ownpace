@@ -530,6 +530,35 @@ export const tierPick = pgTable(
   (t) => [index('tier_pick_tenant_idx').on(t.tenantId, t.pickedAt)],
 );
 
+/**
+ * Each withdrawal from a paid contract (workplan 0111 T7, decision 15; managed
+ * migration 0049): from its moment the yeses and picks before it count for
+ * nothing, so the organisation is on Free. Append-only. What article 11a's
+ * withdrawal function asks for and the confirmation repeats: the name given,
+ * the contract (concluded when, at which tier) and where the confirmation
+ * goes; whether the consumer had asked us to begin before the fourteen days
+ * were over (terms §7).
+ */
+export const contractWithdrawal = pgTable(
+  'contract_withdrawal',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }).notNull().defaultNow(),
+    withdrawnBy: text('withdrawn_by').notNull(),
+    name: text('name').notNull(),
+    confirmTo: text('confirm_to').notNull(),
+    contractSince: timestamp('contract_since', { withTimezone: true }).notNull(),
+    tierId: text('tier_id').notNull().$type<'small' | 'medium' | 'large' | 'xl'>(),
+    beganOnRequest: boolean('began_on_request').notNull(),
+    language: text('language').notNull().$type<'en' | 'nl'>(),
+    via: text('via').notNull().default('screen').$type<'screen' | 'support'>(),
+  },
+  (t) => [index('contract_withdrawal_tenant_idx').on(t.tenantId, t.withdrawnAt)],
+);
+
 export const occupancyPeak = pgTable(
   'occupancy_peak',
   {

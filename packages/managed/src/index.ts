@@ -66,6 +66,8 @@ export * from './month-invoice-words.ts';
 export * from './month-invoice.ts';
 export * from './invoice-push.ts';
 export * from './credit-note.ts';
+export * from './since-a-withdrawal.ts';
+export * from './withdrawal.ts';
 export * from './grant-link-allowance.ts';
 export * from './people.ts';
 export * from './person-link-store.ts';

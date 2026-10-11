@@ -4,6 +4,55 @@
 
 ## Status — 2026-10-11 (update this block at the end of every session)
 
+**2026-10-11: slice 7b — the withdrawal, back to Free** (T7; decision 15; terms §7). A consumer
+withdraws from the paid contract through `POST /api/billing/withdrawal`, the second step of the
+withdrawal function (article 11a of the Consumer Rights Directive): the name and the address the
+person confirmed. The contract is the paid one, concluded by the first yes after Free (each yes,
+at the data ceiling, at *Start* or by a pick above the agreed tier, is a `data_allowance` row);
+it may be withdrawn from until the end of the fourteenth day after the day it was concluded,
+moved past a Saturday or Sunday to the end of the Monday, in UTC days, which end later than
+Dutch ones. A business has no right of withdrawal; an organisation without invoice details is
+treated as a consumer. `withdraw` (`withdrawal.ts`) runs in one transaction, under the locks a yes
+and a month's invoice take: an append-only `contract_withdrawal` row (managed 0049: the name, the
+address, the contract's start and tier, the language, whether we were asked to begin early), and
+a credit note for each invoice of the contract (slice 7a), for the days it paid for and were not
+used, in the organisation's language. From that moment every reader of the tier reads Free: the
+two stores everything reads the tier through count only the yeses and picks after the latest
+withdrawal (`since-a-withdrawal.ts`), so the Billing page, the month's invoice (nothing more this
+month, nothing next), the pace and the tick all follow, and a yes after it counts again as a new
+contract. After the commit the acknowledgement goes to the address given, in the organisation's
+language (`contract_withdrawn`): what was sent and when, that the organisation is on Free with its
+account and migrations, that what was invoiced is credited, and the refund within 14 days. A mail
+that does not go leaves the withdrawal standing, is said in the answer, and is logged for the
+operator to send by hand.
+
+**The days used are not billed yet, on purpose.** Terms §7 bills them only when the consumer asked
+us to begin before the fourteen days were over, and article 14(4)(a)(ii) of the directive lets a
+consumer who did not ask bear no cost. No yes asks that yet, so every invoice of a withdrawn
+contract is credited in full, and `began_on_request` is recorded false. The proportion is built
+and tested (`creditShare`: the days from the step to the end of its month, the day of the
+withdrawal counted as used) and comes alive with the yes that asks (slice 7e). Terms §7 says the
+app asks *"before your first migration starts"*; with Free first, the paid contract begins at a
+yes, which is where the question belongs. The wording is the owner's and the lawyer's to settle.
+
+- **Guards:** `withdrawal.unit.test.ts` (the fourteen days, a Saturday's and a Sunday's moved to
+  the Monday; open for a consumer at the highest tier said yes to, and for an organisation without
+  details; closed on Free, for a business, and after; the share in full without a request, and the
+  days not used with one, a move up's from its day; the words in both languages, without `Intl`);
+  `a-withdrawal-back-to-free.unit.test.ts` (PGlite: recorded with what was given, the month
+  credited in full in Dutch, Free from then on for the tier the month bills, the month's invoice
+  this month and next, and the window; a second withdrawal closed and nothing written; a yes after
+  it a new contract with its own fourteen days; a business and a late consumer closed; a pick
+  above the agreed tier no floor after it; the row neither changed nor removed by the app; the
+  system role reads when, never the name or the address); `a-withdrawal-from-the-billing-page.unit.test.ts` (the routes: open with what the form
+  fills in; a missing name or a bad address refused; recorded, credited and told in the
+  organisation's language; closed after, with a sentence; a mail that failed leaves it standing);
+  `notifications.unit.test.ts` (the acknowledgement, word for word in Dutch, and in English with
+  the days used billed; nothing invoiced; no "open the app"). The spec documents both routes, the
+  purge deletes the rows, and the system role's grant is pinned. Each arm proved by breaking it
+  once: nine mutants (both stores' filter, the weekend, a business, the past, the request to begin,
+  the mail, the system role's columns, the app's UPDATE and DELETE), all red.
+
 **2026-10-11: slice 7a — a credit note, as a document** (T7, the document's half; the owner,
 2026-10-11: *"Credit notes and the withdrawal button (T7): go ahead"*). A credit note is our row
 first (`credit-note.ts`): a draft, `kind = 'credit_note'`, naming the invoice it corrects, under
@@ -419,7 +468,7 @@ alone** — see §"Who is the controller" and the cross-reference to 0086 T5.
 | T4 The Moneybird adapter | ✅ **Core seam built 2026-08-29** — wiring + live proof against a sandbox administration, no longer gated on the owner (2026-10-05); **configuration and its check built 2026-10-05** (slice 1), **the adapter completed and one push function built 2026-10-05** (slice 2) | `moneybird-sales-invoices.ts`: `ensureContact` (found by OUR `customer_id` key, matched exactly against the fuzzy search), `ensureSalesInvoiceByReference` (look-then-create; an existing invoice is returned **as it stands, never patched** — the correction instrument is T7's credit note), and `sendSalesInvoice` (the moment Moneybird assigns the legal number). The sharpest pin: **an uncertain lookup never falls through to create** — a 500 on `find_by_reference` is `unavailable` with zero POSTs, because "could not look" read as "not found" is how a flaky afternoon double-invoices a customer. Lines carry `tax_rate_id` and nothing else (a test asserts the wire body never contains "percentage"). Injectable fetch throughout; config is parameters, no env reads. **The owner's gate cleared 2026-10-05**: a sandbox administration on the OTA stack with its rate ids, and the German-19% test passed (Status). **Remaining**: stamping the T2 consultation number onto the document, and the route/worker wiring against 0109's tiers. |
 | T5 The mirror, and the number that is not ours | 🟡 **The mirror BUILT 2026-10-05** (managed 0045, slice 3); the push that fills it is slice 5 — **immutability BUILT 2026-08-30** (migration 0014, ahead of the reshape) | `invoice` becomes a MIRROR carrying the legal number. Moneybird owns `invoice_sequence_id`; the schema must make it impossible to drift into numbering a document we do not own. The refusal is already installed on the current table — T5's migration only extends 0014's column lists when the mirror columns arrive (§"The refusal, designed"). |
 | T6 Delivery: the email and the download | ✅ **The download built 2026-10-10** (slice 6; the e-mail is Moneybird's, decision 11) | `GET /sales_invoices/{id}/download_pdf`. Serves **their** PDF, never one we render. Two documents for one sale is the failure this task exists to prevent. |
-| T7 Credit notes | 🔨 **The credit note as a document built 2026-10-11** (slice 7a, Status); the withdrawal, its refund and its button next — **database refusal BUILT 2026-08-30** | `PATCH /sales_invoices/{id}/duplicate_creditinvoice`. The database half is done ahead of schedule: migration 0014 installs the state-machine trigger + narrowed grants (§"The refusal, designed"), the generation upsert regenerates drafts only, the webhook path passes by construction, and a failed payment no longer voids the document. What remains here is the credit note itself — the Moneybird call and the product surface that issues it. |
+| T7 Credit notes | 🔨 **The credit note as a document and the withdrawal built 2026-10-11** (slices 7a, 7b, Status); its button, its refund and the yes that asks to begin early next — **database refusal BUILT 2026-08-30** | `PATCH /sales_invoices/{id}/duplicate_creditinvoice`. The database half is done ahead of schedule: migration 0014 installs the state-machine trigger + narrowed grants (§"The refusal, designed"), the generation upsert regenerates drafts only, the webhook path passes by construction, and a failed payment no longer voids the document. What remains here is the credit note itself — the Moneybird call and the product surface that issues it. |
 | T8 The price page stops promising 21% | ✅ **First slice built 2026-08-29** — per-country display waits on OSS | The row's own premise corrected by the build: the site never computed VAT — it showed bare `€n` with **no statement at all**, and toward consumers a displayed price legally IS the final, VAT-inclusive price. The slice says it out loud ("All prices include VAT." / "Alle prijzen zijn inclusief btw.") on the landing, pricing and calculator pages, with a structural guard: any page rendering tier prices without the label goes red. Deliberately **no rate in the copy** — which country's VAT sits inside the price is T3's per-invoice decision, so nothing drifts when OSS activates or a rate changes. Remaining for full T8: per-country inclusive display once `VAT_OSS_ACTIVE` flips, and reconciling the retired server model's ex-VAT arithmetic in 0109's tier rebuild. |
 | T9 Billing frequency, decided rather than defaulted | ✅ **Decided 2026-08-29: monthly AND annual, annual discounted** | The owner's framing decides it: the service is not a one-shot move but *"an operational exit strategy waiting for the cutover"*, sometimes used serially to move a family one person at a time — so a subscription is honest, and the discounted annual is the fee-efficient path (one charge ≈0.3% vs ≈3.4% monthly, §below) offered rather than imposed. T4's invoice shape: recurring, both cadences. **Invoiced in advance (2026-10-05, decision 6):** a month on its first day, at the tier it starts on, and a move up within a day, for the difference. |
 | T10 Retention, revisited now that we are not the record | ✅ **Decided 2026-08-29: purge the mirror on erasure, keep the pointer** — build remains (needs T4) | On erasure the mirror rows go; `erasure_record` keeps only the Moneybird invoice numbers, and the operator's answer becomes "these numbers, held in Moneybird". Retires most of #652's screen — the honest outcome §"What this changes about erasure" predicted. |
@@ -850,10 +899,11 @@ slice 5. The annual credit is not in this chain (decision 6).
 7. **Credit notes, and the withdrawal button** (T7, 0152 T6 (f)). A credit note is our row first,
    then Moneybird's draft under its own reference, so a retry adopts the draft instead of making a
    second. The withdrawal is recorded append-only and read where the tier is read, as decided
-   in 15. **The credit note built 2026-10-11** (slice 7a, Status). Next, each its own pull request:
-   (7b) the withdrawal, recorded and read where the tier is read, its credit notes and its
-   confirmation e-mail; (7c) the money back, through Mollie or said for a transfer, and an unpaid
-   invoice settled against its credit note; (7d) the button on the Billing page.
+   in 15. **The credit note built 2026-10-11** (slice 7a, Status), and **the withdrawal** (slice 7b,
+   Status): recorded, read where the tier is read, its credit notes and its acknowledgement. Next,
+   each its own pull request: (7c) the button on the Billing page; (7d) the money back, through
+   Mollie or said for a transfer, and an unpaid invoice settled against its credit note; (7e) the
+   yes that asks to begin before the fourteen days are over, from which the days used are billed.
 
 **What the build holds to.** A retried push never mints a second invoice: only a 404 creates, one
 writer, a lease, and the reference fixed once used. Nothing after issue is editable, the new
