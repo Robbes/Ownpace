@@ -626,6 +626,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/worker/src/index.ts`
 
+- [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts) — A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
 
@@ -1861,13 +1862,16 @@ reading a file drops off its entry by itself.
 
 - [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts) — A command the docs told you to run, that wrote a migration nobody can apply.
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
-- [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
 
 ### `packages/ledger/migrations/0036_a_task_is_not_an_event.sql`
 
 - [a-fifth-domain-the-database-would-refuse](../scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts) — No domain the product knows may be one the database refuses (workplan 0113 T2).
+
+### `packages/ledger/migrations/0044_a_lane_that_does_not_end.sql`
+
+- [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
 
 ### `packages/ledger/src/direct-url.ts`
 
@@ -3443,6 +3447,7 @@ A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner 
 Reads:
 
 - `apps/selfhost/src/index.ts`
+- `apps/worker/src/index.ts`
 - `apps/worker/src/jobs/managed-sync-tick.ts`
 - `packages/core/src/a-lane-that-runs-with-the-detector-present.unit.test.ts`
 - `packages/orchestration/src/build-deps-from-mapping.ts`
@@ -4577,7 +4582,7 @@ Reads:
 - `apps/selfhost/src/index.ts`
 - `docs/workplans/0117-the-conveyor-belt-not-the-home.md`
 - `packages/core/src/a-lane-that-runs-with-the-detector-present.unit.test.ts`
-- `packages/ledger/migrations/0001_baseline.sql`
+- `packages/ledger/migrations/0044_a_lane_that_does_not_end.sql`
 - `packages/shared/src/lifecycle.ts`
 
 ### [an-account-nobody-let-in](../scripts/an-account-nobody-let-in.unit.test.ts)

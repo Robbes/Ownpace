@@ -298,6 +298,7 @@ describe('a Dropbox Paper doc is parked on its first attempt (workplan 0150 T6 (
       cursors: new MemoryCursorStore(),
       concurrency: 1,
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
     });
     return { result, written: target.written };
   }

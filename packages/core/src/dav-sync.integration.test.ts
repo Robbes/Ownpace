@@ -236,6 +236,7 @@ describe('Calendar domain sync (real CalDAV target) Integration', () => {
     // concurrent PUTs into a just-created calendar can silently lose one under lock contention.
     const result1 = await runCalendarSync({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: CALENDAR_TENANT_ID,
       mappingId: CALENDAR_MAPPING_ID,
       source,
@@ -262,6 +263,7 @@ describe('Calendar domain sync (real CalDAV target) Integration', () => {
     // Second pass: same source, same target — must create 0 new items (idempotent).
     const result2 = await runCalendarSync({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: CALENDAR_TENANT_ID,
       mappingId: CALENDAR_MAPPING_ID,
       source,
@@ -292,6 +294,7 @@ describe('Calendar domain sync (real CalDAV target) Integration', () => {
 
     const result3 = await runCalendarSync({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: CALENDAR_TENANT_ID,
       mappingId: CALENDAR_MAPPING_ID,
       source: grownSource,
@@ -471,6 +474,7 @@ describe('Contact domain sync (real CardDAV target) Integration', () => {
     // concurrent PUTs into a just-created address book can silently lose one under lock contention.
     const result1 = await runContactSync({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: CONTACT_TENANT_ID,
       mappingId: CONTACT_MAPPING_ID,
       source,
@@ -497,6 +501,7 @@ describe('Contact domain sync (real CardDAV target) Integration', () => {
     // Second pass: same source, same target — must create 0 new items (idempotent).
     const result2 = await runContactSync({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: CONTACT_TENANT_ID,
       mappingId: CONTACT_MAPPING_ID,
       source,
@@ -518,6 +523,7 @@ describe('Contact domain sync (real CardDAV target) Integration', () => {
 
     const result3 = await runContactSync({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: CONTACT_TENANT_ID,
       mappingId: CONTACT_MAPPING_ID,
       source: grownSource,
@@ -708,6 +714,7 @@ describe('File domain sync (real WebDAV target) Integration', () => {
     // (no connect() on the FileTargetWriter interface), matching production wiring.
     const result1 = await runFileSync({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: FILE_TENANT_ID,
       mappingId: FILE_MAPPING_ID,
       source,
@@ -733,6 +740,7 @@ describe('File domain sync (real WebDAV target) Integration', () => {
     // Second pass: same source, same target — must create 0 new items (idempotent).
     const result2 = await runFileSync({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: FILE_TENANT_ID,
       mappingId: FILE_MAPPING_ID,
       source,
@@ -753,6 +761,7 @@ describe('File domain sync (real WebDAV target) Integration', () => {
 
     const result3 = await runFileSync({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: FILE_TENANT_ID,
       mappingId: FILE_MAPPING_ID,
       source: grownSource,
@@ -809,6 +818,7 @@ describe('File domain sync (real WebDAV target) Integration', () => {
 
     const seeded = await runFileSync({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: FILE_TENANT_ID,
       mappingId: FILE_MAPPING_ID,
       source: new StubFileSource(folder, files),

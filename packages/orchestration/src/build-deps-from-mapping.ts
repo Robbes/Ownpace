@@ -27,6 +27,7 @@ import {
   microsoftTenant,
   log,
   sourceAuthorityFor,
+  sourceStillDecides,
   type PathPhaseOf,
 } from '@openmig/shared';
 import { withDeploymentApplication } from './deployment-application.ts';
@@ -229,6 +230,22 @@ export function sourceCredentialsFor(
     withDeploymentApplication(kind, connectionCreds, env),
     mappingSecretRef,
   );
+}
+
+/**
+ * THE QUESTION A PASS ASKS AGAIN BEFORE IT CONCLUDES ANYTHING (2026-10-05):
+ * does this data type's source still decide what exists?
+ * `SourceAuthority.stillTheAuthority`, from the one reader every gate asks,
+ * read afresh in the tenant's scope on the caller's pool each time it is
+ * asked, for the data type the deps are built for. The answer at the start
+ * is read beside it, from the same reader; a cutover executed while the pass
+ * runs is what the second reading is for.
+ */
+function stillTheAuthorityOf(pool: Pool, tenantId: string, mappingId: string, domain: string): () => Promise<boolean> {
+  return () =>
+    withTenant(pool, tenantId, async (txDb) =>
+      sourceStillDecides(await readPathPhases(txDb, tenantId, mappingId), domain),
+    );
 }
 
 /**
@@ -493,6 +510,7 @@ export async function buildDepsFromMapping(
       // the largest: its ONLY deletion evidence is the owner's bin, so after
       // its cutover that scan is what must not happen.
       ...sourceAuthorityFor(mailPhase.phase),
+      stillTheAuthority: stillTheAuthorityOf(pool, tenantId, mappingId, 'email'),
       ...(mappings[0]!.targetFolderPrefix
         ? { targetFolderPrefix: mappings[0]!.targetFolderPrefix }
         : {}),
@@ -815,6 +833,7 @@ export async function buildDomainDepsFromMapping(
     ledger,
     cursors,
     ...sourceAuthorityFor(phaseOf(domain).phase),
+    stillTheAuthority: stillTheAuthorityOf(pool, tenantId, mappingId, domain),
   };
   // As in `build-deps.ts`: a choice about this migration, carried with the
   // target's dependencies rather than with the endpoint.

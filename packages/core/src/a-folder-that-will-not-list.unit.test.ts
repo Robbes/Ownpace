@@ -73,6 +73,7 @@ function files(initial: Record<string, ReadonlyArray<string>>) {
     asked.length = 0;
     return runDomainSync<unknown, unknown, Item, { path: string }>({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       domain: 'file',
@@ -295,6 +296,7 @@ describe('the name a skipped collection is given', () => {
   const pass = (domain: 'calendar' | 'email', folders: ReadonlyArray<{ path: string; name?: string }>) =>
     runDomainSync<unknown, unknown, Item, { path: string; name?: string }>({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       domain,
@@ -364,6 +366,7 @@ function calendars() {
   const run = () =>
     runDomainSync<unknown, unknown, { uid: string; href: string }, { path: string }>({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       domain: 'calendar',

@@ -23,6 +23,7 @@ const DOMAIN_KEY: Record<string, StringKey> = {
   calendar: 'domain.calendar',
   contact: 'domain.contact',
   file: 'domain.file',
+  task: 'domain.task',
 };
 
 export const DomainTag: React.FC<{ domain: string }> = ({ domain }) => {
@@ -241,6 +242,27 @@ export const DestructiveButton: React.FC<{
   label: string;
   armedLabel: string;
 }> = (props) => <ConfirmButton {...props} tone="destructive" />;
+
+/**
+ * Why some rows of a queue have no remove button (2026-10-05): their data type
+ * is past its cutover, the old system no longer decides what exists, and the
+ * server refuses such an apply (`after_cutover`). Said once, above the rows,
+ * naming only the data types of rows that would otherwise have offered one
+ * (`withheld`), so a migration past its cutover with nothing waiting says
+ * nothing; the rows themselves simply offer none, as an inferred deletion
+ * offers none. The owner, asked whether such a press should be refused:
+ * "Refuse after cutover (Recommended)".
+ */
+export const AfterCutoverNote: React.FC<{ withheld: readonly { domain: string }[] }> = ({ withheld }) => {
+  const t = useT();
+  const dataTypes = [...new Set(withheld.map((row) => row.domain))];
+  if (dataTypes.length === 0) return null;
+  const named = dataTypes.map((domain) => {
+    const key = DOMAIN_KEY[domain];
+    return key ? t(key) : domain;
+  });
+  return <p className="mb-3 text-sm text-gray-600">{t('queue.afterCutover', { dataTypes: named.join(', ') })}</p>;
+};
 
 /** A decision that went through, shown where the buttons were. */
 export const Resolved: React.FC<{ effect: string }> = ({ effect }) => (

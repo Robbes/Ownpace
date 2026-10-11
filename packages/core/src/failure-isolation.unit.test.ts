@@ -62,6 +62,7 @@ function pass(
     run: () =>
       runDomainSync<unknown, unknown, Item, { path: string }>({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         tenantId: TENANT,
         mappingId: MAPPING,
         domain: 'file',
@@ -105,6 +106,7 @@ function derivedPass(
     run: () =>
       runDomainSync<unknown, unknown, Item, { path: string }>({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         tenantId: TENANT,
         mappingId: MAPPING,
         domain: 'file',
@@ -200,6 +202,7 @@ describe('per-item failure isolation', () => {
     const runOnce = () =>
       runDomainSync<unknown, unknown, Item, { path: string }>({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         tenantId: TENANT,
         mappingId: MAPPING,
         domain: 'file',
@@ -263,6 +266,7 @@ describe('per-item failure isolation', () => {
 
     await runDomainSync<unknown, unknown, Item, { path: string }>({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       domain: 'file',
@@ -291,6 +295,7 @@ describe('per-item failure isolation', () => {
 
     await runDomainSync<unknown, unknown, Item, { path: string }>({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       domain: 'file',
@@ -338,6 +343,7 @@ describe('a retry that the writer refuses', () => {
     let wrote = 0;
     const result = await runDomainSync<unknown, unknown, Item, { path: string }>({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       domain: 'file',

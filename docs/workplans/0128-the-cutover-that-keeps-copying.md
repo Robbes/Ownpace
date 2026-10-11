@@ -2,7 +2,19 @@
 
 > **In one line:** The cutover (`run-cutover`, `cutover-gate.ts`): a final sync over every data type via `run-delta-sync`, passes during the grace period, a cutover per data type (`path_lifecycle`), ending or keeping each data type in the continuous lane, and per-data-type stop and resume on both editions.
 
-## Status — 2026-09-27 (update this block at the end of every session)
+## Status — 2026-10-11 (update this block at the end of every session)
+
+**2026-10-05, built 2026-10-11: D1 (a) narrowed — after cutover, a change at the old system
+no longer overwrites the copy on the new one.** D1 (a) and T2 below said that after cutover
+*"new and changed items are copied"*. The owner, asked whether a change at the old system after
+cutover should still be written over the copy on the new system (a leaver can blank a contact
+or an event, or empty a file, and calendars and contacts keep no history), chose **"Stop
+overwriting"**. So after cutover only new items are copied: a change to one already copied is
+counted (`changedAfterCutover`, core), not fetched and not written, and its source version is
+left where it was, so a rollback (ADR-0047) carries it over. The grace period and the
+continuous lane both follow it, since both run under the after-cutover rules. Recorded in
+workplan 0117's Status block (fix 7) and ADR-0048; guard:
+`packages/core/src/a-lane-that-runs-with-the-detector-present.unit.test.ts`.
 
 **2026-09-27, evening: the owner answered D9 and D10, both (a), as built.** D9: a rollback of
 the whole migration leaves a data type that was kept on its own in the lane (*"D9: keep
@@ -701,7 +713,8 @@ keeps its slot while the migration is `active` and releases it in the continuous
 are unblocked.
 
 **2026-09-24, T2 built.** From execute until the grace period ends, a migration that was `active`
-keeps being copied, under the after-cutover rules: new and changed items are copied, no deletion
+keeps being copied, under the after-cutover rules: new and changed items are copied (changed
+ones no longer, since 2026-10-05: see the Status block's first entry), no deletion
 is mirrored, and no slot is held (what it copies joins the data meter, as every first copy does).
 Then no pass runs, and the owner's ending stays theirs. The
 window is read from the cutover's ledger row: in `GRACE_PERIOD`, `grace_period_hours` after

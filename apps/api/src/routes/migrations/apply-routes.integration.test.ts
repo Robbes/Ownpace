@@ -26,6 +26,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { Pool } from 'pg';
 import supertest from 'supertest';
 import jwt from 'jsonwebtoken';
+import { DISCOVERY_DOMAINS } from '@openmig/shared';
 
 // Trigger.dev, replaced by a client whose every enqueue THROWS. Two reasons:
 // it makes the enqueue-failure landing testable (the one branch of the
@@ -398,6 +399,92 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
         .set(auth);
       expect(res.status).toBe(403);
       expect(res.body.error).toBe('not_enabled');
+    });
+  });
+
+  describe('after cutover (2026-10-05): an apply pressed by hand removes nothing', () => {
+    // The owner, 2026-10-05, asked "should pressing Apply on a deletion or
+    // move that was queued before cutover be refused?": "Refuse after
+    // cutover (Recommended)". A migration of its own, so the cases above
+    // keep theirs: past its cutover, with the switch ON, and holding the two
+    // entries a pass before the cutover would have left (a deletion the old
+    // system reported, a file it renamed).
+    const CUT_MAPPING = '5b4b0000-e29b-41d4-a716-446655440031';
+    const CUT_DELETION = '6'.repeat(64);
+    const CUT_OLD = '7'.repeat(64);
+    const CUT_NEW = '8'.repeat(64);
+
+    const CUT_SRC_MB = '5b4b0000-e29b-41d4-a716-446655440022';
+    const CUT_TGT_MB = '5b4b0000-e29b-41d4-a716-446655440023';
+
+    beforeAll(async () => {
+      // Mailboxes of its own: one pair of mailboxes is one migration.
+      await pool.query(
+        `INSERT INTO mailbox (id, tenant_id, connection_id, kind, status) VALUES ($1,$3,$2,'user','active'),($4,$3,$2,'user','active') ON CONFLICT DO NOTHING`,
+        [CUT_SRC_MB, CONN, TENANT, CUT_TGT_MB],
+      );
+      await pool.query(
+        `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, mode, status, allow_apply_deletions)
+         VALUES ($1,$2,$3,$4,'mirror','continuous',true)`,
+        [CUT_MAPPING, TENANT, CUT_SRC_MB, CUT_TGT_MB],
+      );
+      await pool.query(
+        `INSERT INTO item (tenant_id, mapping_id, domain, collection, natural_key, natural_key_hash, status, target_ref, deletion_reported_at)
+         VALUES ($1, $2, 'email', 'INBOX', $3, $3, 'copied', jsonb_build_object('id', 't-cut'), now())`,
+        [TENANT, CUT_MAPPING, CUT_DELETION],
+      );
+      await pool.query(
+        `INSERT INTO item (tenant_id, mapping_id, domain, collection, natural_key, natural_key_hash, status,
+                           content_hash, target_ref, moved_to_collection, moved_to_natural_key_hash)
+         VALUES ($1, $2, 'file', 'Docs', $3, $3, 'copied', 'h-cut', jsonb_build_object('id', 't-cut-old'), 'Docs', $4),
+                ($1, $2, 'file', 'Docs', $4, $4, 'copied', 'h-cut', jsonb_build_object('id', 't-cut-new'), NULL, NULL)`,
+        [TENANT, CUT_MAPPING, CUT_OLD, CUT_NEW],
+      );
+    });
+
+    it('refuses the deletion with after_cutover, on the request, and queues nothing', async () => {
+      const res = await request
+        .post(`/api/migrations/${CUT_MAPPING}/deletions/${CUT_DELETION}/apply`)
+        .set(auth);
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('after_cutover');
+      expect(res.body.reason).toMatch(/no longer decides what exists/);
+      const receipt = await request
+        .get(`/api/migrations/${CUT_MAPPING}/deletions/${CUT_DELETION}/receipt`)
+        .set(auth);
+      expect(receipt.body).toEqual({ state: 'none' });
+    });
+
+    it('refuses the relocation with after_cutover, on the request, and queues nothing', async () => {
+      const res = await request.post(`/api/migrations/${CUT_MAPPING}/moves/${CUT_OLD}/apply`).set(auth);
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('after_cutover');
+      const receipt = await request.get(`/api/migrations/${CUT_MAPPING}/moves/${CUT_OLD}/receipt`).set(auth);
+      expect(receipt.body).toEqual({ state: 'none' });
+    });
+
+    it('both queues say which data types are past their cutover, so no Apply is offered for them', async () => {
+      const deletions = await request.get(`/api/migrations/${CUT_MAPPING}/deletions`).set(auth);
+      expect(deletions.status).toBe(200);
+      expect(deletions.body[CUT_MAPPING].afterCutover).toEqual([...DISCOVERY_DOMAINS]);
+      const moves = await request.get(`/api/migrations/${CUT_MAPPING}/moves`).set(auth);
+      expect(moves.body[CUT_MAPPING].afterCutover).toEqual([...DISCOVERY_DOMAINS]);
+      // And a migration still copying names none.
+      const before = await request.get(`/api/migrations/${MAPPING}/deletions`).set(auth);
+      expect(before.body[MAPPING].afterCutover).toEqual([]);
+    });
+
+    it('after a rollback the old system decides again: the press passes every gate on the request', async () => {
+      // ADR-0047: a rollback puts the migration back to `active`.
+      await pool.query(`UPDATE mailbox_mapping SET status = 'active' WHERE id = $1`, [CUT_MAPPING]);
+      const moves = await request.get(`/api/migrations/${CUT_MAPPING}/moves`).set(auth);
+      expect(moves.body[CUT_MAPPING].afterCutover).toEqual([]);
+      // Every ledger gate permits now, so the route enqueues, which this
+      // file's Trigger.dev mock makes die: the 502 IS the proof it was admitted.
+      const res = await request
+        .post(`/api/migrations/${CUT_MAPPING}/deletions/${CUT_DELETION}/apply`)
+        .set(auth);
+      expect(res.status).toBe(502);
     });
   });
 

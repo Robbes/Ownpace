@@ -21,7 +21,8 @@
  * the deletion detectors would have come back for it (0117 D4).
  */
 
-import { runsPassesNow, sourceAuthorityFor, type SourceAuthority } from './lifecycle.ts';
+import { DISCOVERY_DOMAINS, type DiscoveryDomain } from './discovery.ts';
+import { runsPassesNow, sourceAuthorityFor, type SourceAuthorityAtStart } from './lifecycle.ts';
 
 /** A data type's lifecycle for one pass, as the gates read it. */
 export interface PathPhase {
@@ -60,7 +61,7 @@ export function pathRunsNow(path: PathPhase): boolean {
 }
 
 /** Whether this data type's source still decides what exists: `sourceAuthorityFor`, of one data type. */
-export function pathSourceAuthority(path: PathPhase): SourceAuthority {
+export function pathSourceAuthority(path: PathPhase): SourceAuthorityAtStart {
   return sourceAuthorityFor(path.phase);
 }
 
@@ -217,6 +218,34 @@ export function stepFrom(phases: PassPhases, domain: string): PassStep {
   if (path.stopped === true) return { skip: 'stopped_by_its_owner' };
   if (!pathRunsNow(path)) return { skip: 'data_type_no_longer_runs' };
   return { run: true };
+}
+
+/**
+ * Whether this data type's source still decides what exists, from a reading
+ * of the migration's phases taken NOW (2026-10-05): the answer
+ * `SourceAuthority.stillTheAuthority` gives, from the reader every gate asks.
+ * Both editions build that question from this, the managed deps builder and
+ * the appliance's `runAllDomains`, so the two cannot answer it differently.
+ *
+ * A migration that no longer exists has no source that decides anything: a
+ * pass for it concludes nothing about what was deleted, and the one that
+ * asks why it stops is told it no longer runs (`haltFrom`).
+ */
+export function sourceStillDecides(phases: PassPhases, domain: string): boolean {
+  return phases !== null && pathSourceAuthority(phases.phaseOf(domain)).sourceIsAuthorityOnExistence;
+}
+
+/**
+ * The data types whose old system no longer decides what exists, from the same
+ * reading (2026-10-05): each one `sourceStillDecides` says no for. What the
+ * Deletions and Moves queues carry as `afterCutover`, so a screen offers no
+ * Apply for them, as the servers refuse one (`after_cutover`, core). The
+ * owner, asked whether such a press should be refused: *"Refuse after cutover
+ * (Recommended)"*. A rollback makes the old system decide again (ADR-0047),
+ * and the list is empty again.
+ */
+export function dataTypesPastCutover(phases: PassPhases): DiscoveryDomain[] {
+  return DISCOVERY_DOMAINS.filter((domain) => !sourceStillDecides(phases, domain));
 }
 
 /** A step, as the one answer a pass inside a data type needs: why it stops, or null to go on. */

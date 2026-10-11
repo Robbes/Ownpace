@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { STRINGS } from '../i18n/strings.ts';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -19,6 +20,7 @@ import {
   DELETIONS_MEANING,
   DELETION_CONFIRMATIONS,
   DELETION_GUIDANCE,
+  DISCOVERY_DOMAINS,
 } from '@openmig/shared';
 
 const {
@@ -81,6 +83,8 @@ function queue(over: Partial<DeletionsResponse['x']> = {}): DeletionsResponse {
   return {
     'acme-mail': {
       migrationStatus: 'active',
+      // Before cutover: no kind is past it (the cases after it set their own).
+      afterCutover: [],
       confirmed: [],
       watching: [],
       acknowledged: [],
@@ -490,5 +494,62 @@ describe('earlier exports', () => {
     expect(screen.queryByText('Earlier exports')).not.toBeInTheDocument();
     expect(screen.queryByText('Nothing has been decided yet.')).not.toBeInTheDocument();
     expect(screen.queryByText('Keep our copy')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * After cutover (2026-10-05): no delete button for a kind past its cutover.
+ *
+ * The servers refuse such an apply (`after_cutover`), and a button refused
+ * every time is one people try to make work. The owner, 2026-10-05, asked
+ * *"should pressing Apply on a deletion or move that was queued before cutover
+ * be refused?"*: "Refuse after cutover (Recommended)". The queue names the
+ * kinds past their cutover (`afterCutover`), and the screen says why their
+ * rows have no delete button.
+ */
+describe('after cutover', () => {
+  it('offers no delete for a kind past its cutover, says why, and still offers keep', async () => {
+    fetchDeletions.mockResolvedValue(
+      queue({
+        afterCutover: ['email'],
+        confirmed: [
+          deletion({ naturalKeyHash: 'h-mail', domain: 'email', evidence: 'trashed' }),
+          deletion({ naturalKeyHash: 'h-cal', domain: 'calendar', collection: 'Personal' }),
+        ],
+      }),
+    );
+    renderScreen();
+
+    // Names only the data type whose rows lost the button: Email, not Calendar.
+    expect(
+      await screen.findByText(STRINGS.en['queue.afterCutover'].replace('{dataTypes}', 'Email')),
+    ).toBeInTheDocument();
+    // The calendar is still before its cutover: its row keeps the button.
+    expect(screen.getAllByText('Delete it here too')).toHaveLength(1);
+    expect(screen.getAllByText('Keep our copy')).toHaveLength(2);
+  });
+
+  it('says nothing about it while every kind still follows the old system', async () => {
+    fetchDeletions.mockResolvedValue(
+      queue({ afterCutover: [], confirmed: [deletion({ naturalKeyHash: 'h-mail', evidence: 'trashed' })] }),
+    );
+    renderScreen();
+
+    expect(await screen.findByText('Delete it here too')).toBeInTheDocument();
+    expect(screen.queryByText(/Past the cutover of/)).not.toBeInTheDocument();
+  });
+
+  it('says nothing when the data types past their cutover have no row that would have offered it', async () => {
+    // Past its cutover, but its only waiting row is inferred: it had no button to lose.
+    fetchDeletions.mockResolvedValue(
+      queue({
+        afterCutover: [...DISCOVERY_DOMAINS],
+        confirmed: [deletion({ naturalKeyHash: 'h-mail', evidence: 'inferred' })],
+      }),
+    );
+    renderScreen();
+
+    expect(await screen.findByText('Keep our copy')).toBeInTheDocument();
+    expect(screen.queryByText(/Past the cutover of/)).not.toBeInTheDocument();
   });
 });

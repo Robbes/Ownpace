@@ -14,7 +14,9 @@
  *   - applied, with how final that was (`binned` targets may still hold a copy);
  *   - refused, with the gate that fired — from here that is usually one of the
  *     two only the target could answer (capability; the owner edited our copy),
- *     but a fresh ledger refusal is possible and lands the same way;
+ *     but a fresh ledger refusal is possible and lands the same way, and so is
+ *     a cutover executed since the press (`after_cutover`, 2026-10-05: the
+ *     data type's phase is asked again here, at the removal);
  *   - failed, with the reason, if the job itself crashed. Never left `queued`
  *     forever, and never silently dropped (hard rule 9).
  *
@@ -90,23 +92,23 @@ async function openDeps(tenantId: string, mappingId: string, domain: (typeof DOM
   switch (domain) {
     case 'email': {
       const d = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'mail');
-      return { ledger: d.ledger, target: d.target as unknown, close: d.close };
+      return { ledger: d.ledger, target: d.target as unknown, stillTheAuthority: d.stillTheAuthority, close: d.close };
     }
     case 'calendar': {
       const d = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'calendar');
-      return { ledger: d.ledger, target: d.target as unknown, close: d.close };
+      return { ledger: d.ledger, target: d.target as unknown, stillTheAuthority: d.stillTheAuthority, close: d.close };
     }
     case 'contact': {
       const d = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'contact');
-      return { ledger: d.ledger, target: d.target as unknown, close: d.close };
+      return { ledger: d.ledger, target: d.target as unknown, stillTheAuthority: d.stillTheAuthority, close: d.close };
     }
     case 'file': {
       const d = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'file');
-      return { ledger: d.ledger, target: d.target as unknown, close: d.close };
+      return { ledger: d.ledger, target: d.target as unknown, stillTheAuthority: d.stillTheAuthority, close: d.close };
     }
     case 'task': {
       const d = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'task');
-      return { ledger: d.ledger, target: d.target as unknown, close: d.close };
+      return { ledger: d.ledger, target: d.target as unknown, stillTheAuthority: d.stillTheAuthority, close: d.close };
     }
   }
 }
@@ -170,6 +172,11 @@ export const runApplyDeletionTask = schemaTask({
               ledger: deps.ledger,
               target: deps.target,
               allowApplyDeletions,
+              // The data type's phase, asked at the removal through the
+              // question the deps builder made from `readPathPhases`, read
+              // fresh: a cutover executed since the press wins, and after it
+              // nothing is removed (`after_cutover`, 2026-10-05).
+              stillTheAuthority: deps.stillTheAuthority,
               ...(targetFolderPrefix ? { targetFolderPrefix } : {}),
             },
             naturalKeyHash,

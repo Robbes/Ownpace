@@ -30,7 +30,7 @@
  * before the fourteen days were over (terms §7; without that request the
  * Consumer Rights Directive, article 14(4)(a)(ii), lets them bear no cost). No
  * yes records that request yet, so for now every invoice of the contract is
- * credited in full; the yes that asks for it is slice 7d.
+ * credited in full; the yes that asks for it is slice 7e.
  *
  * ## The days of an invoice
  *
@@ -187,7 +187,7 @@ export async function readWithdrawalWindow(db: PgDatabase, tenantId: TenantId, n
     .where(and(eq(dataAllowance.tenantId, tenantId), sinceTheLatestWithdrawal(dataAllowance.consentedAt, tenantId)))
     .orderBy(asc(dataAllowance.consentedAt));
   // No yes records a request to begin before the fourteen days are over yet
-  // (slice 7d): without one, the days used are not billed.
+  // (slice 7e): without one, the days used are not billed.
   return withdrawalWindow({ partyKind: party?.kind ?? null, commitments, beganOnRequest: false }, now);
 }
 
