@@ -6307,6 +6307,10 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: >-
+            Nothing to pay, said before the provider is asked anything: the invoice is paid or void, it is
+            a draft Moneybird has not numbered yet, or it is a credit note (0111 slice 7a).
 
   /api/billing/payment-methods:
     get:

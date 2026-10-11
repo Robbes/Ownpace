@@ -67,7 +67,8 @@
  *
  * No tax arithmetic (a line carries a `tax_rate_id` from
  * `moneybird-tax-rates.ts` and a price from `line-price.ts`), no PDF download
- * or credit notes (T6/T7), no environment reads (configuration is parameters,
+ * (T6, `moneybird-documents.ts`) or credit notes (T7,
+ * `moneybird-credit-invoices.ts`), no environment reads (configuration is parameters,
  * `moneybird-config.ts` reads it), and no retry loop — idempotency is what
  * makes the CALLER's retry safe, which is better than owning one. A 429 is
  * its own outcome, `slow_down`, so the caller paces itself.

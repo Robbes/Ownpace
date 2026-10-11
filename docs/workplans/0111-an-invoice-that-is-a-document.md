@@ -2,7 +2,46 @@
 
 > **In one line:** The invoice as a legal document, numbered and rendered by Moneybird: `billing_party` buyer data, VIES checks in `vat_consultation`, VAT treatment and OSS, the Moneybird adapter and mirror, an immutability trigger, credit notes and VAT-inclusive prices.
 
-## Status — 2026-10-10 (update this block at the end of every session)
+## Status — 2026-10-11 (update this block at the end of every session)
+
+**2026-10-11: slice 7a — a credit note, as a document** (T7, the document's half; the owner,
+2026-10-11: *"Credit notes and the withdrawal button (T7): go ahead"*). A credit note is our row
+first (`credit-note.ts`): a draft, `kind = 'credit_note'`, naming the invoice it corrects, under
+the invoice's reference with `-c-` for `-m-`, so an invoice has one credit note at the most and
+recording it twice records it once. It says what share it credits (`numerator` of `denominator`:
+for a withdrawal, the days not used of the days paid for) and why, and its words name the
+invoice by `{invoice}`. The hourly push takes it after the drafts, once the invoice it corrects
+is numbered, with the same lease, pace and budget (`managed-invoice-push.ts`), and
+`moneybird-credit-push.ts` makes it Moneybird's own credit invoice:
+`duplicate_creditinvoice` copies the invoice (so the books link the two), the copy's id is written
+onto our row before anything else is done with it, the copy is filled with one line, the share
+of the invoice's lines as issued, at minus, rounded once, at the invoice's rate, naming its
+number and, for a reverse charge, its VIES evidence again; checked; sent like an invoice; read
+back; and written back `sent`, negative, numbered. The copy takes no reference, so before it
+asks for one the push looks for the id it wrote down, for ours by reference, and for a draft of
+the buyer's against the same invoice that a dead run left, which it adopts; two such drafts are
+refused by name. A credit note is not paid: the pay route refuses it before Mollie is asked
+anything. Moneybird's calls were read from its own OpenAPI description
+(`github.com/moneybird/openapi`, `openapi.json`, 2026-10-11), which is reachable from here, unlike
+developer.moneybird.com. Two things the description does not settle are said in the code: whether
+the list's `period` (the invoice date) matches a draft, which the search for a lost copy relies on,
+and how the copy's lines look; the first credit note on the OTA stack is their check. Nothing
+records a credit note yet: the withdrawal (slice 7b) is its first writer.
+
+- **Guards:** `moneybird-credit-push.unit.test.ts` (the order: looked for, copied, written down,
+  then filled, sent and read back; the fill's one line and rate; a second run sends nothing, by
+  the id written down or by reference; a run that died after the copy finds it again, one credit
+  invoice in all; two lost copies, or one under another reference, refused; a total that is not
+  the credit not sent; a copy of another invoice neither written down nor filled; a 429; a share
+  of nothing asks nothing); `a-credit-note-for-an-issued-invoice.unit.test.ts` (PGlite: recorded
+  once, under `-c-`; a void invoice, a credit note, another organisation's invoice and a share of
+  nothing refused; claimed only once its invoice is numbered, by one push; the id written once and
+  never another; written back negative and then frozen by 0045's trigger; another administration
+  refused; said behind after two days); `a-credit-note-pushed-once.unit.test.ts` (the hourly run
+  numbers the invoice and then its credit note, and the next run asks nothing; another
+  administration's invoice refused without a request); `a-draft-is-not-paid.unit.test.ts` (a
+  credit note: 409, and Mollie asked nothing). Each arm proved by breaking it once: eight mutants,
+  all red. The fetch guard counts the new client's four calls.
 
 **2026-10-10: slice 6 — Moneybird's PDF in the app** (T6). An invoice Moneybird has numbered
 offers *Download the invoice* / *Factuur downloaden* on the Billing page, and the file is the
@@ -380,7 +419,7 @@ alone** — see §"Who is the controller" and the cross-reference to 0086 T5.
 | T4 The Moneybird adapter | ✅ **Core seam built 2026-08-29** — wiring + live proof against a sandbox administration, no longer gated on the owner (2026-10-05); **configuration and its check built 2026-10-05** (slice 1), **the adapter completed and one push function built 2026-10-05** (slice 2) | `moneybird-sales-invoices.ts`: `ensureContact` (found by OUR `customer_id` key, matched exactly against the fuzzy search), `ensureSalesInvoiceByReference` (look-then-create; an existing invoice is returned **as it stands, never patched** — the correction instrument is T7's credit note), and `sendSalesInvoice` (the moment Moneybird assigns the legal number). The sharpest pin: **an uncertain lookup never falls through to create** — a 500 on `find_by_reference` is `unavailable` with zero POSTs, because "could not look" read as "not found" is how a flaky afternoon double-invoices a customer. Lines carry `tax_rate_id` and nothing else (a test asserts the wire body never contains "percentage"). Injectable fetch throughout; config is parameters, no env reads. **The owner's gate cleared 2026-10-05**: a sandbox administration on the OTA stack with its rate ids, and the German-19% test passed (Status). **Remaining**: stamping the T2 consultation number onto the document, and the route/worker wiring against 0109's tiers. |
 | T5 The mirror, and the number that is not ours | 🟡 **The mirror BUILT 2026-10-05** (managed 0045, slice 3); the push that fills it is slice 5 — **immutability BUILT 2026-08-30** (migration 0014, ahead of the reshape) | `invoice` becomes a MIRROR carrying the legal number. Moneybird owns `invoice_sequence_id`; the schema must make it impossible to drift into numbering a document we do not own. The refusal is already installed on the current table — T5's migration only extends 0014's column lists when the mirror columns arrive (§"The refusal, designed"). |
 | T6 Delivery: the email and the download | ✅ **The download built 2026-10-10** (slice 6; the e-mail is Moneybird's, decision 11) | `GET /sales_invoices/{id}/download_pdf`. Serves **their** PDF, never one we render. Two documents for one sale is the failure this task exists to prevent. |
-| T7 Credit notes | 📋 Planned (needs T5) — **database refusal BUILT 2026-08-30** | `PATCH /sales_invoices/{id}/duplicate_creditinvoice`. The database half is done ahead of schedule: migration 0014 installs the state-machine trigger + narrowed grants (§"The refusal, designed"), the generation upsert regenerates drafts only, the webhook path passes by construction, and a failed payment no longer voids the document. What remains here is the credit note itself — the Moneybird call and the product surface that issues it. |
+| T7 Credit notes | 🔨 **The credit note as a document built 2026-10-11** (slice 7a, Status); the withdrawal, its refund and its button next — **database refusal BUILT 2026-08-30** | `PATCH /sales_invoices/{id}/duplicate_creditinvoice`. The database half is done ahead of schedule: migration 0014 installs the state-machine trigger + narrowed grants (§"The refusal, designed"), the generation upsert regenerates drafts only, the webhook path passes by construction, and a failed payment no longer voids the document. What remains here is the credit note itself — the Moneybird call and the product surface that issues it. |
 | T8 The price page stops promising 21% | ✅ **First slice built 2026-08-29** — per-country display waits on OSS | The row's own premise corrected by the build: the site never computed VAT — it showed bare `€n` with **no statement at all**, and toward consumers a displayed price legally IS the final, VAT-inclusive price. The slice says it out loud ("All prices include VAT." / "Alle prijzen zijn inclusief btw.") on the landing, pricing and calculator pages, with a structural guard: any page rendering tier prices without the label goes red. Deliberately **no rate in the copy** — which country's VAT sits inside the price is T3's per-invoice decision, so nothing drifts when OSS activates or a rate changes. Remaining for full T8: per-country inclusive display once `VAT_OSS_ACTIVE` flips, and reconciling the retired server model's ex-VAT arithmetic in 0109's tier rebuild. |
 | T9 Billing frequency, decided rather than defaulted | ✅ **Decided 2026-08-29: monthly AND annual, annual discounted** | The owner's framing decides it: the service is not a one-shot move but *"an operational exit strategy waiting for the cutover"*, sometimes used serially to move a family one person at a time — so a subscription is honest, and the discounted annual is the fee-efficient path (one charge ≈0.3% vs ≈3.4% monthly, §below) offered rather than imposed. T4's invoice shape: recurring, both cadences. **Invoiced in advance (2026-10-05, decision 6):** a month on its first day, at the tier it starts on, and a move up within a day, for the difference. |
 | T10 Retention, revisited now that we are not the record | ✅ **Decided 2026-08-29: purge the mirror on erasure, keep the pointer** — build remains (needs T4) | On erasure the mirror rows go; `erasure_record` keeps only the Moneybird invoice numbers, and the operator's answer becomes "these numbers, held in Moneybird". Retires most of #652's screen — the honest outcome §"What this changes about erasure" predicted. |
@@ -811,7 +850,10 @@ slice 5. The annual credit is not in this chain (decision 6).
 7. **Credit notes, and the withdrawal button** (T7, 0152 T6 (f)). A credit note is our row first,
    then Moneybird's draft under its own reference, so a retry adopts the draft instead of making a
    second. The withdrawal is recorded append-only and read where the tier is read, as decided
-   in 15.
+   in 15. **The credit note built 2026-10-11** (slice 7a, Status). Next, each its own pull request:
+   (7b) the withdrawal, recorded and read where the tier is read, its credit notes and its
+   confirmation e-mail; (7c) the money back, through Mollie or said for a transfer, and an unpaid
+   invoice settled against its credit note; (7d) the button on the Billing page.
 
 **What the build holds to.** A retried push never mints a second invoice: only a 404 creates, one
 writer, a lease, and the reference fixed once used. Nothing after issue is editable, the new
