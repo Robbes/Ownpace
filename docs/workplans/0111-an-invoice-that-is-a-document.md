@@ -9,7 +9,7 @@
 card above the invoices: the last day, and the button in article 11a's words, *Withdraw from
 contract here* / *Hier de overeenkomst herroepen* (the owner, 2026-10-05). It opens the second
 step, with the focus on it: the name (filled in from the invoice details), the contract said
-(*Ownpace Small, concluded on 1 October 2026*), the address the confirmation goes to (filled in
+(*Ownpace Small, concluded on October 1, 2026*), the address the confirmation goes to (filled in
 from the signed-in address), and *Confirm withdrawal* / *Herroeping bevestigen*. Then the card
 says when it was withdrawn, that the organisation is on Free, and where the confirmation went, or
 that it could not be sent and goes by hand; the tier, the pace, the picks and the invoices are

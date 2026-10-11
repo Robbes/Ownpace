@@ -60,7 +60,7 @@ describe('the withdrawal function', () => {
     getWithdrawal.mockResolvedValue(OPEN);
     renderCard();
 
-    expect(await screen.findByText(/withdraw from your contract for Ownpace Small until the end of 15 October 2026/)).toBeTruthy();
+    expect(await screen.findByText(/withdraw from your contract for Ownpace Small until the end of October 15, 2026/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Withdraw from contract here' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Confirm withdrawal' })).toBeNull();
   });
@@ -73,7 +73,7 @@ describe('the withdrawal function', () => {
     const form = screen.getByRole('form', { name: 'Withdraw from your contract' });
     await waitFor(() => expect(document.activeElement).toBe(form));
     expect((screen.getByLabelText('Your name') as HTMLInputElement).value).toBe('Sam de Vries');
-    expect(screen.getByText('Ownpace Small, concluded on 1 October 2026')).toBeTruthy();
+    expect(screen.getByText('Ownpace Small, concluded on October 1, 2026')).toBeTruthy();
     expect((screen.getByLabelText('Confirmation to') as HTMLInputElement).value).toBe('sam@example.invalid');
     expect(withdraw).not.toHaveBeenCalled();
   });
@@ -96,7 +96,7 @@ describe('the withdrawal function', () => {
     await waitFor(() => expect(withdraw).toHaveBeenCalledWith({ name: 'Sam de Vries', confirmTo: 'other@example.invalid' }));
     expect(
       await screen.findByText(
-        'Withdrawn on 3 October 2026. Your organisation is on Free. A confirmation is on its way to other@example.invalid.',
+        'Withdrawn on October 3, 2026. Your organisation is on Free. A confirmation is on its way to other@example.invalid.',
       ),
     ).toBeTruthy();
   });
