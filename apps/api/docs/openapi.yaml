@@ -6393,7 +6393,9 @@ paths:
         '409':
           description: >-
             Nothing to pay, said before the provider is asked anything: the invoice is paid or void, it is
-            a draft Moneybird has not numbered yet, or it is a credit note (0111 slice 7a).
+            a draft Moneybird has not numbered yet, it is a credit note (0111 slice 7a), or its credit
+            notes take off its whole total (slice 7d). Otherwise the provider is asked for the total
+            less what is credited.
 
   /api/billing/payment-methods:
     get:

@@ -728,6 +728,25 @@ describe('the number the books gave it (0111 slice 5)', () => {
     expect(screen.getByRole('button', { name: 'Download the invoice' })).toBeInTheDocument();
   });
 
+  it('offers no Pay on an invoice credited in full, and says so; the rest of one credited in part (0111 7d)', async () => {
+    invoicesMock.mockResolvedValue({
+      invoices: [
+        invoiceFixture({ id: 'inv-full', status: 'sent', invoiceNumber: '2026-0003', total: 1200, credited: 1200 }),
+      ],
+    });
+    const { unmount } = renderBilling();
+    expect(await screen.findByText('Credited in full: nothing left to pay.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pay' })).not.toBeInTheDocument();
+    unmount();
+
+    invoicesMock.mockResolvedValue({
+      invoices: [invoiceFixture({ id: 'inv-part', status: 'sent', invoiceNumber: '2026-0004', total: 1200, credited: 400 })],
+    });
+    renderBilling();
+    expect(await screen.findByText('€4.00 credited; €8.00 left to pay.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pay' })).toBeInTheDocument();
+  });
+
   it('says a draft is being prepared, and offers no Pay: there is nothing to pay until it is numbered', async () => {
     invoicesMock.mockResolvedValue({ invoices: [invoiceFixture({ id: 'inv-draft', status: 'draft' })] });
 

@@ -894,6 +894,17 @@ const Billing: React.FC = () => {
                           {invoice.dueDate && ` · ${t('billing.invoiceDue', { date: day(invoice.dueDate) })}`}
                         </p>
                       )}
+                      {/* What a withdrawal took off it (0111 T7): in full, or a part. */}
+                      {invoice.kind !== 'credit_note' && (invoice.credited ?? 0) > 0 && (
+                        <p className="text-sm text-gray-500">
+                          {invoice.total - (invoice.credited ?? 0) <= 0
+                            ? t('billing.creditedInFull')
+                            : t('billing.creditedPart', {
+                                credited: currency(invoice.credited ?? 0, invoice.currency),
+                                left: currency(invoice.total - (invoice.credited ?? 0), invoice.currency),
+                              })}
+                        </p>
+                      )}
                       {/* Its document, once Moneybird has numbered it (0111 T6). */}
                       {invoice.invoiceNumber && invoice.status !== 'draft' && <InvoiceDownload invoiceId={invoice.id} />}
                     </div>
@@ -905,8 +916,10 @@ const Billing: React.FC = () => {
                       {/* Only an issued invoice is paid: the API refuses a
                           draft (0111 slice 3) and a credit note (slice 7a),
                           so the page does not offer either. */}
+                      {/* Nor one its credit notes take off in full (slice 7d). */}
                       {canManage &&
                         invoice.kind !== 'credit_note' &&
+                        invoice.total - (invoice.credited ?? 0) > 0 &&
                         (invoice.status === 'sent' || invoice.status === 'overdue') && (
                         <button
                           onClick={() => {

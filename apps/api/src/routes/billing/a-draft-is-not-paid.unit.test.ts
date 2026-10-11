@@ -16,7 +16,10 @@
  *    the invoice stays `sent` (the webhook moves it to paid); the payment id
  *    is recorded; and the metadata is added to, never replaced;
  *  - a credit note, issued, is refused with 409 and Mollie is asked nothing
- *    (0111 slice 7a): it is credited to the organisation, never paid by it.
+ *    (0111 slice 7a): it is credited to the organisation, never paid by it;
+ *  - an invoice its credit notes take off in full is refused with 409, and
+ *    Mollie is asked nothing; one credited in part is paid for the rest
+ *    (slice 7d), whether its credit note is issued or still a draft.
  *
  * UUID family 01110300-…, unused elsewhere in the repo.
  */
@@ -32,6 +35,9 @@ const TENANT = '01110300-e29b-41d4-a716-446655440001';
 const DRAFT = '01110300-e29b-41d4-a716-446655440101';
 const ISSUED = '01110300-e29b-41d4-a716-446655440102';
 const CREDIT = '01110300-e29b-41d4-a716-446655440103';
+const CREDITED = '01110300-e29b-41d4-a716-446655440104';
+const PART = '01110300-e29b-41d4-a716-446655440105';
+const PART_CREDIT = '01110300-e29b-41d4-a716-446655440106';
 
 let driver: LedgerDriver;
 
@@ -93,19 +99,35 @@ beforeEach(async () => {
             ($2, $3, '2026-09-01', '2026-09-30', 'draft', '992', '0.21', '208', '1200', 'EUR', 'ownpace-pays-m-2026-09-medium', '{"kept":"yes"}')`,
     [DRAFT, ISSUED, TENANT],
   );
-  // Issued the only way there is: Moneybird's number, id and date, with the step out of draft.
   await owner(
-    `UPDATE invoice SET status = 'sent', invoice_number = '2026-0001', invoice_date = '2026-09-01',
-            moneybird_id = '555', moneybird_administration_id = '123456789012345678', sent_at = now()
-      WHERE id = $1`,
-    [ISSUED],
+    `INSERT INTO invoice (id, tenant_id, period_start, period_end, status, subtotal, tax_rate, tax_amount, total, currency, reference, metadata)
+     VALUES ($1, $3, '2026-08-01', '2026-08-31', 'draft', '992', '0.21', '208', '1200', 'EUR', 'ownpace-pays-m-2026-08-medium', '{}'),
+            ($2, $3, '2026-07-01', '2026-07-31', 'draft', '992', '0.21', '208', '1200', 'EUR', 'ownpace-pays-m-2026-07-medium', '{}')`,
+    [CREDITED, PART, TENANT],
   );
+  // Issued the only way there is: Moneybird's number, id and date, with the step out of draft.
+  for (const [id, number, mb] of [
+    [ISSUED, '2026-0001', '555'],
+    [CREDITED, '2026-0003', '557'],
+    [PART, '2026-0004', '558'],
+  ]) {
+    await owner(
+      `UPDATE invoice SET status = 'sent', invoice_number = $2, invoice_date = '2026-09-01',
+              moneybird_id = $3, moneybird_administration_id = '123456789012345678', sent_at = now()
+        WHERE id = $1`,
+      [id, number, mb],
+    );
+  }
+  // CREDITED is credited in full, by an issued credit note; PART by 400 of its
+  // 1200, by one still a draft: a credit decided is a credit owed.
   await owner(
     `INSERT INTO invoice (id, tenant_id, period_start, period_end, status, subtotal, tax_rate, tax_amount, total, currency,
                           reference, kind, credited_invoice_id, metadata)
-     VALUES ($1, $2, '2026-09-01', '2026-09-30', 'draft', '-640', '0.21', '-134', '-774', 'EUR',
-             'ownpace-pays-c-2026-09-medium', 'credit_note', $3, '{}')`,
-    [CREDIT, TENANT, ISSUED],
+     VALUES ($1, $2, '2026-08-01', '2026-08-31', 'draft', '-992', '0.21', '-208', '-1200', 'EUR',
+             'ownpace-pays-c-2026-08-medium', 'credit_note', $3, '{}'),
+            ($4, $2, '2026-07-01', '2026-07-31', 'draft', '-331', '0.21', '-69', '-400', 'EUR',
+             'ownpace-pays-c-2026-07-medium', 'credit_note', $5, '{}')`,
+    [CREDIT, TENANT, CREDITED, PART_CREDIT, PART],
   );
   await owner(
     `UPDATE invoice SET status = 'sent', invoice_number = '2026-0002', invoice_date = '2026-09-10',
@@ -153,5 +175,22 @@ describe('POST /api/billing/invoices/:id/pay', () => {
     expect(res.body.message).toContain('credit note');
     expect(payments).toEqual([]);
     expect(await row(CREDIT)).toMatchObject({ status: 'sent', payment_id: null });
+  });
+
+  it('refuses an invoice its credit notes take off in full, with 409, and asks Mollie nothing', async () => {
+    const res = await request(app).post(`/api/billing/invoices/${CREDITED}/pay`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toContain('credited in full');
+    expect(payments).toEqual([]);
+    expect(await row(CREDITED)).toMatchObject({ status: 'sent', payment_id: null });
+  });
+
+  it('asks Mollie for the rest of an invoice credited in part, its credit note still a draft', async () => {
+    const res = await request(app).post(`/api/billing/invoices/${PART}/pay`);
+
+    expect(res.status).toBe(200);
+    expect(payments).toHaveLength(1);
+    expect(payments[0]!.amount).toBe(800);
   });
 });
