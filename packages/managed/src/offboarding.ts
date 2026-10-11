@@ -23,9 +23,15 @@
  *
  * ## What survives, and why that is not a loophole
  *
- * Invoices survive, detached from the tenant. That is the GDPR art. 17(3)(b)
- * carve-out and not a convenience: Dutch tax law wants invoices kept for years,
- * so a literal "erase everything" would trade one legal obligation for another.
+ * Invoice NUMBERS survive. Dutch tax law wants invoices kept for years, and
+ * since workplan 0111 the record that keeps them is the books (Moneybird,
+ * ADR-0044): an invoice row here is our copy. So the purge deletes every copy
+ * the books hold, credit notes and drafts with them, and keeps only their
+ * Moneybird numbers on the erasure record (0111 T10; the owner, 2026-10-03:
+ * "delete the copy, keep the numbers"). An issued invoice the books do not
+ * hold, one from before them, is the only record of itself: it survives,
+ * detached from the tenant, under the GDPR art. 17(3)(b) carve-out, since a
+ * literal "erase everything" would trade one legal obligation for another.
  * Everything about what was migrated goes.
  *
  * ## What this NEVER touches
@@ -245,8 +251,10 @@ export const PURGED_TABLES = [
  */
 export const RETAINED_TABLES: Readonly<Record<string, string>> = {
   invoice:
-    'Tax retention outlives the customer relationship. Detached from the tenant ' +
-    '(tenant_id becomes NULL) and carrying billed_to_name captured at issue time.',
+    'Tax retention outlives the customer relationship, and the books keep each invoice they hold: ' +
+    'that copy is deleted and its number kept on the erasure record (0111 T10). Only an issued ' +
+    'invoice the books do not hold survives, detached from the tenant (tenant_id becomes NULL) ' +
+    'and carrying billed_to_name captured at issue time.',
   erasure_record:
     'The proof the erasure happened. It holds a one-way hash of the tenant id, ' +
     'never the id, so it cannot be read back into a list of former customers.',
@@ -426,6 +434,8 @@ export interface PurgeResult {
   readonly tenantRef: string;
   readonly counts: Readonly<Record<string, number>>;
   readonly retainedInvoiceIds: readonly string[];
+  /** The Moneybird numbers of the invoices and credit notes whose copies were deleted (0111 T10). */
+  readonly invoiceNumbers: readonly string[];
   /** What happened when each stored credential was revoked at its provider. */
   readonly revocations: readonly RevocationOutcome[];
 }
@@ -464,9 +474,31 @@ export async function purgeTenant(
   const ref = tenantRef(tenantId);
   const counts: Record<string, number> = {};
 
-  // Detach the invoices BEFORE deleting the tenant, and stamp what they were
-  // for. After the tenant row is gone there is nothing left to read the name
-  // from, and an invoice that cannot say who it billed is not a record.
+  // The copies the books hold go first, and their numbers stay (0111 T10):
+  // the credit notes, then the invoices they correct, then the drafts, which
+  // were never a document. Only the erasure may delete an invoice, and only
+  // while the organisation is `deleting` (managed 0054's trigger); the purge
+  // task sets that before it calls this.
+  const numbers: string[] = [];
+  let deleted = 0;
+  for (const kind of ['credit_note', 'invoice'] as const) {
+    const gone = await db.execute(sql`
+      DELETE FROM invoice
+       WHERE tenant_id = ${tenantId}::uuid AND kind = ${kind}
+         AND (moneybird_id IS NOT NULL OR status = 'draft')
+      RETURNING invoice_number
+    `);
+    const rows = resultRows<{ invoice_number: string | null }>(gone);
+    deleted += rows.length;
+    for (const row of rows) if (row.invoice_number) numbers.push(row.invoice_number);
+  }
+  counts['invoice'] = deleted;
+  const invoiceNumbers = [...numbers].sort();
+
+  // Detach what is left, an issued invoice the books do not hold, BEFORE
+  // deleting the tenant, and stamp what it was for. After the tenant row is
+  // gone there is nothing left to read the name from, and an invoice that
+  // cannot say who it billed is not a record.
   //
   // The BUYER's name over the tenant's display name (workplan 0111 T1): since
   // billing_party exists, the tenant name is a workspace label somebody typed
@@ -500,12 +532,13 @@ export async function purgeTenant(
     UPDATE erasure_record
        SET purged_at = ${now},
            retained_invoice_ids = ${sql.raw(pgUuidArray(retainedInvoiceIds))},
+           invoice_numbers = ${sql.raw(pgTextArray(invoiceNumbers))},
            purged_counts = ${JSON.stringify(counts)}::jsonb,
            revocations = ${JSON.stringify(revocations)}::jsonb
      WHERE tenant_ref = ${ref} AND purged_at IS NULL
   `);
 
-  return { tenantRef: ref, counts, retainedInvoiceIds, revocations };
+  return { tenantRef: ref, counts, retainedInvoiceIds, invoiceNumbers, revocations };
 }
 
 /** A literal `uuid[]`, because a parameterised array is driver-specific here. */
@@ -517,6 +550,18 @@ function pgUuidArray(ids: readonly string[]): string {
     if (!/^[0-9a-fA-F-]{36}$/.test(id)) throw new Error(`Not a uuid: ${id}`);
   }
   return `ARRAY[${ids.map((i) => `'${i}'::uuid`).join(',')}]::uuid[]`;
+}
+
+/**
+ * A literal `text[]` of invoice numbers, for the reason `pgUuidArray` gives.
+ * Moneybird's numbers are its workflow's pattern (`2026-0007`): letters,
+ * digits and a few separators. Anything else is refused, never quoted.
+ */
+function pgTextArray(values: readonly string[]): string {
+  for (const value of values) {
+    if (!/^[0-9A-Za-z][0-9A-Za-z ./_-]{0,63}$/.test(value)) throw new Error(`Not an invoice number: ${value}`);
+  }
+  return `ARRAY[${values.map((v) => `'${v}'`).join(',')}]::text[]`;
 }
 
 function resultRows<T>(result: unknown): T[] {

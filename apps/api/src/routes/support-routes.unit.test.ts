@@ -194,9 +194,9 @@ beforeAll(async () => {
     );
     await q(
       `INSERT INTO erasure_record
-         (tenant_ref, requested_at, window_days, purged_at, retained_invoice_ids)
+         (tenant_ref, requested_at, window_days, purged_at, retained_invoice_ids, invoice_numbers)
        VALUES ($1, TIMESTAMPTZ '2026-06-01T00:00:00Z', 30,
-               TIMESTAMPTZ '2026-07-01T00:00:00Z', ARRAY[$2::uuid])`,
+               TIMESTAMPTZ '2026-07-01T00:00:00Z', ARRAY[$2::uuid], ARRAY['2026-0007', '2026-0010'])`,
       [tenantRef(ERASED_TENANT), RETAINED_INVOICE],
     );
     // Closed but NOT yet purged: the record exists, the array is empty. Its
@@ -564,6 +564,20 @@ describe('the invoices an erasure kept', () => {
     expect(res.text).not.toContain(ERASED_TENANT);
   });
 
+  it('serves the numbers of the copies an erasure deleted, by its hash, to look up in the books (0111 T10)', async () => {
+    caller = OPERATOR;
+    const res = await get('/api/support/retained-invoices');
+    // Only the purged erasure: the one closed and not yet purged has none.
+    expect(res.body.numbers).toEqual([
+      {
+        tenant_ref: tenantRef(ERASED_TENANT),
+        erasure_requested_at: expect.anything(),
+        purged_at: expect.anything(),
+        invoice_numbers: ['2026-0007', '2026-0010'],
+      },
+    ]);
+  });
+
   it('records the read with no organisation named', async () => {
     caller = OPERATOR;
     await get('/api/support/retained-invoices');
@@ -577,6 +591,7 @@ describe('the invoices an erasure kept', () => {
     const res = await get('/api/support/retained-invoices');
     expect(res.status).toBe(200);
     expect(res.body.invoices).toEqual([]);
+    expect(res.body.numbers).toEqual([]);
     expect(await logRows()).toEqual([]);
   });
 

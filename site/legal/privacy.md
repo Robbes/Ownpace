@@ -67,6 +67,25 @@
   1.4, in both languages, LEGAL_VERSIONS and ACCEPTED_WORDS, with 1.3's pins
   kept.
 
+  v1.5, 2026-10-11: §9's row for invoices says where the 7 years are kept,
+  and what an erasure keeps of them. The owner decided on 2026-08-29 and
+  confirmed on 2026-10-03: "delete the copy, keep the numbers" (ADR-0044,
+  workplan 0111 T10, built 2026-10-11). Our bookkeeping system (Moneybird)
+  issues each invoice and keeps it for the retention period, so our own row is
+  a copy: an erasure deletes the copy of each invoice and credit note the books
+  hold and keeps only its Moneybird number (erasure_record.invoice_numbers,
+  managed 0054), which finds the document in the books and names nobody. An
+  invoice the books do not hold, one issued before them, is the only record
+  of itself and is still kept, detached; none exists, since nothing was ever
+  charged. The row names no company: §7 lists none for bookkeeping during the
+  Alpha, when nothing is invoiced, and the sub-processor list gains Moneybird
+  before the first invoice (subprocessors.md). For the lawyer's read, with
+  question 7 below: the 7 years now run in the books, the legal basis (Art.
+  6(1)(c)) is unchanged, and the numbers kept after an erasure are the only
+  invoice data we hold of an erased organisation. 1.4 was final from the
+  moment #1559 merged, so these words take a new number: 1.5, in both
+  languages, LEGAL_VERSIONS and ACCEPTED_WORDS, with 1.4's pins kept.
+
   Drafted as v1.2 on 2026-09-28, for the owner's review. This comment never renders
   (the site generator strips HTML comments). It is the briefing for the
   reviewing lawyer, beside the ones at the top of terms.md and alpha.md. The
@@ -330,7 +349,8 @@
      reading of Art. 14(3)(b): the information is due at the first
      communication at the latest. Correspondents in a mailbox stay open.
   3. Mollie as independent controller; 5. the preflight's basis for someone
-     with no contract yet; 7. invoices kept 7 years.
+     with no contract yet; 7. invoices kept 7 years (since 1.5 in the
+     bookkeeping system, our copy deleted on erasure and its number kept).
      privacy-after-alpha-questions (a): for the lawyer's pass before the first
      paid tier, or before a preflight is offered to someone who is not a
      tester. None arises during the Alpha.
@@ -555,7 +575,7 @@
 # Privacy policy
 
 **Applies to:** the Ownpace **managed service** at `ownpace.eu`, and this website.
-**Version:** 1.4
+**Version:** 1.5
 **Last updated:** 2026-10-11
 
 > **If you run Ownpace yourself**, this policy does not apply to you and there is nothing for
@@ -1198,7 +1218,7 @@ target. We show you the target before anything is written.
 | Records of the background tasks that run your migrations (identifiers, counts, and a category and a reference for an error; no names, addresses or content, apart from the reason one of us types when a switch-over is undone) | Until the end of the Alpha at the latest: then the background tasks start with an empty history. They are not deleted when your data is erased. |
 | Server logs (§4.5) | Until the part of the service that wrote them is replaced: for the app and this website, at each update of the service; for our sign-in service, when its version or its settings change; for a background task, when its run ends. There is no fixed period. |
 | The visit totals counted from this website's server logs (§4.5) | As long as we run this website. They are totals only, and identify nobody. |
-| Invoices and the usage figures behind them | **7 years**, because Dutch tax law requires it. During the Alpha nothing is charged: there are no invoices, and the usage figures go when your data is erased. |
+| Invoices and the usage figures behind them | **7 years**, because Dutch tax law requires it, in our bookkeeping system, which issues them. When your data is erased we delete our own copy of your invoices and keep only their numbers, so that each can still be found in the bookkeeping. During the Alpha nothing is charged: there are no invoices, and the usage figures go when your data is erased. |
 
 **During the Alpha we make no backups**, apart from the copy made right before an update, in the
 table above (Alpha conditions §6). During the Alpha we close your account within 7 days of your

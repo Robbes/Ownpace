@@ -4,6 +4,31 @@
 
 ## Status — 2026-10-11 (update this block at the end of every session)
 
+**2026-10-11, T10: on erasure the copies go and the numbers stay** (ADR-0044; the owner, 2026-10-03:
+*"delete the copy, keep the numbers"*, and 2026-10-11: *"yes, tidy the table and build T10"*). The
+purge of an erased organisation (`purgeTenant`, `offboarding.ts`) now deletes each invoice and
+credit note the books hold (a `moneybird_id`), credit notes first, and each draft, and keeps their
+Moneybird numbers on the erasure record (`erasure_record.invoice_numbers`, managed 0054); an issued
+invoice the books do not hold, one from before them, is the only record of itself and is still
+detached and kept. Only an erasure deletes an invoice: 0054's trigger holds the service's two roles,
+`app_user` and the tasks' system role, to an organisation that is `deleting` and a copy the books
+hold or a draft, which also closes the DELETE `app_user` held since 0001 (§"The refusal, designed"
+left it to T10). The system role gets DELETE on `invoice` and reads only `kind`, `moneybird_id` and
+`invoice_number` besides what it read; still never an amount, a payment or a line, and no SECURITY
+DEFINER function. The operator's screen (`/support/retained-invoices`) lists the numbers per
+erasure, by its hash, above the invoices the books do not hold (`support_erased_invoice_numbers`).
+Privacy 1.5 §9 says it in both languages, for the lawyer's read (workplan 0139). ADR-0044's
+*Pending* is folded in.
+
+- **Guards:** `a-copy-deleted-its-number-kept.unit.test.ts` (the purge as the system role: the
+  copies the books hold go and their numbers stay, a draft goes, an invoice the books do not hold is
+  detached; `app_user` and the system role are refused an invoice of an organisation not being
+  erased, and one the books do not hold even then; the owner's connection is not held to it; the
+  numbers shown to an operator only); `support-routes.unit.test.ts` (the numbers served by the
+  erasure's hash, nothing to a non-operator); the system role's pins in
+  `a-system-role-that-is-not-the-owner.integration.test.ts` (its grants, and a real delete
+  refused); the support-view list.
+
 **2026-10-11, last: each refund followed to its end** (T7, slice 7d; the owner: *"yes, add the
 refund status check"*). Mollie accepting a refund is not Mollie paying it out: it keeps one `queued`
 until its balance covers it, then `pending` and `processing`, and only `refunded` means the money
@@ -696,7 +721,7 @@ alone** — see §"Who is the controller" and the cross-reference to 0086 T5.
 | T7 Credit notes | ✅ **Built 2026-10-11** (Status): the credit note as a document and the withdrawal (7a, 7b), the withdrawal's button (7c), its money back, refunded, settled or by hand, each refund followed to its end (7d), and the yes that asks to begin (7e, terms 1.5) — **database refusal BUILT 2026-08-30** | `PATCH /sales_invoices/{id}/duplicate_creditinvoice`. The database half is done ahead of schedule: migration 0014 installs the state-machine trigger + narrowed grants (§"The refusal, designed"), the generation upsert regenerates drafts only, the webhook path passes by construction, and a failed payment no longer voids the document. The credit note itself followed: Moneybird's `duplicate_creditinvoice` (7a) and the Billing page's withdrawal that issues it (7c). |
 | T8 The price page stops promising 21% | ✅ **First slice built 2026-08-29** — per-country display waits on OSS | The row's own premise corrected by the build: the site never computed VAT — it showed bare `€n` with **no statement at all**, and toward consumers a displayed price legally IS the final, VAT-inclusive price. The slice says it out loud ("All prices include VAT." / "Alle prijzen zijn inclusief btw.") on the landing, pricing and calculator pages, with a structural guard: any page rendering tier prices without the label goes red. Deliberately **no rate in the copy** — which country's VAT sits inside the price is T3's per-invoice decision, so nothing drifts when OSS activates or a rate changes. Remaining for full T8: per-country inclusive display once `VAT_OSS_ACTIVE` flips, and reconciling the retired server model's ex-VAT arithmetic in 0109's tier rebuild. |
 | T9 Billing frequency, decided rather than defaulted | ✅ **Decided 2026-08-29: monthly AND annual, annual discounted** | The owner's framing decides it: the service is not a one-shot move but *"an operational exit strategy waiting for the cutover"*, sometimes used serially to move a family one person at a time — so a subscription is honest, and the discounted annual is the fee-efficient path (one charge ≈0.3% vs ≈3.4% monthly, §below) offered rather than imposed. T4's invoice shape: recurring, both cadences. **Invoiced in advance (2026-10-05, decision 6):** a month on its first day, at the tier it starts on, and a move up within a day, for the difference. |
-| T10 Retention, revisited now that we are not the record | ✅ **Decided 2026-08-29: purge the mirror on erasure, keep the pointer** — build remains (needs T4) | On erasure the mirror rows go; `erasure_record` keeps only the Moneybird invoice numbers, and the operator's answer becomes "these numbers, held in Moneybird". Retires most of #652's screen — the honest outcome §"What this changes about erasure" predicted. |
+| T10 Retention, revisited now that we are not the record | ✅ **Decided 2026-08-29: purge the mirror on erasure, keep the pointer; built 2026-10-11** (managed 0054, Status; privacy 1.5 §9) | On erasure the mirror rows go; `erasure_record` keeps only the Moneybird invoice numbers, and the operator's answer becomes "these numbers, held in Moneybird". Retires most of #652's screen — the honest outcome §"What this changes about erasure" predicted. |
 
 ## Why this exists
 

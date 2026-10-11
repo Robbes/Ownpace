@@ -202,16 +202,34 @@ export interface SupportRetainedInvoice {
 }
 
 /**
- * The invoices an erasure kept. Not a level — a different grain.
+ * The Moneybird numbers of the invoice copies one erasure deleted (workplan
+ * 0111 T10): the books keep the invoices, so these are what to look up there.
+ * Keyed on the erasure's hash, like the invoices above.
+ */
+export interface SupportErasedInvoiceNumbers {
+  readonly tenant_ref: string;
+  readonly erasure_requested_at: string;
+  readonly purged_at: string | null;
+  readonly invoice_numbers: readonly string[];
+}
+
+/** What an erasure left: the numbers the books hold, and an invoice they do not, kept here. */
+export interface SupportKeptAfterErasure {
+  readonly invoices: SupportRetainedInvoice[];
+  readonly numbers: SupportErasedInvoiceNumbers[];
+}
+
+/**
+ * What erasures kept. Not a level — a different grain.
  *
  * Every other call here hangs off a tenant. This one cannot: the tenants it
  * concerns are deleted, so it is keyed on the erasure instead.
  */
-export async function listRetainedInvoices(): Promise<SupportRetainedInvoice[]> {
-  const response = await apiClient.get<{ invoices: SupportRetainedInvoice[] }>(
+export async function listRetainedInvoices(): Promise<SupportKeptAfterErasure> {
+  const response = await apiClient.get<{ invoices: SupportRetainedInvoice[]; numbers?: SupportErasedInvoiceNumbers[] }>(
     '/support/retained-invoices',
   );
-  return response.data.invoices;
+  return { invoices: response.data.invoices, numbers: response.data.numbers ?? [] };
 }
 
 /**

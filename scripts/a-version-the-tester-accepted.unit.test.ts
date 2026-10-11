@@ -119,6 +119,11 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // had been final since 2026-10-10, so the new words take a new number and 1.4's pins stay.
   'terms.md@1.5': '6d069e99622709a01a4f78effac859f58bfd7de703c16f0e218b5f4436328f4e',
   'terms.nl.md@1.5': '38338648fc44b76a2530459b9f82918d27ebb9cb40d6b6615fa3841eaa19bfe4',
+  // 1.5 on 2026-10-11: §9's invoice row says the 7 years are kept in the bookkeeping system, and
+  // that an erasure deletes our copy and keeps the numbers (0111 T10; the owner: "delete the copy,
+  // keep the numbers"). 1.4 was final from the moment #1559 merged, so 1.4's pins stay.
+  'privacy.md@1.5': '659c4f16ada40b9dc431b9b0fd4f1d55689dc07fb0e29f92655193a6fcf1c177',
+  'privacy.nl.md@1.5': '8aea1c647b724dbac1a4f473148ed9b061840c7a01012d3b17e680ab473fbf44',
 };
 
 /** The digest `ACCEPTED_WORDS` pins: the text outside HTML comments, white space collapsed. */

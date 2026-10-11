@@ -525,9 +525,11 @@ live in [README.md](./README.md), the register.
 - **The mirror is managed-chain data** (ADR-0036): the appliance carries no invoice tables'
   behaviour and no Moneybird credential (`apps/selfhost/src/no-managed-leakage.unit.test.ts`).
   Credentials ride `.env` (hard rule 3), never git, never the appliance image.
-- **Pending (decided 2026-08-29, confirmed 2026-10-03, not in force):** on erasure the mirror is
-  purged and only the Moneybird invoice numbers are kept (workplan 0111 T10). Until it is built,
-  erasure detaches the invoices and keeps them (`offboarding.ts`; *Pending* below).
+- **On erasure the copies go and the numbers stay.** The purge deletes each invoice and credit
+  note the books hold, and each draft, and keeps their Moneybird numbers in
+  `erasure_record.invoice_numbers`; an issued invoice the books do not hold is detached and kept.
+  Only an erasure deletes an invoice (managed 0054's trigger):
+  `packages/managed/src/a-copy-deleted-its-number-kept.unit.test.ts`.
 
 ## [ADR-0045: Migrations are hand-written SQL, applied by our own runner](./0045-migrations-are-hand-written-sql.md)
 

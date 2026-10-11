@@ -398,6 +398,8 @@ export const erasureRecord = pgTable('erasure_record', {
   backupsExpireAt: timestamp('backups_expire_at', { withTimezone: true }),
   purgedAt: timestamp('purged_at', { withTimezone: true }),
   retainedInvoiceIds: uuid('retained_invoice_ids').array().notNull().default([]),
+  // The Moneybird numbers of the copies the purge deleted (managed 0054, 0111 T10).
+  invoiceNumbers: text('invoice_numbers').array().notNull().default([]),
   revocations: jsonb('revocations').notNull().default({}),
   purgedCounts: jsonb('purged_counts').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

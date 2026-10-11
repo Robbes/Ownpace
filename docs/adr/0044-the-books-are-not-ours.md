@@ -1,7 +1,7 @@
 # ADR-0044: The books are not ours — an external bookkeeping system is the record for invoices
 
-- **Status:** Accepted; one change decided and not in force (2026-08-29, confirmed by the owner
-  2026-10-03): on erasure the mirror is purged and the Moneybird invoice numbers kept (*Pending*)
+- **Status:** Accepted; amended 2026-10-11: on erasure the mirror is purged and the Moneybird
+  invoice numbers kept (decided 2026-08-29, confirmed 2026-10-03, built in workplan 0111 T10)
 - **Date:** 2026-08-28
 - **Deciders:** Owner, 2026-08-28 — three answers in conversation: *"an external
   bookkeeping system is the legal system of record"*, then *"ok, I stay the
@@ -46,9 +46,11 @@
 - **The mirror is managed-chain data** (ADR-0036): the appliance carries no invoice tables'
   behaviour and no Moneybird credential (`apps/selfhost/src/no-managed-leakage.unit.test.ts`).
   Credentials ride `.env` (hard rule 3), never git, never the appliance image.
-- **Pending (decided 2026-08-29, confirmed 2026-10-03, not in force):** on erasure the mirror is
-  purged and only the Moneybird invoice numbers are kept (workplan 0111 T10). Until it is built,
-  erasure detaches the invoices and keeps them (`offboarding.ts`; *Pending* below).
+- **On erasure the copies go and the numbers stay.** The purge deletes each invoice and credit
+  note the books hold, and each draft, and keeps their Moneybird numbers in
+  `erasure_record.invoice_numbers`; an issued invoice the books do not hold is detached and kept.
+  Only an erasure deletes an invoice (managed 0054's trigger):
+  `packages/managed/src/a-copy-deleted-its-number-kept.unit.test.ts`.
 
 ## Context
 
@@ -75,10 +77,16 @@ workplan 0111 T1–T3.
   download available when structured e-invoicing becomes mandatory).
 - The retained-invoice surface merged in #652 (migration 0011,
   `/support/retained-invoices`) was justified by "Ownpace keeps invoices for
-  tax retention". With Moneybird as the record, that justification weakens to
-  a convenience mirror — whether the mirror survives erasure or is purged with
-  a pointer into Moneybird is an **open owner decision**, tracked as 0111's
-  open question 2, deliberately not decided by this ADR.
+  tax retention". With Moneybird as the record our rows are a copy, and a copy
+  kept after erasure is personal data kept for convenience. So on erasure the
+  copies the books hold are purged and their Moneybird numbers kept on the
+  erasure record (decided 2026-08-29, the owner confirming on 2026-10-03:
+  *"delete the copy, keep the numbers"*; built 2026-10-11, workplan 0111 T10,
+  managed 0054): a number finds the document in the books and names nobody,
+  so the operator's answer to *"what about my invoices?"* is *"these numbers,
+  held in Moneybird"*, on the same screen. Only an issued invoice the books do
+  not hold, one from before them, is still detached and kept there. Privacy
+  1.5 §9 says it.
 - A second document generator (any PDF templating of invoices in this repo) is
   a violation of these rules, not a feature.
 
@@ -95,30 +103,6 @@ workplan 0111 T1–T3.
   business records outside this repository (ADR-0009's boundary); the product
   consequence is simply that Ownpace remains the seller and this ADR applies.
 
-## Pending — on erasure, the mirror goes and the invoice numbers stay (decided 2026-08-29, confirmed 2026-10-03; not in force)
-
-<!-- On build (ADR-0051): fold this into the operative rules and Consequences, remove the
-     Pending bullet and this section, and log the change. -->
-
-The *Consequences* above left open whether the mirror survives an organisation's erasure or is
-purged with a pointer into Moneybird. Workplan 0111 recorded it as decided on 2026-08-29
-(T10: *"purge the mirror on erasure, keep the pointer"*) without the owner's words; on
-2026-10-03 the owner confirmed it: *"delete the copy, keep the numbers"*.
-
-- **On erasure the mirror's rows go.** Moneybird holds every invoice for the full retention
-  period, so keeping our copy after erasure is no longer what the retention obligation requires;
-  it would be personal data kept for convenience (0111, *What this changes about erasure*).
-- **`erasure_record` keeps only the Moneybird invoice numbers**, so the operator's answer to
-  *"what about my invoices?"* is *"these numbers, held in Moneybird"*. That retires most of the
-  retained-invoice screen (#652, `/support/retained-invoices`).
-
-**Not built** (0111 T10, after the Moneybird adapter, T4). Today erasure detaches each invoice
-from its organisation and keeps it (`RETAINED_TABLES.invoice` in
-`packages/managed/src/offboarding.ts`, pinned by `offboarding.unit.test.ts`); no column holds a
-Moneybird number yet; and the privacy policy says invoices are kept for seven years
-(`site/legal/privacy.md`). The build changes all three together, with
-`docs/operator-runbook.md`. Nothing is affected meanwhile: the Alpha issues no invoices.
-
 ## Amendment log
 
 - **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
@@ -129,3 +113,6 @@ Moneybird number yet; and the privacy policy says invoices are kept for seven ye
 - **2026-10-03, later** — The *Consequences*' open question is answered: on erasure the mirror is
   purged and the Moneybird invoice numbers kept (decided 2026-08-29 in workplan 0111 T10; the
   owner: *"delete the copy, keep the numbers"*). Not built, so it is *Pending*. Record: *Pending*.
+- **2026-10-11** — The *Pending* change is built and in force: on erasure the copies the books hold
+  are purged and their Moneybird numbers kept (workplan 0111 T10, managed 0054, privacy 1.5 §9).
+  Folded into the operative rules and *Consequences*; the *Pending* section and bullet are gone.
