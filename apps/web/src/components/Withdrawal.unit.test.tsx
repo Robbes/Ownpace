@@ -40,13 +40,13 @@ const OPEN: WithdrawalState = {
 function renderCard(locale: 'en' | 'nl' = 'en') {
   localStorage.setItem('ownpace.locale', locale);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(
+  return { client, ...render(
     <QueryClientProvider client={client}>
       <LocaleProvider>
         <Withdrawal />
       </LocaleProvider>
     </QueryClientProvider>,
-  );
+  ) };
 }
 
 beforeEach(() => {
@@ -90,7 +90,8 @@ describe('the withdrawal function', () => {
     });
     renderCard();
     fireEvent.click(await screen.findByRole('button', { name: 'Withdraw from contract here' }));
-    fireEvent.change(screen.getByLabelText('Confirmation to'), { target: { value: ' other@example.invalid ' } });
+    fireEvent.change(screen.getByLabelText('Your name'), { target: { value: '  Sam de Vries ' } });
+    fireEvent.change(screen.getByLabelText('Confirmation to'), { target: { value: 'other@example.invalid' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirm withdrawal' }));
 
     await waitFor(() => expect(withdraw).toHaveBeenCalledWith({ name: 'Sam de Vries', confirmTo: 'other@example.invalid' }));
@@ -141,9 +142,11 @@ describe('the withdrawal function', () => {
 
   it('is not there on Free, for a business, or after the fourteen days', async () => {
     for (const reason of ['nothing_paid', 'business', 'past'] as const) {
-      getWithdrawal.mockResolvedValue({ ...OPEN, open: false, reason, tier: null });
-      const { container, unmount } = renderCard();
-      await waitFor(() => expect(getWithdrawal).toHaveBeenCalled());
+      // `open` decides, whatever else the answer carries.
+      getWithdrawal.mockResolvedValue({ ...OPEN, open: false, reason });
+      const { client, container, unmount } = renderCard();
+      // Once the read has answered, not before: an empty card while loading proves nothing.
+      await waitFor(() => expect(client.getQueryState(['billing-withdrawal'])?.status).toBe('success'));
       expect(container.textContent).toBe('');
       unmount();
       getWithdrawal.mockReset();

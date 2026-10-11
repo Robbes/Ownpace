@@ -20,7 +20,8 @@ and after the fourteen days, there is no card. The invoice list says a credit no
 - **Guards:** `Withdrawal.unit.test.tsx` (the last day and the button; the second step with the
   focus on it, the name, the contract and the address; what was confirmed sent, trimmed, and what
   followed said; a mail not sent, in Dutch; a refusal in the server's words; no card when closed);
-  `Billing.unit.test.tsx` (a credit note named as one, with its document and no *Pay*).
+  `Billing.unit.test.tsx` (a credit note named as one, with its document and no *Pay*). Four
+  mutants, all red: *Pay* on a credit note, the card when closed, the focus, the name trimmed.
 
 **2026-10-11: slice 7b — the withdrawal, back to Free** (T7; decision 15; terms §7). A consumer
 withdraws from the paid contract through `POST /api/billing/withdrawal`, the second step of the
