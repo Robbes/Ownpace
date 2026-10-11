@@ -4,6 +4,28 @@
 
 ## Status — 2026-10-11 (update this block at the end of every session)
 
+**2026-10-11, last: each refund followed to its end** (T7, slice 7d; the owner: *"yes, add the
+refund status check"*). Mollie accepting a refund is not Mollie paying it out: it keeps one `queued`
+until its balance covers it, then `pending` and `processing`, and only `refunded` means the money
+went back; a refund can end `failed` or `canceled` instead. So each hour, before the refunds are
+booked, the push reads the payment's refunds for each refund that has not ended
+(`refund-follow.ts`, managed 0053) and writes Mollie's word down: `refund_status`, `refund_ended_at`
+when it ends, written once. A refund that ended failed or canceled is said to the operator once, for
+a transfer by hand within the 14 days, and is not booked in the books if it was not yet (the
+message says to take its payment off the credit note if it was). One still going seven days after it
+was made, half of the fourteen, is said once (`refund_late_said_at`). One paid out ends quietly, and
+is asked after no more. Mollie's calls only, so outside the books' budget, at most 50 refunds per
+organisation per run.
+
+- **Guards:** `a-refund-followed-to-its-end.unit.test.ts` (Mollie's word read from the payment's
+  refunds; late at seven days and never once ended; Mollie down, a refund not listed, a word not
+  known, each said; each new word written once, an end stamped and then nothing moves; the late
+  word once; a failed or canceled refund never booked; the database refuses a status without a
+  refund, an end without an ending word, and any change to either); `money-back-once.unit.test.ts`
+  (the hourly run: a refund failed before the books were told is said once and never booked; one
+  still queued a week on is said once, then ends quietly and is asked after no more). The column
+  pins list the three columns.
+
 **2026-10-11, later still: Mollie's refund, proved in test mode.** The owner ran
 `moneybird-money-back-proof.sh refund` from the OTA checkout with a `test_` key, and paid the test
 payment of 12.00 on Mollie's checkout. The refund of 4.00, asked as `createRefund` asks it (the

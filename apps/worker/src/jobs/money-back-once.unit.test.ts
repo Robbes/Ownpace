@@ -10,7 +10,10 @@
  *  - without a Mollie key the refund waits, said each run, and nothing is
  *    written;
  *  - an invoice paid by transfer is said to the operator once, for a transfer
- *    by hand, and nobody is asked anything.
+ *    by hand, and nobody is asked anything;
+ *  - each refund is followed until Mollie says it ended (managed 0053): one
+ *    that failed is said once and never booked, one still queued a week on is
+ *    said once, and one paid out ends quietly.
  *
  * PGlite as `app_user`. The names, ids and keys are invented, and nothing is
  * contacted: Mollie and Moneybird here are a function.
@@ -40,14 +43,21 @@ const CONTEXT: PushContext = { sellerCountry: 'NL', ossActive: false, delivery: 
 const REFUNDED = '01117d30-e29b-41d4-a716-446655440001';
 const NO_KEY = '01117d30-e29b-41d4-a716-446655440002';
 const BY_BANK = '01117d30-e29b-41d4-a716-446655440003';
+const FAILS = '01117d30-e29b-41d4-a716-446655440004';
+const QUEUED = '01117d30-e29b-41d4-a716-446655440005';
 const NOW = new Date('2026-10-11T09:41:00Z');
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
-/** A Mollie that keeps its refunds, and a Moneybird whose credit invoices are open until a payment is booked. */
-function services() {
-  const refunds: unknown[] = [];
+/**
+ * A Mollie that keeps its refunds, and a Moneybird whose credit invoices are
+ * open until a payment is booked. A refund is made `pending`, and listed as
+ * `listedAs` says from then on, as Mollie moves it. Its ids start `ids`: one
+ * Mollie refund is one credit note's, across the organisations here too.
+ */
+function services(listedAs = 'pending', ids = 're_') {
+  const refunds: { id: string; amount: unknown; status: string; metadata: unknown }[] = [];
   const payments = new Map<string, unknown[]>();
   const calls: string[] = [];
   const impl = (async (url: unknown, init?: RequestInit) => {
@@ -57,8 +67,8 @@ function services() {
     calls.push(`${method} ${at.host}${at.pathname}`);
     if (at.host === 'api.mollie.com') {
       if (method === 'GET') return json({ _embedded: { refunds } });
-      const made = { id: `re_${refunds.length + 1}`, amount: body.amount, status: 'pending', metadata: body.metadata };
-      refunds.push(made);
+      const made = { id: `${ids}${refunds.length + 1}`, amount: body.amount, status: 'pending', metadata: body.metadata };
+      refunds.push({ ...made, status: listedAs });
       return json(made, 201);
     }
     const path = at.pathname.replace(`/api/v2/${ADMINISTRATION}`, '');
@@ -131,23 +141,34 @@ describe("one organisation's money back, as the hourly run makes it", () => {
       )
     ).rows[0];
 
+  const followed = async (tenant: string) =>
+    (
+      await owner(
+        `SELECT refund_status, refund_ended_at IS NOT NULL AS ended, refund_late_said_at IS NOT NULL AS late_said
+           FROM invoice WHERE tenant_id = $1 AND kind = 'credit_note'`,
+        [tenant],
+      )
+    ).rows[0];
+
   const fresh = (): { budget: PushBudget; counts: PushCounts } => ({
     budget: { left: 60, stopped: false },
-    counts: { issued: 0, credited: 0, adopted: 0, booked: 0, held: 0, refunded: 0, settled: 0, byHand: 0, refused: 0, unavailable: 0, slowed: 0 },
+    counts: { issued: 0, credited: 0, adopted: 0, booked: 0, held: 0, refunded: 0, settled: 0, byHand: 0, refundsEnded: 0, refundsFailed: 0, refundsLate: 0, refused: 0, unavailable: 0, slowed: 0 },
   });
 
   beforeAll(async () => {
     driver = pgliteDriver({ role: 'app_user' });
     await runMigrations({ driver, logger: () => {} });
     await runManagedMigrations({ driver, logger: () => {} });
-    await owner(`INSERT INTO tenant (id, name) VALUES ($1, 'Refunded BV'), ($2, 'No Key BV'), ($3, 'By Bank BV')`, [
-      REFUNDED,
-      NO_KEY,
-      BY_BANK,
-    ]);
+    await owner(
+      `INSERT INTO tenant (id, name) VALUES ($1, 'Refunded BV'), ($2, 'No Key BV'), ($3, 'By Bank BV'), ($4, 'Fails BV'),
+              ($5, 'Queued BV')`,
+      [REFUNDED, NO_KEY, BY_BANK, FAILS, QUEUED],
+    );
     await paidThenCredited(REFUNDED, '701', 'mollie');
     await paidThenCredited(NO_KEY, '702', 'mollie');
     await paidThenCredited(BY_BANK, '703', 'bank');
+    await paidThenCredited(FAILS, '704', 'mollie');
+    await paidThenCredited(QUEUED, '705', 'mollie');
   }, 120_000);
 
   afterAll(async () => {
@@ -219,5 +240,73 @@ describe("one organisation's money back, as the hourly run makes it", () => {
     });
     expect(again.counts.byHand).toBe(0);
     expect(said.mock.calls.flat().join(' ')).not.toContain('not through Mollie');
+  });
+  it('says a refund Mollie ended failed once, and never books it', async () => {
+    const said = vi.spyOn(log, 'error').mockImplementation(() => {});
+    // Mollie takes the refund, then fails it before the books are told.
+    const world = services('failed', 're_f');
+    const { budget, counts } = fresh();
+    await pushOrganisation(pool(), FAILS, NOW, SETTINGS, CONTEXT, budget, counts, {
+      fetchImpl: world.impl,
+      mollieApiKey: MOLLIE_KEY,
+      ...noPace,
+    });
+    expect(counts).toMatchObject({ refunded: 1, refundsFailed: 1, refundsEnded: 0, booked: 0 });
+    expect(said.mock.calls.flat().join(' ')).toContain(
+      "Mollie's refund re_f1 of 400 cents for credit note 2026-0010 ended failed: the money did not go back. Pay it " +
+        'back by transfer within 14 days of the withdrawal (terms §7); it was not booked in Moneybird, and will not be.',
+    );
+    expect(world.payments.get('8704')).toBeUndefined();
+    expect(await followed(FAILS)).toEqual({ refund_status: 'failed', ended: true, late_said: false });
+
+    // Once: the next run says nothing, asks Mollie nothing, and books nothing.
+    said.mockClear();
+    const before = world.calls.length;
+    const again = fresh();
+    await pushOrganisation(pool(), FAILS, new Date(NOW.getTime() + 60 * 60_000), SETTINGS, CONTEXT, again.budget, again.counts, {
+      fetchImpl: world.impl,
+      mollieApiKey: MOLLIE_KEY,
+      ...noPace,
+    });
+    expect(again.counts).toMatchObject({ refundsFailed: 0, booked: 0 });
+    expect(world.calls.slice(before).filter((c) => c.includes('api.mollie.com'))).toEqual([]);
+    expect(world.payments.get('8704')).toBeUndefined();
+    expect(said.mock.calls.flat().join(' ')).not.toContain('ended failed');
+  });
+
+  it('says a refund still queued a week on once, then lets it end quietly', async () => {
+    const said = vi.spyOn(log, 'error').mockImplementation(() => {});
+    const world = services('queued', 're_q');
+    const run = async (at: Date) => {
+      const { budget, counts } = fresh();
+      await pushOrganisation(pool(), QUEUED, at, SETTINGS, CONTEXT, budget, counts, {
+        fetchImpl: world.impl,
+        mollieApiKey: MOLLIE_KEY,
+        ...noPace,
+      });
+      return counts;
+    };
+    // Made, followed (queued, not late) and booked.
+    expect(await run(NOW)).toMatchObject({ refunded: 1, booked: 1, refundsLate: 0 });
+    expect(await followed(QUEUED)).toEqual({ refund_status: 'queued', ended: false, late_said: false });
+
+    // A week on, still queued: said once.
+    const week = new Date(NOW.getTime() + 7 * 86_400_000);
+    expect(await run(week)).toMatchObject({ refundsLate: 1, refunded: 0 });
+    expect(said.mock.calls.flat().join(' ')).toContain(
+      "Mollie's refund re_q1 of 400 cents for credit note 2026-0010 is still queued 7 days after it was made.",
+    );
+    said.mockClear();
+    expect(await run(new Date(week.getTime() + 60 * 60_000))).toMatchObject({ refundsLate: 0 });
+    expect(said.mock.calls.flat().join(' ')).not.toContain('still queued');
+
+    // Mollie pays it out: it ends, said by nobody, and is asked after no more.
+    world.refunds[0]!.status = 'refunded';
+    expect(await run(new Date(week.getTime() + 2 * 60 * 60_000))).toMatchObject({ refundsEnded: 1, refundsLate: 0 });
+    expect(said).not.toHaveBeenCalled();
+    expect(await followed(QUEUED)).toEqual({ refund_status: 'refunded', ended: true, late_said: true });
+    const before = world.calls.length;
+    await run(new Date(week.getTime() + 3 * 60 * 60_000));
+    expect(world.calls.slice(before).filter((c) => c.includes('api.mollie.com'))).toEqual([]);
   });
 });

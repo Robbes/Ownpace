@@ -238,7 +238,11 @@ export interface RefundToBook {
   readonly refundDate: string;
 }
 
-/** Claim the organisation's oldest refund the books have not been told of, for one attempt. */
+/**
+ * Claim the organisation's oldest refund the books have not been told of, for
+ * one attempt; one Mollie ended failed or canceled is passed over, as the
+ * money did not go back.
+ */
 export async function claimNextRefundToBook(db: PgDatabase, tenantId: TenantId, now: Date): Promise<RefundToBook | null> {
   const until = new Date(now.getTime() + PUSH_LEASE_MINUTES * 60_000);
   const [row] = rowsOf(
@@ -248,6 +252,8 @@ export async function claimNextRefundToBook(db: PgDatabase, tenantId: TenantId, 
          SELECT id FROM invoice
           WHERE tenant_id = ${tenantId} AND kind = 'credit_note' AND money_back = 'refunded' AND moneybird_paid_at IS NULL
             AND moneybird_id IS NOT NULL AND moneybird_administration_id IS NOT NULL
+            -- A refund Mollie ended without paying it out is not booked (refund-follow.ts).
+            AND (refund_status IS NULL OR refund_status NOT IN ('failed', 'canceled'))
             AND (push_lease_until IS NULL OR push_lease_until < ${now.toISOString()}::timestamptz)
           ORDER BY money_back_at, id
           LIMIT 1

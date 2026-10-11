@@ -71,7 +71,8 @@ the owner's job.
    used. A credit note's amount is made real once the books number it (slice 7d, its second
    half): refunded through Mollie with live's `MOLLIE_API_KEY`, which `set-task-env.sh` hands to
    the tasks, settled against its invoice in the books, or said to the operator for a transfer
-   by hand.
+   by hand. Each refund is followed until Mollie says it ended: one that failed is said for a
+   transfer by hand and not booked, and one still going a week after it was made is said once.
 
    Terms 1.5 §7 has the lawyer's agreement, and the two Moneybird calls of slice 7d passed in the
    sandbox (`register_payment_creditinvoice` on a credit note crediting part of an open invoice,

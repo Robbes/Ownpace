@@ -137,6 +137,11 @@ export const invoice = pgTable(
     moneyBackAt: timestamp('money_back_at', { withTimezone: true }),
     refundId: text('refund_id'),
     refundCents: bigint('refund_cents', { mode: 'number' }),
+    // That refund, followed until Mollie says it ended (managed 0053): its
+    // last status, when it ended, and when it was said late. Written once.
+    refundStatus: text('refund_status').$type<'queued' | 'pending' | 'processing' | 'refunded' | 'failed' | 'canceled'>(),
+    refundEndedAt: timestamp('refund_ended_at', { withTimezone: true }),
+    refundLateSaidAt: timestamp('refund_late_said_at', { withTimezone: true }),
   },
   (t) => [
     index('ix_invoice_tenant').on(t.tenantId, t.periodStart),
