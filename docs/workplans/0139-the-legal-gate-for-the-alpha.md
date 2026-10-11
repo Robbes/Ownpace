@@ -2,7 +2,20 @@
 
 > **In one line:** Legal gate for the alpha: `site/legal` placeholders filled and published, a lawyer's pass, alpha conditions, acceptance recorded at first sign-in, notices where data is collected, sub-processors, retention, account closure, breach procedure, `SECURITY.md`.
 
-## Status — 2026-10-10 (update this block at the end of every session)
+## Status — 2026-10-11 (update this block at the end of every session)
+
+**2026-10-11: privacy 1.4, the invoice email address.** The *Billing* page asks for the address
+invoices are sent to since 0111 slice 5e (#1552), and §4.4 listed the invoice details it keeps
+without it. The owner, 2026-10-11: *"Privacy policy: ok, add e-mail to it"*. §4.4 now names it in
+both languages (*"the email address your invoices are sent to"* / *"het e-mailadres waarheen uw
+facturen worden gestuurd"*); nothing else changes. Drafted as 1.3, but #1557 made 1.3 (the visits
+sentence, the entry below) and merged first the same morning, and 1.3 was final from then: the
+words take 1.4 (both files, `LEGAL_VERSIONS.privacy` `'1.4'`, `ACCEPTED_WORDS` pins 1.4 and keeps
+1.3's and 1.2's). 1.4 carries 1.3's sentence too, so testers accept privacy 1.4 and terms 1.4
+together, at alpha.2, and nobody is asked twice. `subprocessors.md`'s planned Moneybird row (a draft, unrendered) names the address too.
+Proved: `scripts/a-version-the-tester-accepted.unit.test.ts` green on the new pins. Not changed
+here: §7's table does not name Moneybird yet; `subprocessors.md` lists it as planned, *"Before the
+first real invoice is issued"*, and during the Alpha nothing is invoiced.
 
 **2026-10-10: terms 1.4, the owner's own review.** The owner rewrote the Dutch terms (and the
 app's texts) on their branch `fix/updating-the-texts`; the English is conformed to the Dutch,
