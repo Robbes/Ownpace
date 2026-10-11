@@ -205,6 +205,16 @@ const NARROWER_ON_PURPOSE: Record<string, { privileges: string[]; why: string }>
       'that counts from the next month; nothing is rewound. The one deleter is the erasure ' +
       'purge, through the system role (PURGED_TABLES).',
   },
+  contract_withdrawal: {
+    privileges: ['INSERT', 'SELECT'],
+    why:
+      'Each withdrawal from a paid contract (workplan 0111 T7, managed migration 0049; terms §7): ' +
+      'the name the consumer gave, where the confirmation went, and the contract, from whose moment ' +
+      'every yes and pick before it counts for nothing. A withdrawal that could be edited afterwards ' +
+      'records nothing, so the request path appends and reads, and UPDATE and DELETE are REVOKED ' +
+      'from the default the baseline grants. The one deleter is the erasure purge, through the ' +
+      'system role (PURGED_TABLES).',
+  },
   platform_operator: {
     privileges: ['SELECT'],
     why:
