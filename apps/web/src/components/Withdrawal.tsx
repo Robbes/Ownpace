@@ -19,16 +19,30 @@
  * Once confirmed, the card says when, that the organisation is on Free, and
  * where the confirmation went; what the Billing page shows of the tier, the
  * pace and the invoices is read again.
+ *
+ * What was withdrawn is kept in the query cache, not in the card's own state,
+ * and the window is read again: the card is drawn anew whenever the Billing
+ * page draws itself as loading (a read that had failed and is tried again
+ * does), or the person goes to another page and comes back, and either used to
+ * lose the sentence and offer the button again from the open window the app
+ * had kept for five minutes. Found in a real browser, 2026-10-11.
  */
 import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { billingApi, type WithdrawalState, type Withdrawn } from '../services/billing-service.ts';
 import { serverMessage } from '../services/api.ts';
+import { useAuthStore } from '../stores/auth-store.ts';
 import { useLocale, useT } from '../i18n/index.tsx';
 import { formatDateTime } from '../i18n/datetime.ts';
 
 const QUERY_KEY = ['billing-withdrawal'] as const;
+
+/** What was withdrawn, and where the confirmation went: the card's last word. */
+interface Done {
+  withdrawn: Withdrawn;
+  email: string;
+}
 
 /** A UTC day, long, in the page's language: the server's days are UTC days. */
 function useDay(): (iso: string) => string {
@@ -41,17 +55,26 @@ const Withdrawal: React.FC = () => {
   const day = useDay();
   const queryClient = useQueryClient();
   const [asking, setAsking] = React.useState(false);
-  const [done, setDone] = React.useState<{ withdrawn: Withdrawn; email: string } | null>(null);
   const { data: state } = useQuery({ queryKey: QUERY_KEY, queryFn: () => billingApi.getWithdrawal() });
+  // Per organisation, never fetched: only a withdrawal puts it there, and it
+  // stays until the page is loaded again, when the server says the window is closed.
+  const doneKey = ['billing-withdrawn', useAuthStore((s) => s.tenantId)] as const;
+  const { data: done } = useQuery<Done | null>({
+    queryKey: doneKey,
+    queryFn: () => null,
+    enabled: false,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
 
   const withdraw = useMutation({
     mutationFn: (statement: { name: string; confirmTo: string }) => billingApi.withdraw(statement),
     onSuccess: (withdrawn, statement) => {
       setAsking(false);
-      setDone({ withdrawn, email: statement.confirmTo });
-      // Free from this moment: the tier, the pace, the data ceiling, the picks
-      // and the invoices (a credit note for each) all read again.
-      for (const key of ['billing-usage', 'billing-ceiling', 'billing-pick', 'billing-invoices']) {
+      queryClient.setQueryData<Done>(doneKey, { withdrawn, email: statement.confirmTo });
+      // Free from this moment: the window, the tier, the pace, the data
+      // ceiling, the picks and the invoices (a credit note for each) all read again.
+      for (const key of ['billing-withdrawal', 'billing-usage', 'billing-ceiling', 'billing-pick', 'billing-invoices']) {
         void queryClient.invalidateQueries({ queryKey: [key] });
       }
     },

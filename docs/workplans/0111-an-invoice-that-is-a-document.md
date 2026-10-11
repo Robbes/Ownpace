@@ -22,6 +22,16 @@ and after the fourteen days, there is no card. The invoice list says a credit no
   followed said; a mail not sent, in Dutch; a refusal in the server's words; no card when closed);
   `Billing.unit.test.tsx` (a credit note named as one, with its document and no *Pay*). Four
   mutants, all red: *Pay* on a credit note, the card when closed, the focus, the name trimmed.
+- **Walked in a real browser, the same day, and one fault found.** The card kept what was
+  withdrawn in its own state, and the card is drawn anew whenever the Billing page draws itself as
+  loading: a usage read that had failed and is tried again after the withdrawal does that. Coming
+  back from another page draws it anew too. Either way the sentence was gone, and the card
+  offered the button again from the open window the app keeps for five minutes. Now what was
+  withdrawn is kept in the query cache, per organisation, and the window is read again with the
+  rest. Guards in `Billing.unit.test.tsx`: the sentence stays after a failed read is tried again;
+  the button is not offered to someone who comes back; and another organisation is not told it
+  withdrew. All three were red on the card as it was, and the last one also fails with the
+  organisation dropped from the key.
 
 **2026-10-11: slice 7b — the withdrawal, back to Free** (T7; decision 15; terms §7). A consumer
 withdraws from the paid contract through `POST /api/billing/withdrawal`, the second step of the
