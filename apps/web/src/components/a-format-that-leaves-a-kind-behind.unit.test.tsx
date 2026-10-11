@@ -59,9 +59,9 @@ describe('a format that leaves a kind behind', () => {
     const slides = screen.getByLabelText(EN[nativeKindKey('presentation')]) as HTMLSelectElement;
     expect(slides.value).toBe('export-office');
     expect(slides.selectedOptions[0]?.textContent).toBe(
-      EN['wizard.nativePolicy.as.leftBehind'].replace(
+      EN['account.nativePolicy.as.leftBehind'].replace(
         '{format}',
-        EN['wizard.nativePolicy.as.office'].replace('{ext}', '.pptx'),
+        EN['account.nativePolicy.as.office'].replace('{ext}', '.pptx'),
       ),
     );
   });
@@ -72,7 +72,7 @@ describe('a format that leaves a kind behind', () => {
     expect(line).toContain(EN[nativeKindKey('presentation')]);
     expect(line).not.toContain(EN[nativeKindKey('document')]);
     expect(kindsLeftBehind(OFFICE_DECK)).toEqual(['presentation']);
-    expect(screen.queryByText(EN['wizard.nativePolicy.allEditable'])).toBeNull();
+    expect(screen.queryByText(EN['account.nativePolicy.allEditable'])).toBeNull();
   });
 
   it('is passed over by the editable press, which takes OpenDocument for that kind', () => {

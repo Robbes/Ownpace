@@ -346,8 +346,8 @@ describe('the guides mention what the connector actually needs', () => {
  * shows another. A guide is followed with the form open beside it, so in the
  * card's own section every field the form REQUIRES is named as the form
  * labels it, in that guide's language: `STRINGS[locale][field.labelKey]` for
- * `credentialFieldsFor(side, card)`. The labels keep the wizard's keys
- * (`wizard.*`), which the descriptor named before the wizard retired (0153 D5).
+ * `credentialFieldsFor(side, card)`. The labels are the account form's keys
+ * (`account.*`; `wizard.*` until 2026-10-11, after the wizard that retired in 0153 D5).
  *
  * `LABELS_PENDING` names the guides split out of the operator documents
  * before this case existed, whose card sections name a field in the
@@ -470,7 +470,7 @@ describe('each card\'s section names its fields as the account form labels them,
  *     their readers to the same controls.
  *
  * "One of the product's labels" is a string under the keys a guide quotes
- * from — the account form's (`wizard.*`, the descriptor's keys), *Start a
+ * from — the account form's (`account.*`, the descriptor's keys), *Start a
  * migration*'s (`start.*`, since the guides walk it: 0153 D5), the Accounts
  * page's, the grant links' and the navigation's — short enough to be a label
  * rather than a sentence.
@@ -585,8 +585,8 @@ describe('the Apple export carries its to-be-tested tag and line (0148 D7)', () 
   const LINE = Object.fromEntries(
     (Object.keys(STRINGS) as Locale[]).map((locale) => [
       locale,
-      `**${STRINGS[locale]['wizard.archiveProvider.untested']}.** ` +
-        STRINGS[locale]['wizard.archiveProvider.noReader.apple-privacy'],
+      `**${STRINGS[locale]['account.archiveProvider.untested']}.** ` +
+        STRINGS[locale]['account.archiveProvider.noReader.apple-privacy'],
     ]),
   ) as Record<Locale, string>;
 

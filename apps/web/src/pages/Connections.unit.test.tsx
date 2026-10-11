@@ -285,8 +285,8 @@ describe('the connections screen', () => {
     list.mockResolvedValue([conn({ kind: 'o365', role: 'source' })]);
     renderAt('/connections');
 
-    const imap = await screen.findByRole('link', { name: STRINGS.en['wizard.m365.viaImap'] });
-    const graph = screen.getByRole('link', { name: STRINGS.en['wizard.m365.viaGraph'] });
+    const imap = await screen.findByRole('link', { name: STRINGS.en['account.m365.viaImap'] });
+    const graph = screen.getByRole('link', { name: STRINGS.en['account.m365.viaGraph'] });
     expect(imap.getAttribute('href')).toBe('/setup/source/oauth2');
     expect(graph.getAttribute('href')).toBe('/setup/source/graph');
     expect(setupHrefs()).toEqual(['/setup/source/oauth2', '/setup/source/graph']);
@@ -302,7 +302,7 @@ describe('the connections screen', () => {
     list.mockResolvedValue([conn({ kind: 'o365', role: 'source' })]);
     renderAt('/connections');
 
-    fireEvent.click(await screen.findByRole('link', { name: STRINGS.en['wizard.m365.viaGraph'] }));
+    fireEvent.click(await screen.findByRole('link', { name: STRINGS.en['account.m365.viaGraph'] }));
     expect(await screen.findByText('landed on source/graph')).toBeTruthy();
   });
 
@@ -431,7 +431,7 @@ describe('replacing credentials', () => {
     const provider = credentialFieldsFor(role, wizardTypeForConnectionKind(kind)).find(
       (f) => f.key === 'refreshToken',
     )!.consent!;
-    const label = STRINGS.en[`wizard.${provider}.connect` as keyof typeof STRINGS.en];
+    const label = STRINGS.en[`account.${provider}.connect` as keyof typeof STRINGS.en];
     await waitFor(() =>
       expect(
         screen.queryAllByText(label).length,
@@ -463,7 +463,7 @@ describe('replacing credentials', () => {
 
     fireEvent.click(await screen.findByText('Reconnect'));
     // An account kind asks for the faces first; tick one so the button is live.
-    const connect = await screen.findByText(STRINGS.en['wizard.google.connect']);
+    const connect = await screen.findByText(STRINGS.en['account.google.connect']);
     await waitFor(() => expect(screen.getAllByRole('checkbox').length).toBeGreaterThan(0));
     fireEvent.click(screen.getAllByRole('checkbox')[0]!);
     await waitFor(() => expect((connect as HTMLButtonElement).disabled).toBe(false));
@@ -498,8 +498,8 @@ describe('replacing credentials', () => {
     renderPage();
     fireEvent.click(await screen.findByText('Reconnect'));
 
-    expect(screen.queryAllByText(STRINGS.en['wizard.clientId']).length).toBeGreaterThan(0);
-    expect(screen.queryAllByText(STRINGS.en['wizard.sourceClientSecret']).length).toBeGreaterThan(0);
+    expect(screen.queryAllByText(STRINGS.en['account.clientId']).length).toBeGreaterThan(0);
+    expect(screen.queryAllByText(STRINGS.en['account.sourceClientSecret']).length).toBeGreaterThan(0);
   });
 
   it('starts from what the connection already knows (0078)', async () => {
@@ -1752,12 +1752,12 @@ describe('the consent asks for its ending in the page’s language (0145 T6)', (
   }
 
   it.each([
-    { provider: 'Google', card: /^Gmail/, connect: 'wizard.google.connect', authorize: googleAuthorize, faces: false },
-    { provider: 'Dropbox', card: /^Dropbox/, connect: 'wizard.dropbox.connect', authorize: dropboxAuthorize, faces: false },
+    { provider: 'Google', card: /^Gmail/, connect: 'account.google.connect', authorize: googleAuthorize, faces: false },
+    { provider: 'Dropbox', card: /^Dropbox/, connect: 'account.dropbox.connect', authorize: dropboxAuthorize, faces: false },
     {
       provider: 'Microsoft',
       card: /^Microsoft 365[ -]account/,
-      connect: 'wizard.microsoft.connect',
+      connect: 'account.microsoft.connect',
       authorize: microsoftAuthorize,
       faces: true,
     },

@@ -173,7 +173,7 @@ describe('the lines under the selects', () => {
     expect(line).not.toContain(EN[nativeKindKey('drawing')]);
     // And never beside the promise that everything arrives: a screen saying
     // both is a screen somebody reads the wrong half of.
-    expect(screen.queryByText(EN['wizard.nativePolicy.allEditable'])).toBeNull();
+    expect(screen.queryByText(EN['account.nativePolicy.allEditable'])).toBeNull();
   });
 
   it('names exactly the kinds that arrive as a PDF nobody can edit', () => {
@@ -193,12 +193,12 @@ describe('the lines under the selects', () => {
     expect(line).toContain(EN[nativeKindKey('presentation')]);
     expect(line).not.toContain(EN[nativeKindKey('document')]);
     expect(screen.queryByText(/stay behind in Google/)).toBeNull();
-    expect(screen.queryByText(EN['wizard.nativePolicy.allEditable'])).toBeNull();
+    expect(screen.queryByText(EN['account.nativePolicy.allEditable'])).toBeNull();
   });
 
   it('says all four arrive editable only when that is so', () => {
     render(<NativeFilePolicyChooser value={editableFormats()} onChange={() => {}} />);
-    expect(screen.getByText(EN['wizard.nativePolicy.allEditable'])).toBeInTheDocument();
+    expect(screen.getByText(EN['account.nativePolicy.allEditable'])).toBeInTheDocument();
     expect(screen.queryByText(/stay behind in Google/)).toBeNull();
     expect(screen.queryByText(/arrive as PDF/)).toBeNull();
   });
@@ -243,15 +243,15 @@ describe('an editable format for every kind', () => {
 
   it('is one press away', async () => {
     render(<Harness from={LEAVE_ALL_BEHIND} />);
-    await userEvent.click(screen.getByRole('button', { name: EN['wizard.nativePolicy.editable'] }));
+    await userEvent.click(screen.getByRole('button', { name: EN['account.nativePolicy.editable'] }));
     expect(selectFor('document').value).toBe('export-office');
     expect(selectFor('presentation').value).toBe('export-office');
-    expect(screen.getByText(EN['wizard.nativePolicy.allEditable'])).toBeInTheDocument();
+    expect(screen.getByText(EN['account.nativePolicy.allEditable'])).toBeInTheDocument();
   });
 
   it('leaves what is already editable as it is, on the screen too', async () => {
     render(<Harness from={choice({ spreadsheet: 'export-odf' })} />);
-    await userEvent.click(screen.getByRole('button', { name: EN['wizard.nativePolicy.editable'] }));
+    await userEvent.click(screen.getByRole('button', { name: EN['account.nativePolicy.editable'] }));
     expect(selectFor('spreadsheet').value).toBe('export-odf');
     expect(selectFor('document').value).toBe('export-office');
   });
@@ -264,7 +264,7 @@ describe('the Paper chooser, held the same way (workplan 0150 T3 (d))', () => {
    * shared parser accepts, so a format offered here is one both editions
    * store and the source exports, and a format added there reaches it.
    */
-  const paperSelect = () => screen.getByLabelText(EN['wizard.paperFormat']) as HTMLSelectElement;
+  const paperSelect = () => screen.getByLabelText(EN['account.paperFormat']) as HTMLSelectElement;
 
   it('offers every policy the shared parser accepts, and nothing else', () => {
     render(<PaperFormatChooser value={SUGGESTED_PAPER_FORMAT} onChange={() => {}} />);
@@ -278,11 +278,11 @@ describe('the Paper chooser, held the same way (workplan 0150 T3 (d))', () => {
   it('suggests Markdown (D1), and names the file a doc becomes under each format', () => {
     expect(SUGGESTED_PAPER_FORMAT).toBe('markdown');
     const { rerender } = render(<PaperFormatChooser value="markdown" onChange={() => {}} />);
-    expect(screen.getByText(EN['wizard.paperFormat.arrives'].replace('{ext}', '.md'))).toBeInTheDocument();
+    expect(screen.getByText(EN['account.paperFormat.arrives'].replace('{ext}', '.md'))).toBeInTheDocument();
     rerender(<PaperFormatChooser value="html" onChange={() => {}} />);
-    expect(screen.getByText(EN['wizard.paperFormat.arrives'].replace('{ext}', '.html'))).toBeInTheDocument();
+    expect(screen.getByText(EN['account.paperFormat.arrives'].replace('{ext}', '.html'))).toBeInTheDocument();
     rerender(<PaperFormatChooser value="refuse" onChange={() => {}} />);
-    expect(screen.getByText(EN['wizard.paperFormat.leftBehind'])).toBeInTheDocument();
+    expect(screen.getByText(EN['account.paperFormat.leftBehind'])).toBeInTheDocument();
   });
 
   it('hands the choice back as the policy it is', async () => {

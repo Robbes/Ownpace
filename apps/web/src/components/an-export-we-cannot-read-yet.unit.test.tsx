@@ -132,7 +132,7 @@ const archiveCard = (): HTMLElement => screen.getByRole('button', { name: /^(?:E
 /** The archive form's "Which export" choice, after picking the card. */
 const whichExport = (locale: Locale): HTMLSelectElement => {
   fireEvent.click(archiveCard());
-  const label = STRINGS[locale]['wizard.archiveProvider'];
+  const label = STRINGS[locale]['account.archiveProvider'];
   return screen.getByLabelText(new RegExp(`^${label}`)) as HTMLSelectElement;
 };
 
@@ -216,7 +216,7 @@ describe.each(EDITIONS)('on the $edition build', ({ selfhost }) => {
 
     it.each(LOCALES)('%s: the card hint carries the tag after Apple, while Apple has no reader', async (locale) => {
       await DOORS[door](locale);
-      const hint = STRINGS[locale]['wizard.proto.archive.hint'];
+      const hint = STRINGS[locale]['account.proto.archive.hint'];
       // The tag reads in lower case inside a sentence.
       const tag = SAID[locale].tag.toLowerCase();
       expect(archiveCard().textContent).toContain(hint);

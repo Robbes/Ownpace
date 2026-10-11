@@ -234,7 +234,7 @@ const IMAP_APPLICATION: ReadonlyArray<SetupStep> = [
 /**
  * The Apple account (0148 T5 (a)). One thing comes first, and it is at Apple:
  * the app-specific password, because Apple refuses the account's own password
- * over IMAP, CalDAV and CardDAV. The words are `wizard.appleAppPassword.why`'s
+ * over IMAP, CalDAV and CardDAV. The words are `account.appleAppPassword.why`'s
  * and the Apple guide's `{#app-password}`.
  */
 const APPLE: ReadonlyArray<SetupStep> = [

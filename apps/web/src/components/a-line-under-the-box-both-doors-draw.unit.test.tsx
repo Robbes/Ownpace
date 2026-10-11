@@ -121,14 +121,14 @@ describe('in Start a migration', () => {
   it('shows the Apple line in plain view, in both languages', () => {
     for (const locale of ['en', 'nl'] as const) {
       renderForm('source', 'apple', 'flow', locale);
-      expect(screen.getByText(STRINGS[locale]['wizard.appleAppPassword.hint'])).toBeVisible();
+      expect(screen.getByText(STRINGS[locale]['account.appleAppPassword.hint'])).toBeVisible();
       cleanup();
     }
   });
 
   it('shows Soverin’s mail-server line inside Server settings, which it opens', async () => {
     renderForm('target', 'soverin', 'flow');
-    const line = screen.getByText(STRINGS.en['wizard.soverinMailHost.hint']);
+    const line = screen.getByText(STRINGS.en['account.soverinMailHost.hint']);
     expect(line.closest('details')?.querySelector('summary')?.textContent).toContain(
       STRINGS.en['start.serverSettings'],
     );
@@ -139,8 +139,8 @@ describe('in Start a migration', () => {
 
   it('shows the domain-wide key’s warning once the company question is answered yes', async () => {
     renderForm('source', 'gmail', 'flow');
-    expect(screen.queryByText(STRINGS.en['wizard.serviceAccountKey.width'])).toBeNull();
+    expect(screen.queryByText(STRINGS.en['account.serviceAccountKey.width'])).toBeNull();
     await userEvent.click(screen.getByRole('radio', { name: STRINGS.en['start.company.yes'] }));
-    expect(screen.getByText(STRINGS.en['wizard.serviceAccountKey.width'])).toBeVisible();
+    expect(screen.getByText(STRINGS.en['account.serviceAccountKey.width'])).toBeVisible();
   });
 });

@@ -35,11 +35,11 @@ describe('Hint', () => {
 
 describe('whyKeyOf — the folded twin, by convention', () => {
   it('finds x.why beside x.hint, and beside the one x.width', () => {
-    expect(whyKeyOf('wizard.gmailAppPassword.hint')).toBe('wizard.gmailAppPassword.why');
-    expect(whyKeyOf('wizard.serviceAccountKey.width')).toBe('wizard.serviceAccountKey.why');
+    expect(whyKeyOf('account.gmailAppPassword.hint')).toBe('account.gmailAppPassword.why');
+    expect(whyKeyOf('account.serviceAccountKey.width')).toBe('account.serviceAccountKey.why');
   });
 
   it('answers nothing for a hint with nothing to fold', () => {
-    expect(whyKeyOf('wizard.refreshToken.hint')).toBeUndefined();
+    expect(whyKeyOf('account.refreshToken.hint')).toBeUndefined();
   });
 });

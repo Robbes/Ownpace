@@ -762,7 +762,7 @@ const StartMigration: React.FC = () => {
             onClick={() => setStep(back)}
             className="min-h-[44px] px-5 py-2 bg-white border border-gray-300 text-gray-800 rounded-lg hover:bg-gray-50"
           >
-            {t('wizard.back')}
+            {t('account.back')}
           </button>
         ) : (
           <span />
@@ -777,7 +777,7 @@ const StartMigration: React.FC = () => {
               aria-describedby={notYet === undefined ? undefined : reasonId}
               className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {settingUp ? t('start.to.settingUp') : t('wizard.next')}
+              {settingUp ? t('start.to.settingUp') : t('account.next')}
             </button>
             {notYet !== undefined && (
               <p id={reasonId} className="mt-2 text-sm text-gray-600">
@@ -1223,7 +1223,7 @@ const ExportTick: React.FC<{ archive: ArchiveProvider; on: boolean; onChange: (o
 
 /** The line the archive form says under an export no reader opens yet (0148 D7). */
 const NO_READER: Readonly<Partial<Record<ArchiveProvider, StringKey>>> = {
-  'apple-privacy': 'wizard.archiveProvider.noReader.apple-privacy',
+  'apple-privacy': 'account.archiveProvider.noReader.apple-privacy',
 };
 
 /**
@@ -1243,7 +1243,7 @@ const ExportNotRead: React.FC<{ archive: ArchiveProvider }> = ({ archive }) => {
       <p className="text-sm text-gray-700">
         <span className="font-medium text-gray-900">{t(EXPORT_WORDS[archive])}</span>{' '}
         <span className="ml-1 inline-block rounded bg-gray-100 px-1.5 py-0.5 align-middle text-xs font-medium text-gray-700">
-          {t('wizard.archiveProvider.untested')}
+          {t('account.archiveProvider.untested')}
         </span>
         {line !== undefined && (
           <>

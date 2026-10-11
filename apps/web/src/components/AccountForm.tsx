@@ -120,7 +120,7 @@ export const useRefusalText = (fields: ReadonlyArray<{ key: string; labelKey: st
     };
 
     const missing = missingCredentialFields(err);
-    if (missing) return `${t('wizard.missing.lead')} ${missing.map(label).join(', ')}`;
+    if (missing) return `${t('account.missing.lead')} ${missing.map(label).join(', ')}`;
 
     // Filled in, but the wrong shape — a different sentence from "still
     // needed", and no longer a raw zod path in English (0072).
@@ -470,7 +470,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
   return (
     <>
       {provenance && !flow && (
-        <p className="mt-2 text-xs text-gray-600">{t('wizard.providerDefaults.note', provenance)}</p>
+        <p className="mt-2 text-xs text-gray-600">{t('account.providerDefaults.note', provenance)}</p>
       )}
 
       {/* Read the asterisks: one line, because "(optional)" is gone from the
@@ -645,7 +645,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
             {provenance ? t('start.serverSettings.filled', { provider: provenance.provider }) : t('start.serverSettings')}
           </summary>
           {provenance && (
-            <p className="mt-2 text-xs text-gray-600">{t('wizard.providerDefaults.note', provenance)}</p>
+            <p className="mt-2 text-xs text-gray-600">{t('account.providerDefaults.note', provenance)}</p>
           )}
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {fields

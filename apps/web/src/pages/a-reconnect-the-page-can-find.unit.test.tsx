@@ -163,7 +163,7 @@ describe('the failure line names a button the Connections page has (0140 T2 (b))
         expect((button.textContent ?? '').trim()).toBe(words(locale, 'connections.reconnect'));
         fireEvent.click(button);
         expect(
-          await screen.findByRole('button', { name: words(locale, `wizard.${row.provider}.connect`) }),
+          await screen.findByRole('button', { name: words(locale, `account.${row.provider}.connect`) }),
         ).toBeTruthy();
       });
     }
@@ -183,7 +183,7 @@ describe('the failure line names a button the Connections page has (0140 T2 (b))
       expect((button.textContent ?? '').trim()).toBe(words(locale, 'connections.reconnect'));
       fireEvent.click(button);
       expect(
-        await screen.findByRole('button', { name: words(locale, `wizard.${APP_PASSWORD_ROW.provider}.connect`) }),
+        await screen.findByRole('button', { name: words(locale, `account.${APP_PASSWORD_ROW.provider}.connect`) }),
       ).toBeTruthy();
       // So a sentence that sends "a password" to Replace credentials sends this
       // reader to a button their row does not have.

@@ -77,8 +77,8 @@ beforeEach(() => {
 describe('what the panel shows first', () => {
   it('selects the schedule in force, and none of the others', () => {
     renderPanel('0 * * * *');
-    expect(cadence('wizard.schedule.hourly')).toHaveAttribute('aria-pressed', 'true');
-    for (const other of ['wizard.schedule.daily', 'wizard.schedule.sixHourly', 'wizard.schedule.quarterHourly'] as const) {
+    expect(cadence('account.schedule.hourly')).toHaveAttribute('aria-pressed', 'true');
+    for (const other of ['account.schedule.daily', 'account.schedule.sixHourly', 'account.schedule.quarterHourly'] as const) {
       expect(cadence(other)).toHaveAttribute('aria-pressed', 'false');
     }
     expect(screen.queryByText(/^Now:/)).toBeNull();
@@ -86,7 +86,7 @@ describe('what the panel shows first', () => {
 
   it('selects Automatic for a migration with no schedule of its own, and none of the others (0157 T7)', () => {
     renderPanel(undefined);
-    expect(cadence('wizard.schedule.automatic')).toHaveAttribute('aria-pressed', 'true');
+    expect(cadence('account.schedule.automatic')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.queryAllByRole('button', { pressed: true })).toHaveLength(1);
     expect(screen.queryByText(/^Now:/)).toBeNull();
   });
@@ -102,21 +102,21 @@ describe('the press', () => {
   it('is not offered until something changed', async () => {
     renderPanel('0 * * * *');
     expect(save()).toBeDisabled();
-    await userEvent.click(cadence('wizard.schedule.hourly'));
+    await userEvent.click(cadence('account.schedule.hourly'));
     expect(save()).toBeDisabled();
-    await userEvent.click(cadence('wizard.schedule.quarterHourly'));
+    await userEvent.click(cadence('account.schedule.quarterHourly'));
     expect(save()).toBeEnabled();
   });
 
   it('is not offered for Automatic on a migration that runs it already', async () => {
     renderPanel(undefined);
-    await userEvent.click(cadence('wizard.schedule.automatic'));
+    await userEvent.click(cadence('account.schedule.automatic'));
     expect(save()).toBeDisabled();
   });
 
   it('sends Automatic as no schedule at all, which the tick reads as the automatic cadence (0157 T7)', async () => {
     renderPanel('0 * * * *');
-    await userEvent.click(cadence('wizard.schedule.automatic'));
+    await userEvent.click(cadence('account.schedule.automatic'));
     await userEvent.click(save());
     expect(setSchedule).toHaveBeenCalledWith('m-1', null);
     expect(await screen.findByText(EN['settings.schedule.saved'])).toBeInTheDocument();
@@ -124,7 +124,7 @@ describe('the press', () => {
 
   it('sends the schedule chosen, and says the next pass follows it', async () => {
     renderPanel('0 * * * *');
-    await userEvent.click(cadence('wizard.schedule.quarterHourly'));
+    await userEvent.click(cadence('account.schedule.quarterHourly'));
     await userEvent.click(save());
     expect(setSchedule).toHaveBeenCalledTimes(1);
     expect(setSchedule).toHaveBeenCalledWith('m-1', '*/15 * * * *');
@@ -139,7 +139,7 @@ describe('the press', () => {
       }),
     );
     renderPanel('0 * * * *');
-    await userEvent.click(cadence('wizard.schedule.daily'));
+    await userEvent.click(cadence('account.schedule.daily'));
     await userEvent.click(save());
     expect(await screen.findByText(EN['settings.schedule.refused'])).toBeInTheDocument();
     expect(screen.getByText('This migration cannot change its schedule now.')).toBeInTheDocument();
@@ -149,7 +149,7 @@ describe('the press', () => {
   it('shows a failure in the server’s words, never as saved', async () => {
     setSchedule.mockRejectedValue(axiosError(500, { error: 'update_failed', message: 'The database is away.' }));
     renderPanel('0 * * * *');
-    await userEvent.click(cadence('wizard.schedule.daily'));
+    await userEvent.click(cadence('account.schedule.daily'));
     await userEvent.click(save());
     expect(await screen.findByText(new RegExp(`^${EN['settings.schedule.failed']}`))).toBeInTheDocument();
     expect(screen.queryByText(EN['settings.schedule.saved'])).toBeNull();
@@ -176,7 +176,7 @@ describe('what is offered', () => {
       .map((b) => b.textContent);
     expect(names).toHaveLength(5);
     const first = screen.getAllByRole('button').find((b) => b.hasAttribute('aria-pressed'));
-    expect(first!.textContent).toBe(`${EN['wizard.schedule.automatic']}${EN['wizard.schedule.automatic.hint']}`);
+    expect(first!.textContent).toBe(`${EN['account.schedule.automatic']}${EN['account.schedule.automatic.hint']}`);
   });
 
   it('is every one a cadence the route accepts', () => {
@@ -185,13 +185,13 @@ describe('what is offered', () => {
 
   it('says how often each cadence runs, in both languages', () => {
     // `0 */6 * * *` runs at 00:00, 06:00, 12:00 and 18:00. Its words said six.
-    expect(EN['wizard.schedule.sixHourly.hint']).toBe('Four times a day');
-    expect(NL['wizard.schedule.sixHourly.hint']).toBe('Vier keer per dag');
+    expect(EN['account.schedule.sixHourly.hint']).toBe('Four times a day');
+    expect(NL['account.schedule.sixHourly.hint']).toBe('Vier keer per dag');
     // Automatic's three steps (0157 T7), and, folded under the panel's hint,
     // what the days count from and what starts them again, naming the button
     // as the Migrations page names it.
-    expect(EN['wizard.schedule.automatic.hint']).toBe('Hourly for 14 days, then every 6 hours, daily from day 30.');
-    expect(NL['wizard.schedule.automatic.hint']).toBe('14 dagen elk uur, daarna elke 6 uur, vanaf dag 30 dagelijks.');
+    expect(EN['account.schedule.automatic.hint']).toBe('Hourly for 14 days, then every 6 hours, daily from day 30.');
+    expect(NL['account.schedule.automatic.hint']).toBe('14 dagen elk uur, daarna elke 6 uur, vanaf dag 30 dagelijks.');
     expect(EN['settings.schedule.hint.why']).toContain(
       'On Automatic the days count from when everything was migrated, or from the last time someone opened this migration or pressed Trigger sync, whichever is later.',
     );
@@ -243,12 +243,12 @@ describe('the fold, in a family’s words (0153 T6 (b))', () => {
   it('says the cadence in force while closed, in the chooser’s words', () => {
     const summary = () => fold()!.querySelector('summary')!.textContent;
     const { unmount } = renderPanel('0 * * * *');
-    expect(summary()).toBe(`${EN['settings.schedule']} · ${EN['wizard.schedule.hourly']}`);
+    expect(summary()).toBe(`${EN['settings.schedule']} · ${EN['account.schedule.hourly']}`);
     unmount();
 
     // No schedule of its own: the automatic cadence (0157 T7).
     const second = renderPanel(undefined);
-    expect(summary()).toBe(`${EN['settings.schedule']} · ${EN['wizard.schedule.automatic']}`);
+    expect(summary()).toBe(`${EN['settings.schedule']} · ${EN['account.schedule.automatic']}`);
     second.unmount();
 
     // A cadence the chooser does not offer: nothing guessed on the fold, and
@@ -270,7 +270,7 @@ describe('the fold, in a family’s words (0153 T6 (b))', () => {
         </LocaleProvider>,
       );
       const summary = screen.getByText(NL['settings.schedule']).closest('summary');
-      expect(summary?.textContent).toBe(`${NL['settings.schedule']} · ${NL['wizard.schedule.daily']}`);
+      expect(summary?.textContent).toBe(`${NL['settings.schedule']} · ${NL['account.schedule.daily']}`);
     } finally {
       window.localStorage.removeItem('ownpace.locale');
     }
@@ -287,9 +287,9 @@ describe("at Free's pace (0157 T4)", () => {
 
   it('offers Automatic and Daily, and not the cadences faster than a day', () => {
     renderPanel('0 2 * * *', DAY);
-    expect(cadence('wizard.schedule.automatic')).toBeEnabled();
-    expect(cadence('wizard.schedule.daily')).toBeEnabled();
-    for (const faster of ['wizard.schedule.hourly', 'wizard.schedule.sixHourly', 'wizard.schedule.quarterHourly'] as const) {
+    expect(cadence('account.schedule.automatic')).toBeEnabled();
+    expect(cadence('account.schedule.daily')).toBeEnabled();
+    for (const faster of ['account.schedule.hourly', 'account.schedule.sixHourly', 'account.schedule.quarterHourly'] as const) {
       expect(cadence(faster), faster).toBeDisabled();
     }
   });
@@ -302,7 +302,7 @@ describe("at Free's pace (0157 T4)", () => {
 
   it('keeps a faster schedule from a higher tier shown, and says it runs once a day: nothing is rewritten', () => {
     renderPanel('0 * * * *', DAY);
-    expect(cadence('wizard.schedule.hourly')).toHaveAttribute('aria-pressed', 'true');
+    expect(cadence('account.schedule.hourly')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText(EN['settings.schedule.freePace'], { exact: false })).toBeInTheDocument();
     expect(setSchedule).not.toHaveBeenCalled();
   });
@@ -318,7 +318,7 @@ describe("at Free's pace (0157 T4)", () => {
       axiosError(409, { error: 'free_pace_schedule', message: 'On Free a migration looks for changes once a day…' }),
     );
     renderPanel('0 2 * * *', 0);
-    await userEvent.click(cadence('wizard.schedule.hourly'));
+    await userEvent.click(cadence('account.schedule.hourly'));
     await userEvent.click(save());
     expect(await screen.findByText(`${EN['settings.schedule.failed']} ${EN['settings.schedule.freePace']}`)).toBeInTheDocument();
     expect(screen.queryByText(EN['settings.schedule.saved'])).toBeNull();
