@@ -554,6 +554,30 @@ export const tierPick = pgTable(
 );
 
 /**
+ * What a month took from the credit of a year paid ahead (workplan 0111 T11;
+ * managed migration 0056): one row per step of the month, as an invoice would
+ * have been, at half the monthly price within a year's twelve months and at
+ * the full price after them. The credit left is what the years' invoices gave
+ * less what was drawn. Append-only.
+ */
+export const creditDraw = pgTable(
+  'credit_draw',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    month: date('month', { mode: 'string' }).notNull(),
+    tierId: text('tier_id').notNull().$type<'small' | 'medium' | 'large' | 'xl'>(),
+    cents: integer('cents').notNull(),
+    rate: text('rate').notNull().$type<'half' | 'full'>(),
+    evidence: jsonb('evidence').notNull(),
+    drawnAt: timestamp('drawn_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('credit_draw_step_key').on(t.tenantId, t.month, t.tierId)],
+);
+
+/**
  * Each withdrawal from a paid contract (workplan 0111 T7, decision 15; managed
  * migration 0049): from its moment the yeses and picks before it count for
  * nothing, so the organisation is on Free. Append-only. What article 11a's

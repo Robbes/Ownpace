@@ -94,6 +94,8 @@ export const managedMonthInvoices = schedules.task({
     const organisations = await activeOrganisations();
     const counts: Record<MonthOutcome['kind'] | 'failed', number> = {
       made: 0,
+      // Paid from a year's credit, all of it: no invoice (0111 T11).
+      drawn: 0,
       made_elsewhere: 0,
       in_step: 0,
       free: 0,
@@ -106,7 +108,10 @@ export const managedMonthInvoices = schedules.task({
         const outcome = await monthOfOrganisation(pools.tenant, organisation, now);
         counts[outcome.kind]++;
         if (outcome.kind === 'made') {
-          log.info(`[month-invoices] organisation ${organisation}: ${outcome.reference}, ${outcome.cents} cents.`);
+          const drawn = outcome.drawnCents ? `, after ${outcome.drawnCents} cents from its credit` : '';
+          log.info(`[month-invoices] organisation ${organisation}: ${outcome.reference}, ${outcome.cents} cents${drawn}.`);
+        } else if (outcome.kind === 'drawn') {
+          log.info(`[month-invoices] organisation ${organisation}: ${outcome.tier}, ${outcome.drawnCents} cents from its credit.`);
         }
       } catch (err) {
         // Said, and the next organisation still asked: one month that cannot

@@ -73,7 +73,9 @@ const MONEYBIRD_CREDIT: MoneybirdCreditInvoice = {
 describe('the reference: the invoice’s, with -c- for -m-', () => {
   it('makes one credit note reference per invoice', () => {
     expect(creditReference(`ownpace-${ORG}-m-2026-10-medium`)).toBe(`ownpace-${ORG}-c-2026-10-medium`);
-    expect(() => creditReference('ownpace-proof-2026-10')).toThrow(/not a month's invoice reference/);
+    // A year paid ahead (0111 T11) has its own, which a month's cannot take.
+    expect(creditReference(`ownpace-${ORG}-y-1`)).toBe(`ownpace-${ORG}-c-y-1`);
+    expect(() => creditReference('ownpace-proof-2026-10')).toThrow(/not a month's or a year's invoice reference/);
   });
 });
 

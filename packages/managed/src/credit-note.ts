@@ -37,13 +37,19 @@ import type { CreditNoteToPush, CreditPushOutcome, CreditedInvoice } from './mon
 import { invoice } from './schema-managed.ts';
 import type { VatTreatment } from './vat-treatment.ts';
 
-/** The invoice's reference, `-m-` (a month's step) made `-c-`: its credit note's. */
+/**
+ * The invoice's reference made its credit note's: a month's step's `-m-` made
+ * `-c-` (`…-c-2026-10-small`), a year's `-y-` made `-c-y-` (`…-c-y-1`, 0111
+ * T11). The two cannot meet: a month's starts with its year's digits.
+ */
 export function creditReference(reference: string): string {
-  const at = reference.lastIndexOf('-m-');
-  if (!reference.startsWith('ownpace-') || at < 0) {
-    throw new Error(`${reference} is not a month's invoice reference, so it has no credit note reference`);
+  const month = reference.lastIndexOf('-m-');
+  const year = reference.lastIndexOf('-y-');
+  if (!reference.startsWith('ownpace-') || (month < 0 && year < 0)) {
+    throw new Error(`${reference} is not a month's or a year's invoice reference, so it has no credit note reference`);
   }
-  return `${reference.slice(0, at)}-c-${reference.slice(at + 3)}`;
+  if (month >= 0) return `${reference.slice(0, month)}-c-${reference.slice(month + 3)}`;
+  return `${reference.slice(0, year)}-c-y-${reference.slice(year + 3)}`;
 }
 
 /** What a credit note says when it is decided. */

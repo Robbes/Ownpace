@@ -88,6 +88,12 @@ export interface MonthLineFacts {
   readonly gbCounted: number;
   /** The highest tier the month's invoices already name, when this line is a move up's difference. */
   readonly after: ManagedTier | null;
+  /** Whether an earlier step of the month was paid from a year's credit (T11): then it was billed, not invoiced. */
+  readonly afterDrawn?: boolean;
+  /** The month's rate (T11): half within a year paid ahead. */
+  readonly rate?: 'half' | 'full';
+  /** What a year's credit paid of this step, in cents (T11). */
+  readonly drawnCents?: number;
 }
 
 /** The ceiling of the tier below this one: what a data-decided amount stands above. */
@@ -116,12 +122,39 @@ function because(facts: MonthLineFacts, locale: NotificationLocale): string {
   }
 }
 
-/** The line: the tier, the month, why, and, for a move up, what was invoiced before it. */
+/** Euros from cents, in the line's words: `€ 2,50`, `€2.50`. */
+export function euros(cents: number, locale: NotificationLocale): string {
+  const whole_ = Math.floor(cents / 100);
+  const rest = String(cents % 100).padStart(2, '0');
+  return locale === 'nl' ? `€ ${whole(whole_, locale)},${rest}` : `€${whole(whole_, locale)}.${rest}`;
+}
+
+/**
+ * The line: the tier, the month, why; for a move up, what was billed before it;
+ * within a year paid ahead (T11), that the month is at half price; and what the
+ * year's credit paid of it, so an amount below the price says why.
+ */
 export function monthLine(facts: MonthLineFacts, locale: NotificationLocale): string {
   const month = `${MONTHS[locale][facts.month.getUTCMonth()]} ${facts.month.getUTCFullYear()}`;
-  const line = `Ownpace ${facts.tier.name}, ${month}: ${because(facts, locale)}`;
-  if (!facts.after) return line;
-  return locale === 'nl'
-    ? `${line}, min het al gefactureerde pakket ${facts.after.name}`
-    : `${line}, less ${facts.after.name} already invoiced`;
+  let line = `Ownpace ${facts.tier.name}, ${month}: ${because(facts, locale)}`;
+  if (facts.after) {
+    if (facts.afterDrawn) {
+      line += locale === 'nl'
+        ? `, min het pakket ${facts.after.name} dat deze maand al rekende`
+        : `, less ${facts.after.name} already billed this month`;
+    } else {
+      line += locale === 'nl'
+        ? `, min het al gefactureerde pakket ${facts.after.name}`
+        : `, less ${facts.after.name} already invoiced`;
+    }
+  }
+  if (facts.rate === 'half') {
+    line += locale === 'nl' ? ', voor de helft van de maandprijs (een jaar vooruit)' : ', at half the monthly price (a year ahead)';
+  }
+  if (facts.drawnCents && facts.drawnCents > 0) {
+    line += locale === 'nl'
+      ? `, min ${euros(facts.drawnCents, locale)} uit uw tegoed`
+      : `, less ${euros(facts.drawnCents, locale)} from your credit`;
+  }
+  return line;
 }
