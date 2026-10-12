@@ -95,7 +95,10 @@ describe('calendar sharing', () => {
 
     expect(result.kind).toBe('not_discoverable');
     if (result.kind === 'not_discoverable') {
-      expect(result.reason).toContain('docs/o365-application-access.md');
+      // The fix, in words: the report is a document a customer downloads, so
+      // it names no operator file (0148 T7).
+      expect(result.reason).toContain('application permissions and admin consent');
+      expect(result.reason).not.toMatch(/docs\/[\w./-]+\.md/);
     }
     expect(http.request).not.toHaveBeenCalled();
   });

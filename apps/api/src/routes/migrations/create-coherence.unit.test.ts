@@ -36,6 +36,21 @@ function refusalText(payload: Record<string, unknown>): string {
   return result.error.issues.map((i) => i.message).join(' ');
 }
 
+/**
+ * The guide handles a refusal carries beside its words (0148 T7). The words
+ * name no `docs/….md` any more: the web app draws the link from the handle,
+ * in its reader's language, to a guide a customer can open.
+ */
+function refusalGuides(payload: Record<string, unknown>): string[] {
+  const result = CreateMappingSchema.safeParse(payload);
+  if (result.success) throw new Error('expected a refusal');
+  expect(refusalText(payload)).not.toMatch(/docs\/[\w./-]+\.md/);
+  return result.error.issues.flatMap((i) => {
+    const guide = (i as { params?: { guide?: unknown } }).params?.guide;
+    return typeof guide === 'string' ? [guide] : [];
+  });
+}
+
 describe('target/domain coherence — the server refuses, naming both sides', () => {
   it('refuses carddav + email (the workplan example)', () => {
     const msg = refusalText(
@@ -122,7 +137,9 @@ describe('source-type / credential coherence — the app registration is demande
     );
     expect(msg).toContain('Entra app registration');
     expect(msg).toContain('tenantId, clientId, clientSecret');
-    expect(msg).toContain('docs/o365-setup.md');
+    expect(
+      refusalGuides(body({ sourceType: 'graph', sourceConfig: { username: 'mailbox@example.nl' } })),
+    ).toEqual(['microsoft#application']);
   });
 
   it('refuses an oauth2 source missing only the client secret, naming exactly that', () => {
@@ -209,12 +226,12 @@ describe('a google-drive source (workplan 0042) — the same doors, its own refu
     expect(CreateMappingSchema.safeParse(drive()).success).toBe(true);
   });
 
-  it('refuses a missing refresh token, pointing at the setup doc', () => {
+  it('refuses a missing refresh token, pointing at the guide', () => {
     const msg = refusalText(
       drive({ sourceConfig: { refreshToken: undefined } }),
     );
     expect(msg).toContain('refreshToken');
-    expect(msg).toContain('google-workspace-setup.md');
+    expect(refusalGuides(drive({ sourceConfig: { refreshToken: undefined } }))).toEqual(['google#own-app']);
   });
 
   it('refuses non-file domains — the credential reads the Drive API only', () => {
@@ -267,7 +284,7 @@ describe('a gmail source (workplan 0044) — the Drive credential shape, the mai
     const msg = refusalText(gmail({ sourceConfig: { refreshToken: undefined } }));
     expect(msg).toContain('refreshToken');
     expect(msg).toContain('https://mail.google.com/');
-    expect(msg).toContain('google-workspace-setup.md');
+    expect(refusalGuides(gmail({ sourceConfig: { refreshToken: undefined } }))).toEqual(['google#own-app']);
   });
 
   it('accepts an app password INSTEAD of the trio, for a personal account (0089 T7)', () => {
@@ -466,11 +483,11 @@ describe("a dropbox source (workplan 0055) — the trio shape, Dropbox's words i
     expect(CreateMappingSchema.safeParse(dropbox()).success).toBe(true);
   });
 
-  it("refuses a missing refresh token, naming Dropbox's own vocabulary and the doc", () => {
+  it("refuses a missing refresh token, naming Dropbox's own vocabulary and the guide", () => {
     const msg = refusalText(dropbox({ sourceConfig: { refreshToken: undefined } }));
     expect(msg).toContain('refreshToken');
     expect(msg).toContain('App key');
-    expect(msg).toContain('dropbox-setup.md');
+    expect(refusalGuides(dropbox({ sourceConfig: { refreshToken: undefined } }))).toEqual(['dropbox#own-app']);
   });
 
   it('refuses non-file domains — the credential reads the Dropbox API only', () => {
@@ -514,11 +531,11 @@ describe('a box source (workplan 0056) — the CCG shape: NO refresh token, a nu
     expect(parsed.success).toBe(true);
   });
 
-  it('refuses a missing subject user id, naming the doc', () => {
+  it('refuses a missing subject user id, naming the guide', () => {
     const msg = refusalText(box({ sourceConfig: { userId: undefined } }));
     expect(msg).toContain('userId');
     expect(msg).toContain('NUMERIC Box user id');
-    expect(msg).toContain('box-setup.md');
+    expect(refusalGuides(box({ sourceConfig: { userId: undefined } }))).toEqual(['box#connect']);
   });
 
   it('refuses non-file domains — the credential reads the Box API only', () => {
@@ -557,7 +574,7 @@ describe('reusing a stored connection (workplan 0064)', () => {
   });
 
   it('still demands the credentials when NOT reusing', () => {
-    const msg = refusalText(
+    const guides = refusalGuides(
       body({
         sourceType: 'box',
         targetType: 'webdav',
@@ -565,7 +582,7 @@ describe('reusing a stored connection (workplan 0064)', () => {
         syncConfig: { domains: ['file'] },
       }),
     );
-    expect(msg).toContain('box-setup.md');
+    expect(guides).toEqual(['box#connect']);
   });
 
   it('refuses a connection id that is not a uuid rather than looking it up', () => {
@@ -582,6 +599,8 @@ describe('reusing a stored connection (workplan 0064)', () => {
     const msg = refusalText(reused({ sourceConfig: { userId: undefined } }));
     expect(msg).toContain('userId');
     expect(msg).toContain('not whose files to read');
+    // Where the number is: the guide's own step, beside the words (0148 T7).
+    expect(refusalGuides(reused({ sourceConfig: { userId: undefined } }))).toEqual(['box#user-id']);
   });
 });
 

@@ -399,6 +399,10 @@ describe('the token provider — the Client Credentials Grant', () => {
     );
 
     await expect(provider.getToken()).rejects.toThrow(/Admin Console/);
+    // The app's steps are the guide's: its section rides beside Box's words
+    // and ours, which name no file (0148 T7).
+    await expect(provider.getToken()).rejects.toMatchObject({ guide: 'box#connect' });
+    await expect(provider.getToken()).rejects.not.toThrow(/docs\/[\w./-]+\.md/);
   });
 
   it('refuses to construct without a subject — a token without one reads nobody', () => {

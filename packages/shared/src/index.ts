@@ -71,6 +71,7 @@ export * from './rate-budget.ts';
 export * from './pause-reason.ts';
 export * from './file-body.ts';
 export * from './credential-refusals.ts';
+export * from './guide-handle.ts';
 export * from './link-holder-refusals.ts';
 export * from './grant-withdrawal.ts';
 export * from './organisation-closed.ts';

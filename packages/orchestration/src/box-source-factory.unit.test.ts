@@ -16,7 +16,12 @@ import {
 describe('refusing before anything is attempted', () => {
   it('names EVERY missing credential at once, in the appliance vocabulary', () => {
     expect(() => buildBoxSourceFrom({}, {})).toThrow(/BOX_CLIENT_ID, BOX_CLIENT_SECRET/);
-    expect(() => buildBoxSourceFrom({}, {})).toThrow(/box-setup\.md/);
+    // Where to read on is the guide's section, beside the words; the words
+    // name no file (0148 T7).
+    expect(() => buildBoxSourceFrom({}, {})).toThrow(
+      expect.objectContaining({ refusal: expect.objectContaining({ guide: 'box#connect' }) }),
+    );
+    expect(() => buildBoxSourceFrom({}, {})).not.toThrow(/docs\/[\w./-]+\.md/);
   });
 
   it('says WHY there is no refresh token — Box rotates them', () => {

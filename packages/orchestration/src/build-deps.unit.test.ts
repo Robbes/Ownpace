@@ -156,10 +156,11 @@ describe('buildDeps graph-mail source wiring', () => {
       await expect(buildDeps(graphMailConfig('gedeeld@contoso.nl'), LEDGER)).rejects.toThrow(
         /OAUTH2_REFRESH_TOKEN is set/,
       );
-      // Points at the runbook rather than leaving them to guess.
-      await expect(buildDeps(graphMailConfig('gedeeld@contoso.nl'), LEDGER)).rejects.toThrow(
-        /o365-application-access\.md/,
-      );
+      // Points at where the administrator's steps are rather than leaving them
+      // to guess: the guide's section, beside the words (0148 T7).
+      await expect(buildDeps(graphMailConfig('gedeeld@contoso.nl'), LEDGER)).rejects.toMatchObject({
+        refusal: { guide: 'microsoft#application' },
+      });
     } finally {
       vi.unstubAllEnvs();
     }

@@ -2,7 +2,47 @@
 
 > **In one line:** Dutch and English customer guides per source and target card, operator text kept in `docs/*-setup.md`, no own-app hints where the deployment carries one, the export archive labelled experimental and readable from the tester's Nextcloud or WebDAV files, `Docs.tsx` extended.
 
-## Status — 2026-10-04 (update this block at the end of every session)
+## Status — 2026-10-12 (update this block at the end of every session)
+
+**2026-10-12: T7's second half is built: a refusal links its guide.** On branch
+`claude/ownpace-public-readiness-y7orc6-a-refusal-that-links-its-guide`; not merged. A refusal
+keeps its words, in English as written, and names no `docs/….md` any more. Beside the words it
+carries a guide handle, `<guide>#<section>` (`packages/shared/src/guide-handle.ts`; the guide is
+typed against `SERVED_GUIDES`):
+
+- the create route puts it on each issue as `params.guide`, eleven of them, and the answer's
+  `details` carries it;
+- a `BilingualRefusal` carries it as `guide`: the five source factories' credential refusals and
+  the delegated-flow conflict in `credential-refusals.ts`;
+- a probe's refusal carries it as `guide`, from the pair or from an error that has one (Box's
+  `unauthorized_client`, `guidedError`); the connection doors pass it through;
+- the scope manifest's shared-mailbox row carries it too.
+
+The web app draws it with `GuideLink`: *Guide: {title}* / *Handleiding: {title}*, the guide's own
+title in the reader's language, a link to `/docs/<guide>#<section>` in a new tab. It is drawn under
+a refused create on *Start a migration*, under a refused test on the account form and on
+**Accounts**, and under the scope manifest's row. `openapi.yaml` says where the field is.
+
+Who reads each sentence decided what it points at. A tenant administrator's steps point at the
+Microsoft guide's `{#application}`, not `{#own-app}`: the guide puts the registration that
+application permissions need there, and says its steps are not under *With your own app*. A
+sentence in a document a customer downloads (the permission report, the distribution-list runbook)
+dropped its file name and carries no handle, because a downloaded file has no link to draw; so did
+the Microsoft consent ending page's AADSTS700016 sentence, which the server renders. Eleven
+sentences only an operator reads keep naming the operator document, on the guard's allow-list with
+the reason: the start-up check of `JWT_AUDIENCE`, the directory and drive-sharing availability
+(environment variables), the worker CLI's access check, two detectors' log lines, the appliance's
+mapping-file check, the three "no app on this deployment" sentences, and the Redirect URIs page.
+
+`scripts/a-refusal-that-links-its-guide.unit.test.ts` reads the syntax tree of `apps/api/src` and
+every package's `src`, tests and comments excluded. On origin/main (910e192e) it failed: 33
+literals in 14 files named a document and were on no list, eleven of them in
+`routes/migrations/index.ts`; the handle cases found none and no `SERVED_GUIDES`. On this branch
+it passes, 6 of 6: no unlisted literal, no stale allow-list entry, and every handle names a guide
+and a section both languages have. `create-coherence.unit.test.ts`'s six pins on file names now
+pin the handle (and a seventh, the reused Box connection's `box#user-id`).
+`GuideLink.unit.test.tsx` renders a refusal's handle in both languages. `Docs.tsx`'s header no
+longer says refusals name documents by file name.
 
 **2026-10-04, night: the Dutch guides say *migratie*.** A visitor without an account reads them
 now (0152, *the guides are public*), and they said a form of *verhuizen*, which the owner retired
@@ -898,7 +938,7 @@ the owner announced for *Via IMAP* (D5).
 | T4 A Dutch and an English guide for each source and target | 🔨 **(a) built**, merged in #1189 (2026-09-26): the six served guides in Dutch, the same outline and ids as the English, the per-language label guard. ✅ **(b) done** in #1191, merged 2026-09-26: the IMAP, JMAP, DAV, Nextcloud and Soverin guides in Dutch and English, each card's `guide` field, the checklist's and the wizard's links, and the guards. Review fixed 2026-09-26. 📋 **Decided 2026-09-24** (D4, D8) | §3. Eleven guides for the twenty cards. Dutch first. Five are new: IMAP (source and target), JMAP, DAV, Nextcloud and Soverin. The i18n prose boundary gains a class for guides. **Before**, in Dutch and in English, for the cards live offers (D8). |
 | T5 The checklist says what must be done first | ✅ **(a) done** in #1205, merged 2026-09-27: profiles for Apple, Nextcloud and Soverin, and each Microsoft registration card its own recipe (the Graph profile's text, found under T8); the Google account card's was T2 (b)'s. Review fixed 2026-09-27: an `o365` row on Connections links both cards' checklists, and the administrator question is asked only where a step needs one. (b) not started — *was:* 📋 **Proposed** | §3. Profiles for Apple, Nextcloud and Soverin, and Google's for the Google account card (**before**); the Microsoft account card's and the archive's (**after**). |
 | T6 A renderer that keeps a guide's shape | 🟡 **(a) built**, merged in #1159 (2026-09-24); (b) not started. 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
-| T7 Every link in a guide resolves, and a refusal links its guide | 🟡 **The guides' links built 2026-10-04; the refusals' handles proposed** | §3. A guard over every served link; refusals carry a guide handle beside their words instead of naming a `.md` file. **After**, apart from the two sentences in T2 (d). |
+| T7 Every link in a guide resolves, and a refusal links its guide | 🔨 **Built**: the guides' links 2026-10-04; the refusals' handles 2026-10-12, on branch `claude/ownpace-public-readiness-y7orc6-a-refusal-that-links-its-guide`, not merged | §3. A guard over every served link; refusals carry a guide handle beside their words instead of naming a `.md` file. **After**, apart from the two sentences in T2 (d). |
 | T8 The Microsoft app-registration recipe | 🔨 **(a) and (b) written**, merged in #1189 (2026-09-26), in both languages at the Microsoft guide's `{#application}`: `Mail.Read` under Microsoft Graph; `IMAP.AccessAsApp` under Office 365 Exchange Online, with `New-ServicePrincipal` and `Add-MailboxPermission`. Checked against Microsoft's published page sources, not walked; `o365-setup.md` corrected. Reviewed and fixed 2026-09-26: Exchange's RBAC route replaces the Entra grant rather than narrowing it, `-UserPrincipalName`, read-only scoped to the card that has it. (c) merged in #1173. The tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
 | T9 The export read from a folder in the migration's own files | ✅ **done** in #1178, merged 2026-09-25. 📋 **Decided 2026-09-24** (D11) | §3. The archive form's choice and the doors' `where`, for a Nextcloud or WebDAV target; a JMAP target is refused by sentence. The archive guide's section, and the gate's archive step moved to the demo Nextcloud. **Before**, stacked on 0136 T5. |
 

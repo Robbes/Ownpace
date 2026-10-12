@@ -222,7 +222,7 @@ export function buildGmailSourceFrom(
         `Gmail source is missing ${missing.join(', ')} in ${naming.where}. All three are ` +
         'required: the OAuth client (id + secret) and a refresh token consented with the ' +
         `${GMAIL_SCOPE} scope — a Drive-consented token will not mint mail tokens. ` +
-        'docs/google-workspace-setup.md walks through obtaining each.' +
+        'The guide walks through obtaining each.' +
         (naming.appPassword
           ? ` A PERSONAL Google account may instead store ${naming.appPassword} — an app ` +
             'password, which Google itself recommends against and which requires 2-step ' +
@@ -234,7 +234,7 @@ export function buildGmailSourceFrom(
         `Gmail-bron: ${missing.join(', ')} ontbreekt in ${naming.whereNl ?? naming.where}. ` +
         'Alle drie zijn vereist: de OAuth-client (id + secret) en een refresh-token met ' +
         `toestemming voor de scope ${GMAIL_SCOPE} — een token dat voor Drive is toegestaan ` +
-        'levert geen mailtokens op. docs/google-workspace-setup.md legt stap voor stap uit ' +
+        'levert geen mailtokens op. De handleiding legt stap voor stap uit ' +
         'hoe u ze verkrijgt.' +
         (naming.appPassword
           ? ` Een PERSOONLIJK Google-account kan in plaats daarvan ${naming.appPassword} ` +
@@ -244,6 +244,8 @@ export function buildGmailSourceFrom(
             'niet de betere keuze: een app-wachtwoord geeft toegang tot de hele mailbox, ' +
             'terwijl een token met toestemming één scope geeft.'
           : ''),
+      // The guide's own-app steps, linked beside the words (0148 T7).
+      guide: 'google#own-app',
     });
   }
   if (!user) {

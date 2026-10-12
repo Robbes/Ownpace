@@ -500,6 +500,9 @@ export const en = {
     'Steps to take in the provider’s console; ticks are saved for your whole organisation.',
   'setup.backToConnections': '← Back to accounts',
   'setup.fullGuide': 'Read the full setup guide',
+  // Beside a refusal that carries a guide handle (0148 T7): the frame is ours,
+  // in the reader's language; the title is the guide's own, in that language.
+  'setup.refusalGuide': 'Guide: {title}',
   'setup.settled': 'settled',
   'setup.stillOpen': 'still to do',
   'setup.waitingOnOthers': 'waiting on an administrator',
@@ -986,6 +989,7 @@ export const nl: Record<keyof typeof en, string> = {
     'Stappen om door te lopen bij uw oude aanbieder; vinkjes worden voor uw hele organisatie bewaard.',
   'setup.backToConnections': '← Terug naar accounts',
   'setup.fullGuide': 'Lees de volledige handleiding',
+  'setup.refusalGuide': 'Handleiding: {title}',
   'setup.settled': 'afgehandeld',
   'setup.stillOpen': 'nog te doen',
   'setup.waitingOnOthers': 'wacht op een beheerder',

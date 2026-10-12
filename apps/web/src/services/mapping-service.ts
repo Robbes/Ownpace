@@ -2,7 +2,7 @@
 import apiClient from './api.ts';
 import { z } from 'zod';
 import type { ProbeOutcome, WhatHappenedAnswer } from '@openmig/shared';
-import { DOMAIN_STATES, FAILURE_CATEGORIES, FAILURE_SIDES, MAPPING_LIFECYCLES } from '@openmig/shared';
+import { DOMAIN_STATES, FAILURE_CATEGORIES, FAILURE_SIDES, MAPPING_LIFECYCLES, isGuideHandle } from '@openmig/shared';
 import type {
   DiscoveryRecord,
   FailureCategory,
@@ -698,6 +698,12 @@ export const ScopeManifestEntrySchema = z.object({
   detail: z.string(),
   more: z.string().optional(),
   appliesTo: z.array(z.enum(SCOPE_FAMILIES)).optional(),
+  /** The row's guide section, linked beside it (0148 T7). One this build
+   *  does not know is dropped rather than failing the whole manifest. */
+  guide: z
+    .string()
+    .transform((value) => (isGuideHandle(value) ? value : undefined))
+    .optional(),
 });
 export const ScopeManifestSchema = z.object({
   version: z.string(),
@@ -828,6 +834,12 @@ export interface TestConnectionResult {
    * language (`saidText`). Absent on every other answer.
    */
   said?: WhatHappenedAnswer;
+  /**
+   * On a refusal, the section of a served guide that says the rest (workplan
+   * 0148 T7), such as `box#connect`: beside the words, never in them.
+   * `GuideLink` draws it in the reader's language.
+   */
+  guide?: string;
   /**
    * The door answered before the qualification finished (2026-09-02): the
    * measuring goes on into the row, and the next refresh shows it. A screen

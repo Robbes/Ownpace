@@ -58,7 +58,9 @@ describe('a list whose membership could not be read', () => {
     const md = renderGroupRunbook({
       groups: [list({ members: [], membersKnown: false })],
     });
-    expect(md).toContain('docs/o365-application-access.md');
+    expect(md).toContain('grant the permission that lets the source be read');
+    // A document the customer downloads names no operator file (0148 T7).
+    expect(md).not.toMatch(/docs\/[\w./-]+\.md/);
   });
 });
 

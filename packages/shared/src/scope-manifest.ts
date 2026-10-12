@@ -141,6 +141,7 @@ export function scopeFamilyOfConnectionKind(kind: string): ScopeFamily | undefin
 }
 
 import type { SourceConfig } from './config.ts';
+import type { GuideHandle } from './guide-handle.ts';
 
 export interface ScopeManifestEntry {
   /** Short label (e.g. "Email", "Teams chat"). */
@@ -171,6 +172,12 @@ export interface ScopeManifestEntry {
    * that must survive whatever the wording becomes.
    */
   readonly more?: string;
+  /**
+   * The section of a served guide that says the rest (workplan 0148 T7). A
+   * screen draws the link beside the row, in its reader's language; the row's
+   * words name no file.
+   */
+  readonly guide?: GuideHandle;
   /**
    * WHICH SOURCE FAMILIES THIS ROW IS TRUE OF. Absent means every one of them.
    *
@@ -297,8 +304,10 @@ export const SCOPE_MANIFEST: ScopeManifest = {
         'Pattern S — the shared store is copied as an ordinary mapping: the full folder tree ' +
         'incl. Sent/Drafts/Archive, same idempotency and verification as any mailbox. Needs ' +
         'application permissions on the source, granted by an administrator to your own app ' +
-        'registration (see docs/shared-mailboxes.md). The Microsoft 365 account button reads ' +
+        'registration. The Microsoft 365 account button reads ' +
         "the signed-in person's own mailbox only, so it cannot copy a shared one.",
+      // The administrator's steps for that registration (0148 T7).
+      guide: 'microsoft#application',
     },
     {
       item: 'Distribution lists (Pattern D)',

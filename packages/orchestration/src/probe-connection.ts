@@ -24,9 +24,12 @@
 
 import {
   appleAuthRefusal,
+  guideOf,
   isCredentialRefusal,
   microsoftFaceScope,
   whatHappened,
+  type BilingualRefusal,
+  type GuideHandle,
   type ProviderClientEnv,
   type WhatHappenedAnswer,
 } from '@openmig/shared';
@@ -125,7 +128,25 @@ export type ProbeResult =
        * 0080), and for every refusal of ours.
        */
       readonly said?: WhatHappenedAnswer;
+      /**
+       * The section of a served guide that says the rest (workplan 0148 T7):
+       * a refusal of ours carries it on its pair, and an error whose words are
+       * the provider's with ours added may carry one (`guidedError`). Beside
+       * the words, never in them: a screen draws the link in its reader's
+       * language. Absent where no guide has more.
+       */
+      readonly guide?: GuideHandle;
     };
+
+/** A refusal we wrote, with the guide its pair carries. */
+function refusedByUs(refusal: BilingualRefusal): ProbeResult {
+  return {
+    ok: false,
+    reason: refusal.en,
+    outcome: { code: 'credentialsRefused', refusal },
+    ...(refusal.guide === undefined ? {} : { guide: refusal.guide }),
+  };
+}
 
 /** The English `detail` for a successful listing — the fallback, not the UI. */
 function connectedDetail(count: number, unit: ProbeUnit, floor = false): string {
@@ -198,13 +219,7 @@ export function withProbeDeadline(
  * `reason` changes.
  */
 function providerRefused(err: unknown, kind?: string, typedHost = false): ProbeResult {
-  if (isCredentialRefusal(err)) {
-    return {
-      ok: false,
-      reason: err.refusal.en,
-      outcome: { code: 'credentialsRefused', refusal: err.refusal },
-    };
-  }
+  if (isCredentialRefusal(err)) return refusedByUs(err.refusal);
   // A THIRD CASE, between the two above (workplan 0115 T5): the provider's
   // error IS theirs, and we still know what it means better than they said it.
   // Apple refuses an Apple Account password over IMAP and DAV by design, and
@@ -214,14 +229,14 @@ function providerRefused(err: unknown, kind?: string, typedHost = false): ProbeR
   // every refusal we author, so the Dutch and the appliance come free.
   const text = err instanceof Error ? err.message : String(err);
   const known = kind ? appleAuthRefusal(kind, text) : undefined;
-  if (known) {
-    return { ok: false, reason: known.en, outcome: { code: 'credentialsRefused', refusal: known } };
-  }
+  if (known) return refusedByUs(known);
+  const guide = guideOf(err);
   return {
     ok: false,
     reason: text,
     outcome: { code: 'providerRefused' },
     ...(typedHost ? { said: whatHappened(err) } : {}),
+    ...(guide === undefined ? {} : { guide }),
   };
 }
 
@@ -296,7 +311,7 @@ async function probeMicrosoftAccount(
     // field missing) and in Microsoft's when it is theirs (the exchange
     // refused), so that is what the Test says.
     return grant.refusal
-      ? { ok: false, reason: grant.refusal.en, outcome: { code: 'credentialsRefused', refusal: grant.refusal } }
+      ? refusedByUs(grant.refusal)
       : { ok: false, reason: grant.reason, outcome: { code: 'providerRefused' } };
   }
   const carried = faces.find((face) => {

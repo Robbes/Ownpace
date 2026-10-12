@@ -115,7 +115,7 @@ export async function listCalendarPermissions(
       reason: permissionsNotDiscoverable(
         'this connection uses delegated permissions, which can only read the signed-in ' +
           "user's own calendars. Reading another mailbox's sharing needs application " +
-          'permissions and admin consent — see docs/o365-application-access.md',
+          'permissions and admin consent',
       ),
     };
   }
@@ -171,7 +171,7 @@ export async function listDriveItemPermissions(
       reason: permissionsNotDiscoverable(
         'this connection uses delegated permissions, which can only read the signed-in ' +
           "user's own drive. Reading another user's sharing needs application permissions " +
-          'and admin consent — see docs/o365-application-access.md',
+          'and admin consent',
       ),
     };
   }

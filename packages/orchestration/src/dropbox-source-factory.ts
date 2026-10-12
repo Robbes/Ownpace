@@ -80,14 +80,16 @@ export function buildDropboxSourceFrom(
       detailEn:
         `A Dropbox migration authenticates as the account that consented, so it needs all three ` +
         `of ${naming.appKey}, ${naming.appSecret} and ${naming.refreshToken} in ${naming.where}. ` +
-        'docs/dropbox-setup.md walks through obtaining each; create the app with the read-only ' +
+        'The guide walks through obtaining each; create the app with the read-only ' +
         'files scopes — this product never writes to a Dropbox.',
       detailNl:
         'Een Dropbox-migratie meldt zich aan als het account dat toestemming gaf, dus alle drie ' +
         `zijn nodig: ${naming.appKey}, ${naming.appSecret} en ${naming.refreshToken} in ` +
-        `${naming.whereNl ?? naming.where}. docs/dropbox-setup.md legt stap voor stap uit hoe u ` +
+        `${naming.whereNl ?? naming.where}. De handleiding legt stap voor stap uit hoe u ` +
         'ze verkrijgt; maak de app aan met de alleen-lezen bestandsscopes — dit product ' +
         'schrijft nooit naar een Dropbox.',
+      // The guide's own-app steps, linked beside the words (0148 T7).
+      guide: 'dropbox#own-app',
     });
   }
 
