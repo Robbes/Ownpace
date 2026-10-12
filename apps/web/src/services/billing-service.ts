@@ -326,6 +326,8 @@ export const YearSchema = z.object({
   ),
   placement: z.object({ creditFrom: Month, halfFrom: Month, halfTo: Month }),
   credit: z.object({ leftCents: z.number().int(), yearMonth: z.boolean() }),
+  /** The credit held, whether or not its first month has come: what the card calls the credit left. */
+  heldCents: z.number().int(),
   years: z.array(
     z.object({ tierId: z.string(), cents: z.number().int(), creditFrom: Month, halfFrom: Month, halfTo: Month }),
   ),

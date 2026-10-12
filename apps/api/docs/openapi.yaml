@@ -6210,9 +6210,13 @@ paths:
                       halfTo: { type: string, pattern: '^[0-9]{4}-[0-9]{2}$' }
                   credit:
                     type: object
+                    description: The credit this month may draw, and whether it is one of a year's twelve.
                     properties:
                       leftCents: { type: integer }
                       yearMonth: { type: boolean }
+                  heldCents:
+                    type: integer
+                    description: The credit held, whether or not its first month has come.
                   years: { type: array, items: { type: object } }
                   yearsBefore: { type: integer }
         '401': { $ref: '#/components/responses/Unauthorized' }

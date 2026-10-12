@@ -52,6 +52,13 @@ export interface YearOffer {
   readonly placement: YearPlacement;
   /** The credit this month may draw, and whether it is one of a year's twelve. */
   readonly credit: CreditForMonth;
+  /**
+   * The credit held: what the years since the latest withdrawal gave, less
+   * every draw, whether or not its first month has come. A year bought in a
+   * month already billed pays from the next, so this month may draw none of
+   * it, and yet it is held.
+   */
+  readonly heldCents: number;
   readonly years: readonly YearBought[];
 }
 
@@ -63,6 +70,7 @@ export async function readYearOffer(db: PgDatabase, tenantId: TenantId, now: Dat
   const state = await readBilledNow(db, tenantId, now);
   const agreed = await readAgreedPrices(db, tenantId, now);
   const years = await readYears(db, tenantId);
+  const draws = await readDraws(db, tenantId);
   const tiers = yearTiers(state.billed.tier).map((tier) => {
     const price = priceOfTier(tier, agreed);
     return {
@@ -77,7 +85,8 @@ export async function readYearOffer(db: PgDatabase, tenantId: TenantId, now: Dat
     billed: { id: state.billed.tier.id, name: state.billed.tier.name },
     tiers,
     placement: await readYearPlacement(db, tenantId, now),
-    credit: creditForMonth(monthOf(now), years, await readDraws(db, tenantId)),
+    credit: creditForMonth(monthOf(now), years, draws),
+    heldCents: years.reduce((sum, y) => sum + y.cents, 0) - draws.reduce((sum, d) => sum + d.cents, 0),
     years,
   };
 }

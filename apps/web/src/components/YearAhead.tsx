@@ -141,7 +141,7 @@ const YearBody: React.FC<{
   const t = useT();
   const { currency } = useFormatters();
   const monthWords = useMonthWords();
-  const { holds, placement, credit, years } = offer;
+  const { holds, placement, credit, heldCents, years } = offer;
   const refusedCode = refusal ? refusalOf(refusal).code : null;
   // The latest year's months at half price, and where any year bought now would fall.
   const latest = years.length > 0 ? years[years.length - 1] : undefined;
@@ -151,7 +151,7 @@ const YearBody: React.FC<{
     <div className="space-y-3 text-sm">
       {years.length > 0 && (
         <div className="space-y-1">
-          <p className="text-gray-900 font-medium">{t('billing.year.credit', { left: currency(credit.leftCents, 'EUR') })}</p>
+          <p className="text-gray-900 font-medium">{t('billing.year.credit', { left: currency(heldCents, 'EUR') })}</p>
           {latest && (
             <p className="text-gray-700">
               {t('billing.year.halfMonths', { from: monthWords(years[0]!.halfFrom), to: monthWords(latest.halfTo) })}

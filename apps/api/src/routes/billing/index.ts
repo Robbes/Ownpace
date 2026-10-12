@@ -817,6 +817,7 @@ function yearBody(offer: YearOffer, holds: boolean) {
     tiers: offer.tiers,
     placement: offer.placement,
     credit: offer.credit,
+    heldCents: offer.heldCents,
     years: offer.years.map((y) => ({
       tierId: y.tierId,
       cents: y.cents,

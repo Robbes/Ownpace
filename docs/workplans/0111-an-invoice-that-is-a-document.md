@@ -17,6 +17,14 @@ says so. Invoice details first; nothing during the alpha. One confirmation by em
 refunded, and the withdrawal while the fourteen days run. Walked in Chromium against a built app:
 English and Dutch, 1100 and 390 pixels, no page error, no sideways scroll.
 
+Corrected the same day, before merging. **The credit left on the card** is the credit held: what
+the years gave less every draw. Before, it was what this month may draw, so a year bought in a
+month already billed, whose credit pays from the next, showed *Credit left: €0.00* just after it
+was paid for (`heldCents`, found while writing the OTA rehearsal). **The owner's Dutch:** *"Het
+is een tegoed"*, each month *"krijgt haar eigen pakket"* as terms §8 says it, and the card's last
+sentence now says what a year does when you stop, in the pricing page's words: apart from the 14
+days the law gives, the credit is not refunded, not even when you stop.
+
 - **Guards:** `a-year-ordered.unit.test.ts` (the API over a real database: the offer on Free,
   starting this month; a year of Medium from Free is one draft and a pick with its yes; a second
   press, a price not shown and a tier below the month refused with nothing written; a year of the

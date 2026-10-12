@@ -12,7 +12,8 @@
  *  - a second press of the same offer, a price not shown, and a tier below the
  *    one the month bills are refused with the year as it is now, and write
  *    nothing;
- *  - a year of the tier the month bills is no pick;
+ *  - a year of the tier the month bills is no pick; bought in a month already
+ *    billed, it pays from the next, and its credit is held before then;
  *  - invoice details first; nothing during the alpha; only an owner or admin;
  *  - another organisation's years are not this one's.
  *
@@ -127,6 +128,7 @@ describe('a year, outside the alpha', () => {
       billed: { id: 'free' },
       placement: { creditFrom: thisMonth(), halfFrom: thisMonth(), halfTo: addMonths(thisMonth(), 11) },
       credit: { leftCents: 0, yearMonth: false },
+      heldCents: 0,
       years: [],
       yearsBefore: 0,
     });
@@ -148,7 +150,7 @@ describe('a year, outside the alpha', () => {
       halfFrom: thisMonth(),
       halfTo: addMonths(thisMonth(), 11),
     });
-    expect(res.body).toMatchObject({ yearsBefore: 1, credit: { leftCents: 7200, yearMonth: true } });
+    expect(res.body).toMatchObject({ yearsBefore: 1, credit: { leftCents: 7200, yearMonth: true }, heldCents: 7200 });
     const [year] = await invoicesOf(ON_FREE);
     expect(year).toMatchObject({
       reference: `ownpace-${ON_FREE}-y-1`,
@@ -174,12 +176,23 @@ describe('a year, outside the alpha', () => {
     expect(await picksOf(ON_FREE)).toHaveLength(1);
   });
 
-  it('orders a year of the tier the month bills with no pick', async () => {
+  it('orders a year of the tier the month bills with no pick, from next month when this one is billed, its credit held', async () => {
     tenant = ON_MEDIUM;
+    // This month is invoiced already, so the year's credit pays from the next.
+    await owner(
+      `INSERT INTO invoice (tenant_id, period_start, period_end, status, subtotal, tax_rate, tax_amount, total, currency, reference, metadata)
+       VALUES ($1, $2::date, ($2::date + interval '1 month' - interval '1 day')::date, 'draft', '992', '0.21', '208', '1200', 'EUR', $3, '{}')`,
+      [ON_MEDIUM, `${thisMonth()}-01`, `ownpace-${ON_MEDIUM}-m-${thisMonth()}-medium`],
+    );
     const res = await order('medium', 7200, 0);
     expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ordered: { creditFrom: addMonths(thisMonth(), 1) },
+      credit: { leftCents: 0, yearMonth: false },
+      heldCents: 7200,
+    });
     expect(await picksOf(ON_MEDIUM)).toEqual([{ tier_id: 'medium' }]);
-    expect(await invoicesOf(ON_MEDIUM)).toHaveLength(1);
+    expect(await invoicesOf(ON_MEDIUM)).toHaveLength(2);
   });
 
   it('asks for invoice details first', async () => {

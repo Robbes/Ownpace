@@ -55,6 +55,7 @@ const ON_SMALL: YearOffer = {
   tiers: [tierOf('small', 'Small', 500), tierOf('medium', 'Medium', 1200), tierOf('large', 'Large', 4000), tierOf('xl', 'Extra large', 8000)],
   placement: { creditFrom: '2026-11', halfFrom: '2026-11', halfTo: '2027-10' },
   credit: { leftCents: 0, yearMonth: false },
+  heldCents: 0,
   years: [],
   yearsBefore: 0,
 };
@@ -66,8 +67,17 @@ const WITH_YEAR: YearOffer = {
   tiers: ON_SMALL.tiers.slice(1),
   placement: { creditFrom: '2026-12', halfFrom: '2027-11', halfTo: '2028-10' },
   credit: { leftCents: 6600, yearMonth: true },
+  heldCents: 6600,
   years: [{ tierId: 'medium', cents: 7200, creditFrom: '2026-11', halfFrom: '2026-11', halfTo: '2027-10' }],
   yearsBefore: 1,
+};
+
+/** A year of Medium bought in October, which was billed: its credit pays from November. */
+const BOUGHT_FOR_NEXT_MONTH: YearOffer = {
+  ...WITH_YEAR,
+  placement: { creditFrom: '2026-11', halfFrom: '2027-11', halfTo: '2028-10' },
+  credit: { leftCents: 0, yearMonth: false },
+  heldCents: 7200,
 };
 
 function renderCard(locale: 'en' | 'nl' = 'en') {
@@ -134,6 +144,14 @@ describe('the years offered', () => {
         'Its credit would pay from December 2026; its twelve months at half price follow your current year, November 2027 to October 2028.',
       ),
     ).toBeVisible();
+  });
+
+  it('says the credit held before its first month has come, and not that this month is one of it', async () => {
+    getYear.mockResolvedValue(BOUGHT_FOR_NEXT_MONTH);
+    renderCard();
+    expect(await screen.findByText('Credit left: €72.00.')).toBeVisible();
+    expect(screen.getByText('Half price from November 2026 to October 2027.')).toBeVisible();
+    expect(screen.queryByText(/This month is one of your year's/)).toBeNull();
   });
 
   it('says it all in Dutch', async () => {
