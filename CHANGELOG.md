@@ -12,10 +12,10 @@ asked to accept the texts once, at their first sign-in on this release.
 ### Changed
 
 - **The texts testers accept are final** (workplan 0139): the privacy policy
-  **1.3** and the terms of service **1.4**, beside the Alpha conditions 1.0, no
+  **1.5** and the terms of service **1.6**, beside the Alpha conditions 1.0, no
   longer marked draft, so the app asks every member to accept them before the
-  first connection (#1532, #1556, and the privacy pull request that counts
-  website visits). Closing an account is said as the code does it; the Dutch
+  first connection (#1532, #1556, #1557, #1559, #1580, and 0111's slices that
+  changed §7 and §8 of the terms and §4.4 of the privacy policy). Closing an account is said as the code does it; the Dutch
   page's note keeps the exception for mandatory consumer law.
 - **The owner's own review of the app's words, in Dutch and English** (#1556):
   plainer sentences throughout, the glossary's new Dutch terms (*gemigreerd*,
@@ -31,7 +31,19 @@ asked to accept the texts once, at their first sign-in on this release.
   draft numbered by Moneybird, the Billing page naming an invoice by that
   number and offering *Pay* and Moneybird's own PDF only on an issued one, an
   invoice address on *Invoice details*, and the books proved by hand and every
-  night (`operator.sh moneybird proof`). Nothing is charged during the Alpha.
+  night (`operator.sh moneybird proof`).
+- **Payments, credit notes and the withdrawal function** (workplan 0111,
+  slices 5f–7e): a payment through Mollie booked on its invoice, paid and late
+  read back from the books every hour, a credit note as Moneybird's own credit
+  invoice, money back refunded through Mollie and followed until it ends, the
+  withdrawal function on the Billing page (*Withdraw from contract here*), and
+  the order button that asks to begin within the 14 days without a tick box.
+- **A year paid ahead** (workplan 0111 T11): ordered on the Billing page, its
+  credit drawn month by month, and one email a month before it runs out.
+
+Billing stays off during the Alpha (`OWNPACE_STAGE=alpha`, an empty
+`OWNPACE_BILLING_FROM`): nothing is charged. What must happen before it is
+switched on is in `docs/ending-the-alpha.md`.
 
 ### Fixed
 
