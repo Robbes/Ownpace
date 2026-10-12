@@ -188,6 +188,10 @@ export const PURGED_TABLES = [
   // document the books hold, purged as every copy is; what it paid for goes
   // with it. The key would cascade; named so the receipt counts it.
   'credit_draw',
+  // That a year's credit runs out, once said (0111 T11, managed 0057): a
+  // reference and a month, no person in them. The key would cascade; named so
+  // the receipt counts it.
+  'credit_notice',
   // The operator's number of live grant links for this organisation (0108
   // T8 (d), managed 0028): a setting about the customer, with nobody left to
   // apply it to. The key would cascade; named so the receipt counts it.

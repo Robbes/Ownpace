@@ -267,6 +267,9 @@ const EXPECTED: Record<string, readonly string[]> = {
   // retention reads which months were drawn, as it reads which were invoiced;
   // never the amounts.
   credit_draw: PURGED_ONLY('month,tenant_id'),
+  // The email that a year's credit runs out, said once (0111 T11, managed
+  // 0057): only the purge.
+  credit_notice: PURGED_ONLY(),
   grant_link_allowance: PURGED_ONLY(),
   payment_method: PURGED_ONLY(),
   usage_metric: PURGED_ONLY(),

@@ -578,6 +578,26 @@ export const creditDraw = pgTable(
 );
 
 /**
+ * The email that a year's credit runs out, once said (workplan 0111 T11, slice
+ * Y3; managed migration 0057): one row per year bought, keyed by the latest
+ * year's invoice reference, claimed by the month task before it mails, the
+ * month before the first month the credit does not pay in full. Append-only.
+ */
+export const creditNotice = pgTable(
+  'credit_notice',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    yearReference: text('year_reference').notNull(),
+    month: date('month', { mode: 'string' }).notNull(),
+    evidence: jsonb('evidence').notNull(),
+    noticedAt: timestamp('noticed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ name: 'credit_notice_pkey', columns: [t.tenantId, t.yearReference] })],
+);
+
+/**
  * Each withdrawal from a paid contract (workplan 0111 T7, decision 15; managed
  * migration 0049): from its moment the yeses and picks before it count for
  * nothing, so the organisation is on Free. Append-only. What article 11a's

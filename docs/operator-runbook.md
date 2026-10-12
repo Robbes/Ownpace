@@ -408,13 +408,21 @@ Four things send email on managed, all through the operator's own SMTP relay con
   said on Free outside the alpha, where a migration runs one pass a day whatever its cadence.
   The run logs `{ tenants, free_pace, none, sent, no_channel, no_recipients, failed }`.
 - **`managed-month-invoices`** (workplan 0111, slice 4) — a scheduled task, hourly at **:23**.
-  Not an e-mail: it keeps each active organisation's month invoiced in advance. On a month's
-  first day it makes a draft for the tier the month starts on, and after a move up a draft for
-  the difference, each under `ownpace-{organisation}-m-{YYYY-MM}-{tier}`, in the
-  organisation's language. Free makes none. While `OWNPACE_BILLING_FROM` is empty, during the
-  alpha, and before that month, the run says `nobody is invoiced` and reads nothing about any
-  organisation. Otherwise it logs `{ invoicing, month, tenants, made, made_elsewhere, in_step,
-  free, nothing_to_add, failed }`, and one line per draft it made.
+  It keeps each active organisation's month invoiced in advance. On a month's first day it
+  makes a draft for the tier the month starts on, and after a move up a draft for the
+  difference, each under `ownpace-{organisation}-m-{YYYY-MM}-{tier}`, in the organisation's
+  language. Free makes none. A month a year's credit pays makes no draft: it is drawn from the
+  credit (0111 T11, managed 0056), and only what the credit does not cover is invoiced. While
+  `OWNPACE_BILLING_FROM` is empty, during the alpha, and before that month, the run says
+  `nobody is invoiced` and reads nothing about any organisation. Otherwise it logs
+  `{ invoicing, month, tenants, made, drawn, made_elsewhere, in_step, free, nothing_to_add,
+  failed, notices }`, and one line per draft it made or month it drew.
+  **Its one e-mail:** when a year's credit will not pay all of next month, it tells the
+  organisation's **active owners and admins**, in its language, once per year bought: what is
+  left, what next month costs, and that another year can be bought (0111 T11, slice Y3).
+  `credit_notice` (managed migration 0057) makes it once, claimed with or without SMTP.
+  `notices` counts `{ sent, no_channel, no_recipients, failed }`, and a notice claimed and not
+  sent is a warning naming the organisation.
 - **`managed-invoice-push`** (workplan 0111, slices 5 to 7d) — a scheduled task, hourly at
   **:41**. For each organisation, in this order:
   1. **Each draft numbered.** Takes each draft to Moneybird, which numbers it, and writes the

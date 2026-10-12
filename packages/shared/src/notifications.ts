@@ -1045,6 +1045,33 @@ export type NotificationEvent =
     }
   | {
       /**
+       * A year's credit runs out (workplan 0111 T11, slice Y3; the owner,
+       * 2026-10-12: *"Send an email a month before the credit runs out? Yes,
+       * one email"*): the month before the first month it does not pay in
+       * full, what is left, what that month costs, and how to buy another
+       * year.
+       *
+       * Said once per year bought, by the hourly month task
+       * (`managed-month-invoices.ts`, managed 0057's claim), to the
+       * organisation's active owners and admins, in its language. It passes
+       * this channel's two rules: it is never empty, and it says only
+       * something that happened, the credit falling short of a month.
+       */
+      readonly kind: 'credit_running_out';
+      readonly organisation: string;
+      /** The first month the credit does not pay in full, in words: `October 2027`. */
+      readonly month: string;
+      /** The credit left, in words: `€0.00`. */
+      readonly left: string;
+      /** The tier the month bills, by its name: `Medium`. */
+      readonly tier: string;
+      /** What that month costs, in words: `€12.00`. */
+      readonly cost: string;
+      /** Whether that month is one of a year's twelve, at half its monthly price. */
+      readonly halfPrice: boolean;
+    }
+  | {
+      /**
        * Money owed back to a customer that the operator gives back by hand,
        * or watches (workplan 0111; the owner, 2026-10-11). Said once by the
        * hourly push for each credit note it writes down: paid, but not
@@ -1157,6 +1184,7 @@ const EVENT: {
     looking_less_often: 'Ownpace — everything is in step, so we look less often',
     contract_withdrawn: 'Ownpace — we received your withdrawal',
     order_confirmed: 'Ownpace — your order',
+    credit_running_out: 'Ownpace — your credit is running out',
     money_to_give_back: 'Ownpace — money owed back to a customer',
   },
   nl: {
@@ -1172,6 +1200,7 @@ const EVENT: {
     looking_less_often: 'Ownpace — alles is bijgewerkt, dus we doen het wat rustiger aan',
     contract_withdrawn: 'Ownpace — uw herroeping is ontvangen',
     order_confirmed: 'Ownpace — uw bestelling',
+    credit_running_out: 'Ownpace — uw tegoed raakt op',
   },
 };
 
@@ -1239,6 +1268,12 @@ interface EventLines {
   readonly orderedBeganOnRequest: string;
   readonly orderedNotAsked: string;
   readonly orderedTerms: string;
+  /** A year's credit running out (0111 T11, slice Y3). */
+  readonly creditShort: string;
+  readonly creditLeft: string;
+  readonly creditAtHalf: string;
+  readonly creditInvoiced: string;
+  readonly creditAnotherYear: string;
   readonly and: string;
   readonly domain: Readonly<Record<DiscoveryDomain, string>>;
 }
@@ -1378,6 +1413,14 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'You asked us to begin at once, within those 14 days. If you withdraw, you pay for the part of the service already provided, in proportion to the agreed price, and no more.',
     orderedNotAsked: 'If you withdraw, you pay nothing for the days already used.',
     orderedTerms: 'The terms:',
+    // A year's credit running out (0111 T11, slice Y3): what is left, what the
+    // month costs, in the words of its invoice line, and what to do.
+    creditShort: 'Your credit does not pay for all of',
+    creditLeft: 'Credit left',
+    creditAtHalf: 'at half the monthly price (a year ahead)',
+    creditInvoiced: 'What your credit does not pay is invoiced at the start of each month, month by month (terms §8).',
+    creditAnotherYear:
+      'To keep paying ahead, buy another year under A year ahead on the Billing page in the app: six months of the monthly price, for twelve months at half price.',
     and: 'and',
     domain: { email: 'email', calendar: 'calendar', contact: 'contacts', file: 'files', task: 'tasks' },
   },
@@ -1474,6 +1517,12 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'U vroeg ons direct te beginnen, binnen die 14 dagen. Herroept u, dan betaalt u voor het deel van de dienst dat al geleverd is, naar verhouding van de afgesproken prijs, en niet meer.',
     orderedNotAsked: 'Herroept u, dan betaalt u niets voor de dagen die al gebruikt zijn.',
     orderedTerms: 'De voorwaarden:',
+    creditShort: 'Uw tegoed is niet genoeg voor heel',
+    creditLeft: 'Tegoed over',
+    creditAtHalf: 'voor de helft van de maandprijs (een jaar vooruit)',
+    creditInvoiced: 'Wat uw tegoed niet betaalt, wordt aan het begin van elke maand gefactureerd, per maand (voorwaarden §8).',
+    creditAnotherYear:
+      'Wilt u vooruit blijven betalen, koop dan nog een jaar onder Een jaar vooruit op de pagina Facturering in de app: zes keer de maandprijs, voor twaalf maanden tegen de halve prijs.',
     and: 'en',
     domain: { email: 'e-mail', calendar: 'agenda', contact: 'contacten', file: 'bestanden', task: 'taken' },
   },
@@ -1679,6 +1728,13 @@ export function renderEvent(
       }
       lines.push('', `${b.orderedTerms} ${event.terms}`);
       break;
+    case 'credit_running_out':
+      lines.push(`${b.grantedOrganisation}: ${event.organisation}`, '');
+      lines.push(`${b.creditShort} ${event.month}:`);
+      lines.push(`  - ${b.creditLeft}: ${event.left}`);
+      lines.push(`  - Ownpace ${event.tier}, ${event.month}: ${event.cost}${event.halfPrice ? `, ${b.creditAtHalf}` : ''}`, '');
+      lines.push(b.creditInvoiced, '', b.creditAnotherYear);
+      break;
     case 'rollback_finished':
       lines.push(`${b.migration}: ${mappingLabel(event.mapping)}`, '');
       lines.push(b.rolledBack, '');
@@ -1704,13 +1760,15 @@ export function renderEvent(
   // "act on this" under it would contradict it (0154 T7). Nor after a slower
   // cadence, which has just said how to choose more often (0157 T7).
   // Nor after a withdrawal's acknowledgement or an order's confirmation, which
-  // ask nothing of their reader.
+  // ask nothing of their reader. Nor after a credit running out, which has
+  // just said what to do (0111 T11).
   if (
     readerHasAnApp &&
     event.kind !== 'first_copy_complete' &&
     event.kind !== 'looking_less_often' &&
     event.kind !== 'contract_withdrawn' &&
-    event.kind !== 'order_confirmed'
+    event.kind !== 'order_confirmed' &&
+    event.kind !== 'credit_running_out'
   ) {
     lines.push('', b.act);
   }
