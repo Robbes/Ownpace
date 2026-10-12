@@ -30,7 +30,7 @@ button terms §6 promises.
   tier's pace and room are a tester's already, and a pick would bind them past the alpha to a
   price they never ordered.
 
-T2 to T7 are built. What is left is outside this plan: billing a tier, which is 0109 T5.
+T2 to T7 are built. Billing a tier, outside this plan, is built too: 0111 slices 4b and 7e.
 
 **2026-10-05, T7 whole: each step is said.** A migration on *Automatic* that steps down is said
 by a morning mail, to the organisation's active owners and admins, in its language:
@@ -281,9 +281,9 @@ it works out the least tier the answers need.
   are a tester's already, so a pick would change nothing a tester sees, and would bind them,
   once the alpha ended, to a price they never ordered. The card lists the tiers with their prices
   and says so, as the data ceiling's card does. Picking opens with the stage (`docs/ending-the-alpha.md`).
-- **Not built here:** the invoice that bills the floor (0109 T5), and the order's confirming email
-  (terms precondition C), both before the first paid tier. Both are built since: 0109 T5, and the
-  confirming email with 0111 slice 7e.
+- **Built since, outside this plan:** the invoice that bills the floor (the month bills at least the
+  pick, `billedTierOf`, and the invoice carries that tier, 0111 slice 4b), and the order's
+  confirming email (terms precondition C, 0111 slice 7e).
 
 ## 7. T7 — the default slows once everything is in step (decided 2026-10-05)
 
