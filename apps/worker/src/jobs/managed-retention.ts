@@ -86,14 +86,23 @@ export const managedRetention = schedules.task({
     // that are over. A draft is not a record of anything yet; `void` is
     // excluded because a voided period may yet be billed again; and invoiced
     // in advance (0111 decision 6), an issued invoice can name a month still
-    // running, whose end is no safe point at all.
+    // running, whose end is no safe point at all. A month a year's credit paid
+    // (0111 T11, managed 0056) is billed as surely as one invoiced, and makes
+    // no invoice: its draw is the proof, once the month is over. A year's own
+    // invoice names its twelve months, so it counts only once they are over.
     const runDays = runRetentionDaysFromEnv(process.env.LEDGER_RUN_RETENTION_DAYS);
     const billed = (await db.execute(sql`
-      SELECT tenant_id::text AS tenant_id, MAX(period_end) AS through
-        FROM invoice
-       WHERE tenant_id IS NOT NULL
-         AND status IN ('sent', 'paid', 'overdue')
-         AND period_end < (now() AT TIME ZONE 'UTC')::date
+      SELECT tenant_id, MAX(through)::text AS through FROM (
+        SELECT tenant_id::text AS tenant_id, period_end::date AS through
+          FROM invoice
+         WHERE tenant_id IS NOT NULL
+           AND status IN ('sent', 'paid', 'overdue')
+           AND period_end < (now() AT TIME ZONE 'UTC')::date
+        UNION ALL
+        SELECT tenant_id::text AS tenant_id, (month + interval '1 month' - interval '1 day')::date AS through
+          FROM credit_draw
+         WHERE (month + interval '1 month')::date <= (now() AT TIME ZONE 'UTC')::date
+      ) AS months
        GROUP BY tenant_id
     `)) as unknown as { rows?: { tenant_id: string; through: string }[] };
 

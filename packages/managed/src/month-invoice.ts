@@ -61,6 +61,17 @@
  * (slice 5), which writes them while the row is a draft, and Moneybird's own
  * figures at issue.
  *
+ * ## A year paid ahead (T11)
+ *
+ * When the organisation bought a year (year-credit.ts), the month's step is
+ * priced at the month's rate: half for one of a year's twelve months while
+ * credit is left at its first step, full otherwise, and the first step fixes
+ * the rate for the month. What the step asks is drawn from the credit as far
+ * as it goes (`credit_draw`, managed 0056), and only the rest is invoiced, in
+ * the same transaction under the same lock. A draw names its step as the
+ * invoice's reference would, so a step is drawn once, invoiced once, or both
+ * once.
+ *
  * ## What it does not do
  *
  * Push (slice 5). Top-ups and credit notes, `-t-` and `-c-` (slice 7 teaches
@@ -80,18 +91,24 @@ import { dataAllowance, invoice, tierPick } from './schema-managed.ts';
 import { MANAGED_TIERS, type ManagedTier } from './tier-calculator.ts';
 import { monthStartOf, nextMonthStartOf } from './tier-pick.ts';
 import { monthLine, type BilledBy } from './month-invoice-words.ts';
+import { atRate, creditForMonth, monthRate, readDraws, readYears, splitStep, type CreditForMonth } from './year-credit.ts';
 
 type TierId = ManagedTier['id'];
 
 /** A tier's place in the published table; Free is 0. */
 const placeOf = (id: string): number => MANAGED_TIERS.findIndex((t) => t.id === id);
 
-/** One of the month's invoices, as the rule reads it. */
+/** One of the month's steps, invoiced or drawn from a year's credit, as the rule reads it. */
 export interface MonthStep {
   readonly tierId: TierId;
   /** What the step asked, as published (VAT included), in cents. */
   readonly cents: number;
-  readonly status: 'draft' | 'sent' | 'paid' | 'overdue' | 'void';
+  /** An invoice's status, or `drawn`: paid from a year's credit (T11). */
+  readonly status: 'draft' | 'sent' | 'paid' | 'overdue' | 'void' | 'drawn';
+  /** The month's rate when the step was made: half within a year, else full. Before T11, full. */
+  readonly rate?: 'half' | 'full';
+  /** When the step was made (ISO), so the month's first one fixes its rate. */
+  readonly at?: string;
 }
 
 /** What a month's invoices need now. */
@@ -160,6 +177,10 @@ export function billedBy(state: Pick<BilledNow, 'billed' | 'measured'>): BilledB
 /** What the line quotes, kept on the row (`invoice.evidence`, frozen past draft). */
 export interface MonthEvidence {
   readonly month: string;
+  /** The month's rate (T11): half within a year with credit left, else full. */
+  readonly rate: 'half' | 'full';
+  /** What a year's credit paid of the step, in cents (T11); `cents` is the rest, invoiced. */
+  readonly drawnCents: number;
   readonly tier: TierId;
   readonly by: BilledBy;
   readonly peakPaths: number;
@@ -176,7 +197,17 @@ export interface MonthEvidence {
 /** What a run did for one organisation. */
 export type MonthOutcome =
   | { readonly kind: 'free' | 'in_step' | 'nothing_to_add' }
-  | { readonly kind: 'made'; readonly reference: string; readonly tier: TierId; readonly cents: number }
+  | {
+      readonly kind: 'made';
+      readonly reference: string;
+      readonly tier: TierId;
+      /** What the invoice asks, in cents. */
+      readonly cents: number;
+      /** What a year's credit paid of the step before it (T11), in cents. */
+      readonly drawnCents?: number;
+    }
+  /** The step was paid from a year's credit, all of it: no invoice (T11). */
+  | { readonly kind: 'drawn'; readonly tier: TierId; readonly drawnCents: number }
   /** Another run made the same step between this one's read and its insert. */
   | { readonly kind: 'made_elsewhere'; readonly reference: string };
 
@@ -199,14 +230,44 @@ async function readMonthSteps(db: PgDatabase, tenantId: TenantId, at: Date): Pro
   for (const row of rows) {
     if (!row.reference?.startsWith(prefix)) continue;
     const tierId = row.reference.slice(prefix.length);
-    const cents = (row.evidence as { cents?: unknown } | null)?.cents;
+    const evidence = row.evidence as { cents?: unknown; rate?: unknown; at?: unknown } | null;
+    const cents = evidence?.cents;
     // Never guessed: money read off a row is either what the row says or a refusal.
     if (placeOf(tierId) < 0 || typeof cents !== 'number' || !Number.isInteger(cents) || !STATUSES.has(row.status)) {
       throw new Error(`invoice ${row.reference}: its tier, its amount or its status cannot be read as a step of the month`);
     }
-    steps.push({ tierId: tierId as TierId, cents, status: row.status });
+    // A step made before T11 has no rate: every month was full then.
+    const rate = evidence?.rate === 'half' ? 'half' : 'full';
+    steps.push({
+      tierId: tierId as TierId,
+      cents,
+      status: row.status,
+      rate,
+      ...(typeof evidence?.at === 'string' ? { at: evidence.at } : {}),
+    });
+  }
+  // What a year's credit paid (T11): a step as much as an invoice is.
+  const drawn = await db.execute(sql`
+    SELECT tier_id, cents, rate, drawn_at FROM credit_draw
+     WHERE tenant_id = ${tenantId} AND month = ${monthStartOf(at).toISOString().slice(0, 10)}::date`);
+  for (const row of resultRows<{ tier_id: string; cents: number; rate: string; drawn_at: Date | string }>(drawn)) {
+    steps.push({
+      tierId: row.tier_id as TierId,
+      cents: Number(row.cents),
+      status: 'drawn',
+      rate: row.rate === 'half' ? 'half' : 'full',
+      at: new Date(row.drawn_at).toISOString(),
+    });
   }
   return steps;
+}
+
+/** The rate the month's first step fixed, or null when it has none yet. */
+function firstStepRate(steps: readonly MonthStep[]): 'half' | 'full' | null {
+  const dated = steps.filter((s) => s.status !== 'void');
+  if (dated.length === 0) return null;
+  const first = dated.reduce((a, b) => ((a.at ?? '') <= (b.at ?? '') ? a : b));
+  return first.rate ?? 'full';
 }
 
 /** Every yes to a tier and every pick, made by `at`, at the price each showed. */
@@ -245,12 +306,38 @@ export async function openTheMonth(
   const state = await readBilledNow(db, tenantId, now);
   const steps = await readMonthSteps(db, tenantId, now);
   const price = priceOfTier(state.billed.tier, await readAgreedPrices(db, tenantId, now));
-  const decision = decideMonthStep(state.billed.tier, price.cents, steps);
+  // A year paid ahead (T11): the month's rate, and the credit it may draw.
+  const credit: CreditForMonth = creditForMonth(monthOf(now), await readYears(db, tenantId), await readDraws(db, tenantId));
+  const rate = monthRate(firstStepRate(steps), credit);
+  const decision = decideMonthStep(state.billed.tier, atRate(price.cents, rate), steps);
   if (decision.kind !== 'step') return { kind: decision.kind };
+  const split = splitStep(decision.cents, credit.leftCents);
 
   const by = billedBy(state);
+  if (split.drawCents > 0) {
+    await db.execute(sql`
+      INSERT INTO credit_draw (tenant_id, month, tier_id, cents, rate, drawn_at, evidence)
+      VALUES (${tenantId}, ${monthStartOf(now).toISOString().slice(0, 10)}::date, ${decision.tier.id},
+              ${split.drawCents}, ${rate}, ${now.toISOString()}::timestamptz,
+              ${JSON.stringify({
+                month: monthOf(now),
+                tier: decision.tier.id,
+                by,
+                rate,
+                priceCents: price.cents,
+                priceFrom: price.from,
+                beforeCents: decision.beforeCents,
+                stepCents: decision.cents,
+                creditBeforeCents: credit.leftCents,
+                at: now.toISOString(),
+              })}::jsonb)`);
+    if (split.invoiceCents === 0) return { kind: 'drawn', tier: decision.tier.id, drawnCents: split.drawCents };
+  }
+
   const evidence: MonthEvidence = {
     month: monthOf(now),
+    rate,
+    drawnCents: split.drawCents,
     tier: decision.tier.id,
     by,
     peakPaths: state.measured.evidence.peakPaths,
@@ -260,7 +347,7 @@ export async function openTheMonth(
     priceCents: price.cents,
     priceFrom: price.from,
     beforeCents: decision.beforeCents,
-    cents: decision.cents,
+    cents: split.invoiceCents,
     at: now.toISOString(),
   };
   const description = monthLine(
@@ -272,6 +359,9 @@ export async function openTheMonth(
       peakAt: evidence.peakAt,
       gbCounted: evidence.gbCounted,
       after: decision.after,
+      afterDrawn: steps.some((step) => step.status === 'drawn'),
+      rate,
+      drawnCents: split.drawCents,
     },
     locale,
   );
@@ -279,7 +369,7 @@ export async function openTheMonth(
   const lastDay = new Date(nextMonthStartOf(now).getTime() - 86_400_000);
   // In cents, as the money columns have always held it: the pay route asks
   // Mollie for `total` as cents, and the Billing page formats it as cents.
-  const amount = String(decision.cents);
+  const amount = String(split.invoiceCents);
   const inserted = resultRows<{ id: string }>(
     await db.execute(sql`
       INSERT INTO invoice (tenant_id, period_start, period_end, status, subtotal, tax_rate, tax_amount, total,
@@ -287,10 +377,16 @@ export async function openTheMonth(
       VALUES (${tenantId}, ${monthStartOf(now).toISOString().slice(0, 10)}, ${lastDay.toISOString().slice(0, 10)},
               'draft', ${amount}, 0, 0, ${amount}, 'EUR', ${reference}, 'invoice',
               ${JSON.stringify(evidence)}::jsonb,
-              ${JSON.stringify([{ description, publishedCents: decision.cents }])}::jsonb)
+              ${JSON.stringify([{ description, publishedCents: split.invoiceCents }])}::jsonb)
       ON CONFLICT (reference) WHERE reference IS NOT NULL DO NOTHING
       RETURNING id`),
   );
   if (inserted.length === 0) return { kind: 'made_elsewhere', reference };
-  return { kind: 'made', reference, tier: decision.tier.id, cents: decision.cents };
+  return {
+    kind: 'made',
+    reference,
+    tier: decision.tier.id,
+    cents: split.invoiceCents,
+    ...(split.drawCents > 0 ? { drawnCents: split.drawCents } : {}),
+  };
 }

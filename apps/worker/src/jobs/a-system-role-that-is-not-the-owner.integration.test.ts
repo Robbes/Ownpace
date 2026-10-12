@@ -263,6 +263,10 @@ const EXPECTED: Record<string, readonly string[]> = {
   // when, from which moment the yeses and picks before it count for nothing;
   // never who withdrew, the name they gave or where their confirmation went.
   contract_withdrawal: PURGED_ONLY('tenant_id,withdrawn_at'),
+  // What each month took from a year paid ahead (0111 T11, managed 0056):
+  // retention reads which months were drawn, as it reads which were invoiced;
+  // never the amounts.
+  credit_draw: PURGED_ONLY('month,tenant_id'),
   grant_link_allowance: PURGED_ONLY(),
   payment_method: PURGED_ONLY(),
   usage_metric: PURGED_ONLY(),

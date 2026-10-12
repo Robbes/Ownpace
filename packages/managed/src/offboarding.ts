@@ -183,6 +183,11 @@ export const PURGED_TABLES = [
   // that carried the money out are documents of their own, retained with the
   // invoices. The key would cascade; named so the receipt counts it.
   'contract_withdrawal',
+  // What each month took from a year paid ahead (0111 T11, managed 0056):
+  // amounts by month and tier, no person in them. The year's own invoice is a
+  // document the books hold, purged as every copy is; what it paid for goes
+  // with it. The key would cascade; named so the receipt counts it.
+  'credit_draw',
   // The operator's number of live grant links for this organisation (0108
   // T8 (d), managed 0028): a setting about the customer, with nobody left to
   // apply it to. The key would cascade; named so the receipt counts it.

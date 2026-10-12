@@ -2,7 +2,52 @@
 
 > **In one line:** The invoice as a legal document, numbered and rendered by Moneybird: `billing_party` buyer data, VIES checks in `vat_consultation`, VAT treatment and OSS, the Moneybird adapter and mirror, an immutability trigger, credit notes and VAT-inclusive prices.
 
-## Status — 2026-10-11 (update this block at the end of every session)
+## Status — 2026-10-12 (update this block at the end of every session)
+
+**2026-10-12, T11 opened: a year paid ahead, and its first slice (Y1), the credit and the month's
+draw.** The site and terms §8 sold a year that nothing could buy: only months were invoiced, and
+0152 waited on *"0111's yearly invoicing"*. ADR-0014's rules for a year stand (*Amendment
+2026-10-04*): credit at six months' price, billed at its start; each of its twelve months takes its
+own tier at half its monthly price; what is left after them pays the full monthly price until it
+runs out; never refunded (a withdrawal aside), never renewed. Four things it left open, the owner
+answered on 2026-10-12, each as recommended:
+
+1. **Where a year starts:** with the first month not yet billed. This month when nothing is billed
+   for it yet (coming from Free), else the next; a year bought while another's twelve months run
+   adds its twelve after them, and its credit from the same first month.
+2. **Credit that runs out within the twelve months:** the month that empties it invoices the rest
+   at half price; from the next it is monthly, at the full price.
+3. **Which tier:** the tier the month bills, or a higher one; the credit is that tier's yearly
+   price. Never Free.
+4. **A notice:** one email a month before the credit runs out (slice Y3).
+
+Y1 builds the money: a year is one invoice like any other (`ownpace-{org}-y-{n}`, a draft the
+hourly push takes to the books), and the month task (`openTheMonth`) prices a month at its rate
+(half within a year while credit is left at its first step, else full; the first step fixes it for
+the month), draws what the credit covers (`credit_draw`, managed 0056, append-only, one row per
+step) and invoices only the rest, in one transaction under the month's lock. A month the credit
+pays makes no invoice. The line says it: *…, voor de helft van de maandprijs (een jaar vooruit),
+min € 12,00 uit uw tegoed*. A withdrawal credits the year for the days not used, as every invoice
+of the contract, and the credit starts again at nothing; a year's credit note is `…-c-y-{n}`; the
+books' read-back finds a year's organisation; retention counts a month paid from credit as billed;
+the purge deletes the draws. Nothing buys a year yet: Y2 is the order (the Billing page, a pick
+when the tier is higher, the order's confirmation), Y3 the notice, Y4 the docs.
+
+- **Guards:** `a-year-paid-ahead.unit.test.ts` (where a year falls, in UTC and after a year
+  running; the credit a month may draw and a credit overdrawn refused; the rate; the split; the
+  words in both languages; on a real database: a month paid from credit with no invoice and none
+  twice, a move up drawn at half, the month that empties the credit invoiced the rest at half and
+  the next at full, the months after the twelve at full from what is left, a year bought in a month
+  already billed starting the next, a withdrawal crediting 362 of 365 days and the credit gone,
+  draws neither changed nor deleted, nothing of another organisation read);
+  `a-credit-note-for-an-issued-invoice.unit.test.ts` (a year's credit note reference); the schema
+  guard and the system role's pins list `credit_draw`.
+- **For the accountant:** a year is invoiced at its start with VAT, as a payment in advance for one
+  service at one rate; the months it pays make no invoice. Whether that is right for credit a
+  customer may spend on any tier is theirs to confirm before the first year is sold.
+- **For the lawyer:** question 27 of the terms' briefing stands (may the credit be kept from a
+  consumer who cancels; §7's proportionate amount for a year: Y1 credits it by days, as every
+  invoice of the contract).
 
 **2026-10-11, money to give back reaches the operator** (the owner, 2026-10-11: *"yes, build the
 support list and the email too"*). The push's three sentences that ask the operator to act (a
@@ -733,6 +778,7 @@ alone** — see §"Who is the controller" and the cross-reference to 0086 T5.
 | T8 The price page stops promising 21% | ✅ **First slice built 2026-08-29** — per-country display waits on OSS | The row's own premise corrected by the build: the site never computed VAT — it showed bare `€n` with **no statement at all**, and toward consumers a displayed price legally IS the final, VAT-inclusive price. The slice says it out loud ("All prices include VAT." / "Alle prijzen zijn inclusief btw.") on the landing, pricing and calculator pages, with a structural guard: any page rendering tier prices without the label goes red. Deliberately **no rate in the copy** — which country's VAT sits inside the price is T3's per-invoice decision, so nothing drifts when OSS activates or a rate changes. Remaining for full T8: per-country inclusive display once `VAT_OSS_ACTIVE` flips, and reconciling the retired server model's ex-VAT arithmetic in 0109's tier rebuild. |
 | T9 Billing frequency, decided rather than defaulted | ✅ **Decided 2026-08-29: monthly AND annual, annual discounted** | The owner's framing decides it: the service is not a one-shot move but *"an operational exit strategy waiting for the cutover"*, sometimes used serially to move a family one person at a time — so a subscription is honest, and the discounted annual is the fee-efficient path (one charge ≈0.3% vs ≈3.4% monthly, §below) offered rather than imposed. T4's invoice shape: recurring, both cadences. **Invoiced in advance (2026-10-05, decision 6):** a month on its first day, at the tier it starts on, and a move up within a day, for the difference. |
 | T10 Retention, revisited now that we are not the record | ✅ **Decided 2026-08-29: purge the mirror on erasure, keep the pointer; built 2026-10-11** (managed 0054, Status; privacy 1.5 §9) | On erasure the mirror rows go; `erasure_record` keeps only the Moneybird invoice numbers, and the operator's answer becomes "these numbers, held in Moneybird". Retires most of #652's screen — the honest outcome §"What this changes about erasure" predicted. |
+| T11 A year paid ahead | 🟡 **Y1 built 2026-10-12** (the credit and the month's draw, managed 0056); Y2 the order, Y3 the notice before the credit runs out, Y4 the docs, to follow | ADR-0014, *Amendment 2026-10-04*: a year is credit at six months' price, billed at its start; each of its twelve months takes its tier at half price, the months after them the full price until the credit runs out; never refunded, never renewed. The owner's four answers of 2026-10-12 (Status): a year starts with the first month not yet billed; credit run out within the twelve makes that month's rest half price, then monthly; a year for the tier the month bills or a higher one; one email a month before the credit runs out. A year is an invoice (`ownpace-{org}-y-{n}`); a month it pays is a draw (`credit_draw`), not an invoice. |
 
 ## Why this exists
 

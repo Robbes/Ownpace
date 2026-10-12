@@ -223,6 +223,15 @@ const NARROWER_ON_PURPOSE: Record<string, { privileges: string[]; why: string }>
       'so the request path appends and reads, and UPDATE and DELETE are REVOKED from the default ' +
       'the baseline grants. It goes with its credit note, by the cascade, when an erasure purges it.',
   },
+  credit_draw: {
+    privileges: ['INSERT', 'SELECT'],
+    why:
+      'What each month took from the credit of a year paid ahead (workplan 0111 T11, managed ' +
+      'migration 0056): credit taken is money spent, and a draw that could be edited afterwards ' +
+      'would change what a customer paid, so the month task appends and reads, and UPDATE and ' +
+      'DELETE are REVOKED from the default the baseline grants. The one deleter is the erasure ' +
+      'purge, through the system role (PURGED_TABLES).',
+  },
   platform_operator: {
     privileges: ['SELECT'],
     why:

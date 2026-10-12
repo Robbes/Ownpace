@@ -28,7 +28,7 @@
  * worker did not run is caught up the next morning, with nothing kept between
  * runs. Moneybird's `updated_after` filter answers it, with an explicit period
  * (its default is this year alone), the invoices filtered to the three states.
- * Each invoice names its organisation in our own reference, `ownpace-{id}-m-…`,
+ * Each invoice names its organisation in our own reference, `ownpace-{id}-m-…` (or `-y-…`, a year),
  * so each change is written in that organisation's own scope; one without it
  * (a proof, the nightly's, one made by hand) is left alone.
  */
@@ -119,9 +119,10 @@ export async function listChangedSalesInvoices(
 }
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
-const MONTH_REFERENCE = new RegExp(`^ownpace-(${UUID})-m-`, 'i');
+// A month's step (`-m-`) or a year paid ahead (`-y-`, 0111 T11): both are invoices of ours.
+const MONTH_REFERENCE = new RegExp(`^ownpace-(${UUID})-[my]-`, 'i');
 
-/** The organisation a month's invoice is for, from our own reference; null for anything else. */
+/** The organisation a month's or a year's invoice is for, from our own reference; null for anything else. */
 export function organisationOf(reference: string | null): string | null {
   const found = reference ? MONTH_REFERENCE.exec(reference) : null;
   return found ? found[1]!.toLowerCase() : null;
