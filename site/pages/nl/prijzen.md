@@ -52,12 +52,12 @@ dus klein beginnen en groeien kost hetzelfde als meteen groot starten. Er valt n
 met te laag inschatten.
 
 **Een jaar kost zes maanden.** Betaalt u een jaar vooruit, dan kost het de helft van de
-maandprijs. Het werkt als tegoed: elke maand krijgt nog steeds haar eigen pakket, tegen de
-helft van de maandprijs van dat pakket. Een migratie afronden verlaagt dus nog steeds wat een
-maand kost, en een maand op Free kost niets. Op de 14 dagen bedenktijd na die de wet u geeft,
-krijgt u het tegoed niet terug, ook niet als u stopt. Wat er na het jaar over is, gaat niet
-verloren: het betaalt de maanden daarna, tegen hun maandprijs, tot het op is. Daarna betaalt u
-per maand. Een jaar wordt nooit vanzelf verlengd.
+maandprijs. Het werkt als tegoed: elke maand betaalt de helft van de maandprijs van het pakket
+dat ze gebruikte. Een migratie afronden verlaagt dus nog steeds wat een maand kost, en een maand
+op Free kost niets. Op de 14 dagen bedenktijd na die de wet u geeft, krijgt u het tegoed niet
+terug. Wat er na het jaar over is, betaalt de maanden daarna, tegen de volle maandprijs, tot het
+op is; daarna betaalt u per maand. Sluit u uw account, dan vervalt wat er over is. Een jaar wordt
+nooit vanzelf verlengd.
 
 **Het gegevensgetal telt alleen de eerste kopie van iets.** Opnieuw kopiëren, herkansingen en
 latere wijzigingen tellen niet mee, en onze eigen fouten al helemaal niet. Het is een maat

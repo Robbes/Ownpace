@@ -109,8 +109,8 @@ live in [README.md](./README.md), the register.
   (another band for the tier's monthly, once). Without that yes, a month bills the tier it
   was on.
 - **A year is credit at six months' price**: each month takes its tier at half price, full
-  after twelve months, until spent; then month to month. Never refunded (withdrawal aside),
-  never renewed (`year-credit.ts`; *Amendment 2026-10-12*).
+  after twelve months, until spent. Never refunded (withdrawal aside), never renewed; closing
+  the account ends it (*Amendment 2026-10-12*).
 - **What we tell, and will not do, are rules** (*Decision*): every price published, VAT
   included; *Start* warns when the preflight will not fit; no per-GB, compute or per-path
   figure; no billing past 12 months unconfirmed. **The price pays for the work**;

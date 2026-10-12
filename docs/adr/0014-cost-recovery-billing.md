@@ -46,8 +46,8 @@
   (another band for the tier's monthly, once). Without that yes, a month bills the tier it
   was on.
 - **A year is credit at six months' price**: each month takes its tier at half price, full
-  after twelve months, until spent; then month to month. Never refunded (withdrawal aside),
-  never renewed (`year-credit.ts`; *Amendment 2026-10-12*).
+  after twelve months, until spent. Never refunded (withdrawal aside), never renewed; closing
+  the account ends it (*Amendment 2026-10-12*).
 - **What we tell, and will not do, are rules** (*Decision*): every price published, VAT
   included; *Start* warns when the preflight will not fit; no per-GB, compute or per-path
   figure; no billing past 12 months unconfirmed. **The price pays for the work**;
@@ -776,6 +776,17 @@ owner answered each on 2026-10-12, as recommended:
   full, the organisation's owners and admins are told once: what is left, what that month
   costs, and that another year can be bought.
 
+**Later the same day**, reading the Billing page's card, the owner asked whether credit left
+should wait at all once someone ends the service. Three ways were put: (i) with A, the credit
+keeps paying later months while the account stays, and closing the account ends what is left;
+B, what is left lapses after the twelve months; C, no credit, a year buys one tier for twelve
+months. The owner: *"(i) with A"*, and *"Credit with plain words"*: each month of the year pays
+half the monthly price of the tier it used, and a month on Free pays nothing. Until then, terms
+§8 had a cancellation while credit was left still pay the months used until it ran out; terms
+1.6 says instead that closing the account ends it. Asked too whether a year withdrawn from
+should pay at least the monthly price for the days used, the owner kept the year's rate:
+*"Ok, keep it at the year's rate"*.
+
 **What follows:** the operative rule, amended in place, and `OPERATIVE.md` regenerated. Built in
 0111 T11: the credit and each month's draw (Y1, managed 0056), the order on the Billing page
 (Y2), the notice (Y3, managed 0057). Before the first year is sold: the accountant on VAT for
@@ -847,8 +858,10 @@ costs.
 - **2026-10-12** — A year starts with the first month not yet billed; credit run out within its
   twelve months makes that month's rest half price, then monthly; a year is for the month's tier
   or higher; one email a month before the credit runs out (owner, four answers, as recommended).
-  Built: 0111 T11, Y1 to Y3. Record: *Amendment 2026-10-12 — where a year starts, what it is
-  bought for, and a notice before its credit runs out*.
+  Later that day: closing the account ends a year's credit left (owner: *"(i) with A"*; terms
+  1.6 §8), and a withdrawn year's days used stay at the year's rate. Built: 0111 T11, Y1 to Y3.
+  Record: *Amendment 2026-10-12 — where a year starts, what it is bought for, and a notice
+  before its credit runs out*.
 
 The full record, word for word as it read before this consolidation:
 [history/0014-cost-recovery-billing.md](./history/0014-cost-recovery-billing.md).

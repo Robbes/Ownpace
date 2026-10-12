@@ -187,18 +187,21 @@ describe('the published prices agree with the decision that set them', () => {
     );
   });
 
-  it('never promises a year back, and says what is left of it pays later months (ADR-0014, 2026-10-04)', async () => {
+  it('never promises a year back, says what is left of it pays later months, and that closing ends it (ADR-0014, 2026-10-04, 2026-10-12)', async () => {
     const { rendered } = (await import('./build.mjs')) as unknown as {
       rendered: Array<{ file: string; html: string }>;
     };
-    // The owner chose no refund of a year, and that credit left at its end
-    // keeps paying later months. A page that promised a year back, or a year
-    // that renews by itself, would sell what terms §8 refuses.
+    // The owner chose no refund of a year, that credit left at its end keeps
+    // paying later months, and that closing the account ends what is left
+    // ("(i) with A"). A page that promised a year back, or a year that renews
+    // by itself, would sell what terms §8 refuses.
     const page = (file: string) => rendered.find((p) => p.file === file)!.html;
-    expect(page('pricing.html')).toContain('the credit is not refunded, not even when you stop.');
-    expect(page('pricing.html')).toContain('it pays for the months that follow, at their monthly price, until it runs out.');
-    expect(page('nl/prijzen.html')).toContain('krijgt u het tegoed niet terug, ook niet als u stopt.');
-    expect(page('nl/prijzen.html')).toContain('het betaalt de maanden daarna, tegen hun maandprijs, tot het op is.');
+    expect(page('pricing.html')).toContain('the credit is not refunded.');
+    expect(page('pricing.html')).toContain('pays for the months that follow, at the full monthly price, until it runs out');
+    expect(page('pricing.html')).toContain('Close your account and what is left ends with it.');
+    expect(page('nl/prijzen.html')).toContain('krijgt u het tegoed niet terug.');
+    expect(page('nl/prijzen.html')).toContain('betaalt de maanden daarna, tegen de volle maandprijs, tot het op is');
+    expect(page('nl/prijzen.html')).toContain('Sluit u uw account, dan vervalt wat er over is.');
     for (const p of rendered.filter((p) => !/^(nl\/)?(privacy|terms|voorwaarden|alpha)\.html$/.test(p.file))) {
       expect(p.html, `${p.file} promises a year back`).not.toMatch(/\b(is|are) refunded\b|\bkrijgt u terug\b|\b(wordt|worden) terugbetaald\b/i);
       expect(p.html, `${p.file} says a year renews by itself`).not.toMatch(/\ba year renews\b|\bwordt (automatisch|vanzelf) verlengd\b/i);

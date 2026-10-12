@@ -1405,7 +1405,7 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     orderedYear: 'a year ahead,',
     orderedYearTo: 'to',
     orderedBilledYear:
-      'It is billed now, as credit: each month of the year takes its own tier at half its monthly price, and what is left after the twelve months pays the months after them, at their monthly price. It is not refunded (terms §8).',
+      'It is billed now, as credit: each month of the year pays half the monthly price of the tier it used, and what is left after the year pays the months after it, at the full price. It is not refunded, and what is left ends if you close your account (terms §8).',
     orderedWithdrawUntil: 'As a consumer you may withdraw from this contract without giving a reason, until the end of',
     orderedWithdrawHow:
       'Use Withdraw from contract here on the Billing page in the app, or send an unambiguous statement to support@ownpace.eu. You may use the model form in §15 of the terms.',
@@ -1509,7 +1509,7 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     orderedYear: 'een jaar vooruit,',
     orderedYearTo: 'tot en met',
     orderedBilledYear:
-      'Het wordt nu gefactureerd, als tegoed: elke maand van het jaar krijgt haar eigen pakket, tegen de helft van de maandprijs, en wat na de twaalf maanden over is, betaalt de maanden daarna tegen de maandprijs. Het wordt niet terugbetaald (voorwaarden §8).',
+      'Het wordt nu gefactureerd, als tegoed: elke maand van het jaar betaalt de helft van de maandprijs van het pakket dat ze gebruikte, en wat na het jaar over is, betaalt de maanden daarna tegen de volle prijs. Het wordt niet terugbetaald, en wat er over is vervalt als u uw account sluit (voorwaarden §8).',
     orderedWithdrawUntil: 'Als consument kunt u deze overeenkomst zonder opgave van redenen herroepen, tot het einde van',
     orderedWithdrawHow:
       'Gebruik Hier de overeenkomst herroepen op de pagina Facturering in de app, of stuur een ondubbelzinnige verklaring aan support@ownpace.eu. U kunt het modelformulier in §15 van de voorwaarden gebruiken.',

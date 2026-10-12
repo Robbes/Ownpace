@@ -19,8 +19,17 @@ the rehearsal.
   the year's price, as article 14(3) of the Consumer Rights Directive reads to us, and the
   lawyer's question 27 (`site/legal/terms.md`) already asks to confirm it. After the fourteen
   days nothing of a year is refunded, so stopping early earns no discount.
+- **Credit left, and plain words.** Reading the card, the owner asked why credit should wait once
+  someone ends the service, and chose *"(i) with A"*: what is left after the twelve months still
+  pays later months at the full price while the account stays, and closing the account ends it.
+  Terms **1.6** says so in §8, in both languages (until 1.5 a cancellation still let the credit
+  pay the months used until it ran out), and every tester is asked to accept it. The card, its
+  question, the order's confirmation and the pricing page say the credit in plain words, the
+  owner's *"Credit with plain words"*: each month pays half the monthly price of the tier it
+  used, a month on Free nothing. No code changes: closing the account already ends every draw.
 - **What remains is outside the code:** the rehearsal, run on the OTA stack and recorded here; the
-  accountant's answer on VAT for a year; the lawyer's question 27.
+  accountant's answer on VAT for a year, and on credit held while an account stays open; the
+  lawyer's question 27.
 
 **2026-10-12, T11 slice Y3: one email a month before the credit runs out** (the owner's answer
 4). After each organisation's month, the hourly month task asks whether its credit pays all of

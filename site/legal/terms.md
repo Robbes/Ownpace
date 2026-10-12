@@ -51,6 +51,16 @@
   2026-10-11: "Lawyer agreed"). Precondition C below is built with this
   version.
 
+  v1.6, 2026-10-12: §8 only (workplan 0111 T11; ADR-0014, Amendment
+  2026-10-12). Closing the account while credit is left ends what is left
+  of it; until 1.5 the credit kept paying for the months used after a
+  cancellation. The owner, choosing between that and a credit that lapses
+  after the twelve months: "(i) with A", the credit kept while the account
+  stays, ended by closing it. And a year's credit in plain words: each month
+  pays half the monthly price of the tier it used, a month on Free nothing
+  (the owner: "Credit with plain words"). For the lawyer: question 27, now
+  whether credit may end when a consumer closes the account.
+
   Where things stand on 2026-09-28:
 
   - The lawyer's pass (workplan 0139 T1) is deferred by the owner: "legal:
@@ -445,7 +455,8 @@
       Directive reads to us ("on the basis of the total price agreed"). The
       owner asked, 2026-10-12, whether a year withdrawn from should pay at
       least the monthly price for the days it was used, and chose the year's
-      rate. And may the credit run
+      rate. Since 1.6, closing the account ends the credit left (the owner,
+      2026-10-12: "(i) with A"): may it, for a consumer? And may the credit run
       with no end date, or must it have one; is what is left lost when the
       customer closes the account (§11)?
   28. §6: the tiers of 2026-10-04 (ADR-0014, Amendment 2026-10-04, evening).
@@ -542,8 +553,8 @@
 # Terms of service
 
 **Applies to:** the Ownpace **managed service** at `ownpace.eu`.
-**Version:** 1.5
-**Last updated:** 2026-10-11
+**Version:** 1.6
+**Last updated:** 2026-10-12
 
 > **These terms do not govern the software.** Ownpace is open source under the Apache
 > License 2.0, and running it yourself is governed by that licence, not by these terms. These
@@ -691,20 +702,19 @@ Billing is **monthly in advance**: on the first day, for your tier, by the payme
 registered, carried out by our payment provider Mollie. If the month
 moves up to a higher tier, the difference for that month is invoiced when it does. On Free
 nothing is billed, so there is nothing to register. If you choose to **pay a year ahead**, it is
-billed at its start, at six months' price, and it is credit: each month of the year takes its
-own tier, at half that tier's monthly price.
+billed at its start, at six months' price, and it is credit: each month of the year pays half
+the monthly price of the tier it used, and a month on Free pays nothing.
 
 **You can cancel a monthly subscription at any time**, effective at the end of the current
 month. There is no minimum term, no notice period and no cancellation fee.
 
 **A year paid ahead is not refunded**, in whole or in part, because the discount was the price
 of paying ahead; your right of withdrawal (§7) is not affected. What is left of it when the
-year ends **pays for the months after it**, each at its tier's monthly price, until it runs
-out. If you cancel while credit is left, it still pays for the months you use until it runs
-out; after that nothing is billed and the service ends. Otherwise, once it has run out, a
-subscription **continues month to month**, and you cancel it like any monthly subscription: at
-any time, effective at the end of the current month. A year never renews as another year
-without you choosing it again.
+year ends **pays for the months after it**, each at its tier's full monthly price, until it
+runs out; then a subscription **continues month to month**, and you cancel it like any monthly
+subscription: at any time, effective at the end of the current month. **If you close your
+account (§11) while credit is left, what is left ends with it.** A year never renews as another
+year without you choosing it again.
 
 Two commitments:
 

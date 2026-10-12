@@ -124,7 +124,7 @@ export const en = {
   // at six months' price, each month of the year at half its tier's monthly price.
   'billing.year.title': 'A year ahead',
   'billing.year.lead':
-    "Pay a year ahead at six months' price. It is credit: each month of the year takes its own tier at half its monthly price, so a quieter month costs less. What is left after the twelve months pays the months after them, at their monthly price. Apart from the 14 days the law gives you to change your mind, the credit is not refunded, not even when you stop. A year never renews by itself.",
+    "Pay a year ahead at six months' price. It is credit: each month of the year pays half the monthly price of the tier it used, and a month on Free pays nothing. What is left after the year pays the months after it, at the full price. Apart from the 14 days the law gives you to change your mind, it is not refunded; close your account and what is left ends with it. A year never renews by itself.",
   'billing.year.alpha': 'During the Alpha nothing is charged, so there is no year to buy yet.',
   'billing.year.credit': 'Credit left: {left}.',
   'billing.year.halfMonths': 'Half price from {from} to {to}.',
@@ -135,7 +135,7 @@ export const en = {
     'Its credit would pay from {credit}; its twelve months at half price follow your current year, {from} to {to}.',
   'billing.year.button': 'A year of {tier}',
   'billing.year.confirm':
-    'A year of {tier} for {year}, invoiced now. It is credit: each month takes its own tier at half its monthly price, and it is not refunded.',
+    'A year of {tier} for {year}, invoiced now. It is credit: each month pays half the monthly price of the tier it used, and it is not refunded.',
   'billing.year.confirm.pick': 'From today each month bills at least {tier}, until you lower it.',
   'billing.year.done': 'Ordered: a year of {tier}, from {from}. Its invoice follows within the hour, under Invoices.',
   'billing.year.offerChanged':
@@ -345,7 +345,7 @@ export const nl: Record<keyof typeof en, string> = {
   'billing.pick.loadFailed': 'De pakketten die u kunt kiezen konden niet worden opgehaald',
   'billing.year.title': 'Een jaar vooruit',
   'billing.year.lead':
-    'Betaal een jaar vooruit, voor de prijs van zes maanden. Het is een tegoed: elke maand van het jaar krijgt haar eigen pakket, tegen de helft van de maandprijs, dus een rustiger maand kost minder. Wat na de twaalf maanden over is, betaalt de maanden daarna tegen de maandprijs. Op de 14 dagen bedenktijd na die de wet u geeft, krijgt u het tegoed niet terug, ook niet als u stopt. Een jaar wordt nooit vanzelf verlengd.',
+    'Betaal een jaar vooruit, voor de prijs van zes maanden. Het is een tegoed: elke maand van het jaar betaalt de helft van de maandprijs van het pakket dat ze gebruikte, en een maand op Free betaalt niets. Wat na het jaar over is, betaalt de maanden daarna tegen de volle prijs. Op de 14 dagen bedenktijd na die de wet u geeft, wordt het niet terugbetaald; sluit u uw account, dan vervalt wat er over is. Een jaar wordt nooit vanzelf verlengd.',
   'billing.year.alpha': 'Tijdens de Alpha wordt niets in rekening gebracht, er valt dus nog geen jaar te kopen.',
   'billing.year.credit': 'Tegoed over: {left}.',
   'billing.year.halfMonths': 'Halve prijs van {from} tot en met {to}.',
@@ -356,7 +356,7 @@ export const nl: Record<keyof typeof en, string> = {
     'Het tegoed zou betalen vanaf {credit}; de twaalf maanden tegen halve prijs volgen op uw huidige jaar, {from} tot en met {to}.',
   'billing.year.button': 'Een jaar {tier}',
   'billing.year.confirm':
-    'Een jaar {tier} voor {year}, nu gefactureerd. Het is een tegoed: elke maand krijgt haar eigen pakket, tegen de helft van de maandprijs, en het wordt niet terugbetaald.',
+    'Een jaar {tier} voor {year}, nu gefactureerd. Het is een tegoed: elke maand betaalt de helft van de maandprijs van het pakket dat ze gebruikte, en het wordt niet terugbetaald.',
   'billing.year.confirm.pick': 'Vanaf vandaag betaalt u als basis elke maand {tier}, tot u het verlaagt.',
   'billing.year.done': 'Besteld: een jaar {tier}, vanaf {from}. De factuur volgt binnen het uur, onder Facturen.',
   'billing.year.offerChanged':
