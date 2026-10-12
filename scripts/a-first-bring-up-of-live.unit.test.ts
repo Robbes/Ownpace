@@ -85,6 +85,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -96,6 +97,7 @@ const RELEASE_SENTENCE = 'live runs releases: name a release tag';
 const TAG = 'v0.2.0-alpha.1';
 const VERSION = '0.2.0-alpha.1';
 const CASE_MS = 90_000;
+const CLEANUP_MS = 120_000;
 
 /** The front's address and the OTA stack's, documentation addresses (RFC 5737). */
 const FRONT = '192.0.2.10';
@@ -115,9 +117,12 @@ const PORTS: Record<string, string> = {
 const PASSWORD_KEYS = ['POSTGRES_PASSWORD', 'APP_DB_PASSWORD', 'CLICKHOUSE_PASSWORD', 'MINIO_ROOT_PASSWORD', 'TRIGGER_DB_PASSWORD'];
 
 const tempDirs: string[] = [];
-afterAll(() => {
-  for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
-});
+// The temp folders are many and full; under a loaded full run a synchronous
+// rm of them all outlasted the 10 s hook timeout. Removed side by side, with
+// room to finish.
+afterAll(async () => {
+  await Promise.all(tempDirs.map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 3 })));
+}, CLEANUP_MS);
 
 // ---------------------------------------------------------------------------
 // live's .env and the OTA stack's
