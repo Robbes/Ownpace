@@ -43,6 +43,7 @@ import {
   qualificationEvidence,
   qualificationText,
 } from '../i18n/probe-text.ts';
+import { GuideLink } from '../components/GuideLink.tsx';
 // The remedy sentence per failure category — the one map the migration page
 // and the operator's support screen read too, so all three say the same words.
 import { FAILURE_KEY } from '../i18n/failure-key.ts';
@@ -501,6 +502,7 @@ const Row: React.FC<{
             locale,
             result.said,
           )}
+          {!result.ok && <GuideLink handle={result.guide} />}
           {result.qualification && (
             /* What this account CAN CARRY (0106 T0) — per domain, measured. */
             <span className="block mt-1">{qualificationText(t, result.qualification)}</span>

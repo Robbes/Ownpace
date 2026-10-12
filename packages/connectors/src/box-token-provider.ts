@@ -22,6 +22,7 @@
  * does not.
  */
 
+import { guidedError } from '@openmig/shared';
 import type { OAuth2Token, TokenProvider, TokenStatus } from '@openmig/shared';
 import type { TokenFetch } from './google-token-provider.ts';
 
@@ -125,7 +126,10 @@ export class BoxTokenProvider implements TokenProvider {
     const text = await safeText(response);
     if (!response.ok) {
       const shown = text.slice(0, 500);
-      throw new Error(`Box refused the token request (${response.status}): ${shown}${hintFor(shown)}`);
+      const message = `Box refused the token request (${response.status}): ${shown}${hintFor(shown)}`;
+      // The app's creation and its authorization are the guide's steps
+      // (0148 T7): the handle rides beside the words, which name no file.
+      throw shown.includes('unauthorized_client') ? guidedError(message, 'box#connect') : new Error(message);
     }
 
     let parsed: { access_token?: string; expires_in?: number; token_type?: string };
@@ -163,7 +167,7 @@ function hintFor(body: string): string {
       'enterprise: a Box admin must approve it once in the Admin Console (Apps → Custom Apps ' +
       'Manager → Add app by Client ID), and re-approve it after its scopes change. It can also ' +
       'mean the app was created without "App + Enterprise Access" / user token generation, ' +
-      'which the Client Credentials Grant needs. docs/box-setup.md walks through both.'
+      'which the Client Credentials Grant needs. The guide walks through both.'
     );
   }
   if (body.includes('invalid_client')) {

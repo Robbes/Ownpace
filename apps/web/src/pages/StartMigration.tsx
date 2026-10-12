@@ -64,7 +64,8 @@ import {
   type FolderListing,
   type TestConnectionResult,
 } from '../services/mapping-service.ts';
-import { serverMessage } from '../services/api.ts';
+import { serverGuides, serverMessage } from '../services/api.ts';
+import { GuideLinks } from '../components/GuideLink.tsx';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
 import {
   START_PROVIDERS,
@@ -237,6 +238,8 @@ export interface MadeMigration {
   readonly id?: string;
   /** Why the create was refused: nothing was made for this pair. */
   readonly failed?: string;
+  /** The guide sections that refusal carries beside its words (0148 T7). */
+  readonly guides?: readonly string[];
   /** Made, but not added to the person: Migrations lists it as nobody's yet. */
   readonly notAdded?: string;
 }
@@ -574,7 +577,8 @@ const StartMigration: React.FC = () => {
           }
           migrations[key] = notAdded === undefined ? { id } : { id, notAdded };
         } catch (error) {
-          migrations[key] = { failed: serverMessage(error) };
+          const guides = serverGuides(error);
+          migrations[key] = { failed: serverMessage(error), ...(guides.length > 0 ? { guides } : {}) };
         }
       }
       setMade({ personId, migrations });
@@ -586,8 +590,8 @@ const StartMigration: React.FC = () => {
     }
   };
   const setUpFailures = planned.flatMap((m) => {
-    const failed = made.migrations[pairKey(m)]?.failed;
-    return failed === undefined ? [] : [{ key: pairKey(m), title: titles[pairKey(m)] ?? '', failed }];
+    const { failed, guides } = made.migrations[pairKey(m)] ?? {};
+    return failed === undefined ? [] : [{ key: pairKey(m), title: titles[pairKey(m)] ?? '', failed, guides }];
   });
 
   // A NEW SCREEN STARTS AT THE TOP, with focus on its heading (0145 T3 (a)).
@@ -793,6 +797,7 @@ const StartMigration: React.FC = () => {
               setUpFailures.map((f) => (
                 <p key={f.key} role="alert" className="mt-2 text-sm text-red-800">
                   <span className="font-medium">{t('start.to.failed', { migration: f.title })}</span> {f.failed}
+                  <GuideLinks handles={f.guides} />
                 </p>
               ))}
           </div>

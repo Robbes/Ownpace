@@ -17,7 +17,12 @@ describe('refusing before anything is attempted', () => {
     expect(() => buildDropboxSourceFrom({}, {})).toThrow(
       /DROPBOX_APP_KEY, DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN/,
     );
-    expect(() => buildDropboxSourceFrom({}, {})).toThrow(/dropbox-setup\.md/);
+    // Where to read on is the guide's section, beside the words; the words
+    // name no file (0148 T7).
+    expect(() => buildDropboxSourceFrom({}, {})).toThrow(
+      expect.objectContaining({ refusal: expect.objectContaining({ guide: 'dropbox#own-app' }) }),
+    );
+    expect(() => buildDropboxSourceFrom({}, {})).not.toThrow(/docs\/[\w./-]+\.md/);
   });
 
   it("names the STORED keys for the managed edition — a fix the operator can apply", () => {

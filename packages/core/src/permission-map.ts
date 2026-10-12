@@ -92,7 +92,7 @@ export function mapGrant(grant: PermissionGrant): PermissionMapping {
       verdict: 'manual',
       target:
         'give each person who needs the shared mailbox their own app password for it ' +
-        '(SAD §14.1, docs/shared-mailboxes.md)',
+        '(SAD §14.1)',
       note: 'The target has no per-person mailbox ACL; app passwords are the convention, and they can be withdrawn individually.',
     };
   }

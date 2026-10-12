@@ -197,6 +197,29 @@ export function serverMessage(err: unknown): string {
 }
 
 /**
+ * The guide handles a refusal carries beside its words (workplan 0148 T7):
+ * a top-level `guide`, and each Zod issue's `params.guide`, which is where the
+ * create route puts one. `GuideLinks` draws them. Empty for anything else.
+ */
+export function serverGuides(err: unknown): string[] {
+  if (!axios.isAxiosError(err)) return [];
+  const data: unknown = err.response?.data;
+  if (!data || typeof data !== 'object') return [];
+  const d = data as { guide?: unknown; details?: unknown };
+  const guides: string[] = typeof d.guide === 'string' ? [d.guide] : [];
+  if (Array.isArray(d.details)) {
+    for (const issue of d.details) {
+      const guide =
+        issue && typeof issue === 'object'
+          ? (issue as { params?: { guide?: unknown } }).params?.guide
+          : undefined;
+      if (typeof guide === 'string') guides.push(guide);
+    }
+  }
+  return [...new Set(guides)];
+}
+
+/**
  * Where an answer did not fit the page's schema, or null when the error is
  * not that (reported 2026-09-29).
  *

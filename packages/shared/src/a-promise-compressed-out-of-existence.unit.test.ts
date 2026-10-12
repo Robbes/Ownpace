@@ -89,7 +89,6 @@ describe('the caveats a customer acts on are still there', () => {
     ['mailbox delegation is unreadable through Graph', /NOT readable\s+through Graph/i],
     ['…so they capture it themselves', /Exchange Online PowerShell/i],
     ['a shared mailbox needs application permissions', /application permissions on the source/i],
-    ['…and where to read about it', /docs\/shared-mailboxes\.md/i],
     ['distribution lists are manual', /Recreating them is manual|recreating them is manual/i],
     ['SharePoint files DO migrate', /files and folders[^.]*are migrated/i],
   ];
@@ -104,6 +103,13 @@ describe('the caveats a customer acts on are still there', () => {
       ).toBe(true);
     });
   }
+
+  it('still says where to read about a shared mailbox, as a guide beside the row (0148 T7)', () => {
+    // It named `docs/shared-mailboxes.md`, a file no customer can open. The
+    // row now carries the guide's section, which the screen links.
+    const row = everyEntry().find((entry) => /application permissions on the source/i.test(wholeOf(entry)));
+    expect(row?.guide).toBe('microsoft#application');
+  });
 
   it('says nothing about a row it does not carry', () => {
     // The other direction of §11.2, and the reason this file is not just a

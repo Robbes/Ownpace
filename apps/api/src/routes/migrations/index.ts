@@ -1375,7 +1375,8 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
         message:
           'Reusing a Box connection still needs the NUMERIC Box user id of the account ' +
           'this migration moves (userId): the connection says which Box app signs in, ' +
-          'not whose files to read. See docs/box-setup.md.',
+          'not whose files to read.',
+        params: { guide: 'box#user-id' },
       });
     }
     // And WHICH archive (0116 T5/T6). A reused archive connection is one
@@ -1390,7 +1391,8 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
         message:
           "Reusing an export archive connection still needs WHERE this migration's archive " +
           'is (path): the connection says which export it reads, and each migration points ' +
-          'at one archive — the next one in the series. See docs/archive-setup.md.',
+          'at one archive — the next one in the series.',
+        params: { guide: 'archive#connect' },
       });
     }
   } else if (body.sourceType === 'google-drive') {
@@ -1416,9 +1418,8 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
         message: carriesApp('google')
           ? deploymentAppTokenRefusal('google-drive', 'Google', missing)
           : "A 'google-drive' source authenticates with your own Google Cloud OAuth client and a " +
-            `delegated refresh token: sourceConfig is missing ${missing.join(', ')}. ` +
-            'Where each comes from is docs/google-workspace-setup.md, which ends with one ' +
-            'read-only command that proves all three before anything migrates.',
+            `delegated refresh token: sourceConfig is missing ${missing.join(', ')}.`,
+        ...(carriesApp('google') ? {} : { params: { guide: 'google#own-app' } }),
       });
     }
     refuseHalfGoogleClientPair(ctx, body.sourceConfig);
@@ -1461,7 +1462,8 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
           ? deploymentAppTokenRefusal(body.sourceType, 'Google', missing, scope)
           : `A '${body.sourceType}' source authenticates with your own Google Cloud OAuth client ` +
             `and a refresh token consented with the ${scope} scope: sourceConfig is missing ` +
-            `${missing.join(', ')}. Where each comes from is docs/google-workspace-setup.md.`,
+            `${missing.join(', ')}.`,
+        ...(carriesApp('google') ? {} : { params: { guide: 'google#own-app' } }),
       });
     }
     // The ACCOUNT's ceiling is THIS DEPLOYMENT'S, not the product's (ADR-0041,
@@ -1512,10 +1514,10 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
           `consent: sourceConfig is missing ${missing.join(', ')}. ` +
           (microsoftDeploymentClient() === null
             ? 'This deployment carries no Microsoft app registration of its own, so the ' +
-              'Application (client) ID and client secret travel with the request. Where each ' +
-              'comes from is docs/microsoft-setup.md.'
+              'Application (client) ID and client secret travel with the request.'
             : "This deployment carries its own app registration, so only the token is needed — " +
               'press Connect with Microsoft, or paste one you already have.'),
+        ...(microsoftDeploymentClient() === null ? { params: { guide: 'microsoft#own-app' } } : {}),
       });
     }
     // Half a pair is refused rather than completed with the deployment's other
@@ -1559,7 +1561,8 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
           `and CardDAV: sourceConfig is missing ${missing.join(', ')}. Apple refuses an Apple ` +
           'Account password on these protocols by design, because every Apple Account has ' +
           'two-factor authentication. Make an app-specific password at account.apple.com ' +
-          '(Sign-In and Security → App-Specific Passwords) — docs/apple-setup.md walks it.',
+          '(Sign-In and Security → App-Specific Passwords).',
+        params: { guide: 'apple#app-password' },
       });
     }
     const appleRefusal = sourceDomainRefusal(
@@ -1588,7 +1591,8 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
           ? deploymentAppTokenRefusal('dropbox', 'Dropbox', missing)
           : "A 'dropbox' source authenticates with your own Dropbox app (App key as clientId, " +
             `App secret as clientSecret) and a refresh token: sourceConfig is missing ` +
-            `${missing.join(', ')}. Where each comes from is docs/dropbox-setup.md.`,
+            `${missing.join(', ')}.`,
+        ...(carriesApp('dropbox') ? {} : { params: { guide: 'dropbox#own-app' } }),
       });
     }
     refuseHalfDropboxClientPair(ctx, body.sourceConfig);
@@ -1615,8 +1619,8 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
         message:
           "An 'archive' source is an EXPORT you already downloaded, not an account: " +
           `sourceConfig is missing ${missing.join(', ')}. \`provider\` says which export ` +
-          `(${ARCHIVE_PROVIDERS.join(' or ')}) and \`path\` says where it is. ` +
-          'docs/archive-setup.md walks requesting each one.',
+          `(${ARCHIVE_PROVIDERS.join(' or ')}) and \`path\` says where it is.`,
+        params: { guide: 'archive#connect' },
       });
     }
     // The provider is validated against the list BY NAME, because getting it
@@ -1666,7 +1670,8 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
           "A 'box' source authenticates with your own Box platform app via the Client " +
           `Credentials Grant (client id + client secret) and needs the NUMERIC Box user id ` +
           `of the account being migrated as userId: sourceConfig is missing ` +
-          `${missing.join(', ')}. Where each comes from is docs/box-setup.md.`,
+          `${missing.join(', ')}.`,
+        params: { guide: 'box#connect' },
       });
     }
     const sourceRefusal = sourceDomainRefusal('box', body.syncConfig.domains);
@@ -1699,12 +1704,12 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
               ' '
             : "A 'gmail' source authenticates with your own Google Cloud OAuth client and a " +
               `refresh token consented with the https://mail.google.com/ scope: sourceConfig is ` +
-              `missing ${missing.join(', ')}. Where each comes from is ` +
-              'docs/google-workspace-setup.md. ') +
+              `missing ${missing.join(', ')}. `) +
           `A PERSONAL Google account may send appPassword instead${
             googleApp ? '' : ' of all three'
           } — Google recommends against it, it needs 2-step verification on the account, and ` +
           'it does not exist on a Workspace account.',
+        ...(googleApp ? {} : { params: { guide: 'google#own-app' } }),
       });
     }
     refuseHalfGoogleClientPair(ctx, body.sourceConfig);
@@ -1732,7 +1737,8 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
         message:
           `A '${body.sourceType}' source authenticates with your own Entra app registration ` +
           `(the client-credentials flow): sourceConfig is missing ${missing.join(', ')}. ` +
-          'Register the app in your own tenant and grant admin consent — see docs/o365-setup.md.',
+          'Register the app in your own tenant and grant admin consent.',
+        params: { guide: 'microsoft#application' },
       });
     }
   }

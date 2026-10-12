@@ -2,10 +2,12 @@
 /**
  * The setup guides, in the app (workplan 0063).
  *
- * The wizard's panels and several refusals name documents by FILENAME —
- * "docs/box-setup.md walks through each step" — which is actionable if you
- * have the repository checked out and useless if you are a managed customer
- * in a browser. This route makes those references real links.
+ * A refusal names no document by file: it carries a guide handle beside its
+ * words, such as `box#connect` (workplan 0148 T7), and `GuideLink` draws it as
+ * *Guide: {title}* / *Handleiding: {title}*, a link to that section of this
+ * route. Until then refusals said "docs/box-setup.md walks through each step",
+ * which is actionable with the repository checked out and useless to a
+ * customer in a browser.
  *
  * The markdown is imported AT BUILD TIME from the repository's own `docs/`
  * directory, so the guide ships with the code that implements it. That is the
@@ -95,6 +97,16 @@ const LIBRARY: GuideLibrary = { en: guidesIn('en'), nl: guidesIn('nl') };
 export const GUIDE_SLUGS: ReadonlySet<string> = new Set(
   LOCALES.flatMap((locale) => [...LIBRARY[locale].keys()]),
 );
+
+/**
+ * A served guide's title in the reader's language, or in the other one where
+ * the reader's has none; undefined for a guide this build does not ship. What
+ * `GuideLink` names beside a refusal (0148 T7).
+ */
+export function servedGuideTitle(slug: string, locale: Locale): string | undefined {
+  const picked = pickGuide(LIBRARY, slug, locale);
+  return picked === undefined ? undefined : guideTitle(picked.body, slug);
+}
 
 /** A guide as the page shows it: its text, the language it is in, and whether that is not the reader's. */
 export interface PickedGuide {

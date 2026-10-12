@@ -83,7 +83,7 @@ export function buildBoxSourceFrom(
         `A Box migration uses the Client Credentials Grant — NOT a refresh token, because Box ` +
         `rotates refresh tokens on every use and stored credentials here are never written ` +
         `back — so it needs ${naming.clientId}, ${naming.clientSecret} and the numeric ` +
-        `${naming.subjectUserId} in ${naming.where}. docs/box-setup.md walks through obtaining ` +
+        `${naming.subjectUserId} in ${naming.where}. The guide walks through obtaining ` +
         'each, including the one-time admin authorization; the app is read-only by scope — ' +
         'this product never writes to a Box.',
       detailNl:
@@ -91,9 +91,11 @@ export function buildBoxSourceFrom(
         'refresh-tokens bij elk gebruik vervangt en opgeslagen gegevens hier nooit worden ' +
         `teruggeschreven — dus zijn ${naming.clientId}, ${naming.clientSecret} en het ` +
         `numerieke ${naming.subjectUserId} nodig in ${naming.whereNl ?? naming.where}. ` +
-        'docs/box-setup.md legt stap voor stap uit hoe u ze verkrijgt, inclusief de eenmalige ' +
+        'De handleiding legt stap voor stap uit hoe u ze verkrijgt, inclusief de eenmalige ' +
         'beheerdersautorisatie; de app is alleen-lezen door de gekozen scopes — dit product ' +
         'schrijft nooit naar een Box.',
+      // The guide's own steps, linked beside the words (0148 T7).
+      guide: 'box#connect',
     });
   }
 

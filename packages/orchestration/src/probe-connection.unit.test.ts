@@ -230,6 +230,19 @@ describe('whose refusal is it? (workplan 0083)', () => {
     }
   });
 
+  it('carries the guide our refusal names beside its words, not in them (0148 T7)', async () => {
+    const result = await probeSourceConnection('gmail', { type: 'gmail', user: 'a@gmail.com' }, {});
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.guide).toBe('google#own-app');
+      expect(result.reason).not.toMatch(/docs\/[\w./-]+\.md/);
+    }
+    if (result.outcome?.code === 'credentialsRefused') {
+      expect(result.outcome.refusal.guide).toBe('google#own-app');
+      expect(result.outcome.refusal.nl).not.toMatch(/docs\/[\w./-]+\.md/);
+    }
+  });
+
   it("leaves a PROVIDER's refusal labelled as theirs", async () => {
     // An unprobeable kind is ours too, but a genuine provider error must not
     // be swept into the translated bucket — that would be 0080's defect in

@@ -78,6 +78,7 @@ import { conditionsRefusal } from '../services/acceptance.ts';
 import { useT, useLocale, type StringKey } from '../i18n/index.tsx';
 import { optionName } from '../i18n/option-name.ts';
 import { measuredText, probeText, qualificationEvidence, qualificationText } from '../i18n/probe-text.ts';
+import { GuideLink } from './GuideLink.tsx';
 import { nextcloudAddress, nextcloudDavUrl } from '../services/start-plan.ts';
 import { cardGuideHref } from './front-door-cards.ts';
 
@@ -692,6 +693,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
             locale,
             result.said,
           )}
+          {!result.ok && <GuideLink handle={result.guide} />}
           {result.qualification && (
             <span className="block mt-1">{qualificationText(t, result.qualification)}</span>
           )}

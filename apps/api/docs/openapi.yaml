@@ -1776,6 +1776,13 @@ paths:
                   ok: { type: boolean }
                   detail: { type: string }
                   reason: { type: string }
+                  guide:
+                    type: string
+                    description: |
+                      On a refusal, the section of a served guide that says the
+                      rest (workplan 0148 T7): `<guide>#<section>`, such as
+                      `box#connect`, linked at `/docs/<guide>#<section>`. Beside
+                      `reason`, never in it; absent where no guide has more.
         '400':
           description: |
             Unknown type, a missing required field, or a value the schema refuses.
@@ -1869,6 +1876,13 @@ paths:
                   ok: { type: boolean }
                   detail: { type: string }
                   reason: { type: string }
+                  guide:
+                    type: string
+                    description: |
+                      On a refusal, the section of a served guide that says the
+                      rest (workplan 0148 T7): `<guide>#<section>`, such as
+                      `box#connect`, linked at `/docs/<guide>#<section>`. Beside
+                      `reason`, never in it; absent where no guide has more.
                   rotated:
                     type: boolean
                     description: False when the probe failed and the old credentials were kept.
@@ -1916,6 +1930,13 @@ paths:
                   ok: { type: boolean }
                   detail: { type: string }
                   reason: { type: string }
+                  guide:
+                    type: string
+                    description: |
+                      On a refusal, the section of a served guide that says the
+                      rest (workplan 0148 T7): `<guide>#<section>`, such as
+                      `box#connect`, linked at `/docs/<guide>#<section>`. Beside
+                      `reason`, never in it; absent where no guide has more.
                   scheduling:
                     type: object
                     description: |
@@ -2139,6 +2160,13 @@ paths:
                   ok: { type: boolean }
                   detail: { type: string }
                   reason: { type: string }
+                  guide:
+                    type: string
+                    description: |
+                      On a refusal, the section of a served guide that says the
+                      rest (workplan 0148 T7): `<guide>#<section>`, such as
+                      `box#connect`, linked at `/docs/<guide>#<section>`. Beside
+                      `reason`, never in it; absent where no guide has more.
                   said:
                     type: object
                     description: |
@@ -2206,7 +2234,10 @@ paths:
               schema: { type: object }
         '400':
           description: |
-            Refused, naming what is incoherent or missing. Or `archive_on_server`
+            Refused, naming what is incoherent or missing. `details` is the
+            list of issues; an issue whose words point at a guide carries its
+            section beside them as `params.guide` (workplan 0148 T7), such as
+            `box#user-id`, and the words name no file. Or `archive_on_server`
             (workplan 0136 T5): an export archive at a path on this service's own
             machine — for a new connection, or in a reused one's override —
             refused before anything is stored. That refusal also carries
@@ -5569,7 +5600,9 @@ paths:
       description: |
         The per-domain manifest the confirm screen renders: what migrates, what
         does not, and what is transformed on the way. Static truth about the
-        product, not about one tenant's data.
+        product, not about one tenant's data. A row may carry `guide`, the
+        section of a served guide that says more (workplan 0148 T7), such as
+        `microsoft#application`; the screen links it beside the row.
       responses:
         '200':
           description: The manifest.

@@ -18,6 +18,7 @@
  */
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
+import { MemoryRouter } from 'react-router';
 import { SCOPE_MANIFEST, type ScopeManifest } from '@openmig/shared';
 import ScopeManifestPanel from './ScopeManifestPanel.tsx';
 
@@ -61,7 +62,13 @@ describe('one line per row, the rest folded', () => {
     // The fixtures above prove the component; this proves the content it is
     // given. A row that grows back to six lines on screen is the owner's
     // complaint returning, and it would return in `detail`.
-    render(<ScopeManifestPanel manifest={SCOPE_MANIFEST} />);
+    // In a router, as on every screen that shows it: a row may link its guide
+    // (0148 T7).
+    render(
+      <MemoryRouter>
+        <ScopeManifestPanel manifest={SCOPE_MANIFEST} />
+      </MemoryRouter>,
+    );
     for (const column of ['migrates', 'partial', 'doesNotMigrate'] as const) {
       for (const entry of SCOPE_MANIFEST[column]) {
         expect(
@@ -75,5 +82,11 @@ describe('one line per row, the rest folded', () => {
     const folds = screen.getAllByText('More');
     expect(folds.length).toBeGreaterThan(0);
     for (const fold of folds) expect(fold).toBeVisible();
+    // The shared-mailbox row's guide, beside the row rather than a file name
+    // in it (0148 T7).
+    expect(screen.getByRole('link', { name: /^Guide: / })).toHaveAttribute(
+      'href',
+      '/docs/microsoft#application',
+    );
   });
 });

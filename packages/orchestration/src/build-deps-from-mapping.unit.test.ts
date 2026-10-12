@@ -388,8 +388,13 @@ describe('buildSourceConnectorFromCredentials — named mailbox on the delegated
     // A managed operator has no OAUTH2_* variables. Advice they cannot act on
     // is worse than none: it sends them looking for a setting that is not there.
     expect(failure).not.toThrow(/OAUTH2_/);
-    // Still points at the runbook rather than leaving them to guess.
-    expect(failure).toThrow(/o365-application-access\.md/);
+    // Still points at where the administrator's steps are rather than leaving
+    // them to guess: the guide's section, beside the words, which name no
+    // file (0148 T7).
+    expect(failure).toThrow(
+      expect.objectContaining({ refusal: expect.objectContaining({ guide: 'microsoft#application' }) }),
+    );
+    expect(failure).not.toThrow(/docs\/[\w./-]+\.md/);
   });
 
   it('allows a named mailbox on the client-credentials flow', () => {

@@ -163,13 +163,15 @@ function refuseMissing(
         `Google ${what} source is missing ${missing.join(', ')} in ${naming.where}. All three are ` +
         'required: the OAuth client (id + secret) and a refresh token consented with the ' +
         `${scope} scope — a token consented for another Google product will not mint these. ` +
-        'docs/google-workspace-setup.md walks through obtaining each.',
+        'The guide walks through obtaining each.',
       nl:
         `Google ${what}-bron: ${missing.join(', ')} ontbreekt in ` +
         `${naming.whereNl ?? naming.where}. Alle drie zijn vereist: de OAuth-client ` +
         `(id + secret) en een refresh-token met toestemming voor de scope ${scope} — een ` +
         'token dat voor een ander Google-product is toegestaan levert deze niet op. ' +
-        'docs/google-workspace-setup.md legt stap voor stap uit hoe u ze verkrijgt.',
+        'De handleiding legt stap voor stap uit hoe u ze verkrijgt.',
+      // The guide's own-app steps, linked beside the words (0148 T7).
+      guide: 'google#own-app',
     });
   }
   if (!user) {

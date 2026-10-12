@@ -85,7 +85,7 @@ export async function scanCalendarPermissions(
       kind: 'not_discoverable',
       reason: permissionsNotDiscoverable(
         'this connection uses delegated permissions, which can only read the signed-in ' +
-          "user's own calendars — see docs/o365-application-access.md",
+          "user's own calendars",
       ),
     };
   }
@@ -144,7 +144,7 @@ export async function resolveUserDriveId(
       ok: false,
       reason: permissionsNotDiscoverable(
         'this connection uses delegated permissions, which cannot reach another user’s ' +
-          'drive — see docs/o365-application-access.md',
+          'drive',
       ),
     };
   }
@@ -207,7 +207,7 @@ export async function scanDrivePermissions(
       kind: 'not_discoverable',
       reason: permissionsNotDiscoverable(
         'this connection uses delegated permissions, which can only read the signed-in ' +
-          "user's own drive — see docs/o365-application-access.md",
+          "user's own drive",
       ),
     };
   }

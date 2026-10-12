@@ -24,8 +24,9 @@
  * ## What is translated and what is not
  *
  * "Translate the frame, never the finding." The frame is the explanation — why
- * this credential is needed, which flow it belongs to, which document walks
- * through obtaining it. The **finding is the field name**, and it renders
+ * this credential is needed, which flow it belongs to. Which guide walks
+ * through obtaining it is a handle beside the words, never a file name in them
+ * (workplan 0148 T7). The **finding is the field name**, and it renders
  * verbatim in both languages, because it is the literal thing the operator
  * must go and set: an env var like `OAUTH2_CLIENT_ID` on the appliance, or a
  * stored-credential key like `clientId` in managed. Translating `clientId` to
@@ -45,6 +46,8 @@
  * that can use it.
  */
 
+import type { GuideHandle } from './guide-handle.ts';
+
 /** The two languages this product is authored in (ADR-0013). */
 export type RefusalLocale = 'en' | 'nl';
 
@@ -63,6 +66,12 @@ export interface BilingualRefusal {
   readonly fields: readonly string[];
   readonly en: string;
   readonly nl: string;
+  /**
+   * The section of a served guide that says the rest (workplan 0148 T7), such
+   * as `box#connect`. The sentences name no file: a screen draws the link
+   * beside them, in its reader's language. Absent where no guide has more.
+   */
+  readonly guide?: GuideHandle;
 }
 
 /** Pick a language out of a refusal. */
@@ -140,6 +149,8 @@ export interface MissingCredentialsInput {
    */
   readonly detailEn: string;
   readonly detailNl: string;
+  /** The guide's section for obtaining them (0148 T7), carried beside the words. */
+  readonly guide?: GuideHandle;
 }
 
 export function missingCredentials(input: MissingCredentialsInput): CredentialRefusalError {
@@ -152,6 +163,7 @@ export function missingCredentials(input: MissingCredentialsInput): CredentialRe
     // every log line and every test that pins it is untouched.
     en: `${input.subject}: ${names.join(', ')} ${isOne ? 'is' : 'are'} not set. ${input.detailEn}`,
     nl: `${input.subject}: ${list(names, 'en')} ${isOne ? 'is' : 'zijn'} niet ingesteld. ${input.detailNl}`,
+    ...(input.guide === undefined ? {} : { guide: input.guide }),
   });
 }
 
@@ -197,16 +209,16 @@ export function delegatedFlowCannotReadMailbox(
       'requires application permissions (the client-credentials flow), but ' +
       `${input.refreshTokenField} is set — that is the DELEGATED flow and can only read the ` +
       `signed-in user (/me). Unset ${input.refreshTokenField} and set ${input.clientSecretField}, ` +
-      'having granted admin consent — see docs/o365-application-access.md — or remove the ' +
-      'mailbox to read /me.',
+      'having granted admin consent, or remove the mailbox to read /me.',
     nl:
       `${input.subject}: postbus "${input.mailbox}" verwijst naar de ${input.store} van een ` +
       'andere gebruiker. Daarvoor zijn toepassingsmachtigingen nodig (de client-credentials-' +
       `stroom), maar ${input.refreshTokenField} is ingesteld — dat is de GEDELEGEERDE stroom, ` +
       'die alleen de aangemelde gebruiker kan lezen (/me). Verwijder ' +
       `${input.refreshTokenField} en stel ${input.clientSecretField} in, nadat een beheerder ` +
-      'toestemming heeft gegeven — zie docs/o365-application-access.md — of haal de postbus ' +
-      'weg om /me te lezen.',
+      'toestemming heeft gegeven, of haal de postbus weg om /me te lezen.',
+    // The administrator's steps: the registration and its consent (0148 T7).
+    guide: 'microsoft#application',
   });
 }
 

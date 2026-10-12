@@ -151,9 +151,8 @@ export function renderGroupRunbook(input: RunbookInput): string {
     }
     out.push('');
     out.push(
-      '**To fix:** grant the permission that lets the source be read (see ' +
-        '`docs/o365-application-access.md`) and run discovery again, or write the membership ' +
-        'down by hand from the source’s own admin tools.',
+      '**To fix:** grant the permission that lets the source be read and run discovery ' +
+        'again, or write the membership down by hand from the source’s own admin tools.',
     );
     out.push('');
   }

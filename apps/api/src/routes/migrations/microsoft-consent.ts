@@ -141,7 +141,7 @@ export function microsoftConsentRefusal(
       'Microsoft could not find this application in the directory it was asked about. That is ' +
       'usually a single-tenant registration being authenticated against "common": either ' +
       'register the application as multi-tenant, or set MICROSOFT_OAUTH_TENANT to the ' +
-      'directory it belongs to (docs/microsoft-setup.md).'
+      'directory it belongs to.'
     );
   }
   return null;

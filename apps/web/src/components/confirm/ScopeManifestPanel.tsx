@@ -14,6 +14,7 @@
 import React from 'react';
 import { useT } from '../../i18n/index.tsx';
 import type { ScopeManifest } from '@openmig/shared';
+import { GuideLink } from '../GuideLink.tsx';
 
 /**
  * ONE LINE PER ROW, THE REST FOLDED (owner, 2026-09-17).
@@ -55,6 +56,8 @@ const Column: React.FC<{
                 <p className="mt-1 text-gray-500">{e.more}</p>
               </details>
             )}
+            {/* The row's guide, beside its words (0148 T7). */}
+            <GuideLink handle={e.guide} className="block mt-1 text-xs text-blue-700 hover:underline" />
           </li>
         ))}
       </ul>
