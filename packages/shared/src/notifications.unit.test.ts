@@ -735,8 +735,8 @@ describe('an order, confirmed by email (0111 T7, slice 7e)', () => {
     const nl = renderEvent({ ...ordered, order: year, withdrawUntil: null, beganOnRequest: false }, 'nl');
     expect(nl.body).toContain('  - Ownpace Medium, een jaar vooruit, november 2026 tot en met oktober 2027: € 72,00');
     expect(nl.body).toContain(
-      'Met deze e-mail bevestigen we dat. Het wordt nu gefactureerd, als tegoed: elke maand van het jaar neemt zijn eigen ' +
-        'pakket voor de helft van de maandprijs, en wat na de twaalf maanden over is, betaalt de maanden daarna tegen de ' +
+      'Met deze e-mail bevestigen we dat. Het wordt nu gefactureerd, als tegoed: elke maand van het jaar krijgt haar eigen ' +
+        'pakket, tegen de helft van de maandprijs, en wat na de twaalf maanden over is, betaalt de maanden daarna tegen de ' +
         'maandprijs. Het wordt niet terugbetaald (voorwaarden §8).',
     );
     const en = renderEvent(

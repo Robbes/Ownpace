@@ -1466,7 +1466,7 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     orderedYear: 'een jaar vooruit,',
     orderedYearTo: 'tot en met',
     orderedBilledYear:
-      'Het wordt nu gefactureerd, als tegoed: elke maand van het jaar neemt zijn eigen pakket voor de helft van de maandprijs, en wat na de twaalf maanden over is, betaalt de maanden daarna tegen de maandprijs. Het wordt niet terugbetaald (voorwaarden §8).',
+      'Het wordt nu gefactureerd, als tegoed: elke maand van het jaar krijgt haar eigen pakket, tegen de helft van de maandprijs, en wat na de twaalf maanden over is, betaalt de maanden daarna tegen de maandprijs. Het wordt niet terugbetaald (voorwaarden §8).',
     orderedWithdrawUntil: 'Als consument kunt u deze overeenkomst zonder opgave van redenen herroepen, tot het einde van',
     orderedWithdrawHow:
       'Gebruik Hier de overeenkomst herroepen op de pagina Facturering in de app, of stuur een ondubbelzinnige verklaring aan support@ownpace.eu. U kunt het modelformulier in §15 van de voorwaarden gebruiken.',
