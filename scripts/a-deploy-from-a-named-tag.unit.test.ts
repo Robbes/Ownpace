@@ -161,6 +161,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -184,6 +185,7 @@ const APP_HOST = 'app.example.test';
 
 const CASE_MS = 60_000;
 const PGLITE_CASE_MS = 180_000;
+const CLEANUP_MS = 120_000;
 
 const tempDirs: string[] = [];
 function tempDir(prefix: string): string {
@@ -191,9 +193,12 @@ function tempDir(prefix: string): string {
   tempDirs.push(dir);
   return dir;
 }
-afterAll(() => {
-  for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
-});
+// The temp folders are many and full; under a loaded full run a synchronous
+// rm of them all outlasted the 10 s hook timeout. Removed side by side, with
+// room to finish.
+afterAll(async () => {
+  await Promise.all(tempDirs.map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 3 })));
+}, CLEANUP_MS);
 
 // PGlite for the `psql` stub, a separate node process. Resolved from the
 // ledger package, which is where the dependency is declared.
