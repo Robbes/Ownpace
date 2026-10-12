@@ -256,12 +256,13 @@ export async function readYears(db: PgDatabase, tenantId: TenantId): Promise<Yea
 export async function readDraws(db: PgDatabase, tenantId: TenantId): Promise<CreditDrawn[]> {
   const rows = rowsOf<{ month: string; tier_id: string; cents: number; rate: string }>(
     await db.execute(sql`
-      SELECT to_char(month, 'YYYY-MM') AS month, tier_id, cents, rate FROM credit_draw
+      SELECT month::text AS month, tier_id, cents, rate FROM credit_draw
        WHERE tenant_id = ${tenantId} AND ${sinceTheLatestWithdrawal(creditDraw.drawnAt, tenantId)}
        ORDER BY drawn_at, month, tier_id`),
   );
   return rows.map((r) => ({
-    month: r.month,
+    // A date column, `YYYY-MM-DD`: its month, with no zone to render it in.
+    month: r.month.slice(0, 7),
     tierId: r.tier_id as PaidTierId,
     cents: Number(r.cents),
     rate: r.rate === 'half' ? 'half' : 'full',
