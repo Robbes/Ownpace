@@ -67,8 +67,8 @@ Every file and line below was read on `main` at `93958ac3` on 2026-09-28.
   `/docs/<slug>` opens the guide in the reader's language, or the other one under a notice
   (`pickGuide`, :97). The `{#own-app}` section folds where `/api/provider-clients` says the
   deployment carries that provider's app (:318, :538). The renderer takes headings with ids,
-  lists, numbered steps, fenced code and links. Tables and blockquotes are 0148 T6 (b), after
-  the first invitation. It renders no image, and the page has no search. The app calls the
+  lists, numbered steps, fenced code and links, and since 0148 T6 (b) (2026-10-12) tables,
+  blockquotes and a list item's own lines. It renders no image, and the page has no search. The app calls the
   section *Setup guides*, and *Handleidingen* in the Dutch sidebar (`nav.docs`).
 - **A guide per card.** Each card in `apps/web/src/components/front-door-cards.ts` carries
   `guide: '<slug>#<section>'` (:45). `cardGuideHref` (:186) turns it into
@@ -279,7 +279,7 @@ Why two layers, as the answer gave them:
   and each section's visible text, whitespace normalised. It renders the app's side through
   `GuideArticle` and runs the site's build in a child process, as `a-policy-link-that-answers`
   does. It fails when a guide uses a construct the two renderers render differently. The first
-  likely case is a table or a blockquote, once 0148 T6 (b) lets guides use them, if the app's
+  likely case is a table or a blockquote, now that 0148 T6 (b) lets guides use them, if the app's
   shape differs from the site's: the site renders both already (`site/build.mjs`:186-218).
 - **The same release.** The in-app guide is the running release's. The site describes whatever
   checkout it was built from. Since live's checkout is a release tag (`deploy-live.sh`), the help

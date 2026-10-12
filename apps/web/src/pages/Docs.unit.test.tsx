@@ -23,18 +23,19 @@
  *
  * WHAT WAITED FOR THE SPLIT. The plan's full guard also says no rendered
  * paragraph begins with `|` or `>`. The operator documents that were served
- * until 0148 T1 used GFM tables and blockquotes (86 and 64 lines), which the
- * renderer's second half (T6 (b)) takes up. The customer guides in
- * `docs/guides/` are written without them, as T6 says a guide is until then,
- * so the assertion runs over every served guide now instead of waiting.
+ * until 0148 T1 used GFM tables and blockquotes (86 and 64 lines). The
+ * customer guides in `docs/guides/` were written without them, so the
+ * assertion ran over every served guide from the start.
  *
- * ONE THING THE FIRST HALF BROKE, AND WHAT KEEPS IT FIXED. A numbered step is
- * now a list item of its own, and its continuation lines are not joined to it
- * until T6 (b); they render as a paragraph after it. While the steps were one
- * run-on paragraph, a bold span could open on a step's line and close on the
- * next. Split, it shows both `**` as text: `archive-setup.md`'s step 5 did.
- * So the served-guides case checks that a bold span opened on a numbered
- * step's line closes on it, and the guides are wrapped to match.
+ * ONE THING THE FIRST HALF BROKE, AND WHAT T6 (b) MENDED. A numbered step
+ * became a list item of its own, and until T6 (b) its continuation lines
+ * rendered as a paragraph after it, so a bold span that opened on a step's
+ * line and closed on the next showed both `**` (`archive-setup.md`'s step 5
+ * did). The guides were wrapped to keep bold on one line. Since T6 (b) a list
+ * item's own lines are joined to it, a fence or a list indented inside it
+ * stays inside it, and tables, blockquotes and italics render; each has a
+ * fixture case, and the served-guides case checks that no asterisk of bold or
+ * italics shows as text (`dav`'s italics did until then).
  *
  * WHAT 0148 T1 ADDED. The page serves `docs/guides/<locale>/<slug>.md` instead
  * of `docs/*-setup.md`, in the reader's language, and falls back to the other
@@ -297,16 +298,18 @@ describe('a renderer that keeps a guide\'s shape (0148 T6 (a)), on fixtures', ()
     expect(scrolled.map((el) => el.id)).toEqual(['before-you-start']);
   });
 
-  it('renders numbered steps as an ordered list, and keeps the count across a sub-list', () => {
+  it('renders numbered steps as an ordered list, with a sub-list inside its step', () => {
     const { container } = renderFixture(FIXTURE);
     const lists = [...container.querySelectorAll('ol')];
 
-    expect(lists.map((ol) => [ol.getAttribute('start'), ol.querySelectorAll('li').length])).toEqual([
-      [null, 2],
-      // The bullet under step 2 ends the first list; the next resumes at 3.
-      ['3', 1],
+    // Since T6 (b) the bullet indented under step 2 is a list inside that
+    // step, and step 3 carries on the same list, as GitHub shows it.
+    expect(lists.map((ol) => [ol.getAttribute('start'), ol.querySelectorAll(':scope > li').length])).toEqual([
+      [null, 3],
     ]);
-    expect(lists[0]!.textContent).toBe('Open the wizard.Press Next.');
+    const steps = [...lists[0]!.querySelectorAll(':scope > li')];
+    expect(steps[1]!.querySelector('ul > li')?.textContent).toBe('a point under the second step');
+    expect(steps[0]!.textContent).toBe('Open the wizard.');
     // A numbered line ends the paragraph above it rather than joining it.
     const paragraphs = [...container.querySelectorAll('p')].map((p) => p.textContent);
     expect(paragraphs).toContain('Steps:');
@@ -654,7 +657,127 @@ function boldLinksIn(lines: string[]): number {
   return n;
 }
 
-describe('every served guide keeps its shape (0148 T6 (a))', () => {
+/**
+ * THE RENDERER'S SECOND HALF (0148 T6 (b); D6: `Docs.tsx` extended, no
+ * dependency). Tables, blockquotes, a list item's continuation lines and a
+ * fence indented inside a list, which a guide could not use until now, and
+ * italics, which the served `dav` guide already wrote and which showed their
+ * asterisks.
+ */
+const SHAPES = [
+  '# Shapes',
+  '',
+  'Before the table:',
+  '| Card | Takes | Note |',
+  '| :--- | :---: | ---: |',
+  '| **Google** | mail | see [the guide](google.md#connect) |',
+  '| `a \\| b` | files |',
+  '',
+  '> A quote that runs',
+  'on to a second line.',
+  '>',
+  '> - with a point in it',
+  '',
+  '1. A step whose text',
+  '   runs on, with **bold that opens here',
+  '   and closes here**.',
+  '2. A step with a fence:',
+  '',
+  '   ```',
+  '   npm run it',
+  '   ```',
+  '',
+  '   And a paragraph after it.',
+  '3. A step that carries a lazy',
+  'line.',
+  '',
+  '- A point *in italics* and **bold with *italics* inside**.',
+  '- 2 * 3 * 4 stays as written.',
+].join('\n');
+
+describe('a renderer that keeps a guide\'s shape (0148 T6 (b)), on fixtures', () => {
+  it('renders a table, in a box that scrolls at phone width and takes the focus', () => {
+    const { container } = renderFixture(SHAPES);
+    const table = container.querySelector('table')!;
+    expect(table).not.toBeNull();
+
+    const box = table.parentElement!;
+    expect(box.className).toContain('overflow-x-auto');
+    expect(box.getAttribute('tabindex')).toBe('0');
+    expect(box.getAttribute('role')).toBe('region');
+    expect(box.getAttribute('aria-label')).toBe('Card, Takes, Note');
+
+    const head = [...table.querySelectorAll('thead th')];
+    expect(head.map((th) => [th.textContent, th.getAttribute('scope'), (th as HTMLElement).style.textAlign])).toEqual([
+      ['Card', 'col', 'left'],
+      ['Takes', 'col', 'center'],
+      ['Note', 'col', 'right'],
+    ]);
+    const rows = [...table.querySelectorAll('tbody tr')].map((tr) =>
+      [...tr.querySelectorAll('td')].map((td) => td.textContent),
+    );
+    // An escaped pipe stays in its cell; a short row is filled to the head's width.
+    expect(rows).toEqual([
+      ['Google', 'mail', 'see the guide'],
+      ['a | b', 'files', ''],
+    ]);
+    // Inline markdown inside a cell still renders.
+    expect(table.querySelector('td strong')?.textContent).toBe('Google');
+    expect(table.querySelector('td a')?.getAttribute('href')).toBe('/docs/google#connect');
+    // The line above the table stays a paragraph of its own.
+    expect([...container.querySelectorAll('p')].map((p) => p.textContent)).toContain('Before the table:');
+  });
+
+  it('renders a blockquote, with a lazy line and the blocks inside it', () => {
+    const { container } = renderFixture(SHAPES);
+    const quote = container.querySelector('blockquote')!;
+
+    expect(quote.querySelector('p')?.textContent).toBe('A quote that runs on to a second line.');
+    expect(quote.querySelector('ul > li')?.textContent).toBe('with a point in it');
+  });
+
+  it('joins a list item\'s continuation lines to it, so bold may span them', () => {
+    const { container } = renderFixture(SHAPES);
+    const steps = [...container.querySelectorAll('ol > li')];
+
+    expect(steps[0]!.textContent).toBe('A step whose text runs on, with bold that opens here and closes here.');
+    expect(steps[0]!.querySelector('strong')?.textContent).toBe('bold that opens here and closes here');
+    // A line that is not indented, straight after the item, runs on too.
+    expect(steps[2]!.textContent).toBe('A step that carries a lazy line.');
+  });
+
+  it('keeps a fence and a paragraph indented inside a step, in that step', () => {
+    const { container } = renderFixture(SHAPES);
+    const lists = [...container.querySelectorAll('ol')];
+    expect(lists).toHaveLength(1);
+    const step = lists[0]!.querySelectorAll(':scope > li')[1]!;
+
+    expect(step.querySelector('pre')?.textContent).toBe('npm run it');
+    expect(step.querySelector('p')?.textContent).toBe('And a paragraph after it.');
+    expect(lists[0]!.querySelectorAll(':scope > li')).toHaveLength(3);
+  });
+
+  it('renders italics, inside bold too, and leaves a lone asterisk as written', () => {
+    const { container } = renderFixture(SHAPES);
+    const lists = [...container.querySelectorAll('ul')];
+    const points = lists[lists.length - 1]!.querySelectorAll('li');
+
+    expect([...points[0]!.querySelectorAll('em')].map((em) => em.textContent)).toEqual(['in italics', 'italics']);
+    expect(points[0]!.querySelector('strong em')?.textContent).toBe('italics');
+    expect(points[0]!.textContent).not.toContain('*');
+    expect(points[1]!.textContent).toBe('2 * 3 * 4 stays as written.');
+  });
+
+  it('shows a line no rule claims as its text, and moves on', () => {
+    const { container } = renderFixture(['##### Too deep', '', '     - indented past four'].join('\n'));
+
+    expect([...container.querySelectorAll('p')].map((p) => p.textContent)).toEqual(['##### Too deep']);
+    // Four spaces or more, outside a list, is code, as GitHub reads it.
+    expect(container.querySelector('pre')?.textContent).toBe('- indented past four');
+  });
+});
+
+describe('every served guide keeps its shape (0148 T6 (a) and (b))', () => {
   it('reads the same guides the page serves', () => {
     expect([...new Set(SERVED.map((key) => key.split('/')[1]!))].sort()).toEqual([...GUIDE_SLUGS].sort());
     expect(GUIDE_SLUGS.size).toBeGreaterThan(0);
@@ -662,7 +785,7 @@ describe('every served guide keeps its shape (0148 T6 (a))', () => {
 
   for (const key of SERVED) {
     const [locale, slug] = key.split('/') as [Locale, string];
-    it(`${key}: headings with ids, same-tab # links, numbered steps, links in bold, lang, no | or >`, () => {
+    it(`${key}: headings with ids, same-tab # links, numbered steps, links in bold, lang, no | or >, no stray *`, () => {
       const source = SOURCES[key]!;
       const lines = linesOutsideFences(source);
       const { container } = renderAt(`/docs/${slug}`, locale);
@@ -693,20 +816,20 @@ describe('every served guide keeps its shape (0148 T6 (a))', () => {
         expect(article.querySelector(`[id="${id}"]`), `#${id} is on the page`).not.toBeNull();
       }
 
-      // No paragraph begins with a numbered step, a table row or a quote: the
-      // renderer has none of the last two until T6 (b), so a guide uses none.
+      // No paragraph begins with a numbered step, a table row or a quote:
+      // each is a list, a table or a blockquote (T6 (b)).
       for (const p of article.querySelectorAll('p')) {
         expect(p.textContent ?? '').not.toMatch(/^\s*(\d+\.\s|\||>)/);
       }
+      // No asterisk of bold or italics shows as text, outside code.
+      const shown = [...article.querySelectorAll('p, li, td, th')].map((el) => {
+        const copy = el.cloneNode(true) as HTMLElement;
+        for (const code of copy.querySelectorAll('code, pre')) code.remove();
+        return copy.textContent ?? '';
+      });
+      for (const text of shown) expect(text, text).not.toMatch(/\*\S|\S\*/);
       const numbered = lines.filter((line) => /^\s*\d+\.\s/.test(line) && !/^ {4}/.test(line));
       if (numbered.length > 0) expect(article.querySelectorAll('ol').length).toBeGreaterThan(0);
-
-      // A bold span that opens on a numbered step's line closes on it (see the
-      // header: continuation lines wait for T6 (b)).
-      for (const line of numbered) {
-        const markers = line.replace(/`[^`]*`/g, '').match(/\*\*/g) ?? [];
-        expect(markers.length % 2, `bold closes on its step's line: ${line.trim()}`).toBe(0);
-      }
 
       // A link written inside bold is a link, not its markdown.
       expect(article.querySelectorAll('strong a').length).toBeGreaterThanOrEqual(boldLinksIn(lines));
