@@ -440,7 +440,12 @@
       prepaid credit be kept from a consumer who cancels, beyond §7's
       withdrawal (art. 6:236 and 6:237 BW; Directive 93/13/EEC)? What is
       §7's proportionate amount for a year bought as credit: what its
-      months drew, or a share of the year's price? And may the credit run
+      months drew, or a share of the year's price? The app bills the days
+      used as a share of the year's price (0111 T11), as art. 14(3) of the
+      Directive reads to us ("on the basis of the total price agreed"). The
+      owner asked, 2026-10-12, whether a year withdrawn from should pay at
+      least the monthly price for the days it was used, and chose the year's
+      rate. And may the credit run
       with no end date, or must it have one; is what is left lost when the
       customer closes the account (§11)?
   28. §6: the tiers of 2026-10-04 (ADR-0014, Amendment 2026-10-04, evening).

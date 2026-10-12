@@ -4,6 +4,24 @@
 
 ## Status — 2026-10-12 (update this block at the end of every session)
 
+**2026-10-12, T11 slice Y4: the year in the docs, and a rehearsal of the whole chain. T11 is
+built.** ADR-0014 gains *Amendment 2026-10-12* (the owner's four answers) and its operative rule
+no longer says *"Not built"*; `OPERATIVE.md` is regenerated. `docs/billing-rehearsal-on-ota.md`
+walks the billing chain once by hand on the OTA stack, as a customer meets it, out of the alpha
+for the length of the walk: a tier ordered, the month invoiced, numbered, paid and booked, a year
+bought in a billed month and one straight from Free, a withdrawal that credits and refunds it
+all, money owed back by hand, and back into the alpha. `ending-the-alpha.md` names the year and
+the rehearsal before the switch, with Free's numbers of 2026-10-04; *8i* in the bring-up links
+the rehearsal.
+
+- **The owner asked** whether a year withdrawn from should pay at least the monthly price for the
+  days used, then decided: *"Ok, keep it at the year's rate"*. The app bills them as a share of
+  the year's price, as article 14(3) of the Consumer Rights Directive reads to us, and the
+  lawyer's question 27 (`site/legal/terms.md`) already asks to confirm it. After the fourteen
+  days nothing of a year is refunded, so stopping early earns no discount.
+- **What remains is outside the code:** the rehearsal, run on the OTA stack and recorded here; the
+  accountant's answer on VAT for a year; the lawyer's question 27.
+
 **2026-10-12, T11 slice Y3: one email a month before the credit runs out** (the owner's answer
 4). After each organisation's month, the hourly month task asks whether its credit pays all of
 next month, at the price and rate the month will take: the tier the month bills now, at half its
@@ -830,7 +848,7 @@ alone** — see §"Who is the controller" and the cross-reference to 0086 T5.
 | T8 The price page stops promising 21% | ✅ **First slice built 2026-08-29** — per-country display waits on OSS | The row's own premise corrected by the build: the site never computed VAT — it showed bare `€n` with **no statement at all**, and toward consumers a displayed price legally IS the final, VAT-inclusive price. The slice says it out loud ("All prices include VAT." / "Alle prijzen zijn inclusief btw.") on the landing, pricing and calculator pages, with a structural guard: any page rendering tier prices without the label goes red. Deliberately **no rate in the copy** — which country's VAT sits inside the price is T3's per-invoice decision, so nothing drifts when OSS activates or a rate changes. Remaining for full T8: per-country inclusive display once `VAT_OSS_ACTIVE` flips, and reconciling the retired server model's ex-VAT arithmetic in 0109's tier rebuild. |
 | T9 Billing frequency, decided rather than defaulted | ✅ **Decided 2026-08-29: monthly AND annual, annual discounted** | The owner's framing decides it: the service is not a one-shot move but *"an operational exit strategy waiting for the cutover"*, sometimes used serially to move a family one person at a time — so a subscription is honest, and the discounted annual is the fee-efficient path (one charge ≈0.3% vs ≈3.4% monthly, §below) offered rather than imposed. T4's invoice shape: recurring, both cadences. **Invoiced in advance (2026-10-05, decision 6):** a month on its first day, at the tier it starts on, and a move up within a day, for the difference. |
 | T10 Retention, revisited now that we are not the record | ✅ **Decided 2026-08-29: purge the mirror on erasure, keep the pointer; built 2026-10-11** (managed 0054, Status; privacy 1.5 §9) | On erasure the mirror rows go; `erasure_record` keeps only the Moneybird invoice numbers, and the operator's answer becomes "these numbers, held in Moneybird". Retires most of #652's screen — the honest outcome §"What this changes about erasure" predicted. |
-| T11 A year paid ahead | 🟡 **Y1 built 2026-10-12** (the credit and the month's draw, managed 0056); **Y2 built 2026-10-12** (the order on the Billing page, `GET`/`POST /api/billing/year`); **Y3 built 2026-10-12** (one email a month before the credit runs out, managed 0057); Y4 the docs, to follow | ADR-0014, *Amendment 2026-10-04*: a year is credit at six months' price, billed at its start; each of its twelve months takes its tier at half price, the months after them the full price until the credit runs out; never refunded, never renewed. The owner's four answers of 2026-10-12 (Status): a year starts with the first month not yet billed; credit run out within the twelve makes that month's rest half price, then monthly; a year for the tier the month bills or a higher one; one email a month before the credit runs out. A year is an invoice (`ownpace-{org}-y-{n}`); a month it pays is a draw (`credit_draw`), not an invoice. |
+| T11 A year paid ahead | ✅ **Built 2026-10-12**: Y1 the credit and the month's draw (managed 0056); Y2 the order on the Billing page (`GET`/`POST /api/billing/year`); Y3 one email a month before the credit runs out (managed 0057); Y4 the docs, ADR-0014's *Amendment 2026-10-12* and the rehearsal on the OTA stack | ADR-0014, *Amendment 2026-10-04*: a year is credit at six months' price, billed at its start; each of its twelve months takes its tier at half price, the months after them the full price until the credit runs out; never refunded, never renewed. The owner's four answers of 2026-10-12 (Status): a year starts with the first month not yet billed; credit run out within the twelve makes that month's rest half price, then monthly; a year for the tier the month bills or a higher one; one email a month before the credit runs out. A year is an invoice (`ownpace-{org}-y-{n}`); a month it pays is a draw (`credit_draw`), not an invoice. |
 
 ## Why this exists
 

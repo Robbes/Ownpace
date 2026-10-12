@@ -1,8 +1,8 @@
 # ADR-0014: Cost-recovery billing for the managed edition
 
-- **Status:** Accepted 2026-06-20; amended ten times and retitled once (latest 2026-10-04,
-  evening, when Free and Small became six paths and Free one pass a day); consolidated
-  2026-10-03 (ADR-0051)
+- **Status:** Accepted 2026-06-20; amended eleven times and retitled once (latest 2026-10-12,
+  when a year's start, its tier and a notice before its credit runs out were settled);
+  consolidated 2026-10-03 (ADR-0051)
 - **Date:** 2026-06-20; consolidated 2026-10-03
 - **Deciders:** owner
 - **Relates to:** [ADR-0029](./0029-public-site-is-server-rendered-and-legible.md) (the public
@@ -39,15 +39,15 @@
 - **`holdsASlot` (`@openmig/ledger`) is the slot rule**: `active`, `paused` and `continuous`
   hold a slot; `ready`, `cutover` and `done` hold none; a stop releases one only in the lane,
   whose customer is first told the bill does not stop at cutover.
-- **The month bills its peak, or a higher tier picked** (`tier-pick.ts`; invoice unbuilt,
-  0109). Downgrade: automatic down to it, announced, never blocking. No setup fee.
+- **The month bills its peak, or a higher tier picked** (`tier-pick.ts`; invoiced in advance,
+  0111). Downgrade: automatic down to it, announced, never blocking. No setup fee.
 - **Every step up is consented and paid for.** A path waits for the yes at activation; at the
   data ceiling, outside the alpha, new first copies wait for a move up or a one-off top-up
   (another band for the tier's monthly, once). Without that yes, a month bills the tier it
   was on.
-- **A year is credit at six months' price**: each month takes its tier at half price, at full
-  price after twelve months, until spent; then month to month. Never refunded (withdrawal
-  aside), never renewed. Not built (0111).
+- **A year is credit at six months' price**: each month takes its tier at half price, full
+  after twelve months, until spent; then month to month. Never refunded (withdrawal aside),
+  never renewed (`year-credit.ts`; *Amendment 2026-10-12*).
 - **What we tell, and will not do, are rules** (*Decision*): every price published, VAT
   included; *Start* warns when the preflight will not fit; no per-GB, compute or per-path
   figure; no billing past 12 months unconfirmed. **The price pays for the work**;
@@ -757,6 +757,31 @@ page, the pricing page and the estimate, in both languages; terms §6, with ques
 lawyer; and workplan 0157, which builds Free's pace, the hourly default and picking a tier.
 Nothing is billed during the Alpha, and the path ceiling is off while it lasts.
 
+## Amendment 2026-10-12 — where a year starts, what it is bought for, and a notice before its credit runs out
+
+Building the year (workplan 0111 T11) left four points the amendments above do not settle. The
+owner answered each on 2026-10-12, as recommended:
+
+- **Where a year starts:** *"First month not yet invoiced"*. This month when nothing is billed
+  for it yet, coming from Free; else the next, so no month is paid twice. A year bought while
+  another's twelve months run adds its twelve after them; its credit pays from the same first
+  month.
+- **Credit run out within the twelve months:** *"Half price that month, then monthly"*. That
+  month's rest is invoiced at half price; the months after it are month to month, at the full
+  price, though within the twelve.
+- **Which tier:** *"Current tier or higher"*. A year is bought for the tier the month bills or a
+  higher one, never Free. A year above the month's tier is a pick of that tier too, with its
+  yes.
+- **A notice:** *"Yes, one email"*. The month before the first month the credit does not pay in
+  full, the organisation's owners and admins are told once: what is left, what that month
+  costs, and that another year can be bought.
+
+**What follows:** the operative rule, amended in place, and `OPERATIVE.md` regenerated. Built in
+0111 T11: the credit and each month's draw (Y1, managed 0056), the order on the Billing page
+(Y2), the notice (Y3, managed 0057). Before the first year is sold: the accountant on VAT for
+credit a customer may spend on any tier, and the lawyer's question 27 on what a withdrawn year
+costs.
+
 ## Amendment log
 
 - **2026-06-20** — Accepted: cost recovery, with a flat baseline and a metered pass-through for
@@ -819,6 +844,11 @@ Nothing is billed during the Alpha, and the path ceiling is off while it lasts.
   month then bills at least (owner, three messages); none of it holds in the alpha, which is free
   for everything (owner). Credit left after a year pays the full monthly price (owner: *"Yes,
   full"*). Record: *Amendment 2026-10-04, evening*.
+- **2026-10-12** — A year starts with the first month not yet billed; credit run out within its
+  twelve months makes that month's rest half price, then monthly; a year is for the month's tier
+  or higher; one email a month before the credit runs out (owner, four answers, as recommended).
+  Built: 0111 T11, Y1 to Y3. Record: *Amendment 2026-10-12 — where a year starts, what it is
+  bought for, and a notice before its credit runs out*.
 
 The full record, word for word as it read before this consolidation:
 [history/0014-cost-recovery-billing.md](./history/0014-cost-recovery-billing.md).

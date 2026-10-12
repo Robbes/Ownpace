@@ -58,7 +58,8 @@ covered. **Live runs:** `owner-test-runbook.md`, `first-live-run.md`, `soverin-s
 `apple-supervised-run.md`. **Operating:** `status-page.md`, `incident-runbook.md` (what to do when
 an alert arrives or a tester says something is wrong), `ending-the-alpha.md` (what emptying
 `OWNPACE_STAGE` on live switches, what must be true first, and how to tell it reached every
-process) and `selfhost-ending-the-service.md`.
+process), `billing-rehearsal-on-ota.md` (the whole billing chain walked once on the OTA stack,
+before live invoices anybody) and `selfhost-ending-the-service.md`.
 
 A dedicated `guides/` / `runbooks/` split can come later if
 the root grows unwieldy; don't add empty placeholder directories.

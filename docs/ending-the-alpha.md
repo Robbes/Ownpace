@@ -74,6 +74,12 @@ the owner's job.
    by hand. Each refund is followed until Mollie says it ended: one that failed is said for a
    transfer by hand and not booked, and one still going a week after it was made is said once.
 
+   **A year paid ahead** can be bought on the Billing page (0111 T11; ADR-0014, *Amendment
+   2026-10-12*): one invoice of credit at six months' price, each month drawing its tier at half
+   price, and one email a month before the credit runs out. Two answers come before the first
+   year is sold: the accountant's on VAT for credit a customer may spend on any tier, and the
+   lawyer's question 27 (terms §8, and what a withdrawn year costs).
+
    Terms 1.5 §7 has the lawyer's agreement, and the two Moneybird calls of slice 7d passed in the
    sandbox (`register_payment_creditinvoice` on a credit note crediting part of an open invoice,
    and a negative payment booked on a credit note; the owner, 2026-10-11, with
@@ -100,17 +106,21 @@ the owner's job.
      (`managed-invoice-push`) says what each asks of you.
 
    The proofs do not run on live; each refuses it. Leave `OWNPACE_BILLING_FROM` empty until all
-   of this is done.
+   of this is done, and until the whole chain has been walked once on the OTA stack, as
+   [billing-rehearsal-on-ota.md](./billing-rehearsal-on-ota.md) says: a tier ordered, the month
+   invoiced, numbered, paid and booked, a year bought, and a withdrawal that credits and refunds
+   it all.
 3. **Tell the testers, with their numbers.** No yes could be taken during the alpha, so every
-   organisation is on Free at the switch: one migration at a time (each kind of data counts as
-   one), and 250 GB, counted from the switch. Everything moved during the alpha never counts
-   (the owner, 2026-10-04: *"In total for ever, and the alpha's data doesn't count"*), so every
-   organisation starts at 0 GB counted, and its Billing page shows what the alpha moved on a line
-   of its own. An organisation already running more than Free runs keeps running: a resume never
+   organisation is on Free at the switch: six paths at the same time (each kind of data in a
+   migration is one), 150 GB counted from the switch, and one pass a day (ADR-0014). Everything
+   moved during the alpha never counts (the owner, 2026-10-04: *"In total for ever, and the
+   alpha's data doesn't count"*), so every organisation starts at 0 GB counted, and its Billing
+   page shows what the alpha moved on a line of its own. An organisation already running more than Free runs keeps running: a resume never
    takes a new slot. But it starts nothing new without a yes, and its Billing page says why.
 4. **Do not switch back and forth.** Setting `alpha` again later makes everything moved from then
    on the alpha's again. It never counts, and nothing waits at the ceiling. The yeses already taken
-   stay. A trial of the switch belongs on the OTA stack.
+   stay. A trial of the switch belongs on the OTA stack: the
+   [billing rehearsal](./billing-rehearsal-on-ota.md) is one, and ends by switching back.
 
 ## The switch
 
