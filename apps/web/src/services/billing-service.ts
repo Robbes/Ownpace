@@ -304,6 +304,42 @@ export type PickTier = z.infer<typeof PickTierSchema>;
 export type PickOffer = z.infer<typeof PickSchema>;
 export type Picked = z.infer<typeof PickedSchema>;
 
+/** A month as the year's rule reads it: `2026-11`. */
+const Month = z.string().regex(/^\d{4}-\d{2}$/);
+
+/**
+ * A year paid ahead, as `GET /api/billing/year` serves it (workplan 0111 T11):
+ * the tiers it may be bought for at six months of their monthly price, where it
+ * would fall, the credit left, and the years bought.
+ */
+export const YearSchema = z.object({
+  holds: z.boolean(),
+  billed: z.object({ id: z.string(), name: z.string() }),
+  tiers: z.array(
+    z.object({
+      id: z.enum(['small', 'medium', 'large', 'xl']),
+      name: z.string(),
+      monthlyCents: z.number().int(),
+      yearCents: z.number().int(),
+      priceFrom: z.enum(['agreed', 'list']),
+    }),
+  ),
+  placement: z.object({ creditFrom: Month, halfFrom: Month, halfTo: Month }),
+  credit: z.object({ leftCents: z.number().int(), yearMonth: z.boolean() }),
+  years: z.array(
+    z.object({ tierId: z.string(), cents: z.number().int(), creditFrom: Month, halfFrom: Month, halfTo: Month }),
+  ),
+  yearsBefore: z.number().int(),
+});
+
+export const YearOrderedSchema = YearSchema.extend({
+  ordered: z.object({ tierId: z.string(), cents: z.number().int(), creditFrom: Month, halfFrom: Month, halfTo: Month }),
+});
+
+export type YearOffer = z.infer<typeof YearSchema>;
+export type YearOfferTier = YearOffer['tiers'][number];
+export type YearOrdered = z.infer<typeof YearOrderedSchema>;
+
 /** The yes the page sends back: the offer it showed, tier and price. */
 export interface CeilingYes {
   choice: 'move_up' | 'top_up';
@@ -455,6 +491,18 @@ export const billingApi = {
   getPick: async (): Promise<PickOffer> => {
     const response = await apiClient.get('/billing/pick');
     return PickSchema.parse(response.data);
+  },
+
+  /** What a year paid ahead would be (0111 T11). Owner/admin only server-side. */
+  getYear: async (): Promise<YearOffer> => {
+    const response = await apiClient.get('/billing/year');
+    return YearSchema.parse(response.data);
+  },
+
+  /** Order a year, at the price the page showed, having seen `yearsBefore` years. */
+  orderYear: async (order: { tierId: string; yearCents: number; yearsBefore: number; beginNow?: true }): Promise<YearOrdered> => {
+    const response = await apiClient.post('/billing/year', order);
+    return YearOrderedSchema.parse(response.data);
   },
 
   /** Pick a tier, at the monthly price the page showed. Owner/admin only server-side. */

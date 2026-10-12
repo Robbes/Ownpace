@@ -251,6 +251,7 @@ describe('a year on a real database, month by month, as the task runs it', () =>
     expect(bought).toEqual({
       kind: 'recorded',
       reference: `ownpace-${GROWS}-y-1`,
+      tierId: 'medium',
       cents: 7200,
       creditFrom: '2026-10',
       halfFrom: '2026-10',

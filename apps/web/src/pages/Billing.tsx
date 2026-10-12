@@ -32,6 +32,7 @@ import StateChip from '../components/StateChip.tsx';
 import { isAlpha } from '../components/AlphaNote.tsx';
 import DataCeiling from '../components/DataCeiling.tsx';
 import TierPick from '../components/TierPick.tsx';
+import YearAhead from '../components/YearAhead.tsx';
 import Withdrawal from '../components/Withdrawal.tsx';
 import InvoiceDownload from '../components/InvoiceDownload.tsx';
 import { INVOICE_DETAILS_ANCHOR, useBroughtIntoView } from '../components/InvoiceDetailsFirst.tsx';
@@ -831,6 +832,10 @@ const Billing: React.FC = () => {
       {/* A tier the person picks, for its pace or its room (0157 T6): each
           month then bills at least it, until they lower it. */}
       <TierPick />
+
+      {/* A year paid ahead (0111 T11): credit at six months' price, each month
+          of it at half its tier's monthly price. */}
+      <YearAhead />
 
       {/* The data ceiling and the yes that moves it (0109 T6): where the data
           stands against what was agreed to, and from 80% both ways on. */}

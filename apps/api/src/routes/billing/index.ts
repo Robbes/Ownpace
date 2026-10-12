@@ -59,6 +59,12 @@ import {
   type WithdrawalWindow,
   creditedCents,
   CREDITED_CENTS_SQL,
+  decideYear,
+  monthWords,
+  readYearOffer,
+  recordYear,
+  type YearOffer,
+  type YearRecorded,
 } from '@openmig/managed';
 import { tell } from '../../access-notify.ts';
 import * as schema from '@openmig/managed/schema-managed';
@@ -802,6 +808,204 @@ router.post('/pick', authenticate, requireBillingWrite, async (req: Authenticate
     serverFault(res, 'pick_save_failed', 'recording your pick', error);
   }
 });
+
+/** A year, as the Billing page reads it (0111 T11, slice Y2). */
+function yearBody(offer: YearOffer, holds: boolean) {
+  return {
+    holds,
+    billed: offer.billed,
+    tiers: offer.tiers,
+    placement: offer.placement,
+    credit: offer.credit,
+    years: offer.years.map((y) => ({
+      tierId: y.tierId,
+      cents: y.cents,
+      creditFrom: y.creditFrom,
+      halfFrom: y.halfFrom,
+      halfTo: y.halfTo,
+    })),
+    yearsBefore: offer.years.length,
+  };
+}
+
+/**
+ * GET /api/billing/year
+ *
+ * What a year paid ahead would be (workplan 0111 T11; ADR-0014, *Amendment
+ * 2026-10-04*; terms §8): the tiers it may be bought for, the tier the month
+ * bills or a higher one, each at six months of its monthly price; when it would
+ * start (with the first month not yet billed); the credit left, and the years
+ * bought. Read-only.
+ */
+router.get('/year', authenticate, requireBillingRead, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
+    const offer = await withTenantDb(tenantId, getSharedPool(), (db) =>
+      readYearOffer(db, asTenantId(tenantId), new Date()),
+    );
+    res.json(yearBody(offer, holdsAtCeiling(process.env.OWNPACE_STAGE)));
+  } catch (error) {
+    serverFault(res, 'year_failed', 'reading what a year would be', error);
+  }
+});
+
+const YearSchema = z.object({
+  tierId: z.string().min(1),
+  yearCents: z.number().int().min(1),
+  yearsBefore: z.number().int().min(0),
+  beginNow: BeginNow,
+});
+
+/** The organisation's language, for the year's invoice line. */
+async function localeOf(db: PgDatabase, tenantId: string): Promise<NotificationLocale> {
+  const [organisation] = await db
+    .select({ settings: tenantTable.settings })
+    .from(tenantTable)
+    .where(eq(tenantTable.id, tenantId));
+  return readTenantNotificationPrefs(organisation?.settings).locale;
+}
+
+/**
+ * POST /api/billing/year
+ *
+ * A year paid ahead, ordered (workplan 0111 T11, slice Y2): its invoice, a
+ * draft the hourly push takes to the books, placed with the first month not
+ * yet billed (`recordYear`). A year for a tier above the one the month bills
+ * is a pick of that tier as well, at once, with its yes, as the pick door
+ * records one: the month then bills at least it. Refused, with what is offered
+ * now, when the tier, the year's price or the years seen are not what is
+ * offered (`decideYear`); before invoice details; and during the alpha, where
+ * nothing is charged. One confirmation by email, for the year.
+ */
+router.post('/year', authenticate, requireBillingWrite, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
+    const parsed = YearSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const reason = 'Say the tier, the price of the year you were shown, and how many years you saw.';
+      return void res.status(400).json({ error: 'invalid_year', message: reason, reason });
+    }
+    if (!holdsAtCeiling(process.env.OWNPACE_STAGE)) {
+      const reason = 'Nothing is charged during the Alpha, so there is nothing to order yet.';
+      return void res.status(409).json({ error: 'nothing_charged_during_the_alpha', message: reason, reason });
+    }
+    const outcome = await withTenantDb(tenantId, getSharedPool(), async (db) => {
+      // The yeses' lock: one order at a time per organisation, so two presses order once.
+      await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'data_allowance:' + tenantId}))`);
+      if (!(await hasInvoiceDetails(db, tenantId))) return { detailsFirst: true } as const;
+      const now = new Date();
+      const offer = await readYearOffer(db, asTenantId(tenantId), now);
+      const decision = decideYear(offer, parsed.data);
+      if (!decision.ok) return { refused: decision.reason, offer } as const;
+      const by = req.userId ?? 'unknown';
+
+      // A year above the tier the month bills is a pick of it, at once (0157 T6).
+      let order: RecordedOrder | null = null;
+      const place = (id: string) => MANAGED_TIERS.findIndex((t) => t.id === id);
+      if (place(decision.tier.id) > place(offer.billed.id)) {
+        const before = await readBilledNow(db, asTenantId(tenantId), now);
+        const offered = pickOffers(before.billed.tier, before.floor).raise.find((t) => t.id === decision.tier.id);
+        const pick = offered
+          ? decidePick(pickOffers(before.billed.tier, before.floor), before.allowance, {
+              tierId: offered.id,
+              priceEur: monthlyEur(offered),
+            })
+          : null;
+        if (!pick || !pick.ok) return { refused: 'offer_changed', offer } as const;
+        await new PgTierPickStore(db).record(asTenantId(tenantId), pick.pick, by, now);
+        if (pick.yes) order = await recordOrder(db, tenantId, pick.yes, by, 'pick', parsed.data.beginNow, now);
+      }
+
+      const tier = MANAGED_TIERS.find((t) => t.id === decision.tier.id)!;
+      const year = await recordYear(
+        db,
+        asTenantId(tenantId),
+        { tier, cents: decision.tier.yearCents, priceFrom: decision.tier.priceFrom },
+        now,
+        await localeOf(db, tenantId),
+      );
+      return {
+        year,
+        at: now,
+        beganOnRequest: order?.beganOnRequest ?? false,
+        window: await readWithdrawalWindow(db, asTenantId(tenantId), now),
+        offer: await readYearOffer(db, asTenantId(tenantId), now),
+      } as const;
+    });
+    if ('detailsFirst' in outcome) {
+      return void res
+        .status(409)
+        .json({ error: 'invoice_details_first', message: INVOICE_DETAILS_FIRST, reason: INVOICE_DETAILS_FIRST });
+    }
+    const holds = holdsAtCeiling(process.env.OWNPACE_STAGE);
+    if ('refused' in outcome) {
+      const reason = 'What a year would be has changed since the page was shown. Look at it again before ordering.';
+      return void res
+        .status(409)
+        .json({ error: outcome.refused, message: reason, reason, year: yearBody(outcome.offer, holds) });
+    }
+    // Invalidates nothing on failure: the order stands whatever the mail server does.
+    await confirmYear(req, tenantId, outcome);
+    const { year } = outcome;
+    res.json({
+      ordered: {
+        tierId: year.tierId,
+        cents: year.cents,
+        creditFrom: year.creditFrom,
+        halfFrom: year.halfFrom,
+        halfTo: year.halfTo,
+      },
+      ...yearBody(outcome.offer, holds),
+    });
+  } catch (error) {
+    serverFault(res, 'year_order_failed', 'recording your year', error);
+  }
+});
+
+/**
+ * The year's confirmation (0111 T11; terms §6, §7 and §8): one mail, as every
+ * order has, after the commit, in the organisation's language. Never a throw.
+ */
+async function confirmYear(
+  req: AuthenticatedRequest,
+  tenantId: string,
+  ordered: { year: YearRecorded; at: Date; beganOnRequest: boolean; window: WithdrawalWindow },
+): Promise<void> {
+  try {
+    const [organisation] = await withTenantDb(tenantId, getSharedPool(), (db) =>
+      db.select({ name: tenantTable.name, settings: tenantTable.settings }).from(tenantTable).where(eq(tenantTable.id, tenantId)),
+    );
+    const locale = readTenantNotificationPrefs(organisation?.settings).locale;
+    const { year, window } = ordered;
+    const sent = req.userEmail
+      ? await tell(req.userEmail, locale, {
+          kind: 'order_confirmed',
+          organisation: organisation?.name ?? tenantId,
+          order: {
+            kind: 'year',
+            tier: tierName(year.tierId),
+            price: euros(year.cents / 100, locale),
+            from: monthWords(year.creditFrom, locale),
+            to: monthWords(year.halfTo, locale),
+          },
+          orderedAt: momentInWords(ordered.at, locale),
+          withdrawUntil: window.kind === 'open' ? dayInWords(new Date(window.until.getTime() - 1), locale) : null,
+          beganOnRequest: ordered.beganOnRequest,
+          terms: termsUrl(locale, process.env),
+        })
+      : 'no_address';
+    if (sent !== 'sent') {
+      log.error(
+        `[billing] organisation ${tenantId} ordered a year at ${ordered.at.toISOString()}, and its confirmation was not ` +
+          `sent (${sent}): send it by hand to whoever ordered it (terms §6, §7).`,
+      );
+    }
+  } catch (error) {
+    log.error(`[billing] organisation ${tenantId}: the year's confirmation could not be made:`, error);
+  }
+}
 
 /** The tier's name, as the screen and the mail say it. */
 const tierName = (id: string) => MANAGED_TIERS.find((t) => t.id === id)?.name ?? id;
