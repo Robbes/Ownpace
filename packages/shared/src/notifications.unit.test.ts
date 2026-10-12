@@ -735,16 +735,17 @@ describe('an order, confirmed by email (0111 T7, slice 7e)', () => {
     const nl = renderEvent({ ...ordered, order: year, withdrawUntil: null, beganOnRequest: false }, 'nl');
     expect(nl.body).toContain('  - Ownpace Medium, een jaar vooruit, november 2026 tot en met oktober 2027: € 72,00');
     expect(nl.body).toContain(
-      'Met deze e-mail bevestigen we dat. Het wordt nu gefactureerd, als tegoed: elke maand van het jaar krijgt haar eigen ' +
-        'pakket, tegen de helft van de maandprijs, en wat na de twaalf maanden over is, betaalt de maanden daarna tegen de ' +
-        'maandprijs. Het wordt niet terugbetaald (voorwaarden §8).',
+      'Met deze e-mail bevestigen we dat. Het wordt nu gefactureerd, als tegoed: elke maand van het jaar betaalt de helft ' +
+        'van de maandprijs van het pakket dat ze gebruikte, en wat na het jaar over is, betaalt de maanden daarna tegen de ' +
+        'volle prijs. Het wordt niet terugbetaald, en wat er over is vervalt als u uw account sluit (voorwaarden §8).',
     );
     const en = renderEvent(
       { ...ordered, order: { ...year, price: '€72.00', from: 'November 2026', to: 'October 2027' }, withdrawUntil: null },
       'en',
     );
     expect(en.body).toContain('  - Ownpace Medium, a year ahead, November 2026 to October 2027: €72.00');
-    expect(en.body).toContain('It is billed now, as credit: each month of the year takes its own tier at half its monthly price');
+    expect(en.body).toContain('It is billed now, as credit: each month of the year pays half the monthly price of the tier it used');
+    expect(en.body).toContain('It is not refunded, and what is left ends if you close your account (terms §8).');
   });
 
   it('says nothing of withdrawing to a business, and asks nothing of its reader', () => {

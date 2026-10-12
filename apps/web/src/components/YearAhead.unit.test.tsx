@@ -173,7 +173,7 @@ describe('an order', () => {
     const question = screen.getByRole('alertdialog');
     expect(
       within(question).getByText(
-        'A year of Small for €30.00, invoiced now. It is credit: each month takes its own tier at half its monthly price, and it is not refunded.',
+        'A year of Small for €30.00, invoiced now. It is credit: each month pays half the monthly price of the tier it used, and it is not refunded.',
       ),
     ).toBeVisible();
     expect(orderYear).not.toHaveBeenCalled();

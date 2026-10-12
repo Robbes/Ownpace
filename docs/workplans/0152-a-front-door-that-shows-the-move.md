@@ -1416,7 +1416,8 @@ provider's pages stay 0135 T6.
   T6 (d) and (g).
 - **0111's yearly invoicing,** which draws a year's credit month by month (since 2026-10-04 there
   are no refunds and no renewal reminder to build). It comes before T6 (d) to (f) show a price a
-  customer could pay. The alpha is free (0131 D1), so the pages can show the list
+  customer could pay. **Built 2026-10-12** (0111 T11, Y1 to Y3): a year can be bought on the
+  Billing page, its credit drawn month by month, with one email a month before it runs out. The alpha is free (0131 D1), so the pages can show the list
   while nothing is billed. The Billing page and the terms say so.
 - **The lawyer's check of the discount, no-refund and withdrawal wording** (0139; the terms'
   briefing, question 27), before T6 (e) and (f) merge.

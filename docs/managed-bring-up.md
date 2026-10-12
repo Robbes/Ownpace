@@ -2311,6 +2311,11 @@ Mollie's test checkout, then the refund, made twice under one idempotency key
 so that only one exists, then booked. It needs a `test_` key and refuses any
 other. Each prints what Moneybird and Mollie answered.
 
+Each proof calls one thing. **The chain as a customer meets it**, from a tier
+ordered in the app to a withdrawal that credits and refunds a year, is walked
+once by hand on the OTA stack, out of the alpha for the length of the walk:
+[billing-rehearsal-on-ota.md](./billing-rehearsal-on-ota.md).
+
 The managed nightly gate proves the books every night with the same keys:
 `smoke-managed.sh` runs `./deploy/compose/operator.sh moneybird nightly`, which
 makes the night's invoice (`ownpace-nightly-{YYYY-MM-DD}`), sends it by hand,

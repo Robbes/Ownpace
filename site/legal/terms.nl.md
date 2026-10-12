@@ -16,8 +16,8 @@
 # Servicevoorwaarden
 
 **Gelden voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`.
-**Versie:** 1.5
-**Laatst bijgewerkt:** 2026-10-11
+**Versie:** 1.6
+**Laatst bijgewerkt:** 2026-10-12
 
 > **Deze voorwaarden gelden niet voor de software.** Ownpace is open source onder de Apache
 > License 2.0, en het zelf draaien valt onder die licentie, niet onder deze voorwaarden. Deze
@@ -169,19 +169,18 @@ via de betaalwijze die u hebt vastgelegd en uitgevoerd door onze betaaldienstver
 Mollie. Gaat de maand naar een hoger pakket, dan wordt het verschil voor die maand gefactureerd
 wanneer dat gebeurt. Op Free wordt niets gefactureerd, dus er valt niets vast te leggen. Kiest u
 ervoor **een jaar vooruit te betalen**, dan wordt dat bij aanvang gefactureerd, tegen de prijs
-van zes maanden, en geldt het als tegoed: elke maand van het jaar krijgt haar eigen pakket,
-tegen de helft van de maandprijs van dat pakket.
+van zes maanden, en geldt het als tegoed: elke maand van het jaar betaalt de helft van de
+maandprijs van het pakket dat ze gebruikte, en een maand op Free betaalt niets.
 
 **Een maandabonnement kunt u op elk moment opzeggen**, per het einde van de lopende maand. Geen
 minimumduur, geen opzegtermijn, geen opzegkosten.
 
 **Een vooruitbetaald jaar wordt niet terugbetaald**, niet geheel en niet gedeeltelijk, want de
 korting was de prijs van het vooruitbetalen; uw herroepingsrecht (§7) blijft onverlet. Wat er
-aan het einde van het jaar over is, **betaalt de maanden daarna**, elke maand tegen de
-maandprijs van haar pakket, tot deze op is. Zegt u op terwijl er nog tegoed is, dan betaalt het
-nog de maanden die u gebruikt tot het op is, en daarna wordt er niets gefactureerd en eindigt
-de dienst. Anders loopt een abonnement, zodra het tegoed op is, **van maand tot maand** door,
-en zegt u op zoals elk maandabonnement: op elk moment, per het einde van de lopende maand. Een
+aan het einde van het jaar over is, **betaalt de maanden daarna**, elke maand tegen de volle
+maandprijs van haar pakket, tot het op is; daarna loopt een abonnement **van maand tot maand**
+door, en zegt u op zoals elk maandabonnement: op elk moment, per het einde van de lopende
+maand. **Sluit u uw account (§11) terwijl er nog tegoed is, dan vervalt wat er over is.** Een
 jaar wordt nooit verlengd met een nieuw jaar zonder dat u daar opnieuw voor kiest.
 
 Twee toezeggingen:

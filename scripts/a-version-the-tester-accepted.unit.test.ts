@@ -124,6 +124,11 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // keep the numbers"). 1.4 was final from the moment #1559 merged, so 1.4's pins stay.
   'privacy.md@1.5': '659c4f16ada40b9dc431b9b0fd4f1d55689dc07fb0e29f92655193a6fcf1c177',
   'privacy.nl.md@1.5': '8aea1c647b724dbac1a4f473148ed9b061840c7a01012d3b17e680ab473fbf44',
+  // 1.6 on 2026-10-12: §8 says that closing the account ends a year's credit left, and the credit
+  // in plain words (0111 T11; the owner: "(i) with A", "Credit with plain words"). 1.5 had been
+  // final since 2026-10-11, so the new words take a new number and 1.5's pins stay.
+  'terms.md@1.6': 'b44d6a3349f57af8854814aa20277291bbb18f96299affecf473605068bbad8c',
+  'terms.nl.md@1.6': 'fea22c48956b0b400bf18b02c9dbbedb49b0c0d6a58550e0f575beb62df3eb00',
 };
 
 /** The digest `ACCEPTED_WORDS` pins: the text outside HTML comments, white space collapsed. */

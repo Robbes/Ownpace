@@ -102,15 +102,15 @@ live in [README.md](./README.md), the register.
 - **`holdsASlot` (`@openmig/ledger`) is the slot rule**: `active`, `paused` and `continuous`
   hold a slot; `ready`, `cutover` and `done` hold none; a stop releases one only in the lane,
   whose customer is first told the bill does not stop at cutover.
-- **The month bills its peak, or a higher tier picked** (`tier-pick.ts`; invoice unbuilt,
-  0109). Downgrade: automatic down to it, announced, never blocking. No setup fee.
+- **The month bills its peak, or a higher tier picked** (`tier-pick.ts`; invoiced in advance,
+  0111). Downgrade: automatic down to it, announced, never blocking. No setup fee.
 - **Every step up is consented and paid for.** A path waits for the yes at activation; at the
   data ceiling, outside the alpha, new first copies wait for a move up or a one-off top-up
   (another band for the tier's monthly, once). Without that yes, a month bills the tier it
   was on.
-- **A year is credit at six months' price**: each month takes its tier at half price, at full
-  price after twelve months, until spent; then month to month. Never refunded (withdrawal
-  aside), never renewed. Not built (0111).
+- **A year is credit at six months' price**: each month takes its tier at half price, full
+  after twelve months, until spent. Never refunded (withdrawal aside), never renewed; closing
+  the account ends it (*Amendment 2026-10-12*).
 - **What we tell, and will not do, are rules** (*Decision*): every price published, VAT
   included; *Start* warns when the preflight will not fit; no per-GB, compute or per-path
   figure; no billing past 12 months unconfirmed. **The price pays for the work**;
