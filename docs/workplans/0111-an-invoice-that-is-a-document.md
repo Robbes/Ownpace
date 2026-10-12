@@ -4,6 +4,29 @@
 
 ## Status — 2026-10-12 (update this block at the end of every session)
 
+**2026-10-12, T11 slice Y3: one email a month before the credit runs out** (the owner's answer
+4). After each organisation's month, the hourly month task asks whether its credit pays all of
+next month, at the price and rate the month will take: the tier the month bills now, at half its
+monthly price within a year's twelve months while credit is left, else the full price
+(`claimCreditNotice`, `credit-notice.ts`). When it does not, the organisation's active owners and
+admins are told once, in its language: what is left, what that month costs, that what the credit
+does not pay is invoiced month by month, and that another year can be bought on the Billing page.
+*"Your credit does not pay for all of October 2027"* / *"Uw tegoed is niet genoeg voor heel
+oktober 2027"*. As a rule that is the first of the twelfth month, once it has drawn; after a move
+up, the hour after it. Once per year bought: the claim is `credit_notice` (managed **0057**,
+append-only, row security), keyed by the latest year's reference, so another year is news again
+when its credit runs low. Claimed before the send, with or without SMTP, as the slower cadence's
+steps are. Nothing during the alpha or while billing is off: the month task's switch stops first.
+
+- **Guards:** `a-credit-running-out.unit.test.ts` (over a real database, month by month: nothing
+  through the eleventh month; the twelfth claims it, at the full price; not again; another year
+  news again after a move up, at half price; no year, Free, a withdrawal say nothing; a notice not
+  changed, deleted or read by another organisation); `a-credit-running-out-told-once.unit.test.ts`
+  (to the active owners and admins in the organisation's language, once; claimed with no channel;
+  nobody to tell); `notifications.unit.test.ts` (the mail in both languages). The schema guard
+  lists `credit_notice` as insert-only on purpose, the purge deletes it, and the system role's
+  pins add it.
+
 **2026-10-12, T11 slice Y2: a year can be ordered.** The Billing page's *A year ahead* / *Een jaar
 vooruit* card lists the tiers a year may be bought for (the tier the month bills or a higher one),
 each at six months of its monthly price with the half price a month beside it, and says when it
@@ -807,7 +830,7 @@ alone** — see §"Who is the controller" and the cross-reference to 0086 T5.
 | T8 The price page stops promising 21% | ✅ **First slice built 2026-08-29** — per-country display waits on OSS | The row's own premise corrected by the build: the site never computed VAT — it showed bare `€n` with **no statement at all**, and toward consumers a displayed price legally IS the final, VAT-inclusive price. The slice says it out loud ("All prices include VAT." / "Alle prijzen zijn inclusief btw.") on the landing, pricing and calculator pages, with a structural guard: any page rendering tier prices without the label goes red. Deliberately **no rate in the copy** — which country's VAT sits inside the price is T3's per-invoice decision, so nothing drifts when OSS activates or a rate changes. Remaining for full T8: per-country inclusive display once `VAT_OSS_ACTIVE` flips, and reconciling the retired server model's ex-VAT arithmetic in 0109's tier rebuild. |
 | T9 Billing frequency, decided rather than defaulted | ✅ **Decided 2026-08-29: monthly AND annual, annual discounted** | The owner's framing decides it: the service is not a one-shot move but *"an operational exit strategy waiting for the cutover"*, sometimes used serially to move a family one person at a time — so a subscription is honest, and the discounted annual is the fee-efficient path (one charge ≈0.3% vs ≈3.4% monthly, §below) offered rather than imposed. T4's invoice shape: recurring, both cadences. **Invoiced in advance (2026-10-05, decision 6):** a month on its first day, at the tier it starts on, and a move up within a day, for the difference. |
 | T10 Retention, revisited now that we are not the record | ✅ **Decided 2026-08-29: purge the mirror on erasure, keep the pointer; built 2026-10-11** (managed 0054, Status; privacy 1.5 §9) | On erasure the mirror rows go; `erasure_record` keeps only the Moneybird invoice numbers, and the operator's answer becomes "these numbers, held in Moneybird". Retires most of #652's screen — the honest outcome §"What this changes about erasure" predicted. |
-| T11 A year paid ahead | 🟡 **Y1 built 2026-10-12** (the credit and the month's draw, managed 0056); **Y2 built 2026-10-12** (the order on the Billing page, `GET`/`POST /api/billing/year`); Y3 the notice before the credit runs out, Y4 the docs, to follow | ADR-0014, *Amendment 2026-10-04*: a year is credit at six months' price, billed at its start; each of its twelve months takes its tier at half price, the months after them the full price until the credit runs out; never refunded, never renewed. The owner's four answers of 2026-10-12 (Status): a year starts with the first month not yet billed; credit run out within the twelve makes that month's rest half price, then monthly; a year for the tier the month bills or a higher one; one email a month before the credit runs out. A year is an invoice (`ownpace-{org}-y-{n}`); a month it pays is a draw (`credit_draw`), not an invoice. |
+| T11 A year paid ahead | 🟡 **Y1 built 2026-10-12** (the credit and the month's draw, managed 0056); **Y2 built 2026-10-12** (the order on the Billing page, `GET`/`POST /api/billing/year`); **Y3 built 2026-10-12** (one email a month before the credit runs out, managed 0057); Y4 the docs, to follow | ADR-0014, *Amendment 2026-10-04*: a year is credit at six months' price, billed at its start; each of its twelve months takes its tier at half price, the months after them the full price until the credit runs out; never refunded, never renewed. The owner's four answers of 2026-10-12 (Status): a year starts with the first month not yet billed; credit run out within the twelve makes that month's rest half price, then monthly; a year for the tier the month bills or a higher one; one email a month before the credit runs out. A year is an invoice (`ownpace-{org}-y-{n}`); a month it pays is a draw (`credit_draw`), not an invoice. |
 
 ## Why this exists
 

@@ -38,6 +38,16 @@
  * close (decision 13); a move up in the hour before a close is the one step
  * that can go uninvoiced, in the customer's favour.
  *
+ * A YEAR'S CREDIT RUNNING OUT, SAID ONCE (0111 T11, slice Y3; the owner,
+ * 2026-10-12: one email a month before the credit runs out). After each
+ * organisation's month, in its own scope again: whether its credit pays all
+ * of next month, and if not, the claim that says it once per year bought
+ * (`claimCreditNotice`, managed 0057), then its active owners and admins in a
+ * second scope, and the mail. Here because the month's draw is what makes the
+ * credit fall short, and because the switch above keeps it quiet while nobody
+ * is invoiced. Where no channel is configured, the notice is claimed all the
+ * same, as the slower cadence's steps are.
+ *
  * Its pools are opened in its run and ended in `afterwards`, after a failure
  * is on the operator's log page, whose sink is on the tenant pool: an hourly
  * job holds no pool between runs.
@@ -49,10 +59,28 @@ import { schedules } from '@trigger.dev/sdk';
 import type { Pool } from 'pg';
 import { sql } from 'drizzle-orm';
 import { withTenant } from '@openmig/ledger';
-import { log, readTenantNotificationPrefs, type TenantId } from '@openmig/shared';
-import { monthOf, openTheMonth, whyNobodyIsInvoiced, type MonthOutcome } from '@openmig/managed';
+import {
+  createNotifier,
+  log,
+  readTenantNotificationPrefs,
+  renderEvent,
+  type NotificationLocale,
+  type NotificationMessage,
+  type TenantId,
+} from '@openmig/shared';
+import {
+  claimCreditNotice,
+  creditNoticeEvent,
+  monthOf,
+  openTheMonth,
+  whyNobodyIsInvoiced,
+  type CreditNotice,
+  type MonthOutcome,
+} from '@openmig/managed';
+import { notifierFromEnv, smtpTransport } from '@openmig/connectors';
 import { leavesAReference } from './what-a-run-leaves.ts';
 import { activeOrganisations, openTaskPools } from './task-pools.ts';
+import { whomToTell } from './the-slower-cadence-email.ts';
 
 const rowsOf = <R>(result: unknown): R[] => (result as { rows: R[] }).rows;
 
@@ -67,6 +95,41 @@ export async function monthOfOrganisation(pool: Pool, organisation: string, now:
     const locale = readTenantNotificationPrefs(row?.settings).locale;
     return openTheMonth(db, organisation as TenantId, now, locale);
   });
+}
+
+/** What one organisation's notice came to, for the run's summary. */
+export type CreditNoticeAnswer =
+  | Exclude<CreditNotice['kind'], 'claimed'>
+  /** Claimed, and sent. */
+  | 'sent'
+  /** Claimed, and no channel is configured to send it on. */
+  | 'no_channel'
+  /** Claimed, and the organisation has no active owner or admin to send it to. */
+  | 'no_recipients';
+
+/** Sends one message. */
+export type NoticeSend = (to: readonly string[], locale: NotificationLocale, message: NotificationMessage) => Promise<void>;
+
+/**
+ * One organisation's notice that its credit runs out: the claim in its own
+ * scope, and, once that has committed, whom to tell in a second, then the
+ * mail in its language. Exported so the tests run it on a database of their
+ * own. `send` is absent where no channel is configured: the notice is claimed
+ * all the same.
+ */
+export async function creditNoticeOfOrganisation(
+  pool: Pool,
+  organisation: string,
+  now: Date,
+  send: NoticeSend | undefined,
+): Promise<CreditNoticeAnswer> {
+  const notice = await withTenant(pool, organisation, (db) => claimCreditNotice(db, organisation as TenantId, now));
+  if (notice.kind !== 'claimed') return notice.kind;
+  if (!send) return 'no_channel';
+  const { to, locale } = await withTenant(pool, organisation, (db) => whomToTell(db, organisation));
+  if (to.length === 0) return 'no_recipients';
+  await send(to, locale, renderEvent(creditNoticeEvent(notice, locale), locale));
+  return 'sent';
 }
 
 export const managedMonthInvoices = schedules.task({
@@ -90,8 +153,24 @@ export const managedMonthInvoices = schedules.task({
       return { invoicing: false, reason: stop.reason } as const;
     }
 
+    // The channel for the notice that a year's credit runs out: one transport
+    // for the whole run, each organisation its own envelope and language.
+    const channel = notifierFromEnv(process.env, (m) => log.warn(m));
+    let send: NoticeSend | undefined;
+    if (channel.config.enabled) {
+      const from = channel.config.settings.from;
+      const transport = smtpTransport(channel.config.smtp);
+      send = (to, locale, message) => createNotifier(transport, { from, to, locale }).notify(message);
+    }
+
     // The one question across organisations.
     const organisations = await activeOrganisations();
+    const notices: Record<'sent' | 'no_channel' | 'no_recipients' | 'failed', number> = {
+      sent: 0,
+      no_channel: 0,
+      no_recipients: 0,
+      failed: 0,
+    };
     const counts: Record<MonthOutcome['kind'] | 'failed', number> = {
       made: 0,
       // Paid from a year's credit, all of it: no invoice (0111 T11).
@@ -121,10 +200,30 @@ export const managedMonthInvoices = schedules.task({
           `[month-invoices] organisation ${organisation}: its month could not be read or invoiced:`,
           err instanceof Error ? err.message : err,
         );
+        continue;
+      }
+      try {
+        // Once its month is in step: whether its credit pays all of the next.
+        const answer = await creditNoticeOfOrganisation(pools.tenant, organisation, now, send);
+        if (answer === 'sent') {
+          notices.sent++;
+          log.info(`[month-invoices] organisation ${organisation}: its credit runs out next month, and it was told.`);
+        } else if (answer === 'no_channel' || answer === 'no_recipients') {
+          // Said each time one is claimed and not sent: an operator who
+          // believes it was sent is who rule 9 protects.
+          notices[answer]++;
+          log.warn(`[month-invoices] organisation ${organisation}: its credit runs out next month, and nobody was told: ${answer}.`);
+        }
+      } catch (err) {
+        notices.failed++;
+        log.error(
+          `[month-invoices] organisation ${organisation}: whether its credit runs out could not be read, claimed or sent:`,
+          err instanceof Error ? err.message : err,
+        );
       }
     }
 
-    const result = { invoicing: true, month: monthOf(now), tenants: organisations.length, ...counts };
+    const result = { invoicing: true, month: monthOf(now), tenants: organisations.length, ...counts, notices };
     log.info('[month-invoices]', result);
     return result;
   }),

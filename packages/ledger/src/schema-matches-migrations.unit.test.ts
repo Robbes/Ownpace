@@ -232,6 +232,14 @@ const NARROWER_ON_PURPOSE: Record<string, { privileges: string[]; why: string }>
       'DELETE are REVOKED from the default the baseline grants. The one deleter is the erasure ' +
       'purge, through the system role (PURGED_TABLES).',
   },
+  credit_notice: {
+    privileges: ['INSERT', 'SELECT'],
+    why:
+      'The email that the credit of a year paid ahead is running out, once said (workplan 0111 T11, ' +
+      'managed migration 0057): a notice said is not unsaid, so the month task claims it with an ' +
+      'insert and reads it, and UPDATE and DELETE are REVOKED from the default the baseline grants. ' +
+      'The one deleter is the erasure purge, through the system role (PURGED_TABLES).',
+  },
   platform_operator: {
     privileges: ['SELECT'],
     why:

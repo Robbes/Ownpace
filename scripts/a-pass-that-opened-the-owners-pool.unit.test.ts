@@ -287,7 +287,9 @@ const SPLIT: Record<string, string> = {
     'slice 4). Per organisation, in its own scope: its notification settings for the language, the ' +
     'paths it holds (the true-up writes its month\'s peak), what its month bills (its peak, the data ' +
     'counted, its yeses and picks), the prices it agreed to, its month\'s invoices, and the draft the ' +
-    'run makes. Split from the start, as 0138 split the three before it (0138 T2)',
+    'run makes; then whether its year\'s credit pays all of next month, the notice it claims once ' +
+    '(0111 T11), and its active owners and admins and notification settings. Split from the start, ' +
+    'as 0138 split the three before it (0138 T2)',
   'apps/worker/src/jobs/managed-invoice-push.ts':
     "which organisations are active, to have each one's drafts numbered by Moneybird (workplan 0111, " +
     'slice 5). Per organisation, in its own scope: its drafts, claimed one at a time, its invoice ' +

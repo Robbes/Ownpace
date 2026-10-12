@@ -754,6 +754,50 @@ describe('an order, confirmed by email (0111 T7, slice 7e)', () => {
   });
 });
 
+describe("a year's credit running out — said once, to whoever pays (0111 T11, slice Y3)", () => {
+  const notice = {
+    kind: 'credit_running_out',
+    organisation: 'De Vries',
+    month: 'oktober 2027',
+    left: '€ 0,00',
+    tier: 'Medium',
+    cost: '€ 12,00',
+    halfPrice: false,
+  } as const;
+
+  it('says what is left, what the month costs, and how to keep paying ahead, in Dutch', () => {
+    const nl = renderEvent(notice, 'nl');
+    expect(nl.subject).toBe('Ownpace — uw tegoed raakt op');
+    expect(nl.body).toBe(
+      [
+        'Organisatie: De Vries',
+        '',
+        'Uw tegoed is niet genoeg voor heel oktober 2027:',
+        '  - Tegoed over: € 0,00',
+        '  - Ownpace Medium, oktober 2027: € 12,00',
+        '',
+        'Wat uw tegoed niet betaalt, wordt aan het begin van elke maand gefactureerd, per maand (voorwaarden §8).',
+        '',
+        'Wilt u vooruit blijven betalen, koop dan nog een jaar onder Een jaar vooruit op de pagina Facturering in de app: ' +
+          'zes keer de maandprijs, voor twaalf maanden tegen de halve prijs.',
+      ].join('\n'),
+    );
+  });
+
+  it('says a month of a year at half price in its invoice line\'s words, in English, and asks nothing more', () => {
+    const en = renderEvent(
+      { ...notice, organisation: 'De Vries', month: 'November 2027', left: '€32.00', tier: 'Extra large', cost: '€40.00', halfPrice: true },
+      'en',
+    );
+    expect(en.subject).toBe('Ownpace — your credit is running out');
+    expect(en.body).toContain('Your credit does not pay for all of November 2027:');
+    expect(en.body).toContain('  - Credit left: €32.00');
+    expect(en.body).toContain('  - Ownpace Extra large, November 2027: €40.00, at half the monthly price (a year ahead)');
+    expect(en.body).toContain('buy another year under A year ahead on the Billing page in the app');
+    expect(en.body).not.toMatch(/open the app/i);
+  });
+});
+
 describe('money to give back — addressed to the operator, in English (0111; 2026-10-11)', () => {
   const base = { kind: 'money_to_give_back', organisationId: 'org-1', creditNote: '2026-0010', invoice: '2026-0009' } as const;
 
