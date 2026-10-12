@@ -271,7 +271,7 @@ function firstStepRate(steps: readonly MonthStep[]): 'half' | 'full' | null {
 }
 
 /** Every yes to a tier and every pick, made by `at`, at the price each showed. */
-async function readAgreedPrices(db: PgDatabase, tenantId: TenantId, at: Date): Promise<AgreedPrice[]> {
+export async function readAgreedPrices(db: PgDatabase, tenantId: TenantId, at: Date): Promise<AgreedPrice[]> {
   const yeses = await db
     .select({ tierId: dataAllowance.tierId, priceEur: dataAllowance.priceEur, at: dataAllowance.consentedAt })
     .from(dataAllowance)

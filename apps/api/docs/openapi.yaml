@@ -6160,6 +6160,113 @@ paths:
             application/json:
               schema: { type: object }
 
+  /api/billing/year:
+    get:
+      tags: [Billing]
+      summary: What a year paid ahead would be
+      description: |
+        Workplan 0111 T11 (ADR-0014, Amendment 2026-10-04; terms §8): a year is
+        credit at six months' price, billed at its start; each month of its
+        twelve takes its own tier at half its monthly price, and what is left
+        after them pays the months that follow at the monthly price. `tiers` are
+        the ones a year may be bought for, the tier this month bills or a higher
+        one, each with `monthlyCents` (agreed, else the list's) and `yearCents`,
+        six of it. `placement` is where a year bought now falls: its credit from
+        the first month not yet billed (`creditFrom`, `YYYY-MM`), its twelve
+        months at half price after any year still running (`halfFrom` to
+        `halfTo`). `credit` is what this month may draw and whether it is one
+        of a year's; `years` are those bought since the latest withdrawal, and
+        `yearsBefore` how many, which an order sends back. `holds` is false
+        during the alpha. Read-only.
+      responses:
+        '200':
+          description: What a year would be.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  holds: { type: boolean }
+                  billed:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      name: { type: string }
+                  tiers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, enum: [small, medium, large, xl] }
+                        name: { type: string }
+                        monthlyCents: { type: integer }
+                        yearCents: { type: integer }
+                        priceFrom: { type: string, enum: [agreed, list] }
+                  placement:
+                    type: object
+                    properties:
+                      creditFrom: { type: string, pattern: '^[0-9]{4}-[0-9]{2}$' }
+                      halfFrom: { type: string, pattern: '^[0-9]{4}-[0-9]{2}$' }
+                      halfTo: { type: string, pattern: '^[0-9]{4}-[0-9]{2}$' }
+                  credit:
+                    type: object
+                    description: The credit this month may draw, and whether it is one of a year's twelve.
+                    properties:
+                      leftCents: { type: integer }
+                      yearMonth: { type: boolean }
+                  heldCents:
+                    type: integer
+                    description: The credit held, whether or not its first month has come.
+                  years: { type: array, items: { type: object } }
+                  yearsBefore: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Billing]
+      summary: Order a year paid ahead, at the price shown
+      description: |
+        The year's invoice, a draft the hourly push takes to the books (workplan
+        0111 T11), placed as GET says. A year for a tier above the
+        one this month bills is a pick of that tier as well, at once, with its
+        yes (`axis` `pick`). Refused, with the year as it is now (as `year`),
+        when the tier, the year's price or `yearsBefore` are not what is offered
+        (`offer_changed`); before invoice details (`invoice_details_first`); and
+        during the alpha (`nothing_charged_during_the_alpha`). Its confirmation
+        goes by email to the signed-in address.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tierId, yearCents, yearsBefore]
+              properties:
+                tierId: { type: string }
+                yearCents: { type: integer, minimum: 1 }
+                yearsBefore: { type: integer, minimum: 0 }
+                beginNow:
+                  type: boolean
+                  enum: [true]
+                  description: |
+                    The order button said, in one sentence, that we begin at once and
+                    what a withdrawal then costs (0111 slice 7e; terms §7).
+      responses:
+        '200':
+          description: The year ordered (`ordered`), and what a year would be now, as GET answers.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: |
+            Not taken: `invoice_details_first`, `offer_changed` (with the year
+            as it is now, as `year`), or `nothing_charged_during_the_alpha`.
+          content:
+            application/json:
+              schema: { type: object }
+
   /api/billing/estimate:
     post:
       tags: [Billing]

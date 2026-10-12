@@ -66,6 +66,7 @@ export * from './billing-from.ts';
 export * from './month-invoice-words.ts';
 export * from './month-invoice.ts';
 export * from './year-credit.ts';
+export * from './year-offer.ts';
 export * from './invoice-push.ts';
 export * from './credit-note.ts';
 export * from './payment-book.ts';

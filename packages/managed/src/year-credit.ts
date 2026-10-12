@@ -325,6 +325,7 @@ export interface YearOrder {
 }
 
 export type YearRecorded = { readonly kind: 'recorded'; readonly reference: string } & YearPlacement & {
+    readonly tierId: PaidTierId;
     readonly cents: number;
   };
 
@@ -370,7 +371,7 @@ export async function recordYear(
       RETURNING id`),
   );
   if (inserted.length !== 1) throw new Error(`the year ${reference} was not recorded`);
-  return { kind: 'recorded', reference, cents: order.cents, ...placement };
+  return { kind: 'recorded', reference, tierId: order.tier.id as PaidTierId, cents: order.cents, ...placement };
 }
 
 /** A paid tier's yearly price as published, in cents: six months'. */

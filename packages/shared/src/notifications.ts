@@ -1026,10 +1026,14 @@ export type NotificationEvent =
        */
       readonly kind: 'order_confirmed';
       readonly organisation: string;
-      /** A tier by the month, or a band once: names and prices in words, `Medium` and `€29.00`. */
+      /**
+       * A tier by the month, a band once, or a year paid ahead (0111 T11): names,
+       * prices and months in words, `Medium`, `€29.00`, `November 2026`.
+       */
       readonly order:
         | { readonly kind: 'tier'; readonly tier: string; readonly monthly: string }
-        | { readonly kind: 'top_up'; readonly band: string; readonly price: string };
+        | { readonly kind: 'top_up'; readonly band: string; readonly price: string }
+        | { readonly kind: 'year'; readonly tier: string; readonly price: string; readonly from: string; readonly to: string };
       /** When the yes was given, in words: `11 October 2026 at 10:04 UTC`. */
       readonly orderedAt: string;
       /** The last day to withdraw, in words; null for a business, or once the fourteen days are over. */
@@ -1226,6 +1230,10 @@ interface EventLines {
   readonly orderedOnce: string;
   readonly orderedBilledMonthly: string;
   readonly orderedBilledOnce: string;
+  /** A year paid ahead (0111 T11): `a year ahead,`, `to`, and how it is billed. */
+  readonly orderedYear: string;
+  readonly orderedYearTo: string;
+  readonly orderedBilledYear: string;
   readonly orderedWithdrawUntil: string;
   readonly orderedWithdrawHow: string;
   readonly orderedBeganOnRequest: string;
@@ -1359,6 +1367,10 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     orderedOnce: 'more data room, once, for',
     orderedBilledMonthly: 'Each month is billed in advance (terms §8).',
     orderedBilledOnce: 'It is billed once.',
+    orderedYear: 'a year ahead,',
+    orderedYearTo: 'to',
+    orderedBilledYear:
+      'It is billed now, as credit: each month of the year takes its own tier at half its monthly price, and what is left after the twelve months pays the months after them, at their monthly price. It is not refunded (terms §8).',
     orderedWithdrawUntil: 'As a consumer you may withdraw from this contract without giving a reason, until the end of',
     orderedWithdrawHow:
       'Use Withdraw from contract here on the Billing page in the app, or send an unambiguous statement to support@ownpace.eu. You may use the model form in §15 of the terms.',
@@ -1451,6 +1463,10 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     orderedOnce: 'extra data, eenmalig, voor',
     orderedBilledMonthly: 'Elke maand wordt vooraf gefactureerd (voorwaarden §8).',
     orderedBilledOnce: 'Het wordt eenmalig gefactureerd.',
+    orderedYear: 'een jaar vooruit,',
+    orderedYearTo: 'tot en met',
+    orderedBilledYear:
+      'Het wordt nu gefactureerd, als tegoed: elke maand van het jaar krijgt haar eigen pakket, tegen de helft van de maandprijs, en wat na de twaalf maanden over is, betaalt de maanden daarna tegen de maandprijs. Het wordt niet terugbetaald (voorwaarden §8).',
     orderedWithdrawUntil: 'Als consument kunt u deze overeenkomst zonder opgave van redenen herroepen, tot het einde van',
     orderedWithdrawHow:
       'Gebruik Hier de overeenkomst herroepen op de pagina Facturering in de app, of stuur een ondubbelzinnige verklaring aan support@ownpace.eu. U kunt het modelformulier in §15 van de voorwaarden gebruiken.',
@@ -1647,9 +1663,16 @@ export function renderEvent(
       lines.push(
         event.order.kind === 'tier'
           ? `  - Ownpace ${event.order.tier}, ${event.order.monthly} ${b.orderedMonthly}`
-          : `  - ${event.order.band} ${b.orderedOnce} ${event.order.price}`,
+          : event.order.kind === 'year'
+            ? `  - Ownpace ${event.order.tier}, ${b.orderedYear} ${event.order.from} ${b.orderedYearTo} ${event.order.to}: ${event.order.price}`
+            : `  - ${event.order.band} ${b.orderedOnce} ${event.order.price}`,
       );
-      lines.push('', `${b.orderedConfirms} ${event.order.kind === 'tier' ? b.orderedBilledMonthly : b.orderedBilledOnce}`);
+      lines.push(
+        '',
+        `${b.orderedConfirms} ${
+          event.order.kind === 'tier' ? b.orderedBilledMonthly : event.order.kind === 'year' ? b.orderedBilledYear : b.orderedBilledOnce
+        }`,
+      );
       if (event.withdrawUntil !== null) {
         lines.push('', `${b.orderedWithdrawUntil} ${event.withdrawUntil}. ${b.orderedWithdrawHow}`);
         lines.push('', event.beganOnRequest ? b.orderedBeganOnRequest : b.orderedNotAsked);
