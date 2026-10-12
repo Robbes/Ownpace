@@ -4,8 +4,7 @@
 
 ## Status — 2026-10-12 (update this block at the end of every session)
 
-**2026-10-12: T7's second half is built: a refusal links its guide.** On branch
-`claude/ownpace-public-readiness-y7orc6-a-refusal-that-links-its-guide`; not merged. A refusal
+**2026-10-12: T7's second half is built: a refusal links its guide.** A refusal
 keeps its words, in English as written, and names no `docs/….md` any more. Beside the words it
 carries a guide handle, `<guide>#<section>` (`packages/shared/src/guide-handle.ts`; the guide is
 typed against `SERVED_GUIDES`):
@@ -43,6 +42,26 @@ and a section both languages have. `create-coherence.unit.test.ts`'s six pins on
 pin the handle (and a seventh, the reused Box connection's `box#user-id`).
 `GuideLink.unit.test.tsx` renders a refusal's handle in both languages. `Docs.tsx`'s header no
 longer says refusals name documents by file name.
+
+**2026-10-12: T6 (b) is built: a guide keeps its tables, quotes and list items** (D6: `Docs.tsx`
+extended, no dependency; handed over by the UX session). The renderer now takes:
+
+- **GFM tables**, with their alignment, an escaped `\|` and code spans in a cell. A table sits in
+  a box that scrolls at phone width, and the box takes the focus, so a keyboard can scroll it.
+- **Blockquotes**, with a line run on from the one above and the blocks inside them.
+- **A list item's own lines.** Continuation lines join its text, so bold may span them. A fence,
+  a paragraph or a list indented inside the item stays inside it, and a step after a sub-list
+  carries on the same `<ol>`.
+- **Italics**, `*x*`, also inside bold. An underscore stays as written, because the guides name
+  `client_secret` and the like.
+
+What the served guides lost before this: only `dav`'s italics, on line 42 in both languages,
+which showed their asterisks. No served guide uses a table, a blockquote, a continuation line or
+an indented fence yet.
+
+`Docs.unit.test.tsx` has a fixture case for each of these. The served-guides case now also fails
+when an asterisk of bold or italics shows as text outside code. On main's renderer, nine cases
+fail: the seven fixture cases and `en/dav` and `nl/dav`.
 
 **2026-10-04, night: the Dutch guides say *migratie*.** A visitor without an account reads them
 now (0152, *the guides are public*), and they said a form of *verhuizen*, which the owner retired
@@ -937,8 +956,8 @@ the owner announced for *Via IMAP* (D5).
 | T3 Cards that cannot work on managed are hidden there | 🔨 **Apple tag built 2026-09-24** (D7, both editions) merged in #1176 (2026-09-25) — *was:* 📋 **Decided 2026-09-24**: nothing is hidden on managed. The export archive stays, tagged experimental (D10, replacing D3), and so does *Via IMAP* (D5). The Apple export option is tagged *to be tested* on both editions (D7, D10) | §3. The flag and the hiding are not built (D10). What remains is the Apple tag. **Before.** |
 | T4 A Dutch and an English guide for each source and target | 🔨 **(a) built**, merged in #1189 (2026-09-26): the six served guides in Dutch, the same outline and ids as the English, the per-language label guard. ✅ **(b) done** in #1191, merged 2026-09-26: the IMAP, JMAP, DAV, Nextcloud and Soverin guides in Dutch and English, each card's `guide` field, the checklist's and the wizard's links, and the guards. Review fixed 2026-09-26. 📋 **Decided 2026-09-24** (D4, D8) | §3. Eleven guides for the twenty cards. Dutch first. Five are new: IMAP (source and target), JMAP, DAV, Nextcloud and Soverin. The i18n prose boundary gains a class for guides. **Before**, in Dutch and in English, for the cards live offers (D8). |
 | T5 The checklist says what must be done first | ✅ **(a) done** in #1205, merged 2026-09-27: profiles for Apple, Nextcloud and Soverin, and each Microsoft registration card its own recipe (the Graph profile's text, found under T8); the Google account card's was T2 (b)'s. Review fixed 2026-09-27: an `o365` row on Connections links both cards' checklists, and the administrator question is asked only where a step needs one. (b) not started — *was:* 📋 **Proposed** | §3. Profiles for Apple, Nextcloud and Soverin, and Google's for the Google account card (**before**); the Microsoft account card's and the archive's (**after**). |
-| T6 A renderer that keeps a guide's shape | 🟡 **(a) built**, merged in #1159 (2026-09-24); (b) not started. 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
-| T7 Every link in a guide resolves, and a refusal links its guide | 🔨 **Built**: the guides' links 2026-10-04; the refusals' handles 2026-10-12, on branch `claude/ownpace-public-readiness-y7orc6-a-refusal-that-links-its-guide`, not merged | §3. A guard over every served link; refusals carry a guide handle beside their words instead of naming a `.md` file. **After**, apart from the two sentences in T2 (d). |
+| T6 A renderer that keeps a guide's shape | ✅ **(a) built**, merged in #1159 (2026-09-24); **(b) built 2026-10-12** (Status). 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
+| T7 Every link in a guide resolves, and a refusal links its guide | ✅ **Built**: the guides' links 2026-10-04; the refusals' handles 2026-10-12 (Status) | §3. A guard over every served link; refusals carry a guide handle beside their words instead of naming a `.md` file. **After**, apart from the two sentences in T2 (d). |
 | T8 The Microsoft app-registration recipe | 🔨 **(a) and (b) written**, merged in #1189 (2026-09-26), in both languages at the Microsoft guide's `{#application}`: `Mail.Read` under Microsoft Graph; `IMAP.AccessAsApp` under Office 365 Exchange Online, with `New-ServicePrincipal` and `Add-MailboxPermission`. Checked against Microsoft's published page sources, not walked; `o365-setup.md` corrected. Reviewed and fixed 2026-09-26: Exchange's RBAC route replaces the Entra grant rather than narrowing it, `-UserPrincipalName`, read-only scoped to the card that has it. (c) merged in #1173. The tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
 | T9 The export read from a folder in the migration's own files | ✅ **done** in #1178, merged 2026-09-25. 📋 **Decided 2026-09-24** (D11) | §3. The archive form's choice and the doors' `where`, for a Nextcloud or WebDAV target; a JMAP target is refused by sentence. The archive guide's section, and the gate's archive step moved to the demo Nextcloud. **Before**, stacked on 0136 T5. |
 

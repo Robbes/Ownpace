@@ -46,13 +46,13 @@
  * headings (an `<h2>`–`<h4>` each, with an id from a trailing `{#id}` or else
  * GitHub's slug of the heading, so a section can be linked), bullet and
  * numbered lists, fenced and indented code, links (a `#section` link stays in
- * the tab and scrolls to its heading), code and bold spans with links inside
- * them, and paragraphs. Tables, blockquotes, a list item's continuation lines
- * and a fence indented inside a list are 0148 T6 (b), after the first
- * invitation; a guide is written without them until then, and
- * `Docs.unit.test.tsx` fails when one is used. Anything the renderer does not
- * understand renders as its own text rather than disappearing, which is the
- * right failure for a document.
+ * the tab and scrolls to its heading), code, bold and italic spans with links
+ * inside them, and paragraphs (0148 T6 (a)). Since T6 (b) it also takes GFM
+ * tables, in a box that scrolls at phone width, blockquotes, and a list item's
+ * own lines: the continuation lines of its text, and a fence, a paragraph or a
+ * list indented inside it. Anything the renderer does not understand renders
+ * as its own text rather than disappearing, which is the right failure for a
+ * document.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -136,10 +136,15 @@ export function pickGuide(library: GuideLibrary, slug: string, locale: Locale): 
  */
 const OPERATOR_DOCS_URL = 'https://github.com/Robbes/Ownpace/tree/main/docs';
 
-/** Inline spans: `code`, **bold**, [text](href). Escapes nothing else. */
+/**
+ * Inline spans: `code`, **bold**, *italics*, [text](href). Escapes nothing
+ * else. Bold may hold italics, a link or code, and is parsed again. Only the
+ * asterisk makes italics: an underscore is left as written, since the guides
+ * name scopes and fields such as `sharing.read` and `client_secret`.
+ */
 const Inline: React.FC<{ text: string }> = ({ text }) => {
   const parts: React.ReactNode[] = [];
-  const pattern = /`([^`]+)`|\*\*([^*]+)\*\*|\[([^\]]+)\]\(([^)]+)\)/g;
+  const pattern = /`([^`]+)`|\*\*(?=\S)(.+?)\*\*(?!\*)|\[([^\]]+)\]\(([^)]+)\)|\*(?=[^\s*])([^*]*[^\s*]|[^\s*])\*/g;
   let last = 0;
   let match: RegExpExecArray | null;
   let key = 0;
@@ -157,6 +162,12 @@ const Inline: React.FC<{ text: string }> = ({ text }) => {
         <strong key={key++}>
           <Inline text={match[2]} />
         </strong>,
+      );
+    } else if (match[5] !== undefined) {
+      parts.push(
+        <em key={key++}>
+          <Inline text={match[5]} />
+        </em>,
       );
     } else if (match[3] !== undefined && match[4] !== undefined) {
       const href = match[4];
@@ -203,6 +214,7 @@ function plainText(markdown: string): string {
     .replace(/`([^`]+)`/g, '$1')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*\s][^*]*)\*/g, '$1')
     .trim();
 }
 
@@ -222,33 +234,102 @@ function slugOfHeading(text: string): string {
 const EXPLICIT_ID = /\s*\{#([A-Za-z0-9_-]+)\}\s*$/;
 
 const HEADING = /^(#{1,4})\s+(.*)$/;
-const BULLET = /^\s*[-*]\s+/;
-const STEP = /^\s*(\d+)\.\s+/;
+const FENCE = /^ {0,3}```/;
+const QUOTE = /^ {0,3}> ?/;
+/**
+ * A list item's marker: `-`, `*`, `1.` or `1)`, after at most three spaces,
+ * then the spaces before its text. Its whole length is how far the item's
+ * own lines are indented.
+ */
+const LIST_ITEM = /^( {0,3})([-*]|(\d{1,9})[.)])( {1,4}|$)/;
+/** GFM's delimiter row under a table's header: `| --- | :-: |`. */
+const TABLE_DELIMITER = /^ {0,3}\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
 /** A line that ends a paragraph because it starts a block of its own. */
-const BLOCK_START = /^(#{1,4}\s|```|\s*[-*]\s|\s*\d+\.\s)/;
+const BLOCK_START = /^(#{1,4}\s| {0,3}```| {0,3}>|\s*[-*]\s|\s*\d+[.)]\s)/;
+
+type Align = 'left' | 'center' | 'right' | undefined;
 
 type Block =
   | { kind: 'fence'; code: string }
   | { kind: 'indented'; code: string }
   | { kind: 'heading'; depth: number; text: string; id: string }
-  | { kind: 'bullets'; items: string[] }
-  | { kind: 'steps'; start: number; items: string[] }
+  | { kind: 'bullets'; items: Block[][] }
+  | { kind: 'steps'; start: number; items: Block[][] }
+  | { kind: 'table'; align: Align[]; head: string[]; rows: string[][] }
+  | { kind: 'quote'; blocks: Block[] }
   | { kind: 'paragraph'; text: string };
 
-/** Block level: fences, headings, bullets, numbered steps, indented code, paragraphs. */
-function parseGuide(body: string): Block[] {
+/** Whether `lines[i]` opens a table: a row with a `|`, then the delimiter row. */
+function opensTable(lines: readonly string[], i: number): boolean {
+  const next = lines[i + 1];
+  return lines[i]!.includes('|') && next !== undefined && next.includes('-') && TABLE_DELIMITER.test(next);
+}
+
+/**
+ * A table row's cells: the outer pipes dropped, split on each `|` that is
+ * neither escaped (`\|`) nor inside a code span.
+ */
+function cellsOf(row: string): string[] {
+  let line = row.trim();
+  if (line.startsWith('|')) line = line.slice(1);
+  if (line.endsWith('|') && !line.endsWith('\\|')) line = line.slice(0, -1);
+  const cells: string[] = [];
+  let cell = '';
+  let inCode = false;
+  for (let k = 0; k < line.length; k += 1) {
+    const c = line[k]!;
+    if (c === '\\' && line[k + 1] === '|') {
+      cell += '|';
+      k += 1;
+    } else if (c === '`') {
+      inCode = !inCode;
+      cell += c;
+    } else if (c === '|' && !inCode) {
+      cells.push(cell.trim());
+      cell = '';
+    } else {
+      cell += c;
+    }
+  }
+  cells.push(cell.trim());
+  return cells;
+}
+
+function alignOf(cell: string): Align {
+  const left = cell.startsWith(':');
+  const right = cell.endsWith(':');
+  if (left && right) return 'center';
+  if (right) return 'right';
+  if (left) return 'left';
+  return undefined;
+}
+
+/** How many spaces a line starts with. */
+function leadOf(line: string): number {
+  return /^ */.exec(line)![0].length;
+}
+
+/**
+ * Block level: fences, headings, lists, tables, quotes, indented code and
+ * paragraphs. A list item's own lines, and a quote's, are parsed again as
+ * blocks, so a fence, a list or a second paragraph inside them keeps its
+ * shape. `usedIds` is shared, so a heading anywhere gets an id of its own.
+ */
+function parseBlocks(lines: readonly string[], usedIds: Set<string>): Block[] {
   const out: Block[] = [];
-  const lines = body.split('\n');
-  const usedIds = new Set<string>();
   let i = 0;
 
   while (i < lines.length) {
     const line = lines[i]!;
 
-    if (line.startsWith('```')) {
+    if (FENCE.test(line)) {
+      const indent = leadOf(line);
       const code: string[] = [];
       i += 1;
-      while (i < lines.length && !lines[i]!.startsWith('```')) code.push(lines[i++]!);
+      while (i < lines.length && !FENCE.test(lines[i]!)) {
+        code.push(lines[i]!.slice(Math.min(indent, leadOf(lines[i]!))));
+        i += 1;
+      }
       i += 1;
       out.push({ kind: 'fence', code: code.join('\n') });
       continue;
@@ -271,26 +352,43 @@ function parseGuide(body: string): Block[] {
       continue;
     }
 
-    if (BULLET.test(line)) {
-      const items: string[] = [];
-      while (i < lines.length && BULLET.test(lines[i]!)) {
-        items.push(lines[i]!.replace(BULLET, ''));
+    const item = LIST_ITEM.exec(line);
+    if (item) {
+      const ordered = item[3] !== undefined;
+      const start = ordered ? Number(item[3]) : 1;
+      const items: Block[][] = [];
+      let marker: RegExpExecArray | null = item;
+      while (marker && (marker[3] !== undefined) === ordered) {
+        // The item's own lines: its first, then every line indented to its
+        // text, and a line run on from the one above it (GitHub's "lazy"
+        // continuation). Blank lines stay inside while an indented line
+        // follows them.
+        const width = marker[4] === '' ? marker[0].length + 1 : marker[0].length;
+        const body = [lines[i]!.slice(marker[0].length)];
         i += 1;
+        while (i < lines.length) {
+          const next = lines[i]!;
+          if (next.trim() === '') {
+            body.push('');
+            i += 1;
+            continue;
+          }
+          if (leadOf(next) >= width) {
+            body.push(next.slice(width));
+          } else if (body[body.length - 1] !== '' && !BLOCK_START.test(next) && !opensTable(lines, i)) {
+            body.push(next.trimStart());
+          } else {
+            break;
+          }
+          i += 1;
+        }
+        while (body.length > 0 && body[body.length - 1] === '') body.pop();
+        items.push(parseBlocks(body, usedIds));
+        marker = i < lines.length ? LIST_ITEM.exec(lines[i]!) : null;
       }
-      out.push({ kind: 'bullets', items });
-      continue;
-    }
-
-    const step = STEP.exec(line);
-    if (step) {
-      const items: string[] = [];
-      while (i < lines.length && STEP.test(lines[i]!)) {
-        items.push(lines[i]!.replace(STEP, ''));
-        i += 1;
-      }
-      // The first number is kept, so steps a sub-list or a code block
+      // The first number is kept, so steps a code block or a paragraph
       // interrupted carry on at the right count.
-      out.push({ kind: 'steps', start: Number(step[1]), items });
+      out.push(ordered ? { kind: 'steps', start, items } : { kind: 'bullets', items });
       continue;
     }
 
@@ -299,8 +397,36 @@ function parseGuide(body: string): Block[] {
       continue;
     }
 
+    if (QUOTE.test(line)) {
+      const inner: string[] = [];
+      while (i < lines.length) {
+        const next = lines[i]!;
+        if (QUOTE.test(next)) inner.push(next.replace(QUOTE, ''));
+        else if (next.trim() !== '' && inner[inner.length - 1]?.trim() && !BLOCK_START.test(next)) inner.push(next);
+        else break;
+        i += 1;
+      }
+      out.push({ kind: 'quote', blocks: parseBlocks(inner, usedIds) });
+      continue;
+    }
+
+    if (opensTable(lines, i)) {
+      const head = cellsOf(line);
+      const align = cellsOf(lines[i + 1]!).map(alignOf);
+      const rows: string[][] = [];
+      i += 2;
+      while (i < lines.length && lines[i]!.trim() !== '' && !BLOCK_START.test(lines[i]!)) {
+        // A row with fewer cells is filled, one with more is cut, as GitHub does.
+        const cells = cellsOf(lines[i]!);
+        rows.push(head.map((_, n) => cells[n] ?? ''));
+        i += 1;
+      }
+      out.push({ kind: 'table', align, head, rows });
+      continue;
+    }
+
     // Indented blocks in these guides are shell snippets and config samples.
-    if (/^ {4}\S/.test(line)) {
+    if (/^ {4,}\S/.test(line)) {
       const block: string[] = [];
       while (i < lines.length && (/^ {4}/.test(lines[i]!) || lines[i]!.trim() === '')) {
         block.push(lines[i]!.replace(/^ {4}/, ''));
@@ -310,15 +436,25 @@ function parseGuide(body: string): Block[] {
       continue;
     }
 
+    // The first line is always taken, so a line no rule above claims (a
+    // fifth `#`) is shown as text.
     const paragraph: string[] = [];
-    while (i < lines.length && lines[i]!.trim() !== '' && !BLOCK_START.test(lines[i]!)) {
-      paragraph.push(lines[i]!);
+    while (
+      i < lines.length &&
+      lines[i]!.trim() !== '' &&
+      (paragraph.length === 0 || (!BLOCK_START.test(lines[i]!) && !opensTable(lines, i)))
+    ) {
+      paragraph.push(lines[i]!.trim());
       i += 1;
     }
     out.push({ kind: 'paragraph', text: paragraph.join(' ') });
   }
 
   return out;
+}
+
+function parseGuide(body: string): Block[] {
+  return parseBlocks(body.split('\n'), new Set<string>());
 }
 
 /**
@@ -342,6 +478,24 @@ const HEADING_SIZE = { 1: 'text-xl', 2: 'text-lg', 3: 'text-base', 4: 'text-base
 
 /** The section id 0148 T2 (c) folds: the steps to create an app of one's own. */
 const OWN_APP_ID = 'own-app';
+
+/**
+ * A list item: its first paragraph as the item's own text, as a list of
+ * one-line items always read, then anything else it holds (a second
+ * paragraph, a fence, a list) as blocks of their own.
+ */
+const ItemView: React.FC<{ blocks: Block[] }> = ({ blocks }) => {
+  const [first, ...rest] = blocks;
+  if (first === undefined) return null;
+  return (
+    <>
+      {first.kind === 'paragraph' ? <Inline text={first.text} /> : <BlockView block={first} />}
+      {rest.map((block, n) => (
+        <BlockView key={n} block={block} />
+      ))}
+    </>
+  );
+};
 
 /** One block, as the page shows it. */
 const BlockView: React.FC<{ block: Block }> = ({ block }) => {
@@ -372,7 +526,7 @@ const BlockView: React.FC<{ block: Block }> = ({ block }) => {
         <ul className="my-2 list-disc pl-6 space-y-1 text-gray-700">
           {block.items.map((item, n) => (
             <li key={n}>
-              <Inline text={item} />
+              <ItemView blocks={item} />
             </li>
           ))}
         </ul>
@@ -385,10 +539,61 @@ const BlockView: React.FC<{ block: Block }> = ({ block }) => {
         >
           {block.items.map((item, n) => (
             <li key={n}>
-              <Inline text={item} />
+              <ItemView blocks={item} />
             </li>
           ))}
         </ol>
+      );
+    case 'table':
+      // Wider than a phone, the table scrolls inside its own box rather than
+      // the page; the box takes the focus, so a keyboard can scroll it too.
+      return (
+        <div
+          role="region"
+          aria-label={block.head.map(plainText).join(', ')}
+          tabIndex={0}
+          className="my-3 overflow-x-auto"
+        >
+          <table className="min-w-full border-collapse text-sm text-gray-700">
+            <thead>
+              <tr>
+                {block.head.map((cell, n) => (
+                  <th
+                    key={n}
+                    scope="col"
+                    style={{ textAlign: block.align[n] ?? 'left' }}
+                    className="border-b border-gray-300 px-3 py-2 font-semibold text-gray-900 align-bottom"
+                  >
+                    <Inline text={cell} />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {block.rows.map((row, r) => (
+                <tr key={r}>
+                  {row.map((cell, n) => (
+                    <td
+                      key={n}
+                      style={{ textAlign: block.align[n] ?? 'left' }}
+                      className="border-b border-gray-200 px-3 py-2 align-top"
+                    >
+                      <Inline text={cell} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    case 'quote':
+      return (
+        <blockquote className="my-3 border-l-4 border-gray-200 pl-4 text-gray-600">
+          {block.blocks.map((inner, n) => (
+            <BlockView key={n} block={inner} />
+          ))}
+        </blockquote>
       );
     case 'paragraph':
       return (

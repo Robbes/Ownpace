@@ -667,7 +667,8 @@ describe('the guides name no step, since no screen has one', () => {
  * out. The list is what somebody copies, so it names every delegated
  * permission the consent can ask for. Since workplan 0148 T1 the list lives in
  * the served Microsoft guide's own-app section, one permission per bullet,
- * because the renderer has no tables yet (0148 T6 (b)).
+ * which an administrator copies line by line (the renderer took no tables
+ * then; it does since 0148 T6 (b)).
  */
 describe('the Microsoft guide lists every permission the consent asks for', () => {
   // In both languages since 0148 T4: the Dutch administrator copies the same list.
