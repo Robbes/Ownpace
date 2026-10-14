@@ -13,6 +13,7 @@ import { describe, it, expect } from 'vitest';
 import {
   driveSharingAvailability,
   DRIVE_SHARING_NOT_CONSENTED,
+  DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER,
 } from './drive-sharing-availability.ts';
 
 describe('which way an unconfigured deployment falls', () => {
@@ -79,5 +80,26 @@ describe('what the refusal says', () => {
   it('is one sentence set, shared by every door that says it', () => {
     if (refusal.ok) throw new Error('expected a refusal');
     expect(refusal.reason).toBe(DRIVE_SHARING_NOT_CONSENTED);
+  });
+});
+
+describe("the tester's sentence, for the managed report (the owner, 2026-10-14)", () => {
+  const said = DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER;
+
+  it('keeps the blind spot a blind spot', () => {
+    // Hard rule 9, as in the operator's sentence.
+    expect(said).toContain('Nothing was looked at');
+    expect(said).toContain('this does not mean nothing is shared');
+  });
+
+  it('says it was a decision, and what the tester can do instead', () => {
+    expect(said).toContain('deliberately does not ask for it');
+    expect(said).toContain('by hand before you switch over');
+  });
+
+  it('names nothing only an operator can reach', () => {
+    expect(said).not.toMatch(/[A-Z]{2,}_[A-Z_]+/);
+    expect(said).not.toMatch(/docs\/|\.md\b/);
+    expect(said).not.toContain('Files.Read.All');
   });
 });

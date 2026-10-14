@@ -28,7 +28,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { MICROSOFT_ACCOUNT_IS_DELEGATED } from '@openmig/connectors';
+import { DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER, MICROSOFT_ACCOUNT_IS_DELEGATED } from '@openmig/connectors';
 
 /** A stored connection row, as the fake pool holds it. */
 interface Row {
@@ -210,6 +210,26 @@ describe("a tenant with the customer's own registration", () => {
     h.connections.push(ownRegistration());
     const { scanDrive } = await tenantInventoryScans(TENANT, MAILBOX);
     expect(reasonOf(await scanDrive())).toContain(O365_NOT_READ_WITH_ITS_OWN_REGISTRATION);
+  });
+});
+
+describe('the files section, with the file scope declined (the default)', () => {
+  /**
+   * On managed the scope is declined on purpose, and the reader is a tester.
+   * The operator's sentence ended in `GRAPH_FILES_READ_CONSENTED=true` and an
+   * operator document, neither of which a tester can reach (the owner,
+   * 2026-10-14). The blind spot is still said as one.
+   */
+  it.each([
+    ['a Microsoft account', microsoftAccount],
+    ["the customer's own registration", ownRegistration],
+  ])('%s: the tester is told what was not looked at, in words they can act on', async (_name, row) => {
+    h.connections.push(row());
+    const { scanDrive } = await tenantInventoryScans(TENANT, MAILBOX);
+    const reason = reasonOf(await scanDrive());
+    expect(reason).toBe(DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER);
+    expect(reason, "an operator's setting reached the Finish page").not.toMatch(/[A-Z]{2,}_[A-Z_]+/);
+    expect(reason, 'an operator document reached the Finish page').not.toMatch(/docs\/|\.md\b/);
   });
 });
 

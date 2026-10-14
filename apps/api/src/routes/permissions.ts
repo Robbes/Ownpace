@@ -61,6 +61,7 @@ import {
   createTokenProvider,
   directoryAvailability,
   driveSharingAvailability,
+  DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER,
   mailboxDelegations,
   resolveUserDriveId,
   scanCalendarPermissions,
@@ -694,7 +695,10 @@ function inventoryScansFrom(
       // The consent decision answers first, because it holds whatever the
       // credentials say: a deployment without `Files.Read.All` would get a
       // 403 here, and a 403 reads as a fault to fix rather than a choice.
-      if (!drive.ok) return { kind: 'not_discoverable' as const, reason: drive.reason };
+      // Said in a tester's words: the operator's sentence (`drive.reason`)
+      // names this stack's setting and an operator document, and the
+      // appliance's report keeps it (the owner, 2026-10-14).
+      if (!drive.ok) return { kind: 'not_discoverable' as const, reason: DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER };
       if (!available.ok) return graphUnread(available.reason);
       // `/drives/{id}` is the only addressing the sharing endpoints take, so
       // the drive id is resolved first rather than built by concatenation.
