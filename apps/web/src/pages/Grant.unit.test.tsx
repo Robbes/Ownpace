@@ -10,8 +10,8 @@
  * quietly dropped one would still look finished.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -108,8 +108,10 @@ describe('what a person sees before consenting', () => {
   it('shows the scope AS a scope, not only as a paraphrase (ADR-0041)', async () => {
     renderPage();
     // The exact string their own Google account will record, so they can check
-    // it there afterwards.
+    // it there afterwards: still on the page, inside *Technical details*
+    // (the owner, 2026-10-14).
     expect(await screen.findByText(SCOPE)).toBeInTheDocument();
+    expect(screen.getByText(SCOPE).closest('details')).not.toBeNull();
   });
 
   it('states when the link stops working, before the button', async () => {
@@ -281,6 +283,69 @@ describe('when the link is refused', () => {
  * card per Google account, each asked once, with its own button, and a card
  * that is connected already has none.
  */
+/**
+ * THE PERMISSION IN WORDS, THE SCOPE IN A FOLD (the owner, 2026-10-14).
+ *
+ * The page said *Google will record this permission as:* above three
+ * addresses in monospace. A tester reads the permission per scope now, as
+ * what it allows, in their language, and the exact string waits in a closed
+ * *Technical details* fold: on the page (ADR-0041), never in the open.
+ */
+describe('the permission, in words', () => {
+  const ASKED = 'https://mail.google.com/ openid https://www.googleapis.com/auth/userinfo.email';
+
+  afterEach(() => {
+    window.localStorage.setItem('ownpace.locale', 'en');
+  });
+
+  for (const c of [
+    {
+      locale: 'en',
+      intro: 'The permission Google will ask you for:',
+      mail: 'Gmail: read, send and permanently delete all your email.',
+      account: 'Your Google account: which account you sign in with, and its email address.',
+      fold: 'Technical details',
+    },
+    {
+      locale: 'nl',
+      intro: 'De toestemming die Google u vraagt:',
+      mail: 'Gmail: al uw e-mail lezen, verzenden en definitief verwijderen.',
+      account: 'Uw Google-account: met welk account u zich aanmeldt, en het e-mailadres ervan.',
+      fold: 'Technische details',
+    },
+  ]) {
+    it(`${c.locale}: lists each scope in words, and the raw scope only inside the closed fold`, async () => {
+      window.localStorage.setItem('ownpace.locale', c.locale);
+      readMock.mockResolvedValue({ ...SUBJECT, scope: ASKED });
+      renderPage();
+
+      const intro = await screen.findByText(c.intro);
+      const list = intro.parentElement!.querySelector('ul')!;
+      // One line per permission: openid and the address are one fact, said once.
+      expect([...list.querySelectorAll('li')].map((li) => li.textContent)).toEqual([c.mail, c.account]);
+      expect(screen.getByText(c.mail)).toBeVisible();
+
+      const raw = screen.getByText(ASKED);
+      const fold = raw.closest('details')!;
+      expect(fold).not.toBeNull();
+      expect(fold.open).toBe(false);
+      expect(raw).not.toBeVisible();
+      expect(within(fold).getByText(c.fold).tagName).toBe('SUMMARY');
+      // Nowhere outside the fold does an address of a scope appear.
+      const outside = document.body.cloneNode(true) as HTMLElement;
+      outside.querySelectorAll('details').forEach((d) => d.remove());
+      expect(outside.textContent).not.toMatch(/googleapis|mail\.google\.com|openid/);
+    });
+  }
+
+  it('says a scope it has no words for, rather than dropping it', async () => {
+    readMock.mockResolvedValue({ ...SUBJECT, scope: 'https://www.googleapis.com/auth/photoslibrary.readonly' });
+    renderPage();
+    expect(await screen.findByText('Another permission, named under Technical details.')).toBeVisible();
+    expect(screen.getByText('https://www.googleapis.com/auth/photoslibrary.readonly').closest('details')).not.toBeNull();
+  });
+});
+
 describe("a person's link", () => {
   const PERSON = {
     kind: 'person',

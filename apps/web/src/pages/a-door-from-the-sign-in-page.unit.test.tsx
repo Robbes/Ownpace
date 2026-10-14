@@ -218,7 +218,7 @@ describe('only where the sign-in button is', () => {
     vi.mocked(fetchAuthMode).mockRejectedValue(new Error('down'));
     renderAt('/login', 'en');
 
-    expect(await screen.findByText(/we could not ask this deployment/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Signing in is not possible right now/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: SAID.en.signIn })).toBeNull();
     expect(doorsToTheRequestPage(), 'no button, so no link under it').toEqual([]);
   });

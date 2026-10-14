@@ -72,7 +72,23 @@ export const en = {
   // describes mail, calendars and contacts as allowing changes and deletion.
   'grant.readsOnly':
     'Ownpace only reads. Ownpace never deletes or changes anything in your account, and nobody — not the organisation, not Ownpace — sees your password. You sign in to Google yourself, on Google’s own page. Google may describe the permission more broadly: for mail, calendars and contacts, the permission Ownpace asks for also allows changes. Ownpace makes none.',
-  'grant.scopeIntro': 'Google will record this permission as:',
+  // The permission, said per scope as what it allows (the owner, 2026-10-14;
+  // `../google-scope-words.ts`), as Google's own screen describes it a click
+  // later. The exact scope string folds under *Technical details*, closed
+  // (ADR-0041 *Decision* 4: the scopes as scopes, not only a paraphrase).
+  'grant.scopeIntro': 'The permission Google will ask you for:',
+  'grant.scope.mail': 'Gmail: read, send and permanently delete all your email.',
+  'grant.scope.calendar': 'Google Calendar: see, change, share and delete all your calendars.',
+  'grant.scope.calendarReadOnly': 'Google Calendar: see and download all your calendars.',
+  'grant.scope.contacts': 'Google Contacts: see, change and delete your contacts.',
+  'grant.scope.drive': 'Google Drive: see, change, create and delete all your files.',
+  'grant.scope.driveReadOnly': 'Google Drive: see and download all your files.',
+  'grant.scope.tasks': 'Google Tasks: see, change and delete your tasks.',
+  'grant.scope.tasksReadOnly': 'Google Tasks: see your tasks.',
+  'grant.scope.account': 'Your Google account: which account you sign in with, and its email address.',
+  'grant.scope.other': 'Another permission, named under Technical details.',
+  'grant.scope.technical': 'Technical details',
+  'grant.scope.technical.line': 'Google records this permission as:',
   'grant.until': 'This link works until {date}.',
   // The account is a condition (0108 T8 (b)): what to sign in with, and why
   // Google also asks for their address.
@@ -174,7 +190,19 @@ export const nl: Record<keyof typeof en, string> = {
     'Alleen lezen. Er wordt nooit iets verwijderd of gewijzigd in uw account, en niemand — niet de organisatie, niet Ownpace — ziet uw wachtwoord. U logt zelf in bij Google, op de pagina van Google zelf.',
   'grant.readsOnly':
     'Ownpace leest alleen. Ownpace verwijdert of wijzigt nooit iets in uw account, en niemand — niet de organisatie, niet Ownpace — ziet ooit uw wachtwoord. U logt zelf in bij Google, op de pagina van Google zelf. Google kan de toestemming ruimer omschrijven: voor e-mail, agenda’s en contacten staat de toestemming die Ownpace vraagt ook wijzigingen toe. Ownpace brengt er geen aan.',
-  'grant.scopeIntro': 'Google legt deze toestemming vast als:',
+  'grant.scopeIntro': 'De toestemming die Google u vraagt:',
+  'grant.scope.mail': 'Gmail: al uw e-mail lezen, verzenden en definitief verwijderen.',
+  'grant.scope.calendar': 'Google Agenda: al uw agenda’s bekijken, wijzigen, delen en verwijderen.',
+  'grant.scope.calendarReadOnly': 'Google Agenda: al uw agenda’s bekijken en downloaden.',
+  'grant.scope.contacts': 'Google Contacten: uw contactpersonen bekijken, wijzigen en verwijderen.',
+  'grant.scope.drive': 'Google Drive: al uw bestanden bekijken, wijzigen, maken en verwijderen.',
+  'grant.scope.driveReadOnly': 'Google Drive: al uw bestanden bekijken en downloaden.',
+  'grant.scope.tasks': 'Google Tasks: uw taken bekijken, wijzigen en verwijderen.',
+  'grant.scope.tasksReadOnly': 'Google Tasks: uw taken bekijken.',
+  'grant.scope.account': 'Uw Google-account: met welk account u zich aanmeldt, en het e-mailadres ervan.',
+  'grant.scope.other': 'Een andere toestemming, genoemd onder Technische details.',
+  'grant.scope.technical': 'Technische details',
+  'grant.scope.technical.line': 'Google legt deze toestemming vast als:',
   'grant.until': 'Deze link werkt tot {date}.',
   'grant.signInAs': 'Log in als {account}. Google deelt uw adres ter controle; andere accounts worden geweigerd.',
   'grant.inAppBrowser':

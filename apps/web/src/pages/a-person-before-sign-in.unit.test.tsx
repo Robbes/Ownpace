@@ -160,7 +160,7 @@ const BEFORE_SIGN_IN = {
   /** While the page asks the API what it accepts. */
   login: async () => {
     mount('/login', <Login />);
-    await screen.findByText(/checking how to sign in|controleren hoe men zich/i);
+    await screen.findByText(/checking how to sign in|controleren hoe u zich/i);
   },
   /** Once the API has answered, as a tester on the hosted service sees it. */
   loginAnswered: async () => {

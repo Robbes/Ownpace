@@ -279,7 +279,7 @@ describe('the managed receipt lifecycle (workplan 0019 T2)', () => {
     fireEvent.click(screen.getByText('Confirm delete'));
 
     // The queued state is shown while the job runs...
-    expect(await screen.findByText(/Removal queued/)).toBeInTheDocument();
+    expect(await screen.findByText(/Removal requested/)).toBeInTheDocument();
     // ...and the poll lands on the terminal state, kind included.
     expect(
       await screen.findByText(/moved to the target's own bin/),
@@ -331,7 +331,7 @@ describe('the managed receipt lifecycle (workplan 0019 T2)', () => {
     fireEvent.click(await screen.findByText('Delete it here too'));
     fireEvent.click(screen.getByText('Confirm delete'));
 
-    expect(await screen.findByText(/The removal job failed:/)).toBeInTheDocument();
+    expect(await screen.findByText(/The removal failed:/)).toBeInTheDocument();
     expect(screen.getByText(/imap-oauth2/)).toBeInTheDocument();
   });
 
@@ -388,7 +388,7 @@ describe('when the queue cannot be read', () => {
     fetchDeletions.mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:8081'));
     renderScreen();
 
-    expect(await screen.findByText('Could not load this queue.')).toBeInTheDocument();
+    expect(await screen.findByText('Could not load this list.')).toBeInTheDocument();
     expect(screen.getByText(/ECONNREFUSED/)).toBeInTheDocument();
     // Still a failure and not an empty queue: nothing says nobody is waiting.
     expect(screen.queryByText('Nobody is waiting.')).not.toBeInTheDocument();

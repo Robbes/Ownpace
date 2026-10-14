@@ -1,5 +1,5 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
-import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import { z } from 'zod';
 import { issuePathForLog } from '@openmig/shared';
 import { tActive } from '../i18n/active-locale.ts';
@@ -151,6 +151,9 @@ apiClient.interceptors.response.use(
  * render `err.message` are showing the wrapper and discarding the sentence
  * the server wrote for exactly this moment; this helper prefers the body and
  * falls back to the transport message only when there is no body to show.
+ * When nothing of ours answered at all (no network, a timeout, a gateway's
+ * 502, 503 or 504), the sentence is ours, in the reader's language
+ * (`answer.unreachable`).
  */
 export function serverMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {
@@ -180,8 +183,10 @@ export function serverMessage(err: unknown): string {
           .filter((m): m is string => typeof m === 'string' && m !== '');
         if (sentences.length > 0) return sentences.join(' ');
       }
+      if (unreachable(err)) return unreachableSentence(err);
       if (typeof d.error === 'string' && d.error) return d.error;
     }
+    if (unreachable(err)) return unreachableSentence(err);
     return err.message;
   }
   const unreadable = unreadableAnswer(err);
@@ -194,6 +199,38 @@ export function serverMessage(err: unknown): string {
     return tActive('answer.unreadable', { reference: referenceFor(unreadable) });
   }
   return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * The gateway answers that carry no sentence of ours: the proxy in front of
+ * the API saying the API is down, busy or too slow.
+ */
+const GATEWAY_STATUSES: ReadonlySet<number> = new Set([502, 503, 504]);
+
+/**
+ * WHETHER NOTHING OF OURS ANSWERED (the owner, 2026-10-14). No answer at all
+ * (no network, the request's timeout, a server that dropped the connection),
+ * or a gateway's answer, 502, 503 or 504, which `serverMessage` reaches only
+ * when its body held no sentence. Either way axios's own English was all the
+ * screen had: *Network Error*, *timeout of 30000ms exceeded*, *Request failed
+ * with status code 502*. A request the page cancelled itself is not one: it
+ * was not meant to be answered.
+ */
+function unreachable(err: AxiosError): boolean {
+  if (err.response === undefined) return err.code !== AxiosError.ERR_CANCELED;
+  return GATEWAY_STATUSES.has(err.response.status);
+}
+
+/**
+ * The sentence for {@link unreachable}, in the reader's language. Still a
+ * failure on screen (hard rule 9): only the words change. Axios's own words go
+ * to the console for whoever opens it, and only those, with the status and
+ * the code: the error itself holds the request, and the request holds the
+ * sign-in token (`recent-errors.ts`).
+ */
+function unreachableSentence(err: AxiosError): string {
+  console.warn('no answer from the API:', err.response?.status ?? err.code ?? 'no status', err.message);
+  return tActive('answer.unreachable');
 }
 
 /**

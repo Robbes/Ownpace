@@ -2,7 +2,52 @@
 
 > **In one line:** What a tester is told: a Dutch tester guide, a known-limitations page guarded by the feature matrix, corrected read-only wording on site and grant page, `APPLY_FLAG_WARNING`, a support contact, Request access on sign-in, organisation closure.
 
-## Status — 2026-10-05 (update this block at the end of every session)
+## Status — 2026-10-14 (update this block at the end of every session)
+
+**2026-10-14: the web app's words, in a tester's words. On
+`claude/ownpace-public-readiness-y7orc6-the-app-in-a-testers-words`, not merged.** The owner
+wants every text a managed-edition Alpha tester reads written for testers, and said *"build"* on
+a scan of developer words in the app. This branch is the web app's half (`apps/web`; the API's
+and the packages' halves are other branches). The facts each sentence states are kept; the words
+changed:
+
+- **Connect buttons.** *"Opens Google's consent screen and fills in the refresh token"* is
+  *"Opens Google's sign-in page, where you give Ownpace access to this account"* (Dropbox,
+  Microsoft the same; Dutch *aanmeldpagina … toegang geeft*). *"Pasting a token you already have
+  keeps working"* folds under the button only where the token box is in view (the appliance, a
+  provider the deployment has no app for, *Replace credentials*), as
+  `account.consent.pasteToken`; on managed Ownpace's app folds the box away. The own-app folds
+  say *"Ownpace has its own Google app; fill in both only to use your own instead"* / *"… uw
+  eigen oauth-app …"*, not *"This deployment"* / *"Deze installatie"*.
+- **No answer, in the reader's language.** `serverMessage` says `answer.unreachable` (the
+  words `acceptance.unreachable` already used) for a network error, a timeout and a 502, 503 or
+  504 without a sentence of ours, and puts axios's English in the console (status or code, and
+  its message, never the request). The sign-in page leads it with *"Signing in is not possible
+  right now."*
+- **The grant page's permission, in words.** Each scope the link asks for is a line saying what
+  it allows (*"Gmail: read, send and permanently delete all your email."*), both languages, from
+  `i18n/google-scope-words.ts`; the exact string is still on the page, in a closed *Technical
+  details* / *Technische details* fold (ADR-0041 *Decision* 4), and a scope without words is
+  said as *another permission*, never dropped.
+- **The rest of the dictionary.** Failures (no *sync cursors*, *parked*, *%* and *_*), Finish
+  (*migration* not *mapping*, no *queue* or *job*, step 3 points at the run history on the
+  migration's page and step 2), the removal receipt (*"Removal requested. We check again that
+  it is safe before anything is removed."*), the Microsoft blind spot (in step with the managed
+  report's `DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER`), the company path's options (*Through
+  your organisation's app*, which read as Ownpace's; glossary row updated), step 2's fold
+  without protocol names, the Takeout test (*your new files*, *when you review the migration*),
+  *Connected.* for JMAP, the Dutch *noProbe* without *Todo*, sign-in without *this deployment*
+  or *operator*, and the check's SKIPPED help covering its three causes.
+
+Proof: `pnpm lint`, `pnpm typecheck`, `pnpm exec vitest run --project unit-browser` and
+`pnpm exec vitest run --project unit scripts` green on the branch; the tests that pinned old
+words read the new ones, and new ones hold the unreachable sentence (`services/api.unit.test.ts`,
+both languages), the grant page (`pages/Grant.unit.test.tsx`, both languages, the raw scope only
+inside the closed fold) and the token sentence only where its box is in view
+(`pages/a-hint-that-knows-the-service-has-an-app.unit.test.tsx`); each failed against the code
+before this change. Left as they are: axios's own words for any other status without a
+body (a 500 says *Request failed with status code 500*), the *Use your own Google client*
+summaries, and the token sign-in strings a tester never meets (no identity provider).
 
 **2026-10-05: the owner chose the site's words, and T3 (b) and the setup title are built. On
 `claude/ownpace-public-readiness-y7orc6-the-site-says-ownpace-only-reads`, not merged.** Open

@@ -9,7 +9,7 @@
 
 export const en = {
   'queue.itemId': 'ID',
-  'queue.loadFailed': 'Could not load this queue.',
+  'queue.loadFailed': 'Could not load this list.',
   'queue.noMappings': 'No migrations configured.',
   'failures.withheld':
     "Item names and the provider's messages are not shown: the person connected this account themselves, and they can name their files. Each failure still says what kind it is and what to do.",
@@ -43,18 +43,18 @@ export const en = {
   'failures.retryCost':
     'Retrying re-lists everything to reach this item again, so the next pass takes longer.',
   'failures.retryCost.why':
-    'It clears this migration’s sync cursors, so the whole source is listed again; nothing already copied is copied twice.',
+    'To reach this item, the next pass looks through everything on the old system again; nothing already copied is copied twice.',
   'failures.accept': 'Migrate without it',
   'failures.acceptAll': 'Migrate without all of these ({count})',
   'failures.group.title': 'Decide a whole group at once',
-  'failures.group.hint': 'A connector fixed since these parked will not unpark them by itself.',
+  'failures.group.hint': 'These wait for your decision, even after we fix the cause.',
   'failures.group.hint.why':
-    'Being parked is a stored count of attempts, so deploying a fix does not lower it — the items sit there while the migration reports itself complete. Pick a kind, or type part of the error the items share, and this allows you to decide on all of them in one go: a retry also clears this migration’s sync cursors once, which is what puts the items back in front of the next pass. The wording is matched literally, so a % or an _ in what you type means a % or an _.',
+    'We count the attempts on each item, and a fix on our side does not reset that count, so the items stay here while the migration says it is complete. Pick a kind, or type part of the error the items share, to decide on all of them at once. Trying them again makes the next pass look through everything once more, which is how it reaches them. What you type is matched exactly as you type it.',
   // THE GROUPS, READ OFF THE ROWS (the owner, 2026-09-17: *"why now detail
   // groups that share sumilarities and offer those to pick from to do bulk
   // actions?"*). Typing a substring describes a group somebody has already
   // worked out; these are the ones the queue announces about itself.
-  'failures.group.found': 'Groups in this queue',
+  'failures.group.found': 'Groups in this list',
   'failures.group.items.one': '1 item',
   'failures.group.items.many': '{count} items',
   'failures.group.stillTrying.one': '1 still trying',
@@ -100,7 +100,7 @@ export const en = {
 
 export const nl: Record<keyof typeof en, string> = {
   'queue.itemId': 'ID',
-  'queue.loadFailed': 'Deze wachtrij kon niet worden geladen.',
+  'queue.loadFailed': 'Deze lijst kon niet worden geladen.',
   'queue.noMappings': 'Geen migraties geconfigureerd.',
   'failures.withheld':
     'Namen van items en de meldingen van de aanbieder worden niet getoond: de persoon heeft dit account zelf gekoppeld, en deze kunnen hun bestanden vermelden. Elke fout zegt nog steeds welke fout het is en wat u zelf kunt doen.',
@@ -132,15 +132,14 @@ export const nl: Record<keyof typeof en, string> = {
   'failures.retryCost':
     'Opnieuw proberen doorloopt alles opnieuw tot dit item, dus de volgende ronde duurt langer.',
   'failures.retryCost.why':
-    'Het wist de synchronisatiecursors (waar we waren gebleven) van deze migratie, zodat de hele bron opnieuw wordt doorlopen; er wordt niets dubbel gemigreerd.',
+    'Om dit item te bereiken, doorloopt de volgende ronde alles op het oude systeem opnieuw; wat al gemigreerd is, wordt niet nog eens gemigreerd.',
   'failures.accept': 'Migreer zonder dit item',
   'failures.acceptAll': 'Migreer zonder deze items ({count})',
   'failures.group.title': 'Beslis over een hele groep',
-  'failures.group.hint':
-    'Een sindsdien opgeloste storing haalt deze items er niet zelf weer uit.',
+  'failures.group.hint': 'Deze wachten op uw beslissing, ook als wij de oorzaak hebben verholpen.',
   'failures.group.hint.why':
-    'Deze items staan geparkeerd nadat een paar keer opnieuw was geprobeerd. Systeemaanpassingen hebben hier geen effect op — items blijven wachten op uw beslissing, terwijl de migratie zich voltooid noemt. Kies een soort, of typ een deel van de fout om ze als groep te behandelen: opnieuw proberen wist ook eenmalig de synchronisatiecursors van deze migratie, om te zorgen dat de items weer opnieuw geprobeerd worden. De tekst wordt letterlijk vergeleken, dus wildcards werken niet als wildcards.',
-  'failures.group.found': 'Groepen in deze wachtrij',
+    'We tellen de pogingen per item, en een oplossing aan onze kant zet die telling niet terug. Daarom blijven de items hier staan, terwijl de migratie zich voltooid noemt. Kies een soort, of typ een deel van de fout die de items delen, om in één keer over allemaal te beslissen. Opnieuw proberen laat de volgende ronde nog één keer alles doorlopen; zo bereikt die de items weer. Wat u typt, wordt precies zo vergeleken als u het typt.',
+  'failures.group.found': 'Groepen in deze lijst',
   'failures.group.items.one': '1 item',
   'failures.group.items.many': '{count} items',
   'failures.group.stillTrying.one': '1 wordt nog geprobeerd',

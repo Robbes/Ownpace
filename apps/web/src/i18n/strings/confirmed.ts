@@ -9,12 +9,12 @@
 
 export const en = {
   'confirmed.toReport': 'What happened: the report',
-  'receipt.queued': 'Removal queued — the job re-checks every gate before touching anything.',
+  'receipt.queued': 'Removal requested. We check again that it is safe before anything is removed.',
   'receipt.applied.binned':
     "Removed — moved to the target's own bin; a copy may still be recoverable there.",
   'receipt.applied.deleted': 'Removed — gone, with no recovery path from here.',
   'receipt.applied.unknown': 'Removed. How final the removal was is not recorded on the receipt.',
-  'receipt.failedPrefix': 'The removal job failed:',
+  'receipt.failedPrefix': 'The removal failed:',
   // The confirmed list (workplan 0117 T2, D10) — the page somebody deletes
   // their originals on the strength of. The state words are deliberately not
   // a scale: see `confirmed-list.ts`, which argues they are different
@@ -94,13 +94,13 @@ export const en = {
 export const nl: Record<keyof typeof en, string> = {
   'confirmed.toReport': 'Wat er is gebeurd: het rapport',
   'receipt.queued':
-    'Verwijdering in de wachtrij; de taak controleert elk controlepunt opnieuw voordat iets wordt aangeraakt.',
+    'Verwijderen aangevraagd. We controleren nog een keer of het veilig is voordat er iets wordt verwijderd.',
   'receipt.applied.binned':
     'Verwijderd; nu in de prullenbak van het doel, mogelijk daar nog terug te halen.',
   'receipt.applied.deleted': 'Verwijderd — weg, zonder herstelmogelijkheid vanaf hier.',
   'receipt.applied.unknown':
     'Verwijderd. Hoe definitief de verwijdering was, is (hier) onbekend.',
-  'receipt.failedPrefix': 'De verwijdertaak is mislukt:',
+  'receipt.failedPrefix': 'Het verwijderen is mislukt:',
   // Zie de Engelse blok-opmerking: de toestandswoorden zijn geen schaal.
   'confirmed.title': 'Wat kan uw bestemming bevestigen?',
   'confirmed.intro':

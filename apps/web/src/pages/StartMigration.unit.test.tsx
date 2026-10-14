@@ -216,7 +216,10 @@ describe('Which account are you leaving or moving? (screen 2)', () => {
     await user.click(next());
     expect(screen.queryByText(/export archive/i)).not.toBeInTheDocument();
     await user.click(screen.getByText('Other ways to connect (IMAP)'));
-    expect(screen.getByText(/Any mail server is read over IMAP/)).toBeInTheDocument();
+    expect(screen.getByText(/Any other mail provider works: choose Another mail provider/)).toBeInTheDocument();
+    // Calendars, contacts and files from other servers are destinations only,
+    // said without a protocol's name (the owner, 2026-10-14).
+    expect(screen.getByText(/Other servers can receive them/)).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Add one migration by hand' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Choose Another mail provider' }));
     expect(screen.getByRole('checkbox', { name: 'Another mail provider' })).toBeChecked();
@@ -1021,16 +1024,16 @@ describe('mail through a company’s own Microsoft app (0153 open question 5)', 
     const section = microsoftSection();
     const question = within(section).getByRole('group', { name: 'Is this a company account with an administrator?' });
     expect(within(question).getByRole('radio', { name: 'No' })).toBeChecked();
-    expect(within(section).queryByRole('radio', { name: /Through our own app/ })).not.toBeInTheDocument();
+    expect(within(section).queryByRole('radio', { name: /Through your organisation's app/ })).not.toBeInTheDocument();
 
     await user.click(within(question).getByRole('radio', { name: 'Yes' }));
     expect(within(section).getByRole('radio', { name: 'With the Microsoft sign-in' })).toBeChecked();
-    expect(within(section).getByRole('radio', { name: /^Through our own app, with Microsoft Graph/ })).toBeInTheDocument();
-    expect(within(section).getByRole('radio', { name: /^Through our own app, with IMAP/ })).toBeInTheDocument();
+    expect(within(section).getByRole('radio', { name: /^Through your organisation's app, with Microsoft Graph/ })).toBeInTheDocument();
+    expect(within(section).getByRole('radio', { name: /^Through your organisation's app, with IMAP/ })).toBeInTheDocument();
     expect(within(section).getByText(/That is also how a shared mailbox is read/)).toBeInTheDocument();
 
     // Chosen, and taken back with a No: still the one sign-in.
-    await user.click(within(section).getByRole('radio', { name: /^Through our own app, with Microsoft Graph/ }));
+    await user.click(within(section).getByRole('radio', { name: /^Through your organisation's app, with Microsoft Graph/ }));
     await user.click(within(question).getByRole('radio', { name: 'No' }));
     await onTo(user, 'Connect your accounts');
     expect(await screen.findByText('Microsoft 365 account')).toBeInTheDocument();
@@ -1043,7 +1046,7 @@ describe('mail through a company’s own Microsoft app (0153 open question 5)', 
     await toWhatMoves(user, ['Microsoft 365']);
     const section = microsoftSection();
     await user.click(within(section).getByRole('radio', { name: 'Yes' }));
-    await user.click(within(section).getByRole('radio', { name: /^Through our own app, with Microsoft Graph/ }));
+    await user.click(within(section).getByRole('radio', { name: /^Through your organisation's app, with Microsoft Graph/ }));
     await onTo(user, 'Connect your accounts');
 
     const rows = screen.getAllByRole('listitem');
@@ -1075,7 +1078,7 @@ describe('mail through a company’s own Microsoft app (0153 open question 5)', 
       await user.click(within(section).getByRole('checkbox', { name: new RegExp(`^${type}`) }));
     }
     await user.click(within(section).getByRole('radio', { name: 'Yes' }));
-    await user.click(within(section).getByRole('radio', { name: /^Through our own app, with IMAP/ }));
+    await user.click(within(section).getByRole('radio', { name: /^Through your organisation's app, with IMAP/ }));
     await onTo(user, 'Connect your accounts');
     // One kind whichever way its mail is read: the saved app is offered, and the one is the default.
     expect(await screen.findByRole('radio', { name: 'Contoso mail app (info@contoso.example)' })).toBeChecked();

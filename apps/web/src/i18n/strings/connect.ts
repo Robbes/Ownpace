@@ -15,8 +15,10 @@ export const en = {
   // are the button's own words.
   'account.google.connect': 'Connect with Google',
   'connections.googleFaces': 'What this account will serve',
-  'account.google.connect.hint': 'Opens Google’s consent screen and fills in the refresh token.',
-  'account.google.connect.why': 'Pasting a token you already have keeps working.',
+  // What the button does, in a tester's words (the owner, 2026-10-14): the
+  // token it fills in is a box only the appliance shows in plain view, so
+  // that half is said there, by `account.consent.pasteToken`.
+  'account.google.connect.hint': 'Opens Google’s sign-in page, where you give Ownpace access to this account.',
   'account.google.connect.needsDomains':
     'Tick what to migrate first; the consent asks only for that.',
   'account.google.connect.needsClient': 'Enter the Client ID and client secret first.',
@@ -28,7 +30,7 @@ export const en = {
   // the wrong company's consent screen; the form says so and the manual
   // token field is still there.
   'account.consent.noProvider':
-    'This deployment has no consent button for this type; paste a refresh token instead.',
+    'Ownpace has no Connect button for this type; paste a refresh token instead.',
   // The account first (owner's walk, 2026-09-02): the consent saves and
   // tests in one go, and the save needs the address.
   'account.consent.needsAccount': 'Enter the account address first.',
@@ -46,11 +48,18 @@ export const en = {
   // terms sit beside the button, not in a footer."). The two links follow,
   // named as the texts name themselves (`acceptance.doc.*`).
   'account.consent.legal': 'What we do with your data, and on what terms:',
+  // Under a Connect button where the refresh-token box is in plain view: the
+  // appliance, and a provider the deployment carries no app for. Where the
+  // deployment's own app folds the box away (ADR-0041), the token is never
+  // typed, and the sentence would name a box the tester cannot see
+  // (`ConsentLines`; the owner, 2026-10-14).
+  'account.consent.pasteToken':
+    'The button fills in the refresh token below; pasting one you already have keeps working.',
   // The deployment's own client (ADR-0041, owner decision 2026-09-01): the
   // pair becomes optional as a whole, and a half-typed pair is named rather
   // than silently completed with the deployment's other half.
   'account.google.deploymentClient':
-    'This deployment has its own Google client; enter both to use yours instead.',
+    'Ownpace has its own Google app; fill in both only to use your own instead.',
   'account.google.connect.halfClient': 'Enter both the Client ID and the client secret, or neither.',
   'account.google.ownClient': 'Use your own Google client',
   // The string Google matches against the client's registered list. It was
@@ -76,12 +85,11 @@ export const en = {
     'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into your favorite browser, such as Safari or Chrome, then sign in to Ownpace there.',
   // Connect with Dropbox (2026-09-02): the same button, Dropbox's words.
   'account.dropbox.connect': 'Connect with Dropbox',
-  'account.dropbox.connect.hint': 'Opens Dropbox’s consent screen and fills in the refresh token.',
-  'account.dropbox.connect.why': 'Pasting a token you already have keeps working.',
+  'account.dropbox.connect.hint': 'Opens Dropbox’s sign-in page, where you give Ownpace access to this account.',
   'account.dropbox.connect.needsClient': 'Enter the App key and App secret first.',
   'account.dropbox.connect.halfClient': 'Enter both the App key and the App secret, or neither.',
   'account.dropbox.deploymentClient':
-    'This deployment has its own Dropbox app; enter both to use yours instead.',
+    'Ownpace has its own Dropbox app; fill in both only to use your own instead.',
   'account.dropbox.ownClient': 'Use your own Dropbox app',
   'account.dropbox.redirectUri':
     'Register this exact address in your Dropbox app under OAuth 2 → Redirect URIs:',
@@ -91,15 +99,15 @@ export const en = {
   // own, and the TENANT, which neither of the other two has.
   'account.microsoft.connect': 'Connect with Microsoft',
   'account.microsoft.connect.hint':
-    'Opens Microsoft’s consent screen and fills in the refresh token.',
+    'Opens Microsoft’s sign-in page, where you give Ownpace access to this account.',
   'account.microsoft.connect.why':
-    'It asks you which account, so a migration cannot quietly read the wrong mailbox. Pasting a token you already have keeps working.',
+    'It asks you which account, so a migration cannot quietly read the wrong mailbox.',
   'account.microsoft.connect.needsClient':
     'Enter the Application (client) ID and client secret first.',
   'account.microsoft.connect.halfClient':
     'Enter both the Application (client) ID and the client secret, or neither.',
   'account.microsoft.deploymentClient':
-    'This deployment has its own Microsoft app registration; enter both to use yours instead.',
+    'Ownpace has its own Microsoft app; fill in both only to use your own app registration instead.',
   'account.microsoft.ownClient': 'Use your own app registration',
   'account.microsoft.redirectUri':
     'Register this exact address in your app registration under Authentication → Redirect URIs:',
@@ -116,7 +124,7 @@ export const en = {
   // "optional" would leave the one person it matters to guessing.
   'account.microsoft.tenantId.hint': 'Leave empty unless your app registration is single-tenant.',
   'account.microsoft.tenantId.why':
-    'Empty means this deployment’s own directory setting, which accepts any work, school or personal Microsoft account. A single-tenant registration sent to the wrong directory fails with a message about the application not being found, which reads like a typo and is not one.',
+    'Empty means Ownpace’s own setting, which accepts any work, school or personal Microsoft account. A single-tenant registration sent to the wrong directory fails with a message about the application not being found, which reads like a typo and is not one.',
   // Apple's ONE credential field, and the hint carries the whole setup
   // (workplan 0115). Somebody who types their Apple Account password gets a
   // rejection saying the password is wrong — which it is not; it is the right
@@ -203,7 +211,7 @@ export const en = {
   'account.gmailAppPassword.why':
     'Google recommends against it, and so do we: an app password opens the whole mailbox read and write, while a consented token opens only parts. It needs 2-step verification on the account, does not exist on a Workspace account, and is withdrawn in the account’s own app-password list without touching Ownpace, which is the one real advantage it has.',
   'account.refreshToken': 'Refresh token',
-  'account.refreshToken.hint': 'The account’s delegated token; treat it as a password.',
+  'account.refreshToken.hint': 'What lets Ownpace into the account; treat it as a password.',
   'account.rootFolderId': 'Root folder ID',
   'account.rootFolderId.placeholder': 'Empty = all of My Drive',
   'account.serviceAccountKey': 'Service account key',
@@ -391,12 +399,11 @@ export const en = {
   // measured."* The count moved to where the other counts are; a listing
   // that stopped at its cap says so THERE, as `probe.measured.atLeast`.
   'probe.connected': 'Connected.',
-  'probe.connectedSession': 'Connected. The JMAP session document answered.',
+  'probe.connectedSession': 'Connected.',
   'probe.targetStatus': 'The server at {url} answered {status}.',
   'probe.targetStatus.refused': 'It is reachable and refused the credentials.',
   'probe.targetStatus.check': 'Check the target host and port.',
-  'probe.noProbe':
-    'No check exists for a {kind} connection yet... sorry!',
+  'probe.noProbe': 'A {kind} connection cannot be tested yet.',
   // The deadline (2026-09-02): unknown, not refused, and the connection is
   // kept so it can be tested again.
   'probe.timedOut': 'No answer within {seconds} seconds; kept anyway, so test later.',
@@ -404,7 +411,7 @@ export const en = {
   // a connection is tested before any migration names one. Unknown, never a
   // measured no — the owner's answer of 2026-09-20.
   'probe.countedAtPreflight':
-    'This export is in the migration\'s file target; it is counted at the preflight.',
+    'This export is in your new files, so there is nothing to test here yet. It is counted when you review the migration.',
   // WHAT HAPPENED AT AN ADDRESS THE TESTER TYPED (0136 T3), said from its
   // parts: a status, and a server's own words only when it sent an error
   // document we know. `{words}` is the server's and stays as it came, in both
@@ -673,22 +680,22 @@ export const nl: Record<keyof typeof en, string> = {
   'account.proto.imap.hint': 'Standaard e-mailprotocol',
   'account.google.connect': 'Verbinden met Google',
   'connections.googleFaces': 'Wat dit account gaat leveren',
-  'account.google.connect.hint':
-    'Opent het toestemmingsscherm van Google en vult het refreshtoken in.',
-  'account.google.connect.why': 'Een token plakken dat u al heeft, blijft gewoon werken.',
+  'account.google.connect.hint': 'Opent de aanmeldpagina van Google, waar u Ownpace toegang geeft.',
   'account.google.connect.needsDomains':
     'Vink eerst aan wat u wilt migreren; de toestemming vraagt alleen daarom.',
   'account.google.connect.needsClient': 'Vul eerst de Client-ID en het clientsecret in.',
   'account.consent.received': 'Toestemming ontvangen — de verbinding wordt opgeslagen en getest.',
   'account.consent.noProvider':
-    'Deze installatie heeft geen toestemmingsknop voor dit type; plak in plaats daarvan een refreshtoken.',
+    'Ownpace heeft geen verbindknop voor dit type; plak in plaats daarvan een refreshtoken.',
   'account.consent.needsAccount': 'Vul eerst het accountadres in.',
   'account.consent.windowBlocked':
     'Uw browser heeft de pagina van {provider} niet geopend. Open die met deze link:',
   'account.consent.windowExpired': 'De link naar de pagina van {provider} is verlopen. Druk opnieuw op {button}.',
   'account.consent.legal': 'Wat we met uw gegevens doen, en onder welke voorwaarden:',
+  'account.consent.pasteToken':
+    'De knop vult hieronder het refreshtoken in; een token plakken dat u al heeft, blijft gewoon werken.',
   'account.google.deploymentClient':
-    'Deze installatie heeft een eigen Google-oauth-client; vul beide in om uw eigen te gebruiken.',
+    'Ownpace heeft een eigen Google-app; vul beide alleen in om uw eigen oauth-app te gebruiken.',
   'account.google.connect.halfClient':
     'Vul zowel de Client-ID als het clientsecret in, of geen van beide.',
   'account.google.ownClient': 'Uw eigen Google-client gebruiken',
@@ -700,28 +707,26 @@ export const nl: Record<keyof typeof en, string> = {
   'account.google.inAppBrowser':
     'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar uw favoriete browser, zoals Safari of Chrome, en meld u in die browser aan bij Ownpace.',
   'account.dropbox.connect': 'Verbinden met Dropbox',
-  'account.dropbox.connect.hint':
-    'Opent het toestemmingsscherm van Dropbox en vult het refreshtoken in.',
-  'account.dropbox.connect.why': 'Een token plakken dat u al heeft, blijft gewoon werken.',
+  'account.dropbox.connect.hint': 'Opent de aanmeldpagina van Dropbox, waar u Ownpace toegang geeft.',
   'account.dropbox.connect.needsClient': 'Vul eerst de App key en het App secret in.',
   'account.dropbox.connect.halfClient':
     'Vul zowel de App key als het App secret in, of geen van beide.',
   'account.dropbox.deploymentClient':
-    'Deze installatie heeft een eigen Dropbox-oauth-app; vul beide in om uw eigen te gebruiken.',
+    'Ownpace heeft een eigen Dropbox-app; vul beide alleen in om uw eigen oauth-app te gebruiken.',
   'account.dropbox.ownClient': 'Uw eigen Dropbox-app gebruiken',
   'account.dropbox.redirectUri':
     'Registreer dit exacte adres in uw Dropbox-app onder OAuth 2 → Redirect URIs:',
   'account.microsoft.connect': 'Verbinden met Microsoft',
   'account.microsoft.connect.hint':
-    'Opent het toestemmingsscherm van Microsoft en vult het vernieuwingstoken in.',
+    'Opent de aanmeldpagina van Microsoft, waar u Ownpace toegang geeft.',
   'account.microsoft.connect.why':
-    'Het vraagt u welk account, zodat een migratie niet stilletjes de verkeerde postbus leest. Een token plakken dat u al heeft, blijft gewoon werken.',
+    'Het vraagt u welk account, zodat een migratie niet stilletjes de verkeerde postbus leest.',
   'account.microsoft.connect.needsClient':
     'Vul eerst de toepassings-id (client) en het clientsecret in.',
   'account.microsoft.connect.halfClient':
     'Vul zowel de toepassings-id (client) als het clientsecret in, of geen van beide.',
   'account.microsoft.deploymentClient':
-    'Deze installatie heeft een eigen Microsoft-appregistratie; vul beide in om uw eigen te gebruiken.',
+    'Ownpace heeft een eigen Microsoft-app; vul beide alleen in om uw eigen appregistratie te gebruiken.',
   'account.microsoft.ownClient': 'Uw eigen appregistratie gebruiken',
   'account.microsoft.redirectUri':
     'Registreer dit exacte adres in uw appregistratie onder Verificatie → redirect/callback-URI’s:',
@@ -729,7 +734,7 @@ export const nl: Record<keyof typeof en, string> = {
     'Voor een werk- of schoolaccount kan eerst goedkeuring nodig zijn van uw beheerder. Voor een persoonlijk Microsoft-account is dat niet nodig.',
   'account.microsoft.tenantId.hint': 'Laat leeg tenzij uw appregistratie voor één specifieke tenant is.',
   'account.microsoft.tenantId.why':
-    'Leeg betekent de instelling van deze installatie, die elk werk-, school- of persoonlijk Microsoft-account accepteert. Een registratie voor één specifieke tenant die naar de verkeerde wordt gestuurd, mislukt met een melding dat de toepassing niet is gevonden, wat op een typefout lijkt, maar het niet is.',
+    'Leeg betekent de eigen instelling van Ownpace, die elk werk-, school- of persoonlijk Microsoft-account accepteert. Een registratie voor één specifieke tenant die naar de verkeerde wordt gestuurd, mislukt met een melding dat de toepassing niet is gevonden, wat op een typefout lijkt, maar het niet is.',
   'account.proto.apple.hint':
     'Eén Apple-account: e-mail, agenda’s, contacten en herinneringen, wat u aanvinkt.',
   'account.appleAppPassword': 'App-specifiek wachtwoord',
@@ -788,8 +793,7 @@ export const nl: Record<keyof typeof en, string> = {
   'account.gmailAppPassword.why':
     'Google raadt het af (wij ook): een app-wachtwoord opent de hele mailbox, terwijl een token met gerichte toestemming één ding opent. Het vereist tweestapsverificatie op het account, bestaat niet op een Workspace-account en wordt ingetrokken in de app-wachtwoordenlijst van het account zelf, zonder dat u iets hoeft met Ownpace.',
   'account.refreshToken': 'Refresh-token',
-  'account.refreshToken.hint':
-    'Het gedelegeerde token van het account; behandel het als een wachtwoord.',
+  'account.refreshToken.hint': 'Hiermee komt Ownpace in het account; behandel het als een wachtwoord.',
   'account.rootFolderId': 'Hoofdmap-ID',
   'account.rootFolderId.placeholder': 'Leeg = heel Mijn Drive',
   'account.serviceAccountKey': 'Serviceaccount-sleutel',
@@ -914,16 +918,15 @@ export const nl: Record<keyof typeof en, string> = {
     'Logt in met deze en één andere verbinding; test deze om te weten welke.',
   'connections.standing.thisSide': 'Het ging mis bij dit account.',
   'probe.connected': 'Verbonden.',
-  'probe.connectedSession': 'Verbonden. Het JMAP-sessiedocument antwoordde.',
+  'probe.connectedSession': 'Verbonden.',
   'probe.targetStatus': 'De server op {url} antwoordde {status}.',
   'probe.targetStatus.refused': 'Is bereikbaar en weigerde de inloggegevens.',
   'probe.targetStatus.check': 'Controleer de host en poort van het doel.',
-  'probe.noProbe':
-    'Er is nog geen controle voor een {kind}-verbinding; dit is een Todo voor Ownpace.',
+  'probe.noProbe': 'Een {kind}-verbinding kan nog niet worden getest.',
   'probe.timedOut':
     'Geen antwoord binnen {seconds} seconden; toch bewaard, dus test later opnieuw.',
   'probe.countedAtPreflight':
-    'Deze export staat in het bestandsdoel van de migratie en wordt bij de preflight geïnventariseerd.',
+    'Deze export staat in uw nieuwe bestanden, dus hier valt nog niets te testen. Hij wordt geteld wanneer u de migratie controleert.',
   'probe.said.server': 'De server',
   'probe.said.mailServer': 'De mailserver',
   'probe.said.answeredWords': '{who} antwoordde {status}: {words}',
