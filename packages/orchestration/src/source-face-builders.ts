@@ -41,7 +41,7 @@
  * it a failing test rather than a support ticket.
  */
 
-import type { DiscoveryDomain } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, type DiscoveryDomain } from '@openmig/shared';
 import {
   PROVIDER_ACCOUNT_DOMAINS,
   GOOGLE_RESTRICTED_ACCOUNT_DOMAINS,
@@ -261,6 +261,23 @@ export function connectionKindsWithFace(
  */
 export function microsoftSourceKinds(): ReadonlyArray<string> {
   return [...new Set(['o365', ...connectionKindsWithFace('email', 'graph-mail')])].sort();
+}
+
+/**
+ * EVERY STORED KIND THAT IS A GOOGLE SOURCE: every kind one of whose faces is
+ * built by a Google builder, the `google` account and the single-purpose
+ * `gmail`, `google_calendar`, `google_contacts` and `google_drive` rows.
+ *
+ * Derived from the tables, as `microsoftSourceKinds` is, for the permission
+ * report (the owner, 2026-10-14): it asked whether the source had a DRIVE
+ * face, so a `gmail` row was not a Google source there, and was told about
+ * Exchange Online PowerShell.
+ */
+export function googleSourceKinds(): ReadonlyArray<string> {
+  const google: ReadonlyArray<SourceFaceBuilder> = ['gmail', 'google-dav', 'google-drive', 'google-tasks'];
+  return [
+    ...new Set(google.flatMap((builder) => DISCOVERY_DOMAINS.flatMap((d) => connectionKindsWithFace(d, builder)))),
+  ].sort();
 }
 
 /**

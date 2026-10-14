@@ -383,8 +383,8 @@ describe('buildSourceConnectorFromCredentials — named mailbox on the delegated
       });
 
     expect(failure).toThrow(/gedeeld@contoso\.nl/);
-    expect(failure).toThrow(/refreshToken is set/);
-    expect(failure).toThrow(/set clientSecret/);
+    expect(failure).toThrow(/Remove refreshToken/);
+    expect(failure).toThrow(/fill in clientSecret/);
     // A managed operator has no OAUTH2_* variables. Advice they cannot act on
     // is worse than none: it sends them looking for a setting that is not there.
     expect(failure).not.toThrow(/OAUTH2_/);
@@ -468,7 +468,8 @@ describe('buildFileSourceFromConnection', () => {
         config: {},
         creds: { clientId: 'id', clientSecret: 'secret' },
       }, undefined),
-    ).toThrow(/refreshToken/);
+      // The field as the Accounts form names it (the owner, 2026-10-14).
+    ).toThrow(/the sign-in from Connect with Google is not set/);
   });
 
   it('validates the stored config the SAME way a mapping file is validated', () => {

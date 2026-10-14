@@ -71,9 +71,10 @@ const ALLOWED: ReadonlyArray<{ file: string; doc: string; reason: string }> = [
     doc: 'docs/o365-application-access.md',
     reason:
       "Names OAUTH2_REFRESH_TOKEN, OAUTH2_CLIENT_ID and OAUTH2_CLIENT_SECRET, the worker's " +
-      "and the appliance's environment. The detectors log it; the permission report " +
+      "and the appliance's environment. The detectors log it; the managed permission report " +
       'replaces it for every Microsoft source (`O365_NOT_READ_WITH_ITS_OWN_REGISTRATION`, ' +
-      '`MICROSOFT_ACCOUNT_IS_DELEGATED`), so no customer reads it.',
+      '`MICROSOFT_ACCOUNT_IS_DELEGATED`) and gives every other source a sentence of its own ' +
+      '(`calendarSharingNotReadForThisSource`, 2026-10-14), so no customer reads it.',
   },
   {
     file: 'packages/connectors/src/drive-sharing-availability.ts',

@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { MICROSOFT_CONSENT_DOMAINS, graphScopesGranted, microsoftTokenEndpoint } from '@openmig/shared';
+import { MICROSOFT_CONSENT_DOMAINS, graphScopesGranted, log, microsoftTokenEndpoint } from '@openmig/shared';
 import {
   MICROSOFT_FACE_UNIT,
   isMicrosoftGrantKind,
@@ -108,15 +108,24 @@ describe('reading the grant', () => {
     expect(body.get('refresh_token')).toBe('the-refresh-token');
   });
 
-  it('a row without a client id is unreadable WITHOUT an exchange, and names the deployment’s application', async () => {
+  it('a row without a client id is unreadable WITHOUT an exchange, and says the application is ours', async () => {
     const calls = tokenFetch('Mail.Read');
+    const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
     const read = await readMicrosoftGrant({ refreshToken: 'x' });
     expect(read.ok).toBe(false);
     if (!read.ok) {
-      expect(read.reason).toMatch(/clientId is not set/);
-      expect(read.reason).toContain('MICROSOFT_OAUTH_CLIENT_ID');
+      // The field as the form names it, and the deployment's settings never:
+      // a tester cannot set them (the owner, 2026-10-14).
+      expect(read.reason).toMatch(/Application \(client\) ID is not set/);
+      expect(read.reason).toContain('not set up on our side: please contact us');
+      expect(read.reason).not.toMatch(/MICROSOFT_OAUTH_|deployment/);
+      expect(read.refusal?.nl).toContain('toepassings-id (client) is niet ingesteld');
+      expect(read.refusal?.nl).toContain('neem contact met ons op');
       expect(read.refusal?.fields).toEqual(['clientId']);
     }
+    // The settings by name are for whoever runs it, in the log.
+    expect(warn.mock.calls.flat().join(' ')).toContain('MICROSOFT_OAUTH_CLIENT_ID');
+    warn.mockRestore();
     expect(calls).toHaveLength(0);
   });
 
@@ -129,7 +138,7 @@ describe('reading the grant', () => {
     const read = await readMicrosoftGrant({ clientId: 'entra-app-id', clientSecret: 'entra-secret' });
     expect(read.ok).toBe(false);
     if (!read.ok) {
-      expect(read.reason).toMatch(/refreshToken is not set/);
+      expect(read.reason).toMatch(/the sign-in from Connect with Microsoft is not set/);
       expect(read.reason).toContain('Connect with Microsoft');
       expect(read.refusal?.fields).toEqual(['refreshToken']);
       expect(read.refusal?.nl).toContain('Verbinden met Microsoft');
@@ -228,7 +237,7 @@ describe('the headline probe picks the first face the grant carries', () => {
     expect(build).not.toHaveBeenCalled();
     expect(result.ok).toBe(false);
     expect(result.outcome.code).toBe('credentialsRefused');
-    if (!result.ok) expect(result.reason).toMatch(/refreshToken is not set.*Connect with Microsoft/);
+    if (!result.ok) expect(result.reason).toMatch(/the sign-in from Connect with Microsoft is not set.*connect it again with Connect with Microsoft/);
   });
 
   it('a refused exchange is Microsoft’s refusal, and still no face is built', async () => {

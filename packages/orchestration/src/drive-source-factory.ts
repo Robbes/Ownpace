@@ -22,7 +22,7 @@
  * this mints cannot write to Drive at all (`drive.readonly`).
  */
 
-import { CREDENTIAL_STORE_NL, missingCredentials, type FieldLabels } from '@openmig/shared';
+import { CREDENTIAL_STORE_NL, missingCredentials, shownFields, type FieldLabels } from '@openmig/shared';
 import type { FileSource, GoogleNativeFilePolicy, NativeFilePolicies } from '@openmig/shared';
 import {
   DRIVE_READONLY_SCOPE,
@@ -134,6 +134,7 @@ export const STORED_GOOGLE_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   serviceAccountKey: STORED_GOOGLE_DWD_KEY_NAME,
   where: "this account's saved details, on the Accounts page",
   whereNl: CREDENTIAL_STORE_NL.managed,
+  labels: GOOGLE_STORED_LABELS,
 };
 
 /**
@@ -161,25 +162,31 @@ export function buildGoogleDriveSourceFrom(
 
   // Every missing value at once. Naming them one at a time makes an operator
   // fix, re-run, and be told about the next — three passes to learn one thing.
-  const missing = dwd
+  const keys = dwd
     ? []
-    : (['clientId', 'clientSecret', 'refreshToken'] as const)
-        .filter((key) => !creds[key])
-        .map((key) => naming[key]);
+    : (['clientId', 'clientSecret', 'refreshToken'] as const).filter((key) => !creds[key]);
+  const missing = keys.map((key) => naming[key]);
 
   if (missing.length > 0) {
+    // Written for the person who reads it (the owner, 2026-10-14), as the
+    // other five factories were in #1592: on managed the fields as the
+    // Accounts form names them, on the appliance its environment variables.
+    // The facts stay: who it signs in as, all three, and read-only.
+    const label = (lang: 'en' | 'nl', key: 'clientId' | 'clientSecret' | 'refreshToken'): string =>
+      naming.labels?.[lang][key] ?? naming[key];
     throw missingCredentials({
       subject: 'google-drive source',
       missing,
+      shown: shownFields(keys, missing, naming.labels),
       detailEn:
-        `A Drive migration authenticates as the user who consented, so it needs all three of ` +
-        `${naming.clientId}, ${naming.clientSecret} and ${naming.refreshToken} in ${naming.where}. ` +
-        'The token is minted read-only (drive.readonly): this product never writes to a Drive.',
+        'A Drive migration signs in as the person who gave permission, so it needs all three: ' +
+        `${label('en', 'clientId')}, ${label('en', 'clientSecret')} and ${label('en', 'refreshToken')}, ` +
+        `in ${naming.where}. The permission only reads (drive.readonly): Ownpace never writes to a Drive.`,
       detailNl:
-        'Een Drive-migratie meldt zich aan als de gebruiker die toestemming gaf, dus alle drie ' +
-        `zijn nodig: ${naming.clientId}, ${naming.clientSecret} en ${naming.refreshToken} in ` +
-        `${naming.whereNl ?? naming.where}. Het token wordt alleen-lezen aangemaakt ` +
-        '(drive.readonly): dit product schrijft nooit naar een Drive.',
+        'Een Drive-migratie meldt zich aan als de persoon die toestemming gaf, dus alle drie zijn ' +
+        `nodig: ${label('nl', 'clientId')}, ${label('nl', 'clientSecret')} en ` +
+        `${label('nl', 'refreshToken')}, in ${naming.whereNl ?? naming.where}. De toestemming ` +
+        'leest alleen (drive.readonly): Ownpace schrijft nooit naar een Drive.',
     });
   }
 

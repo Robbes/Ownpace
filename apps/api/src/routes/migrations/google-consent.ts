@@ -38,7 +38,13 @@ import {
   grantSatisfiesAskedScope,
   type GoogleGrantDomain,
 } from '@openmig/orchestration/account-qualification';
-import { CONSENT_STATE_TTL_MS, localeOf, type Bilingual, type RefusalLocale } from '@openmig/shared';
+import {
+  CONSENT_STATE_TTL_MS,
+  EXCHANGE_FOR_THE_LINK_HOLDER,
+  localeOf,
+  type Bilingual,
+  type RefusalLocale,
+} from '@openmig/shared';
 import type { ProgressPageUrl } from './progress-page-url.ts';
 import { SIGNED_IN_ACCOUNT_SCOPES, accountInIdToken } from './signed-in-account.ts';
 
@@ -383,13 +389,15 @@ export type ExchangeResult =
   | { readonly ok: false; readonly code: ExchangeRefusalCode; readonly reason: string };
 
 /**
- * Which way the code exchange failed, beside the owner's sentence for it.
+ * Which way the code exchange failed, beside the detail for the log.
  *
- * The `reason` is written for the owner, who holds the client and can act on
- * it ("check that the Client ID and client secret belong to the same OAuth
- * client"). A person on a grant link holds none of that, so their page is
- * worded from the code instead (`google-oauth-routes.ts`), by the rule
- * `FOR_THE_LINK_HOLDER` already follows: say what is wrong, and whom to tell.
+ * The `reason` is the server log's: it quotes Google's own answer and names
+ * the client, the redirect URI and the scopes, which is what somebody looking
+ * into it needs. Nobody reads it on a page any more. A person on a grant link
+ * holds none of that, so their page is worded from the code
+ * (`EXCHANGE_FOR_THE_LINK_HOLDER`), and since the owner's review of
+ * 2026-10-14 so is the owner's own ending (`EXCHANGE_FOR_THE_OWNER`): a tester
+ * read Google's raw answer and a sentence about OAuth clients there.
  */
 export type ExchangeRefusalCode =
   | 'unreachable'
@@ -397,6 +405,50 @@ export type ExchangeRefusalCode =
   | 'code_rejected'
   | 'scope_missing'
   | 'no_refresh_token';
+
+/**
+ * What the owner reads when Connect with Google's code exchange failed, in
+ * both languages (the owner, 2026-10-14). Where the link holder's sentence is
+ * true of the owner too it is that sentence, word for word; where it sends
+ * somebody back to a link or to "the person who sent you the link", the
+ * owner's own says what the owner can do instead. Typed by the exchange's
+ * codes, so a new code is a compile error until it has both halves here.
+ * Google's raw answer stays in the log (`google-oauth-routes.ts`).
+ */
+export const EXCHANGE_FOR_THE_OWNER: Readonly<Record<ExchangeRefusalCode, Bilingual>> = {
+  unreachable: EXCHANGE_FOR_THE_LINK_HOLDER.unreachable,
+  code_rejected: EXCHANGE_FOR_THE_LINK_HOLDER.code_rejected,
+  refused: {
+    en:
+      'Google turned down the app this sign-in went through, so nothing was stored. If you ' +
+      'filled in your own oauth-app, check that its Client ID and client secret belong to the ' +
+      'same app, and that the redirect address shown under the button is registered on it. If ' +
+      'you did not, this is on our side: please contact us.',
+    nl:
+      'Google heeft de app geweigerd waarlangs deze aanmelding liep, dus er is niets ' +
+      'opgeslagen. Als u een eigen oauth-app hebt ingevuld: controleer of de Client-ID en het ' +
+      'clientsecret bij dezelfde app horen, en of het redirect-adres onder de knop daar is ' +
+      'geregistreerd. Zo niet, dan ligt het aan ons: neem contact met ons op.',
+  },
+  scope_missing: {
+    en:
+      'Some of the permissions Ownpace asks for were left unticked at Google, so nothing was ' +
+      'stored. Press Connect with Google again and leave every one of them ticked.',
+    nl:
+      'Bij Google zijn enkele toestemmingen die Ownpace vraagt niet aangevinkt, dus er is ' +
+      'niets opgeslagen. Druk opnieuw op Verbinden met Google en laat ze allemaal aangevinkt.',
+  },
+  no_refresh_token: {
+    en:
+      'Google would not give lasting access to this account, which usually means its ' +
+      'administrator does not allow it. Ask the administrator to allow it, or connect an ' +
+      'account that does.',
+    nl:
+      'Google wilde geen blijvende toegang tot dit account geven. Meestal staat de beheerder ' +
+      'van het account dat niet toe. Vraag de beheerder het toe te staan, of verbind een ' +
+      'account waarvoor het wel mag.',
+  },
+};
 
 /** Google's `error` field from a token endpoint body, when there is one. */
 function googleErrorCode(body: string): string | undefined {
@@ -687,8 +739,9 @@ export function noCodeFrom(provider: 'google' | 'dropbox' | 'microsoft'): Biling
  *
  * In the language the consent began in (`locale`, workplan 0145 T6); anything
  * else, or nothing, is English. The `reason` of a refusal arrives already in
- * it where we wrote it; a code exchange's refusal quotes the provider and
- * names the client, and renders as it was written.
+ * it: a code exchange's refusal is the owner's sentence for its code
+ * (`EXCHANGE_FOR_THE_OWNER`, Dropbox's `said`), and the provider's own answer
+ * goes to the log, never to this page (the owner, 2026-10-14).
  */
 export function consentResultPage(p: {
   webOrigin?: string;

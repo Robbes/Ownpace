@@ -16,7 +16,7 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticate } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
-import { inLocale, localeOf, resolveDropboxClient, type Bilingual } from '@openmig/shared';
+import { inLocale, localeOf, log, resolveDropboxClient, type Bilingual } from '@openmig/shared';
 import {
   callbackPageHeaders,
   consentResultPage,
@@ -129,10 +129,14 @@ router.get('/dropbox/callback', async (req: Request, res: Response) => {
     clientSecret: pending.clientSecret,
     redirectUri: pending.redirectUri,
   });
-  page(
-    outcome.ok ? 200 : 400,
-    consentResultPage({ webOrigin: webOrigin(), outcome, provider: 'dropbox', locale }),
-  );
+  if (!outcome.ok) {
+    // The owner reads the sentence for what went wrong, in their language;
+    // Dropbox's own answer goes to the log (the owner, 2026-10-14). It never
+    // echoes the secret, and no token exists on this branch.
+    log.warn(`[api] an owner's Connect with Dropbox code exchange failed: ${outcome.reason}`);
+    return refuse(400, outcome.said);
+  }
+  page(200, consentResultPage({ webOrigin: webOrigin(), outcome, provider: 'dropbox', locale }));
 });
 
 export default router;

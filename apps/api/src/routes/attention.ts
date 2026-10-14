@@ -47,9 +47,13 @@
  * ## A read that failed is not a zero
  *
  * Every queue is read under `guarded`, and a failure becomes a BLIND SPOT
- * carrying the server's own words (hard rule 9). "I found nothing" and "I
- * could not look" arriving as the same empty page is how somebody decides a
- * migration is finished when it is not.
+ * (hard rule 9). "I found nothing" and "I could not look" arriving as the same
+ * empty page is how somebody decides a migration is finished when it is not.
+ * The blind spot says which list could not be read, that the numbers may be
+ * low, and a reference; the error itself goes to the server log under that
+ * reference, as a fault's does (`server-fault.ts`). It used to be the error's
+ * own message, *"the deletions queue: {driver error}"*, on a tester's screen
+ * (the owner, 2026-10-14).
  */
 
 import { Router } from 'express';
@@ -69,10 +73,23 @@ import {
   type TenantAttention,
   type FailureRow,
   type DiscoveryDomain,
+  log,
+  newReference,
 } from '@openmig/shared';
 import { authenticate, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
-import { serverFault } from '../server-fault.ts';
+import { loggableError, serverFault } from '../server-fault.ts';
+
+/**
+ * A list that could not be read, as the screen says it: which one, that the
+ * numbers beside it may be low, and the reference the log keeps the error
+ * under. Never the error's own words, which are a driver's or a database's.
+ */
+export function unreadList(what: string, err: unknown): string {
+  const ref = newReference();
+  log.error(`[api] reading ${what} for what needs you failed [ref ${ref}]:`, loggableError(err));
+  return `${what[0]!.toUpperCase()}${what.slice(1)} could not be read just now, so these numbers may be low. Reference ${ref}.`;
+}
 
 const router = Router();
 
@@ -154,10 +171,9 @@ export async function collectTenantAttention(
   try {
     decisionsPending = await read.pendingDecisions();
   } catch (err) {
-    // The reason, verbatim (hard rule 9), whichever side it ends up on.
-    decisionsBlindSpot = `the decision queue: ${
-      err instanceof Error ? err.message : String(err)
-    }`;
+    // Said as a blind spot (hard rule 9), whichever side it ends up on; the
+    // error itself is in the log under the sentence's reference.
+    decisionsBlindSpot = unreadList('the list of decisions', err);
   }
 
   for (const row of rows) {
@@ -170,16 +186,16 @@ export async function collectTenantAttention(
       try {
         return await go();
       } catch (err) {
-        // The reason, verbatim. A queue that could not be read is a hole in
-        // this screen and must be described as one, not rounded to zero.
-        blindSpots.push(`${what}: ${err instanceof Error ? err.message : String(err)}`);
+        // A queue that could not be read is a hole in this screen and must be
+        // described as one, not rounded to zero. Its error is in the log.
+        blindSpots.push(unreadList(what, err));
         return fallback;
       }
     };
 
-    const deletions = await guarded('the deletions queue', () => read.deletions(row.id), []);
-    const moves = await guarded('the moves queue', () => read.moves(row.id), []);
-    const failures = await guarded('the failures queue', () => read.failures(row.id), []);
+    const deletions = await guarded('the list of deletions', () => read.deletions(row.id), []);
+    const moves = await guarded('the list of moves', () => read.moves(row.id), []);
+    const failures = await guarded('the list of failures', () => read.failures(row.id), []);
     const sharingOpen = await guarded('the sharing checklist', () => read.sharingOpen(row.id), 0);
     const graceEnded = read.graceEnded
       ? await guarded('the grace periods', () => read.graceEnded!(row.id), [] as readonly DiscoveryDomain[])

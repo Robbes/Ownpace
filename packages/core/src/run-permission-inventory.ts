@@ -52,8 +52,12 @@ export interface PermissionInventoryDeps {
 export async function runPermissionInventory(deps: PermissionInventoryDeps): Promise<string> {
   const sections: PermissionSection[] = [
     // Always first in the array and always present. See the module comment.
+    // Titled in words true of every source (the owner, 2026-10-14): it read
+    // *Mailbox delegation (FullAccess, SendAs, SendOnBehalf)*, Exchange's
+    // names, on a Gmail or an IMAP mailbox's report too. A Microsoft source's
+    // reason still names them, where they are its own.
     {
-      title: 'Mailbox delegation (FullAccess, SendAs, SendOnBehalf)',
+      title: 'Who else had access to the mailbox',
       listing: { kind: 'not_discoverable', reason: deps.delegationReason },
     },
   ];

@@ -4,6 +4,35 @@
 
 ## Status — 2026-10-14 (update this block at the end of every session)
 
+**2026-10-14, later: the server's other sentences, in a tester's words.** The owner wants every
+sentence a managed Alpha tester reads written for testers, not developers. This is the server's
+half; the web dictionary is another change.
+
+- **Connect with Google and Connect with Dropbox, when the sign-in fails at the end.** The owner's
+  page showed the provider's raw answer and a sentence about OAuth clients, `access_type` and
+  `token_access_type`. It now shows a plain sentence for what happened, in the language the
+  consent began in (`EXCHANGE_FOR_THE_OWNER` in `google-consent.ts`,
+  `DROPBOX_EXCHANGE_FOR_THE_OWNER` in `dropbox-consent.ts`). Where the link holder's sentence is
+  true of the owner too (Google unreachable, a sign-in that took too long), it is that sentence
+  word for word. The provider's answer goes to the server log, which never carries the secret.
+- **The permission report and the Sharing checklist, per kind of source.** A Gmail mailbox, an
+  IMAP one, a Dropbox, Box, Apple, Soverin or an archive was told about Exchange Online
+  PowerShell, *"this tenant has no Microsoft 365 source connection"*, and OneDrive and SharePoint.
+  Each now gets a neutral sentence of its own, still said as a blind spot
+  (`mailboxAccessNotReadForThisSource` and its two siblings in shared's `permissions.ts`). Google
+  is found by its kind (`googleSourceKinds`), so a `gmail` row gets Gmail's sentence. Microsoft
+  keeps its own. The report's first section is now titled *Who else had access to the mailbox*.
+  The appliance keeps its sentences.
+- **The rest:** a fault's reference says *mention it when you contact us*. A grant link's reasons
+  to the owner are plain, and the deployment's settings (`WEB_URL`, `GOOGLE_OAUTH_*`,
+  `GOOGLE_ACCOUNT_SCOPE_CLASS`) go to the log as `operatorDetail`. Microsoft's AADSTS700016 and
+  AADSTS900023 on Ownpace's own app say *on our side, please contact us* with the code. A list
+  that could not be read on the attention screen names the list and a reference, and its error
+  goes to the log. The Google Drive credential refusal names the fields as the Accounts form
+  does, as #1592 did for the other five. The sign-in that cannot read somebody else's mailbox is
+  plain in both languages and keeps its guide. A Microsoft account with no client id says
+  *on our side*. The JMAP test lines name no capability URN and no workplan.
+
 **2026-10-14: the five credential refusals, written for the person who reads them.** The owner:
 *"make them plainer and in line with what testers read instead of Devs. I don't need to review,
 you write those."* Box, Dropbox, Google Tasks, Google Calendar/Contacts and Gmail, in both

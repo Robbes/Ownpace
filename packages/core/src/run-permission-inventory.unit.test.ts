@@ -19,7 +19,7 @@ describe('the section that is never optional', () => {
   it('appears even when the caller passes no scans at all', async () => {
     const md = await runPermissionInventory({ delegationReason: REASON });
 
-    expect(md).toContain('Mailbox delegation');
+    expect(md).toContain('Who else had access to the mailbox');
     expect(md).toContain('Get-MailboxPermission');
   });
 
@@ -35,7 +35,7 @@ describe('the section that is never optional', () => {
     });
 
     // Buried under the findings it gets skipped, and it is the dangerous half.
-    expect(md.indexOf('Mailbox delegation')).toBeLessThan(md.indexOf('Pat — Calendar'));
+    expect(md.indexOf('Who else had access to the mailbox')).toBeLessThan(md.indexOf('Pat — Calendar'));
   });
 });
 

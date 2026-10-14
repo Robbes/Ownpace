@@ -72,15 +72,19 @@ describe('the ways a grant link is dead on arrival', () => {
   it('refuses a mapping with no source connection', () => {
     const refusal = grantLinkRefusal({ ...READY, sourceKind: null });
     expect(refusal?.code).toBe('no_source_connection');
-    expect(refusal?.reason).toMatch(/no source connection/i);
+    expect(refusal?.reason).toMatch(/no account to copy from yet/);
   });
 
   it('refuses a source that is not one of the four Google kinds', () => {
     const refusal = grantLinkRefusal({ ...READY, sourceKind: 'imap' });
     expect(refusal?.code).toBe('source_not_google');
-    // Names the kind it actually got, so the owner is not left guessing which
-    // of their migrations this was about.
-    expect(refusal?.reason).toContain("'imap'");
+    // Says what can be connected through a link, in the owner's words; the
+    // stored kind, which is our word for the row, goes to the log (the
+    // owner, 2026-10-14).
+    expect(refusal?.reason).toMatch(/does not copy from a Google account/);
+    expect(refusal?.reason).toMatch(/connected by hand, on the Accounts page/);
+    expect(refusal?.reason).not.toContain("'imap'");
+    expect(refusal?.operatorDetail).toContain("'imap'");
   });
 
   it('refuses a migration that names no account, because the grant is bound to it (0108 T8 (b))', () => {
@@ -118,19 +122,26 @@ describe('the ways a grant link is dead on arrival', () => {
     const neither = grantLinkRefusal({ ...READY, hasClientId: false, hasClientSecret: false });
 
     expect(noId?.code).toBe('client_not_configured');
-    expect(noId?.reason).toContain('has no client id stored');
-    expect(noSecret?.reason).toContain('has no client secret stored');
-    expect(neither?.reason).toContain('has neither a client id nor a client secret stored');
+    // The fields as the Accounts form names them (the owner, 2026-10-14).
+    expect(noId?.reason).toContain('has no Client ID saved');
+    expect(noSecret?.reason).toContain('has no Client secret saved');
+    expect(neither?.reason).toContain('no Client ID and Client secret of your own saved');
     // The remedy, not just the diagnosis — every one of the three says where.
     for (const r of [noId, noSecret, neither]) {
-      expect(r?.reason).toMatch(/source connection/);
+      expect(r?.reason).toMatch(/on the Accounts page/);
     }
   });
 
   it('refuses when the deployment cannot say where its own web app lives', () => {
     const refusal = grantLinkRefusal({ ...READY, hasWebUrl: false });
     expect(refusal?.code).toBe('web_url_unset');
-    expect(refusal?.reason).toContain('WEB_URL');
+    // The deployment's setting is ours: the owner is told so and asked to
+    // contact us, and the setting by name is for the log (the owner,
+    // 2026-10-14).
+    expect(refusal?.reason).toBe(
+      'Links cannot be made just now. This is on our side, not yours: please contact us.',
+    );
+    expect(refusal?.operatorDetail).toContain('Set WEB_URL and restart the API');
   });
 
   it('reports the mapping is problem before the deployment is', () => {
@@ -187,23 +198,27 @@ describe("the deployment's Google client, where the source stores none (0108 T6)
   it("refuses half a pair rather than finishing it with the deployment's other half", () => {
     const refusal = grantLinkRefusal({ ...READY, hasClientSecret: false, hasDeploymentClient: true });
     expect(refusal?.code).toBe('client_not_configured');
-    expect(refusal?.reason).toContain('has no client secret stored');
+    expect(refusal?.reason).toContain('has no Client secret saved');
   });
 
   it('names both ways out when there is no client anywhere', () => {
     const refusal = grantLinkRefusal({ ...ON_THE_DEPLOYMENTS_CLIENT, hasDeploymentClient: false });
     expect(refusal?.code).toBe('client_not_configured');
-    expect(refusal?.reason).toMatch(/source connection/);
-    expect(refusal?.reason).toMatch(/GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET/);
+    // The owner's way out, and ours said as ours; the settings by name are
+    // for the log.
+    expect(refusal?.reason).toMatch(/Add your own Google app to the account on the Accounts page, or contact us/);
+    expect(refusal?.reason).not.toMatch(/GOOGLE_OAUTH_/);
+    expect(refusal?.operatorDetail).toMatch(/GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET/);
   });
 
   it('asks for mail and files through it only where the restricted class is declared', () => {
     for (const sourceKind of ['gmail', 'google_drive']) {
       const refusal = grantLinkRefusal({ ...ON_THE_DEPLOYMENTS_CLIENT, sourceKind });
       expect(refusal?.code, sourceKind).toBe('restricted_scope');
-      // Both ways out, and the setting by name.
-      expect(refusal?.reason).toMatch(/GOOGLE_ACCOUNT_SCOPE_CLASS/);
-      expect(refusal?.reason).toMatch(/your own Google client on the source connection/);
+      // Both ways out; the setting by name only in the log's detail.
+      expect(refusal?.reason).toMatch(/Add your own Google app to the account on the Accounts page, or contact us/);
+      expect(refusal?.reason).not.toMatch(/GOOGLE_ACCOUNT_SCOPE_CLASS|whoever runs/);
+      expect(refusal?.operatorDetail).toMatch(/GOOGLE_ACCOUNT_SCOPE_CLASS/);
 
       const declared = askOf(
         grantLinkAsk({ ...ON_THE_DEPLOYMENTS_CLIENT, sourceKind, scopeClass: 'restricted' }),
@@ -270,11 +285,13 @@ describe('a link for a Google ACCOUNT (0108 T7)', () => {
     expect(ask.client).toBe('deployment');
   });
 
-  it("refuses mail on a deployment that has not declared the class, in the account consent's words", () => {
+  it("refuses mail on a deployment that has not declared the class, the account consent's words kept for the log", () => {
     const refusal = grantLinkRefusal({ ...ACCOUNT, includedDomains: ['email', 'calendar'] });
     expect(refusal?.code).toBe('restricted_scope');
     const owners = googleAccountConsent(['email', 'calendar'], {});
-    expect(isRefusal(owners) && refusal?.reason).toBe(isRefusal(owners) && owners.reason);
+    expect(isRefusal(owners) && refusal?.operatorDetail).toBe(isRefusal(owners) && owners.reason);
+    // The owner's sentence keeps the way out the consent's words name.
+    expect(refusal?.reason).toMatch(/Connect Gmail or Google Drive as an account of its own/);
   });
 
   it('asks for mail and files too where the class is declared', () => {

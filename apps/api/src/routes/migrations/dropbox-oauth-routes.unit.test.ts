@@ -26,6 +26,7 @@ vi.mock('../../middleware/auth.ts', async (importOriginal) => {
 
 const { default: dropboxOauthRoutes } = await import('./dropbox-oauth-routes.ts');
 const { default: googleOauthRoutes } = await import('./google-oauth-routes.ts');
+const { log } = await import('@openmig/shared');
 
 const app = express();
 app.use(helmet());
@@ -146,5 +147,59 @@ describe('the callback', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Dropbox reported: access_denied');
     expect(res.text).toContain('The user said no');
+  });
+
+  /**
+   * A FAILED EXCHANGE IN THE OWNER'S WORDS (the owner, 2026-10-14). The page
+   * showed *"Dropbox refused the code exchange (400): {"error": …}"* and
+   * `token_access_type=offline`; it now says what happened and what to do, in
+   * the language the consent began in, and Dropbox's answer is in the log.
+   */
+  const failedExchange = async (locale: 'en' | 'nl', answer: Response) => {
+    process.env.DROPBOX_OAUTH_CLIENT_ID = 'deployment-app-key';
+    process.env.DROPBOX_OAUTH_CLIENT_SECRET = 'deployment-app-secret';
+    const begun = await authorize({ locale });
+    const state = new URL(begun.body.url).searchParams.get('state')!;
+    vi.stubGlobal('fetch', vi.fn(async () => answer));
+    return request(app).get(`/api/migrations/dropbox/callback?state=${encodeURIComponent(state)}&code=the-code`);
+  };
+
+  it('a refused exchange: the plain sentence in English, Dropbox’s answer only in the log', async () => {
+    const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+    const res = await failedExchange(
+      'en',
+      new Response(JSON.stringify({ error: 'invalid_grant', error_description: 'code has expired' }), { status: 400 }),
+    );
+    expect(res.status).toBe(400);
+    expect(res.text).toContain('Dropbox did not accept the sign-in when it came back, so nothing was stored.');
+    expect(res.text).not.toMatch(/invalid_grant|code has expired|code exchange|\(400\)/);
+    const logged = warn.mock.calls.map((c) => c.join(' ')).join('\n');
+    expect(logged).toContain('invalid_grant');
+    expect(logged).not.toContain('deployment-app-secret');
+    warn.mockRestore();
+  });
+
+  it('the same refusal in Dutch, for a consent begun in Dutch', async () => {
+    vi.spyOn(log, 'warn').mockImplementation(() => {});
+    const res = await failedExchange(
+      'nl',
+      new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 }),
+    );
+    expect(res.text).toContain('<html lang="nl">');
+    expect(res.text).toContain('Dropbox accepteerde de aanmelding niet toen die terugkwam, dus er is niets opgeslagen.');
+    expect(res.text).not.toContain('invalid_grant');
+    vi.restoreAllMocks();
+  });
+
+  it('no lasting access: said plainly, without the protocol’s words', async () => {
+    vi.spyOn(log, 'warn').mockImplementation(() => {});
+    const res = await failedExchange(
+      'en',
+      new Response(JSON.stringify({ scope: 'files.metadata.read files.content.read' }), { status: 200 }),
+    );
+    expect(res.status).toBe(400);
+    expect(res.text).toContain('Dropbox would not give lasting access, so nothing was stored.');
+    expect(res.text).not.toMatch(/token_access_type|refresh token|offline/);
+    vi.restoreAllMocks();
   });
 });

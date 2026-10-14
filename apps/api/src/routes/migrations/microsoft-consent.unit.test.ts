@@ -142,8 +142,9 @@ describe("Entra's refusals become sentences with a way forward", () => {
   it("with this service's own registration, AADSTS700016 names no operator setting (0148 T2 (d))", () => {
     // A tester can neither re-register the service's application nor set a
     // variable on a deployment they do not run. The sentence says whose
-    // setting it is and who to tell; the operator's sentence above stays for
-    // a registration the person typed in themselves.
+    // setting it is: ours, to contact us about, with the code to mention (the
+    // owner, 2026-10-14). The operator's sentence above stays for a
+    // registration the person typed in themselves.
     const s = microsoftConsentRefusal(
       'AADSTS700016: Application not found in the directory',
       'deployment',
@@ -151,8 +152,9 @@ describe("Entra's refusals become sentences with a way forward", () => {
     expect(s).not.toContain('MICROSOFT_OAUTH_TENANT');
     expect(s).not.toContain('multi-tenant');
     expect(s).not.toContain('docs/microsoft-setup.md');
-    expect(s).toContain("this service's application");
-    expect(s).toContain('tell whoever runs it');
+    expect(s).toContain("Ownpace's app");
+    expect(s).toContain('This is on our side, not your account: please contact us and mention');
+    expect(s).not.toMatch(/whoever runs/);
     expect(s).toContain('AADSTS700016');
   });
 
@@ -167,7 +169,8 @@ describe("Entra's refusals become sentences with a way forward", () => {
     expect(s).not.toContain('MICROSOFT_OAUTH_TENANT');
     expect(s).not.toContain('multi-tenant');
     expect(s).not.toContain('docs/microsoft-setup.md');
-    expect(s).toContain('tell whoever runs it');
+    expect(s).toContain('This is on our side, not your account: please contact us and mention');
+    expect(s).not.toMatch(/whoever runs/);
     expect(s).toContain('AADSTS900023');
     // A registration the person typed in keeps the operator's sentence.
     expect(microsoftConsentRefusal('AADSTS900023: Specified tenant identifier', 'connection')).toContain(

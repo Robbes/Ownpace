@@ -101,7 +101,7 @@ describe('GET /permissions/report (workplan 0029)', () => {
     // category is uninventoried — which the document must SAY rather than
     // render as an empty report (rule 9).
     expect(md).toContain('could NOT be inventoried');
-    expect(md).toContain('Mailbox delegation');
+    expect(md).toContain('Who else had access to the mailbox');
     expect(md).toContain('Get-MailboxPermission');
     // And the deferred apply step is stated before the first finding.
     expect(md).toContain('has been applied');

@@ -154,7 +154,7 @@ describe('buildDeps graph-mail source wiring', () => {
       const failure = buildDeps(graphMailConfig('gedeeld@contoso.nl'), LEDGER);
       await expect(failure).rejects.toThrow(/gedeeld@contoso\.nl/);
       await expect(buildDeps(graphMailConfig('gedeeld@contoso.nl'), LEDGER)).rejects.toThrow(
-        /OAUTH2_REFRESH_TOKEN is set/,
+        /Remove OAUTH2_REFRESH_TOKEN and fill in OAUTH2_CLIENT_SECRET/,
       );
       // Points at where the administrator's steps are rather than leaving them
       // to guess: the guide's section, beside the words (0148 T7).

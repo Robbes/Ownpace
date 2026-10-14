@@ -231,19 +231,25 @@ export function delegatedFlowCannotReadMailbox(
   return new CredentialRefusalError({
     code: 'delegated_flow_conflict',
     fields: [input.refreshTokenField, input.clientSecretField],
+    // Written for the person who reads it (the owner, 2026-10-14). The facts
+    // stay: another person's or a shared mailbox needs the organisation's own
+    // app with application permissions an administrator approved; a sign-in
+    // (the refresh token) reads only the account that signed in; and the two
+    // ways out, by field.
     en:
-      `${input.subject}: mailbox "${input.mailbox}" names another user's ${input.store}, which ` +
-      'requires application permissions (the client-credentials flow), but ' +
-      `${input.refreshTokenField} is set — that is the DELEGATED flow and can only read the ` +
-      `signed-in user (/me). Unset ${input.refreshTokenField} and set ${input.clientSecretField}, ` +
-      'having granted admin consent, or remove the mailbox to read /me.',
+      `${input.subject}: "${input.mailbox}" is another person's ${input.store}, or a shared ` +
+      "one. That can only be read through your organisation's own app, with application " +
+      'permissions an administrator has approved. A sign-in ' +
+      `(${input.refreshTokenField}) only reads the account that signed in. Remove ` +
+      `${input.refreshTokenField} and fill in ${input.clientSecretField}, or leave the ` +
+      'mailbox empty to read your own.',
     nl:
-      `${input.subject}: postbus "${input.mailbox}" verwijst naar de ${input.store} van een ` +
-      'andere gebruiker. Daarvoor zijn toepassingsmachtigingen nodig (de client-credentials-' +
-      `stroom), maar ${input.refreshTokenField} is ingesteld — dat is de GEDELEGEERDE stroom, ` +
-      'die alleen de aangemelde gebruiker kan lezen (/me). Verwijder ' +
-      `${input.refreshTokenField} en stel ${input.clientSecretField} in, nadat een beheerder ` +
-      'toestemming heeft gegeven, of haal de postbus weg om /me te lezen.',
+      `${input.subject}: "${input.mailbox}" is de ${input.store} van iemand anders, of een ` +
+      'gedeelde. Die kan alleen worden gelezen via de eigen OAuth-client-app van uw ' +
+      'organisatie, met toepassingsmachtigingen die een beheerder heeft goedgekeurd. Een ' +
+      `aanmelding (${input.refreshTokenField}) leest alleen het account dat zich aanmeldde. ` +
+      `Verwijder ${input.refreshTokenField} en vul ${input.clientSecretField} in, of laat de ` +
+      'postbus leeg om uw eigen postbus te lezen.',
     // The administrator's steps: the registration and its consent (0148 T7).
     guide: 'microsoft#application',
   });

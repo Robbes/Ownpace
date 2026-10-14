@@ -49,8 +49,11 @@ import { withTenant, type PgDatabase } from '@openmig/ledger';
 import { authenticate, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import {
+  calendarSharingNotReadForThisSource,
+  fileSharingNotReadForThisSource,
   googleMailboxDelegationNotRead,
   grantWithdrawnRefusal,
+  mailboxAccessNotReadForThisSource,
   log,
   permissionsNotDiscoverable,
   resolveGoogleClient,
@@ -78,6 +81,7 @@ import {
 import {
   connectionKindsWithFace,
   directorySourceOf,
+  googleSourceKinds,
   microsoftSourceKinds,
 } from '@openmig/orchestration/source-face-builders';
 import { sourceCredentialsFor } from '@openmig/orchestration/build-deps-from-mapping';
@@ -500,7 +504,7 @@ export async function migrationInventoryScans(
       ),
     };
     return {
-      ...inventoryScansFrom(mailbox, { microsoftRows: [], driveRows: [], davRows: [] }),
+      ...inventoryScansFrom(mailbox, { sourceKind: source.kind, microsoftRows: [], driveRows: [], davRows: [] }),
       scanCalendars: async () => withdrawn,
       scanDrive: async () => withdrawn,
     };
@@ -520,6 +524,7 @@ export async function migrationInventoryScans(
       ),
   };
   return inventoryScansFrom(mailbox, {
+    sourceKind: source.kind,
     microsoftRows: microsoftSourceKinds().includes(source.kind)
       ? [{ kind: source.kind, config }]
       : [],
@@ -530,6 +535,12 @@ export async function migrationInventoryScans(
 
 /** What the two scans and the delegation sentence are resolved from. */
 interface ScanSources {
+  /**
+   * The migration's own source kind, when the scans are for one migration.
+   * Absent for an address asked for directly, which reads the organisation's
+   * connections and is placed by the rows found.
+   */
+  readonly sourceKind?: string;
   readonly microsoftRows: ReadonlyArray<{ kind: string; config: unknown }>;
   readonly driveRows: ReadonlyArray<ScanConnection>;
   readonly davRows: ReadonlyArray<ScanConnection>;
@@ -563,9 +574,35 @@ function storedCredentials(secretRef: string | null, config: unknown): Record<st
     : (((config ?? {}) as { credentials?: Record<string, string> }).credentials ?? {});
 }
 
+/**
+ * WHICH FAMILY OF SOURCE THE REPORT SPEAKS TO (the owner, 2026-10-14). Each
+ * says what is true of it: Microsoft its Exchange and Graph sentences, Google
+ * Gmail's settings, Nextcloud its share scan, and every other source a neutral
+ * sentence of its own (`mailboxAccessNotReadForThisSource` and its two
+ * siblings). Until then every source that was not a Google Drive was handed
+ * Microsoft's: Exchange Online PowerShell for an IMAP mailbox, and *"this
+ * tenant has no Microsoft 365 source connection"* for a Dropbox's calendars.
+ */
+type SourceFamily = 'microsoft' | 'google' | 'dav' | 'other';
+
+function familyOf(
+  sourceKind: string | undefined,
+  microsoft: boolean,
+  googleDrive: boolean,
+  dav: boolean,
+): SourceFamily {
+  if (microsoft) return 'microsoft';
+  // A migration's own kind decides: a `gmail` row has no Drive face and is a
+  // Google source all the same. An address asked for directly has no kind,
+  // and keeps the rows' answer.
+  if (sourceKind !== undefined ? googleSourceKinds().includes(sourceKind) : googleDrive) return 'google';
+  if (dav) return 'dav';
+  return 'other';
+}
+
 function inventoryScansFrom(
   mailbox: string,
-  { microsoftRows, driveRows, davRows }: ScanSources,
+  { sourceKind, microsoftRows, driveRows, davRows }: ScanSources,
 ): InventoryScans {
   const microsoftSource = directorySourceOf(microsoftRows);
   const graphTenantId = (microsoftSource?.config as { tenantId?: string } | undefined)?.tenantId;
@@ -588,23 +625,31 @@ function inventoryScansFrom(
 
   const googleDriveConnection = driveRows[0];
   const davSourceConnection = davRows[0];
+  const family = familyOf(
+    sourceKind,
+    microsoftSource !== undefined,
+    googleDriveConnection !== undefined,
+    davSourceConnection !== undefined,
+  );
 
   return {
-    // A Google tenant gets Google's sentence. `mailboxDelegations()` names
+    // Each family its own sentence. `mailboxDelegations()` names
     // `Get-MailboxPermission` and `Get-RecipientPermission`, which are
-    // Exchange Online PowerShell and will never run against a Gmail account —
-    // the same wrong errand the calendar branch below already avoids. "No
+    // Exchange Online PowerShell and will never run against a Gmail account or
+    // an IMAP mailbox: only a Microsoft source is told about them. "No
     // Microsoft source" is the row, not its tenant id: a Microsoft account
     // stores none (0141 T11).
     delegationReason:
-      googleDriveConnection && !microsoftSource
+      family === 'google'
         ? googleMailboxDelegationNotRead()
-        : (() => {
-            const d = mailboxDelegations();
-            // `mailboxDelegations()` is always `not_discoverable`; the
-            // narrowing is the type system's, not a runtime possibility.
-            return d.kind === 'not_discoverable' ? d.reason : 'not inventoried';
-          })(),
+        : family !== 'microsoft'
+          ? mailboxAccessNotReadForThisSource()
+          : (() => {
+              const d = mailboxDelegations();
+              // `mailboxDelegations()` is always `not_discoverable`; the
+              // narrowing is the type system's, not a runtime possibility.
+              return d.kind === 'not_discoverable' ? d.reason : 'not inventoried';
+            })(),
     scanCalendars: async () =>
       available.ok
         ? scanCalendarPermissions(
@@ -613,29 +658,33 @@ function inventoryScansFrom(
             httpClient,
             scanOptions,
           )
-        : microsoftSource
+        : family === 'microsoft'
           ? graphUnread(available.reason)
-          : googleDriveConnection
+          : family === 'google'
             ? {
                 // A Google tenant would otherwise get a Graph-worded reason
                 // about an app registration it never had — a wrong errand.
                 kind: 'not_discoverable' as const,
                 reason: permissionsNotDiscoverable(
-                  'Google Calendar sharing is not yet read by this tool — the Drive scan ' +
-                    'covers files only. Capture calendar sharing by hand before cutover',
+                  'Google Calendar sharing is not read by Ownpace yet; only sharing on Google ' +
+                    'Drive is. Note who you shared each calendar with before you switch over',
                 ),
               }
-            : davSourceConnection
+            : family === 'dav'
               ? {
                   // Same courtesy for a Nextcloud tenant (0104 T2): the file
                   // share scan covers files; calendar sharing stays by hand.
                   kind: 'not_discoverable' as const,
                   reason: permissionsNotDiscoverable(
-                    'Nextcloud calendar sharing is not yet read by this tool — the share ' +
-                      'scan covers files only. Capture calendar sharing by hand before cutover',
+                    'Nextcloud calendar sharing is not read by Ownpace yet; only file and ' +
+                      'folder shares are. Note who you shared each calendar with before you ' +
+                      'switch over',
                   ),
                 }
-              : { kind: 'not_discoverable' as const, reason: available.reason },
+              : // Every other source (the owner, 2026-10-14): its own neutral
+                // sentence, where it was told this tenant had no Microsoft 365
+                // source connection and only Graph could read a directory.
+                { kind: 'not_discoverable' as const, reason: calendarSharingNotReadForThisSource() },
     scanDrive: async () => {
       if (googleDriveConnection) {
         try {
@@ -691,6 +740,12 @@ function inventoryScansFrom(
           password: creds.password ?? '',
           httpClient,
         });
+      }
+      // A source that is not Microsoft's has no OneDrive or SharePoint, so
+      // neither sentence below is its own (the owner, 2026-10-14): a Gmail
+      // mailbox or an IMAP one, a Dropbox or an archive was told about them.
+      if (family !== 'microsoft') {
+        return { kind: 'not_discoverable' as const, reason: fileSharingNotReadForThisSource() };
       }
       // The consent decision answers first, because it holds whatever the
       // credentials say: a deployment without `Files.Read.All` would get a

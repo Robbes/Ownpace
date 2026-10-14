@@ -13,7 +13,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { generateKeyPairSync } from 'node:crypto';
 import { NativeFileRefused, type DriveFile } from '@openmig/connectors';
-import { parseGoogleDriveSource } from '@openmig/shared';
+import { CredentialRefusalError, parseGoogleDriveSource } from '@openmig/shared';
 import {
   ENV_GOOGLE_CREDENTIAL_NAMES,
   STORED_GOOGLE_CREDENTIAL_NAMES,
@@ -78,9 +78,19 @@ describe('refusing before anything is attempted', () => {
       }
     })();
 
-    expect(failure?.message).toContain('refreshToken');
+    // The field as the Accounts form names it (the owner, 2026-10-14); the
+    // stored key stays the refusal's finding.
+    expect(failure?.message).toContain('google-drive source: the sign-in from Connect with Google is not set.');
     expect(failure?.message).not.toContain('GOOGLE_REFRESH_TOKEN');
     expect(failure?.message).toContain("this account's saved details, on the Accounts page");
+    expect(failure).toBeInstanceOf(CredentialRefusalError);
+    const { refusal } = failure as CredentialRefusalError;
+    expect(refusal.fields).toEqual(['refreshToken']);
+    expect(refusal.nl).toContain('google-drive source: de aanmelding via Verbinden met Google is niet ingesteld.');
+    expect(refusal.nl).toContain('Client-ID, Clientsecret en de aanmelding via Verbinden met Google');
+    for (const said of [refusal.en, refusal.nl]) {
+      expect(said).not.toMatch(/\b(clientId|clientSecret|refreshToken)\b|authenticates|minted|this product/);
+    }
   });
 
   it('refuses an EMPTY credential, not merely an absent one', () => {

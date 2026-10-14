@@ -85,6 +85,10 @@ describe('serverFault', () => {
     // reads like a refusal sends somebody hunting through their own input.
     expect(body.reason).toContain('fault on our side');
     expect(body.reason).toContain('replacing these credentials');
+    // What to do with the reference, in a tester's words (the owner,
+    // 2026-10-14): mention it to us. The server log is ours, not theirs.
+    expect(body.reason).toMatch(/Reference [0-9a-f]{8}: mention it when you contact us\.$/);
+    expect(body.reason).not.toMatch(/server log/);
   });
 
   it("never prints an error's body, and still prints its message and stack", () => {

@@ -170,3 +170,37 @@ describe('the bilingual credential refusals', () => {
     expect(Object.values(CREDENTIAL_STORE_NL).every((v) => v.length > 5)).toBe(true);
   });
 });
+
+describe('a sign-in that cannot read somebody else’s mailbox, in a tester’s words (the owner, 2026-10-14)', () => {
+  const { refusal } = delegatedFlowCannotReadMailbox({
+    subject: 'graph-mail source',
+    mailbox: 'shared@acme.example',
+    refreshTokenField: 'refreshToken',
+    clientSecretField: 'clientSecret',
+    store: 'mailbox',
+  });
+
+  it('says what can read it and the two ways out, in both languages', () => {
+    expect(refusal.en).toBe(
+      'graph-mail source: "shared@acme.example" is another person\'s mailbox, or a shared one. ' +
+        "That can only be read through your organisation's own app, with application permissions " +
+        'an administrator has approved. A sign-in (refreshToken) only reads the account that ' +
+        'signed in. Remove refreshToken and fill in clientSecret, or leave the mailbox empty to ' +
+        'read your own.',
+    );
+    expect(refusal.nl).toBe(
+      'graph-mail source: "shared@acme.example" is de mailbox van iemand anders, of een gedeelde. ' +
+        'Die kan alleen worden gelezen via de eigen OAuth-client-app van uw organisatie, met ' +
+        'toepassingsmachtigingen die een beheerder heeft goedgekeurd. Een aanmelding ' +
+        '(refreshToken) leest alleen het account dat zich aanmeldde. Verwijder refreshToken en ' +
+        'vul clientSecret in, of laat de postbus leeg om uw eigen postbus te lezen.',
+    );
+  });
+
+  it('keeps its guide, and none of the protocol’s words', () => {
+    expect(refusal.guide).toBe('microsoft#application');
+    for (const said of [refusal.en, refusal.nl]) {
+      expect(said).not.toMatch(/client-credentials|DELEGATED|GEDELEGEERDE|\/me\b/);
+    }
+  });
+});
