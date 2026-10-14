@@ -115,7 +115,7 @@ export const CREDENTIAL_STORE_NL = {
   /** Self-host: environment variables on the appliance. */
   appliance: 'de omgeving van het apparaat',
   /** Managed: credentials stored against the connection. */
-  managed: 'de opgeslagen gegevens van de bronverbinding',
+  managed: 'de opgeslagen gegevens van dit account, op de pagina Accounts',
 } as const;
 
 /** `a, b and c` / `a, b en c` — the only grammar the lists below need. */
@@ -151,6 +151,33 @@ export interface MissingCredentialsInput {
   readonly detailNl: string;
   /** The guide's section for obtaining them (0148 T7), carried beside the words. */
   readonly guide?: GuideHandle;
+  /**
+   * The same fields as the reader's form names them, in each language, when
+   * that is not the stored key (managed: *Client ID*, not `clientId`; the
+   * owner, 2026-10-14). `fields` keeps the keys; only the words change.
+   */
+  readonly shown?: { readonly en: readonly string[]; readonly nl: readonly string[] };
+}
+
+/**
+ * Display labels for a naming's keys, per language: what the managed form
+ * calls each field. A key with no label is shown as itself.
+ */
+export interface FieldLabels {
+  readonly en: Readonly<Record<string, string>>;
+  readonly nl: Readonly<Record<string, string>>;
+}
+
+/** The missing keys as `labels` show them, in both languages. */
+export function shownFields(
+  keys: readonly string[],
+  names: readonly string[],
+  labels: FieldLabels | undefined,
+): { readonly en: readonly string[]; readonly nl: readonly string[] } {
+  return {
+    en: keys.map((k, i) => labels?.en[k] ?? names[i]!),
+    nl: keys.map((k, i) => labels?.nl[k] ?? names[i]!),
+  };
 }
 
 export function missingCredentials(input: MissingCredentialsInput): CredentialRefusalError {
@@ -161,8 +188,8 @@ export function missingCredentials(input: MissingCredentialsInput): CredentialRe
     fields: names,
     // English kept byte-identical to what these factories always threw, so
     // every log line and every test that pins it is untouched.
-    en: `${input.subject}: ${names.join(', ')} ${isOne ? 'is' : 'are'} not set. ${input.detailEn}`,
-    nl: `${input.subject}: ${list(names, 'en')} ${isOne ? 'is' : 'zijn'} niet ingesteld. ${input.detailNl}`,
+    en: `${input.subject}: ${(input.shown?.en ?? names).join(', ')} ${isOne ? 'is' : 'are'} not set. ${input.detailEn}`,
+    nl: `${input.subject}: ${list(input.shown?.nl ?? names, 'en')} ${isOne ? 'is' : 'zijn'} niet ingesteld. ${input.detailNl}`,
     ...(input.guide === undefined ? {} : { guide: input.guide }),
   });
 }

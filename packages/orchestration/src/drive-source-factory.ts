@@ -22,7 +22,7 @@
  * this mints cannot write to Drive at all (`drive.readonly`).
  */
 
-import { CREDENTIAL_STORE_NL, missingCredentials } from '@openmig/shared';
+import { CREDENTIAL_STORE_NL, missingCredentials, type FieldLabels } from '@openmig/shared';
 import type { FileSource, GoogleNativeFilePolicy, NativeFilePolicies } from '@openmig/shared';
 import {
   DRIVE_READONLY_SCOPE,
@@ -92,6 +92,8 @@ export interface GoogleCredentialNaming {
   readonly where: string;
   /** The same place in Dutch. Optional: unset falls back to the English. */
   readonly whereNl?: string;
+  /** What the managed form calls each field, per language (the owner, 2026-10-14). */
+  readonly labels?: FieldLabels;
 }
 
 /** Self-host: the operator sets environment variables on the appliance. */
@@ -104,13 +106,33 @@ export const ENV_GOOGLE_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   whereNl: CREDENTIAL_STORE_NL.appliance,
 };
 
+/**
+ * The Google fields as the managed form and its Connect button name them, for
+ * a refusal a tester reads (the owner, 2026-10-14). The stored keys stay the
+ * refusal's `fields`.
+ */
+export const GOOGLE_STORED_LABELS: FieldLabels = {
+  en: {
+    clientId: 'Client ID',
+    clientSecret: 'Client secret',
+    refreshToken: 'the sign-in from Connect with Google',
+    appPassword: 'App password',
+  },
+  nl: {
+    clientId: 'Client-ID',
+    clientSecret: 'Clientsecret',
+    refreshToken: 'de aanmelding via Verbinden met Google',
+    appPassword: 'App-wachtwoord',
+  },
+};
+
 /** Managed: the operator stores them on the connection, encrypted. */
 export const STORED_GOOGLE_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   clientId: 'clientId',
   clientSecret: 'clientSecret',
   refreshToken: 'refreshToken',
   serviceAccountKey: STORED_GOOGLE_DWD_KEY_NAME,
-  where: "the source connection's stored credentials",
+  where: "this account's saved details, on the Accounts page",
   whereNl: CREDENTIAL_STORE_NL.managed,
 };
 

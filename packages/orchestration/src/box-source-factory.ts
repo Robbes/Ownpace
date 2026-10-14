@@ -17,7 +17,7 @@
  */
 
 import { CREDENTIAL_STORE_NL } from '@openmig/shared';
-import { missingCredentials } from '@openmig/shared';
+import { missingCredentials, shownFields, type FieldLabels } from '@openmig/shared';
 import type { FileSource } from '@openmig/shared';
 import { BoxFileSource, BoxTokenProvider, boxTransport } from '@openmig/connectors';
 
@@ -43,6 +43,8 @@ export interface BoxCredentialNaming {
   readonly where: string;
   /** The same place in Dutch. Optional: unset falls back to the English. */
   readonly whereNl?: string;
+  /** What the managed form calls each field, per language (the owner, 2026-10-14). */
+  readonly labels?: FieldLabels;
 }
 
 /** Self-host: the operator sets environment variables on the appliance. */
@@ -59,8 +61,12 @@ export const STORED_BOX_CREDENTIAL_NAMES: BoxCredentialNaming = {
   clientId: 'clientId',
   clientSecret: 'clientSecret',
   subjectUserId: "userId (on the source config)",
-  where: "the source connection's stored credentials (userId on the source config)",
-  whereNl: `${CREDENTIAL_STORE_NL.managed} (userId in de bronconfiguratie)`,
+  where: "this account's saved details, on the Accounts page",
+  whereNl: CREDENTIAL_STORE_NL.managed,
+  labels: {
+    en: { clientId: 'Client ID', clientSecret: 'Client secret', subjectUserId: 'Box user ID' },
+    nl: { clientId: 'Client-ID', clientSecret: 'Clientsecret', subjectUserId: 'Box-gebruikers-ID' },
+  },
 };
 
 /** The managed `connection.kind` (migration 0019). */
@@ -72,28 +78,27 @@ export function buildBoxSourceFrom(
   creds: BoxCredentialsAsFound,
   naming: BoxCredentialNaming = ENV_BOX_CREDENTIAL_NAMES,
 ): FileSource {
-  const missing = (['clientId', 'clientSecret', 'subjectUserId'] as const)
-    .filter((key) => !creds[key])
-    .map((key) => naming[key]);
+  const keys = (['clientId', 'clientSecret', 'subjectUserId'] as const).filter((key) => !creds[key]);
+  const missing = keys.map((key) => naming[key]);
   if (missing.length > 0) {
     throw missingCredentials({
       subject: 'box source',
       missing,
+      shown: shownFields(keys, missing, naming.labels),
+      // Written for the person who reads it, not for whoever wrote the
+      // connector (the owner, 2026-10-14). Why there is no token field stays
+      // said: Box replaces its sign-in tokens at every use.
       detailEn:
-        `A Box migration uses the Client Credentials Grant — NOT a refresh token, because Box ` +
-        `rotates refresh tokens on every use and stored credentials here are never written ` +
-        `back — so it needs ${naming.clientId}, ${naming.clientSecret} and the numeric ` +
-        `${naming.subjectUserId} in ${naming.where}. The guide walks through obtaining ` +
-        'each, including the one-time admin authorization; the app is read-only by scope — ' +
-        'this product never writes to a Box.',
+        `All three are needed, in ${naming.where}. Ownpace signs in to Box as an app you ` +
+        'create, because Box replaces its sign-in tokens every time one is used. The app can ' +
+        'only read: Ownpace never writes to your Box. The guide shows where to find each one, ' +
+        'including the approval a Box administrator gives once.',
       detailNl:
-        'Een Box-migratie gebruikt de Client Credentials Grant — GEEN refresh-token, omdat Box ' +
-        'refresh-tokens bij elk gebruik vervangt en opgeslagen gegevens hier nooit worden ' +
-        `teruggeschreven — dus zijn ${naming.clientId}, ${naming.clientSecret} en het ` +
-        `numerieke ${naming.subjectUserId} nodig in ${naming.whereNl ?? naming.where}. ` +
-        'De handleiding legt stap voor stap uit hoe u ze verkrijgt, inclusief de eenmalige ' +
-        'beheerdersautorisatie; de app is alleen-lezen door de gekozen scopes — dit product ' +
-        'schrijft nooit naar een Box.',
+        `Alle drie zijn nodig, in ${naming.whereNl ?? naming.where}. Ownpace meldt zich bij ` +
+        'Box aan als een app die u zelf aanmaakt, omdat Box zijn aanmeldtokens bij elk ' +
+        'gebruik vervangt. De app kan alleen lezen: Ownpace schrijft nooit in uw Box. In de ' +
+        'handleiding staat waar u elk gegeven vindt, ook de goedkeuring die een Box-beheerder ' +
+        'één keer geeft.',
       // The guide's own steps, linked beside the words (0148 T7).
       guide: 'box#connect',
     });

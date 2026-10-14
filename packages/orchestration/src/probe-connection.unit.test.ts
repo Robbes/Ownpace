@@ -10,6 +10,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { GOOGLE_STORED_LABELS } from './drive-source-factory.ts';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
@@ -115,8 +116,8 @@ describe('probeSourceConnection: refusals are answers, in the builders\' own wor
     if (!result.ok) {
       // The exact refusal buildGmailSourceFrom throws — the probe adds
       // nothing and loses nothing (rule 9).
-      expect(result.reason).toContain('clientId');
-      expect(result.reason).toContain("connection's stored credentials");
+      expect(result.reason).toContain('Client ID');
+      expect(result.reason).toContain("this account's saved details, on the Accounts page");
       expect(result.reason).not.toContain('GOOGLE_MAIL_REFRESH_TOKEN');
     }
   });
@@ -222,8 +223,11 @@ describe('whose refusal is it? (workplan 0083)', () => {
       const { refusal } = result.outcome;
       expect(refusal.nl).not.toBe(refusal.en);
       expect(refusal.nl.length).toBeGreaterThan(20);
-      // The field names survive translation — they are what must be set.
-      for (const field of refusal.fields) expect(refusal.nl).toContain(field);
+      // Each field survives translation, as the Dutch form names it (since
+      // 2026-10-14, the owner: the form's label, not the stored key).
+      for (const field of refusal.fields) {
+        expect(refusal.nl).toContain(GOOGLE_STORED_LABELS.nl[field] ?? field);
+      }
       // And `reason` is still the English, so every caller that only knows
       // about `reason` is unchanged.
       if (!result.ok) expect(result.reason).toBe(refusal.en);

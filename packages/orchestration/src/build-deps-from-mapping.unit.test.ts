@@ -95,9 +95,9 @@ describe('buildSourceConnectorFromCredentials', () => {
         return e as Error;
       }
     })();
-    expect(failure?.message).toContain('clientSecret');
-    expect(failure?.message).toContain('refreshToken');
-    expect(failure?.message).toContain("connection's stored credentials");
+    expect(failure?.message).toContain('Client secret');
+    expect(failure?.message).toContain('the sign-in from Connect with Google');
+    expect(failure?.message).toContain("this account's saved details, on the Accounts page");
     expect(failure?.message).not.toContain('GOOGLE_MAIL_REFRESH_TOKEN');
   });
 

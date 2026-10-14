@@ -27,11 +27,12 @@
  * deletion evidence — exactly as it does for every other IMAP source.
  */
 
-import { CREDENTIAL_STORE_NL, CredentialRefusalError, missingAccountAddress } from '@openmig/shared';
+import { CREDENTIAL_STORE_NL, CredentialRefusalError, missingAccountAddress, shownFields } from '@openmig/shared';
 import type { MailFolder, MailItem, RawMessage, SourceConnector, SyncCursor, TokenProvider } from '@openmig/shared';
 import { GoogleTokenProvider, type ImapByteMeter } from '@openmig/connectors';
 import { buildImapSourceFrom } from './mail-source-factory.ts';
 import type { GoogleCredentialNaming, GoogleCredentialsAsFound } from './drive-source-factory.ts';
+import { GOOGLE_STORED_LABELS } from './drive-source-factory.ts';
 import {
   ENV_GOOGLE_DWD_KEY_NAME,
   STORED_GOOGLE_DWD_KEY_NAME,
@@ -71,8 +72,9 @@ export const STORED_GMAIL_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   refreshToken: 'refreshToken',
   serviceAccountKey: STORED_GOOGLE_DWD_KEY_NAME,
   appPassword: 'appPassword',
-  where: "the source connection's stored credentials",
+  where: "this account's saved details, on the Accounts page",
   whereNl: CREDENTIAL_STORE_NL.managed,
+  labels: GOOGLE_STORED_LABELS,
 };
 
 /** The managed `connection.kind` for a Gmail source (migration 0012). */
@@ -197,12 +199,14 @@ export function buildGmailSourceFrom(
   const hasOauthTrio = Boolean(creds.clientId && creds.clientSecret && creds.refreshToken);
   const appPassword = creds.appPassword?.trim();
 
-  const missing: string[] = [];
-  if (!dwd && !appPassword) {
-    if (!creds.clientId) missing.push(naming.clientId);
-    if (!creds.clientSecret) missing.push(naming.clientSecret);
-    if (!creds.refreshToken) missing.push(naming.refreshToken);
-  }
+  const keys =
+    !dwd && !appPassword
+      ? (['clientId', 'clientSecret', 'refreshToken'] as const).filter((k) => !creds[k])
+      : [];
+  const missing: string[] = keys.map((k) => naming[k]);
+  const shown = shownFields(keys, missing, naming.labels);
+  const appPw = (lang: 'en' | 'nl'): string | undefined =>
+    naming.appPassword === undefined ? undefined : (naming.labels?.[lang].appPassword ?? naming.appPassword);
   if (missing.length > 0) {
     throw new CredentialRefusalError({
       code: 'credentials_missing',
@@ -218,31 +222,31 @@ export function buildGmailSourceFrom(
       // that would otherwise surface as an unexplained authentication failure
       // hours later), and that it is for personal accounts only. Saying the
       // first without the rest would be a recommendation dressed as a fact.
+      // Written for the person who reads it (the owner, 2026-10-14); the
+      // app password's four facts stay said, in plainer words.
       en:
-        `Gmail source is missing ${missing.join(', ')} in ${naming.where}. All three are ` +
-        'required: the OAuth client (id + secret) and a refresh token consented with the ' +
-        `${GMAIL_SCOPE} scope — a Drive-consented token will not mint mail tokens. ` +
-        'The guide walks through obtaining each.' +
+        `Gmail source is missing ${shown.en.join(', ')} in ${naming.where}. All three are ` +
+        "needed: your own app's client ID and secret, and a sign-in that gave permission " +
+        `for Gmail (${GMAIL_SCOPE}). A sign-in given for Google Drive does not cover mail. ` +
+        'The guide shows where to find each one.' +
         (naming.appPassword
-          ? ` A PERSONAL Google account may instead store ${naming.appPassword} — an app ` +
-            'password, which Google itself recommends against and which requires 2-step ' +
-            'verification on the account before one can be created at all. It is not ' +
-            'available on a Workspace account, and it is not the better credential: an app ' +
-            'password grants the whole mailbox, where a consented token grants one scope.'
+          ? ` A personal Google account can store an app password instead (${appPw('en')}). ` +
+            'Google itself recommends against them, the account needs 2-step ' +
+            'verification before you can create one, and they are not available on a ' +
+            'Workspace account. An app password also opens the whole mailbox, as your ' +
+            'password does, and works outside your own app.'
           : ''),
       nl:
-        `Gmail-bron: ${missing.join(', ')} ontbreekt in ${naming.whereNl ?? naming.where}. ` +
-        'Alle drie zijn vereist: de OAuth-client (id + secret) en een refresh-token met ' +
-        `toestemming voor de scope ${GMAIL_SCOPE} — een token dat voor Drive is toegestaan ` +
-        'levert geen mailtokens op. De handleiding legt stap voor stap uit ' +
-        'hoe u ze verkrijgt.' +
+        `Gmail-bron: ${shown.nl.join(', ')} ontbreekt in ${naming.whereNl ?? naming.where}. ` +
+        'Alle drie zijn nodig: de Client-ID en het clientsecret van uw eigen oauth-app, en ' +
+        `een aanmelding met toestemming voor Gmail (${GMAIL_SCOPE}). Een aanmelding voor ` +
+        'Google Drive geldt niet voor e-mail. In de handleiding staat waar u elk gegeven vindt.' +
         (naming.appPassword
-          ? ` Een PERSOONLIJK Google-account kan in plaats daarvan ${naming.appPassword} ` +
-            'opslaan — een app-wachtwoord, dat Google zelf afraadt en waarvoor ' +
-            'verificatie in twee stappen op het account nodig is voordat er überhaupt een ' +
-            'aangemaakt kan worden. Het bestaat niet op een Workspace-account, en het is ' +
-            'niet de betere keuze: een app-wachtwoord geeft toegang tot de hele mailbox, ' +
-            'terwijl een token met toestemming één scope geeft.'
+          ? ` Een persoonlijk Google-account kan in plaats daarvan een app-wachtwoord ` +
+            `opslaan (${appPw('nl')}). Google raadt dat zelf af, het account heeft ` +
+            'verificatie in twee stappen nodig voordat u er een kunt maken, en op een ' +
+            'Workspace-account bestaat het niet. Een app-wachtwoord opent bovendien de hele ' +
+            'mailbox, net als uw wachtwoord, en werkt buiten uw eigen oauth-app om.'
           : ''),
       // The guide's own-app steps, linked beside the words (0148 T7).
       guide: 'google#own-app',

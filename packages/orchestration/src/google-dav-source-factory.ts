@@ -24,11 +24,13 @@
 import {
   CREDENTIAL_STORE_NL,
   CredentialRefusalError,
+  shownFields,
   missingAccountAddress,
 } from '@openmig/shared';
 import type { CalendarSource, ContactSource, TokenProvider } from '@openmig/shared';
 import { CalDAVSource, CarddavSource, GoogleTokenProvider } from '@openmig/connectors';
 import {
+  GOOGLE_STORED_LABELS,
   type GoogleCredentialNaming,
   type GoogleCredentialsAsFound,
 } from './drive-source-factory.ts';
@@ -90,8 +92,9 @@ export const STORED_GOOGLE_DAV_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   clientSecret: 'clientSecret',
   refreshToken: 'refreshToken',
   serviceAccountKey: STORED_GOOGLE_DWD_KEY_NAME,
-  where: "the source connection's stored credentials",
+  where: "this account's saved details, on the Accounts page",
   whereNl: CREDENTIAL_STORE_NL.managed,
+  labels: GOOGLE_STORED_LABELS,
 };
 
 /** The managed `connection.kind`s (migration 0015). */
@@ -151,25 +154,27 @@ function refuseMissing(
   creds: GoogleCredentialsAsFound,
   naming: GoogleCredentialNaming,
 ): { clientId: string; clientSecret: string; refreshToken: string } {
-  const missing: string[] = [];
-  if (!creds.clientId) missing.push(naming.clientId);
-  if (!creds.clientSecret) missing.push(naming.clientSecret);
-  if (!creds.refreshToken) missing.push(naming.refreshToken);
+  const keys = (['clientId', 'clientSecret', 'refreshToken'] as const).filter((k) => !creds[k]);
+  const missing = keys.map((k) => naming[k]);
+  const shown = shownFields(keys, missing, naming.labels);
   if (missing.length > 0) {
     throw new CredentialRefusalError({
       code: 'credentials_missing',
       fields: missing,
+      // Written for the person who reads it (the owner, 2026-10-14).
       en:
-        `Google ${what} source is missing ${missing.join(', ')} in ${naming.where}. All three are ` +
-        'required: the OAuth client (id + secret) and a refresh token consented with the ' +
-        `${scope} scope — a token consented for another Google product will not mint these. ` +
-        'The guide walks through obtaining each.',
+        `Google ${what} source is missing ${shown.en.join(', ')} in ${naming.where}. All three are ` +
+        "needed: your own app's client ID and secret, and a sign-in that gave permission for " +
+        `Google ${what} (${scope}). A sign-in given for another Google product does not cover ` +
+        `${what}. ` +
+        'The guide shows where to find each one.',
       nl:
-        `Google ${what}-bron: ${missing.join(', ')} ontbreekt in ` +
-        `${naming.whereNl ?? naming.where}. Alle drie zijn vereist: de OAuth-client ` +
-        `(id + secret) en een refresh-token met toestemming voor de scope ${scope} — een ` +
-        'token dat voor een ander Google-product is toegestaan levert deze niet op. ' +
-        'De handleiding legt stap voor stap uit hoe u ze verkrijgt.',
+        `Google ${what}-bron: ${shown.nl.join(', ')} ontbreekt in ` +
+        `${naming.whereNl ?? naming.where}. Alle drie zijn nodig: de Client-ID en het ` +
+        `clientsecret van uw eigen oauth-app, en een aanmelding met toestemming voor Google ` +
+        `${what} (${scope}). Een aanmelding voor een ander Google-product geldt niet voor ` +
+        `${what}. In de ` +
+        'handleiding staat waar u elk gegeven vindt.',
       // The guide's own-app steps, linked beside the words (0148 T7).
       guide: 'google#own-app',
     });

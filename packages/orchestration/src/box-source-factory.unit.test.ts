@@ -25,13 +25,22 @@ describe('refusing before anything is attempted', () => {
   });
 
   it('says WHY there is no refresh token — Box rotates them', () => {
-    expect(() => buildBoxSourceFrom({}, {})).toThrow(/rotates refresh tokens/);
+    expect(() => buildBoxSourceFrom({}, {})).toThrow(/replaces its sign-in tokens every time one is used/);
   });
 
-  it('names the STORED keys for the managed edition — a fix the operator can apply', () => {
-    expect(() =>
-      buildBoxSourceFrom({}, { clientId: 'id' }, STORED_BOX_CREDENTIAL_NAMES),
-    ).toThrow(/clientSecret, userId \(on the source config\)/);
+  it("names the managed form's fields, as the tester reads them, and keeps the stored keys as the finding", () => {
+    // Since 2026-10-14 (the owner): the words say *Client secret* and *Box
+    // user ID*, as the Accounts form does; `fields` still carries the keys.
+    let refusal: { fields?: readonly string[]; en: string; nl: string } | undefined;
+    try {
+      buildBoxSourceFrom({}, { clientId: 'id' }, STORED_BOX_CREDENTIAL_NAMES);
+    } catch (e) {
+      refusal = (e as { refusal?: typeof refusal }).refusal;
+    }
+    expect(refusal?.en).toMatch(/^box source: Client secret, Box user ID are not set\./);
+    expect(refusal?.nl).toMatch(/^box source: Clientsecret en Box-gebruikers-ID zijn niet ingesteld\./);
+    expect(refusal?.fields).toEqual(['clientSecret', 'userId (on the source config)']);
+    expect(refusal?.en).not.toMatch(/BOX_CLIENT/);
   });
 
   it('constructs with all three, no network touched', () => {

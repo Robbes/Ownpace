@@ -97,7 +97,7 @@ describe('the probe answers for the account kind', () => {
       expect(result.reason).toContain('auth/calendar');
       // ...and it is the STORED vocabulary, because a managed row's
       // credentials are on the connection, not in anybody's environment.
-      expect(result.reason).toContain("connection's stored credentials");
+      expect(result.reason).toContain("this account's saved details, on the Accounts page");
     }
   });
 });
@@ -200,7 +200,7 @@ describe('the account row wears its mail and file faces too', () => {
     }
     expect(reason, 'the google account never reached a mail builder').not.toBe('');
     expect(reason).not.toContain('only supports');
-    expect(reason).toContain("connection's stored credentials");
+    expect(reason).toContain("this account's saved details, on the Accounts page");
   });
 
   it('builds the file face with the Drive builder', () => {

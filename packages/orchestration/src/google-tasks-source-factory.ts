@@ -16,10 +16,11 @@
  * a 429 into a pause rather than a failed pass (0126 T5).
  */
 
-import { CREDENTIAL_STORE_NL, CredentialRefusalError } from '@openmig/shared';
+import { CREDENTIAL_STORE_NL, CredentialRefusalError, shownFields } from '@openmig/shared';
 import type { CalendarSource, ThrottleLimiter, TokenProvider } from '@openmig/shared';
 import { GoogleTasksSource, GoogleTokenProvider } from '@openmig/connectors';
 import type { GoogleCredentialNaming, GoogleCredentialsAsFound } from './drive-source-factory.ts';
+import { GOOGLE_STORED_LABELS } from './drive-source-factory.ts';
 import { STORED_GOOGLE_DWD_KEY_NAME, dwdTokenProviderIfConfigured } from './google-dwd.ts';
 
 /** The one scope this face asks for and mints with: read-only, all a migration needs. */
@@ -31,8 +32,9 @@ export const STORED_GOOGLE_TASKS_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   clientSecret: 'clientSecret',
   refreshToken: 'refreshToken',
   serviceAccountKey: STORED_GOOGLE_DWD_KEY_NAME,
-  where: "the source connection's stored credentials",
+  where: "this account's saved details, on the Accounts page",
   whereNl: CREDENTIAL_STORE_NL.managed,
+  labels: GOOGLE_STORED_LABELS,
 };
 
 /**
@@ -61,25 +63,27 @@ function refuseMissing(
   creds: GoogleCredentialsAsFound,
   naming: GoogleCredentialNaming,
 ): { clientId: string; clientSecret: string; refreshToken: string } {
-  const missing: string[] = [];
-  if (!creds.clientId) missing.push(naming.clientId);
-  if (!creds.clientSecret) missing.push(naming.clientSecret);
-  if (!creds.refreshToken) missing.push(naming.refreshToken);
+  const keys = (['clientId', 'clientSecret', 'refreshToken'] as const).filter((k) => !creds[k]);
+  const missing = keys.map((k) => naming[k]);
+  const shown = shownFields(keys, missing, naming.labels);
   if (missing.length > 0) {
     throw new CredentialRefusalError({
       code: 'credentials_missing',
       fields: missing,
+      // Written for the person who reads it (the owner, 2026-10-14).
       en:
-        `Google Tasks source is missing ${missing.join(', ')} in ${naming.where}. All three are ` +
-        'required: the OAuth client (id + secret) and a refresh token consented with the ' +
-        `${GOOGLE_TASKS_SCOPE} scope — a token consented for another Google product will not ` +
-        'mint these. The guide walks through obtaining each.',
+        `Google Tasks source is missing ${shown.en.join(', ')} in ${naming.where}. All three are ` +
+        "needed: your own app's client ID and secret, and a sign-in that gave permission for " +
+        `Google Tasks (${GOOGLE_TASKS_SCOPE}). A sign-in given for another Google product does ` +
+        'not cover Tasks. The ' +
+        'guide shows where to find each one.',
       nl:
-        `Google Tasks-bron: ${missing.join(', ')} ontbreekt in ` +
-        `${naming.whereNl ?? naming.where}. Alle drie zijn vereist: de OAuth-client ` +
-        `(id + secret) en een refresh-token met toestemming voor de scope ${GOOGLE_TASKS_SCOPE} — ` +
-        'een token dat voor een ander Google-product is toegestaan levert deze niet op. ' +
-        'De handleiding legt stap voor stap uit hoe u ze verkrijgt.',
+        `Google Tasks-bron: ${shown.nl.join(', ')} ontbreekt in ` +
+        `${naming.whereNl ?? naming.where}. Alle drie zijn nodig: de Client-ID en het ` +
+        'clientsecret van uw eigen oauth-app, en een aanmelding met toestemming voor Google ' +
+        `Tasks (${GOOGLE_TASKS_SCOPE}). Een aanmelding voor een ander Google-product geldt niet ` +
+        'voor Tasks. In de ' +
+        'handleiding staat waar u elk gegeven vindt.',
       // The guide's own-app steps, linked beside the words (0148 T7).
       guide: 'google#own-app',
     });

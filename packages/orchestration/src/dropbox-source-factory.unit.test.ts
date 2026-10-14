@@ -28,7 +28,7 @@ describe('refusing before anything is attempted', () => {
   it("names the STORED keys for the managed edition — a fix the operator can apply", () => {
     expect(() =>
       buildDropboxSourceFrom({}, { appKey: 'k' }, STORED_DROPBOX_CREDENTIAL_NAMES),
-    ).toThrow(/clientSecret, refreshToken/);
+    ).toThrow(/App secret, the sign-in from Connect with Dropbox are not set/);
   });
 
   it('constructs with all three, no network touched', () => {
