@@ -92,7 +92,12 @@ Two things the page did **not** settle, stated rather than implied away:
   add the full scope and read its row — or narrow the product to read-only, which is the
   better outcome and is now a Stage 6 question in `docs/owner-test-runbook.md`: the console
   listing `calendar.readonly` **under the CalDAV API** suggests Google's CalDAV endpoint
-  accepts it, and this product never writes a source.
+  accepts it, and this product never writes a source. **Researched 2026-10-14 (issue #1553),
+  not settled:** Google's CalDAV pages name no scope, and the one first-hand report found
+  (Haruspex PR #347, live-tested) says Google's CalDAV lists calendars for a
+  `calendar.readonly` token but answers 403 to event REPORTs. Until the runbook's curl test
+  says otherwise, plan the submission on the full `.../auth/calendar`: declare it on *Data
+  Access*, and keep `calendar.readonly` off the list unless the product asks for it.
 - There is no `.../auth/caldav` scope. Older notes (ADR-0041, workplan 0089) use that name
   for the calendar scope; the product has always asked for `.../auth/calendar`.
 
