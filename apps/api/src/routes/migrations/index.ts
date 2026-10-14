@@ -2768,12 +2768,14 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       });
     } else if (error instanceof PastTheCap) {
       // Also a refusal the person can act on (0143 T2a): the sentence says how
-      // many there are, how many there may be, and what makes room.
+      // many there are, how many there may be, and what makes room. Its Dutch
+      // rides beside it as `messageNl`, as a link holder's refusals do.
       res.status(409).json({
         error: 'migration_cap',
         unfinished: error.unfinished,
         cap: error.cap,
-        message: error.message,
+        message: error.said.en,
+        messageNl: error.said.nl,
       });
     } else {
       // A 500 is a BUG, not a refusal, so its internals must not reach a
