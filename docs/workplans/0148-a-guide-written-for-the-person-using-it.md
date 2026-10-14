@@ -2,7 +2,25 @@
 
 > **In one line:** Dutch and English customer guides per source and target card, operator text kept in `docs/*-setup.md`, no own-app hints where the deployment carries one, the export archive labelled experimental and readable from the tester's Nextcloud or WebDAV files, `Docs.tsx` extended.
 
-## Status — 2026-10-12 (update this block at the end of every session)
+## Status — 2026-10-14 (update this block at the end of every session)
+
+**2026-10-14: the five credential refusals, written for the person who reads them.** The owner:
+*"make them plainer and in line with what testers read instead of Devs. I don't need to review,
+you write those."* Box, Dropbox, Google Tasks, Google Calendar/Contacts and Gmail, in both
+languages:
+
+- **The fields are named as the managed form names them.** *Client ID*, *Client secret*, *Box
+  user ID*, *App key*, *the sign-in from Connect with Google* (Dutch: *Client-ID*,
+  *Clientsecret*, *Box-gebruikers-ID*, *App-sleutel*, *de aanmelding via Verbinden met Google*).
+  These come from the stored namings' new `labels` (`shownFields` in `credential-refusals.ts`).
+  The refusal's `fields` keep the stored keys. The appliance keeps its environment variables,
+  which are what its reader sets.
+- **The place is said as the tester finds it:** *this account's saved details, on the Accounts
+  page* / *de opgeslagen gegevens van dit account, op de pagina Accounts*.
+- **The explanations are plain.** For example, Box replaces its sign-in tokens at every use, so
+  Ownpace signs in as an app you create. The facts the guards hold stay said: why Box has no
+  token field, each Google face's scope (in brackets, because the tester's own app has to ask
+  for it), and the app password's four caveats.
 
 **2026-10-12: T7's second half is built: a refusal links its guide.** A refusal
 keeps its words, in English as written, and names no `docs/….md` any more. Beside the words it

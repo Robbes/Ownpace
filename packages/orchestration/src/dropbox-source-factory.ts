@@ -15,7 +15,7 @@
  */
 
 import { CREDENTIAL_STORE_NL } from '@openmig/shared';
-import { missingCredentials } from '@openmig/shared';
+import { missingCredentials, shownFields, type FieldLabels } from '@openmig/shared';
 import type { DropboxNativeFilePolicies, FileSource } from '@openmig/shared';
 import { DropboxFileSource, DropboxTokenProvider, dropboxTransport } from '@openmig/connectors';
 
@@ -41,6 +41,8 @@ export interface DropboxCredentialNaming {
   readonly where: string;
   /** The same place in Dutch. Optional: unset falls back to the English. */
   readonly whereNl?: string;
+  /** What the managed form calls each field, per language (the owner, 2026-10-14). */
+  readonly labels?: FieldLabels;
 }
 
 /** Self-host: the operator sets environment variables on the appliance. */
@@ -57,8 +59,12 @@ export const STORED_DROPBOX_CREDENTIAL_NAMES: DropboxCredentialNaming = {
   appKey: 'clientId',
   appSecret: 'clientSecret',
   refreshToken: 'refreshToken',
-  where: "the source connection's stored credentials",
+  where: "this account's saved details, on the Accounts page",
   whereNl: CREDENTIAL_STORE_NL.managed,
+  labels: {
+    en: { appKey: 'App key', appSecret: 'App secret', refreshToken: 'the sign-in from Connect with Dropbox' },
+    nl: { appKey: 'App-sleutel', appSecret: 'App-secret', refreshToken: 'de aanmelding via Verbinden met Dropbox' },
+  },
 };
 
 /** The managed `connection.kind` (migration 0018). */
@@ -70,24 +76,23 @@ export function buildDropboxSourceFrom(
   creds: DropboxCredentialsAsFound,
   naming: DropboxCredentialNaming = ENV_DROPBOX_CREDENTIAL_NAMES,
 ): FileSource {
-  const missing = (['appKey', 'appSecret', 'refreshToken'] as const)
-    .filter((key) => !creds[key])
-    .map((key) => naming[key]);
+  const keys = (['appKey', 'appSecret', 'refreshToken'] as const).filter((key) => !creds[key]);
+  const missing = keys.map((key) => naming[key]);
   if (missing.length > 0) {
     throw missingCredentials({
       subject: 'dropbox source',
       missing,
+      shown: shownFields(keys, missing, naming.labels),
+      // Written for the person who reads it (the owner, 2026-10-14).
       detailEn:
-        `A Dropbox migration authenticates as the account that consented, so it needs all three ` +
-        `of ${naming.appKey}, ${naming.appSecret} and ${naming.refreshToken} in ${naming.where}. ` +
-        'The guide walks through obtaining each; create the app with the read-only ' +
-        'files scopes — this product never writes to a Dropbox.',
+        'Ownpace reads Dropbox as the account that gave permission, so all three are ' +
+        `needed, in ${naming.where}. The guide shows where to find each one. Create your own ` +
+        'app with read-only access to files: Ownpace never writes to your Dropbox.',
       detailNl:
-        'Een Dropbox-migratie meldt zich aan als het account dat toestemming gaf, dus alle drie ' +
-        `zijn nodig: ${naming.appKey}, ${naming.appSecret} en ${naming.refreshToken} in ` +
-        `${naming.whereNl ?? naming.where}. De handleiding legt stap voor stap uit hoe u ` +
-        'ze verkrijgt; maak de app aan met de alleen-lezen bestandsscopes — dit product ' +
-        'schrijft nooit naar een Dropbox.',
+        'Ownpace leest Dropbox als het account dat toestemming gaf, dus alle drie zijn ' +
+        `nodig, in ${naming.whereNl ?? naming.where}. In de handleiding staat waar u elk ` +
+        'gegeven vindt. Maak uw eigen oauth-app aan met alleen leesrechten op bestanden: ' +
+        'Ownpace schrijft nooit in uw Dropbox.',
       // The guide's own-app steps, linked beside the words (0148 T7).
       guide: 'dropbox#own-app',
     });

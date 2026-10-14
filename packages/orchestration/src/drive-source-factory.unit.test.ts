@@ -80,7 +80,7 @@ describe('refusing before anything is attempted', () => {
 
     expect(failure?.message).toContain('refreshToken');
     expect(failure?.message).not.toContain('GOOGLE_REFRESH_TOKEN');
-    expect(failure?.message).toContain("connection's stored credentials");
+    expect(failure?.message).toContain("this account's saved details, on the Accounts page");
   });
 
   it('refuses an EMPTY credential, not merely an absent one', () => {

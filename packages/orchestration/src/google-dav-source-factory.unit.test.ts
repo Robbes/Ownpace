@@ -66,9 +66,10 @@ describe('refusing before anything is attempted', () => {
         return e as Error;
       }
     })();
-    expect(failure?.message).toContain('refreshToken');
+    // Named as the managed form does since 2026-10-14 (the owner).
+    expect(failure?.message).toContain('the sign-in from Connect with Google');
     expect(failure?.message).not.toContain('GOOGLE_CALENDAR_REFRESH_TOKEN');
-    expect(failure?.message).toContain("connection's stored credentials");
+    expect(failure?.message).toContain("this account's saved details, on the Accounts page");
   });
 
   it('names the scope the consent must carry', () => {

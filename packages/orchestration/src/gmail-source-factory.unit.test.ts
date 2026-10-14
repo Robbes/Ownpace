@@ -69,9 +69,10 @@ describe('refusing before anything is attempted', () => {
       }
     })();
 
-    expect(failure?.message).toContain('refreshToken');
+    // Named as the managed form does since 2026-10-14 (the owner).
+    expect(failure?.message).toContain('the sign-in from Connect with Google');
     expect(failure?.message).not.toContain('GOOGLE_MAIL_REFRESH_TOKEN');
-    expect(failure?.message).toContain("connection's stored credentials");
+    expect(failure?.message).toContain("this account's saved details, on the Accounts page");
   });
 
   it('refuses an EMPTY credential, not merely an absent one', () => {
@@ -164,14 +165,14 @@ describe('the app password: opt-in, last resort, honestly labelled (0089 T7)', (
 
     // Naming the shorter road without naming what it costs would be a
     // recommendation dressed as a fact.
-    expect(failure.message).toMatch(/appPassword/);
+    expect(failure.message).toMatch(/an app password instead \(App password\)/);
     expect(failure.message).toMatch(/recommends against/);
     // 2SV is the prerequisite that would otherwise surface as an unexplained
     // authentication failure hours later.
     expect(failure.message).toMatch(/2-step verification/);
     expect(failure.message).toMatch(/not available on a Workspace account/i);
     // And it is honestly described as WIDER, not narrower.
-    expect(failure.message).toMatch(/grants the whole mailbox/);
+    expect(failure.message).toMatch(/opens the whole mailbox/);
   });
 
   it('never tells anyone to enable IMAP — always-on since March 2025', () => {

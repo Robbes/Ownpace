@@ -104,7 +104,7 @@ describe('the builder a pass uses', () => {
   it('refuses at build time, naming what is missing, before any pass starts', () => {
     expect(() =>
       buildTaskSourceFromConnection({ ...ROW, creds: { clientId: 'cid' } }, undefined),
-    ).toThrow(/Google Tasks source is missing clientSecret, refreshToken/);
+    ).toThrow(/Google Tasks source is missing Client secret, the sign-in from Connect with Google/);
   });
 
   it('takes domain-wide delegation from a service-account key, impersonating the row’s own account', async () => {
