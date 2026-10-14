@@ -16,9 +16,10 @@
  * line is short AND the rest is still reachable, because a disclosure
  * compressed out of existence is what §11.2 forbids.
  */
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
+import { describe, it, expect, afterEach } from 'vitest';
 import { MemoryRouter } from 'react-router';
+import { LocaleProvider } from '../../i18n/index.tsx';
 import { SCOPE_MANIFEST, type ScopeManifest } from '@openmig/shared';
 import ScopeManifestPanel from './ScopeManifestPanel.tsx';
 
@@ -83,10 +84,64 @@ describe('one line per row, the rest folded', () => {
     expect(folds.length).toBeGreaterThan(0);
     for (const fold of folds) expect(fold).toBeVisible();
     // The shared-mailbox row's guide, beside the row rather than a file name
-    // in it (0148 T7).
-    expect(screen.getByRole('link', { name: /^Guide: / })).toHaveAttribute(
-      'href',
-      '/docs/microsoft#application',
+    // in it (0148 T7), and Google Photos' Takeout route (2026-10-14).
+    const guides = screen.getAllByRole('link', { name: /^Guide: / }).map((a) => a.getAttribute('href'));
+    expect(guides).toContain('/docs/microsoft#application');
+    expect(guides).toContain('/docs/google#photos');
+  });
+});
+
+describe('in the reader\'s language (2026-10-14)', () => {
+  afterEach(() => {
+    cleanup();
+    window.localStorage.removeItem('ownpace.locale');
+  });
+
+  const inLocale = (locale: 'en' | 'nl', panel: ScopeManifest) => {
+    window.localStorage.setItem('ownpace.locale', locale);
+    return render(
+      <MemoryRouter>
+        <LocaleProvider>
+          <ScopeManifestPanel manifest={panel} />
+        </LocaleProvider>
+      </MemoryRouter>,
     );
+  };
+
+  it('shows each row of the real manifest in Dutch under nl, its fold included', () => {
+    inLocale('nl', SCOPE_MANIFEST);
+    for (const column of ['migrates', 'partial', 'doesNotMigrate'] as const) {
+      for (const entry of SCOPE_MANIFEST[column]) {
+        expect(entry.nl, `"${entry.item}" has no Dutch`).toBeDefined();
+        expect(screen.getAllByText(entry.nl!.detail, { exact: false }).length).toBeGreaterThan(0);
+        if (entry.nl!.more !== undefined) {
+          expect(screen.getAllByText(entry.nl!.more).length).toBeGreaterThan(0);
+        }
+      }
+    }
+    // The column titles and the fold are the dictionary's, in Dutch too.
+    expect(screen.getAllByText('Meer').length).toBeGreaterThan(0);
+    // And no English line is left on the Dutch screen.
+    expect(screen.queryByText('Address books and contacts.', { exact: false })).toBeNull();
+  });
+
+  it('shows the English as served, said as English, for a row with no Dutch', () => {
+    inLocale(
+      'nl',
+      manifest({ migrates: [{ item: 'Email', detail: 'Only in English.' }] }),
+    );
+    const row = screen.getByText(/Only in English/);
+    expect(row.closest('li')).toHaveAttribute('lang', 'en');
+  });
+
+  it('shows the English under en, whatever Dutch the row carries', () => {
+    inLocale(
+      'en',
+      manifest({
+        migrates: [{ item: 'Email', detail: 'In English.', nl: { item: 'E-mail', detail: 'In het Nederlands.' } }],
+      }),
+    );
+    expect(screen.getByText(/In English/)).toBeVisible();
+    expect(screen.queryByText(/In het Nederlands/)).toBeNull();
   });
 });

@@ -704,6 +704,11 @@ export const ScopeManifestEntrySchema = z.object({
     .string()
     .transform((value) => (isGuideHandle(value) ? value : undefined))
     .optional(),
+  /** The row in Dutch, beside its English (2026-10-14): the panel shows it
+   *  under `nl`. Named here for the reason `more` is: z.object would strip it. */
+  nl: z
+    .object({ item: z.string(), detail: z.string(), more: z.string().optional() })
+    .optional(),
 });
 export const ScopeManifestSchema = z.object({
   version: z.string(),

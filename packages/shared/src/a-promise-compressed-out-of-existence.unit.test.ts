@@ -18,13 +18,13 @@
  * guard is what makes that resolution survive the next person who is asked for
  * less text. Each phrase below is a fact a customer acts on:
  *
- *  - that the JMAP contacts path cannot checksum-verify, so verification
- *    counts and checks presence instead;
+ *  - that on a JMAP destination the check cannot compare contacts' contents,
+ *    so it counts them and checks that each one is there instead;
  *  - that a generated Message-ID is added to the COPY and the original is
  *    never touched;
  *  - that permissions are inventoried and NOT applied for them;
- *  - that mailbox delegation cannot be read through Graph at all, so they must
- *    capture it themselves before cutover;
+ *  - that who else could open or send from a mailbox cannot be read at all,
+ *    so they must note it themselves before they switch over;
  *  - that a shared mailbox needs application permissions on the source.
  *
  * Each may be worded any way at all, and it may sit in `detail` or behind the
@@ -80,17 +80,27 @@ describe('the line is one line', () => {
 describe('the caveats a customer acts on are still there', () => {
   // Phrase by phrase rather than whole sentences: the wording is free to
   // change, the fact is not.
+  //
+  // Reworded in plain words on 2026-10-14, each pattern with its fact: the
+  // JMAP contacts narrowing said "content-checksum sampling does not run", and
+  // says now that the check does not compare their contents there; the
+  // permissions said "nothing is auto-applied" and "NOT readable through
+  // Graph", and say now that nothing is applied for you and that Ownpace
+  // cannot read who else could use a mailbox; distribution lists said
+  // "recreating them is manual", and say now that you recreate them yourself.
   const MUST_SURVIVE: ReadonlyArray<readonly [string, RegExp]> = [
-    ['JMAP contacts cannot be checksum-verified', /content-checksum sampling does not run/i],
-    ['…so verification checks counts and presence', /checks counts and presence/i],
+    ['JMAP contacts cannot be compared by content', /JMAP destination[^.]*does not compare\s+their contents/i],
+    ['…so verification checks counts and presence', /how many there are and that each one is there/i],
     ['a generated Message-ID goes on the copy', /generated Message-ID/i],
     ['…and the original is never modified', /original on the source is never modified/i],
-    ['permissions are not applied for them', /nothing is auto-applied/i],
-    ['mailbox delegation is unreadable through Graph', /NOT readable\s+through Graph/i],
+    ['…and mail a connection cannot give one is not migrated', /cannot give one, which are not migrated/i],
+    ['permissions are not applied for them', /nothing is applied for you/i],
+    ['mailbox delegation cannot be read', /Send As\)\s+cannot be read by Ownpace at all/i],
     ['…so they capture it themselves', /Exchange Online PowerShell/i],
     ['a shared mailbox needs application permissions', /application permissions on the source/i],
-    ['distribution lists are manual', /Recreating them is manual|recreating them is manual/i],
+    ['distribution lists are manual', /you recreate them yourself/i],
     ['SharePoint files DO migrate', /files and folders[^.]*are migrated/i],
+    ['Google Photos come from a Takeout export', /Google Takeout export/i],
   ];
 
   for (const [what, pattern] of MUST_SURVIVE) {
