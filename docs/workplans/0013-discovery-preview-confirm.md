@@ -2,7 +2,23 @@
 
 > **In one line:** Pre-sync discovery and green light: body-free counts via `discoverSource()`, the `migration_discovery` table, `run-discovery` job and scope manifest, and a Review & confirm screen in both editions where Start migration activates a paused mapping.
 
-## Status — 2026-09-22 (update this block at the end of every session)
+## Status — 2026-10-14 (update this block at the end of every session)
+
+**2026-10-14: the scope manifest in plain words, and in Dutch.** Every managed tester reads *What
+migrates, and what does not* on *Start a migration* and on *Review and start*, and it spoke our
+language: *Pattern S*, *Pattern D*, *§14.2*, *idempotency*, *vCard*, *CardDAV*, *WebDAV*,
+*JSContact*, *content-checksum sampling*. Each row now says what moves, what does not, and what
+is only listed for the tester to redo by hand, in plain words (`packages/shared/src/scope-manifest.ts`);
+*JMAP* stays where a tester picks a destination by that name. Each row carries its Dutch beside
+it (`nl`: label, line and fold; the prose boundary's class 4), and `ScopeManifestPanel` shows the
+half in the reader's language. Three rows now say what the code does where they said more, so the
+version is `2026-10-14`: *Google Photos* names the Takeout route the wizard offers (it said the
+Drive API could not reach them) and links `google#photos`; *Mail with no Message-ID* is migrated
+where the connection can give it one, as the count already says; and Microsoft calendar and file
+sharing are read only through an administrator's own app given that permission. Guard:
+`a-manifest-in-plain-words.unit.test.ts` (no internal label in either language, every row in
+Dutch); `a-promise-compressed-out-of-existence` keeps each caveat in its new words.
+
 
 | Task | Status | Evidence |
 |---|---|---|
