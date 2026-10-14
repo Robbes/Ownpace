@@ -29,6 +29,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 import { SCOPE_MANIFEST } from '@openmig/shared';
 
 // The hold the banner reads, asked only when a count is refused; open here.
@@ -83,10 +84,14 @@ function answering(manifest: Get): Get {
 
 function renderConfirm(): void {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // In a router, as on every screen that shows it: a Google row links its
+  // guide (Google Photos, 2026-10-14).
   render(
-    <QueryClientProvider client={qc}>
-      <ConfirmMigration mappingId="m1" onStarted={vi.fn()} />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={qc}>
+        <ConfirmMigration mappingId="m1" onStarted={vi.fn()} />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 

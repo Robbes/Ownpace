@@ -5603,6 +5603,8 @@ paths:
         product, not about one tenant's data. A row may carry `guide`, the
         section of a served guide that says more (workplan 0148 T7), such as
         `microsoft#application`; the screen links it beside the row.
+        A row may also carry `nl`, the same row's `item`, `detail` and `more` in
+        Dutch; the screen shows the half in its reader's language.
       responses:
         '200':
           description: The manifest.
