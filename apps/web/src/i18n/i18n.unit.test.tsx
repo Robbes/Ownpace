@@ -174,7 +174,7 @@ describe('LocaleProvider', () => {
         />
       </LocaleProvider>,
     );
-    expect(screen.getByText(/Verwijdering in de wachtrij/)).toBeTruthy();
+    expect(screen.getByText(/Verwijderen aangevraagd/)).toBeTruthy();
     // Rule 2: the gates' words render untranslated, code included.
     expect(
       screen.getByText(/Only positive evidence may be acted on \(inferred_evidence\)/),

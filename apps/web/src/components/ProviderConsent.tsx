@@ -115,7 +115,6 @@ export interface ProviderConsent {
 type ConsentWord =
   | 'connect'
   | 'connect.hint'
-  | 'connect.why'
   | 'connect.needsClient'
   | 'connect.halfClient'
   | 'deploymentClient'
@@ -419,14 +418,30 @@ export const ConsentLines: React.FC<{
   readonly asked: ReadonlyArray<DiscoveryDomain>;
   /** The door's own `useId()`, which its button hands to `consentLineIds`. */
   readonly idBase: string;
-}> = ({ provider, asked, idBase }) => {
+  /**
+   * Whether the refresh-token box is in plain view: no application of the
+   * deployment's folds it away (`AccountForm`'s `folded`). Only then does the
+   * fold say the button fills that box, and that pasting still works.
+   */
+  readonly tokenInView: boolean;
+}> = ({ provider, asked, idBase, tokenInView }) => {
   const t = useT();
   if (provider === undefined) return null;
   const beforePressing = consentLineIds(provider, idBase);
-  const word = (suffix: 'connect.hint' | 'connect.why') => t(`account.${provider}.${suffix}` as StringKey);
+  // What folds under the button's line (the owner, 2026-10-14). Microsoft's
+  // own reason holds for everybody. The token's sentence only where the token
+  // box is on screen: on the managed service Ownpace's app folds it away with
+  // the client pair, and a tester never types or sees a token.
+  const why =
+    [
+      provider === 'microsoft' ? t('account.microsoft.connect.why') : undefined,
+      tokenInView ? t('account.consent.pasteToken') : undefined,
+    ]
+      .filter((s): s is string => s !== undefined)
+      .join(' ') || undefined;
   return (
     <>
-      <Hint text={word('connect.hint')} why={word('connect.why')} />
+      <Hint text={t(`account.${provider}.connect.hint` as StringKey)} why={why} />
       {provider === 'google' && googleConsentAllowsChanges(asked) && (
         <Hint text={t('account.google.readsOnly')} />
       )}
@@ -596,7 +611,14 @@ export const ProviderConsentPanel: React.FC<{
    * least 44 pixels tall, since there it is the one way forward.
    */
   readonly primary?: boolean;
-}> = ({ consent, className = 'mt-4', primary = false }) => {
+  /**
+   * Whether the door shows the refresh-token box in plain view (`ConsentLines`).
+   * Left out, it is wherever no application of the deployment's folds the box
+   * away, which is how the account form draws it; *Replace credentials* shows
+   * every secret box, and says so.
+   */
+  readonly tokenInView?: boolean;
+}> = ({ consent, className = 'mt-4', primary = false, tokenInView = !consent.deploymentClient }) => {
   const t = useT();
   const linesId = React.useId();
   if (!consent.isGrantKind) return null;
@@ -648,7 +670,12 @@ export const ProviderConsentPanel: React.FC<{
         {words('connect')}
       </button>
       <ConnectReason reason={reason} />
-      <ConsentLines provider={consent.provider} asked={consent.asked} idBase={linesId} />
+      <ConsentLines
+        provider={consent.provider}
+        asked={consent.asked}
+        idBase={linesId}
+        tokenInView={tokenInView}
+      />
       <ConsentNote note={consent.note} />
       {consent.note !== 'received' && <ConsentWindowLink provider={consent.provider} unopened={consent.unopened} />}
       {consent.redirect && consent.note !== 'received' && (

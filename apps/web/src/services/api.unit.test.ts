@@ -14,7 +14,7 @@ import { publishLocale } from '../i18n/active-locale.ts';
 import { forgetUnreadableAnswers } from './unreadable-answer.ts';
 import { forgetRecentErrors, recentErrors } from './recent-errors.ts';
 import { onAskServedBuild } from './served-build.ts';
-import type { AxiosAdapter } from 'axios';
+import { AxiosError, AxiosHeaders, type AxiosAdapter } from 'axios';
 import { useAuthStore } from '../stores/auth-store.ts';
 
 describe('onUnauthorized (401 handler)', () => {
@@ -92,6 +92,77 @@ describe('serverMessage', () => {
 
   it('falls back to the transport message when there is no body', () => {
     expect(serverMessage(axiosErr(undefined))).toBe('Request failed with status code 409');
+  });
+});
+
+/**
+ * NOTHING OF OURS ANSWERED (the owner, 2026-10-14).
+ *
+ * With no answer at all, or a gateway's 502, 503 or 504 with no sentence in
+ * it, the only words were axios's own English: *Network Error*, *timeout of
+ * 30000ms exceeded*, *Request failed with status code 502*. A Dutch tester
+ * read them on a Dutch screen, under some seventy call sites. They are the
+ * dictionary's sentence now, in the reader's language, and still a failure.
+ */
+describe('serverMessage — when nothing of ours answered', () => {
+  const EN = 'The service could not be reached. Check your connection and try again.';
+  const NL = 'De dienst was niet bereikbaar. Controleer uw verbinding en probeer het opnieuw.';
+  const config = { headers: new AxiosHeaders() };
+  const answered = (status: number, data: unknown) =>
+    new AxiosError(`Request failed with status code ${status}`, 'ERR_BAD_RESPONSE', config, {}, {
+      status,
+      statusText: '',
+      headers: {},
+      config,
+      data,
+    });
+  const noAnswer = () => new AxiosError('Network Error', AxiosError.ERR_NETWORK, config, {});
+  const timedOut = () => new AxiosError('timeout of 30000ms exceeded', AxiosError.ECONNABORTED, config, {});
+
+  let warned: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    publishLocale('en');
+    warned.mockRestore();
+  });
+
+  for (const [locale, sentence] of [['en', EN], ['nl', NL]] as const) {
+    it(`${locale}: a 502 without a body, an HTML 504 and a network error are the dictionary's sentence`, () => {
+      publishLocale(locale);
+      expect(serverMessage(answered(502, undefined))).toBe(sentence);
+      expect(serverMessage(answered(504, '<html><body>504 Gateway Time-out</body></html>'))).toBe(sentence);
+      expect(serverMessage(answered(503, ''))).toBe(sentence);
+      expect(serverMessage(noAnswer())).toBe(sentence);
+      expect(serverMessage(timedOut())).toBe(sentence);
+    });
+  }
+
+  it("keeps axios's own words in the console, and nothing of the request", () => {
+    const err = noAnswer();
+    err.config!.headers.Authorization = 'Bearer secret-token';
+    serverMessage(err);
+    expect(warned).toHaveBeenCalledWith('no answer from the API:', 'ERR_NETWORK', 'Network Error');
+    expect(JSON.stringify(warned.mock.calls)).not.toContain('secret-token');
+    serverMessage(answered(502, undefined));
+    expect(warned).toHaveBeenLastCalledWith(
+      'no answer from the API:',
+      502,
+      'Request failed with status code 502',
+    );
+  });
+
+  it("still prefers a sentence of ours when a 503 carries one", () => {
+    expect(serverMessage(answered(503, { error: 'paused', message: 'Ownpace is being updated.' }))).toBe(
+      'Ownpace is being updated.',
+    );
+  });
+
+  it('leaves other answers without a body as they were, and a cancelled request is not unreachable', () => {
+    expect(serverMessage(answered(500, undefined))).toBe('Request failed with status code 500');
+    expect(serverMessage(new AxiosError('canceled', AxiosError.ERR_CANCELED, config, {}))).toBe('canceled');
+    expect(warned).not.toHaveBeenCalled();
   });
 });
 

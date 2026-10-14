@@ -100,14 +100,14 @@ const CASES = [
     lead: 'Could not load the migrations list.',
     notEmpty: /No migrations yet/,
     said: /^The server answered in a form this page does not know\. Reload the page; if it stays like this, report it to support, and mention: reference ([0-9a-f]{8})\.$/,
-    queueLead: 'Could not load this queue.',
+    queueLead: 'Could not load this list.',
   },
   {
     locale: 'nl',
     lead: 'De migratielijst kon niet worden geladen.',
     notEmpty: /Nog geen migraties/,
     said: /^De server antwoordde in een vorm die deze pagina niet kent\. Laad de pagina opnieuw; blijft het zo, meld dit en geef daarbij het volgende door: referentie ([0-9a-f]{8})\.$/,
-    queueLead: 'Deze wachtrij kon niet worden geladen.',
+    queueLead: 'Deze lijst kon niet worden geladen.',
   },
 ] as const;
 
