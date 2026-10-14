@@ -21,23 +21,23 @@ export const en = {
     'Syncing on a schedule. Items still arriving on the old system are being migrated across.',
   'finish.note.cutover': 'In cutover. If it was running, it migrates until the grace period ends.',
   'finish.note.done':
-    'Finished. This mapping no longer syncs and nothing is being reported for it.',
+    'Finished. This migration no longer syncs and nothing is being reported for it.',
   'finish.note.continuous':
     'Continuous. It keeps syncing after cutover. Ending each data type stops it; copies already made stay.',
   'finish.step1.title': 'Check the copy is complete',
   'finish.step1.pre': 'Compare the two systems and sample the contents.',
   'finish.step1.link': 'Run the check',
   'finish.step1.post': '. Reads the whole destination, so it takes minutes on a large mailbox.',
-  'finish.step2.title': 'Clear the decision queues',
+  'finish.step2.title': 'Decide what is waiting on you',
   'finish.step1.passed': 'The check passed.',
   'finish.step1.notPassed': 'The check did not pass:',
   'finish.step1.noRun': 'No check has run yet.',
   'finish.step1.running': 'A check is running now.',
   'finish.step1.readFailed': 'Could not read the check status:',
-  'finish.step2.readFailed': 'Could not read a queue:',
+  'finish.step2.readFailed': 'Could not read one of these lists:',
   'finish.step2.notSameAsClear': '— not the same as clear.',
   'finish.step3.failedFramed':
-    'The request failed; a pass may still be running, so re-check the queues shortly.',
+    'The request failed; a pass may still be running, so check step 2 again shortly.',
   'finish.aftermath.title': 'What remains available',
   'finish.aftermath.verify': 'Verification report',
   'finish.aftermath.runs': 'Run history (on the migration page)',
@@ -55,7 +55,7 @@ export const en = {
   'finish.step3.runAgain': 'Run another',
   'finish.step3.finished': 'The pass has run and finished.',
   'finish.step3.queued':
-    'Queued as a job; it lands in the run history, so re-check the queues shortly.',
+    'The pass has been requested. It shows in the run history on the migration’s page; check step 2 again in a few minutes.',
   // A stopped data type is the one this step's promise leaves out (0125 T7):
   // nobody may finish believing its copies are current.
   'finish.step3.stopped.one': '{kind} is stopped and not in this pass: its one copy stays as it was.',
@@ -123,16 +123,16 @@ export const nl: Record<keyof typeof en, string> = {
   'finish.step1.link': 'Voer de controle uit',
   'finish.step1.post':
     '. Leest de volledige bestemming; bij grote hoeveelheden duurt dit minuten.',
-  'finish.step2.title': 'Werk de beslissingswachtrijen weg',
+  'finish.step2.title': 'Beslis wat op u wacht',
   'finish.step1.passed': 'De verificatie is geslaagd.',
   'finish.step1.notPassed': 'De verificatie is niet geslaagd:',
   'finish.step1.noRun': 'Er is nog geen verificatie uitgevoerd.',
   'finish.step1.running': 'Er loopt nu een verificatie.',
   'finish.step1.readFailed': 'De verificatiestatus kon niet worden gelezen:',
-  'finish.step2.readFailed': 'Een wachtrij kon niet worden gelezen:',
+  'finish.step2.readFailed': 'Een van deze lijsten kon niet worden gelezen:',
   'finish.step2.notSameAsClear': '— niet hetzelfde als leeg.',
   'finish.step3.failedFramed':
-    'Het verzoek is mislukt; mogelijk loopt er nog een migratieronde, controleer de wachtrijen straks opnieuw.',
+    'Het verzoek is mislukt; mogelijk loopt er nog een migratieronde, controleer stap 2 straks opnieuw.',
   'finish.aftermath.title': 'Wat beschikbaar blijft',
   'finish.aftermath.verify': 'Verificatierapport',
   'finish.aftermath.runs': 'Uitvoeringsgeschiedenis (op de migratiepagina)',
@@ -150,7 +150,7 @@ export const nl: Record<keyof typeof en, string> = {
   'finish.step3.runAgain': 'Voer er nog een uit',
   'finish.step3.finished': 'De ronde is uitgevoerd en voltooid.',
   'finish.step3.queued':
-    'In de wachtrij als taak; het komt in de uitvoeringsgeschiedenis, controleer de wachtrijen straks opnieuw.',
+    'De ronde is aangevraagd. Hij verschijnt in de uitvoeringsgeschiedenis op de pagina van de migratie; kijk over een paar minuten opnieuw bij stap 2.',
   'finish.step3.stopped.one': '{kind} is gestopt, en is geen onderdeel van deze ronde: de ene kopie blijft zoals die was.',
   'finish.step3.stopped.many': '{kind} is gestopt en is geen onderdeel van deze ronde: de {count} kopieën blijven zoals ze waren.',
   'finish.step3.stopped.why':

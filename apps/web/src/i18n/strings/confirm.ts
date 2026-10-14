@@ -202,10 +202,15 @@ export const en = {
     'Sharing rights do not move with the mail; work the list before delivery moves.',
   'permissions.body.more':
     'Who could see whose calendar, who had access to which shared files: none of that migrated. Get the list, work through it on the new system, and do it before delivery moves; rights added afterwards were missing for however long that took. The list starts with naming what it could not read.',
+  // In step with the managed report's own sentence for the second blind spot
+  // (`DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER` in connectors, the owner,
+  // 2026-10-14): a permission that reaches every file in the organisation,
+  // not asked for, so note the sharing by hand. Said for both editions, since
+  // the appliance's owner may grant it: "only if".
   'permissions.blindSpot':
-    'Two blind spots: mailbox FullAccess or Send-As, and OneDrive and SharePoint sharing.',
+    "Two blind spots: who could open or send from someone else's mailbox, and sharing on OneDrive and SharePoint.",
   'permissions.blindSpot.more':
-    "Who had full access to someone else's mailbox or could send as it: Microsoft does not expose that to us to migrate, so you would have to set that up again yourself on the new system. Sharing on the two file platforms is only included when this installation was given that extra permission. The document says which of the two it actually read, and how to cover the rest.",
+    "Who had full access to someone else's mailbox or could send as it: Microsoft does not give us that to migrate, so you set it up again yourself on the new system. Sharing on OneDrive and SharePoint is read only if Ownpace was given an extra permission that reaches every file in your organisation, and Ownpace does not ask for it. Where it was not read, note your file and folder sharing by hand before you switch over. The document says which of the two it actually read, and how to cover the rest.",
   // The same line for a Google source: Drive sharing IS read, so the two
   // blind spots are the mailbox's and the calendar's.
   'permissions.blindSpot.google':
@@ -237,7 +242,7 @@ export const en = {
   'decisions.waiting': 'Needs a decision',
   'decisions.intro':
     'Changes the sync noticed that only you can decide about. Nothing happens until you answer.',
-  'decisions.readError': 'Could not read the decision queue.',
+  'decisions.readError': 'Could not read what is waiting on you.',
   'decisions.dismiss': 'Dismiss',
   // The two named answers to §14.1's question. This category has no proposed
   // default on purpose — not knowing which of the two it is is the whole
@@ -404,9 +409,9 @@ export const nl: Record<keyof typeof en, string> = {
   'permissions.body.more':
     'Wie wiens agenda kon zien, wie toegang had tot welke gedeelde bestanden: dat gaat niet mee. Haal de lijst op, werk hem door op het nieuwe systeem, en doe dat vóór het omzetten van de bezorging; rechten die daarna worden toegevoegd ontbreken. De lijst heeft bovenaan staan wat niet kon worden geraadpleegd.',
   'permissions.blindSpot':
-    'Twee blinde vlekken: FullAccess of Send-As op een postvak, en delen op OneDrive en SharePoint.',
+    'Twee blinde vlekken: wie het postvak van een ander kon openen of eruit kon verzenden, en delen op OneDrive en SharePoint.',
   'permissions.blindSpot.more':
-    'Wie volledige toegang tot een (ander) postvak had of uit die naam kon verzenden: Microsoft geeft deze info niet aan Ownpace, dat moet u zelf overzetten. Delen op de bestandsplatforms komt alleen mee als deze installatie die extra machtiging had gekregen. Het document zegt welke wel te lezen waren, en hoe u de rest overzet.',
+    'Wie volledige toegang tot een (ander) postvak had of uit die naam kon verzenden: Microsoft geeft deze info niet aan Ownpace, dat moet u zelf overzetten. Delen op OneDrive en SharePoint wordt alleen gelezen als Ownpace een extra toestemming kreeg die bij elk bestand in uw organisatie kan, en Ownpace vraagt daar niet om. Is het niet gelezen, noteer dan zelf hoe uw bestanden en mappen gedeeld zijn voordat u overstapt. Het document zegt welke wel te lezen waren, en hoe u de rest overzet.',
   'permissions.blindSpot.google':
     'Twee blinde vlekken: Gmail-gemachtigden en verzenden-als, en delen in Google Agenda.',
   'permissions.blindSpot.google.more':
@@ -432,7 +437,7 @@ export const nl: Record<keyof typeof en, string> = {
   'decisions.waiting': 'Vraagt om een beslissing',
   'decisions.intro':
     'Veranderingen die de synchronisatie opmerkte en waarover alleen u beslist; niets gebeurt tot u antwoordt.',
-  'decisions.readError': 'De beslissingswachtrij kon niet worden gelezen.',
+  'decisions.readError': 'Kon niet lezen wat op u wacht.',
   'decisions.dismiss': 'Terzijde leggen',
   'decisions.sharedAddress.shared_s': 'Eén gedeeld postvak',
   'decisions.sharedAddress.distribution_d': 'Een distributielijst',

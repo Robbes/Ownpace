@@ -150,6 +150,13 @@ export const en = {
   // (2026-09-29), and the owner's "Log it" for the reference.
   'answer.unreadable':
     'The server answered in a form this page does not know. Reload the page; if it stays like this, report it to support, and mention: reference {reference}.',
+  // A request that got no answer, or a gateway's (502, 503, 504) with no
+  // sentence of ours in it (the owner, 2026-10-14): axios's English
+  // ("Network Error", "Request failed with status code 502") reached the
+  // screen in either language. `serverMessage` says this instead, in the
+  // words `acceptance.unreachable` already used, and keeps axios's own words
+  // in the browser console.
+  'answer.unreachable': 'The service could not be reached. Check your connection and try again.',
   // The progress page (workplan 0122). The SAME reader as the grant page above
   // — no account, no jargon, second person — asking a different question:
   // has my mail arrived yet. So the states are sentences rather than the
@@ -524,6 +531,7 @@ export const nl: Record<keyof typeof en, string> = {
   'runs.events': 'Logboek',
   'answer.unreadable':
     'De server antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, meld dit en geef daarbij het volgende door: referentie {reference}.',
+  'answer.unreachable': 'De dienst was niet bereikbaar. Controleer uw verbinding en probeer het opnieuw.',
   'view.title': 'Uw migratie',
   'view.loading': 'Een moment…',
   'view.who': '{organisation} migreert uw account naar een nieuwe provider.',

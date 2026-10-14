@@ -163,6 +163,54 @@ describe('the redirect line under the button (0148 T2 (a))', () => {
   }
 });
 
+/**
+ * THE TOKEN, SAID ONLY WHERE ITS BOX IS (the owner, 2026-10-14). The line
+ * under *Connect with Google* said it *"fills in the refresh token"*, and its
+ * fold that *"pasting a token you already have keeps working"*. Where the
+ * service's app folds the token box away, a tester never sees a token: the
+ * line says what the button does in their words, and the fold says nothing
+ * about a box they cannot see. Where the box is in view, the fold keeps it.
+ */
+describe('the line under Connect, in a tester’s words (the owner, 2026-10-14)', () => {
+  const Panel: React.FC = () => {
+    const consent = useProviderConsent({
+      role: 'source',
+      type: 'google-drive',
+      fields: credentialFieldsFor('source', 'google-drive'),
+      values: { username: 'owner@example.invalid' },
+      onToken: () => {},
+      refusalText: (e) => String(e),
+    });
+    return <ProviderConsentPanel consent={consent} />;
+  };
+
+  for (const locale of ['en', 'nl'] as const) {
+    for (const [fact, inView] of [
+      ['deployment', false],
+      ['connection', true],
+    ] as const) {
+      it(`${locale}: the token is ${inView ? 'named' : 'not named'} when ${
+        fact === 'deployment' ? "the service's app folds its box away" : 'its box is in view'
+      }`, async () => {
+        clients.mockResolvedValue(facts(fact, 'connection'));
+        wrap(locale, <Panel />, '/connections', '/connections');
+        expect(await screen.findByText(words(locale, 'account.google.connect.hint'))).toBeTruthy();
+        // The line itself never names a token or a consent screen.
+        expect(words(locale, 'account.google.connect.hint')).not.toMatch(/token|consent|toestemmingsscherm/i);
+        const paste = words(locale, 'account.consent.pasteToken');
+        if (inView) {
+          expect(await screen.findByText(paste)).toBeTruthy();
+        } else {
+          // Settled: the deployment's answer arrived, then the fold is empty.
+          await waitFor(() => expect(clients).toHaveBeenCalled());
+          await waitFor(() => expect(screen.queryByText(paste)).toBeNull());
+          expect(document.body.textContent).not.toMatch(/refresh token|refreshtoken/i);
+        }
+      });
+    }
+  }
+});
+
 describe('a checklist the deployment emptied names the button (0148 T2 (b))', () => {
   const emptied = (provider: string) => ({
     side: 'source',

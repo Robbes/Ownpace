@@ -49,8 +49,11 @@ export const en = {
   'verify.help.PASS': 'Counts matched and the sampled content compared clean.',
   'verify.help.WARN': 'Discrepancies within tolerance. Read the issues before proceeding.',
   'verify.help.FAIL': 'Items are missing on the target, or sampled content did not match.',
+  // Three causes answer SKIPPED (`verifyDomain` in core): the data type is
+  // switched off, you stopped it, or nothing of it was recorded. The server's
+  // own reason stands beside this; the help covers all three.
   'verify.help.SKIPPED':
-    'Turned off in the config; it does not block cutover, but nobody checked it.',
+    'Not checked: switched off or stopped, or there was nothing to check. It does not block switching over.',
   'verify.help.NOT_VERIFIABLE':
     'Enabled, but the target cannot be read for it; unchecked, so it blocks cutover.',
 } as const;
@@ -103,7 +106,7 @@ export const nl: Record<keyof typeof en, string> = {
   'verify.help.FAIL':
     'Er ontbreken items op het doelsysteem, of gecontroleerde inhoud kwam niet overeen.',
   'verify.help.SKIPPED':
-    'Uitgeschakeld in de configuratie (keuze: overgeslagen); blokkeert de overstap niet, maar niemand heeft het gecontroleerd.',
+    'Niet gecontroleerd: uitgeschakeld of gestopt, of er was niets te controleren. Het blokkeert de overstap niet.',
   'verify.help.NOT_VERIFIABLE':
     'Ingeschakeld, maar de controle kon niet worden uitgevoerd (kon niet lezen); blokkeert de overstap.',
 };

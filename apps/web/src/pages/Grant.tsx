@@ -32,8 +32,11 @@
  * **What will be read, and what the permission allows.** In plain words AND
  * as the scope Google itself will record (ADR-0041's operative rule: the
  * scopes are shown as scopes). The plain sentence is what a person
- * understands; the scope string is what they can check afterwards in their own
- * account, and one without the other is either vague or unreadable. The plain
+ * understands; each scope is said as what it allows, in the reader's language
+ * (the owner, 2026-10-14), and the exact string Google records sits in a
+ * closed *Technical details* fold, for whoever wants to check it against
+ * their account. Before that it was shown as it was, three addresses in
+ * monospace under the sentence. The plain
  * words are this page's, from the dictionary (workplan 0145 T6): the server
  * names the data types, and the page says them in the reader's language and
  * joins them as that language joins a list. Until then the server sent an
@@ -102,6 +105,7 @@ import BuildStamp from '../components/BuildStamp.tsx';
 import LanguageSwitch from '../components/LanguageSwitch.tsx';
 import ReportThisLink from '../components/ReportThisLink.tsx';
 import { TARGET_CARDS } from '../components/front-door-cards.ts';
+import { scopeWordKeys } from '../i18n/google-scope-words.ts';
 
 /**
  * What each data type reads, as the dictionary says it (workplan 0145 T6). A
@@ -114,6 +118,33 @@ const READS_KEY: Readonly<Record<DiscoveryDomain, StringKey>> = {
   contact: 'grant.reads.contact',
   file: 'grant.reads.file',
   task: 'grant.reads.task',
+};
+
+/**
+ * THE PERMISSION, IN WORDS, AND THE SCOPE BEHIND A FOLD (the owner,
+ * 2026-10-14). Each scope the link asks for is said as what it allows
+ * (`google-scope-words.ts`), in the reader's language; the exact string Google
+ * records stays on the page, inside a closed *Technical details*, for whoever
+ * wants to compare it with their account (ADR-0041 *Decision* 4: the scopes
+ * as scopes, not only a paraphrase).
+ */
+const GrantScope: React.FC<{ scope: string; className: string }> = ({ scope, className }) => {
+  const t = useT();
+  return (
+    <div className={className}>
+      <p className="text-sm text-gray-600">{t('grant.scopeIntro')}</p>
+      <ul className="mt-1 list-disc pl-5 space-y-0.5 text-sm text-gray-900">
+        {scopeWordKeys(scope).map((key) => (
+          <li key={key}>{t(key)}</li>
+        ))}
+      </ul>
+      <details className="mt-2 text-sm">
+        <summary className="cursor-pointer select-none text-gray-500">{t('grant.scope.technical')}</summary>
+        <p className="mt-1 text-gray-600">{t('grant.scope.technical.line')}</p>
+        <p className="mt-1 font-mono break-all text-gray-900">{scope}</p>
+      </details>
+    </div>
+  );
 };
 
 /** A destination's kind, by the name its card carries; the kind itself otherwise. */
@@ -232,8 +263,7 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
                   <span>{t(a.readOnlyAtProvider ? 'grant.readOnly' : 'grant.readsOnly')}</span>
                 </p>
               </div>
-              <p className="mt-3 text-sm text-gray-600">{t('grant.scopeIntro')}</p>
-              <p className="mt-1 text-sm font-mono break-all text-gray-900">{a.scope}</p>
+              {a.scope !== null && <GrantScope scope={a.scope} className="mt-3" />}
               <p className="mt-3 text-sm font-medium text-gray-900 break-words">
                 {t('grant.signInAs', { account: a.account })}
               </p>
@@ -410,8 +440,7 @@ const Grant: React.FC = () => {
             </p>
           </div>
 
-          <p className="mt-4 text-sm text-gray-600">{t('grant.scopeIntro')}</p>
-          <p className="mt-1 text-sm font-mono break-all text-gray-900">{subject.data.scope}</p>
+          <GrantScope scope={subject.data.scope} className="mt-4" />
 
           <p className="mt-4 text-sm text-gray-600">
             {t('grant.until', { date: dateTime(subject.data.expiresAt) })}

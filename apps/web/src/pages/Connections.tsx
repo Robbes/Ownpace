@@ -478,7 +478,11 @@ const Row: React.FC<{
               </label>
             ))}
           </div>
-          <ProviderConsentPanel consent={rotateConsent} className="mt-3" />
+          <ProviderConsentPanel
+            consent={rotateConsent}
+            className="mt-3"
+            tokenInView={rotatableFields.some((f) => f.key === 'refreshToken')}
+          />
           <button
             type="button"
             disabled={testing}

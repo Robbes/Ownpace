@@ -410,7 +410,7 @@ describe('the paste box follows the API, not the bundle', () => {
     await renderLogin();
 
     expect(screen.queryByLabelText(/access token/i)).toBeNull();
-    expect(screen.getByRole('alert')).toHaveTextContent(/could not ask this deployment/i);
+    expect(screen.getByRole('alert')).toHaveTextContent(/Signing in is not possible right now/);
   });
 
   it('shows nothing to sign in with while the answer is outstanding', async () => {

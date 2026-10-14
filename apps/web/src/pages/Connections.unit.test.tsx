@@ -1122,7 +1122,7 @@ describe('adding a connection through the front door', () => {
       // Microsoft's words on the fold, and its own three fields inside it.
       const fold = screen.getByText('Use your own app registration').closest('details');
       expect(fold).not.toBeNull();
-      expect(fold).toHaveTextContent(/has its own Microsoft app registration/);
+      expect(fold).toHaveTextContent(/Ownpace has its own Microsoft app/);
 
       fireEvent.click(button);
       await waitFor(() => expect(microsoftAuthorize).toHaveBeenCalled());
