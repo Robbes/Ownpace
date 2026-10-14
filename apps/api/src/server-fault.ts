@@ -93,8 +93,11 @@ export function serverFault(res: Response, code: string, doing: string, error: u
   });
   res.status(500).json({
     error: code,
+    // Written for a tester (the owner, 2026-10-14): what to do with the
+    // reference, which is to mention it to us. Where it leads, the log, is
+    // ours; the sentence used to send the reader there.
     reason:
       `Something went wrong ${doing} — this is a fault on our side, not something ` +
-      `your input caused. Reference ${ref}; quoting it finds the detail in the server log.`,
+      `your input caused. Reference ${ref}: mention it when you contact us.`,
   });
 }

@@ -62,7 +62,7 @@ import {
   type MappingLinkPurpose,
 } from '@openmig/ledger';
 import { listPersonLinks, readPerson, revokePersonLink } from '@openmig/managed';
-import { PERSON_NOT_FOUND } from '@openmig/shared';
+import { PERSON_NOT_FOUND, log } from '@openmig/shared';
 import { authenticate, getDbPool, requireRole, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
@@ -154,6 +154,13 @@ async function whyNothingToGrant(tenantId: string, name: string, migrations: rea
       const decided = grantLinkAsk(grantReadiness(await readGrantRows(db, tenantId, mappingId)));
       const reason = decided.ok ? null : decided.refusal.reason;
       if (reason && !found.includes(reason)) found.push(reason);
+      // The deployment's side, by name, for whoever runs it (the owner,
+      // 2026-10-14): the owner's sentence says only that it is ours.
+      if (!decided.ok && decided.refusal.operatorDetail) {
+        log.warn(
+          `[api] no grant link for migration ${mappingId} (${decided.refusal.code}): ${decided.refusal.operatorDetail}`,
+        );
+      }
     }
     return found;
   });
@@ -188,7 +195,10 @@ router.post(
 
       const base = webUrl();
       const noAddress = viewLinkRefusal({ hasWebUrl: base !== null });
-      if (noAddress) return void res.status(409).json({ error: noAddress.code, reason: noAddress.reason });
+      if (noAddress) {
+        if (noAddress.operatorDetail) log.warn(`[api] no person link (${noAddress.code}): ${noAddress.operatorDetail}`);
+        return void res.status(409).json({ error: noAddress.code, reason: noAddress.reason });
+      }
 
       // A grant link asks for each account of theirs that is not connected,
       // or, when every one is, for each again (the header says why).

@@ -420,10 +420,14 @@ describe('the JMAP face: the one place an honest NO exists', () => {
       expect(q?.domains.mail.answer).toBe('yes');
       // The session ANSWERED and left contacts out — that is a measured no.
       expect(q?.domains.contact.answer).toBe('no');
-      expect(q?.domains.contact.detail).toContain('does not advertise');
+      expect(q?.domains.contact.detail).toBe('The server answered, and says it does not offer contacts.');
       // A fact about US, stated as ours.
       expect(q?.domains.calendar.answer).toBe('no');
-      expect(q?.domains.calendar.detail).toContain('not carried over JMAP by this product');
+      expect(q?.domains.calendar.detail).toContain('Ownpace does not copy calendars over this kind of connection');
+      // No workplan in a tester's sentence (the owner, 2026-10-14).
+      for (const face of Object.values(q?.domains ?? {})) {
+        expect(face.detail).not.toMatch(/\b0\d{3} T\d|urn:ietf|parked/);
+      }
       // No capability announces files; unmeasured stays unmeasured.
       expect(q?.domains.file.answer).toBe('unknown');
     } finally {

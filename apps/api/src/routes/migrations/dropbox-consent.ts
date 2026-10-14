@@ -29,7 +29,13 @@
  *    whether to ask for it is 0140's open question 5.
  *  - The App secret travels only in the authenticated authorize POST and the
  *    token-exchange body. Never in a URL, a redirect or a log.
+ *  - **Two sentences per refusal** (the owner, 2026-10-14): `reason` for the
+ *    server log, with Dropbox's own answer in it, and `said` for the owner's
+ *    page, in both languages and in a tester's words. A tester read
+ *    `{"error": "invalid_grant", …}` and `token_access_type=offline` there.
  */
+
+import type { Bilingual } from '@openmig/shared';
 
 export const DROPBOX_AUTH_ENDPOINT = 'https://www.dropbox.com/oauth2/authorize';
 export const DROPBOX_TOKEN_ENDPOINT = 'https://api.dropboxapi.com/oauth2/token';
@@ -83,7 +89,90 @@ export function dropboxConsentUrl(p: {
 
 export type DropboxExchangeResult =
   | { readonly ok: true; readonly refreshToken: string; readonly grantedScopes: ReadonlyArray<string> }
-  | { readonly ok: false; readonly reason: string };
+  | {
+      readonly ok: false;
+      /** For the server log: Dropbox's own words, bounded. Never the secret. */
+      readonly reason: string;
+      /** For the owner's page, in both languages. */
+      readonly said: Bilingual;
+    };
+
+/** Said after a refusal that the owner's own app can cause and ours can too. */
+const OWN_APP_OR_US = {
+  en: 'If you did not fill in your own oauth-app, this is on our side: please contact us.',
+  nl: 'Hebt u geen eigen oauth-app ingevuld, dan ligt het aan ons: neem contact met ons op.',
+} as const;
+
+/** What the owner reads for each way the exchange can fail (the owner, 2026-10-14). */
+export const DROPBOX_EXCHANGE_FOR_THE_OWNER = {
+  refused: {
+    en:
+      'Dropbox did not accept the sign-in when it came back, so nothing was stored. This ' +
+      'happens when it took too long or was sent twice: press Connect with Dropbox again. If ' +
+      'you filled in your own oauth-app and it happens again, check its App key, App secret and ' +
+      `the redirect address shown under the button. ${OWN_APP_OR_US.en}`,
+    nl:
+      'Dropbox accepteerde de aanmelding niet toen die terugkwam, dus er is niets opgeslagen. ' +
+      'Dat gebeurt als het te lang duurde of als die twee keer is verstuurd: druk opnieuw op ' +
+      'Verbinden met Dropbox. Als u een eigen oauth-app hebt ingevuld en het gebeurt opnieuw, ' +
+      'controleer dan de App-sleutel, het App-secret en het redirect-adres onder de knop. ' +
+      OWN_APP_OR_US.nl,
+  },
+  unreadable: {
+    en:
+      'Dropbox sent back an answer we could not read, so nothing was stored. Press Connect ' +
+      'with Dropbox again; if it keeps happening, please contact us.',
+    nl:
+      'Dropbox stuurde een antwoord terug dat wij niet konden lezen, dus er is niets ' +
+      'opgeslagen. Druk opnieuw op Verbinden met Dropbox; blijft het gebeuren, neem dan ' +
+      'contact met ons op.',
+  },
+  noRefreshToken: {
+    en:
+      'Dropbox would not give lasting access, so nothing was stored. This usually means the ' +
+      'sign-in was already used: press Connect with Dropbox again. If you filled in your own ' +
+      `oauth-app, check that it may keep access while you are away. ${OWN_APP_OR_US.en}`,
+    nl:
+      'Dropbox wilde geen blijvende toegang geven, dus er is niets opgeslagen. Meestal is de ' +
+      'aanmelding dan al gebruikt: druk opnieuw op Verbinden met Dropbox. Als u een eigen ' +
+      'oauth-app hebt ingevuld, controleer dan of die toegang mag houden terwijl u er niet ' +
+      `bent. ${OWN_APP_OR_US.nl}`,
+  },
+} as const satisfies Readonly<Record<string, Bilingual>>;
+
+/** Dropbox gave the app more than reading: refused, and nothing kept. */
+function grantedMoreThanReading(unexpected: ReadonlyArray<string>): Bilingual {
+  const named = unexpected.join(', ');
+  return {
+    en:
+      `Dropbox gave this app more than permission to read (${named}), so nothing was stored: ` +
+      'Ownpace only keeps access that can read. If you filled in your own oauth-app, take ' +
+      'those permissions off it in the Dropbox App Console, under Permissions, and press ' +
+      `Connect with Dropbox again. ${OWN_APP_OR_US.en}`,
+    nl:
+      `Dropbox gaf deze app meer dan toestemming om te lezen (${named}), dus er is niets ` +
+      'opgeslagen: Ownpace bewaart alleen toegang die kan lezen. Als u een eigen oauth-app ' +
+      'hebt ingevuld, haal die toestemmingen er dan af in de Dropbox App Console, onder ' +
+      `Permissions, en druk opnieuw op Verbinden met Dropbox. ${OWN_APP_OR_US.nl}`,
+  };
+}
+
+/** Dropbox gave less than a migration reads with: refused, and nothing kept. */
+function grantedLessThanReading(missing: ReadonlyArray<string>): Bilingual {
+  const named = missing.join(', ');
+  return {
+    en:
+      `Dropbox did not give permission to read your files (${named}), so nothing was stored. ` +
+      'If you filled in your own oauth-app, turn that permission on in the Dropbox App Console, ' +
+      'under Permissions, and press Connect with Dropbox again: a sign-in from before the ' +
+      `change does not gain it. ${OWN_APP_OR_US.en}`,
+    nl:
+      `Dropbox gaf geen toestemming om uw bestanden te lezen (${named}), dus er is niets ` +
+      'opgeslagen. Als u een eigen oauth-app hebt ingevuld, zet die toestemming dan aan in de ' +
+      'Dropbox App Console, onder Permissions, en druk opnieuw op Verbinden met Dropbox: een ' +
+      `aanmelding van vóór de wijziging krijgt haar niet alsnog. ${OWN_APP_OR_US.nl}`,
+  };
+}
 
 /** The scopes a migration needs that the grant does not carry. */
 export function missingDropboxScopes(granted: ReadonlyArray<string>): string[] {
@@ -116,13 +205,21 @@ export async function exchangeDropboxCode(
     // Dropbox's words, verbatim and bounded: `{"error": "...", "error_description": "..."}`
     // is what somebody pastes into a search. Never the secret: it was in the
     // request, and the answer does not echo it.
-    return { ok: false, reason: `Dropbox refused the code exchange (${response.status}): ${text.slice(0, 300)}` };
+    return {
+      ok: false,
+      reason: `Dropbox refused the code exchange (${response.status}): ${text.slice(0, 300)}`,
+      said: DROPBOX_EXCHANGE_FOR_THE_OWNER.refused,
+    };
   }
   let json: { refresh_token?: string; scope?: string };
   try {
     json = JSON.parse(text) as { refresh_token?: string; scope?: string };
   } catch {
-    return { ok: false, reason: `Dropbox answered the code exchange with something that is not JSON: ${text.slice(0, 120)}` };
+    return {
+      ok: false,
+      reason: `Dropbox answered the code exchange with something that is not JSON: ${text.slice(0, 120)}`,
+      said: DROPBOX_EXCHANGE_FOR_THE_OWNER.unreadable,
+    };
   }
   const granted = (json.scope ?? '').split(/\s+/).filter(Boolean);
   // First, and never stored: a grant that could write. The URL asked for the
@@ -136,6 +233,7 @@ export async function exchangeDropboxCode(
         `Dropbox granted more than this product reads with: ${unexpected.join(' ')}. ` +
         `Nothing was stored. Remove it from the app (App Console → Permissions), keeping only ` +
         `${DROPBOX_ACCEPTED_SCOPES.join(', ')}, and press Connect with Dropbox again.`,
+      said: grantedMoreThanReading(unexpected),
     };
   }
   const missing = missingDropboxScopes(granted);
@@ -147,6 +245,7 @@ export async function exchangeDropboxCode(
         `Granted: ${granted.join(' ') || '(nothing)'}. Enable the missing permission on the app ` +
         "(App Console → Permissions) and press Connect with Dropbox again — a token minted " +
         'before the permission was added does not gain it.',
+      said: grantedLessThanReading(missing),
     };
   }
   if (!json.refresh_token) {
@@ -155,6 +254,7 @@ export async function exchangeDropboxCode(
       reason:
         'Dropbox answered without a refresh token. The consent was asked with token_access_type=offline, ' +
         'so this usually means the code was already used or the app is not allowed offline access.',
+      said: DROPBOX_EXCHANGE_FOR_THE_OWNER.noRefreshToken,
     };
   }
   return { ok: true, refreshToken: json.refresh_token, grantedScopes: granted };

@@ -111,10 +111,51 @@ export function permissionsNotDiscoverable(reason: string): string {
  */
 export function googleMailboxDelegationNotRead(): string {
   return permissionsNotDiscoverable(
-    'Gmail delegation and send-as are not read by this tool. Find them in Gmail under ' +
+    'Gmail delegation and send-as are not read by Ownpace. Find them in Gmail under ' +
       'Settings → See all settings → Accounts and Import — "Grant access to your account" ' +
       'and "Send mail as" — and, for a Workspace account, in the Admin console under the ' +
-      'user\'s Gmail settings. Record them by hand before cutover, because they will stop ' +
+      "user's Gmail settings. Note them by hand before you switch over, because they stop " +
       'working the moment the mailbox moves',
+  );
+}
+
+/**
+ * THE SOURCES THAT ARE NEITHER MICROSOFT NOR GOOGLE, in their own words (the
+ * owner, 2026-10-14): an IMAP mailbox, Apple, Soverin, Dropbox, Box, Nextcloud,
+ * an export archive.
+ *
+ * Every one of them was handed Microsoft's sentences on the managed report and
+ * the Sharing checklist: Exchange Online PowerShell for who else had access to
+ * the mailbox, *"this tenant has no Microsoft 365 source connection, and only
+ * Graph can enumerate a directory"* for its calendars, and OneDrive and
+ * SharePoint for its files. Each was a wrong errand, as Google's was before
+ * `googleMailboxDelegationNotRead`.
+ *
+ * Neutral on purpose: nothing here names a provider's settings page, because
+ * the family is too wide for one to be true of every member. And each still
+ * says it as a blind spot (hard rule 9): Ownpace did not look, which is never
+ * "there is nothing to find". Wrapped in `permissionsNotDiscoverable`, as
+ * every other blind spot is.
+ */
+export function mailboxAccessNotReadForThisSource(): string {
+  return permissionsNotDiscoverable(
+    'who else could open this account or send mail from it is not read by Ownpace for this ' +
+      "kind of source. Note it from your old provider's settings before you switch over",
+  );
+}
+
+/** Calendar sharing, for the sources `mailboxAccessNotReadForThisSource` speaks for. */
+export function calendarSharingNotReadForThisSource(): string {
+  return permissionsNotDiscoverable(
+    'calendar sharing is not read by Ownpace for this kind of source. Note who you shared ' +
+      'each calendar with before you switch over',
+  );
+}
+
+/** File and folder sharing, for the same sources. */
+export function fileSharingNotReadForThisSource(): string {
+  return permissionsNotDiscoverable(
+    'file and folder sharing is not read by Ownpace for this kind of source. Note who you ' +
+      'shared files and folders with before you switch over',
   );
 }

@@ -234,9 +234,15 @@ describe('the files section, with the file scope declined (the default)', () => 
 });
 
 describe('a tenant with no Microsoft source', () => {
-  it('still says so, which is true', async () => {
+  it('is told about its own kind of source, not about Microsoft 365 (the owner, 2026-10-14)', async () => {
+    // It used to read "this tenant has no Microsoft 365 source connection, and
+    // only Graph can enumerate a directory": true, and a wrong errand.
     h.connections.push({ kind: 'imap', secret_ref: null, config: {} });
-    const { scanCalendars } = await tenantInventoryScans(TENANT, MAILBOX);
-    expect(reasonOf(await scanCalendars())).toContain('no Microsoft 365 source connection');
+    const { scanCalendars, scanDrive, delegationReason } = await tenantInventoryScans(TENANT, MAILBOX);
+    const calendars = reasonOf(await scanCalendars());
+    expect(calendars).toContain('calendar sharing is not read by Ownpace for this kind of source');
+    expect(calendars).not.toMatch(/Microsoft 365|Graph|tenant/);
+    expect(reasonOf(await scanDrive())).not.toMatch(/OneDrive|SharePoint/);
+    expect(delegationReason).not.toMatch(/PowerShell|Get-MailboxPermission/);
   });
 });

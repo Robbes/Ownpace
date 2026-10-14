@@ -14,9 +14,12 @@
  * So creating a migration is refused once the organisation already has
  * `MAX_MIGRATIONS_PER_ORGANISATION` that are not finished, which is every
  * status but `done`. A draft counts, because it is one press from running.
- * The number is the deployment's, not the organisation's: T0's provisional
- * five, which the owner accepted on 2026-09-27. A per-organisation number that
- * only an operator can write comes later, if the alpha shows it is needed.
+ * The number is the deployment's, not the organisation's: six, the owner's
+ * decision of 2026-10-14, so the cap says what Free promises, *"six at the
+ * same time"* (terms §6, and `paths: 6` in `site/prices.mjs`). It supersedes
+ * T0's provisional five, which the owner accepted on 2026-09-27. A
+ * per-organisation number that only an operator can write comes later, if
+ * the alpha shows it is needed.
  *
  * The cap is held in the transaction that writes, one create at a time per
  * organisation, as `live-link-limit.ts` holds the grant links: the lock is
@@ -28,15 +31,19 @@
 import { and, count, eq, ne, sql } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger';
+import type { Bilingual } from '@openmig/shared';
 
-/** T0's provisional number, accepted by the owner on 2026-09-27 (0143 open question 1). */
-export const DEFAULT_MAX_MIGRATIONS_PER_ORGANISATION = 5;
+/**
+ * Six, the owner's decision of 2026-10-14: Free's *"six at the same time"*.
+ * Was T0's provisional five (accepted 2026-09-27, 0143 open question 1).
+ */
+export const DEFAULT_MAX_MIGRATIONS_PER_ORGANISATION = 6;
 
 /**
  * The deployment's cap, from `MAX_MIGRATIONS_PER_ORGANISATION`: unset or empty
  * is the default. Anything but a whole number of at least 1 is refused loudly,
  * as `LEDGER_RETENTION_DAYS` is: an operator who wrote `ten` believes the cap
- * is ten, and quietly holding five instead is found out by a tester.
+ * is ten, and quietly holding six instead is found out by a tester.
  */
 export function maxMigrationsPerOrganisationFromEnv(raw: string | undefined): number {
   if (raw === undefined || raw.trim() === '') return DEFAULT_MAX_MIGRATIONS_PER_ORGANISATION;
@@ -54,12 +61,16 @@ export function maxMigrationsPerOrganisationFromEnv(raw: string | undefined): nu
 export class PastTheCap extends Error {
   readonly unfinished: number;
   readonly cap: number;
+  /** The same sentence in both languages; `message` is its English. */
+  readonly said: Bilingual;
 
   constructor(unfinished: number, cap: number) {
-    super(pastTheCap(unfinished, cap));
+    const said = pastTheCapSaid(unfinished, cap);
+    super(said.en);
     this.name = 'PastTheCap';
     this.unfinished = unfinished;
     this.cap = cap;
+    this.said = said;
   }
 }
 
@@ -81,11 +92,28 @@ export async function holdTheCap(db: PgDatabase, tenantId: string, cap: number):
   if (unfinished >= cap) throw new PastTheCap(unfinished, cap);
 }
 
-/** What a tester reads: how many there are, how many may be, and what makes room. */
-export function pastTheCap(unfinished: number, cap: number): string {
+/**
+ * What a tester reads: how many there are, how many may be, and what makes
+ * room, in both languages (the owner, 2026-10-14: written for a tester, and
+ * "contact us" where it said "ask whoever runs this service"). The answer
+ * carries the Dutch beside the English as `messageNl`, the shape the link
+ * holder's refusals already use (`link-holder-refusals.ts`).
+ */
+export function pastTheCapSaid(unfinished: number, cap: number): Bilingual {
   const these = unfinished === 1 ? 'migration that is' : 'migrations that are';
-  return (
-    `This organisation has ${unfinished} ${these} not finished, and may have ${cap} at once. ` +
-    'Finish or delete one before you add another, or ask whoever runs this service for more.'
-  );
+  const deze = unfinished === 1 ? 'migratie die' : 'migraties die';
+  return {
+    en:
+      `This organisation has ${unfinished} ${these} not finished, and may have ${cap} at once. ` +
+      'Finish or delete one before you add another, or contact us if you need more at once.',
+    nl:
+      `Deze organisatie heeft ${unfinished} ${deze} nog niet ${unfinished === 1 ? 'is' : 'zijn'} afgerond, ` +
+      `en mag er ${cap} tegelijk hebben. Rond er een af of verwijder er een voordat u een nieuwe ` +
+      'toevoegt, of neem contact met ons op als u er meer tegelijk nodig hebt.',
+  };
+}
+
+/** The English of `pastTheCapSaid`, which `message` carries. */
+export function pastTheCap(unfinished: number, cap: number): string {
+  return pastTheCapSaid(unfinished, cap).en;
 }

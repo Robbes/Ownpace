@@ -196,8 +196,8 @@ describe('the permission report reads one organisation, under row security', () 
     const res = await report(`mailbox=${encodeURIComponent(A_ADDRESS)}`);
     expect(res.status, res.text).toBe(200);
     // A's: a Google source, so Google's sentences.
-    expect(res.text).toContain('Google Calendar sharing is not yet read by this tool');
-    expect(res.text).toContain('Gmail delegation and send-as are not read by this tool');
+    expect(res.text).toContain('Google Calendar sharing is not read by Ownpace yet');
+    expect(res.text).toContain('Gmail delegation and send-as are not read by Ownpace');
     // B's Microsoft account would have put Microsoft's and Exchange's here.
     expect(res.text).not.toContain(MICROSOFT_ACCOUNT_IS_DELEGATED);
     expect(res.text).not.toContain('Get-MailboxPermission');

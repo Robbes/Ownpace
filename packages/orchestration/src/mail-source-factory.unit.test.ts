@@ -59,7 +59,7 @@ describe('buildGraphMailSourceFrom', () => {
         { ...TENANT, mailbox: 'gedeeld@contoso.nl' },
         { clientId: 'app-id', refreshToken: 'a-delegated-refresh-token' },
       ),
-    ).toThrow(/names another user's mailbox/);
+    ).toThrow(/is another person's mailbox, or a shared one/);
   });
 
   it('allows the delegated flow when no mailbox is named', () => {
@@ -88,8 +88,8 @@ describe('buildGraphMailSourceFrom', () => {
         },
       );
 
-    expect(failure).toThrow(/refreshToken is set/);
-    expect(failure).toThrow(/set clientSecret/);
+    expect(failure).toThrow(/Remove refreshToken/);
+    expect(failure).toThrow(/fill in clientSecret/);
     // The point of the fix: no env-var advice on a path with no env vars.
     expect(failure).not.toThrow(/OAUTH2_/);
   });
@@ -102,6 +102,6 @@ describe('buildGraphMailSourceFrom', () => {
         { ...TENANT, mailbox: 'gedeeld@contoso.nl' },
         { clientId: 'app-id', refreshToken: 'a-delegated-refresh-token' },
       ),
-    ).toThrow(/OAUTH2_REFRESH_TOKEN is set/);
+    ).toThrow(/Remove OAUTH2_REFRESH_TOKEN and fill in OAUTH2_CLIENT_SECRET/);
   });
 });

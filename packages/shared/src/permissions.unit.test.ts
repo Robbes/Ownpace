@@ -12,7 +12,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { googleMailboxDelegationNotRead, permissionsNotDiscoverable } from './permissions.ts';
+import {
+  calendarSharingNotReadForThisSource,
+  fileSharingNotReadForThisSource,
+  googleMailboxDelegationNotRead,
+  mailboxAccessNotReadForThisSource,
+  permissionsNotDiscoverable,
+} from './permissions.ts';
 
 describe('permissionsNotDiscoverable', () => {
   it('says nothing was looked at, never that nothing is set (hard rule 9)', () => {
@@ -48,11 +54,11 @@ describe('googleMailboxDelegationNotRead', () => {
   it('claims only that we do not read them, never that they cannot be read', () => {
     const text = googleMailboxDelegationNotRead();
 
-    // Gmail DOES expose delegation and send-as to some callers. This tool
+    // Gmail DOES expose delegation and send-as to some callers. Ownpace
     // does not read them, which is a smaller and true statement; "cannot be
     // read" would be a stronger claim than the evidence supports, and a
     // later slice that adds the scan would make it a lie in the file.
-    expect(text).toContain('not read by this tool');
+    expect(text).toContain('not read by Ownpace');
     expect(text).not.toMatch(/cannot be read|impossible|no way to/i);
   });
 
@@ -60,5 +66,27 @@ describe('googleMailboxDelegationNotRead', () => {
     // Composed through `permissionsNotDiscoverable`, not hand-written beside
     // it — one frame, so a change to the warning reaches every provider.
     expect(googleMailboxDelegationNotRead()).toContain('nothing was looked at');
+  });
+});
+
+describe('a source that is neither Microsoft nor Google (the owner, 2026-10-14)', () => {
+  const said = [
+    mailboxAccessNotReadForThisSource(),
+    calendarSharingNotReadForThisSource(),
+    fileSharingNotReadForThisSource(),
+  ];
+
+  it("is sent on no provider's errand: no Exchange, no Graph, no OneDrive, no Gmail", () => {
+    for (const text of said) {
+      expect(text).not.toMatch(/PowerShell|Exchange|Microsoft|Graph|tenant|OneDrive|SharePoint|Gmail|Google/);
+    }
+  });
+
+  it('says each as a blind spot, never as "nothing there" (hard rule 9)', () => {
+    for (const text of said) {
+      expect(text).toContain('not read by Ownpace for this kind of source');
+      expect(text).toContain('nothing was looked at');
+      expect(text).toContain('before you switch over');
+    }
   });
 });

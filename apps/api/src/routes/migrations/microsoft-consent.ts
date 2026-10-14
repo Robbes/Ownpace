@@ -121,18 +121,18 @@ export function microsoftConsentRefusal(
     // about, and with this service's own registration both are the operator's
     // settings: `resolveMicrosoftClient` takes the tenant from the environment
     // when no pair was typed in.
+    // In a tester's words (the owner, 2026-10-14): ours to fix, and the code
+    // to mention, where it said "tell whoever runs it".
     if (errorDescription.includes('AADSTS700016')) {
       return (
-        "Microsoft could not find this service's application in the directory it was asked " +
-        'about. That is a setting of this service, not of your account; tell whoever runs it. ' +
-        'The Entra error is AADSTS700016.'
+        "Microsoft could not find Ownpace's app in the directory it was asked about. This is " +
+        'on our side, not your account: please contact us and mention AADSTS700016.'
       );
     }
     if (errorDescription.includes('AADSTS900023')) {
       return (
-        "Microsoft does not recognise the directory this service's application was asked " +
-        'about. That is a setting of this service, not of your account; tell whoever runs it. ' +
-        'The Entra error is AADSTS900023.'
+        "Microsoft does not recognise the directory Ownpace's app was asked about. This is on " +
+        'our side, not your account: please contact us and mention AADSTS900023.'
       );
     }
   }

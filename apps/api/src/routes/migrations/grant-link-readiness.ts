@@ -146,8 +146,18 @@ export type GrantLinkAskRefusalCode =
 export interface GrantLinkRefusal {
   /** A stable machine code, for a UI that wants to route to the right screen. */
   readonly code: GrantLinkAskRefusalCode | 'web_url_unset';
-  /** One sentence, naming what to do about it. Never a value, only a field. */
+  /**
+   * One sentence for the owner, naming what to do about it. Never a value,
+   * only a field, and never a setting of the deployment: where the remedy is
+   * ours, it says so and asks them to contact us (the owner, 2026-10-14).
+   */
   readonly reason: string;
+  /**
+   * The deployment's side of it, for the server log only: the setting by
+   * name, which only whoever runs the deployment can change. Absent where the
+   * owner's sentence already says everything.
+   */
+  readonly operatorDetail?: string;
 }
 
 /** What a link asks Google for, and whose application asks. */
@@ -194,7 +204,8 @@ export type GrantLinkDecision =
  */
 const WEB_URL_UNSET: GrantLinkRefusal = {
   code: 'web_url_unset',
-  reason:
+  reason: 'Links cannot be made just now. This is on our side, not yours: please contact us.',
+  operatorDetail:
     'This deployment has no WEB_URL set, so it cannot say which address the link should ' +
     'point at. A link built without it would send somebody to a machine that is not ' +
     'yours. Set WEB_URL and restart the API.',
@@ -223,24 +234,29 @@ const WEB_URL_UNSET: GrantLinkRefusal = {
  * migration cannot be asked for differently by its owner and by its link.
  */
 export function grantLinkAsk(r: Omit<GrantLinkReadiness, 'hasWebUrl'>): GrantLinkDecision {
-  const refuse = (code: GrantLinkAskRefusalCode, reason: string): GrantLinkDecision => ({
+  // Each sentence is the owner's (the owner, 2026-10-14): written for a
+  // tester, with the deployment's side, where there is one, kept for the log.
+  const refuse = (code: GrantLinkAskRefusalCode, reason: string, operatorDetail?: string): GrantLinkDecision => ({
     ok: false,
-    refusal: { code, reason },
+    refusal: { code, reason, ...(operatorDetail === undefined ? {} : { operatorDetail }) },
   });
   if (!r.sourceKind) {
     return refuse(
       'no_source_connection',
-      'This migration has no source connection yet, so there is nothing for anyone to ' +
-        'grant access to. Finish setting up the source first.',
+      'This migration has no account to copy from yet, so there is nothing for anyone to ' +
+        'give access to. Add that account first.',
     );
   }
   if (!isGrantableSourceKind(r.sourceKind)) {
+    // The kind stays in the log: `imap` is our word for the row, not the
+    // owner's.
     return refuse(
       'source_not_google',
-      `A grant link asks somebody to sign in with Google, and this migration's source is ` +
-        `'${r.sourceKind}'. Only a Google account, Gmail, Google Calendar, Google Contacts ` +
-        'and Google Drive can be granted this way today — for the others, the credential ' +
-        'still comes to you by hand.',
+      'A link asks somebody to sign in with Google, and this migration does not copy from a ' +
+        'Google account. Only a Google account, Gmail, Google Calendar, Google Contacts and ' +
+        'Google Drive can be connected through a link; any other account is still connected ' +
+        'by hand, on the Accounts page.',
+      `source kind '${r.sourceKind}'`,
     );
   }
   if (!r.hasNamedAccount) {
@@ -282,9 +298,15 @@ export function grantLinkAsk(r: Omit<GrantLinkReadiness, 'hasWebUrl'>): GrantLin
         ? refuse(
             'nothing_to_ask',
             'This migration copies no data types at the moment, so a link would have ' +
-              'nothing to ask for. Include at least one, then issue the link.',
+              'nothing to ask for. Include at least one, then make the link.',
           )
-        : refuse('restricted_scope', consent.reason);
+        : refuse(
+            'restricted_scope',
+            "A link for a Google account cannot ask for mail or files through Ownpace's own " +
+              'Google app yet. Connect Gmail or Google Drive as an account of its own, with ' +
+              'your own Google app, or contact us.',
+            consent.reason,
+          );
     }
     scope = consent.scope;
     domains = consent.domains;
@@ -294,18 +316,21 @@ export function grantLinkAsk(r: Omit<GrantLinkReadiness, 'hasWebUrl'>): GrantLin
     // Names the FIELD, never a value, and says where it is set. An owner who
     // reads "clientSecret is missing" and cannot find the box has been told
     // nothing.
-    const missing = r.hasClientId ? 'has no client secret stored' : 'has no client id stored';
+    const missing = r.hasClientId ? 'has no Client secret saved' : 'has no Client ID saved';
     return refuse(
       'client_not_configured',
-      `The consent runs against your own Google client, and this source ${missing}. ` +
-        'Add it on the source connection, then issue the link — otherwise the person you ' +
-        'send it to lands on a Google error page about a client they have never heard of.',
+      `This account uses your own Google app, and it ${missing}. Add it to the account on ` +
+        'the Accounts page, then make the link. Otherwise the person you send it to lands ' +
+        'on a Google error page about an app they have never heard of.',
     );
   }
   const client = r.hasClientId ? 'connection' : r.hasDeploymentClient ? 'deployment' : null;
   if (client === null) {
     return refuse(
       'client_not_configured',
+      "A link needs a Google app to sign in through. Ownpace's own is not set up yet, which " +
+        'is on our side, and this account has no Client ID and Client secret of your own ' +
+        'saved. Add your own Google app to the account on the Accounts page, or contact us.',
       'The consent needs a Google application, and there is none: this source has neither ' +
         'a client id nor a client secret stored, and this deployment has no Google client ' +
         'of its own. Add the pair on the source connection, or set GOOGLE_OAUTH_CLIENT_ID ' +
@@ -317,6 +342,8 @@ export function grantLinkAsk(r: Omit<GrantLinkReadiness, 'hasWebUrl'>): GrantLin
     if (domains.some((d) => !served.includes(d))) {
       return refuse(
         'restricted_scope',
+        "A link cannot ask for mail or files through Ownpace's own Google app yet. Add your " +
+          'own Google app to the account on the Accounts page, or contact us.',
         'Mail and files need scopes Google classes as restricted, and this deployment’s ' +
           'own Google application has not declared them (GOOGLE_ACCOUNT_SCOPE_CLASS). Add ' +
           'your own Google client on the source connection, or ask whoever runs this ' +

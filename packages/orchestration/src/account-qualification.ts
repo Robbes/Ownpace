@@ -666,13 +666,15 @@ async function qualifyJmap(
     );
   }
   const has = (urn: string): boolean => urn in capabilities;
+  // In a tester's words (the owner, 2026-10-14): what the server said, not
+  // the capability's URN, which stays the test of it.
   const fromCapability = (urn: string, noun: string): QualifiedDomain =>
     has(urn)
-      ? { answer: 'yes', detail: `The session advertises ${urn}.` }
+      ? { answer: 'yes', detail: `The server says it offers ${noun}.` }
       : {
           answer: 'no',
           reason: 'structural',
-          detail: `The session answered and does not advertise ${urn} — this server does not speak JMAP ${noun}.`,
+          detail: `The server answered, and says it does not offer ${noun}.`,
         };
   return {
     domains: {
@@ -685,7 +687,8 @@ async function qualifyJmap(
         answer: 'no',
         reason: 'structural',
         detail:
-          'Calendars are not carried over JMAP by this product (0031 T1 parked) — use a caldav connection.',
+          'Ownpace does not copy calendars over this kind of connection. For calendars, connect ' +
+          'the same server again as a calendar account (CalDAV).',
       },
       // Tasks follow calendars, and for the same reason rather than a new one:
       // this product's task face is CalDAV `VTODO` (workplan 0113), so there
@@ -695,15 +698,15 @@ async function qualifyJmap(
         answer: 'no',
         reason: 'structural',
         detail:
-          'Tasks are not carried over JMAP by this product — they are CalDAV VTODO collections, ' +
-          'so use a caldav connection.',
+          'Ownpace does not copy tasks over this kind of connection: tasks go with calendars. ' +
+          'Connect the same server again as a calendar account (CalDAV).',
       },
       // No standard capability marks file storage; the product's JMAP file
       // writer exists, but whether THIS server carries it is unmeasured.
       file: {
         answer: 'unknown',
         reason: 'notAskable',
-        detail: 'Unmeasured — no standard JMAP capability announces file storage.',
+        detail: 'Not measured: this kind of server does not say whether it stores files.',
       },
     },
   };

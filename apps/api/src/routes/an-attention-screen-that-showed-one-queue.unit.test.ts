@@ -36,8 +36,9 @@
  * is exactly the failure above.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
+  log,
   summariseQueues,
   wantsAttention,
   reportsToDigest,
@@ -51,6 +52,17 @@ import {
   collectTenantAttention,
   type AttentionReaders,
 } from './attention.ts';
+
+/** A list that could not be read, as the screen says it (the owner, 2026-10-14). */
+const unread = (what: string) =>
+  new RegExp(`^${what} could not be read just now, so these numbers may be low\\. Reference [0-9a-f]{8}\\.$`);
+let logError: ReturnType<typeof vi.spyOn>;
+beforeEach(() => {
+  logError = vi.spyOn(log, 'error').mockImplementation(() => {});
+});
+afterEach(() => {
+  logError.mockRestore();
+});
 
 const MAPPING = { id: '0cc9a844-4075-4d65-a562-374df8299b77', name: 'Gmail to Nextcloud' };
 
@@ -209,7 +221,7 @@ describe('the collector, on the rules a screen full of migrations depends on', (
       }),
     );
     expect(out.mappings[0]!.graceEnded).toEqual(['calendar']);
-    expect(out.mappings[1]!.blindSpots).toEqual(['the grace periods: the ledger is locked']);
+    expect(out.mappings[1]!.blindSpots).toEqual([expect.stringMatching(unread('The grace periods'))]);
   });
 
   it('asks the decision queue ONCE across three migrations', async () => {
@@ -257,9 +269,15 @@ describe('the collector, on the rules a screen full of migrations depends on', (
         },
       }),
     );
-    expect(out.mappings[0]?.blindSpots).toEqual([
-      'the failures queue: connection terminated unexpectedly',
-    ]);
+    // Which list, that the numbers may be low, and a reference; the error
+    // itself is in the log under it, never on the screen (the owner,
+    // 2026-10-14).
+    expect(out.mappings[0]?.blindSpots).toEqual([expect.stringMatching(unread('The list of failures'))]);
+    expect(out.mappings[0]?.blindSpots?.[0]).not.toContain('connection terminated');
+    const ref = /Reference ([0-9a-f]{8})/.exec(out.mappings[0]!.blindSpots![0]!)![1]!;
+    const logged = logError.mock.calls.map((c: unknown[]) => c.map(String).join(' ')).join('\n');
+    expect(logged).toContain(`[ref ${ref}]`);
+    expect(logged).toContain('connection terminated unexpectedly');
     // And the other queues were still read — one broken queue must not take
     // the rest of the migration's counts down with it.
     expect(out.mappings[0]?.failuresWaiting).toBe(0);
@@ -359,9 +377,7 @@ describe('the organisation, which is not one of its migrations', () => {
         },
       }),
     );
-    expect(out.tenant?.blindSpots).toEqual([
-      'the decision queue: permission denied for table decision',
-    ]);
+    expect(out.tenant?.blindSpots).toEqual([expect.stringMatching(unread('The list of decisions'))]);
     expect(out.tenant?.pendingDecisions).toBeUndefined();
   });
 
@@ -374,7 +390,7 @@ describe('the organisation, which is not one of its migrations', () => {
         },
       }),
     );
-    expect(out.mappings[0]?.blindSpots).toEqual(['the decision queue: no']);
+    expect(out.mappings[0]?.blindSpots).toEqual([expect.stringMatching(unread('The list of decisions'))]);
     // Absent, not empty: `summariseQueues` omits the key when there is
     // nothing to report. What matters is that the decision's failure did not
     // follow it here and get counted as a second hole.

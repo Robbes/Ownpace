@@ -21,8 +21,10 @@
  * here, on PGlite like the other route guards. The lock, which needs two
  * connections to show a race, is `a-migration-past-the-cap.integration.test.ts`.
  *
- * It fails today on both halves: the sixth migration is created, and the
- * generic update stores `maxMappings`.
+ * It failed on both halves before T2a: the sixth migration was created, and
+ * the generic update stored `maxMappings`. Since the owner's decision of
+ * 2026-10-14 the cap is six, Free's *"six at the same time"*, and the seventh
+ * is the one refused; the sentence is a tester's, with its Dutch beside it.
  */
 
 process.env.SECRET_ENCRYPTION_KEY =
@@ -37,6 +39,7 @@ import {
   DEFAULT_MAX_MIGRATIONS_PER_ORGANISATION,
   maxMigrationsPerOrganisationFromEnv,
   pastTheCap,
+  pastTheCapSaid,
 } from './migration-cap.ts';
 
 const TENANT = '0143ca90-5d2e-4c1a-8b7f-3e9d6a2c1001';
@@ -146,48 +149,71 @@ afterEach(() => {
 
 describe('creating a migration', () => {
   it('is refused one past the cap, with the sentence, and nothing is written for it', async () => {
-    // A draft, a running one, one in its cutover and one in the lane after it:
-    // four that are not finished, so the fifth is the last one allowed.
-    await existing(TENANT, BOX, ['paused', 'active', 'cutover', 'continuous']);
+    // A draft, a running one, one in its cutover, one in the lane after it and
+    // one more running: five that are not finished, so the sixth is the last
+    // one allowed.
+    await existing(TENANT, BOX, ['paused', 'active', 'cutover', 'continuous', 'active']);
     expect((await create()).status).toBe(201);
 
     const connections = await count('connection');
     const res = await create();
     expect(res.status).toBe(409);
-    expect(res.body).toMatchObject({ error: 'migration_cap', unfinished: 5, cap: 5 });
-    expect(res.body.message).toBe(pastTheCap(5, 5));
+    expect(res.body).toMatchObject({ error: 'migration_cap', unfinished: 6, cap: 6 });
+    expect(res.body.message).toBe(pastTheCap(6, 6));
+    // The tester's words (the owner, 2026-10-14): what makes room, and us to
+    // contact for more, never "whoever runs this service".
     expect(res.body.message).toBe(
-      'This organisation has 5 migrations that are not finished, and may have 5 at once. ' +
-        'Finish or delete one before you add another, or ask whoever runs this service for more.',
+      'This organisation has 6 migrations that are not finished, and may have 6 at once. ' +
+        'Finish or delete one before you add another, or contact us if you need more at once.',
     );
+    // And the same refusal in Dutch beside it, for a Dutch screen.
+    expect(res.body.messageNl).toBe(
+      'Deze organisatie heeft 6 migraties die nog niet zijn afgerond, en mag er 6 tegelijk ' +
+        'hebben. Rond er een af of verwijder er een voordat u een nieuwe toevoegt, of neem ' +
+        'contact met ons op als u er meer tegelijk nodig hebt.',
+    );
+    expect(res.body.message).not.toMatch(/whoever runs/);
     // Refused before anything was written, not after.
-    expect(await count('mailbox_mapping')).toBe(5);
+    expect(await count('mailbox_mapping')).toBe(6);
     expect(await count('connection')).toBe(connections);
   });
 
   it('does not count a finished migration', async () => {
-    // Four that are not finished and three that are: the fifth is allowed,
-    // and the three finished ones do not make it the eighth.
-    await existing(TENANT, BOX, ['paused', 'active', 'active', 'active', 'done', 'done', 'done']);
+    // Five that are not finished and three that are: the sixth is allowed,
+    // and the three finished ones do not make it the ninth.
+    await existing(TENANT, BOX, ['paused', 'active', 'active', 'active', 'active', 'done', 'done', 'done']);
     expect((await create()).status).toBe(201);
     const res = await create();
     expect(res.status).toBe(409);
-    expect(res.body).toMatchObject({ unfinished: 5, cap: 5 });
+    expect(res.body).toMatchObject({ unfinished: 6, cap: 6 });
   });
 
   it('does not count another organisation’s', async () => {
-    await existing(OTHER, OTHER_BOX, ['active', 'active', 'active', 'active', 'active']);
+    await existing(OTHER, OTHER_BOX, ['active', 'active', 'active', 'active', 'active', 'active']);
     expect((await create()).status).toBe(201);
   });
 });
 
 describe('the cap is the deployment’s', () => {
-  it('is five unless MAX_MIGRATIONS_PER_ORGANISATION says otherwise', () => {
-    expect(DEFAULT_MAX_MIGRATIONS_PER_ORGANISATION).toBe(5);
-    expect(maxMigrationsPerOrganisationFromEnv(undefined)).toBe(5);
-    expect(maxMigrationsPerOrganisationFromEnv('')).toBe(5);
-    expect(maxMigrationsPerOrganisationFromEnv(' ')).toBe(5);
+  it('is six, as Free promises "six at the same time", unless MAX_MIGRATIONS_PER_ORGANISATION says otherwise', () => {
+    // The owner's decision of 2026-10-14; T0's provisional five is superseded.
+    expect(DEFAULT_MAX_MIGRATIONS_PER_ORGANISATION).toBe(6);
+    expect(maxMigrationsPerOrganisationFromEnv(undefined)).toBe(6);
+    expect(maxMigrationsPerOrganisationFromEnv('')).toBe(6);
+    expect(maxMigrationsPerOrganisationFromEnv(' ')).toBe(6);
     expect(maxMigrationsPerOrganisationFromEnv('12')).toBe(12);
+  });
+
+  it('says one migration in the singular, in both languages', () => {
+    expect(pastTheCapSaid(1, 1)).toEqual({
+      en:
+        'This organisation has 1 migration that is not finished, and may have 1 at once. ' +
+        'Finish or delete one before you add another, or contact us if you need more at once.',
+      nl:
+        'Deze organisatie heeft 1 migratie die nog niet is afgerond, en mag er 1 tegelijk ' +
+        'hebben. Rond er een af of verwijder er een voordat u een nieuwe toevoegt, of neem ' +
+        'contact met ons op als u er meer tegelijk nodig hebt.',
+    });
   });
 
   it('refuses a value it cannot read, naming it, rather than holding the default', () => {
@@ -206,7 +232,7 @@ describe('the cap is the deployment’s', () => {
     expect(res.status).toBe(409);
     expect(res.body.message).toBe(pastTheCap(2, 2));
 
-    // And one it cannot read creates nothing, rather than five.
+    // And one it cannot read creates nothing, rather than six.
     process.env.MAX_MIGRATIONS_PER_ORGANISATION = 'ten';
     await q('DELETE FROM mailbox_mapping');
     expect((await create()).status).toBe(500);

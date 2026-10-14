@@ -177,6 +177,44 @@ describe('serverMessage — when nothing of ours answered', () => {
  * on the reported Migrations list, are in
  * `pages/an-answer-the-page-could-not-read.unit.test.tsx`.
  */
+/**
+ * A refusal that brings its own Dutch. The migration cap answers its 409 with
+ * `message` and `messageNl` (2026-10-14), the shape the link refusals already
+ * use; *Start a migration* shows it through `serverMessage`, which used to
+ * read `message` only, so a Dutch tester read the cap in English.
+ */
+describe('serverMessage — a refusal with its own Dutch', () => {
+  const config = { headers: new AxiosHeaders() };
+  const refused = (data: unknown) =>
+    new AxiosError('Request failed with status code 409', 'ERR_BAD_REQUEST', config, {}, {
+      status: 409,
+      statusText: '',
+      headers: {},
+      config,
+      data,
+    });
+  const CAP = {
+    error: 'migration_cap',
+    message: 'This organisation has 6 migrations that are not finished, and may have 6 at once.',
+    messageNl: 'Deze organisatie heeft 6 migraties die nog niet zijn afgerond, en mag er 6 tegelijk hebben.',
+  };
+  afterEach(() => publishLocale('en'));
+
+  it('nl: the Dutch half', () => {
+    publishLocale('nl');
+    expect(serverMessage(refused(CAP))).toBe(CAP.messageNl);
+  });
+  it('en: the English half', () => {
+    publishLocale('en');
+    expect(serverMessage(refused(CAP))).toBe(CAP.message);
+  });
+  it('nl, with no Dutch or an empty one: the English as said', () => {
+    publishLocale('nl');
+    expect(serverMessage(refused({ message: CAP.message }))).toBe(CAP.message);
+    expect(serverMessage(refused({ message: CAP.message, messageNl: '' }))).toBe(CAP.message);
+  });
+});
+
 describe('serverMessage — an answer the page could not read', () => {
   const refusal = (schema: z.ZodType, value: unknown): unknown => {
     const result = schema.safeParse(value);

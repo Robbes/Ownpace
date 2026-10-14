@@ -250,10 +250,12 @@ describe('what else the migration says', () => {
       grantWithdrawnAt: new Date('2026-10-01T09:00:00Z'),
     });
 
-    const { scanDrive, scanCalendars } = await migrationInventoryScans(TENANT, GOOG_2_NC, MAILBOX);
+    const { scanDrive, scanCalendars, delegationReason } = await migrationInventoryScans(TENANT, GOOG_2_NC, MAILBOX);
     for (const listing of [await scanDrive(), await scanCalendars()]) {
       expect(reasonOf(listing)).toContain('withdrew their permission on 2026-10-01');
     }
+    // Its mailbox is still a Gmail one, and is told so, not Exchange's.
+    expect(delegationReason).toContain('Gmail delegation');
     expect(h.built).toEqual([]);
   });
 
@@ -271,5 +273,68 @@ describe('what else the migration says', () => {
     for (const q of h.queries) {
       expect(q.tenant, `asked outside withTenant for ${TENANT}:\n${q.text}`).toBe(TENANT);
     }
+  });
+});
+
+/**
+ * EVERY SOURCE IN ITS OWN WORDS (the owner, 2026-10-14). A Gmail mailbox, an
+ * IMAP one or a Dropbox was not a Google Drive, and so was handed Microsoft's
+ * sentences: Exchange Online PowerShell for who else had access to the
+ * mailbox, *"this tenant has no Microsoft 365 source connection"* for its
+ * calendars, and OneDrive and SharePoint for its files. Each now gets a
+ * sentence true of it, and each still says it as a blind spot, never as
+ * "nothing there" (hard rule 9).
+ */
+describe('a source that is neither a Microsoft account nor a Google account with a Drive', () => {
+  const OTHERS: ReadonlyArray<{ name: string; kind: string; family: 'google' | 'other' }> = [
+    { name: 'a Gmail mailbox', kind: 'gmail', family: 'google' },
+    { name: 'an IMAP mailbox', kind: 'imap', family: 'other' },
+    { name: 'a Dropbox', kind: 'dropbox', family: 'other' },
+    { name: 'a Soverin account', kind: 'soverin', family: 'other' },
+  ];
+  const MICROSOFT_WORDS = /PowerShell|Get-MailboxPermission|Get-RecipientPermission|FullAccess|SendAs|Exchange|Microsoft 365|Graph|OneDrive|SharePoint|tenant/;
+
+  it.each(OTHERS)("$name: the report says nothing of Microsoft's", async ({ kind, family }) => {
+    const id = `conn-${kind}`;
+    const migration = '0156a000-e29b-41d4-a716-446655440099';
+    h.connections.push({ id, kind, secret_ref: null, config: {} });
+    h.mappings.push({ id: migration, source: id });
+
+    const { delegationReason, scanCalendars, scanDrive } = await migrationInventoryScans(
+      TENANT,
+      migration,
+      MAILBOX,
+    );
+    const calendars = reasonOf(await scanCalendars());
+    const files = reasonOf(await scanDrive());
+
+    for (const said of [delegationReason, calendars, files]) {
+      expect(said, `a ${kind} source was handed Microsoft's words`).not.toMatch(MICROSOFT_WORDS);
+      // A blind spot, said as one: nothing was looked at, which is never
+      // "there is nothing to find".
+      expect(said).toContain('could not be inventoried');
+      expect(said).toContain('nothing was looked at');
+    }
+    if (family === 'google') {
+      expect(delegationReason).toContain('Gmail delegation');
+      expect(calendars).toContain('Google Calendar sharing is not read by Ownpace yet');
+    } else {
+      expect(delegationReason).toContain(
+        'who else could open this account or send mail from it is not read by Ownpace',
+      );
+      expect(calendars).toContain('calendar sharing is not read by Ownpace for this kind of source');
+    }
+    expect(files).toContain('file and folder sharing is not read by Ownpace for this kind of source');
+    // And no Drive was read for it.
+    expect(h.built).toEqual([]);
+  });
+
+  it('says the same with the file scope consented, which is a Microsoft setting', async () => {
+    process.env.GRAPH_FILES_READ_CONSENTED = 'true';
+    const migration = '0156a000-e29b-41d4-a716-446655440098';
+    h.connections.push({ id: 'conn-imap', kind: 'imap', secret_ref: null, config: {} });
+    h.mappings.push({ id: migration, source: 'conn-imap' });
+    const { scanDrive } = await migrationInventoryScans(TENANT, migration, MAILBOX);
+    expect(reasonOf(await scanDrive())).not.toMatch(MICROSOFT_WORDS);
   });
 });

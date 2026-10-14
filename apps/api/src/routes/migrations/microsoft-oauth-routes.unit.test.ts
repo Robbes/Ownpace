@@ -74,7 +74,7 @@ describe('the callback words AADSTS700016 by whose registration the consent used
     process.env.MICROSOFT_OAUTH_CLIENT_ID = 'deployment-app-id';
     process.env.MICROSOFT_OAUTH_CLIENT_SECRET = 'deployment-app-secret';
     const page = await refusedWith700016();
-    expect(page).toContain('tell whoever runs it');
+    expect(page).toContain('This is on our side, not your account: please contact us');
     expect(page).not.toContain('MICROSOFT_OAUTH_TENANT');
   });
 
@@ -83,6 +83,6 @@ describe('the callback words AADSTS700016 by whose registration the consent used
     process.env.MICROSOFT_OAUTH_CLIENT_SECRET = 'deployment-app-secret';
     const page = await refusedWith700016({ clientId: 'own-app-id', clientSecret: 'own-secret' });
     expect(page).toContain('MICROSOFT_OAUTH_TENANT');
-    expect(page).not.toContain('tell whoever runs it');
+    expect(page).not.toContain('please contact us');
   });
 });

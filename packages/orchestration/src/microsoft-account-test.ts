@@ -47,7 +47,7 @@ import {
   microsoftTokenEndpoint,
   withDeploymentMicrosoftClient,
 } from '@openmig/shared';
-import { missingCredentials } from '@openmig/shared';
+import { log, missingCredentials, shownFields } from '@openmig/shared';
 import type { BilingualRefusal, DiscoveryDomain, ProbeUnit, SourceConfig } from '@openmig/shared';
 import {
   buildCalendarSourceFromConnection,
@@ -102,6 +102,12 @@ export type MicrosoftGrantRead =
       readonly refusal?: BilingualRefusal;
     };
 
+/** The two fields as the Accounts form names them (the owner, 2026-10-14). */
+const MICROSOFT_ACCOUNT_LABELS = {
+  en: { clientId: 'Application (client) ID', refreshToken: 'the sign-in from Connect with Microsoft' },
+  nl: { clientId: 'toepassings-id (client)', refreshToken: 'de aanmelding via Verbinden met Microsoft' },
+} as const;
+
 export interface ReadMicrosoftGrantOptions {
   /** The token endpoint — a parameter so tests exchange against a stub. */
   readonly tokenEndpoint?: string;
@@ -128,23 +134,36 @@ export async function readMicrosoftGrant(
     // hide: the row had a client id (the deployment's, filled in) and NO
     // token, because the record had dropped it — and "no clientId/refreshToken
     // pair" pointed a reader at the registration, which was fine.
-    const missing = [...(!clientId ? ['clientId'] : []), ...(!refreshToken ? ['refreshToken'] : [])];
+    const keys = [...(!clientId ? ['clientId'] : []), ...(!refreshToken ? ['refreshToken'] : [])];
+    if (!clientId && refreshToken) {
+      // The deployment's side, by name, for whoever runs it; the person reads
+      // that it is ours (the owner, 2026-10-14).
+      log.warn(
+        '[microsoft] a Microsoft account row has a refresh token and no client id: it relies on ' +
+          "the deployment's own application, so MICROSOFT_OAUTH_CLIENT_ID and " +
+          'MICROSOFT_OAUTH_CLIENT_SECRET must be set, or the connection must carry its own pair.',
+      );
+    }
+    // Written for the person who reads it (the owner, 2026-10-14): the fields
+    // as the Accounts form names them, and the deployment's settings never.
     const { refusal } = missingCredentials({
       subject: 'The Microsoft 365 account',
-      missing,
+      missing: keys,
+      shown: shownFields(keys, keys, MICROSOFT_ACCOUNT_LABELS),
       detailEn: !refreshToken
-        ? 'The consent’s token is not on this connection. Remove it and connect the account ' +
-          'again with Connect with Microsoft, so the token is stored with it.'
-        : 'A row that took the grant button relies on the deployment’s own Microsoft ' +
-          'application: set MICROSOFT_OAUTH_CLIENT_ID and MICROSOFT_OAUTH_CLIENT_SECRET, or ' +
-          'send the connection’s own pair.',
+        ? 'The permission from Connect with Microsoft is not saved with this account. Remove ' +
+          'the account and connect it again with Connect with Microsoft, so it is saved with it.'
+        : "This account signs in through Ownpace's own Microsoft app, which is not set up on " +
+          'our side: please contact us. If you use your own app registration instead, fill in ' +
+          'its Application (client) ID and client secret on the account.',
       detailNl: !refreshToken
-        ? 'Het token van de toestemming staat niet op deze koppeling. Verwijder de koppeling ' +
-          'en verbind het account opnieuw met Verbinden met Microsoft, zodat het token erbij ' +
-          'wordt opgeslagen.'
-        : 'Een koppeling via de toestemmingsknop leunt op de eigen Microsoft-applicatie van ' +
-          'deze installatie: stel MICROSOFT_OAUTH_CLIENT_ID en MICROSOFT_OAUTH_CLIENT_SECRET ' +
-          'in, of stuur het eigen paar van de koppeling mee.',
+        ? 'De toestemming via Verbinden met Microsoft is niet bij dit account opgeslagen. ' +
+          'Verwijder het account en verbind het opnieuw met Verbinden met Microsoft, zodat de ' +
+          'toestemming erbij wordt opgeslagen.'
+        : 'Dit account meldt zich aan via de eigen Microsoft-app van Ownpace, en die is bij ons ' +
+          'nog niet ingesteld: neem contact met ons op. Gebruikt u in plaats daarvan uw eigen ' +
+          'appregistratie, vul dan de toepassings-id (client) en het clientsecret ervan in bij ' +
+          'het account.',
     });
     return { ok: false, reason: refusal.en, refusal };
   }

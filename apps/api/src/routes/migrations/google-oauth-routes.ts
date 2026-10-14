@@ -33,6 +33,7 @@ import {
   type Bilingual,
 } from '@openmig/shared';
 import {
+  EXCHANGE_FOR_THE_OWNER,
   GOOGLE_SOURCE_SCOPES,
   callbackPageHeaders,
   consentResultPage,
@@ -205,8 +206,8 @@ router.post('/google/authorize', authenticate, (req: AuthenticatedRequest, res: 
  * What a person on a grant link reads when Google's side of the consent did
  * not finish.
  *
- * The owner's sentences name the client, the secret and the redirect URI,
- * because the owner holds them and can act. This reader holds none of it, so
+ * The owner's ending says what the owner can check (`EXCHANGE_FOR_THE_OWNER`),
+ * and the log names the client and the redirect URI. This reader holds none of it, so
  * each sentence says what went wrong and, where they cannot fix it, whom to
  * tell (the rule `FOR_THE_LINK_HOLDER` in `grant.ts` follows). None of these
  * reached the link, and the page says so: until 2026-09-23 every one of them
@@ -284,8 +285,8 @@ router.get('/google/callback', async (req: Request, res: Response) => {
   const locale = localeOf(pending.locale);
   // `linkAfter` is what is true of a grant link after this refusal, when it
   // is not used up (see `grantResultPage`); the owner's ending has no link.
-  // `reason` is a pair where we wrote both halves; a code exchange's refusal
-  // to the owner quotes Google and names the client, and stays as written.
+  // `reason` is a pair where we wrote both halves, which since 2026-10-14
+  // includes a code exchange's refusal to the owner (`EXCHANGE_FOR_THE_OWNER`).
   const refuse = (status: number, reason: Bilingual | string, linkAfter?: 'works' | 'unused') => {
     const said = typeof reason === 'string' ? reason : inLocale(reason, locale);
     page(
@@ -329,12 +330,21 @@ router.get('/google/callback', async (req: Request, res: Response) => {
 
   if (!anyLink) {
     // The owner's ending (0089 T1), in the language the consent began in (0145 T6).
-    return page(outcome.ok ? 200 : 400, consentResultPage({ webOrigin: webOrigin(), outcome, locale }));
+    if (!outcome.ok) {
+      // In the owner's words for the code (the owner, 2026-10-14): Google's
+      // own answer, the client and the redirect URI go to the log, where
+      // whoever looks into it can read them, and never onto the page. The
+      // reason quotes Google's answer, which never echoes the secret; no
+      // token exists on this branch.
+      log.warn(`[api] an owner's Connect with Google code exchange failed (${outcome.code}): ${outcome.reason}`);
+      return refuse(400, EXCHANGE_FOR_THE_OWNER[outcome.code]);
+    }
+    return page(200, consentResultPage({ webOrigin: webOrigin(), outcome, locale }));
   }
 
   if (!outcome.ok) {
-    // The owner's sentence names what to check, and nobody who can check it is
-    // reading this page, so it goes where the one who runs this can find it.
+    // The detail names what to check, and nobody who can check it is reading
+    // this page, so it goes where the one who runs this can find it.
     log.warn(
       `[api] a grant link's code exchange failed (${outcome.code}) for ` +
         `${link ? `mapping ${link.mappingId}` : `person ${personLink!.personId}`}: ${outcome.reason}`,

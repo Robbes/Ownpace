@@ -2,7 +2,7 @@
 import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import { z } from 'zod';
 import { issuePathForLog } from '@openmig/shared';
-import { tActive } from '../i18n/active-locale.ts';
+import { activeLocale, tActive } from '../i18n/active-locale.ts';
 import { referenceFor, type UnreadableAnswer } from './unreadable-answer.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { noticeConditionsNotAccepted } from './conditions-refused.ts';
@@ -161,11 +161,18 @@ export function serverMessage(err: unknown): string {
     if (data && typeof data === 'object') {
       const d = data as {
         message?: unknown;
+        messageNl?: unknown;
         reason?: unknown;
         error?: unknown;
         details?: unknown;
       };
-      if (typeof d.message === 'string' && d.message) return d.message;
+      if (typeof d.message === 'string' && d.message) {
+        // A refusal that brings its own Dutch (`messageNl`, beside `message`,
+        // as the link refusals and the migration cap do) is shown in it to a
+        // Dutch reader; everything else is shown as the server said it.
+        if (activeLocale() === 'nl' && typeof d.messageNl === 'string' && d.messageNl) return d.messageNl;
+        return d.message;
+      }
       // `reason` is the OTHER shape this API answers with — 24 routes use it
       // where 44 use `message`, and the connections routes are all in the first
       // group. Without this the delete-in-use refusal renders as the bare code
