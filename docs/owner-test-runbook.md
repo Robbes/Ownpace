@@ -323,11 +323,39 @@ account as Stage 5:
    **Question zero, added 2026-09-20 — the narrower calendar scope.** The
    console lists `.../auth/calendar.readonly` *under the CalDAV API*, which
    suggests Google's CalDAV endpoint accepts it; this product never writes a
-   source, so read-only is the scope it should ask for if it works. Mint the
-   calendar token with `https://www.googleapis.com/auth/calendar.readonly`
-   first. If discovery (question one) answers, that is the scope we ship and
-   the code narrows; if it refuses, mint again with the full scope, and send
-   back the refusal sentence — it is worth as much as a pass.
+   source, so read-only is the scope it should ask for if it works.
+   **Discovery alone does not settle it (researched 2026-10-14, issue #1553).**
+   Google's CalDAV docs name no scope, and the one first-hand report found,
+   Haruspex PR #347 (github.com/tmac1973/haruspex/pull/347, live-tested on a
+   real account, merged 2026-10-07), says: "Google's CalDAV lists calendars
+   for a `calendar.readonly` token but answers 403 to event REPORTs." So the
+   test needs an event REPORT, not just the PROPFIND walk. The product cannot
+   run it either: the token refresh sends `scope=…/auth/calendar`, which a
+   read-only grant refuses with `invalid_scope`. Run it with curl:
+   1. Mint an access token with ONLY `…/auth/calendar.readonly`, from the
+      project's own OAuth client (the OAuth 2.0 Playground with *Use your own
+      OAuth credentials*, after adding
+      `https://developers.google.com/oauthplayground` to the client's
+      redirect URIs). `curl "https://oauth2.googleapis.com/tokeninfo?access_token=$AT"`
+      must show that one scope.
+   2. `U=you%40gmail.com` (the address, `@` encoded). The principal:
+      `curl -i -X PROPFIND -H "Authorization: Bearer $AT" -H "Depth: 0" -H "Content-Type: application/xml" --data '<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:current-user-principal/><c:calendar-home-set/></d:prop></d:propfind>' "https://apidata.googleusercontent.com/caldav/v2/$U/user/"`
+   3. The calendars: the same PROPFIND with `Depth: 1`, `<d:displayname/><d:resourcetype/>`
+      in the `prop`, on the `calendar-home-set` href step 2 returned.
+   4. **The deciding read**, the one the product's CalDAV source sends:
+      `curl -i -X REPORT -H "Authorization: Bearer $AT" -H "Depth: 1" -H "Content-Type: application/xml" --data '<d:sync-collection xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:sync-token/><d:sync-level>1</d:sync-level><d:prop><d:getetag/><c:calendar-data/></d:prop></d:sync-collection>' "https://apidata.googleusercontent.com/caldav/v2/$U/events/"`
+      then add one event in Google Calendar and repeat it with the
+      `<d:sync-token>` the first answer ended with.
+   5. The control: steps 1 and 4 again with a token for the full
+      `…/auth/calendar`. It must answer 207; if it does not, the project (CalDAV
+      API not enabled, test user missing) is at fault, not the scope.
+
+   A `207 Multi-Status` with `calendar-data` in step 4, both times, is a pass:
+   that is the scope we ship and the code narrows. A `403` in step 4 with 207s
+   in steps 2–3 is the outcome Haruspex reported: the calendar keeps
+   `…/auth/calendar`, and `grant.readsOnly` stays true as written. Send back the
+   status line and body of step 4 either way; a refusal is worth as much as a
+   pass.
 2. **Question one — discovery**: does the first pass list your calendars /
    address book? A failure here is Google's principal URL not answering the
    PROPFIND walk — send back the error verbatim, it names the URL it tried.
