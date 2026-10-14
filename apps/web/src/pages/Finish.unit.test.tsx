@@ -447,7 +447,10 @@ describe('the per-mapping mode (workplan 0019 T5)', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /Run a pass now/ }));
     await waitFor(() => expect(requestFinalPass).toHaveBeenCalledWith('acme-mail'));
-    expect(await screen.findByText(/Queued as a job/)).toBeInTheDocument();
+    // Requested, not finished: the managed pass runs later and lands in the
+    // run history (the owner's words, 2026-10-14, for "Queued as a job").
+    expect(await screen.findByText(/The pass has been requested/)).toBeInTheDocument();
+    expect(screen.getByText(/run history on the migration’s page/)).toBeInTheDocument();
   });
 });
 

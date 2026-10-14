@@ -50,8 +50,10 @@ export const en = {
   // Not a fallback to the paste box: on a managed stack that box is refused
   // anyway, so offering it after a failed check would be inventing a way in
   // that does not exist.
-  'login.modeUnavailable':
-    'We could not ask this deployment which sign-in it accepts; nothing to offer yet.',
+  //
+  // Followed by `serverMessage`'s sentence, which says why in the reader's
+  // language when nothing answered (`answer.unreachable`).
+  'login.modeUnavailable': 'Signing in is not possible right now.',
   // The state #562 left behind: the stack has an issuer and this build was
   // never told its address. Named exactly, because only an operator can fix it
   // and they need the two words to search for.
@@ -82,7 +84,7 @@ export const en = {
   'login.noOrganisation.signedInAs': 'You signed in as {email}.',
   'login.noOrganisation.ask': 'Ask for access',
   'login.noOrganisation.already':
-    'Already asked? Then you will have to wait for an owner or operator to grant access.',
+    'Already asked? Then wait until we, or an owner of your organisation, give you access.',
   'login.noOrganisation.already.why':
     'Asking again doesn\'t help: a second request while the first is open is not recorded twice.',
   // ---- Answering an invitation (workplan 0099). ----
@@ -206,9 +208,8 @@ export const nl: Record<keyof typeof en, string> = {
   'login.oidcFailed': 'Wij konden de aanmeldservice niet bereiken.',
   'login.requestAccess': 'Nog geen account? Vraag toegang aan.',
   // ---- De API vragen wat zij accepteert (workplan 0102 T1) — zie het Engelse blok. ----
-  'login.checking': 'Bezig met controleren hoe men zich bij deze omgeving aanmeldt…',
-  'login.modeUnavailable':
-    'Wij konden deze omgeving niet vragen welke aanmelding zij accepteert; nog niets aan te bieden.',
+  'login.checking': 'Bezig met controleren hoe u zich aanmeldt…',
+  'login.modeUnavailable': 'Aanmelden is nu niet mogelijk.',
   'login.providerNotBuilt':
     'Aanmelden via identiteitsprovider, maar deze webbuild mist het adres: bouw opnieuw met VITE_OIDC_ISSUER en VITE_OIDC_CLIENT_ID.',
   'login.callback.working': 'U wordt aangemeld…',
@@ -219,7 +220,7 @@ export const nl: Record<keyof typeof en, string> = {
   'login.noOrganisation.signedInAs': 'U bent aangemeld als {email}.',
   'login.noOrganisation.ask': 'Toegang aanvragen',
   'login.noOrganisation.already':
-    'Al aangevraagd? Dan wacht u tot een eigenaar of wie deze dienst beheert u toegang geeft.',
+    'Al aangevraagd? Dan wacht u tot wij, of een eigenaar van uw organisatie, u toegang geven.',
   'login.noOrganisation.already.why':
     'Nogmaals aanvragen kan geen kwaad: een tweede aanvraag terwijl de eerste openstaat wordt echter niet dubbel vastgelegd.',
   // ---- Een uitnodiging beantwoorden (workplan 0099) — zie het Engelse blok. ----

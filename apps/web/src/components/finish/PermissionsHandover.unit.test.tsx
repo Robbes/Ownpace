@@ -42,10 +42,11 @@ describe('what it says before anybody clicks', () => {
   it('names the blind spot on screen, not only inside the document', () => {
     render(<PermissionsHandover mappingId="m1" sourceKind="microsoft" />);
 
-    // Somebody who never opens the file should still learn that FullAccess
-    // and Send-As cannot be read at all.
-    expect(screen.getByText(/FullAccess or Send-As/)).toBeInTheDocument();
-    expect(screen.getByText(/does not expose that to us to migrate/)).toBeInTheDocument();
+    // Somebody who never opens the file should still learn that full access
+    // and send-as on a mailbox cannot be read at all (Exchange's FullAccess and
+    // Send-As, in a tester's words since 2026-10-14).
+    expect(screen.getByText(/who could open or send from someone else's mailbox/)).toBeInTheDocument();
+    expect(screen.getByText(/does not give us that to migrate/)).toBeInTheDocument();
   });
 
   it('does not promise file sharing this installation may not have read', () => {
@@ -55,8 +56,11 @@ describe('what it says before anybody clicks', () => {
     // 2026-08-04), so drive sharing is a stated blind spot in most
     // deployments. The panel used to read as though the list always covered
     // it — a promise the document then quietly did not keep.
-    expect(screen.getByText(/OneDrive and SharePoint/)).toBeInTheDocument();
-    expect(screen.getByText(/only included when this installation/)).toBeInTheDocument();
+    expect(screen.getByText(/sharing on OneDrive and SharePoint\./)).toBeInTheDocument();
+    expect(screen.getByText(/read only if Ownpace was given an extra permission/)).toBeInTheDocument();
+    // And what to do where it was not, as the managed report's own sentence
+    // says it (`DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER`).
+    expect(screen.getByText(/note your file and folder sharing by hand before you switch over/)).toBeInTheDocument();
     // And it points at the document for the per-run answer, because that is
     // where the truth for THIS report lives.
     expect(screen.getByText(/which of the two it actually read/)).toBeInTheDocument();
@@ -72,13 +76,13 @@ describe("the blind spots are the migration's own source's (the owner, 2026-10-0
 
     expect(screen.getByText(/Gmail delegation and send-as/)).toBeInTheDocument();
     expect(screen.getByText(/Sharing on Google Drive is read/)).toBeInTheDocument();
-    expect(screen.queryByText(/FullAccess or Send-As/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/someone else's mailbox/)).not.toBeInTheDocument();
     expect(screen.queryByText(/OneDrive and SharePoint/)).not.toBeInTheDocument();
   });
 
   it("reads either vocabulary: the managed edition's kind and the appliance's type", () => {
     const { unmount } = render(<PermissionsHandover mappingId="m1" sourceKind="o365" />);
-    expect(screen.getByText(/FullAccess or Send-As/)).toBeInTheDocument();
+    expect(screen.getByText(/who could open or send from someone else's mailbox/)).toBeInTheDocument();
     unmount();
 
     render(<PermissionsHandover mappingId="m1" sourceKind="google-drive" />);

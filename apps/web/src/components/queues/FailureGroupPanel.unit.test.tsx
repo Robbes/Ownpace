@@ -334,7 +334,7 @@ describe('the groups are read off the rows', () => {
 
   it('shows each group with its count and its own sentence', async () => {
     renderPanel(MIXED);
-    expect(await screen.findByText('Groups in this queue')).toBeInTheDocument();
+    expect(await screen.findByText('Groups in this list')).toBeInTheDocument();
     expect(screen.getByText('2 items')).toBeInTheDocument();
     // The same remedy sentence the row above the panel prints, from the same
     // map: the group and its members have to be called one thing.

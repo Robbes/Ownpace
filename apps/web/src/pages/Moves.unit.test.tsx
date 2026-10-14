@@ -166,7 +166,7 @@ describe('the relocation apply button', () => {
     // Queued first — the honest state, held visible until asserted. The badge
     // renders from the 202 itself; the first POLL only fires after the seam's
     // 10ms, so wait for it before releasing its answer.
-    expect(await screen.findByText(/[Qq]ueued/)).toBeInTheDocument();
+    expect(await screen.findByText(/Removal requested/)).toBeInTheDocument();
     await waitFor(() => expect(fetchMoveApplyReceiptMock).toHaveBeenCalled());
     releaseReceipt({
       state: 'applied',
@@ -174,7 +174,8 @@ describe('the relocation apply button', () => {
       requestedAt: '2026-08-16T08:00:00Z',
       finishedAt: '2026-08-16T08:00:02Z',
     });
-    expect(await screen.findByText(/[Rr]emoved/)).toBeInTheDocument();
+    // The terminal sentence, not the requested one (which says *removed* too).
+    expect(await screen.findByText(/^Removed — gone/)).toBeInTheDocument();
     expect(fetchMoveApplyReceiptMock).toHaveBeenCalledWith('acme-mail', 'Docs/report.pdf');
   });
 

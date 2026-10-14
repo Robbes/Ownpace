@@ -88,9 +88,13 @@ describe('probeText — the deadline and the floor (2026-09-02)', () => {
     // correct."*
     const later: ProbeOutcome = { code: 'countedAtPreflight' };
     expect(probeText(en, later, 'ignored')).toBe(
-      "This export is in the migration's file target; it is counted at the preflight.",
+      'This export is in your new files, so there is nothing to test here yet. It is counted when you review the migration.',
     );
-    expect(probeText(nl, later, 'ignored')).toContain('preflight');
+    expect(probeText(nl, later, 'ignored')).toContain('geteld wanneer u de migratie controleert');
+    // Said in the tester's words (the owner, 2026-10-14): the review, not
+    // "the preflight", and the new files, not "the file target".
+    expect(probeText(en, later, 'ignored')).not.toMatch(/preflight|file target/);
+    expect(probeText(nl, later, 'ignored')).not.toMatch(/preflight|bestandsdoel/);
     // Not the server's English, which is longer and written for a log.
     expect(probeText(en, later, 'THE FALLBACK')).not.toContain('THE FALLBACK');
   });

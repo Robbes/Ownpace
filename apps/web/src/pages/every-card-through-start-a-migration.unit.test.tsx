@@ -88,8 +88,8 @@ const companyApp = (through: RegExp) => async (user: User) => {
 const WALKS: Readonly<Record<MigratableSourceCard['id'], Walk>> = {
   imap: { tiles: ['Another mail provider'] },
   microsoft: { tiles: ['Microsoft 365'] },
-  oauth2: { tiles: ['Microsoft 365'], onWhat: companyApp(/^Through our own app, with IMAP/) },
-  graph: { tiles: ['Microsoft 365'], onWhat: companyApp(/^Through our own app, with Microsoft Graph/) },
+  oauth2: { tiles: ['Microsoft 365'], onWhat: companyApp(/^Through your organisation's app, with IMAP/) },
+  graph: { tiles: ['Microsoft 365'], onWhat: companyApp(/^Through your organisation's app, with Microsoft Graph/) },
   google: { tiles: ['Google'], served: WIDE },
   'google-drive': {
     tiles: ['Google'],

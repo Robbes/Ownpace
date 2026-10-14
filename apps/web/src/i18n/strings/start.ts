@@ -39,7 +39,7 @@ export const en = {
   // things go, and this fold promised them as sources.
   'start.from.other': 'Other ways to connect (IMAP)',
   'start.from.other.line':
-    'Any mail server is read over IMAP: that is Another mail provider. CalDAV, CardDAV, WebDAV and JMAP are where things go, chosen on Where does it go?',
+    'Any other mail provider works: choose Another mail provider. Calendars, contacts and files are read only from the providers above. Other servers can receive them: you choose that on Where does it go?',
   'start.from.other.choose': 'Choose Another mail provider',
   'start.what.heading': 'What moves?',
   'start.what.hint': 'Each sign-in asks only for what you tick here.',
@@ -147,10 +147,10 @@ export const en = {
   'start.company.no': 'No',
   'start.company.yes': 'Yes',
   'start.what.orgApp.lead':
-    "Your administrator can have the mail read through your organisation's own OAuth-client-app, with application permissions. That is also how a shared mailbox is read.",
+    "Your administrator can let Ownpace read the mail through your organisation's own OAuth app, with application permissions. That is also how a shared mailbox is read.",
   'start.what.orgApp.signIn': 'With the Microsoft sign-in',
-  'start.what.orgApp.graph': 'Through our own app, with Microsoft Graph',
-  'start.what.orgApp.imap': 'Through our own app, with IMAP',
+  'start.what.orgApp.graph': "Through your organisation's app, with Microsoft Graph",
+  'start.what.orgApp.imap': "Through your organisation's app, with IMAP",
   'start.moreOptions': 'More options',
   'start.appPassword': 'Use an app password instead',
   'start.serverSettings': 'Server settings',
@@ -205,7 +205,7 @@ export const nl: Record<keyof typeof en, string> = {
   'start.from.needOne': 'Vink minstens één account aan.',
   'start.from.other': 'Andere manieren om te verbinden (IMAP)',
   'start.from.other.line':
-    'Elke mailserver wordt via IMAP gelezen: dat is Een andere mailaanbieder. CalDAV, CardDAV, WebDAV en JMAP zijn bestemmingen, te kiezen bij Waar gaat het naartoe?',
+    'Elke andere mailaanbieder werkt: kies Een andere mailaanbieder. Agenda’s, contacten en bestanden worden alleen gelezen bij de aanbieders hierboven. Andere servers kunnen ze wel ontvangen: dat kiest u bij Waar gaat het naartoe?',
   'start.from.other.choose': 'Een andere mailaanbieder kiezen',
   'start.what.heading': 'Wat wilt u migreren?',
   'start.what.hint': 'Elke aanmelding vraagt alleen om wat u hier aanvinkt.',
@@ -305,10 +305,10 @@ export const nl: Record<keyof typeof en, string> = {
   'start.company.no': 'Nee',
   'start.company.yes': 'Ja',
   'start.what.orgApp.lead':
-    'Uw beheerder kan de e-mail laten lezen via de eigen OAuth-client-app van uw organisatie, met toepassingsmachtigingen. Zo wordt ook een gedeelde mailbox gelezen.',
+    'Uw beheerder kan Ownpace de e-mail laten lezen via de eigen oauth-app van uw organisatie, met toepassingsmachtigingen. Zo wordt ook een gedeelde mailbox gelezen.',
   'start.what.orgApp.signIn': 'Met de aanmelding bij Microsoft',
-  'start.what.orgApp.graph': 'Via onze eigen app, met Microsoft Graph',
-  'start.what.orgApp.imap': 'Via onze eigen app, met IMAP',
+  'start.what.orgApp.graph': 'Via de app van uw organisatie, met Microsoft Graph',
+  'start.what.orgApp.imap': 'Via de app van uw organisatie, met IMAP',
   'start.moreOptions': 'Meer opties',
   'start.appPassword': 'Liever een app-wachtwoord gebruiken',
   'start.serverSettings': 'Serverinstellingen',
