@@ -96,7 +96,11 @@ export interface Unattributed {
 export function unattributed(entries: readonly ScopeManifestEntry[]): Unattributed[] {
   const found: Unattributed[] = [];
   for (const entry of entries) {
-    const text = `${entry.item} ${entry.detail} ${entry.more ?? ''}`;
+    // Both languages: a Dutch row that names OneDrive is shown to a Google
+    // migration just as surely as an English one (2026-10-14).
+    const text =
+      `${entry.item} ${entry.detail} ${entry.more ?? ''} ` +
+      `${entry.nl?.item ?? ''} ${entry.nl?.detail ?? ''} ${entry.nl?.more ?? ''}`;
     for (const [word, family] of Object.entries(VOCABULARY)) {
       if (!new RegExp(`\\b${word}\\b`).test(text)) continue;
       if (entry.appliesTo?.includes(family)) continue;
@@ -161,7 +165,11 @@ describe('a manifest that named the wrong provider', () => {
     // the words a Google migration is shown, and the words a Microsoft one is.
     const wordsIn = (m: typeof SCOPE_MANIFEST): string =>
       COLUMNS.flatMap((c) => [...m[c]])
-        .map((e) => `${e.item} ${e.detail} ${e.more ?? ''}`)
+        .map(
+          (e) =>
+            `${e.item} ${e.detail} ${e.more ?? ''} ` +
+            `${e.nl?.item ?? ''} ${e.nl?.detail ?? ''} ${e.nl?.more ?? ''}`,
+        )
         .join(' ');
 
     const google = wordsIn(scopeManifestFor(SCOPE_MANIFEST, ['google']));

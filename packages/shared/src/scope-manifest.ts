@@ -4,6 +4,11 @@
  * Static scope manifest (SAD §11.2) — "what migrates, what doesn't, and why", shown on the
  * pre-sync confirm screen alongside the live discovery counts (workplan 0013). Explicit and
  * readable: no silent omissions. Versioned so the UI can note when the promise set changes.
+ *
+ * In plain words, in English and in Dutch (2026-10-14): every managed tester reads it on Start a
+ * migration and on Review and start. A row says what moves, what does not, and what is only
+ * listed for them to redo by hand; it names no internal pattern, section or mechanism, and a
+ * protocol only where the tester chooses a destination by it (`a-manifest-in-plain-words`).
  */
 
 /**
@@ -143,6 +148,13 @@ export function scopeFamilyOfConnectionKind(kind: string): ScopeFamily | undefin
 import type { SourceConfig } from './config.ts';
 import type { GuideHandle } from './guide-handle.ts';
 
+/** The words of one row a reader sees: its label, its line and its fold. */
+export interface ScopeManifestWords {
+  readonly item: string;
+  readonly detail: string;
+  readonly more?: string;
+}
+
 export interface ScopeManifestEntry {
   /** Short label (e.g. "Email", "Teams chat"). */
   readonly item: string;
@@ -164,7 +176,8 @@ export interface ScopeManifestEntry {
    *
    * NOT a place to put things nobody needs: what moved here is every word of
    * the old long details — the JMAP contacts verification narrowing, why a
-   * Message-ID is generated, what Graph cannot read about mailbox delegation.
+   * Message-ID is generated, what Microsoft does not let us read about who
+   * else could use a mailbox.
    * Those are disclosures, and compressing a disclosure out of existence is
    * the failure §11.2 exists to prevent. So the screen shows the line and
    * offers the rest, and
@@ -204,6 +217,35 @@ export interface ScopeManifestEntry {
    * product in a row and that row has to say whose.
    */
   readonly appliesTo?: ReadonlyArray<ScopeFamily>;
+  /**
+   * THE SAME ROW IN DUTCH, beside its English (workplan 0013, 2026-10-14).
+   *
+   * Every managed tester reads this panel twice, on *Start a migration* and
+   * on *Review and start*, and it was the one block of those screens that
+   * stayed English under `nl`. It is our own prose, not a finding, so it is
+   * not the render-verbatim class: it is shared operator prose needed in both
+   * languages (`docs/i18n-prose-boundary.md`, class 4), and its Dutch lives
+   * here, in the same row, updated together with the English or not at all.
+   * The screen shows the half in its reader's language, and the English row
+   * where a row has no Dutch.
+   *
+   * `item` stays the row's key in English (the site's leaving pages name a
+   * row by it); `nl.item` is only what a Dutch reader sees.
+   */
+  readonly nl?: ScopeManifestWords;
+}
+
+/**
+ * A row's words in the reader's language: the Dutch half under `nl` when the
+ * row has one, and otherwise the English as served.
+ */
+export function scopeManifestWords(entry: ScopeManifestEntry, locale: 'en' | 'nl'): ScopeManifestWords {
+  if (locale === 'nl' && entry.nl !== undefined) return entry.nl;
+  return {
+    item: entry.item,
+    detail: entry.detail,
+    ...(entry.more !== undefined ? { more: entry.more } : {}),
+  };
 }
 
 export interface ScopeManifest {
@@ -219,13 +261,32 @@ export interface ScopeManifest {
 
 /**
  * The Files disclosure, shared by the per-provider rows above: it is about the
- * TARGET's two write paths, which is the same sentence whichever provider the
+ * destination's check, which is the same sentence whichever provider the
  * bytes came from. Split the detail, not the disclosure.
  */
-const FILES_MORE =
-  'The same files either way, and unlike the contacts row above there is no narrowing to ' +
-  'state: a JMAP file node carries both its byte count and a handle to its content, so ' +
-  'verification checks counts, total bytes AND content checksums on both paths.';
+const FILES_MORE = {
+  en:
+    'Whatever kind of destination you choose, the check afterwards compares the number of ' +
+    'files, their total size and their contents.',
+  nl:
+    'Welke soort bestemming u ook kiest, de verificatie achteraf vergelijkt het aantal ' +
+    'bestanden, hun totale grootte en hun inhoud.',
+} as const;
+
+/**
+ * The line both Permissions rows open with, in each language. Shared rather
+ * than typed twice, because a reader who sees both providers' rows on the
+ * appliance should read one promise, not two that drifted.
+ */
+const PERMISSIONS_LINE = {
+  en: 'Listed for you to redo by hand; nothing is applied for you.',
+  nl: 'Op een lijst gezet om met de hand over te zetten; er wordt niets voor u toegepast.',
+} as const;
+/** And the first sentence of both their folds. */
+const PERMISSIONS_FIRST = {
+  en: 'Every line of the permission list is a step for a person to take.',
+  nl: 'Elke regel van de rechtenlijst is een stap die iemand zelf zet.',
+} as const;
 
 export const SCOPE_MANIFEST: ScopeManifest = {
   // NOT bumped on 2026-09-17, deliberately. The re-cut below moved words
@@ -238,61 +299,112 @@ export const SCOPE_MANIFEST: ScopeManifest = {
   //
   // Bumped on 2026-09-25: shared mailboxes moved from "migrates" to "partial"
   // until one is copied (workplan 0141 T10 (a)).
-  version: '2026-09-25',
+  //
+  // Bumped on 2026-10-14 (workplan 0013, Status): the rows were reworded in
+  // plain words and got their Dutch, which alone would not move it, but three
+  // rows now say what the code does where they used to say more. Mail with no
+  // Message-ID is migrated only where the connection can give it one (a
+  // Microsoft Graph connection cannot, and `DiscoveryCounts` already says so);
+  // Microsoft calendar and file sharing are read only through an
+  // administrator's own app given that permission; and Google Photos names the
+  // Takeout route the wizard offers, where it said only that the Drive API
+  // cannot reach them.
+  version: '2026-10-14',
   migrates: [
-    { item: 'Email', detail: 'Folders incl. Sent / Drafts / Archive, flags/keywords, timestamps.' },
-    { item: 'Calendar', detail: 'Events, recurrence, attendees (ICS).' },
+    {
+      item: 'Email',
+      detail: 'Every folder, Sent, Drafts and Archive included, with flags, tags and dates.',
+      nl: {
+        item: 'E-mail',
+        detail: 'Elke map, ook Verzonden, Concepten en Archief, met markeringen, labels en datums.',
+      },
+    },
+    {
+      item: 'Calendar',
+      detail: 'Events, repeating ones included, with their attendees.',
+      nl: { item: 'Agenda', detail: 'Afspraken, ook terugkerende, met hun deelnemers.' },
+    },
     {
       item: 'Contacts',
-      detail: 'Address books and contacts (vCard), over CardDAV or JMAP.',
+      detail: 'Address books and contacts.',
       more:
-        'The same contacts either way, including properties with no JSContact equivalent. One ' +
-        'difference worth knowing before cutover: on the JMAP path the target exposes no route ' +
-        'back to the original vCard, so content-checksum sampling does not run and verification ' +
-        'checks counts and presence instead. The report says so per run rather than leaving it ' +
-        'to be inferred.',
+        'Every field comes across, including ones the destination has no field of its own for. ' +
+        'One difference to know before you switch over: a JMAP destination cannot hand a ' +
+        'contact back exactly as it was written, so there the check afterwards does not compare ' +
+        'their contents. It checks how many there are and that each one is there instead, and ' +
+        'the report says so for every run.',
+      nl: {
+        item: 'Contacten',
+        detail: 'Adresboeken en contacten.',
+        more:
+          'Elk veld komt mee, ook velden waarvoor de bestemming zelf geen vak heeft. Eén verschil ' +
+          'om te weten voordat u overstapt: een JMAP-bestemming kan een contact niet teruggeven ' +
+          'precies zoals het werd geschreven, dus daar vergelijkt de verificatie achteraf hun ' +
+          'inhoud niet. Ze kijkt dan hoeveel het er zijn en of elk ervan er staat, en het ' +
+          'rapport zegt dat elke keer.',
+      },
     },
     {
       item: 'Files',
-      detail: 'OneDrive and SharePoint libraries: files and folders, over WebDAV or JMAP.',
-      more: FILES_MORE,
+      detail: 'OneDrive and SharePoint libraries: files and folders.',
+      more: FILES_MORE.en,
       appliesTo: ['microsoft'],
+      nl: {
+        item: 'Bestanden',
+        detail: 'OneDrive- en SharePoint-bibliotheken: bestanden en mappen.',
+        more: FILES_MORE.nl,
+      },
     },
     {
       item: 'Files',
-      detail: 'Google Drive: files and folders, over WebDAV or JMAP.',
-      more: FILES_MORE,
+      detail: 'Google Drive: files and folders.',
+      more: FILES_MORE.en,
       appliesTo: ['google'],
+      nl: { item: 'Bestanden', detail: 'Google Drive: bestanden en mappen.', more: FILES_MORE.nl },
     },
     {
       item: 'Tasks',
       detail: 'Google Tasks: every list and task, completed and assigned ones included.',
       more:
-        "Read over Google's Tasks API, because its CalDAV carries no tasks. Subtasks keep " +
-        'their parent; links, and where an assigned task came from, become lines in its ' +
-        'description; a task deleted in Google goes to your Deletions queue and is never ' +
-        'removed for you. Two things the API does not have cannot be carried: a time of day ' +
-        'on a due date, and a repeat.',
+        "Read from Google Tasks itself, because Google's calendar connection carries no tasks. " +
+        "Subtasks keep their parent; links, and where an assigned task came from, become lines " +
+        "in the task's description; a task deleted in Google goes to Deletions for you to " +
+        'decide, and is never removed for you. Two things Google does not give out cannot come ' +
+        'across: a time of day on a due date, and a repeat.',
       appliesTo: ['google'],
+      nl: {
+        item: 'Taken',
+        detail: 'Google Tasks: elke lijst en taak, ook afgevinkte en toegewezen taken.',
+        more:
+          'Gelezen uit Google Tasks zelf, omdat de agendakoppeling van Google geen taken bevat. ' +
+          'Subtaken houden hun bovenliggende taak; links, en waar een toegewezen taak vandaan ' +
+          'kwam, worden regels in de beschrijving van de taak; een taak die in Google is ' +
+          'verwijderd, komt bij Verwijderingen zodat u beslist, en wordt nooit voor u verwijderd. ' +
+          'Twee dingen die Google niet doorgeeft, kunnen niet mee: een tijdstip op een ' +
+          'vervaldatum, en een herhaling.',
+      },
     },
     {
       item: 'Files',
-      detail: 'Files and folders, over WebDAV or JMAP.',
-      more: FILES_MORE,
+      detail: 'Files and folders.',
+      more: FILES_MORE.en,
       appliesTo: ['dropbox', 'box', 'archive', 'standards'],
+      nl: { item: 'Bestanden', detail: 'Bestanden en mappen.', more: FILES_MORE.nl },
     },
   ],
   partial: [
-    // Pattern D moved down from `migrates` on 2026-08-04 (workplan 0027 T4).
-    // Under *Migrates* it promised a recreation no code performs, which is
-    // the promise 0026's truth pass exists to stop us making. Pattern S went
-    // with it and came back the same day, when 0027 T3 landed.
+    // Distribution lists moved down from `migrates` on 2026-08-04 (workplan
+    // 0027 T4). Under *Migrates* they promised a recreation no code performs,
+    // which is the promise 0026's truth pass exists to stop us making. Shared
+    // mailboxes went with them and came back the same day, when 0027 T3
+    // landed. (0027 calls the two §14.1's Pattern D and Pattern S; those are
+    // the architecture's names, and a tester reads neither.)
     //
-    // Pattern S moved down again on 2026-09-25 (workplan 0141 T10 (a), the
-    // owner's choice): the code is built, and nobody has copied a real shared
-    // mailbox with it (0027 T0 waits on the consent run). The Microsoft 365
-    // account card, the one most people pick, cannot read one at all. Which
-    // column it sits in is `SOURCE_PROOFS.sharedMailbox`'s to say, in
+    // Shared mailboxes moved down again on 2026-09-25 (workplan 0141 T10 (a),
+    // the owner's choice): the code is built, and nobody has copied a real
+    // shared mailbox with it (0027 T0 waits on the consent run). The Microsoft
+    // 365 account card, the one most people pick, cannot read one at all.
+    // Which column it sits in is `SOURCE_PROOFS.sharedMailbox`'s to say, in
     // front-door.ts: under *Migrates* once that verdict is proven, and the
     // verdict is proven only by a Live proofs row in the feature matrix
     // (`a-shared-mailbox-promise-with-its-proof.unit.test.ts`).
@@ -301,51 +413,95 @@ export const SCOPE_MANIFEST: ScopeManifest = {
       detail: 'Needs your own app registration; not yet copied from a real shared mailbox.',
       appliesTo: ['microsoft'],
       more:
-        'Pattern S — the shared store is copied as an ordinary mapping: the full folder tree ' +
-        'incl. Sent/Drafts/Archive, same idempotency and verification as any mailbox. Needs ' +
-        'application permissions on the source, granted by an administrator to your own app ' +
-        'registration. The Microsoft 365 account button reads ' +
-        "the signed-in person's own mailbox only, so it cannot copy a shared one.",
+        'It is copied like any other mailbox: every folder, Sent, Drafts and Archive included, ' +
+        'each message once, with the same checks afterwards. An administrator has to grant ' +
+        'your own app registration application permissions on the source. The Microsoft 365 ' +
+        "account button reads only the signed-in person's own mailbox, so it cannot copy a " +
+        'shared one.',
       // The administrator's steps for that registration (0148 T7).
       guide: 'microsoft#application',
+      nl: {
+        item: 'Gedeelde mailboxen',
+        detail: 'Vraagt om uw eigen appregistratie; nog nooit uit een echte gedeelde mailbox gemigreerd.',
+        more:
+          'Hij wordt gemigreerd zoals elke andere mailbox: elke map, ook Verzonden, Concepten en ' +
+          'Archief, elk bericht één keer, met dezelfde verificatie achteraf. Een beheerder moet ' +
+          'uw eigen appregistratie toepassingsmachtigingen op de bron geven. De knop Microsoft ' +
+          '365 account leest alleen de eigen mailbox van wie zich aanmeldt, dus daarmee kan geen ' +
+          'gedeelde mailbox worden gemigreerd.',
+      },
     },
     {
-      item: 'Distribution lists (Pattern D)',
-      detail: 'Read and written up for you; recreating them is manual.',
+      item: 'Distribution lists',
+      detail: 'We list them and their members for you; you recreate them yourself.',
       appliesTo: ['microsoft'],
       more:
-        'DISCOVERED and GUIDED, not automated. The list and its members are read and shown, ' +
-        'and you get a step-by-step document with each address and exactly who must receive ' +
-        'its mail — including which lists cannot be recreated because their membership could ' +
-        'not be read. No target platform here offers a way to create a mail group for us ' +
-        '(§14.2 — covered, not necessarily automated).',
+        'Not done for you. Each list and its members are read and shown, and you get ' +
+        "step-by-step instructions with each list's address and exactly who must receive its " +
+        'mail, including which lists cannot be recreated from them because their members could ' +
+        'not be read. None of the destinations offers us a way to create a mail group.',
+      nl: {
+        item: 'Distributielijsten',
+        detail: 'We zetten ze met hun leden voor u op een rij; u maakt ze zelf opnieuw aan.',
+        more:
+          'Dit gebeurt niet voor u. Elke lijst en haar leden worden gelezen en getoond, en u krijgt ' +
+          'stap voor stap het adres van elke lijst en precies wie haar mail moet ontvangen, ook ' +
+          'welke lijsten u er niet mee opnieuw kunt maken omdat hun leden niet te lezen waren. ' +
+          'Geen van de bestemmingen biedt ons een manier om een mailgroep aan te maken.',
+      },
     },
     {
       item: 'Mail with no Message-ID',
-      detail: 'Migrated, with a generated Message-ID added to the copy.',
+      detail: 'Migrated with a generated Message-ID on the copy, where the connection can add one.',
       more:
         'We need one to copy each message exactly once. The original on the source is never ' +
-        'modified, and discovery reports how many messages this applies to.',
+        'modified. The count before you start says how many messages get one, and how many ' +
+        'this connection cannot give one, which are not migrated.',
+      nl: {
+        item: 'Mail zonder Message-ID',
+        detail: 'Gemigreerd met een gegenereerde Message-ID op de kopie, waar de verbinding dat kan.',
+        more:
+          'We hebben er een nodig om elk bericht precies één keer te migreren. Het origineel op ' +
+          'de bron wordt nooit gewijzigd. De telling voordat u start, zegt hoeveel berichten er ' +
+          'een krijgen, en hoeveel deze verbinding er geen kan geven; die worden niet gemigreerd.',
+      },
     },
     // Corrected 2026-08-04 (workplan 0029 T1–T3). The old wording — "only the
     // clean, reversible subset is auto-applied" — described a write step that
     // is DEFERRED by owner decision and has no code, and it read as a promise
     // that permissions largely take care of themselves. They do not.
+    //
+    // Corrected again 2026-10-14: the fold said the report "covers" calendar
+    // and file sharing. It reads them only through an administrator's own app
+    // given that permission (`directoryAvailability`, `driveSharingAvailability`
+    // in connectors); a Microsoft 365 account's delegated grant reads neither,
+    // and managed declines the file permission on purpose.
     {
       // The Google twin is below. `permissions.ts` already splits this exact
       // sentence per provider — `googleMailboxDelegationNotRead` exists
       // because an Exchange Online instruction sends a Google tenant on a
       // wrong errand — and this screen is where that split was missing.
       item: 'Permissions',
-      detail: 'Inventoried and written up; nothing is applied for you.',
+      detail: PERMISSIONS_LINE.en,
       appliesTo: ['microsoft'],
       more:
-        'INVENTORIED and GUIDED; nothing is auto-applied — §14.2\'s write step is deferred by ' +
-        'decision, so every item in the report is a step for a person. The report covers what ' +
-        'Microsoft Graph exposes: calendar sharing, and file and folder sharing including ' +
-        '"anyone with the link". Mailbox delegation — FullAccess, SendAs — is NOT readable ' +
-        'through Graph at all; the report says so for every migration rather than omitting it, ' +
-        'and you capture it with Exchange Online PowerShell before you cut over.',
+        `${PERMISSIONS_FIRST.en} Calendar sharing, and file and folder sharing ("anyone with ` +
+        'the link" included), are read only where an administrator\'s own app registration was ' +
+        'given that permission; where they were not read, the list says so. Who else could open ' +
+        'or send from a mailbox (Full Access, Send As) cannot be read by Ownpace at all: the ' +
+        'list says so for every migration, and you note it yourself, for example with Exchange ' +
+        'Online PowerShell, before you switch over.',
+      nl: {
+        item: 'Rechten',
+        detail: PERMISSIONS_LINE.nl,
+        more:
+          `${PERMISSIONS_FIRST.nl} Delen van agenda's, en van bestanden en mappen (ook "iedereen ` +
+          'met de link"), wordt alleen gelezen waar de eigen appregistratie van een beheerder die ' +
+          'machtiging kreeg; wat niet gelezen is, staat zo op de lijst. Wie verder een postvak ' +
+          'kon openen of eruit kon verzenden (Volledige toegang, Verzenden als), kan Ownpace ' +
+          'helemaal niet lezen: de lijst zegt dat bij elke migratie, en u noteert het zelf, ' +
+          'bijvoorbeeld met Exchange Online PowerShell, voordat u overstapt.',
+      },
     },
     // Proton calendar/contacts (ICS/vCard snapshots) removed 2026-08-02: zero
     // Proton code exists and the whole Proton destination is deferred with
@@ -360,59 +516,165 @@ export const SCOPE_MANIFEST: ScopeManifest = {
       // (`GOOGLE_NATIVE_FILE_SOURCE_TYPES`, the export chooser) — and this
       // panel, the one you confirm on, said nothing about it at all.
       item: 'Google-native files',
-      detail: 'Docs, Sheets, Slides and Drawings are converted on export, never copied as-is.',
+      detail: 'Docs, Sheets, Slides and Drawings are converted, never copied as they are.',
       appliesTo: ['google'],
       more:
-        'Drive stores these as documents, not as files, so there is no original to copy — the ' +
-        'format is the one you chose at setup (Office, ODF or PDF) and the result is a ' +
-        'rendering rather than the thing itself. Two renderings of the same document are not ' +
-        'always byte-identical either: measured per format and per type, a deck exported as ' +
-        '.pptx differs between two exports of an unchanged deck, where the same deck as ODF ' +
-        'does not. Everything else in Drive — anything you uploaded — is copied byte for byte ' +
-        'like any other file.',
+        'Google keeps these as online documents, not as files, so there is no original file to ' +
+        'copy. Each arrives in the format you chose when you set up the migration (OpenDocument, ' +
+        'Microsoft Office or PDF; a drawing as an image) as a conversion Google makes, not the ' +
+        'thing itself, or stays behind and is reported by name if you chose that. Two ' +
+        'conversions of an unchanged document are not always identical either: a presentation ' +
+        'saved as .pptx comes out different each time, where the same presentation as ' +
+        'OpenDocument does not. Everything else in Drive, anything you uploaded, is copied ' +
+        'exactly, like any other file.',
+      nl: {
+        item: 'Google-documenten',
+        detail: 'Documenten, Spreadsheets, Presentaties, Tekeningen: omgezet, nooit ongewijzigd gekopieerd.',
+        more:
+          'Google bewaart deze als online documenten, niet als bestanden, dus er is geen origineel ' +
+          'bestand om te kopiëren. Elk komt aan in het formaat dat u koos bij het instellen van de ' +
+          'migratie (OpenDocument, Microsoft Office of PDF; een tekening als afbeelding), als ' +
+          'omzetting die Google maakt en niet als het document zelf, of blijft achter en wordt ' +
+          'bij naam gemeld als u dat koos. Twee omzettingen van een ongewijzigd document zijn ook ' +
+          'niet altijd gelijk: een presentatie als .pptx komt elke keer anders uit, dezelfde ' +
+          'presentatie als OpenDocument niet. Al het andere in Drive, alles wat u zelf uploadde, ' +
+          'wordt exact gekopieerd, zoals elk ander bestand.',
+      },
     },
     {
       item: 'Permissions',
-      detail: 'Inventoried and written up; nothing is applied for you.',
+      detail: PERMISSIONS_LINE.en,
       appliesTo: ['google'],
       more:
-        'INVENTORIED and GUIDED; nothing is auto-applied — §14.2\'s write step is deferred by ' +
-        'decision, so every item in the report is a step for a person. Gmail delegation and ' +
-        'send-as are NOT read by this tool: find them in Gmail under Settings → See all ' +
-        'settings → Accounts and Import, and for a Workspace account in the Admin console ' +
-        'under the user\'s Gmail settings. Record them by hand before cutover, because they ' +
-        'stop working the moment the mailbox moves.',
+        `${PERMISSIONS_FIRST.en} Calendar sharing is not read, and neither is who else could ` +
+        'read or send from this Gmail address (delegation and send-as): find those in Gmail ' +
+        'under Settings → See all settings → Accounts and Import, and for a Workspace account ' +
+        "in the Admin console under the user's Gmail settings. Note them by hand before you " +
+        'switch over, because they stop working the moment the mailbox moves.',
+      nl: {
+        item: 'Rechten',
+        detail: PERMISSIONS_LINE.nl,
+        more:
+          `${PERMISSIONS_FIRST.nl} Delen van agenda's wordt niet gelezen, en ook niet wie verder ` +
+          'dit Gmail-adres kon lezen of eruit kon verzenden (gemachtigden en verzenden als): u ' +
+          'vindt dat in Gmail onder Instellingen → Alle instellingen bekijken → Accounts en ' +
+          'import, en voor een Workspace-account in de Admin-console bij de Gmail-instellingen ' +
+          'van de gebruiker. Noteer het met de hand voordat u overstapt, want het werkt niet meer ' +
+          'zodra de mailbox is gemigreerd.',
+      },
     },
   ],
+  // An `item` here is also a key: the site's leaving pages name these rows,
+  // row for row, by their English `item` (`site/sources.mjs`, held by
+  // `scripts/leaving-pages-say-what-the-app-says.unit.test.ts`). Reword the
+  // Dutch `item` freely; renaming an English one is a change on the site too.
   doesNotMigrate: [
     {
       item: 'SharePoint extras',
       appliesTo: ['microsoft'],
       detail: 'Version history, permissions, metadata, lists and pages stay behind.',
-      more: 'The files and folders themselves are migrated — see Files above.',
+      more: 'The files and folders themselves are migrated: see Files, under Migrates.',
+      nl: {
+        item: 'Extra’s van SharePoint',
+        detail: 'Versiegeschiedenis, rechten, metagegevens, lijsten en pagina’s blijven achter.',
+        more: 'De bestanden en mappen zelf worden wel gemigreerd: zie Bestanden, onder Migreert.',
+      },
     },
-    { appliesTo: ['microsoft'], item: 'Teams chat & calls', detail: 'Not migrated.' },
-    { appliesTo: ['microsoft'], item: 'Planner', detail: 'Not migrated.' },
-    { appliesTo: ['microsoft'], item: 'Power Automate', detail: 'Not migrated.' },
-    { appliesTo: ['microsoft'], item: 'InfoPath', detail: 'Not migrated.' },
-    { appliesTo: ['microsoft'], item: 'OneNote', detail: 'Not migrated unless set up separately.' },
-    { appliesTo: ['microsoft'], item: 'Retention holds', detail: 'Not migrated.' },
-    { appliesTo: ['microsoft'], item: 'Other O365 apps', detail: 'No sovereign equivalent — not migrated.' },
+    {
+      appliesTo: ['microsoft'],
+      item: 'Teams chat & calls',
+      detail: 'Not migrated.',
+      nl: { item: 'Teams-chats en -gesprekken', detail: 'Wordt niet gemigreerd.' },
+    },
+    {
+      appliesTo: ['microsoft'],
+      item: 'Planner',
+      detail: 'Not migrated.',
+      nl: { item: 'Planner', detail: 'Wordt niet gemigreerd.' },
+    },
+    {
+      appliesTo: ['microsoft'],
+      item: 'Power Automate',
+      detail: 'Not migrated.',
+      nl: { item: 'Power Automate', detail: 'Wordt niet gemigreerd.' },
+    },
+    {
+      appliesTo: ['microsoft'],
+      item: 'InfoPath',
+      detail: 'Not migrated.',
+      nl: { item: 'InfoPath', detail: 'Wordt niet gemigreerd.' },
+    },
+    {
+      appliesTo: ['microsoft'],
+      item: 'OneNote',
+      detail: 'Not migrated unless set up separately.',
+      nl: { item: 'OneNote', detail: 'Wordt niet gemigreerd, tenzij apart ingesteld.' },
+    },
+    {
+      appliesTo: ['microsoft'],
+      item: 'Retention holds',
+      detail: 'Not migrated.',
+      nl: { item: 'Bewaarblokkeringen', detail: 'Worden niet gemigreerd.' },
+    },
+    {
+      appliesTo: ['microsoft'],
+      item: 'Other O365 apps',
+      detail: 'Not migrated: there is no European equivalent to move them to.',
+      nl: {
+        item: 'Andere Office 365-apps',
+        detail: 'Worden niet gemigreerd: er is geen Europees alternatief voor.',
+      },
+    },
     // ---- Google -----------------------------------------------------------
     // NAMED, not implied. §11.2's rule is that an omission is STATED, and for
     // a Google source every one of them used to be silent — the only list on
     // the screen was somebody else's.
-    { item: 'Google Keep', detail: 'Not migrated.', appliesTo: ['google'] },
     {
-      item: 'Google Photos',
-      detail: 'Not migrated \u2014 not reachable through the Drive API this tool uses.',
+      item: 'Google Keep',
+      detail: 'Not migrated.',
       appliesTo: ['google'],
+      nl: { item: 'Google Keep', detail: 'Wordt niet gemigreerd.' },
     },
-    { item: 'Google Sites, Forms', detail: 'Not migrated.', appliesTo: ['google'] },
+    {
+      // Not through the account: since 31 March 2025 Google lets no app read
+      // a whole photo library. It said "not reachable through the Drive API
+      // this tool uses", which was true and beside the point, and it said
+      // nothing of the route the product does offer: a Takeout export, read
+      // by the archive source (`SOURCE_TYPE_DOMAINS.archive`), which *Start a
+      // migration* offers as *Photos: from a Takeout export* under Google.
+      item: 'Google Photos',
+      detail: 'Not with a Google sign-in; they can come from a Google Takeout export instead.',
+      more:
+        'Google no longer lets another app read a whole photo library. The complete route ' +
+        'Google leaves open is a Takeout export you ask Google for: on Start a migration it is ' +
+        'Photos: from a Takeout export, under Google, and on a self-hosted appliance the Export ' +
+        'archive card on Accounts. The guide says how to ask for one.',
+      appliesTo: ['google'],
+      guide: 'google#photos',
+      nl: {
+        item: "Google Foto's",
+        detail: 'Niet via aanmelden bij Google; ze kunnen wel mee via een Google Takeout-export.',
+        more:
+          'Google laat een andere app geen hele fotobibliotheek meer lezen. De volledige weg die ' +
+          "Google openlaat, is een Takeout-export die u bij Google aanvraagt: bij Migratie " +
+          "starten is dat Foto's: uit een Takeout-export, onder Google, en op een eigen appliance " +
+          'de kaart Exportarchief bij Accounts. De handleiding zegt hoe u er een aanvraagt.',
+      },
+    },
+    {
+      item: 'Google Sites, Forms',
+      detail: 'Not migrated.',
+      appliesTo: ['google'],
+      nl: { item: 'Google Sites en Formulieren', detail: 'Worden niet gemigreerd.' },
+    },
     {
       item: 'Revision history',
-      detail: 'A Drive document exports as it is now; its earlier versions stay behind.',
+      detail: 'A Drive document arrives as it is now; its earlier versions stay behind.',
       appliesTo: ['google'],
+      nl: {
+        item: 'Versiegeschiedenis',
+        detail: 'Een document uit Drive komt aan zoals het nu is; eerdere versies blijven achter.',
+      },
     },
   ],
 };

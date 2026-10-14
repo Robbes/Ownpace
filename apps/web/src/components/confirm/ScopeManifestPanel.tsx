@@ -8,12 +8,13 @@
  * and it is shown BEFORE the green light rather than discovered afterwards —
  * so the two editions saying it slightly differently was never acceptable.
  *
- * The server owns the content (`GET /scope-manifest`); this only lays it out.
+ * The server owns the content (`GET /scope-manifest`), in English and in
+ * Dutch; this only lays it out, in the reader's language.
  */
 
 import React from 'react';
-import { useT } from '../../i18n/index.tsx';
-import type { ScopeManifest } from '@openmig/shared';
+import { useLocale, useT } from '../../i18n/index.tsx';
+import { scopeManifestWords, type ScopeManifest } from '@openmig/shared';
 import { GuideLink } from '../GuideLink.tsx';
 
 /**
@@ -40,34 +41,43 @@ const Column: React.FC<{
   tone: string;
   entries: ScopeManifest['migrates'];
 }> = ({ title, tone, entries }) => {
-  const t = useT();
+  const { locale, t } = useLocale();
   return (
     <div>
       <h4 className={`text-sm font-semibold ${tone} mb-1`}>{title}</h4>
       <ul className="space-y-1">
-        {entries.map((e) => (
-          <li key={e.item} className="text-xs text-gray-700">
-            <span className="font-medium">{e.item}</span> — {e.detail}
-            {e.more !== undefined && (
-              <details className="mt-1">
-                <summary className="cursor-pointer select-none text-gray-500">
-                  {t('fold.more')}
-                </summary>
-                <p className="mt-1 text-gray-500">{e.more}</p>
-              </details>
-            )}
-            {/* The row's guide, beside its words (0148 T7). */}
-            <GuideLink handle={e.guide} className="block mt-1 text-xs text-blue-700 hover:underline" />
-          </li>
-        ))}
+        {entries.map((e) => {
+          // The row in the reader's language (2026-10-14): its Dutch half
+          // under `nl`, or the English as served where a row has none, said
+          // as English so a screen reader does not read it in a Dutch voice.
+          const words = scopeManifestWords(e, locale);
+          const english = locale !== 'en' && e.nl === undefined;
+          return (
+            <li key={e.item} className="text-xs text-gray-700" lang={english ? 'en' : undefined}>
+              <span className="font-medium">{words.item}</span> — {words.detail}
+              {words.more !== undefined && (
+                <details className="mt-1">
+                  <summary className="cursor-pointer select-none text-gray-500">
+                    {t('fold.more')}
+                  </summary>
+                  <p className="mt-1 text-gray-500">{words.more}</p>
+                </details>
+              )}
+              {/* The row's guide, beside its words (0148 T7). */}
+              <GuideLink handle={e.guide} className="block mt-1 text-xs text-blue-700 hover:underline" />
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
 };
 
 export const ScopeManifestPanel: React.FC<{ manifest: ScopeManifest }> = ({ manifest }) => {
-  // Column titles are CLIENT framing (translated); the entries inside the
-  // columns are server prose and render verbatim (the prose boundary).
+  // Column titles are CLIENT framing (translated). The entries are the
+  // server's own prose with their Dutch beside them in shared, so each row
+  // picks its half rather than being translated here (the prose boundary,
+  // class 4).
   const t = useT();
   return (
     <section aria-label={t('scope.title')} className="grid gap-4 md:grid-cols-3">
