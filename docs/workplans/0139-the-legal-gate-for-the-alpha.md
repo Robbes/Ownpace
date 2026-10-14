@@ -2,7 +2,26 @@
 
 > **In one line:** Legal gate for the alpha: `site/legal` placeholders filled and published, a lawyer's pass, alpha conditions, acceptance recorded at first sign-in, notices where data is collected, sub-processors, retention, account closure, breach procedure, `SECURITY.md`.
 
-## Status — 2026-10-11 (update this block at the end of every session)
+## Status — 2026-10-14 (update this block at the end of every session)
+
+**2026-10-14: the texts testers accept start at 1.0.** The owner asked whether the privacy policy
+and the terms could start at 1.0 when testers onboard, and then: *"go on the 1.0 reset"*. Only the
+numbers changed; the words are the same:
+
+- The privacy policy goes from 1.5 to **1.0**, and the terms from 1.6 to 1.0, in both languages.
+  `LEGAL_VERSIONS` follows. The Alpha conditions were already 1.0, and their words are unchanged.
+- **Why it is safe.**
+  - No tester had accepted any number, because the Alpha had not opened.
+  - No acceptance anywhere records privacy 1.0 or terms 1.0: the screen began at 1.2 and 1.3
+    (managed 0032).
+  - The app compares the number for equality (`acceptanceOf`). So anyone who accepted an older
+    number is asked again, which alpha.2 does anyway: the owner's own accounts on live (privacy
+    1.2, terms 1.3) and the OTA's test accounts.
+- **The pins.** `ACCEPTED_WORDS` drops the pins of 1.2 to 1.6 and pins the same words under 1.0.
+  The guard's comment records this as the one restart, made before any tester. From here, a
+  change of words takes 1.1.
+- **The record.** Each text's comments keep the drafts' history, under a note that says why the
+  numbering restarted. `site/legal/README.md` and the alpha.2 CHANGELOG line follow.
 
 **2026-10-11: privacy 1.5, invoices kept in the books, our copy deleted on erasure.** §9's row
 for invoices now says the 7 years run *"in our bookkeeping system, which issues them"*, and that an
