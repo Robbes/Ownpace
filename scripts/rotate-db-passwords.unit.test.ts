@@ -125,9 +125,10 @@ const MESH = '100.64.0.1';
 const CASE_MS = 90_000;
 
 const tempDirs: string[] = [];
+// Many large temp folders can outlast vitest's 10 s hook timeout on a loaded run.
 afterAll(() => {
   for (const d of tempDirs) rmSync(d, { recursive: true, force: true });
-});
+}, 120_000);
 
 // ---------------------------------------------------------------------------
 // The stubs

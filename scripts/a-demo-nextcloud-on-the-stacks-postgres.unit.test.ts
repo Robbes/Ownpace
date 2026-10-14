@@ -65,9 +65,10 @@ const COMPOSE_DIR = join(REPO_ROOT, 'deploy', 'compose');
 const read = (rel: string): string => readFileSync(join(REPO_ROOT, rel), 'utf8');
 
 const tempDirs: string[] = [];
+// Many large temp folders can outlast vitest's 10 s hook timeout on a loaded run.
 afterAll(() => {
   for (const d of tempDirs) rmSync(d, { recursive: true, force: true });
-});
+}, 120_000);
 
 /** A value made here, so it can be looked for everywhere it must not be. */
 const aPassword = (): string => `pw${randomBytes(12).toString('hex')}`;

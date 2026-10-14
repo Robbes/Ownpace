@@ -45,9 +45,10 @@ const CASE_MS = 60_000;
 const REAL_GIT = spawnSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).stdout.trim();
 
 const tempDirs: string[] = [];
+// Many large temp folders can outlast vitest's 10 s hook timeout on a loaded run.
 afterAll(() => {
   for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
-});
+}, 120_000);
 
 const DOCKER_STUB = `#!/usr/bin/env bash
 [ "$1" = compose ] || exit 98

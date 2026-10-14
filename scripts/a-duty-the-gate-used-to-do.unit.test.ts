@@ -162,9 +162,10 @@ function tempDir(prefix: string): string {
   tempDirs.push(d);
   return d;
 }
+// Many large temp folders can outlast vitest's 10 s hook timeout on a loaded run.
 afterAll(() => {
   for (const d of tempDirs) rmSync(d, { recursive: true, force: true });
-});
+}, 120_000);
 
 function writeExec(path: string, lines: string[]): void {
   writeFileSync(path, `${lines.join('\n')}\n`);

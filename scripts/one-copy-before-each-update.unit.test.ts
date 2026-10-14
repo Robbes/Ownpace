@@ -121,9 +121,10 @@ function tempDir(prefix: string): string {
   tempDirs.push(d);
   return d;
 }
+// Many large temp folders can outlast vitest's 10 s hook timeout on a loaded run.
 afterAll(() => {
   for (const d of tempDirs) rmSync(d, { recursive: true, force: true });
-});
+}, 120_000);
 
 // PGlite for the `psql` stub, a separate node process. Resolved from the
 // ledger package, where the dependency is declared.

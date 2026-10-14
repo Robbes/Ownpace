@@ -118,9 +118,10 @@ const KEY = 'TRIGGER_DB_PASSWORD';
 const READ = `\${${KEY}:-${TODAYS_LITERAL}}`;
 
 const tempDirs: string[] = [];
+// Many large temp folders can outlast vitest's 10 s hook timeout on a loaded run.
 afterAll(() => {
   for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
-});
+}, 120_000);
 const tempDir = (prefix: string): string => {
   const d = mkdtempSync(join(tmpdir(), prefix));
   tempDirs.push(d);
