@@ -245,7 +245,7 @@ export function delegatedFlowCannotReadMailbox(
       'mailbox empty to read your own.',
     nl:
       `${input.subject}: "${input.mailbox}" is de ${input.store} van iemand anders, of een ` +
-      'gedeelde. Die kan alleen worden gelezen via de eigen OAuth-client-app van uw ' +
+      'gedeelde. Die kan alleen worden gelezen via de eigen oauth-app van uw ' +
       'organisatie, met toepassingsmachtigingen die een beheerder heeft goedgekeurd. Een ' +
       `aanmelding (${input.refreshTokenField}) leest alleen het account dat zich aanmeldde. ` +
       `Verwijder ${input.refreshTokenField} en vul ${input.clientSecretField} in, of laat de ` +
