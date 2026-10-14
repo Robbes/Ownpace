@@ -56,6 +56,21 @@ export const DRIVE_SHARING_NOT_CONSENTED =
   '"Two scopes, one granted").';
 
 /**
+ * The same blind spot, as a tester on the managed edition reads it (the
+ * owner, 2026-10-14). The operator's sentence above ends in a setting of this
+ * stack and an operator document, neither of which a tester can reach, and on
+ * managed the scope is declined on purpose. So the managed permission report
+ * says what was not looked at, why, and what the tester can do: note the
+ * sharing by hand. The appliance's report keeps the operator's sentence,
+ * because its reader is the one who sets the flag.
+ */
+export const DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER =
+  'OneDrive and SharePoint sharing was not inventoried. Reading it needs a permission ' +
+  'that reaches every file in your organisation, and Ownpace deliberately does not ask ' +
+  'for it. Nothing was looked at — this does not mean nothing is shared. Note your file ' +
+  'and folder sharing by hand before you switch over.';
+
+/**
  * Default OFF. A deployment that has said nothing has not consented, and the
  * direction has to fall that way: the failure of guessing "off" is a stated
  * blind spot somebody reads, and the failure of guessing "on" is a tenant-wide

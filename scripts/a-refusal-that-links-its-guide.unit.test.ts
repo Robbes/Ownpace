@@ -80,7 +80,8 @@ const ALLOWED: ReadonlyArray<{ file: string; doc: string; reason: string }> = [
     doc: 'docs/o365-application-access.md',
     reason:
       'The document qualifies GRAPH_FILES_READ_CONSENTED=true, a switch of the deployment ' +
-      'only whoever runs it can set, and the decision behind it (*Two scopes, one granted*).',
+      'only whoever runs it can set, and the decision behind it (*Two scopes, one granted*). ' +
+      "Only the appliance's report says it; managed's says DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER.",
   },
   {
     file: 'packages/connectors/src/graph-access-check.ts',

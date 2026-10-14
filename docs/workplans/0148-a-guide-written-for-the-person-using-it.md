@@ -22,6 +22,19 @@ languages:
   token field, each Google face's scope (in brackets, because the tester's own app has to ask
   for it), and the app password's four caveats.
 
+**2026-10-14: the drive-sharing blind spot, said to a tester.** T7 left one sentence an operator's:
+the permission report's OneDrive and SharePoint section ended in *"grant the scope and set
+GRAPH_FILES_READ_CONSENTED=true (see docs/o365-application-access.md…)"*, and on managed a tester
+reads it. The owner (2026-10-14): *"give managed its own sentence, and keep the current one for
+the appliance"*, in the words proposed. The managed report now says
+`DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER` (`packages/connectors/src/drive-sharing-availability.ts`):
+what was not looked at, that it is a decision, that nothing shared is not implied, and to note
+the sharing by hand before switching over. The appliance keeps the operator's sentence. The
+owner also accepted T7's `microsoft#application` for a tenant administrator's steps.
+`a-report-that-knows-the-microsoft-account.unit.test.ts` reads the files section for a Microsoft
+account and for an own registration: the tester's sentence, and no setting or `docs/` file in it.
+On main's route both cases fail.
+
 **2026-10-12: T7's second half is built: a refusal links its guide.** A refusal
 keeps its words, in English as written, and names no `docs/….md` any more. Beside the words it
 carries a guide handle, `<guide>#<section>` (`packages/shared/src/guide-handle.ts`; the guide is
