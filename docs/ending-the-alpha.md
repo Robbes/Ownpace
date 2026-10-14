@@ -67,7 +67,7 @@ the owner's job.
    `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE` names, and paid and late are read back from Moneybird
    every hour (slice 5f; the owner, 2026-10-11). Every yes is given at an order button that
    says, for a consumer within the fourteen days, that ordering asks us to begin at once, and
-   each order is confirmed by email (slice 7e, terms 1.5): a withdrawal then bills the days
+   each order is confirmed by email (slice 7e, terms §7): a withdrawal then bills the days
    used. A credit note's amount is made real once the books number it (slice 7d, its second
    half): refunded through Mollie with live's `MOLLIE_API_KEY`, which `set-task-env.sh` hands to
    the tasks, settled against its invoice in the books, or said to the operator for a transfer
@@ -80,7 +80,7 @@ the owner's job.
    year is sold: the accountant's on VAT for credit a customer may spend on any tier, and the
    lawyer's question 27 (terms §8, and what a withdrawn year costs).
 
-   Terms 1.5 §7 has the lawyer's agreement, and the two Moneybird calls of slice 7d passed in the
+   Terms §7 has the lawyer's agreement, and the two Moneybird calls of slice 7d passed in the
    sandbox (`register_payment_creditinvoice` on a credit note crediting part of an open invoice,
    and a negative payment booked on a credit note; the owner, 2026-10-11, with
    `./deploy/compose/moneybird-money-back-proof.sh`), and so did Mollie's refund in test mode

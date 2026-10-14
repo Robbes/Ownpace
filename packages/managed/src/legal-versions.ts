@@ -69,8 +69,11 @@ export type LegalVersions = Readonly<Record<LegalDocument, string>>;
  */
 export const LEGAL_VERSIONS: LegalVersions = {
   alpha: '1.0',
-  privacy: '1.5',
-  terms: '1.6',
+  // Restarted at 1.0 on 2026-10-14 (the owner): no tester had accepted any number, and no
+  // acceptance anywhere records privacy 1.0 or terms 1.0 (the screen began at 1.2 and 1.3), so a
+  // stored acceptance of an older number simply asks again (`acceptanceOf` compares equality).
+  privacy: '1.0',
+  terms: '1.0',
 };
 
 /**

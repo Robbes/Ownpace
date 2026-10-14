@@ -1,4 +1,10 @@
 <!-- Copyright 2026 The Ownpace authors (Apache-2.0) -->
+<!--
+  NUMBERING RESTARTED AT 1.0 (the owner, 2026-10-14: "go on the 1.0 reset"). No tester had
+  accepted any number yet, so the first version testers accept is 1.0, with these words.
+  The numbers below (1.2 to 1.6) are the drafts' history, kept for the record; git holds the
+  texts. From here every change of words takes a new number again: 1.1, 1.2, and so on.
+-->
 <!-- Dutch translation of privacy.md. Keep the SECTION NUMBERING identical, so
      the two can be diffed against each other when either changes. The site
      prints a note above this page, and above the Dutch terms, that the English
@@ -15,7 +21,7 @@
 # Privacyverklaring
 
 **Geldt voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`, en deze website.
-**Versie:** 1.5
+**Versie:** 1.0
 **Laatst bijgewerkt:** 2026-10-11
 
 > **Draait u Ownpace zelf**, dan geldt deze verklaring niet voor u en valt er voor ons niets
