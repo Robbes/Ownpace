@@ -629,9 +629,10 @@ describe('each way back that review found around the first version is caught', (
 
 const COMPOSE_DIR = join(REPO_ROOT, 'deploy', 'compose');
 const tempDirs: string[] = [];
+// Many large temp folders can outlast vitest's 10 s hook timeout on a loaded run.
 afterAll(() => {
   for (const d of tempDirs) rmSync(d, { recursive: true, force: true });
-});
+}, 120_000);
 
 /** The system role question's fit answer, as `db_roles_system_fit` reads it (db-roles.sh). */
 const FIT_ANSWER = 'f|f|f|f|t|t|0|0';

@@ -73,9 +73,10 @@ const DUMP_BYTES = 'PGDMP fixture dump of the identity provider\n';
 const ROLES_SQL = 'CREATE ROLE zitadel;\nALTER ROLE zitadel WITH LOGIN;\n';
 
 const tempDirs: string[] = [];
+// Many large temp folders can outlast vitest's 10 s hook timeout on a loaded run.
 afterAll(() => {
   for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
-});
+}, 120_000);
 
 const DOCKER_STUB = `#!/usr/bin/env bash
 # The docker stub: logs every call, answers the four reads dump-idp.sh makes.

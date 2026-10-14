@@ -98,9 +98,10 @@ const TOKEN = 'a-provisioning-token-of-forty-characters';
 const DAY = 86_400_000;
 
 const tempDirs: string[] = [];
+// Many large temp folders can outlast vitest's 10 s hook timeout on a loaded run.
 afterAll(() => {
   for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
-});
+}, 120_000);
 
 /** The database: what each of the script's four statements is answered with. */
 const DOCKER_STUB = `#!/usr/bin/env bash

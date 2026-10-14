@@ -65,9 +65,10 @@ function split(from: string): { addr: string; name: string } {
 }
 
 const DIRS: string[] = [];
+// Many large temp folders can outlast vitest's 10 s hook timeout on a loaded run.
 afterAll(() => {
   for (const d of DIRS) rmSync(d, { recursive: true, force: true });
-});
+}, 120_000);
 
 describe('the From line is split for a provider with two fields', () => {
   it('puts the bare address in the envelope, whatever the From line looks like', () => {

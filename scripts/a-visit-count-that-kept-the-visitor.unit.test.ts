@@ -158,9 +158,10 @@ const COMPOSE_DIR = join(ROOT, 'deploy/compose');
 const SCRIPT_REL = 'deploy/compose/site-visits.sh';
 
 const tempDirs: string[] = [];
+// Many large temp folders can outlast vitest's 10 s hook timeout on a loaded run.
 afterAll(() => {
   for (const d of tempDirs) rmSync(d, { recursive: true, force: true });
-});
+}, 120_000);
 
 /** NetBird's proxy on the mesh, the repository's placeholder: the first field of every line that came through the public name. */
 const NETBIRD = '100.64.0.1';

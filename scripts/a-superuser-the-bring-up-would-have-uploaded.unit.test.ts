@@ -67,9 +67,10 @@ const SYSTEM_ROLE = 'ownpace_system';
 const MIGRATION = 'packages/managed/migrations/0033_a_system_role_that_is_not_the_owner.sql';
 
 const tempDirs: string[] = [];
+// Many large temp folders can outlast vitest's 10 s hook timeout on a loaded run.
 afterAll(() => {
   for (const d of tempDirs) rmSync(d, { recursive: true, force: true });
-});
+}, 120_000);
 
 /** A directory with db-roles.sh and what it sources, a `.env`, and the stand-in for Compose. */
 function aCheckout(): string {
