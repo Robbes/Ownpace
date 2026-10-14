@@ -12,8 +12,10 @@ asked to accept the texts once, at their first sign-in on this release.
 ### Changed
 
 - **The texts testers accept are final** (workplan 0139): the privacy policy
-  **1.5** and the terms of service **1.6**, beside the Alpha conditions 1.0, no
-  longer marked draft, so the app asks every member to accept them before the
+  **1.0** and the terms of service **1.0**, beside the Alpha conditions 1.0, no
+  longer marked draft (numbered 1.0 on the owner's decision of 2026-10-14: no
+  tester had accepted the drafts' numbers, so the first version testers accept
+  is 1.0), so the app asks every member to accept them before the
   first connection (#1532, #1556, #1557, #1559, #1580, and 0111's slices that
   changed §7 and §8 of the terms and §4.4 of the privacy policy). Closing an account is said as the code does it; the Dutch
   page's note keeps the exception for mandatory consumer law.

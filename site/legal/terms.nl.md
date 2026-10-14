@@ -1,4 +1,10 @@
 <!-- Copyright 2026 The Ownpace authors (Apache-2.0) -->
+<!--
+  NUMBERING RESTARTED AT 1.0 (the owner, 2026-10-14: "go on the 1.0 reset"). No tester had
+  accepted any number yet, so the first version testers accept is 1.0, with these words.
+  The numbers below (1.2 to 1.6) are the drafts' history, kept for the record; git holds the
+  texts. From here every change of words takes a new number again: 1.1, 1.2, and so on.
+-->
 <!-- Dutch translation of terms.md. Keep the SECTION NUMBERING identical, so the
      two can be diffed against each other when either changes. The alpha
      conditions (alpha.nl.md) cite §6 to §12 and §15 by number, and "§11, tweede
@@ -16,7 +22,7 @@
 # Servicevoorwaarden
 
 **Gelden voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`.
-**Versie:** 1.6
+**Versie:** 1.0
 **Laatst bijgewerkt:** 2026-10-12
 
 > **Deze voorwaarden gelden niet voor de software.** Ownpace is open source onder de Apache

@@ -1,5 +1,11 @@
 <!-- Copyright 2026 The Ownpace authors (Apache-2.0) -->
 <!--
+  NUMBERING RESTARTED AT 1.0 (the owner, 2026-10-14: "go on the 1.0 reset"). No tester had
+  accepted any number yet, so the first version testers accept is 1.0, with these words.
+  The numbers below (1.2 to 1.6) are the drafts' history, kept for the record; git holds the
+  texts. From here every change of words takes a new number again: 1.1, 1.2, and so on.
+-->
+<!--
   FINAL — v1.3, 2026-10-05 (the date on the Last updated line moves to the
   day the owner's final-text pull request merges). Drafted 2026-09-28 for the
   owner's review first (this briefing began with v1.1, 2026-08-30). This
@@ -553,7 +559,7 @@
 # Terms of service
 
 **Applies to:** the Ownpace **managed service** at `ownpace.eu`.
-**Version:** 1.6
+**Version:** 1.0
 **Last updated:** 2026-10-12
 
 > **These terms do not govern the software.** Ownpace is open source under the Apache

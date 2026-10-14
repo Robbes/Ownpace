@@ -95,40 +95,17 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // their draft markers until this pull request, and the API asks nobody while any text is a draft.
   'alpha.md@1.0': '241b73f563475774af1d539fb64d9f13876146dce3a1dda49e3dc3cb2631b257',
   'alpha.nl.md@1.0': '1d3cfaa24fbdf051f78a14936ef9a855d3f7a59585d66cf6a7c71deed070102f',
-  // Final on 2026-10-05, in the same pull request, which set LEGAL_DRAFTS to match.
-  'privacy.md@1.2': 'a6b517ec8f8aeddd0b4ad709508ce6b1551cd1e595e5fadc85ac979329cf2a22',
-  'privacy.nl.md@1.2': '8b942baf4b22770b98353ffedc08d6d7ccbb562eede37d0146d858f1b20ad329',
-  // 1.3 on 2026-10-11: privacy says visits to the website are counted from its server logs, as
-  // totals (the owner's GoAccess decision of 2026-10-05). 1.2 had been final since 2026-10-07, so
-  // the new words take a new number and 1.2's pins stay.
-  'privacy.md@1.3': '0fce310cfc336406d9f0fa25d96929f953f750e41767b64ab006d876b914cd97',
-  'privacy.nl.md@1.3': '1e789ac54fe3380eb11f963fcf7594658f2e2a0b3b64d8a34ce242e01d988d34',
-  'terms.md@1.3': 'e1d2f884198bc419089594bc29fad33e2d22c10c56bd2a23a832f093704004d1',
-  'terms.nl.md@1.3': '842e61fa4ea93c52094bc5fa02cb746fb742a7d730df9e161cfcacc6449c47f0',
-  // 1.4 on 2026-10-10: the owner's own text review, in both languages (terms.md's briefing). 1.3
-  // had been final since 2026-10-07, so the new words take a new number and 1.3's pins stay.
-  'terms.md@1.4': 'd0577ca2eb1090eef1ab9a1d22aa374254009d1088cdded1f9d292a9eb83a4c2',
-  'terms.nl.md@1.4': '6ace99da834540703d59cc81447b9924402482d319d82746c39dcde5f4fcc95b',
-  // 1.4 on 2026-10-11: §4.4 names the email address invoices are sent to (the owner: "Privacy
-  // policy: ok, add e-mail to it"; privacy.md's briefing). 1.3 was final from the moment #1557
-  // merged the same morning, so the new words take a new number and 1.3's pins stay.
-  'privacy.md@1.4': '076c5230a82ee3846065d52ededb0ecefa708ed7acbaafb2a763bfd9aa90a0e7',
-  'privacy.nl.md@1.4': '609d0979f9b3c62566b2b27222d28da8191f7a2dca92edce9a91d9c95c28182a',
-  // 1.5 on 2026-10-11: §7's request to begin within the 14 days is one sentence beside the order
-  // button, not a confirmation step (0111 slice 7e; the owner: "i do not want the tickbox"). 1.4
-  // had been final since 2026-10-10, so the new words take a new number and 1.4's pins stay.
-  'terms.md@1.5': '6d069e99622709a01a4f78effac859f58bfd7de703c16f0e218b5f4436328f4e',
-  'terms.nl.md@1.5': '38338648fc44b76a2530459b9f82918d27ebb9cb40d6b6615fa3841eaa19bfe4',
-  // 1.5 on 2026-10-11: §9's invoice row says the 7 years are kept in the bookkeeping system, and
-  // that an erasure deletes our copy and keeps the numbers (0111 T10; the owner: "delete the copy,
-  // keep the numbers"). 1.4 was final from the moment #1559 merged, so 1.4's pins stay.
-  'privacy.md@1.5': '659c4f16ada40b9dc431b9b0fd4f1d55689dc07fb0e29f92655193a6fcf1c177',
-  'privacy.nl.md@1.5': '8aea1c647b724dbac1a4f473148ed9b061840c7a01012d3b17e680ab473fbf44',
-  // 1.6 on 2026-10-12: §8 says that closing the account ends a year's credit left, and the credit
-  // in plain words (0111 T11; the owner: "(i) with A", "Credit with plain words"). 1.5 had been
-  // final since 2026-10-11, so the new words take a new number and 1.5's pins stay.
-  'terms.md@1.6': 'b44d6a3349f57af8854814aa20277291bbb18f96299affecf473605068bbad8c',
-  'terms.nl.md@1.6': 'fea22c48956b0b400bf18b02c9dbbedb49b0c0d6a58550e0f575beb62df3eb00',
+  // RESTARTED AT 1.0 on 2026-10-14 (the owner: "go on the 1.0 reset"). Privacy had been final as
+  // 1.2 to 1.5 and the terms as 1.3 to 1.6, and their pins stood here, but no tester had accepted
+  // any of them: the Alpha had not opened, and only the owner's own accounts and test accounts
+  // hold acceptances. No acceptance anywhere records privacy 1.0 or terms 1.0 (the screen began at
+  // 1.2 and 1.3, managed 0032), and the app compares the number for equality, so every older
+  // acceptance is simply asked again. This is the one restart the rule allows, made before any
+  // tester; from here a change of words takes 1.1. The older pins are in git, with the texts.
+  'privacy.md@1.0': '4cc3ad890251961c18da20ef26344243d1ac2edc3487f00b410e75d4f701758c',
+  'privacy.nl.md@1.0': '73230b94a258a3ebec6022b8a4fd97c9f5d00f1d6711c9eeaf8f7d48deb168b5',
+  'terms.md@1.0': '25d9f3035f223a8d2981ca582fb3173ce968211271d7121b799769e7c5538ba1',
+  'terms.nl.md@1.0': 'be8ee22678cfc3411d67cf8b938b6fd1fd49d12c464768f6125de001cf142b08',
 };
 
 /** The digest `ACCEPTED_WORDS` pins: the text outside HTML comments, white space collapsed. */
