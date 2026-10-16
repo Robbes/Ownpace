@@ -2,7 +2,16 @@
 
 > **In one line:** Legal gate for the alpha: `site/legal` placeholders filled and published, a lawyer's pass, alpha conditions, acceptance recorded at first sign-in, notices where data is collected, sub-processors, retention, account closure, breach procedure, `SECURITY.md`.
 
-## Status — 2026-10-14 (update this block at the end of every session)
+## Status — 2026-10-16 (update this block at the end of every session)
+
+**2026-10-15: the sign-in history is checked, and §9 stands.** The owner ran the test on the
+test stack (Zitadel v4.19.4): a fresh account's entries went from 6 to 7 when `idp-strays.sh
+--subject … --remove` removed it, one removal entry added, and the one entry holding its address
+stayed (1 to 1). So the history is kept after a removal, as §9 says (zitadel/zitadel#2758), and
+privacy stays at 1.0. The briefing's *NOT CHECKED* notes, which named v4.19.2, now say so (HTML
+comments only: the published words and their pins are unchanged). What a sign-in session keeps
+(browser and IP address, §4.4) is still to check.
+
 
 **2026-10-14: the texts testers accept start at 1.0.** The owner asked whether the privacy policy
 and the terms could start at 1.0 when testers onboard, and then: *"go on the 1.0 reset"*. Only the
