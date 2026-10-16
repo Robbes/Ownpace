@@ -99,6 +99,7 @@ import {
 } from '@openmig/orchestration/confirmed-list-read';
 import { runConfirmationOver } from '@openmig/orchestration/run-confirmation-pass';
 import {
+  localeOf,
   log,
   permissionsNotDiscoverable,
   type PermissionListing,
@@ -2671,6 +2672,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         // knows where a mapping's address lives per source kind.
         const askedMappingId = params.get('mappingId')?.trim();
         let mailbox = params.get('mailbox')?.trim();
+        // The reader's language (workplan 0144), as on managed: Dutch only
+        // for exactly `nl`, English for nothing or anything else.
+        const lang = localeOf(params.get('lang'));
         // The mappings this report may read: the one migration asked about,
         // or every mapping for an address asked for directly.
         let scope = mappings;
@@ -2738,6 +2742,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         const markdown = await runPermissionInventory({
           mappingLabel: mailbox,
           generatedOn: new Date().toISOString().slice(0, 10),
+          lang,
           // Always in the report, and now worded for this appliance's own
           // source — see the scans object above.
           delegationReason: scans.delegationReason,

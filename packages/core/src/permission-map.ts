@@ -24,6 +24,9 @@
 
 import type { PermissionGrant } from '@openmig/shared';
 
+/** The reader's language for `target` (workplan 0144); `note` stays English. */
+export type ReportLanguage = 'en' | 'nl';
+
 export interface PermissionMapping {
   /**
    * `clean` — the target has a direct equivalent, named in `target`.
@@ -32,9 +35,9 @@ export interface PermissionMapping {
    * Two verdicts on purpose. Anything fuzzier invites a translator.
    */
   readonly verdict: 'clean' | 'manual';
-  /** What it corresponds to on the target, in the owner's terms. */
+  /** What it corresponds to on the target, in the owner's terms and language. */
   readonly target: string;
-  /** Why, when the reason is not obvious from the target alone. */
+  /** Why, when the reason is not obvious from the target alone. English: no report prints it. */
   readonly note?: string;
 }
 
@@ -44,8 +47,14 @@ export interface PermissionMapping {
  * Deliberately total: every grant gets a verdict, and the fallback is
  * `manual` rather than a throw or a silent drop. A right this table has not
  * seen before is exactly the one an owner must be told about.
+ *
+ * `lang` words `target` for the person reading the report (workplan 0144);
+ * the verdict never depends on it, and English is the default every other
+ * caller (the sharing checklist) reads.
  */
-export function mapGrant(grant: PermissionGrant): PermissionMapping {
+export function mapGrant(grant: PermissionGrant, lang: ReportLanguage = 'en'): PermissionMapping {
+  const say = (en: string, nl: string): string => (lang === 'nl' ? nl : en);
+
   if (grant.subject === 'calendar') {
     // The one genuinely clean correspondence: both sides model "this
     // calendar is shared with this person, read or read-write".
@@ -53,8 +62,8 @@ export function mapGrant(grant: PermissionGrant): PermissionMapping {
     return {
       verdict: 'clean',
       target: writable
-        ? 'a Nextcloud calendar share with write access'
-        : 'a Nextcloud calendar share, read-only',
+        ? say('a Nextcloud calendar share with write access', 'een gedeelde Nextcloud-agenda met schrijfrechten')
+        : say('a Nextcloud calendar share, read-only', 'een gedeelde Nextcloud-agenda, alleen lezen'),
       note: 'CalDAV calendar sharing is the same idea on both sides; only the wording differs.',
     };
   }
@@ -66,10 +75,14 @@ export function mapGrant(grant: PermissionGrant): PermissionMapping {
       // own risk, and the owner may well want it to end at the migration.
       return {
         verdict: 'manual',
-        target:
+        target: say(
           'decide whether this link should exist at all after the move — a sharing link is a ' +
-          'URL that works for whoever has it, so migrating it silently would carry that ' +
-          'access across without anybody choosing to',
+            'URL that works for whoever has it, so migrating it silently would carry that ' +
+            'access across without anybody choosing to',
+          'beslis of deze link na de migratie nog moet bestaan. Een deellink werkt voor ' +
+            'iedereen die hem heeft. Gaat hij ongemerkt mee, dan houdt iedereen met de link ' +
+            'toegang, zonder dat iemand dat koos',
+        ),
         note: 'Not a right held by a person, so there is nothing to translate.',
       };
     }
@@ -77,8 +90,8 @@ export function mapGrant(grant: PermissionGrant): PermissionMapping {
     return {
       verdict: 'clean',
       target: writable
-        ? 'a Nextcloud share with edit permission'
-        : 'a Nextcloud share, read-only',
+        ? say('a Nextcloud share with edit permission', 'een Nextcloud-deling met bewerkrechten')
+        : say('a Nextcloud share, read-only', 'een Nextcloud-deling, alleen lezen'),
       note: 'A per-person file or folder share exists on both sides.',
     };
   }
@@ -90,23 +103,32 @@ export function mapGrant(grant: PermissionGrant): PermissionMapping {
   if (/fullaccess/i.test(grant.role)) {
     return {
       verdict: 'manual',
-      target:
+      target: say(
         'give each person who needs the shared mailbox their own app password for it ' +
-        '(SAD §14.1)',
+          '(SAD §14.1)',
+        'geef iedereen die het gedeelde postvak nodig heeft er een eigen app-wachtwoord voor ' +
+          '(SAD §14.1)',
+      ),
       note: 'The target has no per-person mailbox ACL; app passwords are the convention, and they can be withdrawn individually.',
     };
   }
   if (/sendas|sendonbehalf/i.test(grant.role)) {
     return {
       verdict: 'manual',
-      target: 'configure Send-As for this address on the target platform',
+      target: say(
+        'configure Send-As for this address on the target platform',
+        'stel Send-As voor dit adres in op het nieuwe systeem',
+      ),
       note: 'Send-As is a platform setting on the target, not a permission this tool can grant.',
     };
   }
 
   return {
     verdict: 'manual',
-    target: 'no equivalent is known for this right — decide what it should become',
+    target: say(
+      'no equivalent is known for this right — decide what it should become',
+      'voor dit recht is geen tegenhanger bekend. Beslis wat het moet worden',
+    ),
     note: 'This table has no entry for it, which is itself worth knowing before cutover.',
   };
 }

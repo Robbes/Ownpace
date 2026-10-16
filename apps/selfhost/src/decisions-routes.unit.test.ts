@@ -106,6 +106,21 @@ describe('GET /permissions/report (workplan 0029)', () => {
     // And the deferred apply step is stated before the first finding.
     expect(md).toContain('has been applied');
   });
+
+  // The Finish page asks in the screen's language (workplan 0144): `nl` is
+  // Dutch, and nothing or anything else stays English, as on managed.
+  it('serves the report in Dutch when lang=nl, and in English otherwise', async () => {
+    const nl = await (await fetch(`${base}/permissions/report?mailbox=pat@acme.nl&lang=nl`)).text();
+    expect(nl).toContain('# Wie kan wat zien, en wat gebeurt ermee');
+    expect(nl).toContain('NIET kon worden geïnventariseerd');
+    expect(nl).toContain('Wie verder toegang had tot het postvak');
+    expect(nl).not.toContain('Who can see what');
+
+    for (const lang of ['', '&lang=en', '&lang=fr']) {
+      const md = await (await fetch(`${base}/permissions/report?mailbox=pat@acme.nl${lang}`)).text();
+      expect(md).toContain('# Who can see what');
+    }
+  });
 });
 
 describe('GET /decisions', () => {

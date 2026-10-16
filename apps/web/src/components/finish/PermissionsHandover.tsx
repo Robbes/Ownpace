@@ -20,7 +20,7 @@
 import React from 'react';
 import { KeyRound } from 'lucide-react';
 import { scopeFamilyOf, scopeFamilyOfConnectionKind, type ScopeFamily } from '@openmig/shared';
-import { useT, type StringKey } from '../../i18n/index.tsx';
+import { useLocale, type StringKey } from '../../i18n/index.tsx';
 import { fetchPermissionReport } from '../../services/operating-service.ts';
 import { Hint } from '../Hint.tsx';
 
@@ -57,7 +57,8 @@ export const PermissionsHandover: React.FC<{
    */
   sourceKind?: string | undefined;
 }> = ({ mappingId, sourceKind }) => {
-  const t = useT();
+  // The screen's language is the document's too (workplan 0144).
+  const { t, locale } = useLocale();
   const blindSpot = blindSpotOf(sourceKind);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState('');
@@ -66,7 +67,7 @@ export const PermissionsHandover: React.FC<{
     setBusy(true);
     setError('');
     try {
-      const markdown = await fetchPermissionReport(mappingId);
+      const markdown = await fetchPermissionReport(mappingId, locale);
       const url = URL.createObjectURL(new Blob([markdown], { type: 'text/markdown' }));
       const link = document.createElement('a');
       link.href = url;

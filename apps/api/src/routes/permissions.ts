@@ -53,6 +53,7 @@ import {
   fileSharingNotReadForThisSource,
   googleMailboxDelegationNotRead,
   grantWithdrawnRefusal,
+  localeOf,
   mailboxAccessNotReadForThisSource,
   log,
   permissionsNotDiscoverable,
@@ -154,6 +155,11 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
     // somebody to retype their own address is a way to get it wrong.
     const asked = typeof req.query.mailbox === 'string' ? req.query.mailbox.trim() : '';
     const mappingId = typeof req.query.mappingId === 'string' ? req.query.mappingId.trim() : '';
+    // The reader's language (workplan 0144): Dutch only for exactly `nl`.
+    // Nothing, or anything else, is English rather than a refusal: the smoke
+    // script and an operator's curl ask without it, and a report in the
+    // wrong language still warns about cutover where a 400 would not.
+    const lang = localeOf(req.query.lang);
     let mailbox = asked;
 
     if (mailbox === '' && mappingId !== '') {
@@ -211,6 +217,7 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
     const markdown = await runPermissionInventory({
       mappingLabel: mailbox,
       generatedOn: new Date().toISOString().slice(0, 10),
+      lang,
       // Always in the report, and now worded for the tenant's own source —
       // see `tenantInventoryScans`.
       delegationReason: scans.delegationReason,

@@ -4,6 +4,27 @@
 
 ## Status — 2026-10-16 (update this block at the end of every session)
 
+**2026-10-16: the permission report in the reader's language. On
+`claude/ownpace-public-readiness-y7orc6-a-report-in-the-readers-language`, not merged.** The
+document a tester downloads from every migration's Finish page was English only. Now
+`PermissionsHandover` asks for it in the screen's locale (`fetchPermissionReport(mappingId,
+lang)`), `GET /api/permissions/report` and the appliance's `/permissions/report` read `lang` with
+`localeOf` (Dutch only for exactly `nl`; nothing or anything else is English, never a 400, so the
+smoke script and an operator's curl keep English), and `renderPermissionReport`,
+`runPermissionInventory` and `mapGrant`'s `target` take it. The Dutch headings: *Wie kan wat zien,
+en wat gebeurt ermee*; *Wat het nieuwe systeem doet met wat wij schrijven*; *Lees dit eerst: wat
+NIET kon worden geïnventariseerd*; *Wat is gevonden*; *De stappen die alleen u kunt doen*; the
+table *Wat | Wie | Recht | Op het nieuwe systeem*. Values stay as found: addresses, folder names,
+rights (FullAccess, SendAs), and each blind spot's reason, which the connectors still write in
+English; the Dutch report says so in one sentence under *Lees dit eerst* rather than pretending
+otherwise. `openapi.yaml` documents `mailbox`, `mappingId` and `lang`. Proof:
+`packages/core/src/a-report-in-the-readers-language.unit.test.ts` (no English fixed sentence left
+over a fixture reaching every branch), `apps/api/src/routes/a-report-in-the-readers-language.unit.test.ts`,
+a case in `apps/selfhost/src/decisions-routes.unit.test.ts`, and the web's
+`operating-service.unit.test.ts` and `PermissionsHandover.unit.test.tsx`: 14 failed before the
+change (10 `unit`, 4 `unit-browser`) and all 45 in those files pass after; `pnpm lint` and
+`pnpm typecheck` green. Open: the blind-spot reasons themselves, in Dutch.
+
 **2026-10-16: T6 (c) is built: GitHub's issue chooser sends a tester to a person first.** What it
 waited for, T1's *Hulp* section, exists (`site/pages/nl/alpha-handleiding.md` `{#hulp}`). The
 chooser's first contact link is *"Using the hosted Ownpace Alpha? / Gebruikt u de Alpha van

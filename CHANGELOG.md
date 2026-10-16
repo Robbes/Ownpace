@@ -4,6 +4,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **The permission report comes in the reader's language** (workplan 0144): the
+  Finish page asks for it in the screen's language (`lang=nl` or `lang=en` on
+  `GET /api/permissions/report` and the appliance's `/permissions/report`), and
+  its headings, table headers and fixed sentences follow. Addresses, folder
+  names, rights such as FullAccess and SendAs, and each blind spot's reason stay
+  as they were found. Without `lang`, or with any other value, it is English.
+
 ## [0.2.0-alpha.2] - 2026-10-11
 
 The Alpha's texts, final, and what changed since `v0.2.0-alpha.1`. Testers are
