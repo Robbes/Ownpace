@@ -4,6 +4,21 @@
 
 ## Status — 2026-10-16 (update this block at the end of every session)
 
+**2026-10-16, last: an IMAP account is shown what an IMAP server holds.** The IMAP card, the
+`imap` connection kind and the appliance's `imap-oauth2` type shared the `standards` family with
+an Apple account, so a migration from a bare IMAP server was shown *Calendar*, *Contacts*,
+*Files* and Apple's *Tasks* row, none of which an IMAP server holds. `imap` is now a family of
+its own in `SCOPE_FAMILIES` (`packages/shared/src/scope-manifest.ts`), named by *Email* and
+*Mail with no Message-ID* only; Apple's card and kind stay `standards`, and so do `caldav`,
+`carddav` and `webdav`, so an Apple account keeps every row it had, on the appliance too (its
+three mappings union to the same rows). The version stays `2026-10-16`: it is the day the set
+last changed, and that is still today. The web schema reads `SCOPE_FAMILIES`, and the Finish
+page's blind-spot table names Microsoft and Google only, so neither needed a change. Guard: a
+new block in `a-promise-to-a-source-that-carries-none-of-it.unit.test.ts` (card, kind and type
+are told mail only; Apple keeps its rows; the appliance's union is unchanged) failed 3 of 20
+before the change and passes 20 of 20; *Start a migration*'s IMAP case in
+`StartMigration.unit.test.tsx` failed 1 of 4 and passes 4 of 4.
+
 **2026-10-16, later: Apple's Reminders are Partial, not Migrates.** Since iOS 13 and macOS
 Catalina an upgraded Reminders list leaves iCloud's calendar server for a store only Apple's own
 apps read (DAVx5's iCloud notes; BusyMac's FAQ 112990), and nearly every iPhone has upgraded. So
