@@ -21,18 +21,59 @@
  */
 
 import type { PermissionListing } from '@openmig/shared';
-import { renderPermissionReport, type PermissionSection } from './permission-report.ts';
+import {
+  renderPermissionReport,
+  type PermissionSection,
+  type ReportLanguage,
+} from './permission-report.ts';
+
+/**
+ * The words this pass says itself, in each language (workplan 0144): the
+ * section titles and the reasons it gives when a scan gave none. A scan's own
+ * reason, and an error's own message, stay as they were said.
+ */
+const WORDS = {
+  en: {
+    delegation: 'Who else had access to the mailbox',
+    calendars: 'Calendar sharing',
+    drive: 'File and folder sharing',
+    noReader:
+      'This source has nothing of this kind to inventory, or no reader for it is ' +
+      'configured. Nothing was looked at either way.',
+    scanFailed: (message: string) => `the scan failed: ${message}`,
+    conductUnmeasured: (message: string) =>
+      `The target's conduct could not be measured: ${message}. Unmeasured is not safe — ` +
+      'treat scheduling fan-out as possible until it is measured.',
+  },
+  nl: {
+    delegation: 'Wie verder toegang had tot het postvak',
+    calendars: "Gedeelde agenda's",
+    drive: 'Gedeelde bestanden en mappen',
+    noReader:
+      'Deze bron heeft hier niets van om te inventariseren, of er is geen lezer voor ' +
+      'ingesteld. In beide gevallen is er niets bekeken.',
+    scanFailed: (message: string) => `de scan is mislukt: ${message}`,
+    conductUnmeasured: (message: string) =>
+      `Het gedrag van het nieuwe systeem kon niet worden gemeten: ${message}. Niet gemeten ` +
+      'is niet veilig. Ga ervan uit dat het nieuwe systeem uitnodigingen naar deelnemers ' +
+      'kan sturen, tot het is gemeten.',
+  },
+} as const;
 
 export interface PermissionInventoryDeps {
   /** Rendered into the header so the reader knows which migration this is. */
   readonly mappingLabel?: string;
   /** ISO date, passed in: nothing here reads a clock. */
   readonly generatedOn?: string;
+  /** The reader's language for everything this pass and the report say; English when omitted. */
+  readonly lang?: ReportLanguage;
   /**
    * Why mailbox delegation could not be inventoried, in the source's words.
    * Required, because it is always true of every source this tool speaks to.
    */
   readonly delegationReason: string;
+  /** The same in Dutch, where the edition wrote one (#1605); the report's `nl` says it. */
+  readonly delegationReasonNl?: string;
   /** Calendar sharing. Omit for a source that has no calendars. */
   scanCalendars?(): Promise<PermissionListing>;
   /** File and folder sharing. Omit for a source that has no drive. */
@@ -50,6 +91,8 @@ export interface PermissionInventoryDeps {
 
 /** One inventory pass. Returns the report as Markdown; never throws. */
 export async function runPermissionInventory(deps: PermissionInventoryDeps): Promise<string> {
+  const lang = deps.lang ?? 'en';
+  const w = WORDS[lang];
   const sections: PermissionSection[] = [
     // Always first in the array and always present. See the module comment.
     // Titled in words true of every source (the owner, 2026-10-14): it read
@@ -57,15 +100,21 @@ export async function runPermissionInventory(deps: PermissionInventoryDeps): Pro
     // names, on a Gmail or an IMAP mailbox's report too. A Microsoft source's
     // reason still names them, where they are its own.
     {
-      title: 'Who else had access to the mailbox',
-      listing: { kind: 'not_discoverable', reason: deps.delegationReason },
+      title: w.delegation,
+      listing: {
+        kind: 'not_discoverable',
+        reason: deps.delegationReason,
+        ...(deps.delegationReasonNl === undefined ? {} : { reasonNl: deps.delegationReasonNl }),
+      },
     },
   ];
 
-  sections.push(await section('Calendar sharing', deps.scanCalendars, deps.error));
-  sections.push(await section('File and folder sharing', deps.scanDrive, deps.error));
+  sections.push(await section(w.calendars, deps.scanCalendars, deps.error, lang));
+  sections.push(await section(w.drive, deps.scanDrive, deps.error, lang));
 
   let targetConduct: readonly string[] = [];
+  // The target's measurements are English; this pass's own line is the reader's.
+  let targetConductLang: ReportLanguage = 'en';
   if (deps.measureTargetConduct) {
     try {
       targetConduct = await deps.measureTargetConduct();
@@ -73,19 +122,17 @@ export async function runPermissionInventory(deps: PermissionInventoryDeps): Pro
       deps.error?.('[permissions] the target conduct could not be measured', err);
       // The run-#6 rule again: a measurement that failed is stated as
       // unmeasured, never dropped — dropped reads as "nothing to say".
-      targetConduct = [
-        `The target's conduct could not be measured: ${
-          err instanceof Error ? err.message : String(err)
-        }. Unmeasured is not safe — treat scheduling fan-out as possible until it is measured.`,
-      ];
+      targetConduct = [w.conductUnmeasured(err instanceof Error ? err.message : String(err))];
+      targetConductLang = lang;
     }
   }
 
   return renderPermissionReport({
     sections,
-    ...(targetConduct.length > 0 ? { targetConduct } : {}),
+    ...(targetConduct.length > 0 ? { targetConduct, targetConductLang } : {}),
     ...(deps.mappingLabel ? { mappingLabel: deps.mappingLabel } : {}),
     ...(deps.generatedOn ? { generatedOn: deps.generatedOn } : {}),
+    lang,
   });
 }
 
@@ -98,17 +145,10 @@ async function section(
   title: string,
   scan: (() => Promise<PermissionListing>) | undefined,
   onError: PermissionInventoryDeps['error'],
+  lang: ReportLanguage,
 ): Promise<PermissionSection> {
   if (!scan) {
-    return {
-      title,
-      listing: {
-        kind: 'not_discoverable',
-        reason:
-          'This source has nothing of this kind to inventory, or no reader for it is ' +
-          'configured. Nothing was looked at either way.',
-      },
-    };
+    return { title, listing: { kind: 'not_discoverable', reason: WORDS[lang].noReader } };
   }
   try {
     return { title, listing: await scan() };
@@ -118,7 +158,7 @@ async function section(
       title,
       listing: {
         kind: 'not_discoverable',
-        reason: `the scan failed: ${err instanceof Error ? err.message : String(err)}`,
+        reason: WORDS[lang].scanFailed(err instanceof Error ? err.message : String(err)),
       },
     };
   }

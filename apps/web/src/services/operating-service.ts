@@ -45,6 +45,7 @@ import { z } from 'zod';
 import { isSelfHost, mappingPath, operatingBaseUrl, queuePath, verifyPath } from './edition.ts';
 import { onUnauthorized } from './api.ts';
 import { rememberFault } from './recent-errors.ts';
+import type { Locale } from '../i18n/strings.ts';
 import { EndingChoiceSchema, type EndingChoiceView } from './mapping-service.ts';
 
 const client: AxiosInstance = axios.create({
@@ -281,12 +282,15 @@ export async function fetchGroupRunbook(): Promise<string> {
  * operator is looking at, not which mailbox is behind it, and asking somebody
  * to retype their own address is a way to get it wrong. The server resolves
  * it, and says which fact is missing when it cannot.
+ *
+ * In the reader's language (workplan 0144): the screen's locale goes along as
+ * `lang`, so a Dutch tester's list is Dutch.
  */
-export async function fetchPermissionReport(mappingId: string): Promise<string> {
+export async function fetchPermissionReport(mappingId: string, lang: Locale): Promise<string> {
   try {
     return (
       await client.get<string>(
-        `/permissions/report?mappingId=${encodeURIComponent(mappingId)}`,
+        `/permissions/report?mappingId=${encodeURIComponent(mappingId)}&lang=${lang}`,
         { responseType: 'text' },
       )
     ).data;

@@ -6,6 +6,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The permission report comes in the reader's language** (workplan 0144): the
+  Finish page asks for it in the screen's language (`lang=nl` or `lang=en` on
+  `GET /api/permissions/report` and the appliance's `/permissions/report`), and
+  its headings, table headers and fixed sentences follow, and each blind spot
+  is said in Dutch where its sentence has Dutch. Addresses, folder names and
+  rights such as FullAccess and SendAs stay as they were found; where a reason or
+  a measurement is still English, the Dutch report says so. Without `lang`, or
+  with any other value, it is English.
+
 - **The identity provider's mails, in Ownpace's words, in Dutch and English**
   (workplan 0135 T6): the sign-up, address-change and password-reset mails
   (#1604), and now the notice that a password was changed and the link to add

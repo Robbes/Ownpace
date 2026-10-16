@@ -55,6 +55,18 @@ beforeEach(() => {
   getMock.mockReset();
 });
 
+describe('fetchPermissionReport asks in the reader\'s language (workplan 0144)', () => {
+  it.each(['en', 'nl'] as const)('passes lang=%s beside the migration', async (lang) => {
+    getMock.mockResolvedValue({ data: '# report' });
+
+    await fetchPermissionReport('acme mail', lang);
+
+    expect(getMock).toHaveBeenCalledWith(`/permissions/report?mappingId=acme%20mail&lang=${lang}`, {
+      responseType: 'text',
+    });
+  });
+});
+
 describe('fetchPermissionReport parses string error bodies', () => {
   it("re-throws with the server's JSON body PARSED, so .reason probes work", async () => {
     getMock.mockRejectedValue(
@@ -67,7 +79,7 @@ describe('fetchPermissionReport parses string error bodies', () => {
       ),
     );
 
-    const thrown = await fetchPermissionReport('acme-mail').catch((e: unknown) => e);
+    const thrown = await fetchPermissionReport('acme-mail', 'en').catch((e: unknown) => e);
     const data = (thrown as { response: { data: { reason?: string } } }).response.data;
     expect(typeof data).toBe('object');
     expect(data.reason).toContain('does not record which mailbox it reads');
@@ -76,7 +88,7 @@ describe('fetchPermissionReport parses string error bodies', () => {
   it('keeps a non-JSON body as the string it was', async () => {
     getMock.mockRejectedValue(textRejection('plain text error page', 502));
 
-    const thrown = await fetchPermissionReport('acme-mail').catch((e: unknown) => e);
+    const thrown = await fetchPermissionReport('acme-mail', 'en').catch((e: unknown) => e);
     expect((thrown as { response: { data: unknown } }).response.data).toBe(
       'plain text error page',
     );

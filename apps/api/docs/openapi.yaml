@@ -5784,6 +5784,30 @@ paths:
         deployment holds that permission. A section headed "could not be
         inventoried" placed under two pages of successes gets skipped, and it
         is the dangerous half.
+
+        **In the reader's language** (workplan 0144): `lang=nl` renders every
+        heading, table header and fixed sentence in Dutch; anything else, or
+        nothing, is English. Values stay as they were found: addresses,
+        folder names, rights as the source names them (FullAccess, SendAs),
+        and each blind spot's reason as the scan gave it.
+      parameters:
+        - name: mailbox
+          in: query
+          required: false
+          description: The address to inventory. Either this or `mappingId` is required.
+          schema: { type: string }
+        - name: mappingId
+          in: query
+          required: false
+          description: The migration whose mailbox to inventory; the server resolves the address.
+          schema: { type: string }
+        - name: lang
+          in: query
+          required: false
+          description: |
+            The report's language. Dutch only for exactly `nl`; English for
+            `en`, for nothing, and for any other value, which is never a `400`.
+          schema: { type: string, enum: [en, nl], default: en }
       responses:
         '200':
           description: Markdown.

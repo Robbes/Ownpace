@@ -140,7 +140,26 @@ describe('fetching the list', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /permission list/i }));
 
-    await waitFor(() => expect(fetchPermissionReport).toHaveBeenCalledWith('m-42'));
+    await waitFor(() => expect(fetchPermissionReport).toHaveBeenCalledWith('m-42', 'en'));
+  });
+
+  // The document comes in the reader's language (workplan 0144): the screen's
+  // own locale is what the report is asked in, so a Dutch tester's list is Dutch.
+  it('asks for the report in the language the screen is in', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      render(
+        <LocaleProvider>
+          <PermissionsHandover mappingId="m-42" />
+        </LocaleProvider>,
+      );
+
+      await userEvent.click(screen.getByRole('button', { name: /rechtenlijst/i }));
+
+      await waitFor(() => expect(fetchPermissionReport).toHaveBeenCalledWith('m-42', 'nl'));
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
   });
 
   it("renders the server's own refusal, which is the actionable one", async () => {
