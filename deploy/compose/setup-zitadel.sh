@@ -2328,6 +2328,127 @@ Read it, and put it back to the instance's, with the provisioning token:
 SIGN_IN_SITE="$(legal_site_from "$(read_env VITE_LEGAL_SITE_URL '')")"
 set_sign_in_notice "$SIGN_IN_SITE"
 
+# ------------------------------------------------- the mails a tester gets --
+#
+# IN OWNPACE'S WORDS, IN DUTCH AND ENGLISH (workplan 0135 T6, its mails).
+# Upstream's say "Initialize User", "Verify email" and "Reset password", name no
+# service and give nobody to write to, so a tester who did not expect one cannot
+# tell it from phishing. Ours name Ownpace, say what the account is for, and
+# name the address to write to. The texts are kept in sign-in-mails.json beside
+# this script, not only in the console, and written here on every run, for
+# each language and mail, with `PUT /admin/v1/text/message/{type}/{language}`
+# (admin.proto at v4.19.4). The language a mail goes out in is the person's own,
+# which the registration page takes from the page's language above.
+#
+# THREE MAILS, WHERE 0135 §3 NAMED TWO. A tester who registers on the login v1
+# page with a password gets the init mail, not the verify-email one: the page
+# calls `AddUserHuman` with allowInitMail, and `shouldAddInitCode` is true for
+# an address not yet verified (`internal/command` at v4.19.4; the proto says it
+# is sent "when a user is created and has either no password or a non-verified
+# email address"). So the init mail is the verification a tester gets first;
+# verifyemail follows a changed address, passwordreset a forgotten password.
+#
+# ZITADEL'S VARIABLES, AS ZITADEL SPELLS THEM. Each text carries {{.Code}}, and
+# the link is the mail's button: upstream's template points the button at the
+# URL, which is not a variable the text has. {support} is ours, filled here.
+#
+# THE ADDRESS IS THE DEPLOYMENT'S: VITE_SUPPORT_EMAIL, the one the web's pages
+# before sign-in show. The web shows nothing when it is empty; a mail cannot
+# leave a tester with nobody to write to, so empty is the service's public
+# support address, the site's own SUPPORT_EMAIL (site/prices.mjs), which
+# scripts/a-sign-in-page-in-our-own-words.unit.test.ts holds this to. Anything
+# that is not one address stops the run before anything is written: a mail
+# would carry it to every tester, and a {{ in it would be read as a variable.
+#
+# WRITTEN WHOLE, WHEN IT DIFFERS, AND READ BACK. A field left out of the write
+# is a field removed (`setDefaultMessageText` at v4.19.4), so all seven go every
+# time; an unchanged write records nothing, and it is not sent. The read is a
+# projection Zitadel does not bring up to date before it answers, so it is
+# asked again for a few seconds before a write is called one that did not take.
+#
+# NEVER FATAL, by the rule the SMTP update above follows. A mail in upstream's
+# words is no reason to leave a stack without its app: a refused or untaken
+# write is said, the run goes on, and the summary names the mails it left.
+SIGN_IN_MAILS="${SCRIPT_DIR}/sign-in-mails.json"
+SIGN_IN_MAIL_TYPES=(init verifyemail passwordreset)
+sign_in_mail_support() {   # <VITE_SUPPORT_EMAIL's value> — the address the mails name
+  local v="$1" shape='^[^[:space:]@{}<>",;]+@[^[:space:]@{}<>",;]+\.[A-Za-z]{2,}$'
+  v="${v#"${v%%[![:space:]]*}"}"
+  v="${v%"${v##*[![:space:]]}"}"
+  if [ -z "$v" ]; then
+    printf '%s' 'support@ownpace.eu'
+    return 0
+  fi
+  [[ "$v" =~ $shape ]] || die "VITE_SUPPORT_EMAIL is '${v}', which is not one address, so the sign-up and
+password mails cannot name it as the address to write to. Set it to one address in
+${ENV_FILE}, such as support@ownpace.eu, or leave it empty for that one."
+  printf '%s' "$v"
+}
+sign_in_mail_wanted() {   # <language> <type> <support address> — the seven fields to write, from the file
+  jq -ce --arg l "$1" --arg t "$2" --arg s "$3" '
+    (.[$l][$t] // {}) as $m
+    | reduce ("title", "preHeader", "subject", "greeting", "text", "buttonText", "footerText") as $k
+        ({}; . + {($k): (($m[$k] // "") | gsub("\\{support\\}"; $s))})
+    | select(all(.[]; length > 0) and (.text | contains("{{.Code}}")))' "$SIGN_IN_MAILS"
+}
+sign_in_mail_read() {   # <language> <type> — the seven fields the instance holds, or why it cannot say
+  local out
+  out="$( ( api GET "/admin/v1/text/message/${2}/${1}" ) 2>&1 )" || { printf '%s' "$out"; return 1; }
+  jq -ce '(.customText // {}) as $c
+    | reduce ("title", "preHeader", "subject", "greeting", "text", "buttonText", "footerText") as $k
+        ({}; . + {($k): ($c[$k] // "")})' <<<"$out" 2>/dev/null || { printf '%s' "$out"; return 1; }
+}
+set_sign_in_mails() {   # <support address> — sets SIGN_IN_MAILS_SAID for the summary
+  local support="$1" lang type want shown out _ left=""
+  for lang in nl en; do
+    for type in "${SIGN_IN_MAIL_TYPES[@]}"; do
+      sign_in_mail_wanted "$lang" "$type" "$support" >/dev/null || die "${SIGN_IN_MAILS} has no whole ${type} mail in ${lang}:
+each needs title, preHeader, subject, greeting, text, buttonText and footerText, none
+empty, and a text with {{.Code}} in it. Nothing has been written."
+    done
+  done
+  for lang in nl en; do
+    for type in "${SIGN_IN_MAIL_TYPES[@]}"; do
+      want="$(sign_in_mail_wanted "$lang" "$type" "$support")"
+      if ! shown="$(sign_in_mail_read "$lang" "$type")"; then
+        say "  could not read the ${type} mail in ${lang}, so it is left as it is:"
+        say "  ${shown}"
+        left+=" ${type}/${lang}"
+        continue
+      fi
+      [ "$shown" = "$want" ] && continue
+      say "the ${type} mail in ${lang} is not in Ownpace's words: writing it"
+      if ! out="$( ( api PUT "/admin/v1/text/message/${type}/${lang}" "$want" >/dev/null ) 2>&1 )"; then
+        say "  the provider REFUSED it, so that mail keeps the words it had:"
+        say "  ${out}"
+        left+=" ${type}/${lang}"
+        continue
+      fi
+      for _ in 1 2 3 4 5; do
+        shown="$(sign_in_mail_read "$lang" "$type")" || true
+        [ "$shown" = "$want" ] && break
+        sleep 1
+      done
+      if [ "$shown" != "$want" ]; then
+        say "  the provider accepted it and still reads other words. Read it with:"
+        say "    curl -sS ${ISSUER}/admin/v1/text/message/${type}/${lang} -H \"Authorization: Bearer \$PAT\" | jq .customText"
+        left+=" ${type}/${lang}"
+      fi
+    done
+  done
+  if [ -z "$left" ]; then
+    SIGN_IN_MAILS_SAID="nl, en; they name ${support}"
+    say "the sign-up, address and password mails speak Dutch and English, in Ownpace's words, and name ${support}"
+  else
+    SIGN_IN_MAILS_SAID="NOT all set:${left} keep upstream's words (see above)"
+    say "these mails keep upstream's words:${left}. The bring-up goes on; run this again once the provider takes them"
+  fi
+}
+# An assignment, so that the refusal above stops the run: a command
+# substitution inside an argument is not one set -e looks at.
+SIGN_IN_MAIL_SUPPORT="$(sign_in_mail_support "$(read_env VITE_SUPPORT_EMAIL '')")"
+set_sign_in_mails "$SIGN_IN_MAIL_SUPPORT"
+
 # ---------------------------------------------- how many organisations here --
 #
 # ONE, AND COUNTED ON EVERY RUN (workplan 0135 T3), after the two settings
@@ -2407,6 +2528,8 @@ cat <<EOF
   notice     $(sign_in_page_link privacy "$SIGN_IN_SITE")
              $(sign_in_page_link terms "$SIGN_IN_SITE")
              (the Dutch pages, on the site VITE_LEGAL_SITE_URL names)
+  mails      ${SIGN_IN_MAILS_SAID}
+             (sign-up, address and password reset, from sign-in-mails.json)
   first user $(read_env ZITADEL_ADMIN_USERNAME owner)@${ORG_DOMAIN}
              (the login name carries the ORGANISATION's domain, not the issuer's)
              password is ZITADEL_ADMIN_PASSWORD in .env, and must be changed
