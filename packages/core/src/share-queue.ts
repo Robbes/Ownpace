@@ -171,7 +171,17 @@ export function summariseShareGrants(
 
 export type ShareActionOutcome =
   | { readonly ok: true; readonly row: ShareGrantRow }
-  | { readonly ok: false; readonly code: string; readonly reason: string };
+  | {
+      readonly ok: false;
+      readonly code: string;
+      readonly reason: string;
+      /**
+       * The same sentence in Dutch, when the edition wrote the refusal itself
+       * in both languages: managed, for a share the target refused (workplan
+       * 0136 T3). Absent, `reason` is shown as served.
+       */
+      readonly reasonNl?: string;
+    };
 
 export interface ShareQueueDeps {
   readonly tenantId: TenantId;
@@ -209,7 +219,11 @@ export interface ApplyShareDeps extends ShareQueueDeps {
      * an address override is not obliged to grow one.
      */
     shareWith?: string,
-  ) => Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: string }>;
+  ) => Promise<
+    | { readonly ok: true }
+    /** `reasonNl` beside `reason` when the edition says the refusal in both languages. */
+    | { readonly ok: false; readonly reason: string; readonly reasonNl?: string }
+  >;
 }
 
 async function findOpenRow(
@@ -400,7 +414,9 @@ export async function applyShareGrant(
     };
   }
 
-  let created: { readonly ok: true } | { readonly ok: false; readonly reason: string };
+  let created:
+    | { readonly ok: true }
+    | { readonly ok: false; readonly reason: string; readonly reasonNl?: string };
   try {
     created = await deps.createShare(row, shareWith);
   } catch (err) {
@@ -408,8 +424,15 @@ export async function applyShareGrant(
   }
   if (!created.ok) {
     // The row stays OPEN: the target refused, so nothing was carried over and
-    // the checklist must keep saying so. The target's words travel verbatim.
-    return { ok: false, code: 'target_refused', reason: created.reason };
+    // the checklist must keep saying so. The refusal travels as the edition
+    // wrote it: the target's words on the appliance, our sentence in both
+    // languages on managed (workplan 0136 T3).
+    return {
+      ok: false,
+      code: 'target_refused',
+      reason: created.reason,
+      ...(created.reasonNl === undefined ? {} : { reasonNl: created.reasonNl }),
+    };
   }
 
   const settled = await deps.ledger.decideShareGrant(deps.tenantId, deps.mappingId, grantId, {
@@ -439,6 +462,8 @@ export interface ApplyAllOutcome {
     readonly grantee?: string;
     readonly code: string;
     readonly reason: string;
+    /** Its Dutch, when the refusal came with it (workplan 0136 T3). */
+    readonly reasonNl?: string;
   }>;
   /**
    * Rows the press deliberately does not touch: links (no addressable
@@ -496,6 +521,7 @@ export async function applyAllOpenShareGrants(deps: ApplyShareDeps): Promise<
     grantee?: string;
     code: string;
     reason: string;
+    reasonNl?: string;
   }> = [];
   for (const row of candidates) {
     const outcome = await applyShareGrant(deps, row.id);
@@ -508,6 +534,7 @@ export async function applyAllOpenShareGrants(deps: ApplyShareDeps): Promise<
         ...(row.grantee ? { grantee: row.grantee } : {}),
         code: outcome.code,
         reason: outcome.reason,
+        ...(outcome.reasonNl === undefined ? {} : { reasonNl: outcome.reasonNl }),
       });
     }
   }
@@ -663,6 +690,7 @@ export async function applyShareGrantsInFolder(
     grantee?: string;
     code: string;
     reason: string;
+    reasonNl?: string;
   }> = [];
   for (const row of candidates) {
     const confirmed = row.grantee ? deps.confirmed[row.grantee]?.trim() : undefined;
@@ -676,6 +704,7 @@ export async function applyShareGrantsInFolder(
         ...(row.grantee ? { grantee: row.grantee } : {}),
         code: outcome.code,
         reason: outcome.reason,
+        ...(outcome.reasonNl === undefined ? {} : { reasonNl: outcome.reasonNl }),
       });
     }
   }
