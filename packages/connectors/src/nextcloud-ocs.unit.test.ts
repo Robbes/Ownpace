@@ -252,3 +252,94 @@ describe('createNextcloudShare — the grantee the target does not know (0104 T0
     expect(calls).toHaveLength(2);
   });
 });
+
+/**
+ * A SHARE REFUSED, IN PARTS (workplan 0136 T3, a share's refusal on apply).
+ *
+ * The managed API answers a refused share from these parts, never from the
+ * reason, which keeps the server's words for the operator's log and for the
+ * appliance's owner. So the parts hold what failed (the status, OCS's own
+ * code, whether the body was an OCS answer at all, or what kind of failure
+ * it was) and nothing the server wrote.
+ */
+describe('createNextcloudShare: a refusal carries its parts', () => {
+  const MARKER = 'an-internal-admin-page-7f3a';
+
+  function sequence(responses: ReadonlyArray<{ status: number; body: string }>): HttpClient {
+    let n = 0;
+    return {
+      async request() {
+        const r = responses[Math.min(n++, responses.length - 1)]!;
+        return { status: r.status, body: r.body, headers: {} };
+      },
+    };
+  }
+  const ocs = (statuscode: number, message: string) =>
+    JSON.stringify({ ocs: { meta: { status: 'failure', statuscode, message } } });
+  const REQUEST = { path: 'a.txt', shareWith: 'anna@example.nl', role: 'reader' };
+
+  it('an OCS refusal: the status and OCS code, and not its message', async () => {
+    const result = await createNextcloudShare(
+      OPTIONS(sequence([{ status: 403, body: ocs(403, `Sharing is disabled ${MARKER}`) }])),
+      REQUEST,
+    );
+    expect(result).toMatchObject({ ok: false, said: { kind: 'answered', status: 403, ocsStatus: 403, ocs: true } });
+    expect(JSON.stringify(result.ok ? {} : result.said)).not.toContain(MARKER);
+    // The reason keeps the server's words, for the log and the appliance.
+    if (!result.ok) expect(result.reason).toContain(MARKER);
+  });
+
+  it('a body that is no OCS answer: the status, marked as not OCS, and none of the body', async () => {
+    const result = await createNextcloudShare(
+      OPTIONS(sequence([{ status: 404, body: `<html><title>${MARKER}</title></html>` }])),
+      REQUEST,
+    );
+    expect(result).toMatchObject({ ok: false, said: { kind: 'answered', status: 404, ocs: false } });
+    expect(JSON.stringify(result.ok ? {} : result.said)).not.toContain(MARKER);
+  });
+
+  it('no such account, and share-by-mail refused too: both parts, without either message', async () => {
+    const result = await createNextcloudShare(
+      OPTIONS(
+        sequence([
+          { status: 404, body: ocs(404, `User does not exist ${MARKER}`) },
+          { status: 403, body: ocs(403, `Sharing by mail is off ${MARKER}`) },
+        ]),
+      ),
+      REQUEST,
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      said: { kind: 'notAnAccount', byMail: { status: 403, ocsStatus: 403, ocs: true } },
+    });
+    expect(JSON.stringify(result.ok ? {} : result.said)).not.toContain(MARKER);
+  });
+
+  it('a socket error is said by its kind, without the address it tried', async () => {
+    const failing: HttpClient = {
+      async request() {
+        throw Object.assign(new Error(`connect ECONNREFUSED 10.0.0.7:443 ${MARKER}`), { code: 'ECONNREFUSED' });
+      },
+    };
+    const result = await createNextcloudShare(OPTIONS(failing), REQUEST);
+    expect(result).toMatchObject({ ok: false, said: { kind: 'unreachable' } });
+    expect(JSON.stringify(result.ok ? {} : result.said)).not.toContain('10.0.0.7');
+  });
+
+  it('an address it cannot read is said as such', async () => {
+    const result = await createNextcloudShare(
+      { ...OPTIONS(sequence([])), webdavUrl: 'not a url' },
+      REQUEST,
+    );
+    expect(result).toMatchObject({ ok: false, said: { kind: 'noOrigin' } });
+  });
+
+  it('an OCS code the server made up is not carried: only a three-digit one', async () => {
+    const result = await createNextcloudShare(
+      OPTIONS(sequence([{ status: 400, body: ocs(123456789, 'x') }])),
+      REQUEST,
+    );
+    expect(result).toMatchObject({ ok: false, said: { kind: 'answered', status: 400, ocs: true } });
+    expect(result.ok ? undefined : (result.said as { ocsStatus?: number }).ocsStatus).toBeUndefined();
+  });
+});
