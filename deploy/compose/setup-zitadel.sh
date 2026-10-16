@@ -2348,9 +2348,34 @@ set_sign_in_notice "$SIGN_IN_SITE"
 # email address"). So the init mail is the verification a tester gets first;
 # verifyemail follows a changed address, passwordreset a forgotten password.
 #
-# ZITADEL'S VARIABLES, AS ZITADEL SPELLS THEM. Each text carries {{.Code}}, and
-# the link is the mail's button: upstream's template points the button at the
-# URL, which is not a variable the text has. {support} is ours, filled here.
+# AND TWO MORE (2026-10-16). password_change: Zitadel tells a person their
+# password was changed after every new one, a reset included, because the
+# instance's notification policy has passwordChange on (`cmd/defaults.yaml` at
+# v4.19.4), and nothing here turns it off. Its button opens the provider's own
+# sign-in. passwordless_registration: a tester signed in to the provider's
+# console, on the same public origin, can mail themselves a link to add a
+# passkey on another device (`POST /auth/v1/users/me/passwordless/_send_link`),
+# because the login policy allows passkeys (upstream's default, echoed above).
+# The console is also where an address is changed, which sends verifyemail.
+# Neither has a code: admin.proto lists every variable but Code for both.
+#
+# THE FIVE MAILS LEFT IN UPSTREAM'S WORDS, because a tester never gets one.
+# admin.proto at v4.19.4 has ten mail texts; each of these is named with why:
+# verifyphone: SMS is not configured, so no SMS text is sent.
+# verifysmsotp: SMS is not configured, and an SMS code is not a second factor
+#   the login policy offers.
+# verifyemailotp: an email code is not a second factor the login policy offers
+#   (upstream's default is TOTP and U2F, and this script leaves it), so neither
+#   the sign-in page nor the console lets a tester choose it.
+# domainclaimed: sent only when an organisation verifies a domain, which this
+#   stack never does.
+# invite_user: sent only for an invite code made through the provider's API,
+#   and Ownpace's invitations are its own mails.
+#
+# ZITADEL'S VARIABLES, AS ZITADEL SPELLS THEM. Each text but password_change's
+# and passwordless_registration's carries {{.Code}}, and the link is the mail's
+# button: upstream's template points the button at the URL, which is not a
+# variable the text has. {support} is ours, filled here.
 #
 # THE ADDRESS IS THE DEPLOYMENT'S: VITE_SUPPORT_EMAIL, the one the web's pages
 # before sign-in show. The web shows nothing when it is empty; a mail cannot
@@ -2370,7 +2395,7 @@ set_sign_in_notice "$SIGN_IN_SITE"
 # words is no reason to leave a stack without its app: a refused or untaken
 # write is said, the run goes on, and the summary names the mails it left.
 SIGN_IN_MAILS="${SCRIPT_DIR}/sign-in-mails.json"
-SIGN_IN_MAIL_TYPES=(init verifyemail passwordreset)
+SIGN_IN_MAIL_TYPES=(init verifyemail passwordreset password_change passwordless_registration)
 sign_in_mail_support() {   # <VITE_SUPPORT_EMAIL's value> — the address the mails name
   local v="$1" shape='^[^[:space:]@{}<>",;]+@[^[:space:]@{}<>",;]+\.[A-Za-z]{2,}$'
   v="${v#"${v%%[![:space:]]*}"}"
@@ -2389,7 +2414,8 @@ sign_in_mail_wanted() {   # <language> <type> <support address> — the seven fi
     (.[$l][$t] // {}) as $m
     | reduce ("title", "preHeader", "subject", "greeting", "text", "buttonText", "footerText") as $k
         ({}; . + {($k): (($m[$k] // "") | gsub("\\{support\\}"; $s))})
-    | select(all(.[]; length > 0) and (.text | contains("{{.Code}}")))' "$SIGN_IN_MAILS"
+    | select(all(.[]; length > 0) and ($t == "password_change" or $t == "passwordless_registration"
+          or (.text | contains("{{.Code}}"))))' "$SIGN_IN_MAILS"
 }
 sign_in_mail_read() {   # <language> <type> — the seven fields the instance holds, or why it cannot say
   local out
@@ -2404,7 +2430,8 @@ set_sign_in_mails() {   # <support address> — sets SIGN_IN_MAILS_SAID for the 
     for type in "${SIGN_IN_MAIL_TYPES[@]}"; do
       sign_in_mail_wanted "$lang" "$type" "$support" >/dev/null || die "${SIGN_IN_MAILS} has no whole ${type} mail in ${lang}:
 each needs title, preHeader, subject, greeting, text, buttonText and footerText, none
-empty, and a text with {{.Code}} in it. Nothing has been written."
+empty, and, but for password_change and passwordless_registration, a text with
+{{.Code}} in it. Nothing has been written."
     done
   done
   for lang in nl en; do
@@ -2438,7 +2465,7 @@ empty, and a text with {{.Code}} in it. Nothing has been written."
   done
   if [ -z "$left" ]; then
     SIGN_IN_MAILS_SAID="nl, en; they name ${support}"
-    say "the sign-up, address and password mails speak Dutch and English, in Ownpace's words, and name ${support}"
+    say "the sign-up, address, password and passkey mails speak Dutch and English, in Ownpace's words, and name ${support}"
   else
     SIGN_IN_MAILS_SAID="NOT all set:${left} keep upstream's words (see above)"
     say "these mails keep upstream's words:${left}. The bring-up goes on; run this again once the provider takes them"
@@ -2529,7 +2556,7 @@ cat <<EOF
              $(sign_in_page_link terms "$SIGN_IN_SITE")
              (the Dutch pages, on the site VITE_LEGAL_SITE_URL names)
   mails      ${SIGN_IN_MAILS_SAID}
-             (sign-up, address and password reset, from sign-in-mails.json)
+             (sign-up, address, password reset and changed, passkey link, from sign-in-mails.json)
   first user $(read_env ZITADEL_ADMIN_USERNAME owner)@${ORG_DOMAIN}
              (the login name carries the ORGANISATION's domain, not the issuer's)
              password is ZITADEL_ADMIN_PASSWORD in .env, and must be changed
