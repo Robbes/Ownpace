@@ -693,6 +693,12 @@ export interface DecisionAccepted {
 export interface DecisionRefused {
   readonly error: string;
   readonly reason?: string;
+  /**
+   * `reason` in Dutch, where the server wrote the refusal in both languages:
+   * a share the new system refused, on managed (workplan 0136 T3). A screen
+   * shows it to a Dutch reader, and `reason` as served otherwise.
+   */
+  readonly reasonNl?: string;
   readonly hint?: string;
 }
 
