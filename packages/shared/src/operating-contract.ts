@@ -693,6 +693,12 @@ export interface DecisionAccepted {
 export interface DecisionRefused {
   readonly error: string;
   readonly reason?: string;
+  /**
+   * `reason` in Dutch, where the server wrote the refusal in both languages:
+   * a share the new system refused, on managed (workplan 0136 T3). A screen
+   * shows it to a Dutch reader, and `reason` as served otherwise.
+   */
+  readonly reasonNl?: string;
   readonly hint?: string;
 }
 
@@ -844,15 +850,30 @@ export interface ApplyDeletionsFlag {
  *
  * Shared prose, like the queue guidance: the sentence somebody reads before
  * arming the only destructive capability must not drift between editions.
+ *
+ * WHAT IT SAYS ABOUT AN EDITED COPY IS PER DATA TYPE, because the code's
+ * answer is (workplan 0144 T4, 0149 T6). Files, calendar entries and contacts
+ * are refused when the new system reports the copy changed, and refused when
+ * that cannot be checked (0149 T3: no recorded version, no removal). Mail is
+ * not checked: JMAP gives a message no version, and IMAP's UIDVALIDITY tells a
+ * recreated mailbox, not an edited message. This used to list *"never a copy
+ * somebody has since edited"* among the gates every removal passes, which was
+ * never so for mail. `scripts/a-warning-the-check-keeps.unit.test.ts` reads
+ * every writer's `removeItem` and fails until both languages name the data
+ * types the way the writers treat them.
  */
 export const APPLY_FLAG_WARNING =
   'Turning this on enables the only operation in this product that deletes ' +
   'anything: on your explicit per-item decision, the copy this migration wrote ' +
   'to the new system is removed, following a deletion the owner made on the old ' +
   'one. Every removal still has to pass every gate — positive evidence only ' +
-  '(never an inferred absence), only items this tool wrote, never a copy ' +
-  'somebody has since edited, and the mass-deletion breaker. While this is off, ' +
-  'nothing can be removed however the endpoint is called.';
+  '(never an inferred absence), only items this tool wrote, and the ' +
+  'mass-deletion breaker. A file, calendar entry or contact is also not removed ' +
+  'if someone has changed it in the new system since this tool wrote it, or ' +
+  'when that cannot be checked. Mail is not checked for changes: an email this ' +
+  'tool wrote can be removed even if someone has changed it in the new system ' +
+  'since. While this is off, nothing can be removed however the endpoint is ' +
+  'called.';
 
 /**
  * The same warning in Dutch (ADR-0013, workplan 0024). It lives HERE, beside
@@ -868,9 +889,13 @@ export const APPLY_FLAG_WARNING_NL =
   'een verwijdering die de eigenaar in het oude systeem deed. Elke ' +
   'verwijdering moet nog steeds elke controle doorstaan — uitsluitend ' +
   'positief bewijs (nooit een afgeleide afwezigheid), alleen items die dit ' +
-  'programma zelf schreef, nooit een kopie die iemand sindsdien heeft ' +
-  'bewerkt, en de massaverwijderings-stroomonderbreker. Zolang dit uit ' +
-  'staat, kan er niets worden verwijderd, hoe het eindpunt ook wordt ' +
+  'programma zelf schreef, en de massaverwijderings-stroomonderbreker. Een ' +
+  'bestand, agenda-item of contact wordt bovendien niet verwijderd als iemand ' +
+  'het in het nieuwe systeem heeft gewijzigd sinds dit programma het schreef, ' +
+  'of als dat niet kan worden gecontroleerd. E-mail wordt daar niet op ' +
+  'gecontroleerd: een e-mail die dit programma schreef, kan worden verwijderd, ' +
+  'ook als iemand die sindsdien in het nieuwe systeem heeft gewijzigd. Zolang ' +
+  'dit uit staat, kan er niets worden verwijderd, hoe het eindpunt ook wordt ' +
   'aangeroepen.';
 
 /**
@@ -1010,8 +1035,9 @@ export const DELETION_GUIDANCE: DeletionGuidance = {
     `target's copy too, following the source. THE ONLY DESTRUCTIVE ACTION IN THIS ` +
     `PRODUCT: refused unless this mapping has \`allowApplyDeletions: true\` in its ` +
     `config, refused for "inferred" evidence (an absence is never enough, however ` +
-    `many passes it repeats), refused for an item somebody has since edited on the ` +
-    `target, refused altogether while an unusual share of the domain looks ` +
+    `many passes it repeats), refused for a file, calendar entry or contact ` +
+    `somebody has since edited on the target, or whose version cannot be checked ` +
+    `(mail is not checked for edits), refused altogether while an unusual share of the domain looks ` +
     `pending deletion at once (the mass-deletion breaker), and refused for a data ` +
     `type past its cutover, whose old system no longer decides what exists (until ` +
     `a rollback). See the runbook before using this.`,
