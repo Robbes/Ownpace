@@ -33,7 +33,9 @@ import {
   type Bilingual,
 } from '@openmig/shared';
 import {
+  CONSENT_NOT_AWAITED,
   EXCHANGE_FOR_THE_OWNER,
+  browserLocale,
   GOOGLE_SOURCE_SCOPES,
   callbackPageHeaders,
   consentResultPage,
@@ -260,15 +262,14 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     // the state failed. No pending state means no link either, so this one
     // cannot be worded for the migrator; it is deliberately about the state
     // rather than about anybody's link.
+    // In a tester's words, in the browser's own language: no pending state
+    // says which language the consent began in (the owner, 2026-10-16).
+    const said = browserLocale(req);
     return page(
       400,
       consentResultPage({
-        outcome: {
-          ok: false,
-          reason:
-            'This consent link is not one the wizard is waiting for — it was already used, ' +
-            'it expired (they live ten minutes), or it was not started here.',
-        },
+        outcome: { ok: false, reason: inLocale(CONSENT_NOT_AWAITED, said) },
+        locale: said,
       }),
     );
   }

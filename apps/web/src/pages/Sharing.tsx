@@ -489,7 +489,16 @@ const Sharing: React.FC = () => {
   const [folderRefusals, setFolderRefusals] = React.useState<Record<string, string>>({});
   const [busyFolder, setBusyFolder] = React.useState<string | null>(null);
   const [rescanning, setRescanning] = React.useState(false);
-  const [blindSpots, setBlindSpots] = React.useState<ReadonlyArray<string>>([]);
+  // Both lists the rescan answered with, so the page follows a language switch
+  // (the owner, 2026-10-16): the Dutch one where the server sent it, which is
+  // as long as the English and says the English where it has no Dutch. An
+  // older server, or the appliance before it learned the field, sends none.
+  const [blindSpotLists, setBlindSpotLists] = React.useState<{
+    readonly en: ReadonlyArray<string>;
+    readonly nl?: ReadonlyArray<string> | undefined;
+  }>({ en: [] });
+  const blindSpots =
+    locale === 'nl' && blindSpotLists.nl !== undefined ? blindSpotLists.nl : blindSpotLists.en;
 
   const queryKey = ['sharing', mappingId];
   const { data, isLoading, error } = useQuery({
@@ -608,10 +617,10 @@ const Sharing: React.FC = () => {
     setRescanning(true);
     rescanSharing(mappingId)
       .then((r) => {
-        setBlindSpots(r.blindSpots);
+        setBlindSpotLists({ en: r.blindSpots, nl: r.blindSpotsNl });
         refresh();
       })
-      .catch(() => setBlindSpots([t('common.requestFailed')]))
+      .catch(() => setBlindSpotLists({ en: [t('common.requestFailed')] }))
       .finally(() => setRescanning(false));
   };
 

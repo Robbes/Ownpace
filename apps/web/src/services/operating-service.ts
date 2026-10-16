@@ -517,12 +517,23 @@ export async function fetchSharing(mappingId: string): Promise<SharingResponse> 
   return (await client.get<SharingResponse>(`${mappingPath(mappingId)}/sharing`)).data;
 }
 
+/**
+ * What a rescan answers: the rows still open, and what could not be read, in
+ * English and, since 2026-10-16, in Dutch beside it (same order, the English
+ * where a sentence has no Dutch). Absent from an older server.
+ */
+export interface RescanAnswer {
+  readonly open: number;
+  readonly blindSpots: ReadonlyArray<string>;
+  readonly blindSpotsNl?: ReadonlyArray<string>;
+}
+
 /** Re-run the inventory scans; decisions survive (ADR-0032). */
 export async function rescanSharing(
   mappingId: string,
-): Promise<{ open: number; blindSpots: ReadonlyArray<string> }> {
+): Promise<RescanAnswer> {
   return (
-    await client.post<{ open: number; blindSpots: ReadonlyArray<string> }>(
+    await client.post<RescanAnswer>(
       `${mappingPath(mappingId)}/sharing/rescan`,
     )
   ).data;
