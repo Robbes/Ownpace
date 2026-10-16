@@ -5,6 +5,9 @@ body:
   - type: markdown
     attributes:
       value: |
+        **Testing the hosted Ownpace Alpha?** Please use *Report a problem* in the app instead,
+        or the address in the tester guide: this tracker is public.
+
         **Do not paste credentials, access tokens, or real mailbox contents.** Redact
         addresses and hostnames if they identify a person. If the issue *is* a security
         vulnerability, stop here and follow [SECURITY.md](../blob/main/SECURITY.md)
