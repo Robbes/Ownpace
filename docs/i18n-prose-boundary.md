@@ -90,6 +90,16 @@ of* it.
    The pages the API renders after a provider's consent choose their language
    the same way, from the language the authorize call named, which the server
    records on the pending consent and never reads back from the redirect.
+
+   **A share the new system refused is the fourth** (workplan 0136 T3, a
+   share's refusal on apply). On managed, the target's OCS reply is not
+   passed on: the address is one a tester typed. The API says a sentence of
+   ours, chosen by the status and OCS's code, from `share-refusals.ts`, as
+   `reason` and `reasonNl` on `…/sharing/:grantId/decision` and on each
+   refused row of `apply-all` and `apply-folder`, each ending with the
+   reference the target's words are logged under. The Sharing page shows the
+   half in its reader's language. The appliance answers with the target's
+   words, as served.
 5. **Customer guides** (workplan 0148 T4) — the guides `/docs` serves, written
    for the person who connects an account:
    - documents authored in each language, side by side in `docs/guides/nl/`
