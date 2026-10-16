@@ -1014,6 +1014,21 @@ front of the instance's. It prints both addresses in its summary. A fresh
 instance has them from `managed.yml`. They are always shown, also before the
 texts are published there (the owner, 2026-10-03).
 
+**The mails it sends** (workplan 0135 T6). The three mails with a code that a
+tester can get from the provider are in Ownpace's words, in Dutch and English:
+the one after registering (Zitadel's *init* mail, which confirms the address),
+the one after changing an address (*verifyemail*), and the password reset
+(*passwordreset*). Each names Ownpace, says the account is for signing in to
+Ownpace, and names the address to write to: `VITE_SUPPORT_EMAIL` in `.env`, the
+one the web's pages show, and `support@ownpace.eu` when it is empty. A value
+that is not one address stops the run before anything is written. The texts
+live in `deploy/compose/sign-in-mails.json`; change them there, never only in
+the console, because every run writes back any mail that differs from the file
+and reads it back. A mail the provider refuses or does not take keeps
+upstream's words: the run says so and goes on, and its summary names it under
+`mails`. Run the script again once the cause is fixed. A mail goes out in the
+person's own language, which the registration page takes from the page's.
+
 **Then restart the API and REBUILD the web app, or nothing changes.** The API
 only needs the new environment; the web app bakes `VITE_*` in at build time, so
 a container built before the script ran has no issuer in its bundle and still

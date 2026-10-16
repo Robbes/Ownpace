@@ -1,0 +1,60 @@
+{
+  "en": {
+    "init": {
+      "title": "Ownpace: confirm your email address",
+      "preHeader": "One more step to finish your Ownpace account",
+      "subject": "Ownpace: confirm your email address",
+      "greeting": "Hello {{.DisplayName}},",
+      "text": "Thank you for creating an Ownpace account. You use it to sign in to Ownpace, which copies your mail, contacts, calendar and files to a European provider you choose. To finish, confirm your email address: click the button below, or enter this code on the page that asks for it: {{.Code}}. Did you not create this account? Then you can ignore this email. Questions? Mail {support}. Never send a password or other sensitive data.",
+      "buttonText": "Confirm email address",
+      "footerText": "You are receiving this email because this address was used for an Ownpace account."
+    },
+    "verifyemail": {
+      "title": "Ownpace: confirm your email address",
+      "preHeader": "Confirm the email address of your Ownpace account",
+      "subject": "Ownpace: confirm your email address",
+      "greeting": "Hello {{.DisplayName}},",
+      "text": "Please confirm this email address for your Ownpace account. You use that account to sign in to Ownpace, which copies your mail, contacts, calendar and files to a European provider you choose. Click the button below, or enter this code on the page that asks for it: {{.Code}}. Did you not ask for this? Then you can ignore this email. Questions? Mail {support}. Never send a password or other sensitive data.",
+      "buttonText": "Confirm email address",
+      "footerText": "You are receiving this email because this address was used for an Ownpace account."
+    },
+    "passwordreset": {
+      "title": "Ownpace: set a new password",
+      "preHeader": "Set a new password for your Ownpace account",
+      "subject": "Ownpace: set a new password",
+      "greeting": "Hello {{.DisplayName}},",
+      "text": "We received a request to reset the password of your Ownpace account, which you use to sign in to Ownpace. Click the button below to set a new password, or enter this code on the page that asks for it: {{.Code}}. Did you not ask for this? Then you can ignore this email, and your password stays as it is. Questions? Mail {support}. Never send a password or other sensitive data.",
+      "buttonText": "Set a new password",
+      "footerText": "You are receiving this email because this address was used for an Ownpace account."
+    }
+  },
+  "nl": {
+    "init": {
+      "title": "Ownpace: bevestig uw e-mailadres",
+      "preHeader": "Nog één stap om uw Ownpace-account af te ronden",
+      "subject": "Ownpace: bevestig uw e-mailadres",
+      "greeting": "Hallo {{.DisplayName}},",
+      "text": "Bedankt voor het aanmaken van een Ownpace-account. Met dit account meldt u zich aan bij Ownpace, dat uw e-mail, contacten, agenda en bestanden kopieert naar een Europese aanbieder die u zelf kiest. Bevestig tot slot uw e-mailadres: klik op de knop hieronder, of vul deze code in op de pagina die erom vraagt: {{.Code}}. Heeft u dit account niet aangemaakt? Dan kunt u deze e-mail negeren. Vragen? Mail naar {support}. Stuur nooit een wachtwoord of andere gevoelige gegevens mee.",
+      "buttonText": "E-mailadres bevestigen",
+      "footerText": "U ontvangt deze e-mail omdat dit adres is gebruikt voor een Ownpace-account."
+    },
+    "verifyemail": {
+      "title": "Ownpace: bevestig uw e-mailadres",
+      "preHeader": "Bevestig het e-mailadres van uw Ownpace-account",
+      "subject": "Ownpace: bevestig uw e-mailadres",
+      "greeting": "Hallo {{.DisplayName}},",
+      "text": "Bevestig dit e-mailadres voor uw Ownpace-account. Met dat account meldt u zich aan bij Ownpace, dat uw e-mail, contacten, agenda en bestanden kopieert naar een Europese aanbieder die u zelf kiest. Klik op de knop hieronder, of vul deze code in op de pagina die erom vraagt: {{.Code}}. Heeft u hier niet om gevraagd? Dan kunt u deze e-mail negeren. Vragen? Mail naar {support}. Stuur nooit een wachtwoord of andere gevoelige gegevens mee.",
+      "buttonText": "E-mailadres bevestigen",
+      "footerText": "U ontvangt deze e-mail omdat dit adres is gebruikt voor een Ownpace-account."
+    },
+    "passwordreset": {
+      "title": "Ownpace: stel een nieuw wachtwoord in",
+      "preHeader": "Stel een nieuw wachtwoord in voor uw Ownpace-account",
+      "subject": "Ownpace: stel een nieuw wachtwoord in",
+      "greeting": "Hallo {{.DisplayName}},",
+      "text": "We hebben een verzoek ontvangen om het wachtwoord van uw Ownpace-account opnieuw in te stellen. Met dat account meldt u zich aan bij Ownpace. Klik op de knop hieronder om een nieuw wachtwoord in te stellen, of vul deze code in op de pagina die erom vraagt: {{.Code}}. Heeft u hier niet om gevraagd? Dan kunt u deze e-mail negeren; uw wachtwoord blijft dan zoals het is. Vragen? Mail naar {support}. Stuur nooit een wachtwoord of andere gevoelige gegevens mee.",
+      "buttonText": "Nieuw wachtwoord instellen",
+      "footerText": "U ontvangt deze e-mail omdat dit adres is gebruikt voor een Ownpace-account."
+    }
+  }
+}
