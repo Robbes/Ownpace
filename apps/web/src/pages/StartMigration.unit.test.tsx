@@ -13,7 +13,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DISCOVERY_DOMAINS, lifecycleCounts, sourceFaceIsExperimental, type Person } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, SCOPE_MANIFEST, lifecycleCounts, sourceFaceIsExperimental, type Person } from '@openmig/shared';
 import StartMigration, { CheckStep } from './StartMigration.tsx';
 import type { PlannedMigration } from '../services/start-plan.ts';
 import { STRINGS } from '../i18n/strings.ts';
@@ -25,6 +25,7 @@ import {
   providerAccountsApi,
   providerClientsApi,
   scopeManifestApi,
+  ScopeManifestSchema,
   type ConnectionSummary,
   type Mapping,
 } from '../services/mapping-service.ts';
@@ -998,6 +999,81 @@ describe('Start once one count is in, and the rest when they connect', () => {
     expect(await screen.findByText('You can start once Anna Jansen has connected and a count is in.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
     expect(screen.queryByText(/starts by itself/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * WHAT MIGRATES, FOR EACH SOURCE (workplan 0013, 2026-10-16). The check screen
+ * shows the manifest's rows for the families of the cards it set up. Email,
+ * Calendar and Contacts used to be shown to every source, so a Dropbox
+ * migration was told its mail would move; and an Apple card had no family at
+ * all, so once those rows named theirs it would have been told nothing.
+ */
+describe('what migrates, for each source on the check screen', () => {
+  const plan = (provider: PlannedMigration['provider'], sourceCard: string, types: PlannedMigration['types']): PlannedMigration => ({
+    provider,
+    sourceCard,
+    sourceConnectionId: `c-${sourceCard}`,
+    sourceUsername: 'anna@example.org',
+    targetCard: 'nextcloud',
+    targetConnectionId: 'c-nextcloud',
+    types,
+  });
+  const key = (m: PlannedMigration) => `${m.sourceConnectionId}→${m.targetConnectionId}`;
+
+  beforeEach(() => {
+    vi.mocked(mappingApi.discover).mockResolvedValue({} as never);
+    vi.mocked(mappingApi.get).mockResolvedValue({
+      id: 'm-1', tenantId: 't1', name: 'm-1', sourceType: 'dropbox', targetType: 'nextcloud', status: 'paused',
+      mode: 'mirror', syncConfig: { domains: ['file'] }, sourceConfig: {}, targetConfig: {},
+      domainStatus: [], createdAt: '2026-10-16T08:00:00Z', updatedAt: '2026-10-16T08:00:00Z',
+    } as never);
+    vi.mocked(mappingApi.getDiscovery).mockResolvedValue({ mappingId: 'm-1', discovered: false, domains: [] } as never);
+    // The manifest the server serves, through the schema the client reads it
+    // with, so the rows and their families are the real ones.
+    vi.mocked(scopeManifestApi.get).mockResolvedValue(ScopeManifestSchema.parse(SCOPE_MANIFEST));
+    vi.mocked(personLinkApi.list).mockResolvedValue([]);
+  });
+
+  const renderCheck = (m: PlannedMigration) =>
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <CheckStep
+            planned={[m]}
+            made={{ personId: 'p-anna', migrations: { [key(m)]: { id: 'm-1' } } }}
+            titles={{ [key(m)]: 'Anna to Nextcloud' }}
+            onStarted={vi.fn()}
+            personName="Anna Jansen"
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+  const panel = () => screen.findByRole('region', { name: STRINGS.en['scope.title'] });
+
+  it('tells a Dropbox migration about its files, and not about mail', async () => {
+    renderCheck(plan('dropbox', 'dropbox', ['file']));
+    const rows = within(await panel());
+    expect(await rows.findByText(/— Files and folders\./)).toBeInTheDocument();
+    expect(rows.queryByText(/Every folder, Sent, Drafts and Archive included/)).not.toBeInTheDocument();
+    expect(rows.queryByText('Calendar')).not.toBeInTheDocument();
+    expect(rows.queryByText('Mail with no Message-ID')).not.toBeInTheDocument();
+  });
+
+  it('tells an Apple migration about its mail and its Reminders', async () => {
+    renderCheck(plan('apple', 'apple', ['email', 'task']));
+    const rows = within(await panel());
+    expect(await rows.findByText(/Every folder, Sent, Drafts and Archive included/)).toBeInTheDocument();
+    expect(rows.getByText(/Apple Reminders and other task lists/)).toBeInTheDocument();
+    expect(rows.queryByText(/Microsoft To Do:/)).not.toBeInTheDocument();
+  });
+
+  it('tells a Microsoft migration about Microsoft To Do', async () => {
+    renderCheck(plan('microsoft', 'microsoft', ['email', 'task']));
+    const rows = within(await panel());
+    expect(await rows.findByText(/Microsoft To Do:/)).toBeInTheDocument();
+    expect(rows.queryByText(/Google Tasks:/)).not.toBeInTheDocument();
   });
 });
 

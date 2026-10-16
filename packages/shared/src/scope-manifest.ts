@@ -145,8 +145,56 @@ export function scopeFamilyOfConnectionKind(kind: string): ScopeFamily | undefin
     : undefined;
 }
 
+/**
+ * THE SAME QUESTION, ASKED IN *START A MIGRATION*'S VOCABULARY (workplan 0013,
+ * 2026-10-16).
+ *
+ * *Start a migration* holds the CARD each migration is made with — the
+ * wizard's source type (`WizardSourceType`): `apple` and `imap` for a mail
+ * provider, `graph` and `oauth2` for Microsoft mail through a company's own
+ * app, `google-drive` with a hyphen. It asked `scopeFamilyOf`, which knows the
+ * mapping file's types, so an Apple, IMAP or company-app migration had no
+ * family. That went unnoticed while Email, Calendar and Contacts were shown to
+ * every family; once those rows say whose they are, a family-less Apple
+ * migration would be told nothing about its mail.
+ *
+ * A third table for the third vocabulary, for the reason the second exists:
+ * one lookup that tried each in turn would one day answer for a word in the
+ * wrong one. `Record<WizardSourceType, …>` makes a card added to the union
+ * without a family here fail to build.
+ */
+const SCOPE_FAMILY_OF_SOURCE_CARD: Readonly<Record<WizardSourceType, ScopeFamily>> = {
+  google: 'google',
+  gmail: 'google',
+  'google-calendar': 'google',
+  'google-contacts': 'google',
+  'google-drive': 'google',
+  microsoft: 'microsoft',
+  // Microsoft mail through a company's own app, by Graph or by IMAP: the same
+  // Microsoft account, read another way (`PlanChoices.microsoftMail`).
+  graph: 'microsoft',
+  oauth2: 'microsoft',
+  dropbox: 'dropbox',
+  box: 'box',
+  archive: 'archive',
+  // An endpoint rather than a product, as the kind table says of both.
+  imap: 'standards',
+  apple: 'standards',
+};
+
+/**
+ * The family of a SOURCE CARD, or `undefined` for a string that is not one.
+ * Own-property lookup, as `scopeFamilyOfConnectionKind`'s.
+ */
+export function scopeFamilyOfSourceCard(card: string): ScopeFamily | undefined {
+  return Object.prototype.hasOwnProperty.call(SCOPE_FAMILY_OF_SOURCE_CARD, card)
+    ? SCOPE_FAMILY_OF_SOURCE_CARD[card as WizardSourceType]
+    : undefined;
+}
+
 import type { SourceConfig } from './config.ts';
 import type { GuideHandle } from './guide-handle.ts';
+import type { WizardSourceType } from './target-domains.ts';
 
 /** The words of one row a reader sees: its label, its line and its fold. */
 export interface ScopeManifestWords {
@@ -309,11 +357,29 @@ export const SCOPE_MANIFEST: ScopeManifest = {
   // administrator's own app given that permission; and Google Photos names the
   // Takeout route the wizard offers, where it said only that the Drive API
   // cannot reach them.
-  version: '2026-10-14',
+  //
+  // Bumped on 2026-10-16 (workplan 0013, Status) because the set changed for
+  // whole families of sources. Email, Calendar, Contacts and Mail with no
+  // Message-ID carried no `appliesTo`, so they were shown to every source, and
+  // a Dropbox, Box or Takeout-export migration was told its mail would move
+  // while the code reads files and nothing else from all three
+  // (`SOURCE_TYPE_DOMAINS`). Each now names the families that carry it. And
+  // two Tasks rows joined Google's: Microsoft To Do and Apple Reminders, which
+  // the code has read since 0114 T9 and 0115 and the screen never mentioned.
+  version: '2026-10-16',
   migrates: [
+    // MAIL, CALENDARS AND CONTACTS, for the families that carry them (2026-10-16).
+    // Read from the code, not from memory: Google (its account, and `gmail`),
+    // Microsoft (its account, and mail through a company's own app) and
+    // `standards` (an IMAP server, an Apple account, and on an appliance a
+    // CalDAV or CardDAV source). Never Dropbox or Box, whose sources read files
+    // only, and never an export archive, which by owner decision D5 is read for
+    // files and photos and nothing else (`SOURCE_TYPE_DOMAINS`). With no
+    // `appliesTo` these were shown to those three as well.
     {
       item: 'Email',
       detail: 'Every folder, Sent, Drafts and Archive included, with flags, tags and dates.',
+      appliesTo: ['google', 'microsoft', 'standards'],
       nl: {
         item: 'E-mail',
         detail: 'Elke map, ook Verzonden, Concepten en Archief, met markeringen, labels en datums.',
@@ -322,11 +388,13 @@ export const SCOPE_MANIFEST: ScopeManifest = {
     {
       item: 'Calendar',
       detail: 'Events, repeating ones included, with their attendees.',
+      appliesTo: ['google', 'microsoft', 'standards'],
       nl: { item: 'Agenda', detail: 'Afspraken, ook terugkerende, met hun deelnemers.' },
     },
     {
       item: 'Contacts',
       detail: 'Address books and contacts.',
+      appliesTo: ['google', 'microsoft', 'standards'],
       more:
         'Every field comes across, including ones the destination has no field of its own for. ' +
         'One difference to know before you switch over: a JMAP destination cannot hand a ' +
@@ -382,6 +450,56 @@ export const SCOPE_MANIFEST: ScopeManifest = {
           'verwijderd, komt bij Verwijderingen zodat u beslist, en wordt nooit voor u verwijderd. ' +
           'Twee dingen die Google niet doorgeeft, kunnen niet mee: een tijdstip op een ' +
           'vervaldatum, en een herhaling.',
+      },
+    },
+    // MICROSOFT TO DO (2026-10-16). Read since 0114 T9 by `graph-todo-source`,
+    // and never on this screen. The fold is what that connector does: notes,
+    // due date, importance, reminder and repeat each become their iCalendar
+    // property; a task's steps (Graph's checklist) become lines in its
+    // description; Outlook's two extra statuses map to not started (five onto
+    // three, the original kept beside it); and attachments are not fetched at
+    // all (`hasAttachments` is read, the files are not).
+    {
+      item: 'Tasks',
+      detail: 'Microsoft To Do: every list and task, completed ones included.',
+      more:
+        'Each task keeps its notes, due date, importance, reminder and repeat, and its steps ' +
+        'become lines in its description. Two statuses only Outlook sets, waiting on someone ' +
+        'else and deferred, arrive as not started. Files attached to a task do not come across.',
+      appliesTo: ['microsoft'],
+      guide: 'microsoft#what-moves',
+      nl: {
+        item: 'Taken',
+        detail: 'Microsoft To Do: elke lijst en taak, ook afgevinkte taken.',
+        more:
+          'Elke taak houdt haar notities, vervaldatum, prioriteit, herinnering en herhaling, en ' +
+          'haar stappen worden regels in haar beschrijving. Twee statussen die alleen Outlook ' +
+          'zet, wacht op iemand anders en uitgesteld, komen aan als niet begonnen. Bestanden die ' +
+          'aan een taak hangen, komen niet mee.',
+      },
+    },
+    // APPLE REMINDERS, and any other task list kept in a calendar account
+    // (2026-10-16): `standards`, because an Apple account is reached the way
+    // a bare calendar server is (the kind table above). Read since 0115 as
+    // VTODO from the same calendar account, and copied as written. The one
+    // limit is the destination's, and it is the guide's section this links:
+    // one that keeps only calendars refuses each task, under Failures.
+    {
+      item: 'Tasks',
+      detail: 'Apple Reminders and other task lists in a calendar account: every list and task.',
+      more:
+        'Each task is copied as it was written. Your destination must keep task lists, as ' +
+        'Nextcloud and Soverin do: one that keeps only calendars refuses each task, and lists ' +
+        'it under Failures.',
+      appliesTo: ['standards'],
+      guide: 'apple#reminders',
+      nl: {
+        item: 'Taken',
+        detail: 'Herinneringen van Apple en andere takenlijsten in een agenda-account: elke lijst en taak.',
+        more:
+          'Elke taak wordt gekopieerd zoals ze werd geschreven. Uw bestemming moet takenlijsten ' +
+          'bewaren, zoals Nextcloud en Soverin doen: een bestemming die alleen agenda’s bewaart, ' +
+          'weigert elke taak, en zet die onder Mislukkingen.',
       },
     },
     {
@@ -453,6 +571,8 @@ export const SCOPE_MANIFEST: ScopeManifest = {
     {
       item: 'Mail with no Message-ID',
       detail: 'Migrated with a generated Message-ID on the copy, where the connection can add one.',
+      // Email's families: a source that carries no mail has none without one.
+      appliesTo: ['google', 'microsoft', 'standards'],
       more:
         'We need one to copy each message exactly once. The original on the source is never ' +
         'modified. The count before you start says how many messages get one, and how many ' +

@@ -2,7 +2,30 @@
 
 > **In one line:** Pre-sync discovery and green light: body-free counts via `discoverSource()`, the `migration_discovery` table, `run-discovery` job and scope manifest, and a Review & confirm screen in both editions where Start migration activates a paused mapping.
 
-## Status — 2026-10-14 (update this block at the end of every session)
+## Status — 2026-10-16 (update this block at the end of every session)
+
+**2026-10-16: what migrates, for each source.** Four rows of the scope manifest had no
+`appliesTo`, so *Email*, *Calendar*, *Contacts* and *Mail with no Message-ID* were shown to every
+source, and a Dropbox, Box or Takeout-export migration was told its mail would move. The code
+reads files and nothing else from all three (`SOURCE_TYPE_DOMAINS` in
+`packages/shared/src/target-domains.ts`: `dropbox`, `box` and `archive` are `['file']`, the
+archive's by owner decision D5). Each now names the families whose sources carry it: Google,
+Microsoft and `standards` (an IMAP server, an Apple account, a CalDAV or CardDAV source). Two
+Tasks rows joined Google's, for what the code reads and the screen never said: *Microsoft To Do*
+(`graph-todo-source`, 0114 T9), with a fold for what stays behind (attachments; Outlook's two
+extra statuses arrive as not started; steps become lines in the description), and *Apple
+Reminders and other task lists in a calendar account* (`standards`, read as task lists from the
+calendar account since 0115), linking `apple#reminders`. Both in Dutch. The version is
+`2026-10-16`. *Start a migration* looked the family up by `scopeFamilyOf`, which knows the
+mapping file's types and not the wizard's cards, so an Apple, IMAP or company-app card had no
+family; it now asks `scopeFamilyOfSourceCard`, a third table keyed by `WizardSourceType` so a
+card added without a family does not build. No row is now true of every source, so a source of
+unknown family is shown no rows rather than untrue ones. Guard:
+`packages/shared/src/a-promise-to-a-source-that-carries-none-of-it.unit.test.ts` (14) derives
+each data row's families from the code's own tables and failed 13 of 14 before the change; the
+check screen's three cases are in `StartMigration.unit.test.tsx` (Apple's failed against the
+old lookup). The site's *Leaving…* pages name only *Does not migrate* rows, which did not
+change.
 
 **2026-10-14: the scope manifest in plain words, and in Dutch.** Every managed tester reads *What
 migrates, and what does not* on *Start a migration* and on *Review and start*, and it spoke our
