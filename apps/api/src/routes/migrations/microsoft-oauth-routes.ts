@@ -38,12 +38,15 @@ import type { AuthenticatedRequest } from '../../types/api.ts';
 import {
   inLocale,
   localeOf,
+  log,
   microsoftDeploymentClient,
   resolveMicrosoftClient,
   microsoftTenant,
   type Bilingual,
 } from '@openmig/shared';
 import {
+  CONSENT_NOT_AWAITED,
+  browserLocale,
   callbackPageHeaders,
   consentResultPage,
   noCodeFrom,
@@ -163,8 +166,9 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
       .set({ 'Content-Type': 'text/html; charset=utf-8', ...callbackPageHeaders(html) })
       .send(html);
   // In the language the consent began in (workplan 0145 T6), once the pending
-  // state says which; a state nobody is waiting for says nothing, so English.
-  let locale = localeOf(undefined);
+  // state says which; a state nobody is waiting for says nothing, so the
+  // browser's own language until then (the owner, 2026-10-16).
+  let locale = browserLocale(req);
   const refuse = (status: number, reason: Bilingual | string) =>
     page(
       status,
@@ -178,13 +182,7 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
   const state = typeof req.query.state === 'string' ? req.query.state : '';
   const taken = state ? flows.take(state) : undefined;
   const pending = taken && taken.provider === 'microsoft' ? taken : undefined;
-  if (!pending) {
-    return refuse(
-      400,
-      'This consent link is not one the wizard is waiting for — it was already used, ' +
-        'it expired (they live ten minutes), or it was not started here.',
-    );
-  }
+  if (!pending) return refuse(400, CONSENT_NOT_AWAITED);
   locale = localeOf(pending.locale);
   if (typeof req.query.error === 'string' && req.query.error.length > 0) {
     const description =
@@ -208,10 +206,15 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
     redirectUri: pending.redirectUri,
     whose: whoseRegistration(pending.clientId),
   });
-  page(
-    outcome.ok ? 200 : 400,
-    consentResultPage({ webOrigin: webOrigin(), outcome, provider: 'microsoft', locale }),
-  );
+  if (!outcome.ok) {
+    // The owner reads the sentence for what went wrong, in their language;
+    // Microsoft's own answer goes to the log (the owner, 2026-10-16, as
+    // Google's and Dropbox's did on 2026-10-14). It never echoes the secret,
+    // and no token exists on this branch.
+    log.warn(`[api] an owner's Connect with Microsoft code exchange failed: ${outcome.reason}`);
+    return refuse(400, outcome.said);
+  }
+  page(200, consentResultPage({ webOrigin: webOrigin(), outcome, provider: 'microsoft', locale }));
 });
 
 export default router;

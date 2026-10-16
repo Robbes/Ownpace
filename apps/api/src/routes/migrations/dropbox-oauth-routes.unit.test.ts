@@ -93,7 +93,7 @@ describe('the callback', () => {
     const res = await request(app).get('/api/migrations/dropbox/callback?state=not-a-state');
     expect(res.status).toBe(400);
     expect(res.headers['cross-origin-opener-policy']).toBe('unsafe-none');
-    expect(res.text).toContain('not one the wizard is waiting for');
+    expect(res.text).toContain('This sign-in cannot be finished');
   });
 
   it("the owner's ending: the token rides Dropbox's message type, under a CSP that permits exactly that script", async () => {
@@ -129,7 +129,7 @@ describe('the callback', () => {
       `/api/migrations/google/callback?state=${encodeURIComponent(state)}&code=the-code`,
     );
     expect(wrong.status).toBe(400);
-    expect(wrong.text).toContain('not one the wizard is waiting for');
+    expect(wrong.text).toContain('This sign-in cannot be finished');
     const spent = await request(app).get(
       `/api/migrations/dropbox/callback?state=${encodeURIComponent(state)}&code=the-code`,
     );

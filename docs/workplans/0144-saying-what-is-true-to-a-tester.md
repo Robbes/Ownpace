@@ -4,8 +4,52 @@
 
 ## Status — 2026-10-16 (update this block at the end of every session)
 
-**2026-10-16: T4 built, with 0149 T6. On `claude/ownpace-public-readiness-y7orc6-a-warning-that-promises-what-holds`, not
-merged.** The warning in front of the delete switch listed *"never a copy somebody has since
+**2026-10-16: the last developer sentences a tester read.** What
+#1592, #1595, #1596 and #1598 left, each said truthfully, in English and Dutch, with any
+technical detail in the server log:
+
+- **A Microsoft account connected with its own sign-in has its own sentences.** The
+  `microsoft` kind (*Connect with Microsoft*, one person's delegated grant, the way an
+  Outlook.com account is connected) was told to run `Get-MailboxPermission` in Exchange Online
+  PowerShell, and that sharing needed an administrator's app registration. The kind is what
+  tells it from `o365`, an organisation's own registration (`familyOf` in
+  `apps/api/src/routes/permissions.ts`, the `o365`-only `APPLICATION_REGISTRATION_KIND` in
+  `directory-availability.ts`). Nothing stored says whether such an account is personal or a
+  work or school one (the consent goes through `common` and asks no `openid`), so the three
+  sentences (`microsoftAccount…NotRead` in shared) are true of both: Ownpace does not read who
+  else could open the mailbox, calendar sharing or OneDrive sharing for a Microsoft account
+  connected with your own sign-in; note it from Outlook's settings. No menu path: Microsoft's
+  own page could not be read from here to confirm one. `o365` keeps the PowerShell sentence.
+  The Finish page's line follows (`permissions.blindSpot.microsoftAccount`).
+- **The blind-spot frame in plain words.** *"These permissions could not be inventoried … at
+  cutover"* is *"Who has access here was not read: … This does not mean nothing is shared —
+  nothing was looked at, and any access given here stops working without warning when you
+  switch over."* / *"Wie hier toegang heeft, is niet gelezen: …"*; the report's headings and
+  the Sharing heading say *was NOT read* / *Niet gelezen*.
+- **The Sharing checklist in Dutch.** A listing carries `reasonNl` where the sentence is ours;
+  the rescan answers `blindSpotsNl` beside `blindSpots` (same order, the English where a
+  sentence has none), and the page shows it to a Dutch reader.
+- **Connect with Microsoft's failed code exchange** says a plain sentence per way of failing
+  (`MICROSOFT_EXCHANGE_FOR_THE_OWNER`) and logs Microsoft's answer (`log.warn`), as Google's
+  and Dropbox's do. Entra's named policy refusals keep their sentence.
+- **A consent nobody is waiting for** is *"This sign-in cannot be finished: …"* /
+  *"Deze aanmelding kan niet worden afgerond: …"* on all three callbacks, in the browser's
+  language (`Accept-Language`), since no state says which.
+- **JMAP's test lines** say *"Not measured: the server did not accept this user name and
+  password (it answered 401)."* where they named the session document.
+
+Proof: the new tests failed against the code before this change (14 in the API, shared, core
+and orchestration, 5 in the web app) and pass after it; `pnpm lint`, `pnpm typecheck`, the unit
+gate and the Finish and Sharing browser tests green. Left as they are, and why: Entra's
+AADSTS65001/90094 sentences and the typed-registration one naming `MICROSOFT_OAUTH_TENANT`
+(English only, pinned by 0148 T2 (d)); `MICROSOFT_ACCOUNT_IS_DELEGATED` (the appliance's
+and the worker's, no longer on the managed report); the lifecycle, deletion and half-pair
+refusals in shared and core that still say *cutover*, *mapping* or *deployment* (not shown to a
+managed tester in any flow this branch could confirm); the web's *"not a DAV, JMAP or IMAP
+error"* and *Unmeasured —* prefix.
+
+**2026-10-16: T4 built, with 0149 T6. Merged in #1607
+(`256734c2`).** The warning in front of the delete switch listed *"never a copy somebody has since
 edited"* among the gates every removal passes, in both languages. Since 0149 T3 that holds for
 files, calendar entries and contacts, and it never held for mail, which the tester guide already
 said (*"With mail it does not check that"*, `site/pages/en/alpha-guide.md`:57-58, Dutch
@@ -692,12 +736,12 @@ Everything a tester reads is written in Dutch first and translated into English 
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner's words: the address, the site copy, the guide read in Dutch | ⏳ **Owner**: the Dutch read. The site copy ✅ **answered** 2026-10-05 (open question 2): option B, *"P1a, P2a, P3b, P4a, P5a, P6a, P7a, P8 keep, P9a now, P10b later, P11b. Dutch as written."*, built as T3 (b); *was:* ⏳ **Owner**: the site copy and the Dutch read. The address ✅ **answered** 2026-09-27, in 0133 (open questions 2 and 3): `support@ownpace.eu`; it goes in `ownpace-live`'s `.env` as `VITE_SUPPORT_EMAIL`; *was:* ⏳ **Owner**, all three | §3. The address testers write to (0133 open question 3). Approval or rewrite of T3's site copy. A read of T1's Dutch before it is published. **Before the first invitation.** |
-| T1 A Dutch tester guide | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-guide-for-the-alpha-tester`, merged (#1439)** (2026-10-03), the short form; the Dutch read ⏳ **Owner**. 🔨 **2026-10-04, on `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged:** spelt *Alpha*, served at `/nl/alpha-handleiding.html`, and linked by the alpha note (on every page it stands on, the request page included), the access-granted mail and the invitation — *was:* 📋 **Proposed** (D1, D3) | §3. One page on the site that carries the alpha's texts (0139 T10): what the alpha is, before you start, how to start, what is experimental, how to get help, how to leave. Built only when the site is built for the alpha. **Before the first invitation**, in its short form. |
+| T1 A Dutch tester guide | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-guide-for-the-alpha-tester`, merged (#1439)** (2026-10-03), the short form; the Dutch read ⏳ **Owner**. ✅ **2026-10-04, merged in #1460 (`db67747f`):** spelt *Alpha*, served at `/nl/alpha-handleiding.html`, and linked by the alpha note (on every page it stands on, the request page included), the access-granted mail and the invitation — *was:* the 2026-10-04 change on `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged; 📋 **Proposed** (D1, D3) | §3. One page on the site that carries the alpha's texts (0139 T10): what the alpha is, before you start, how to start, what is experimental, how to get help, how to leave. Built only when the site is built for the alpha. **Before the first invitation**, in its short form. |
 | T2 A known-limitations page the feature matrix keeps true | 📋 **Proposed** (D4) | §3. A copy on the site, in Dutch and English, and a guard that fails when it disagrees with the matrix's open gaps or 0131 T2's verdicts. **After.** |
-| T3 "Read-only" replaced by what is true | 🔨 **(b), the site copy, and the setup title built 2026-10-05 on branch `claude/ownpace-public-readiness-y7orc6-the-site-says-ownpace-only-reads`, not merged**, in the owner's words (open question 2); the guard's `PENDING` is empty. ✅ **(a) and (c) done** in #1188, merged 2026-09-26. 📋 **Decided 2026-09-25 (owner)**. The password hint 📋 **Proposed** (after). The app's other *read-only* strings, P10 (b), 📋 **Later** (the owner, 2026-10-05) — *was:* (b), the site copy, ⏳ **Owner** (T0); the setup title 📋 **Proposed** (after) | §3. The grant page says "read-only" only when Google enforces it. One line beside *Connect with Google*. Site copy, how-it-works, the grant-link guide and one setup title. **Before the first invitation**: the Connect line and the site copy, and the grant page if testers send grant links (0140 open question 2). |
-| T4 The warning in front of the delete switch says what the check does | 🔨 **Built 2026-10-16 on branch `claude/ownpace-public-readiness-y7orc6-a-warning-that-promises-what-holds`, not merged**, with 0149 T6; guard `a-warning-the-check-keeps` — *was:* 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` in both languages. Making removal fail closed is W18, now 0149, whose T1 to T3 land before the first invitation (0149 D1). **After**, written once 0149 T3 has landed, because T3 changes what the check does (0149 T6). |
+| T3 "Read-only" replaced by what is true | ✅ **(b), the site copy, and the setup title done** in #1529, merged 2026-10-05 (`08c84e0d`), in the owner's words (open question 2); the guard's `PENDING` is empty. ✅ **(a) and (c) done** in #1188, merged 2026-09-26. 📋 **Decided 2026-09-25 (owner)**. The password hint 📋 **Proposed** (after). The app's other *read-only* strings, P10 (b), 📋 **Later** (the owner, 2026-10-05) — *was:* (b) and the setup title 🔨 built 2026-10-05 on branch `claude/ownpace-public-readiness-y7orc6-the-site-says-ownpace-only-reads`, not merged; (b), the site copy, ⏳ **Owner** (T0); the setup title 📋 **Proposed** (after) | §3. The grant page says "read-only" only when Google enforces it. One line beside *Connect with Google*. Site copy, how-it-works, the grant-link guide and one setup title. **Before the first invitation**: the Connect line and the site copy, and the grant page if testers send grant links (0140 open question 2). |
+| T4 The warning in front of the delete switch says what the check does | ✅ **done** in #1607, merged 2026-10-16 (`256734c2`), with 0149 T6; guard `a-warning-the-check-keeps` — *was:* 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` in both languages. Making removal fail closed is W18, now 0149, whose T1 to T3 land before the first invitation (0149 D1). **After**, written once 0149 T3 has landed, because T3 changes what the check does (0149 T6). |
 | T5 A destination that is not empty | 📋 **Proposed** | §3. The advice goes into T1 (**before**). The confirm screen names what adoption means later, and an IMAP target's exception (**after**). |
-| T6 A person to write to, before and after sign-in | (a) ✅ **done** in #1269, merged 2026-09-28 (`b2703c6f`); live shows it once `VITE_SUPPORT_EMAIL` is in its `.env` and its web image is rebuilt. (c), the GitHub chooser, ✅ **built 2026-10-16** (Status) — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-person-to-write-to`, not merged (2026-09-28); 📋 **Proposed**; the address ⏳ **Owner** (T0) | §3. A support line on the pages outside the app, and in the sidebar when the report form is off. The GitHub chooser gets a route for the hosted service. The report form's settings reach the API since #1148 (2026-09-24) (§1). **Before the first invitation.** |
+| T6 A person to write to, before and after sign-in | (a) ✅ **done** in #1269, merged 2026-09-28 (`b2703c6f`); live shows it once `VITE_SUPPORT_EMAIL` is in its `.env` and its web image is rebuilt. (c), the GitHub chooser, ✅ **done** in #1600, merged 2026-10-16 (`8a9a269c`) — *was:* (c) built 2026-10-16 (Status), not merged; (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-person-to-write-to`, not merged (2026-09-28); 📋 **Proposed**; the address ⏳ **Owner** (T0) | §3. A support line on the pages outside the app, and in the sidebar when the report form is off. The GitHub chooser gets a route for the hosted service. The report form's settings reach the API since #1148 (2026-09-24) (§1). **Before the first invitation.** |
 | T7 *Request access* on the sign-in page | ✅ **done** in #1213, merged 2026-09-27; *was:* 📋 **Proposed** (D3) | §3. One link under the sign-in button, in the reader's language. **Before the first invitation.** |
 | T8 An owner can close their organisation from the screen | 📋 **Proposed** | §3. The screen for the close route that exists. The operator's path during the alpha and the identity provider's account are 0139 T7's, and the erasure sentence's word on backups is 0134 T1's. **After.** |
 

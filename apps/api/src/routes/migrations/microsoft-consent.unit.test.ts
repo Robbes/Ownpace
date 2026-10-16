@@ -21,6 +21,7 @@ import {
   MICROSOFT_CONSENT_DOMAINS,
   MICROSOFT_OFFLINE_SCOPE,
   exchangeMicrosoftCode,
+  MICROSOFT_EXCHANGE_FOR_THE_OWNER,
   microsoftAuthEndpoint,
   microsoftConsentRefusal,
   microsoftConsentUrl,
@@ -220,8 +221,24 @@ describe('the code exchange', () => {
     const r = await exchangeMicrosoftCode(P, fail);
     expect(r.ok).toBe(false);
     if (!r.ok) {
-      expect(r.reason).toContain('administrator');
-      expect(r.reason).not.toContain('400');
+      // The page's sentence is the policy's, not a status dump; Microsoft's
+      // answer is the log's (the owner, 2026-10-16).
+      expect(r.said).toContain('administrator');
+      expect(r.said).not.toContain('400');
+      expect(r.reason).toContain('AADSTS65001');
+    }
+  });
+
+  it("any other refusal: the owner's sentence for the page, Microsoft's answer only for the log (the owner, 2026-10-16)", async () => {
+    const fail = (async () =>
+      new Response('{"error":"invalid_grant","error_description":"AADSTS70008: expired"}', {
+        status: 400,
+      })) as unknown as typeof fetch;
+    const r = await exchangeMicrosoftCode(P, fail);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.said).toEqual(MICROSOFT_EXCHANGE_FOR_THE_OWNER.refused);
+      expect(r.reason).toContain('AADSTS70008');
     }
   });
 
