@@ -649,8 +649,11 @@ router.post(
         return void res.status(409).json({
           error: 'Conflict',
           reason:
-            'This migration does not record which mailbox it reads, so its sharing cannot ' +
-            'be inventoried.',
+            'This migration does not record which mailbox it reads, so its sharing could not ' +
+            'be read. Please contact us.',
+          reasonNl:
+            'Deze migratie legt niet vast welk postvak ze leest, dus het delen kon niet worden ' +
+            'gelezen. Neem contact met ons op.',
         });
       }
       // This migration's own source, never the organisation's others: the
@@ -674,6 +677,7 @@ router.post(
         // grant on any provider, so the checklist must say so itself or the
         // silence reads as "nothing to find". See `RefreshShareGrantsDeps`.
         delegationReason: scans.delegationReason,
+        delegationReasonNl: scans.delegationReasonNl,
       });
       res.json(result);
     } catch (error) {

@@ -2,7 +2,52 @@
 
 > **In one line:** What a tester is told: a Dutch tester guide, a known-limitations page guarded by the feature matrix, corrected read-only wording on site and grant page, `APPLY_FLAG_WARNING`, a support contact, Request access on sign-in, organisation closure.
 
-## Status — 2026-10-14 (update this block at the end of every session)
+## Status — 2026-10-16 (update this block at the end of every session)
+
+**2026-10-16: the last developer sentences a tester read. On
+`claude/ownpace-public-readiness-y7orc6-the-last-developer-sentences`, not merged.** What
+#1592, #1595, #1596 and #1598 left, each said truthfully, in English and Dutch, with any
+technical detail in the server log:
+
+- **A Microsoft account connected with its own sign-in has its own sentences.** The
+  `microsoft` kind (*Connect with Microsoft*, one person's delegated grant, the way an
+  Outlook.com account is connected) was told to run `Get-MailboxPermission` in Exchange Online
+  PowerShell, and that sharing needed an administrator's app registration. The kind is what
+  tells it from `o365`, an organisation's own registration (`familyOf` in
+  `apps/api/src/routes/permissions.ts`, the `o365`-only `APPLICATION_REGISTRATION_KIND` in
+  `directory-availability.ts`). Nothing stored says whether such an account is personal or a
+  work or school one (the consent goes through `common` and asks no `openid`), so the three
+  sentences (`microsoftAccount…NotRead` in shared) are true of both: Ownpace does not read who
+  else could open the mailbox, calendar sharing or OneDrive sharing for a Microsoft account
+  connected with your own sign-in; note it from Outlook's settings. No menu path: Microsoft's
+  own page could not be read from here to confirm one. `o365` keeps the PowerShell sentence.
+  The Finish page's line follows (`permissions.blindSpot.microsoftAccount`).
+- **The blind-spot frame in plain words.** *"These permissions could not be inventoried … at
+  cutover"* is *"Who has access here was not read: … This does not mean nothing is shared —
+  nothing was looked at, and any access given here stops working without warning when you
+  switch over."* / *"Wie hier toegang heeft, is niet gelezen: …"*; the report's headings and
+  the Sharing heading say *was NOT read* / *Niet gelezen*.
+- **The Sharing checklist in Dutch.** A listing carries `reasonNl` where the sentence is ours;
+  the rescan answers `blindSpotsNl` beside `blindSpots` (same order, the English where a
+  sentence has none), and the page shows it to a Dutch reader.
+- **Connect with Microsoft's failed code exchange** says a plain sentence per way of failing
+  (`MICROSOFT_EXCHANGE_FOR_THE_OWNER`) and logs Microsoft's answer (`log.warn`), as Google's
+  and Dropbox's do. Entra's named policy refusals keep their sentence.
+- **A consent nobody is waiting for** is *"This sign-in cannot be finished: …"* /
+  *"Deze aanmelding kan niet worden afgerond: …"* on all three callbacks, in the browser's
+  language (`Accept-Language`), since no state says which.
+- **JMAP's test lines** say *"Not measured: the server did not accept this user name and
+  password (it answered 401)."* where they named the session document.
+
+Proof: the new tests failed against the code before this change (14 in the API, shared, core
+and orchestration, 5 in the web app) and pass after it; `pnpm lint`, `pnpm typecheck`, the unit
+gate and the Finish and Sharing browser tests green. Left as they are, and why: Entra's
+AADSTS65001/90094 sentences and the typed-registration one naming `MICROSOFT_OAUTH_TENANT`
+(English only, pinned by 0148 T2 (d)); `MICROSOFT_ACCOUNT_IS_DELEGATED` (the appliance's
+and the worker's, no longer on the managed report); the lifecycle, deletion and half-pair
+refusals in shared and core that still say *cutover*, *mapping* or *deployment* (not shown to a
+managed tester in any flow this branch could confirm); the web's *"not a DAV, JMAP or IMAP
+error"* and *Unmeasured —* prefix.
 
 **2026-10-14: the web app's words, in a tester's words. On
 `claude/ownpace-public-readiness-y7orc6-the-app-in-a-testers-words`, not merged.** The owner

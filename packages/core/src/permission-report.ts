@@ -71,7 +71,7 @@ export function renderPermissionReport(input: PermissionReportInput): string {
   out.push(
     'Permissions are the part of a migration that breaks quietly. Mail, calendars and files ' +
       'move and you can see that they moved; a delegation that did not move shows up as ' +
-      'somebody unable to do their job on the first Monday after cutover.',
+      'somebody unable to do their job on the first Monday after you switch over.',
   );
   out.push('');
 
@@ -84,11 +84,13 @@ export function renderPermissionReport(input: PermissionReportInput): string {
 
   // Blind spots first, deliberately — see the module comment.
   if (blind.length > 0) {
-    out.push('## Read this first: what could NOT be inventoried');
+    // In a tester's words since 2026-10-16 (the owner): "could NOT be
+    // inventoried" and "at cutover" were the developer's.
+    out.push('## Read this first: what was NOT read');
     out.push('');
     out.push(
-      'Nobody looked at the rights below — not "there are none". Anything granted here will ' +
-        'stop working at cutover without warning unless you capture it by hand.',
+      'Nobody looked at the rights below — that is not "there are none". Anything granted here ' +
+        'stops working without warning when you switch over, unless you note it by hand.',
     );
     out.push('');
     for (const section of blind) {
@@ -110,7 +112,7 @@ export function renderPermissionReport(input: PermissionReportInput): string {
   );
   if (total === 0) {
     out.push(
-      '_No rights were found in the categories that could be inventoried._ Read the section ' +
+      '_No rights were found in the categories that were read._ Read the section ' +
         'above before concluding that nothing is shared.',
     );
     out.push('');
@@ -139,9 +141,9 @@ export function renderPermissionReport(input: PermissionReportInput): string {
   out.push('');
   if (manual.length === 0) {
     out.push(
-      '_Nothing in the inventoried categories needs a manual decision._ That is not the same ' +
-        'as "nothing needs doing" — everything above still has to be created on the target, ' +
-        'and anything in the first section is uninventoried.',
+      '_Nothing in the categories that were read needs a manual decision._ That is not the ' +
+        'same as "nothing needs doing" — everything above still has to be created on the ' +
+        'target, and nothing in the first section was read.',
     );
     out.push('');
   }

@@ -25,7 +25,12 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { MICROSOFT_ACCOUNT_IS_DELEGATED } from '@openmig/connectors';
-import type { PermissionListing } from '@openmig/shared';
+import {
+  microsoftAccountCalendarSharingNotRead,
+  microsoftAccountFileSharingNotRead,
+  microsoftAccountMailboxAccessNotRead,
+  type PermissionListing,
+} from '@openmig/shared';
 
 /** A stored connection row. */
 interface Connection {
@@ -201,17 +206,21 @@ describe('a Microsoft migration beside a Google one', () => {
     const listing = await scanDrive();
 
     expect(h.built, "the Google account's Drive was read for a Microsoft migration").toEqual([]);
-    expect(reasonOf(listing)).toContain(MICROSOFT_ACCOUNT_IS_DELEGATED);
+    // The Microsoft account's own sentence (the owner, 2026-10-16), where it
+    // was the operator's `MICROSOFT_ACCOUNT_IS_DELEGATED`.
+    expect(reasonOf(listing)).toBe(microsoftAccountFileSharingNotRead().en);
   });
 
-  it("keeps Exchange's words for its mailbox and Microsoft's for its calendars", async () => {
+  it("keeps a Microsoft account's words for its mailbox and its calendars", async () => {
+    // Exchange's `Get-MailboxPermission` until 2026-10-16, which an
+    // Outlook.com account cannot run (the owner): the account's own now.
     const { scanCalendars, delegationReason } = await migrationInventoryScans(
       TENANT,
       MS_2_NC,
       MAILBOX,
     );
-    expect(delegationReason).toContain('Get-MailboxPermission');
-    expect(reasonOf(await scanCalendars())).toContain(MICROSOFT_ACCOUNT_IS_DELEGATED);
+    expect(delegationReason).toBe(microsoftAccountMailboxAccessNotRead().en);
+    expect(reasonOf(await scanCalendars())).toBe(microsoftAccountCalendarSharingNotRead().en);
   });
 });
 
@@ -312,7 +321,7 @@ describe('a source that is neither a Microsoft account nor a Google account with
       expect(said, `a ${kind} source was handed Microsoft's words`).not.toMatch(MICROSOFT_WORDS);
       // A blind spot, said as one: nothing was looked at, which is never
       // "there is nothing to find".
-      expect(said).toContain('could not be inventoried');
+      expect(said).toContain('was not read');
       expect(said).toContain('nothing was looked at');
     }
     if (family === 'google') {

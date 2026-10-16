@@ -211,6 +211,15 @@ export const en = {
     "Two blind spots: who could open or send from someone else's mailbox, and sharing on OneDrive and SharePoint.",
   'permissions.blindSpot.more':
     "Who had full access to someone else's mailbox or could send as it: Microsoft does not give us that to migrate, so you set it up again yourself on the new system. Sharing on OneDrive and SharePoint is read only if Ownpace was given an extra permission that reaches every file in your organisation, and Ownpace does not ask for it. Where it was not read, note your file and folder sharing by hand before you switch over. The document says which of the two it actually read, and how to cover the rest.",
+  // A Microsoft account connected with one person's own sign-in (the `microsoft`
+  // kind, as an Outlook.com account is connected; the owner, 2026-10-16). The
+  // two lines above are an organisation's: someone else's mailbox, and every
+  // file in the organisation. This one is true of a personal and a work or
+  // school account alike, in step with the report's `microsoftAccount…NotRead`.
+  'permissions.blindSpot.microsoftAccount':
+    'Three blind spots: who else could open or send from this mailbox, calendar sharing, and OneDrive sharing.',
+  'permissions.blindSpot.microsoftAccount.more':
+    "Ownpace does not read who you gave access to in a Microsoft account connected with your own sign-in. Note who could open your mailbox or send from it, and who you shared calendars, files and folders with, from Outlook's and OneDrive's settings before you switch over. The document lists the same three.",
   // The same line for a Google source: Drive sharing IS read, so the two
   // blind spots are the mailbox's and the calendar's.
   'permissions.blindSpot.google':
@@ -412,6 +421,10 @@ export const nl: Record<keyof typeof en, string> = {
     'Twee blinde vlekken: wie het postvak van een ander kon openen of eruit kon verzenden, en delen op OneDrive en SharePoint.',
   'permissions.blindSpot.more':
     'Wie volledige toegang tot een (ander) postvak had of uit die naam kon verzenden: Microsoft geeft deze info niet aan Ownpace, dat moet u zelf overzetten. Delen op OneDrive en SharePoint wordt alleen gelezen als Ownpace een extra toestemming kreeg die bij elk bestand in uw organisatie kan, en Ownpace vraagt daar niet om. Is het niet gelezen, noteer dan zelf hoe uw bestanden en mappen gedeeld zijn voordat u overstapt. Het document zegt welke wel te lezen waren, en hoe u de rest overzet.',
+  'permissions.blindSpot.microsoftAccount':
+    'Drie blinde vlekken: wie dit postvak nog meer kon openen of eruit kon verzenden, delen van agenda’s, en delen op OneDrive.',
+  'permissions.blindSpot.microsoftAccount.more':
+    'Bij een Microsoft-account dat met uw eigen aanmelding is gekoppeld, leest Ownpace niet aan wie u toegang gaf. Noteer vanuit de instellingen van Outlook en OneDrive wie uw postvak kon openen of eruit kon verzenden, en met wie u agenda’s, bestanden en mappen deelde, voordat u overstapt. Het document noemt dezelfde drie.',
   'permissions.blindSpot.google':
     'Twee blinde vlekken: Gmail-gemachtigden en verzenden-als, en delen in Google Agenda.',
   'permissions.blindSpot.google.more':

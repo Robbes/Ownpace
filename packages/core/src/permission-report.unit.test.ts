@@ -45,7 +45,7 @@ describe('the document as a whole', () => {
     expect(disclaimer).toBeLessThan(firstFinding);
   });
 
-  it('puts what could NOT be inventoried above what was found', () => {
+  it('puts what was NOT read above what was found', () => {
     const md = renderPermissionReport({
       sections: [
         listed('Calendars', [grant()]),
@@ -55,7 +55,8 @@ describe('the document as a whole', () => {
 
     // Ordering is the whole point: buried under the findings, this section
     // gets skipped, and it holds the rights that break on Monday.
-    expect(md.indexOf('could NOT be inventoried')).toBeLessThan(md.indexOf('What was found'));
+    expect(md.indexOf('what was NOT read')).toBeGreaterThan(-1);
+    expect(md.indexOf('what was NOT read')).toBeLessThan(md.indexOf('What was found'));
     expect(md).toContain('Graph does not expose FullAccess');
   });
 

@@ -42,6 +42,7 @@ vi.mock('../services/operating-service', () => ({
 }));
 
 import Sharing from './Sharing.tsx';
+import { LocaleProvider } from '../i18n/index.tsx';
 
 const row = (over: Partial<ShareGrantRow> & { id: string }): ShareGrantRow => ({
   grantHash: `hash-${over.id}`,
@@ -204,5 +205,58 @@ describe('the checklist', () => {
     expect(
       await screen.findByText(/Shares are applied at or after cutover/),
     ).toBeInTheDocument();
+  });
+});
+
+/**
+ * THE BLIND SPOTS IN THE READER'S LANGUAGE (the owner, 2026-10-16). A Dutch
+ * tester read them in English, under a heading that said *"Kon niet worden
+ * geïnventariseerd"*. The server now sends each one's Dutch beside it, in the
+ * same order, and the English where a sentence has no Dutch.
+ */
+describe('the blind spots after a rescan', () => {
+  const answer = {
+    open: 0,
+    blindSpots: ['Who has access here was not read: x.'],
+    blindSpotsNl: ['Wie hier toegang heeft, is niet gelezen: x.'],
+  };
+  const empty = {
+    migrationStatus: 'done',
+    summary: { total: 0, open: 0, applied: 0, doneManual: 0, skipped: 0, openManual: 0 },
+    grants: [],
+  };
+
+  it('are said in English, under a plain heading', async () => {
+    fetchSharing.mockResolvedValue(empty);
+    rescanSharing.mockResolvedValue(answer);
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: /Refresh from the source/ }));
+    expect(await screen.findByText('Who has access here was not read: x.')).toBeInTheDocument();
+    expect(screen.queryByText(/inventor/i)).not.toBeInTheDocument();
+  });
+
+  it('are said in Dutch to a Dutch reader', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      fetchSharing.mockResolvedValue(empty);
+      rescanSharing.mockResolvedValue(answer);
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <LocaleProvider>
+          <QueryClientProvider client={qc}>
+            <MemoryRouter initialEntries={['/mappings/m1/sharing']}>
+              <Routes>
+                <Route path="/mappings/:mappingId/sharing" element={<Sharing />} />
+              </Routes>
+            </MemoryRouter>
+          </QueryClientProvider>
+        </LocaleProvider>,
+      );
+      fireEvent.click(await screen.findByRole('button', { name: /opnieuw/i }));
+      expect(await screen.findByText('Wie hier toegang heeft, is niet gelezen: x.')).toBeInTheDocument();
+      expect(screen.queryByText(/geïnventariseerd/)).not.toBeInTheDocument();
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
   });
 });

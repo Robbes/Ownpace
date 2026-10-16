@@ -447,6 +447,24 @@ describe('the JMAP face: the one place an honest NO exists', () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it("says why in a tester's words, not the protocol's (the owner, 2026-10-16)", async () => {
+    // "Unmeasured — the session document answered 401." named a JMAP term a
+    // tester has never met, for a refusal of their own user name and password.
+    for (const [status, words] of [
+      [401, 'Not measured: the server did not accept this user name and password (it answered 401).'],
+      [500, 'Not measured: the server answered 500 when Ownpace asked what it offers. Check the server address.'],
+    ] as const) {
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status })));
+      try {
+        const q = await qualifyAccount('jmap', { baseUrl: 'https://mail.example.net' }, CREDS);
+        expect(q?.domains.mail.detail).toBe(words);
+        expect(q?.domains.mail.detail).not.toMatch(/session document|Unmeasured|JMAP/);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    }
+  });
 });
 
 describe('the boundary', () => {
@@ -948,6 +966,8 @@ describe('a refused face at an address the tester typed carries its parts (workp
     for (const face of Object.values(q?.domains ?? {})) {
       expect(face.answer).toBe('unknown');
       expect(face.said).toEqual({ kind: 'unknown' });
+      // Plain words before the error's own (the owner, 2026-10-16).
+      expect(face.detail).toMatch(/^Not measured: the server's answer could not be read: /);
     }
   });
 });

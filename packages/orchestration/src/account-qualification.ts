@@ -652,14 +652,24 @@ async function qualifyJmap(
         Accept: 'application/json',
       },
     });
+    // In a tester's words (the owner, 2026-10-16): it said *"Unmeasured — the
+    // session document answered 401."*, a JMAP term for what is, at 401, their
+    // own user name and password turned down.
     if (!response.ok) {
-      return unknownAll(`Unmeasured — the session document answered ${response.status}.`);
+      return unknownAll(
+        response.status === 401
+          ? 'Not measured: the server did not accept this user name and password (it answered 401).'
+          : `Not measured: the server answered ${response.status} when Ownpace asked what it ` +
+              'offers. Check the server address.',
+      );
     }
     const session = (await response.json()) as { capabilities?: Record<string, unknown> };
     capabilities = session.capabilities ?? {};
   } catch (err) {
+    // The error's own words after ours: the appliance's owner reads them, and
+    // on managed `probeAnswers` says this from its parts and logs the rest.
     return unknownAll(
-      `Unmeasured — the session document could not be read: ${
+      `Not measured: the server's answer could not be read: ${
         err instanceof Error ? err.message : String(err)
       }`,
       whatHappened(err),
