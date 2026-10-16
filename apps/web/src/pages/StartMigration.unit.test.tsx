@@ -1069,6 +1069,19 @@ describe('what migrates, for each source on the check screen', () => {
     expect(rows.queryByText(/Microsoft To Do:/)).not.toBeInTheDocument();
   });
 
+  it('tells an IMAP migration about its mail, and not about calendars, contacts, tasks or files', async () => {
+    // An IMAP server holds mail only (2026-10-16); the card shared Apple's
+    // family and was shown Apple's calendar, contacts and Reminders rows.
+    renderCheck(plan('imap', 'imap', ['email']));
+    const rows = within(await panel());
+    expect(await rows.findByText(/Every folder, Sent, Drafts and Archive included/)).toBeInTheDocument();
+    expect(rows.getByText('Mail with no Message-ID')).toBeInTheDocument();
+    for (const item of ['Calendar', 'Contacts', 'Tasks', 'Files']) {
+      expect(rows.queryByText(item), item).not.toBeInTheDocument();
+    }
+    expect(rows.queryByText(/upgraded Apple Reminders cannot be read/)).not.toBeInTheDocument();
+  });
+
   it('tells a Microsoft migration about Microsoft To Do', async () => {
     renderCheck(plan('microsoft', 'microsoft', ['email', 'task']));
     const rows = within(await panel());
