@@ -2,7 +2,64 @@
 
 > **In one line:** SSRF defence on managed: connections refuse internal and Docker-network addresses after DNS and on redirects, a demo-host allowlist, probe answers without the remote's body, no archive disk path, the socket proxy off tenant networks.
 
-## Status — 2026-10-05 (update this block at the end of every session)
+## Status — 2026-10-16 (update this block at the end of every session)
+
+**2026-10-16: T3's last part built, a share's refusal on apply** (the *not yet* of 2026-10-05), on
+branch `claude/ownpace-public-readiness-y7orc6-a-share-refused-in-our-words`, not merged. On
+managed, a share the new system refuses is said in our words, in English and Dutch, as a Test is.
+With it T3 is built.
+
+- **The parts, as the Test has them.** `createNextcloudShare` (`packages/connectors/src/nextcloud-ocs.ts`)
+  keeps its `reason`, the target's words whole, and carries `said` beside it (`ShareRefused`, new in
+  `packages/shared/src/share-refusals.ts`): the HTTP status, OCS's `meta.statuscode` when it has
+  three digits, whether the body was an OCS reply at all, or what kind of failure it was when nothing
+  answered (`whatHappened`: unreachable, certificate, inside our network, unknown), or an address it
+  cannot read. *No such account, and share-by-mail refused too* is one part, `notAnAccount`, with the
+  mail attempt's reply. Never OCS's message and never the body: OCS is no error document §3 lists,
+  and a server that is not Nextcloud fills the same field with anything.
+- **Our sentence, chosen by what failed** (`shareRefusalKind`, `shareRefusalSaid`, in `@openmig/shared`
+  with its Dutch beside it, class 4 of `docs/i18n-prose-boundary.md`): a sign-in refused (401 or OCS
+  997), the server's own error (5xx or OCS 996), a reply that is not Nextcloud's sharing, nothing found
+  (OCS 404, the item or the person), no account and no share by mail, refused (403), not accepted
+  (400), any other status; and the four transport kinds and the unreadable address. Each says
+  *nothing was shared*, the status (and OCS's code where it differs), and what to do. The Dutch says
+  *u*-form imperatives and *migratie*. The appliance's *no grantee* sentence is paired there too
+  (`NO_GRANTEE_TO_SHARE_WITH`).
+- **Where.** `apps/api/src/share-refusal-answer.ts` answers from the parts: `reason` in English and
+  `reasonNl` in Dutch, each ending with one reference per request; the target's words go to the log
+  once under it (`[share] applying a share: answered in our words [ref …]`) and the operator's log
+  page records `share.refused`. Through `applyShareGrant` (core now carries `reasonNl` beside
+  `reason`) to the three doors: `POST …/sharing/:grantId/decision` answers 409 with both, and each
+  refused row of `apply-all` and `apply-folder` carries both. The routes read the target's capability
+  before the ledger's transaction opens, as the gate is: one connection, never one inside another
+  (found when the guard's in-process ledger, which serialises connections, waited forever).
+- **The web.** The Sharing page shows `reasonNl` to a Dutch reader where it came, and `reason` as
+  served otherwise (`refusalText` in `apps/web/src/pages/Sharing.tsx`; `DecisionRefused.reasonNl`).
+  The page does not render the presses' `refused` rows today, so the row-level halves wait for a
+  screen that does.
+- **Not changed:** the appliance, whose owner reads the target's words as before; the gates' own
+  refusals (`not_cut_over`, `link_share`, `manual_only`, `no_share_api`), which are ours and English.
+- **Docs.** `solution-architecture.md` §17.1's SSRF row no longer says a share's refusal reads the
+  target's body. `openapi.yaml` documents `reasonNl` on the three doors and on `Refusal`.
+- **Proved.**
+  - `apps/api/src/routes/migrations/a-share-refused-in-our-words.unit.test.ts`, 11 cases, the real
+    routes over a real in-process ledger against a server on this machine: four cases on the
+    decision door (a page that is not Nextcloud, OCS 403, no account and nothing by mail, no account
+    and mail refused), three on `apply-all`, three on `apply-folder`, each holding that no byte of
+    the reply and not the password reaches the answer, that `reason` and `reasonNl` are our sentence
+    with the reference, and that the log has the reply under it without the password; and the rows
+    stay open. On the routes before the fix, 10 failed and 1 passed (the rows staying open).
+  - `packages/connectors/src/nextcloud-ocs.unit.test.ts` gains 6 cases for the parts; before, 6
+    failed. `packages/shared/src/share-refusals.unit.test.ts`, 33 cases (which sentence, both halves,
+    the Dutch Dutch, no *je*, no *verhuizen*), could not load before the module existed.
+    `apps/web/src/pages/Sharing.unit.test.tsx` gains 3; before, the Dutch reader's failed and the
+    two controls passed. `openapi-spec.unit.test.ts` holds that the decision's 409 names `reasonNl`.
+  - **Mutations:** 15, all killed. In the routes: the target's reason answered again, the decision's
+    Dutch dropped; in core: the Dutch dropped from a row or from a press's refused rows; in the
+    answer: no log line, a reference per row; in the connector: every reply taken as OCS, any OCS
+    code carried, the mail attempt's part lost, a non-404 refusal's parts lost; in the sentences: a
+    non-OCS reply not said as such, OCS 997 not a sign-in, a mail attempt's 404 not said as nothing
+    found, OCS's code not said; and on the page, `reasonNl` ignored.
 
 **2026-10-05: T3's second step and T7 built** (audit item 8), on branch
 `claude/ownpace-public-readiness-y7orc6-a-failure-said-in-our-words`, not merged. On managed, the
@@ -576,10 +633,10 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 |---|---|---|
 | T1 Refuse internal addresses after DNS, on every connection and every redirect | ✅ **done**, merged 2026-09-27: (a)'s three slices (the rule, #1216; every client of a tenant's host going through it, #1223; the rule switched on in the managed API and tasks, #1230) and (b) (the bring-up's network check, #1224); the refusal's Dutch came with T3's screens, merged as #1234; advised before the first invitation (D1) — *was:* 🔨 **Built 2026-09-27**, the third slice not merged | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
 | T2 An operator allowlist for the demo targets | ✅ **done** in #1230, merged 2026-09-27 (`55ee81c8`), with T1 (a)'s third slice — *was:* 🔨 **Built 2026-09-27** with T1 (a)'s third slice, not merged; 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
-| T3 A probe answer that says what happened, not what the remote said | 🔨 **The answer built 2026-09-27, merged as #1227; the limit merged as #1228; the screens' half merged as #1234; the second step, the failures a pass records in our words on the failures queue and the routes beside it, the Check page's report and the apply receipts among them, built 2026-10-05** on branch `claude/ownpace-public-readiness-y7orc6-a-failure-said-in-our-words`, not merged; a share's refusal on apply not yet (Status, 2026-10-05) — *was:* the failures route to come; 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
+| T3 A probe answer that says what happened, not what the remote said | 🔨 **The answer built 2026-09-27, merged as #1227; the limit merged as #1228; the screens' half merged as #1234; the second step, the failures a pass records in our words on the failures queue and the routes beside it, the Check page's report and the apply receipts among them, built 2026-10-05** on branch `claude/ownpace-public-readiness-y7orc6-a-failure-said-in-our-words`, not merged; **a share's refusal on apply built 2026-10-16**, in our words in English and Dutch, on branch `claude/ownpace-public-readiness-y7orc6-a-share-refused-in-our-words`, not merged (Status, 2026-10-16) — *was:* a share's refusal on apply not yet (Status, 2026-10-05); the failures route to come; 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
 | T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
 | T5 No archive "disk" path on the managed edition | ✅ **done** in #1175, merged 2026-09-25; before the first invitation — *was:* 📋 Decided 2026-09-24 (0148 D10) | §3. Five doors refuse it before anything opens the path (add, test-connection, create including a reuse, the stored-row Test, rotation), with a sentence that names the folder in the destination's files (0148 D11). The gate's archive fixture step breaks with it and returns with 0148 T9, which is stacked on this task. The owner first chose to hide the managed archive card (0148 D3), then to label it (0148 D10). |
-| T6 Guard tests for each | 🔨 **(a) with each task, 2026-09-27** (0131 §6, M2 step 5): every pull request of T1, T2 and T3 carries its guard, and the Status block its mutation count; T1 (a)'s third slice with T2 merged as #1230, T3's screens merged as #1234; T3's second step carries its guard and 38 mutations, 24 and 14 in review (2026-10-05, not merged); *was:* #1230 not merged; 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |
+| T6 Guard tests for each | 🔨 **(a) with each task, 2026-09-27** (0131 §6, M2 step 5): every pull request of T1, T2 and T3 carries its guard, and the Status block its mutation count; T1 (a)'s third slice with T2 merged as #1230, T3's screens merged as #1234; T3's second step carries its guard and 38 mutations, 24 and 14 in review (2026-10-05, not merged); T3's share refusal on apply carries `a-share-refused-in-our-words` and 15 mutations (2026-10-16, not merged); *was:* #1230 not merged; 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |
 | T7 The threat model says what is true | 🔨 **Built 2026-10-05** with T3's second step, on the same branch, not merged: `solution-architecture.md` v1.14 and `SECURITY.md` (Status block) — *was:* 📋 **Proposed** | §3. §17.1 gets rows for SSRF, exposure (two stacks on one daemon included) and the worker plane. "Egress controls" goes until it exists. |
 
 ## 1. What there is today

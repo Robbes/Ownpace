@@ -2,7 +2,67 @@
 
 > **In one line:** What a tester is told: a Dutch tester guide, a known-limitations page guarded by the feature matrix, corrected read-only wording on site and grant page, `APPLY_FLAG_WARNING`, a support contact, Request access on sign-in, organisation closure.
 
-## Status — 2026-10-14 (update this block at the end of every session)
+## Status — 2026-10-16 (update this block at the end of every session)
+
+**2026-10-16: T4 built, with 0149 T6. On `claude/ownpace-public-readiness-y7orc6-a-warning-that-promises-what-holds`, not
+merged.** The warning in front of the delete switch listed *"never a copy somebody has since
+edited"* among the gates every removal passes, in both languages. Since 0149 T3 that holds for
+files, calendar entries and contacts, and it never held for mail, which the tester guide already
+said (*"With mail it does not check that"*, `site/pages/en/alpha-guide.md`:57-58, Dutch
+`alpha-handleiding.md`:88-89). The warning now says it per data type:
+
+- **EN:** *"… Every removal still has to pass every gate — positive evidence only (never an
+  inferred absence), only items this tool wrote, and the mass-deletion breaker. A file, calendar
+  entry or contact is also not removed if someone has changed it in the new system since this
+  tool wrote it, or when that cannot be checked. Mail is not checked for changes: an email this
+  tool wrote can be removed even if someone has changed it in the new system since. While this
+  is off, nothing can be removed however the endpoint is called."*
+- **NL:** *"… alleen items die dit programma zelf schreef, en de
+  massaverwijderings-stroomonderbreker. Een bestand, agenda-item of contact wordt bovendien niet
+  verwijderd als iemand het in het nieuwe systeem heeft gewijzigd sinds dit programma het schreef,
+  of als dat niet kan worden gecontroleerd. E-mail wordt daar niet op gecontroleerd: een e-mail
+  die dit programma schreef, kan worden verwijderd, ook als iemand die sindsdien in het nieuwe
+  systeem heeft gewijzigd. Zolang dit uit staat, …"*
+
+The opening sentence and the closing one are unchanged, so the switch still says it is the only
+way anything is removed, and that nothing is while it is off. The drafted condition in §3 (*"where
+it gave none, or cannot be asked, the removal goes ahead"*) was false after 0149 T3 and is not
+used: the fail-closed half is *"or when that cannot be checked"*. Still in `@openmig/shared`
+beside each other (class 4), so the appliance's panel says the same.
+
+**Guard.** `scripts/a-warning-the-check-keeps.unit.test.ts`, keyed on the writers, as 0149 T6
+said, not on core's `row.targetVersion !== undefined ?` form. It finds every class in
+`packages/connectors/src` and `packages/engines/src` with a `removeItem` (seven), reads its data
+type from the port it implements, and reads from the parsed source whether it refuses an edited
+copy (`conflicted: true`, or the version handed to `removeDavResource`, which sends `If-Match`)
+and whether it refuses one it cannot check (`unversioned: true`). Then, in each language: the
+sentence listing the gates every removal passes names no edit check while a data type has none;
+the refusal sentence names exactly the protected types and carries the fail-closed half; the
+mail sentence names exactly the others. **Proved:** six of its eleven cases fail against the old
+warning and pass on the new. **Mutations, all killed (6):** JMAP contacts stops answering
+`conflicted`; `removeDavResource` removes without a version; JMAP mail starts refusing an edit
+while IMAP does not; the English drops *contact*; the Dutch drops *of als dat niet kan worden
+gecontroleerd*; the English puts an edit check back among every gate. **Gates:** `pnpm lint`,
+`pnpm typecheck`, `packages/shared` and `scripts` unit (115 files, 1893 tests; 245 files, 5274
+tests), the panel and i18n suites in `unit-browser` (2 files, 29 tests).
+
+**Not changed:** `DELETION_GUIDANCE.apply` (`operating-contract.ts`, the API's English
+`howToResolve`) still says *"refused for an item somebody has since edited on the target"* for
+every data type. It is API prose, not what a tester reads in front of the switch, and is left
+for whoever owns that text. The narrow gap 0149 T6 names on JMAP contacts and files (the read and
+the destroy are two calls) is not in the warning.
+
+**2026-10-16: T6 (c) is built: GitHub's issue chooser sends a tester to a person first.** What it
+waited for, T1's *Hulp* section, exists (`site/pages/nl/alpha-handleiding.md` `{#hulp}`). The
+chooser's first contact link is *"Using the hosted Ownpace Alpha? / Gebruikt u de Alpha van
+Ownpace?"*, to `https://www.ownpace.eu/nl/alpha-handleiding.html#hulp`; its `about` says, in both
+languages, not to open an issue, to use *Report a problem* / *Een probleem melden* in the app or
+the guide's address, and never to post mailbox contents, addresses or screenshots. The bug form's
+opening says the same in one sentence. The security and self-host links and the blank issue stay
+(D6). `scripts/an-issue-route-for-the-hosted-service.unit.test.ts` holds it, the URL built from
+the site's own page names; four of its five cases failed before. The link answers once A5
+publishes the site; until then it is the only place it leads, and nobody is invited yet.
+
 
 **2026-10-14: the web app's words, in a tester's words. On
 `claude/ownpace-public-readiness-y7orc6-the-app-in-a-testers-words`, not merged.** The owner
@@ -635,9 +695,9 @@ Everything a tester reads is written in Dutch first and translated into English 
 | T1 A Dutch tester guide | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-guide-for-the-alpha-tester`, merged (#1439)** (2026-10-03), the short form; the Dutch read ⏳ **Owner**. 🔨 **2026-10-04, on `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged:** spelt *Alpha*, served at `/nl/alpha-handleiding.html`, and linked by the alpha note (on every page it stands on, the request page included), the access-granted mail and the invitation — *was:* 📋 **Proposed** (D1, D3) | §3. One page on the site that carries the alpha's texts (0139 T10): what the alpha is, before you start, how to start, what is experimental, how to get help, how to leave. Built only when the site is built for the alpha. **Before the first invitation**, in its short form. |
 | T2 A known-limitations page the feature matrix keeps true | 📋 **Proposed** (D4) | §3. A copy on the site, in Dutch and English, and a guard that fails when it disagrees with the matrix's open gaps or 0131 T2's verdicts. **After.** |
 | T3 "Read-only" replaced by what is true | 🔨 **(b), the site copy, and the setup title built 2026-10-05 on branch `claude/ownpace-public-readiness-y7orc6-the-site-says-ownpace-only-reads`, not merged**, in the owner's words (open question 2); the guard's `PENDING` is empty. ✅ **(a) and (c) done** in #1188, merged 2026-09-26. 📋 **Decided 2026-09-25 (owner)**. The password hint 📋 **Proposed** (after). The app's other *read-only* strings, P10 (b), 📋 **Later** (the owner, 2026-10-05) — *was:* (b), the site copy, ⏳ **Owner** (T0); the setup title 📋 **Proposed** (after) | §3. The grant page says "read-only" only when Google enforces it. One line beside *Connect with Google*. Site copy, how-it-works, the grant-link guide and one setup title. **Before the first invitation**: the Connect line and the site copy, and the grant page if testers send grant links (0140 open question 2). |
-| T4 The warning in front of the delete switch says what the check does | 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` in both languages. Making removal fail closed is W18, now 0149, whose T1 to T3 land before the first invitation (0149 D1). **After**, written once 0149 T3 has landed, because T3 changes what the check does (0149 T6). |
+| T4 The warning in front of the delete switch says what the check does | 🔨 **Built 2026-10-16 on branch `claude/ownpace-public-readiness-y7orc6-a-warning-that-promises-what-holds`, not merged**, with 0149 T6; guard `a-warning-the-check-keeps` — *was:* 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` in both languages. Making removal fail closed is W18, now 0149, whose T1 to T3 land before the first invitation (0149 D1). **After**, written once 0149 T3 has landed, because T3 changes what the check does (0149 T6). |
 | T5 A destination that is not empty | 📋 **Proposed** | §3. The advice goes into T1 (**before**). The confirm screen names what adoption means later, and an IMAP target's exception (**after**). |
-| T6 A person to write to, before and after sign-in | (a) ✅ **done** in #1269, merged 2026-09-28 (`b2703c6f`); live shows it once `VITE_SUPPORT_EMAIL` is in its `.env` and its web image is rebuilt. (c), the GitHub chooser, 📋 **Deferred** until T1's *Hulp* section exists — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-person-to-write-to`, not merged (2026-09-28); 📋 **Proposed**; the address ⏳ **Owner** (T0) | §3. A support line on the pages outside the app, and in the sidebar when the report form is off. The GitHub chooser gets a route for the hosted service. The report form's settings reach the API since #1148 (2026-09-24) (§1). **Before the first invitation.** |
+| T6 A person to write to, before and after sign-in | (a) ✅ **done** in #1269, merged 2026-09-28 (`b2703c6f`); live shows it once `VITE_SUPPORT_EMAIL` is in its `.env` and its web image is rebuilt. (c), the GitHub chooser, ✅ **built 2026-10-16** (Status) — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-person-to-write-to`, not merged (2026-09-28); 📋 **Proposed**; the address ⏳ **Owner** (T0) | §3. A support line on the pages outside the app, and in the sidebar when the report form is off. The GitHub chooser gets a route for the hosted service. The report form's settings reach the API since #1148 (2026-09-24) (§1). **Before the first invitation.** |
 | T7 *Request access* on the sign-in page | ✅ **done** in #1213, merged 2026-09-27; *was:* 📋 **Proposed** (D3) | §3. One link under the sign-in button, in the reader's language. **Before the first invitation.** |
 | T8 An owner can close their organisation from the screen | 📋 **Proposed** | §3. The screen for the close route that exists. The operator's path during the alpha and the identity provider's account are 0139 T7's, and the erasure sentence's word on backups is 0134 T1's. **After.** |
 

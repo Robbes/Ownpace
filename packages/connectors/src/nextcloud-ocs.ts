@@ -20,11 +20,18 @@
  * concatenating onto the DAV path.
  *
  * A refusal is an answer: any non-OK OCS reply comes back as
- * `{ok:false, reason}` carrying the server's own words (a wrong username, a
- * missing file, a server that is not Nextcloud at all — its 404 says so).
- * The sharing queue shows that sentence verbatim and the row stays open.
+ * `{ok:false, reason, said}`. `reason` carries the server's own words (a
+ * wrong username, a missing file, a server that is not Nextcloud at all — its
+ * 404 says so), and the appliance's sharing queue shows it verbatim. `said`
+ * carries the refusal's PARTS and none of those words (workplan 0136 T3, a
+ * share's refusal on apply): the status, OCS's code, whether the reply was
+ * OCS at all, or what kind of failure it was. The managed API answers from
+ * the parts in its own words (`shareRefusalSaid`, `@openmig/shared`), because
+ * the address is one a tester typed, and logs `reason` for the operator. The
+ * row stays open either way.
  */
 
+import { whatHappened, type OcsAnswer, type ShareRefused } from '@openmig/shared';
 import type { HttpClient } from './dav-http.types.ts';
 
 export interface NextcloudShareOptions {
@@ -64,7 +71,13 @@ export type CreateShareResult =
  */
 export type CreateShareOutcome =
   | { readonly ok: true; readonly via: 'user' | 'mail' }
-  | { readonly ok: false; readonly reason: string };
+  | {
+      readonly ok: false;
+      /** The server's own words, whole: for the appliance's owner and the operator's log. */
+      readonly reason: string;
+      /** What failed, without any of the server's words: what managed answers from. */
+      readonly said: ShareRefused;
+    };
 
 /**
  * Nextcloud permission bits: 1 read, 2 update, 4 create, 8 delete, 16 share.
@@ -92,6 +105,32 @@ interface OcsEnvelope {
 }
 
 /**
+ * What a failure that is no reply comes to, as `whatHappened` sorts it: no
+ * address, no message. A refusal with parts never reaches here, since the
+ * request itself throws only for the transport.
+ */
+function transportRefusal(err: unknown): ShareRefused {
+  const kind = whatHappened(err).kind;
+  return { kind: kind === 'answered' ? 'unknown' : kind };
+}
+
+/** The reply's parts, without the kind they were said as. */
+function answerOf(said: OcsAnswer): OcsAnswer {
+  return { status: said.status, ocs: said.ocs, ...(said.ocsStatus === undefined ? {} : { ocsStatus: said.ocsStatus }) };
+}
+
+/**
+ * OCS's code, when it is one: three digits, as OCS's own are (100, 200, 404,
+ * 996, 997). A server that is not Nextcloud can put any number there, and a
+ * sentence repeats only what fits the shape.
+ */
+function ocsCode(statuscode: unknown): number | undefined {
+  return typeof statuscode === 'number' && Number.isInteger(statuscode) && statuscode >= 100 && statuscode <= 999
+    ? statuscode
+    : undefined;
+}
+
+/**
  * One OCS share attempt, one answer. The OCS statuscode travels back with a
  * refusal because it is the one LOCALE-INDEPENDENT fact in the reply:
  * `meta.message` is a translated human sentence, and branching on its words
@@ -101,12 +140,13 @@ async function attemptOcsShare(
   options: NextcloudShareOptions,
   request: CreateUserShareRequest,
   shareType: '0' | '4',
-): Promise<{ ok: true } | { ok: false; reason: string; statuscode?: number }> {
+): Promise<{ ok: true } | { ok: false; reason: string; statuscode?: number; said: ShareRefused }> {
   const origin = ocsOriginFrom(options.webdavUrl);
   if (!origin) {
     return {
       ok: false,
       reason: `The target's WebDAV url (${options.webdavUrl}) has no readable server origin, so its OCS endpoint cannot be derived.`,
+      said: { kind: 'noOrigin' },
     };
   }
 
@@ -133,7 +173,7 @@ async function attemptOcsShare(
       body,
     });
   } catch (err) {
-    return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+    return { ok: false, reason: err instanceof Error ? err.message : String(err), said: transportRefusal(err) };
   }
 
   let meta: { status?: string; statuscode?: number; message?: string } | undefined;
@@ -150,11 +190,20 @@ async function attemptOcsShare(
   // ("Path already shared with this user", "User does not exist"…); a server
   // that is not Nextcloud answers with whatever it answers, equally worth
   // showing unchanged.
-  const said = meta?.message?.trim() ? meta.message : response.body.slice(0, 300);
+  // That is the reason, for the operator and the appliance's owner. The parts
+  // beside it say what failed and nothing the server wrote.
+  const words = meta?.message?.trim() ? meta.message : response.body.slice(0, 300);
+  const code = ocsCode(meta?.statuscode);
+  const answer: OcsAnswer = {
+    status: response.status,
+    ocs: typeof meta === 'object' && meta !== null && (typeof meta.status === 'string' || typeof meta.statuscode === 'number'),
+    ...(code === undefined ? {} : { ocsStatus: code }),
+  };
   return {
     ok: false,
-    reason: `OCS answered ${response.status}: ${said}`,
+    reason: `OCS answered ${response.status}: ${words}`,
     ...(typeof meta?.statuscode === 'number' ? { statuscode: meta.statuscode } : {}),
+    said: { kind: 'answered', ...answer },
   };
 }
 
@@ -194,12 +243,14 @@ export async function createNextcloudShare(
 ): Promise<CreateShareOutcome> {
   const asUser = await attemptOcsShare(options, request, '0');
   if (asUser.ok) return { ok: true, via: 'user' };
-  if (asUser.statuscode !== 404) return { ok: false, reason: asUser.reason };
+  if (asUser.statuscode !== 404) return { ok: false, reason: asUser.reason, said: asUser.said };
 
   const byMail = await attemptOcsShare(options, request, '4');
   if (byMail.ok) return { ok: true, via: 'mail' };
   return {
     ok: false,
     reason: `not a target account (${asUser.reason}), and share-by-mail also refused — ${byMail.reason}`,
+    // When nothing usable answered the second time, that is what failed.
+    said: byMail.said.kind === 'answered' ? { kind: 'notAnAccount', byMail: answerOf(byMail.said) } : byMail.said,
   };
 }

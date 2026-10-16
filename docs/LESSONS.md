@@ -21,6 +21,11 @@ reading a file drops off its entry by itself.
 ### `.github/ISSUE_TEMPLATE/bug_report.yml`
 
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
+- [an-issue-route-for-the-hosted-service](../scripts/an-issue-route-for-the-hosted-service.unit.test.ts) — AN ISSUE ROUTE FOR THE HOSTED SERVICE: a tester of the hosted Alpha who lands on GitHub's "New issue" page finds their way to a person first (workplan 0144 T6 (c)).
+
+### `.github/ISSUE_TEMPLATE/config.yml`
+
+- [an-issue-route-for-the-hosted-service](../scripts/an-issue-route-for-the-hosted-service.unit.test.ts) — AN ISSUE ROUTE FOR THE HOSTED SERVICE: a tester of the hosted Alpha who lands on GitHub's "New issue" page finds their way to a person first (workplan 0144 T6 (c)).
 
 ### `.github/workflows/ci.yml`
 
@@ -474,6 +479,10 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/components/finish/EachDataTypeEnds.tsx`
 
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
+
+### `apps/web/src/components/queues/ApplyDeletionsPanel.tsx`
+
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 
 ### `apps/web/src/i18n/i18n.unit.test.tsx`
 
@@ -1819,6 +1828,7 @@ reading a file drops off its entry by itself.
 ### `packages/connectors/src/imapflow-dav-target.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 
 ### `packages/connectors/src/imapflow-source.ts`
 
@@ -1828,14 +1838,20 @@ reading a file drops off its entry by itself.
 ### `packages/connectors/src/jmap-contact-target.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 
 ### `packages/connectors/src/jmap-file-target.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 
 ### `packages/connectors/src/jmap-session.ts`
 
 - [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
+
+### `packages/connectors/src/jmap-target.ts`
+
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 
 ### `packages/connectors/src/takeout-archive-reader.unit.test.ts`
 
@@ -1912,15 +1928,22 @@ reading a file drops off its entry by itself.
 ### `packages/engines/src/caldav-target-writer.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 
 ### `packages/engines/src/carddav-target-writer.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 - [an-addressbook-query-without-a-filter](../scripts/an-addressbook-query-without-a-filter.unit.test.ts) — THREE REPORT BODIES, THREE DIFFERENT WAYS OF BEING WRONG.
+
+### `packages/engines/src/dav-remove.ts`
+
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 
 ### `packages/engines/src/webdav-target-writer.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 
 ### `packages/ledger/migrations/0001_baseline.sql`
 
@@ -2245,6 +2268,7 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/operating-contract.ts`
 
 - [a-stranger-sees-counts-and-states](../scripts/a-stranger-sees-counts-and-states.unit.test.ts) — A progress link opens counts and states, and nothing that names anything.
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 
 ### `packages/shared/src/pass-deadline.ts`
 
@@ -2597,6 +2621,7 @@ reading a file drops off its entry by itself.
 
 ### `site/copy.mjs`
 
+- [an-issue-route-for-the-hosted-service](../scripts/an-issue-route-for-the-hosted-service.unit.test.ts) — AN ISSUE ROUTE FOR THE HOSTED SERVICE: a tester of the hosted Alpha who lands on GitHub's "New issue" page finds their way to a person first (workplan 0144 T6 (c)).
 - [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [one-look-from-the-site-to-the-app](../scripts/one-look-from-the-site-to-the-app.unit.test.ts) — ONE LOOK FROM THE SITE TO THE APP (workplan 0152 T9).
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
@@ -2682,6 +2707,7 @@ reading a file drops off its entry by itself.
 ### `site/pages/nl/alpha-handleiding.md`
 
 - [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts) — A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
+- [an-issue-route-for-the-hosted-service](../scripts/an-issue-route-for-the-hosted-service.unit.test.ts) — AN ISSUE ROUTE FOR THE HOSTED SERVICE: a tester of the hosted Alpha who lands on GitHub's "New issue" page finds their way to a person first (workplan 0144 T6 (c)).
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
 
 ### `site/pages/nl/hoe-het-werkt.md`
@@ -4638,6 +4664,23 @@ Reads:
 - `docs/managed-bring-up.md`
 - `site/legal/README.md`
 
+### [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts)
+
+A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
+
+Reads:
+
+- `apps/web/src/components/queues/ApplyDeletionsPanel.tsx`
+- `packages/connectors/src/imapflow-dav-target.ts`
+- `packages/connectors/src/jmap-contact-target.ts`
+- `packages/connectors/src/jmap-file-target.ts`
+- `packages/connectors/src/jmap-target.ts`
+- `packages/engines/src/caldav-target-writer.ts`
+- `packages/engines/src/carddav-target-writer.ts`
+- `packages/engines/src/dav-remove.ts`
+- `packages/engines/src/webdav-target-writer.ts`
+- `packages/shared/src/operating-contract.ts`
+
 ### [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts)
 
 A WAY BACK BEFORE EVERY UPGRADE: the dump an identity provider upgrade needs was four commands pasted from a chat (workplan 0135 T7, *Before an upgrade*).
@@ -4838,6 +4881,17 @@ Reads:
 
 - `apps/selfhost/src/index.ts`
 - `vitest.global-setup.ts`
+
+### [an-issue-route-for-the-hosted-service](../scripts/an-issue-route-for-the-hosted-service.unit.test.ts)
+
+AN ISSUE ROUTE FOR THE HOSTED SERVICE: a tester of the hosted Alpha who lands on GitHub's "New issue" page finds their way to a person first (workplan 0144 T6 (c)).
+
+Reads:
+
+- `.github/ISSUE_TEMPLATE/bug_report.yml`
+- `.github/ISSUE_TEMPLATE/config.yml`
+- `site/copy.mjs`
+- `site/pages/nl/alpha-handleiding.md`
 
 ### [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts)
 
