@@ -4,6 +4,41 @@
 
 ## Status — 2026-10-16 (update this block at the end of every session)
 
+**2026-10-16: T6's other mails built**, on branch
+`claude/ownpace-public-readiness-y7orc6-the-other-sign-in-mails`, not merged. The first three
+were #1604, merged (`664dbbba`).
+
+- **Two more, of the ten mail texts `admin.proto` has at v4.19.4.** **password_change**
+  (`PUT /admin/v1/text/message/password_change/{language}`): sent after every new password, a
+  reset included, because the default notification policy has `PasswordChange: true` and nothing
+  here changes it. It says the password of the Ownpace account was changed and, if the tester did
+  not do it, to write to `{support}` at once. **passwordless_registration**
+  (`…/passwordless_registration/{language}`): the link to add a passkey on another device, which
+  a tester signed in to the console on the public origin can mail to themselves
+  (`POST /auth/v1/users/me/passwordless/_send_link`), because the login policy allows passkeys
+  (upstream's default, echoed by the script). At v4.19.4 the sign-in page itself sets up a
+  passkey only from that mailed link (GHSA-45f2-5q3r-xgg6 removed the other path). Neither has a
+  code; the proto lists every variable but `Code` for both.
+- **Left in upstream's words, each with its reason in the script's comment.** verifyphone and
+  verifysmsotp: SMS is not configured, so no SMS text is sent. verifyemailotp: the instance's
+  second factors are TOTP and U2F (`instance.go` at v4.19.4 leaves email and SMS codes out), and
+  both the sign-in page's prompt and the console's dialog offer only what the policy lists.
+  domainclaimed: no organisation here verifies a domain. invite_user: Ownpace's invitations are
+  its own mails, and nothing calls the provider's invite code.
+- **The script** lists five types in `SIGN_IN_MAIL_TYPES` and asks `{{.Code}}` of every text but
+  those two. Everything else is as #1604 built it: written whole when it differs, read back,
+  never fatal.
+- **Proved by** `scripts/a-sign-in-page-in-our-own-words.unit.test.ts`, now 28 cases: against
+  main's script and file, 11 red and 17 green; with the change, 28 green. It requires both new
+  mails in both languages with the same field checks, no `Code` in either, the five types in the
+  script's list, the exception for the two in `sign_in_mail_wanted`, and each left-out type named
+  with a reason in the section's comment. Dropping the passkey link's exception turns 9 red.
+- **Docs:** the bring-up guide's *The mails it sends* and its table of mail to a tester (a row
+  for the passkey link), and `VITE_SUPPORT_EMAIL`'s note in `managed.env.example`.
+- **Unverified:** nothing has called a real Zitadel. The zitadel.com docs pages could not be
+  fetched from this session; the paths and variables are from `admin.proto` at the v4.19.4 tag,
+  which those pages are generated from.
+
 **2026-10-16: T6's mails built**, on branch
 `claude/ownpace-public-readiness-y7orc6-the-sign-in-mails`, not merged. The languages were #1286;
 the brand stays proposed and is not in it.
@@ -571,7 +606,7 @@ Names used from here on: **live** is the identity provider of `ownpace-live`, at
 | T3 One organisation, recorded and counted again | 📋 **Decided 2026-09-24** (D1) for the record; (a) the count on every run of `setup-zitadel.sh` ✅ **done** in #1272, merged 2026-09-28 (`3408c143`); live's daily count is 0132 T7's — *was:* (a) 🔨 built 2026-09-27, not merged; the count 📋 **Proposed** | §3. The owner's answer covers the OTA instance; live's starts with one. The count is per instance: a count anybody can repeat, a line in the bring-up's summary, daily on live by 0132 T7, nightly on the OTA instance by the gate's own run of `setup-zitadel.sh`. |
 | T4 Second factors for the accounts that hold the keys, and a lockout | ⏳ **Owner** for the enrolment; 📋 **Proposed** for the lockout and forced MFA | §3. The first human and every operator, on each instance, live first; the machine user cannot have one and relies on its token's short life. A lockout threshold. Whether a second factor is forced is open question 2. |
 | T5 Privacy and terms links on the registration and sign-in pages | ✅ **done** in #1440, merged 2026-10-04 (`cd318823`), with 0139 T4 (the owner, 2026-10-03, asked whether this change sets the sign-in page's links too: *"Yes, include it"*): `setup-zitadel.sh` writes the instance privacy policy's `tosLink` and `privacyLink`, the Dutch terms and privacy pages on the site `VITE_LEGAL_SITE_URL` names (empty: the production site), copies the other five fields back, and reads both links back on the instance and on the project's organisation; `managed.yml` sets them for a fresh instance; always shown, also before the texts are published (the owner: *"Always shown"*); `scripts/a-notice-before-a-password.unit.test.ts`; not yet run against a real instance — *was:* 🔨 **Built 2026-10-03** with 0139 T4 on branch `claude/ownpace-public-readiness-y7orc6-a-notice-where-data-is-collected`, **not merged**; 📋 **Proposed**; lands with 0139's publication (D5) | §3. The instance privacy policy, from `.env`, read back. Live's first. |
-| T6 Dutch and English, in Ownpace's own words | 📋 **Decided 2026-09-24** (D4) for the languages, and (a) the languages ✅ **done** in #1286, merged 2026-09-28 (`a0897c0`); (b) the mails ✅ **done** in #1604, merged 2026-10-16 (`664dbbba`): the init (after registering), verifyemail and passwordreset mails in `nl` and `en`, from `deploy/compose/sign-in-mails.json`, naming `VITE_SUPPORT_EMAIL` (empty: `support@ownpace.eu`), written by `setup-zitadel.sh` when they differ, read back, never fatal; not yet run against a real instance; 📋 **Proposed** for the brand | §3. Only `nl` and `en` allowed, a default from `.env`, and the verification and reset mails rewritten. Logo, colours and the organisation's name follow; live's fresh instance can carry the name from its first start. |
+| T6 Dutch and English, in Ownpace's own words | 📋 **Decided 2026-09-24** (D4) for the languages, and (a) the languages ✅ **done** in #1286, merged 2026-09-28 (`a0897c0`); (b) the mails ✅ **done** in #1604, merged 2026-10-16 (`664dbbba`): the init (after registering), verifyemail and passwordreset mails in `nl` and `en`, from `deploy/compose/sign-in-mails.json`, naming `VITE_SUPPORT_EMAIL` (empty: `support@ownpace.eu`), written by `setup-zitadel.sh` when they differ, read back, never fatal; (c) the other mails 🔨 **built 2026-10-16**, not merged, on branch `claude/ownpace-public-readiness-y7orc6-the-other-sign-in-mails`: password_change and passwordless_registration, the other five left with a reason; neither yet run against a real instance; 📋 **Proposed** for the brand | §3. Only `nl` and `en` allowed, a default from `.env`, and the verification and reset mails rewritten. Logo, colours and the organisation's name follow; live's fresh instance can carry the name from its first start. |
 | T7 A watch on the pinned identity provider | ✅ **the pin moved to v4.19.1** in #1285, merged 2026-09-28 (`f839929`) (open question 11: go); the watch 📋 **decided 2026-09-28**: (a) the owner's GitHub subscription and (b) a weekly job, seven days (open question 5); (b) ✅ **done** in #1288, merged 2026-09-28 (`07dd8ff`); its first run found v4.19.2 (open question 12); the pin ✅ **moved to v4.19.2** in #1292, 2026-09-28, after the owner's dump with `dump-idp.sh`; E2E (managed) #210 applied it to the OTA instance (open question 12: go) — *was:* 📋 **Proposed**; the three releases after the pin read 2026-09-28: v4.18.0 fixes GHSA-4hgj-wm6c-q7p2 in login v1, which this stack serves (open question 11) | §3. Read the three newer releases now, choose a watch, set a response window, and take a dump before an upgrade. |
 | T8 Accounts nobody let in, and erasure that reaches the identity provider | ✅ **(a) done** in #1344, merged 2026-09-29 (`0bcbc25`): `idp-strays.sh`, and the runbook's two steps; ✅ **(b) done** in #1345, merged 2026-09-29 (`a4885a5`): the daily run on live, the owner's choice (0139), once live's timer is installed, which is the owner's step (copy the units again and reload); the review ✅ **fixed 2026-09-29**, merged as #1367 (`c9826dc`): an account that was let in and removed since is kept (the Team page's removal records `member.removed`), `--remove` refuses while the database has no operator row, only our own organisation's accounts with no role at the provider are weighed, and the listing is read to its end or refused; its review ✅ **fixed 2026-09-29**, in the same merge: a role at the provider read as the provider counts it, the Team page's record naming the row it deleted, a count below the accounts given refused, and the runbook holding the duty after a reset that keeps the provider's accounts; a removed member's account 📋 **Decided 2026-09-29**, removed 7 days after the removal (open question 13: *"Samen number of days"*, then *"7 days"*), ✅ **done** in #1382, merged 2026-09-29 (`f1bf47de`), with privacy §9's row in both languages and its review's fixes of the same day: an account with no creation date held to its 7 days, and *Tenant offboarding* removing, at the purge, the account of a member removed less than 7 days before it — *was:* a removed member's account 🔨 built 2026-09-29 and its review fixed, not merged; the owner's (open question 13); the retention period 📋 **Decided 2026-09-28**, 30 days (open question 6), and the rule gains a fifth condition, an open invitation — *was:* 📋 **Proposed**; the retention period is the owner's (→ 0139) | §3. A retention rule, an operator script in `deploy/compose`, and a runbook step. |
 
@@ -1144,6 +1179,9 @@ been run against a real instance yet.
   *Built 2026-10-16 with a third, `…/init/{language}`:* at v4.19.4 a tester who registers with
   a password gets the init mail, which is the verification a tester gets first; verifyemail
   follows a changed address. The Status entry of that date has the source.
+  *And two more, built 2026-10-16:* `…/password_change/{language}` and
+  `…/passwordless_registration/{language}`, the other mails a tester can get; the other five
+  texts the provider has are left, each with its reason in the script's comment.
 - They name Ownpace, say that the account is for signing in to Ownpace, and say who to write to.
 - The texts live in the repository, in a file under `deploy/compose/`, not only in the console.
 - 0133's T1 table lists these same mails. Their wording is written here.

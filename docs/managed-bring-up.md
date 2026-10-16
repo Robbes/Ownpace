@@ -1028,12 +1028,18 @@ front of the instance's. It prints both addresses in its summary. A fresh
 instance has them from `managed.yml`. They are always shown, also before the
 texts are published there (the owner, 2026-10-03).
 
-**The mails it sends** (workplan 0135 T6). The three mails with a code that a
-tester can get from the provider are in Ownpace's words, in Dutch and English:
-the one after registering (Zitadel's *init* mail, which confirms the address),
-the one after changing an address (*verifyemail*), and the password reset
-(*passwordreset*). Each names Ownpace, says the account is for signing in to
-Ownpace, and names the address to write to: `VITE_SUPPORT_EMAIL` in `.env`, the
+**The mails it sends** (workplan 0135 T6). The five mails a tester can get
+from the provider are in Ownpace's words, in Dutch and English: the one after
+registering (Zitadel's *init* mail, which confirms the address), the one after
+changing an address (*verifyemail*), the password reset (*passwordreset*), the
+notice that a password was changed (*password_change*, which says to write at
+once if the tester did not do it), and the link to add a passkey on another
+device that a tester can send themselves from the provider's console
+(*passwordless_registration*). The other five texts the provider has stay
+upstream's, because nothing on this stack sends them; the script's comment
+says why for each (no SMS, no email or SMS code as a second factor, no domain
+claims, no invite codes). Each names Ownpace, says the account is for signing
+in to Ownpace, and names the address to write to: `VITE_SUPPORT_EMAIL` in `.env`, the
 one the web's pages show, and `support@ownpace.eu` when it is empty. A value
 that is not one address stops the run before anything is written. The texts
 live in `deploy/compose/sign-in-mails.json`; change them there, never only in
@@ -3200,12 +3206,14 @@ mailbox.
 | Password reset | The identity provider, when they ask for one | **Yes** | The same. |
 | Password changed | The identity provider, after a reset or any other change of password | No | Nothing to pass on. |
 | Email-change confirmation | The identity provider, to the new address | **Yes** | The same, to the new address. |
+| Add a passkey | The identity provider, when they ask its console for a link to add a passkey on another device | **Yes**, in the button's link | Forward the mail as it is within the hour, by the rule below. |
 | The digest, *what needs your attention* | The tasks, at 08:00 UTC, daily or weekly as the organisation chooses, to its active owners and admins, and only when something waits | No | Nothing. The tester sees the same on screen. |
 | *Ownpace — everything is in step, so we look less often* (`looking_less_often`; Dutch *alles is bijgewerkt, dus we kijken minder vaak*) | The tasks, at 07:30 UTC, to the organisation's active owners and admins, when a migration on *Automatic* stepped down to every 6 hours or once a day since they were last told (workplan 0157 T7) | No | Nothing. Opening the migration brings back the hour, and its page says so. |
 
-Each of the three codes lives one hour. In Zitadel v4.17.3's defaults,
+Each of the four codes lives one hour. In Zitadel v4.17.3's defaults,
 `EmailVerificationCode` and `PasswordVerificationCode` expire after `1h`, and an
-email change uses the first. `managed.yml` overrides neither; a change made in
+email change uses the first; at v4.19.4 `PasswordlessInitCode`, the passkey
+link's, does too. `managed.yml` overrides neither; a change made in
 the console would not show here. An account somebody creates for a person in
 the console gets a mail to set a first password instead, and its code lives 72
 hours. Testers register themselves, as the grant mail tells them to.
