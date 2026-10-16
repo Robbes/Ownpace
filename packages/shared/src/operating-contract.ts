@@ -1029,8 +1029,9 @@ export const DELETION_GUIDANCE: DeletionGuidance = {
     `target's copy too, following the source. THE ONLY DESTRUCTIVE ACTION IN THIS ` +
     `PRODUCT: refused unless this mapping has \`allowApplyDeletions: true\` in its ` +
     `config, refused for "inferred" evidence (an absence is never enough, however ` +
-    `many passes it repeats), refused for an item somebody has since edited on the ` +
-    `target, refused altogether while an unusual share of the domain looks ` +
+    `many passes it repeats), refused for a file, calendar entry or contact ` +
+    `somebody has since edited on the target, or whose version cannot be checked ` +
+    `(mail is not checked for edits), refused altogether while an unusual share of the domain looks ` +
     `pending deletion at once (the mass-deletion breaker), and refused for a data ` +
     `type past its cutover, whose old system no longer decides what exists (until ` +
     `a rollback). See the runbook before using this.`,
