@@ -1,6 +1,9 @@
+// Copyright 2026 The Ownpace authors (Apache-2.0)
+
 /**
- * A tester of the hosted Alpha who lands on GitHub's "New issue" page finds
- * their way to a person first (workplan 0144 T6 (c)).
+ * AN ISSUE ROUTE FOR THE HOSTED SERVICE: a tester of the hosted Alpha who lands
+ * on GitHub's "New issue" page finds their way to a person first (workplan 0144
+ * T6 (c)).
  *
  * The issue tracker is public. A tester who opens an issue there to say
  * "my mail did not arrive" may paste addresses, mailbox contents or a
