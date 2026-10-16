@@ -250,7 +250,7 @@ describe('a Google connection with no client anywhere says which way out', () =>
       'the refusal is not the shared resolver’s. A Google door that answers in its own ' +
         'words is a door that can disagree with the other three.',
     ).toContain('GOOGLE_OAUTH_CLIENT_ID');
-    expect(reason).toContain('could not be inventoried');
+    expect(reason).toContain('was not read');
     expect(h.built, 'the builder was reached with no client, so it threw').toHaveLength(0);
   });
 });

@@ -11,6 +11,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   (#1604), and now the notice that a password was changed and the link to add
   a passkey. Each names Ownpace and the address to write to.
 
+### Fixed
+
+- **An IMAP account is shown what an IMAP server holds** (workplan 0013): a
+  migration from the IMAP card is told about its mail, and no longer about
+  calendars, contacts, files or tasks. An Apple account keeps every row it had.
+
 ## [0.2.0-alpha.2] - 2026-10-11
 
 The Alpha's texts, final, and what changed since `v0.2.0-alpha.1`. Testers are

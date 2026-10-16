@@ -14,6 +14,7 @@ import {
   driveSharingAvailability,
   DRIVE_SHARING_NOT_CONSENTED,
   DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER,
+  DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER_NL,
 } from './drive-sharing-availability.ts';
 
 describe('which way an unconfigured deployment falls', () => {
@@ -95,6 +96,16 @@ describe("the tester's sentence, for the managed report (the owner, 2026-10-14)"
   it('says it was a decision, and what the tester can do instead', () => {
     expect(said).toContain('deliberately does not ask for it');
     expect(said).toContain('by hand before you switch over');
+  });
+
+  it('says it in plain words, in English and in Dutch (the owner, 2026-10-16)', () => {
+    expect(said).toContain('was not read');
+    expect(said).not.toMatch(/inventor|cutover/i);
+    const nl = DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER_NL;
+    expect(nl).toContain('niet gelezen');
+    expect(nl).toContain('niets bekeken');
+    expect(nl).toContain('voordat u overstapt');
+    expect(nl).not.toMatch(/[A-Z]{2,}_[A-Z_]+|Files\.Read\.All|verhuizing/);
   });
 
   it('names nothing only an operator can reach', () => {

@@ -730,6 +730,36 @@ export function noCodeFrom(provider: 'google' | 'dropbox' | 'microsoft'): Biling
 }
 
 /**
+ * A CONSENT NOBODY IS WAITING FOR: absent, forged, expired or already used,
+ * one sentence for all four (telling them apart would teach a forger which
+ * part of the state failed). It said *"This consent link is not one the
+ * wizard is waiting for"*, in English only, on all three callbacks; in a
+ * tester's words and in both languages since the owner's review of
+ * 2026-10-16.
+ */
+export const CONSENT_NOT_AWAITED: Bilingual = {
+  en:
+    'This sign-in cannot be finished: it was already used, it was started more than ten ' +
+    'minutes ago, or it was not started in Ownpace.',
+  nl:
+    'Deze aanmelding kan niet worden afgerond: ze is al gebruikt, ze is meer dan tien minuten ' +
+    'geleden begonnen, of ze is niet in Ownpace begonnen.',
+};
+
+/**
+ * The language for a callback page whose consent nobody is waiting for. No
+ * pending state says which language the consent began in, so the browser's
+ * own does, as it is the app's first choice too (`detectLocale` in the web
+ * app reads `navigator.language`, which the browser also sends as
+ * `Accept-Language`). Anything but Dutch is English.
+ */
+export function browserLocale(req: {
+  acceptsLanguages(...languages: string[]): string | false;
+}): ConsentLocale {
+  return req.acceptsLanguages('en', 'nl') === 'nl' ? 'nl' : 'en';
+}
+
+/**
  * The page the callback renders. On success it hands the token to the
  * window that opened the popup — via postMessage to the WEB origin and
  * ONLY that origin (never `*`: the token must not be readable by whatever

@@ -16,12 +16,21 @@
  *
  * Not a protocol and not a connector: the thing a customer would name if you
  * asked what they are leaving. `standards` is the honest label for a source
- * that is an endpoint rather than a product — a bare IMAP server, a CalDAV
- * URL — where there is no vendor whose extras could stay behind.
+ * that is an endpoint rather than a product — a CalDAV URL, an Apple account
+ * reached over IMAP and DAV — where there is no vendor whose extras could stay
+ * behind.
+ *
+ * `imap` is the one endpoint that carries a single kind of data (workplan
+ * 0013, 2026-10-16). An IMAP server holds mail and nothing else, and while it
+ * shared `standards` with Apple a migration from the IMAP card was shown
+ * Calendar, Contacts, Files and Apple's Reminders. A family of its own, rather
+ * than a check on the card somewhere else, because a family is the one thing
+ * every screen already narrows by: the rows true of mail name it, and no other
+ * row has to change.
  *
  * A LIST AS WELL AS A TYPE, because a client has to validate `appliesTo` when
- * it parses the manifest off the wire, and a second copy of these six words in
- * a schema is how the two would come to disagree (workplan 0153 T1 (a)).
+ * it parses the manifest off the wire, and a second copy of these words in a
+ * schema is how the two would come to disagree (workplan 0153 T1 (a)).
  */
 export const SCOPE_FAMILIES = [
   'google',
@@ -30,6 +39,7 @@ export const SCOPE_FAMILIES = [
   'box',
   'archive',
   'standards',
+  'imap',
 ] as const;
 export type ScopeFamily = (typeof SCOPE_FAMILIES)[number];
 
@@ -61,7 +71,11 @@ const SCOPE_FAMILY: Record<SourceConfig['type'], ScopeFamily> = {
   // workplan 0116), so answering "what migrates" with the live account's list
   // would be wrong in both directions.
   archive: 'archive',
-  'imap-oauth2': 'standards',
+  // Any IMAP server, an Apple account's mail among them: one mapping reads one
+  // mailbox's mail and nothing else. An Apple account on the appliance is
+  // three mappings, and the confirm page shows the union of their families, so
+  // its `caldav` and `carddav` mappings still bring the calendar rows.
+  'imap-oauth2': 'imap',
   caldav: 'standards',
   carddav: 'standards',
   webdav: 'standards',
@@ -108,8 +122,9 @@ export function scopeFamilyOf(sourceType: string): ScopeFamily | undefined {
  * `sourceKindFor`, so a kind added there without a row here fails the build.
  */
 const SCOPE_FAMILY_OF_SOURCE_KIND: Readonly<Record<string, ScopeFamily>> = {
-  // Any IMAP server, by protocol: an endpoint, not a product.
-  imap: 'standards',
+  // Any IMAP server, by protocol: an endpoint, not a product, and one that
+  // holds mail only.
+  imap: 'imap',
   // `o365` is the customer's own Entra registration, which both the IMAP and
   // the Graph card store; `microsoft` is the account card (workplan 0114).
   o365: 'microsoft',
@@ -122,9 +137,10 @@ const SCOPE_FAMILY_OF_SOURCE_KIND: Readonly<Record<string, ScopeFamily>> = {
   // Apple publishes no API for its own Mail, Calendar or Contacts: the row is
   // reached over IMAP and DAV with an app-specific password (workplan 0115),
   // and `source-face-builders.ts` builds it with the same `imap` and `dav`
-  // builders as Soverin. Their configs are `imap-oauth2`, `caldav` and
-  // `carddav`, which the table above calls `standards`: one account, one
-  // answer, whichever vocabulary asks.
+  // builders as Soverin. Its configs are `imap-oauth2`, `caldav` and
+  // `carddav`, which the table above calls `imap` and `standards`; one Apple
+  // row is all three at once, and `standards` is the family whose rows name
+  // all three.
   apple: 'standards',
   dropbox: 'dropbox',
   box: 'box',
@@ -177,8 +193,10 @@ const SCOPE_FAMILY_OF_SOURCE_CARD: Readonly<Record<WizardSourceType, ScopeFamily
   dropbox: 'dropbox',
   box: 'box',
   archive: 'archive',
-  // An endpoint rather than a product, as the kind table says of both.
-  imap: 'standards',
+  // An endpoint rather than a product, as the kind table says of both; the
+  // IMAP card reads mail only, and Apple's account reads its calendars,
+  // contacts and Reminders as well.
+  imap: 'imap',
   apple: 'standards',
 };
 
@@ -366,20 +384,26 @@ export const SCOPE_MANIFEST: ScopeManifest = {
   // (`SOURCE_TYPE_DOMAINS`). Each now names the families that carry it. And
   // two Tasks rows joined Google's: Microsoft To Do and Apple Reminders, which
   // the code has read since 0114 T9 and 0115 and the screen never mentioned.
+  //
+  // The same day, a second change to the set and no second date: an IMAP
+  // server's migration lost the Calendar, Contacts, Files and Tasks rows it
+  // was shown as a `standards` source, now that `imap` is a family of its own.
+  // The version is the day the set last changed, and that is still today.
   version: '2026-10-16',
   migrates: [
     // MAIL, CALENDARS AND CONTACTS, for the families that carry them (2026-10-16).
     // Read from the code, not from memory: Google (its account, and `gmail`),
-    // Microsoft (its account, and mail through a company's own app) and
-    // `standards` (an IMAP server, an Apple account, and on an appliance a
-    // CalDAV or CardDAV source). Never Dropbox or Box, whose sources read files
-    // only, and never an export archive, which by owner decision D5 is read for
-    // files and photos and nothing else (`SOURCE_TYPE_DOMAINS`). With no
-    // `appliesTo` these were shown to those three as well.
+    // Microsoft (its account, and mail through a company's own app),
+    // `standards` (an Apple account, and on an appliance a CalDAV or CardDAV
+    // source) and, for mail alone, `imap` (any IMAP server). Never Dropbox or
+    // Box, whose sources read files only, and never an export archive, which by
+    // owner decision D5 is read for files and photos and nothing else
+    // (`SOURCE_TYPE_DOMAINS`). With no `appliesTo` these were shown to those
+    // three as well.
     {
       item: 'Email',
       detail: 'Every folder, Sent, Drafts and Archive included, with flags, tags and dates.',
-      appliesTo: ['google', 'microsoft', 'standards'],
+      appliesTo: ['google', 'microsoft', 'standards', 'imap'],
       nl: {
         item: 'E-mail',
         detail: 'Elke map, ook Verzonden, Concepten en Archief, met markeringen, labels en datums.',
@@ -577,7 +601,7 @@ export const SCOPE_MANIFEST: ScopeManifest = {
       item: 'Mail with no Message-ID',
       detail: 'Migrated with a generated Message-ID on the copy, where the connection can add one.',
       // Email's families: a source that carries no mail has none without one.
-      appliesTo: ['google', 'microsoft', 'standards'],
+      appliesTo: ['google', 'microsoft', 'standards', 'imap'],
       more:
         'We need one to copy each message exactly once. The original on the source is never ' +
         'modified. The count before you start says how many messages get one, and how many ' +

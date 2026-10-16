@@ -39,11 +39,17 @@ describe('scopeFamilyOfConnectionKind', () => {
     expect(scopeFamilyOfConnectionKind(kind)).toBe('microsoft');
   });
 
-  it.each(['imap', 'apple'])('places %s with the standards, as the appliance does', (kind) => {
-    expect(scopeFamilyOfConnectionKind(kind)).toBe('standards');
+  it('places apple with the standards, as the appliance places its calendars', () => {
+    expect(scopeFamilyOfConnectionKind('apple')).toBe('standards');
     // The appliance names the same endpoints by their mapping-file types.
-    expect(scopeFamilyOf('imap-oauth2')).toBe('standards');
     expect(scopeFamilyOf('caldav')).toBe('standards');
+  });
+
+  it('places imap with the IMAP servers, which hold mail only, as the appliance does', () => {
+    // 2026-10-16: `imap` shared `standards` with Apple and was shown its
+    // calendar, contacts and Reminders rows.
+    expect(scopeFamilyOfConnectionKind('imap')).toBe('imap');
+    expect(scopeFamilyOf('imap-oauth2')).toBe('imap');
   });
 
   it('agrees with the source-type table wherever the two vocabularies share a word', () => {

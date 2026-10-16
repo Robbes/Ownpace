@@ -122,6 +122,45 @@ describe('a files-only source is told about files only', () => {
   });
 });
 
+/**
+ * An IMAP server holds mail and nothing else (2026-10-16). The IMAP card, the
+ * `imap` connection kind and the appliance's `imap-oauth2` type shared the
+ * `standards` family with an Apple account, so a migration from a bare IMAP
+ * server was shown Calendar, Contacts, Files and Apple's Tasks rows it can
+ * never carry.
+ */
+describe('a mail-only source is told about mail only', () => {
+  const MAIL_ROWS = ['Email', 'Mail with no Message-ID'];
+  const NOT_MAIL = ['Calendar', 'Contacts', 'Tasks', 'Files'];
+
+  it.each([
+    ['the IMAP card', scopeFamilyOfSourceCard('imap')],
+    ['the imap connection kind', scopeFamilyOfConnectionKind('imap')],
+    ['the appliance’s imap-oauth2 type', scopeFamilyOf('imap-oauth2')],
+  ])('%s: Email and Message-ID, and no Calendar, Contacts, Tasks or Files row', (_name, family) => {
+    expect(family).toBeDefined();
+    const items = rowsOf([family!]).map((e) => e.item);
+    for (const item of MAIL_ROWS) expect(items, item).toContain(item);
+    for (const item of NOT_MAIL) expect(items, item).not.toContain(item);
+  });
+
+  it.each([
+    ['the Apple card', scopeFamilyOfSourceCard('apple')],
+    ['the apple connection kind', scopeFamilyOfConnectionKind('apple')],
+  ])('%s keeps its mail, calendar, contacts and Reminders rows', (_name, family) => {
+    expect(family).toBeDefined();
+    const items = rowsOf([family!]).map((e) => e.item);
+    for (const item of [...MAIL_ROWS, 'Calendar', 'Contacts', 'Tasks']) expect(items, item).toContain(item);
+  });
+
+  it('shows an appliance with an IMAP and a calendar source what it showed before', () => {
+    // An Apple account on the appliance is three mappings, `imap-oauth2`,
+    // `caldav` and `carddav`; the confirm page shows the union of their rows.
+    const families = [scopeFamilyOf('imap-oauth2')!, scopeFamilyOf('caldav')!];
+    expect(rowsOf(families)).toEqual(rowsOf([scopeFamilyOf('caldav')!]));
+  });
+});
+
 describe('tasks, for each source that reads them', () => {
   const tasks = (family: ScopeFamily) => rowsOf([family]).filter((e) => e.item === 'Tasks');
 
@@ -150,7 +189,7 @@ describe('tasks, for each source that reads them', () => {
 
   it('still tells a Google migration about Google Tasks, and nobody else', () => {
     expect(tasks('google').map((e) => e.detail)).toEqual([expect.stringMatching(/^Google Tasks:/)]);
-    for (const family of ['microsoft', 'standards'] as const) {
+    for (const family of ['microsoft', 'standards', 'imap'] as const) {
       expect(tasks(family).some((e) => /Google/.test(e.detail)), family).toBe(false);
     }
   });
@@ -167,7 +206,7 @@ describe('a source card names the family the other two vocabularies do', () => {
     }
     // The cards Start a migration makes that neither of the others knows.
     expect(scopeFamilyOfSourceCard('apple')).toBe('standards');
-    expect(scopeFamilyOfSourceCard('imap')).toBe('standards');
+    expect(scopeFamilyOfSourceCard('imap')).toBe('imap');
     expect(scopeFamilyOfSourceCard('graph')).toBe('microsoft');
     expect(scopeFamilyOfSourceCard('oauth2')).toBe('microsoft');
   });

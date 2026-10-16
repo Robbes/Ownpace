@@ -18,6 +18,8 @@ import { authenticate } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { inLocale, localeOf, log, resolveDropboxClient, type Bilingual } from '@openmig/shared';
 import {
+  CONSENT_NOT_AWAITED,
+  browserLocale,
   callbackPageHeaders,
   consentResultPage,
   noCodeFrom,
@@ -94,8 +96,9 @@ router.get('/dropbox/callback', async (req: Request, res: Response) => {
       .set({ 'Content-Type': 'text/html; charset=utf-8', ...callbackPageHeaders(html) })
       .send(html);
   // In the language the consent began in (workplan 0145 T6), once the pending
-  // state says which; a state nobody is waiting for says nothing, so English.
-  let locale = localeOf(undefined);
+  // state says which; a state nobody is waiting for says nothing, so the
+  // browser's own language until then (the owner, 2026-10-16).
+  let locale = browserLocale(req);
   const refuse = (status: number, reason: Bilingual | string) =>
     page(
       status,
@@ -109,13 +112,7 @@ router.get('/dropbox/callback', async (req: Request, res: Response) => {
   const state = typeof req.query.state === 'string' ? req.query.state : '';
   const taken = state ? flows.take(state) : undefined;
   const pending = taken && taken.provider === 'dropbox' ? taken : undefined;
-  if (!pending) {
-    return refuse(
-      400,
-      'This consent link is not one the wizard is waiting for — it was already used, ' +
-        'it expired (they live ten minutes), or it was not started here.',
-    );
-  }
+  if (!pending) return refuse(400, CONSENT_NOT_AWAITED);
   locale = localeOf(pending.locale);
   if (typeof req.query.error === 'string' && req.query.error.length > 0) {
     const description = typeof req.query.error_description === 'string' ? req.query.error_description : '';

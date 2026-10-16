@@ -49,14 +49,20 @@ import { withTenant, type PgDatabase } from '@openmig/ledger';
 import { authenticate, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import {
-  calendarSharingNotReadForThisSource,
-  fileSharingNotReadForThisSource,
-  googleMailboxDelegationNotRead,
+  calendarSharingNotReadForThisSourceSaid,
+  fileSharingNotReadForThisSourceSaid,
+  googleMailboxDelegationNotReadSaid,
   grantWithdrawnRefusal,
-  mailboxAccessNotReadForThisSource,
+  mailboxAccessNotReadForThisSourceSaid,
+  microsoftAccountCalendarSharingNotRead,
+  microsoftAccountFileSharingNotRead,
+  microsoftAccountMailboxAccessNotRead,
   log,
+  notReadListing,
+  notReadSaid,
   permissionsNotDiscoverable,
   resolveGoogleClient,
+  type Bilingual,
   type PermissionListing,
 } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
@@ -65,6 +71,7 @@ import {
   directoryAvailability,
   driveSharingAvailability,
   DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER,
+  DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER_NL,
   mailboxDelegations,
   resolveUserDriveId,
   scanCalendarPermissions,
@@ -160,12 +167,22 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
       mailbox = (await resolveMappingMailbox(tenantId, mappingId)) ?? '';
       if (mailbox === '') {
         // A mapping whose source address the ledger never recorded cannot be
-        // inventoried, and saying which is missing beats a bare 400 (rule 9).
+        // read, and saying which is missing beats a bare 400 (rule 9). In a
+        // tester's words, both languages (the owner, 2026-10-16): the way
+        // around it, `?mailbox=`, is a query parameter nobody on the Finish
+        // page can type, so it goes to the log, and the tester to us.
+        log.warn(
+          `[permissions] migration ${mappingId} records no source mailbox; ` +
+            'ask for the report with ?mailbox=someone@example.com instead',
+        );
         res.status(409).json({
           error: 'Conflict',
           message:
-            'This migration does not record which mailbox it reads, so its permissions ' +
-            'cannot be inventoried. Ask for a mailbox directly: ?mailbox=someone@example.com',
+            'This migration does not record which mailbox it reads, so its permissions could ' +
+            'not be read. Please contact us.',
+          messageNl:
+            'Deze migratie legt niet vast welk postvak ze leest, dus de rechten konden niet ' +
+            'worden gelezen. Neem contact met ons op.',
         });
         return;
       }
@@ -236,12 +253,22 @@ type Available = Extract<ReturnType<typeof directoryAvailability>, { ok: true }>
  * WHY AN `o365` SOURCE'S SHARING WAS NOT READ, for the person on the Finish
  * page (workplan 0141 T11). The reason `directoryAvailability` gives names this
  * stack's `OAUTH2_*` settings, and is written for an operator. What is true for
- * a tester is that this deployment reads a directory with its own settings,
- * never with the registration the customer stored on the connection.
+ * a tester is that Ownpace reads a directory with its own settings, never with
+ * the registration the customer stored on the connection. In a tester's
+ * words, in both languages, since 2026-10-16 (it said *"this deployment does
+ * not yet read a directory with the organisation's own app registration"*).
  */
-export const O365_NOT_READ_WITH_ITS_OWN_REGISTRATION =
-  "this deployment does not yet read a directory with the organisation's own app registration, " +
-  'so sharing on this Microsoft 365 source was not read. Note it by hand before cutover';
+export const O365_NOT_READ_WITH_ITS_OWN_REGISTRATION_SAID: Bilingual = {
+  en:
+    "Ownpace does not yet read sharing through your organisation's own oauth-app, so sharing " +
+    'on this Microsoft 365 account was not read. Note it by hand before you switch over',
+  nl:
+    'Ownpace leest delen nog niet via de eigen oauth-app van uw organisatie, dus delen op dit ' +
+    'Microsoft 365-account is niet gelezen. Noteer het zelf voordat u overstapt',
+};
+
+/** The English half, which every door that imported it keeps reading. */
+export const O365_NOT_READ_WITH_ITS_OWN_REGISTRATION = O365_NOT_READ_WITH_ITS_OWN_REGISTRATION_SAID.en;
 
 function graphToken(available: Available, graphTenantId: string): () => Promise<string> {
   const provider = createTokenProvider({
@@ -497,12 +524,9 @@ export async function migrationInventoryScans(
     return tenantInventoryScans(tenantId, mailbox);
   }
   if (source.grant_withdrawn_at) {
-    const withdrawn: PermissionListing = {
-      kind: 'not_discoverable',
-      reason: permissionsNotDiscoverable(
-        grantWithdrawnRefusal(new Date(source.grant_withdrawn_at)).en,
-      ),
-    };
+    const withdrawn: PermissionListing = notReadListing(
+      notReadSaid(grantWithdrawnRefusal(new Date(source.grant_withdrawn_at))),
+    );
     return {
       ...inventoryScansFrom(mailbox, { sourceKind: source.kind, microsoftRows: [], driveRows: [], davRows: [] }),
       scanCalendars: async () => withdrawn,
@@ -565,6 +589,8 @@ export interface InventoryScans {
    * checklist cannot say different things about the same account.
    */
   delegationReason: string;
+  /** The same, in Dutch, for the Sharing checklist (the owner, 2026-10-16). */
+  delegationReasonNl: string;
 }
 
 /** A connection's own stored credentials: its secret, or what its config carries. */
@@ -583,15 +609,25 @@ function storedCredentials(secretRef: string | null, config: unknown): Record<st
  * Microsoft's: Exchange Online PowerShell for an IMAP mailbox, and *"this
  * tenant has no Microsoft 365 source connection"* for a Dropbox's calendars.
  */
-type SourceFamily = 'microsoft' | 'google' | 'dav' | 'other';
+type SourceFamily = 'microsoft' | 'microsoftAccount' | 'google' | 'dav' | 'other';
 
+/**
+ * PERSONAL OR AN ORGANISATION'S, as far as the stored row can say (the owner,
+ * 2026-10-16). The kind tells them apart: `o365` is an administrator's app
+ * registration in an organisation's Microsoft 365, the one kind that can hold
+ * application permissions (`directoryAvailability`); every other Microsoft
+ * kind is `microsoft`, *Connect with Microsoft*, one person's own delegated
+ * sign-in, the way an Outlook.com account is connected. The second can be a
+ * work or school account too, and nothing stored says which, so its sentences
+ * are true of both (`microsoftAccountMailboxAccessNotRead` in shared).
+ */
 function familyOf(
   sourceKind: string | undefined,
-  microsoft: boolean,
+  microsoftKind: string | undefined,
   googleDrive: boolean,
   dav: boolean,
 ): SourceFamily {
-  if (microsoft) return 'microsoft';
+  if (microsoftKind !== undefined) return microsoftKind === 'o365' ? 'microsoft' : 'microsoftAccount';
   // A migration's own kind decides: a `gmail` row has no Drive face and is a
   // Google source all the same. An address asked for directly has no kind,
   // and keeps the rows' answer.
@@ -607,17 +643,14 @@ function inventoryScansFrom(
   const microsoftSource = directorySourceOf(microsoftRows);
   const graphTenantId = (microsoftSource?.config as { tenantId?: string } | undefined)?.tenantId;
   const available = directoryAvailability(process.env, graphTenantId, microsoftSource?.kind);
-  // What a section says when Graph could not be asked. For a Microsoft source
-  // it is in the tester's words: an account's delegated grant, or, for the
-  // customer's own registration, that this deployment does not use it.
-  const graphUnread = (reason: string): PermissionListing => ({
-    kind: 'not_discoverable',
-    reason: microsoftSource
-      ? permissionsNotDiscoverable(
-          microsoftSource.kind === 'o365' ? O365_NOT_READ_WITH_ITS_OWN_REGISTRATION : reason,
-        )
-      : reason,
-  });
+  // What a section says when Graph could not be asked, for the customer's own
+  // registration: in the tester's words, that Ownpace does not use it. (A
+  // Microsoft account has its own sentences, below, and never asks.) Without
+  // a registration on the row, the reason is the operator's as it came.
+  const graphUnread = (reason: string): PermissionListing =>
+    microsoftSource?.kind === 'o365'
+      ? notReadListing(notReadSaid(O365_NOT_READ_WITH_ITS_OWN_REGISTRATION_SAID))
+      : { kind: 'not_discoverable', reason };
   const scanOptions = { applicationPermissions: true } as const;
   // Asked once, so every caller says the same thing about the drive section
   // whether or not the connection could have made the request anyway.
@@ -627,31 +660,43 @@ function inventoryScansFrom(
   const davSourceConnection = davRows[0];
   const family = familyOf(
     sourceKind,
-    microsoftSource !== undefined,
+    microsoftSource?.kind,
     googleDriveConnection !== undefined,
     davSourceConnection !== undefined,
   );
 
-  return {
-    // Each family its own sentence. `mailboxDelegations()` names
-    // `Get-MailboxPermission` and `Get-RecipientPermission`, which are
-    // Exchange Online PowerShell and will never run against a Gmail account or
-    // an IMAP mailbox: only a Microsoft source is told about them. "No
-    // Microsoft source" is the row, not its tenant id: a Microsoft account
-    // stores none (0141 T11).
-    delegationReason:
-      family === 'google'
-        ? googleMailboxDelegationNotRead()
+  // Each family its own sentence. `mailboxDelegations()` names
+  // `Get-MailboxPermission` and `Get-RecipientPermission`, which are Exchange
+  // Online PowerShell and will never run against a Gmail account, an IMAP
+  // mailbox or an Outlook.com account: only an organisation's own
+  // registration is told about them. "No Microsoft source" is the row, not
+  // its tenant id: a Microsoft account stores none (0141 T11).
+  const delegation: Bilingual =
+    family === 'google'
+      ? googleMailboxDelegationNotReadSaid()
+      : family === 'microsoftAccount'
+        ? microsoftAccountMailboxAccessNotRead()
         : family !== 'microsoft'
-          ? mailboxAccessNotReadForThisSource()
+          ? mailboxAccessNotReadForThisSourceSaid()
           : (() => {
               const d = mailboxDelegations();
-              // `mailboxDelegations()` is always `not_discoverable`; the
-              // narrowing is the type system's, not a runtime possibility.
-              return d.kind === 'not_discoverable' ? d.reason : 'not inventoried';
-            })(),
+              // `mailboxDelegations()` is always `not_discoverable`, with its
+              // Dutch; the narrowing is the type system's, not a runtime
+              // possibility.
+              return d.kind === 'not_discoverable'
+                ? { en: d.reason, nl: d.reasonNl ?? d.reason }
+                : { en: 'not read', nl: 'niet gelezen' };
+            })();
+
+  return {
+    delegationReason: delegation.en,
+    delegationReasonNl: delegation.nl,
     scanCalendars: async () =>
-      available.ok
+      family === 'microsoftAccount'
+        ? // One person's own sign-in reads no sharing at all, whatever this
+          // deployment's environment says (`directoryAvailability`).
+          notReadListing(microsoftAccountCalendarSharingNotRead())
+        : available.ok
         ? scanCalendarPermissions(
             mailbox,
             graphToken(available, graphTenantId!),
@@ -661,30 +706,32 @@ function inventoryScansFrom(
         : family === 'microsoft'
           ? graphUnread(available.reason)
           : family === 'google'
-            ? {
-                // A Google tenant would otherwise get a Graph-worded reason
-                // about an app registration it never had — a wrong errand.
-                kind: 'not_discoverable' as const,
-                reason: permissionsNotDiscoverable(
+            ? // A Google tenant would otherwise get a Graph-worded reason
+              // about an app registration it never had — a wrong errand.
+              notReadListing(notReadSaid({
+                en:
                   'Google Calendar sharing is not read by Ownpace yet; only sharing on Google ' +
-                    'Drive is. Note who you shared each calendar with before you switch over',
-                ),
-              }
+                  'Drive is. Note who you shared each calendar with before you switch over',
+                nl:
+                  'delen in Google Agenda leest Ownpace nog niet; alleen delen op Google Drive. ' +
+                  'Noteer met wie u elke agenda deelde voordat u overstapt',
+              }))
             : family === 'dav'
-              ? {
-                  // Same courtesy for a Nextcloud tenant (0104 T2): the file
-                  // share scan covers files; calendar sharing stays by hand.
-                  kind: 'not_discoverable' as const,
-                  reason: permissionsNotDiscoverable(
+              ? // Same courtesy for a Nextcloud tenant (0104 T2): the file
+                // share scan covers files; calendar sharing stays by hand.
+                notReadListing(notReadSaid({
+                  en:
                     'Nextcloud calendar sharing is not read by Ownpace yet; only file and ' +
-                      'folder shares are. Note who you shared each calendar with before you ' +
-                      'switch over',
-                  ),
-                }
+                    'folder shares are. Note who you shared each calendar with before you ' +
+                    'switch over',
+                  nl:
+                    "delen van agenda's in Nextcloud leest Ownpace nog niet; alleen delen van " +
+                    'bestanden en mappen. Noteer met wie u elke agenda deelde voordat u overstapt',
+                }))
               : // Every other source (the owner, 2026-10-14): its own neutral
                 // sentence, where it was told this tenant had no Microsoft 365
                 // source connection and only Graph could read a directory.
-                { kind: 'not_discoverable' as const, reason: calendarSharingNotReadForThisSource() },
+                notReadListing(calendarSharingNotReadForThisSourceSaid()),
     scanDrive: async () => {
       if (googleDriveConnection) {
         try {
@@ -744,16 +791,23 @@ function inventoryScansFrom(
       // A source that is not Microsoft's has no OneDrive or SharePoint, so
       // neither sentence below is its own (the owner, 2026-10-14): a Gmail
       // mailbox or an IMAP one, a Dropbox or an archive was told about them.
-      if (family !== 'microsoft') {
-        return { kind: 'not_discoverable' as const, reason: fileSharingNotReadForThisSource() };
-      }
+      // One person's own sign-in reads no OneDrive sharing either, and has no
+      // organisation for "every file in your organisation" to be about.
+      if (family === 'microsoftAccount') return notReadListing(microsoftAccountFileSharingNotRead());
+      if (family !== 'microsoft') return notReadListing(fileSharingNotReadForThisSourceSaid());
       // The consent decision answers first, because it holds whatever the
       // credentials say: a deployment without `Files.Read.All` would get a
       // 403 here, and a 403 reads as a fault to fix rather than a choice.
       // Said in a tester's words: the operator's sentence (`drive.reason`)
       // names this stack's setting and an operator document, and the
       // appliance's report keeps it (the owner, 2026-10-14).
-      if (!drive.ok) return { kind: 'not_discoverable' as const, reason: DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER };
+      if (!drive.ok) {
+        return {
+          kind: 'not_discoverable' as const,
+          reason: DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER,
+          reasonNl: DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER_NL,
+        };
+      }
       if (!available.ok) return graphUnread(available.reason);
       // `/drives/{id}` is the only addressing the sharing endpoints take, so
       // the drive id is resolved first rather than built by concatenation.
