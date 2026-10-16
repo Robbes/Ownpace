@@ -26,6 +26,24 @@
       "text": "We received a request to reset the password of your Ownpace account, which you use to sign in to Ownpace. Click the button below to set a new password, or enter this code on the page that asks for it: {{.Code}}. Did you not ask for this? Then you can ignore this email, and your password stays as it is. Questions? Mail {support}. Never send a password or other sensitive data.",
       "buttonText": "Set a new password",
       "footerText": "You are receiving this email because this address was used for an Ownpace account."
+    },
+    "password_change": {
+      "title": "Ownpace: your password was changed",
+      "preHeader": "The password of your Ownpace account was changed",
+      "subject": "Ownpace: your password was changed",
+      "greeting": "Hello {{.DisplayName}},",
+      "text": "Your password for your Ownpace account was changed. If you did not do this, write to {support} right away. Never send a password or other sensitive data.",
+      "buttonText": "Sign in",
+      "footerText": "You are receiving this email because this address was used for an Ownpace account."
+    },
+    "passwordless_registration": {
+      "title": "Ownpace: add a passkey",
+      "preHeader": "Add a passkey to your Ownpace account",
+      "subject": "Ownpace: add a passkey",
+      "greeting": "Hello {{.DisplayName}},",
+      "text": "You asked to add a passkey to your Ownpace account. With it, you sign in to Ownpace without a password. Open this email on the device you want to use, and click the button below. Did you not ask for this? Then do not use the button, and write to {support} right away. Never send a password or other sensitive data.",
+      "buttonText": "Add a passkey",
+      "footerText": "You are receiving this email because this address was used for an Ownpace account."
     }
   },
   "nl": {
@@ -54,6 +72,24 @@
       "greeting": "Hallo {{.DisplayName}},",
       "text": "We hebben een verzoek ontvangen om het wachtwoord van uw Ownpace-account opnieuw in te stellen. Met dat account meldt u zich aan bij Ownpace. Klik op de knop hieronder om een nieuw wachtwoord in te stellen, of vul deze code in op de pagina die erom vraagt: {{.Code}}. Heeft u hier niet om gevraagd? Dan kunt u deze e-mail negeren; uw wachtwoord blijft dan zoals het is. Vragen? Mail naar {support}. Stuur nooit een wachtwoord of andere gevoelige gegevens mee.",
       "buttonText": "Nieuw wachtwoord instellen",
+      "footerText": "U ontvangt deze e-mail omdat dit adres is gebruikt voor een Ownpace-account."
+    },
+    "password_change": {
+      "title": "Ownpace: uw wachtwoord is gewijzigd",
+      "preHeader": "Het wachtwoord van uw Ownpace-account is gewijzigd",
+      "subject": "Ownpace: uw wachtwoord is gewijzigd",
+      "greeting": "Hallo {{.DisplayName}},",
+      "text": "Uw wachtwoord voor uw Ownpace-account is gewijzigd. Heeft u dit niet zelf gedaan? Mail dan meteen naar {support}. Stuur nooit een wachtwoord of andere gevoelige gegevens mee.",
+      "buttonText": "Aanmelden",
+      "footerText": "U ontvangt deze e-mail omdat dit adres is gebruikt voor een Ownpace-account."
+    },
+    "passwordless_registration": {
+      "title": "Ownpace: voeg een passkey toe",
+      "preHeader": "Voeg een passkey toe aan uw Ownpace-account",
+      "subject": "Ownpace: voeg een passkey toe",
+      "greeting": "Hallo {{.DisplayName}},",
+      "text": "U heeft gevraagd om een passkey toe te voegen aan uw Ownpace-account. Daarmee meldt u zich zonder wachtwoord aan bij Ownpace. Open deze e-mail op het apparaat dat u wilt gebruiken, en klik op de knop hieronder. Heeft u hier niet om gevraagd? Gebruik de knop dan niet, en mail meteen naar {support}. Stuur nooit een wachtwoord of andere gevoelige gegevens mee.",
+      "buttonText": "Passkey toevoegen",
       "footerText": "U ontvangt deze e-mail omdat dit adres is gebruikt voor een Ownpace-account."
     }
   }

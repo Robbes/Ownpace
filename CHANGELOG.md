@@ -4,6 +4,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **The identity provider's mails, in Ownpace's words, in Dutch and English**
+  (workplan 0135 T6): the sign-up, address-change and password-reset mails
+  (#1604), and now the notice that a password was changed and the link to add
+  a passkey. Each names Ownpace and the address to write to.
+
 ## [0.2.0-alpha.2] - 2026-10-11
 
 The Alpha's texts, final, and what changed since `v0.2.0-alpha.1`. Testers are

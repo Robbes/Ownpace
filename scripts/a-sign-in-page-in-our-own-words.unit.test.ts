@@ -59,6 +59,18 @@
  *   not bring up to date first. A refusal is said loudly, the run goes on and
  *   its summary says which mails keep upstream's words: a mail in the wrong
  *   words is no reason to leave a stack without its app.
+ * - **Two more, since 2026-10-16.** `password_change`, which Zitadel sends
+ *   after every new password, a reset included, because the instance's
+ *   notification policy has `passwordChange` on (`cmd/defaults.yaml` at
+ *   v4.19.4, and the script does not touch it). `passwordless_registration`,
+ *   the link to add a passkey that a tester signed in to the provider's
+ *   console can mail to themselves, since the login policy allows passkeys.
+ *   Neither has a code: the proto lists every variable but `Code` for both,
+ *   so their texts must not use one.
+ * - **And the other five, each left out with its reason.** `admin.proto` at
+ *   v4.19.4 has ten mail texts. The five a tester of this stack never gets are
+ *   each named in the script's comment, with why, so a later reader does not
+ *   take the gap for an oversight.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -234,13 +246,21 @@ describe('the bring-up', () => {
 
 const MAILS_FILE = join(REPO_ROOT, 'deploy/compose/sign-in-mails.json');
 const LANGUAGES = ['en', 'nl'];
-/** The three mails, by the name in their endpoint, `/admin/v1/text/message/{type}/{language}`. */
-const TYPES = ['init', 'passwordreset', 'verifyemail'];
+/** The five mails, by the name in their endpoint, `/admin/v1/text/message/{type}/{language}`. */
+const TYPES = ['init', 'password_change', 'passwordless_registration', 'passwordreset', 'verifyemail'];
+/** The mails with no code, for which the proto lists no `Code`: one only tells, one is all link. */
+const CODELESS = new Set(['password_change', 'passwordless_registration']);
+/**
+ * Every mail text `admin.proto` at v4.19.4 has, by the same name, and the
+ * ones a tester never gets, which the script's comment must name with a reason.
+ */
+const LEFT_OUT = ['verifyphone', 'verifysmsotp', 'verifyemailotp', 'domainclaimed', 'invite_user'];
 /** The seven fields of `SetDefault…MessageTextRequest` at v4.19.4, as protojson names them. */
 const FIELDS = ['buttonText', 'footerText', 'greeting', 'preHeader', 'subject', 'text', 'title'];
 /**
- * The variables `admin.proto` at v4.19.4 lists for these three mails, which
- * are `mapNotifyUserToArgs` plus `Code` (`internal/notification/types`).
+ * The variables `admin.proto` at v4.19.4 lists for these five mails, which
+ * are `mapNotifyUserToArgs` plus `Code` (`internal/notification/types`);
+ * `password_change` and `passwordless_registration` have all but `Code`.
  */
 const VARIABLES = new Set([
   'Code',
@@ -272,7 +292,7 @@ const each = (all: Mails) =>
 const whole = (mail: Mail) => FIELDS.map((f) => mail[f] ?? '').join('\n');
 
 describe('the mails, in the repository', () => {
-  it('has Dutch and English, each with the same three mails and the same seven fields, none empty', () => {
+  it('has Dutch and English, each with the same five mails and the same seven fields, none empty', () => {
     const all = mails();
     expect(Object.keys(all).sort()).toEqual(LANGUAGES);
     for (const lang of LANGUAGES) {
@@ -303,11 +323,13 @@ describe('the mails, in the repository', () => {
 
   it('each text carries the code as Zitadel spells it, uses only its variables, and leaves the link to the button', () => {
     for (const { lang, type, mail } of each(mails())) {
-      expect(mail.text, `${lang} ${type}`).toContain('{{.Code}}');
+      if (CODELESS.has(type)) expect(whole(mail), `${lang} ${type}`).not.toContain('Code');
+      else expect(mail.text, `${lang} ${type}`).toContain('{{.Code}}');
       const used = [...whole(mail).matchAll(/\{\{(.*?)\}\}/g)].map((m) => m[1] ?? '');
       for (const v of used) {
         expect(/^\.([A-Za-z]+)$/.exec(v)?.[1], `${lang} ${type}: {{${v}}}`).toSatisfy(
-          (name: string | undefined) => name !== undefined && VARIABLES.has(name),
+          (name: string | undefined) =>
+            name !== undefined && VARIABLES.has(name) && !(CODELESS.has(type) && name === 'Code'),
         );
       }
       expect(whole(mail), `${lang} ${type}`).not.toContain('URL');
@@ -439,13 +461,15 @@ describe('the mails, at the provider', () => {
     expect(fn('sign_in_mail_support')).toContain(`'${SUPPORT}'`);
   });
 
-  it('on a fresh instance: all six written, whole, with the address from VITE_SUPPORT_EMAIL, and read back', () => {
+  it('on a fresh instance: all ten written, whole, with the address from VITE_SUPPORT_EMAIL, and read back', () => {
     const { code, said, writes, after, summary } = send({ held: upstream() }, 'help@example.test');
     expect(code, said).toBe(0);
-    expect(writes).toHaveLength(6);
+    expect(writes).toHaveLength(10);
     for (const w of writes) {
       const [, path = '', body = ''] = /^PUT (\S+) (.*)$/.exec(w) ?? [];
-      expect(path).toMatch(/^\/admin\/v1\/text\/message\/(init|verifyemail|passwordreset)\/(nl|en)$/);
+      expect(path).toMatch(
+        /^\/admin\/v1\/text\/message\/(init|verifyemail|passwordreset|password_change|passwordless_registration)\/(nl|en)$/,
+      );
       expect(Object.keys(JSON.parse(body) as Mail).sort()).toEqual(FIELDS);
     }
     expect(after).toEqual(wanted('help@example.test'));
@@ -453,7 +477,7 @@ describe('the mails, at the provider', () => {
     expect(summary).toBe('nl, en; they name help@example.test');
   });
 
-  it('writes nothing on a second run, when all six are already Ownpace’s', () => {
+  it('writes nothing on a second run, when all ten are already Ownpace’s', () => {
     const { code, said, writes } = send({ held: wanted('help@example.test') }, 'help@example.test');
     expect(code, said).toBe(0);
     expect(writes).toEqual([]);
@@ -473,9 +497,9 @@ describe('the mails, at the provider', () => {
     expect(writes.map((w) => w.split(' ')[1])).toEqual(['/admin/v1/text/message/passwordreset/nl']);
   });
 
-  it('a new address reaches all six', () => {
+  it('a new address reaches all ten', () => {
     const { writes, after } = send({ held: wanted('support@ownpace.eu') }, 'help@example.test');
-    expect(writes).toHaveLength(6);
+    expect(writes).toHaveLength(10);
     expect(after).toEqual(wanted('help@example.test'));
   });
 
@@ -501,7 +525,7 @@ describe('the mails, at the provider', () => {
       '',
     );
     expect(code, said).toBe(0);
-    expect(writes).toHaveLength(6);
+    expect(writes).toHaveLength(10);
     expect(said).toContain('REFUSED');
     expect(said).toContain('Errors.Internal');
     expect(after['init/en']).toEqual(wanted('support@ownpace.eu')['init/en']);
@@ -535,11 +559,27 @@ describe('the bring-up, its mails', () => {
     expect(summary).toMatch(/^ {2}mails {6}\$\{SIGN_IN_MAILS_SAID\}$/m);
   });
 
-  it('writes to the three endpoints of the pinned version, by the path the proto declares', () => {
-    const proto = 'GET and PUT /admin/v1/text/message/{init,verifyemail,passwordreset}/{language}';
+  it('writes to the five endpoints of the pinned version, by the path the proto declares', () => {
+    const proto =
+      'GET and PUT /admin/v1/text/message/{init,verifyemail,passwordreset,password_change,passwordless_registration}/{language}';
     const body = fn('set_sign_in_mails') + fn('sign_in_mail_read');
     expect(body, proto).toContain('/admin/v1/text/message/${type}/${lang}');
     expect(body, proto).toContain('/admin/v1/text/message/${2}/${1}');
-    expect(setup).toMatch(/^SIGN_IN_MAIL_TYPES=\(init verifyemail passwordreset\)$/m);
+    expect(setup).toMatch(
+      /^SIGN_IN_MAIL_TYPES=\(init verifyemail passwordreset password_change passwordless_registration\)$/m,
+    );
+  });
+
+  it('asks a code of every mail but the password-changed notice and the passkey link, which have none', () => {
+    const wantedFn = fn('sign_in_mail_wanted');
+    expect(wantedFn).toContain('{{.Code}}');
+    for (const type of CODELESS) expect(wantedFn, type).toContain(`"${type}"`);
+  });
+
+  it('names each mail it leaves to upstream, with the reason, in its comment', () => {
+    const at = setup.indexOf('# ------------------------------------------------- the mails a tester gets --');
+    const comment = setup.slice(at, setup.indexOf('\nSIGN_IN_MAILS=', at));
+    expect(at, 'the section is gone').toBeGreaterThan(0);
+    for (const type of LEFT_OUT) expect(comment, type).toMatch(new RegExp(`^# ${type}: \\S`, 'm'));
   });
 });
