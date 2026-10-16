@@ -4,7 +4,7 @@
 
 ## Status — 2026-10-16 (update this block at the end of every session)
 
-**2026-10-16: the last developer sentences a tester read. ** What
+**2026-10-16: the last developer sentences a tester read.** What
 #1592, #1595, #1596 and #1598 left, each said truthfully, in English and Dutch, with any
 technical detail in the server log:
 
