@@ -4128,8 +4128,11 @@ paths:
         optional `note` rides inside the platform's own notification. Link
         shares and manual verdicts stay on the checklist untouched (they are
         the fallback digest's audience). A refusal on one row never stops the
-        next; refused rows stay open with the target's words, and a second
-        press retries exactly those.
+        next; refused rows stay open, and a second press retries exactly
+        those. A row the target refused (`target_refused`) is said in our
+        words, chosen by what failed, never the target's (workplan 0136 T3):
+        `reason` in English and `reasonNl` in Dutch, each ending with the
+        reference the target's words are logged under.
       parameters:
         - { name: mappingId, in: path, required: true, schema: { type: string } }
       requestBody:
@@ -4161,6 +4164,7 @@ paths:
                         grantee: { type: string }
                         code: { type: string }
                         reason: { type: string }
+                        reasonNl: { type: string, description: "`reason` in Dutch, for a row the target refused (`target_refused`, workplan 0136 T3)." }
                   leftForChecklist:
                     type: object
                     properties:
@@ -4242,6 +4246,7 @@ paths:
                         grantee: { type: string }
                         code: { type: string }
                         reason: { type: string }
+                        reasonNl: { type: string, description: "`reason` in Dutch, for a row the target refused (`target_refused`, workplan 0136 T3)." }
                   leftForChecklist:
                     type: object
                     properties:
@@ -4312,7 +4317,9 @@ paths:
         finished, only clean verdicts, never link shares, and only on a target
         with a share API. `done` ticks the row off as handled by hand; `skip`
         records that it deliberately does not carry over. Every refusal is an
-        answer with the reason verbatim; every settled row keeps who and when.
+        answer with its reason; every settled row keeps who and when. When the
+        target refuses the share (`target_refused`), the reason is ours, chosen
+        by what failed, never the target's words (workplan 0136 T3).
       parameters:
         - { name: mappingId, in: path, required: true, schema: { type: string } }
         - { name: grantId, in: path, required: true, schema: { type: string } }
@@ -4335,7 +4342,10 @@ paths:
         '404': { description: Unknown mapping or row. }
         '409':
           description: |
-            The refusal, with its reason verbatim. Or `account_closed`
+            The refusal, with its reason verbatim. `target_refused` is said in
+            our words, in English as `reason` and in Dutch as `reasonNl`, each
+            ending with the reference the target's words are logged under
+            (workplan 0136 T3). Or `account_closed`
             (`AccountClosed`): `apply`, for an organisation that was closed
             (workplan 0085 T2). Ticking a row off by hand, or skipping it, is
             not refused for that.
@@ -8104,6 +8114,7 @@ components:
       properties:
         error: { type: string }
         reason: { type: string }
+        reasonNl: { type: string, description: "`reason` in Dutch, where the door wrote it in both languages." }
         message: { type: string }
       required: [error]
 
