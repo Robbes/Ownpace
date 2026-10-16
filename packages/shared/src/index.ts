@@ -111,6 +111,8 @@ export * from './probe-outcome.ts';
 export * from './dav-refusal.ts';
 // A remote's refusal in parts, so the managed Test button answers without its bytes (0136 T3).
 export * from './remote-refusal.ts';
+// A share the new system refused, in parts and in our words (0136 T3, a share's refusal on apply).
+export * from './share-refusals.ts';
 export * from './calendar-scheduling.ts';
 // Not here: the rule for a host a tenant gives us (0136 T1) builds a BlockList
 // and loads undici as it is imported, and the browser bundle loads this index.

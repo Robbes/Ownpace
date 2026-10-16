@@ -82,7 +82,9 @@ import {
   renderCompletionReportMarkdown,
   finishTransition,
   log,
+  NO_GRANTEE_TO_SHARE_WITH,
   privacyPolicyUrl,
+  reasonPair,
 } from '@openmig/shared';
 import type {
   ApplyDeletionsFlag,
@@ -119,6 +121,7 @@ import {
 } from '@openmig/core';
 import { SecretStore } from '@openmig/core/secret-store';
 import { createNextcloudShare } from '@openmig/connectors';
+import { shareRefusalAnswers } from '../../share-refusal-answer.ts';
 import type { ShareGrantRow } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
 import { migrationInventoryScans, resolveMappingMailbox } from '../permissions.ts';
@@ -525,6 +528,11 @@ router.get('/:mappingId/failures', authenticate, async (req: AuthenticatedReques
  * created with the TARGET's credentials, at the path the copy actually lives
  * at (`targetFolderPrefix` included) — and the target then notifies the
  * grantee itself, which is the point (ADR-0032 §4).
+ *
+ * A refusal is said in our words, in English and Dutch, and never in the
+ * target's (workplan 0136 T3, a share's refusal on apply): the address is
+ * one a tester typed. The target's words go to the log under the reference
+ * the sentence ends with (`share-refusal-answer.ts`).
  */
 async function nextcloudCapabilityFor(
   s: Scoped,
@@ -535,7 +543,7 @@ async function nextcloudCapabilityFor(
       row: ShareGrantRow,
       /** Where a person confirmed it should go (ADR-0032 §6), when they did. */
       confirmed?: string,
-    ) => Promise<{ ok: true } | { ok: false; reason: string }>)
+    ) => Promise<{ ok: true } | { ok: false; reason: string; reasonNl: string }>)
   | undefined
 > {
   const rows = await withTenantDb(s.tenantId, pool(), (db) =>
@@ -577,6 +585,8 @@ async function nextcloudCapabilityFor(
     config.baseUrl ??
     `${config.useSsl === false ? 'http' : 'https'}://${config.host}${config.port ? `:${config.port}` : ''}`;
 
+  const inOurWords = shareRefusalAnswers('applying a share', s.tenantId, s.mappingId);
+
   return async (row, confirmed) => {
     // Per row first (a folder press confirms one address per grantee), then
     // the request-wide override (the single-row apply's edited field), then
@@ -584,14 +594,9 @@ async function nextcloudCapabilityFor(
     // one a person looked at most recently.
     const shareWith = confirmed ?? granteeOverride ?? row.grantee;
     if (!shareWith) {
-      return {
-        ok: false,
-        reason:
-          'This grant names no grantee address (a link or domain share) — there is nobody ' +
-          'to share with. Handle it by hand and mark the row done.',
-      };
+      return { ok: false, ...reasonPair(NO_GRANTEE_TO_SHARE_WITH) };
     }
-    return createNextcloudShare(
+    const created = await createNextcloudShare(
       {
         webdavUrl: origin,
         username: creds.username ?? '',
@@ -612,6 +617,7 @@ async function nextcloudCapabilityFor(
         ...(note ? { note } : {}),
       },
     );
+    return created.ok ? { ok: true } : inOurWords(created);
   };
 }
 
@@ -712,6 +718,12 @@ router.post(
       const decidedBy = req.userId ?? 'unknown';
       const isCutOver = body.action === 'apply' ? await shareGateOf(s) : undefined;
 
+      // The target's capability is read before the ledger's transaction
+      // opens, as the gate is: one connection at a time, never one inside
+      // another.
+      const createShare =
+        isCutOver !== undefined ? await nextcloudCapabilityFor(s, body.grantee?.trim() || undefined) : undefined;
+
       const outcome = await withLedger(s.tenantId, async (l) => {
         const deps = {
           tenantId: s.tenantId as TenantId,
@@ -721,7 +733,6 @@ router.post(
           onError: (m: string, err: unknown) => log.error(m, err),
         };
         if (isCutOver !== undefined) {
-          const createShare = await nextcloudCapabilityFor(s, body.grantee?.trim() || undefined);
           return applyShareGrant(
             {
               ...deps,
@@ -740,9 +751,12 @@ router.post(
       });
 
       if (!outcome.ok) {
-        return void res
-          .status(outcome.code === 'not_found' ? 404 : 409)
-          .json({ error: outcome.code, reason: outcome.reason });
+        return void res.status(outcome.code === 'not_found' ? 404 : 409).json({
+          error: outcome.code,
+          reason: outcome.reason,
+          // A refusal said in both languages (0136 T3) carries its Dutch beside it.
+          ...(outcome.reasonNl === undefined ? {} : { reasonNl: outcome.reasonNl }),
+        });
       }
       res.json({ status: 'ok', grant: outcome.row });
     } catch (error) {
@@ -775,8 +789,10 @@ router.post(
       const decidedBy = req.userId ?? 'unknown';
       const isCutOver = await shareGateOf(s);
 
+      // Read before the ledger's transaction opens, as the gate is.
+      const createShare = await nextcloudCapabilityFor(s, undefined, note);
+
       const outcome = await withLedger(s.tenantId, async (l) => {
-        const createShare = await nextcloudCapabilityFor(s, undefined, note);
         return applyAllOpenShareGrants({
           tenantId: s.tenantId as TenantId,
           mappingId: s.mappingId as MappingId,
@@ -846,8 +862,10 @@ router.post(
       const decidedBy = req.userId ?? 'unknown';
       const isCutOver = await shareGateOf(s);
 
+      // Read before the ledger's transaction opens, as the gate is.
+      const createShare = await nextcloudCapabilityFor(s, undefined, note);
+
       const outcome = await withLedger(s.tenantId, async (l) => {
-        const createShare = await nextcloudCapabilityFor(s, undefined, note);
         return applyShareGrantsInFolder(
           {
             tenantId: s.tenantId as TenantId,

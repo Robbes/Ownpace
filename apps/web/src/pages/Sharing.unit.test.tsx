@@ -10,7 +10,7 @@
  * times (§6).
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -19,7 +19,7 @@ import type { ShareGrantRow } from '@openmig/shared';
 const { fetchSharing, decideSharing, rescanSharing, DecisionRefusedError } = vi.hoisted(() => {
   class DecisionRefusedError extends Error {
     constructor(
-      readonly refusal: { error: string; reason?: string; hint?: string },
+      readonly refusal: { error: string; reason?: string; reasonNl?: string; hint?: string },
       readonly httpStatus: number,
     ) {
       super(refusal.reason ?? refusal.error);
@@ -258,5 +258,65 @@ describe('the blind spots after a rescan', () => {
     } finally {
       window.localStorage.removeItem('ownpace.locale');
     }
+  });
+});
+
+/**
+ * A share the new system refused, in the reader's language (workplan 0136 T3,
+ * a share's refusal on apply). On managed the API writes that refusal itself,
+ * in both languages (`reason` and `reasonNl`), and never in the server's
+ * words; the page shows the half in its language, and the English as served
+ * when no Dutch half came.
+ */
+describe('a refused share in the reader’s language', () => {
+  const EN = 'The new system refused this share (status 403). Reference 0136f5aa.';
+  const NL = 'Het nieuwe systeem weigerde dit delen (status 403). Referentie 0136f5aa.';
+
+  async function refusedIn(locale: 'en' | 'nl', refusal: { error: string; reason?: string; reasonNl?: string }) {
+    window.localStorage.setItem('ownpace.locale', locale);
+    fetchSharing.mockResolvedValue({
+      migrationStatus: 'done',
+      summary: { total: 1, open: 1, applied: 0, doneManual: 0, skipped: 0, openManual: 0 },
+      grants: [row({ id: 'g1' })],
+    });
+    decideSharing.mockRejectedValue(new DecisionRefusedError(refusal, 409));
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <LocaleProvider>
+        <QueryClientProvider client={qc}>
+          <MemoryRouter initialEntries={['/mappings/m1/sharing']}>
+            <Routes>
+              <Route path="/mappings/:mappingId/sharing" element={<Sharing />} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+    const apply = locale === 'nl' ? 'Delen toepassen op het nieuwe systeem' : 'Apply Share on the new system';
+    const armed =
+      locale === 'nl'
+        ? 'Klik nogmaals — dit stelt delen in én nodigt betreffende persoon uit'
+        : 'Click again — this shares AND invites';
+    fireEvent.click(await screen.findByText(apply));
+    fireEvent.click(screen.getByText(armed));
+  }
+
+  afterEach(() => window.localStorage.removeItem('ownpace.locale'));
+
+  it('a Dutch reader reads the Dutch half', async () => {
+    await refusedIn('nl', { error: 'target_refused', reason: EN, reasonNl: NL });
+    expect(await screen.findByText(NL)).toBeInTheDocument();
+    expect(screen.queryByText(EN)).toBeNull();
+  });
+
+  it('an English reader reads the English half', async () => {
+    await refusedIn('en', { error: 'target_refused', reason: EN, reasonNl: NL });
+    expect(await screen.findByText(EN)).toBeInTheDocument();
+    expect(screen.queryByText(NL)).toBeNull();
+  });
+
+  it('a refusal with no Dutch half is shown as served, to a Dutch reader too', async () => {
+    await refusedIn('nl', { error: 'not_cut_over', reason: 'Shares are applied at or after cutover.' });
+    expect(await screen.findByText('Shares are applied at or after cutover.')).toBeInTheDocument();
   });
 });

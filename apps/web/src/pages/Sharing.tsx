@@ -475,8 +475,7 @@ const WhyAlone: React.FC<{ row: ShareStandalone }> = ({ row }) => {
 
 const Sharing: React.FC = () => {
   const { mappingId } = useParams<{ mappingId: string }>();
-  const t = useT();
-  const { locale } = useLocale();
+  const { t, locale } = useLocale();
   const queryClient = useQueryClient();
   const [busyId, setBusyId] = React.useState<string | null>(null);
   const [busyGroup, setBusyGroup] = React.useState<string | null>(null);
@@ -514,6 +513,20 @@ const Sharing: React.FC = () => {
 
   const refresh = () => void queryClient.invalidateQueries({ queryKey });
 
+  /**
+   * What a refused press says. The server's refusal as served; its Dutch half
+   * to a Dutch reader where it sent one, as it does for a share the new
+   * system refused on managed (workplan 0136 T3, `reasonNl`).
+   */
+  const refusalText = (err: unknown): string => {
+    if (err instanceof DecisionRefusedError) {
+      const { reason, reasonNl, hint, error: code } = err.refusal;
+      if (locale === 'nl' && reasonNl) return reasonNl;
+      return reason ?? hint ?? code;
+    }
+    return err instanceof Error ? serverMessage(err) : t('common.requestFailed');
+  };
+
   const onDecide = (row: ShareGrantRow, action: 'apply' | 'done' | 'skip', grantee?: string) => {
     setBusyId(row.id);
     setRefusals((r) => ({ ...r, [row.id]: '' }));
@@ -533,11 +546,7 @@ const Sharing: React.FC = () => {
         setRefusals((r) => ({
           ...r,
           [row.id]:
-            err instanceof DecisionRefusedError
-              ? (err.refusal.reason ?? err.refusal.hint ?? err.refusal.error)
-              : err instanceof Error
-                ? serverMessage(err)
-                : t('common.requestFailed'),
+            refusalText(err),
         }));
       })
       .finally(() => setBusyId(null));
@@ -562,12 +571,7 @@ const Sharing: React.FC = () => {
         try {
           await decideSharing(mappingId, row.id, { action });
         } catch (err: unknown) {
-          failures[row.id] =
-            err instanceof DecisionRefusedError
-              ? (err.refusal.reason ?? err.refusal.hint ?? err.refusal.error)
-              : err instanceof Error
-                ? serverMessage(err)
-                : t('common.requestFailed');
+          failures[row.id] = refusalText(err);
         }
       }
       setRefusals((r) => ({ ...r, ...failures }));
@@ -603,11 +607,7 @@ const Sharing: React.FC = () => {
         setFolderRefusals((r) => ({
           ...r,
           [group.parentKey]:
-            err instanceof DecisionRefusedError
-              ? (err.refusal.reason ?? err.refusal.hint ?? err.refusal.error)
-              : err instanceof Error
-                ? serverMessage(err)
-                : t('common.requestFailed'),
+            refusalText(err),
         }));
       })
       .finally(() => setBusyFolder(null));

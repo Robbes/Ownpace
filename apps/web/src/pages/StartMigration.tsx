@@ -39,7 +39,7 @@ import {
   ARCHIVE_PROVIDER_ORIGINS,
   TARGET_TYPE_DOMAINS,
   formDefaultsFor,
-  scopeFamilyOf,
+  scopeFamilyOfSourceCard,
   scopeManifestFor,
   providerDisplayName,
   qualifiedAnswerFor,
@@ -2338,10 +2338,14 @@ export const CheckStep: React.FC<{
   const onlyExports = made_.length > 0 && made_.every((m) => m.archive !== undefined);
 
   // The manifest's rows true of every source here, and of no other (0153 T1 (a)).
+  // By the CARD's family (2026-10-16): `scopeFamilyOf` knows the mapping file's
+  // types, not `apple`, `imap`, `graph` or `oauth2`, so those migrations had
+  // no family and were shown only the rows with none — which since Email,
+  // Calendar and Contacts name their families would have been nothing.
   const manifest = useQuery({ queryKey: ['scope-manifest'], queryFn: () => scopeManifestApi.get() });
   const families = [
     ...new Set(planned.flatMap((m): ScopeFamily[] => {
-      const family = scopeFamilyOf(m.sourceCard);
+      const family = scopeFamilyOfSourceCard(m.sourceCard);
       return family === undefined ? [] : [family];
     })),
   ];
