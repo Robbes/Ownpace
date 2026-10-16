@@ -561,8 +561,9 @@
     (privacy-share-mail-notice (a)); the app's three sentences
     (ops-app-sentences (a)); the read-log query in the operator runbook
     (privacy-read-log-copy (a)).
-  - Check: the sign-in history on Zitadel v4.19.2, and what a sign-in session
-    keeps (browser and IP address, §4.4) (privacy-signin-history (a)).
+  - Checked 2026-10-15: the sign-in history on Zitadel v4.19.4 is kept after a
+    removal (6 to 7 entries, the address's 1 to 1). Still to check: what a sign-in
+    session keeps (browser and IP address, §4.4) (privacy-signin-history (a)).
   - By hand until something does it: pruning the support mailbox and its Sent
     folder at Proton under §9's rule.
   - Proton: where its agreement says it processes (question 11).
@@ -1164,10 +1165,9 @@ target. We show you the target before anything is written.
        organisation list, the invoices kept after an erasure and a log page not filtered to one
        organisation.
      - The sign-in service's history, "as long as we run this sign-in service"
-       (privacy-signin-history (a), the owner: "still needs to be checked"): NOT CHECKED. Remove
-       a test account on the test stack (Zitadel v4.19.2) and look at what stays. If the earlier
-       entries go, the row says instead: "Removed with your sign-in account." / "Verwijderd met
-       uw inlogaccount."
+       (privacy-signin-history (a), the owner: "still needs to be checked"): CHECKED 2026-10-15 on the test stack (Zitadel v4.19.4), the owner: a test account's
+       entries went from 6 to 7 when it was removed (one removal entry added), and the one
+       holding its address stayed (1 to 1). The history is kept, as the row says; it stands.
      - A sign-in account nobody let in, "30 days after it was created", and a removed member's,
        "7 days after they were removed" (ops-unadmitted-signin-cleanup (a), "A daily script,
        built before the first tester"; 0135 open question 13, answered 2026-09-29: "Samen number

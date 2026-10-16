@@ -705,6 +705,25 @@ function buildStamp() {
   return BUILD.commit ? `v${BUILD.version} \u00b7 ${BUILD.commit}` : `v${BUILD.version}`;
 }
 
+/**
+ * Who runs Ownpace, as privacy §1 says it (workplan 0152 T8 (c); the owner,
+ * 2026-10-16): the company, its KvK and VAT numbers, and no postal address
+ * during the Alpha. Read from the privacy text of each language rather than
+ * kept as a copy here, so the footer and §1 cannot say two things
+ * (`a-footer-that-names-the-company`).
+ */
+export function companyLineOf(text) {
+  const lines = text.replace(/<!--[\s\S]*?-->/g, '').split('\n');
+  const heading = lines.findIndex((l) => /^## 1\.\s/.test(l));
+  const line = heading < 0 ? undefined : lines.slice(heading + 1).find((l) => l.trim() !== '');
+  if (line === undefined) throw new Error('site/legal: privacy §1 names no company, so the footer has none to show');
+  return line.trim();
+}
+const COMPANY = {};
+/** The line for one language, read once (SOURCE is declared further down). */
+const companyOf = (locale) =>
+  (COMPANY[locale] ??= companyLineOf(readFileSync(join(HERE, SOURCE[locale].privacy), 'utf8')));
+
 function layout({ title, description, body, locale, key, draft, alpha }) {
   const c = COPY[locale];
   const leaving = LEAVING.map((p) => leavingLink(locale, p, 20, `leaving-${p.id}` === key)).join('');
@@ -767,7 +786,7 @@ ${banner}
 ${body}
 </div></main>
 <footer class="site"><div class="wrap">
-  <div><strong>Ownpace</strong> — ${c.footerTag}<br />${c.footerOss(PROOF_LINKS)}${
+  <div><strong>Ownpace</strong> — ${c.footerTag}<br />${c.footerOss(PROOF_LINKS)}<br />${esc(companyOf(locale))}${
     buildStamp() ? `<br /><span class="build">${buildStamp()}</span>` : ''
   }</div>
   <div>
