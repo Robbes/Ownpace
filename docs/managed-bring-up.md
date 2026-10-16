@@ -123,6 +123,20 @@ are **not** product-named and keep their names; nothing above touches them.
 - **~15 GB free disk.** ClickHouse, MinIO, the Trigger.dev images, the task
   registry and the built API/web images add up; running out midway leaves a
   stack that is partly built and wholly confusing.
+- **Memory: about 7 GB for one stack, and 20 GB for live beside the OTA stack**
+  (workplan 0143 T1). A stack's resident services take about 4 GB. Every
+  copying pass runs on the `small-1x` preset, which is enforced: half a CPU and
+  0.5 GB. So one stack at its default of 3 passes in flight needs about
+  4 + 1.5 GB, plus 20% headroom. Live at 6 beside the OTA stack at 3, with the
+  appliance's nightly run (`e2e.yml`, about 2 GB), needs about 18 GB; the
+  machine gives the stacks 20 GB. To size `MAX_PASSES_IN_FLIGHT` for another
+  machine, use the formula beside it in `managed.env.example`:
+  (the memory the stacks may use ÷ 1.2 − both stacks' resident services − the
+  other stack's cap × 0.5 GB − the nightly's 2 GB) ÷ 0.5 GB.
+- **CPU: half a CPU per pass in flight**, beside the resident services: at 6 and
+  3, that is 4.5 CPUs for passes. The resident services' own figure is still to
+  be measured on the machine (0143 T9); until then these numbers are the plan's,
+  not a measurement.
 - The repository cloned, and `pnpm install --frozen-lockfile` done.
 - **Container output: Docker's default log driver, kept until the container
   is removed** (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default,
@@ -1013,6 +1027,21 @@ the instance and on the project's organisation, whose own policy would stand in
 front of the instance's. It prints both addresses in its summary. A fresh
 instance has them from `managed.yml`. They are always shown, also before the
 texts are published there (the owner, 2026-10-03).
+
+**The mails it sends** (workplan 0135 T6). The three mails with a code that a
+tester can get from the provider are in Ownpace's words, in Dutch and English:
+the one after registering (Zitadel's *init* mail, which confirms the address),
+the one after changing an address (*verifyemail*), and the password reset
+(*passwordreset*). Each names Ownpace, says the account is for signing in to
+Ownpace, and names the address to write to: `VITE_SUPPORT_EMAIL` in `.env`, the
+one the web's pages show, and `support@ownpace.eu` when it is empty. A value
+that is not one address stops the run before anything is written. The texts
+live in `deploy/compose/sign-in-mails.json`; change them there, never only in
+the console, because every run writes back any mail that differs from the file
+and reads it back. A mail the provider refuses or does not take keeps
+upstream's words: the run says so and goes on, and its summary names it under
+`mails`. Run the script again once the cause is fixed. A mail goes out in the
+person's own language, which the registration page takes from the page's.
 
 **Then restart the API and REBUILD the web app, or nothing changes.** The API
 only needs the new environment; the web app bakes `VITE_*` in at build time, so

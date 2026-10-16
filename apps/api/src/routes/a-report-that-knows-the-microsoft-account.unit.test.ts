@@ -13,9 +13,10 @@
  * What is true instead:
  *
  * - **a Microsoft account**: its grant is delegated, and reads the signed-in
- *   person's own data. The directory, other people's mailboxes and calendar
- *   sharing need an administrator's registration. That holds whatever this
- *   deployment's environment says;
+ *   person's own data, none of who they shared it with. That holds whatever
+ *   this deployment's environment says, and since 2026-10-16 it is said in
+ *   the account's own words (`microsoftAccount…NotRead` in shared), not the
+ *   operator's `MICROSOFT_ACCOUNT_IS_DELEGATED`;
  * - **the customer's own registration (`o365`)**: the operator's sentence names
  *   this stack's `OAUTH2_*` settings. A tester reads that this deployment does
  *   not yet read a directory with the organisation's own registration.
@@ -29,6 +30,11 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER, MICROSOFT_ACCOUNT_IS_DELEGATED } from '@openmig/connectors';
+import {
+  microsoftAccountCalendarSharingNotRead,
+  microsoftAccountFileSharingNotRead,
+  microsoftAccountMailboxAccessNotRead,
+} from '@openmig/shared';
 
 /** A stored connection row, as the fake pool holds it. */
 interface Row {
@@ -153,9 +159,12 @@ describe('a tenant whose Microsoft source is a Microsoft account', () => {
     expect(reason, 'the calendar section still says the tenant has no Microsoft source').not.toContain(
       'no Microsoft 365 source connection',
     );
-    expect(reason).toContain(MICROSOFT_ACCOUNT_IS_DELEGATED);
+    expect(reason).toBe(microsoftAccountCalendarSharingNotRead().en);
     // Said as a blind spot, like every other section that could not look.
-    expect(reason).toContain('could not be inventoried');
+    expect(reason).toContain('was not read');
+    expect(reason).toContain('nothing was looked at');
+    // The operator's sentence stays the appliance's and the log's.
+    expect(reason).not.toContain(MICROSOFT_ACCOUNT_IS_DELEGATED);
   });
 
   it('is told the same with an application registration in this environment', async () => {
@@ -165,14 +174,14 @@ describe('a tenant whose Microsoft source is a Microsoft account', () => {
     process.env.OAUTH2_CLIENT_SECRET = 'not-a-real-secret';
     h.connections.push(microsoftAccount());
     const { scanCalendars } = await tenantInventoryScans(TENANT, MAILBOX);
-    expect(reasonOf(await scanCalendars())).toContain(MICROSOFT_ACCOUNT_IS_DELEGATED);
+    expect(reasonOf(await scanCalendars())).toBe(microsoftAccountCalendarSharingNotRead().en);
   });
 
   it('gets the same reason for files, once the file scope is consented', async () => {
     process.env.GRAPH_FILES_READ_CONSENTED = 'true';
     h.connections.push(microsoftAccount());
     const { scanDrive } = await tenantInventoryScans(TENANT, MAILBOX);
-    expect(reasonOf(await scanDrive())).toContain(MICROSOFT_ACCOUNT_IS_DELEGATED);
+    expect(reasonOf(await scanDrive())).toBe(microsoftAccountFileSharingNotRead().en);
   });
 
   it('keeps the Microsoft answers beside a Google account', async () => {
@@ -181,9 +190,10 @@ describe('a tenant whose Microsoft source is a Microsoft account', () => {
     h.connections.push(googleAccount(), microsoftAccount());
     const { scanCalendars, delegationReason } = await tenantInventoryScans(TENANT, MAILBOX);
     const reason = reasonOf(await scanCalendars());
-    expect(reason).toContain(MICROSOFT_ACCOUNT_IS_DELEGATED);
+    expect(reason).toBe(microsoftAccountCalendarSharingNotRead().en);
     expect(reason).not.toContain('Google Calendar');
-    expect(delegationReason).toContain('Get-MailboxPermission');
+    // The account's own sentence, not the administrator's (the owner, 2026-10-16).
+    expect(delegationReason).toBe(microsoftAccountMailboxAccessNotRead().en);
   });
 });
 
@@ -203,6 +213,7 @@ describe("a tenant with the customer's own registration", () => {
     const reason = reasonOf(await scanCalendars());
     expect(reason).toContain(O365_NOT_READ_WITH_ITS_OWN_REGISTRATION);
     expect(reason).not.toContain(MICROSOFT_ACCOUNT_IS_DELEGATED);
+    expect(reason).not.toBe(microsoftAccountCalendarSharingNotRead().en);
   });
 
   it('says it for files too, once the file scope is consented', async () => {
@@ -221,7 +232,8 @@ describe('the files section, with the file scope declined (the default)', () => 
    * 2026-10-14). The blind spot is still said as one.
    */
   it.each([
-    ['a Microsoft account', microsoftAccount],
+    // A Microsoft account is told its own (see the end of this file): it has
+    // no organisation for "every file in your organisation" to be about.
     ["the customer's own registration", ownRegistration],
   ])('%s: the tester is told what was not looked at, in words they can act on', async (_name, row) => {
     h.connections.push(row());
@@ -244,5 +256,58 @@ describe('a tenant with no Microsoft source', () => {
     expect(calendars).not.toMatch(/Microsoft 365|Graph|tenant/);
     expect(reasonOf(await scanDrive())).not.toMatch(/OneDrive|SharePoint/);
     expect(delegationReason).not.toMatch(/PowerShell|Get-MailboxPermission/);
+  });
+});
+
+/**
+ * A MICROSOFT ACCOUNT CONNECTED WITH ONE PERSON'S OWN SIGN-IN gets sentences
+ * of its own (the owner, 2026-10-16). An Outlook.com tester was told to run
+ * `Get-MailboxPermission` in Exchange Online PowerShell, which an Outlook.com
+ * account has no way to run, and that the directory needed an administrator's
+ * app registration. The `microsoft` kind is one person's delegated grant, and
+ * nothing stored on it says whether that person's account is personal or a
+ * work or school one, so each sentence is true of both and names no tool an
+ * Outlook.com user cannot reach. The customer's own registration (`o365`)
+ * keeps the administrator's sentence.
+ */
+describe('a Microsoft account connected with its own sign-in (the owner, 2026-10-16)', () => {
+  const ADMIN_WORDS = /PowerShell|Get-MailboxPermission|Get-RecipientPermission|Exchange|tenant|SharePoint|directory|registration|application permission|inventoried|cutover/i;
+
+  it('is not sent to Exchange Online PowerShell, in either language', async () => {
+    h.connections.push(microsoftAccount());
+    const scans = await tenantInventoryScans(TENANT, MAILBOX);
+    expect(scans.delegationReason).not.toMatch(ADMIN_WORDS);
+    expect(scans.delegationReason).toContain('not read by Ownpace');
+    expect(scans.delegationReason).toContain('Outlook');
+    expect(scans.delegationReasonNl).toBeDefined();
+    expect(scans.delegationReasonNl).not.toMatch(ADMIN_WORDS);
+    expect(scans.delegationReasonNl).toContain('Ownpace');
+    // Still a blind spot (hard rule 9).
+    expect(scans.delegationReason).toContain('nothing was looked at');
+  });
+
+  it('is told about its calendars and files in its own words, with the file scope declined or consented', async () => {
+    for (const consented of [false, true]) {
+      if (consented) process.env.GRAPH_FILES_READ_CONSENTED = 'true';
+      h.connections.length = 0;
+      h.connections.push(microsoftAccount());
+      const { scanCalendars, scanDrive } = await tenantInventoryScans(TENANT, MAILBOX);
+      for (const listing of [await scanCalendars(), await scanDrive()]) {
+        expect(listing.kind).toBe('not_discoverable');
+        if (listing.kind !== 'not_discoverable') continue;
+        expect(listing.reason).not.toMatch(ADMIN_WORDS);
+        expect(listing.reason).not.toMatch(/organisation/i);
+        expect(listing.reason).toContain('nothing was looked at');
+        expect(listing.reasonNl).toBeDefined();
+        expect(listing.reasonNl).not.toMatch(ADMIN_WORDS);
+      }
+    }
+  });
+
+  it("the customer's own registration keeps the administrator's sentence", async () => {
+    h.connections.push(ownRegistration());
+    const { delegationReason } = await tenantInventoryScans(TENANT, MAILBOX);
+    expect(delegationReason).toContain('Get-MailboxPermission');
+    expect(delegationReason).toContain('Exchange Online PowerShell');
   });
 });

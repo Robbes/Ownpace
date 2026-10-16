@@ -7,7 +7,7 @@ Wat één Apple-verbinding meeneemt:
 - **E-mail**: ja, via IMAP op `imap.mail.me.com:993`.
 - **Agenda's**: ja, via CalDAV op `caldav.icloud.com`.
 - **Contacten**: ja, via CardDAV op `contacts.icloud.com`, een **andere server**.
-- **Herinneringen**: ja, via CalDAV, als `VTODO`'s; zie [Wat herinneringen meebrengen](#reminders).
+- **Herinneringen**: alleen lijsten die nooit zijn bijgewerkt naar de nieuwe Herinneringen (iOS 13 en macOS Catalina en later); zie [Wat herinneringen meebrengen](#reminders).
 - **iCloud Drive**: **nee**. Er is geen API. Zie [Bestanden](#files).
 
 U typt geen van die servers. Het zijn de gepubliceerde waarden van Apple, in dit product vastgelegd met het adres en de dag waarop ze zijn gelezen, en de kaart vult ze in.
@@ -50,6 +50,8 @@ Verbindingen met Google, Microsoft en Dropbox bieden een toestemmingsknop met é
 E-mail, agenda's, contacten en herinneringen, wat u aanvinkt. Niet iCloud Drive.
 
 ### Wat herinneringen meebrengen {#reminders}
+
+**De meeste herinneringen zijn niet te lezen, door Ownpace of door welke app dan ook behalve die van Apple.** Sinds iOS 13 en macOS Catalina biedt de app Herinneringen aan om uw lijsten bij te werken, en een bijgewerkte lijst gaat van de agendaserver van iCloud naar een opslag die alleen de eigen apps van Apple lezen. Bijna elke iPhone heeft die stap gezet, en die is niet terug te draaien. Wat het agenda-account nog bevat, een lijst die nooit is bijgewerkt of een takenlijst uit een andere agenda-app, wordt gelezen zoals hieronder staat. Wilt u bijgewerkte herinneringen meenemen, neem ze dan met de hand over, of deel ze eerst vanuit de app Herinneringen naar een andere app.
 
 De herinneringen van Apple zijn `VTODO`-objecten op dezelfde CalDAV-server als uw agenda's, dus dezelfde inloggegevens bereiken beide. Maar het zijn **geen** afspraken, en dit product doet ook niet alsof. Taken zijn een eigen soort gegevens, apart van afspraken. Een herinnering als afspraak in de agenda zetten, zou iets opleveren wat gemigreerd lijkt en fout is.
 

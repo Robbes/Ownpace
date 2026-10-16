@@ -100,7 +100,7 @@ export interface RefreshShareGrantsDeps {
    */
   readonly scans: ReadonlyArray<() => Promise<
     | { readonly kind: 'listed'; readonly grants: readonly PermissionGrant[] }
-    | { readonly kind: 'not_discoverable'; readonly reason: string }
+    | { readonly kind: 'not_discoverable'; readonly reason: string; readonly reasonNl?: string }
   >>;
   /**
    * Why mailbox delegation could not be inventoried, in the source's words.
@@ -117,6 +117,11 @@ export interface RefreshShareGrantsDeps {
    * those apart (hard rule 9).
    */
   readonly delegationReason: string;
+  /**
+   * `delegationReason` in Dutch, where the caller has it (the owner,
+   * 2026-10-16). Absent, the Dutch list says the English as it came.
+   */
+  readonly delegationReasonNl?: string;
 }
 
 export interface RefreshShareGrantsResult {
@@ -127,6 +132,13 @@ export interface RefreshShareGrantsResult {
    * checklist item too, just one the tool cannot enumerate for you.
    */
   readonly blindSpots: ReadonlyArray<string>;
+  /**
+   * The same blind spots, in the same order, for a Dutch screen (the owner,
+   * 2026-10-16): each one's Dutch where the sentence is ours and has it, and
+   * the English as it came where it has none (a provider's own words). Never
+   * shorter than `blindSpots`, so a reader of either list misses nothing.
+   */
+  readonly blindSpotsNl: ReadonlyArray<string>;
 }
 
 /** Run the scans and upsert the queue's rows. Decisions survive (ADR-0032). */
@@ -136,13 +148,17 @@ export async function refreshShareGrants(
   const rows: Array<ReturnType<typeof shareGrantRowFrom>> = [];
   // First and always, whatever the caller passed. See `delegationReason`.
   const blindSpots: string[] = [deps.delegationReason];
+  const blindSpotsNl: string[] = [deps.delegationReasonNl ?? deps.delegationReason];
   for (const scan of deps.scans) {
     const listing = await scan();
     if (listing.kind === 'listed') rows.push(...listing.grants.map(shareGrantRowFrom));
-    else blindSpots.push(listing.reason);
+    else {
+      blindSpots.push(listing.reason);
+      blindSpotsNl.push(listing.reasonNl ?? listing.reason);
+    }
   }
   const open = await deps.ledger.upsertShareGrants(deps.tenantId, deps.mappingId, rows);
-  return { open, blindSpots };
+  return { open, blindSpots, blindSpotsNl };
 }
 
 /** The checklist's progress line: what is settled, what still waits. */

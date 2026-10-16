@@ -32,6 +32,8 @@
 import { graphRefusalBody } from './graph-refusal.ts';
 import {
   log,
+  notReadListing,
+  notReadSaid,
   permissionsNotDiscoverable,
   type PermissionGrant,
   type PermissionListing,
@@ -83,16 +85,24 @@ const MAX_PAGES = 100;
  * returning `[]` to make a report look complete.
  */
 export function mailboxDelegations(): PermissionListing {
-  return {
-    kind: 'not_discoverable',
-    reason: permissionsNotDiscoverable(
+  // In both languages (the owner, 2026-10-16), so the Sharing checklist can say
+  // it in Dutch. The administrator's sentence, kept for an organisation's own
+  // registration: a Microsoft account connected with one person's sign-in is
+  // told its own (`microsoftAccountMailboxAccessNotRead` in shared).
+  return notReadListing(notReadSaid({
+    en:
       'FullAccess, SendAs and SendOnBehalf are Exchange recipient permissions, and the ' +
-        'Microsoft Graph API this tool uses does not expose them. Capture them with Exchange ' +
-        'Online PowerShell — `Get-MailboxPermission` for FullAccess and ' +
-        '`Get-RecipientPermission` for SendAs — and record them by hand before cutover, ' +
-        'because they will stop working the moment the mailbox moves',
-    ),
-  };
+      'Microsoft Graph API Ownpace uses does not expose them. Capture them with Exchange ' +
+      'Online PowerShell — `Get-MailboxPermission` for FullAccess and ' +
+      '`Get-RecipientPermission` for SendAs — and note them by hand before you switch over, ' +
+      'because they stop working the moment the mailbox moves',
+    nl:
+      'FullAccess, SendAs en SendOnBehalf zijn Exchange-rechten op een postvak, en de ' +
+      'Microsoft Graph-API die Ownpace gebruikt, geeft ze niet. Haal ze op met Exchange ' +
+      'Online PowerShell — `Get-MailboxPermission` voor FullAccess en ' +
+      '`Get-RecipientPermission` voor SendAs — en noteer ze zelf voordat u overstapt, want ' +
+      'ze werken niet meer zodra het postvak is overgezet',
+  }));
 }
 
 /**

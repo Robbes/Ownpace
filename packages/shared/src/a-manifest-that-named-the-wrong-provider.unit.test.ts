@@ -84,6 +84,11 @@ const VOCABULARY: Readonly<Record<string, ScopeFamily>> = {
   Slides: 'google',
   Takeout: 'google',
   Dropbox: 'dropbox',
+  // 2026-10-16, with the two Tasks rows that name them. Apple is `standards`:
+  // its account is reached the way a bare calendar server is.
+  'To Do': 'microsoft',
+  Outlook: 'microsoft',
+  Apple: 'standards',
 };
 
 export interface Unattributed {
@@ -197,9 +202,13 @@ describe('a manifest that named the wrong provider', () => {
     ).toBeGreaterThan(0);
   });
 
-  it('keeps the rows true of everybody when it knows no family', () => {
+  it('keeps only the rows true of everybody when it knows no family', () => {
+    // Since 2026-10-16 that is none: Email, Calendar and Contacts were the
+    // rows with no family, and a Dropbox, Box or export-archive source carries
+    // none of them (`a-promise-to-a-source-that-carries-none-of-it`). Not
+    // knowing the source now tells the reader nothing rather than something
+    // untrue, which is the direction `scopeManifestFor`'s header chose.
     const neutral = scopeManifestFor(SCOPE_MANIFEST, []);
-    expect(neutral.migrates.length).toBeGreaterThan(0);
     // Nothing provider-specific survives an empty family list.
     for (const column of COLUMNS) {
       for (const entry of neutral[column]) expect(entry.appliesTo).toBeUndefined();

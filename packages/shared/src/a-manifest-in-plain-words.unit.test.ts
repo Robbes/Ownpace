@@ -63,7 +63,9 @@ const DEVELOPER_WORDS: ReadonlyArray<readonly [string, RegExp]> = [
   ['the ledger', /\bledger\b/i],
   ['an architecture document', /\bSAD\b/],
   ['an all-caps environment variable', /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/],
-  ['a protocol no destination card is named after', /\b(?:vCard|ICS|CardDAV|CalDAV|WebDAV|JSContact)\b/],
+  // VTODO and iCalendar since the Tasks rows (2026-10-16): what a task IS on
+  // the wire, which is how the code and its guides speak of Reminders.
+  ['a protocol no destination card is named after', /\b(?:vCard|ICS|CardDAV|CalDAV|WebDAV|JSContact|VTODO|VEVENT|iCalendar)\b/],
   ['a checksum', /checksum/i],
   ['an API this product reads through', /\b(?:Drive API|Microsoft Graph|Graph)\b/],
 ];
@@ -90,6 +92,9 @@ describe('the manifest says nothing a tester needs us to explain', () => {
     expect(developerWordsIn('same idempotency and verification as any mailbox')).toEqual(['idempotency']);
     expect(developerWordsIn('set GRAPH_FILES_READ_CONSENTED=true')).toContain('an all-caps environment variable');
     expect(developerWordsIn('Address books and contacts (vCard), over CardDAV or JMAP.')).toEqual([
+      'a protocol no destination card is named after',
+    ]);
+    expect(developerWordsIn('Reminders are VTODO components in the same CalDAV account')).toEqual([
       'a protocol no destination card is named after',
     ]);
     expect(developerWordsIn('content-checksum sampling does not run')).toEqual(['a checksum']);

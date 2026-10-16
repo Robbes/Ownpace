@@ -90,6 +90,27 @@ describe('refreshShareGrants', () => {
     expect(rows.find((r) => r.viaLink)!.verdict).toBe('manual');
   });
 
+  it('says each blind spot in Dutch too where it has Dutch, in the same order (the owner, 2026-10-16)', async () => {
+    // A Dutch tester read the Sharing checklist's blind spots in English. A
+    // sentence of ours carries its Dutch beside it; one that has none (a
+    // provider's own words) is said as it came, so the two lists never
+    // differ in length or order.
+    const ledger = new MemoryLedger();
+    const result = await refreshShareGrants({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      ledger,
+      delegationReason: DELEGATION,
+      delegationReasonNl: 'gemachtigden zijn niet gelezen',
+      scans: [
+        async () => ({ kind: 'not_discoverable' as const, reason: 'calendars unread', reasonNl: 'agenda’s niet gelezen' }),
+        async () => ({ kind: 'not_discoverable' as const, reason: 'Graph said 403' }),
+      ],
+    });
+    expect(result.blindSpots).toEqual([DELEGATION, 'calendars unread', 'Graph said 403']);
+    expect(result.blindSpotsNl).toEqual(['gemachtigden zijn niet gelezen', 'agenda’s niet gelezen', 'Graph said 403']);
+  });
+
   it('says mailbox delegation was not read even when every scan listed cleanly', async () => {
     // THE CASE THE OWNER FOUND. Both scans succeed, so nothing was
     // `not_discoverable` and the old code produced an EMPTY blind-spot list —
