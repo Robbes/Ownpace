@@ -21,6 +21,11 @@ reading a file drops off its entry by itself.
 ### `.github/ISSUE_TEMPLATE/bug_report.yml`
 
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
+- [an-issue-route-for-the-hosted-service](../scripts/an-issue-route-for-the-hosted-service.unit.test.ts) — AN ISSUE ROUTE FOR THE HOSTED SERVICE: a tester of the hosted Alpha who lands on GitHub's "New issue" page finds their way to a person first (workplan 0144 T6 (c)).
+
+### `.github/ISSUE_TEMPLATE/config.yml`
+
+- [an-issue-route-for-the-hosted-service](../scripts/an-issue-route-for-the-hosted-service.unit.test.ts) — AN ISSUE ROUTE FOR THE HOSTED SERVICE: a tester of the hosted Alpha who lands on GitHub's "New issue" page finds their way to a person first (workplan 0144 T6 (c)).
 
 ### `.github/workflows/ci.yml`
 
@@ -2593,6 +2598,7 @@ reading a file drops off its entry by itself.
 
 ### `site/copy.mjs`
 
+- [an-issue-route-for-the-hosted-service](../scripts/an-issue-route-for-the-hosted-service.unit.test.ts) — AN ISSUE ROUTE FOR THE HOSTED SERVICE: a tester of the hosted Alpha who lands on GitHub's "New issue" page finds their way to a person first (workplan 0144 T6 (c)).
 - [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [one-look-from-the-site-to-the-app](../scripts/one-look-from-the-site-to-the-app.unit.test.ts) — ONE LOOK FROM THE SITE TO THE APP (workplan 0152 T9).
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
@@ -2678,6 +2684,7 @@ reading a file drops off its entry by itself.
 ### `site/pages/nl/alpha-handleiding.md`
 
 - [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts) — A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
+- [an-issue-route-for-the-hosted-service](../scripts/an-issue-route-for-the-hosted-service.unit.test.ts) — AN ISSUE ROUTE FOR THE HOSTED SERVICE: a tester of the hosted Alpha who lands on GitHub's "New issue" page finds their way to a person first (workplan 0144 T6 (c)).
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
 
 ### `site/pages/nl/hoe-het-werkt.md`
@@ -4831,6 +4838,17 @@ Reads:
 
 - `apps/selfhost/src/index.ts`
 - `vitest.global-setup.ts`
+
+### [an-issue-route-for-the-hosted-service](../scripts/an-issue-route-for-the-hosted-service.unit.test.ts)
+
+AN ISSUE ROUTE FOR THE HOSTED SERVICE: a tester of the hosted Alpha who lands on GitHub's "New issue" page finds their way to a person first (workplan 0144 T6 (c)).
+
+Reads:
+
+- `.github/ISSUE_TEMPLATE/bug_report.yml`
+- `.github/ISSUE_TEMPLATE/config.yml`
+- `site/copy.mjs`
+- `site/pages/nl/alpha-handleiding.md`
 
 ### [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts)
 
