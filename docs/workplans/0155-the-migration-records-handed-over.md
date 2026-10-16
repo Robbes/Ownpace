@@ -2,7 +2,31 @@
 
 > **In one line:** An export of a customer's migration records — what was copied, what could not be, and why — plus what we hold about a person, made by the operator on request and later in the app, delivered and then deleted, as terms §11, DPA §10 and privacy §10 promise.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-10-16 (update this block at the end of every session)
+
+**2026-10-16: T0 done.** `docs/operator-runbook.md`, *Tenant offboarding*, now opens with *An
+export on request*: before the purge (with a window of 0, before `operator.sh close`, and a
+pointer from the close itself); who it goes to; why it is read at the machine on the owner's
+connection, with every query naming the organisation; five read-only queries as CSV through
+`COPY … TO STDOUT` (the organisation's migrations, one file per migration with T1's columns, a
+summary per migration, data type and outcome, and privacy §4.5's `support_read` rows, with each
+search by address whose text is part of the requester's address); packing with `zip`, or `tar`
+where the machine has no `zip`; sending, deleting, a 7-day backstop by hand (`find … -mmin`) until
+T3's duty; and what is recorded, in the request's thread. The organisation, a migration and the
+address go in as psql variables, read with `read -r`; a preamble makes every transaction read-only
+and stops before any question when the role would not pass row security or no organisation has the
+id. `outcome` uses T1's words; `reason` puts each of the ten failure categories in words; `state`
+is derived as `rowFor` derives it. **Proved** against `./scripts/local-pg.sh` (both chains, a
+superuser owner as on the stack), with two organisations' rows, by running the runbook's own blocks
+verbatim through a `docker` stand-in that runs the `sh -c` line locally: the files hold the first
+organisation's rows and none of the second's, no `config`, `secret_ref`, `source_secret_ref`,
+`source_ref` or `target_ref` value, a byte-order mark, RFC 4180 quoting of a comma, a quote and a
+newline, and a defused `=` and `-`; an unknown id, an id that is not a uuid, a `DELETE`, and the
+same preamble as `app_user` each stop with psql's exit 3; and all 60 combinations of the ten
+statuses `item_status_check` allows and the five stored answers or none give the same `state` as
+`rowFor` (checked by importing `packages/shared/src/confirmed-list.ts`) and T1's `outcome`. Both
+branches of the packing and the backstop were run. The words are English; open question 5 is still
+open, and so is open question 4 (the recipe follows its recommendation (a), `last_error` verbatim).
 
 **2026-09-28: opened from the owner's answers on the legal answer page (0139).** Two answers
 promise an export that the app does not have:
@@ -24,14 +48,15 @@ and add one sentence"*: privacy §10 (draft 1.2) now says *"What we hold about y
 (a), *"Keep it, answered by hand"*: privacy §4.5 promises what our support log records about a
 person, sent on request, from one query in the operator runbook.
 
-Nothing is built. Every task is 📋 **Proposed**; none is parked. Until T1 and T2 exist, the
-operator makes the export by hand (T0). The order is in §4: the recipe by hand now, the command
+On 2026-09-28 nothing was built and every task was 📋 **Proposed**; none is parked. T0 is done
+(2026-10-16, above): until T1 and T2 exist, the operator makes the export by hand from the
+runbook. The order is in §4: the recipe by hand now, the command
 before the first business customer or before any notice that the service is discontinued,
 whichever comes first.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The export by hand, written down | 📋 **Proposed** | §3. A recipe in `docs/operator-runbook.md`, *Tenant offboarding*: which reads make the records, how the file is sent, and when it is deleted. It answers a request during the Alpha. |
+| T0 The export by hand, written down | ✅ **Done 2026-10-16** | §3. *An export on request*, a recipe in `docs/operator-runbook.md`, *Tenant offboarding*: which reads make the records, how the file is sent, and when it is deleted. It answers a request during the Alpha. Its queries were run against both migration chains (Status, 2026-10-16). |
 | T1 One builder for the migration records | 📋 **Proposed** | §3. Per migration: every item, its outcome in words, and the reason when it was not copied. One CSV per migration beside the completion report, which already exists. A pure builder in `packages/shared`, a reader beside `confirmed-list-read.ts`. |
 | T2 The operator's command | 📋 **Proposed** | §3. `operator.sh export <tenant-id> --by <subject> --reference <request>`: the whole organisation, into one file in a directory of its own on the machine, recorded in the audit log. Reads as `app_user`, through T1's reader. Works on a closed organisation until its purge. |
 | T3 Delivery, and deletion after delivery | 📋 **Proposed** | §3. Sent to the account holder's address on record, then deleted from the machine. A daily backstop deletes any export older than 7 days, and the purge deletes any that is left. |
