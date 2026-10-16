@@ -475,6 +475,10 @@ reading a file drops off its entry by itself.
 
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 
+### `apps/web/src/components/queues/ApplyDeletionsPanel.tsx`
+
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
+
 ### `apps/web/src/i18n/i18n.unit.test.tsx`
 
 - [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)), AND NO *DRAAGT* FOR WHAT AN ACCOUNT HOLDS (the owner, 2026-10-05).
@@ -1815,6 +1819,7 @@ reading a file drops off its entry by itself.
 ### `packages/connectors/src/imapflow-dav-target.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 
 ### `packages/connectors/src/imapflow-source.ts`
 
@@ -1824,14 +1829,20 @@ reading a file drops off its entry by itself.
 ### `packages/connectors/src/jmap-contact-target.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 
 ### `packages/connectors/src/jmap-file-target.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 
 ### `packages/connectors/src/jmap-session.ts`
 
 - [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
+
+### `packages/connectors/src/jmap-target.ts`
+
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 
 ### `packages/connectors/src/takeout-archive-reader.unit.test.ts`
 
@@ -1908,15 +1919,22 @@ reading a file drops off its entry by itself.
 ### `packages/engines/src/caldav-target-writer.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 
 ### `packages/engines/src/carddav-target-writer.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 - [an-addressbook-query-without-a-filter](../scripts/an-addressbook-query-without-a-filter.unit.test.ts) — THREE REPORT BODIES, THREE DIFFERENT WAYS OF BEING WRONG.
+
+### `packages/engines/src/dav-remove.ts`
+
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 
 ### `packages/engines/src/webdav-target-writer.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 
 ### `packages/ledger/migrations/0001_baseline.sql`
 
@@ -2241,6 +2259,7 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/operating-contract.ts`
 
 - [a-stranger-sees-counts-and-states](../scripts/a-stranger-sees-counts-and-states.unit.test.ts) — A progress link opens counts and states, and nothing that names anything.
+- [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 
 ### `packages/shared/src/pass-deadline.ts`
 
@@ -4630,6 +4649,23 @@ Reads:
 - `deploy/compose/www-nginx.conf`
 - `docs/managed-bring-up.md`
 - `site/legal/README.md`
+
+### [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts)
+
+A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
+
+Reads:
+
+- `apps/web/src/components/queues/ApplyDeletionsPanel.tsx`
+- `packages/connectors/src/imapflow-dav-target.ts`
+- `packages/connectors/src/jmap-contact-target.ts`
+- `packages/connectors/src/jmap-file-target.ts`
+- `packages/connectors/src/jmap-target.ts`
+- `packages/engines/src/caldav-target-writer.ts`
+- `packages/engines/src/carddav-target-writer.ts`
+- `packages/engines/src/dav-remove.ts`
+- `packages/engines/src/webdav-target-writer.ts`
+- `packages/shared/src/operating-contract.ts`
 
 ### [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts)
 
