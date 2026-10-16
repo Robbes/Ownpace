@@ -50,7 +50,12 @@ export {
   microsoftScopesFor,
   microsoftTokenEndpoint,
 } from '@openmig/shared';
-import { microsoftAuthEndpoint, microsoftScopesFor, microsoftTokenEndpoint } from '@openmig/shared';
+import {
+  microsoftAuthEndpoint,
+  microsoftScopesFor,
+  microsoftTokenEndpoint,
+  type Bilingual,
+} from '@openmig/shared';
 
 export function microsoftConsentUrl(p: {
   clientId: string;
@@ -77,7 +82,67 @@ export type MicrosoftExchangeResult =
       readonly refreshToken: string;
       readonly grantedScopes: ReadonlyArray<string>;
     }
-  | { readonly ok: false; readonly reason: string };
+  | {
+      readonly ok: false;
+      /**
+       * For the server log: Microsoft's own answer, bounded, and what it
+       * usually means. Nobody reads it on a page (the owner, 2026-10-16).
+       */
+      readonly reason: string;
+      /**
+       * For the owner's page: the sentence for this way of failing, in both
+       * languages, or, where Entra named a policy refusal of its own
+       * (`microsoftConsentRefusal`), that sentence as written.
+       */
+      readonly said: Bilingual | string;
+    };
+
+/** Said after a refusal that the owner's own app can cause and ours can too. */
+const OWN_APP_OR_US = {
+  en: 'If you did not fill in your own oauth-app and it happens again, this is on our side: please contact us.',
+  nl: 'Hebt u geen eigen oauth-app ingevuld en gebeurt het opnieuw, dan ligt het aan ons: neem contact met ons op.',
+} as const;
+
+/**
+ * What the owner reads when Connect with Microsoft's code exchange failed
+ * without a sentence of Entra's we know (the owner, 2026-10-16), as Google's
+ * (`EXCHANGE_FOR_THE_OWNER`) and Dropbox's (`DROPBOX_EXCHANGE_FOR_THE_OWNER`)
+ * have since 2026-10-14. The page showed *"Microsoft refused the code
+ * exchange (400): {body}"*; Microsoft's answer now goes to the log only.
+ */
+export const MICROSOFT_EXCHANGE_FOR_THE_OWNER = {
+  refused: {
+    en:
+      'Microsoft turned down this sign-in, so nothing was stored. This happens when it took ' +
+      'too long or was sent twice: press Connect with Microsoft again. If you filled in your ' +
+      'own oauth-app and it happens again, check its Client ID, client secret and Tenant ID, ' +
+      `and that the redirect address shown under the button is registered on it. ${OWN_APP_OR_US.en}`,
+    nl:
+      'Microsoft heeft deze aanmelding geweigerd, dus er is niets opgeslagen. Dat gebeurt als ' +
+      'het te lang duurde of als die twee keer is verstuurd: druk opnieuw op Verbinden met ' +
+      'Microsoft. Als u een eigen oauth-app hebt ingevuld en het gebeurt opnieuw, controleer ' +
+      'dan de Client-ID, het clientsecret en de Tenant-ID, en of het redirect-adres onder de ' +
+      `knop daar is geregistreerd. ${OWN_APP_OR_US.nl}`,
+  },
+  unreadable: {
+    en:
+      "Microsoft's answer could not be read, so nothing was stored. Press Connect with " +
+      'Microsoft again; if it keeps happening, please contact us.',
+    nl:
+      'Het antwoord van Microsoft kon niet worden gelezen, dus er is niets opgeslagen. Druk ' +
+      'opnieuw op Verbinden met Microsoft; blijft het gebeuren, neem dan contact met ons op.',
+  },
+  noRefreshToken: {
+    en:
+      'Microsoft would not give lasting access to this account, so nothing was stored. This ' +
+      'usually means the sign-in was already used: press Connect with Microsoft again. ' +
+      OWN_APP_OR_US.en,
+    nl:
+      'Microsoft wilde geen blijvende toegang tot dit account geven, dus er is niets ' +
+      'opgeslagen. Meestal is de aanmelding dan al gebruikt: druk opnieuw op Verbinden met ' +
+      `Microsoft. ${OWN_APP_OR_US.nl}`,
+  },
+} as const satisfies Record<string, Bilingual>;
 
 /**
  * Entra's own consent refusals, turned into sentences with a way forward.
@@ -174,12 +239,22 @@ export async function exchangeMicrosoftCode(
   const text = await response.text();
   if (!response.ok) {
     const sentence = microsoftConsentRefusal(text, p.whose);
-    if (sentence) return { ok: false, reason: sentence };
+    // Entra's policy refusals keep their own sentence on the page; the log
+    // still gets Microsoft's answer beside it.
+    if (sentence) {
+      return {
+        ok: false,
+        reason: `Microsoft refused the code exchange (${response.status}): ${text.slice(0, 300)}`,
+        said: sentence,
+      };
+    }
     // Microsoft's words, verbatim and bounded — what somebody pastes into a
-    // search. Never the secret: it was in the request, not the answer.
+    // search, for the log. Never the secret: it was in the request, not the
+    // answer.
     return {
       ok: false,
       reason: `Microsoft refused the code exchange (${response.status}): ${text.slice(0, 300)}`,
+      said: MICROSOFT_EXCHANGE_FOR_THE_OWNER.refused,
     };
   }
   let json: { refresh_token?: string; scope?: string };
@@ -189,6 +264,7 @@ export async function exchangeMicrosoftCode(
     return {
       ok: false,
       reason: `Microsoft answered the code exchange with something that is not JSON: ${text.slice(0, 120)}`,
+      said: MICROSOFT_EXCHANGE_FOR_THE_OWNER.unreadable,
     };
   }
   if (!json.refresh_token) {
@@ -198,6 +274,7 @@ export async function exchangeMicrosoftCode(
         'Microsoft answered without a refresh token. The consent is asked with offline_access, ' +
         'so this usually means the code was already used, or the application is configured in a ' +
         'way that withholds offline access.',
+      said: MICROSOFT_EXCHANGE_FOR_THE_OWNER.noRefreshToken,
     };
   }
   return {

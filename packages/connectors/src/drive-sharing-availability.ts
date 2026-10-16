@@ -65,10 +65,21 @@ export const DRIVE_SHARING_NOT_CONSENTED =
  * because its reader is the one who sets the flag.
  */
 export const DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER =
-  'OneDrive and SharePoint sharing was not inventoried. Reading it needs a permission ' +
+  'OneDrive and SharePoint sharing was not read. Reading it needs a permission ' +
   'that reaches every file in your organisation, and Ownpace deliberately does not ask ' +
   'for it. Nothing was looked at — this does not mean nothing is shared. Note your file ' +
   'and folder sharing by hand before you switch over.';
+
+/**
+ * `DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER` in Dutch, for the Sharing
+ * checklist (the owner, 2026-10-16). The name keeps the word the sentence no
+ * longer says, so every door that imports it keeps its import.
+ */
+export const DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER_NL =
+  'Delen op OneDrive en SharePoint is niet gelezen. Daarvoor is een toestemming nodig die ' +
+  'bij elk bestand in uw organisatie kan, en Ownpace vraagt daar bewust niet om. Er is niets ' +
+  'bekeken — dat betekent niet dat er niets gedeeld is. Noteer zelf hoe uw bestanden en ' +
+  'mappen gedeeld zijn voordat u overstapt.';
 
 /**
  * Default OFF. A deployment that has said nothing has not consented, and the

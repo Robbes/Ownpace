@@ -41,8 +41,21 @@ const BLIND_SPOT: Partial<Record<ScopeFamily, readonly [StringKey, StringKey]>> 
   google: ['permissions.blindSpot.google', 'permissions.blindSpot.google.more'],
 };
 
+/**
+ * A MICROSOFT ACCOUNT CONNECTED WITH ONE PERSON'S OWN SIGN-IN (the owner,
+ * 2026-10-16): the `microsoft` kind on managed and the `microsoft` type on the
+ * appliance, as an Outlook.com account is connected. Its family is
+ * Microsoft's, and the family's line is an organisation's (someone else's
+ * mailbox, every file in the organisation), so it has a line of its own.
+ */
+const MICROSOFT_ACCOUNT_BLIND_SPOT: readonly [StringKey, StringKey] = [
+  'permissions.blindSpot.microsoftAccount',
+  'permissions.blindSpot.microsoftAccount.more',
+];
+
 function blindSpotOf(sourceKind: string | undefined): readonly [StringKey, StringKey] | undefined {
   if (!sourceKind) return undefined;
+  if (sourceKind === 'microsoft') return MICROSOFT_ACCOUNT_BLIND_SPOT;
   const family = scopeFamilyOfConnectionKind(sourceKind) ?? scopeFamilyOf(sourceKind);
   return family ? BLIND_SPOT[family] : undefined;
 }
@@ -78,14 +91,19 @@ export const PermissionsHandover: React.FC<{
       // The server's own words where it has them: a mapping whose source
       // address was never recorded answers with which fact is missing, and
       // that is more useful than "the request failed" (rule 9).
-      const data = (err as { response?: { data?: { message?: unknown; reason?: unknown } } })
-        ?.response?.data;
+      const data = (
+        err as { response?: { data?: { message?: unknown; messageNl?: unknown; reason?: unknown } } }
+      )?.response?.data;
+      // Its Dutch to a Dutch reader, where the server sent one (the owner,
+      // 2026-10-16).
       const said =
-        typeof data?.message === 'string'
-          ? data.message
-          : typeof data?.reason === 'string'
-            ? data.reason
-            : '';
+        locale === 'nl' && typeof data?.messageNl === 'string' && data.messageNl
+          ? data.messageNl
+          : typeof data?.message === 'string'
+            ? data.message
+            : typeof data?.reason === 'string'
+              ? data.reason
+              : '';
       setError(said || t('permissions.failed'));
     } finally {
       setBusy(false);

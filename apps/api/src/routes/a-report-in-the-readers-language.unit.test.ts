@@ -75,9 +75,14 @@ describe('GET /api/permissions/report?lang=', () => {
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/markdown');
     expect(res.text).toContain('# Wie kan wat zien, en wat gebeurt ermee');
-    expect(res.text).toContain('## Lees dit eerst: wat NIET kon worden geïnventariseerd');
+    expect(res.text).toContain('## Lees dit eerst: wat NIET is gelezen');
     expect(res.text).toContain('### Wie verder toegang had tot het postvak');
     expect(res.text).not.toContain('Who can see what');
+    // Each blind spot of a source with no reader of its own has its Dutch
+    // (#1605), so nothing English is left, and no note says there is.
+    expect(res.text).toContain('Wie hier toegang heeft, is niet gelezen');
+    expect(res.text).not.toContain('Who has access here was not read');
+    expect(res.text).not.toContain('staat nog in het Engels');
     // The address asked about is a value, and stays as it was typed.
     expect(res.text).toContain('pat@example.test');
   });

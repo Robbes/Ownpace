@@ -59,6 +59,12 @@ export interface PermissionReportInput {
    * wearing a safe face.
    */
   readonly targetConduct?: readonly string[];
+  /**
+   * The language `targetConduct` is written in; English when omitted. The
+   * target's measurements are English sentences today, so a Dutch report
+   * says so under their heading rather than letting them pass as translated.
+   */
+  readonly targetConductLang?: ReportLanguage;
   /** The language of the frame; English when omitted. */
   readonly lang?: ReportLanguage;
 }
@@ -77,15 +83,19 @@ const WORDS = {
     breaksQuietly:
       'Permissions are the part of a migration that breaks quietly. Mail, calendars and files ' +
       'move and you can see that they moved; a delegation that did not move shows up as ' +
-      'somebody unable to do their job on the first Monday after cutover.',
+      'somebody unable to do their job on the first Monday after you switch over.',
     conduct: '## What the target will do with what we write',
-    blind: '## Read this first: what could NOT be inventoried',
+    conductInEnglish: '',
+    // In a tester's words since 2026-10-16 (the owner): "could NOT be
+    // inventoried" and "at cutover" were the developer's.
+    blind: '## Read this first: what was NOT read',
     blindIntro:
-      'Nobody looked at the rights below — not "there are none". Anything granted here will ' +
-      'stop working at cutover without warning unless you capture it by hand.',
+      'Nobody looked at the rights below — that is not "there are none". Anything granted here ' +
+      'stops working without warning when you switch over, unless you note it by hand.',
+    blindInEnglish: '',
     found: '## What was found',
     noneFound:
-      '_No rights were found in the categories that could be inventoried._ Read the section ' +
+      '_No rights were found in the categories that were read._ Read the section ' +
       'above before concluding that nothing is shared.',
     tableHead: '| What | Who | Right | On the target |',
     viaLink: '_anyone with the link_',
@@ -93,9 +103,9 @@ const WORDS = {
     byHand: '**by hand**',
     steps: '## The steps only you can do',
     noSteps:
-      '_Nothing in the inventoried categories needs a manual decision._ That is not the same ' +
-      'as "nothing needs doing" — everything above still has to be created on the target, ' +
-      'and anything in the first section is uninventoried.',
+      '_Nothing in the categories that were read needs a manual decision._ That is not the ' +
+      'same as "nothing needs doing" — everything above still has to be created on the ' +
+      'target, and nothing in the first section was read.',
   },
   // The owner's conventions: short sentences, "u", *migratie*, and the app's
   // own words for the same things (postvak, rechten, het nieuwe systeem,
@@ -112,16 +122,20 @@ const WORDS = {
     breaksQuietly:
       'Rechten zijn het deel van een migratie dat stil misgaat. E-mail, agenda\'s en bestanden ' +
       'worden gemigreerd, en u ziet dat ze er zijn. Een recht dat niet is meegegaan, merkt u ' +
-      'pas als iemand op de eerste maandag na de overstap zijn werk niet kan doen.',
+      'pas als iemand op de eerste maandag nadat u bent overgestapt zijn werk niet kan doen.',
     conduct: '## Wat het nieuwe systeem doet met wat wij schrijven',
-    blind: '## Lees dit eerst: wat NIET kon worden geïnventariseerd',
+    conductInEnglish: 'Deze metingen staan nog in het Engels.',
+    // The words #1605 gave the Sharing page and the blind spots themselves:
+    // *Niet gelezen*, *noteer … zelf*, *zodra u overstapt*.
+    blind: '## Lees dit eerst: wat NIET is gelezen',
     blindIntro:
       'Niemand heeft de rechten hieronder bekeken. Dat is iets anders dan "er zijn er geen". ' +
-      'Wat hier is toegekend, werkt na de overstap zonder waarschuwing niet meer, tenzij u ' +
-      'het zelf vastlegt. De uitleg bij elk onderdeel staat soms nog in het Engels.',
+      'Wat hier is gegeven, werkt zonder waarschuwing niet meer zodra u overstapt, tenzij u ' +
+      'het zelf noteert.',
+    blindInEnglish: 'Een deel van de uitleg hieronder staat nog in het Engels.',
     found: '## Wat is gevonden',
     noneFound:
-      '_Er zijn geen rechten gevonden in de onderdelen die konden worden geïnventariseerd._ ' +
+      '_Er zijn geen rechten gevonden in de onderdelen die zijn gelezen._ ' +
       'Lees eerst het deel hierboven, voordat u concludeert dat er niets is gedeeld.',
     tableHead: '| Wat | Wie | Recht | Op het nieuwe systeem |',
     viaLink: '_iedereen met de link_',
@@ -129,9 +143,9 @@ const WORDS = {
     byHand: '**handmatig**',
     steps: '## De stappen die alleen u kunt doen',
     noSteps:
-      '_Niets in de geïnventariseerde onderdelen vraagt een beslissing van u._ Dat is niet ' +
+      '_Niets in de onderdelen die zijn gelezen, vraagt een beslissing van u._ Dat is niet ' +
       'hetzelfde als "er hoeft niets te gebeuren". Alles hierboven moet u nog aanmaken op het ' +
-      'nieuwe systeem. En wat in het eerste deel staat, is niet geïnventariseerd.',
+      'nieuwe systeem. En wat in het eerste deel staat, is niet gelezen.',
   },
 } as const satisfies Record<ReportLanguage, Record<string, string>>;
 
@@ -156,6 +170,10 @@ export function renderPermissionReport(input: PermissionReportInput): string {
   if (input.targetConduct && input.targetConduct.length > 0) {
     out.push(w.conduct);
     out.push('');
+    if (w.conductInEnglish && (input.targetConductLang ?? 'en') !== lang) {
+      out.push(w.conductInEnglish);
+      out.push('');
+    }
     for (const line of input.targetConduct) out.push(`- ${line}`);
     out.push('');
   }
@@ -164,13 +182,22 @@ export function renderPermissionReport(input: PermissionReportInput): string {
   if (blind.length > 0) {
     out.push(w.blind);
     out.push('');
-    out.push(w.blindIntro);
+    // A reason in the reader's language where one was written (`reasonNl`,
+    // #1605); a provider's words or an error have none, and are said as they
+    // came, with one sentence saying so rather than passing as translated.
+    const said = blind.map((section) =>
+      section.listing.kind !== 'not_discoverable'
+        ? { title: section.title, reason: '', translated: true }
+        : lang === 'nl' && section.listing.reasonNl !== undefined
+          ? { title: section.title, reason: section.listing.reasonNl, translated: true }
+          : { title: section.title, reason: section.listing.reason, translated: lang === 'en' },
+    );
+    out.push(said.every((s) => s.translated) || !w.blindInEnglish ? w.blindIntro : `${w.blindIntro} ${w.blindInEnglish}`);
     out.push('');
-    for (const section of blind) {
-      if (section.listing.kind !== 'not_discoverable') continue;
+    for (const section of said) {
       out.push(`### ${section.title}`);
       out.push('');
-      out.push(section.listing.reason);
+      out.push(section.reason);
       out.push('');
     }
   }

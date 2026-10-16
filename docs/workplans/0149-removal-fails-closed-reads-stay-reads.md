@@ -2,7 +2,30 @@
 
 > **In one line:** Apply deletions fails closed: CalDAV, CardDAV or WebDAV 412 on create recorded as adopted, failed lookups throw, removal needs a recorded version and `If-Match`, cutover gate fails with no hash compared, IMAP source uses EXAMINE.
 
-## Status — 2026-09-27 (update this block at the end of every session)
+## Status — 2026-10-16 (update this block at the end of every session)
+
+**2026-10-16: T6 built for `APPLY_FLAG_WARNING`, with 0144 T4. On
+`claude/ownpace-public-readiness-y7orc6-a-warning-that-promises-what-holds`, not merged.** The words now say what T1 to
+T3 made true, per data type. Read from the code on `main` (`72977aa6`):
+
+- **An edited copy is refused** for files (`WebDAVTargetWriter.removeItem`,
+  `webdav-target-writer.ts`:1532-1545, and `JmapFileTarget.removeItem`,
+  `jmap-file-target.ts`:1135-1150), calendar entries (`CalDAVTargetWriter.removeItem`,
+  `caldav-target-writer.ts`:1191-1205) and contacts (`CardDAVTargetWriter.removeItem`,
+  `carddav-target-writer.ts`:837-851, and `JmapContactTarget.removeItem`,
+  `jmap-contact-target.ts`:776-791). The DAV three hand the version to `removeDavResource`
+  (`dav-remove.ts`:120-179; `If-Match` :148, `conflicted` :166), whose DELETE carries `If-Match` and whose 412 with the copy still
+  there is `conflicted`; the JMAP two read the copy's version and answer `conflicted`. All five
+  answer `unversioned` without a version (`dav-remove.ts`:133, `jmap-file-target.ts`:1142,
+  `jmap-contact-target.ts`:783), which core turns into `version_unknown`.
+- **Mail is not checked.** `JmapTargetWriter.removeItem` (`jmap-target.ts`:1161) takes no
+  version. `ImapFlowDavMailTarget.removeItem` (`imapflow-dav-target.ts`:578-621; no UIDVALIDITY :607, another one :610) refuses a row
+  without a UIDVALIDITY and throws on another one, which tells a recreated mailbox, not an edited
+  message.
+
+The warning, both languages, and the guard `scripts/a-warning-the-check-keeps.unit.test.ts` that
+reads those seven writers are in 0144's Status. 0144 T5 and the guide's switch line are 0144's,
+as before.
 
 **2026-09-27: T4 built (0131 §6, group M1, step 3), beside T1 to T3 and in its own pull
 request.** The cutover gate holds when a target that can hash compared nothing (D2, 0009's option
@@ -185,7 +208,7 @@ OTA stack and the appliances.
 | T3 Removal and rewrite carry the version, and removal refuses without one | ✅ **Built 2026-09-27** (D1 for removal, D3 for a rewrite) | §3. Guard: `a-removal-the-server-checks.unit.test.ts`. `If-Match` on the DAV DELETE and on the rewrite PUT. With no recorded version, or a version that cannot be read back, nothing is removed, and removal answers with a new refusal code. A rewrite whose version no longer matches is left alone and counted, as a conflict is today. A row without a version is rewritten, as today, and records the version the target returns (D3). JMAP contacts and files and IMAP mail follow the same rule. JMAP mail is unchanged. ADR-0024's operative rule and the architecture document change in the same PR. **Alpha minimum.** |
 | T4 The cutover gate holds when nothing was compared | ✅ **Built 2026-09-27** (D2) | §3. 0009's section headed T9, option 1: a domain whose target can hash, and from which no sample came back with a hash, is FAIL. The pinned test changes with it, because the owner decided, and not so that CI passes. Guard: the held case beside the pinned test in `verification-bytes-and-checksums.unit.test.ts`. **Alpha minimum.** |
 | T5 The IMAP source opens folders read-only, and no source can write | ✅ **Built 2026-09-27** | §3. `{ readOnly: true }` (EXAMINE) at the four places `imapflow-source.ts` opens a mailbox. A guard over every source connector's calls. **Alpha minimum.** |
-| T6 The words become true | 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` and 0144 T4 and T5 once T1 to T3 have landed. This is coordination with 0144, which owns the wording. **After** T3. |
+| T6 The words become true | 🔨 **`APPLY_FLAG_WARNING` built 2026-10-16 on branch `claude/ownpace-public-readiness-y7orc6-a-warning-that-promises-what-holds`, not merged**, as 0144 T4; 0144 T5 still 0144's — *was:* 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` and 0144 T4 and T5 once T1 to T3 have landed. This is coordination with 0144, which owns the wording. **After** T3. |
 | T7 Ledgers written before the fix | 📋 **Proposed** | §3. A row recorded `copied` after a 412 cannot be told apart from other rows without a version. The rule is T3's, with D3: no recorded version, no removal, and a source change rewrites the row. `ownpace-live` has none of these rows if the alpha tag carries T1. **After**, for the OTA stack and the appliances. |
 
 ## 1. What there is today

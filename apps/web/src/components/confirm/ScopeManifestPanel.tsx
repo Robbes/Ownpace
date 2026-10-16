@@ -53,7 +53,14 @@ const Column: React.FC<{
           const words = scopeManifestWords(e, locale);
           const english = locale !== 'en' && e.nl === undefined;
           return (
-            <li key={e.item} className="text-xs text-gray-700" lang={english ? 'en' : undefined}>
+            // Keyed by item AND family: one manifest over several sources
+            // shows a Files, a Tasks or a Permissions row per family, under
+            // one English item each (2026-10-16).
+            <li
+              key={`${e.item}|${e.appliesTo?.join(',') ?? ''}`}
+              className="text-xs text-gray-700"
+              lang={english ? 'en' : undefined}
+            >
               <span className="font-medium">{words.item}</span> — {words.detail}
               {words.more !== undefined && (
                 <details className="mt-1">

@@ -693,7 +693,7 @@ describe('listOwnedShareGrants (workplan 0029, the Google half)', () => {
 
     expect(listing.kind).toBe('not_discoverable');
     if (listing.kind !== 'not_discoverable') return;
-    expect(listing.reason).toContain('not "no permissions');
+    expect(listing.reason).toContain('This does not mean nothing is shared');
   });
 });
 

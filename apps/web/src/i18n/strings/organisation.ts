@@ -125,7 +125,7 @@ export const en = {
   'sharing.openManualNote':
     'row(s) marked manual: your steps on the new system; tick them here when done.',
   'sharing.rescan': 'Refresh from the source…',
-  'sharing.blindSpots': 'Could not be inventoried — capture these by hand:',
+  'sharing.blindSpots': 'Not read — note these by hand before you switch over:',
   'sharing.empty': 'No shares on the list yet. Refresh from the source to scan.',
   'sharing.apply': 'Apply Share on the new system',
   'sharing.applyArmed': 'Click again — this shares AND invites',
@@ -333,7 +333,7 @@ export const nl: Record<keyof typeof en, string> = {
   'sharing.openManualNote':
     'regel(s) op handmatig: uw stappen op het nieuwe systeem; vink ze hier af zodra gedaan.',
   'sharing.rescan': 'Opnieuw inlezen van de bron…',
-  'sharing.blindSpots': 'Kon niet worden geïnventariseerd — leg deze handmatig vast:',
+  'sharing.blindSpots': 'Niet gelezen — noteer deze zelf voordat u overstapt:',
   'sharing.empty': 'Nog geen gedeelde rechten. Lees opnieuw in van de bron om te scannen.',
   'sharing.apply': 'Delen toepassen op het nieuwe systeem',
   'sharing.applyArmed': 'Klik nogmaals — dit stelt delen in én nodigt betreffende persoon uit',

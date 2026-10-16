@@ -9,9 +9,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **The permission report comes in the reader's language** (workplan 0144): the
   Finish page asks for it in the screen's language (`lang=nl` or `lang=en` on
   `GET /api/permissions/report` and the appliance's `/permissions/report`), and
-  its headings, table headers and fixed sentences follow. Addresses, folder
-  names, rights such as FullAccess and SendAs, and each blind spot's reason stay
-  as they were found. Without `lang`, or with any other value, it is English.
+  its headings, table headers and fixed sentences follow, and each blind spot
+  is said in Dutch where its sentence has Dutch. Addresses, folder names and
+  rights such as FullAccess and SendAs stay as they were found; where a reason or
+  a measurement is still English, the Dutch report says so. Without `lang`, or
+  with any other value, it is English.
 
 ## [0.2.0-alpha.2] - 2026-10-11
 

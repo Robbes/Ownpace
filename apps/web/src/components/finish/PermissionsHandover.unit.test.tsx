@@ -41,7 +41,7 @@ describe('what it says before anybody clicks', () => {
   });
 
   it('names the blind spot on screen, not only inside the document', () => {
-    render(<PermissionsHandover mappingId="m1" sourceKind="microsoft" />);
+    render(<PermissionsHandover mappingId="m1" sourceKind="o365" />);
 
     // Somebody who never opens the file should still learn that full access
     // and send-as on a mailbox cannot be read at all (Exchange's FullAccess and
@@ -51,7 +51,7 @@ describe('what it says before anybody clicks', () => {
   });
 
   it('does not promise file sharing this installation may not have read', () => {
-    render(<PermissionsHandover mappingId="m1" sourceKind="microsoft" />);
+    render(<PermissionsHandover mappingId="m1" sourceKind="o365" />);
 
     // `Files.Read.All` is not consented by default (owner decision
     // 2026-08-04), so drive sharing is a stated blind spot in most
@@ -106,6 +106,34 @@ describe("the blind spots are the migration's own source's (the owner, 2026-10-0
   });
 });
 
+describe('a Microsoft account connected with its own sign-in (the owner, 2026-10-16)', () => {
+  // An Outlook.com tester read about someone else's mailbox and every file in
+  // their organisation. The `microsoft` kind is one person's own sign-in, and
+  // its line says what Ownpace did not read of THAT account.
+  it('is told its own three blind spots, with no organisation in them', () => {
+    render(<PermissionsHandover mappingId="m1" sourceKind="microsoft" />);
+
+    expect(screen.getByText(/who else could open or send from this mailbox, calendar sharing, and OneDrive sharing/)).toBeInTheDocument();
+    expect(screen.queryByText(/someone else's mailbox/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/SharePoint|organisation|Exchange|PowerShell/)).not.toBeInTheDocument();
+  });
+
+  it('in Dutch too', () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      render(
+        <LocaleProvider>
+          <PermissionsHandover mappingId="m1" sourceKind="microsoft" />
+        </LocaleProvider>,
+      );
+      expect(screen.getByText(/Drie blinde vlekken/)).toBeInTheDocument();
+      expect(screen.queryByText(/SharePoint|organisatie|Exchange/)).not.toBeInTheDocument();
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
+  });
+});
+
 describe('fetching the list', () => {
   it('asks for the report by mapping, not by a retyped address', async () => {
     render(<PermissionsHandover mappingId="m-42" />);
@@ -139,7 +167,7 @@ describe('fetching the list', () => {
       response: {
         data: {
           message:
-            'This migration does not record which mailbox it reads, so its permissions cannot be inventoried.',
+            'This migration does not record which mailbox it reads, so its permissions could not be read. Please contact us.',
         },
       },
     });
@@ -150,6 +178,24 @@ describe('fetching the list', () => {
     expect(
       await screen.findByText(/does not record which mailbox it reads/),
     ).toBeInTheDocument();
+  });
+
+  it("renders the server's Dutch to a Dutch reader, where it sent one (the owner, 2026-10-16)", async () => {
+    fetchPermissionReport.mockRejectedValue({
+      response: { data: { message: 'In English.', messageNl: 'In het Nederlands.' } },
+    });
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      render(
+        <LocaleProvider>
+          <PermissionsHandover mappingId="m1" />
+        </LocaleProvider>,
+      );
+      await userEvent.click(screen.getByRole('button'));
+      expect(await screen.findByText('In het Nederlands.')).toBeInTheDocument();
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
   });
 
   it('falls back to its own words when the server said nothing useful', async () => {

@@ -100,7 +100,7 @@ describe('GET /permissions/report (workplan 0029)', () => {
     // This appliance has an IMAP source and no Graph credentials, so every
     // category is uninventoried — which the document must SAY rather than
     // render as an empty report (rule 9).
-    expect(md).toContain('could NOT be inventoried');
+    expect(md).toContain('what was NOT read');
     expect(md).toContain('Who else had access to the mailbox');
     expect(md).toContain('Get-MailboxPermission');
     // And the deferred apply step is stated before the first finding.
@@ -112,7 +112,9 @@ describe('GET /permissions/report (workplan 0029)', () => {
   it('serves the report in Dutch when lang=nl, and in English otherwise', async () => {
     const nl = await (await fetch(`${base}/permissions/report?mailbox=pat@acme.nl&lang=nl`)).text();
     expect(nl).toContain('# Wie kan wat zien, en wat gebeurt ermee');
-    expect(nl).toContain('NIET kon worden geïnventariseerd');
+    expect(nl).toContain('wat NIET is gelezen');
+    // The appliance's blind spots are English still, and the report says so.
+    expect(nl).toContain('Een deel van de uitleg hieronder staat nog in het Engels.');
     expect(nl).toContain('Wie verder toegang had tot het postvak');
     expect(nl).not.toContain('Who can see what');
 

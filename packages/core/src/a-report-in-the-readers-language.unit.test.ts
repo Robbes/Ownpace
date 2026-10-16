@@ -116,7 +116,7 @@ describe('the Dutch report', () => {
     expect(nl).toContain('**Migratie:** pat@acme.nl');
     expect(nl).toContain('**Gemaakt op:** 2026-10-16');
     expect(nl).toContain('## Wat het nieuwe systeem doet met wat wij schrijven');
-    expect(nl).toContain('## Lees dit eerst: wat NIET kon worden geïnventariseerd');
+    expect(nl).toContain('## Lees dit eerst: wat NIET is gelezen');
     expect(nl).toContain('## Wat is gevonden');
     expect(nl).toContain('| Wat | Wie | Recht | Op het nieuwe systeem |');
     expect(nl).toContain('## De stappen die alleen u kunt doen');
@@ -131,7 +131,7 @@ describe('the Dutch report', () => {
   });
 
   it('keeps the blind spots above the findings', () => {
-    expect(nl.indexOf('NIET kon worden geïnventariseerd')).toBeLessThan(nl.indexOf('## Wat is gevonden'));
+    expect(nl.indexOf('wat NIET is gelezen')).toBeLessThan(nl.indexOf('## Wat is gevonden'));
   });
 
   it('carries none of the English fixed sentences, in any branch', () => {
@@ -162,7 +162,40 @@ describe('the Dutch report', () => {
 
   it('says the empty cases in Dutch', () => {
     expect(nlEmpty).toContain('Er zijn geen rechten gevonden');
-    expect(nlEmpty).toContain('Niets in de geïnventariseerde onderdelen vraagt een beslissing van u.');
+    expect(nlEmpty).toContain('Niets in de onderdelen die zijn gelezen, vraagt een beslissing van u.');
+  });
+});
+
+describe("a blind spot's own Dutch, where it has one (#1605)", () => {
+  const blindWith = (reasonNl?: string): PermissionReportInput => ({
+    sections: [
+      {
+        title: DATA.blindTitle,
+        listing: { kind: 'not_discoverable', reason: DATA.blindReason, ...(reasonNl ? { reasonNl } : {}) },
+      },
+    ],
+  });
+
+  it('says reasonNl to a Dutch reader, and reason to an English one', () => {
+    const nl = renderPermissionReport({ ...blindWith('DE-REDEN-IN-HET-NEDERLANDS'), lang: 'nl' });
+    expect(nl).toContain('DE-REDEN-IN-HET-NEDERLANDS');
+    expect(nl).not.toContain(DATA.blindReason);
+    expect(renderPermissionReport(blindWith('DE-REDEN-IN-HET-NEDERLANDS'))).toContain(DATA.blindReason);
+  });
+
+  it('says the English is English only when some reason has no Dutch', () => {
+    const note = 'Een deel van de uitleg hieronder staat nog in het Engels.';
+    expect(renderPermissionReport({ ...blindWith(), lang: 'nl' })).toContain(note);
+    expect(renderPermissionReport({ ...blindWith('DE-REDEN'), lang: 'nl' })).not.toContain(note);
+  });
+
+  it("says the target's measurements are English, unless the line is the pass's own", async () => {
+    const note = 'Deze metingen staan nog in het Engels.';
+    expect(renderPermissionReport({ ...nothing, targetConduct: ['measured'], lang: 'nl' })).toContain(note);
+    expect(
+      renderPermissionReport({ ...nothing, targetConduct: ['gemeten'], targetConductLang: 'nl', lang: 'nl' }),
+    ).not.toContain(note);
+    expect(renderPermissionReport({ ...nothing, targetConduct: ['measured'] })).not.toContain(note);
   });
 });
 
@@ -184,9 +217,17 @@ describe('the inventory pass, in the same language', () => {
     expect(md).toContain('Het gedrag van het nieuwe systeem kon niet worden gemeten: MEASUREMENT-FAILED');
     // The delegation reason is the source's, and stays as it was given.
     expect(md).toContain(DATA.blindReason);
+    // The pass's own unmeasured line is Dutch, so no note says otherwise.
+    expect(md).not.toContain('Deze metingen staan nog in het Engels.');
     expect(md).not.toContain('Who else had access to the mailbox');
     expect(md).not.toContain('Calendar sharing');
     expect(md).not.toContain('This source has nothing of this kind');
+  });
+
+  it("carries the delegation reason's Dutch through to a Dutch report", async () => {
+    const md = await runPermissionInventory({ ...deps, delegationReasonNl: 'DELEGATIE-IN-HET-NEDERLANDS', lang: 'nl' });
+    expect(md).toContain('DELEGATIE-IN-HET-NEDERLANDS');
+    expect(md).not.toContain(DATA.blindReason);
   });
 
   it('says a failed scan in Dutch, keeping the error as it was', async () => {

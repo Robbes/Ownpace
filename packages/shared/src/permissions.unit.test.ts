@@ -14,10 +14,18 @@
 import { describe, it, expect } from 'vitest';
 import {
   calendarSharingNotReadForThisSource,
+  calendarSharingNotReadForThisSourceSaid,
   fileSharingNotReadForThisSource,
+  fileSharingNotReadForThisSourceSaid,
   googleMailboxDelegationNotRead,
+  googleMailboxDelegationNotReadSaid,
   mailboxAccessNotReadForThisSource,
+  mailboxAccessNotReadForThisSourceSaid,
+  microsoftAccountCalendarSharingNotRead,
+  microsoftAccountFileSharingNotRead,
+  microsoftAccountMailboxAccessNotRead,
   permissionsNotDiscoverable,
+  permissionsNotDiscoverableNl,
 } from './permissions.ts';
 
 describe('permissionsNotDiscoverable', () => {
@@ -26,9 +34,64 @@ describe('permissionsNotDiscoverable', () => {
 
     expect(text).toContain('the API does not expose them');
     expect(text).toContain('nothing was looked at');
+    expect(text).toContain('This does not mean nothing is shared');
     // The half that makes it actionable: it names the consequence, so a
     // reader who skips it is choosing to, rather than not knowing.
-    expect(text).toContain('stop working at cutover');
+    expect(text).toContain('stops working without warning when you switch over');
+  });
+
+  it("says it in a tester's words, in English and in Dutch (the owner, 2026-10-16)", () => {
+    // "Could not be inventoried … at cutover" was the developer's sentence.
+    const en = permissionsNotDiscoverable('x');
+    const nl = permissionsNotDiscoverableNl('x');
+    for (const text of [en, nl]) {
+      expect(text).not.toMatch(/inventor|cutover|deployment/i);
+    }
+    expect(en).toContain('was not read');
+    expect(nl).toContain('niet gelezen');
+    // The same meaning in Dutch: nothing looked at, which is never "nothing shared".
+    expect(nl).toContain('niets bekeken');
+    expect(nl).toContain('betekent niet dat er niets gedeeld is');
+    expect(nl).toContain('zodra u overstapt');
+    expect(nl).not.toMatch(/verhuizing|\bje\b|\bjij\b/);
+  });
+});
+
+describe('every sentence of ours is said in Dutch too (the owner, 2026-10-16)', () => {
+  it('pairs each English blind spot with its Dutch twin, both framed as blind spots', () => {
+    const pairs = [
+      googleMailboxDelegationNotReadSaid(),
+      mailboxAccessNotReadForThisSourceSaid(),
+      calendarSharingNotReadForThisSourceSaid(),
+      fileSharingNotReadForThisSourceSaid(),
+      microsoftAccountMailboxAccessNotRead(),
+      microsoftAccountCalendarSharingNotRead(),
+      microsoftAccountFileSharingNotRead(),
+    ];
+    for (const pair of pairs) {
+      expect(pair.en).toContain('nothing was looked at');
+      expect(pair.nl).toContain('niets bekeken');
+      expect(pair.nl).not.toMatch(/verhuizing/);
+    }
+    // The English half is the sentence the report has always carried.
+    expect(googleMailboxDelegationNotReadSaid().en).toBe(googleMailboxDelegationNotRead());
+    expect(mailboxAccessNotReadForThisSourceSaid().en).toBe(mailboxAccessNotReadForThisSource());
+  });
+});
+
+describe('a Microsoft account connected with its own sign-in (the owner, 2026-10-16)', () => {
+  it("names no Exchange tool and no organisation's directory, in either language", () => {
+    for (const pair of [
+      microsoftAccountMailboxAccessNotRead(),
+      microsoftAccountCalendarSharingNotRead(),
+      microsoftAccountFileSharingNotRead(),
+    ]) {
+      for (const text of [pair.en, pair.nl]) {
+        expect(text).not.toMatch(/PowerShell|Get-MailboxPermission|Exchange|tenant|SharePoint|directory|registration|inventor|cutover/i);
+      }
+      expect(pair.en).toContain('not read by Ownpace');
+    }
+    expect(microsoftAccountMailboxAccessNotRead().en).toContain("Outlook's settings");
   });
 });
 

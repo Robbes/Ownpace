@@ -72,6 +72,8 @@ export interface PermissionInventoryDeps {
    * Required, because it is always true of every source this tool speaks to.
    */
   readonly delegationReason: string;
+  /** The same in Dutch, where the edition wrote one (#1605); the report's `nl` says it. */
+  readonly delegationReasonNl?: string;
   /** Calendar sharing. Omit for a source that has no calendars. */
   scanCalendars?(): Promise<PermissionListing>;
   /** File and folder sharing. Omit for a source that has no drive. */
@@ -99,7 +101,11 @@ export async function runPermissionInventory(deps: PermissionInventoryDeps): Pro
     // reason still names them, where they are its own.
     {
       title: w.delegation,
-      listing: { kind: 'not_discoverable', reason: deps.delegationReason },
+      listing: {
+        kind: 'not_discoverable',
+        reason: deps.delegationReason,
+        ...(deps.delegationReasonNl === undefined ? {} : { reasonNl: deps.delegationReasonNl }),
+      },
     },
   ];
 
@@ -107,6 +113,8 @@ export async function runPermissionInventory(deps: PermissionInventoryDeps): Pro
   sections.push(await section(w.drive, deps.scanDrive, deps.error, lang));
 
   let targetConduct: readonly string[] = [];
+  // The target's measurements are English; this pass's own line is the reader's.
+  let targetConductLang: ReportLanguage = 'en';
   if (deps.measureTargetConduct) {
     try {
       targetConduct = await deps.measureTargetConduct();
@@ -115,12 +123,13 @@ export async function runPermissionInventory(deps: PermissionInventoryDeps): Pro
       // The run-#6 rule again: a measurement that failed is stated as
       // unmeasured, never dropped — dropped reads as "nothing to say".
       targetConduct = [w.conductUnmeasured(err instanceof Error ? err.message : String(err))];
+      targetConductLang = lang;
     }
   }
 
   return renderPermissionReport({
     sections,
-    ...(targetConduct.length > 0 ? { targetConduct } : {}),
+    ...(targetConduct.length > 0 ? { targetConduct, targetConductLang } : {}),
     ...(deps.mappingLabel ? { mappingLabel: deps.mappingLabel } : {}),
     ...(deps.generatedOn ? { generatedOn: deps.generatedOn } : {}),
     lang,

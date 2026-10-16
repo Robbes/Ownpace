@@ -46,8 +46,11 @@ describe('mailbox delegation', () => {
     expect(result.reason).toContain('Get-MailboxPermission');
     expect(result.reason).toContain('Get-RecipientPermission');
     // And the sentence refuses the reading it would otherwise get.
-    expect(result.reason).toContain('not "no permissions are set"');
+    expect(result.reason).toContain('This does not mean nothing is shared');
     expect(result.reason).toContain('stop working');
+    // And in Dutch, for the Sharing checklist (the owner, 2026-10-16).
+    expect(result.reasonNl).toContain('Get-MailboxPermission');
+    expect(result.reasonNl).toContain('niets bekeken');
   });
 });
 
