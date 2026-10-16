@@ -1065,7 +1065,7 @@ describe('what migrates, for each source on the check screen', () => {
     renderCheck(plan('apple', 'apple', ['email', 'task']));
     const rows = within(await panel());
     expect(await rows.findByText(/Every folder, Sent, Drafts and Archive included/)).toBeInTheDocument();
-    expect(rows.getByText(/Apple Reminders and other task lists/)).toBeInTheDocument();
+    expect(rows.getByText(/upgraded Apple Reminders cannot be read/)).toBeInTheDocument();
     expect(rows.queryByText(/Microsoft To Do:/)).not.toBeInTheDocument();
   });
 

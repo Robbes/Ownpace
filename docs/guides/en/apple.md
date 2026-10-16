@@ -7,7 +7,7 @@ What one Apple connection carries:
 - **Mail**: yes, over IMAP at `imap.mail.me.com:993`.
 - **Calendars**: yes, over CalDAV at `caldav.icloud.com`.
 - **Contacts**: yes, over CardDAV at `contacts.icloud.com` — a **different host**.
-- **Reminders**: yes, over CalDAV, as `VTODO`s — see [What Reminders bring](#reminders).
+- **Reminders**: only lists that were never upgraded to the new Reminders (iOS 13 and macOS Catalina and later); see [What Reminders bring](#reminders).
 - **iCloud Drive**: **no**. There is no API. See [Files](#files).
 
 You do not type any of those hosts. They are Apple's published values, recorded in this product with the address and the day they were read, and the card fills them in.
@@ -50,6 +50,8 @@ Google, Microsoft and Dropbox connections offer a one-click consent button. The 
 Mail, calendars, contacts and reminders, whichever you tick. Not iCloud Drive.
 
 ### What Reminders bring {#reminders}
+
+**Most reminders cannot be read, by Ownpace or by any app but Apple's.** Since iOS 13 and macOS Catalina, the Reminders app offers to upgrade your lists, and an upgraded list leaves iCloud's calendar server for a store that only Apple's own apps read. Nearly every iPhone has made that upgrade, and it cannot be undone. What the calendar account still holds, a list that was never upgraded or a task list from another calendar app, is read as described below. To take upgraded reminders along, copy them by hand, or share them from the Reminders app into another app first.
 
 Apple's Reminders are `VTODO` objects living on the same CalDAV host as your calendars, so one credential reaches both — but they are **not** events, and this product does not pretend otherwise. Tasks are their own kind of data, kept apart from events. Filing a reminder as a calendar event would produce something that looks migrated and is wrong.
 

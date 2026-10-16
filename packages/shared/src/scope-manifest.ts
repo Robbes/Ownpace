@@ -478,30 +478,6 @@ export const SCOPE_MANIFEST: ScopeManifest = {
           'aan een taak hangen, komen niet mee.',
       },
     },
-    // APPLE REMINDERS, and any other task list kept in a calendar account
-    // (2026-10-16): `standards`, because an Apple account is reached the way
-    // a bare calendar server is (the kind table above). Read since 0115 as
-    // VTODO from the same calendar account, and copied as written. The one
-    // limit is the destination's, and it is the guide's section this links:
-    // one that keeps only calendars refuses each task, under Failures.
-    {
-      item: 'Tasks',
-      detail: 'Apple Reminders and other task lists in a calendar account: every list and task.',
-      more:
-        'Each task is copied as it was written. Your destination must keep task lists, as ' +
-        'Nextcloud and Soverin do: one that keeps only calendars refuses each task, and lists ' +
-        'it under Failures.',
-      appliesTo: ['standards'],
-      guide: 'apple#reminders',
-      nl: {
-        item: 'Taken',
-        detail: 'Herinneringen van Apple en andere takenlijsten in een agenda-account: elke lijst en taak.',
-        more:
-          'Elke taak wordt gekopieerd zoals ze werd geschreven. Uw bestemming moet takenlijsten ' +
-          'bewaren, zoals Nextcloud en Soverin doen: een bestemming die alleen agenda’s bewaart, ' +
-          'weigert elke taak, en zet die onder Mislukkingen.',
-      },
-    },
     {
       item: 'Files',
       detail: 'Files and folders.',
@@ -511,6 +487,35 @@ export const SCOPE_MANIFEST: ScopeManifest = {
     },
   ],
   partial: [
+    {
+      // Apple's Reminders (2026-10-16): Partial, not Migrates. Since iOS 13 and
+      // macOS Catalina an upgraded Reminders list leaves iCloud's CalDAV for a
+      // store only Apple's own apps read (DAVx5's and BusyMac's notes), so for
+      // nearly every iPhone the calendar account holds no reminders at all.
+      // What it still holds, a list never upgraded and other accounts' task
+      // lists, is copied as written; the destination must keep task lists.
+      item: 'Tasks',
+      detail: 'Task lists in a calendar account; upgraded Apple Reminders cannot be read.',
+      more:
+        'Since iOS 13 and macOS Catalina, Apple keeps upgraded Reminders where only its own ' +
+        'apps can read them, so no other app, Ownpace included, can reach them. Reminders ' +
+        'that were never upgraded, and task lists in other calendar accounts, are copied as ' +
+        'they were written. Your destination must keep task lists, as Nextcloud and Soverin ' +
+        'do: one that keeps only calendars refuses each task, and lists it under Failures.',
+      appliesTo: ['standards'],
+      guide: 'apple#reminders',
+      nl: {
+        item: 'Taken',
+        detail: 'Takenlijsten in een agenda-account; bijgewerkte Apple-herinneringen zijn onleesbaar.',
+        more:
+          'Sinds iOS 13 en macOS Catalina bewaart Apple bijgewerkte Herinneringen zo dat alleen ' +
+          'de eigen apps van Apple ze kunnen lezen; geen andere app, ook Ownpace niet, kan erbij. ' +
+          'Herinneringen die nooit zijn bijgewerkt, en takenlijsten in andere agenda-accounts, ' +
+          'worden gekopieerd zoals ze werden geschreven. Uw bestemming moet takenlijsten ' +
+          'bewaren, zoals Nextcloud en Soverin doen: een bestemming die alleen agenda’s bewaart, ' +
+          'weigert elke taak, en zet die onder Mislukkingen.',
+      },
+    },
     // Distribution lists moved down from `migrates` on 2026-08-04 (workplan
     // 0027 T4). Under *Migrates* they promised a recreation no code performs,
     // which is the promise 0026's truth pass exists to stop us making. Shared

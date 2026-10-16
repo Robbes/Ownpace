@@ -138,8 +138,13 @@ describe('tasks, for each source that reads them', () => {
   it('tells an Apple migration about its Reminders, and links the guide that says the rest', () => {
     const rows = tasks(scopeFamilyOfConnectionKind('apple')!);
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.detail).toMatch(/Apple Reminders/);
-    expect(rows[0]!.nl?.detail).toMatch(/Herinneringen van Apple/);
+    // Said as what it is: upgraded Reminders (iOS 13 and later) live where only
+    // Apple's apps read them, so the row is Partial and says so.
+    expect(rows[0]!.detail).toMatch(/upgraded Apple Reminders cannot be read/);
+    expect(rows[0]!.nl?.detail).toMatch(/bijgewerkte Apple-herinneringen zijn onleesbaar/);
+    expect(rows[0]!.more).toMatch(/iOS 13/);
+    expect(rows[0]!.nl?.more).toMatch(/iOS 13/);
+    expect(SCOPE_MANIFEST.partial).toContain(rows[0]);
     expect(rows[0]!.guide).toBe('apple#reminders');
   });
 

@@ -4,6 +4,14 @@
 
 ## Status — 2026-10-16 (update this block at the end of every session)
 
+**2026-10-16, later: Apple's Reminders are Partial, not Migrates.** Since iOS 13 and macOS
+Catalina an upgraded Reminders list leaves iCloud's calendar server for a store only Apple's own
+apps read (DAVx5's iCloud notes; BusyMac's FAQ 112990), and nearly every iPhone has upgraded. So
+the row added below said *"every list and task"* of something the calendar account usually does
+not hold. It now sits under Partial: *"Task lists in a calendar account; upgraded Apple Reminders
+cannot be read."*, with the reason in its fold, in both languages. The Apple guide's *Reminders*
+line and its `{#reminders}` section say the same (EN and NL).
+
 **2026-10-16: what migrates, for each source.** Four rows of the scope manifest had no
 `appliesTo`, so *Email*, *Calendar*, *Contacts* and *Mail with no Message-ID* were shown to every
 source, and a Dropbox, Box or Takeout-export migration was told its mail would move. The code
