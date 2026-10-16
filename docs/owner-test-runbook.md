@@ -320,6 +320,9 @@ account as Stage 5:
    Google account carries over the same DAV read path, since the
    **Google Calendar** and **Google Contacts** cards make no new migrations
    (0153).
+   **Question zero is settled (2026-10-15): not run.** The product keeps the full
+   `…/auth/calendar`, and the console declares it (`docs/google-oauth-verification.md`). The
+   test below stays for whoever wants to reopen it.
    **Question zero, added 2026-09-20 — the narrower calendar scope.** The
    console lists `.../auth/calendar.readonly` *under the CalDAV API*, which
    suggests Google's CalDAV endpoint accepts it; this product never writes a

@@ -1207,6 +1207,360 @@ Ending the service is **commercial**; erasing the data is **legal**. They are
 deliberately not the same button: the first is reversible and routine, the
 second is neither.
 
+### An export on request
+
+Terms §11 (kept during the Alpha by the Alpha conditions §2) and DPA §10
+promise **the migration records on request: what was copied, what could not be,
+and why.** Privacy §10 promises what we hold about a person in a common file
+format, and privacy §4.5 what our support log records about their organisation.
+Until `operator.sh export` exists
+([workplan 0155](./workplans/0155-the-migration-records-handed-over.md) T2),
+you make it by hand, as below, so that two exports made by hand hold the same
+columns. The texts set no deadline: aim at 7 days from the request (0155 open
+question 6), and the GDPR's month applies to a request under privacy §10.
+
+**Before the purge.** The records are the ledger's rows, and the purge deletes
+them (`item` is in `PURGED_TABLES`). A closed organisation keeps them until its
+window runs out, so a request that comes with a close is answered before then.
+**With a window of `0`, make the export before you run `operator.sh close`**:
+the hourly purge, at :23, erases the organisation at its next run. Once it has
+run there is nothing left to export, and the first query below says that no
+organisation has the id.
+
+**What it holds, and what it never holds.** Per migration: every item the
+ledger has, its outcome in words, and the reason when it was not copied; a
+summary per migration and data type, with the counts; and what the support log
+records about the organisation. Never a credential, a token, a connection's
+configuration (`secret_ref`, `encrypted_credentials`, `config`, the mapping's
+`*_config_override` and `source_secret_ref`), the providers' own identifiers
+(`source_ref`, `target_ref`), and nothing of another organisation. The queries
+below select named columns only; do not add `*` to one.
+
+**Where it comes from.** The app already makes two of these documents per
+migration, for a member of the organisation who signs in: the completion report
+(`GET /api/migrations/:mappingId/completion-report`, *Download the report* on
+the Finish page and the migration's page) and the confirmed list's CSV
+(`GET /api/migrations/:mappingId/confirmed-list/export`). Neither is refused
+while the organisation is closed, so a requester who can still sign in can
+download both until the purge. You are not a member of their organisation, and
+the support screens cannot show items, by design. So the export by hand is read
+at the machine, on the owner's connection: `psql` as `POSTGRES_USER` in the
+stack's own Postgres container, as *Sign-in accounts nobody let in* and
+*Searches and downloads on the support screens* read. **Row security is not in
+force there** (the owner is a superuser, `docs/rls-guide.md` §2), so every
+query names the organisation, and that filter is the only thing that keeps
+every other organisation's rows out of the file. The confirmed list's `state`
+is derived in the query exactly as `rowFor` derives it
+(`packages/shared/src/confirmed-list.ts`), so the export never says `verified`
+of a row the app's list would not.
+
+**1. The organisation, and where the file goes.** From the stack's checkout,
+`~/ownpace-live` for testers. The organisation's id is read into the shell
+rather than typed into a command, so it is in no line your shell's history
+keeps, and it reaches the SQL as a psql variable, never pasted into it:
+
+```bash
+cd ~/ownpace-live
+read -r -p 'Organisation id: ' TENANT
+read -r -p 'Their address, for searches by it (Enter for none): ' ADDRESS
+
+# Every question below is asked through `ask`: psql as the database's owner in
+# this stack's own Postgres container, in read-only transactions, in UTC. It
+# stops before the question if the role would not pass row security (every
+# file would be empty) or no organisation has the id. The organisation, a
+# migration (ask's argument) and the address go in as psql variables.
+PRE=$(cat <<'SQL'
+SET default_transaction_read_only = on;
+SET TimeZone = 'UTC';
+SELECT set_config('export.tenant', :'tenant', false) AS export_tenant \gset
+DO $$
+BEGIN
+  IF NOT (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user) THEN
+    RAISE EXCEPTION 'export: % does not pass row security, so every file would be empty', current_user;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.tenant WHERE id = current_setting('export.tenant')::uuid) THEN
+    RAISE EXCEPTION 'export: no organisation has that id on this stack (purged, mistyped, or another stack''s)';
+  END IF;
+END $$;
+SQL
+)
+ask() {
+  docker compose -f deploy/compose/managed.yml exec -T postgres sh -c \
+    'exec psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v tenant="$1" -v mapping="$2" -v address="$3"' \
+    sh "$TENANT" "${1:-}" "$ADDRESS" <<<"$PRE"$'\n'"$(cat)"
+}
+# A byte-order mark first, as the confirmed list's file has: without one a
+# spreadsheet reads ë and é in the local codepage.
+csv() { printf '\357\273\277'; ask "$@"; }
+
+ask <<'SQL'
+SELECT t.name, t.status, c.closed_at, c.purge_after
+  FROM public.tenant t LEFT JOIN public.tenant_closure c ON c.tenant_id = t.id
+ WHERE t.id = :'tenant';
+SELECT email, user_id, status FROM public.tenant_member
+ WHERE tenant_id = :'tenant' AND role = 'owner';
+SQL
+
+E=~/.persistent/ownpace-live/exports
+D="$E/$TENANT-$(date -u +%F)"
+(umask 077 && mkdir -p "$E" && mkdir "$D") && chmod 700 "$E" "$D"
+```
+
+Read the answer before going on. `purge_after` is when the records go; past it,
+or within the hour with a window of `0`, the purge may already be running. The
+owner's address is the one the request is checked against and the file is sent
+to (step 3). The exports have a directory of their own,
+`~/.persistent/<project>/exports`, mode 700, beside the stack's other files that
+must not be read by anybody else, and outside the databases, so the copy before
+an update never holds one. Each export is a directory named after the
+organisation's id and the day, never a person's name or address. `mkdir` refuses
+a second one on the same day: delete the first, or wait.
+
+**2. The files.** One CSV of the organisation's migrations, one per migration
+with every item, a summary, and the support log's rows:
+
+```bash
+csv > "$D/migrations.csv" <<'SQL'
+COPY (
+  SELECT m.id AS migration_id,
+         regexp_replace(m.name, '^([=+@\t\r-])', '''\1') AS migration,
+         m.status,
+         regexp_replace(src.primary_address, '^([=+@\t\r-])', '''\1') AS from_account,
+         regexp_replace(tgt.primary_address, '^([=+@\t\r-])', '''\1') AS to_account,
+         to_char(m.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at
+    FROM public.mailbox_mapping m
+    LEFT JOIN public.mailbox src ON src.id = m.source_mailbox_id AND src.tenant_id = m.tenant_id
+    LEFT JOIN public.mailbox tgt ON tgt.id = m.target_mailbox_id AND tgt.tenant_id = m.tenant_id
+   WHERE m.tenant_id = :'tenant'
+   ORDER BY m.created_at, m.id
+) TO STDOUT WITH (FORMAT csv, HEADER);
+SQL
+
+for M in $(tail -n +2 "$D/migrations.csv" | cut -d, -f1); do
+  csv "$M" > "$D/items-$M.csv" <<'SQL'
+COPY (
+  SELECT i.domain,
+         regexp_replace(i.collection, '^([=+@\t\r-])', '''\1') AS collection,
+         regexp_replace(i.natural_key, '^([=+@\t\r-])', '''\1') AS item,
+         regexp_replace(i.display_name, '^([=+@\t\r-])', '''\1') AS name,
+         CASE i.status
+           WHEN 'copied'         THEN 'copied'
+           WHEN 'updated'        THEN 'updated'
+           WHEN 'adopted'        THEN 'already there'
+           WHEN 'failed'         THEN 'not copied: failed'
+           WHEN 'skipped'        THEN 'not copied: skipped'
+           WHEN 'left_behind'    THEN 'left behind on your decision'
+           WHEN 'superseded'     THEN 'replaced by a later version'
+           WHEN 'pending'        THEN 'waiting'
+           WHEN 'tombstoned'     THEN 'removed on your decision'
+           WHEN 'deleted_source' THEN 'deleted at the source'
+           ELSE i.status
+         END AS outcome,
+         CASE
+           WHEN i.status IN ('copied', 'updated', 'adopted', 'tombstoned', 'deleted_source') THEN NULL
+           WHEN i.last_error_category = 'auth_expired'   THEN 'the connection to the account had expired'
+           WHEN i.last_error_category = 'rate_limited'   THEN 'the provider asked us to slow down'
+           WHEN i.last_error_category = 'quota_exceeded' THEN 'a daily limit was reached'
+           WHEN i.last_error_category = 'policy_refused' THEN 'left out by this migration''s own settings'
+           WHEN i.last_error_category = 'too_large'      THEN 'larger than this service copies during the Alpha'
+           WHEN i.last_error_category = 'source_refused' THEN 'the old account would not hand it over'
+           WHEN i.last_error_category = 'target_refused' THEN 'the new account would not accept it'
+           WHEN i.last_error_category = 'format_refused' THEN 'the new account does not accept this kind of file'
+           WHEN i.last_error_category = 'network'        THEN 'a server could not be reached'
+           WHEN i.last_error_category = 'unknown'        THEN 'not recognised'
+           WHEN i.last_error_category IS NOT NULL        THEN replace(i.last_error_category, '_', ' ')
+           WHEN i.last_error IS NOT NULL                 THEN 'not classified'
+         END AS reason,
+         CASE
+           WHEN i.status NOT IN ('copied', 'updated', 'adopted', 'tombstoned', 'deleted_source')
+           THEN regexp_replace(i.last_error, '^([=+@\t\r-])', '''\1')
+         END AS provider_said,
+         i.size_bytes,
+         to_char(i.first_seen_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS first_seen_at,
+         to_char(i.last_synced_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS last_copied_at,
+         regexp_replace(i.repaired, '^([=+@\t\r-])', '''\1') AS repaired,
+         CASE
+           WHEN i.confirmed_answer = 'unreachable' THEN 'unchecked'
+           WHEN i.status IN ('pending', 'skipped', 'failed', 'left_behind', 'superseded') THEN 'never-placed'
+           WHEN i.status = 'adopted'    THEN 'yours'
+           WHEN i.status = 'tombstoned' THEN 'removed'
+           WHEN i.confirmed_answer IS NULL           THEN 'unchecked'
+           WHEN i.confirmed_answer = 'absent'        THEN 'missing'
+           WHEN i.confirmed_answer = 'match'         THEN 'verified'
+           WHEN i.confirmed_answer = 'differs'       THEN 'differs'
+           WHEN i.confirmed_answer = 'uncomparable'  THEN 'present'
+         END AS state,
+         to_char(i.confirmed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS checked_at
+    FROM public.item i
+   WHERE i.tenant_id = :'tenant' AND i.mapping_id::text = :'mapping'
+   ORDER BY i.domain, i.collection, i.natural_key
+) TO STDOUT WITH (FORMAT csv, HEADER);
+SQL
+done
+
+csv > "$D/summary.csv" <<'SQL'
+COPY (
+  WITH counted AS (
+    SELECT mapping_id, domain, status, count(*) AS items, sum(size_bytes) AS size_bytes
+      FROM public.item WHERE tenant_id = :'tenant'
+     GROUP BY mapping_id, domain, status
+  ), state AS (
+    SELECT mapping_id, domain, state, last_error_category, last_error
+      FROM public.migration_status WHERE tenant_id = :'tenant'
+  )
+  SELECT coalesce(c.mapping_id, s.mapping_id) AS migration_id,
+         coalesce(c.domain, s.domain) AS domain,
+         replace(s.state, '_', ' ') AS data_type_state,
+         CASE
+           WHEN s.state IS DISTINCT FROM 'failed' THEN NULL
+           WHEN s.last_error_category = 'auth_expired'   THEN 'the connection to the account had expired'
+           WHEN s.last_error_category = 'rate_limited'   THEN 'the provider asked us to slow down'
+           WHEN s.last_error_category = 'quota_exceeded' THEN 'a daily limit was reached'
+           WHEN s.last_error_category = 'policy_refused' THEN 'left out by this migration''s own settings'
+           WHEN s.last_error_category = 'too_large'      THEN 'larger than this service copies during the Alpha'
+           WHEN s.last_error_category = 'source_refused' THEN 'the old account would not hand it over'
+           WHEN s.last_error_category = 'target_refused' THEN 'the new account would not accept it'
+           WHEN s.last_error_category = 'format_refused' THEN 'the new account does not accept this kind of file'
+           WHEN s.last_error_category = 'network'        THEN 'a server could not be reached'
+           WHEN s.last_error_category = 'unknown'        THEN 'not recognised'
+           WHEN s.last_error_category IS NOT NULL        THEN replace(s.last_error_category, '_', ' ')
+           WHEN s.last_error IS NOT NULL                 THEN 'not classified'
+         END AS data_type_reason,
+         CASE WHEN s.state = 'failed'
+              THEN regexp_replace(s.last_error, '^([=+@\t\r-])', '''\1') END AS data_type_provider_said,
+         CASE c.status
+           WHEN 'copied'         THEN 'copied'
+           WHEN 'updated'        THEN 'updated'
+           WHEN 'adopted'        THEN 'already there'
+           WHEN 'failed'         THEN 'not copied: failed'
+           WHEN 'skipped'        THEN 'not copied: skipped'
+           WHEN 'left_behind'    THEN 'left behind on your decision'
+           WHEN 'superseded'     THEN 'replaced by a later version'
+           WHEN 'pending'        THEN 'waiting'
+           WHEN 'tombstoned'     THEN 'removed on your decision'
+           WHEN 'deleted_source' THEN 'deleted at the source'
+           ELSE c.status
+         END AS outcome,
+         coalesce(c.items, 0) AS items,
+         c.size_bytes
+    FROM counted c
+    FULL JOIN state s ON s.mapping_id = c.mapping_id AND s.domain = c.domain
+   ORDER BY 1, 2, 6
+) TO STDOUT WITH (FORMAT csv, HEADER);
+SQL
+
+csv > "$D/support-log.csv" <<'SQL'
+COPY (
+  SELECT to_char(r.at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS at,
+         r.operator_user_id AS operator,
+         r.view_name AS screen,
+         regexp_replace(r.query, '^([=+@\t\r-])', '''\1') AS searched_for,
+         r.result_count
+    FROM public.support_read r
+   WHERE r.tenant_id = :'tenant'
+      OR (:'address' <> '' AND r.tenant_id IS NULL AND r.view_name = 'people'
+          AND r.query <> '' AND strpos(lower(:'address'), lower(r.query)) > 0)
+   ORDER BY r.at, r.id
+) TO STDOUT WITH (FORMAT csv, HEADER);
+SQL
+
+chmod 600 "$D"/*.csv
+ask <<'SQL'
+SELECT (SELECT count(*) FROM public.mailbox_mapping WHERE tenant_id = :'tenant') AS migrations,
+       (SELECT count(*) FROM public.item WHERE tenant_id = :'tenant') AS items;
+SQL
+```
+
+A failure stops at the statement that failed (`ON_ERROR_STOP`) and prints why;
+delete `$D` and start step 2 again. The files, and their columns:
+
+| File | One row per | Columns |
+| --- | --- | --- |
+| `migrations.csv` | migration | `migration_id`, `migration` (its name), `status`, `from_account`, `to_account`, `created_at` |
+| `items-<migration_id>.csv` | item the ledger has for that migration | `domain`, `collection`, `item` (the natural key), `name` (`display_name`), `outcome`, `reason`, `provider_said`, `size_bytes`, `first_seen_at`, `last_copied_at`, `repaired`, `state`, `checked_at` |
+| `summary.csv` | migration, data type and outcome | `migration_id`, `domain`, `data_type_state`, `data_type_reason`, `data_type_provider_said`, `outcome`, `items`, `size_bytes` |
+| `support-log.csv` | support-screen read | `at`, `operator` (the subject), `screen`, `searched_for`, `result_count` |
+
+- `outcome` is the ledger's status in words: *copied*, *updated*, *already
+  there* (`adopted`), *not copied: failed*, *not copied: skipped*, *left behind
+  on your decision* (`left_behind`), *replaced by a later version*
+  (`superseded`), *waiting* (`pending`), *removed on your decision*
+  (`tombstoned`), *deleted at the source* (`deleted_source`). Those are the ten
+  values `item_status_check` allows; a status added to it later comes out bare
+  until its words are added here.
+- `reason` is `last_error_category` in words, the fact each category's sentence
+  on the screens states, and `provider_said` is `last_error`, verbatim (0155
+  open question 4, recommended (a)): the provider's own words, which can name an
+  address or a folder of theirs. Both are empty for an item that was placed.
+- `last_copied_at` is `last_synced_at`. `repaired` is what we corrected in the
+  item's bytes (migration 0052): it names a line, a property and a parameter,
+  never a value.
+- `state` and `checked_at` are the confirmed list's: `verified`, `differs`,
+  `present`, `yours`, `missing`, `never-placed`, `removed` or `unchecked`, and
+  when the target was asked. `unchecked` with no `checked_at` is an item no
+  confirmation pass has reached.
+- `summary.csv` takes the place of the completion report's counts, which only a
+  member can download: its `items` add up, per migration, to the rows of that
+  migration's file.
+- `support-log.csv` is privacy §4.5's: every read of a support screen that names
+  the organisation, and, with an address, each search by address whose text is
+  part of that address (a search is recorded without an organisation, and stays
+  12 months). Searches by other addresses never appear.
+- Every text field goes in as the confirmed list's file has it: quoted by RFC
+  4180, and one that starts with `=`, `+`, `-`, `@`, a tab or a carriage return
+  begins with `'`, so a spreadsheet does not run it as a formula. Times are UTC.
+- The headers and words are in English, as the confirmed list's are. In which
+  language the words should be is 0155 open question 5; until it is answered,
+  say in the mail what each file is.
+
+**3. Pack it, send it, delete it.** The repository has no zip writer (0155 §1),
+so the machine packs it: `zip` when the machine has it (`command -v zip`; a zip
+opens on every computer without anything installed), otherwise `tar`, which
+every machine here has (a `.tar.gz` opens on macOS, Linux and Windows 11):
+
+```bash
+if command -v zip >/dev/null; then A="$D.zip"; (cd "$E" && zip -qr "$A" "${D##*/}")
+else A="$D.tar.gz"; tar -czf "$A" -C "$E" "${D##*/}"; fi
+chmod 600 "$A" && stat -c '%s bytes' "$A"
+```
+
+Send `$A` as an attachment to a mail from `support@ownpace.eu`, through Proton,
+to the organisation's owner, at the address our sign-in service holds for them
+(the `email` of step 1, compared with the account in the sign-in service's
+console), or, for a business customer, to the contact the DPA names. Never to an
+address given only in the request, unless it is one of those, and check the
+person asking as privacy §10 says. Copy it off the machine with `scp` to the
+computer you send from, as the site's visit reports are fetched
+(`docs/managed-bring-up.md`). The mail's copy stays in the Sent folder under the
+support-mail rule (privacy §9): until the request is resolved, then 6 months.
+
+**Once it is sent, delete it from the machine**, and from the computer you sent
+it from:
+
+```bash
+rm -rf -- "$D" "$A"
+```
+
+**Nothing is kept past 7 days.** Until the daily duties do it (0155 T3), check
+the directory whenever you open the machine, and delete what is older than 7
+days, sent or not:
+
+```bash
+find ~/.persistent/ownpace-live/exports -mindepth 1 -maxdepth 1 -mmin +$((7 * 24 * 60)) -print -exec rm -rf -- {} +
+```
+
+**4. What is recorded.** The request's reference, the date it was sent, and the
+file's size and counts (the archive's bytes, the number of migrations and
+items from the last query of step 2), in the support mailbox's thread of the
+request, until `operator.sh export` records them in the audit log (0155 T2).
+Never the content: no item, name, address or reason.
+
+**What we hold about a person (privacy §10)** is more than the support log's
+rows: the request for access, the membership with its role and dates, the audit
+log's lines that name them, and invoice details. Workplan 0155 T4 builds that
+part. Until then, answer it by hand from those tables, with the organisation and
+the person's subject filtered in every query as above.
+
 ### 1. Close — stops the service now, schedules the erasure
 
 ```bash
@@ -1224,6 +1578,10 @@ Close it at the machine instead (workplan 0139 T7 (a)):
 ./deploy/compose/operator.sh close <tenant-id> 30 \
   --by <your-subject> --reference 'ticket 4821, their mail of 26 September'
 ```
+
+If they asked for their migration records too, make the export first
+(*An export on request*, above): with a window of `0`, the next purge leaves
+nothing to export.
 
 It is the same close the button makes (`closeAccount` in
 `apps/api/src/close-account.ts`), and it prints the same answer as the table

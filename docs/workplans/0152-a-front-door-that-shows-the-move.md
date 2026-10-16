@@ -2,7 +2,17 @@
 
 > **In one line:** The public site explains a move at a glance: old account and new home in one picture, the destinations named, the alpha said, a shorter menu, a calculator that ends in a button, monthly and yearly prices (a year costs six months), and a page per provider a person leaves.
 
-## Status — 2026-10-06 (update this block at the end of every session)
+## Status — 2026-10-16 (update this block at the end of every session)
+
+**2026-10-16: T8 (c) is built: the company in the footer.** The owner, asked whether the footer
+may say *Archico B.V.*, its KvK and VAT numbers and the contact address, with no postal address
+during the Alpha: *"yes"*. That is privacy §1's own line, so the footer reads it from privacy §1
+of the page's language (`companyLineOf` in `site/build.mjs`) rather than keeping a copy, and the
+two cannot drift. `site/a-footer-that-names-the-company.unit.test.ts` holds it: §1 names the
+company, a KvK and a VAT number, and every page's footer carries §1's line in its own language.
+It failed against the old footer on every page, then passed. T5 (c) still waits for the site's own
+address, which A5 publishes.
+
 
 **2026-10-06: the visit count, after its review: nothing a visitor or a link chose reaches the
 report, and nothing is counted before the policy says so.** Same branch, a second commit. The
@@ -837,7 +847,7 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 | T5 A page per provider a person leaves | 🟡 **(a) and (b) built 2026-10-04; (c) waits for the site's address; its words wait for T0** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |
 | T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (c) built 2026-10-04, with T2 (#1471). (d) built 2026-10-03, with (g)'s principle on the page. (b) and (e) built 2026-10-04. (f)'s words on the page and in the terms built 2026-10-04; the button's label decided 2026-10-05, the button built 2026-10-11 (0111 slice 7c). The rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) The withdrawal button, and the year's end (D11, amended 2026-10-04). (g) The principle, the price that pays for the work (D12). |
 | T7 A calculator that ends in a button | ✅ **Built 2026-10-04: (a) in two halves, the form's and the site's, and (b) to (e); its words wait for T0** | §3. (a) *Request access* carries the answers along. (b) *Until when?* says which payment suits it. (c) The layout faults and a live region. (d) Box as a source. (e) Several sources at once, and Tasks. |
-| T8 Claims you can check | 🟡 **(a) and (b) built 2026-10-04; (c) waits for 0139's company details** | §3. "Open source" links the repository. Each proof point links the guard that holds it. The footer names the company once 0139 publishes it; until then that line is the one part that waits. |
+| T8 Claims you can check | ✅ **(a) and (b) built 2026-10-04; (c) built 2026-10-16 (Status)** | §3. "Open source" links the repository. Each proof point links the guard that holds it. The footer names the company once 0139 publishes it; until then that line is the one part that waits. |
 | T9 One look from the site to the app | ✅ **Built 2026-10-04** | §3. `/request-access` and `/login` take the site's palette and logo, and link back to the site. The identity provider's own branding stays 0135 T6. |
 
 ## 1. What there is today
