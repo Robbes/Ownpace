@@ -1,5 +1,15 @@
 blank_issues_enabled: true
 contact_links:
+  # First, for a tester of the hosted Alpha (workplan 0144 T6 (c)): the issue
+  # tracker is public, and their help is a person, not an issue.
+  - name: Using the hosted Ownpace Alpha? / Gebruikt u de Alpha van Ownpace?
+    url: https://www.ownpace.eu/nl/alpha-handleiding.html#hulp
+    about: >
+      Please do not open an issue here: use Report a problem in the app, or the address in the
+      tester guide. Never post mailbox contents, addresses or screenshots of your data here.
+      / Open hier geen issue: gebruik Een probleem melden in de app, of het adres in de
+      handleiding. Zet hier nooit inhoud van uw mailbox, adressen of schermafbeeldingen van uw
+      gegevens.
   - name: Report a security vulnerability
     url: https://github.com/Robbes/Ownpace/security/advisories/new
     about: >

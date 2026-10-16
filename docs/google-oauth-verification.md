@@ -84,6 +84,23 @@ account the migration names. They are Google's basic sign-in scopes, and non-sen
 *Your non-sensitive scopes* section was empty on 2026-09-20: declare the two there before a
 submission, so that the declared list matches what the product asks for.
 
+✅ **Fixed 2026-10-15, from the console itself.** The owner edited *Data Access* to match what
+the product asks for, saved it, and sent the page; what it shows now, as displayed:
+
+| console section | scope |
+|---|---|
+| Your non-sensitive scopes | `.../auth/userinfo.email`, `openid` |
+| **Your sensitive scopes** | `.../auth/tasks.readonly`, `.../auth/calendar`, `.../auth/carddav` |
+| **Your restricted scopes** — Drive | `.../auth/drive.readonly` |
+| **Your restricted scopes** — Gmail | `https://mail.google.com/` |
+
+`calendar.readonly` and the three Gmail REST scopes (`gmail.readonly`, `gmail.metadata`,
+`gmail.messages.readonly`) are gone; the full `.../auth/calendar` is declared and filed as
+*sensitive*. The two points below are kept as the record of why; both are now settled: the
+calendar scope is the full one (the owner skipped the read-only curl test on the advice that
+Google's CalDAV refuses event reports to a read-only token, and both scopes need the same
+verification), and the Gmail rows are removed.
+
 Two things the page did **not** settle, stated rather than implied away:
 
 - The calendar scope the product asks for is the full `.../auth/calendar`

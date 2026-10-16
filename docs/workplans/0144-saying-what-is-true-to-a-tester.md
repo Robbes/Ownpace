@@ -4,8 +4,7 @@
 
 ## Status — 2026-10-16 (update this block at the end of every session)
 
-**2026-10-16: the last developer sentences a tester read. On
-`claude/ownpace-public-readiness-y7orc6-the-last-developer-sentences`, not merged.** What
+**2026-10-16: the last developer sentences a tester read. ** What
 #1592, #1595, #1596 and #1598 left, each said truthfully, in English and Dutch, with any
 technical detail in the server log:
 
@@ -48,6 +47,18 @@ and the worker's, no longer on the managed report); the lifecycle, deletion and 
 refusals in shared and core that still say *cutover*, *mapping* or *deployment* (not shown to a
 managed tester in any flow this branch could confirm); the web's *"not a DAV, JMAP or IMAP
 error"* and *Unmeasured —* prefix.
+
+**2026-10-16: T6 (c) is built: GitHub's issue chooser sends a tester to a person first.** What it
+waited for, T1's *Hulp* section, exists (`site/pages/nl/alpha-handleiding.md` `{#hulp}`). The
+chooser's first contact link is *"Using the hosted Ownpace Alpha? / Gebruikt u de Alpha van
+Ownpace?"*, to `https://www.ownpace.eu/nl/alpha-handleiding.html#hulp`; its `about` says, in both
+languages, not to open an issue, to use *Report a problem* / *Een probleem melden* in the app or
+the guide's address, and never to post mailbox contents, addresses or screenshots. The bug form's
+opening says the same in one sentence. The security and self-host links and the blank issue stay
+(D6). `scripts/an-issue-route-for-the-hosted-service.unit.test.ts` holds it, the URL built from
+the site's own page names; four of its five cases failed before. The link answers once A5
+publishes the site; until then it is the only place it leads, and nobody is invited yet.
+
 
 **2026-10-14: the web app's words, in a tester's words. On
 `claude/ownpace-public-readiness-y7orc6-the-app-in-a-testers-words`, not merged.** The owner
@@ -682,7 +693,7 @@ Everything a tester reads is written in Dutch first and translated into English 
 | T3 "Read-only" replaced by what is true | 🔨 **(b), the site copy, and the setup title built 2026-10-05 on branch `claude/ownpace-public-readiness-y7orc6-the-site-says-ownpace-only-reads`, not merged**, in the owner's words (open question 2); the guard's `PENDING` is empty. ✅ **(a) and (c) done** in #1188, merged 2026-09-26. 📋 **Decided 2026-09-25 (owner)**. The password hint 📋 **Proposed** (after). The app's other *read-only* strings, P10 (b), 📋 **Later** (the owner, 2026-10-05) — *was:* (b), the site copy, ⏳ **Owner** (T0); the setup title 📋 **Proposed** (after) | §3. The grant page says "read-only" only when Google enforces it. One line beside *Connect with Google*. Site copy, how-it-works, the grant-link guide and one setup title. **Before the first invitation**: the Connect line and the site copy, and the grant page if testers send grant links (0140 open question 2). |
 | T4 The warning in front of the delete switch says what the check does | 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` in both languages. Making removal fail closed is W18, now 0149, whose T1 to T3 land before the first invitation (0149 D1). **After**, written once 0149 T3 has landed, because T3 changes what the check does (0149 T6). |
 | T5 A destination that is not empty | 📋 **Proposed** | §3. The advice goes into T1 (**before**). The confirm screen names what adoption means later, and an IMAP target's exception (**after**). |
-| T6 A person to write to, before and after sign-in | (a) ✅ **done** in #1269, merged 2026-09-28 (`b2703c6f`); live shows it once `VITE_SUPPORT_EMAIL` is in its `.env` and its web image is rebuilt. (c), the GitHub chooser, 📋 **Deferred** until T1's *Hulp* section exists — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-person-to-write-to`, not merged (2026-09-28); 📋 **Proposed**; the address ⏳ **Owner** (T0) | §3. A support line on the pages outside the app, and in the sidebar when the report form is off. The GitHub chooser gets a route for the hosted service. The report form's settings reach the API since #1148 (2026-09-24) (§1). **Before the first invitation.** |
+| T6 A person to write to, before and after sign-in | (a) ✅ **done** in #1269, merged 2026-09-28 (`b2703c6f`); live shows it once `VITE_SUPPORT_EMAIL` is in its `.env` and its web image is rebuilt. (c), the GitHub chooser, ✅ **built 2026-10-16** (Status) — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-person-to-write-to`, not merged (2026-09-28); 📋 **Proposed**; the address ⏳ **Owner** (T0) | §3. A support line on the pages outside the app, and in the sidebar when the report form is off. The GitHub chooser gets a route for the hosted service. The report form's settings reach the API since #1148 (2026-09-24) (§1). **Before the first invitation.** |
 | T7 *Request access* on the sign-in page | ✅ **done** in #1213, merged 2026-09-27; *was:* 📋 **Proposed** (D3) | §3. One link under the sign-in button, in the reader's language. **Before the first invitation.** |
 | T8 An owner can close their organisation from the screen | 📋 **Proposed** | §3. The screen for the close route that exists. The operator's path during the alpha and the identity provider's account are 0139 T7's, and the erasure sentence's word on backups is 0134 T1's. **After.** |
 
