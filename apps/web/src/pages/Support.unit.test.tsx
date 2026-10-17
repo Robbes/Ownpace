@@ -29,7 +29,13 @@ import { act, render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { SupportTenants, SupportTenantDetail, SupportMigrationDetail, SupportRetainedInvoices } from './Support.tsx';
+import {
+  SupportTenants,
+  SupportTenantDetail,
+  SupportMigrationDetail,
+  SupportRetainedInvoices,
+  SupportLog,
+} from './Support.tsx';
 import {
   listSupportTenants,
   getSupportTenant,
@@ -38,6 +44,7 @@ import {
   recordPersonOpened,
   getSupportPlatform,
   listRetainedInvoices,
+  readSupportLog,
   type SupportTenantUsage,
   type SupportTenantMember,
   type PlatformStatus,
@@ -398,6 +405,38 @@ describe('what an erasure kept of the invoices', () => {
     expect(screen.getByText('€99.00')).toBeInTheDocument();
     expect(screen.getByRole('cell', { name: 'May 1, 2026 – May 31, 2026' })).toBeInTheDocument();
     expect(screen.queryByText(/12:00 AM/)).not.toBeInTheDocument();
+  });
+});
+
+describe('who acted, in the log', () => {
+  it('wraps a long address inside its column instead of pushing the table past its box', async () => {
+    // Without the wrap the address set the column's width, and the table ran
+    // past its box on a phone. A floor on the column was tried in review and
+    // dropped: at 1280px the other columns are already at their narrowest, so
+    // the floor pushed the address out of the box instead.
+    vi.mocked(readSupportLog).mockResolvedValue({
+      entries: [
+        {
+          id: 'l1',
+          at: '2026-10-05T09:24:00.000000Z',
+          source: 'audit',
+          level: 'info',
+          tenant_id: TENANT.tenant_id,
+          tenant_name: 'Alpha BV',
+          mapping_id: null,
+          migration_name: null,
+          event: 'migration.started',
+          category: null,
+          reference: null,
+          actor: 'marieke@jansen-partners.nl',
+        },
+      ],
+      next: null,
+      limit: 100,
+    });
+    mount(<SupportLog />, '/support/log', '/support/log');
+    const who = await screen.findByRole('cell', { name: 'marieke@jansen-partners.nl' });
+    expect(who).toHaveClass('wrap-anywhere');
   });
 });
 

@@ -1720,7 +1720,9 @@ const LogPage: React.FC<LogPageProps> = ({ read, path, operator }) => {
                   <td className="px-3 py-2">
                     {e.reference && <code className="text-xs text-gray-600">{e.reference}</code>}
                   </td>
-                  {/* A long address wraps inside its column instead of pushing the table past its box. */}
+                  {/* A long address wraps inside its column instead of pushing the table past its box. No
+                      min-width floor: at 1280px the other columns are already at their narrowest, so a
+                      9rem floor pushed this column out of the box, which is worse than a narrow column. */}
                   <td className="wrap-anywhere px-3 py-2 text-gray-600">
                     {e.actor ?? (e.source === 'app' ? t('support.log.byTheService') : '—')}
                   </td>
