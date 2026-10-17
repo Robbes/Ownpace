@@ -521,7 +521,7 @@ export const nl: Record<keyof typeof en, string> = {
     'De cutover-checklist; beëindigt de migratie in enkele stappen.',
   'runs.title': 'Uitvoeringsgeschiedenis',
   'runs.blurb':
-    'Elke ronde van deze migratie, nieuwste eerst, met wat elke ronde meldde.',
+    'Iedere ronde van deze migratie, nieuwste eerst, met wat elke ronde meldde.',
   'runs.empty': 'Er zijn nog geen rondes uitgevoerd. Ze verschijnen hier na de eerste ronde.',
   'runs.truncated': 'Alleen de nieuwste rondes worden getoond — oudere bestaan, maar staan niet in de lijst.',
   'runs.eventsTruncated': 'Alleen de nieuwste logregels — eerdere worden niet getoond.',

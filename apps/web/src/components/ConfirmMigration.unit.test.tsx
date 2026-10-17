@@ -396,4 +396,28 @@ describe('a paused migration that already copied (UX sweep, 2026-10-17)', () => 
     expect(screen.getByText(STRINGS.en['confirm.intro'])).toBeInTheDocument();
     expect(screen.queryByText(STRINGS.en['confirm.introResume'])).toBeNull();
   });
+
+  /**
+   * Opened from the Migrations list, the migration is not in the cache yet.
+   * Until it answers, the screen cannot know which sentence is true, so it
+   * says neither: a screen reader would otherwise read *"Nothing has been
+   * copied yet"* first on a migration that copied 900 files.
+   */
+  it('says neither sentence while the migration has not answered', async () => {
+    vi.mocked(mappingApi.get).mockReturnValueOnce(new Promise<Mapping>(() => {}));
+
+    renderWithClient(<ConfirmMigration mappingId="m1" onStarted={vi.fn()} />);
+
+    expect(await screen.findByRole('heading', { name: STRINGS.en['confirm.title'] })).toBeInTheDocument();
+    expect(screen.queryByText(STRINGS.en['confirm.intro'])).toBeNull();
+    expect(screen.queryByText(STRINGS.en['confirm.introResume'])).toBeNull();
+  });
+
+  it('says the first-pass sentence when the migration cannot be read', async () => {
+    vi.mocked(mappingApi.get).mockRejectedValueOnce(new Error('boom'));
+
+    renderWithClient(<ConfirmMigration mappingId="m1" onStarted={vi.fn()} />);
+
+    expect(await screen.findByText(STRINGS.en['confirm.intro'])).toBeInTheDocument();
+  });
 });
