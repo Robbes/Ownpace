@@ -83,8 +83,8 @@ describe('one line per row, the rest folded', () => {
     const folds = screen.getAllByText('More');
     expect(folds.length).toBeGreaterThan(0);
     for (const fold of folds) expect(fold).toBeVisible();
-    // The shared-mailbox row's guide, beside the row rather than a file name
-    // in it (0148 T7), and Google Photos' Takeout route (2026-10-14).
+    // The shared-mailbox row's guide, under its column rather than a file
+    // name in the row (0148 T7), and Google Photos' Takeout route (2026-10-14).
     const guides = screen.getAllByRole('link', { name: /^Guide: / }).map((a) => a.getAttribute('href'));
     expect(guides).toContain('/docs/microsoft#application');
     expect(guides).toContain('/docs/google#photos');
@@ -182,5 +182,68 @@ describe('a column with nothing in it (UX sweep, 2026-10-17)', () => {
     );
     // Partial and Does not migrate are both empty here.
     expect(screen.getAllByText('Voor deze bron is hier niets vermeld.')).toHaveLength(2);
+  });
+});
+
+describe('a column’s guide, after its rows (the UX sweep’s follow-ups)', () => {
+  /**
+   * On step 6 of Start a migration, *Does not migrate* for Google showed
+   * Google Photos' guide link between its *More* and the next row, *Google
+   * Sites and Forms*, which then read as if it belonged under the link. The
+   * guide is the column's to offer: after every row, once.
+   */
+  afterEach(() => {
+    cleanup();
+    window.localStorage.removeItem('ownpace.locale');
+  });
+
+  const google = manifest({
+    doesNotMigrate: SCOPE_MANIFEST.doesNotMigrate.filter((e) => e.appliesTo?.includes('google')),
+  });
+
+  for (const locale of ['en', 'nl'] as const) {
+    it(`${locale}: renders Google's Does not migrate rows first, then the guide`, () => {
+      window.localStorage.setItem('ownpace.locale', locale);
+      render(
+        <MemoryRouter>
+          <LocaleProvider>
+            <ScopeManifestPanel manifest={google} />
+          </LocaleProvider>
+        </MemoryRouter>,
+      );
+      const guide = screen.getByRole('link', { name: locale === 'en' ? /^Guide: Google/ : /^Handleiding: Google/ });
+      expect(guide.getAttribute('href')).toBe('/docs/google#photos');
+      expect(guide.closest('li'), 'the guide sits inside a row').toBeNull();
+      const rows = screen.getAllByRole('listitem');
+      // Google Keep, Google Photos and Google Sites and Forms at least, the
+      // last of them before the link.
+      expect(rows.length).toBeGreaterThanOrEqual(3);
+      for (const row of rows) {
+        expect(
+          row.compareDocumentPosition(guide) & Node.DOCUMENT_POSITION_FOLLOWING,
+          `"${row.textContent}" comes after the guide`,
+        ).toBeTruthy();
+      }
+    });
+  }
+
+  it('offers a guide two rows share once, and only in their column', () => {
+    render(
+      <MemoryRouter>
+        <ScopeManifestPanel
+          manifest={manifest({
+            migrates: [{ item: 'Email', detail: 'Every folder.' }],
+            doesNotMigrate: [
+              { item: 'Google Photos', detail: 'Not with a sign-in.', guide: 'google#photos' },
+              { item: 'Google Keep', detail: 'Not migrated.' },
+              { item: 'Photos again', detail: 'Same guide.', guide: 'google#photos' },
+            ],
+          })}
+        />
+      </MemoryRouter>,
+    );
+    const guides = screen.getAllByRole('link', { name: /^Guide: / });
+    expect(guides).toHaveLength(1);
+    expect(guides[0]!.closest('div')).toHaveTextContent(/^Does not migrate/);
   });
 });

@@ -309,6 +309,43 @@ describe("a person's page (0153 T5)", () => {
 });
 
 /**
+ * ONE HEADING ON EVERY STATE (the UX sweep's follow-ups). The frame's bar says
+ * Migrations as a line of text on this page, because the page draws its own
+ * `<h1>` (`Layout`'s OWN_H1_PREFIXES). While it loaded, when the read failed and
+ * for an address that names nobody, it drew none, so the page had no heading
+ * at all. Each state draws exactly one: the person's name, or the bar's words.
+ */
+describe('one heading on every state', () => {
+  const h1s = () => screen.queryAllByRole('heading', { level: 1 });
+
+  it('while it loads: Migrations, over the spinner', async () => {
+    peopleMock.mockReturnValue(new Promise(() => {}));
+    renderAt();
+    expect(await screen.findByRole('status')).toHaveTextContent('Loading…');
+    expect(h1s().map((h) => h.textContent)).toEqual(['Migrations']);
+  });
+
+  it('when the people could not be read: Migrations, over what went wrong', async () => {
+    peopleMock.mockRejectedValue(new Error('the people read failed'));
+    renderAt();
+    expect(await screen.findByText('Could not load this person.')).toBeInTheDocument();
+    expect(h1s().map((h) => h.textContent)).toEqual(['Migrations']);
+  });
+
+  it('for an address that names nobody: Migrations, over the sentence', async () => {
+    renderAt('/people/p-nobody');
+    expect(await screen.findByText('There is no such person here.')).toBeInTheDocument();
+    expect(h1s().map((h) => h.textContent)).toEqual(['Migrations']);
+  });
+
+  it('for a person: their name, and only that', async () => {
+    renderAt();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Anna Jansen' })).toBeInTheDocument();
+    expect(h1s()).toHaveLength(1);
+  });
+});
+
+/**
  * FOR ANNA (ADR-0035, amended 2026-09-29; 0153 T5 (b)): one grant link for all
  * of their Google accounts, made on their page, its URL said once.
  */

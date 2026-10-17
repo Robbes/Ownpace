@@ -32,7 +32,11 @@
  *    section it links.
  * 9. **Every page is built in both languages and reachable:** the header's
  *    list, the phone's menu and the home page's hero link all six, each link
- *    named by its page's title, each tile hidden from a screen reader.
+ *    named by its page's title, each tile hidden from a screen reader. The
+ *    title is the link's own words, the ones before the name for a screen
+ *    reader only, never an `aria-label` over the name it shows: a label that
+ *    does not hold the visible name is one voice control cannot find (axe's
+ *    label-content-name-mismatch, the UX sweep's follow-ups).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -335,11 +339,22 @@ describe('the Leaving… pages say what the app says (0152 T5)', () => {
     for (const locale of ['en', 'nl'] as const) {
       const L = COPY[locale].leaving;
       const titleOf = (p: Page) => L.title[p.id] ?? L.titleOf(L.names[p.id]!);
-      const links = LEAVING.map((p) => ({
-        href: `${locale === 'nl' ? '/nl' : ''}/${COPY[locale].files[`leaving-${p.id}`]}`,
-        label: titleOf(p),
-        name: L.names[p.id]!,
-      }));
+      const links = LEAVING.map((p) => {
+        const name = L.names[p.id]!;
+        const title = titleOf(p);
+        expect(title.toLowerCase().endsWith(name.toLowerCase()), `${locale}: the title ${title} does not end in ${name}`).toBe(true);
+        return {
+          href: `${locale === 'nl' ? '/nl' : ''}/${COPY[locale].files[`leaving-${p.id}`]}`,
+          // The title's words before the name, which the link says to a screen reader only.
+          before: title.slice(0, title.length - name.length).trim(),
+          title,
+          name,
+        };
+      });
+      for (const l of links) {
+        // What a screen reader reads is the page's title, the visible name inside it.
+        expect(`${l.before} ${l.name}`.toLowerCase(), `${locale}: ${l.name}'s link does not read its title`).toBe(l.title.toLowerCase());
+      }
       for (const page of LEAVING) {
         const built = pages.find((p) => p.key === `leaving-${page.id}` && p.locale === locale);
         expect(built, `${locale}: no page for ${page.id}`).toBeDefined();
@@ -351,18 +366,31 @@ describe('the Leaving… pages say what the app says (0152 T5)', () => {
           expect(nav, `${p.file}: the ${which} nav has no ${L.menu}`).toContain(`<summary>${L.menu}</summary>`);
           for (const l of links) {
             expect(nav, `${p.file}: the ${which} nav does not link ${l.name}`).toMatch(
-              new RegExp(`<a href="${l.href}" aria-label="${l.label}"(?: aria-current="page")?><span class="tile" aria-hidden="true">[^<]</span><span>${l.name}</span></a>`),
+              new RegExp(
+                `<a href="${l.href}"(?: aria-current="page")?><span class="tile" aria-hidden="true">[^<]</span>` +
+                  `<span class="sr-only">${l.before} </span><span>${l.name}</span></a>`,
+              ),
             );
           }
+          expect(nav, `${p.file}: a Leaving… link in the ${which} nav is named over its words`).not.toMatch(
+            /<a href="[^"]*(?:leaving|weg-bij)[^"]*"[^>]*aria-label=/,
+          );
         }
       }
       const home = pages.find((p) => p.locale === locale && p.key === 'home' && !p.file.endsWith('404.html'))!.html;
       const hero = home.slice(home.indexOf('<section class="hero">'), home.indexOf('</section>'));
       for (const l of links) {
-        expect(hero, `${locale}: the hero does not name ${l.name}`).toContain(
-          `<a href="${l.href}" aria-label="${l.label}"><span class="tile t28" aria-hidden="true">`,
+        expect(hero, `${locale}: the hero does not name ${l.name}`).toMatch(
+          new RegExp(
+            `<a href="${l.href}"><span class="tile t28" aria-hidden="true">[^<]</span>` +
+              `<span class="sr-only">${l.before} </span><span>${l.name}</span></a>`,
+          ),
         );
       }
+      // The words a screen reader reads are in the page and never drawn.
+      expect(home, `${locale}: the site has no sr-only rule for the Leaving… links' words`).toMatch(
+        /\.sr-only \{[^}]*position: absolute;[^}]*overflow: hidden; clip-path: inset\(50%\);/,
+      );
     }
   });
 });

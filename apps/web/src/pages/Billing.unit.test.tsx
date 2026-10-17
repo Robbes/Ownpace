@@ -241,6 +241,27 @@ beforeEach(() => {
   vi.mocked(billingApi.getWithdrawal).mockResolvedValue({ open: false, reason: 'nothing_paid', since: null, until: null, tier: null, name: null, confirmTo: null, yesAsksToBegin: false });
 });
 
+/**
+ * ONE HEADING ON EVERY STATE (the UX sweep's follow-ups). The frame's bar is a
+ * line of text on this page, because the page draws its own `<h1>` (`Layout`'s
+ * OWN_H1_PREFIXES); while the three reads were in flight it drew a spinner and
+ * nothing else, no heading and nothing a screen reader could say.
+ */
+describe('Billing — one heading on every state', () => {
+  it('while it loads: Billing, over a status that says Loading…', async () => {
+    usageMock.mockReturnValue(new Promise(() => {}));
+    renderBilling();
+    expect(await screen.findByRole('status')).toHaveTextContent('Loading…');
+    expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual(['Billing']);
+  });
+
+  it('with its figures: Billing, once', async () => {
+    renderBilling();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Current usage' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual(['Billing']);
+  });
+});
+
 describe('Billing — failed reads say so (hard rule 9)', () => {
   it('a failed usage read renders the failure, not "No usage data available yet"', async () => {
     usageMock.mockRejectedValue(new Error('usage metrics store unavailable'));

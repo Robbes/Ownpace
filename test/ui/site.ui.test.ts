@@ -384,16 +384,24 @@ describe('the public site renders', () => {
     ).toBe(true);
     await page.keyboard.press('Enter');
     expect(await shown('nav.menu .leaving-list'), 'Enter does not open Leaving…').toBe(true);
+    // Each by what a screen reader reads of it: its words, less the tile it
+    // hides, which are the page's title (the UX sweep's follow-ups).
     const leaving = await page.$$eval('nav.menu .leaving-list a', (as) =>
-      as.map((a) => ({ name: a.getAttribute('aria-label'), right: a.getBoundingClientRect().right })),
+      as.map((a) => ({
+        name: [...a.childNodes]
+          .filter((n) => !(n instanceof Element && n.getAttribute('aria-hidden') === 'true'))
+          .map((n) => n.textContent)
+          .join(''),
+        right: a.getBoundingClientRect().right,
+      })),
     );
-    expect(leaving.map((l) => l.name)).toEqual([
-      'Leaving Google',
-      'Leaving Microsoft 365',
-      'Leaving Apple iCloud',
-      'Leaving Dropbox',
-      'Leaving Box',
-      'Leaving another mail provider',
+    expect(leaving.map((l) => l.name.toLowerCase())).toEqual([
+      'leaving google',
+      'leaving microsoft 365',
+      'leaving apple icloud',
+      'leaving dropbox',
+      'leaving box',
+      'leaving another mail provider',
     ]);
     for (const l of leaving) expect(l.right, `${l.name} runs off a 390 pixel screen`).toBeLessThanOrEqual(390);
     const overflows = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
@@ -430,7 +438,7 @@ describe('the public site renders', () => {
     const list = await page.$$eval('nav.site .leaving-list a', (as) =>
       as.map((a) => {
         const r = a.getBoundingClientRect();
-        return { name: a.getAttribute('aria-label'), left: r.left, right: r.right, height: r.height };
+        return { name: a.textContent ?? '', left: r.left, right: r.right, height: r.height };
       }),
     );
     expect(list).toHaveLength(6);
@@ -439,7 +447,26 @@ describe('the public site renders', () => {
       expect(l.left, `${l.name} opens off the left of the screen`).toBeGreaterThanOrEqual(0);
       expect(l.right, `${l.name} opens off the right of the screen`).toBeLessThanOrEqual(1200);
     }
-    await page.click('nav.site .leaving-list a[aria-label="Leaving Dropbox"]');
+    // Each link is named by its own words, the page's title, as Chromium itself
+    // computes it: *Leaving* is in the link for a screen reader only, and the
+    // name it shows is inside that name (the UX sweep's follow-ups).
+    const cdp = await page.context().newCDPSession(page);
+    const { nodes } = (await cdp.send('Accessibility.getFullAXTree')) as {
+      nodes: Array<{ ignored?: boolean; role?: { value?: string }; name?: { value?: string } }>;
+    };
+    const named = nodes.filter((n) => !n.ignored && n.role?.value === 'link').map((n) => n.name?.value ?? '');
+    for (const title of ['Leaving Google', 'Leaving Microsoft 365', 'Leaving Dropbox', 'Leaving another mail provider']) {
+      expect(
+        named.filter((n) => n.toLowerCase() === title.toLowerCase()),
+        `Chromium names no Leaving… link "${title}" in the header and the hero: ${named.join(' | ')}`,
+      ).toHaveLength(2);
+    }
+    const drawn = await page.$$eval('nav.site .leaving-list a .sr-only, .leaving-row a .sr-only', (spans) =>
+      spans.map((s) => s.getBoundingClientRect().width),
+    );
+    expect(drawn, 'a Leaving… link draws the words meant for a screen reader').toHaveLength(12);
+    for (const width of drawn) expect(width, 'a Leaving… link draws the words meant for a screen reader').toBeLessThanOrEqual(1);
+    await page.locator('nav.site .leaving-list').getByRole('link', { name: 'Leaving Dropbox', exact: true }).click();
     await page.waitForLoadState('networkidle');
     expect(new URL(page.url()).pathname).toBe('/leaving-dropbox.html');
     await page.close();

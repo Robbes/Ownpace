@@ -703,8 +703,26 @@ const Connections: React.FC = () => {
   const [removed, setRemoved] = React.useState<{ name: string; answer: ConnectionDeleted | null } | null>(null);
   const [adding, setAdding] = React.useState(false);
 
-  if (isLoading) return <div className="text-gray-500">{t('common.loading')}</div>;
-  if (error) return <div className="text-red-700">{serverMessage(error)}</div>;
+  // ONE HEADING ON EVERY STATE (the UX sweep's follow-ups): the frame's bar
+  // is a line of text here, because the page draws its own `<h1>` (`Layout`'s
+  // OWN_H1_PREFIXES), so the read's two other states draw it too.
+  const title = <h1 className="text-2xl font-bold text-gray-900">{t('connections.title')}</h1>;
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {title}
+        <p className="text-gray-500">{t('common.loading')}</p>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="space-y-4">
+        {title}
+        <p className="text-red-700">{serverMessage(error)}</p>
+      </div>
+    );
+  }
 
   const groups = [
     { id: 'accounts-sources', titleKey: 'connections.sources', rows: (data ?? []).filter((c) => c.role === 'source') },
@@ -719,7 +737,7 @@ const Connections: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{t('connections.title')}</h1>
+          {title}
           <p className="mt-1 text-gray-600">{t('connections.intro')}</p>
         </div>
         {!adding && (

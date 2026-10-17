@@ -15,7 +15,7 @@
 import React from 'react';
 import { useLocale, useT } from '../../i18n/index.tsx';
 import { scopeManifestWords, type ScopeManifest } from '@openmig/shared';
-import { GuideLink } from '../GuideLink.tsx';
+import { GuideLinks } from '../GuideLink.tsx';
 
 /**
  * ONE LINE PER ROW, THE REST FOLDED (owner, 2026-09-17).
@@ -74,12 +74,18 @@ const Column: React.FC<{
                   <p className="mt-1 text-gray-500">{words.more}</p>
                 </details>
               )}
-              {/* The row's guide, beside its words (0148 T7). */}
-              <GuideLink handle={e.guide} className="block mt-1 text-xs text-blue-700 hover:underline" />
             </li>
           );
         })}
       </ul>
+      {/* The rows' guides (0148 T7), after every row of the column and each
+          once (the UX sweep's follow-ups): drawn inside its row, Google
+          Photos' link sat between that row's More and the next row, which
+          then read as if it belonged under the link. */}
+      <GuideLinks
+        handles={entries.flatMap((e) => (e.guide === undefined ? [] : [e.guide]))}
+        className="block mt-2 text-xs text-blue-700 hover:underline"
+      />
     </div>
   );
 };

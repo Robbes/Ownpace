@@ -182,10 +182,16 @@ const Mappings: React.FC = () => {
 
   if (mappingsQuery.isLoading || peopleQuery.isLoading) {
     // Heard as well as seen: a spinner alone says nothing to a screen reader.
+    // Under the page's title (the UX sweep's follow-ups): the frame's bar is a
+    // line of text here (`Layout`'s OWN_H1_PREFIXES), so without it the page
+    // had no heading while it loaded.
     return (
-      <div role="status" className="flex items-center justify-center h-64">
-        <div aria-hidden="true" className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        <span className="sr-only">{t('common.loading')}</span>
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-gray-900">{t('mappings.title')}</h1>
+        <div role="status" className="flex items-center justify-center h-64">
+          <div aria-hidden="true" className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <span className="sr-only">{t('common.loading')}</span>
+        </div>
       </div>
     );
   }

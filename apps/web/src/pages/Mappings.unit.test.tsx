@@ -226,6 +226,18 @@ describe('Migrations — a failed read is never an empty list (hard rule 9)', ()
     expect(await screen.findByRole('status')).toHaveTextContent('Loading…');
   });
 
+  // ONE HEADING ON EVERY STATE (the UX sweep's follow-ups): the frame's bar is
+  // a line of text on this page (`Layout`'s OWN_H1_PREFIXES), so the spinner
+  // alone left the page with no heading while it loaded.
+  it('while it loads, is under its title: one heading, Migrations', async () => {
+    listMock.mockReturnValue(new Promise(() => {}));
+
+    renderMappings();
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Loading…');
+    expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual(['Migrations']);
+  });
+
   it('still shows the true empty state when there is nobody and nothing, with Start a migration', async () => {
     listMock.mockResolvedValue([]);
 

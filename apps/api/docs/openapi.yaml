@@ -5626,7 +5626,8 @@ paths:
         does not, and what is transformed on the way. Static truth about the
         product, not about one tenant's data. A row may carry `guide`, the
         section of a served guide that says more (workplan 0148 T7), such as
-        `microsoft#application`; the screen links it beside the row.
+        `microsoft#application`; the screen links it after the rows of that
+        row's column, each guide once.
         A row may also carry `nl`, the same row's `item`, `detail` and `more` in
         Dutch; the screen shows the half in its reader's language.
         A row may also carry `domains`, the data types it is about (email,

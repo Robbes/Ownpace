@@ -102,13 +102,13 @@ export function mapGrant(grant: PermissionGrant, lang: ReportLanguage = 'en'): P
   // inventory a person captured by hand, which is exactly when the target
   // convention is worth stating.
   if (/fullaccess/i.test(grant.role)) {
+    // The convention is the architecture's (SAD §14.1); the line is a step
+    // for a person, who cannot open that document, so it does not cite it.
     return {
       verdict: 'manual',
       target: say(
-        'give each person who needs the shared mailbox their own app password for it ' +
-          '(SAD §14.1)',
-        'geef iedereen die het gedeelde postvak nodig heeft er een eigen app-wachtwoord voor ' +
-          '(SAD §14.1)',
+        'give each person who needs the shared mailbox their own app password for it',
+        'geef iedereen die het gedeelde postvak nodig heeft er een eigen app-wachtwoord voor',
       ),
       note: 'The target has no per-person mailbox ACL; app passwords are the convention, and they can be withdrawn individually.',
     };

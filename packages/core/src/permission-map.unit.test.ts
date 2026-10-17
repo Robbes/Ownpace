@@ -66,6 +66,30 @@ describe('mailbox rights', () => {
     expect(m.note).toContain('withdrawn individually');
   });
 
+  // The line ended in *(SAD §14.1)*, in both languages: a section of the
+  // design document, which a person reading their report has never seen and
+  // cannot open (the UX sweep's follow-ups). Every line, every right, both
+  // languages: a step for a person names no internal document.
+  it('say each step without a reference to a design document, in English and in Dutch', () => {
+    for (const lang of ['en', 'nl'] as const) {
+      for (const g of [
+        grant(),
+        grant({ role: 'write' }),
+        grant({ subject: 'drive_item', on: '/Budget.xlsx', viaLink: true }),
+        grant({ subject: 'drive_item', on: '/Budget.xlsx', role: 'write' }),
+        grant({ subject: 'mailbox', on: 'info@acme.nl', role: 'FullAccess' }),
+        grant({ subject: 'mailbox', on: 'info@acme.nl', role: 'SendAs' }),
+        grant({ role: 'nonsense' }),
+      ]) {
+        const { target } = mapGrant(g, lang);
+        expect(target, `${lang} ${g.subject} ${g.role}`).not.toMatch(/SAD|§|ADR-|workplan/i);
+      }
+    }
+    expect(mapGrant(grant({ subject: 'mailbox', on: 'info@acme.nl', role: 'FullAccess' }), 'nl').target).toBe(
+      'geef iedereen die het gedeelde postvak nodig heeft er een eigen app-wachtwoord voor',
+    );
+  });
+
   it('name Send-As as a target platform setting', () => {
     for (const role of ['SendAs', 'SendOnBehalf']) {
       const m = mapGrant(grant({ subject: 'mailbox', on: 'info@acme.nl', role }));

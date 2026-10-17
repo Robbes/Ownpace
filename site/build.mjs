@@ -680,6 +680,12 @@ footer.site { border-top: 1px solid var(--line); margin-top: 5rem; padding: 2.5r
 footer.site .wrap { display: flex; gap: 2rem; flex-wrap: wrap; justify-content: space-between; }
 footer.site a { color: var(--muted); }
 footer.site .build { font-size: 0.8rem; }
+/* Words a screen reader reads and the page does not draw (a Leaving… link's
+   *Leaving*, leavingLink()). */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
 .skip { position: absolute; left: -9999px; }
 .skip:focus { left: 1rem; top: 1rem; background: var(--bg); padding: 0.5rem 1rem; z-index: 10; }
 `;
@@ -1051,13 +1057,25 @@ const leavingTitle = (locale, page) => {
 /**
  * A link to a Leaving… page, with its tile and its name. Read out of context,
  * as a screen reader's list of links reads it, a bare *Google* says nowhere it
- * goes, so the link is named by the page's title, which holds the name.
+ * goes, so the link reads the page's title, which holds the name: the title's
+ * words before the name are in the link too, for a screen reader only.
+ *
+ * Named by its own words and not by an `aria-label` (the UX sweep's
+ * follow-ups): a label *Leaving Google* over a link that shows *Google* is a
+ * name that does not hold what is shown (axe's label-content-name-mismatch),
+ * and voice control, which goes by what it is told is shown, may not find it.
  */
 function leavingLink(locale, page, size, current) {
   const L = COPY[locale].leaving;
+  const name = L.names[page.id];
+  const title = leavingTitle(locale, page);
+  if (!title.toLowerCase().endsWith(name.toLowerCase())) {
+    throw new Error(`site/copy.mjs: the Leaving… title "${title}" does not end in its name "${name}"`);
+  }
+  const before = title.slice(0, title.length - name.length).trim();
   return (
-    `<a href="${urlFor(locale, `leaving-${page.id}`)}" aria-label="${esc(leavingTitle(locale, page))}"` +
-    `${current ? ' aria-current="page"' : ''}>${tile(page.tile, size)}<span>${L.names[page.id]}</span></a>`
+    `<a href="${urlFor(locale, `leaving-${page.id}`)}"${current ? ' aria-current="page"' : ''}>` +
+    `${tile(page.tile, size)}<span class="sr-only">${esc(before)} </span><span>${name}</span></a>`
   );
 }
 

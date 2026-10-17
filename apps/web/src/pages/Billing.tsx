@@ -783,9 +783,17 @@ const Billing: React.FC = () => {
   }
 
   if (usageLoading || invoicesLoading || methodsLoading) {
+    // Under the page's title, and heard as well as seen (the UX sweep's
+    // follow-ups): the frame's bar is a line of text here (`Layout`'s
+    // OWN_H1_PREFIXES), so the spinner alone left the page with no heading
+    // and said nothing to a screen reader.
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-gray-900">{t('billing.title')}</h1>
+        <div role="status" className="flex items-center justify-center h-64">
+          <div aria-hidden="true" className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <span className="sr-only">{t('common.loading')}</span>
+        </div>
       </div>
     );
   }
