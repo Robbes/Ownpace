@@ -63,7 +63,10 @@ const Row: React.FC<{
   return (
   <ItemRow>
     <DomainTag domain={f.domain} />
-    <div className="flex-1 min-w-0">
+    {/* At least 12rem: on a phone the name and what to do take a line of
+        their own and wrap, instead of a column a few letters wide (the UX
+        sweep, 2026-10-17). */}
+    <div className="flex-1 min-w-[12rem]">
       {/* WHOSE CARD, WHICH APPOINTMENT (the owner, 2026-09-17). This row used
           to lead with the collection and identify the item by a hash chip, so
           the queue whose whole purpose is being acted on could not say what it
@@ -71,7 +74,7 @@ const Row: React.FC<{
           small type on the same line, so the row is no taller than it was. */}
       {(f.displayName ?? f.collection) !== undefined && (
         <div
-          className="text-gray-900 truncate"
+          className="text-gray-900 break-words"
           title={[f.displayName, f.collection].filter(Boolean).join(' \u2014 ')}
         >
           {f.displayName ?? f.collection}
@@ -89,7 +92,9 @@ const Row: React.FC<{
         // English, with no remedy in any language. A domain-level failure has
         // said what to do since August; the ITEM level — the common case, and
         // the whole reason this queue exists — said nothing.
-        <div className="text-xs text-red-900">
+        // Ordinary text, not red: it says what to do, and red made it read
+        // as one more error.
+        <div className="text-xs text-gray-800">
           {t(remedyKey(f.category, sourceKind))} <SendItToUs category={f.category} dataType={f.domain} />
         </div>
       )}
@@ -97,9 +102,16 @@ const Row: React.FC<{
         Verbatim, under the sentence above rather than instead of it: the
         category is coarse and actionable, this is precise. It is the difference
         between a 507, a 403 and a parse error, and summarising it away removes
-        the only thing that says whether Retry has a chance.
+        the only thing that says whether Retry has a chance. Framed and grey
+        (the UX sweep, 2026-10-17): unlabelled red English under a Dutch
+        remedy read as a second, louder error. The frame translates; the
+        message stays word for word, in its own span.
       */}
-      {f.lastError !== '' && <div className="text-xs text-red-700 break-words">{f.lastError}</div>}
+      {f.lastError !== '' && (
+        <div className="text-xs text-gray-500 break-words">
+          {t('failures.technical')} <span className="font-mono">{f.lastError}</span>
+        </div>
+      )}
     </div>
     {/*
       A PARKED item is not a count. It was tried once — a policy that answers
@@ -175,38 +187,45 @@ const Failures: React.FC = () => {
             {...(queue.textWithheld ? { textWithheld: true } : {})}
           />
         )}
+        {/* The hint and the button for every row stand ABOVE the list, as
+            its lead: inside the <ul> they were not list items (axe 'list'),
+            and sat flush against its border. */}
         <QueueSection
           title={t('queue.waitingOnYou')}
           count={queue.needsDecision.length}
           empty={t('failures.empty.needsDecision')}
+          lead={
+            <>
+              {/* What retry costs, said before it is pressed (0036 T4) — the
+                  sentence tracks domain-sync.ts's cursor comment. */}
+              {queue.needsDecision.length > 0 && (
+                <Hint className="mb-2" text={t('failures.retryCost')} why={t('failures.retryCost.why')} />
+              )}
+              {/* One press for the whole group. A folder of Google Forms and Maps
+                  parks a dozen items at once, each with the same answer, and
+                  pressing "Migrate without it" twelve times on a phone is how a
+                  decision that was already made gets postponed. Same action as
+                  the per-item button, applied to every item still undecided —
+                  the server still answers per item, so a refusal on one leaves
+                  the others' outcomes intact. */}
+              {queue.needsDecision.length > 1 && (
+                <div>
+                  <ActionButton
+                    pending={queue.needsDecision.some((f) => outcomes[f.naturalKeyHash]?.state === 'pending')}
+                    onClick={() => {
+                      for (const f of queue.needsDecision) {
+                        if (outcomes[f.naturalKeyHash]?.state === 'done') continue;
+                        act(f.naturalKeyHash, () => acceptFailure(mappingId, f.naturalKeyHash));
+                      }
+                    }}
+                  >
+                    {t('failures.acceptAll', { count: String(queue.needsDecision.length) })}
+                  </ActionButton>
+                </div>
+              )}
+            </>
+          }
         >
-          {/* What retry costs, said before it is pressed (0036 T4) — the
-              sentence tracks domain-sync.ts's cursor comment. */}
-          {queue.needsDecision.length > 0 && (
-            <Hint className="mb-2" text={t('failures.retryCost')} why={t('failures.retryCost.why')} />
-          )}
-          {/* One press for the whole group. A folder of Google Forms and Maps
-              parks a dozen items at once, each with the same answer, and
-              pressing "Migrate without it" twelve times on a phone is how a
-              decision that was already made gets postponed. Same action as
-              the per-item button, applied to every item still undecided —
-              the server still answers per item, so a refusal on one leaves
-              the others' outcomes intact. */}
-          {queue.needsDecision.length > 1 && (
-            <div className="mb-3">
-              <ActionButton
-                pending={queue.needsDecision.some((f) => outcomes[f.naturalKeyHash]?.state === 'pending')}
-                onClick={() => {
-                  for (const f of queue.needsDecision) {
-                    if (outcomes[f.naturalKeyHash]?.state === 'done') continue;
-                    act(f.naturalKeyHash, () => acceptFailure(mappingId, f.naturalKeyHash));
-                  }
-                }}
-              >
-                {t('failures.acceptAll', { count: String(queue.needsDecision.length) })}
-              </ActionButton>
-            </div>
-          )}
           {queue.needsDecision.map((f) => {
             const pending = outcomes[f.naturalKeyHash]?.state === 'pending';
             return (

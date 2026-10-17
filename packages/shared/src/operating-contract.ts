@@ -863,17 +863,18 @@ export interface ApplyDeletionsFlag {
  * types the way the writers treat them.
  */
 export const APPLY_FLAG_WARNING =
-  'Turning this on enables the only operation in this product that deletes ' +
-  'anything: on your explicit per-item decision, the copy this migration wrote ' +
-  'to the new system is removed, following a deletion the owner made on the old ' +
-  'one. Every removal still has to pass every gate — positive evidence only ' +
-  '(never an inferred absence), only items this tool wrote, and the ' +
-  'mass-deletion breaker. A file, calendar entry or contact is also not removed ' +
-  'if someone has changed it in the new system since this tool wrote it, or ' +
-  'when that cannot be checked. Mail is not checked for changes: an email this ' +
-  'tool wrote can be removed even if someone has changed it in the new system ' +
-  'since. While this is off, nothing can be removed however the endpoint is ' +
-  'called.';
+  'Turning this on lets you delete copies on the new system, per item: the ' +
+  'copy of something deleted on the old system, or the old copy of a file ' +
+  'moved there. It is the only way Ownpace ever deletes anything. Every removal ' +
+  'still has to pass every gate: Ownpace must know for certain that the item ' +
+  'was deleted or moved on the old system (only missing is never enough), ' +
+  'Ownpace must have written the copy itself, and nothing is removed while an ' +
+  'unusually large part of one data type is waiting to be deleted at once. A ' +
+  'file, calendar entry or contact is also not removed if someone has changed ' +
+  'it in the new system since Ownpace wrote it, or when that cannot be checked. ' +
+  'Mail is not checked for changes: an email Ownpace wrote can be removed even ' +
+  'if someone has changed it in the new system since. While this is off, ' +
+  'nothing can be removed.';
 
 /**
  * The same warning in Dutch (ADR-0013, workplan 0024). It lives HERE, beside
@@ -883,20 +884,20 @@ export const APPLY_FLAG_WARNING =
  * sentence it translates without anything noticing. Update BOTH or neither.
  */
 export const APPLY_FLAG_WARNING_NL =
-  'Als u dit inschakelt, activeert u de enige bewerking in dit product die ' +
-  'iets verwijdert: op uw uitdrukkelijke beslissing per item wordt de kopie ' +
-  'die deze migratie naar het nieuwe systeem schreef verwijderd, volgend op ' +
-  'een verwijdering die de eigenaar in het oude systeem deed. Elke ' +
-  'verwijdering moet nog steeds elke controle doorstaan — uitsluitend ' +
-  'positief bewijs (nooit een afgeleide afwezigheid), alleen items die dit ' +
-  'programma zelf schreef, en de massaverwijderings-stroomonderbreker. Een ' +
-  'bestand, agenda-item of contact wordt bovendien niet verwijderd als iemand ' +
-  'het in het nieuwe systeem heeft gewijzigd sinds dit programma het schreef, ' +
-  'of als dat niet kan worden gecontroleerd. E-mail wordt daar niet op ' +
-  'gecontroleerd: een e-mail die dit programma schreef, kan worden verwijderd, ' +
-  'ook als iemand die sindsdien in het nieuwe systeem heeft gewijzigd. Zolang ' +
-  'dit uit staat, kan er niets worden verwijderd, hoe het eindpunt ook wordt ' +
-  'aangeroepen.';
+  'Als u dit inschakelt, kunt u per item kopieën op het nieuwe systeem ' +
+  'verwijderen: de kopie van iets dat op het oude systeem is verwijderd, of de ' +
+  'oude kopie van een bestand dat daar is verplaatst. Alleen zo verwijdert ' +
+  'Ownpace ooit iets. Elke verwijdering moet nog steeds elke controle ' +
+  'doorstaan: Ownpace moet zeker weten dat het item op het oude systeem is ' +
+  'verwijderd of verplaatst (alleen ontbreken is nooit genoeg), Ownpace moet ' +
+  'de kopie zelf hebben geschreven, en er wordt niets verwijderd zolang een ' +
+  'ongewoon groot deel van één soort gegevens tegelijk op verwijderen wacht. ' +
+  'Een bestand, agenda-item of contact wordt bovendien niet verwijderd als ' +
+  'iemand het sindsdien in het nieuwe systeem heeft gewijzigd, of als dat niet ' +
+  'kan worden gecontroleerd. E-mail wordt daar niet op gecontroleerd: een ' +
+  'e-mail die Ownpace schreef, kan worden verwijderd, ook als iemand die ' +
+  'sindsdien in het nieuwe systeem heeft gewijzigd. Zolang dit uit staat, kan ' +
+  'er niets worden verwijderd.';
 
 /**
  * A migration that has been ended.

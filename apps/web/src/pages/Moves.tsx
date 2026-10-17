@@ -45,6 +45,7 @@ import {
   GuidancePanel,
   HashChip,
   ItemRow,
+  PathText,
   QueueSection,
   ReceiptStatus,
   Refused,
@@ -85,9 +86,12 @@ const Row: React.FC<{
       Both are folder paths and both are necessary: a queue that says "12 items
       moved" without saying where is not one anybody can act on.
     */}
-    <span className="flex items-center gap-1.5 flex-1 min-w-0 text-gray-900">
-      <span className="truncate" title={mv.from}>
-        {mv.from}
+    {/* At least 12rem, so on a phone the pair takes a line of its own and
+        wraps at the slashes, instead of shrinking beside the chips to a
+        letter or two (the UX sweep, 2026-10-17). */}
+    <span className="flex flex-wrap items-center gap-1.5 flex-1 min-w-[12rem] text-gray-900">
+      <span className="min-w-0 break-words" title={mv.from}>
+        <PathText path={mv.from} />
       </span>
       {renamedInPlace(mv) ? (
         /*
@@ -104,8 +108,8 @@ const Row: React.FC<{
       ) : (
         <>
           <ArrowRight className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
-          <span className="truncate" title={mv.to}>
-            {mv.to}
+          <span className="min-w-0 break-words" title={mv.to}>
+            <PathText path={mv.to} />
           </span>
         </>
       )}
@@ -119,7 +123,7 @@ const Row: React.FC<{
     */}
     {mv.recordedAt && (
       <span
-        className="text-xs text-gray-400 flex-shrink-0"
+        className="text-xs text-gray-500 flex-shrink-0"
         title={dateTime(mv.recordedAt)}
       >
         {relativeToNow(mv.recordedAt)}
@@ -283,8 +287,10 @@ const Moves: React.FC<{
           ))}
         </QueueSection>
 
+        {/* Only a keep lands here (an apply removes the row), so the title
+            says what was decided rather than that something was. */}
         <QueueSection
-          title={t('queue.alreadyDecided')}
+          title={t('moves.decided')}
           count={queue.acknowledged.length}
           empty={t('moves.empty.acknowledged')}
         >

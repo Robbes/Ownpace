@@ -79,7 +79,9 @@ beforeEach(() => {
 });
 
 describe('the aftermath section (0036 T2 pin)', () => {
-  it('renders "Already decided" with the acknowledged items', async () => {
+  it('renders the decided items under a title that says what was decided', async () => {
+    // Only a keep lands here (an apply removes the row), so the section says
+    // what a keep did instead of "Already decided", which said nothing about it.
     fetchMovesMock.mockResolvedValue(
       queue({
         acknowledged: [{ ...MOVE, acknowledgedAt: '2026-08-01T00:00:00Z' }],
@@ -88,8 +90,9 @@ describe('the aftermath section (0036 T2 pin)', () => {
     renderScreen();
 
     expect(
-      await screen.findByRole('heading', { name: /Already decided\s*\(1\)/ }),
+      await screen.findByRole('heading', { name: /Left where they are\s*\(1\)/ }),
     ).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Already decided/ })).not.toBeInTheDocument();
     expect(screen.getByText('INBOX/Projects')).toBeInTheDocument();
   });
 
@@ -98,6 +101,52 @@ describe('the aftermath section (0036 T2 pin)', () => {
     renderScreen();
 
     expect(await screen.findByText('Nothing has been decided yet.')).toBeInTheDocument();
+  });
+});
+
+/**
+ * On a phone the row is narrow, and a path that may only shrink shrank to a
+ * letter or two (the UX sweep, 2026-10-17: 'INBOX/Projects → Archive/2026'
+ * drew 43 px wide). The path wraps onto its own line now, at its slashes, and
+ * keeps its whole value in the title. jsdom draws no layout, so this holds the
+ * classes that decide it.
+ */
+describe('a path on a narrow screen', () => {
+  it('wraps instead of being cut off, and still reads as the whole path', async () => {
+    fetchMovesMock.mockResolvedValue(queue({ open: [MOVE] }));
+    renderScreen();
+
+    // The slashes are break points, and the path is still one text.
+    const from = await screen.findByText('INBOX/Projects');
+    const to = screen.getByText('Archive/2026');
+    for (const path of [from, to]) {
+      expect(path.className).not.toMatch(/\btruncate\b/);
+      expect(path.className).toMatch(/\bbreak-words\b/);
+      expect(path.querySelector('wbr')).not.toBeNull();
+    }
+    expect(from.getAttribute('title')).toBe('INBOX/Projects');
+    // The pair takes a line of its own rather than shrinking beside the chips.
+    const pair = from.parentElement!;
+    expect(pair.className).toMatch(/min-w-\[12rem\]/);
+    expect(pair.className).toMatch(/\bflex-wrap\b/);
+    expect(pair.className).not.toMatch(/\bmin-w-0\b/);
+  });
+
+  it('prints the age of a report in a grey that can be read', async () => {
+    // gray-400 is 2.5:1 on white; the queues' other small print is gray-500.
+    fetchMovesMock.mockResolvedValue(
+      queue({ open: [{ ...MOVE, recordedAt: '2026-08-01T00:00:00Z' }] }),
+    );
+    renderScreen();
+
+    const row = (await screen.findByText('INBOX/Projects')).closest('li')!;
+    // The one titled span that is not a path: the age, with its date as title.
+    const [age, ...more] = [...row.querySelectorAll<HTMLElement>('span[title]')].filter(
+      (s) => s.title !== MOVE.from && s.title !== MOVE.to,
+    );
+    expect(more).toEqual([]);
+    expect(age!.className).toMatch(/\btext-gray-500\b/);
+    expect(age!.className).not.toMatch(/\btext-gray-400\b/);
   });
 });
 
