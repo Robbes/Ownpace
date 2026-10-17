@@ -170,6 +170,18 @@ function inline(text) {
   });
   s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
+  // A bare address is a link: the legal texts write support@ownpace.eu some
+  // forty times as plain text, for a tester to copy by hand. The alternation
+  // steps over a link and a tag, so an address already linked, or inside an
+  // attribute, stays as it is; one in backticks is still parked as code; a
+  // sentence's closing full stop is not part of it.
+  s = s.replace(
+    /(<a\b[^>]*>[\s\S]*?<\/a>)|(<[^>]+>)|([A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})/g,
+    (m, _a, _tag, mail) => (mail ? `<a href="mailto:${mail}">${mail}</a>` : m),
+  );
+  // A date stays on one line: "Laatst bijgewerkt: 2026-10-" broke before its
+  // "11" on a phone. Outside tags, so an address that holds a date is untouched.
+  s = s.replace(/(<[^>]+>)|\b(\d{4}-\d{2}-\d{2})\b/g, (m, tag, d) => (tag ? m : `<span class="nowrap">${d}</span>`));
   // Draft markers stay visible rather than blending into the prose.
   s = s.replace(/«([A-Z_]+)»/g, '<span class="todo" title="not filled in yet">«$1»</span>');
   return s.replace(new RegExp(`${MARK}(\\d+)${MARK}`, 'g'), (_, i) => code[Number(i)]);
@@ -232,12 +244,23 @@ function markdown(src) {
         body.push(cells(lines[i]));
         i += 1;
       }
+      // On a phone the rows stack (the CSS under `.scroll`), and each cell
+      // shows its column's name from `data-label`: privacy's three-column
+      // tables cut their last column mid-word at 390 pixels. The roles keep
+      // the table a table to a screen reader once `display: block` undoes it.
+      // inline() has already escaped the quotes, so a label is a safe attribute.
+      const labels = head.map((c) => inline(c).replace(/<[^>]+>/g, ''));
       out.push(
-        '<div class="scroll"><table><thead><tr>' +
-          head.map((c) => `<th>${inline(c)}</th>`).join('') +
-          '</tr></thead><tbody>' +
+        '<div class="scroll"><table role="table"><thead role="rowgroup"><tr role="row">' +
+          head.map((c) => `<th role="columnheader">${inline(c)}</th>`).join('') +
+          '</tr></thead><tbody role="rowgroup">' +
           body
-            .map((r) => `<tr>${r.map((c) => `<td>${inline(c)}</td>`).join('')}</tr>`)
+            .map(
+              (r) =>
+                `<tr role="row">${r
+                  .map((c, n) => `<td role="cell" data-label="${labels[n] ?? ''}">${inline(c)}</td>`)
+                  .join('')}</tr>`,
+            )
             .join('') +
           '</tbody></table></div>',
       );
@@ -275,14 +298,19 @@ function markdown(src) {
       continue;
     }
     // Paragraph: consume until a blank line or the start of another block.
-    const buf = [];
+    // A line after the first that opens with a bold label, `**Version:**`,
+    // starts a line of its own: a legal page's header read "Version: 1.0
+    // Last updated: 2026-10-11" as one run. Joined after inline(), which
+    // escapes HTML, so the `<br />` survives.
+    const segments = [];
     while (i < lines.length && !/^\s*$/.test(lines[i]) && !/^(#{1,4}\s|>|---+\s*$|\|)/.test(lines[i])) {
       const m = /^(\s*)([-*]|\d+\.)\s+/.exec(lines[i]);
-      if (m && buf.length) break;
-      buf.push(lines[i]);
+      if (m && segments.length) break;
+      if (!segments.length || /^\*\*[^*]+:\*\*/.test(lines[i])) segments.push([]);
+      segments[segments.length - 1].push(lines[i]);
       i += 1;
     }
-    if (buf.length) out.push(`<p>${inline(buf.join(' ').trim())}</p>`);
+    if (segments.length) out.push(`<p>${segments.map((s) => inline(s.join(' ').trim())).join('<br />')}</p>`);
   }
   return out.join('\n');
 }
@@ -336,6 +364,11 @@ h1 { font-size: clamp(2rem, 5vw, 3rem); }
 h2 { font-size: clamp(1.4rem, 3vw, 1.9rem); }
 h3 { font-size: 1.15rem; }
 p, li { color: var(--ink); }
+/* A word longer than a phone is wide breaks rather than pushing the page
+   sideways ("verwerkingsverantwoordelijke" at 320 pixels). Not hyphens: auto,
+   which would re-hyphenate every paragraph. */
+main { overflow-wrap: break-word; }
+.nowrap { white-space: nowrap; }
 code { background: var(--panel); padding: 0.1em 0.35em; border-radius: 4px; font-size: 0.9em; }
 hr { border: 0; border-top: 1px solid var(--line); margin: 3rem 0; }
 blockquote {
@@ -346,6 +379,26 @@ blockquote {
 table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
 th, td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { font-weight: 600; color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+/* On a phone a table's rows stack, each cell under its column's name
+   (markdown() writes it as data-label), so nothing is cut off at the edge. */
+@media (max-width: 48rem) {
+  .scroll table, .scroll thead, .scroll tbody, .scroll tr, .scroll th, .scroll td { display: block; }
+  .scroll thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .scroll tr { border-bottom: 1px solid var(--line); padding: 0.6rem 0; }
+  .scroll td { border: 0; padding: 0.15rem 0; }
+  .scroll td::before {
+    content: attr(data-label); display: block; font-size: 0.75rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted);
+  }
+}
+/* A legal page's sections, listed before the first (build()). The headings
+   carry their own numbers, so the list draws none. */
+.toc { margin: 1.5rem 0; padding: 1rem 1.25rem; background: var(--panel); border-radius: 8px; }
+.toc-title { margin: 0 0 0.5rem; font-weight: 600; }
+.toc ol { list-style: none; margin: 0; padding: 0; }
+.toc li { margin: 0.25rem 0; }
+/* A section reached by its link lands below the sticky header, not under it. */
+main h2[id] { scroll-margin-top: 5rem; }
 .todo {
   background: #ffe9a8; color: #5b4600; padding: 0 0.3em; border-radius: 3px;
   font-weight: 600; font-size: 0.9em;
@@ -734,7 +787,9 @@ function layout({ title, description, body, locale, key, draft, alpha }) {
       return `<a href="${href}"${current}>${c.nav[k]}</a>`;
     }).join('') +
     `<details class="leaving"><summary>${c.leaving.menu}</summary><div class="leaving-list">${leaving}</div></details>` +
-    `<a href="${esc(SIGN_IN_URL)}">${c.nav.signIn}</a>`;
+    // In the page's language: the app's sign-in reads ?locale=, so a Dutch
+    // reader whose browser is set to English still signs in in Dutch.
+    `<a href="${esc(`${SIGN_IN_URL}?locale=${locale}`)}">${c.nav.signIn}</a>`;
 
   const other = LOCALES.find((l) => l !== locale);
   const alternates = LOCALES.map(
@@ -1633,6 +1688,22 @@ export function build({ alpha = ALPHA } = {}) {
         }
         if ((key === 'privacy' || key === 'terms') && c.translationNote) {
           body = `<blockquote><p>${c.translationNote}</p></blockquote>\n` + body;
+        }
+        // A legal page lists its sections before the first one: 12 to 15 of
+        // them, up to 34,000 pixels on a phone, with nothing to jump from.
+        // Built from the headings, so no legal word changes. Not on the
+        // tester guide, whose words are approved as they are.
+        if (key === 'privacy' || key === 'terms' || key === 'alpha') {
+          const items = [...body.matchAll(/<h2 id="([^"]+)">([\s\S]*?)<\/h2>/g)]
+            .map(([, id, text]) => `<li><a href="#${id}">${text.replace(/<[^>]+>/g, '')}</a></li>`)
+            .join('');
+          const first = body.indexOf('<h2 ');
+          if (items && first >= 0) {
+            body =
+              body.slice(0, first) +
+              `<nav class="toc" aria-labelledby="toc-title"><p id="toc-title" class="toc-title">${c.tocTitle}</p><ol>${items}</ol></nav>\n` +
+              body.slice(first);
+          }
         }
       }
       const draft = /class="todo"/.test(body);

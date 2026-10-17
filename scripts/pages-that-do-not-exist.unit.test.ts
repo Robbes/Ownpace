@@ -75,7 +75,10 @@ function pages(appUrl = OTA): Page[] {
            m.rendered.map((p) => ({ file: p.file, html: p.html, locale: p.locale })))))
          .catch((e) => { process.stderr.write(String(e && e.message)); process.exit(1); });`,
     ],
-    { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] as const },
+    // Every page, as JSON, passed 1 MiB, the default buffer, in the UX sweep
+    // (the legal tables' column labels): the build was fine and this read
+    // ENOBUFS. The size of the site is not what this file guards.
+    { env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] as const },
   );
   cached = JSON.parse(out) as Page[];
   return cached;

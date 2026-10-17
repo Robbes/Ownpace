@@ -150,14 +150,33 @@ describe('the public site renders', () => {
   }, 90_000);
 
   it('does not scroll sideways on a phone', async () => {
-    for (const path of ['/', '/pricing.html', '/privacy.html']) {
+    for (const path of ['/', '/pricing.html', '/privacy.html', '/nl/privacy.html']) {
       const { page } = await open(path, 390);
       const overflows = await page.evaluate(
         () => document.documentElement.scrollWidth > window.innerWidth + 1,
       );
       expect(overflows, `${path} scrolls horizontally at 390px`).toBe(false);
+      // Nor does a table inside it (the UX sweep): privacy's tables cut their
+      // last column mid-word, scrollable only by a swipe nobody was told about.
+      // On a phone the rows stack instead, each cell under its column's name.
+      const tables = await page.$$eval('.scroll', (all) =>
+        all.map((s) => ({ wide: s.scrollWidth > s.clientWidth + 1, label: getComputedStyle(s.querySelector('td')!, '::before').content })),
+      );
+      if (path.includes('privacy')) expect(tables.length, `${path} has no table to measure`).toBeGreaterThan(1);
+      for (const t of tables) {
+        expect(t.wide, `${path}: a table is wider than a 390 pixel screen`).toBe(false);
+        expect(t.label, `${path}: a stacked cell does not say its column`).not.toMatch(/^(none|normal)$/);
+      }
       await page.close();
     }
+    // The narrowest phone the reflow rule asks for: a long Dutch word
+    // ("verwerkingsverantwoordelijke") breaks rather than widening the page.
+    const { page } = await open('/nl/privacy.html', 320);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1),
+      '/nl/privacy.html scrolls horizontally at 320px',
+    ).toBe(false);
+    await page.close();
   }, 90_000);
 
   it('lines the tier prices up, which is the one page where it shows', async () => {
@@ -340,7 +359,7 @@ describe('the public site renders', () => {
       as.map((a) => ({ text: a.textContent, href: a.getAttribute('href'), right: a.getBoundingClientRect().right })),
     );
     expect(links.map((l) => l.text)).toEqual(['Home', 'How it works', 'Pricing', 'Sign in']);
-    expect(links.at(-1)!.href).toBe('https://app.ota.ownpace.eu/login');
+    expect(links.at(-1)!.href).toBe('https://app.ota.ownpace.eu/login?locale=en');
     for (const l of links) expect(l.right, `${l.text} runs off a 390 pixel screen`).toBeLessThanOrEqual(390);
     await page.keyboard.press('Tab');
     expect(await page.evaluate(() => document.activeElement?.textContent)).toBe('Home');
