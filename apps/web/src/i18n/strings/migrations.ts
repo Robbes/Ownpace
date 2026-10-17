@@ -128,6 +128,8 @@ export const en = {
   'hub.confirmed.blurb':
     'What is in the new home, item by item, and what was compared.',
   'hub.finish.name': 'Finish',
+  // Under each step page of a migration, the way on to the next (NextStepLink).
+  'hub.nextStep': 'Next step: {step} →',
   'hub.finish.blurb':
     'The cutover checklist, to end the migration.',
   'runs.title': 'Run history',
@@ -515,6 +517,7 @@ export const nl: Record<keyof typeof en, string> = {
   'hub.confirmed.blurb':
     'Wat er in het nieuwe systeem staat, item voor item, en wat is vergeleken.',
   'hub.finish.name': 'Afronden',
+  'hub.nextStep': 'Volgende stap: {step} →',
   'hub.finish.blurb':
     'De cutover-checklist; beëindigt de migratie in enkele stappen.',
   'runs.title': 'Uitvoeringsgeschiedenis',
