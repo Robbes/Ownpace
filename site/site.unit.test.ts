@@ -863,14 +863,19 @@ describe('the header is short, and no page is left without a link to it (workpla
   /**
    * The links of a page's header nav (`site`, on a wide screen) or its phone
    * menu (`menu`), each by the text it shows: a Leaving… link's tile is hidden
-   * from a screen reader and is not its text.
+   * from a screen reader and is not its text, and its *Leaving* is for a screen
+   * reader only and is not drawn (`scripts/leaving-pages-say-what-the-app-says`
+   * holds those words).
    */
   const navLinks = (html: string, which: 'site' | 'menu') => {
     const nav = new RegExp(`<nav class="${which}"[^>]*>([\\s\\S]*?)</nav>`).exec(html)?.[1];
     expect(nav, `no <nav class="${which}">`).toBeDefined();
     return [...nav!.matchAll(/<a href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)].map((m) => ({
       href: m[1]!,
-      text: m[2]!.replace(/<span class="tile[^"]*" aria-hidden="true">[^<]*<\/span>/g, '').replace(/<[^>]+>/g, ''),
+      text: m[2]!
+        .replace(/<span class="tile[^"]*" aria-hidden="true">[^<]*<\/span>/g, '')
+        .replace(/<span class="sr-only">[^<]*<\/span>/g, '')
+        .replace(/<[^>]+>/g, ''),
     }));
   };
 

@@ -169,12 +169,21 @@ const Person: React.FC = () => {
     retry: false,
   });
 
+  // ONE HEADING ON EVERY STATE (the UX sweep's follow-ups). The frame's bar
+  // says Migrations as a line of text here, because this page draws its own
+  // `<h1>` (`Layout`'s OWN_H1_PREFIXES); a state that has no person's name to
+  // put in it says the bar's words, or the page had no heading at all.
+  const untitled = <h1 className="text-2xl font-bold text-gray-900">{t('nav.mappings')}</h1>;
+
   if (rowsQuery.isLoading || peopleQuery.isLoading) {
     // Heard as well as seen: a spinner alone says nothing to a screen reader.
     return (
-      <div role="status" className="flex items-center justify-center h-64">
-        <div aria-hidden="true" className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        <span className="sr-only">{t('common.loading')}</span>
+      <div className="space-y-4">
+        {untitled}
+        <div role="status" className="flex items-center justify-center h-64">
+          <div aria-hidden="true" className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <span className="sr-only">{t('common.loading')}</span>
+        </div>
       </div>
     );
   }
@@ -194,6 +203,7 @@ const Person: React.FC = () => {
     return (
       <div className="space-y-4">
         {back}
+        {untitled}
         <div className="flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
           <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" aria-hidden="true" />
           <div>
@@ -226,6 +236,7 @@ const Person: React.FC = () => {
     return (
       <div className="space-y-4">
         {back}
+        {untitled}
         <p className="text-gray-700">{t('person.notFound')}</p>
       </div>
     );

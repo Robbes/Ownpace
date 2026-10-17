@@ -48,26 +48,45 @@ const PersonReport: React.FC = () => {
     </Link>
   ) : null;
 
+  // ONE HEADING ON EVERY STATE (the UX sweep's follow-ups). The frame's bar
+  // is a line of text here, because this page draws its own `<h1>` (`Layout`'s
+  // OWN_H1_PREFIXES); a state with no person to name still says what the page
+  // is, or it had no heading at all.
+  const untitled = <h1 className="text-2xl font-bold text-gray-900">{t('migrationReport.title')}</h1>;
+
   if (people.isPending) {
     return (
-      <div role="status" className="flex items-center justify-center h-64">
-        <div aria-hidden="true" className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
-        <span className="sr-only">{t('common.loading')}</span>
+      <div className="space-y-4">
+        {untitled}
+        <div role="status" className="flex items-center justify-center h-64">
+          <div aria-hidden="true" className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+          <span className="sr-only">{t('common.loading')}</span>
+        </div>
       </div>
     );
   }
   if (people.error != null) {
     return (
-      <div role="alert" className="flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
-        <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-        <div>
-          <p className="font-medium">{t('person.loadFailed')}</p>
-          <p className="mt-1">{serverMessage(people.error)}</p>
+      <div className="space-y-4">
+        {untitled}
+        <div role="alert" className="flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
+          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" aria-hidden="true" />
+          <div>
+            <p className="font-medium">{t('person.loadFailed')}</p>
+            <p className="mt-1">{serverMessage(people.error)}</p>
+          </div>
         </div>
       </div>
     );
   }
-  if (!person) return <p className="text-gray-700">{t('person.notFound')}</p>;
+  if (!person) {
+    return (
+      <div className="space-y-4">
+        {untitled}
+        <p className="text-gray-700">{t('person.notFound')}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

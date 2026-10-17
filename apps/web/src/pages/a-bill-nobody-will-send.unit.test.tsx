@@ -49,7 +49,7 @@
  * `components/an-alpha-said-out-loud.unit.test.tsx`; the edition is mocked
  * through `services/edition`, the sanctioned seam.
  */
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -231,7 +231,12 @@ async function billingPage(locale: Locale): Promise<void> {
       </LocaleProvider>
     </QueryClientProvider>,
   );
-  await screen.findByRole('heading', { level: 1 });
+  // The title stands over the spinner too (one heading on every state, the
+  // UX sweep's follow-ups), so the page is read once what is under the title
+  // is no longer the spinner's status.
+  await waitFor(() =>
+    expect(screen.getByRole('heading', { level: 1 }).nextElementSibling?.getAttribute('role')).not.toBe('status'),
+  );
 }
 
 /** The request form, as the app mounts it. */

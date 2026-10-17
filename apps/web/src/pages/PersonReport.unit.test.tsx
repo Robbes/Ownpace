@@ -101,3 +101,39 @@ describe('a person’s report', () => {
     expect(fetchReportMock).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * ONE HEADING ON EVERY STATE (the UX sweep's follow-ups). The frame's bar is a
+ * line of text on this page, because the page draws its own `<h1>` (`Layout`'s
+ * OWN_H1_PREFIXES); while it loaded, when the people could not be read and for
+ * an address that names nobody, it drew none. Each state draws exactly one.
+ */
+describe('one heading on every state', () => {
+  const h1s = () => screen.queryAllByRole('heading', { level: 1 }).map((h) => h.textContent);
+
+  it('while it loads: Report, over the spinner', async () => {
+    fetchPeopleMock.mockReturnValue(new Promise(() => {}));
+    renderAt();
+    expect(await screen.findByRole('status')).toHaveTextContent('Loading…');
+    expect(h1s()).toEqual(['Report']);
+  });
+
+  it('when the people could not be read: Report, over what went wrong', async () => {
+    fetchPeopleMock.mockRejectedValue(new Error('the people read failed'));
+    renderAt();
+    expect(await screen.findByText('Could not load this person.')).toBeInTheDocument();
+    expect(h1s()).toEqual(['Report']);
+  });
+
+  it('for an address that names nobody: Report, over the sentence', async () => {
+    renderAt('/people/p-nobody/report');
+    expect(await screen.findByText('There is no such person here.')).toBeInTheDocument();
+    expect(h1s()).toEqual(['Report']);
+  });
+
+  it('for a person: theirs, and only that', async () => {
+    renderAt();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Report: Anna Jansen' })).toBeInTheDocument();
+    expect(h1s()).toHaveLength(1);
+  });
+});

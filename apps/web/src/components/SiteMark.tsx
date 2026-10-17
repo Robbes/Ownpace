@@ -1,7 +1,9 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
- * The site's mark, on the two pages a person meets before they are inside the
- * app: `/login` and `/request-access` (workplan 0152 T9).
+ * The site's mark: on the pages a person meets before they are inside the
+ * app, `/login`, `/request-access` (workplan 0152 T9) and the guides read
+ * before signing in (`PublicDocs`), and inside it as the sidebar's brand
+ * mark beside the word Ownpace (`Layout`, the UX sweep's shell frame).
  *
  * The drawing is `site/brand/logo.svg`, which `scripts/make-logo.py` draws
  * from one set of constants. It is inline rather than a file this bundle

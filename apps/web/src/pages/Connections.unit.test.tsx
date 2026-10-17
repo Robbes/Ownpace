@@ -322,6 +322,37 @@ describe('the connections screen', () => {
   });
 });
 
+/**
+ * ONE HEADING ON EVERY STATE (the UX sweep's follow-ups). The frame's bar is a
+ * line of text on this page, because the page draws its own `<h1>` (`Layout`'s
+ * OWN_H1_PREFIXES); while the list loaded and when it could not be read, the
+ * page drew a bare sentence and no heading at all.
+ */
+describe('one heading on every state', () => {
+  const h1s = () => screen.queryAllByRole('heading', { level: 1 }).map((h) => h.textContent);
+
+  it('while the list loads: Accounts, over Loading', async () => {
+    list.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    expect(await screen.findByText('Loading…')).toBeInTheDocument();
+    expect(h1s()).toEqual(['Accounts']);
+  });
+
+  it('when the list could not be read: Accounts, over the reason', async () => {
+    list.mockRejectedValue(axiosStatus(500, 'Error', { error: 'list_failed', reason: 'The accounts could not be read.' }));
+    renderPage();
+    expect(await screen.findByText(/The accounts could not be read/)).toBeInTheDocument();
+    expect(h1s()).toEqual(['Accounts']);
+  });
+
+  it('with the list: Accounts, once', async () => {
+    list.mockResolvedValue([]);
+    renderPage();
+    expect(await screen.findByText(/No accounts yet/)).toBeInTheDocument();
+    expect(h1s()).toEqual(['Accounts']);
+  });
+});
+
 describe('replacing credentials', () => {
   it('never re-asks where the migration is rooted', async () => {
     // Rotation replaces a credential, not a root folder — re-presenting the
