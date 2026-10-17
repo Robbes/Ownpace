@@ -597,7 +597,7 @@ const View: React.FC = () => {
               </ul>
               {moved > 0 && (
                 <p className="mt-4 text-sm text-gray-600">
-                  {t('view.moved', { bytes: formatBytes(moved) })}
+                  {t('view.moved', { bytes: formatBytes(moved, locale) })}
                 </p>
               )}
             </>

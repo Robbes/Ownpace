@@ -72,7 +72,7 @@ export const en = {
   'start.connect.asks': 'One sign-in: {types}',
   'start.connect.check': 'Check the sign-in',
   'start.connect.as': 'Connected as {account}',
-  'start.connect.which': 'Which {provider} account',
+  'start.connect.which': 'Which account: {provider}',
   'start.connect.another': 'Another account',
   'start.connect.errored': 'Its last check did not pass.',
   'start.connect.tryAgain': 'Try again',
@@ -114,6 +114,9 @@ export const en = {
   'start.to.cannotTakeChosen': 'Choose a destination that takes {type}.',
   'start.to.needAll': 'Add each new account first.',
   'start.to.settingUp': 'Setting up…',
+  // Leaving *Where does it go?* makes the person and the migrations (the UX sweep, 2026-10-17).
+  'start.to.setUp': 'Set up',
+  'start.to.setUp.line': 'This sets the migrations up, paused. Nothing is copied until you press Start.',
   'start.to.failed': 'Not set up: {migration}.',
   'start.to.exportFolder': 'Read from the folder {folder} in these files, once the export is put there.',
   // WHERE THE COPIES LAND, per migration (0153 open question 5, item 4).
@@ -143,6 +146,9 @@ export const en = {
   'start.check.done': 'Done',
   'start.check.later':
     "You can close this page. {person}'s page keeps these migrations: once they have connected, start each one from its Details.",
+  // A way out of the last screen without starting (the UX sweep, 2026-10-17).
+  'start.check.notNow': 'Not now',
+  'start.check.notNow.line': "They stay set up and paused on {person}'s page.",
   'start.company.question': 'Is this a company account with an administrator?',
   'start.company.no': 'No',
   'start.company.yes': 'Yes',
@@ -233,7 +239,7 @@ export const nl: Record<keyof typeof en, string> = {
   'start.connect.asks': 'Eén aanmelding: {types}',
   'start.connect.check': 'Aanmelding controleren',
   'start.connect.as': 'Verbonden als {account}',
-  'start.connect.which': 'Welk account van {provider}',
+  'start.connect.which': 'Welk account: {provider}',
   'start.connect.another': 'Een ander account',
   'start.connect.errored': 'De laatste controle is niet gelukt.',
   'start.connect.tryAgain': 'Opnieuw proberen',
@@ -273,6 +279,8 @@ export const nl: Record<keyof typeof en, string> = {
   'start.to.cannotTakeChosen': 'Kies een bestemming die {type} aanneemt.',
   'start.to.needAll': 'Voeg eerst elk nieuw account toe.',
   'start.to.settingUp': 'Bezig met klaarzetten…',
+  'start.to.setUp': 'Klaarzetten',
+  'start.to.setUp.line': 'Dit zet de migraties klaar, gepauzeerd. Er wordt niets gemigreerd tot u op Starten drukt.',
   'start.to.failed': 'Niet klaargezet: {migration}.',
   'start.to.exportFolder': 'Gelezen uit de map {folder} in deze bestanden, zodra de export daar staat.',
   'start.to.lands': 'Waar de kopieën komen',
@@ -301,6 +309,8 @@ export const nl: Record<keyof typeof en, string> = {
   'start.check.done': 'Klaar',
   'start.check.later':
     'U kunt deze pagina sluiten. De pagina van {person} bewaart deze migraties: start elke migratie via Details zodra de verbinding er is.',
+  'start.check.notNow': 'Nu niet',
+  'start.check.notNow.line': 'Ze blijven gepauzeerd klaarstaan op de pagina van {person}.',
   'start.company.question': 'Is dit een bedrijfsaccount met een beheerder?',
   'start.company.no': 'Nee',
   'start.company.yes': 'Ja',

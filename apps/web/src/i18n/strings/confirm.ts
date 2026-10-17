@@ -28,6 +28,7 @@ export const en = {
   'discovery.th.items': 'Items',
   'discovery.th.size': 'Size',
   'discovery.th.existing': 'Already on the destination',
+  'discovery.th.problem': 'Problem',
   'discovery.keptAsIs': 'kept as-is',
   'discovery.generatedId.pre.one':
     'message arrived without a Message-ID; we generate one and add it to',
@@ -293,6 +294,7 @@ export const nl: Record<keyof typeof en, string> = {
   'discovery.th.items': 'Items',
   'discovery.th.size': 'Grootte',
   'discovery.th.existing': 'Al op de bestemming',
+  'discovery.th.problem': 'Probleem',
   'discovery.keptAsIs': 'blijven ongewijzigd',
   'discovery.generatedId.pre.one':
     'bericht kwam aan zonder Message-ID; we genereren er een en voegen die toe aan',
