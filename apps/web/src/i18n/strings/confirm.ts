@@ -8,7 +8,7 @@
  */
 
 export const en = {
-  'confirm.progress.lastSynced': 'last synced',
+  'confirm.progress.lastSynced': 'last pass',
   'discovery.scanning': 'Scanning your source (read-only)…',
   // Named rather than counted, and present tense: the reader is watching this
   // happen. See DiscoveryCounts for the three-row table that read as finished.
@@ -107,6 +107,11 @@ export const en = {
   'confirm.nextSteps': 'Next, in cutover order:',
   'confirm.title': 'Review & confirm your migration',
   'confirm.intro': 'Nothing has been copied yet. Review what will migrate, then start it.',
+  // The same screen, reached by Review and start on a paused migration that
+  // already copied (UX sweep, 2026-10-17): 'confirm.intro' is true only
+  // before the first pass.
+  'confirm.introResume':
+    'This migration is paused. What was already migrated stays, and starting it again carries on where it stopped.',
   'confirm.readError': 'Could not read the migrations.',
   'confirm.noMappings': 'No mappings configured.',
   'confirm.noMappings.how': 'The appliance reads mappings from JSON files in its config directory.',
@@ -130,6 +135,9 @@ export const en = {
   // The manifest that could not be read (0153 T1 (a)): the reason follows,
   // verbatim, so this is the frame and not the finding.
   'confirm.manifestError': 'The list of what migrates could not be read:',
+  // Under a column of that list with nothing in it (UX sweep, 2026-10-17): it
+  // says the list is empty for this source, not that nothing is left behind.
+  'scope.noneListed': 'Nothing listed for this source.',
   'confirm.openConsole': 'Open the migration console',
   'confirm.whatMigrates': 'What migrates',
   'confirm.note.active': 'Active. It syncs on its schedule and reports anything that needs you.',
@@ -281,7 +289,7 @@ export const en = {
 } as const;
 
 export const nl: Record<keyof typeof en, string> = {
-  'confirm.progress.lastSynced': 'laatst gesynchroniseerd',
+  'confirm.progress.lastSynced': 'laatste ronde',
   'discovery.scanning': 'Uw bron wordt gescand (alleen-lezen)…',
   'discovery.stillCounting': 'Nog aan het inventariseren: {domains}. Deze pagina werkt zichzelf bij.',
   'discovery.stillCounting.slow':
@@ -350,6 +358,8 @@ export const nl: Record<keyof typeof en, string> = {
   'confirm.nextSteps': 'Hierna, in volgorde nodig voor de overstap:',
   'confirm.title': 'Controleer en bevestig uw migratie',
   'confirm.intro': 'Er is nog niets gemigreerd. Controleer wat er migreert en start het daarna.',
+  'confirm.introResume':
+    'Deze migratie is gepauzeerd. Wat al gemigreerd is, blijft staan. Als u haar opnieuw start, gaat ze verder waar ze gebleven was.',
   'confirm.readError': 'De migraties konden niet worden gelezen.',
   'confirm.noMappings': 'Geen migraties geconfigureerd.',
   'confirm.noMappings.how':
@@ -365,6 +375,7 @@ export const nl: Record<keyof typeof en, string> = {
   'confirm.countUnfinished':
     'De inventarisatie was na 15 minuten niet klaar. U kunt toch starten: wat niet gemigreerd kan worden, staat op de pagina van de migratie zodra het gevonden is.',
   'confirm.manifestError': 'De lijst van wat er migreert kon niet worden gelezen:',
+  'scope.noneListed': 'Voor deze bron is hier niets vermeld.',
   'confirm.openConsole': 'Open de migratieconsole',
   'confirm.whatMigrates': 'Wat migreert er',
   'confirm.note.active': 'Actief. Er wordt gesynchroniseerd volgens schema en wat uw aandacht nodig heeft wordt gemeld.',

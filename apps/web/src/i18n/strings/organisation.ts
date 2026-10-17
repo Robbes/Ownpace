@@ -84,7 +84,7 @@ export const en = {
   // WHAT THIS MIGRATION COPIES, and what it may still gain (workplan 0125 T6).
   // Adding only: the page never offers to take a data type off.
   'settings.kinds': 'Data types this migration copies',
-  'settings.kinds.add': 'Add {kind}',
+  'settings.kinds.add': 'Add {kindWord}',
   'settings.kinds.adding': 'Adding…',
   'settings.kinds.added': '{kind} added. The next pass copies it.',
   // Before the press, like the export format's: what adding does and does not do.
@@ -95,8 +95,9 @@ export const en = {
   'settings.kinds.failed': 'That was not added:',
   // STOP AND RESUME ONE DATA TYPE (workplan 0128 T4, slice 3c). Offered where
   // the stop door accepts the press; what a stop does is said before it.
-  'settings.kinds.stop': 'Stop {kind}',
-  'settings.kinds.resume': 'Resume {kind}',
+  // Sentence case: the data type mid-label is lower-cased ({kindWord}).
+  'settings.kinds.stop': 'Stop {kindWord}',
+  'settings.kinds.resume': 'Resume {kindWord}',
   'settings.kinds.stopping': 'Stopping…',
   'settings.kinds.resuming': 'Resuming…',
   'settings.kinds.stoppedByYou': 'stopped by you',
@@ -110,6 +111,13 @@ export const en = {
     'The last data type is still active. To stop it, end the migration instead.',
   'settings.kinds.held.notRunning': 'This can be resumed once the migration runs again.',
   'settings.kinds.stop.failed': 'That did not change:',
+  // A data type the rule refuses, by its `code` (UX sweep, 2026-10-17): the
+  // rule's own `reason` is English for the API and its logs. 'Test' is the
+  // Accounts row's button (connections.test).
+  'settings.kinds.refused.afterCutover':
+    'Can no longer be added once the switch has started. Start a new migration for it.',
+  'settings.kinds.refused.measured':
+    'One of the two accounts said it cannot hold this. If that has changed, press Test on the Accounts page.',
   // The channel's state, shown only when it is OFF (0043 T3). "On" is not worth
   // a banner; "off" is the state somebody has to act on, and until now it was
   // visible only in a container log line written once at boot.
@@ -321,6 +329,10 @@ export const nl: Record<keyof typeof en, string> = {
     'Het laatste gegevenstype dat nog wordt gemigreerd. Wilt u het stoppen, beëindig dan de migratie.',
   'settings.kinds.held.notRunning': 'Dit kan worden hervat zodra de migratie weer actief is.',
   'settings.kinds.stop.failed': 'Dat is niet gewijzigd:',
+  'settings.kinds.refused.afterCutover':
+    'Kan niet meer worden toegevoegd nu de overstap is begonnen. Start hiervoor een nieuwe migratie.',
+  'settings.kinds.refused.measured':
+    'Een van de twee accounts gaf aan dit niet te kunnen bewaren. Is dat veranderd? Druk dan op Testen op de pagina Accounts.',
   'notifications.off': 'E-mailmeldingen staan uit',
   'notifications.offHint':
     'Niemand wordt gemaild als deze migratie een beslissing nodig heeft; stel SMTP in.',

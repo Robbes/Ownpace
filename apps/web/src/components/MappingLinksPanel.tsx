@@ -431,7 +431,9 @@ const WhoIsThisFor: React.FC<{ mappingId: string; people: readonly Person[] }> =
   const nameId = React.useId();
   /** The choice that is somebody new: not an id, which is a uuid. */
   const NEW = 'new';
-  const [choice, setChoice] = React.useState(people[0]?.id ?? NEW);
+  // Nobody is preset (UX sweep, 2026-10-17): the first person in the list was,
+  // so one press gave a shared mailbox to whoever that happened to be.
+  const [choice, setChoice] = React.useState(people.length > 0 ? '' : NEW);
   const [name, setName] = React.useState('');
   const [pending, setPending] = React.useState(false);
   const [failed, setFailed] = React.useState<string | null>(null);
@@ -464,6 +466,9 @@ const WhoIsThisFor: React.FC<{ mappingId: string; people: readonly Person[] }> =
             onChange={(e) => setChoice(e.target.value)}
             className="mt-1 px-3 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white"
           >
+            <option value="" disabled>
+              {t('migrationLinks.whoFor.choose')}
+            </option>
             {people.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.displayName}
@@ -480,7 +485,7 @@ const WhoIsThisFor: React.FC<{ mappingId: string; people: readonly Person[] }> =
         )}
         <button
           type="submit"
-          disabled={pending || (choice === NEW && name.trim() === '')}
+          disabled={pending || choice === '' || (choice === NEW && name.trim() === '')}
           className="px-3 py-2 font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {t('migrationLinks.whoFor.save')}

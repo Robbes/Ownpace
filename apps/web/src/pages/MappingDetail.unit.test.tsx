@@ -692,7 +692,7 @@ describe('the live progress strip', () => {
     expect(screen.getByText('2 retrying')).toBeInTheDocument();
     // The per-domain as-of (0036 T1) — must render from BOTH editions'
     // payloads or the strip becomes a single-edition feature (hard rule 5).
-    expect(screen.getByText(/last synced/)).toBeInTheDocument();
+    expect(screen.getByText(/last pass/)).toBeInTheDocument();
     // The error verbatim — the prose boundary.
     expect(screen.getByText('IMAP LIST failed: connection reset')).toBeInTheDocument();
     expect(fetchStatusMock).not.toHaveBeenCalled();
@@ -710,7 +710,7 @@ describe('the live progress strip', () => {
     renderHub();
 
     expect(await screen.findByText('42 of ~50')).toBeInTheDocument();
-    expect(screen.getByText(/last synced/)).toBeInTheDocument();
+    expect(screen.getByText(/last pass/)).toBeInTheDocument();
     // The other mapping's numbers must not leak into this hub.
     expect(screen.queryByText(/^999 /)).not.toBeInTheDocument();
     expect(mappingApiGet).not.toHaveBeenCalled();
@@ -919,7 +919,7 @@ describe('a data type stopped from this page', () => {
     );
     renderHub();
 
-    expect(await screen.findByRole('button', { name: 'Stop Email' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Stop email' })).toBeInTheDocument();
     expect(screen.getByText(STRINGS.en['confirm.progress.stopped'])).toBeInTheDocument();
     expect(screen.queryByText(STRINGS.en['confirm.progress.stoppedByYou'])).not.toBeInTheDocument();
   });
@@ -948,10 +948,10 @@ describe('a data type stopped from this page', () => {
     });
     renderHub();
 
-    expect(await screen.findByRole('button', { name: 'Resume Calendar' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Resume calendar' })).toBeInTheDocument();
     expect(screen.getByText(STRINGS.en['settings.kinds.held.lastOne'])).toBeInTheDocument();
     expect(screen.getByText(STRINGS.en['confirm.progress.stoppedByYou'])).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Stop Files' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Stop files' })).not.toBeInTheDocument();
     expect(mappingApiGet).not.toHaveBeenCalled();
   });
 });

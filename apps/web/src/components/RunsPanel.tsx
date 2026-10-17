@@ -9,7 +9,9 @@
  * from PowerShell log tails while these rows held the failure verbatim.
  *
  * Events render VERBATIM (the i18n prose boundary: translate the frame,
- * never the finding). A failed run's log is open by default — it is the one
+ * never the finding), so the frame names them as the technical log, in
+ * English, and the list is marked `lang="en"` for a screen reader on a Dutch
+ * page (UX sweep, 2026-10-17). A failed run's log is open by default — it is the one
  * the operator came for; a clean run's log is a <details> fold, because
  * twenty green lines above the fold would bury the red one below it.
  */
@@ -68,7 +70,7 @@ const RunRow: React.FC<{ run: RunReport }> = ({ run }) => {
           <summary className="cursor-pointer text-xs text-gray-500 select-none">
             {t('runs.events')} ({formatNumber(run.events.length, locale)})
           </summary>
-          <ul className="mt-1 space-y-0.5 pl-1 border-l-2 border-gray-100">
+          <ul lang="en" className="mt-1 space-y-0.5 pl-1 border-l-2 border-gray-100">
             {run.events.map((e, i) => (
               <EventLine key={i} event={e} />
             ))}

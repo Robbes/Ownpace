@@ -132,8 +132,8 @@ export const en = {
     'The cutover checklist, to end the migration.',
   'runs.title': 'Run history',
   'runs.blurb':
-    'Every sync pass this migration has made, newest first, with what each one said.',
-  'runs.empty': 'No passes have run yet. History appears after the first sync.',
+    'Every pass this migration has made, newest first, with what each one said.',
+  'runs.empty': 'No passes have run yet. They appear here after the first pass.',
   'runs.truncated': 'Showing the newest passes only — older ones exist but are not listed.',
   'runs.eventsTruncated': 'Newest log entries only — earlier ones are not shown.',
   'runs.error': "Could not read this migration's run history.",
@@ -141,7 +141,9 @@ export const en = {
   'runs.items.many': '{n} items this pass',
   'runs.errors.one': '1 error',
   'runs.errors.many': '{n} errors',
-  'runs.events': 'Log',
+  // The worker's own lines, verbatim and English (the prose boundary): the
+  // frame says so, and the list is marked lang="en" (UX sweep, 2026-10-17).
+  'runs.events': 'Technical log',
   // An answer the page's schema refused, on a signed-in page (reported
   // 2026-09-29): `serverMessage` says this where it used to show zod's JSON,
   // most likely after the API and the web app were updated apart. {reference}
@@ -519,8 +521,8 @@ export const nl: Record<keyof typeof en, string> = {
     'De cutover-checklist; beëindigt de migratie in enkele stappen.',
   'runs.title': 'Uitvoeringsgeschiedenis',
   'runs.blurb':
-    'Iedere synchronisatieronde van deze migratie, nieuwste eerst, met wat elke ronde meldde.',
-  'runs.empty': 'Er zijn nog geen rondes uitgevoerd. Geschiedenis verschijnt na de eerste synchronisatie.',
+    'Elke ronde van deze migratie, nieuwste eerst, met wat elke ronde meldde.',
+  'runs.empty': 'Er zijn nog geen rondes uitgevoerd. Ze verschijnen hier na de eerste ronde.',
   'runs.truncated': 'Alleen de nieuwste rondes worden getoond — oudere bestaan, maar staan niet in de lijst.',
   'runs.eventsTruncated': 'Alleen de nieuwste logregels — eerdere worden niet getoond.',
   'runs.error': 'Kon de uitvoeringsgeschiedenis van deze migratie niet lezen.',
@@ -528,7 +530,7 @@ export const nl: Record<keyof typeof en, string> = {
   'runs.items.many': '{n} items in deze ronde',
   'runs.errors.one': '1 fout',
   'runs.errors.many': '{n} fouten',
-  'runs.events': 'Logboek',
+  'runs.events': 'Technisch logboek (Engels)',
   'answer.unreadable':
     'De server antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, meld dit en geef daarbij het volgende door: referentie {reference}.',
   'answer.unreachable': 'De dienst was niet bereikbaar. Controleer uw verbinding en probeer het opnieuw.',
