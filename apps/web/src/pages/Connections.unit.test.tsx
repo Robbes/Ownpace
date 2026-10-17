@@ -216,7 +216,7 @@ describe('the connections screen', () => {
     expect(target?.className).toContain('bg-white');
     expect(source).not.toBe(target);
     expect(source?.querySelector('h2')?.textContent).toBe('Sources');
-    expect(target?.querySelector('h2')?.textContent).toBe('Targets');
+    expect(target?.querySelector('h2')?.textContent).toBe('Destinations');
   });
 
   it('says when the door answered before the measuring finished (2026-09-02)', async () => {
@@ -752,6 +752,35 @@ describe('adding a connection through the front door', () => {
     renderPage();
     fireEvent.click(await screen.findByText('Add an account'));
   };
+
+  /**
+   * NO CARD CHOSEN FOR THE PERSON (UX sweep 2026-10-17; 0153's "Provider
+   * tiles, with none preselected"). The form opened on IMAP, the LAST card on
+   * the page, with its Host and Port boxes already open: the first thing
+   * somebody read was a server address for a provider they had not picked. It
+   * opens on the cards and one sentence now, and the same after switching the
+   * side.
+   */
+  it('opens with no card chosen: one sentence asks for one, and no field is drawn yet', async () => {
+    await open();
+    expect(screen.getByText('Choose a provider above.')).toBeTruthy();
+    expect(screen.queryByLabelText(/^Host/), 'a server box is open before any card was picked').toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add and test' })).toBeNull();
+    // Cancel still closes the form.
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByText('Choose a provider above.')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Add an account' })).toBeTruthy();
+  });
+
+  it('switching the side chooses no card there either, and a pick then draws its form', async () => {
+    await open();
+    fireEvent.click(screen.getByRole('radio', { name: 'Destinations' }));
+    expect(screen.getByText('Choose a provider above.')).toBeTruthy();
+    expect(screen.queryByLabelText(/^Host/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /^IMAP/ }));
+    expect(screen.queryByText('Choose a provider above.')).toBeNull();
+    expect(screen.getAllByLabelText(/^Host/).length).toBeGreaterThan(0);
+  });
 
   it('offers the wizard’s cards, grouped the wizard’s way', async () => {
     await open();
@@ -1296,7 +1325,7 @@ describe('adding a connection through the front door', () => {
     const button = await screen.findByRole('button', { name: /Connect with Dropbox/ });
     await act(async () => {});
     expect(button).toBeDisabled();
-    expect(reasonUnder(button)).toHaveTextContent('Enter the account address first');
+    expect(reasonUnder(button)).toHaveTextContent('Fill in the username first');
     fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
       target: { value: 'owner@example.invalid' },
     });
@@ -1305,7 +1334,7 @@ describe('adding a connection through the front door', () => {
 
   it('switching the side switches the cards', async () => {
     await open();
-    fireEvent.click(screen.getByRole('radio', { name: 'Targets' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Destinations' }));
     expect(screen.getByRole('button', { name: /^JMAP/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: /^Soverin/ })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^Gmail/ })).toBeNull();
@@ -1318,7 +1347,7 @@ describe('adding a connection through the front door', () => {
   it('the Soverin card pre-fills its published servers and ports, says so, and sends what the boxes hold', async () => {
     add.mockResolvedValue({ ok: true, id: 'c9', detail: 'Connected. 2 collections visible.' });
     await open();
-    fireEvent.click(screen.getByRole('radio', { name: 'Targets' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Destinations' }));
     fireEvent.click(screen.getByRole('button', { name: /^Soverin/ }));
     expect(screen.getByDisplayValue('caldav.soverin.net')).toBeTruthy();
     expect(screen.getByDisplayValue('443')).toBeTruthy();
@@ -1364,8 +1393,10 @@ describe('adding a connection through the front door', () => {
     // The owner, 2026-10-04 (0153's *not carried over*, "B"): the wizard
     // filled in 993 and 443, and its retirement had left the box empty.
     await open();
+    fireEvent.click(screen.getByRole('button', { name: /^IMAP/ }));
     expect(screen.getByLabelText(/^Port/)).toHaveValue(993);
-    fireEvent.click(screen.getByRole('radio', { name: 'Targets' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Destinations' }));
+    fireEvent.click(screen.getByRole('button', { name: /^JMAP/ }));
     expect(screen.getByLabelText(/^Port/)).toHaveValue(443);
     expect(screen.getByLabelText(/^Host/)).toHaveValue('');
     expect(screen.queryByText(/Pre-filled from/)).toBeNull();
@@ -1636,12 +1667,98 @@ describe('what is standing against a connection (workplan 0094 T5)', () => {
     expect(name.closest('a')?.getAttribute('href')).toBe('/mappings/m1');
     expect(screen.getByText(/Migration/)).toBeTruthy();
     expect(screen.getByText(/stopped .*\(Email, Calendar\):/)).toBeTruthy();
-    // The category's own remedy sentence — the same map the migration page reads.
-    expect(screen.getByText(new RegExp(STRINGS.en['failure.authExpired'].slice(0, 40)))).toBeTruthy();
+    // The remedy, said for THIS row: the button it shows, and no trip to "the
+    // Accounts page" somebody is already on (UX sweep 2026-10-17).
+    expect(
+      screen.getByText(/The connection to this account has expired\. Press Replace credentials on this row:/),
+    ).toBeTruthy();
+    expect(screen.queryByText(/On the Accounts page/)).toBeNull();
     // And, because the category does not say which of the two sides failed:
     expect(screen.getByText(/Test this one to find out/)).toBeTruthy();
     // The remedy is beside the line.
     expect(screen.getByText('Replace credentials')).toBeTruthy();
+  });
+
+  /**
+   * THE ROW'S OWN BUTTON, NOT BOTH (UX sweep 2026-10-17). `failure.authExpired`
+   * names Reconnect AND Replace credentials because it sends somebody to this
+   * page from elsewhere and cannot know the row (0140 T2 (b)). On the row
+   * itself the button is known, so the line names the one beside it, in a
+   * size a phone can read.
+   */
+  it('an expired consent row names Reconnect, its own button, and nothing else', async () => {
+    list.mockResolvedValue([
+      conn({
+        kind: 'google',
+        displayName: 'Anna Google',
+        standingFailures: [
+          { mappingId: 'm1', mappingName: 'Acme mail', category: 'auth_expired', domains: ['email'], asOf: twoHoursAgo() },
+        ],
+      }),
+    ]);
+    renderPage();
+
+    const line = (await screen.findByText('Acme mail')).closest('span');
+    expect(line?.textContent).toMatch(
+      /The connection to this account has expired\. Press Reconnect on this row: the migration then carries on/,
+    );
+    expect(line?.textContent).not.toContain('Replace credentials');
+    expect(line?.textContent).not.toContain('Accounts page');
+    expect(line?.className).toContain('text-sm');
+    expect(line?.className).not.toContain('text-xs');
+  });
+
+  it('in Dutch, a password row names Inloggegevens vervangen', async () => {
+    globalThis.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      list.mockResolvedValue([
+        conn({
+          standingFailures: [
+            { mappingId: 'm1', mappingName: 'Acme mail', category: 'auth_expired', domains: ['email'], asOf: twoHoursAgo() },
+          ],
+        }),
+      ]);
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <LocaleProvider>
+          <QueryClientProvider client={client}>
+            <MemoryRouter>
+              <Connections />
+            </MemoryRouter>
+          </QueryClientProvider>
+        </LocaleProvider>,
+      );
+      const line = (await screen.findByText('Acme mail')).closest('span');
+      expect(line?.textContent).toContain(
+        'De verbinding met dit account is verlopen. Druk hier op Inloggegevens vervangen: de migratie gaat dan verder',
+      );
+    } finally {
+      globalThis.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
+  it('an expired connection whose side the pass named says so once, without the generic tail', async () => {
+    list.mockResolvedValue([
+      conn({
+        standingFailures: [
+          {
+            mappingId: 'm1',
+            mappingName: 'Acme mail',
+            category: 'auth_expired',
+            domains: ['email'],
+            asOf: twoHoursAgo(),
+            side: 'source',
+          },
+        ],
+      }),
+    ]);
+    renderPage();
+
+    expect(await screen.findByText('Acme mail')).toBeInTheDocument();
+    expect(screen.getByText(/The connection to this account has expired\./)).toBeInTheDocument();
+    // The sentence already says it is this account: no second sentence saying so.
+    expect(screen.queryByText(/Failed on this account\./)).toBeNull();
+    expect(screen.queryByText(/Test this one to find out/)).toBeNull();
   });
 
   it('says the failure was on THIS connection when the pass named the side (second slice)', async () => {
@@ -1651,7 +1768,8 @@ describe('what is standing against a connection (workplan 0094 T5)', () => {
           {
             mappingId: 'm1',
             mappingName: 'Acme mail',
-            category: 'auth_expired',
+            // A category whose sentence names no account: the tail says which.
+            category: 'unknown',
             domains: ['email'],
             asOf: twoHoursAgo(),
             side: 'source',

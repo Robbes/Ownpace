@@ -33,7 +33,7 @@ De bestanden komen in uw eigen bestanden, onder de gebruikersnaam die u invult: 
 
 De test schrijft niets. Hij meldt zich aan en toont wat het account omvat (**Omvat:**) en wat hij vond (**Gevonden:**).
 
-U kunt het account ook vooraf toevoegen, onder **Accounts** → **Account toevoegen**: kies bij **Bron of doel?** **Doelen**, dan de kaart **Nextcloud**, vul zelf de **DAV-basis-URL** in, zoals `https://cloud.example.com/remote.php/dav`, en druk op **Toevoegen en testen**.
+U kunt het account ook vooraf toevoegen, onder **Accounts** → **Account toevoegen**: kies bij **Bron of bestemming?** **Bestemmingen**, dan de kaart **Nextcloud**, vul zelf de **DAV-basis-URL** in, zoals `https://cloud.example.com/remote.php/dav`, en druk op **Toevoegen en testen**.
 
 ## Wat er meegaat {#what-moves}
 

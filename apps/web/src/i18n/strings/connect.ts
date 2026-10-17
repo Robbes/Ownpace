@@ -33,7 +33,7 @@ export const en = {
     'Ownpace has no Connect button for this type; paste a refresh token instead.',
   // The account first (owner's walk, 2026-09-02): the consent saves and
   // tests in one go, and the save needs the address.
-  'account.consent.needsAccount': 'Enter the account address first.',
+  'account.consent.needsAccount': 'Fill in the username first.',
   // A consent window the browser did not open (workplan 0145 T5): the window
   // opens in the press now, and when it still does not, this sentence and a
   // link to the provider's page take its place. Tapping the link is a new
@@ -187,13 +187,13 @@ export const en = {
   'account.group.protocol': 'Any server, by protocol',
   'account.m365.viaImap': 'Via IMAP',
   'account.m365.viaGraph': 'Via the Graph API',
-  'account.proto.oauth2.hint': 'IMAP with XOAUTH2, Graph fallback behind it (app registration)',
-  'account.proto.graph.hint': 'Graph API only (app registration)',
+  'account.proto.oauth2.hint': "Mail only, through your organisation's own OAuth app, with IMAP",
+  'account.proto.graph.hint': "Mail only, through your organisation's own OAuth app, with Microsoft Graph",
   // The ACCOUNT card (workplan 0106 T3b). It names the faces it serves (three
   // since Tasks joined, 0126 T2), because "why is Gmail a separate card" is
   // the first question this card raises.
   'account.proto.google.hint': 'One Google account, one sign-in: calendars, contacts and tasks.',
-  'account.proto.googleDrive.hint': 'Files from a Google Drive (read-only OAuth)',
+  'account.proto.googleDrive.hint': 'Files from a Google Drive, read-only',
   'account.proto.dropbox.hint': 'Files from a Dropbox (read-only OAuth app)',
   'account.proto.box.hint': 'Files from a Box account (read-only platform app)',
   'account.boxUserId': 'Box user ID (numeric)',
@@ -203,9 +203,9 @@ export const en = {
   'account.dropboxAppKey': 'App key',
   'account.dropboxRootPath': 'Root folder path',
   'account.dropboxRootPath.placeholder': 'e.g. /Team Docs',
-  'account.proto.gmail.hint': 'Email from a Gmail mailbox (OAuth over IMAP)',
-  'account.proto.googleCalendar.hint': 'Calendars from a Google account (OAuth over CalDAV)',
-  'account.proto.googleContacts.hint': 'Contacts from a Google account (OAuth over CardDAV)',
+  'account.proto.gmail.hint': 'Email from a Gmail mailbox, with a Google sign-in',
+  'account.proto.googleCalendar.hint': 'Calendars from a Google account, with a Google sign-in',
+  'account.proto.googleContacts.hint': 'Contacts from a Google account, with a Google sign-in',
   'account.gmailAppPassword': 'App password',
   'account.gmailAppPassword.hint': 'Personal Google accounts only; leave empty to use OAuth.',
   'account.gmailAppPassword.why':
@@ -359,14 +359,15 @@ export const en = {
   'connections.add': 'Add an account',
   'connections.addAndTest': 'Add and test',
   'connections.added': 'Added',
-  'connections.role': 'Source or target?',
+  'connections.role': 'Source or destination?',
+  'connections.pickFirst': 'Choose a provider above.',
   'connections.type': 'Provider',
   'connections.name': 'Name for this account',
   'connections.title': 'Accounts',
   'connections.intro': 'The accounts your migrations sign in with. Test checks them read-only.',
   'connections.none': 'No accounts yet. Starting your first migration adds them.',
   'connections.sources': 'Sources',
-  'connections.targets': 'Targets',
+  'connections.targets': 'Destinations',
   'connections.test': 'Test',
   'connections.testing': 'Testing…',
   // A connection serves migrations, not mailboxes (owner remark 2026-09-02:
@@ -388,6 +389,11 @@ export const en = {
     'Signs in with this and one other connection; Test this one to find out which.',
   // And when the pass could tell (second slice): no guessing left to do.
   'connections.standing.thisSide': 'Failed on this account.',
+  // The remedy on the row itself, which knows its own button: where
+  // failure.authExpired sends somebody to this page and names both buttons,
+  // the row names the one beside it (UX sweep 2026-10-17).
+  'connections.standing.authExpired':
+    'The connection to this account has expired. Press {button} on this row: the migration then carries on from where it stopped, and nothing is lost.',
   // What a probe FOUND, rendered from its outcome code (workplan 0080).
   // Ours, so translated; the provider's own refusal is never in here — it
   // renders verbatim, because that string is what you paste into their
@@ -687,7 +693,7 @@ export const nl: Record<keyof typeof en, string> = {
   'account.consent.received': 'Toestemming ontvangen — de verbinding wordt opgeslagen en getest.',
   'account.consent.noProvider':
     'Ownpace heeft geen verbindknop voor dit type; plak in plaats daarvan een refreshtoken.',
-  'account.consent.needsAccount': 'Vul eerst het accountadres in.',
+  'account.consent.needsAccount': 'Vul eerst de gebruikersnaam in.',
   'account.consent.windowBlocked':
     'Uw browser heeft de pagina van {provider} niet geopend. Open die met deze link:',
   'account.consent.windowExpired': 'De link naar de pagina van {provider} is verlopen. Druk opnieuw op {button}.',
@@ -720,7 +726,7 @@ export const nl: Record<keyof typeof en, string> = {
   'account.microsoft.connect.hint':
     'Opent de aanmeldpagina van Microsoft, waar u Ownpace toegang geeft.',
   'account.microsoft.connect.why':
-    'Het vraagt u welk account, zodat een migratie niet stilletjes de verkeerde postbus leest.',
+    'Het vraagt u welk account, zodat een migratie niet stilletjes het verkeerde postvak leest.',
   'account.microsoft.connect.needsClient':
     'Vul eerst de toepassings-id (client) en het clientsecret in.',
   'account.microsoft.connect.halfClient':
@@ -771,10 +777,10 @@ export const nl: Record<keyof typeof en, string> = {
   'account.group.protocol': 'Elke server, via protocol',
   'account.m365.viaImap': 'Via IMAP',
   'account.m365.viaGraph': 'Via de Graph-API',
-  'account.proto.oauth2.hint': 'IMAP met XOAUTH2, met Graph-terugval erachter (appregistratie)',
-  'account.proto.graph.hint': 'Alleen de Graph-API (appregistratie)',
+  'account.proto.oauth2.hint': 'Alleen e-mail, via de eigen oauth-app van uw organisatie, met IMAP',
+  'account.proto.graph.hint': 'Alleen e-mail, via de eigen oauth-app van uw organisatie, met Microsoft Graph',
   'account.proto.google.hint': 'Eén Google-account, één aanmelding: agenda’s, contacten en taken.',
-  'account.proto.googleDrive.hint': 'Bestanden uit een Google Drive (alleen-lezen OAuth)',
+  'account.proto.googleDrive.hint': 'Bestanden uit een Google Drive, alleen-lezen',
   'account.proto.dropbox.hint': 'Bestanden uit een Dropbox (alleen-lezen OAuth-app)',
   'account.proto.box.hint': 'Bestanden uit een Box-account (alleen-lezen platform-app)',
   'account.boxUserId': 'Box-gebruikers-ID (numeriek)',
@@ -784,9 +790,9 @@ export const nl: Record<keyof typeof en, string> = {
   'account.dropboxAppKey': 'App-sleutel',
   'account.dropboxRootPath': 'Pad van de hoofdmap',
   'account.dropboxRootPath.placeholder': 'bijv. /Team Docs',
-  'account.proto.gmail.hint': 'E-mail uit een Gmail-postvak (OAuth via IMAP)',
-  'account.proto.googleCalendar.hint': "Agenda's uit een Google-account (OAuth via CalDAV)",
-  'account.proto.googleContacts.hint': 'Contacten uit een Google-account (OAuth via CardDAV)',
+  'account.proto.gmail.hint': 'E-mail uit een Gmail-postvak, met aanmelden bij Google',
+  'account.proto.googleCalendar.hint': 'Agenda’s uit een Google-account, met aanmelden bij Google',
+  'account.proto.googleContacts.hint': 'Contacten uit een Google-account, met aanmelden bij Google',
   'account.gmailAppPassword': 'App-wachtwoord',
   'account.gmailAppPassword.hint':
     'Alleen voor persoonlijke Google-accounts; laat leeg om OAuth te gebruiken.',
@@ -896,7 +902,8 @@ export const nl: Record<keyof typeof en, string> = {
   'connections.add': 'Account toevoegen',
   'connections.addAndTest': 'Toevoegen en testen',
   'connections.added': 'Toegevoegd',
-  'connections.role': 'Bron of doel?',
+  'connections.role': 'Bron of bestemming?',
+  'connections.pickFirst': 'Kies hierboven een aanbieder.',
   'connections.type': 'Aanbieder',
   'connections.name': 'Naam voor dit account',
   'connections.title': 'Accounts',
@@ -904,7 +911,7 @@ export const nl: Record<keyof typeof en, string> = {
     'De accounts waarmee uw migraties inloggen. Test controleert met alleen-lezen.',
   'connections.none': 'Nog geen accounts. Bij het starten van uw eerste migratie worden ze toegevoegd.',
   'connections.sources': 'Bronnen',
-  'connections.targets': 'Doelen',
+  'connections.targets': 'Bestemmingen',
   'connections.test': 'Testen',
   'connections.testing': 'Bezig met testen…',
   'connections.usedBy.one': 'Gebruikt door 1 migratie',
@@ -917,6 +924,8 @@ export const nl: Record<keyof typeof en, string> = {
   'connections.standing.whichSide':
     'Logt in met deze en één andere verbinding; test deze om te weten welke.',
   'connections.standing.thisSide': 'Het ging mis bij dit account.',
+  'connections.standing.authExpired':
+    'De verbinding met dit account is verlopen. Druk hier op {button}: de migratie gaat dan verder waar die stopte, en er gaat niets verloren.',
   'probe.connected': 'Verbonden.',
   'probe.connectedSession': 'Verbonden.',
   'probe.targetStatus': 'De server op {url} antwoordde {status}.',
@@ -1026,7 +1035,7 @@ export const nl: Record<keyof typeof en, string> = {
   'setup.box.create_app.title': 'Maak een Box-platform-OAuth-app',
   'setup.box.create_app.detail':
     'Box Developer Console → Create Platform App → Custom App, en kies Client Credentials Grant (Server Authentication).',
-  'setup.box.create_app.yields': 'een Client-ID en een Client-secret.',
+  'setup.box.create_app.yields': 'een Client-ID en een Clientsecret.',
   'setup.box.configure_access.title': 'Geef de app alleen-leestoegang',
   'setup.box.configure_access.detail':
     'Op het tabblad Configuration: zet App Access Level op "App + Enterprise Access", vink alleen de leesrechten voor bestanden en mappen aan en zet "Generate user access tokens" aan.',
@@ -1057,7 +1066,7 @@ export const nl: Record<keyof typeof en, string> = {
   'setup.google.create_oauth_client.title': 'Maak een Google OAuth-client',
   'setup.google.create_oauth_client.detail':
     'Google Cloud console → APIs & Services → Credentials → Create credentials → OAuth client ID, als Web-toepassing.',
-  'setup.google.create_oauth_client.yields': 'een Client-ID en een Client-secret.',
+  'setup.google.create_oauth_client.yields': 'een Client-ID en een Clientsecret.',
   'setup.google.enable_api.title': 'Zet de API van het product aan',
   'setup.google.enable_api.detail':
     'Zet in hetzelfde project de API aan die past bij de gekozen bron — Google Drive API, Gmail API, CalDAV API, Google Contacts CardDAV API of Google Tasks API. Zonder dat mislukt de eerste aanroep.',
@@ -1072,10 +1081,10 @@ export const nl: Record<keyof typeof en, string> = {
   'setup.graph.api_permissions.title': 'Voeg Mail.Read toe en laat een beheerder toestemmen',
   'setup.graph.api_permissions.detail':
     'API permissions → Add a permission → Microsoft Graph → Application permissions → Mail.Read. Verder niets: deze kaart leest de mail van één postvak. Daarna drukt een beheerder op Grant admin consent for uw organisatie. Als toepassingsrecht kan Mail.Read elk postvak in de organisatie lezen; deze dienst leest alleen het postvak dat de verbinding noemt.',
-  'setup.graph.client_secret.title': 'Maak een client-secret',
+  'setup.graph.client_secret.title': 'Maak een clientsecret',
   'setup.graph.client_secret.detail':
     'Certificates & secrets → New client secret. Kopieer de waarde meteen — Entra toont deze één keer.',
-  'setup.graph.client_secret.yields': 'een Client-secret.',
+  'setup.graph.client_secret.yields': 'een Clientsecret.',
   'setup.exchange.permission.title': 'Voeg IMAP.AccessAsApp toe en laat een beheerder toestemmen',
   'setup.exchange.permission.detail':
     'API permissions → Add a permission → APIs my organization uses → Office 365 Exchange Online → Application permissions → IMAP.AccessAsApp. Geen Microsoft Graph-recht: deze kaart meldt zich aan bij de IMAP-server van Exchange Online, en zo’n token omvat alleen rechten die Exchange Online geeft. Daarna drukt een beheerder op Grant admin consent for uw organisatie.',
@@ -1106,7 +1115,7 @@ export const nl: Record<keyof typeof en, string> = {
   'setup.webdav.base_url.yields': 'de host, poort en het pad voor in het formulier.',
   'setup.jmap.account_exists.title': 'Zorg dat het doelaccount bestaat',
   'setup.jmap.account_exists.detail':
-    'Maak de postbus eerst aan op de JMAP-server, met genoeg quota. Dit product maakt zelf geen accounts aan.',
+    'Maak het postvak eerst aan op de JMAP-server, met genoeg quota. Dit product maakt zelf geen accounts aan.',
   'setup.jmap.api_token.title': 'Maak er een app-wachtwoord voor',
   'setup.jmap.api_token.detail':
     'Maak in de instellingen van de server zelf een app-wachtwoord voor dat account, als die dat aanbiedt; dit product meldt zich aan met de gebruikersnaam en dat wachtwoord.',

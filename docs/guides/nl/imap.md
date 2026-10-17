@@ -36,7 +36,7 @@ Ook hier schrijft de test niets: hij meldt zich aan en telt de mappen van het do
 
 **Waar de kopieën komen**, onder de rijen, zegt waar de mail in dat account terechtkomt. Laat u het zoals het is, dan voegt de mail samen in het account: de mappen van de bron komen naast de mappen die er al zijn. Open **In een eigen map zetten** en typ een naam bij **Map**, zoals `Gmail`, en alles komt onder die map terecht. Sturen twee migraties mail naar hetzelfde account, dan opent het vanzelf, ingevuld met het account waar elk vandaan komt.
 
-U kunt een IMAP-account ook vooraf toevoegen, onder **Accounts** → **Account toevoegen**. Kies daar bij **Bron of doel?** **Bronnen** of **Doelen**, dan de kaart **IMAP**, en druk op **Toevoegen en testen**.
+U kunt een IMAP-account ook vooraf toevoegen, onder **Accounts** → **Account toevoegen**. Kies daar bij **Bron of bestemming?** **Bronnen** of **Bestemmingen**, dan de kaart **IMAP**, en druk op **Toevoegen en testen**.
 
 ## Wat er meegaat {#what-moves}
 
