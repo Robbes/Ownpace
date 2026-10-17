@@ -346,7 +346,6 @@ describe('the appliance-wide scope is stated (0038 T6)', () => {
   });
 });
 
-
 describe('the check on a phone, and in the reader’s numbers', () => {
   const DONE = {
     state: 'done',
@@ -385,14 +384,30 @@ describe('the check on a phone, and in the reader’s numbers', () => {
     }
   });
 
-  it('lets a keyboard reach the table’s box, named by the screen’s title', async () => {
+  it('lets a keyboard reach the table’s box, named by its migration’s heading', async () => {
+    // On the appliance the screen draws one report per migration, so a box
+    // named by the screen's title would be several landmarks with one name.
     fetched.mockResolvedValue(DONE);
     render(<MemoryRouter><Verify /></MemoryRouter>);
     await screen.findByRole('link', { name: 'mapping-1' });
 
-    const region = screen.getByRole('region', { name: 'Check the migration' });
+    const region = screen.getByRole('region', { name: 'mapping-1' });
     expect(region).toHaveAttribute('tabindex', '0');
     expect(within(region).getByRole('table')).toBeInTheDocument();
+  });
+
+  it('gives each migration’s box its own name when the appliance reports several', async () => {
+    editionFlag.selfhost = true;
+    fetched.mockResolvedValue({ ...DONE, report: { 'mapping-1': RESULT, 'mapping-2': RESULT } });
+    render(<MemoryRouter><Verify /></MemoryRouter>);
+    await screen.findByRole('link', { name: 'mapping-2' });
+
+    // Two boxes, and each is found by its own migration's name alone.
+    expect(screen.getAllByRole('region')).toHaveLength(2);
+    for (const id of ['mapping-1', 'mapping-2']) {
+      const region = screen.getByRole('region', { name: id });
+      expect(within(region).getByRole('table')).toBeInTheDocument();
+    }
   });
 
   it('says the score in the reader’s decimals', async () => {

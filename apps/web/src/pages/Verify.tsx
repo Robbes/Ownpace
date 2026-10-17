@@ -177,10 +177,13 @@ function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }):
   const domains = VERIFICATION_DOMAINS.map((k) => r[k]);
   const evidence = EVIDENCE_STYLE[r.contentEvidence];
   const issues = domains.flatMap((d) => d.issues.map((i) => ({ ...i, domain: d.dataType })));
+  // Names the table's box below. The appliance draws one report per migration,
+  // so the screen's title would give every box the same name.
+  const headingId = React.useId();
   return (
     <section className="mb-8 p-4 bg-white border border-gray-200 rounded-lg">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <h3 className="font-semibold text-gray-900"><MappingHubLink mappingId={mappingId} /></h3>
+        <h3 id={headingId} className="font-semibold text-gray-900"><MappingHubLink mappingId={mappingId} /></h3>
         <div className="flex items-center gap-3 text-sm">
           <span className={STATUS_STYLE[r.overallStatus].className}>{r.overallStatus}</span>
           <span className="text-gray-500">{t('verify.score')} {score}</span>
@@ -203,8 +206,8 @@ function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }):
       </div>
 
       {/* The box takes the focus, so a keyboard can scroll it too where it is
-          wider than the screen. */}
-      <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={t('verify.title')}>
+          wider than the screen. Its name is its migration's. */}
+      <div className="overflow-x-auto" tabIndex={0} role="region" aria-labelledby={headingId}>
         <table className="block w-full text-sm sm:table">
           <thead className="hidden sm:table-header-group">
             <tr className="text-left text-xs text-gray-500 border-b border-gray-200">
