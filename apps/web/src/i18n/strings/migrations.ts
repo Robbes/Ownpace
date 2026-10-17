@@ -34,7 +34,7 @@ export const en = {
   'mappings.empty.title': 'No migrations yet',
   'mappings.empty.hint': 'Start one: who it is for, where from, what, and where to.',
   'mappings.empty.cta': 'Start a migration',
-  'mappings.action.triggerSync': 'Trigger sync',
+  'mappings.action.triggerSync': 'Sync now',
   // Free's pace held a press (workplan 0157 T2, `free_pace`): one pass a day,
   // and when the next one starts. The server's `message` is the English.
   'mappings.sync.freePace':
@@ -65,11 +65,10 @@ export const en = {
   'timeLeft.afterThreePasses': 'We will know after three passes; {n} so far.',
   'mappings.action.pause.why':
     'No new passes are started. A pass already running stops migrating new items within about fifteen seconds, and finishes the ones it has begun; a very large file can take longer. Nothing is lost: Review and start continues from where it stopped.',
-  'mappings.action.startSync': 'Start sync',
+  'mappings.action.startSync': 'Sync now',
   // 0037 T2: a paused mapping's row leads to the confirm screen — the Play
   // button it used to render could only earn a 409.
   'mappings.action.reviewAndStart': 'Review and start',
-  'mappings.action.open': 'Open',
   'mappings.action.delete': 'Delete',
   // 0037 T5: mapping deletion destroys config and ledger linkage, so the
   // button arms with the mapping's own name (hard rule 2's posture).
@@ -150,6 +149,12 @@ export const en = {
   // (2026-09-29), and the owner's "Log it" for the reference.
   'answer.unreadable':
     'The server answered in a form this page does not know. Reload the page; if it stays like this, report it to support, and mention: reference {reference}.',
+  // A fault on our side (a 500 whose sentence carries `Reference 0a1b2c3d`,
+  // `serverFault`): the server's sentence is English only, so `serverMessage`
+  // says this in the reader's language and keeps the reference, in the same
+  // capitalised form, so it can be quoted to us.
+  'answer.fault':
+    'Something went wrong on our side, not something your input caused. Try again in a moment. Reference {reference}: mention it when you contact us.',
   // A request that got no answer, or a gateway's (502, 503, 504) with no
   // sentence of ours in it (the owner, 2026-10-14): axios's English
   // ("Network Error", "Request failed with status code 502") reached the
@@ -466,9 +471,8 @@ export const nl: Record<keyof typeof en, string> = {
   'timeLeft.afterThreePasses': 'Na drie rondes weten we meer; {n} tot nu toe.',
   'mappings.action.pause.why':
     'Er worden geen nieuwe rondes gestart. Een ronde die nog loopt gaat niets nieuws aanvangen en rondt af wat nog liep; een heel groot bestand dat al onderweg was, kan nog even duren. Er gaat niets verloren: Controleer en start gaat verder waar het gebleven was.',
-  'mappings.action.startSync': 'Start synchronisatie',
+  'mappings.action.startSync': 'Synchroniseer nu',
   'mappings.action.reviewAndStart': 'Controleer en start',
-  'mappings.action.open': 'Openen',
   'mappings.action.delete': 'Verwijderen',
   'mappings.delete.explain':
     'Verwijdert enkel instellingen en registratie van uw migratie in Ownpace, niets bij uw bron of bestemming.',
@@ -531,6 +535,8 @@ export const nl: Record<keyof typeof en, string> = {
   'runs.events': 'Logboek',
   'answer.unreadable':
     'De server antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, meld dit en geef daarbij het volgende door: referentie {reference}.',
+  'answer.fault':
+    'Er ging bij ons iets mis, niet door iets wat u invoerde. Probeer het zo opnieuw. Referentie {reference}: noem die als u contact met ons opneemt.',
   'answer.unreachable': 'De dienst was niet bereikbaar. Controleer uw verbinding en probeer het opnieuw.',
   'view.title': 'Uw migratie',
   'view.loading': 'Een moment…',

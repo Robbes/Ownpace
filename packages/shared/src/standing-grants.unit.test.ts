@@ -272,16 +272,27 @@ describe('accessThatOutlivesErasure', () => {
   });
 
   it('translates the frame in Dutch and keeps the provider label verbatim', () => {
-    const [nl] = accessThatOutlivesErasure(['nextcloud'], 'nl');
-    const [en] = accessThatOutlivesErasure(['nextcloud'], 'en');
+    const [nl] = accessThatOutlivesErasure(['apple'], 'nl');
+    const [en] = accessThatOutlivesErasure(['apple'], 'en');
 
     expect(nl!.body).not.toBe(en!.body);
-    expect(nl!.body).toMatch(/app-wachtwoord/);
+    expect(nl!.body).toMatch(/app-specifieke wachtwoord/);
     // The screen name is a label on their screen — never translated.
     expect(nl!.heading).toBe(en!.heading);
   });
 
-  it.each(['archive', 'imap', 'webdav'])(
+  it('names a Dutch Nextcloud’s screen by the labels the app’s own Dutch steps quote', () => {
+    // The connection form's Dutch steps and the Dutch Nextcloud guide send the
+    // reader to *Instellingen → Beveiliging → Apparaten & sessies*; the report
+    // said *Settings → Security → Devices & sessions* on the same Dutch page.
+    const [nl] = accessThatOutlivesErasure(['nextcloud'], 'nl');
+
+    expect(nl!.heading).toBe('Instellingen → Beveiliging → Apparaten & sessies');
+    expect(nl!.where).toBe('uw Nextcloud-account → Instellingen → Beveiliging → Apparaten & sessies');
+    expect(nl!.body).toMatch(/app-wachtwoord/);
+  });
+
+  it.each(['archive', 'imap', 'webdav', 'nextcloud'])(
     'says %s’s place in Dutch, since there it is our description and not their label',
     (kind) => {
       // Where we cannot name the screen we describe it, and a description is

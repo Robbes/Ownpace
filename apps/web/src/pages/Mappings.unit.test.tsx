@@ -33,6 +33,8 @@ import {
 } from '../services/operating-service.ts';
 import { fetchProgress } from '../services/progress-service.ts';
 import { formatDateTime } from '../i18n/datetime.ts';
+import { fetchReportingAvailable } from '../services/problem-report-service.ts';
+import { useAuthStore } from '../stores/auth-store.ts';
 
 vi.mock('../services/mapping-service', () => ({
   mappingApi: { list: vi.fn(), triggerSync: vi.fn(), delete: vi.fn(), pause: vi.fn() },
@@ -44,6 +46,8 @@ vi.mock('../services/operating-service', () => ({
   addMigrationToPerson: vi.fn(),
 }));
 vi.mock('../services/progress-service', () => ({ fetchProgress: vi.fn() }));
+// Whether the service takes problem reports: the failure's *Send it to us*.
+vi.mock('../services/problem-report-service', () => ({ fetchReportingAvailable: vi.fn() }));
 
 const listMock = vi.mocked(mappingApi.list);
 const syncMock = vi.mocked(mappingApi.triggerSync);
@@ -138,7 +142,13 @@ describe('Migrations — a failed read is never an empty list (hard rule 9)', ()
 
     renderMappings();
 
-    expect(await screen.findByText(/Something went wrong listing your migrations/)).toBeInTheDocument();
+    // Our own words for a fault of ours, in the reader's language, with the
+    // server's reference kept (the server's sentence is English only).
+    expect(
+      await screen.findByText(
+        'Something went wrong on our side, not something your input caused. Try again in a moment. Reference 1a2b3c4d: mention it when you contact us.',
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Reference 1a2b3c4d/)).toBeInTheDocument();
     expect(screen.getByText('Could not load the migrations list.')).toBeInTheDocument();
     expect(screen.queryByText('No migrations yet')).not.toBeInTheDocument();
@@ -159,12 +169,71 @@ describe('Migrations — a failed read is never an empty list (hard rule 9)', ()
     expect(screen.queryByText('Inbox')).not.toBeInTheDocument();
   });
 
+  it('is not a dead end: Try again reads both again, and the list comes back', async () => {
+    listMock
+      .mockRejectedValueOnce(axios500('Something went wrong listing your migrations. Reference 1a2b3c4d: mention it.'))
+      .mockResolvedValue([]);
+
+    renderMappings();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByText('No migrations yet')).toBeInTheDocument();
+    expect(listMock).toHaveBeenCalledTimes(2);
+    expect(peopleMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText('Could not load the migrations list.')).not.toBeInTheDocument();
+  });
+
+  it('offers to send it to us, with the fault’s reference, where reports are taken', async () => {
+    useAuthStore.setState({ token: 'token' });
+    try {
+      vi.mocked(fetchReportingAvailable).mockResolvedValue(true);
+      listMock.mockRejectedValue(axios500('Something went wrong listing your migrations. Reference 1a2b3c4d: mention it.'));
+
+      renderMappings();
+
+      const link = await screen.findByRole('link', { name: 'Send it to us' });
+      const to = new URL(link.getAttribute('href')!, 'https://app.example');
+      expect(to.pathname).toBe('/report');
+      expect(to.searchParams.get('category')).toBe('unknown');
+      expect(to.searchParams.get('reference')).toBe('1a2b3c4d');
+    } finally {
+      useAuthStore.setState({ token: null });
+    }
+  });
+
+  it('offers no Send it to us where reports are not taken', async () => {
+    useAuthStore.setState({ token: 'token' });
+    try {
+      vi.mocked(fetchReportingAvailable).mockResolvedValue(false);
+      listMock.mockRejectedValue(axios500('Something went wrong listing your migrations. Reference 1a2b3c4d: mention it.'));
+
+      renderMappings();
+
+      expect(await screen.findByRole('button', { name: 'Try again' })).toBeInTheDocument();
+      await waitFor(() => expect(fetchReportingAvailable).toHaveBeenCalled());
+      expect(screen.queryByRole('link', { name: 'Send it to us' })).not.toBeInTheDocument();
+    } finally {
+      useAuthStore.setState({ token: null });
+    }
+  });
+
+  it('is heard while it loads: a status that says Loading…', async () => {
+    listMock.mockReturnValue(new Promise(() => {}));
+
+    renderMappings();
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Loading…');
+  });
+
   it('still shows the true empty state when there is nobody and nothing, with Start a migration', async () => {
     listMock.mockResolvedValue([]);
 
     renderMappings();
 
     expect(await screen.findByText('No migrations yet')).toBeInTheDocument();
+    // An h2, straight under the page's h1 (axe: heading-order).
+    expect(screen.getByRole('heading', { level: 2, name: 'No migrations yet' })).toBeInTheDocument();
     expect(screen.getByText('Start one: who it is for, where from, what, and where to.')).toBeInTheDocument();
     for (const link of screen.getAllByRole('link', { name: 'Start a migration' })) {
       expect(link).toHaveAttribute('href', '/start');
@@ -392,7 +461,7 @@ describe('Migrations — every migration keeps its controls', () => {
 
     renderMappings();
 
-    fireEvent.click(await screen.findByTitle('Start sync'));
+    fireEvent.click(await screen.findByTitle('Sync now'));
 
     expect(await screen.findByText(/Mapping is in cutover — the final sync/)).toBeInTheDocument();
     expect(screen.getByText('The sync request did not complete.')).toBeInTheDocument();
@@ -411,7 +480,7 @@ describe('Migrations — every migration keeps its controls', () => {
 
     renderMappings();
 
-    fireEvent.click(await screen.findByTitle('Trigger sync'));
+    fireEvent.click(await screen.findByTitle('Sync now'));
 
     const when = formatDateTime('2026-10-06T07:12:00.000Z', 'en');
     expect(
@@ -422,6 +491,31 @@ describe('Migrations — every migration keeps its controls', () => {
     expect(screen.queryByText(/2026-10-06T07:12:00\.000Z/)).not.toBeInTheDocument();
   });
 
+  it('offers no Sync now on a finished migration: nothing of it runs, so the press did nothing', async () => {
+    listMock.mockResolvedValue([sampleMapping({ id: 'd1', status: 'done', name: 'Finished one' })]);
+
+    renderMappings();
+
+    expect(await screen.findByRole('link', { name: 'Details →' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sync now' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+  });
+
+  it('says each control’s word beside its icon, so a phone shows it too, not only a title', async () => {
+    listMock.mockResolvedValue([sampleMapping({ id: 'm1', status: 'active', name: 'Inbox' })]);
+
+    renderMappings();
+
+    // The visible word is the name: no aria-label says something else.
+    for (const word of ['Sync now', 'Pause', 'Delete']) {
+      const button = await screen.findByRole('button', { name: word });
+      expect(button).toHaveTextContent(word);
+      expect(button).not.toHaveAttribute('aria-label');
+    }
+    // The two ▶ that did different things are one word and one colour now.
+    expect(screen.getByRole('button', { name: 'Sync now' }).className).toContain('text-blue-700');
+  });
+
   it('leads a draft to Review and start, and offers no sync that would be refused (0037 T2)', async () => {
     listMock.mockResolvedValue([sampleMapping({ id: 'p1', status: 'paused', name: 'Paused one' })]);
 
@@ -429,7 +523,7 @@ describe('Migrations — every migration keeps its controls', () => {
 
     const link = await screen.findByRole('link', { name: 'Review and start' });
     expect(link).toHaveAttribute('href', '/mappings/p1/confirm');
-    expect(screen.queryByTitle('Start sync')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Sync now')).not.toBeInTheDocument();
     expect(syncMock).not.toHaveBeenCalled();
   });
 
@@ -457,11 +551,11 @@ describe('Migrations — every migration keeps its controls', () => {
     expect(await screen.findByText('the migration page')).toBeInTheDocument();
   });
 
-  it('names the pencil that opens a migration, which a screen reader otherwise calls "link"', async () => {
+  it('opens a migration by a link that says Details, as the person page does, not a bare pencil', async () => {
     listMock.mockResolvedValue([sampleMapping({ id: 'm1', name: 'Inbox' })]);
     renderMappings();
 
-    const open = await screen.findByRole('link', { name: 'Open' });
+    const open = await screen.findByRole('link', { name: 'Details →' });
     expect(open).toHaveAttribute('href', '/mappings/m1');
   });
 
@@ -564,7 +658,8 @@ describe('Migrations — Delete takes two presses, and says what it does (0037 T
     fireEvent.click(screen.getByRole('button', { name: 'Delete migration' }));
 
     expect(await screen.findByText('The migration was not deleted.')).toBeInTheDocument();
-    expect(screen.getByText(/Something went wrong deleting this migration/)).toBeInTheDocument();
+    // A fault of ours, in our words, with its reference.
+    expect(screen.getByText(/Something went wrong on our side.*Reference 1a2b3c4d/)).toBeInTheDocument();
     expect(screen.getByText('Inbox')).toBeInTheDocument();
   });
 });

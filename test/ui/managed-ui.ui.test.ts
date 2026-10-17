@@ -784,9 +784,12 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
       await l.page.getByRole('heading', { name: 'Before you switch' }).waitFor({ timeout: 10_000 });
       expect(await l.page.getByRole('heading', { level: 1, name: 'Anna' }).count()).toBe(1);
       expect(await l.page.locator('[data-step]').count()).toBe(7);
-      // Their one grant link (0153 T5 (b)): none made yet, read from its own door.
+      // Their one grant link (0153 T5 (b)) is for Google accounts only, and
+      // Anna's mail reads IMAP: the page says why there is none, and keeps
+      // the progress link, none made yet, read from its own door.
       await l.page.getByRole('heading', { name: 'For Anna' }).waitFor({ timeout: 10_000 });
-      await l.page.getByText('No link yet for this person.').waitFor({ timeout: 10_000 });
+      await l.page.getByText(/^A grant link is only for Google accounts/).waitFor({ timeout: 10_000 });
+      await l.page.getByText('No progress link yet for this person.').waitFor({ timeout: 10_000 });
       expect(apiHits).toContain(`/api/people/${PERSON}/links`);
       // What their grant does, beside the migration it waits on.
       await l.page.getByText('Waits for Anna to connect again.').waitFor({ timeout: 10_000 });

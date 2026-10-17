@@ -21,7 +21,9 @@
  * - *Add a migration*.
  *
  * - *For {name}*: one grant link for all of their Google accounts (ADR-0035,
- *   amended 2026-09-29; 0153 T5 (b)), on managed;
+ *   amended 2026-09-29; 0153 T5 (b)), on managed, offered only when one of
+ *   their migrations reads Google: for anybody else the server could only
+ *   refuse it, so the page says why there is none, and keeps the progress link;
  * - beside a migration that waits for their grant, what the grant does to it
  *   when it lands: it starts by itself once their move runs, or the owner
  *   reviews and starts it, or it had run and gets its way in back (start when
@@ -41,17 +43,18 @@
  * least advanced of their lines'.
  *
  * THREE READS, as on Migrations. A failed read of the people or the list is a
- * failure on screen (hard rule 9). A step whose count could not be read says
- * so, and claims no state.
+ * failure on screen (hard rule 9), with a way to read both again. A step whose
+ * count could not be read says so, and claims no state.
  */
 import React from 'react';
 import { Link, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Clock, Plus } from 'lucide-react';
-import { leastAdvancedStage, type StatusReport } from '@openmig/shared';
+import { leastAdvancedStage, wizardTypeForConnectionKind, type StatusReport } from '@openmig/shared';
 import { mappingApi, type MappingListItem } from '../services/mapping-service.ts';
 import { fetchAttention, fetchPeople, fetchStatus } from '../services/operating-service.ts';
-import { serverMessage } from '../services/api.ts';
+import { referenceIn, serverMessage } from '../services/api.ts';
+import { SendItToUs } from '../components/SendItToUs.tsx';
 import { waitingOn } from '../services/needs-you.ts';
 import { checksOf } from '../services/cutover-steps.ts';
 import StateChip from '../components/StateChip.tsx';
@@ -74,6 +77,13 @@ const ONCE_GRANTED_WORDS: Readonly<Record<AwaitingGrant['then'], StringKey>> = {
   review_and_start: 'person.awaiting.reviewAndStart',
   ran_before: 'person.awaiting.ranBefore',
 };
+
+/**
+ * The sources a grant link can connect (the API's `isGrantableSourceKind`: a
+ * Google account, Gmail, Google Calendar, Google Contacts, Google Drive), as
+ * `wizardTypeForConnectionKind` names the list's connection kinds.
+ */
+const GRANTABLE: ReadonlySet<string> = new Set(['google', 'gmail', 'google-calendar', 'google-contacts', 'google-drive']);
 
 /**
  * What the page reads of each migration: the list's row on managed. The
@@ -159,9 +169,11 @@ const Person: React.FC = () => {
   });
 
   if (rowsQuery.isLoading || peopleQuery.isLoading) {
+    // Heard as well as seen: a spinner alone says nothing to a screen reader.
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div role="status" className="flex items-center justify-center h-64">
+        <div aria-hidden="true" className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <span className="sr-only">{t('common.loading')}</span>
       </div>
     );
   }
@@ -182,10 +194,26 @@ const Person: React.FC = () => {
       <div className="space-y-4">
         {back}
         <div className="flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
-          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" aria-hidden="true" />
           <div>
             <p className="font-medium">{t('person.loadFailed')}</p>
             <p className="mt-1">{serverMessage(failure)}</p>
+            {/* Not a dead end: read both again, or send it to us with the
+                fault's reference (shown only where reports are taken). */}
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  void rowsQuery.refetch();
+                  void peopleQuery.refetch();
+                }}
+                disabled={rowsQuery.isFetching || peopleQuery.isFetching}
+                className="text-sm font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900 disabled:opacity-50"
+              >
+                {t('common.tryAgain')}
+              </button>
+              <SendItToUs category="unknown" reference={referenceIn(failure)} />
+            </div>
           </div>
         </div>
       </div>
@@ -329,7 +357,15 @@ const Person: React.FC = () => {
           <h2 id="for-them" className="text-lg font-semibold text-gray-900">
             {t('person.links.title', { name: person.displayName ?? '' })}
           </h2>
-          <PersonGrantLinkSection personId={person.id} links={linksQuery.data} loadFailed={linksQuery.error != null} />
+          {migrations.some((m) => GRANTABLE.has(wizardTypeForConnectionKind(m.sourceType))) ? (
+            <PersonGrantLinkSection personId={person.id} links={linksQuery.data} loadFailed={linksQuery.error != null} />
+          ) : (
+            // Nothing of theirs reads Google, so a grant link could only be
+            // refused (`nothing_to_grant`); say why there is none instead.
+            <p className="mt-2 text-sm text-gray-600">
+              {t('person.links.noGoogle', { name: person.displayName ?? '' })}
+            </p>
+          )}
           <PersonViewLinkSection personId={person.id} links={linksQuery.data} loadFailed={linksQuery.error != null} />
         </section>
       )}
