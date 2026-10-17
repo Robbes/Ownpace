@@ -67,6 +67,7 @@ import {
   type SupportMigrationDomain,
   type SupportErasedInvoiceNumbers,
   type SupportRetainedInvoice,
+  type SupportInvoice,
   getSupportPlatform,
   type PlatformStatus,
   readSupportLog,
@@ -137,6 +138,11 @@ const Heading: React.FC<{ title: string; back?: { to: string; label: string } }>
 /** A `count(*)` arrives as a string over JSON when it is a bigint. */
 const asCount = (value: number | string): number => Number(value ?? 0);
 
+/**
+ * A table wider than a phone scrolls inside its own box. The box takes the
+ * focus and its section's name, so a keyboard can scroll it too (axe's
+ * scrollable-region-focusable), as the guides' tables do.
+ */
 const Section: React.FC<{ title: string; empty: string; rows: number; children: React.ReactNode }> =
   ({ title, empty, rows, children }) => (
     <section className="mb-6">
@@ -144,7 +150,14 @@ const Section: React.FC<{ title: string; empty: string; rows: number; children: 
       {rows === 0 ? (
         <p className="text-sm text-gray-500">{empty}</p>
       ) : (
-        <div className="overflow-x-auto rounded-md border border-gray-200 bg-white">{children}</div>
+        <div
+          className="overflow-x-auto rounded-md border border-gray-200 bg-white"
+          tabIndex={0}
+          role="region"
+          aria-label={title}
+        >
+          {children}
+        </div>
       )}
     </section>
   );
@@ -182,7 +195,7 @@ const Platform: React.FC = () => {
   });
   const word = (state: keyof typeof PLATFORM_STATE_KEY) => t(PLATFORM_STATE_KEY[state]);
   const tone = (state: 'up' | 'down' | 'off' | 'unchecked') =>
-    state === 'down' ? 'text-red-700' : state === 'up' ? 'text-gray-800' : 'text-gray-400';
+    state === 'down' ? 'text-red-700' : state === 'up' ? 'text-gray-800' : 'text-gray-500';
 
   const groups = (data: PlatformStatus): Array<[string, PageEndpoint[]]> => {
     if (data.statusPage.state !== 'up') return [];
@@ -332,7 +345,12 @@ const FindAPerson: React.FC = () => {
         <p className="mt-3 text-sm text-gray-500">{t('support.noPeopleFound')}</p>
       )}
       {asked !== null && query.data && query.data.people.length > 0 && (
-        <div className="mt-3 overflow-x-auto rounded-md border border-gray-200 bg-white">
+        <div
+          className="mt-3 overflow-x-auto rounded-md border border-gray-200 bg-white"
+          tabIndex={0}
+          role="region"
+          aria-label={t('support.findPerson')}
+        >
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
               <tr>
@@ -494,6 +512,7 @@ const PlatformHold: React.FC = () => {
 export const SupportTenants: React.FC = () => {
   const t = useOperatorT();
   const { dateTime } = useFormatters();
+  const { locale } = useLocale();
   const query = useQuery({ queryKey: ['support', 'tenants'], queryFn: listSupportTenants, ...ONCE });
 
   const tenants: SupportTenant[] = query.data ?? [];
@@ -541,7 +560,12 @@ export const SupportTenants: React.FC = () => {
       <FindAPerson />
 
       {tenants.length > 0 && (
-        <div className="overflow-x-auto rounded-md border border-gray-200 bg-white">
+        <div
+          className="overflow-x-auto rounded-md border border-gray-200 bg-white"
+          tabIndex={0}
+          role="region"
+          aria-label={t('support.heading')}
+        >
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
               <tr>
@@ -568,7 +592,13 @@ export const SupportTenants: React.FC = () => {
                       </Link>
                     </td>
                     <td className="px-3 py-2 text-gray-600">{tenant.tenant_status}</td>
-                    <td className="px-3 py-2 text-gray-600">{dateTime(tenant.joined_at)}</td>
+                    {/* The day, so the column stays narrow; the time is on hover. */}
+                    <td
+                      className="whitespace-nowrap px-3 py-2 text-gray-600"
+                      title={dateTime(tenant.joined_at)}
+                    >
+                      {formatDateTime(tenant.joined_at, locale, { timeStyle: undefined })}
+                    </td>
                     <td className="px-3 py-2 text-gray-600">{asCount(tenant.migration_count)}</td>
                     <td className="px-3 py-2">
                       {failing > 0 ? (
@@ -577,7 +607,7 @@ export const SupportTenants: React.FC = () => {
                           {failing}
                         </span>
                       ) : (
-                        <span className="text-gray-400">0</span>
+                        <span className="text-gray-500">0</span>
                       )}
                     </td>
                     {/* Failing and waiting are opposite support conversations
@@ -592,7 +622,7 @@ export const SupportTenants: React.FC = () => {
                           {waiting}
                         </span>
                       ) : (
-                        <span className="text-gray-400">0</span>
+                        <span className="text-gray-500">0</span>
                       )}
                     </td>
                   </tr>
@@ -660,7 +690,7 @@ const TenantUsage: React.FC<{ usage: SupportTenantUsage }> = ({ usage }) => {
                     <span className="text-gray-500"> — {dateTime(usage.recorded_peak_at)}</span>
                   </>
                 ) : (
-                  <span className="text-gray-400">{t('support.usage.noPeak')}</span>
+                  <span className="text-gray-500">{t('support.usage.noPeak')}</span>
                 )}
               </td>
             </tr>
@@ -801,9 +831,31 @@ const People: React.FC<{ tenantId: string; members: ReadonlyArray<SupportTenantM
   );
 };
 
+/**
+ * The number the customer quotes from their own Billing page or PDF, kept
+ * whole on one line (a number broken at a hyphen is a different-looking
+ * number), and a credit note said as one. A draft has no number yet, nor has
+ * an invoice from before the books.
+ */
+const InvoiceNumber: React.FC<{ invoice: SupportInvoice }> = ({ invoice }) => {
+  const t = useOperatorT();
+  if (!invoice.invoice_number) return <>—</>;
+  const number = <span className="whitespace-nowrap">{invoice.invoice_number}</span>;
+  if (invoice.kind !== 'credit_note') return number;
+  // The sentence's own words around the number, which alone does not wrap.
+  const [before = '', after = ''] = t('support.invoice.creditNote', { number: '\u0000' }).split('\u0000');
+  return (
+    <>
+      {before}
+      {number}
+      {after}
+    </>
+  );
+};
+
 export const SupportTenantDetail: React.FC = () => {
   const t = useOperatorT();
-  const { dateTime } = useFormatters();
+  const { dateTime, day, currency } = useFormatters();
   const { tenantId } = useParams<{ tenantId: string }>();
   const query = useQuery({
     queryKey: ['support', 'tenant', tenantId],
@@ -857,7 +909,7 @@ export const SupportTenantDetail: React.FC = () => {
           you on your decisions screen" is the first sentence of that call. */}
       <p className="mb-4 text-sm text-gray-600">
         {asCount(tenant.pending_decision_count) > 0
-          ? t('support.waiting.some')
+          ? t('support.waiting.some', { count: asCount(tenant.pending_decision_count) })
           : t('support.waiting.none')}
       </p>
 
@@ -930,21 +982,30 @@ export const SupportTenantDetail: React.FC = () => {
       <Section title={t('support.invoices')} empty={t('support.noInvoices')} rows={invoices.length}>
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+            {/* What a call needs first: the number the customer quotes, then
+                where it stands and what it is for. The period comes last, so
+                on a phone it is the column that scrolls. */}
             <tr>
-              <th className="px-3 py-2">{t('support.col.period')}</th>
+              <th className="px-3 py-2">{t('support.col.number')}</th>
               <th className="px-3 py-2">{t('support.col.status')}</th>
               <th className="px-3 py-2">{t('support.col.total')}</th>
+              <th className="px-3 py-2">{t('support.col.period')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {invoices.map((i) => (
               <tr key={i.invoice_id}>
-                <td className="px-3 py-2">
-                  {i.period_start} → {i.period_end}
+                <td className="px-3 py-2 text-gray-900">
+                  <InvoiceNumber invoice={i} />
                 </td>
                 <td className="px-3 py-2 text-gray-600">{i.status}</td>
-                <td className="px-3 py-2 text-gray-600">
-                  {i.total} {i.currency}
+                {/* `total` is cents, as every money column holds it. */}
+                <td className="whitespace-nowrap px-3 py-2 text-gray-600">{currency(Number(i.total), i.currency)}</td>
+                {/* The days as the customer's Billing page says them; each day
+                    stays on one line, so the period breaks only at the dash. */}
+                <td className="px-3 py-2">
+                  <span className="whitespace-nowrap">{day(i.period_start)} –</span>{' '}
+                  <span className="whitespace-nowrap">{day(i.period_end)}</span>
                 </td>
               </tr>
             ))}
@@ -1028,7 +1089,7 @@ export const SupportMigrationDetail: React.FC = () => {
       </p>
       <p className="mb-4 text-sm text-gray-600">
         {asCount((migration.pending_decision_count ?? 0) as number | string) > 0
-          ? t('support.waiting.some')
+          ? t('support.waiting.some', { count: asCount((migration.pending_decision_count ?? 0) as number | string) })
           : t('support.waiting.none')}
       </p>
 
@@ -1085,7 +1146,7 @@ export const SupportMigrationDetail: React.FC = () => {
  */
 export const SupportRetainedInvoices: React.FC = () => {
   const t = useOperatorT();
-  const { dateTime } = useFormatters();
+  const { dateTime, day, currency } = useFormatters();
   const query = useQuery({
     queryKey: ['support', 'retained-invoices'],
     queryFn: listRetainedInvoices,
@@ -1132,7 +1193,7 @@ export const SupportRetainedInvoices: React.FC = () => {
                     {n.purged_at ? dateTime(n.purged_at) : t('support.retained.notPurged')}
                   </td>
                   <td className="px-3 py-2">
-                    <code className="text-xs text-gray-400">{n.tenant_ref.slice(0, 12)}</code>
+                    <code className="text-xs text-gray-500">{n.tenant_ref.slice(0, 12)}</code>
                   </td>
                 </tr>
               ))}
@@ -1166,21 +1227,21 @@ export const SupportRetainedInvoices: React.FC = () => {
                         issued before `billed_to_name` existed, and saying so
                         beats rendering an empty cell that reads as a bug. */}
                     {i.billed_to_name ?? (
-                      <span className="text-gray-400">{t('support.retained.noName')}</span>
+                      <span className="text-gray-500">{t('support.retained.noName')}</span>
                     )}
                   </td>
+                  {/* Days, not midnight timestamps; money from cents. */}
                   <td className="px-3 py-2 text-gray-600">
-                    {dateTime(i.period_start)} – {dateTime(i.period_end)}
+                    <span className="whitespace-nowrap">{day(i.period_start)} –</span>{' '}
+                    <span className="whitespace-nowrap">{day(i.period_end)}</span>
                   </td>
                   <td className="px-3 py-2 text-gray-600">{i.status}</td>
-                  <td className="px-3 py-2 text-gray-600">
-                    {i.total} {i.currency}
-                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-gray-600">{currency(Number(i.total), i.currency)}</td>
                   <td className="px-3 py-2 text-gray-600">
                     {i.purged_at ? dateTime(i.purged_at) : t('support.retained.notPurged')}
                   </td>
                   <td className="px-3 py-2">
-                    <code className="text-xs text-gray-400">{i.tenant_ref.slice(0, 12)}</code>
+                    <code className="text-xs text-gray-500">{i.tenant_ref.slice(0, 12)}</code>
                   </td>
                 </tr>
               ))}
@@ -1236,27 +1297,9 @@ const MoneyRow: React.FC<{ item: MoneyToGiveBack }> = ({ item }) => {
           {item.organisation}
         </Link>
       </td>
-      <td className="whitespace-nowrap px-3 py-2 text-gray-600">
-        <div>{item.creditNoteNumber}</div>
-        {item.invoiceNumber && (
-          <div className="text-xs text-gray-500">{t('support.money.onInvoice', { number: item.invoiceNumber })}</div>
-        )}
-      </td>
-      <td className="whitespace-nowrap px-3 py-2 text-gray-900">{currency(item.cents, item.currency)}</td>
-      <td className="min-w-[12rem] px-3 py-2 text-gray-600">
-        {t(MONEY_REASON_KEY[item.reason], {
-          refund: item.refundId ?? '',
-          status: item.refundStatus ?? '',
-        })}
-        {item.refundInTheBooks && !late && item.reason !== 'by_hand' && (
-          <> {t('support.money.reason.inTheBooks')}</>
-        )}
-      </td>
-      {!item.givenBackAt && (
-        <td className="whitespace-nowrap px-3 py-2 text-gray-600" title={dateTime(item.saidAt)}>
-          {day(item.saidAt)}
-        </td>
-      )}
+      {/* The action (or when it was given back) second, right after whose it
+          is: at a phone's width the columns after it are off-screen, and this
+          is the page's only thing to do. */}
       <td className="px-3 py-2">
         {item.givenBackAt ? (
           <span className="whitespace-nowrap text-gray-600" title={dateTime(item.givenBackAt)}>
@@ -1302,6 +1345,27 @@ const MoneyRow: React.FC<{ item: MoneyToGiveBack }> = ({ item }) => {
           </p>
         )}
       </td>
+      <td className="whitespace-nowrap px-3 py-2 text-gray-600">
+        <div>{item.creditNoteNumber}</div>
+        {item.invoiceNumber && (
+          <div className="text-xs text-gray-500">{t('support.money.onInvoice', { number: item.invoiceNumber })}</div>
+        )}
+      </td>
+      <td className="whitespace-nowrap px-3 py-2 text-gray-900">{currency(item.cents, item.currency)}</td>
+      <td className="min-w-[12rem] px-3 py-2 text-gray-600">
+        {t(MONEY_REASON_KEY[item.reason], {
+          refund: item.refundId ?? '',
+          status: item.refundStatus ?? '',
+        })}
+        {item.refundInTheBooks && !late && item.reason !== 'by_hand' && (
+          <> {t('support.money.reason.inTheBooks')}</>
+        )}
+      </td>
+      {!item.givenBackAt && (
+        <td className="whitespace-nowrap px-3 py-2 text-gray-600" title={dateTime(item.saidAt)}>
+          {day(item.saidAt)}
+        </td>
+      )}
     </tr>
   );
 };
@@ -1313,11 +1377,11 @@ const MoneyTable: React.FC<{ items: MoneyToGiveBack[]; done: boolean }> = ({ ite
       <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
         <tr>
           <th className="px-3 py-2">{t('support.money.col.organisation')}</th>
+          <th className="px-3 py-2">{done ? t('support.money.col.givenBack') : t('support.money.col.action')}</th>
           <th className="px-3 py-2">{t('support.money.col.creditNote')}</th>
           <th className="px-3 py-2">{t('support.money.col.amount')}</th>
           <th className="px-3 py-2">{t('support.money.col.what')}</th>
           {!done && <th className="px-3 py-2">{t('support.money.col.since')}</th>}
-          <th className="px-3 py-2">{done ? t('support.money.col.givenBack') : t('support.money.col.action')}</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-gray-100">
@@ -1656,7 +1720,8 @@ const LogPage: React.FC<LogPageProps> = ({ read, path, operator }) => {
                   <td className="px-3 py-2">
                     {e.reference && <code className="text-xs text-gray-600">{e.reference}</code>}
                   </td>
-                  <td className="px-3 py-2 text-gray-600">
+                  {/* A long address wraps inside its column instead of pushing the table past its box. */}
+                  <td className="wrap-anywhere px-3 py-2 text-gray-600">
                     {e.actor ?? (e.source === 'app' ? t('support.log.byTheService') : '—')}
                   </td>
                 </tr>

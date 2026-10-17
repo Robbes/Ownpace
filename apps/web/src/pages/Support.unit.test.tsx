@@ -29,7 +29,7 @@ import { act, render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { SupportTenants, SupportTenantDetail, SupportMigrationDetail } from './Support.tsx';
+import { SupportTenants, SupportTenantDetail, SupportMigrationDetail, SupportRetainedInvoices } from './Support.tsx';
 import {
   listSupportTenants,
   getSupportTenant,
@@ -37,12 +37,14 @@ import {
   searchSupportPeople,
   recordPersonOpened,
   getSupportPlatform,
+  listRetainedInvoices,
   type SupportTenantUsage,
   type SupportTenantMember,
   type PlatformStatus,
 } from '../services/support.ts';
 import { STRINGS } from '../i18n/strings.ts';
 import { OPERATOR_STRINGS } from '../i18n/operator-strings.ts';
+import { formatDateTime } from '../i18n/datetime.ts';
 
 vi.mock('../services/support.ts', () => ({
   listSupportTenants: vi.fn(),
@@ -51,6 +53,7 @@ vi.mock('../services/support.ts', () => ({
   searchSupportPeople: vi.fn(),
   recordPersonOpened: vi.fn(),
   getSupportPlatform: vi.fn(),
+  listRetainedInvoices: vi.fn(),
   readSupportLog: vi.fn(),
 }));
 
@@ -86,6 +89,10 @@ const listMock = vi.mocked(listSupportTenants);
 const tenantMock = vi.mocked(getSupportTenant);
 const migrationMock = vi.mocked(getSupportMigration);
 const platformMock = vi.mocked(getSupportPlatform);
+const retainedMock = vi.mocked(listRetainedInvoices);
+
+/** What the organisation screen says when decisions wait: the count, filled in. */
+const WAITING_TWO = OPERATOR_STRINGS['support.waiting.some'].replace('{count}', '2');
 
 /** A healthy platform, which is what every tenant-screen case not about it gets. */
 const PLATFORM_OK: PlatformStatus = {
@@ -144,6 +151,23 @@ describe('the list of organisations', () => {
     expect(screen.getByText('1')).toBeInTheDocument();
   });
 
+  it('says the day somebody joined, with the time on hover, so the column stays narrow', async () => {
+    listMock.mockResolvedValue([TENANT]);
+    mount(<SupportTenants />);
+    const joined = await screen.findByText(formatDateTime(TENANT.joined_at, 'en', { timeStyle: undefined }));
+    expect(joined).toHaveAttribute('title', formatDateTime(TENANT.joined_at, 'en'));
+    expect(joined.className).toContain('whitespace-nowrap');
+  });
+
+  it('lets a keyboard scroll the table that is wider than a phone', async () => {
+    listMock.mockResolvedValue([TENANT]);
+    mount(<SupportTenants />);
+    await screen.findByText('Alpha BV');
+    const box = screen.getByRole('region', { name: OPERATOR_STRINGS['support.heading'] });
+    expect(box).toHaveAttribute('tabindex', '0');
+    expect(box.querySelector('table')).not.toBeNull();
+  });
+
   it('leads to the log, across every organisation (0129 T2)', async () => {
     listMock.mockResolvedValue([TENANT]);
     mount(<SupportTenants />);
@@ -195,9 +219,12 @@ describe('one organisation', () => {
         period_start: '2026-07-01',
         period_end: '2026-07-31',
         status: 'sent',
-        total: '42.50',
+        // In cents, as the invoice table holds it: €42.50.
+        total: '4250',
         currency: 'EUR',
         paid_at: null,
+        invoice_number: '2026-0012',
+        kind: 'invoice' as const,
       },
     ],
     members: [],
@@ -209,6 +236,38 @@ describe('one organisation', () => {
     expect(await screen.findByText('Alpha mail')).toBeInTheDocument();
     expect(screen.getByText('Alpha migration')).toBeInTheDocument();
     expect(screen.getByText('sent')).toBeInTheDocument();
+    // Money, not the cents the column holds ('4250 EUR'), and days, not ISO keys.
+    expect(screen.getByText('€42.50')).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'July 1, 2026 – July 31, 2026' })).toBeInTheDocument();
+    // The number the customer quotes from their own page, first, and kept on one line.
+    const heads = screen
+      .getByRole('region', { name: OPERATOR_STRINGS['support.invoices'] })
+      .querySelectorAll('th');
+    expect(heads[0]).toHaveTextContent(OPERATOR_STRINGS['support.col.number']);
+    expect(screen.getByText('2026-0012')).toHaveClass('whitespace-nowrap');
+  });
+
+  it('names a credit note as one, and says a draft has no number yet', async () => {
+    tenantMock.mockResolvedValue({
+      ...DETAIL,
+      invoices: [
+        { ...DETAIL.invoices[0]!, invoice_id: 'i2', total: '-1084', invoice_number: '2026-0013', kind: 'credit_note' as const },
+        { ...DETAIL.invoices[0]!, invoice_id: 'i3', status: 'draft', invoice_number: null },
+      ],
+    });
+    mount(<SupportTenantDetail />, `/support/tenants/${TENANT.tenant_id}`, '/support/tenants/:tenantId');
+    expect(await screen.findByRole('cell', { name: 'Credit note 2026-0013' })).toBeInTheDocument();
+    expect(screen.getByText('-€10.84')).toBeInTheDocument();
+    expect(screen.getByText('draft').closest('tr')!.firstElementChild).toHaveTextContent('—');
+  });
+
+  it('lets a keyboard scroll each list, named after its heading', async () => {
+    tenantMock.mockResolvedValue(DETAIL);
+    mount(<SupportTenantDetail />, `/support/tenants/${TENANT.tenant_id}`, '/support/tenants/:tenantId');
+    await screen.findByText('Alpha mail');
+    for (const heading of ['support.connections', 'support.migrations', 'support.invoices'] as const) {
+      expect(screen.getByRole('region', { name: OPERATOR_STRINGS[heading] })).toHaveAttribute('tabindex', '0');
+    }
   });
 
   it('opens the log narrowed to this organisation (0129 T2)', async () => {
@@ -277,6 +336,14 @@ describe('one migration', () => {
     expect(screen.queryByText(/side\./)).not.toBeInTheDocument();
   });
 
+  it('says how many decisions wait on this migration, and never which', async () => {
+    migrationMock.mockResolvedValue({ ...MIGRATION, migration: { ...MIGRATION.migration, pending_decision_count: '1' } });
+    mount(<SupportMigrationDetail />, '/support/migrations/m1', '/support/migrations/:mappingId');
+    expect(
+      await screen.findByText(OPERATOR_STRINGS['support.waiting.some'].replace('{count}', '1')),
+    ).toBeInTheDocument();
+  });
+
   it('says there is no screen below this one', async () => {
     migrationMock.mockResolvedValue(MIGRATION);
     mount(<SupportMigrationDetail />, '/support/migrations/m1', '/support/migrations/:mappingId');
@@ -303,6 +370,34 @@ describe('one migration', () => {
     expect(await screen.findByText('failed')).toBeInTheDocument();
     expect(screen.queryByText('something_new')).not.toBeInTheDocument();
     expect(screen.queryByText(STRINGS.en['failure.unknown'])).not.toBeInTheDocument();
+  });
+});
+
+describe('what an erasure kept of the invoices', () => {
+  it('says the money and the days, not cents and midnight timestamps', async () => {
+    retainedMock.mockResolvedValue({
+      invoices: [
+        {
+          tenant_ref: 'f'.repeat(64),
+          erasure_requested_at: '2026-06-01T00:00:00.000Z',
+          purged_at: '2026-07-01T10:30:00.000Z',
+          invoice_id: 'r1',
+          billed_to_name: 'Gamma BV',
+          period_start: '2026-05-01',
+          period_end: '2026-05-31',
+          status: 'paid',
+          total: '9900',
+          currency: 'EUR',
+          paid_at: '2026-06-02T00:00:00.000Z',
+        },
+      ],
+      numbers: [],
+    });
+    mount(<SupportRetainedInvoices />, '/support/retained-invoices', '/support/retained-invoices');
+    expect(await screen.findByText('Gamma BV')).toBeInTheDocument();
+    expect(screen.getByText('€99.00')).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'May 1, 2026 – May 31, 2026' })).toBeInTheDocument();
+    expect(screen.queryByText(/12:00 AM/)).not.toBeInTheDocument();
   });
 });
 
@@ -420,7 +515,8 @@ describe('failing and waiting are two different conversations (workplan 0110 T5)
       `/support/tenants/${TENANT.tenant_id}`,
       '/support/tenants/:tenantId',
     );
-    expect(await screen.findByText(OPERATOR_STRINGS['support.waiting.some'])).toBeInTheDocument();
+    // The count, not only that there is one (the list's 'Waiting on them' column).
+    expect(await screen.findByText(WAITING_TWO)).toBeInTheDocument();
   });
 
   it('says the opposite when nothing is', async () => {
@@ -455,7 +551,7 @@ describe('failing and waiting are two different conversations (workplan 0110 T5)
       `/support/tenants/${TENANT.tenant_id}`,
       '/support/tenants/:tenantId',
     );
-    await screen.findByText(OPERATOR_STRINGS['support.waiting.some']);
+    await screen.findByText(WAITING_TWO);
     expect(screen.queryByText(OPERATOR_STRINGS['support.usage'])).not.toBeInTheDocument();
   });
 
@@ -476,7 +572,7 @@ describe('failing and waiting are two different conversations (workplan 0110 T5)
       `/support/tenants/${TENANT.tenant_id}`,
       '/support/tenants/:tenantId',
     );
-    await screen.findByText(OPERATOR_STRINGS['support.waiting.some']);
+    await screen.findByText(WAITING_TWO);
     expect(container.textContent).not.toContain('summary');
     expect(container.textContent).not.toContain('@');
   });

@@ -74,9 +74,13 @@ export interface SupportInvoice {
   readonly period_start: string;
   readonly period_end: string;
   readonly status: string;
+  /** In cents, as every money column holds it. */
   readonly total: string;
   readonly currency: string;
   readonly paid_at: string | null;
+  /** Moneybird's number, the one the customer quotes (managed 0058); none on a draft. */
+  readonly invoice_number: string | null;
+  readonly kind: 'invoice' | 'credit_note';
 }
 
 /**

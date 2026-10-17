@@ -45,6 +45,10 @@ export const OPERATOR_STRINGS = {
   'redirects.none': 'No redirect URI to register.',
   'redirects.unconfigured':
     'This deployment has not been told its own address, so nothing shows yet.',
+  // The social sign-in card's address is the identity provider's, not ours,
+  // so what is missing there is the provider's setting.
+  'redirects.unconfigured.upstream':
+    'The identity provider’s upstream callback address (IDP_UPSTREAM_CALLBACK_URL) is not set, so nothing shows yet.',
   'redirects.unconfigured.why':
     'Set it first: registering a guess produces a mismatch later, at the provider’s screen.',
   // ---- The access queue, which an operator reads (workplan 0093 T7). The
@@ -189,7 +193,7 @@ export const OPERATOR_STRINGS = {
   'support.noDomains': 'Nothing has run yet.',
   'support.waiting.none': 'Nothing is waiting on them.',
   'support.waiting.some':
-    'Decisions are waiting on this customer; their own screen says which, here you see only counts.',
+    'Waiting on them: {count} decision(s). Their own screen says which; here you see only the count.',
   'support.noFourthLevel': 'There is no screen with more detail.',
   'support.col.organisation': 'Organisation',
   'support.col.status': 'Status',
@@ -205,6 +209,9 @@ export const OPERATOR_STRINGS = {
   'support.col.updated': 'Updated',
   'support.col.period': 'Period',
   'support.col.total': 'Total',
+  // The number the customer quotes from their own Billing page or PDF.
+  'support.col.number': 'Number',
+  'support.invoice.creditNote': 'Credit note {number}',
   'support.col.domain': 'Domain',
   'support.col.state': 'State',
   'support.col.whatToDo': 'What to do',

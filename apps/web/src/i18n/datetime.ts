@@ -75,6 +75,16 @@ export function formatDay(day: string, locale: Locale): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${day}T00:00:00Z`));
 }
 
+/**
+ * A month, `YYYY-MM` as the bill keys it: "October 2026" / "oktober 2026".
+ * Read in UTC like `formatDay`, so the month is the month written.
+ */
+export function formatMonth(month: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(
+    new Date(`${month}-01T00:00:00Z`),
+  );
+}
+
 export function formatNumber(n: number, locale: Locale): string {
   return new Intl.NumberFormat(locale).format(n);
 }

@@ -7517,9 +7517,14 @@ components:
         period_start: { type: string, format: date }
         period_end: { type: string, format: date }
         status: { type: string }
-        total: { type: string }
+        total: { type: string, description: 'In cents, as the invoice table holds it.' }
         currency: { type: string }
         paid_at: { type: string, format: date-time, nullable: true }
+        invoice_number:
+          type: string
+          nullable: true
+          description: The books' number, which the customer quotes; none until the invoice is numbered.
+        kind: { type: string, enum: [invoice, credit_note] }
     SupportRetainedInvoice:
       type: object
       description: |
