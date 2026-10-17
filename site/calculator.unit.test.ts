@@ -313,7 +313,7 @@ describe('the words the page must and must not say (T5, grep-guarded)', () => {
       // higher tier in the app (ADR-0014, 2026-10-04); this page says it
       // works out the least the answers need.
       expect(p.html).not.toMatch(/name="tier"/);
-      expect(p.html).toMatch(/the least they need|het minste dat ze nodig hebben/);
+      expect(p.html).toMatch(/the least they need|het kleinste pakket dat erbij past/);
     }
   });
 });
@@ -329,6 +329,58 @@ describe('sizeOf (0152 T7 (c))', () => {
     expect(sizeOf(1234.5)).toBe('1.2 TB');
     expect(sizeOf(7500)).toBe('7.5 TB');
     expect(sizeOf(15050)).toBe('15.1 TB');
+  });
+});
+
+/**
+ * THE READER'S DECIMALS (the UX sweep, 2026-10-17). The Dutch estimate said
+ * "38.3 GB" beside the Gmail line's "2,5 GB", and the Dutch pricing page
+ * "€2.50": one screen, two ways of writing a decimal. Dutch writes a comma, as
+ * the app does (GLOSSARY: "the ceiling's digits follow the reader's language").
+ * Without a locale, and for English, nothing changes: ADR-0014's strings and
+ * every English pin stay as they were.
+ */
+describe('money and sizeOf write the reader’s decimals', () => {
+  it('writes a decimal comma in Dutch, and whole euros bare', () => {
+    expect(money(250, 'nl')).toBe('€2,50');
+    expect(money(605, 'nl')).toBe('€6,05');
+    expect(money(500, 'nl')).toBe('€5');
+    expect(money(48000, 'nl')).toBe('€480');
+    expect(sizeOf(38.3, 'nl')).toBe('38,3 GB');
+    expect(sizeOf(150, 'nl')).toBe('150 GB');
+    expect(sizeOf(1234.5, 'nl')).toBe('1,2 TB');
+    expect(sizeOf(1000, 'nl')).toBe('1 TB');
+  });
+
+  it('writes a decimal point in English, with or without the locale', () => {
+    expect(money(250, 'en')).toBe('€2.50');
+    expect(money(250)).toBe('€2.50');
+    expect(sizeOf(38.3, 'en')).toBe('38.3 GB');
+    expect(sizeOf(1234.5, 'en')).toBe('1.2 TB');
+  });
+
+  it('the page’s script passes the page’s locale to every price and size it writes', () => {
+    // The one script is shared by both pages (one hash), so the locale comes
+    // from the page's config: a call without it writes English decimals on the
+    // Dutch page, which is the defect this replaces.
+    const lib = readFileSync(join(HERE, 'calculator.mjs'), 'utf8').replace(/^export /gm, '');
+    expect(CALC_SCRIPT.startsWith(lib), 'the script no longer starts with calculator.mjs').toBe(true);
+    const glue = CALC_SCRIPT.slice(lib.length);
+    const calls: string[] = [];
+    for (const m of glue.matchAll(/\b(money|sizeOf)\(/g)) {
+      let depth = 1;
+      let i = m.index + m[0].length;
+      while (depth > 0 && i < glue.length) {
+        if (glue[i] === '(') depth++;
+        else if (glue[i] === ')') depth--;
+        i++;
+      }
+      calls.push(glue.slice(m.index, i));
+    }
+    expect(calls.length, 'the script writes no price or size at all').toBeGreaterThan(5);
+    for (const call of calls) expect(call, 'a price or size written without the page’s locale').toMatch(/, cfg\.locale\)$/);
+    // And the Gmail line's size of mail, which reaches it through fill().
+    expect(glue).toContain('Number(mailGb).toLocaleString(cfg.locale)');
   });
 });
 
