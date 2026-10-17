@@ -479,7 +479,7 @@ const MappingDetail: React.FC = () => {
           <button
             type="button"
             onClick={() => void detail.refetch()}
-            className="ml-2 text-sm font-medium text-blue-700 hover:underline"
+            className="ml-2 text-sm font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900"
           >
             {t('hub.detailError.retry')}
           </button>

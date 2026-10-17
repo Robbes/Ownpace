@@ -1247,6 +1247,9 @@ describe('a detail read that failed', () => {
     renderHub();
     const retry = await screen.findByRole('button', { name: 'Try again' });
     expect(screen.getByText(/Could not read this migration's details/)).toBeInTheDocument();
+    // It shares a line with that sentence, so colour alone would hide it:
+    // underlined always, not only on hover (a11y-prose-links-invisible).
+    expect(retry.className.split(/\s+/)).toContain('underline');
     fireEvent.click(retry);
     expect(await screen.findByRole('heading', { name: 'Acme mail' })).toBeInTheDocument();
     expect(mappingApiGet).toHaveBeenCalledTimes(2);
