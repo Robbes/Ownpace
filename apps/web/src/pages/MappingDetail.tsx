@@ -53,7 +53,13 @@ import { CutoverSteps } from '../components/CutoverSteps.tsx';
 import { TimeBeforeStartLine } from '../components/TimeBeforeStartLine.tsx';
 import { TimeWhileCopyingLine } from '../components/TimeWhileCopyingLine.tsx';
 import { PaceLine } from '../components/PaceLine.tsx';
-import { leastAdvancedStage, remainingItemsOf, timeBeforeStart, timeWhileCopying } from '@openmig/shared';
+import {
+  leastAdvancedStage,
+  remainingItemsOf,
+  timeBeforeStart,
+  timeWhileCopying,
+  type DiscoveryDomain,
+} from '@openmig/shared';
 import { providerName } from '../components/ProviderTile.tsx';
 import { serverMessage } from '../services/api.ts';
 
@@ -236,35 +242,41 @@ const MappingDetail: React.FC = () => {
     refetchInterval: (query) => progressRefetchInterval(query.state.data?.mappings.flatMap((m) => m.domains)),
   });
 
-  // HOW LONG, UNTIL THE FIRST PASS REPORTS (0154 T3 (a)): from the count, as
-  // the review screen said it. Read once the migration's own read has said no
-  // pass completed, and not after, when the pass's own rate is the better
-  // answer (T3 (b)).
-  const firstPassIn = (
+  // HOW LONG, UNTIL ANYTHING IS COPIED (0154 T3 (a)): from the count, as the
+  // review screen said it. Read while the migration's own read says nothing
+  // was copied yet, and not after, when the passes' own pace is the better
+  // answer (T3 (b)). WHAT WAS COPIED decides, not a completed pass: a first
+  // copy cut short at a pass's deadline completes nothing for days, and the
+  // count's estimate stood all that time (UX sweep, 2026-10-17). Items left as
+  // they already were, and a pass that completed, count as copying done too.
+  const copiedAny = (
     (isSelfHost()
       ? status.data?.mappings.find((m) => m.mappingId === id)?.domains
       : detail.data?.domainStatus) ?? []
-  ).some((d) => d.lastSyncedAt !== undefined);
+  ).some(
+    (d) =>
+      d.state !== 'skipped' && (d.itemsSynced > 0 || (d.itemsAdopted ?? 0) > 0 || d.lastSyncedAt !== undefined),
+  );
   const mappingDiscovery = useQuery({
     queryKey: ['mapping-discovery', id],
     queryFn: () => mappingApi.getDiscovery(id!),
-    enabled: Boolean(id) && !isSelfHost() && detail.isSuccess && !firstPassIn,
+    enabled: Boolean(id) && !isSelfHost() && detail.isSuccess && !copiedAny,
     retry: false,
   });
   const allDiscovery = useQuery({
     queryKey: ['discovery'],
     queryFn: fetchAllDiscovery,
-    enabled: Boolean(id) && isSelfHost() && status.isSuccess && !firstPassIn,
+    enabled: Boolean(id) && isSelfHost() && status.isSuccess && !copiedAny,
     retry: false,
   });
 
   // HOW LONG, DURING THE COPY (0154 T3 (b)): from the last passes' own pace,
-  // once a pass has reported. The run history's own query, so the panel below
-  // and this line share one read.
+  // once something was copied. The run history's own query, so the panel
+  // below and this line share one read.
   const runs = useQuery({
     queryKey: ['runs', id],
     queryFn: () => fetchRuns(id!),
-    enabled: Boolean(id) && firstPassIn,
+    enabled: Boolean(id) && copiedAny,
     refetchInterval: 30_000,
   });
 
@@ -280,7 +292,7 @@ const MappingDetail: React.FC = () => {
   const lifecycleRead = isSelfHost() ? status : detail;
   const counted = isSelfHost() ? allDiscovery.data?.[id] : mappingDiscovery.data?.domains;
   const timeBefore =
-    firstPassIn || counted === undefined || counted.length === 0
+    copiedAny || counted === undefined || counted.length === 0
       ? undefined
       : timeBeforeStart({
           source: isSelfHost() ? status.data?.mappings.find((m) => m.mappingId === id)?.sourceType : detail.data?.sourceType,
@@ -288,21 +300,9 @@ const MappingDetail: React.FC = () => {
           domains: isSelfHost() ? counted.map((d) => d.domain) : (detail.data?.syncConfig.domains ?? []),
           mailBytes: counted.find((d) => d.domain === 'email' && d.lastError === undefined)?.bytes,
         });
-  // What is left, and whether the provider slowed it: from the strip's rows,
-  // the totals T2 set each count against. A data type with no total leaves it
-  // unknown, and the line says nothing (hard rule 9).
   const sourceType = isSelfHost()
     ? status.data?.mappings.find((m) => m.mappingId === id)?.sourceType
     : detail.data?.sourceType;
-  const copyingRows = (progressDomains ?? []).filter((d) => d.state !== 'skipped');
-  const timeWhile =
-    firstPassIn && runs.data
-      ? timeWhileCopying({
-          remainingItems: remainingItemsOf(copyingRows),
-          passes: runs.data.runs,
-          slowed: copyingRows.some((d) => d.lastErrorCategory === 'rate_limited'),
-        })
-      : undefined;
   const lifecycle = isSelfHost()
     ? status.data?.mappings.find((m) => m.mappingId === id)?.migrationStatus
     : detail.data?.status;
@@ -329,6 +329,36 @@ const MappingDetail: React.FC = () => {
   );
   const stages = lineFacts && lines ? stagesByDomain(lineFacts, lines) : {};
   const migrationStage = lineFacts ? leastAdvancedStage(lineStages(lineFacts, lines)) : undefined;
+
+  // What is left, and whether the provider slowed it: from the rows still in
+  // their FIRST COPY, the totals T2 set each count against. Kept in step has
+  // no time left (GLOSSARY, T3 (b)): the gap between what the count found and
+  // what a completed pass copied is not a copy still to come, and the passes
+  // that keep a migration in step are far too small to divide it by. So a row
+  // counts only while its stage is Copying, or, before the progress read has
+  // it, while the migration runs and no pass over the row has completed and
+  // nobody stopped it. Only while the migration runs: held, switching or done,
+  // there is nothing to wait for. A data type with no total leaves it
+  // unknown, and the line says nothing (hard rule 9).
+  const copyingRows = (progressDomains ?? []).filter((d) => {
+    if (d.state === 'skipped') return false;
+    const stage = stages[d.domain as DiscoveryDomain];
+    if (stage !== undefined) return stage === 'copying';
+    return lifecycle === 'active' && d.lastSyncedAt === undefined && d.state !== 'stopped' && !d.stoppedByOwner;
+  });
+  const timeWhile =
+    copiedAny && lifecycle === 'active' && runs.data
+      ? timeWhileCopying({
+          remainingItems: remainingItemsOf(copyingRows),
+          passes: runs.data.runs,
+          slowed: copyingRows.some((d) => d.lastErrorCategory === 'rate_limited'),
+        })
+      : undefined;
+  // The data types it carries, for Finish's words: the selection on managed,
+  // the status's rows on the appliance (a skipped row is one it never had).
+  const carried = isSelfHost()
+    ? progressDomains?.filter((d) => d.state !== 'skipped').map((d) => d.domain)
+    : detail.data?.syncConfig.domains;
 
   return (
     <div>
@@ -442,12 +472,23 @@ const MappingDetail: React.FC = () => {
         <CompletionReportDownload mappingId={id} />
       </div>
       {detail.error != null && (
-        <p className="mt-1 text-sm text-amber-800">{t('hub.detailError')}</p>
+        <p className="mt-1 text-sm text-amber-800">
+          {t('hub.detailError')}
+          {/* The read comes again by itself within half a minute; this is
+              the way to ask now, rather than an amber sentence to wait on. */}
+          <button
+            type="button"
+            onClick={() => void detail.refetch()}
+            className="ml-2 text-sm font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900"
+          >
+            {t('hub.detailError.retry')}
+          </button>
+        </p>
       )}
 
       {progressDomains && progressDomains.length > 0 && (
         <div className="mt-4">
-          <LiveProgress domains={progressDomains} stages={stages} />
+          <LiveProgress domains={progressDomains} stages={stages} headingLevel={3} />
         </div>
       )}
 
@@ -485,7 +526,15 @@ const MappingDetail: React.FC = () => {
         </h3>
         <p className="mt-1 text-sm text-gray-600">{t('hub.orderIntro')}</p>
         <CutoverSteps
-          migrations={[{ id, status: lifecycle, label: detail.data?.name ?? id }]}
+          migrations={[
+            {
+              id,
+              status: lifecycle,
+              label: detail.data?.name ?? id,
+              notStarted: migrationStage === 'not_started',
+              ...(carried !== undefined ? { domains: carried } : {}),
+            },
+          ]}
           attention={
             attentionQuery.isSuccess ? new Map(attentionQuery.data.mappings.map((a) => [a.mappingId, a])) : undefined
           }

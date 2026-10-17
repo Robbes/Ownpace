@@ -248,8 +248,8 @@ export function delegatedFlowCannotReadMailbox(
       'gedeelde. Die kan alleen worden gelezen via de eigen oauth-app van uw ' +
       'organisatie, met toepassingsmachtigingen die een beheerder heeft goedgekeurd. Een ' +
       `aanmelding (${input.refreshTokenField}) leest alleen het account dat zich aanmeldde. ` +
-      `Verwijder ${input.refreshTokenField} en vul ${input.clientSecretField} in, of laat de ` +
-      'postbus leeg om uw eigen postbus te lezen.',
+      `Verwijder ${input.refreshTokenField} en vul ${input.clientSecretField} in, of laat het ` +
+      'postvak leeg om uw eigen postvak te lezen.',
     // The administrator's steps: the registration and its consent (0148 T7).
     guide: 'microsoft#application',
   });

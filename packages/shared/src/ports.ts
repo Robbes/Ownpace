@@ -1229,6 +1229,13 @@ export interface ShareGrantRow {
   readonly verdict: 'clean' | 'manual';
   /** What it corresponds to on the target / what to do instead. */
   readonly verdictTarget: string;
+  /**
+   * The same line in Dutch, without the English developer note (UX sweep,
+   * 2026-10-17). Never stored: the sharing GET says it on each read, with
+   * `verdictTargetFor`. Absent from an older server, and then the English is
+   * what a Dutch reader reads.
+   */
+  readonly verdictTargetNl?: string;
   readonly state: 'open' | 'applied' | 'done_manual' | 'skipped';
   readonly stateReason?: string;
   readonly decidedBy?: string;

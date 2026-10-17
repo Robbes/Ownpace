@@ -8,7 +8,7 @@ This guide is for the Google cards: the **Google account**, and the cards that e
 
 - The Google account whose data moves, and its sign-in. **Connect with Google**, on **Connect your accounts**, opens Google's own consent screen for that account.
 - If the account belongs to somebody else, you do not need their password: [send them a grant link](#grant-link) instead.
-- Migrating a whole Workspace with many accounts? Read [domain-wide delegation](#domain-wide-delegation) first — it replaces one consent ceremony per person per product with a single admin action, and it needs a Workspace administrator.
+- Migrating a whole Workspace with many accounts? Read [domain-wide delegation](#domain-wide-delegation) first — it replaces one consent per person per product with a single admin action, and it needs a Workspace administrator.
 
 ## Connecting {#connect}
 
@@ -20,7 +20,7 @@ One Google account, one sign-in. The line under the card's name says what it car
 
 ### Google Drive {#google-drive}
 
-The token asks for `https://www.googleapis.com/auth/drive.readonly`, and nothing else. A migration reads. The token this product mints cannot create, modify or delete anything in the source Drive, which is a stronger guarantee than a promise in a document — it is enforced by Google.
+The token asks for `https://www.googleapis.com/auth/drive.readonly`, and nothing else. A migration reads. The token this service receives cannot create, modify or delete anything in the source Drive, which is a stronger guarantee than a promise in a document — it is enforced by Google.
 
 It is a **delegated** credential: it reads the Drive of the person who consents, including the shared drives that person can see. For a whole Workspace there is a second, opt-in path — **[domain-wide delegation](#domain-wide-delegation)**, at the end of this guide. Per-user tokens stay the default: smallest access, revocable per person, no admin needed.
 
@@ -29,6 +29,8 @@ A migration can start somewhere other than My Drive: a **shared drive** is named
 The choice is **Only one folder**, under **Files** on **What moves?**, for the Google account as for this card. Once the account is connected, paste the folder's address from Google Drive, whose id is read out of it, or press **Show shared drives and shared folders** and pick one: a read-only listing through the same connector a migration uses. The migration's page then says which folder its files are read from. The folder can change until the first file is copied; after that, another folder is another migration.
 
 On the **Accounts** page, this card's form also has a **Root folder ID** field, which starts every migration of that account at the folder with that id.
+
+#### Google Docs and other Google files {#google-docs}
 
 **Google Docs, Sheets, Slides and Drawings** have no file to copy, only a rendering Google makes, and **What moves?** asks under **Files** what each kind should arrive as. Every choice asks Drive to render the document; nothing is converted here.
 
@@ -45,7 +47,9 @@ The exported file lands under the document's name **plus the extension of whatev
 
 ### Gmail {#gmail}
 
-**The scope is `https://mail.google.com/`, and there is no narrower choice.** Ownpace reads Gmail over IMAP (XOAUTH2 at `imap.gmail.com:993`), and that is the only scope Google's IMAP endpoint accepts — the granular `gmail.readonly` scopes belong to the REST API and are refused at the IMAP door. The scope reads as full mail access; this product never writes through it (the source connector has no write path, and Gmail is never a migration target), but unlike Drive's `drive.readonly` that is a property of the product, not one Google enforces. It is stated here because pretending otherwise is a lie an audit finds in a minute.
+**A large mailbox takes days.** Google lets a Gmail mailbox be read at up to 2.5 GB a day. This service keeps copying until all of it is in, and your old account works as usual meanwhile.
+
+**The scope is `https://mail.google.com/`, and there is no narrower choice.** Ownpace reads Gmail over IMAP (XOAUTH2 at `imap.gmail.com:993`), and that is the only scope Google's IMAP endpoint accepts — the granular `gmail.readonly` scopes belong to the REST API and are refused at the IMAP door. The scope reads as full mail access; this service never writes through it (the source connector has no write path, and Gmail is never a migration target), but unlike Drive's `drive.readonly` that is a property of this service, not one Google enforces. It is stated here because pretending otherwise is a lie an audit finds in a minute.
 
 **A Drive-consented token will not work.** A refresh token carries the scopes it was consented with, and one minted for `drive.readonly` answers `invalid_scope` the first time a mail token is requested. **Connect with Google** on the Gmail card asks for the mail scope.
 
@@ -69,7 +73,7 @@ If it is used, the daily download ceiling is **exactly the same** — Google enf
 
 **Retired for new migrations.** The **Google account** card carries calendars, and **Start a migration** asks Google for only what you tick. This card stays on the **Accounts** page for accounts added with it, which keep working, and **Start a migration** offers such an account where Calendar is all you tick from Google.
 
-Google still speaks the protocols this product already implements, so this source is the ordinary CalDAV connector aimed at Google's calendar endpoint, with one difference: **Google's DAV endpoints take OAuth only**, so requests carry a token minted from your refresh token instead of a password.
+Google still speaks the protocols this service already implements, so this source is the ordinary CalDAV connector aimed at Google's calendar endpoint, with one difference: **Google's DAV endpoints take OAuth only**, so requests carry a token minted from your refresh token instead of a password.
 
 The token must be consented with the calendar scope, `https://www.googleapis.com/auth/calendar`. A token consented for Drive, mail or contacts answers `invalid_scope` here. Google Tasks are not on Google's CalDAV: the **Google account** card reads them, with `https://www.googleapis.com/auth/tasks.readonly`.
 
@@ -91,7 +95,7 @@ You choose how long the link works — a day, a week, or a month — and you can
 
 **We never send the link.** You do, however you normally reach that person. Ownpace never learns their address, which means Ownpace cannot leak it.
 
-### Domain-wide delegation — one admin action instead of N consents {#domain-wide-delegation}
+### Domain-wide delegation: one administrator action instead of a consent per person {#domain-wide-delegation}
 
 A Workspace admin can authorise a **service account** to impersonate users, once, for an enumerated list of scopes. Use it when per-user consent ceremonies do not scale; skip it for a handful of accounts. **Read the width before choosing it: the key can read every user in the domain for the authorised scopes.** Each migration still names exactly one account (the subject); what widens is the credential, not any migration.
 
@@ -99,11 +103,11 @@ A Workspace admin can authorise a **service account** to impersonate users, once
 2. **Generate a JSON key** (keys → add key → JSON). This file is now the most sensitive secret in the migration; treat it like one.
 3. **Authorise it in the Admin console**: Admin → Security → Access and data control → API controls → **Domain-wide delegation** → add the service account's client id with ONLY the scopes the chosen products need — never a superset "to be safe":
 
-- Drive: `https://www.googleapis.com/auth/drive.readonly`
-- Gmail: `https://mail.google.com/`
-- Calendar: `https://www.googleapis.com/auth/calendar`
-- Contacts: `https://www.googleapis.com/auth/carddav`
-- Tasks: `https://www.googleapis.com/auth/tasks.readonly`
+   - Drive: `https://www.googleapis.com/auth/drive.readonly`
+   - Gmail: `https://mail.google.com/`
+   - Calendar: `https://www.googleapis.com/auth/calendar`
+   - Contacts: `https://www.googleapis.com/auth/carddav`
+   - Tasks: `https://www.googleapis.com/auth/tasks.readonly`
 
 4. **Enter it**: answer **Yes** to **Is this a company account with an administrator?**, paste the whole key file into **Service account key**, and state each migration's account under **Username**. On the **Accounts** page the field is in plain view. The refresh-token fields stop being required; the refusals will say so if something is missing.
 5. **Revoke at cutover.** Delete the Admin-console delegation entry (and the key) when the migration finishes — the credential's lifetime is the migration's, and this step is as much part of the move as step 3.
@@ -127,7 +131,7 @@ Stated here rather than discovered:
 
 **And the obvious hope does not rescue it.** Google publishes a Data Portability API for people in the European Economic Area, the United Kingdom and Switzerland, built to satisfy the Digital Markets Act, which sounds like exactly the answer. Its full list of scopes was read on 4 September 2026, and again on 28 September 2026, when it held 73: **Google Photos is not among them**, nor is Drive, Gmail, Contacts or Calendar. What it carries is search and activity history, Chrome, Maps contributions, Play and YouTube, and since December 2025 Pixel and Nest data too. The two scopes that look like photos are not: one is what you posted on Maps, the other is Street View uploads. So a photo library now has two separate reasons to be out of reach, and Takeout is not a workaround while something better arrives — it is the only complete route there is.
 
-**Device backups** (the "Back-up van apparaat" line in Google's storage overview) are Android's own app-and-settings backups, readable only by an Android device signing in. They are not data this product can or should read, and they stay where they are.
+**Device backups** (the "Back-up van apparaat" line in Google's storage overview) are Android's own app-and-settings backups, readable only by an Android device signing in. They are not data this service can or should read, and they stay where they are.
 
 That is why the measured Drive figure on a connection matches Google's own Google Drive line and not the storage total: photos, backups and Gmail are counted by Google under their own headings, and Ownpace measures each face it can reach under its own.
 
@@ -138,11 +142,11 @@ That is why the measured Drive figure on a connection matches Google's own Googl
 - **`unauthorized_client`** with a service account key means step 3 of [domain-wide delegation](#domain-wide-delegation) is missing or lists the wrong scope — the error names the client id and scope to add. An `invalid_grant` there usually means the subject is not a user in the domain.
 - **`invalid_grant`**: the refresh token has died. **Treat the refresh token as a password.** It grants read access until it is revoked, and it does not expire on its own. It does die if:
 
-1. the account's password changes;
-2. the account's administrator removes the app's access;
-3. it goes six months unused.
+  1. the account's password changes;
+  2. the account's administrator removes the app's access;
+  3. it goes six months unused.
 
-Each produces the same `invalid_grant` from Google, and the test's message lists these causes along with the two that concern the app, below. Connect again to mint a new one. Where this service's app is used and a new token keeps dying within days, that is the app, not the account: tell whoever runs it. With [your own app](#own-app), two more causes are yours to check, and the first recurs every week: the app is External and still in Testing (see [whose Google account is it?](#own-app-whose-account)), or its OAuth client was deleted.
+  Each produces the same `invalid_grant` from Google, and the test's message lists these causes along with the two that concern the app, below. Connect again to mint a new one. Where this service's app is used and a new token keeps dying within days, that is the app, not the account: tell whoever runs it. With [your own app](#own-app), two more causes are yours to check, and the first recurs every week: the app is External and still in Testing (see [whose Google account is it?](#own-app-whose-account)), or its OAuth client was deleted.
 
 ## Stopping {#leaving}
 
@@ -170,11 +174,11 @@ This one answer decides whether you see security warnings at all. **Get it wrong
 1. [Google Cloud Console](https://console.cloud.google.com/) → create a project (or pick one).
 2. **APIs & Services → Library →** enable the API behind every face this client will serve. Each is a separate switch, and a switch left off refuses the first request with `accessNotConfigured`.
 
-- Files: **Google Drive API**, for every Drive request.
-- Calendar: **CalDAV API**. Google's CalDAV endpoint is a Cloud API like any other.
-- Contacts: **Google Contacts CardDAV API**, the same, for CardDAV.
-- Mail: **Gmail API**. IMAP itself needs no API; with this on, the `https://mail.google.com/` scope is listed in the consent screen's scope picker instead of having to be pasted in by hand.
-- Tasks: **Google Tasks API**. Google's tasks are not on its CalDAV; the Tasks face reads this API.
+   - Files: **Google Drive API**, for every Drive request.
+   - Calendar: **CalDAV API**. Google's CalDAV endpoint is a Cloud API like any other.
+   - Contacts: **Google Contacts CardDAV API**, the same, for CardDAV.
+   - Mail: **Gmail API**. IMAP itself needs no API; with this on, the `https://mail.google.com/` scope is listed in the consent screen's scope picker instead of having to be pasted in by hand.
+   - Tasks: **Google Tasks API**. Google's tasks are not on its CalDAV; the Tasks face reads this API.
 
 A Google account connection whose consent had gone through cleanly has been refused at Test with "CalDAV API has not been used in project … before or it is disabled" — nothing before that point had said the API existed.
 

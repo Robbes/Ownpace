@@ -9,8 +9,10 @@
  * what they still lack is the tenant's admin consent to LOOK, and the empty
  * state distinguishes "no drift" from "cannot look yet" (rule 9).
  *
- * The frame is the dictionary's (bilingual, 0024); `summary` and `detail` are
- * the server's words, verbatim — the prose boundary.
+ * The frame is the dictionary's (bilingual, 0024); `summary` is the server's
+ * words, verbatim — the prose boundary. The recorded answer and the facts in
+ * Details are said through the dictionary (UX sweep, 2026-10-17): they are
+ * stored as JSON and internal keys, which is what the screen used to print.
  */
 
 import React from 'react';
@@ -33,6 +35,33 @@ import AsOf from '../components/AsOf.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
 import { AttentionSummary } from '../components/AttentionSummary.tsx';
+
+/**
+ * The recorded answer, in words — or nothing (UX sweep, 2026-10-17).
+ *
+ * "Already decided" printed the answer as it is stored, `{"action":
+ * "accept_default"}` in a code font. The shapes are few and known: a named
+ * shared-address pattern, an accepted proposal, a standing answer. Anything
+ * else gets no line, because the status chip beside it already says how the
+ * row was closed, and its JSON would say nothing more to a person. Neither
+ * does an auto-resolved row: its chip reads "Decided by preset".
+ */
+function answerKey(decision: DecisionRow): StringKey | undefined {
+  if (decision.status === 'auto_resolved') return undefined;
+  const r = decision.resolution;
+  if (!r) return undefined;
+  if (r.pattern === 'shared_s') return 'decisions.sharedAddress.shared_s';
+  if (r.pattern === 'distribution_d') return 'decisions.sharedAddress.distribution_d';
+  if (r.action === 'accept_default') return 'decisions.answer.acceptDefault';
+  if ('preset' in r) return 'decisions.answer.preset';
+  return undefined;
+}
+
+/** One of the detail's facts when it is text, else nothing. */
+function detailText(decision: DecisionRow, key: 'address' | 'displayName'): string | undefined {
+  const v = decision.detail?.[key];
+  return typeof v === 'string' && v.trim() ? v : undefined;
+}
 
 /** The server's message for a failed request, verbatim; dictionary fallback. */
 function errorText(err: unknown, fallback: string): string {
@@ -205,13 +234,15 @@ const Decisions: React.FC = () => {
           <p className="text-amber-700">{t('decisions.presets.readError')}</p>
         ) : (
           <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-sm text-gray-700">
+            {/* A column on a phone: beside the select, the label was squeezed
+                into a strip five lines tall. */}
+            <label className="flex flex-col items-start gap-1 text-sm text-gray-700 sm:flex-row sm:items-center sm:gap-2">
               {t('decisions.presets.newMailbox')}
               <select
                 value={newMailboxPreset}
                 disabled={!canManage || presetBusy || !presetQuery.isSuccess}
                 onChange={(e) => savePreset(e.target.value as 'auto' | 'ask')}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
+                className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg text-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
               >
                 <option value="ask">{t('decisions.presets.ask')}</option>
                 <option value="auto">{t('decisions.presets.auto')}</option>
@@ -243,7 +274,7 @@ const Decisions: React.FC = () => {
                 would say nothing about what this list holds. */}
             <h2 className="text-lg font-semibold text-gray-900 mb-1">
               {t('decisions.waiting')}{' '}
-              <span className="text-gray-400 font-normal">({pending.length})</span>
+              <span className="text-gray-500 font-normal">({pending.length})</span>
             </h2>
             <p className="text-gray-500 mb-3">{t('decisions.intro')}</p>
             {pending.length === 0 ? (
@@ -260,7 +291,7 @@ const Decisions: React.FC = () => {
                       <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">
                         {t(`decisionCategory.${decision.category}` as StringKey)}
                       </span>
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-gray-500">
                         {dateTime(decision.createdAt)}
                       </span>
                     </div>
@@ -311,65 +342,91 @@ const Decisions: React.FC = () => {
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-3">
               {t('queue.alreadyDecided')}{' '}
-              <span className="text-gray-400 font-normal">({answered.length})</span>
+              <span className="text-gray-500 font-normal">({answered.length})</span>
             </h2>
             {answered.length === 0 ? (
               <p className="text-gray-500">{t('decisions.empty.answered')}</p>
             ) : (
               <ul className="divide-y divide-gray-100">
-                {answered.map((decision) => (
-                  <li key={decision.id} className="py-3 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
-                        {t(`decisionCategory.${decision.category}` as StringKey)}
-                      </span>
-                      <StateChip
-                        entity="decision"
-                        state={decision.status as 'resolved' | 'auto_resolved' | 'dismissed'}
-                      />
-                      {decision.resolvedAt && (
-                        <span className="text-xs text-gray-400">
-                          {dateTime(decision.resolvedAt)}
+                {answered.map((decision) => {
+                  const answer = answerKey(decision);
+                  // "by" names somebody only when it is an address a person
+                  // can read: on managed the server holds the sign-in's id,
+                  // and a preset's own name, neither of which says who.
+                  const by = decision.resolvedBy?.includes('@') ? decision.resolvedBy : undefined;
+                  const address = detailText(decision, 'address');
+                  const displayName = detailText(decision, 'displayName');
+                  return (
+                    <li key={decision.id} className="py-3 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                          {t(`decisionCategory.${decision.category}` as StringKey)}
                         </span>
-                      )}
-                    </div>
-                    <p className="text-gray-600">{decision.summary}</p>
-                    {/* The whole story (0038 T5): the contract carries the
-                        recorded answer, who gave it, and the structured facts
-                        — the screen rendered none of them (its own header
-                        comment claimed detail renders; it never did). */}
-                    {decision.resolution && (
-                      <p className="text-xs text-gray-600">
-                        {t('decisions.answer')}{' '}
-                        <span className="font-mono">{JSON.stringify(decision.resolution)}</span>
-                        {decision.resolvedBy && (
-                          <span className="text-gray-500">
-                            {' '}
-                            {t('decisions.answeredBy')} {decision.resolvedBy}
+                        <StateChip
+                          entity="decision"
+                          state={decision.status as 'resolved' | 'auto_resolved' | 'dismissed'}
+                        />
+                        {decision.resolvedAt && (
+                          <span className="text-xs text-gray-500">
+                            {dateTime(decision.resolvedAt)}
                           </span>
                         )}
-                      </p>
-                    )}
-                    {Object.keys(decision.detail ?? {}).length > 0 && (
-                      <details className="text-xs">
-                        <summary className="cursor-pointer text-gray-500 select-none">
-                          {t('decisions.detailToggle')}
-                        </summary>
-                        <ul className="mt-1 pl-3 border-l-2 border-gray-100">
-                          {Object.entries(decision.detail).map(([k, v]) => (
-                            <li key={k} className="font-mono text-gray-600">
-                              {k}: {typeof v === 'string' ? v : JSON.stringify(v)}
-                            </li>
-                          ))}
-                        </ul>
-                      </details>
-                    )}
-                    {rowEffects[decision.id] && (
-                      // What the click DID — the server's sentence, verbatim.
-                      <p className="text-xs text-emerald-700">{rowEffects[decision.id]}</p>
-                    )}
-                  </li>
-                ))}
+                      </div>
+                      <p className="text-gray-600">{decision.summary}</p>
+                      {/* The whole story (0038 T5): the contract carries the
+                          recorded answer, who gave it, and the structured facts
+                          — the screen rendered none of them (its own header
+                          comment claimed detail renders; it never did). */}
+                      {answer ? (
+                        <p className="text-xs text-gray-600">
+                          {t('decisions.answer')} {t(answer)}
+                          {by && (
+                            <span className="text-gray-500">
+                              {' '}
+                              {t('decisions.answeredBy')} {by}
+                            </span>
+                          )}
+                        </p>
+                      ) : (
+                        // No answer in words to hang "by" on, but who closed
+                        // it is still part of the story.
+                        by && (
+                          <p className="text-xs text-gray-500">
+                            {t('decisions.decidedBy', { who: by })}
+                          </p>
+                        )
+                      )}
+                      {/* The two facts a person recognises, labelled. The rest of
+                          the detail is the detector's own ids, which said
+                          nothing to anyone reading them here. */}
+                      {(address || displayName) && (
+                        <details className="text-xs">
+                          <summary className="cursor-pointer text-gray-500 select-none">
+                            {t('decisions.detailToggle')}
+                          </summary>
+                          <dl className="mt-1 pl-3 border-l-2 border-gray-100 space-y-0.5">
+                            {address && (
+                              <div className="flex flex-wrap gap-x-2">
+                                <dt className="text-gray-500">{t('decisions.detail.address')}</dt>
+                                <dd className="text-gray-700 break-words">{address}</dd>
+                              </div>
+                            )}
+                            {displayName && (
+                              <div className="flex flex-wrap gap-x-2">
+                                <dt className="text-gray-500">{t('decisions.detail.displayName')}</dt>
+                                <dd className="text-gray-700 break-words">{displayName}</dd>
+                              </div>
+                            )}
+                          </dl>
+                        </details>
+                      )}
+                      {rowEffects[decision.id] && (
+                        // What the click DID — the server's sentence, verbatim.
+                        <p className="text-xs text-emerald-700">{rowEffects[decision.id]}</p>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>

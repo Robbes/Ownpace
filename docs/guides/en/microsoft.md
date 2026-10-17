@@ -1,6 +1,6 @@
-# Microsoft 365 — the account, the consent, the registration
+# Microsoft 365 — mail, calendars, contacts, OneDrive and tasks
 
-The **Microsoft 365 account** card authenticates with an **app registration in Microsoft Entra ID** and a refresh token consented by the account being migrated. That card is read-only by construction: the consent asks only for the `.Read` delegated permissions listed under [With your own app](#own-app), so this product could not write to the mailbox, calendar, contacts or OneDrive even if it wanted to — an enforced guarantee, not a promise in a document. The **Via the Graph API** and **Via IMAP** cards work differently, with an administrator's registration: see [the registration these two cards need](#application).
+The **Microsoft 365 account** card authenticates with an **app registration in Microsoft Entra ID** and a refresh token consented by the account being migrated. That card is read-only by construction: the consent asks only for the `.Read` delegated permissions listed under [With your own app](#own-app), so this service could not write to the mailbox, calendar, contacts or OneDrive even if it wanted to — an enforced guarantee, not a promise in a document. The **Via the Graph API** and **Via IMAP** cards work differently, with an administrator's registration: see [the registration these two cards need](#application).
 
 **Most people need only the first card.** Where this service has its own registration, **Start a migration** and the **Accounts** page show a **Connect with Microsoft** button, and nothing under [With your own app](#own-app) is your problem. Read it if you would rather use your own registration.
 
@@ -28,7 +28,7 @@ Test reads the consent back from Microsoft before it reaches anything, so the ba
 
 ### Via the Graph API {#graph}
 
-**Via IMAP** and **Via the Graph API** authenticate with your own registration under **application** permissions, granted by an administrator in your own tenant. That is what an administrator migrating other people's mailboxes needs, and the Microsoft 365 account card's delegated grant will never do it. To use one, tick **Email** under Microsoft 365 on **What moves?**, answer **Yes** to **Is this a company account with an administrator?**, and choose **Through our own app, with Microsoft Graph** or **Through our own app, with IMAP**. **Connect your accounts** then asks for the mailbox address, under **Username**, and for the **Tenant ID**, the **Client ID (application ID)** and the **Client secret** of that registration.
+**Via IMAP** and **Via the Graph API** authenticate with your own registration under **application** permissions, granted by an administrator in your own tenant. That is what an administrator migrating other people's mailboxes needs, and the Microsoft 365 account card's delegated grant will never do it. To use one, tick **Email** under Microsoft 365 on **What moves?**, answer **Yes** to **Is this a company account with an administrator?**, and choose **Through your organisation's app, with Microsoft Graph** or **Through your organisation's app, with IMAP**. **Connect your accounts** then asks for the mailbox address, under **Username**, and for the **Tenant ID**, the **Client ID (application ID)** and the **Client secret** of that registration.
 
 Both cards read one mailbox's mail. Calendars, contacts, OneDrive and To Do come through the **Microsoft 365 account** card.
 
@@ -65,7 +65,7 @@ This card signs in to Exchange Online's IMAP server as the application. Such a t
 
 1. **API permissions** → **Add a permission** → **APIs my organization uses** → search for **Office 365 Exchange Online** → **Application permissions**. Add:
 
-- `IMAP.AccessAsApp` — IMAP access to mailboxes, as the application.
+   - `IMAP.AccessAsApp` — IMAP access to mailboxes, as the application.
 
 2. **Grant admin consent for** your organisation, and confirm.
 3. Register the application in Exchange Online. An Exchange administrator does this in Exchange Online PowerShell, after `Install-Module -Name ExchangeOnlineManagement` once:
@@ -153,7 +153,7 @@ API permissions → Add a permission → **Microsoft Graph** → **Delegated per
 - `Tasks.Read` — their Microsoft To Do lists, asked for only when Tasks is ticked
 - `offline_access` — the refresh token, without which the grant dies in an hour
 
-**Nothing else, and specifically not the `.All` variants.** `Files.Read.All` would read the whole tenant's OneDrive; `Files.Read` reads the signed-in user's own. This product migrates the account in front of it, and a token that cannot reach further is the cheapest guarantee of that.
+**Nothing else, and specifically not the `.All` variants.** `Files.Read.All` would read the whole tenant's OneDrive; `Files.Read` reads the signed-in user's own. This service migrates the account in front of it, and a token that cannot reach further is the cheapest guarantee of that.
 
 **Do not grant admin consent here.** These are delegated permissions — the person being migrated approves them for themselves, on the consent screen, which is the point of the button.
 

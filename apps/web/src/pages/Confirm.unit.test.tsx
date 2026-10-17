@@ -106,7 +106,7 @@ describe('before anything has started', () => {
     expect(await screen.findByText(/Nothing has been copied yet/)).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: /Start migration/ })).toBeInTheDocument();
     // The counts it is asking them to review.
-    expect(await screen.findByText('4812')).toBeInTheDocument();
+    expect(await screen.findByText('4,812')).toBeInTheDocument();
   });
 
   it('holds the green light until the refusals have been acknowledged', async () => {
@@ -249,7 +249,7 @@ describe('once it is running', () => {
     fetchStatus.mockResolvedValue(status('paused'));
     renderScreen();
 
-    expect(await screen.findByText('4812')).toBeInTheDocument();
+    expect(await screen.findByText('4,812')).toBeInTheDocument();
     expect(screen.queryByText(/Pre-start scan/)).not.toBeInTheDocument();
   });
 

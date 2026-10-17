@@ -48,9 +48,13 @@ export type Budget = { readonly words: number; readonly oneSentence: boolean };
  *
  * - `setup.intro`: the owner's Dutch says *uw oude aanbieder* and runs to 16
  *   words; the owner kept it (2026-10-10, text review decision 25).
+ * - `setup.target.intro`: the target twin of setup.intro, the owner's
+ *   sentence (decision 25) with *nieuwe* for *oude* (the UX sweep,
+ *   2026-10-17).
  */
 const RAISED: Readonly<Record<string, Budget>> = {
   'setup.intro': { words: 16, oneSentence: false },
+  'setup.target.intro': { words: 16, oneSentence: false },
 };
 
 /** What a key of this shape may spend on screen. */

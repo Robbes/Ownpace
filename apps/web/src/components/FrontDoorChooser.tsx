@@ -11,6 +11,7 @@
  * retired since (0153 D5), and the Accounts page draws it.
  */
 import React from 'react';
+import { Check } from 'lucide-react';
 import { partitionFrontDoor, providerDisplayName, sourceCardIsExperimental } from '@openmig/shared';
 import { useLocale } from '../i18n/index.tsx';
 import { ExperimentalTag, ExperimentalWhy } from './ExperimentalTag.tsx';
@@ -62,6 +63,11 @@ export function FrontDoorChooser<C extends FrontDoorCard>({
    * leaves: a row of untagged cards stays one height, and a tagged card's
    * button ends a fold's height above an untagged neighbour's, with the fold
    * under it.
+   *
+   * THE PICKED CARD SAYS SO, NOT ONLY IN BLUE (0145 T2): `aria-pressed` for a
+   * screen reader, which read every card alike, and a check mark beside the
+   * name for somebody who cannot tell the two light colours apart. The mark
+   * is hidden from the name, which `aria-pressed` already carries.
    */
   const renderCard = (raw: C): React.ReactElement => {
     const card: FrontDoorCard = raw;
@@ -71,6 +77,7 @@ export function FrontDoorChooser<C extends FrontDoorCard>({
       <div key={card.id} className="flex flex-col">
         <button
           type="button"
+          aria-pressed={selected}
           onClick={() => onPick(raw)}
           className={`w-full flex-1 p-4 border-2 rounded-lg text-left transition-colors ${
             selected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
@@ -85,6 +92,13 @@ export function FrontDoorChooser<C extends FrontDoorCard>({
               </p>
               <p className="text-sm text-gray-500 mt-1">{t(card.hintKey)}</p>
             </div>
+            {selected && (
+              <Check
+                aria-hidden="true"
+                data-picked-mark=""
+                className="ml-auto h-5 w-5 shrink-0 text-blue-700"
+              />
+            )}
           </div>
         </button>
         {experimental && <ExperimentalWhy />}

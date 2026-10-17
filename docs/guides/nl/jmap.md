@@ -1,6 +1,6 @@
 # JMAP — een postvak op een JMAP-server
 
-JMAP is een nieuwer protocol voor mail en contacten, dat een mailserver via het web aanbiedt. Deze dienst schrijft naar een JMAP-doel mail, contacten en bestanden, en meldt zich aan met een gebruikersnaam en een wachtwoord; er is geen knop om toestemming te geven.
+JMAP is een nieuwer protocol voor mail en contacten, dat een mailserver via het web aanbiedt. Deze dienst schrijft naar een JMAP-bestemming mail, contacten en bestanden, en meldt zich aan met een gebruikersnaam en een wachtwoord; er is geen knop om toestemming te geven.
 
 ## Wat u nodig hebt {#before}
 
@@ -22,14 +22,14 @@ De test vraagt het sessiedocument op dat elke JMAP-server aanbiedt, op `/.well-k
 
 **Waar de kopieën komen**, onder de rijen, zegt waar de mail in dat account terechtkomt. Laat u het zoals het is, dan voegt het samen in het account. Open **In een eigen map zetten** en typ een naam bij **Map**, en alles komt onder die map terecht.
 
-U kunt een JMAP-account ook vooraf toevoegen, onder **Accounts** → **Account toevoegen**: kies bij **Bron of doel?** **Doelen**, dan de kaart **JMAP**, en druk op **Toevoegen en testen**. In de **Instelchecklist** staat de voorbereiding voor een JMAP-doel als lijst die onthoudt wat u al gedaan hebt.
+U kunt een JMAP-account ook vooraf toevoegen, onder **Accounts** → **Account toevoegen**: kies bij **Bron of bestemming?** **Bestemmingen**, dan de kaart **JMAP**, en druk op **Toevoegen en testen**. In de **Instelchecklist** staat de voorbereiding voor een JMAP-bestemming als lijst die onthoudt wat u al gedaan hebt.
 
 ## Wat er meegaat {#what-moves}
 
 - **E-mail**: de mappen en de berichten daarin. Mappen die in het doel nog niet bestaan, worden aangemaakt.
 - **Contacten**.
 - **Bestanden**, met één grens: het grootste bestand dat de JMAP-server in één upload aanneemt. De server geeft die grens zelf op. Een groter bestand meldt de migratie als mislukt, onder **Mislukkingen**, met de grens van de server, en de migratie gaat verder met de rest. Wilt u zo'n bestand meenemen, verhoog dan de uploadgrens van de server, of kies voor de bestanden een WebDAV-doel ([de DAV-handleiding](dav.md)) of een Nextcloud ([de Nextcloud-handleiding](nextcloud.md)).
-- **Agenda** en **Taken** gaan niet naar een JMAP-doel. Terugkerende afspraken komen via JMAP nog niet heel over: een reeks zou als losse afspraken aankomen. Deze dienst schrijft agenda's en takenlijsten daarom via CalDAV: bij **Waar gaat het naartoe?** bieden hun rijen geen JMAP aan, en gaan ze in hun eigen rijen naar een CalDAV-doel, waarvoor **Migratie starten** een eigen migratie maakt.
+- **Agenda** en **Taken** gaan niet naar een JMAP-bestemming. Terugkerende afspraken komen via JMAP nog niet heel over: een reeks zou als losse afspraken aankomen. Deze dienst schrijft agenda's en takenlijsten daarom via CalDAV: bij **Waar gaat het naartoe?** bieden hun rijen geen JMAP aan, en gaan ze in hun eigen rijen naar een CalDAV-doel, waarvoor **Migratie starten** een eigen migratie maakt.
 - Een migratie mag vaker lopen: wat al in het doel staat, wordt herkend en niet nog eens gemigreerd.
 
 ## Als de test iets meldt {#when-test-says}
