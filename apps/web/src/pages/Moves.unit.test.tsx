@@ -79,9 +79,7 @@ beforeEach(() => {
 });
 
 describe('the aftermath section (0036 T2 pin)', () => {
-  it('renders the decided items under a title that says what was decided', async () => {
-    // Only a keep lands here (an apply removes the row), so the section says
-    // what a keep did instead of "Already decided", which said nothing about it.
+  it('renders "Already decided" with the acknowledged items', async () => {
     fetchMovesMock.mockResolvedValue(
       queue({
         acknowledged: [{ ...MOVE, acknowledgedAt: '2026-08-01T00:00:00Z' }],
@@ -90,9 +88,8 @@ describe('the aftermath section (0036 T2 pin)', () => {
     renderScreen();
 
     expect(
-      await screen.findByRole('heading', { name: /Left where they are\s*\(1\)/ }),
+      await screen.findByRole('heading', { name: /Already decided\s*\(1\)/ }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: /Already decided/ })).not.toBeInTheDocument();
     expect(screen.getByText('INBOX/Projects')).toBeInTheDocument();
   });
 

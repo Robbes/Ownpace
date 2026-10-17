@@ -287,10 +287,8 @@ const Moves: React.FC<{
           ))}
         </QueueSection>
 
-        {/* Only a keep lands here (an apply removes the row), so the title
-            says what was decided rather than that something was. */}
         <QueueSection
-          title={t('moves.decided')}
+          title={t('queue.alreadyDecided')}
           count={queue.acknowledged.length}
           empty={t('moves.empty.acknowledged')}
         >

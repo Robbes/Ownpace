@@ -326,10 +326,8 @@ const Deletions: React.FC<{
           </>
         )}
 
-        {/* Only kept items land here (a keep moves a row to acknowledged,
-            an apply removes it), so the title says so. */}
         <QueueSection
-          title={t('deletions.decided')}
+          title={t('queue.alreadyDecided')}
           count={queue.acknowledged.length + queue.earlierExports.kept.length}
           empty={t('deletions.empty.acknowledged')}
         >

@@ -197,10 +197,9 @@ const Failures: React.FC = () => {
           lead={
             <>
               {/* What retry costs, said before it is pressed (0036 T4) — the
-                  sentence tracks domain-sync.ts's cursor comment. */}
-              {queue.needsDecision.length > 0 && (
-                <Hint className="mb-2" text={t('failures.retryCost')} why={t('failures.retryCost.why')} />
-              )}
+                  sentence tracks domain-sync.ts's cursor comment. The section
+                  draws its lead only when it has rows, so no guard here. */}
+              <Hint className="mb-2" text={t('failures.retryCost')} why={t('failures.retryCost.why')} />
               {/* One press for the whole group. A folder of Google Forms and Maps
                   parks a dozen items at once, each with the same answer, and
                   pressing "Migrate without it" twelve times on a phone is how a

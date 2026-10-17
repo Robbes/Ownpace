@@ -494,7 +494,7 @@ describe('a finished migration', () => {
       await screen.findByText(/This migration is finished, so nothing here is still being watched./),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: /Kept on the new system\s*\(1\)/ }),
+      screen.getByRole('heading', { name: /Already decided\s*\(1\)/ }),
     ).toBeInTheDocument();
   });
 });

@@ -93,9 +93,10 @@ export function QueueScreen<T extends QueueEnvelope>({
         .then((r) => {
           setOutcomes((o) => ({ ...o, [hash]: { state: 'done', effect: r.effect } }));
           // Re-read rather than patch the cache: the server decides what a
-          // decision did to the queue (a `keep` moves an item to
-          // `acknowledged`, an `apply` removes it), and guessing that here
-          // would be a second implementation of the same rules.
+          // decision did to the queue (a `keep` and an `apply` both move the
+          // item to `acknowledged`, because the ledger closes the entry either
+          // way), and guessing that here would be a second implementation of
+          // the same rules.
           void queryClient.invalidateQueries({ queryKey: [queryKey] });
         })
         .catch((err: unknown) => {

@@ -29,9 +29,6 @@ export const en = {
   'moves.intro.more': 'The new system still has them where we put them; each row is your call.',
   'moves.empty.open': 'Nothing has moved.',
   'moves.empty.acknowledged': 'Nothing has been decided yet.',
-  // Only a keep lands in the decided section (an apply removes the row), so
-  // its title says what was decided (the UX sweep, 2026-10-17).
-  'moves.decided': 'Left where they are',
   'moves.keep': 'Leave it where it is',
   'moves.apply': 'Remove the old copy',
   'moves.applyArmed': 'Confirm removal',
@@ -99,7 +96,6 @@ export const en = {
   'deletions.watching': 'Watching',
   'deletions.empty.watching': 'Nothing is being watched.',
   'deletions.empty.acknowledged': 'Nothing has been decided yet.',
-  'deletions.decided': 'Kept on the new system',
   'deletions.keep': 'Keep our copy',
   'deletions.apply': 'Delete it here too',
   'deletions.applyArmed': 'Confirm delete',
@@ -129,7 +125,6 @@ export const nl: Record<keyof typeof en, string> = {
     'Het nieuwe systeem heeft deze nog, waar wij ze hadden geplaatst; beslis over elke regel.',
   'moves.empty.open': 'Er is niets verplaatst.',
   'moves.empty.acknowledged': 'Er is nog niets besloten.',
-  'moves.decided': 'Blijven waar ze staan',
   'moves.keep': 'Laat staan',
   'moves.apply': 'Verwijder de oude kopie',
   'moves.applyArmed': 'Bevestig verwijdering',
@@ -186,7 +181,6 @@ export const nl: Record<keyof typeof en, string> = {
   'deletions.watching': 'Wordt in de gaten gehouden',
   'deletions.empty.watching': 'Er wordt niets in de gaten gehouden.',
   'deletions.empty.acknowledged': 'Er is nog niets besloten.',
-  'deletions.decided': 'Behouden op het nieuwe systeem',
   'deletions.keep': 'Behoud de kopie',
   'deletions.apply': 'Verwijder het hier ook',
   'deletions.applyArmed': 'Bevestig verwijderen',
