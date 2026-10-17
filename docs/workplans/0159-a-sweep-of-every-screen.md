@@ -286,7 +286,9 @@ later PR builds the answers.
 9. **Migration 0058, the sweep's one schema change.** The operator's invoice view
    (`support_tenant_invoices`, managed chain) gains `invoice_number` and `kind`, added at the end
    with `CREATE OR REPLACE VIEW`; its grant and 0027's revoke stay. Applied to a real Postgres 16
-   with `scripts/local-pg.sh`, and covered by the A3 upgrade drill.
+   with `scripts/local-pg.sh`; CI's migration lint reads every file in the managed chain, and the
+   nightly E2E (managed) applies the chain at its bring-up. The upgrade drill
+   (`scripts/upgrade-drill.sh`) covers the appliance only, so it does not prove this one.
 10. **What migrates draws a column's guide links after its rows** (T16), each guide once, so a
     column holding two rows' guides (Microsoft's *Partial*, with Shared mailboxes' guide) no
     longer says which row each belongs to. 0148 now says so.
