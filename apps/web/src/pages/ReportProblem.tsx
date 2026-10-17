@@ -58,7 +58,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureSide, type DiscoveryDomain } from '@openmig/shared';
 import { useLocale, useT } from '../i18n/index.tsx';
@@ -329,6 +329,23 @@ const ReportProblem: React.FC = () => {
   }
 
   if (send.isSuccess) {
+    // Back where the person was (the UX sweep, 2026-10-17): `?from=` when it
+    // is one of this app's own pages, and not this form again; otherwise the
+    // migrations. The browser's own URL parser decides, not a list of
+    // prefixes: it drops tabs and line breaks and reads `\` as `/`, so
+    // `//host`, `/\host` and `/<tab>/host` all come out as another origin,
+    // and `/x/../report` as this form.
+    const back = (() => {
+      if (!from.startsWith('/')) return '/mappings';
+      try {
+        const here = globalThis.location.origin;
+        const url = new URL(from, here);
+        if (url.origin !== here || url.pathname.startsWith('/report')) return '/mappings';
+        return `${url.pathname}${url.search}${url.hash}`;
+      } catch {
+        return '/mappings';
+      }
+    })();
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-gray-900">{t('report.title')}</h1>
@@ -337,9 +354,15 @@ const ReportProblem: React.FC = () => {
             ? t('report.sent', { ticket: send.data.ticket, email: email ?? '' })
             : t('report.sent.mail', { reference: send.data.reference, email: email ?? '' })}
         </p>
+        <Link to={back} className="text-sm text-blue-700 underline underline-offset-2 hover:text-blue-900">
+          {t('report.back')}
+        </Link>
       </div>
     );
   }
+
+  // Why the button is pale, while it is pale for that reason (0145 T7 (a)).
+  const needsText = !send.isPending && description.trim() === '';
 
   return (
     <div className="space-y-6">
@@ -380,14 +403,25 @@ const ReportProblem: React.FC = () => {
             {t('report.screenshot')}
           </label>
           <div className="flex flex-wrap items-center gap-3">
+            {/* The browser's own chooser said *Choose File · No file chosen*
+                in its own language, unbordered. Hidden for the eye only, so
+                it keeps the tab order and the field's label above; the
+                button-shaped label opens it, in the page's words, and shows
+                its focus. What was chosen is the *Attached* line below. */}
             <input
               ref={chooser}
               id="report-screenshot"
               type="file"
               accept="image/png,image/jpeg"
               onChange={(e) => choose(e.target.files?.[0])}
-              className="block text-sm text-gray-700"
+              className="peer sr-only"
             />
+            <label
+              htmlFor="report-screenshot"
+              className="cursor-pointer px-3 py-1 rounded-md border border-gray-300 bg-white text-sm text-gray-700 hover:bg-gray-50 peer-focus-visible:ring-2 peer-focus-visible:ring-blue-500"
+            >
+              {t('report.screenshotChoose')}
+            </label>
             {read && (
               <button
                 type="button"
@@ -502,13 +536,21 @@ const ReportProblem: React.FC = () => {
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={send.isPending || description.trim() === ''}
-          className="flex min-h-[44px] items-center px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-        >
-          {send.isPending ? t('report.sending') : t('report.send')}
-        </button>
+        <div>
+          <button
+            type="submit"
+            disabled={send.isPending || description.trim() === ''}
+            aria-describedby={needsText ? 'report-send-needs' : undefined}
+            className="flex min-h-[44px] items-center px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            {send.isPending ? t('report.sending') : t('report.send')}
+          </button>
+          {needsText && (
+            <p id="report-send-needs" className="mt-2 text-sm text-gray-600">
+              {t('report.sendNeeds')}
+            </p>
+          )}
+        </div>
       </form>
     </div>
   );

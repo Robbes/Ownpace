@@ -9,8 +9,23 @@
  * that no longer exists at runtime.
  */
 
-/** The per-mapping operating screens, by their route segment. */
-export type MappingScreen = 'deletions' | 'moves' | 'failures' | 'verify' | 'finish';
+/**
+ * The screens under a migration's hub, by their route segment.
+ *
+ * Sharing, Confirmed, the report and Review joined in the UX sweep: they
+ * parsed as the hub, so the bar named no screen and Back skipped the
+ * migration and went to the list, though the hub links to all four.
+ */
+export type MappingScreen =
+  | 'deletions'
+  | 'moves'
+  | 'failures'
+  | 'verify'
+  | 'finish'
+  | 'sharing'
+  | 'confirmed'
+  | 'report'
+  | 'confirm';
 
 const MAPPING_SCREENS: readonly MappingScreen[] = [
   'deletions',
@@ -18,6 +33,10 @@ const MAPPING_SCREENS: readonly MappingScreen[] = [
   'failures',
   'verify',
   'finish',
+  'sharing',
+  'confirmed',
+  'report',
+  'confirm',
 ];
 
 export interface MappingRouteContext {
