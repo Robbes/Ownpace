@@ -408,7 +408,7 @@ export function measuredText(
         bits.push(t(key, { count: numberFormat.format(v.items) }));
       }
       if (v.bytes !== undefined) {
-        bits.push(`${v.estimated ? '≈ ' : ''}${formatBytes(v.bytes)}`);
+        bits.push(`${v.estimated ? '≈ ' : ''}${formatBytes(v.bytes, locale)}`);
       }
       if (v.nativeFilesExcluded) bits.push(`(${t('probe.measured.driveNote')})`);
       // BESIDE THE COUNT, NOT INSTEAD OF IT (2026-09-07). "0 cards" and "0

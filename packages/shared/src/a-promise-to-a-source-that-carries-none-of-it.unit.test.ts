@@ -39,7 +39,7 @@ import {
 } from './scope-manifest.ts';
 import { SOURCE_TYPE_DOMAINS, type WizardSourceType } from './target-domains.ts';
 import { connectableTypes } from './credential-fields.ts';
-import type { DiscoveryDomain } from './discovery.ts';
+import { DISCOVERY_DOMAINS, type DiscoveryDomain } from './discovery.ts';
 
 const COLUMNS = ['migrates', 'partial', 'doesNotMigrate'] as const;
 
@@ -215,5 +215,71 @@ describe('a source card names the family the other two vocabularies do', () => {
     for (const notACard of ['', 'jmap', 'soverin', 'constructor', 'google_drive']) {
       expect(scopeFamilyOfSourceCard(notACard), notACard).toBeUndefined();
     }
+  });
+});
+
+/**
+ * A PROMISE ABOUT DATA NOBODY TICKED (the UX sweep, 2026-10-17). The rows were
+ * narrowed by family alone, so a Google migration of a calendar and contacts
+ * was confirmed under Email, Files, Tasks, *Mail with no Message-ID* and
+ * *Google-native files* — five rows about data it does not carry, one of them
+ * saying the documents are converted while the default leaves them behind.
+ * Each row about one kind of data now says which (`domains`), and the screens
+ * that know what was ticked pass it.
+ */
+describe('each row about one kind of data says which, and an unticked kind is not shown', () => {
+  const every = COLUMNS.flatMap((c) => [...SCOPE_MANIFEST[c]]);
+
+  it('names only data types the code knows, and never an empty list', () => {
+    for (const entry of every) {
+      if (entry.domains === undefined) continue;
+      expect(entry.domains.length, entry.item).toBeGreaterThan(0);
+      for (const d of entry.domains) expect(DISCOVERY_DOMAINS, `${entry.item}: ${d}`).toContain(d);
+    }
+  });
+
+  it('ties every data row to its own data type', () => {
+    for (const entry of every) {
+      const domain = ROW_DOMAIN[entry.item] ?? (entry.item === 'Files' ? 'file' : undefined);
+      if (domain !== undefined) expect(entry.domains, entry.item).toEqual([domain]);
+    }
+    const byItem = (item: string) => every.filter((e) => e.item === item);
+    for (const item of ['Shared mailboxes', 'Distribution lists']) {
+      expect(byItem(item)[0]!.domains, item).toEqual(['email']);
+    }
+    for (const item of ['Google-native files', 'Revision history', 'SharePoint extras']) {
+      expect(byItem(item)[0]!.domains, item).toEqual(['file']);
+    }
+    // True whatever was ticked: what is listed for the person, and what stays behind.
+    for (const entry of byItem('Permissions')) expect(entry.domains, 'Permissions').toBeUndefined();
+    for (const item of ['Google Keep', 'Google Photos', 'Teams chat & calls']) {
+      expect(byItem(item)[0]!.domains, item).toBeUndefined();
+    }
+  });
+
+  it('tells a Google calendar-and-contacts migration about calendars and contacts, and not mail, files or tasks', () => {
+    const scoped = scopeManifestFor(SCOPE_MANIFEST, ['google'], ['calendar', 'contact']);
+    const items = COLUMNS.flatMap((c) => scoped[c].map((e) => e.item));
+    for (const item of ['Calendar', 'Contacts', 'Permissions', 'Google Keep', 'Google Photos']) {
+      expect(items, item).toContain(item);
+    }
+    for (const item of ['Email', 'Mail with no Message-ID', 'Files', 'Tasks', 'Google-native files', 'Revision history']) {
+      expect(items, item).not.toContain(item);
+    }
+  });
+
+  it('keeps every row of the family where the data types are not given', () => {
+    expect(scopeManifestFor(SCOPE_MANIFEST, ['google'], undefined)).toEqual(scopeManifestFor(SCOPE_MANIFEST, ['google']));
+  });
+
+  it('says the Google documents are converted or left behind, as chosen, in both languages', () => {
+    const native = SCOPE_MANIFEST.partial.find((e) => e.item === 'Google-native files')!;
+    expect(native.detail).toBe('Converted to the format you chose, or left in Google and reported by name.');
+    expect(native.nl?.detail).toBe(
+      'Omgezet naar het formaat dat u koos, of ze blijven staan in Google, elk met naam gemeld.',
+    );
+    // Which documents they are is said in the fold, in both languages.
+    expect(native.more).toMatch(/^Google keeps Docs, Sheets, Slides and Drawings as online documents/);
+    expect(native.nl?.more).toMatch(/^Google bewaart Documenten, Spreadsheets, Presentaties en Tekeningen/);
   });
 });

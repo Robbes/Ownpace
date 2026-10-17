@@ -228,8 +228,10 @@ describe('when acceptance is due', () => {
     getMock.mockResolvedValue(me(DUE));
     renderGate('en');
 
-    const main = await screen.findByRole('main');
-    expect(within(main).getByRole('heading', { level: 1 })).toBeInTheDocument();
+    // The front that says it is still checking is a `main` too, so the
+    // screen's heading is waited for first.
+    const heading = await screen.findByRole('heading', { level: 1 });
+    expect(screen.getByRole('main')).toContainElement(heading);
   });
 
   it('one button sends the versions it showed and the reader’s language, and the page comes back', async () => {
@@ -444,6 +446,21 @@ describe('when the answer could not be read', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not be read.*error on our side/);
     expect(screen.queryByText('screen:dashboard')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
+  });
+
+  // The gate stands in for the layout, so its Sign out is not here; and a
+  // 403's sentence tells the person to sign out (the UX sweep, 2026-10-17).
+  it('offers Sign out under Try again, in a main landmark, and pressing it clears the session', async () => {
+    getMock.mockRejectedValue(refused(500, { error: 'me_failed', message: 'the database is unreachable' }));
+    renderGate('en');
+
+    await screen.findByRole('alert');
+    expect(screen.getByRole('main')).toContainElement(screen.getByRole('alert'));
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+
+    expect(await screen.findByText('screen:login')).toBeInTheDocument();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(useAuthStore.getState().token).toBeNull();
   });
 
   it('says a fault on our side in the reader’s language, keeping its reference', async () => {

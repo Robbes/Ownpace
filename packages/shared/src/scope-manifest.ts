@@ -211,6 +211,7 @@ export function scopeFamilyOfSourceCard(card: string): ScopeFamily | undefined {
 }
 
 import type { SourceConfig } from './config.ts';
+import type { DiscoveryDomain } from './discovery.ts';
 import type { GuideHandle } from './guide-handle.ts';
 import type { WizardSourceType } from './target-domains.ts';
 
@@ -283,6 +284,19 @@ export interface ScopeManifestEntry {
    * product in a row and that row has to say whose.
    */
   readonly appliesTo?: ReadonlyArray<ScopeFamily>;
+  /**
+   * WHICH DATA TYPES THIS ROW IS ABOUT. Absent means it is true whatever was
+   * ticked: what is listed for the person to redo (Permissions), and the
+   * products that stay behind (Google Keep, Teams).
+   *
+   * The second axis `appliesTo` could not give (the UX sweep, 2026-10-17). A
+   * Google migration of a calendar and its contacts was confirmed under Email,
+   * Files, Google Tasks, *Mail with no Message-ID* and *Google-native files*:
+   * the family was right, and the data was not what was ticked. A screen that
+   * knows the data types passes them to `scopeManifestFor`, and a row about
+   * none of them is not shown.
+   */
+  readonly domains?: ReadonlyArray<DiscoveryDomain>;
   /**
    * THE SAME ROW IN DUTCH, beside its English (workplan 0013, 2026-10-14).
    *
@@ -389,7 +403,12 @@ export const SCOPE_MANIFEST: ScopeManifest = {
   // server's migration lost the Calendar, Contacts, Files and Tasks rows it
   // was shown as a `standards` source, now that `imap` is a family of its own.
   // The version is the day the set last changed, and that is still today.
-  version: '2026-10-16',
+  //
+  // Bumped on 2026-10-17 (the UX sweep): each row about one kind of data says
+  // which (`domains`), so a migration is shown only the rows about what it
+  // carries; and *Google-native files* says they are converted OR left in
+  // Google, since leaving them is the default on *What moves?*.
+  version: '2026-10-17',
   migrates: [
     // MAIL, CALENDARS AND CONTACTS, for the families that carry them (2026-10-16).
     // Read from the code, not from memory: Google (its account, and `gmail`),
@@ -404,6 +423,7 @@ export const SCOPE_MANIFEST: ScopeManifest = {
       item: 'Email',
       detail: 'Every folder, Sent, Drafts and Archive included, with flags, tags and dates.',
       appliesTo: ['google', 'microsoft', 'standards', 'imap'],
+      domains: ['email'],
       nl: {
         item: 'E-mail',
         detail: 'Elke map, ook Verzonden, Concepten en Archief, met markeringen, labels en datums.',
@@ -413,12 +433,14 @@ export const SCOPE_MANIFEST: ScopeManifest = {
       item: 'Calendar',
       detail: 'Events, repeating ones included, with their attendees.',
       appliesTo: ['google', 'microsoft', 'standards'],
+      domains: ['calendar'],
       nl: { item: 'Agenda', detail: 'Afspraken, ook terugkerende, met hun deelnemers.' },
     },
     {
       item: 'Contacts',
       detail: 'Address books and contacts.',
       appliesTo: ['google', 'microsoft', 'standards'],
+      domains: ['contact'],
       more:
         'Every field comes across, including ones the destination has no field of its own for. ' +
         'One difference to know before you switch over: a JMAP destination cannot hand a ' +
@@ -441,6 +463,7 @@ export const SCOPE_MANIFEST: ScopeManifest = {
       detail: 'OneDrive and SharePoint libraries: files and folders.',
       more: FILES_MORE.en,
       appliesTo: ['microsoft'],
+      domains: ['file'],
       nl: {
         item: 'Bestanden',
         detail: 'OneDrive- en SharePoint-bibliotheken: bestanden en mappen.',
@@ -452,6 +475,7 @@ export const SCOPE_MANIFEST: ScopeManifest = {
       detail: 'Google Drive: files and folders.',
       more: FILES_MORE.en,
       appliesTo: ['google'],
+      domains: ['file'],
       nl: { item: 'Bestanden', detail: 'Google Drive: bestanden en mappen.', more: FILES_MORE.nl },
     },
     {
@@ -464,6 +488,7 @@ export const SCOPE_MANIFEST: ScopeManifest = {
         'decide, and is never removed for you. Two things Google does not give out cannot come ' +
         'across: a time of day on a due date, and a repeat.',
       appliesTo: ['google'],
+      domains: ['task'],
       nl: {
         item: 'Taken',
         detail: 'Google Tasks: elke lijst en taak, ook afgevinkte en toegewezen taken.',
@@ -491,6 +516,7 @@ export const SCOPE_MANIFEST: ScopeManifest = {
         'become lines in its description. Two statuses only Outlook sets, waiting on someone ' +
         'else and deferred, arrive as not started. Files attached to a task do not come across.',
       appliesTo: ['microsoft'],
+      domains: ['task'],
       guide: 'microsoft#what-moves',
       nl: {
         item: 'Taken',
@@ -507,6 +533,7 @@ export const SCOPE_MANIFEST: ScopeManifest = {
       detail: 'Files and folders.',
       more: FILES_MORE.en,
       appliesTo: ['dropbox', 'box', 'archive', 'standards'],
+      domains: ['file'],
       nl: { item: 'Bestanden', detail: 'Bestanden en mappen.', more: FILES_MORE.nl },
     },
   ],
@@ -527,6 +554,7 @@ export const SCOPE_MANIFEST: ScopeManifest = {
         'they were written. Your destination must keep task lists, as Nextcloud and Soverin ' +
         'do: one that keeps only calendars refuses each task, and lists it under Failures.',
       appliesTo: ['standards'],
+      domains: ['task'],
       guide: 'apple#reminders',
       nl: {
         item: 'Taken',
@@ -559,6 +587,7 @@ export const SCOPE_MANIFEST: ScopeManifest = {
       item: 'Shared mailboxes',
       detail: 'Needs your own app registration; not yet copied from a real shared mailbox.',
       appliesTo: ['microsoft'],
+      domains: ['email'],
       more:
         'It is copied like any other mailbox: every folder, Sent, Drafts and Archive included, ' +
         'each message once, with the same checks afterwards. An administrator has to grant ' +
@@ -582,6 +611,7 @@ export const SCOPE_MANIFEST: ScopeManifest = {
       item: 'Distribution lists',
       detail: 'We list them and their members for you; you recreate them yourself.',
       appliesTo: ['microsoft'],
+      domains: ['email'],
       more:
         'Not done for you. Each list and its members are read and shown, and you get ' +
         "step-by-step instructions with each list's address and exactly who must receive its " +
@@ -602,6 +632,7 @@ export const SCOPE_MANIFEST: ScopeManifest = {
       detail: 'Migrated with a generated Message-ID on the copy, where the connection can add one.',
       // Email's families: a source that carries no mail has none without one.
       appliesTo: ['google', 'microsoft', 'standards', 'imap'],
+      domains: ['email'],
       more:
         'We need one to copy each message exactly once. The original on the source is never ' +
         'modified. The count before you start says how many messages get one, and how many ' +
@@ -665,11 +696,17 @@ export const SCOPE_MANIFEST: ScopeManifest = {
       // (`GOOGLE_NATIVE_FILE_SOURCE_TYPES`, the export chooser) — and this
       // panel, the one you confirm on, said nothing about it at all.
       item: 'Google-native files',
-      detail: 'Docs, Sheets, Slides and Drawings are converted, never copied as they are.',
+      // Converted OR left behind, as chosen (the UX sweep, 2026-10-17): the
+      // line said only "converted", while leaving them in Google is the
+      // default on *What moves?*. The fold below always said both. Docs,
+      // Sheets, Slides and Drawings are named in the fold, which keeps the
+      // line to one (`a-promise-compressed-out-of-existence`).
+      detail: 'Converted to the format you chose, or left in Google and reported by name.',
       appliesTo: ['google'],
+      domains: ['file'],
       more:
-        'Google keeps these as online documents, not as files, so there is no original file to ' +
-        'copy. Each arrives in the format you chose when you set up the migration (OpenDocument, ' +
+        'Google keeps Docs, Sheets, Slides and Drawings as online documents, not as files, so ' +
+        'there is no original file to copy. Each arrives in the format you chose when you set up the migration (OpenDocument, ' +
         'Microsoft Office or PDF; a drawing as an image) as a conversion Google makes, not the ' +
         'thing itself, or stays behind and is reported by name if you chose that. Two ' +
         'conversions of an unchanged document are not always identical either: a presentation ' +
@@ -678,10 +715,10 @@ export const SCOPE_MANIFEST: ScopeManifest = {
         'exactly, like any other file.',
       nl: {
         item: 'Google-documenten',
-        detail: 'Documenten, Spreadsheets, Presentaties, Tekeningen: omgezet, nooit ongewijzigd gekopieerd.',
+        detail: 'Omgezet naar het formaat dat u koos, of ze blijven staan in Google, elk met naam gemeld.',
         more:
-          'Google bewaart deze als online documenten, niet als bestanden, dus er is geen origineel ' +
-          'bestand om te kopiëren. Elk komt aan in het formaat dat u koos bij het instellen van de ' +
+          'Google bewaart Documenten, Spreadsheets, Presentaties en Tekeningen als online ' +
+          'documenten, niet als bestanden, dus er is geen origineel bestand om te kopiëren. Elk komt aan in het formaat dat u koos bij het instellen van de ' +
           'migratie (OpenDocument, Microsoft Office of PDF; een tekening als afbeelding), als ' +
           'omzetting die Google maakt en niet als het document zelf, of blijft achter en wordt ' +
           'bij naam gemeld als u dat koos. Twee omzettingen van een ongewijzigd document zijn ook ' +
@@ -721,6 +758,8 @@ export const SCOPE_MANIFEST: ScopeManifest = {
     {
       item: 'SharePoint extras',
       appliesTo: ['microsoft'],
+      // About the files: its fold points at Files, under Migrates.
+      domains: ['file'],
       detail: 'Version history, permissions, metadata, lists and pages stay behind.',
       more: 'The files and folders themselves are migrated: see Files, under Migrates.',
       nl: {
@@ -820,6 +859,7 @@ export const SCOPE_MANIFEST: ScopeManifest = {
       item: 'Revision history',
       detail: 'A Drive document arrives as it is now; its earlier versions stay behind.',
       appliesTo: ['google'],
+      domains: ['file'],
       nl: {
         item: 'Versiegeschiedenis',
         detail: 'Een document uit Drive komt aan zoals het nu is; eerdere versies blijven achter.',
@@ -842,14 +882,23 @@ export const SCOPE_MANIFEST: ScopeManifest = {
  * never more. It is also why `scopeFamilyOf` returns `undefined` rather than
  * guessing a family: an unknown source inheriting a known one's promises is
  * the defect this whole file just fixed.
+ *
+ * `domains`, where the caller knows what the migrations carry, narrows it
+ * once more: a row about data types (`ScopeManifestEntry.domains`) none of
+ * which is carried goes, and a row about none in particular stays. Left out,
+ * nothing is narrowed by data type: the appliance's page and the site keep
+ * every row of the family.
  */
 export function scopeManifestFor(
   manifest: ScopeManifest,
   families: ReadonlyArray<ScopeFamily>,
+  domains?: ReadonlyArray<DiscoveryDomain>,
 ): ScopeManifest {
   const wanted = new Set(families);
+  const ticked = domains === undefined ? undefined : new Set(domains);
   const keep = (e: ScopeManifestEntry): boolean =>
-    e.appliesTo === undefined || e.appliesTo.some((f) => wanted.has(f));
+    (e.appliesTo === undefined || e.appliesTo.some((f) => wanted.has(f))) &&
+    (ticked === undefined || e.domains === undefined || e.domains.some((d) => ticked.has(d)));
   // The MANIFEST IT IS GIVEN, never the constant above: the route's comment
   // says the server owns this content, and a client that filtered its own
   // bundled copy would quietly show an older promise set than the one the

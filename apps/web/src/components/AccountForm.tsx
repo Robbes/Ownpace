@@ -187,6 +187,15 @@ export interface AccountFormProps {
   readonly domains?: ReadonlyArray<DiscoveryDomain>;
   /** How the form is drawn: the Accounts page's, or *Start a migration*'s (see the header). */
   readonly variant?: 'accounts' | 'flow';
+  /**
+   * The answer to *Is this a company account with an administrator?*, where
+   * the door asked it already (*What moves?*, under Microsoft's mail): the
+   * form does not ask again (the UX sweep, 2026-10-17). Yes shows the company
+   * fields; No folds them under *More options*, where they can still be
+   * reached (0068 T3: the question splits the fields and never hides them).
+   * Left out, the form asks, as on the Accounts page.
+   */
+  readonly companyAnswer?: boolean;
 }
 
 export const AccountForm: React.FC<AccountFormProps> = ({
@@ -200,6 +209,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
   onCancel,
   domains,
   variant = 'accounts',
+  companyAnswer,
 }) => {
   const { t, locale } = useLocale();
   const flow = variant === 'flow';
@@ -268,7 +278,9 @@ export const AccountForm: React.FC<AccountFormProps> = ({
     ? new Set([...Object.keys(providerDefaultsFor(role, type)), 'url'])
     : new Set();
   const organisationApp = ORGANISATION_APP_CARDS.has(type);
-  const companyFields = flow && !organisationApp ? fields.filter((f) => COMPANY_FIELDS.has(f.key)) : [];
+  // Asked here only where the door has not asked it already.
+  const companyFields =
+    flow && !organisationApp && companyAnswer === undefined ? fields.filter((f) => COMPANY_FIELDS.has(f.key)) : [];
   const [company, setCompany] = React.useState(() =>
     companyFields.some((f) => (values[f.key] ?? '').trim() !== ''),
   );
@@ -288,7 +300,9 @@ export const AccountForm: React.FC<AccountFormProps> = ({
     if (serverKeys.has(field.key)) return 'server';
     // Gmail's app password: a way in of its own, under the consent's button.
     if (field.key === 'appPassword') return 'alternative';
-    if (COMPANY_FIELDS.has(field.key) && !organisationApp) return 'company';
+    if (COMPANY_FIELDS.has(field.key) && !organisationApp) {
+      return companyAnswer === undefined ? 'company' : companyAnswer ? 'shown' : 'more';
+    }
     // Where in the account a migration starts (a folder, a path) is the
     // migration's, asked once the account is connected, under *Only one
     // folder* (0153 open question 5, item 4). The flow's form does not draw it.

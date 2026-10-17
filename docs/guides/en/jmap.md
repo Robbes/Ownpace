@@ -22,7 +22,7 @@ The test asks for the session document every JMAP server offers, at `/.well-know
 
 **Where the copies land**, under the rows, says where the mail goes in that account. Left as it is, it merges into the account. Open **Put it in a folder of its own** and type a name in **Folder**, and everything lands under that folder.
 
-You can also add a JMAP account in advance, under **Accounts** → **Add an account**: choose **Targets** under **Source or target?**, then the **JMAP** card, and press **Add and test**. The **Setup checklist** has the preparation for a JMAP target as a list that remembers what you have done.
+You can also add a JMAP account in advance, under **Accounts** → **Add an account**: choose **Destinations** under **Source or destination?**, then the **JMAP** card, and press **Add and test**. The **Setup checklist** has the preparation for a JMAP target as a list that remembers what you have done.
 
 ## What moves {#what-moves}
 

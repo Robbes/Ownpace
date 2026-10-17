@@ -35,7 +35,8 @@ const NotFound: React.FC = () => {
   const t = useT();
 
   return (
-    <div className="max-w-xl mx-auto text-center py-16 px-4">
+    // `main`: routed outside `Layout` (AppRoutes), so this is the page's only one.
+    <main className="max-w-xl mx-auto text-center py-16 px-4">
       <Compass className="w-12 h-12 mx-auto mb-6 text-gray-400" aria-hidden="true" />
       <h1 className="text-2xl font-semibold mb-3">{t('notFound.heading')}</h1>
       <p className="text-gray-600 mb-8">{t('notFound.lede')}</p>
@@ -50,7 +51,7 @@ const NotFound: React.FC = () => {
       <div className="mt-8">
         <StatusLink />
       </div>
-    </div>
+    </main>
   );
 };
 

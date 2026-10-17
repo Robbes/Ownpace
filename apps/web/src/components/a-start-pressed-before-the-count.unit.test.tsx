@@ -135,7 +135,7 @@ describe('Start, while the count is still coming', () => {
 
     await after(4000);
 
-    expect(screen.getByText('55245')).toBeInTheDocument();
+    expect(screen.getByText('55,245')).toBeInTheDocument();
     expect(start()).not.toBeDisabled();
     expect(screen.queryByText(WAITS)).toBeNull();
     expect(screen.queryByText(UNFINISHED)).toBeNull();
@@ -183,7 +183,7 @@ describe('after five minutes', () => {
 
     await after(MINUTE + 10_000);
 
-    expect(screen.getByText('55245')).toBeInTheDocument();
+    expect(screen.getByText('55,245')).toBeInTheDocument();
     expect(start()).not.toBeDisabled();
     expect(screen.queryByText(UNFINISHED)).toBeNull();
 

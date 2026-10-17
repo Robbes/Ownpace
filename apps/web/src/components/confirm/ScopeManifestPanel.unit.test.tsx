@@ -145,3 +145,42 @@ describe('in the reader\'s language (2026-10-14)', () => {
     expect(screen.queryByText(/In het Nederlands/)).toBeNull();
   });
 });
+
+describe('a column with nothing in it (UX sweep, 2026-10-17)', () => {
+  /**
+   * The shared mailbox's Review screen showed *Does not migrate* with nothing
+   * under it, which reads as unfinished. An empty list says only that it is
+   * empty for this source: not that nothing at all is left behind, which the
+   * list cannot prove.
+   */
+  afterEach(() => {
+    cleanup();
+    window.localStorage.removeItem('ownpace.locale');
+  });
+
+  it('says nothing is listed under an empty column, and only there', () => {
+    render(
+      <ScopeManifestPanel
+        manifest={manifest({
+          migrates: [{ item: 'Email', detail: 'Every folder.' }],
+          partial: [{ item: 'Rules', detail: 'Some.' }],
+        })}
+      />,
+    );
+    const said = screen.getAllByText('Nothing listed for this source.');
+    expect(said).toHaveLength(1);
+    // Under the column it belongs to, beside its title.
+    expect(said[0]!.parentElement).toHaveTextContent(/^Does not migrate/);
+  });
+
+  it('says it in Dutch under nl', () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    render(
+      <LocaleProvider>
+        <ScopeManifestPanel manifest={manifest({ migrates: [{ item: 'Email', detail: 'Every folder.' }] })} />
+      </LocaleProvider>,
+    );
+    // Partial and Does not migrate are both empty here.
+    expect(screen.getAllByText('Voor deze bron is hier niets vermeld.')).toHaveLength(2);
+  });
+});

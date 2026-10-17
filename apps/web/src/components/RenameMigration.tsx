@@ -61,11 +61,13 @@ export const RenameMigration: React.FC<{
   };
 
   // A fragment: the heading stays a child of the page's header row, beside
-  // the stage it names (0154 T1).
+  // the stage it names (0154 T1). Below the wide layout the top bar's title
+  // already names the migration, so the heading is for screen readers only
+  // there: it stays in the outline, under the top bar's h1.
   if (!editing) {
     return (
       <>
-        <h2 className="text-lg font-semibold text-gray-900">{name ?? fallback}</h2>
+        <h2 className="sr-only lg:not-sr-only text-lg font-semibold text-gray-900">{name ?? fallback}</h2>
         {editable && (
           <button
             type="button"

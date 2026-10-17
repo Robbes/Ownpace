@@ -203,10 +203,12 @@ export const NativeFilePolicyChooser: React.FC<{
       <legend className="block text-sm font-medium text-gray-700">{t('account.nativePolicy')}</legend>
       {/* One line, the rest folded (0118 T1). */}
       <Hint text={t('account.nativePolicy.hint')} why={t('account.nativePolicy.hint.why')} />
-      <div className="mt-2 grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2">
+      {/* Label over select on a phone, where beside it the select showed only
+          "Laten staan, en" (the UX sweep, 2026-10-17); side by side from sm. */}
+      <div className="mt-2 grid grid-cols-1 gap-y-1 sm:grid-cols-[auto_1fr] sm:items-center sm:gap-x-3 sm:gap-y-2">
         {GOOGLE_EDITOR_KINDS.map((kind) => (
           <React.Fragment key={kind}>
-            <label className="text-sm text-gray-700" htmlFor={`${id}-${kind}`}>
+            <label className="pt-2 text-sm text-gray-700 sm:pt-0" htmlFor={`${id}-${kind}`}>
               {t(nativeKindKey(kind))}
             </label>
             <select

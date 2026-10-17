@@ -1,9 +1,10 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useLocale } from '../i18n/index.tsx';
+import { LOCALES, type Locale } from '../i18n/strings.ts';
 import { beginSignIn, oidcConfig } from '../services/oidc.ts';
 import { fetchAuthMode, type AuthMode } from '../services/auth-mode.ts';
 import { fetchMe } from '../services/session.ts';
@@ -15,6 +16,7 @@ import AlphaNote from '../components/AlphaNote.tsx';
 import SupportLine from '../components/SupportLine.tsx';
 import SiteMark from '../components/SiteMark.tsx';
 import BackToSite from '../components/BackToSite.tsx';
+import LanguageSwitch from '../components/LanguageSwitch.tsx';
 
 interface TokenClaims {
   sub: string;
@@ -67,10 +69,42 @@ export function decodeTokenClaims(token: string): TokenClaims | null {
  *
  * Either way the token is stored and sent as `Authorization: Bearer` on every
  * API call, where it is signature-verified server-side.
+ *
+ * **In the reader's language** (the UX sweep, 2026-10-17). The grant and
+ * invitation mails link here with `?locale=` and the mail's language, so a
+ * Dutch tester whose browser is set to English reads this page in Dutch; and
+ * the page has the language switch the request page and the guides have, for
+ * whoever arrives another way. The choice is the stored one, so the pages
+ * after sign-in follow it. The title is the page's `<h1>` inside its `<main>`,
+ * and the browser's tab says it too.
  */
 const Login: React.FC = () => {
-  const { t, locale } = useLocale();
+  const { t, locale, setLocale } = useLocale();
+  const [search] = useSearchParams();
   const navigate = useNavigate();
+  /**
+   * `?locale=`, as `PublicDocs` and `RequestAccess` take it: matched against
+   * the list, so an unknown value is ignored; once, on arrival, and before the
+   * first paint, so the page is not drawn in the other language first.
+   */
+  React.useLayoutEffect(() => {
+    const asked = search.get('locale');
+    const known = LOCALES.find((l): l is Locale => l === asked);
+    if (known && known !== locale) setLocale(known);
+  }, []);
+  // The tab's name goes back to what it was when this page leaves, so the
+  // next screen is not called after this one. Its own effect, run once: a
+  // language switch renames the tab and must not bring the old name back.
+  React.useEffect(() => {
+    const before = document.title;
+    return () => {
+      document.title = before;
+    };
+  }, []);
+  // The tab's name; the title already names Ownpace.
+  React.useEffect(() => {
+    document.title = t('login.title');
+  }, [locale, t]);
   const loginToStore = useAuthStore((s) => s.login);
   const [token, setToken] = useState('');
   // Two paths, two errors. One shared `error` put the same sentence under both
@@ -278,17 +312,21 @@ const Login: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+      <main className="max-w-md w-full space-y-8">
         <div>
           {/* The site's look, and the way back to it (workplan 0152 T9): a
-              visitor arrives here from the site's Sign in. */}
-          <BackToSite />
+              visitor arrives here from the site's Sign in. The language
+              switch beside it, as on the guides (`PublicDocs`). */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <BackToSite />
+            <LanguageSwitch />
+          </div>
           <div className="mt-6 flex justify-center">
             <SiteMark className="w-16 h-16" />
           </div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          <h1 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             {t('login.title')}
-          </h2>
+          </h1>
           <p className="mt-2 text-center text-sm text-gray-600">{t('login.tagline')}</p>
         </div>
 
@@ -398,7 +436,7 @@ const Login: React.FC = () => {
           </div>
           <BuildStamp />
         </div>
-      </div>
+      </main>
     </div>
   );
 };
