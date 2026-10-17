@@ -23,7 +23,8 @@
  * - *For {name}*: one grant link for all of their Google accounts (ADR-0035,
  *   amended 2026-09-29; 0153 T5 (b)), on managed, offered only when one of
  *   their migrations reads Google: for anybody else the server could only
- *   refuse it, so the page says why there is none, and keeps the progress link;
+ *   refuse it, so the page says why there is none, and keeps the progress link.
+ *   A grant link of theirs that still works stays listed, to be revoked;
  * - beside a migration that waits for their grant, what the grant does to it
  *   when it lands: it starts by itself once their move runs, or the owner
  *   reviews and starts it, or it had run and gets its way in back (start when
@@ -350,18 +351,22 @@ const Person: React.FC = () => {
 
       {/* For them (the drawing's "For Anna"): one grant link for all of their
           Google accounts, made, copied and revoked here (ADR-0035, amended
-          2026-09-29). The server refuses one, in words, when nothing of
-          theirs can be granted through it. */}
+          2026-09-29). It is offered only when one of their migrations reads
+          Google, or while a grant link of theirs still works (made before
+          their Google migration was deleted or moved to somebody else), so
+          it can still be seen and revoked. */}
       {!person.implicit && !selfHost && migrations.length > 0 && (
         <section aria-labelledby="for-them" className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
           <h2 id="for-them" className="text-lg font-semibold text-gray-900">
             {t('person.links.title', { name: person.displayName ?? '' })}
           </h2>
-          {migrations.some((m) => GRANTABLE.has(wizardTypeForConnectionKind(m.sourceType))) ? (
+          {migrations.some((m) => GRANTABLE.has(wizardTypeForConnectionKind(m.sourceType))) ||
+          linksQuery.data?.some((l) => l.purpose === 'grant' && l.state === 'live') ? (
             <PersonGrantLinkSection personId={person.id} links={linksQuery.data} loadFailed={linksQuery.error != null} />
           ) : (
-            // Nothing of theirs reads Google, so a grant link could only be
-            // refused (`nothing_to_grant`); say why there is none instead.
+            // Nothing of theirs reads Google and no grant link of theirs still
+            // works, so a new one could only be refused (`nothing_to_grant`);
+            // say why there is none instead.
             <p className="mt-2 text-sm text-gray-600">
               {t('person.links.noGoogle', { name: person.displayName ?? '' })}
             </p>

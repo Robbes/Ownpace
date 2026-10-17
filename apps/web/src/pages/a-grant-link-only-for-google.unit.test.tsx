@@ -139,6 +139,31 @@ describe('a grant link, offered only to a person a migration of whose reads Goog
     },
   );
 
+  it('still lists, and can revoke, a live grant link made before their Google migration went', async () => {
+    // Their Google migration was deleted, or moved to somebody else, after
+    // the link was made: what still works must still be seen and taken back.
+    listMock.mockResolvedValue([migration({ id: 'm-sophie', name: 'Sophie mail', sourceType: 'apple' })]);
+    peopleMock.mockResolvedValue({ people: [person('p-sophie', 'Sophie', [{ id: 'm-sophie', status: 'active' }])], unassigned: [] });
+    vi.mocked(personLinkApi.list).mockResolvedValue([
+      {
+        id: 'l-live',
+        purpose: 'grant',
+        state: 'live',
+        createdAt: '2026-10-01T10:00:00.000Z',
+        createdBy: 'owner@example.nl',
+        expiresAt: '2026-10-31T10:00:00.000Z',
+        usedAt: null,
+        revokedAt: null,
+      },
+    ]);
+
+    renderAt('/people/p-sophie');
+
+    const section = await screen.findByRole('region', { name: 'For Sophie' });
+    expect(await within(section).findByRole('button', { name: EN['grantLink.revoke'] })).toBeInTheDocument();
+    expect(within(section).getByRole('heading', { name: EN['personLink.title'] })).toBeInTheDocument();
+  });
+
   it('says it in Dutch too', () => {
     expect(STRINGS.nl['person.links.noGoogle']).toBe(
       'Een toegangslink is alleen voor Google-accounts, en geen van de migraties van {name} leest er een. Andere accounts verbindt u op de pagina Accounts.',
