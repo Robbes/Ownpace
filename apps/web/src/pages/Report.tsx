@@ -45,9 +45,10 @@ const Report: React.FC = () => {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold text-gray-900">
-          {report.data?.report.name ?? t('migrationReport.title')}
-        </h1>
+        {/* The frame's header is the page's one h1, and it says the screen and
+            the migration's name ("Report — Anna — …"); the page names itself
+            under it rather than saying the name a second time. */}
+        <h2 className="text-lg font-semibold text-gray-900">{t('migrationReport.open')}</h2>
         <CompletionReportDownload mappingId={mappingId} />
       </div>
       <p className="text-sm text-gray-600">{t('migrationReport.lead')}</p>
@@ -66,7 +67,7 @@ const Report: React.FC = () => {
         </div>
       )}
       {report.data && (
-        <MigrationReport report={report.data.report} check={check.isSuccess ? check.data : undefined} />
+        <MigrationReport level={3} report={report.data.report} check={check.isSuccess ? check.data : undefined} />
       )}
       <p className="text-sm">
         <Link to={`/mappings/${id}/confirmed`} className="text-blue-700 hover:underline">

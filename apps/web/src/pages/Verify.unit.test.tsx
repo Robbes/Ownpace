@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 const { editionFlag } = vi.hoisted(() => ({ editionFlag: { selfhost: false } }));
 vi.mock('../services/edition', () => ({
@@ -19,6 +19,7 @@ vi.mock('../services/edition', () => ({
 }));
 
 import Verify from './Verify.tsx';
+import { LocaleProvider } from '../i18n/index.tsx';
 import * as service from '../services/operating-service.ts';
 import type { VerificationResult } from '@openmig/shared';
 import { VERIFICATION_DOMAINS } from '@openmig/shared';
@@ -76,6 +77,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  window.localStorage.removeItem('ownpace.locale');
 });
 
 describe('the Verify screen', () => {
@@ -134,7 +136,7 @@ describe('the Verify screen', () => {
 
   it('says the gate opened on COUNTS when nothing could be compared', async () => {
     // The owner's decision of 2026-09-21, on the screen. A run that hashed
-    // nothing reads PASS, score 1, ready to cut over — and
+    // nothing reads PASS, score 1, ready to switch — and
     // `determineVerificationStatus` never sees the `CHECKSUM_UNAVAILABLE_*`
     // issue that would say why, because it is handed percentages and counts.
     // Since the owner's D2 of 2026-09-24 (workplan 0149 T4) that is only a
@@ -156,7 +158,7 @@ describe('the Verify screen', () => {
 
     expect(screen.getByText('counts only')).toBeInTheDocument();
     // Beside the verdict, not instead of it: both facts, together.
-    expect(screen.getByText(/ready to cut over/i)).toBeInTheDocument();
+    expect(screen.getByText(/ready to switch/i)).toBeInTheDocument();
     expect(screen.getByText(/No content was compared/)).toBeInTheDocument();
   });
 
@@ -344,3 +346,76 @@ describe('the appliance-wide scope is stated (0038 T6)', () => {
   });
 });
 
+
+describe('the check on a phone, and in the reader’s numbers', () => {
+  const DONE = {
+    state: 'done',
+    startedAt: '2026-07-31T12:00:00Z',
+    finishedAt: '2026-07-31T12:03:00Z',
+    report: { 'mapping-1': RESULT },
+  } as const;
+  const COLUMNS = ['On the old system', 'On the new system', 'Missing', 'Content sample', 'Size on the new system'];
+
+  it('names its columns by the new system, the words the old one’s column already uses', async () => {
+    fetched.mockResolvedValue(DONE);
+    render(<MemoryRouter><Verify /></MemoryRouter>);
+    await screen.findByRole('link', { name: 'mapping-1' });
+
+    for (const name of ['Type', 'Result', ...COLUMNS]) {
+      expect(screen.getByRole('columnheader', { name })).toBeInTheDocument();
+    }
+    // A size the new system does not give was not compared; it is not a mismatch.
+    expect(screen.getAllByTitle('Not compared: the new system gives no size.')).toHaveLength(
+      VERIFICATION_DOMAINS.length,
+    );
+  });
+
+  it('says each count’s column beside it, for a phone, where the header row is not drawn', async () => {
+    // Below 640 pixels each data type is a block of its own: no count sits
+    // behind a sideways scroll nobody can see, and each says what it counts.
+    fetched.mockResolvedValue(DONE);
+    render(<MemoryRouter><Verify /></MemoryRouter>);
+    await screen.findByRole('link', { name: 'mapping-1' });
+
+    const row = screen.getByRole('cell', { name: 'Email' }).closest('tr')!;
+    for (const label of COLUMNS) {
+      const said = within(row).getByText(label);
+      expect(said.closest('td'), `${label} is said inside its own cell`).not.toBeNull();
+      expect(said.className, `${label} is the phone's label, gone where the header says it`).toContain('sm:hidden');
+    }
+  });
+
+  it('lets a keyboard reach the table’s box, named by the screen’s title', async () => {
+    fetched.mockResolvedValue(DONE);
+    render(<MemoryRouter><Verify /></MemoryRouter>);
+    await screen.findByRole('link', { name: 'mapping-1' });
+
+    const region = screen.getByRole('region', { name: 'Check the migration' });
+    expect(region).toHaveAttribute('tabindex', '0');
+    expect(within(region).getByRole('table')).toBeInTheDocument();
+  });
+
+  it('says the score in the reader’s decimals', async () => {
+    fetched.mockResolvedValue(DONE);
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    const { unmount } = render(
+      <LocaleProvider>
+        <MemoryRouter><Verify /></MemoryRouter>
+      </LocaleProvider>,
+    );
+    await screen.findByRole('link', { name: 'mapping-1' });
+    expect(screen.getByText('score 100,0%')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Op het nieuwe systeem' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Grootte op het nieuwe systeem' })).toBeInTheDocument();
+    unmount();
+
+    window.localStorage.setItem('ownpace.locale', 'en');
+    render(
+      <LocaleProvider>
+        <MemoryRouter><Verify /></MemoryRouter>
+      </LocaleProvider>,
+    );
+    await screen.findByRole('link', { name: 'mapping-1' });
+    expect(screen.getByText('score 100.0%')).toBeInTheDocument();
+  });
+});
