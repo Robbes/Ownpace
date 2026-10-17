@@ -264,6 +264,31 @@ describe('without a session, on managed, the guides are a page of their own (015
     expect(screen.getByText(STAMP)).toBeInTheDocument();
   });
 
+  it.each(['en', 'nl'] as const)(
+    '%s: keeps the card off the mark, the way in and the stamp in a footer, and names the tab (UX sweep)',
+    (locale) => {
+      renderAt('/docs/google', locale);
+
+      // The mark sat on the card's top edge: the guide starts below it.
+      expect(screen.getByRole('main').className.split(/\s+/)).toContain('mt-6');
+      // The block under the guide sat outside every landmark.
+      const footer = screen.getByRole('contentinfo');
+      expect(within(footer).getByRole('link', { name: STRINGS[locale]['access.backToSignIn'] })).toBeInTheDocument();
+      expect(within(footer).getByText(STAMP)).toBeInTheDocument();
+      expect(document.title).toBe(`${STRINGS[locale]['nav.docs']} — Ownpace`);
+    },
+  );
+
+  it('gives the tab its old title back on the way out, for a page that sets none (UX sweep review)', () => {
+    document.title = 'Ownpace';
+    const { unmount } = renderAt('/docs/google');
+    expect(document.title).toBe(`${STRINGS.en['nav.docs']} — Ownpace`);
+
+    unmount();
+
+    expect(document.title).toBe('Ownpace');
+  });
+
   it('follows a link to another guide in the same frame, from the top', () => {
     const scrollTo = vi.spyOn(globalThis, 'scrollTo');
     renderAt('/docs/google');
