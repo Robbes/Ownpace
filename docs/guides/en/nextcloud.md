@@ -33,7 +33,7 @@ Files go into your own files, under the user name you type: this service writes 
 
 The test writes nothing. It signs in and shows what the account carries (**Carries:**) and what it found (**Found:**).
 
-You can also add the account in advance, under **Accounts** → **Add an account**: choose **Targets** under **Source or target?**, then the **Nextcloud** card, fill in the **DAV base URL** yourself, such as `https://cloud.example.com/remote.php/dav`, and press **Add and test**.
+You can also add the account in advance, under **Accounts** → **Add an account**: choose **Destinations** under **Source or destination?**, then the **Nextcloud** card, fill in the **DAV base URL** yourself, such as `https://cloud.example.com/remote.php/dav`, and press **Add and test**.
 
 ## What moves {#what-moves}
 

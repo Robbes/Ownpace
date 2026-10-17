@@ -70,7 +70,7 @@ export const LegalLinks: React.FC<{
             className="underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
           >
             {t(link.name)}
-            <span className="sr-only"> {t('acceptance.newTab')}</span>
+            <span className="sr-only"> {t('common.newTab')}</span>
           </a>
         </React.Fragment>
       ))}

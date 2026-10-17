@@ -30,11 +30,18 @@ export const en = {
   'nav.tenants': 'Team',
   'nav.billing': 'Billing',
   'nav.signOut': 'Sign out',
+  // The first thing the frame draws, seen only with focus: a way past the
+  // menu to the page (0145 T1). The site's words for the same link.
+  'nav.skipToContent': 'Skip to content',
   // "Report a problem" (workplan 0130): what the person writes, and what goes
   // with it, said before anything is sent.
   'nav.reportProblem': 'Report a problem',
   'language.label': 'Language',
   'common.requestFailed': 'The request did not complete.',
+  // Said after a link that opens a new tab, to a screen reader only: the
+  // legal texts, the tester guide, a guide's outside links and a refusal's
+  // guide (it was the acceptance screen's own until the UX sweep).
+  'common.newTab': '(opens in a new tab)',
   'asof.updated': 'Updated',
   'asof.refresh': 'Refresh',
   // The tag on a source that has not yet met a real account (workplan 0131
@@ -68,6 +75,8 @@ export const en = {
   'common.loading': 'Loading…',
   'common.cancel': 'Cancel',
   'common.close': 'Close',
+  // A read that failed, once more (the Migrations list and a person's page).
+  'common.tryAgain': 'Try again',
   // The appliance's own log page (0129 D5): the same page, for its owner, and
   // nothing recorded about reading it.
   'log.lead.why':
@@ -157,9 +166,11 @@ export const nl: Record<keyof typeof en, string> = {
   'nav.tenants': 'Team',
   'nav.billing': 'Facturering',
   'nav.signOut': 'Uitloggen',
+  'nav.skipToContent': 'Naar de inhoud',
   'nav.reportProblem': 'Een probleem melden',
   'language.label': 'Taal',
   'common.requestFailed': 'Het verzoek is niet voltooid.',
+  'common.newTab': '(opent in een nieuw tabblad)',
   'asof.updated': 'Bijgewerkt',
   'asof.refresh': 'Vernieuwen',
   'frontDoor.experimental': 'Experimenteel',
@@ -177,6 +188,7 @@ export const nl: Record<keyof typeof en, string> = {
   'common.loading': 'Laden…',
   'common.cancel': 'Annuleren',
   'common.close': 'Sluiten',
+  'common.tryAgain': 'Opnieuw proberen',
   'log.lead.why':
     'Wat een auditgebeurtenis veranderde staat hier niet: dat blijft in de database, opvraagbaar. De tekst van een fout blijft in de uitvoer van de appliance, op de regel met dezelfde referentie.',
   'alpha.note.lead': 'Welkom bij de Alpha!',

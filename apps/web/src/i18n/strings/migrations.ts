@@ -34,7 +34,7 @@ export const en = {
   'mappings.empty.title': 'No migrations yet',
   'mappings.empty.hint': 'Start one: who it is for, where from, what, and where to.',
   'mappings.empty.cta': 'Start a migration',
-  'mappings.action.triggerSync': 'Trigger sync',
+  'mappings.action.triggerSync': 'Sync now',
   // Free's pace held a press (workplan 0157 T2, `free_pace`): one pass a day,
   // and when the next one starts. The server's `message` is the English.
   'mappings.sync.freePace':
@@ -65,11 +65,10 @@ export const en = {
   'timeLeft.afterThreePasses': 'We will know after three passes; {n} so far.',
   'mappings.action.pause.why':
     'No new passes are started. A pass already running stops migrating new items within about fifteen seconds, and finishes the ones it has begun; a very large file can take longer. Nothing is lost: Review and start continues from where it stopped.',
-  'mappings.action.startSync': 'Start sync',
+  'mappings.action.startSync': 'Sync now',
   // 0037 T2: a paused mapping's row leads to the confirm screen — the Play
   // button it used to render could only earn a 409.
   'mappings.action.reviewAndStart': 'Review and start',
-  'mappings.action.open': 'Open',
   'mappings.action.delete': 'Delete',
   // 0037 T5: mapping deletion destroys config and ledger linkage, so the
   // button arms with the mapping's own name (hard rule 2's posture).
@@ -107,6 +106,7 @@ export const en = {
   'hub.orderIntro': 'Work them from the top, in this order.',
   'hub.noId': 'No mapping id in the address.',
   'hub.detailError': "Could not read this migration's details.",
+  'hub.detailError.retry': 'Try again',
   'hub.grantWithdrawn':
     'On {date} the person being migrated withdrew their access. Nothing reads or migrates their account now.',
   'hub.grantWithdrawn.next': 'If they agree to continue, send them a new grant link. Links are made per person: see Links below.',
@@ -128,12 +128,14 @@ export const en = {
   'hub.confirmed.blurb':
     'What is in the new home, item by item, and what was compared.',
   'hub.finish.name': 'Finish',
+  // Under each step page of a migration, the way on to the next (NextStepLink).
+  'hub.nextStep': 'Next step: {step} →',
   'hub.finish.blurb':
     'The cutover checklist, to end the migration.',
   'runs.title': 'Run history',
   'runs.blurb':
-    'Every sync pass this migration has made, newest first, with what each one said.',
-  'runs.empty': 'No passes have run yet. History appears after the first sync.',
+    'Every pass this migration has made, newest first, with what each one said.',
+  'runs.empty': 'No passes have run yet. They appear here after the first pass.',
   'runs.truncated': 'Showing the newest passes only — older ones exist but are not listed.',
   'runs.eventsTruncated': 'Newest log entries only — earlier ones are not shown.',
   'runs.error': "Could not read this migration's run history.",
@@ -141,7 +143,9 @@ export const en = {
   'runs.items.many': '{n} items this pass',
   'runs.errors.one': '1 error',
   'runs.errors.many': '{n} errors',
-  'runs.events': 'Log',
+  // The worker's own lines, verbatim and English (the prose boundary): the
+  // frame says so, and the list is marked lang="en" (UX sweep, 2026-10-17).
+  'runs.events': 'Technical log',
   // An answer the page's schema refused, on a signed-in page (reported
   // 2026-09-29): `serverMessage` says this where it used to show zod's JSON,
   // most likely after the API and the web app were updated apart. {reference}
@@ -150,6 +154,12 @@ export const en = {
   // (2026-09-29), and the owner's "Log it" for the reference.
   'answer.unreadable':
     'The server answered in a form this page does not know. Reload the page; if it stays like this, report it to support, and mention: reference {reference}.',
+  // A fault on our side (a 500 whose sentence carries `Reference 0a1b2c3d`,
+  // `serverFault`): the server's sentence is English only, so `serverMessage`
+  // says this in the reader's language and keeps the reference, in the same
+  // capitalised form, so it can be quoted to us.
+  'answer.fault':
+    'Something went wrong on our side, not something your input caused. Try again in a moment. Reference {reference}: mention it when you contact us.',
   // A request that got no answer, or a gateway's (502, 503, 504) with no
   // sentence of ours in it (the owner, 2026-10-14): axios's English
   // ("Network Error", "Request failed with status code 502") reached the
@@ -229,6 +239,7 @@ export const en = {
   'view.person.account': 'Google account {n}',
   'view.person.others': 'Your other migrations',
   'view.person.route': '{from} to {to}',
+  'view.person.routeWhat': '{route}: {what}',
   'view.person.grant.body': '{organisation} reads this Google account for the migrations above because you allowed it.',
   'view.person.withdrawn.notConfirmed':
     'Deleted here, so these migrations cannot use it. Google did not confirm withdrawing it.',
@@ -278,6 +289,8 @@ export const en = {
   // about passwords.
   'failure.authExpired':
     'The connection to this account has expired. On the Accounts page, press Reconnect or Replace credentials, whichever its row shows, and this will carry on from where it stopped \u2014 nothing is lost.',
+  // The link after that sentence, to the Accounts page it names.
+  'failure.openAccounts': 'Open Accounts',
   'failure.rateLimited':
     'The provider asked us to slow down. Nothing is wrong: this pauses and resumes on its own.',
   'failure.quotaExceeded':
@@ -472,9 +485,8 @@ export const nl: Record<keyof typeof en, string> = {
   'timeLeft.afterThreePasses': 'Na drie rondes weten we meer; {n} tot nu toe.',
   'mappings.action.pause.why':
     'Er worden geen nieuwe rondes gestart. Een ronde die nog loopt gaat niets nieuws aanvangen en rondt af wat nog liep; een heel groot bestand dat al onderweg was, kan nog even duren. Er gaat niets verloren: Controleer en start gaat verder waar het gebleven was.',
-  'mappings.action.startSync': 'Start synchronisatie',
+  'mappings.action.startSync': 'Synchroniseer nu',
   'mappings.action.reviewAndStart': 'Controleer en start',
-  'mappings.action.open': 'Openen',
   'mappings.action.delete': 'Verwijderen',
   'mappings.delete.explain':
     'Verwijdert enkel instellingen en registratie van uw migratie in Ownpace, niets bij uw bron of bestemming.',
@@ -499,6 +511,7 @@ export const nl: Record<keyof typeof en, string> = {
   'hub.noId': 'Geen mapping-id in het adres.',
   'hub.detailError':
     'De details van deze migratie konden niet worden gelezen.',
+  'hub.detailError.retry': 'Opnieuw proberen',
   'hub.grantWithdrawn': 'Op {date} trok degene die gemigreerd wordt de toegang in. Er wordt niets meer gelezen of gemigreerd.',
   'hub.grantWithdrawn.next':
     'Is die persoon akkoord om verder te gaan, stuur dan een nieuwe toegangslink. Links worden per persoon gemaakt: zie Links hieronder.',
@@ -521,12 +534,13 @@ export const nl: Record<keyof typeof en, string> = {
   'hub.confirmed.blurb':
     'Wat er in het nieuwe systeem staat, item voor item, en wat is vergeleken.',
   'hub.finish.name': 'Afronden',
+  'hub.nextStep': 'Volgende stap: {step} →',
   'hub.finish.blurb':
     'De cutover-checklist; beëindigt de migratie in enkele stappen.',
   'runs.title': 'Uitvoeringsgeschiedenis',
   'runs.blurb':
-    'Iedere synchronisatieronde van deze migratie, nieuwste eerst, met wat elke ronde meldde.',
-  'runs.empty': 'Er zijn nog geen rondes uitgevoerd. Geschiedenis verschijnt na de eerste synchronisatie.',
+    'Iedere ronde van deze migratie, nieuwste eerst, met wat elke ronde meldde.',
+  'runs.empty': 'Er zijn nog geen rondes uitgevoerd. Ze verschijnen hier na de eerste ronde.',
   'runs.truncated': 'Alleen de nieuwste rondes worden getoond — oudere bestaan, maar staan niet in de lijst.',
   'runs.eventsTruncated': 'Alleen de nieuwste logregels — eerdere worden niet getoond.',
   'runs.error': 'Kon de uitvoeringsgeschiedenis van deze migratie niet lezen.',
@@ -534,9 +548,11 @@ export const nl: Record<keyof typeof en, string> = {
   'runs.items.many': '{n} items in deze ronde',
   'runs.errors.one': '1 fout',
   'runs.errors.many': '{n} fouten',
-  'runs.events': 'Logboek',
+  'runs.events': 'Technisch logboek (Engels)',
   'answer.unreadable':
     'De server antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, meld dit en geef daarbij het volgende door: referentie {reference}.',
+  'answer.fault':
+    'Er ging bij ons iets mis, niet door iets wat u invoerde. Probeer het zo opnieuw. Referentie {reference}: noem die als u contact met ons opneemt.',
   'answer.unreachable': 'De dienst was niet bereikbaar. Controleer uw verbinding en probeer het opnieuw.',
   'view.title': 'Uw migratie',
   'view.loading': 'Een moment…',
@@ -601,6 +617,7 @@ export const nl: Record<keyof typeof en, string> = {
   'view.person.account': 'Google-account {n}',
   'view.person.others': 'Uw andere migraties',
   'view.person.route': '{from} naar {to}',
+  'view.person.routeWhat': '{route}: {what}',
   'view.person.grant.body': '{organisation} leest dit Google-account voor de migraties hierboven, omdat u dat toestond.',
   'view.person.withdrawn.notConfirmed':
     'Hier verwijderd, dus deze migraties kunnen die niet gebruiken. Google bevestigde het intrekken niet.',
@@ -636,6 +653,7 @@ export const nl: Record<keyof typeof en, string> = {
   'mappings.syncFailed': 'Het synchronisatieverzoek is niet voltooid.',
   'failure.authExpired':
     'De verbinding met dit account is verlopen. Druk op de pagina Accounts op Opnieuw verbinden of Inloggegevens vervangen, welke van de twee er bij dit account staat; daarna wordt verdergegaan waar gestopt was \u2014 er gaat niets verloren.',
+  'failure.openAccounts': 'Naar Accounts',
   'failure.rateLimited':
     'De provider vroeg ons (geautomatiseerd) om rustiger aan te doen. Er is niets mis: dit pauzeert en hervat vanzelf.',
   'failure.quotaExceeded':

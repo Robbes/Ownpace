@@ -168,7 +168,7 @@ export const OPERATOR_STRINGS = {
   // a refused press is not remembered, so the fold says what it should say.
   'support.hold.hint': 'Stops new passes, buttons included; the ones already running finish.',
   'support.hold.hint.why':
-    'This is the drain: the sync tick stops enqueueing within a minute, and whatever is mid-pass finishes normally. Every signed-in customer sees a notice with your message on it, or a default sentence when left empty. Your message is also shown to every button-press that would start work while the hold is on (\'Trigger sync\', \'Start migration\', a check), and a refused press is not remembered. So say when copying resumes and ask them to try again after that, for example: \'We are updating the platform and copying resumes around 15:00. Nothing starts until then. Please try again after that.\' Lifting the hold starts the scheduled passes again on the next tick.',
+    'This is the drain: the sync tick stops enqueueing within a minute, and whatever is mid-pass finishes normally. Every signed-in customer sees a notice with your message on it, or a default sentence when left empty. Your message is also shown to every button-press that would start work while the hold is on (\'Sync now\', \'Start migration\', a check), and a refused press is not remembered. So say when copying resumes and ask them to try again after that, for example: \'We are updating the platform and copying resumes around 15:00. Nothing starts until then. Please try again after that.\' Lifting the hold starts the scheduled passes again on the next tick.',
   'support.hold.on': 'Held since {since}. No new passes are starting.',
   'support.hold.off': 'Not held. New passes start on the usual schedule.',
   'support.hold.start': 'Hold new passes',

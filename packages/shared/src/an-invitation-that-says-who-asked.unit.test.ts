@@ -41,6 +41,13 @@ describe('the invitation mail', () => {
     }
   });
 
+  // The sign-in page in the mail's language, as the grant mail sends them
+  // (the UX sweep, 2026-10-17).
+  it.each(LOCALES)('sends them to the sign-in page in the mail’s language, in %s', (locale) => {
+    const { body } = renderEvent(INVITED, locale);
+    expect(body).toContain(`${INVITED.appUrl}/login?locale=${locale}\n`);
+  });
+
   it.each(LOCALES)('closes with what is kept and the privacy policy, in %s', (locale) => {
     const lines = renderEvent(INVITED, locale).body.trimEnd().split('\n');
     expect(lines.at(-1)).toMatch(/Ownpace/);

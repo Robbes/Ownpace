@@ -153,11 +153,19 @@ apiClient.interceptors.response.use(
  * falls back to the transport message only when there is no body to show.
  * When nothing of ours answered at all (no network, a timeout, a gateway's
  * 502, 503 or 504), the sentence is ours, in the reader's language
- * (`answer.unreachable`).
+ * (`answer.unreachable`). So is a fault on our side (a 500 whose sentence
+ * carries a reference, `serverFault`): its sentence is English only, and the
+ * page around it is in the reader's language, so it is said in theirs
+ * (`answer.fault`), with the reference kept so it can be quoted to us.
  */
 export function serverMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {
     const data: unknown = err.response?.data;
+    // `serverFault`'s answer, and only its: a 500 whose sentence carries a
+    // reference. A 502 that carries one (a report not delivered) has its own
+    // sentence to say, and says it.
+    const reference = err.response?.status === 500 ? referenceIn(err) : undefined;
+    if (reference) return tActive('answer.fault', { reference });
     if (data && typeof data === 'object') {
       const d = data as {
         message?: unknown;
@@ -206,6 +214,18 @@ export function serverMessage(err: unknown): string {
     return tActive('answer.unreadable', { reference: referenceFor(unreadable) });
   }
   return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * The reference a fault on our side carries in its sentence (`serverFault`:
+ * "Reference 0a1b2c3d: mention it when you contact us."), or undefined.
+ */
+export function referenceIn(err: unknown): string | undefined {
+  const data: unknown = axios.isAxiosError(err) ? err.response?.data : undefined;
+  if (!data || typeof data !== 'object') return undefined;
+  const d = data as { reason?: unknown; message?: unknown };
+  const sentence = [d.reason, d.message].find((v): v is string => typeof v === 'string');
+  return sentence ? /\bReference ([0-9a-f]{8})\b/.exec(sentence)?.[1] : undefined;
 }
 
 /**

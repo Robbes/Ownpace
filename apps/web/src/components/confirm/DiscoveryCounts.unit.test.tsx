@@ -14,10 +14,11 @@
  * objected to.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, describe, it, expect } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
 import type { DiscoveryRecord } from '@openmig/shared';
 import DiscoveryCounts, { formatBytes } from './DiscoveryCounts.tsx';
+import { LocaleProvider } from '../../i18n/index.tsx';
 
 function record(over: Partial<DiscoveryRecord> = {}): DiscoveryRecord {
   return {
@@ -190,6 +191,79 @@ describe('formatBytes', () => {
     expect(formatBytes(512)).toBe('512 B');
     expect(formatBytes(2048)).toBe('2.0 KB');
   });
+
+  it('writes the figure as its reader writes numbers', () => {
+    const gb = 3.4 * 1024 ** 3;
+    expect(formatBytes(gb, 'en')).toBe('3.4 GB');
+    expect(formatBytes(gb, 'nl')).toBe('3,4 GB');
+    expect(formatBytes(512, 'nl')).toBe('512 B');
+  });
+});
+
+/**
+ * A DUTCH TABLE IN ENGLISH NUMBERS, AND A PHONE THAT CUT IT OFF (the UX sweep,
+ * 2026-10-17). The counts were printed raw (*18734*) and the sizes with
+ * `toFixed` (*3.4 GB*) on a Dutch screen whose migration page, a click away,
+ * says *18.234* and *3,1 GB*. On a phone the last column sat out of sight in
+ * a scroller a keyboard could not reach, *E-mail* broke as *E-* / *mail*, and
+ * the error column's header was empty on every row, error or not.
+ */
+describe('the table as its reader reads it', () => {
+  afterEach(() => window.localStorage.removeItem('ownpace.locale'));
+
+  const inDutch = (domains: DiscoveryRecord[]) => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    return render(
+      <LocaleProvider>
+        <DiscoveryCounts domains={domains} />
+      </LocaleProvider>,
+    );
+  };
+
+  it('writes counts and sizes in Dutch on a Dutch screen', () => {
+    inDutch([record({ items: 18_734, collections: 1_204, bytes: 3.4 * 1024 ** 3, targetExisting: 2_500 })]);
+    expect(screen.getByText('18.734')).toBeInTheDocument();
+    expect(screen.getByText('1.204')).toBeInTheDocument();
+    expect(screen.getByText('3,4 GB')).toBeInTheDocument();
+    expect(screen.getByText('2.500')).toBeInTheDocument();
+  });
+
+  it('writes them in English on an English screen', () => {
+    render(<DiscoveryCounts domains={[record({ items: 18_734, bytes: 3.4 * 1024 ** 3 })]} />);
+    expect(screen.getByText('18,734')).toBeInTheDocument();
+    expect(screen.getByText('3.4 GB')).toBeInTheDocument();
+  });
+
+  it('lets a keyboard reach the scroller, and names it', () => {
+    render(<DiscoveryCounts domains={[record()]} />);
+    const region = screen.getByRole('group', { name: 'What we found in your source' });
+    expect(region).toHaveAttribute('tabindex', '0');
+    expect(within(region).getByRole('table')).toBeInTheDocument();
+  });
+
+  it('keeps a data type and each number on one line', () => {
+    render(<DiscoveryCounts domains={[record({ targetExisting: 4 })]} />);
+    const cells = within(screen.getByRole('table')).getAllByRole('cell');
+    // Type, collections, items, size and what is on the destination.
+    for (const cell of cells.slice(0, 5)) expect(cell.className).toContain('whitespace-nowrap');
+  });
+
+  it('draws the problem column only where a row has a problem, and names its header', () => {
+    const { unmount } = render(<DiscoveryCounts domains={[record()]} />);
+    expect(screen.getAllByRole('columnheader')).toHaveLength(5);
+    expect(screen.queryByRole('columnheader', { name: 'Problem' })).not.toBeInTheDocument();
+    unmount();
+
+    render(<DiscoveryCounts domains={[record(), record({ domain: 'file', lastError: 'connector auth failed: 401' })]} />);
+    expect(screen.getAllByRole('columnheader')).toHaveLength(6);
+    expect(screen.getByRole('columnheader', { name: 'Problem' })).toBeInTheDocument();
+    expect(screen.getByText('connector auth failed: 401')).toBeInTheDocument();
+  });
+
+  it('names the problem column in Dutch', () => {
+    inDutch([record({ lastError: 'connector auth failed: 401' })]);
+    expect(screen.getByRole('columnheader', { name: 'Probleem' })).toBeInTheDocument();
+  });
 });
 
 /**
@@ -314,7 +388,7 @@ describe('the numbers that came from an earlier check', () => {
     // casting doubt on it would be the same dishonesty pointing the other way.
     expect(note).not.toHaveTextContent(/Calendar/);
     // The count itself stays on screen — it is real, just older.
-    expect(screen.getByText('95734')).toBeInTheDocument();
+    expect(screen.getByText('95,734')).toBeInTheDocument();
     // …and so does the error, verbatim.
     expect(screen.getByText('relation "rate_budget" does not exist')).toBeInTheDocument();
   });

@@ -2333,7 +2333,11 @@ paths:
 
         `kindChoices` lists each data type the migration copies (`on`) or could
         gain (`addable`, or `refused` with a `reason`). It is the list
-        `POST /api/migrations/{mappingId}/domains` accepts from.
+        `POST /api/migrations/{mappingId}/domains` accepts from. A `refused`
+        entry also carries `code`, which refusal it is: `after_cutover` (the
+        migration has switched over) or `measured_no` (a side measured that it
+        cannot carry the data type). The page says the code in the reader's
+        language; `reason` stays English, for logs and the appliance.
 
         `stopChoices` (workplan 0128 T4) lists each data type the migration
         carries with its stop: `stopped`, and `offer`, the press
@@ -5625,6 +5629,10 @@ paths:
         `microsoft#application`; the screen links it beside the row.
         A row may also carry `nl`, the same row's `item`, `detail` and `more` in
         Dutch; the screen shows the half in its reader's language.
+        A row may also carry `domains`, the data types it is about (email,
+        calendar, contact, file, task); a screen that knows what a migration
+        carries leaves out a row about none of them, and a row without
+        `domains` is shown whatever was ticked.
       responses:
         '200':
           description: The manifest.

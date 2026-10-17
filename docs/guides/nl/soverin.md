@@ -28,7 +28,7 @@ Er is geen vakje voor SSL/TLS: deze dienst gebruikt het altijd, voor agenda's en
 
 De test schrijft niets. Hij meldt zich aan bij de agenda's en meet daarnaast elk deel van het account apart: wat het account omvat staat achter **Omvat:**, en wat hij vond achter **Gevonden:**. Of één app-wachtwoord voor mail én voor agenda's en contacten werkt, staat niet vast: de test zegt het per deel. Wordt het ene deel geweigerd en het andere niet, dan dekt dat wachtwoord niet het hele account.
 
-U kunt het account ook vooraf toevoegen, onder **Accounts** → **Account toevoegen**: kies bij **Bron of doel?** **Doelen**, dan de kaart **Soverin**, en druk op **Toevoegen en testen**. De vakken zijn daar op dezelfde manier vooraf ingevuld, open in beeld.
+U kunt het account ook vooraf toevoegen, onder **Accounts** → **Account toevoegen**: kies bij **Bron of bestemming?** **Bestemmingen**, dan de kaart **Soverin**, en druk op **Toevoegen en testen**. De vakken zijn daar op dezelfde manier vooraf ingevuld, open in beeld.
 
 ## Wat er meegaat {#what-moves}
 

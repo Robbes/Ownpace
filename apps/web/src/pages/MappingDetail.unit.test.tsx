@@ -692,7 +692,7 @@ describe('the live progress strip', () => {
     expect(screen.getByText('2 retrying')).toBeInTheDocument();
     // The per-domain as-of (0036 T1) — must render from BOTH editions'
     // payloads or the strip becomes a single-edition feature (hard rule 5).
-    expect(screen.getByText(/last synced/)).toBeInTheDocument();
+    expect(screen.getByText(/last pass/)).toBeInTheDocument();
     // The error verbatim — the prose boundary.
     expect(screen.getByText('IMAP LIST failed: connection reset')).toBeInTheDocument();
     expect(fetchStatusMock).not.toHaveBeenCalled();
@@ -710,7 +710,7 @@ describe('the live progress strip', () => {
     renderHub();
 
     expect(await screen.findByText('42 of ~50')).toBeInTheDocument();
-    expect(screen.getByText(/last synced/)).toBeInTheDocument();
+    expect(screen.getByText(/last pass/)).toBeInTheDocument();
     // The other mapping's numbers must not leak into this hub.
     expect(screen.queryByText(/^999 /)).not.toBeInTheDocument();
     expect(mappingApiGet).not.toHaveBeenCalled();
@@ -818,6 +818,8 @@ describe('where it is, in a person’s words (0154 T1)', () => {
     const beside = await header();
     await vi.waitFor(() => expect(beside.textContent).toContain('Ready to switch'));
     expect(row('email')).toContain('Ready to switch');
+    // And Finish says it is the person's next step, as the stage does.
+    expect(step('finish').textContent).toContain('Needs you');
     unmount();
 
     // The failures could not be counted: it stays kept in step.
@@ -827,6 +829,7 @@ describe('where it is, in a person’s words (0154 T1)', () => {
     await vi.waitFor(() => expect(row('email')).toContain('Kept in step'));
     expect(again.textContent).toContain('Kept in step');
     expect(again.textContent).not.toContain('Ready to switch');
+    expect(step('finish').textContent).toContain('Not yet');
   });
 
   it('keeps a failed pass’s word beside the stage', async () => {
@@ -919,7 +922,7 @@ describe('a data type stopped from this page', () => {
     );
     renderHub();
 
-    expect(await screen.findByRole('button', { name: 'Stop Email' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Stop email' })).toBeInTheDocument();
     expect(screen.getByText(STRINGS.en['confirm.progress.stopped'])).toBeInTheDocument();
     expect(screen.queryByText(STRINGS.en['confirm.progress.stoppedByYou'])).not.toBeInTheDocument();
   });
@@ -948,10 +951,10 @@ describe('a data type stopped from this page', () => {
     });
     renderHub();
 
-    expect(await screen.findByRole('button', { name: 'Resume Calendar' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Resume calendar' })).toBeInTheDocument();
     expect(screen.getByText(STRINGS.en['settings.kinds.held.lastOne'])).toBeInTheDocument();
     expect(screen.getByText(STRINGS.en['confirm.progress.stoppedByYou'])).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Stop Files' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Stop files' })).not.toBeInTheDocument();
     expect(mappingApiGet).not.toHaveBeenCalled();
   });
 });
@@ -1073,9 +1076,11 @@ describe('how long, before the first pass reports (0154 T3 (a))', () => {
 });
 
 /**
- * HOW LONG, DURING THE COPY (workplan 0154 T3 (b)): once a pass has reported,
+ * HOW LONG, DURING THE COPY (workplan 0154 T3 (b)): once anything was copied,
  * from the last passes' own pace and what is left of T2's totals, in place of
- * the count's estimate; nothing once nothing is left.
+ * the count's estimate; nothing once nothing is left. Only while a first copy
+ * runs: kept in step, ready to switch, switching, done or held say nothing
+ * (UX sweep, 2026-10-17).
  */
 describe('how long, during the copy (0154 T3 (b))', () => {
   const DAY = 86_400_000;
@@ -1098,6 +1103,7 @@ describe('how long, during the copy (0154 T3 (b))', () => {
         events: [],
       };
     });
+  /** A data type still in its first copy: no pass over it has completed. */
   const row = (over: Record<string, unknown> = {}) => ({
     domain: 'email',
     state: 'in_progress',
@@ -1107,9 +1113,14 @@ describe('how long, during the copy (0154 T3 (b))', () => {
     bytesTransferred: 0,
     itemsRetrying: 0,
     itemsNeedingDecision: 0,
-    lastSyncedAt: '2026-10-03T02:50:00.000Z',
     ...over,
   });
+  const LAST_PASS = '2026-10-03T02:50:00.000Z';
+  const counted = {
+    mappingId: 'acme-mail',
+    discovered: true,
+    domains: [{ domain: 'email', collections: 4, items: 19_000, bytes: 10.4e9, discoveredAt: '2026-10-01T00:00:00.000Z' }],
+  };
 
   it('says the range the last passes’ pace gives, in place of the count’s estimate', async () => {
     mappingApiGet.mockResolvedValue(aMapping({ sourceType: 'gmail', domainStatus: [row()] }));
@@ -1119,22 +1130,27 @@ describe('how long, during the copy (0154 T3 (b))', () => {
     expect(mappingDiscoveryMock).not.toHaveBeenCalled();
   });
 
-  it('leaves the count’s estimate in place while the first pass is still running', async () => {
-    mappingApiGet.mockResolvedValue(
-      aMapping({ sourceType: 'gmail', domainStatus: [row({ lastSyncedAt: undefined })] }),
-    );
-    mappingDiscoveryMock.mockResolvedValue({
-      mappingId: 'acme-mail',
-      discovered: true,
-      domains: [{ domain: 'email', collections: 4, items: 19_000, bytes: 10.4e9, discoveredAt: '2026-10-01T00:00:00.000Z' }],
-    });
+  /**
+   * A FIRST COPY CUT SHORT AT EACH PASS'S DEADLINE completes nothing for days:
+   * what was copied decides when the passes' pace replaces the count's
+   * estimate, not a completed pass.
+   */
+  it('keeps the count’s estimate until something is copied, then says the range in its place', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ sourceType: 'gmail', domainStatus: [row({ itemsSynced: 0 })] }));
+    mappingDiscoveryMock.mockResolvedValue(counted);
     fetchRunsMock.mockResolvedValue({ runs: passes(2_000, 1_500, 1_200) });
-    renderHub();
+    const { unmount } = renderHub();
     expect(
       await screen.findByText('About 4 to 5 days, because Google lets a mailbox download 2.5 GB a day.'),
     ).toBeInTheDocument();
-    await screen.findByText('2,000 items this pass');
     expect(document.querySelector('[data-time-while-copying]')).toBeNull();
+    unmount();
+
+    // Copied, and no pass has completed yet.
+    mappingApiGet.mockResolvedValue(aMapping({ sourceType: 'gmail', domainStatus: [row()] }));
+    renderHub();
+    expect(await screen.findByText('About 4 to 8 days more, from the last 3 passes.')).toBeInTheDocument();
+    expect(screen.queryByText(/because Google lets a mailbox download/)).not.toBeInTheDocument();
   });
 
   it('says it will know after three passes, and how many it has', async () => {
@@ -1171,5 +1187,96 @@ describe('how long, during the copy (0154 T3 (b))', () => {
     renderHub();
     await screen.findByText('2,000 items this pass');
     expect(screen.queryByText('How long:')).not.toBeInTheDocument();
+  });
+
+  /**
+   * GLOSSARY T3 (b): *Kept in step has no time left.* The gap between what the
+   * count found and what a completed pass copied is not a copy still to come;
+   * divided by the small passes that keep it in step, it read *Up to 4 days
+   * more* beside *Ready to switch*.
+   */
+  it('says nothing for a data type kept in step, however far its count is from what was found', async () => {
+    const kept = row({ state: 'completed', lastSyncedAt: LAST_PASS });
+    mappingApiGet.mockResolvedValue(aMapping({ sourceType: 'gmail', domainStatus: [kept] }));
+    fetchRunsMock.mockResolvedValue({ runs: passes(2_000, 1_500, 1_200) });
+    // With the progress read, which says Kept in step, and before it, from the row itself.
+    for (const progress of [
+      () =>
+        Promise.resolve({
+          mappings: [
+            {
+              mappingId: 'acme-mail',
+              domains: [{ domain: 'email', state: 'completed', phase: 'active', itemsSynced: 10_000, itemsFound: 19_000, bytesTransferred: 0, lastSyncedAt: LAST_PASS }],
+              check: { state: 'not_run' },
+            },
+          ],
+        }),
+      () => new Promise(() => undefined),
+    ]) {
+      fetchProgressMock.mockImplementation(progress);
+      const { unmount } = renderHub();
+      await screen.findByText('2,000 items this pass');
+      expect(screen.queryByText('How long:')).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it('says nothing while it switches, or held after it copied something', async () => {
+    fetchRunsMock.mockResolvedValue({ runs: passes(2_000, 1_500, 1_200) });
+    mappingDiscoveryMock.mockResolvedValue(counted);
+    for (const status of ['cutover', 'paused']) {
+      mappingApiGet.mockResolvedValue(aMapping({ status, sourceType: 'gmail', domainStatus: [row()] }));
+      const { unmount } = renderHub();
+      await screen.findByText('2,000 items this pass');
+      expect(screen.queryByText('How long:'), status).not.toBeInTheDocument();
+      // Nor the count's estimate: something was copied.
+      expect(mappingDiscoveryMock, status).not.toHaveBeenCalled();
+      unmount();
+    }
+  });
+});
+
+/**
+ * WHEN THE DETAILS CANNOT BE READ, a way to ask again now (UX sweep,
+ * 2026-10-17). The read comes again by itself within half a minute; the
+ * page said only an amber sentence until then.
+ */
+describe('a detail read that failed', () => {
+  it('offers to try again, and reads the details again when pressed', async () => {
+    mappingApiGet.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(aMapping());
+    renderHub();
+    const retry = await screen.findByRole('button', { name: 'Try again' });
+    expect(screen.getByText(/Could not read this migration's details/)).toBeInTheDocument();
+    // It shares a line with that sentence, so colour alone would hide it:
+    // underlined always, not only on hover (a11y-prose-links-invisible).
+    expect(retry.className.split(/\s+/)).toContain('underline');
+    fireEvent.click(retry);
+    expect(await screen.findByRole('heading', { name: 'Acme mail' })).toBeInTheDocument();
+    expect(mappingApiGet).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * THE STEPS SAY WHAT IS TRUE OF THIS MIGRATION (UX sweep, 2026-10-17): a
+ * migration that moves no mail has no mail delivery to switch, and one that
+ * has never run has compared nothing, so its empty queues are not done.
+ */
+describe('the steps, of this migration’s own facts', () => {
+  it('says Finish without the mail for a migration that moves none', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ syncConfig: { domains: ['file'] } }));
+    renderHub();
+    await vi.waitFor(() => expect(step('finish').textContent).toContain('Switch to the new system, then end'));
+    expect(step('finish').textContent).not.toContain('mail');
+  });
+
+  it('says the empty queues of a migration that never ran are not yet, not done', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ status: 'paused' }));
+    renderHub();
+    await vi.waitFor(() => expect(step('moves').textContent).toContain('Not yet'));
+    for (const key of ['deletions', 'moves', 'failures']) {
+      expect(step(key).textContent, key).toContain('None');
+      expect(step(key).textContent, key).not.toContain('Done');
+    }
   });
 });

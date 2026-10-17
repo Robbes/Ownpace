@@ -150,10 +150,17 @@ describe('a Google Drive migration is confirmed under its own promises', () => {
 
   it('renders the folded More of its rows', async () => {
     renderConfirm();
-    const withMore = rowsFor('google').filter((e) => e.more !== undefined);
+    // Its rows are the ones about files, its one data type, and the ones
+    // about none in particular (`domains`, the UX sweep, 2026-10-17).
+    const ours = (e: (typeof SCOPE_MANIFEST.migrates)[number]) => e.domains === undefined || e.domains.includes('file');
+    const withMore = rowsFor('google').filter((e) => e.more !== undefined && ours(e));
     expect(withMore.length).toBeGreaterThan(0);
     for (const row of withMore) {
       expect(await screen.findByText(row.more!), `${row.item} lost its fold`).toBeInTheDocument();
+    }
+    // And not the folds of rows about data it does not carry.
+    for (const row of rowsFor('google').filter((e) => e.more !== undefined && !ours(e))) {
+      expect(screen.queryByText(row.more!), `${row.item} is not about files`).toBeNull();
     }
   });
 });
