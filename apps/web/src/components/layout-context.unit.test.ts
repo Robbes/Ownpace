@@ -43,6 +43,15 @@ describe('mappingRouteContext', () => {
   it('decodes an encoded id', () => {
     expect(mappingRouteContext('/mappings/acme%20mail/verify')?.mappingId).toBe('acme mail');
   });
+
+  // Sharing, Confirmed, Report and Review parsed as the hub: the bar named no
+  // screen, and Back skipped the migration to the list (the UX sweep, 2026-10).
+  it.each(['sharing', 'confirmed', 'report', 'confirm'] as const)(
+    'names the %s screen under a migration',
+    (screen) => {
+      expect(mappingRouteContext(`/mappings/x/${screen}`)).toEqual({ mappingId: 'x', screen });
+    },
+  );
 });
 
 describe('activeNavHref', () => {
@@ -57,6 +66,16 @@ describe('activeNavHref', () => {
   it('managed: every mapping-scoped path lights Mappings', () => {
     expect(activeNavHref('/mappings/acme/deletions', MANAGED_HREFS)).toBe('/mappings');
     expect(activeNavHref('/mappings/acme', MANAGED_HREFS)).toBe('/mappings');
+  });
+
+  it('selfhost: a migration’s Review lights the flat Review entry', () => {
+    expect(activeNavHref('/mappings/x/confirm', SELFHOST_HREFS)).toBe('/confirm');
+  });
+
+  it('managed: Sharing, Confirmed, Report and Review still light Migrations', () => {
+    for (const screen of ['sharing', 'confirmed', 'report', 'confirm']) {
+      expect(activeNavHref(`/mappings/x/${screen}`, MANAGED_HREFS)).toBe('/mappings');
+    }
   });
 
   it('keeps the plain prefix rule off mapping routes', () => {
@@ -89,6 +108,15 @@ describe('upHref — the header\'s back arrow goes UP a level', () => {
   it('from a screen under the hub, up to that hub', () => {
     expect(upHref({ mappingId: 'acme-mail', screen: 'failures' })).toBe('/mappings/acme-mail');
   });
+
+  it.each(['sharing', 'confirmed', 'report', 'confirm'])(
+    'from %s, up to the migration, not past it to the list',
+    (screen) => {
+      const ctx = mappingRouteContext(`/mappings/x/${screen}`);
+      if (!ctx) throw new Error(`/mappings/x/${screen} is not a migration's route`);
+      expect(upHref(ctx)).toBe('/mappings/x');
+    },
+  );
 
   it('encodes an id it puts back into a path', () => {
     expect(upHref({ mappingId: 'a b/c', screen: 'verify' })).toBe('/mappings/a%20b%2Fc');

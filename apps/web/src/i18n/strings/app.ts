@@ -30,6 +30,9 @@ export const en = {
   'nav.tenants': 'Team',
   'nav.billing': 'Billing',
   'nav.signOut': 'Sign out',
+  // The first thing the frame draws, seen only with focus: a way past the
+  // menu to the page (0145 T1). The site's words for the same link.
+  'nav.skipToContent': 'Skip to content',
   // "Report a problem" (workplan 0130): what the person writes, and what goes
   // with it, said before anything is sent.
   'nav.reportProblem': 'Report a problem',
@@ -157,6 +160,7 @@ export const nl: Record<keyof typeof en, string> = {
   'nav.tenants': 'Team',
   'nav.billing': 'Facturering',
   'nav.signOut': 'Uitloggen',
+  'nav.skipToContent': 'Naar de inhoud',
   'nav.reportProblem': 'Een probleem melden',
   'language.label': 'Taal',
   'common.requestFailed': 'Het verzoek is niet voltooid.',
