@@ -746,8 +746,11 @@ describe('the Microsoft guide carries both registration recipes (0148 T8)', () =
     const end = lines.findIndex((line, i) => i > start && /^#{1,4} /.test(line) && /^#+/.exec(line)![0].length <= level);
     return raw.slice(start, end === -1 ? undefined : end).join('\n');
   }
-  /** The permissions a list names: one per bullet, in backticks at its start. */
-  const listed = (section: string) => [...section.matchAll(/^- `([^`]+)`/gm)].map((m) => m[1]!);
+  /**
+   * The permissions a list names: one per bullet, in backticks at its start,
+   * a sub-list's bullet indented under the step it belongs to.
+   */
+  const listed = (section: string) => [...section.matchAll(/^[ \t]*- `([^`]+)`/gm)].map((m) => m[1]!);
   const DELEGATED_ONLY = ['IMAP.AccessAsUser.All', 'offline_access'];
   /**
    * Entra's words for the kind of permission and for the consent button, as

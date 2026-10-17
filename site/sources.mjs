@@ -76,7 +76,7 @@ export const LEAVING = [
     staysBehind: { family: 'google', items: ['Google Keep', 'Google Sites, Forms', 'Revision history'], except: ['Google Photos'] },
     limits: [
       { id: 'gmailDaily', guide: 'google#gmail' },
-      { id: 'googleNative', guide: 'google#google-drive' },
+      { id: 'googleNative', guide: 'google#google-docs' },
       { id: 'takeout', guide: 'google#photos' },
     ],
     steps: [

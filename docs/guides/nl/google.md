@@ -2,7 +2,7 @@
 
 De Microsoft-tegenhanger van deze handleiding is [de Microsoft-handleiding](microsoft.md).
 
-Deze handleiding gaat over de Google-kaarten: de kaart **Google-account**, en de kaarten die elk één Google-product lezen. Google Agenda en Google Contacten zijn niet meer voor nieuwe migraties, omdat het account ze allebei omvat. Heeft deze dienst een eigen Google-app, dan drukt u op **Verbinden met Google** en geeft u bij Google toestemming, en hoeft u op deze pagina niets aan te maken. De stappen om een eigen app te maken staan aan het eind, onder [Met een eigen app](#own-app), voor als u liever uw eigen app gebruikt.
+Deze handleiding gaat over de Google-kaarten: de kaart **Google-account**, en de kaarten die elk één Google-product lezen. Google Agenda en Google Contacten zijn niet meer voor nieuwe migraties, omdat het account ze allebei omvat. Heeft deze dienst een eigen Google-app, dan drukt u op **Verbinden met Google** en geeft u bij Google toestemming, en hoeft u op deze pagina niets aan te maken. De stappen om een eigen oauth-app te maken staan aan het eind, onder [Met een eigen oauth-app](#own-app), voor als u liever uw eigen oauth-app gebruikt.
 
 ## Wat u nodig hebt {#before}
 
@@ -20,7 +20,7 @@ Eén Google-account, één aanmelding. De regel onder de naam van de kaart zegt 
 
 ### Google Drive {#google-drive}
 
-Het token vraagt `https://www.googleapis.com/auth/drive.readonly`, en verder niets. Een migratie leest. Het token dat dit product aanmaakt, kan in de Drive van de bron niets maken, wijzigen of verwijderen. Dat is sterker dan een belofte op papier: Google dwingt het af.
+Het token vraagt `https://www.googleapis.com/auth/drive.readonly`, en verder niets. Een migratie leest. Het token dat deze dienst aanmaakt, kan in de Drive van de bron niets maken, wijzigen of verwijderen. Dat is sterker dan een belofte op papier: Google dwingt het af.
 
 Het token is **gedelegeerd**: het leest de Drive van de persoon die toestemming geeft, met de gedeelde Drives die die persoon kan zien. Voor een hele Workspace is er een tweede weg, die u zelf kiest: **[domeinbrede delegatie](#domain-wide-delegation)**, aan het eind van deze handleiding. Tokens per gebruiker blijven de standaard: de kleinste toegang, per persoon in te trekken, en zonder beheerder.
 
@@ -29,6 +29,8 @@ Een migratie kan ergens anders beginnen dan in Mijn Drive: een **gedeelde Drive*
 De keuze heet **Alleen één map**, onder **Bestanden** bij **Wat wilt u migreren?**, voor het Google-account zoals voor deze kaart. Is het account verbonden, plak dan het adres van de map uit Google Drive; de ID wordt eruit gelezen. Of druk op **Gedeelde drives en gedeelde mappen tonen** en kies er een: een lijst, alleen lezend, via dezelfde koppeling die een migratie gebruikt. De pagina van de migratie zegt daarna uit welke map de bestanden worden gelezen. De map kan veranderen tot het eerste bestand is gemigreerd; daarna is een andere map een andere migratie.
 
 Op de pagina **Accounts** heeft het formulier van deze kaart ook een veld **Hoofdmap-ID**, dat elke migratie van dat account laat beginnen bij de map met die ID.
+
+#### Google Documenten en andere Google-bestanden {#google-docs}
 
 **Google Documenten, Spreadsheets, Presentaties en Tekeningen** hebben geen bestand om te migreren, alleen een weergave die Google maakt, en **Wat wilt u migreren?** vraagt onder **Bestanden** in welk formaat elke soort moet aankomen. Bij elke keuze zet Drive het document om; hier wordt niets geconverteerd.
 
@@ -45,7 +47,9 @@ Het geëxporteerde bestand krijgt de naam van het document **plus de extensie va
 
 ### Gmail {#gmail}
 
-**De scope is `https://mail.google.com/`, en een smallere is er niet.** Ownpace leest Gmail via IMAP (XOAUTH2 op `imap.gmail.com:993`), en dat is de enige scope die de IMAP-server van Google accepteert. De fijnere `gmail.readonly`-scopes horen bij de REST-API en worden aan de IMAP-deur geweigerd. De scope komt neer op volledige toegang tot de mail. Dit product schrijft er nooit mee (de bronkoppeling kan niet schrijven, en Gmail is nooit een doel van een migratie), maar anders dan bij `drive.readonly` van Drive is dat een eigenschap van het product en niet iets wat Google afdwingt. Het staat hier omdat doen alsof het anders is een onwaarheid is die een audit binnen een minuut vindt.
+**Een grote mailbox kost dagen.** Google laat een Gmail-mailbox lezen tot 2,5 GB per dag. Deze dienst blijft migreren tot alles binnen is, en uw oude account werkt intussen gewoon.
+
+**De scope is `https://mail.google.com/`, en een smallere is er niet.** Ownpace leest Gmail via IMAP (XOAUTH2 op `imap.gmail.com:993`), en dat is de enige scope die de IMAP-server van Google accepteert. De fijnere `gmail.readonly`-scopes horen bij de REST-API en worden aan de IMAP-deur geweigerd. De scope komt neer op volledige toegang tot de mail. Deze dienst schrijft er nooit mee (de bronkoppeling kan niet schrijven, en Gmail is nooit een doel van een migratie), maar anders dan bij `drive.readonly` van Drive is dat een eigenschap van deze dienst en niet iets wat Google afdwingt. Het staat hier omdat doen alsof het anders is een onwaarheid is die een audit binnen een minuut vindt.
 
 **Een token met toestemming voor Drive werkt niet.** Een refresh-token omvat de scopes waarvoor toestemming is gegeven, en een token voor `drive.readonly` antwoordt `invalid_scope` zodra er een token voor mail wordt gevraagd. **Verbinden met Google** op de kaart Gmail vraagt de mailscope.
 
@@ -69,7 +73,7 @@ Het dagelijkse downloadplafond is **precies hetzelfde**: Google legt het op aan 
 
 **Niet meer voor nieuwe migraties.** De kaart **Google-account** omvat agenda's, en **Migratie starten** vraagt Google alleen om wat u aanvinkt. Deze kaart blijft op de pagina **Accounts** staan voor accounts die ermee zijn toegevoegd, en die blijven werken. **Migratie starten** biedt zo'n account aan waar Agenda het enige is wat u bij Google aanvinkt.
 
-Google spreekt nog steeds de protocollen die dit product al kent, dus deze bron is de gewone CalDAV-koppeling, gericht op de agendaserver van Google, met één verschil: **de DAV-servers van Google accepteren alleen OAuth**, dus de verzoeken dragen een token dat uit uw refresh-token wordt gemaakt, geen wachtwoord.
+Google spreekt nog steeds de protocollen die deze dienst al kent, dus deze bron is de gewone CalDAV-koppeling, gericht op de agendaserver van Google, met één verschil: **de DAV-servers van Google accepteren alleen OAuth**, dus de verzoeken dragen een token dat uit uw refresh-token wordt gemaakt, geen wachtwoord.
 
 Het token moet toestemming hebben voor de agendascope, `https://www.googleapis.com/auth/calendar`. Een token met toestemming voor Drive, mail of contacten antwoordt hier `invalid_scope`. Google Tasks staan niet op de CalDAV van Google: de kaart **Google-account** leest ze, met `https://www.googleapis.com/auth/tasks.readonly`.
 
@@ -91,7 +95,7 @@ U kiest hoe lang de link werkt, een dag, een week of een maand, en u kunt hem op
 
 **Wij sturen de link nooit.** Dat doet u, zoals u die persoon gewoonlijk bereikt. Ownpace leert het adres van die persoon nooit kennen, en kan het dus ook niet lekken.
 
-### Domeinbrede delegatie: één handeling van een beheerder in plaats van N toestemmingen {#domain-wide-delegation}
+### Domeinbrede delegatie: één handeling van een beheerder in plaats van een toestemming per persoon {#domain-wide-delegation}
 
 Een Workspace-beheerder kan een **service-account** één keer toestemming geven om zich als gebruikers voor te doen, voor een opgesomde lijst scopes. Gebruik dit als toestemming per gebruiker niet meer te doen is; sla het over voor een handvol accounts. **Weet hoe ver het reikt voordat u het kiest: de sleutel kan voor de toegestane scopes elke gebruiker in het domein lezen.** Elke migratie noemt nog steeds precies één account (het account dat de migratie leest, onder **Gebruikersnaam**); wat ruimer wordt, is de sleutel, niet een migratie.
 
@@ -101,11 +105,11 @@ De schermen van Google staan hieronder met hun Engelse namen; Google toont ze in
 2. **Maak een JSON-sleutel** (keys → add key → JSON). Dit bestand is nu het gevoeligste geheim van de migratie; behandel het zo.
 3. **Geef toestemming in de Admin-console**: Admin → Security → Access and data control → API controls → **Domain-wide delegation** → voeg de client-ID van het service-account toe, met ALLEEN de scopes die de gekozen producten nodig hebben, nooit een ruimere set "voor de zekerheid":
 
-- Drive: `https://www.googleapis.com/auth/drive.readonly`
-- Gmail: `https://mail.google.com/`
-- Agenda: `https://www.googleapis.com/auth/calendar`
-- Contacten: `https://www.googleapis.com/auth/carddav`
-- Taken: `https://www.googleapis.com/auth/tasks.readonly`
+   - Drive: `https://www.googleapis.com/auth/drive.readonly`
+   - Gmail: `https://mail.google.com/`
+   - Agenda: `https://www.googleapis.com/auth/calendar`
+   - Contacten: `https://www.googleapis.com/auth/carddav`
+   - Taken: `https://www.googleapis.com/auth/tasks.readonly`
 
 4. **Vul het in**: beantwoord **Is dit een bedrijfsaccount met een beheerder?** met **Ja**, plak het hele sleutelbestand in **Serviceaccount-sleutel**, en geef bij elke migratie het account op onder **Gebruikersnaam**. Op de pagina **Accounts** staat het veld open in beeld. De refresh-tokenvelden zijn dan niet meer verplicht; de weigeringen zeggen het als er iets ontbreekt.
 5. **Trek het in bij de overstap.** Verwijder de delegatie in de Admin-console (en de sleutel) als de migratie klaar is. De sleutel leeft zo lang als de migratie, en deze stap hoort evengoed bij de migratie als stap 3.
@@ -129,33 +133,33 @@ Hier gezegd, zodat u het niet zelf hoeft te ontdekken:
 
 **En de voor de hand liggende hoop redt het niet.** Google publiceert een Data Portability API voor mensen in de Europese Economische Ruimte, het Verenigd Koninkrijk en Zwitserland, gemaakt om aan de Digital Markets Act te voldoen, en dat klinkt als precies het antwoord. De volledige lijst scopes is gelezen op 4 september 2026, en opnieuw op 28 september 2026, toen er 73 op stonden: **Google Foto's staat er niet bij**, en Drive, Gmail, Contacten en Agenda ook niet. Wat hij omvat, is zoek- en activiteitengeschiedenis, Chrome, bijdragen aan Maps, Play en YouTube, en sinds december 2025 ook gegevens van Pixel en Nest. De twee scopes die op foto's lijken, zijn het niet: de ene is wat u op Maps plaatste, de andere zijn uploads voor Street View. Een fotobibliotheek heeft nu dus twee aparte redenen om buiten bereik te zijn, en Takeout is geen noodoplossing tot er iets beters komt: het is de enige volledige weg die er is.
 
-**Back-ups van apparaten** (de regel "Back-up van apparaat" in het opslagoverzicht van Google) zijn de eigen back-ups van apps en instellingen van Android, alleen leesbaar voor een Android-apparaat dat zich aanmeldt. Dat zijn geen gegevens die dit product kan of zou moeten lezen, en ze blijven waar ze zijn.
+**Back-ups van apparaten** (de regel "Back-up van apparaat" in het opslagoverzicht van Google) zijn de eigen back-ups van apps en instellingen van Android, alleen leesbaar voor een Android-apparaat dat zich aanmeldt. Dat zijn geen gegevens die deze dienst kan of zou moeten lezen, en ze blijven waar ze zijn.
 
 Daarom komt het gemeten Drive-getal van een verbinding overeen met de regel Google Drive van Google zelf, en niet met het totaal van de opslag: foto's, back-ups en Gmail telt Google onder hun eigen kopjes, en Ownpace meet elk onderdeel dat het kan bereiken onder het zijne.
 
 ## Als de test iets meldt {#when-test-says}
 
-- **`accessNotConfigured`**, met de naam van een API: in het Google Cloud-project achter de app staat die API uit. De zin van Google noemt de API en linkt naar de juiste pagina, en de test toont die zin, niet de XML waarin hij binnenkomt. Wordt de app van deze dienst gebruikt, dan is dat een instelling van deze dienst: meld het aan wie deze dienst beheert. Met [uw eigen app](#own-app) zet u hem aan in uw project.
+- **`accessNotConfigured`**, met de naam van een API: in het Google Cloud-project achter de app staat die API uit. De zin van Google noemt de API en linkt naar de juiste pagina, en de test toont die zin, niet de XML waarin hij binnenkomt. Wordt de app van deze dienst gebruikt, dan is dat een instelling van deze dienst: meld het aan wie deze dienst beheert. Met [uw eigen oauth-app](#own-app) zet u hem aan in uw project.
 - **`invalid_scope`**: het refresh-token kreeg toestemming voor een ander Google-product. Verbind opnieuw vanaf de kaart waarop u bent.
 - **`unauthorized_client`** met een sleutel van een service-account betekent dat stap 3 van [domeinbrede delegatie](#domain-wide-delegation) ontbreekt of de verkeerde scope noemt; de foutmelding noemt de client-ID en de scope die erbij moeten. Een `invalid_grant` daar betekent meestal dat het account onder **Gebruikersnaam** geen gebruiker in het domein is.
 - **`invalid_grant`**: het refresh-token is dood. **Behandel het refresh-token als een wachtwoord.** Het geeft leestoegang tot het wordt ingetrokken, en het verloopt niet vanzelf. Het sterft wel als:
 
-1. het wachtwoord van het account verandert;
-2. de beheerder van het account de toegang van de app weghaalt;
-3. het zes maanden niet wordt gebruikt.
+  1. het wachtwoord van het account verandert;
+  2. de beheerder van het account de toegang van de app weghaalt;
+  3. het zes maanden niet wordt gebruikt.
 
-Elk van deze geeft dezelfde `invalid_grant` van Google, en de melding van de test noemt ze, samen met de twee oorzaken die bij de app horen, hieronder. Verbind opnieuw om een nieuw token te maken. Wordt de app van deze dienst gebruikt en sterft een nieuw token steeds binnen een paar dagen, dan ligt het aan de app, niet aan het account: meld het aan wie deze dienst beheert. Met [uw eigen app](#own-app) moet u nog twee oorzaken nakijken, en de eerste keert elke week terug: de app is External en staat nog in Testing (zie [van wie is het Google-account?](#own-app-whose-account)), of de OAuth-client ervan is verwijderd.
+  Elk van deze geeft dezelfde `invalid_grant` van Google, en de melding van de test noemt ze, samen met de twee oorzaken die bij de app horen, hieronder. Verbind opnieuw om een nieuw token te maken. Wordt de app van deze dienst gebruikt en sterft een nieuw token steeds binnen een paar dagen, dan ligt het aan de app, niet aan het account: meld het aan wie deze dienst beheert. Met [uw eigen oauth-app](#own-app) moet u nog twee oorzaken nakijken, en de eerste keert elke week terug: de app is External en staat nog in Testing (zie [van wie is het Google-account?](#own-app-whose-account)), of de OAuth-client ervan is verwijderd.
 
 ## Stoppen {#leaving}
 
 - Een toestemming die met **Verbinden met Google** is gegeven, trekt u in bij Google, in de beveiligingsinstellingen van het Google-account, in de lijst met apps van derden die toegang hebben.
 - Een **app-wachtwoord** trekt u in door de regel ervan te verwijderen uit de eigen lijst met app-wachtwoorden van het account. De toegang is meteen weg, en verder wordt niets aangeraakt.
 - Een **service-account** trekt u in door de delegatie in de Admin-console te verwijderen, en de sleutel.
-- Met [uw eigen app](#own-app) trekt het verwijderen van de OAuth-client elk token in dat ermee is gemaakt.
+- Met [uw eigen oauth-app](#own-app) trekt het verwijderen van de OAuth-client elk token in dat ermee is gemaakt.
 
-## Met een eigen app {#own-app}
+## Met een eigen oauth-app {#own-app}
 
-Dit doet u één keer, in **uw eigen** Google Cloud-project, zodat Ownpace een Google-account kan lezen met een client van uzelf. Het levert twee waarden op, client-ID en clientgeheim, die in het deel **Uw eigen Google-client gebruiken** horen, onder **Verbinden met Google**.
+Dit doet u één keer, in **uw eigen** Google Cloud-project, zodat Ownpace een Google-account kan lezen met een client van uzelf. Het levert twee waarden op, client-ID en clientsecret, die in het deel **Uw eigen Google-client gebruiken** horen, onder **Verbinden met Google**.
 
 **Hetzelfde model als bij Microsoft, om dezelfde redenen.** De appregistratie staat in **uw** project en is door u geregistreerd; de inloggegevens blijven bij u; en intrekken doet u zelf: verwijder de OAuth-client en elk token is dood. **Verbinden met Google** regelt de toestemming voor u met uw eigen client: hij opent het toestemmingsscherm van Google met uw client-ID en geheim, en vult het refresh-token voor u in.
 
@@ -174,11 +178,11 @@ Dit ene antwoord bepaalt of u überhaupt beveiligingswaarschuwingen ziet. **Kies
 1. [Google Cloud Console](https://console.cloud.google.com/) → maak een project (of kies er een).
 2. **APIs & Services → Library →** zet de API aan achter elk onderdeel dat deze client bedient. Elk is een aparte schakelaar, en een schakelaar die uit staat, weigert het eerste verzoek met `accessNotConfigured`.
 
-- Bestanden: **Google Drive API**, voor elk Drive-verzoek.
-- Agenda: **CalDAV API**. De CalDAV-server van Google is een Cloud-API zoals elke andere.
-- Contacten: **Google Contacts CardDAV API**, hetzelfde, voor CardDAV.
-- Mail: **Gmail API**. IMAP zelf heeft geen API nodig; staat deze aan, dan staat de scope `https://mail.google.com/` in de scopekiezer van het toestemmingsscherm en hoeft u hem niet met de hand te plakken.
-- Taken: **Google Tasks API**. De taken van Google staan niet op de CalDAV; het onderdeel Taken leest deze API.
+   - Bestanden: **Google Drive API**, voor elk Drive-verzoek.
+   - Agenda: **CalDAV API**. De CalDAV-server van Google is een Cloud-API zoals elke andere.
+   - Contacten: **Google Contacts CardDAV API**, hetzelfde, voor CardDAV.
+   - Mail: **Gmail API**. IMAP zelf heeft geen API nodig; staat deze aan, dan staat de scope `https://mail.google.com/` in de scopekiezer van het toestemmingsscherm en hoeft u hem niet met de hand te plakken.
+   - Taken: **Google Tasks API**. De taken van Google staan niet op de CalDAV; het onderdeel Taken leest deze API.
 
 Een Google-accountverbinding waarvan de toestemming goed was verlopen, is bij de test geweigerd met "CalDAV API has not been used in project … before or it is disabled": niets had tot dan toe gezegd dat die API bestond.
 

@@ -31,7 +31,7 @@ Voor bestanden. Vul **Host**, **Poort**, **Gebruikersnaam** en **Wachtwoord** in
 - **DAV-basis-URL**, onder **Serverinstellingen** bij **Waar gaat het naartoe?**: alleen wanneer de DAV-root van de server niet op de hostroot staat. Indien ingevuld wordt deze volledige URL gebruikt en worden host en poort genegeerd.
 - **Gebruikersnaam** en **Wachtwoord**: die van het account op de server, met een app-wachtwoord waar de server dat aanbiedt.
 
-U kunt het account ook vooraf toevoegen, onder **Accounts** → **Account toevoegen**: kies bij **Bron of doel?** **Doelen**, dan de kaart, en druk op **Toevoegen en testen**. **Waar gaat het naartoe?** biedt het dan aan onder **Uw accounts**. In de **Instelchecklist** staat de voorbereiding voor elk van de drie als lijst die onthoudt wat u al gedaan hebt.
+U kunt het account ook vooraf toevoegen, onder **Accounts** → **Account toevoegen**: kies bij **Bron of bestemming?** **Bestemmingen**, dan de kaart, en druk op **Toevoegen en testen**. **Waar gaat het naartoe?** biedt het dan aan onder **Uw accounts**. In de **Instelchecklist** staat de voorbereiding voor elk van de drie als lijst die onthoudt wat u al gedaan hebt.
 
 ## Wat er meegaat {#what-moves}
 

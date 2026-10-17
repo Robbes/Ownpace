@@ -1,6 +1,6 @@
-# Apple (iCloud) — één wachtwoord, vier onderdelen, en geen knop
+# Apple (iCloud) — mail, agenda's en contacten met één wachtwoord
 
-Een Apple-migratie meldt zich aan met **één app-specifiek wachtwoord**. Er is geen toestemmingsscherm om op te klikken, en dat ligt aan Apple, niet aan een gat in dit product. [De reden](#no-button) staat hieronder, want het is de eerste vraag die iedereen stelt.
+Een Apple-migratie meldt zich aan met **één app-specifiek wachtwoord**. Er is geen toestemmingsscherm om op te klikken, en dat ligt aan Apple, niet aan een gat in deze dienst. [De reden](#no-button) staat hieronder, want het is de eerste vraag die iedereen stelt.
 
 Wat één Apple-verbinding meeneemt:
 
@@ -10,7 +10,7 @@ Wat één Apple-verbinding meeneemt:
 - **Herinneringen**: alleen lijsten die nooit zijn bijgewerkt naar de nieuwe Herinneringen (iOS 13 en macOS Catalina en later); zie [Wat herinneringen meebrengen](#reminders).
 - **iCloud Drive**: **nee**. Er is geen API. Zie [Bestanden](#files).
 
-U typt geen van die servers. Het zijn de gepubliceerde waarden van Apple, in dit product vastgelegd met het adres en de dag waarop ze zijn gelezen, en de kaart vult ze in.
+U typt geen van die servers. Het zijn de gepubliceerde waarden van Apple, in deze dienst vastgelegd met het adres en de dag waarop ze zijn gelezen, en de kaart vult ze in.
 
 ## Wat u nodig hebt {#before}
 
@@ -43,7 +43,7 @@ Verbindingen met Google, Microsoft en Dropbox bieden een toestemmingsknop met é
 
 **Apple publiceert voor Mail, Agenda, Contacten, Herinneringen en iCloud Drive geen OAuth-scope voor wie dan ook buiten Apple.** Er is geen toestemmingsscherm om u naartoe te sturen, geen token om te ontvangen, en niets wat een knop zou kunnen doen. Het is geen recht dat wij nog moeten aanvragen of een verificatie die we nog moeten kopen: de scope bestaat voor derden gewoon niet.
 
-**De knop Log in met Apple is iets anders, en die bestaat hier wel.** Biedt deze dienst het aan, dan kunt u zich met uw Apple-account bij dit product aanmelden. Dat geeft een naam en een e-mailadres: een identiteit, geen postvak. Het bereikt geen van uw gegevens, en het vervangt de verbinding hierboven niet. Beide kunnen tegelijk waar zijn en brengen mensen vaak in de war: de knop op het aanmeldscherm gaat over **wie u bent**; het wachtwoord op deze pagina gaat over **wat er gelezen mag worden**.
+**De knop Log in met Apple is iets anders, en die bestaat hier wel.** Biedt deze dienst het aan, dan kunt u zich met uw Apple-account bij deze dienst aanmelden. Dat geeft een naam en een e-mailadres: een identiteit, geen postvak. Het bereikt geen van uw gegevens, en het vervangt de verbinding hierboven niet. Beide kunnen tegelijk waar zijn en brengen mensen vaak in de war: de knop op het aanmeldscherm gaat over **wie u bent**; het wachtwoord op deze pagina gaat over **wat er gelezen mag worden**.
 
 ## Wat er meegaat {#what-moves}
 
@@ -53,7 +53,7 @@ E-mail, agenda's, contacten en herinneringen, wat u aanvinkt. Niet iCloud Drive.
 
 **De meeste herinneringen zijn niet te lezen, door Ownpace of door welke app dan ook behalve die van Apple.** Sinds iOS 13 en macOS Catalina biedt de app Herinneringen aan om uw lijsten bij te werken, en een bijgewerkte lijst gaat van de agendaserver van iCloud naar een opslag die alleen de eigen apps van Apple lezen. Bijna elke iPhone heeft die stap gezet, en die is niet terug te draaien. Wat het agenda-account nog bevat, een lijst die nooit is bijgewerkt of een takenlijst uit een andere agenda-app, wordt gelezen zoals hieronder staat. Wilt u bijgewerkte herinneringen meenemen, neem ze dan met de hand over, of deel ze eerst vanuit de app Herinneringen naar een andere app.
 
-De herinneringen van Apple zijn `VTODO`-objecten op dezelfde CalDAV-server als uw agenda's, dus dezelfde inloggegevens bereiken beide. Maar het zijn **geen** afspraken, en dit product doet ook niet alsof. Taken zijn een eigen soort gegevens, apart van afspraken. Een herinnering als afspraak in de agenda zetten, zou iets opleveren wat gemigreerd lijkt en fout is.
+De herinneringen van Apple zijn `VTODO`-objecten op dezelfde CalDAV-server als uw agenda's, dus dezelfde inloggegevens bereiken beide. Maar het zijn **geen** afspraken, en deze dienst doet ook niet alsof. Taken zijn een eigen soort gegevens, apart van afspraken. Een herinnering als afspraak in de agenda zetten, zou iets opleveren wat gemigreerd lijkt en fout is.
 
 Het doel moet dus ook taken kunnen dragen. Een CalDAV-doel dat in zijn `supported-calendar-component-set` alleen `VEVENT` noemt, kan ze niet aannemen, en dat blijkt pas bij de eerste ronde: zijn test telt de takenlijsten die het heeft, en kan niet zien of het taken aanneemt. In de ronde wordt elke taak bij het schrijven geweigerd, en staat ze onder **Mislukkingen** met een zin die zegt wat er geschreven werd en wat het doel aanneemt. Kies voor taken een doel dat takenlijsten bewaart, zoals een Nextcloud.
 
@@ -61,7 +61,7 @@ Het doel moet dus ook taken kunnen dragen. Een CalDAV-doel dat in zijn `supporte
 
 De Apple-kaart toont **Bestanden: nee**, met een zin erbij, nooit een `?` en nooit een leeg vinkje. Het verschil doet ertoe: een `?` betekent dat we het niet konden nagaan, een **nee** betekent dat we het nagingen en dat het antwoord nee is.
 
-**Apple publiceert geen API voor iCloud Drive, voor niemand, niet alleen niet voor ons.** Er is geen adres, geen scope en geen beschreven protocol dat een derde zou kunnen gebruiken. Anders dan Google Drive, OneDrive, Dropbox en Box, die dit product allemaal leest, is de inhoud van iCloud Drive niet vanuit het account te bereiken.
+**Apple publiceert geen API voor iCloud Drive, voor niemand, niet alleen niet voor ons.** Er is geen adres, geen scope en geen beschreven protocol dat een derde zou kunnen gebruiken. Anders dan Google Drive, OneDrive, Dropbox en Box, die deze dienst allemaal leest, is de inhoud van iCloud Drive niet vanuit het account te bereiken.
 
 De enige weg naar die bestanden is **uw eigen export via Data & Privacy** op [`privacy.apple.com`](https://privacy.apple.com), die Apple u als downloadlink geeft. Dat is iets heel anders: een archief met een datum erop, geen account dat leeft.
 
@@ -103,7 +103,7 @@ Apple is ongewoon duidelijk over waar dit voor is: op de vraag of u de gegevens 
 
 Een **terugkerende** planning bestaat wel, en ze is smal: in de Europese Unie, het Verenigd Koninkrijk en Japan kunt u een herhaalde download plannen, dagelijks gedurende 30 dagen of wekelijks gedurende 180 dagen, voor **gegevens uit de App Store en activiteit rond het installeren van apps en pushmeldingen**. Niets in iCloud is te plannen, dus een export van uw Drive of Foto's vraagt u telkens met de hand opnieuw aan.
 
-**Transfer a copy of your data**: de tweede weg, rechtstreeks naar een andere dienst zonder download ertussen. Apple biedt die nu aan voor **iCloud-foto's → Google Foto's** en **afspeellijsten van Apple Music → YouTube Music**, en verder nergens voor. Gaan uw foto's naar Google, dan is die weg eenvoudiger dan wat dit product kan bieden; gaan ze ergens anders heen, dan is hij niet van toepassing. Overdrachten lopen beide kanten op, en hun status staat op dezelfde pagina Data & Privacy.
+**Transfer a copy of your data**: de tweede weg, rechtstreeks naar een andere dienst zonder download ertussen. Apple biedt die nu aan voor **iCloud-foto's → Google Foto's** en **afspeellijsten van Apple Music → YouTube Music**, en verder nergens voor. Gaan uw foto's naar Google, dan is die weg eenvoudiger dan wat deze dienst kan bieden; gaan ze ergens anders heen, dan is hij niet van toepassing. Overdrachten lopen beide kanten op, en hun status staat op dezelfde pagina Data & Privacy.
 
 ### Welke weg u echt wilt {#which-route}
 
@@ -115,7 +115,7 @@ Zegt iemand u dat iCloud Drive automatisch te migreren is, vraag dan welke API d
 
 ### Wat gemeten is, en wat beredeneerd {#measured}
 
-Dit product gokt geen serveradres of gedrag van een aanbieder: het meet ze, of zegt dat het dat niet deed. Daarom is het goed om duidelijk te zijn over welke zinnen hierboven wat zijn.
+Deze dienst gokt geen serveradres of gedrag van een aanbieder: het meet ze, of zegt dat het dat niet deed. Daarom is het goed om duidelijk te zijn over welke zinnen hierboven wat zijn.
 
 - De **servers en poorten** zijn de gepubliceerde waarden van Apple, vastgelegd met de dag waarop ze zijn gelezen.
 - Het **ontbreken van een API voor iCloud Drive** en het **ontbreken van een OAuth-scope voor gegevens** komen uit de ontwikkelaarsdocumentatie van Apple: het zijn afwezigheden, en juist zo'n bewering moet opnieuw worden nagekeken in plaats van te worden aangenomen dat ze blijft kloppen.
@@ -127,7 +127,7 @@ Typt u per ongeluk het wachtwoord van uw account, dan zegt de verbindingstest da
 
 ## Stoppen {#leaving}
 
-Een app-specifiek wachtwoord wordt **ingetrokken op `account.apple.com` → Aanmelden en beveiliging → App-specifieke wachtwoorden**, en nergens anders. Apple publiceert geen adres om het in te trekken, dus dit product kan het niet voor u intrekken en beweert dat ook niet: de verbinding hier verwijderen haalt ons bewaarde exemplaar weg, en laat het wachtwoord bij Apple geldig tot u het daar intrekt.
+Een app-specifiek wachtwoord wordt **ingetrokken op `account.apple.com` → Aanmelden en beveiliging → App-specifieke wachtwoorden**, en nergens anders. Apple publiceert geen adres om het in te trekken, dus deze dienst kan het niet voor u intrekken en beweert dat ook niet: de verbinding hier verwijderen haalt ons bewaarde exemplaar weg, en laat het wachtwoord bij Apple geldig tot u het daar intrekt.
 
 Het goede nieuws is dat intrekken **precies** is. Het raakt alleen dat wachtwoord: het wachtwoord van uw Apple-account blijft zoals het is, elke andere app blijft werken, en niets hoeft opnieuw te worden aangemeld. Dat is het tegenovergestelde van het gebruikelijke advies om het wachtwoord van uw account te wijzigen, wat het meest verstorende is wat u kunt doen, en de ene handeling die dit wachtwoord niet intrekt.
 

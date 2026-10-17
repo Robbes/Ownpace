@@ -28,7 +28,7 @@ There is no box for SSL/TLS: this service always uses it, for calendars and cont
 
 The test writes nothing. It signs in to the calendars and also measures each part of the account on its own: what the account carries follows **Carries:**, and what it found follows **Found:**. Whether one app password works for mail as well as for calendars and contacts is not certain: the test says so per part. If one part is refused and the other is not, that password does not cover the whole account.
 
-You can also add the account in advance, under **Accounts** → **Add an account**: choose **Targets** under **Source or target?**, then the **Soverin** card, and press **Add and test**. The boxes are pre-filled there in the same way, in plain view.
+You can also add the account in advance, under **Accounts** → **Add an account**: choose **Destinations** under **Source or destination?**, then the **Soverin** card, and press **Add and test**. The boxes are pre-filled there in the same way, in plain view.
 
 ## What moves {#what-moves}
 

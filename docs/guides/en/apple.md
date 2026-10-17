@@ -1,6 +1,6 @@
-# Apple (iCloud) — one password, four faces, and no button
+# Apple (iCloud) — mail, calendars and contacts with one password
 
-An Apple migration authenticates with **one app-specific password**. There is no consent screen to click, and that is a fact about Apple rather than a gap in this product — [the reason](#no-button) is below, because it is the first question everybody asks.
+An Apple migration authenticates with **one app-specific password**. There is no consent screen to click, and that is a fact about Apple rather than a gap in this service — [the reason](#no-button) is below, because it is the first question everybody asks.
 
 What one Apple connection carries:
 
@@ -10,7 +10,7 @@ What one Apple connection carries:
 - **Reminders**: only lists that were never upgraded to the new Reminders (iOS 13 and macOS Catalina and later); see [What Reminders bring](#reminders).
 - **iCloud Drive**: **no**. There is no API. See [Files](#files).
 
-You do not type any of those hosts. They are Apple's published values, recorded in this product with the address and the day they were read, and the card fills them in.
+You do not type any of those hosts. They are Apple's published values, recorded in this service with the address and the day they were read, and the card fills them in.
 
 ## What you need {#before}
 
@@ -43,7 +43,7 @@ Google, Microsoft and Dropbox connections offer a one-click consent button. The 
 
 **Apple publishes no OAuth scope for Mail, Calendar, Contacts, Reminders or iCloud Drive to anybody outside Apple.** There is no consent screen to send you to, no token to receive, and nothing for a button to do. This is not a permission we have yet to request or a verification we have yet to buy — the scope does not exist for third parties at all.
 
-**Sign in with Apple is a different thing, and it does exist here.** If this service offers it, you can sign in to this product with your Apple Account. That grants a name and an email address: an identity, not a mailbox. It reaches none of your data, and it is not a substitute for the connection above. Both can be true at once and often confuse people: the button on the sign-in screen is about **who you are**; the password on this page is about **what may be read**.
+**Sign in with Apple is a different thing, and it does exist here.** If this service offers it, you can sign in to this service with your Apple Account. That grants a name and an email address: an identity, not a mailbox. It reaches none of your data, and it is not a substitute for the connection above. Both can be true at once and often confuse people: the button on the sign-in screen is about **who you are**; the password on this page is about **what may be read**.
 
 ## What moves {#what-moves}
 
@@ -53,7 +53,7 @@ Mail, calendars, contacts and reminders, whichever you tick. Not iCloud Drive.
 
 **Most reminders cannot be read, by Ownpace or by any app but Apple's.** Since iOS 13 and macOS Catalina, the Reminders app offers to upgrade your lists, and an upgraded list leaves iCloud's calendar server for a store that only Apple's own apps read. Nearly every iPhone has made that upgrade, and it cannot be undone. What the calendar account still holds, a list that was never upgraded or a task list from another calendar app, is read as described below. To take upgraded reminders along, copy them by hand, or share them from the Reminders app into another app first.
 
-Apple's Reminders are `VTODO` objects living on the same CalDAV host as your calendars, so one credential reaches both — but they are **not** events, and this product does not pretend otherwise. Tasks are their own kind of data, kept apart from events. Filing a reminder as a calendar event would produce something that looks migrated and is wrong.
+Apple's Reminders are `VTODO` objects living on the same CalDAV host as your calendars, so one credential reaches both — but they are **not** events, and this service does not pretend otherwise. Tasks are their own kind of data, kept apart from events. Filing a reminder as a calendar event would produce something that looks migrated and is wrong.
 
 That means the target must also carry tasks. A CalDAV target that advertises only `VEVENT` in its `supported-calendar-component-set` cannot take them, and nothing finds that out before the first pass: its test counts the task lists it has, and cannot tell whether it takes tasks. In the pass, each task is refused as it is written, and listed under **Failures** with a sentence that names what was written and what the target takes. For tasks, choose a target that keeps task lists, such as a Nextcloud.
 
@@ -61,7 +61,7 @@ That means the target must also carry tasks. A CalDAV target that advertises onl
 
 The Apple card shows **Files: no**, with a sentence — never a `?` and never an empty tick box. The distinction matters: a `?` means we could not find out, a **no** means we found out, and the answer is no.
 
-**Apple publishes no API for iCloud Drive — to anyone, not just to us.** There is no endpoint, no scope and no documented protocol a third party could implement. Unlike Google Drive, OneDrive, Dropbox and Box, all of which this product reads, iCloud Drive's contents cannot be reached from the account.
+**Apple publishes no API for iCloud Drive — to anyone, not just to us.** There is no endpoint, no scope and no documented protocol a third party could implement. Unlike Google Drive, OneDrive, Dropbox and Box, all of which this service reads, iCloud Drive's contents cannot be reached from the account.
 
 The only route to those files is **your own Data & Privacy export** at [`privacy.apple.com`](https://privacy.apple.com), which Apple hands to you as a download link. It is a different shape of thing entirely: an archive with a date on it, not a live account.
 
@@ -103,7 +103,7 @@ Apple is unusually direct about what this is for: asked whether you can move the
 
 A **recurring** schedule does exist, and it is narrow: in the European Union, the United Kingdom and Japan you can schedule a repeating download — daily for 30 days, or weekly for 180 days — for **App Store information and app-install and push-notification activity**. Nothing in iCloud can be scheduled, so an export of your Drive or Photos is a one-off you request again by hand.
 
-**Transfer a copy of your data** — the second route: a direct hand-off to another service with no download in between. Apple currently offers it for **iCloud Photos → Google Photos** and **Apple Music playlists → YouTube Music**, and nowhere else. If your photos are going to Google, that route is simpler than anything this product can offer; if they are going anywhere else, it does not apply. Transfers run in both directions and their status shows on the same Data & Privacy page.
+**Transfer a copy of your data** — the second route: a direct hand-off to another service with no download in between. Apple currently offers it for **iCloud Photos → Google Photos** and **Apple Music playlists → YouTube Music**, and nowhere else. If your photos are going to Google, that route is simpler than anything this service can offer; if they are going anywhere else, it does not apply. Transfers run in both directions and their status shows on the same Data & Privacy page.
 
 ### Which route you actually want {#which-route}
 
@@ -115,7 +115,7 @@ If somebody tells you iCloud Drive can be migrated automatically, ask which API 
 
 ### What is measured, and what is reasoned {#measured}
 
-This product does not guess a server address or a provider's behaviour — it measures them, or says it has not. So it is worth being plain about which sentences above are which.
+This service does not guess a server address or a provider's behaviour — it measures them, or says it has not. So it is worth being plain about which sentences above are which.
 
 - The **hosts and ports** are Apple's published values, recorded with the day they were read.
 - The **absence of an iCloud Drive API** and the **absence of a data OAuth scope** are read from Apple's developer documentation: they are absences, which is exactly the sort of claim that must be re-checked rather than assumed to stay true.
@@ -127,7 +127,7 @@ If you type your account password by mistake, the connection test says so in the
 
 ## Stopping {#leaving}
 
-An app-specific password is **revoked at `account.apple.com` → Sign-In and Security → App-Specific Passwords**, and nowhere else. Apple publishes no revocation endpoint, so this product cannot revoke one for you and does not claim to — deleting the connection here removes our stored copy and leaves the password valid at Apple until you revoke it there.
+An app-specific password is **revoked at `account.apple.com` → Sign-In and Security → App-Specific Passwords**, and nowhere else. Apple publishes no revocation endpoint, so this service cannot revoke one for you and does not claim to — deleting the connection here removes our stored copy and leaves the password valid at Apple until you revoke it there.
 
 The good news is that revoking one is **surgical**. It affects that password alone: your Apple Account password is untouched, every other app keeps working, and nothing else needs re-authenticating. That is the opposite of the usual advice to change your account password, which is the most disruptive thing you could do and the one action that would not revoke this.
 
