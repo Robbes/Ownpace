@@ -263,9 +263,11 @@ export const en = {
   // JSON it is stored as (UX sweep, 2026-10-17), and the two facts the
   // Details fold shows.
   'decisions.answer.acceptDefault': 'Accepted the proposal',
-  'decisions.answer.preset': 'Answered by your fixed answer',
+  'decisions.answer.preset': 'Your standing answer',
   'decisions.detail.address': 'Address',
   'decisions.detail.displayName': 'Name',
+  // Who closed it, when there is no answer in words to hang "by" on.
+  'decisions.decidedBy': 'Decided by {who}',
   'decisions.empty.noDetectors':
     'Nothing needs a decision. We look for changes once a day, such as a new mailbox. Where we could not look, an empty list does not mean nothing changed.',
   'decisions.empty.answered': 'Nothing has been decided yet.',
@@ -462,9 +464,10 @@ export const nl: Record<keyof typeof en, string> = {
   'decisions.sharedAddress.shared_s': 'Eén gedeeld postvak',
   'decisions.sharedAddress.distribution_d': 'Een distributielijst',
   'decisions.answer.acceptDefault': 'Voorstel aangenomen',
-  'decisions.answer.preset': 'Beantwoord met uw vaste antwoord',
+  'decisions.answer.preset': 'Uw vaste antwoord',
   'decisions.detail.address': 'Adres',
   'decisions.detail.displayName': 'Naam',
+  'decisions.decidedBy': 'Besloten door {who}',
   'decisions.empty.noDetectors':
     'Er hoeft niets beslist te worden. We kijken eenmaal per dag of er iets veranderd is, zoals een nieuw postvak. Waar we niet konden kijken, betekent een lege lijst niet dat er niets veranderd is.',
   'decisions.empty.answered': 'Er is nog niets besloten.',

@@ -377,7 +377,7 @@ const Decisions: React.FC = () => {
                           recorded answer, who gave it, and the structured facts
                           — the screen rendered none of them (its own header
                           comment claimed detail renders; it never did). */}
-                      {answer && (
+                      {answer ? (
                         <p className="text-xs text-gray-600">
                           {t('decisions.answer')} {t(answer)}
                           {by && (
@@ -387,6 +387,14 @@ const Decisions: React.FC = () => {
                             </span>
                           )}
                         </p>
+                      ) : (
+                        // No answer in words to hang "by" on, but who closed
+                        // it is still part of the story.
+                        by && (
+                          <p className="text-xs text-gray-500">
+                            {t('decisions.decidedBy', { who: by })}
+                          </p>
+                        )
                       )}
                       {/* The two facts a person recognises, labelled. The rest of
                           the detail is the detector's own ids, which said

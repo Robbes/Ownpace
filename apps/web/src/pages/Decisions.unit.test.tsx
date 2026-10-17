@@ -578,18 +578,42 @@ describe('the answer, in words', () => {
     expect((await screen.findByText(/Answer:/)).closest('p')).toHaveTextContent('Answer: One shared mailbox');
   });
 
-  it('a preset answer says it was the fixed answer', async () => {
+  it('a preset answer names the standing answer, as the panel above does', async () => {
     fetchDecisions.mockResolvedValue({
       decisions: [{ ...ANSWERED, resolution: { preset: { category: 'new_mailbox', action: 'auto' } } }],
     });
     renderScreen();
 
     expect((await screen.findByText(/Answer:/)).closest('p')).toHaveTextContent(
-      'Answer: Answered by your fixed answer',
+      'Answer: Your standing answer',
     );
   });
 
-  it('an answer of any other shape gets no line, rather than its JSON', async () => {
+  it('in Dutch a preset answer is "Uw vaste antwoord"', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      fetchDecisions.mockResolvedValue({
+        decisions: [{ ...ANSWERED, resolution: { preset: { category: 'new_mailbox', action: 'auto' } } }],
+      });
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <LocaleProvider>
+          <QueryClientProvider client={qc}>
+            <MemoryRouter>
+              <Decisions />
+            </MemoryRouter>
+          </QueryClientProvider>
+        </LocaleProvider>,
+      );
+      expect((await screen.findByText(/Antwoord:/)).closest('p')).toHaveTextContent(
+        'Antwoord: Uw vaste antwoord',
+      );
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
+  it('an answer of any other shape gets no line, rather than its JSON, but still says who', async () => {
     fetchDecisions.mockResolvedValue({
       decisions: [{ ...ANSWERED, resolution: { action: 'acknowledged' }, resolvedBy: 'marieke@acme.nl' }],
     });
@@ -598,6 +622,50 @@ describe('the answer, in words', () => {
     await screen.findByText('Decided');
     expect(screen.queryByText(/Answer:/)).not.toBeInTheDocument();
     expect(screen.queryByText(/acknowledged/)).not.toBeInTheDocument();
+    // Who gave it is still part of the whole story (0038 T5).
+    expect(screen.getByText('Decided by marieke@acme.nl')).toBeInTheDocument();
+  });
+
+  it('in Dutch the one who decided reads "Besloten door …"', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      fetchDecisions.mockResolvedValue({
+        decisions: [{ ...ANSWERED, resolution: { action: 'acknowledged' }, resolvedBy: 'marieke@acme.nl' }],
+      });
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <LocaleProvider>
+          <QueryClientProvider client={qc}>
+            <MemoryRouter>
+              <Decisions />
+            </MemoryRouter>
+          </QueryClientProvider>
+        </LocaleProvider>,
+      );
+      expect(await screen.findByText('Besloten door marieke@acme.nl')).toBeInTheDocument();
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
+  it('with no answer in words and no address, there is no "Decided by" line', async () => {
+    fetchDecisions.mockResolvedValue({
+      decisions: [{ ...ANSWERED, resolution: { action: 'acknowledged' }, resolvedBy: '312987465012938475' }],
+    });
+    renderScreen();
+
+    await screen.findByText('Decided');
+    expect(screen.queryByText(/Decided by|312987465012938475/)).not.toBeInTheDocument();
+  });
+
+  it('an answer in words carries "by" on its own line, not a second "Decided by"', async () => {
+    fetchDecisions.mockResolvedValue({
+      decisions: [{ ...ANSWERED, resolution: { action: 'accept_default' }, resolvedBy: 'marieke@acme.nl' }],
+    });
+    renderScreen();
+
+    await screen.findByText(/Answer:/);
+    expect(screen.queryByText(/Decided by/)).not.toBeInTheDocument();
   });
 
   it('"by" names nobody when the server holds an id rather than an address', async () => {
