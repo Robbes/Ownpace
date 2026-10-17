@@ -548,8 +548,12 @@ describe('the Leaving… pages name things as the app does (the UX sweep)', () =
     }
   });
 
-  it('says no "postbus" and no bare "eigen app" on a Dutch page', async () => {
-    for (const p of (await renderedPages()).filter((x) => x.locale === 'nl')) {
+  // The Leaving… pages only: "postbus" is the right Dutch for a P.O. Box, which
+  // the owner's legal texts may one day carry, and those words are theirs.
+  it('says no "postbus" and no bare "eigen app" on a Dutch Leaving… page', async () => {
+    const leaving = (await renderedPages()).filter((x) => x.locale === 'nl' && /^leaving/.test(x.key));
+    expect(leaving.length, 'no Dutch Leaving… page was rendered, so this case checks nothing').toBeGreaterThan(0);
+    for (const p of leaving) {
       const text = p.html.replace(/<[^>]+>/g, ' ');
       expect(text, `${p.file} says postbus, where the app says postvak or mailbox`).not.toMatch(/postbus/i);
       expect(text, `${p.file} says eigen app, where the owner says eigen oauth-app`).not.toMatch(/eigen app\b/i);
