@@ -1323,9 +1323,11 @@ describe('adding a connection through the front door', () => {
     await open();
     fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
     const button = await screen.findByRole('button', { name: /Connect with Dropbox/ });
-    await act(async () => {});
+    // Until the deployment's answer arrives the form asks for its own app's
+    // pair; one turn of the event loop is not always enough for it on a busy
+    // runner (CI, 2026-10-17), so wait for the reason this test is about.
+    await waitFor(() => expect(reasonUnder(button)).toHaveTextContent('Fill in the username first'));
     expect(button).toBeDisabled();
-    expect(reasonUnder(button)).toHaveTextContent('Fill in the username first');
     fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
       target: { value: 'owner@example.invalid' },
     });

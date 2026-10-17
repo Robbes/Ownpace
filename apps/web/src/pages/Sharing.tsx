@@ -51,7 +51,6 @@ import {
   fetchSharing,
   rescanSharing,
 } from '../services/operating-service.ts';
-import MappingHubLink from '../components/MappingHubLink.tsx';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import { serverMessage } from '../services/api.ts';
 import { Hint } from '../components/Hint.tsx';
@@ -123,7 +122,12 @@ const Row: React.FC<{
 }> = ({ row, busy, onDecide, refusal, confirmedGrantee, note }) => {
   // The grantee box and its label are joined by id (0067 T7 (a)); one Row per share.
   const granteeId = React.useId();
-  const t = useT();
+  const { t, locale } = useLocale();
+  // The line under the row in the reader's language: the Dutch the server
+  // said beside the English where it sent one, the English as served where it
+  // did not (an older server), marked as English so a reader of Dutch hears it
+  // as such.
+  const dutchLine = locale === 'nl' && row.verdictTargetNl ? row.verdictTargetNl : undefined;
   // The machine proposes; a person confirms or edits before anything is sent
   // (ADR-0032 §6). Confirm ONCE: an address the owner already corrected for
   // this grantee — anna@old → anna@new on some other file — prefills their
@@ -151,10 +155,10 @@ const Row: React.FC<{
         ) : (
           <CircleDashed className="w-4 h-4 text-amber-500 flex-shrink-0" />
         )}
-        <span
-          className={`truncate font-medium ${settled ? 'text-gray-500' : 'text-gray-900'}`}
-          title={row.raw}
-        >
+        {/* No `title={row.raw}`: the grant as the source wrote it is JSON,
+            and a tooltip of it said nothing to anyone. It stays in the API
+            answer and the report, where it is evidence. */}
+        <span className={`truncate font-medium ${settled ? 'text-gray-500' : 'text-gray-900'}`}>
           {row.onLabel}
         </span>
         <span className="text-xs text-gray-500 flex-shrink-0">{row.role}</span>
@@ -177,9 +181,15 @@ const Row: React.FC<{
         </div>
       </div>
       {note}
-      {/* The mapping table's verdict, verbatim: what this right corresponds
-          to on the target, or what to do instead (0029 T2). */}
-      <p className="mt-1 text-xs text-gray-500">{row.verdictTarget}</p>
+      {/* The mapping table's verdict: what this right corresponds to on the
+          target, or what to do instead (0029 T2), in the reader's language. */}
+      {dutchLine ? (
+        <p className="mt-1 text-xs text-gray-500">{dutchLine}</p>
+      ) : (
+        <p className="mt-1 text-xs text-gray-500" lang={locale === 'nl' ? 'en' : undefined}>
+          {row.verdictTarget}
+        </p>
+      )}
       {!settled && !busy && (
         <div className="mt-2 flex items-center gap-2 flex-wrap">
           {applicable && (
@@ -232,7 +242,7 @@ const Row: React.FC<{
         </div>
       )}
       {applicable && !settled && (
-        <p className="mt-1 text-xs text-gray-400">{t('sharing.inviteNote')}</p>
+        <p className="mt-1 text-xs text-gray-500">{t('sharing.inviteNote')}</p>
       )}
       {refusal && (
         <div className="mt-2">
@@ -382,7 +392,7 @@ const GroupCard: React.FC<{
           {/* Nothing here is addressable — links and manual verdicts only. The
               rows are still the checklist's to settle, one at a time. */}
           {grantees.length === 0 && (
-            <span className="text-xs text-gray-400">{t('sharing.group.applyInside')}</span>
+            <span className="text-xs text-gray-500">{t('sharing.group.applyInside')}</span>
           )}
         </div>
       )}
@@ -422,7 +432,9 @@ const GroupCard: React.FC<{
           </ul>
           {unconfirmed.length > 0 ? (
             <p className="text-xs text-amber-800">
-              {t('sharing.group.stillToConfirm', { count: String(unconfirmed.length) })}
+              {unconfirmed.length === 1
+                ? t('sharing.group.stillToConfirm.one')
+                : t('sharing.group.stillToConfirm.many', { count: String(unconfirmed.length) })}
             </p>
           ) : (
             <ConfirmButton
@@ -664,7 +676,9 @@ const Sharing: React.FC = () => {
 
   return (
     <div>
-      <MappingHubLink mappingId={mappingId} />
+      {/* No hub link above the heading: the header names this migration and
+          links to its page (UX sweep, 2026-10-17); a second link here printed
+          the migration's raw id. */}
       <h2 className="text-lg font-semibold text-gray-900">{t('sharing.title')}</h2>
       <Hint className="mt-1" label="more" text={t('sharing.intro')} why={t('sharing.intro.more')} />
 
@@ -680,7 +694,9 @@ const Sharing: React.FC = () => {
       </div>
       {summary && summary.openManual > 0 && (
         <p className="mt-1 text-sm text-gray-600">
-          {summary.openManual} {t('sharing.openManualNote')}
+          {summary.openManual === 1
+            ? t('sharing.openManualNote.one')
+            : t('sharing.openManualNote.many', { count: summary.openManual })}
         </p>
       )}
       {data?.reportingClosed && (

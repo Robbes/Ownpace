@@ -165,6 +165,7 @@ import {
   markShareGrant,
   refreshShareGrants,
   summariseShareGrants,
+  verdictTargetFor,
   itemsHandled,
   passCounts,
 } from '@openmig/core';
@@ -2395,7 +2396,8 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         return sendJson(res, 200, {
           migrationStatus: lifecycle,
           summary: summariseShareGrants(grants),
-          grants,
+          // The Dutch line beside the stored English, as managed answers it.
+          grants: grants.map((g) => ({ ...g, verdictTargetNl: verdictTargetFor(g, 'nl') })),
           ...(lifecycle === 'done' ? { reportingClosed: REPORTING_CLOSED } : {}),
         });
       }

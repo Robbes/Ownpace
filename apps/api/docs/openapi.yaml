@@ -4054,7 +4054,17 @@ paths:
                         viaLink: { type: boolean }
                         raw: { type: string }
                         verdict: { type: string, enum: [clean, manual] }
-                        verdictTarget: { type: string }
+                        verdictTarget:
+                          type: string
+                          description: >-
+                            What it corresponds to on the target, or what to do
+                            instead, in English, as stored (a refusal quotes it).
+                        verdictTargetNl:
+                          type: string
+                          description: >-
+                            The same line in Dutch, without the English developer
+                            note; said on each read, never stored (UX sweep,
+                            2026-10-17). The page shows it to a Dutch reader.
                         state: { type: string, enum: [open, applied, done_manual, skipped] }
                         stateReason: { type: string }
                         decidedBy: { type: string }
