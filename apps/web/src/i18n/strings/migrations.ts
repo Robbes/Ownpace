@@ -231,6 +231,7 @@ export const en = {
   'view.person.account': 'Google account {n}',
   'view.person.others': 'Your other migrations',
   'view.person.route': '{from} to {to}',
+  'view.person.routeWhat': '{route}: {what}',
   'view.person.grant.body': '{organisation} reads this Google account for the migrations above because you allowed it.',
   'view.person.withdrawn.notConfirmed':
     'Deleted here, so these migrations cannot use it. Google did not confirm withdrawing it.',
@@ -598,6 +599,7 @@ export const nl: Record<keyof typeof en, string> = {
   'view.person.account': 'Google-account {n}',
   'view.person.others': 'Uw andere migraties',
   'view.person.route': '{from} naar {to}',
+  'view.person.routeWhat': '{route}: {what}',
   'view.person.grant.body': '{organisation} leest dit Google-account voor de migraties hierboven, omdat u dat toestond.',
   'view.person.withdrawn.notConfirmed':
     'Hier verwijderd, dus deze migraties kunnen die niet gebruiken. Google bevestigde het intrekken niet.',

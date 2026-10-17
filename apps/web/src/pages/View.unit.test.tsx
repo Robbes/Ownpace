@@ -420,6 +420,84 @@ describe('a person’s progress page', () => {
     fireEvent.click(within(account).getByRole('button', { name: 'Yes, withdraw it' }));
     expect(await within(account).findByText('It changed since this page was opened.')).toBeInTheDocument();
   });
+
+  /**
+   * TWO MIGRATIONS ON ONE ROUTE (the UX sweep, 2026-10-17). A Google user
+   * moving their mail and their calendar and contacts to Soverin has two
+   * migrations, `gmail` and `google`, and both read *Google to Soverin*. Where
+   * a route repeats within one section, each says what it migrates; a route
+   * that is the only one of its kind there reads as before.
+   */
+  const twoToSoverin = () =>
+    personPayload({
+      migrations: [
+        { from: 'gmail', to: 'soverin', state: 'active', started: true, domains: [row()], account: ACCOUNT },
+        {
+          from: 'google',
+          to: 'soverin',
+          state: 'active',
+          started: true,
+          domains: [row({ domain: 'calendar' }), row({ domain: 'contact' })],
+          account: ACCOUNT,
+        },
+        { from: 'imap', to: 'soverin', state: 'active', started: true, domains: [row()], account: null },
+      ],
+    });
+
+  it('says what each migrates where two in one section go the same way', async () => {
+    readMock.mockResolvedValue(twoToSoverin());
+    renderPage();
+    const account = await screen.findByRole('region', { name: 'Your Google account' });
+    expect(within(account).getByRole('heading', { name: 'Google to Soverin: email' })).toBeInTheDocument();
+    expect(
+      within(account).getByRole('heading', { name: 'Google to Soverin: calendar and contacts' }),
+    ).toBeInTheDocument();
+    expect(within(account).queryByRole('heading', { name: 'Google to Soverin' })).toBeNull();
+    // Alone in its section, the route is still just the route.
+    const others = screen.getByRole('region', { name: 'Your other migrations' });
+    expect(within(others).getByRole('heading', { level: 3 })).toHaveTextContent(/ to Soverin$/);
+  });
+
+  it('says it in Dutch for a Dutch reader', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      readMock.mockResolvedValue(twoToSoverin());
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <QueryClientProvider client={qc}>
+          <LocaleProvider>
+            <MemoryRouter initialEntries={['/view/abc.def']}>
+              <Routes>
+                <Route path="/view/:link" element={<View />} />
+              </Routes>
+            </MemoryRouter>
+          </LocaleProvider>
+        </QueryClientProvider>,
+      );
+      expect(await screen.findByRole('heading', { name: 'Google naar Soverin: e-mail' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Google naar Soverin: agenda en contacten' })).toBeInTheDocument();
+      expect(document.title).toBe('Uw migraties — Ownpace');
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
+  it('names the page in the browser’s tab', async () => {
+    readMock.mockResolvedValue(personPayload());
+    renderPage();
+    await screen.findByRole('heading', { level: 1, name: 'Your migrations' });
+    expect(document.title).toBe('Your migrations — Ownpace');
+  });
+
+  it('gives the tab its name back on the way out', async () => {
+    readMock.mockResolvedValue(personPayload());
+    document.title = 'Ownpace';
+    const page = renderPage();
+    await screen.findByRole('heading', { level: 1, name: 'Your migrations' });
+    expect(document.title).toBe('Your migrations — Ownpace');
+    page.unmount();
+    expect(document.title).toBe('Ownpace');
+  });
 });
 
 /**
