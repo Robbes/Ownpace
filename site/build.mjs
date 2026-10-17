@@ -1580,8 +1580,8 @@ export const SOURCE = {
 
 const META = {
   en: {
-    home: ['Ownpace — move your data at your own pace', 'Move your mail, contacts, calendar and files from Google or Microsoft to a European provider, continuously, and cut over when you are ready.'],
-    how: ['How it works — Ownpace', 'What a migration looks like from the first connection to the cutover.'],
+    home: ['Ownpace — move your data at your own pace', 'Move your mail, contacts, calendar and files from Google or Microsoft to a European provider, continuously, and switch when you are ready.'],
+    how: ['How it works — Ownpace', 'What a migration looks like from the first connection to the switch.'],
     pricing: ['Pricing — Ownpace', 'Five tiers, published in full. Priced on how many migrations run at once and how much data you have moved.'],
     calculator: ['Estimate your migration — Ownpace', 'Five questions, an indicative band, and the tier your answers need. No account, no email, nothing stored.'],
     privacy: ['Privacy policy — Ownpace', 'What Ownpace holds, why, for how long, and what it never does.'],

@@ -430,6 +430,26 @@ describe('both locales are complete', () => {
     // Each lands on a page the build writes, beside the page that links it.
     expect(pages.map((p) => p.file)).toEqual(expect.arrayContaining(['estimate.html', 'nl/schatting.html']));
   });
+
+  /**
+   * ENGLISH SAYS "SWITCH", NOT "CUT OVER" (the UX sweep, 2026-10-17). The pages
+   * moved to "switch"; the home and How it works descriptions, which a search
+   * result and a link preview show, still said "cut over" and "the cutover".
+   * Asked of the whole page, its <head> included. The one "cutover" left is
+   * the hero's "No big-bang cutover", the owner's own words (0144 P5).
+   */
+  it('says "switch" for the moment you move over, on every English page and in its description', async () => {
+    const english = [...(await renderedPages()), ...(await alphaBuild())].filter((p) => !p.file.startsWith('nl/'));
+    expect(english.map((p) => p.file)).toEqual(expect.arrayContaining(['index.html', 'how-it-works.html']));
+    for (const page of english) {
+      const said = page.html.replace('No big-bang cutover.', '').match(/\bcut[- ]?over\w*/gi) ?? [];
+      expect(said, `${page.file} says "cut over" where the site says "switch"`).toEqual([]);
+    }
+    const description = (file: string) =>
+      english.find((p) => p.file === file)!.html.match(/<meta name="description" content="([^"]*)"/)![1];
+    expect(description('index.html')).toContain('and switch when you are ready.');
+    expect(description('how-it-works.html')).toBe('What a migration looks like from the first connection to the switch.');
+  });
 });
 
 /**
