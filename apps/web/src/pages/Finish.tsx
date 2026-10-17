@@ -382,10 +382,10 @@ const Finish: React.FC = () => {
                 long that took.
               */}
               <PermissionsHandover
-                  mappingId={id}
-                  sourceKind={failures.data?.[id]?.sourceKind}
-                  carriesMail={carriesMail}
-                />
+                mappingId={id}
+                sourceKind={failures.data?.[id]?.sourceKind}
+                carriesMail={carriesMail}
+              />
               <ol className="mt-4">
                 <Step
                   n={1}

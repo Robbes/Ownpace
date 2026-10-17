@@ -73,6 +73,9 @@ const EachDataTypeEnds: React.FC<{
   const queryClient = useQueryClient();
   const [said, setSaid] = React.useState<Readonly<Record<string, Said>>>({});
   const [keepAsked, setKeepAsked] = React.useState<string | null>(null);
+  // The appliance's all-migrations Finish draws one of these per migration:
+  // the reason's id must not repeat across them.
+  const uid = React.useId();
 
   if (!endings || endings.length === 0) return null;
 
@@ -111,7 +114,7 @@ const EachDataTypeEnds: React.FC<{
         const phaseKey = PHASE_KEY[e.phase];
         const waitsForDelivery = e.domain === 'email' && e.phase === 'active' && !deliveryMoved;
         const showsWhy = waitsForDelivery && (e.offers.includes('end') || e.offers.includes('keep'));
-        const whyId = `waits-${e.domain}`;
+        const whyId = `${uid}-waits-${e.domain}`;
         const s = said[e.domain];
         const pending = s?.state === 'pending';
         return (

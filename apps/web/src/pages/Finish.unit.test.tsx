@@ -219,6 +219,30 @@ describe('the cutover order', () => {
     expect(screen.getByRole('button', { name: END_MAIL })).not.toHaveAccessibleDescription();
   });
 
+  it('gives each migration its own reason, so no id repeats on the all-migrations page', async () => {
+    // The appliance's /finish lists every migration: two with mail waiting on
+    // step 4 must not both draw id="waits-email" (duplicate-id-aria), and each
+    // row's buttons must point at the reason under their own row.
+    const one = statusReport('active').mappings[0]!;
+    fetchStatus.mockResolvedValue({
+      status: 'ok',
+      mappings: [one, { ...one, mappingId: 'beta-mail' }],
+    } satisfies StatusReport);
+    const { container } = renderScreen();
+
+    const ends = await screen.findAllByRole('button', { name: END_MAIL });
+    expect(ends).toHaveLength(2);
+    const reasons = screen.getAllByRole('status');
+    expect(reasons).toHaveLength(2);
+    const ids = reasons.map((r) => r.id);
+    expect(new Set(ids).size).toBe(2);
+    for (const id of ids) expect(container.querySelectorAll(`[id="${id}"]`)).toHaveLength(1);
+    for (const [i, b] of ends.entries()) {
+      expect(b.getAttribute('aria-describedby')).toBe(ids[i]);
+      expect(b.closest('li')).toContainElement(reasons[i]!);
+    }
+  });
+
   it('spells out what happens if you finish first, rather than assuming it is understood', async () => {
     fetchStatus.mockResolvedValue(statusReport('active'));
     renderScreen();
