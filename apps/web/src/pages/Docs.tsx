@@ -860,6 +860,7 @@ const Docs: React.FC = () => {
             <p className="mt-4 text-sm text-gray-600">
               <a href={OPERATOR_DOCS_URL} target="_blank" rel="noreferrer noopener" className="text-blue-700 hover:underline">
                 {t('docs.operatorDocs')}
+                <span className="sr-only"> {t('common.newTab')}</span>
               </a>
             </p>
           )}

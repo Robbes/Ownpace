@@ -593,10 +593,15 @@ describe('the appliance\'s /docs points to the operator documents (0148 D9)', ()
   for (const locale of ['en', 'nl'] as const) {
     it(`${locale}: the line ends the index on the appliance, and is absent on managed`, () => {
       const line = STRINGS[locale]['docs.operatorDocs'];
+      const escaped = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
       edition.selfhost = true;
       const appliance = renderAt('/docs', locale);
-      const link = within(appliance.container).getByRole('link', { name: line });
+      // It opens a new tab, and says so to a screen reader.
+      const link = within(appliance.container).getByRole('link', {
+        name: new RegExp(`^${escaped(line)}\\s*${escaped(STRINGS[locale]['common.newTab'])}$`),
+      });
+      expect(link.getAttribute('target')).toBe('_blank');
       expect(link.getAttribute('href')).toBe('https://github.com/Robbes/Ownpace/tree/main/docs');
       // The last thing on the index, after the guides.
       const items = [...appliance.container.querySelectorAll('a')];

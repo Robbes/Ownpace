@@ -68,7 +68,13 @@ const PublicDocs: React.FC = () => {
   const [search] = useSearchParams();
   useNewPageAtTheTop();
   React.useEffect(() => {
+    // Put the tab's old title back on the way out, so a page that sets none
+    // of its own does not go on calling itself the guides.
+    const before = document.title;
     document.title = `${t('nav.docs')} — Ownpace`;
+    return () => {
+      document.title = before;
+    };
   }, [t]);
   /**
    * `?locale=` rides on the guide links of the site's Leaving pages

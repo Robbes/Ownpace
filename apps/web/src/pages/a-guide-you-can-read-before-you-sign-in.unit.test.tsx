@@ -279,6 +279,16 @@ describe('without a session, on managed, the guides are a page of their own (015
     },
   );
 
+  it('gives the tab its old title back on the way out, for a page that sets none (UX sweep review)', () => {
+    document.title = 'Ownpace';
+    const { unmount } = renderAt('/docs/google');
+    expect(document.title).toBe(`${STRINGS.en['nav.docs']} — Ownpace`);
+
+    unmount();
+
+    expect(document.title).toBe('Ownpace');
+  });
+
   it('follows a link to another guide in the same frame, from the top', () => {
     const scrollTo = vi.spyOn(globalThis, 'scrollTo');
     renderAt('/docs/google');
