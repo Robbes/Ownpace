@@ -60,7 +60,7 @@ import {
 import { serverMessage } from '../services/api.ts';
 import { linkRefusal } from '../services/link-refusal.ts';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
-import type { StringKey } from '../i18n/index.tsx';
+import type { Locale, StringKey } from '../i18n/index.tsx';
 import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
 import { VIEW_FAILURE_KEY, VIEW_SIDE_KEY } from '../i18n/view-failure-key.ts';
 import { formatBytes } from '../i18n/bytes.ts';
@@ -246,7 +246,9 @@ const TheAccessTheyGave: React.FC<{
   const forAccount = account !== undefined;
   // One section of a person's page sits under its account's heading.
   const Title: 'h2' | 'h3' = forAccount ? 'h3' : 'h2';
-  const frame = forAccount ? 'mt-4 rounded-lg bg-gray-50 p-4' : 'mt-8 border-t border-gray-200 pt-6';
+  // A white card with an edge: gray-50 is the page's own paper since the
+  // site's palette (0152 T9 (b)), so a gray-50 panel drew no box at all.
+  const frame = forAccount ? 'mt-4 rounded-lg border border-gray-200 bg-white p-4' : 'mt-8 border-t border-gray-200 pt-6';
 
   const withdraw = useMutation({
     mutationFn: () => (forAccount ? viewApi.withdrawAccount(link, account) : viewApi.withdraw(link)),
@@ -363,19 +365,44 @@ const HowLong: React.FC<{ time: ViewTime | undefined; from: string | undefined }
   );
 };
 
-/** One migration on a person's page: where it goes, where it is, and its rows. */
-const PersonMigration: React.FC<{ migration: PersonViewPayload['migrations'][number]; grant: PageGrant }> = ({
+type PersonViewMigration = PersonViewPayload['migrations'][number];
+
+/** A migration's route as its heading names it, to tell where two read the same. */
+const routeLabel = (m: PersonViewMigration, locale: Locale): string =>
+  `${providerName(m.from, 'source', locale)}>${providerName(m.to ?? '', 'target', locale)}`;
+
+/**
+ * Whether another migration of the same section has this one's route name:
+ * `gmail` and `google` both read *Google*, so mail and calendar to Soverin are
+ * two *Google to Soverin* (the UX sweep, 2026-10-17).
+ */
+const routeRepeats = (m: PersonViewMigration, section: readonly PersonViewMigration[], locale: Locale): boolean =>
+  section.filter((other) => routeLabel(other, locale) === routeLabel(m, locale)).length > 1;
+
+/**
+ * One migration on a person's page: where it goes, where it is, and its rows.
+ * `withWhat` where its route's name repeats in its section: the heading then
+ * says what it migrates too, *Google to Soverin: calendar and contacts*.
+ */
+const PersonMigration: React.FC<{ migration: PersonViewMigration; grant: PageGrant; withWhat?: boolean }> = ({
   migration,
   grant,
+  withWhat = false,
 }) => {
   const t = useT();
   const { locale } = useLocale();
-  const { dateTime } = useFormatters();
+  const { dateTime, list } = useFormatters();
   const from = providerName(migration.from, 'source', locale);
+  const route = migration.to ? t('view.person.route', { from, to: providerName(migration.to, 'target', locale) }) : from;
   return (
     <div className="mt-4">
       <h3 className="font-medium text-gray-900">
-        {migration.to ? t('view.person.route', { from, to: providerName(migration.to, 'target', locale) }) : from}
+        {withWhat && migration.started && migration.domains.length > 0
+          ? t('view.person.routeWhat', {
+              route,
+              what: list(migration.domains.map((r) => t(DOMAIN_STRING_KEY[r.domain]).toLocaleLowerCase(locale))),
+            })
+          : route}
       </h3>
       {/* A withdrawn grant is the whole story, as on a migration's page. */}
       <p className="mt-1 text-gray-900">
@@ -415,6 +442,7 @@ const PersonMigration: React.FC<{ migration: PersonViewPayload['migrations'][num
  */
 const PersonProgress: React.FC<{ link: string; view: PersonViewPayload }> = ({ link, view }) => {
   const t = useT();
+  const { locale } = useLocale();
   const others = view.migrations.filter((m) => m.account === null);
   return (
     <>
@@ -433,8 +461,13 @@ const PersonProgress: React.FC<{ link: string; view: PersonViewPayload }> = ({ l
           </h2>
           {view.migrations
             .filter((m) => m.account === account.ref)
-            .map((m, j) => (
-              <PersonMigration key={j} migration={m} grant={account.grant} />
+            .map((m, j, mine) => (
+              <PersonMigration
+                key={j}
+                migration={m}
+                grant={account.grant}
+                withWhat={routeRepeats(m, mine, locale)}
+              />
             ))}
           <TheAccessTheyGave
             link={link}
@@ -450,7 +483,7 @@ const PersonProgress: React.FC<{ link: string; view: PersonViewPayload }> = ({ l
             {t('view.person.others')}
           </h2>
           {others.map((m, j) => (
-            <PersonMigration key={j} migration={m} grant={{ state: 'none' }} />
+            <PersonMigration key={j} migration={m} grant={{ state: 'none' }} withWhat={routeRepeats(m, others, locale)} />
           ))}
         </section>
       )}
@@ -486,10 +519,25 @@ const View: React.FC = () => {
   const one = view.data && !isPersonView(view.data) ? view.data : null;
   const moved = one?.domains.reduce((sum, d) => sum + d.bytesTransferred, 0) ?? 0;
 
+  // The tab's name goes back to what it was when this page leaves, so the
+  // next screen is not called after this one. Its own effect, run once: a
+  // language switch renames the tab and must not bring the old name back.
+  React.useEffect(() => {
+    const before = document.title;
+    return () => {
+      document.title = before;
+    };
+  }, []);
+  // The tab's name, as the page's own title says it (the UX sweep, 2026-10-17).
+  const title = t(person ? 'view.person.title' : 'view.title');
+  React.useEffect(() => {
+    document.title = `${title} — Ownpace`;
+  }, [title]);
+
   return (
     <main className="max-w-xl mx-auto px-6 py-12">
       <LanguageSwitch className="justify-end mb-4" />
-      <h1 className="text-xl font-semibold text-gray-900">{t(person ? 'view.person.title' : 'view.title')}</h1>
+      <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
 
       {view.isPending && (
         <p role="status" className="mt-4 text-sm text-gray-600">

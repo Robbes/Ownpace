@@ -227,9 +227,10 @@ describe('the header on per-mapping routes (T3)', () => {
     authState.user = { name: 'Alex', email: 'owner@example.invalid' };
     renderLayout('/mappings/acme-mail/deletions');
 
+    // While the name is on its way the bar says *Migration*, not the id: on
+    // managed an id is a UUID (the UX sweep, `running-error-uuid-no-retry`).
     const heading = screen.getByRole('heading', { level: 1 });
-    expect(heading.textContent).toContain('Deletions');
-    expect(heading.textContent).toContain('acme-mail');
+    expect(heading.textContent).toBe('Deletions — Migration');
 
     const nav = screen.getByRole('navigation');
     // The nav says "Migrations" since the 0035 T3 glossary rename.
@@ -245,6 +246,24 @@ describe('the header on per-mapping routes (T3)', () => {
 
     const heading = await screen.findByRole('heading', { level: 1, name: /Goog2NC/ });
     expect(heading.textContent).not.toContain('ff591fee');
+  });
+
+  it('managed: a name that could not be read says Migration, never the UUID, and keeps the id as a tooltip', async () => {
+    mappingGet.mockRejectedValueOnce(new Error('the server is down'));
+    renderLayout('/mappings/a0000000-0000-4000-8000-0000000000d1/deletions');
+
+    await vi.waitFor(() => expect(mappingGet).toHaveBeenCalled());
+    const heading = screen.getByRole('heading', { level: 1 });
+    expect(heading.textContent).toBe('Deletions — Migration');
+    const name = within(heading).getByRole('link', { name: 'Migration' });
+    expect(name).toHaveAttribute('title', 'a0000000-0000-4000-8000-0000000000d1');
+    expect(name.className).not.toContain('font-mono');
+  });
+
+  it('the tab names the screen and the migration, then Ownpace', async () => {
+    mappingGet.mockResolvedValueOnce({ name: 'Goog2NC' } as never);
+    renderLayout('/mappings/ff591fee-9e2a-4b64-9707-37de2233cb7b/deletions');
+    await vi.waitFor(() => expect(document.title).toBe('Deletions — Goog2NC — Ownpace'));
   });
 
   it('managed: on the hub the name is the page you are on — no link to itself', async () => {
@@ -269,6 +288,24 @@ describe('the header on per-mapping routes (T3)', () => {
     );
   });
 
+  it('names Sharing under a migration, and its back arrow leads to that migration', () => {
+    editionFlag.selfhost = true;
+    renderLayout('/mappings/acme-mail/sharing');
+    const banner = screen.getByRole('banner');
+    expect(within(banner).getByRole('heading', { level: 1 }).textContent).toBe('Sharing — acme-mail');
+    expect(within(banner).getByRole('link', { name: 'Back' })).toHaveAttribute('href', '/mappings/acme-mail');
+  });
+
+  it.each([
+    ['confirmed', 'Confirmed'],
+    ['report', 'Report'],
+    ['confirm', 'Review'],
+  ])('names the %s screen under a migration, too', (path, words) => {
+    editionFlag.selfhost = true;
+    renderLayout(`/mappings/acme-mail/${path}`);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(`${words} — acme-mail`);
+  });
+
   it('selfhost: the slug is the name, so nothing is fetched', () => {
     editionFlag.selfhost = true;
     renderLayout('/mappings/acme-mail/deletions');
@@ -280,6 +317,61 @@ describe('the header on per-mapping routes (T3)', () => {
     renderLayout('/deletions');
 
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Deletions');
+  });
+
+  it('Start a migration lights Migrations, and the bar says Migrations, not Ownpace', () => {
+    renderLayout('/start');
+    const migrations = within(screen.getByRole('navigation')).getByRole('link', { name: 'Migrations' });
+    expect(migrations.className).toContain('bg-blue-50');
+    expect(screen.getByRole('banner').textContent).toContain('Migrations');
+    expect(screen.getByRole('banner').textContent).not.toContain('Ownpace');
+  });
+
+  it('Report a problem names itself in the bar, and is not a second h1 there', () => {
+    // Not a menu entry (it sits under the menu, by Sign out), so the bar used
+    // to say Ownpace on it.
+    renderLayout('/report');
+    const banner = screen.getByRole('banner');
+    expect(banner.textContent).toContain('Report a problem');
+    expect(banner.textContent).not.toContain('Ownpace');
+    expect(within(banner).queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
+  });
+
+  /**
+   * ONE H1 A PAGE (the UX sweep, `a11y-two-h1-per-page`). Billing, Migrations
+   * and the other managed pages draw their own `<h1>`, so the bar's name is a
+   * paragraph there; a page that draws none, such as Help's guides, keeps the
+   * bar's `<h1>`.
+   */
+  it('is not a second h1 on a page that has its own, and stays the h1 where the page has none', () => {
+    authState.user = { name: 'A', email: 'a@acme.test', role: 'owner' };
+    const billing = renderLayout('/billing');
+    const banner = screen.getByRole('banner');
+    expect(banner.textContent).toContain('Billing');
+    expect(within(banner).queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
+    billing.unmount();
+
+    renderLayout('/docs');
+    expect(within(screen.getByRole('banner')).getByRole('heading', { level: 1, name: 'Help' })).toBeInTheDocument();
+  });
+});
+
+describe('the Ownpace mark, and the language switch, in the sidebar', () => {
+  it('draws the site’s mark beside the name, not a folder', () => {
+    const sidebar = renderLayout('/mappings').container.querySelector('aside');
+    if (!sidebar) throw new Error('the layout rendered no <aside>');
+    const home = within(sidebar).getByRole('link', { name: 'Ownpace' });
+    // SiteMark's teal square (site/brand/logo.svg).
+    expect(home.querySelector('svg rect')).toHaveAttribute('fill', '#0E4F4A');
+    expect(home.querySelectorAll('svg')).toHaveLength(1);
+  });
+
+  it('is one group named Language, whose buttons say which language they are in', () => {
+    const sidebar = renderLayout('/mappings').container.querySelector('aside');
+    if (!sidebar) throw new Error('the layout rendered no <aside>');
+    const group = within(sidebar).getByRole('group', { name: 'Language' });
+    expect(within(group).getByRole('button', { name: 'EN' })).toHaveAttribute('lang', 'en');
+    expect(within(group).getByRole('button', { name: 'NL' })).toHaveAttribute('lang', 'nl');
   });
 });
 
@@ -460,7 +552,8 @@ describe("a member's menu", () => {
     renderLayout('/people/p-anna');
     const migrations = within(screen.getByRole('navigation')).getByRole('link', { name: 'Migrations' });
     expect(migrations.className).toContain('bg-blue-50');
-    expect(screen.getByRole('heading', { level: 1, name: 'Migrations' })).toBeInTheDocument();
+    // The person's page draws its own h1 (their name), so the bar's is not one.
+    expect(screen.getByRole('banner').textContent).toContain('Migrations');
   });
 
   it('opens Help on the setup checklist', () => {

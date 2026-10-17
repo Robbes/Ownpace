@@ -112,8 +112,6 @@ export const en = {
   'grant.person.connectAgain': 'Connect again with Google as {account}',
   'grant.connecting': 'Opening Google…',
   'grant.disclosure': 'By continuing you accept how your data is handled:',
-  'grant.privacy': 'Privacy policy',
-  'grant.terms': 'Terms',
   'grant.withdraw':
     'You can withdraw this access at any time: on the progress page you get once you have granted it, or in your Google account’s security settings, under the apps that have access.',
   // Report this link (workplan 0108 T8 (d)): on the grant and progress pages,
@@ -219,8 +217,6 @@ export const nl: Record<keyof typeof en, string> = {
   'grant.person.connectAgain': 'Opnieuw verbinden met Google als {account}',
   'grant.connecting': 'Google wordt geopend…',
   'grant.disclosure': 'Door door te gaan gaat u akkoord met hoe uw gegevens worden verwerkt:',
-  'grant.privacy': 'Privacybeleid',
-  'grant.terms': 'Voorwaarden',
   'grant.withdraw':
     'U kunt deze toegang op elk moment intrekken: op de voortgangspagina die u krijgt zodra u toegang hebt gegeven, of via de beveiligingsinstellingen van uw Google-account, bij de apps die toegang hebben.',
   'linkReport.open': 'Deze link melden',

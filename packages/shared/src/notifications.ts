@@ -1593,6 +1593,17 @@ function moneyToGiveBackLines(event: MoneyToGiveBackEvent): string[] {
   return lines;
 }
 
+/**
+ * The app's sign-in page, in the mail's language (the UX sweep, 2026-10-17).
+ * The bare app address opened the sign-in page in the browser's language, so
+ * a Dutch tester with an English browser met it in English; the page reads
+ * `?locale=` once, on arrival. Still an address and never a token: the one
+ * query is the language. One trailing slash on the setting is not doubled.
+ */
+function signInPage(appUrl: string, locale: NotificationLocale): string {
+  return `${appUrl.replace(/\/$/, '')}/login?locale=${locale}`;
+}
+
 /** One immediate event, rendered. Always sends — these are not summaries. */
 export function renderEvent(
   event: NotificationEvent,
@@ -1635,7 +1646,7 @@ export function renderEvent(
     case 'access_granted':
       lines.push(`${b.grantedOrganisation}: ${event.organisation}`, '');
       lines.push(b.grantedIntro, '');
-      lines.push(`${b.grantedSignIn} ${event.appUrl}`, '');
+      lines.push(`${b.grantedSignIn} ${signInPage(event.appUrl, locale)}`, '');
       lines.push(`${b.grantedUseThisAddress} ${event.email}`, '');
       lines.push(b.grantedVerify, '');
       lines.push(b.grantedNoLink);
@@ -1660,7 +1671,7 @@ export function renderEvent(
         event.invitedBy ? `${b.invitedIntro} ${b.invitedFrom} ${event.invitedBy}` : b.invitedIntro,
         '',
       );
-      lines.push(`${b.grantedSignIn} ${event.appUrl}`, '');
+      lines.push(`${b.grantedSignIn} ${signInPage(event.appUrl, locale)}`, '');
       lines.push(`${b.invitedUseThisAddress} ${event.email}`, '');
       lines.push(b.invitedVerify, '');
       lines.push(b.grantedNoLink, '');

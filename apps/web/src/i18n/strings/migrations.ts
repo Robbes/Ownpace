@@ -127,6 +127,8 @@ export const en = {
   'hub.confirmed.blurb':
     'What is in the new home, item by item, and what was compared.',
   'hub.finish.name': 'Finish',
+  // Under each step page of a migration, the way on to the next (NextStepLink).
+  'hub.nextStep': 'Next step: {step} →',
   'hub.finish.blurb':
     'The cutover checklist, to end the migration.',
   'runs.title': 'Run history',
@@ -234,6 +236,7 @@ export const en = {
   'view.person.account': 'Google account {n}',
   'view.person.others': 'Your other migrations',
   'view.person.route': '{from} to {to}',
+  'view.person.routeWhat': '{route}: {what}',
   'view.person.grant.body': '{organisation} reads this Google account for the migrations above because you allowed it.',
   'view.person.withdrawn.notConfirmed':
     'Deleted here, so these migrations cannot use it. Google did not confirm withdrawing it.',
@@ -519,6 +522,7 @@ export const nl: Record<keyof typeof en, string> = {
   'hub.confirmed.blurb':
     'Wat er in het nieuwe systeem staat, item voor item, en wat is vergeleken.',
   'hub.finish.name': 'Afronden',
+  'hub.nextStep': 'Volgende stap: {step} →',
   'hub.finish.blurb':
     'De cutover-checklist; beëindigt de migratie in enkele stappen.',
   'runs.title': 'Uitvoeringsgeschiedenis',
@@ -601,6 +605,7 @@ export const nl: Record<keyof typeof en, string> = {
   'view.person.account': 'Google-account {n}',
   'view.person.others': 'Uw andere migraties',
   'view.person.route': '{from} naar {to}',
+  'view.person.routeWhat': '{route}: {what}',
   'view.person.grant.body': '{organisation} leest dit Google-account voor de migraties hierboven, omdat u dat toestond.',
   'view.person.withdrawn.notConfirmed':
     'Hier verwijderd, dus deze migraties kunnen die niet gebruiken. Google bevestigde het intrekken niet.',

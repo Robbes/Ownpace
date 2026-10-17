@@ -504,10 +504,11 @@ describe('access granted — the one event addressed to a non-member (0095)', ()
     // one-click link should fail here first.
     for (const locale of ['en', 'nl'] as const) {
       const { body } = renderEvent(event, locale);
-      // The app address is the only URL, and it carries no query or fragment
-      // that could smuggle one in.
+      // The app's sign-in page is the only URL, and its one query is the
+      // mail's language (the UX sweep, 2026-10-17): nothing that could
+      // smuggle a token in, and no fragment.
       const urls = body.match(/https?:\/\/\S+/g) ?? [];
-      expect(urls).toEqual(['https://app.ownpace.eu']);
+      expect(urls).toEqual([`https://app.ownpace.eu/login?locale=${locale}`]);
       expect(body).not.toMatch(/token|code=|invite=|\?t=|#/i);
     }
   });
@@ -530,6 +531,23 @@ describe('access granted — the one event addressed to a non-member (0095)', ()
     expect(renderEvent(event, 'en').subject).toBe('Ownpace — your access is ready');
     expect(renderEvent(event, 'nl').subject).toBe('Ownpace — uw toegang staat klaar');
     expect(renderEvent(event, 'nl').body).not.toEqual(renderEvent(event, 'en').body);
+  });
+
+  /**
+   * THE SIGN-IN PAGE IN THE MAIL'S LANGUAGE (the UX sweep, 2026-10-17). The
+   * bare app address opened the sign-in page in the browser's language, so a
+   * Dutch tester with an English browser met it in English. The address now
+   * ends in `/login?locale=` and the mail's own language, which the sign-in
+   * page reads once on arrival. One trailing slash on the setting is not
+   * doubled.
+   */
+  it.each([
+    ['en', 'https://app.ownpace.eu'],
+    ['nl', 'https://app.ownpace.eu/'],
+  ] as const)('sends them to the sign-in page in the mail’s language (%s)', (locale, appUrl) => {
+    const { body } = renderEvent({ ...event, appUrl }, locale);
+    const said = locale === 'en' ? 'Sign in here:' : 'Meld u hier aan:';
+    expect(body).toContain(`${said} https://app.ownpace.eu/login?locale=${locale}\n`);
   });
 
   it('does not tell somebody to open an app they cannot open yet', () => {
