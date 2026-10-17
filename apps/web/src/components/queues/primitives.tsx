@@ -51,7 +51,10 @@ export const HashChip: React.FC<{ hash: string }> = ({ hash }) => {
   const t = useT();
   return (
     <details className="text-xs text-gray-500">
-      <summary className="cursor-pointer select-none">{t('queue.itemId')}</summary>
+      {/* Padded to a target a finger can hit (at least 24 px tall); the
+          negative margin keeps the word where it was. Left a list item, the
+          display that draws the fold's triangle: inline-block hid it. */}
+      <summary className="cursor-pointer select-none py-1 px-1 -mx-1">{t('queue.itemId')}</summary>
       <code className="font-mono" title={hash}>
         {hash.slice(0, 12)}
       </code>
@@ -134,17 +137,46 @@ export const GuidancePanel: React.FC<{
   );
 };
 
+/**
+ * A path that breaks at its slashes on a narrow screen.
+ *
+ * Each part stays a text node directly under the caller's element, so the
+ * path still reads, and is still found, as one text (`INBOX/Projects`); the
+ * `<wbr>` after each slash only says where a line may end.
+ */
+export const PathText: React.FC<{ path: string }> = ({ path }) => (
+  <>
+    {path.split('/').map((part, i) => (
+      <React.Fragment key={i}>
+        {i > 0 && (
+          <>
+            /<wbr />
+          </>
+        )}
+        {part}
+      </React.Fragment>
+    ))}
+  </>
+);
+
 export const QueueSection: React.FC<{
   title: string;
   count: number;
   /** Shown when the section is empty, instead of an empty list. */
   empty: string;
+  /**
+   * What is said above the rows: a hint, a line explaining them, a button for
+   * all of them. Never inside the list, which holds its rows only (axe
+   * 'list'), and only when there are rows to say it about.
+   */
+  lead?: React.ReactNode;
   children: React.ReactNode;
-}> = ({ title, count, empty, children }) => (
+}> = ({ title, count, empty, lead, children }) => (
   <div className="mb-6">
     <h4 className="text-sm font-semibold text-gray-900 mb-2">
       {title} <span className="text-gray-500 font-normal">({count})</span>
     </h4>
+    {count > 0 && lead !== undefined && <div className="mb-2">{lead}</div>}
     {count === 0 ? (
       <p className="text-sm text-gray-500">{empty}</p>
     ) : (

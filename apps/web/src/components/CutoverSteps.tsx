@@ -14,7 +14,13 @@
  * Of one migration, a step's name opens that migration's own page for it. Of
  * a person's several, each row sums them and lists them, each link opening
  * that migration's page, and on a queue's step carrying its own count, so the
- * person sees which one the work is in.
+ * person sees which one the work is in. A queue's step lists only the
+ * migrations with something in it, or whose count could not be read: a
+ * *(0)* link points at no work.
+ *
+ * Finish says the mail's switch only where a migration carries mail; one
+ * that moves no mail switches to the new system and ends. Once every
+ * migration has switched and one is kept in step after it, Finish says that.
  *
  * While a read is on its way its rows say nothing yet. A read that failed says
  * *Could not be read*, and claims no state (hard rule 9). The names link
@@ -58,6 +64,10 @@ export interface StepsRow {
   readonly id: string;
   readonly status: string | undefined;
   readonly label: string;
+  /** Nothing has run yet (its stage is *Not started*): an empty queue is then not yet done. */
+  readonly notStarted?: boolean;
+  /** The data types it carries; undefined where they are not known, and Finish then names the mail. */
+  readonly domains?: readonly string[];
 }
 
 /** Which reads are still on their way: the rows resting on one say nothing yet. */
@@ -82,6 +92,11 @@ export const CutoverSteps: React.FC<{
   const { relativeToNow } = useFormatters();
   const steps = cutoverSteps(migrations, attention, checks);
   const only = migrations.length === 1 ? migrations[0]! : undefined;
+  // Mail-less only where every migration's data types are known and none is
+  // mail: an unknown one keeps the mail's switch in the sentence.
+  const noMail =
+    migrations.length > 0 &&
+    migrations.every((m) => m.domains !== undefined && m.domains.length > 0 && !m.domains.includes('email'));
 
   const pending = (step: Step): boolean => {
     switch (step.key) {
@@ -127,7 +142,8 @@ export const CutoverSteps: React.FC<{
     }
     if (step.key === 'finish') {
       if (step.state === undefined) return t('person.step.unread');
-      return step.state === 'done' ? t('person.step.finish.done') : t('person.step.finish.notYet');
+      if (step.state === 'done') return step.continuous ? t('person.step.finish.continuous') : t('person.step.finish.done');
+      return noMail ? t('person.step.finish.notYet.noMail') : t('person.step.finish.notYet');
     }
     if (step.count === undefined) return t('person.step.unread');
     if (step.count === 0) return t('person.step.none');
@@ -143,6 +159,13 @@ export const CutoverSteps: React.FC<{
         const screen = SCREEN_OF[step.key];
         const name = t(screen.nameKey);
         const waiting = pending(step);
+        // A queue's step lists the migrations with work in it, and those whose
+        // count could not be read; every other step lists them all.
+        const shown = migrations.filter((m) => {
+          if (!QUEUE_STEPS.has(step.key) || waiting) return true;
+          const own = step.perMigration.find((p) => p.id === m.id);
+          return own === undefined || own.count === undefined || own.count > 0;
+        });
         return (
           <li key={step.key} data-step={step.key} className="flex items-baseline gap-2 py-3">
             {/* The number is the list's: a screen reader already hears the
@@ -172,9 +195,9 @@ export const CutoverSteps: React.FC<{
                 )}
               </div>
               <p className="mt-1 text-sm text-gray-500">{t(screen.blurbKey)}</p>
-              {!only && (
+              {!only && shown.length > 0 && (
                 <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                  {migrations.map((m) => {
+                  {shown.map((m) => {
                     // Which migration holds what the row sums, so the person
                     // knows which of the links has work behind it.
                     const own =

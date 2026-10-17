@@ -31,7 +31,7 @@ For files. Fill in **Host**, **Port**, **Username** and **Password** as [The fie
 - **DAV base URL**, under **Server settings** on **Where does it go?**: only when the server’s DAV root is not at the host root. When filled in, this full URL is used and host and port are ignored.
 - **Username** and **Password**: those of the account on the server, with an app password where the server offers one.
 
-You can also add the account in advance, under **Accounts** → **Add an account**: choose **Targets** under **Source or target?**, then the card, and press **Add and test**. **Where does it go?** then offers it under **Your accounts**. The **Setup checklist** has the preparation for each of the three as a list that remembers what you have done.
+You can also add the account in advance, under **Accounts** → **Add an account**: choose **Destinations** under **Source or destination?**, then the card, and press **Add and test**. **Where does it go?** then offers it under **Your accounts**. The **Setup checklist** has the preparation for each of the three as a list that remembers what you have done.
 
 ## What moves {#what-moves}
 

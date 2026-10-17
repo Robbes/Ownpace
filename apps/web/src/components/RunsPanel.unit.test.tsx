@@ -87,6 +87,27 @@ describe('the runs panel', () => {
     expect(line.closest('details')?.hasAttribute('open')).toBe(true);
   });
 
+  it('names the log as the technical one, and says its lines are English (UX sweep, 2026-10-17)', async () => {
+    // The worker's lines are verbatim and English (translate the frame, never
+    // the finding), so the frame says what they are, and a Dutch screen
+    // reader reads them in an English voice.
+    fetchRunsMock.mockResolvedValue({
+      runs: [
+        run({
+          status: 'failed',
+          errors: 1,
+          events: [{ level: 'error', message: 'IMAP APPEND failed: [OVERQUOTA] Mailbox is full', at: '2026-08-09T00:05:01.000Z' }],
+        }),
+      ],
+    });
+
+    renderPanel();
+
+    const line = await screen.findByText('IMAP APPEND failed: [OVERQUOTA] Mailbox is full');
+    expect(line.closest('ul')).toHaveAttribute('lang', 'en');
+    expect(line.closest('details')?.querySelector('summary')).toHaveTextContent(/^Technical log \(1\)$/);
+  });
+
   it('folds a clean run’s log closed, so green lines cannot bury a red one', async () => {
     fetchRunsMock.mockResolvedValue({
       runs: [
@@ -107,7 +128,7 @@ describe('the runs panel', () => {
     fetchRunsMock.mockResolvedValue({ runs: [] });
     renderPanel();
     expect(
-      await screen.findByText('No passes have run yet. History appears after the first sync.'),
+      await screen.findByText('No passes have run yet. They appear here after the first pass.'),
     ).toBeInTheDocument();
   });
 

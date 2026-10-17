@@ -130,7 +130,7 @@ describe('how long, under the count', () => {
     });
     renderScreen();
     await waitFor(() => expect(mappingApi.getDiscovery).toHaveBeenCalled());
-    await screen.findByText('18000');
+    await screen.findByText('18,000');
     expect(screen.queryByText('How long:')).not.toBeInTheDocument();
   });
 });

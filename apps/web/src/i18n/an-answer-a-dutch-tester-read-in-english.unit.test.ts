@@ -23,7 +23,9 @@
  *   appliance, whose owner reads the full text, or a record stored before),
  *   and the screen shows the text it was given, as before;
  * - a refused face reads the same way on the connection card and the panels;
- * - the limit on tests is ours too, and reads in the reader's language.
+ * - the limit on tests is ours too, and reads in the reader's language;
+ * - so is a data type the migration page will not add (UX sweep, 2026-10-17):
+ *   the rule's English stays for the API, and its `code` reads in Dutch.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -32,6 +34,7 @@ import type { ProbeOutcome, WhatHappenedAnswer } from '@openmig/shared';
 import { probeText, qualificationEvidence, saidText } from './probe-text.ts';
 import { STRINGS, type StringKey } from './strings.ts';
 import { tooManyTests } from '../services/api.ts';
+import { refusedKindWords } from './kind-refusal-words.ts';
 
 /** A `t` bound to one locale, with the same interpolation the app uses. */
 const translator =
@@ -178,5 +181,42 @@ describe('the limit on tests is ours, so it reads in the reader’s language', (
       'You have tested too many connections in the last hour. Wait a little, then test again.',
     );
     expect(nl('probe.tooManyTests')).toBe('U hebt het afgelopen uur (te) veel verbindingen getest. Wacht even en test dan opnieuw.');
+  });
+});
+
+describe('a data type the migration page will not add, in the reader’s language', () => {
+  /**
+   * The rule's `reason` is English developer prose for the API, its logs and
+   * the appliance (*"A kind can only be added before cutover…"*, *"This
+   * account MEASURED that it cannot carry 'task'…"*), and the data types
+   * panel showed it as served on a Dutch screen. The rule says which refusal
+   * it was in `code` now, and that is what the page says.
+   */
+  const SERVED = 'A kind can only be added before cutover. From cutover on, the old account no longer decides.';
+
+  it('after the switch, in Dutch under nl and in English under en', () => {
+    const refused = { reason: SERVED, code: 'after_cutover' as const };
+    expect(refusedKindWords(nl, refused)).toEqual({
+      text: 'Kan niet meer worden toegevoegd nu de overstap is begonnen. Start hiervoor een nieuwe migratie.',
+      english: false,
+    });
+    expect(refusedKindWords(en, refused)).toEqual({
+      text: 'Can no longer be added once the switch has started. Start a new migration for it.',
+      english: false,
+    });
+  });
+
+  it('a measured no, in Dutch under nl, naming the button the Accounts page has', () => {
+    const refused = { reason: "This account MEASURED that it cannot carry 'task': …", code: 'measured_no' as const };
+    expect(refusedKindWords(nl, refused)).toEqual({
+      text: 'Een van de twee accounts gaf aan dit niet te kunnen bewaren. Is dat veranderd? Druk dan op Testen op de pagina Accounts.',
+      english: false,
+    });
+    expect(nl('connections.test')).toBe('Testen');
+    expect(en('connections.test')).toBe('Test');
+  });
+
+  it('without a code, the served English, said as English', () => {
+    expect(refusedKindWords(nl, { reason: SERVED })).toEqual({ text: SERVED, english: true });
   });
 });

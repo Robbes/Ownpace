@@ -35,7 +35,7 @@ import React from 'react';
 import { Link } from 'react-router';
 import type { MappingAttention, TenantAttention } from '@openmig/shared';
 import { queueScreenPath } from '../services/edition.ts';
-import { useT } from '../i18n/index.tsx';
+import { useT, type StringKey } from '../i18n/index.tsx';
 import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
 import { Hint } from './Hint.tsx';
 
@@ -60,10 +60,23 @@ export function wantsSomeone(m: MappingAttention): boolean {
   );
 }
 
-const Count: React.FC<{ n: number; label: string; to?: string }> = ({ n, label, to }) => {
+/**
+ * A number and what it counts, in the singular for one (UX sweep, 2026-10-17):
+ * the Dutch screen read "1 verplaatsingen om te bevestigen".
+ */
+const Count: React.FC<{ n: number; one: StringKey; many: StringKey; to?: string }> = ({
+  n,
+  one,
+  many,
+  to,
+}) => {
+  const t = useT();
   const body = (
     <>
-      <span className="font-medium text-gray-900">{n}</span> {label}
+      {/* Inside a link the number takes the link's colour, so the link reads
+          as one thing rather than a grey number and a teal label. */}
+      <span className={to ? 'font-medium' : 'font-medium text-gray-900'}>{n}</span>{' '}
+      {t(n === 1 ? one : many)}
     </>
   );
   return (
@@ -129,7 +142,11 @@ export const AttentionSummary: React.FC<{
               <div className="text-gray-900 font-medium">{t('attention.organisation')}</div>
               <ul className="mt-1 ml-4 space-y-1 text-sm list-disc text-gray-700">
                 {(tenant?.pendingDecisions ?? 0) > 0 && (
-                  <Count n={tenant!.pendingDecisions!} label={t('attention.decisions')} />
+                  <Count
+                    n={tenant!.pendingDecisions!}
+                    one="attention.decisions.one"
+                    many="attention.decisions"
+                  />
                 )}
               </ul>
               {(tenant?.blindSpots?.length ?? 0) > 0 && (
@@ -155,33 +172,37 @@ export const AttentionSummary: React.FC<{
               <div className="text-gray-900 font-medium break-words">{m.name ?? m.mappingId}</div>
               <ul className="mt-1 ml-4 space-y-1 text-sm list-disc text-gray-700">
                 {m.pendingDecisions > 0 && (
-                  <Count n={m.pendingDecisions} label={t('attention.decisions')} />
+                  <Count n={m.pendingDecisions} one="attention.decisions.one" many="attention.decisions" />
                 )}
                 {m.failuresWaiting > 0 && (
                   <Count
                     n={m.failuresWaiting}
-                    label={t('attention.failures')}
+                    one="attention.failures.one"
+                    many="attention.failures"
                     to={queueScreenPath('failures', m.mappingId)}
                   />
                 )}
                 {m.deletionsWaiting > 0 && (
                   <Count
                     n={m.deletionsWaiting}
-                    label={t('attention.deletions')}
+                    one="attention.deletions.one"
+                    many="attention.deletions"
                     to={queueScreenPath('deletions', m.mappingId)}
                   />
                 )}
                 {m.movesWaiting > 0 && (
                   <Count
                     n={m.movesWaiting}
-                    label={t('attention.moves')}
+                    one="attention.moves.one"
+                    many="attention.moves"
                     to={queueScreenPath('moves', m.mappingId)}
                   />
                 )}
                 {m.sharingOpen > 0 && (
                   <Count
                     n={m.sharingOpen}
-                    label={t('attention.sharingOpen')}
+                    one="attention.sharingOpen.one"
+                    many="attention.sharingOpen"
                     to={queueScreenPath('sharing', m.mappingId)}
                   />
                 )}
@@ -235,7 +256,7 @@ export const AttentionSummary: React.FC<{
           migrations out of six looks like it has lost four. */}
       {!failed && quiet > 0 && (
         <p className="mt-3 text-sm text-gray-500">
-          {t('attention.quiet', { count: String(quiet) })}
+          {quiet === 1 ? t('attention.quiet.one') : t('attention.quiet', { count: String(quiet) })}
         </p>
       )}
     </div>

@@ -118,10 +118,10 @@ const AuthCallback: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="max-w-md w-full text-center space-y-4">
+      <main className="max-w-md w-full text-center space-y-4">
         {noOrganisation !== null ? (
           <>
-            <h2 className="text-xl font-semibold text-gray-900">{t('login.noOrganisation')}</h2>
+            <h1 className="text-xl font-semibold text-gray-900">{t('login.noOrganisation')}</h1>
             {/* WHICH IDENTITY ARRIVED. A social button can sign somebody in as
                 an account they did not mean to use, and a screen that names no
                 address makes that invisible — which is exactly how an hour
@@ -147,7 +147,7 @@ const AuthCallback: React.FC = () => {
           <p className="text-sm text-gray-600">{t('login.callback.working')}</p>
         ) : (
           <>
-            <h2 className="text-xl font-semibold text-gray-900">{t('login.callback.failed')}</h2>
+            <h1 className="text-xl font-semibold text-gray-900">{t('login.callback.failed')}</h1>
             <p role="alert" className="text-sm text-red-600">
               {error}
             </p>
@@ -161,7 +161,7 @@ const AuthCallback: React.FC = () => {
             <SupportLine />
           </>
         )}
-      </div>
+      </main>
     </div>
   );
 };

@@ -132,6 +132,90 @@ describe('an item’s hash', () => {
     expect(fold!.querySelector('summary')?.textContent).toBe('ID');
     expect(digest).toHaveAttribute('title', HASH);
   });
+
+  it('opens from a target a finger can hit, not a 16 px line of text', async () => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion({ naturalKeyHash: 'h-target' })] }));
+    renderScreen();
+    const summary = (await screen.findByText('h-target')).closest('details')!.querySelector('summary')!;
+    expect(summary.className).toMatch(/\bpy-1\b/);
+    // Still a list item, the display that draws the fold's triangle.
+    expect(summary.className).not.toMatch(/\b(?:inline-block|inline-flex|flex|block|inline)\b/);
+  });
+});
+
+/**
+ * The chips say *reported*, *trashed* and *inferred*: the server's own words,
+ * kept as they are (the prose boundary, ADR-0024). Until the UX sweep
+ * (2026-10-17) only a hover title said what they meant, and a phone has no
+ * hover. A line above each list says it now, and only above a list that has
+ * rows: a sentence about rows that are not there explains nothing.
+ */
+describe('what the chips mean, said above the rows', () => {
+  const EVIDENCE = STRINGS.en['deletions.evidence.lead'];
+  const WATCHING = STRINGS.en['deletions.watching.lead'];
+
+  it('explains reported and trashed above the rows waiting on you', async () => {
+    fetchDeletions.mockResolvedValue(
+      queue({ confirmed: [deletion({ naturalKeyHash: 'h-reported', evidence: 'reported' })] }),
+    );
+    renderScreen();
+
+    const lead = await screen.findByText(EVIDENCE);
+    expect(EVIDENCE).toMatch(/^reported: .* trashed: /);
+    // Beside the list, not inside it: a <ul> holds list items only.
+    expect(lead.closest('ul')).toBeNull();
+    expect(screen.queryByText(WATCHING)).not.toBeInTheDocument();
+  });
+
+  it('says why a watched row has no button, above the watched rows', async () => {
+    fetchDeletions.mockResolvedValue(
+      queue({ watching: [deletion({ naturalKeyHash: 'h-watch', confirmed: false, evidence: 'inferred' })] }),
+    );
+    renderScreen();
+
+    const lead = await screen.findByText(WATCHING);
+    expect(lead.closest('ul')).toBeNull();
+    expect(screen.queryByText(EVIDENCE)).not.toBeInTheDocument();
+  });
+
+  it('says neither when both lists are empty', async () => {
+    fetchDeletions.mockResolvedValue(queue({}));
+    renderScreen();
+
+    expect(await screen.findByText('Nothing is being watched.')).toBeInTheDocument();
+    expect(screen.queryByText(EVIDENCE)).not.toBeInTheDocument();
+    expect(screen.queryByText(WATCHING)).not.toBeInTheDocument();
+  });
+
+  it('keeps the chip words themselves as the server sent them', async () => {
+    fetchDeletions.mockResolvedValue(
+      queue({ confirmed: [deletion({ naturalKeyHash: 'h-trashed', evidence: 'trashed' })] }),
+    );
+    renderScreen();
+
+    expect(await screen.findByText('trashed')).toBeInTheDocument();
+  });
+});
+
+/**
+ * The card's heading on a phone (the UX sweep, 2026-10-17): the heading
+ * squeezed the state chip into 'In / cutover' over two lines. The heading
+ * wraps now, and the chip keeps its words on one line.
+ */
+describe('the card heading', () => {
+  it('lets the name wrap and keeps the state chip on one line', async () => {
+    fetchDeletions.mockResolvedValue(queue({ migrationStatus: 'cutover' }));
+    renderScreen();
+
+    const link = await screen.findByRole('link', { name: 'acme-mail' });
+    const heading = link.closest('h3')!;
+    expect(heading.className).toMatch(/\bmin-w-0\b/);
+    expect(heading.className).toMatch(/\bbreak-words\b/);
+    const chip = heading.parentElement!.lastElementChild as HTMLElement;
+    expect(chip).not.toBe(heading);
+    expect(chip.className).toMatch(/\bwhitespace-nowrap\b/);
+    expect(chip.className).toMatch(/\bflex-shrink-0\b/);
+  });
 });
 
 describe('the apply gate', () => {

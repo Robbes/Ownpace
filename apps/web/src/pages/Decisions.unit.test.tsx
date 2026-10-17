@@ -56,6 +56,7 @@ vi.mock('../services/edition', () => ({
 }));
 
 import Decisions from './Decisions.tsx';
+import { LocaleProvider } from '../i18n/index.tsx';
 
 const PENDING = {
   id: 'dec-1',
@@ -149,8 +150,10 @@ describe('the honest empty state', () => {
     // T3) — "nothing can raise a decision yet" became false the day they
     // shipped. What must survive every rewrite is rule 9's distinction:
     // "nothing to ask about" and "could not look" are different sentences.
-    expect(await screen.findByText(/run once a day/)).toBeInTheDocument();
-    expect(screen.getByText(/blind spot/)).toBeInTheDocument();
+    expect(await screen.findByText(/once a day/)).toBeInTheDocument();
+    expect(screen.getByText(/could not look/)).toBeInTheDocument();
+    // Plain words: nothing about watchers or blind spots (UX sweep, 2026-10-17).
+    expect(screen.queryByText(/watcher|blind spot/)).not.toBeInTheDocument();
     expect(screen.queryByText(/^Nothing has changed/)).not.toBeInTheDocument();
   });
 });
@@ -269,7 +272,7 @@ describe('the answered section', () => {
     expect(await screen.findByText('Decided')).toBeInTheDocument();
     // With everything answered, the pending section still states what an
     // empty queue does and does not mean.
-    expect(screen.getByText(/blind spot/)).toBeInTheDocument();
+    expect(screen.getByText(/could not look/)).toBeInTheDocument();
   });
 });
 
@@ -439,14 +442,20 @@ describe('the appliance operator is not locked out (0038 T4)', () => {
 });
 
 describe('answered rows tell their whole story (0038 T5)', () => {
-  it('an auto-resolved row shows what was answered and by which preset, with detail behind a disclosure', async () => {
+  it('an auto-resolved row lets its chip say it, with the address behind a disclosure', async () => {
+    // The chip already says "Decided by preset"; an answer line under it
+    // printed the preset's JSON and its internal name (UX sweep, 2026-10-17).
     fetchDecisions.mockResolvedValue({
       decisions: [
         {
           ...PENDING,
           status: 'auto_resolved',
           resolvedAt: '2026-08-09T08:00:00Z',
-          resolution: { action: 'accept_default' },
+          resolution: {
+            closedBy: 'policy_preset',
+            preset: { category: 'new_mailbox', action: 'auto' },
+            subject: 'nieuw@acme.nl',
+          },
           resolvedBy: 'preset:new_mailbox',
         },
       ],
@@ -454,14 +463,13 @@ describe('answered rows tell their whole story (0038 T5)', () => {
 
     renderScreen();
 
-    expect(await screen.findByText(/Answer:/)).toBeInTheDocument();
-    expect(screen.getByText(/accept_default/)).toBeInTheDocument();
-    expect(screen.getByText(/preset:new_mailbox/)).toBeInTheDocument();
-    // The structured facts render behind a per-row disclosure, verbatim.
+    expect(await screen.findByText('Decided by preset')).toBeInTheDocument();
+    expect(screen.queryByText(/Answer:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/preset:new_mailbox|policy_preset|\{/)).not.toBeInTheDocument();
+    // The facts behind a per-row disclosure, in words: the address, labelled.
     expect(screen.getByText('Details')).toBeInTheDocument();
-    // The detail's key:value line (distinct from the summary, which also
-    // carries the address).
-    expect(screen.getByText(/address: nieuw@acme.nl/)).toBeInTheDocument();
+    expect(screen.getByText('Address')).toBeInTheDocument();
+    expect(screen.getByText('nieuw@acme.nl')).toBeInTheDocument();
   });
 
   it('dismissed is NOT green — set-aside wears a neutral chip', async () => {
@@ -495,5 +503,213 @@ describe('the organisation reaches the page, not just the endpoint', () => {
     renderScreen();
     expect(await screen.findByText(/Nothing is waiting/)).toBeVisible();
     expect(screen.queryByText('Your organisation')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * THE ANSWER IN WORDS (UX sweep, 2026-10-17). "Already decided" printed the
+ * recorded answer as JSON in a code font (`{"action":"accept_default",…}`),
+ * the detail fold listed internal keys, and "by" named an identity-provider
+ * id. The answer is now said through the dictionary, the fold holds the
+ * address and the name only, and "by" names a person only when it is an
+ * address somebody can read.
+ */
+describe('the answer, in words', () => {
+  const ANSWERED = {
+    ...PENDING,
+    id: 'dec-9',
+    status: 'resolved',
+    resolvedAt: '2026-08-09T08:00:00Z',
+  };
+
+  it('an accepted proposal reads "Answer: Accepted the proposal", never JSON', async () => {
+    fetchDecisions.mockResolvedValue({
+      decisions: [
+        {
+          ...ANSWERED,
+          resolution: { action: 'accept_default', proposedDefault: 'create a mapping' },
+          resolvedBy: 'marieke@acme.nl',
+        },
+      ],
+    });
+    renderScreen();
+
+    const line = (await screen.findByText(/Answer:/)).closest('p')!;
+    expect(line).toHaveTextContent('Answer: Accepted the proposal by marieke@acme.nl');
+    expect(line.textContent).not.toMatch(/[{}"]|accept_default/);
+    expect(line.querySelector('.font-mono')).toBeNull();
+  });
+
+  it('in Dutch it reads "Voorstel aangenomen"', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      fetchDecisions.mockResolvedValue({
+        decisions: [{ ...ANSWERED, resolution: { action: 'accept_default' }, resolvedBy: 'marieke@acme.nl' }],
+      });
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <LocaleProvider>
+          <QueryClientProvider client={qc}>
+            <MemoryRouter>
+              <Decisions />
+            </MemoryRouter>
+          </QueryClientProvider>
+        </LocaleProvider>,
+      );
+      const line = (await screen.findByText(/Antwoord:/)).closest('p')!;
+      expect(line).toHaveTextContent('Antwoord: Voorstel aangenomen door marieke@acme.nl');
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
+  it('a shared-address answer names the pattern in words', async () => {
+    fetchDecisions.mockResolvedValue({
+      decisions: [
+        {
+          ...ANSWERED,
+          category: 'shared_address_pattern',
+          resolution: { action: 'set_shared_address_pattern', pattern: 'shared_s' },
+        },
+      ],
+    });
+    renderScreen();
+
+    expect((await screen.findByText(/Answer:/)).closest('p')).toHaveTextContent('Answer: One shared mailbox');
+  });
+
+  it('a preset answer names the standing answer, as the panel above does', async () => {
+    fetchDecisions.mockResolvedValue({
+      decisions: [{ ...ANSWERED, resolution: { preset: { category: 'new_mailbox', action: 'auto' } } }],
+    });
+    renderScreen();
+
+    expect((await screen.findByText(/Answer:/)).closest('p')).toHaveTextContent(
+      'Answer: Your standing answer',
+    );
+  });
+
+  it('in Dutch a preset answer is "Uw vaste antwoord"', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      fetchDecisions.mockResolvedValue({
+        decisions: [{ ...ANSWERED, resolution: { preset: { category: 'new_mailbox', action: 'auto' } } }],
+      });
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <LocaleProvider>
+          <QueryClientProvider client={qc}>
+            <MemoryRouter>
+              <Decisions />
+            </MemoryRouter>
+          </QueryClientProvider>
+        </LocaleProvider>,
+      );
+      expect((await screen.findByText(/Antwoord:/)).closest('p')).toHaveTextContent(
+        'Antwoord: Uw vaste antwoord',
+      );
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
+  it('an answer of any other shape gets no line, rather than its JSON, but still says who', async () => {
+    fetchDecisions.mockResolvedValue({
+      decisions: [{ ...ANSWERED, resolution: { action: 'acknowledged' }, resolvedBy: 'marieke@acme.nl' }],
+    });
+    renderScreen();
+
+    await screen.findByText('Decided');
+    expect(screen.queryByText(/Answer:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/acknowledged/)).not.toBeInTheDocument();
+    // Who gave it is still part of the whole story (0038 T5).
+    expect(screen.getByText('Decided by marieke@acme.nl')).toBeInTheDocument();
+  });
+
+  it('in Dutch the one who decided reads "Besloten door …"', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      fetchDecisions.mockResolvedValue({
+        decisions: [{ ...ANSWERED, resolution: { action: 'acknowledged' }, resolvedBy: 'marieke@acme.nl' }],
+      });
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <LocaleProvider>
+          <QueryClientProvider client={qc}>
+            <MemoryRouter>
+              <Decisions />
+            </MemoryRouter>
+          </QueryClientProvider>
+        </LocaleProvider>,
+      );
+      expect(await screen.findByText('Besloten door marieke@acme.nl')).toBeInTheDocument();
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
+  it('with no answer in words and no address, there is no "Decided by" line', async () => {
+    fetchDecisions.mockResolvedValue({
+      decisions: [{ ...ANSWERED, resolution: { action: 'acknowledged' }, resolvedBy: '312987465012938475' }],
+    });
+    renderScreen();
+
+    await screen.findByText('Decided');
+    expect(screen.queryByText(/Decided by|312987465012938475/)).not.toBeInTheDocument();
+  });
+
+  it('an answer in words carries "by" on its own line, not a second "Decided by"', async () => {
+    fetchDecisions.mockResolvedValue({
+      decisions: [{ ...ANSWERED, resolution: { action: 'accept_default' }, resolvedBy: 'marieke@acme.nl' }],
+    });
+    renderScreen();
+
+    await screen.findByText(/Answer:/);
+    expect(screen.queryByText(/Decided by/)).not.toBeInTheDocument();
+  });
+
+  it('"by" names nobody when the server holds an id rather than an address', async () => {
+    fetchDecisions.mockResolvedValue({
+      decisions: [{ ...ANSWERED, resolution: { action: 'accept_default' }, resolvedBy: '312987465012938475' }],
+    });
+    renderScreen();
+
+    const line = (await screen.findByText(/Answer:/)).closest('p')!;
+    expect(line).toHaveTextContent('Answer: Accepted the proposal');
+    expect(line.textContent).not.toMatch(/ by |312987465012938475/);
+  });
+
+  it('the fold holds the address and the name, labelled, and nothing internal', async () => {
+    fetchDecisions.mockResolvedValue({
+      decisions: [
+        {
+          ...ANSWERED,
+          detail: {
+            address: 'sales@acme.nl',
+            displayName: 'Sales',
+            sourceGroupId: 'g-123',
+            sourceConnectionId: 'c-456',
+          },
+        },
+      ],
+    });
+    renderScreen();
+
+    await screen.findByText('Details');
+    expect(screen.getByText('Address')).toBeInTheDocument();
+    expect(screen.getByText('sales@acme.nl')).toBeInTheDocument();
+    expect(screen.getByText('Name')).toBeInTheDocument();
+    expect(screen.getByText('Sales')).toBeInTheDocument();
+    expect(screen.queryByText(/sourceGroupId|g-123|c-456/)).not.toBeInTheDocument();
+  });
+
+  it('no fold at all when neither the address nor the name is there', async () => {
+    fetchDecisions.mockResolvedValue({
+      decisions: [{ ...ANSWERED, detail: { count: 4 } }],
+    });
+    renderScreen();
+
+    await screen.findByText('Decided');
+    expect(screen.queryByText('Details')).not.toBeInTheDocument();
   });
 });

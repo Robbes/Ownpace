@@ -118,6 +118,7 @@ import {
   markShareGrant,
   refreshShareGrants,
   summariseShareGrants,
+  verdictTargetFor,
 } from '@openmig/core';
 import { SecretStore } from '@openmig/core/secret-store';
 import { createNextcloudShare } from '@openmig/connectors';
@@ -631,7 +632,10 @@ router.get('/:mappingId/sharing', authenticate, async (req: AuthenticatedRequest
     res.json({
       migrationStatus: s.lifecycle,
       summary: summariseShareGrants(grants),
-      grants,
+      // Each row's line in Dutch beside the stored English (UX sweep,
+      // 2026-10-17): said on every read, never stored, so the refusal that
+      // quotes the English keeps quoting what it always did.
+      grants: grants.map((g) => ({ ...g, verdictTargetNl: verdictTargetFor(g, 'nl') })),
       ...closed(s.lifecycle),
     });
   } catch (error) {

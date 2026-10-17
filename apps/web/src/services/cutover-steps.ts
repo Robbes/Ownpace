@@ -18,24 +18,30 @@
  *
  * WHAT DECIDES A STATE:
  * - Deletions, Moves and Failures need the person while anything waits in
- *   them, and are done when nothing does.
+ *   them, and are done when nothing does. Where none of the migrations has
+ *   started, nothing was compared yet, so an empty queue is *Not yet*, not
+ *   *Done*.
  * - Sharing is worked after finishing, so it is *Not yet* until every one of
- *   the migrations is done; then it needs the person while rows are open.
+ *   the migrations has switched (done, or kept in step after its switch); then
+ *   it needs the person while rows are open.
  * - Check is done when every migration's check has passed, or the migration
- *   is already in its cutover or done, which only a passed check lets it be.
- *   A check that did not pass, or never ran, is *Not yet*: the copy may still
- *   be catching up, and the check's own page says what differed.
+ *   is already in its cutover, done, or kept in step after its switch, which
+ *   only a passed check lets it be. A check that did not pass, or never ran, is
+ *   *Not yet*: the copy may still be catching up, and the check's own page says
+ *   what differed.
  * - Confirmed follows the check: *Not yet* until it passes, then *Done*, a list
  *   ready to read. It is never a queue, so it has no count.
- * - Finish needs the person while a migration is in its cutover, and is done
- *   when every one is.
+ * - Finish needs the person while a migration is in its cutover or ready to
+ *   switch (a passed check, and no failure that blocks Finish, as the stage
+ *   reads it), and is done when every one has switched. Where one is kept in
+ *   step after its switch, the row says so.
  *
  * A check the progress read did not reach is unread, never *not run* (hard
  * rule 9): *"nobody ran it"* and *"we could not ask"* are different claims.
  *
  * Pure, so a test can hold every rule; the list draws what this returns.
  */
-import type { CheckFacts, MappingAttention } from '@openmig/shared';
+import { isAfterCutover, type CheckFacts, type MappingAttention } from '@openmig/shared';
 
 export type StepKey = 'deletions' | 'moves' | 'failures' | 'sharing' | 'check' | 'confirmed' | 'finish';
 export type StepState = 'done' | 'needsYou' | 'notYet';
@@ -48,6 +54,11 @@ export interface StepsMigration {
    * Finish unknown rather than guessed.
    */
   readonly status: string | undefined;
+  /**
+   * Nothing has run yet: the migration's stage is *Not started*. An empty
+   * queue then says nothing was compared, so it is *Not yet*, never *Done*.
+   */
+  readonly notStarted?: boolean;
 }
 
 /**
@@ -72,6 +83,8 @@ export interface Step {
   readonly state: StepState | undefined;
   /** The check row's words; undefined on the other rows, and where the check could not be read. */
   readonly check?: CheckSaid;
+  /** On Finish, once done: one of the migrations is kept in step after its switch. */
+  readonly continuous?: boolean;
 }
 
 const QUEUE: Readonly<Record<'deletions' | 'moves' | 'failures' | 'sharing', keyof MappingAttention>> = {
@@ -81,8 +94,14 @@ const QUEUE: Readonly<Record<'deletions' | 'moves' | 'failures' | 'sharing', key
   sharing: 'sharingOpen',
 };
 
-/** Past its check: only a passed check lets a migration into its cutover. */
-const pastCheck = (m: StepsMigration): boolean => m.status === 'cutover' || m.status === 'done';
+/**
+ * Past its check: only a passed check lets a migration into its cutover, and
+ * on to done or the continuous lane after it (`isAfterCutover`).
+ */
+const pastCheck = (m: StepsMigration): boolean => m.status !== undefined && isAfterCutover(m.status);
+
+/** Switched: finished, or kept in step after its switch (the continuous lane). */
+const switched = (m: StepsMigration): boolean => m.status === 'done' || m.status === 'continuous';
 
 /**
  * The seven steps for one migration, or for a person's several. `attention`
@@ -95,6 +114,7 @@ export function cutoverSteps(
   checks: ReadonlyMap<string, CheckFacts> | undefined,
 ): Step[] {
   const lifecycleUnread = migrations.some((m) => m.status === undefined);
+  const noneStarted = migrations.length > 0 && migrations.every((m) => m.notStarted === true);
   const read = (m: StepsMigration): MappingAttention | 'unread' | undefined => {
     if (attention === undefined) return 'unread';
     const a = attention.get(m.id);
@@ -114,9 +134,11 @@ export function cutoverSteps(
     let state: StepState | undefined;
     if (count === undefined) state = undefined;
     else if (key === 'sharing') {
-      const allDone = migrations.length > 0 && migrations.every((m) => m.status === 'done');
-      state = lifecycleUnread ? undefined : !allDone ? 'notYet' : count > 0 ? 'needsYou' : 'done';
-    } else state = count > 0 ? 'needsYou' : 'done';
+      const allSwitched = migrations.length > 0 && migrations.every(switched);
+      state = lifecycleUnread ? undefined : !allSwitched ? 'notYet' : count > 0 ? 'needsYou' : 'done';
+    } else if (count > 0) state = 'needsYou';
+    // Nothing has run, so nothing was compared: not done, only not yet.
+    else state = noneStarted ? 'notYet' : 'done';
     return { key, count, perMigration, state };
   };
 
@@ -162,21 +184,37 @@ export function cutoverSteps(
   };
 
   const inCutover = migrations.filter((m) => m.status === 'cutover').length;
-  const allDone = migrations.length > 0 && migrations.every((m) => m.status === 'done');
+  const allSwitched = migrations.length > 0 && migrations.every(switched);
+  // READY TO SWITCH, as the stage reads it (`stageOf`): active, the check
+  // passed, and no failure that blocks Finish. Failures that could not be
+  // counted are never none, so such a migration is never ready (hard rule 9).
+  const readyToSwitch = (m: StepsMigration): boolean => {
+    if (m.status !== 'active' || factsOf(m)?.state !== 'passed') return false;
+    const a = read(m);
+    return a !== 'unread' && Number(a?.failuresWaiting ?? 0) === 0;
+  };
   const confirmed: Step = {
     key: 'confirmed',
     count: undefined,
     perMigration: migrations.map((m) => ({ id: m.id, count: undefined })),
     state: checkUnread ? undefined : everyCheckPassed ? 'done' : 'notYet',
   };
+  const finishState: StepState | undefined = lifecycleUnread
+    ? undefined
+    : allSwitched
+      ? 'done'
+      : inCutover > 0 || migrations.some(readyToSwitch)
+        ? 'needsYou'
+        : 'notYet';
   const finish: Step = {
     key: 'finish',
-    count: lifecycleUnread ? undefined : migrations.filter((m) => m.status === 'done').length,
+    count: lifecycleUnread ? undefined : migrations.filter(switched).length,
     perMigration: migrations.map((m) => ({
       id: m.id,
-      count: m.status === undefined ? undefined : m.status === 'done' ? 1 : 0,
+      count: m.status === undefined ? undefined : switched(m) ? 1 : 0,
     })),
-    state: lifecycleUnread ? undefined : allDone ? 'done' : inCutover > 0 ? 'needsYou' : 'notYet',
+    state: finishState,
+    ...(finishState === 'done' && migrations.some((m) => m.status === 'continuous') ? { continuous: true } : {}),
   };
 
   return [

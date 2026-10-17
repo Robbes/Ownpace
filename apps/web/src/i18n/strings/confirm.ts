@@ -8,7 +8,7 @@
  */
 
 export const en = {
-  'confirm.progress.lastSynced': 'last synced',
+  'confirm.progress.lastSynced': 'last pass',
   'discovery.scanning': 'Scanning your source (read-only)…',
   // Named rather than counted, and present tense: the reader is watching this
   // happen. See DiscoveryCounts for the three-row table that read as finished.
@@ -28,6 +28,7 @@ export const en = {
   'discovery.th.items': 'Items',
   'discovery.th.size': 'Size',
   'discovery.th.existing': 'Already on the destination',
+  'discovery.th.problem': 'Problem',
   'discovery.keptAsIs': 'kept as-is',
   'discovery.generatedId.pre.one':
     'message arrived without a Message-ID; we generate one and add it to',
@@ -86,8 +87,7 @@ export const en = {
   'applyFlag.off': 'Deleting by hand is OFF for this migration (the default).',
   'applyFlag.onMeans': 'Nothing is removed until you press a delete button on an item.',
   'applyFlag.turnOff': 'Turn off',
-  'applyFlag.refusesUntilOn':
-    'The server refuses every delete button on this screen until it is turned on.',
+  'applyFlag.refusesUntilOn': 'While it is off, the delete buttons on this screen are refused.',
   'applyFlag.config.pre': "On this appliance the value lives in the mapping's config file",
   'applyFlag.config.post': '; edit the file and restart to change it.',
   'applyFlag.turnOn': 'Turn on deleting by hand',
@@ -107,6 +107,11 @@ export const en = {
   'confirm.nextSteps': 'Next, in cutover order:',
   'confirm.title': 'Review & confirm your migration',
   'confirm.intro': 'Nothing has been copied yet. Review what will migrate, then start it.',
+  // The same screen, reached by Review and start on a paused migration that
+  // already copied (UX sweep, 2026-10-17): 'confirm.intro' is true only
+  // before the first pass.
+  'confirm.introResume':
+    'This migration is paused. What was already migrated stays, and starting it again carries on where it stopped.',
   'confirm.readError': 'Could not read the migrations.',
   'confirm.noMappings': 'No mappings configured.',
   'confirm.noMappings.how': 'The appliance reads mappings from JSON files in its config directory.',
@@ -130,6 +135,9 @@ export const en = {
   // The manifest that could not be read (0153 T1 (a)): the reason follows,
   // verbatim, so this is the frame and not the finding.
   'confirm.manifestError': 'The list of what migrates could not be read:',
+  // Under a column of that list with nothing in it (UX sweep, 2026-10-17): it
+  // says the list is empty for this source, not that nothing is left behind.
+  'scope.noneListed': 'Nothing listed for this source.',
   'confirm.openConsole': 'Open the migration console',
   'confirm.whatMigrates': 'What migrates',
   'confirm.note.active': 'Active. It syncs on its schedule and reports anything that needs you.',
@@ -266,8 +274,17 @@ export const en = {
   // accept. Kept short: the question itself is in the summary above them.
   'decisions.sharedAddress.shared_s': 'One shared mailbox',
   'decisions.sharedAddress.distribution_d': 'A distribution list',
+  // The recorded answer under "Already decided", in words rather than the
+  // JSON it is stored as (UX sweep, 2026-10-17), and the two facts the
+  // Details fold shows.
+  'decisions.answer.acceptDefault': 'Accepted the proposal',
+  'decisions.answer.preset': 'Your standing answer',
+  'decisions.detail.address': 'Address',
+  'decisions.detail.displayName': 'Name',
+  // Who closed it, when there is no answer in words to hang "by" on.
+  'decisions.decidedBy': 'Decided by {who}',
   'decisions.empty.noDetectors':
-    'Nothing waiting; watchers run once a day, reporting an unreadable source as a blind spot.',
+    'Nothing needs a decision. We look for changes once a day, such as a new mailbox. Where we could not look, an empty list does not mean nothing changed.',
   'decisions.empty.answered': 'Nothing has been decided yet.',
   'decisionCategory.new_mailbox': 'New mailbox',
   'decisionCategory.deleted_mailbox': 'Deleted mailbox',
@@ -288,7 +305,7 @@ export const en = {
 } as const;
 
 export const nl: Record<keyof typeof en, string> = {
-  'confirm.progress.lastSynced': 'laatst gesynchroniseerd',
+  'confirm.progress.lastSynced': 'laatste ronde',
   'discovery.scanning': 'Uw bron wordt gescand (alleen-lezen)…',
   'discovery.stillCounting': 'Nog aan het inventariseren: {domains}. Deze pagina werkt zichzelf bij.',
   'discovery.stillCounting.slow':
@@ -300,6 +317,7 @@ export const nl: Record<keyof typeof en, string> = {
   'discovery.th.items': 'Items',
   'discovery.th.size': 'Grootte',
   'discovery.th.existing': 'Al op de bestemming',
+  'discovery.th.problem': 'Probleem',
   'discovery.keptAsIs': 'blijven ongewijzigd',
   'discovery.generatedId.pre.one':
     'bericht kwam aan zonder Message-ID; we genereren er een en voegen die toe aan',
@@ -335,8 +353,7 @@ export const nl: Record<keyof typeof en, string> = {
   'applyFlag.off': 'Handmatig verwijderen staat UIT voor deze migratie (de standaard).',
   'applyFlag.onMeans': 'Er wordt niets verwijderd totdat u bij een item op een verwijderknop drukt.',
   'applyFlag.turnOff': 'Uitschakelen',
-  'applyFlag.refusesUntilOn':
-    'De server weigert verwijderingen op dit scherm, totdat dit is ingeschakeld.',
+  'applyFlag.refusesUntilOn': 'Zolang dit uit staat, worden de verwijderknoppen op dit scherm geweigerd.',
   'applyFlag.config.pre': 'Op deze appliance staat de waarde in het configuratiebestand van de mapping',
   'applyFlag.config.post': '; bewerk het bestand en herstart om dit te wijzigen.',
   'applyFlag.turnOn': 'Handmatig verwijderen inschakelen',
@@ -357,6 +374,8 @@ export const nl: Record<keyof typeof en, string> = {
   'confirm.nextSteps': 'Hierna, in volgorde nodig voor de overstap:',
   'confirm.title': 'Controleer en bevestig uw migratie',
   'confirm.intro': 'Er is nog niets gemigreerd. Controleer wat er migreert en start het daarna.',
+  'confirm.introResume':
+    'Deze migratie is gepauzeerd. Wat al gemigreerd is, blijft staan. Als u haar opnieuw start, gaat ze verder waar ze gebleven was.',
   'confirm.readError': 'De migraties konden niet worden gelezen.',
   'confirm.noMappings': 'Geen migraties geconfigureerd.',
   'confirm.noMappings.how':
@@ -372,6 +391,7 @@ export const nl: Record<keyof typeof en, string> = {
   'confirm.countUnfinished':
     'De inventarisatie was na 15 minuten niet klaar. U kunt toch starten: wat niet gemigreerd kan worden, staat op de pagina van de migratie zodra het gevonden is.',
   'confirm.manifestError': 'De lijst van wat er migreert kon niet worden gelezen:',
+  'scope.noneListed': 'Voor deze bron is hier niets vermeld.',
   'confirm.openConsole': 'Open de migratieconsole',
   'confirm.whatMigrates': 'Wat migreert er',
   'confirm.note.active': 'Actief. Er wordt gesynchroniseerd volgens schema en wat uw aandacht nodig heeft wordt gemeld.',
@@ -466,8 +486,13 @@ export const nl: Record<keyof typeof en, string> = {
   'decisions.dismiss': 'Terzijde leggen',
   'decisions.sharedAddress.shared_s': 'Eén gedeeld postvak',
   'decisions.sharedAddress.distribution_d': 'Een distributielijst',
+  'decisions.answer.acceptDefault': 'Voorstel aangenomen',
+  'decisions.answer.preset': 'Uw vaste antwoord',
+  'decisions.detail.address': 'Adres',
+  'decisions.detail.displayName': 'Naam',
+  'decisions.decidedBy': 'Besloten door {who}',
   'decisions.empty.noDetectors':
-    'Niets wacht; detectie wordt eenmaal per dag uitgevoerd en meldt een onleesbare bron als blinde vlek.',
+    'Er hoeft niets beslist te worden. We kijken eenmaal per dag of er iets veranderd is, zoals een nieuw postvak. Waar we niet konden kijken, betekent een lege lijst niet dat er niets veranderd is.',
   'decisions.empty.answered': 'Er is nog niets besloten.',
   'decisionCategory.new_mailbox': 'Nieuw postvak',
   'decisionCategory.deleted_mailbox': 'Verwijderd postvak',

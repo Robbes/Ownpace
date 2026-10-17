@@ -11,7 +11,8 @@
  * would open in, and a link to that section of `/docs`.
  *
  * In a new tab, as the account form's guide link is: a guide is read with the
- * refused form still open beside it. A handle this build cannot resolve draws
+ * refused form still open beside it, and a screen reader is told so (the UX
+ * sweep, 2026-10-17). A handle this build cannot resolve draws
  * nothing rather than a link to nowhere; the sources' handles are held to the
  * served guides by `scripts/a-refusal-that-links-its-guide.unit.test.ts`.
  */
@@ -34,6 +35,7 @@ export const GuideLink: React.FC<{ handle: unknown; className?: string }> = ({ h
       className={className ?? 'block mt-1 text-sm text-blue-700 hover:underline'}
     >
       {t('setup.refusalGuide', { title })}
+      <span className="sr-only"> {t('common.newTab')}</span>
     </Link>
   );
 };

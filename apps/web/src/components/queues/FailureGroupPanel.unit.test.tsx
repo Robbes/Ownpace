@@ -258,6 +258,25 @@ describe('the groups are read off the rows', () => {
     failure({ naturalKeyHash: 'c3', domain: 'contact' }),
   ];
 
+  /**
+   * What the panel draws from: three groups of more than one, and one item on
+   * its own. A group of one is not offered (the UX sweep, 2026-10-17: six
+   * groups of one item each, every one repeating its row's own buttons), so
+   * every group the render cases press holds at least two.
+   */
+  const GROUPED: readonly ItemFailure[] = [
+    failure({ naturalKeyHash: 'c1', domain: 'contact', category: 'target_refused' }),
+    failure({ naturalKeyHash: 'c2', domain: 'contact', category: 'target_refused' }),
+    failure({ naturalKeyHash: 'c3', domain: 'contact', category: 'target_refused' }),
+    failure({ naturalKeyHash: 'f1', domain: 'file', category: 'source_refused' }),
+    failure({ naturalKeyHash: 'f2', domain: 'file', category: 'source_refused' }),
+    // No category: written before migration 0049 stored one.
+    failure({ naturalKeyHash: 'n1', domain: 'contact' }),
+    failure({ naturalKeyHash: 'n2', domain: 'contact' }),
+    // On its own: its row's buttons already do what a group of one would.
+    failure({ naturalKeyHash: 'q1', domain: 'calendar', category: 'quota_exceeded' }),
+  ];
+
   it('crosses the kind with the category, biggest group first', () => {
     expect(failureGroups(MIXED)).toEqual([
       { domain: 'contact', category: 'target_refused', count: 2, retrying: 0, pressable: true },
@@ -333,16 +352,17 @@ describe('the groups are read off the rows', () => {
   });
 
   it('shows each group with its count and its own sentence', async () => {
-    renderPanel(MIXED);
+    renderPanel(GROUPED);
     expect(await screen.findByText('Groups in this list')).toBeInTheDocument();
-    expect(screen.getByText('2 items')).toBeInTheDocument();
+    expect(screen.getByText('3 items')).toBeInTheDocument();
+    expect(screen.getAllByText('2 items')).toHaveLength(2);
     // The same remedy sentence the row above the panel prints, from the same
     // map: the group and its members have to be called one thing.
     expect(screen.getAllByText(/The destination refused to accept this/).length).toBeGreaterThan(0);
   });
 
   it('presses the group it drew, kind and category together', async () => {
-    renderPanel(MIXED);
+    renderPanel(GROUPED);
     const list = within(await screen.findByRole('list'));
     const retries = list.getAllByRole('button', { name: 'Try all of these again' });
     // The first group is the biggest: the two refused contacts.
@@ -359,19 +379,55 @@ describe('the groups are read off the rows', () => {
     // Scoped to the GROUP LIST. The folded match below keeps its own pair, and
     // they are in the document whether the fold is open or not — counting the
     // whole panel would pass on a list that had grown a third button.
-    renderPanel(MIXED);
+    renderPanel(GROUPED);
     const list = within(await screen.findByRole('list'));
     expect(list.getAllByRole('button', { name: 'Try all of these again' })).toHaveLength(2);
     expect(list.getAllByRole('button', { name: 'Migrate without all of these' })).toHaveLength(2);
-    // Three groups, two of them pressable.
+    // Three groups, two of them pressable; the item on its own is not one.
     expect(list.getAllByRole('listitem')).toHaveLength(3);
+    expect(list.getByText('No kind of failure recorded')).toBeInTheDocument();
+  });
+
+  it('offers no group of one: its row already has the same two buttons', async () => {
+    renderPanel(GROUPED);
+    const list = within(await screen.findByRole('list'));
+    // The calendar item is the only calendar row, so it is not a group.
+    expect(list.queryByText('Calendar')).toBeNull();
+    expect(list.queryByText('1 item')).toBeNull();
+  });
+
+  it('draws no group list at all when every group holds one item, and keeps the rest', () => {
+    // The tester's screen on 2026-10-17: six groups of one item each.
+    renderPanel([
+      failure({ naturalKeyHash: 'a', domain: 'calendar', category: 'target_refused' }),
+      failure({ naturalKeyHash: 'b', domain: 'contact', category: 'auth_expired' }),
+      failure({ naturalKeyHash: 'c', domain: 'email', category: 'network' }),
+      failure({ naturalKeyHash: 'd', domain: 'email', category: 'quota_exceeded' }),
+      failure({ naturalKeyHash: 'e', domain: 'email', category: 'source_refused' }),
+      failure({ naturalKeyHash: 'f', domain: 'email', category: 'policy_refused' }),
+    ]);
+    expect(screen.queryByRole('list')).toBeNull();
+    expect(screen.queryByText('Groups in this list')).toBeNull();
+    expect(screen.queryByText('1 item')).toBeNull();
+    // The title, its hint and the typed match stay: the fold still reaches
+    // every row, by kind or by a shared wording.
+    expect(screen.getByRole('heading', { level: 4, name: 'Decide a whole group at once' })).toBeInTheDocument();
+    expect(screen.getByText('These wait for your decision, even after we fix the cause.')).toBeInTheDocument();
+    expect(screen.getByText('Match on the error text instead')).toBeInTheDocument();
+  });
+
+  it('is titled one level below the card it sits in', () => {
+    // The card's heading is an h3; an h5 here skipped a level (axe
+    // 'heading-order').
+    renderPanel(GROUPED);
+    expect(screen.getByRole('heading', { name: 'Decide a whole group at once' }).tagName).toBe('H4');
   });
 
   it('puts the outcome on the group that was pressed, not on all of them', async () => {
     // One outcome shared across several buttons would report "3 items" under
     // whichever group the reader looked at next, on a surface that decides
     // what happens to somebody's data.
-    renderPanel(MIXED);
+    renderPanel(GROUPED);
     const list = within(await screen.findByRole('list'));
     const accepts = list.getAllByRole('button', { name: 'Migrate without all of these' });
     await userEvent.click(accepts[1]!);
@@ -388,7 +444,7 @@ describe('the groups are read off the rows', () => {
   it('folds the typed match away, keeping it for what the categories cannot split', async () => {
     // One connector defect inside one category is the case this panel was
     // built for. It stays; it is just no longer the first thing offered.
-    renderPanel(MIXED);
+    renderPanel(GROUPED);
     const fold = await screen.findByText('Match on the error text instead');
     expect(fold.closest('details')?.open).toBe(false);
   });
