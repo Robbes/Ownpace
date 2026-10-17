@@ -1152,6 +1152,46 @@ On live it runs once a day, as `--remove --at-most 20`, among the daily duties
 removes none and fails the duty `strays`: list them, and if they are right,
 remove them by hand with `--remove`.
 
+## A sign-in account locked by wrong passwords
+
+Ten wrong passwords in a row lock an account at the identity provider (workplan
+0135 T4b; the owner, 2026-10-17: *"The lockout limit: I proposed 10 wrong
+passwords."*). The count starts again after a correct password or a reset.
+Nothing unlocks it by itself: the provider's lockout policy says the person
+*"has to be unlocked by an administrator afterward"*, which during the alpha is
+you. Anybody who knows a tester's login name can lock that tester out by
+guessing, so a tester who writes that they cannot sign in although the password
+is right may be locked. Somebody who signs in only through Google or Microsoft
+has no password here to lock.
+
+**In the console**, signed in as the first human or an operator: the person's
+account at `<issuer>/ui/console` (Support's People links go straight there),
+then its unlock action. Its state reads *Locked* until you do.
+
+**Or with the provisioning token,** from the stack's checkout. The token is read
+into a variable and never printed; the listing gives each locked account's id
+and address, and the unlock answers `{"details":…}`:
+
+```bash
+JWT_ISSUER="$(sed -n 's/^JWT_ISSUER=//p' deploy/compose/.env)"
+PAT="$(docker compose -f deploy/compose/managed.yml run --rm -T zitadel-machinekey cat /machinekey/pat.txt | tr -d '\r\n')"
+curl -sS -X POST "$JWT_ISSUER/v2/users" -H "Authorization: Bearer $PAT" \
+  -H 'Content-Type: application/json' \
+  -d '{"queries":[{"stateQuery":{"state":"USER_STATE_LOCKED"}}]}' \
+  | jq -r '(.result // [])[] | "\(.userId)  \(.human.email.email // .username)"'
+curl -sS -X POST "$JWT_ISSUER/v2/users/<userId>/unlock" -H "Authorization: Bearer $PAT" \
+  -H 'Content-Type: application/json' -d '{}'
+unset PAT
+```
+
+`POST /v2/users/{userId}/unlock` is the user service's `UnlockUser`
+(`proto/zitadel/user/v2/user_service.proto` at v4.19.4); it refuses an account
+that is not locked. An empty listing means nobody is locked. Unlock only an
+account whose owner asked you to, by the address they wrote from: an unlock
+gives the next guesser ten more tries. The number is
+`SIGN_IN_LOCKOUT_PASSWORDS` in `deploy/compose/setup-zitadel.sh`, the same in
+`managed.yml` for a fresh instance.
+
 ## Searches and downloads on the support screens
 
 Every support-screen read is a `support_read` row (managed migration 0009), and

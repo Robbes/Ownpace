@@ -71,6 +71,24 @@
  *   v4.19.4 has ten mail texts. The five a tester of this stack never gets are
  *   each named in the script's comment, with why, so a later reader does not
  *   take the gap for an oversight.
+ *
+ * THE ORGANISATION'S NAME (open question 8; the owner, 2026-10-17: *"The
+ * sign-in organisation name on live: "Ownpace": yes"*). Upstream names the
+ * first organisation `ZITADEL`, and the page and the console show it.
+ *
+ * - **Live is `Ownpace` from its first start.** `managed.yml` passes
+ *   `ZITADEL_ORG_NAME` as `ZITADEL_FIRSTINSTANCE_ORG_NAME`, upstream's
+ *   `ZITADEL` when it is empty, and `stand-up-live.sh` writes `Ownpace` into
+ *   live's `.env` when the key is empty there, before the provider first
+ *   starts. The name is spelled once, as `LIVE_ORG_NAME` in `stack-kind.sh`
+ *   beside live's marker, and both scripts read it from there.
+ * - **An instance that already stands is renamed by `setup-zitadel.sh`,**
+ *   with `PUT /management/v1/orgs/me` (`UpdateOrg` in `management.proto` at
+ *   v4.19.4), only when the name differs, since Zitadel refuses a rename to
+ *   the same name (`Errors.Org.NotChanged`), and read back. The name wanted is
+ *   `ZITADEL_ORG_NAME`, and on live, where the key is empty, `Ownpace`.
+ *   Elsewhere an empty key keeps the name: the OTA stack's is not part of the
+ *   owner's answer.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -79,6 +97,7 @@ import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse as parseYaml } from 'yaml';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const setup = readFileSync(join(REPO_ROOT, 'deploy/compose/setup-zitadel.sh'), 'utf8');
@@ -581,5 +600,164 @@ describe('the bring-up, its mails', () => {
     const comment = setup.slice(at, setup.indexOf('\nSIGN_IN_MAILS=', at));
     expect(at, 'the section is gone').toBeGreaterThan(0);
     for (const type of LEFT_OUT) expect(comment, type).toMatch(new RegExp(`^# ${type}: \\S`, 'm'));
+  });
+});
+
+// ---------------------------------------------------- the organisation's name
+
+/**
+ * Name the organisation `want` against a stand-in provider that holds `name`
+ * and refuses a rename to the name it already has.
+ */
+function rename(name: string, want: string, takes = true) {
+  const home = mkdtempSync(join(tmpdir(), 'orgname-'));
+  try {
+    const state = join(home, 'state.json');
+    const writes = join(home, 'writes');
+    writeFileSync(state, JSON.stringify({ name }));
+    writeFileSync(writes, '');
+    const program = [
+      'set -euo pipefail',
+      'ISSUER=https://id.example.test',
+      'say() { echo "[setup-zitadel] $*"; }',
+      'die() { echo "[setup-zitadel] FATAL: $*" >&2; exit 1; }',
+      `STATE="${state}"`,
+      `WRITES="${writes}"`,
+      `TAKES=${takes}`,
+      'refuse() { echo "[setup-zitadel] FATAL: $1 $2 answered HTTP 412: $3" >&2; exit 1; }',
+      'api() {',
+      '  local s; s="$(cat "$STATE")"',
+      '  case "$1 $2" in',
+      '    "GET /management/v1/orgs/me") jq -c \'{org: {id: "310000000000000001", name: .name, state: "ORG_STATE_ACTIVE", primaryDomain: "\\(.name | ascii_downcase).id.example.test"}}\' <<<"$s" ;;',
+      '    "PUT /management/v1/orgs/me")',
+      '      echo "$1 $2 $3" >> "$WRITES"',
+      '      local n; n="$(jq -r .name <<<"$3")"',
+      '      [ "$(jq -r .name <<<"$s")" != "$n" ] || refuse "$1" "$2" "Errors.Org.NotChanged"',
+      '      [ "$TAKES" = true ] && jq -c --arg n "$n" \'.name = $n\' <<<"$s" > "$STATE"',
+      '      echo \'{"details":{}}\' ;;',
+      '    *) echo "unexpected call: $1 $2" >&2; exit 1 ;;',
+      '  esac',
+      '}',
+      fn('organisation_name'),
+      fn('name_the_organisation'),
+      'name_the_organisation "$WANT"',
+      'echo "said: ${ORG_NAME_SAID}"',
+    ].join('\n');
+    const r = spawnSync('bash', ['-c', program], { encoding: 'utf8', env: { ...process.env, WANT: want } });
+    return {
+      code: r.status ?? -1,
+      said: `${r.stdout ?? ''}${r.stderr ?? ''}`,
+      writes: readFileSync(writes, 'utf8').trim().split('\n').filter(Boolean),
+      after: (JSON.parse(readFileSync(state, 'utf8')) as { name: string }).name,
+    };
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+}
+
+/** The name the script wants, from a `.env` holding `lines`, with the real readers of that file. */
+function nameWanted(lines: string[]): { code: number; name: string; said: string } {
+  const home = mkdtempSync(join(tmpdir(), 'orgname-env-'));
+  try {
+    const envFile = join(home, '.env');
+    writeFileSync(envFile, `${lines.join('\n')}\n`);
+    const compose = join(REPO_ROOT, 'deploy/compose');
+    const program = [
+      'set -euo pipefail',
+      `. "${compose}/env-read.sh"`,
+      `. "${compose}/stack-kind.sh"`,
+      `ENV_FILE="${envFile}"`,
+      fn('read_env'),
+      fn('wanted_organisation_name'),
+      'printf "%s" "$(wanted_organisation_name)"',
+    ].join('\n');
+    const r = spawnSync('bash', ['-c', program], { encoding: 'utf8' });
+    return { code: r.status ?? -1, name: r.stdout ?? '', said: `${r.stdout ?? ''}${r.stderr ?? ''}` };
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+}
+
+const LIVE_MARKER = 'STACK_KIND=production';
+
+describe('the organisation’s name (open question 8)', () => {
+  it('on live, with ZITADEL_ORG_NAME empty or absent, is Ownpace', () => {
+    for (const lines of [[LIVE_MARKER], [LIVE_MARKER, 'ZITADEL_ORG_NAME=']]) {
+      const got = nameWanted(lines);
+      expect(got.code, got.said).toBe(0);
+      expect(got.name).toBe('Ownpace');
+    }
+  });
+
+  it('elsewhere, with the key empty, is nobody’s to change: the OTA stack keeps its name', () => {
+    const got = nameWanted(['COMPOSE_PROJECT_NAME=ownpace-managed']);
+    expect(got.code, got.said).toBe(0);
+    expect(got.name).toBe('');
+  });
+
+  it('is ZITADEL_ORG_NAME where the key is set, on any stack', () => {
+    expect(nameWanted(['ZITADEL_ORG_NAME=Ownpace']).name).toBe('Ownpace');
+    expect(nameWanted([LIVE_MARKER, 'ZITADEL_ORG_NAME=Ownpace']).name).toBe('Ownpace');
+  });
+
+  it('renames an organisation that stands under upstream’s name, once, and reads it back', () => {
+    const { code, said, writes, after } = rename('ZITADEL', 'Ownpace');
+    expect(code, said).toBe(0);
+    expect(writes).toEqual(['PUT /management/v1/orgs/me {"name":"Ownpace"}']);
+    expect(after).toBe('Ownpace');
+    expect(said).toContain('said: Ownpace');
+  });
+
+  it('writes nothing when it is already named so, which Zitadel would refuse as NotChanged', () => {
+    const { code, said, writes } = rename('Ownpace', 'Ownpace');
+    expect(code, said).toBe(0);
+    expect(writes).toEqual([]);
+  });
+
+  it('with nothing wanted, writes nothing and says the name it keeps', () => {
+    const { code, said, writes } = rename('ZITADEL', '');
+    expect(code, said).toBe(0);
+    expect(writes).toEqual([]);
+    expect(said).toContain('said: ZITADEL');
+    expect(said).toContain('ZITADEL_ORG_NAME');
+  });
+
+  it('stops, naming it, when the rename does not take', () => {
+    const { code, said } = rename('ZITADEL', 'Ownpace', false);
+    expect(code).not.toBe(0);
+    expect(said).toContain('could not name the organisation Ownpace');
+  });
+});
+
+describe('the bring-up, the organisation’s name', () => {
+  it('names it after the lockout and before the summary reads its domain, and says it in its summary', () => {
+    const code = directives(setup);
+    const locked = code.search(/^set_sign_in_lockout "\$SIGN_IN_LOCKOUT_PASSWORDS"$/m);
+    const named = code.search(/^name_the_organisation "\$\(wanted_organisation_name\)"$/m);
+    const domain = code.search(/^org_me="\$\(api GET \/management\/v1\/orgs\/me/m);
+    expect(named, 'nothing names the organisation').toBeGreaterThan(0);
+    expect(named).toBeGreaterThan(locked);
+    expect(domain).toBeGreaterThan(named);
+    const summary = code.slice(code.lastIndexOf('cat <<EOF'));
+    expect(summary).toMatch(/^ {2}organisation \$\{ORG_NAME_SAID\}$/m);
+  });
+
+  it('a fresh instance takes ZITADEL_ORG_NAME at its first start, and upstream’s name when it is empty', () => {
+    const compose = parseYaml(readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8')) as {
+      services: Record<string, { environment?: Record<string, unknown> }>;
+    };
+    expect(compose.services.zitadel?.environment?.ZITADEL_FIRSTINSTANCE_ORG_NAME).toBe('${ZITADEL_ORG_NAME:-ZITADEL}');
+  });
+
+  it('live’s first bring-up writes Ownpace into live’s .env when the key is empty, before the provider first starts', () => {
+    const live = directives(readFileSync(join(REPO_ROOT, 'deploy/compose/stand-up-live.sh'), 'utf8'));
+    const written = live.search(/ZITADEL_ORG_NAME=\$\{LIVE_ORG_NAME\}/);
+    const bringUp = live.search(/^\s*bring_up --only preflight$/m);
+    expect(written, 'stand-up-live.sh never writes the name').toBeGreaterThan(0);
+    expect(written).toBeLessThan(bringUp);
+    // Spelled once, beside live's marker, for both scripts.
+    const kind = directives(readFileSync(join(REPO_ROOT, 'deploy/compose/stack-kind.sh'), 'utf8'));
+    expect(kind).toMatch(/^LIVE_ORG_NAME=Ownpace$/m);
+    expect(directives(setup)).not.toMatch(/^LIVE_ORG_NAME=/m);
   });
 });

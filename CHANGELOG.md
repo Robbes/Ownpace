@@ -19,6 +19,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   (workplan 0135 T6): the sign-up, address-change and password-reset mails
   (#1604), and now the notice that a password was changed and the link to add
   a passkey. Each names Ownpace and the address to write to.
+- **The sign-in page locks an account after ten wrong passwords, offers a
+  second factor, and live's organisation is called Ownpace** (workplan 0135
+  T4 and open questions 2, 3 and 8, the owner's answers of 2026-10-17): ten
+  wrong passwords in a row lock the account until an operator unlocks it; an
+  authenticator app or a security key may be added and is never required; and
+  the organisation on live's sign-in page is named Ownpace.
 
 ### Fixed
 
