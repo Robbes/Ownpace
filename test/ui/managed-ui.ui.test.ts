@@ -777,6 +777,13 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
     const waits = `GET /api/people/${PERSON}/awaiting-grant`;
     const saved = FIXTURES[waits];
     FIXTURES[waits] = { migrations: [{ mappingId: MAPPING, then: 'ran_before' }] };
+    // A grant waits only on a Google source (the API's `isGrantableSourceKind`),
+    // so here Anna's mail reads Gmail, as it must for the page to say so.
+    const listKey = 'GET /api/migrations';
+    const savedList = FIXTURES[listKey];
+    FIXTURES[listKey] = {
+      mappings: [{ ...(savedList as { mappings: Record<string, unknown>[] }).mappings[0], sourceType: 'gmail' }],
+    };
     try {
       const l = await open('/mappings');
       await l.page.getByRole('link', { name: 'Anna', exact: true }).click();
@@ -784,9 +791,11 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
       await l.page.getByRole('heading', { name: 'Before you switch' }).waitFor({ timeout: 10_000 });
       expect(await l.page.getByRole('heading', { level: 1, name: 'Anna' }).count()).toBe(1);
       expect(await l.page.locator('[data-step]').count()).toBe(7);
-      // Their one grant link (0153 T5 (b)): none made yet, read from its own door.
+      // Their one grant link (0153 T5 (b)), offered because their mail reads
+      // Google, and their progress link: none made yet, read from its own door.
       await l.page.getByRole('heading', { name: 'For Anna' }).waitFor({ timeout: 10_000 });
       await l.page.getByText('No link yet for this person.').waitFor({ timeout: 10_000 });
+      await l.page.getByText('No progress link yet for this person.').waitFor({ timeout: 10_000 });
       expect(apiHits).toContain(`/api/people/${PERSON}/links`);
       // What their grant does, beside the migration it waits on.
       await l.page.getByText('Waits for Anna to connect again.').waitFor({ timeout: 10_000 });
@@ -796,6 +805,7 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
       await l.page.close();
     } finally {
       FIXTURES[waits] = saved;
+      FIXTURES[listKey] = savedList;
     }
   });
 
@@ -894,7 +904,8 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
       await l.page.getByText('Connected as anna@example.nl').waitFor({ timeout: 10_000 });
       await next();
       await l.page.getByRole('heading', { level: 2, name: 'Where does it go?' }).waitFor({ timeout: 10_000 });
-      await next();
+      // Leaving this screen sets the migrations up, and its button says so.
+      await l.page.getByRole('button', { name: 'Set up' }).click();
       await l.page.getByRole('heading', { level: 2, name: 'Check, then start' }).waitFor({ timeout: 15_000 });
       // Past the ceiling, the step says so with the price of moving up, and
       // never blocks: Start opens all the same.

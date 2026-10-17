@@ -1,9 +1,10 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 vi.mock('../services/mapping-service', () => ({
   mappingApi: {
@@ -55,7 +56,8 @@ vi.mock('../services/platform-service', () => ({
 
 import { AxiosError, AxiosHeaders } from 'axios';
 import { ConfirmMigration } from './ConfirmMigration.tsx';
-import { mappingApi, type Mapping } from '../services/mapping-service.ts';
+import { SCOPE_MANIFEST } from '@openmig/shared';
+import { mappingApi, scopeManifestApi, type Mapping } from '../services/mapping-service.ts';
 import { fetchPlatformPause } from '../services/platform-service.ts';
 import { STRINGS } from '../i18n/strings.ts';
 
@@ -167,6 +169,34 @@ describe('ConfirmMigration (0013 T6)', () => {
     expect(start).not.toBeDisabled();
     fireEvent.click(start);
     await waitFor(() => expect(mappingApi.start).toHaveBeenCalledWith('m1'));
+  });
+
+  it('tells a calendar-only migration nothing about mail (the UX sweep, 2026-10-17)', async () => {
+    // The rows were narrowed by family alone: a Google migration of a calendar
+    // was confirmed under Email, Files and Tasks too. The screen passes the
+    // migration's own data types, and only rows about none of them go.
+    vi.mocked(mappingApi.get).mockResolvedValueOnce({ ...mapping('paused'), syncConfig: { domains: ['calendar'] } });
+    vi.mocked(mappingApi.getDiscovery).mockResolvedValueOnce({
+      mappingId: 'm1',
+      discovered: true,
+      domains: [{ domain: 'calendar', collections: 1, items: 40, discoveredAt: '2026-09-22T10:00:00Z' }],
+    } as never);
+    vi.mocked(scopeManifestApi.get).mockResolvedValueOnce(SCOPE_MANIFEST as never);
+
+    // In a router: the real rows link their guides.
+    renderWithClient(
+      <MemoryRouter>
+        <ConfirmMigration mappingId="m1" onStarted={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    const rows = within(await screen.findByRole('region', { name: STRINGS.en['scope.title'] }));
+    expect(await rows.findByText(/Events, repeating ones included/)).toBeInTheDocument();
+    expect(rows.queryByText(/Every folder, Sent, Drafts and Archive included/)).not.toBeInTheDocument();
+    expect(rows.queryByText('Mail with no Message-ID')).not.toBeInTheDocument();
+    expect(rows.queryByText('Google-native files')).not.toBeInTheDocument();
+    // What is true whatever was ticked stays: what does not migrate from Google.
+    expect(rows.getByText('Google Keep')).toBeInTheDocument();
   });
 });
 
