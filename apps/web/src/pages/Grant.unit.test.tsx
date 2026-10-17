@@ -125,21 +125,31 @@ describe('what a person sees before consenting', () => {
     // The files the site build writes (site/copy.mjs `files`). Its nginx has no
     // `.html` fallback, so the extension-less `/privacy` these said was a 404.
     expect(privacy).toHaveAttribute('href', 'https://www.ownpace.eu/privacy.html');
-    expect(screen.getByRole('link', { name: 'Terms' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Terms of service' })).toHaveAttribute(
       'href',
       'https://www.ownpace.eu/terms.html',
     );
+    // Named as everywhere else in the app (`acceptance.doc.*`), and apart.
+    expect(privacy.parentElement).toHaveTextContent(/Privacy policy · Terms of service$/);
   });
 
   it('links a Dutch reader to the Dutch policy and terms, not the English ones', async () => {
     window.localStorage.setItem('ownpace.locale', 'nl');
     renderPage();
-    const privacy = await screen.findByRole('link', { name: 'Privacybeleid' });
+    const privacy = await screen.findByRole('link', { name: 'Privacyverklaring' });
     expect(privacy).toHaveAttribute('href', 'https://www.ownpace.eu/nl/privacy.html');
-    expect(screen.getByRole('link', { name: 'Voorwaarden' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Servicevoorwaarden' })).toHaveAttribute(
       'href',
       'https://www.ownpace.eu/nl/voorwaarden.html',
     );
+  });
+
+  it('names the page in the browser’s tab, in the reader’s language', async () => {
+    renderPage();
+    await screen.findByRole('heading', { level: 1, name: 'Connect your account' });
+    expect(document.title).toBe('Connect your account — Ownpace');
+    await userEvent.click(within(screen.getByRole('group', { name: 'Language' })).getByRole('button', { name: 'NL' }));
+    expect(document.title).toBe('Verbind uw account — Ownpace');
   });
 
   it('says from which account and to which destination, before the button (0108 T8a)', async () => {

@@ -165,7 +165,7 @@ describe('inviting mails the invited person', () => {
     expect(mail.subject).toBe('Ownpace — u bent uitgenodigd deel te nemen');
     expect(mail.body).toContain('Organisatie: Familie Berentsen');
     expect(mail.body).toContain('De uitnodiging komt van: rob@example.test');
-    expect(mail.body).toContain('Meld u hier aan: https://app.example.test');
+    expect(mail.body).toContain('Meld u hier aan: https://app.example.test/login?locale=nl\n');
     expect(mail.body).toContain('Gebruik dit e-mailadres: test@ownpace.test');
     // Privacy §4.6, at the first communication.
     expect(mail.body).toContain('https://site.example.test/');

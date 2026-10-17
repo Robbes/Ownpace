@@ -74,7 +74,8 @@
  * disclosure Google's verification requires, and it belongs where a person can
  * still walk away. The addresses, in the reader's language, come from
  * `services/legal-links.ts`, the one module every link to the texts reads
- * (workplan 0139 T10).
+ * (workplan 0139 T10). They are named as everywhere else in the app
+ * (`acceptance.doc.*`), and kept apart by a dot rather than one space.
  *
  * ## What it must never do
  *
@@ -231,7 +232,7 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
           aria-labelledby={`grant-account-${i}`}
           className="mt-6 p-4 border border-gray-200 rounded-lg"
         >
-          <h2 id={`grant-account-${i}`} className="text-base font-semibold text-gray-900 break-all">
+          <h2 id={`grant-account-${i}`} className="text-base font-semibold text-gray-900 break-words">
             {a.account}
           </h2>
           <ul className="mt-2 space-y-1 text-sm text-gray-700">
@@ -271,7 +272,7 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
                 type="button"
                 onClick={() => void connect(a.account)}
                 disabled={starting !== null}
-                className="mt-3 min-h-[44px] px-4 py-2.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 break-all"
+                className="mt-3 min-h-[44px] px-4 py-2.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 break-words"
               >
                 {starting === a.account
                   ? t('grant.connecting')
@@ -292,10 +293,11 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
       <p className="mt-6 text-sm text-gray-500">
         {t('grant.disclosure')}{' '}
         <a className="underline" href={legal.privacy}>
-          {t('grant.privacy')}
-        </a>{' '}
+          {t('acceptance.doc.privacy')}
+        </a>
+        {' · '}
         <a className="underline" href={legal.terms}>
-          {t('grant.terms')}
+          {t('acceptance.doc.terms')}
         </a>
       </p>
       <p className="mt-3 text-sm text-gray-500">{t('grant.withdraw')}</p>
@@ -323,6 +325,12 @@ const Grant: React.FC = () => {
     retry: false,
   });
 
+  // The tab's name, as the page's own title says it (the UX sweep, 2026-10-17).
+  const title = t('grant.title');
+  React.useEffect(() => {
+    document.title = `${title} — Ownpace`;
+  }, [title]);
+
   const connect = async () => {
     if (!link) return;
     setStarting(true);
@@ -343,7 +351,7 @@ const Grant: React.FC = () => {
   return (
     <main className="max-w-xl mx-auto px-6 py-12">
       <LanguageSwitch className="justify-end mb-4" />
-      <h1 className="text-xl font-semibold text-gray-900">{t('grant.title')}</h1>
+      <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
 
       {subject.isPending && (
         <p role="status" className="mt-4 text-sm text-gray-600">
@@ -479,10 +487,11 @@ const Grant: React.FC = () => {
           <p className="mt-6 text-sm text-gray-500">
             {t('grant.disclosure')}{' '}
             <a className="underline" href={legal.privacy}>
-              {t('grant.privacy')}
-            </a>{' '}
+              {t('acceptance.doc.privacy')}
+            </a>
+            {' · '}
             <a className="underline" href={legal.terms}>
-              {t('grant.terms')}
+              {t('acceptance.doc.terms')}
             </a>
           </p>
           <p className="mt-3 text-sm text-gray-500">{t('grant.withdraw')}</p>

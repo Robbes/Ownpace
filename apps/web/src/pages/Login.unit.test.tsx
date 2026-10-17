@@ -1,11 +1,12 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Login, { decodeTokenClaims } from './Login.tsx';
 import { useAuthStore } from '../stores/auth-store.ts';
+import { LocaleProvider } from '../i18n/index.tsx';
 import { beginSignIn, oidcConfig } from '../services/oidc.ts';
 import { fetchMe } from '../services/session.ts';
 import { fetchAuthMode } from '../services/auth-mode.ts';
@@ -438,3 +439,63 @@ describe('the paste box follows the API, not the bundle', () => {
   });
 });
 
+/**
+ * THE DOOR IN THE READER'S LANGUAGE, AND AS ONE PAGE (the UX sweep,
+ * 2026-10-17). The site's *Sign in* and the grant and invitation mails carry
+ * the reader's language as `?locale=`, so a Dutch tester whose browser is set
+ * to English reads the Dutch sign-in page; and the page has the switch the
+ * guides and the request page have, for anybody who arrives another way. The
+ * title is the page's one first-level heading, inside its one `main`, and the
+ * browser's tab says it too.
+ */
+describe('Login, in a language and as a page', () => {
+  beforeEach(() => {
+    oidcConfigMock.mockReturnValue(null);
+    fetchAuthModeMock.mockReset();
+    fetchAuthModeMock.mockResolvedValue({ mode: 'local', acceptsSeedToken: true });
+    localStorage.clear();
+  });
+
+  const renderAt = async (path: string) => {
+    render(
+      <LocaleProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <Login />
+        </MemoryRouter>
+      </LocaleProvider>
+    );
+    await vi.waitFor(() =>
+      expect(screen.queryByText(/checking how to sign in|controleren hoe u zich/i)).toBeNull()
+    );
+  };
+
+  it('arrives in the language the link asked for, whatever the browser says', async () => {
+    expect(navigator.language.toLowerCase().startsWith('nl')).toBe(false);
+    await renderAt('/login?locale=nl');
+    expect(screen.getByRole('heading', { level: 1, name: 'Aanmelden bij Ownpace' })).toBeInTheDocument();
+    expect(document.title).toBe('Aanmelden bij Ownpace');
+    expect(localStorage.getItem('ownpace.locale')).toBe('nl');
+  });
+
+  it('ignores a language nobody offers', async () => {
+    await renderAt('/login?locale=xx');
+    expect(screen.getByRole('heading', { level: 1, name: 'Sign in to Ownpace' })).toBeInTheDocument();
+  });
+
+  it('offers the language switch beside the way back to the site, and it works', async () => {
+    const user = userEvent.setup();
+    await renderAt('/login');
+    const group = screen.getByRole('group', { name: 'Language' });
+    await user.click(within(group).getByRole('button', { name: 'NL' }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Aanmelden bij Ownpace' })).toBeInTheDocument();
+    expect(document.title).toBe('Aanmelden bij Ownpace');
+  });
+
+  it('is one page: a main landmark around one first-level heading', async () => {
+    await renderAt('/login');
+    const main = screen.getByRole('main');
+    expect(within(main).getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Sign in to Ownpace');
+    expect(document.title).toBe('Sign in to Ownpace');
+  });
+});

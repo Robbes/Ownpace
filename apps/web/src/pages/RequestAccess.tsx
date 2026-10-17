@@ -26,6 +26,13 @@
  *
  * **One field is not for people** (workplan 0093 T2d; the owner, 2026-10-04,
  * *"Honeypot now"*). See `TRAP_FIELD` below.
+ *
+ * **One page, in a language, that says why it waits** (the UX sweep,
+ * 2026-10-17). The title is the page's `<h1>` inside its `<main>`, in the form
+ * and once the request has gone, and the browser's tab names it. The form has
+ * the language switch beside the way back to the site, as the sign-in page
+ * has. And *Send request* stays pale until an address is typed, so it says so
+ * under it, tied to it, as the wizard does (0145 T7 (a)).
  */
 import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
@@ -38,6 +45,7 @@ import SupportLine from '../components/SupportLine.tsx';
 import LegalLinks from '../components/LegalLinks.tsx';
 import SiteMark from '../components/SiteMark.tsx';
 import BackToSite from '../components/BackToSite.tsx';
+import LanguageSwitch from '../components/LanguageSwitch.tsx';
 import { answersSentence } from '../services/request-answers.ts';
 
 /**
@@ -78,14 +86,17 @@ const RequestAccess: React.FC = () => {
    * `?locale=` rides on the site's Request access link (`site/build.mjs`
    * `orderHref`), so a visitor reading the Dutch site gets the Dutch form, and
    * the locale this form sends is the one their grant email is written in.
-   * This page sits outside Layout, so it has no language switcher to fix it
-   * afterwards. Matched against the list like `?tier=`: an unknown value is
-   * ignored. Once, on arrival.
+   * The switch beside the way back changes it afterwards. Matched against the
+   * list like `?tier=`: an unknown value is ignored. Once, on arrival.
    */
   React.useEffect(() => {
     const asked = search.get('locale');
     if ((asked === 'en' || asked === 'nl') && asked !== locale) setLocale(asked);
   }, []);
+  // The tab's name.
+  React.useEffect(() => {
+    document.title = `${t('access.title')} — Ownpace`;
+  }, [locale, t]);
   /**
    * Pre-filled from `?email=` when somebody arrived from the dead end at the
    * end of a good sign-in — see `services/no-organisation.ts`.
@@ -148,14 +159,14 @@ const RequestAccess: React.FC = () => {
   if (send.isSuccess) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
-        <div className="max-w-md w-full text-center space-y-4">
+        <main className="max-w-md w-full text-center space-y-4">
           <div className="text-left">
             <BackToSite />
           </div>
           <div className="flex justify-center">
             <SiteMark className="w-12 h-12" />
           </div>
-          <h2 className="text-2xl font-extrabold text-gray-900">{t('access.sent')}</h2>
+          <h1 className="text-2xl font-extrabold text-gray-900">{t('access.sent')}</h1>
           <p className="text-sm text-gray-600">{t('access.sentDetail')}</p>
           {/* Still here once the request has gone (workplan 0131 T1): the page
               is the same address, and what was asked to join has not changed. */}
@@ -167,24 +178,31 @@ const RequestAccess: React.FC = () => {
               for an answer is when somebody wonders whether the request
               arrived. */}
           <SupportLine />
-        </div>
+        </main>
       </div>
     );
   }
 
+  // Why the button is pale, while it is pale for that reason (0145 T7 (a)).
+  const needsEmail = !send.isPending && email.trim() === '';
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+      <main className="max-w-md w-full space-y-8">
         <div>
           {/* The site's look, and the way back to it (workplan 0152 T9): a
-              visitor arrives here from the site's Request access. */}
-          <BackToSite />
+              visitor arrives here from the site's Request access. The
+              language switch beside it, as on the sign-in page. */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <BackToSite />
+            <LanguageSwitch />
+          </div>
           <div className="mt-6 flex justify-center">
             <SiteMark className="w-16 h-16" />
           </div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          <h1 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             {t('access.title')}
-          </h2>
+          </h1>
           <p className="mt-2 text-center text-sm text-gray-600">{t('access.intro')}</p>
         </div>
 
@@ -226,7 +244,7 @@ const RequestAccess: React.FC = () => {
             <div>
               <label htmlFor="name" className={label}>
                 {t('access.name')}{' '}
-                <span className="font-normal text-gray-400">({t('access.optional')})</span>
+                <span className="font-normal text-gray-500">({t('access.optional')})</span>
               </label>
               <input
                 id="name"
@@ -241,7 +259,7 @@ const RequestAccess: React.FC = () => {
             <div>
               <label htmlFor="organisation" className={label}>
                 {t('access.organisation')}{' '}
-                <span className="font-normal text-gray-400">({t('access.optional')})</span>
+                <span className="font-normal text-gray-500">({t('access.optional')})</span>
               </label>
               <input
                 id="organisation"
@@ -274,7 +292,7 @@ const RequestAccess: React.FC = () => {
           <div>
             <label htmlFor="tier" className={label}>
               {t('access.tier')}{' '}
-              <span className="font-normal text-gray-400">({t('access.optional')})</span>
+              <span className="font-normal text-gray-500">({t('access.optional')})</span>
             </label>
             <select
               id="tier"
@@ -333,13 +351,21 @@ const RequestAccess: React.FC = () => {
             </p>
           )}
 
-          <button
-            type="submit"
-            disabled={send.isPending || email.trim() === ''}
-            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-site-teal hover:bg-site-teal/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-site-teal disabled:opacity-50"
-          >
-            {send.isPending ? t('access.sending') : t('access.submit')}
-          </button>
+          <div>
+            <button
+              type="submit"
+              disabled={send.isPending || email.trim() === ''}
+              aria-describedby={needsEmail ? 'access-submit-needs' : undefined}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-site-teal hover:bg-site-teal/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-site-teal disabled:opacity-50"
+            >
+              {send.isPending ? t('access.sending') : t('access.submit')}
+            </button>
+            {needsEmail && (
+              <p id="access-submit-needs" className="mt-2 text-sm text-gray-600">
+                {t('access.submitNeeds')}
+              </p>
+            )}
+          </div>
 
           <p className="text-xs text-gray-500">{t('access.privacy')}</p>
           {/* The texts the line above stands on, in the reader's language
@@ -364,7 +390,7 @@ const RequestAccess: React.FC = () => {
           <SupportLine />
           <BuildStamp />
         </div>
-      </div>
+      </main>
     </div>
   );
 };
