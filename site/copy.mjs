@@ -135,8 +135,8 @@ export const COPY = {
     destinations: {
       soverin: { name: 'Soverin', sub: '' },
       nextcloud: { name: 'Nextcloud', sub: '' },
-      jmap: { name: 'A JMAP server', sub: 'such as Stalwart' },
-      protocols: { name: 'Any other provider', sub: 'that speaks IMAP, CalDAV, CardDAV or WebDAV' },
+      jmap: { name: 'A JMAP server', sub: 'such as Stalwart, if you or your provider runs one' },
+      protocols: { name: 'Any other provider', sub: 'that uses the usual open standards, named beside each kind of data' },
     },
     dataTypes: { email: 'Email', calendar: 'Calendar', contact: 'Contacts', file: 'Files', task: 'Tasks' },
     // Leaving… (workplan 0152 T5): a page per provider a person leaves. What
@@ -241,13 +241,13 @@ export const COPY = {
     diffTitle: 'What makes this different',
     diff: [
       ['It is a move, not a copy',
-       'Most migration tools run a copy job and hand you the result. Ownpace keeps running: every change on your old account arrives on the new one, for as long as you want, until you cut over.'],
+       'Most migration tools run a copy job and hand you the result. Ownpace keeps running: every change on your old account arrives on the new one, for as long as you want, until you switch.'],
       ['Nothing is deleted at the source',
        (p) => `Ever. Your old account is your fallback, and Ownpace leaves it as it is: <a href="${p.readsOnly}">the software has no code that changes or deletes anything at a source</a>. Some permissions allow more than Ownpace uses; How it works says which.`],
       ['European, all the way down',
        (p) => `Migrating off US cloud through a US service defeats the point. Ownpace runs in the EU, and the software is <a href="${p.repository}">open source</a>, so you can check that rather than trust it.`],
       ['Or run it yourself',
-       'The whole thing is Apache-2.0. Run it on your own machine and we never see your data, receive no telemetry, and have nothing to be trusted with.'],
+       'The whole thing is free, open-source software (Apache-2.0). Run it on your own machine and we never see your data, receive no usage data, and have nothing to be trusted with.'],
     ],
     wontTitle: 'What it will not do',
     wontLede: 'The honest list, in front of the price rather than behind it.',
@@ -257,7 +257,7 @@ export const COPY = {
       ['It cannot move everything perfectly',
        (p) => `Providers differ, and some things do not survive the crossing. <a href="${p.cannotMove}">Whatever cannot be moved</a> is reported to you item by item, with the reason — never dropped quietly.`],
       ['It is not a backup service',
-       'Once you cut over, the migration is finished. Keeping a copy in step afterwards is a new migration you set up, and it is priced as one.'],
+       'Once you switch, the migration is finished. Keeping a copy in step afterwards is a new migration you set up, and it is priced as one.'],
     ],
     costTitle: 'What it costs',
     costLede:
@@ -322,11 +322,11 @@ export const COPY = {
         note: 'Two people with everything, or four with three kinds of data each. Self-service, with a manual and somewhere to ask questions.',
       },
       large: {
-        who: 'A household, or an SME',
-        note: 'Four people with everything. Where a real person gets involved: planning, the cutover, and someone to call when a provider does something strange.',
+        who: 'A household, or a small business',
+        note: 'Four people with everything. Where a real person gets involved: planning, the switch, and someone to call when a provider does something strange.',
       },
       xl: {
-        who: 'An organisation, or an MSP',
+        who: 'An organisation, or an IT partner',
         note: 'Ten people with five kinds of data each. Many accounts, one migration, one relationship.',
       },
     },
@@ -338,8 +338,10 @@ export const COPY = {
     // more data and more migrations move a Free organisation to different tiers.
     tierFreeEdge: (byData, paths, byPaths) =>
       `More data moves you to ${byData}, and more than ${paths} migrations at the same time to ${byPaths} — and we ask you first.`,
-    beyond: (paths, data, what) =>
-      `Past ${paths} migrations at once or ${data}, <a href="{MAILTO}">${what.toLowerCase()}</a> — that is the one thing not published, because past the end of the scale we have to look at the actual case.`,
+    // The link's words are each language's own: an English "Talk to us" was
+    // once lower-cased into the Dutch sentence.
+    beyond: (paths, data) =>
+      `Past ${paths} migrations at once or ${data}, <a href="{MAILTO}">talk to us</a> — that is the one thing not published, because past the end of the scale we have to look at the actual case.`,
     draftBanner:
       'This is a draft. Passages marked like «THIS» are not filled in yet.',
     translationNote: null,
@@ -364,6 +366,10 @@ export const COPY = {
       fromGroup: '{0} from {1}',
       whatLegend: 'What is moving?',
       what: { mail: 'Mail', contacts: 'Contacts', calendar: 'Calendar', tasks: 'Tasks', files: 'Files', photos: 'Photos' },
+      // The same types inside a sentence, lower case, the last after `and`:
+      // "Mail, contacts, calendar and files from Google; files from Dropbox".
+      whatInText: { mail: 'mail', contacts: 'contacts', calendar: 'calendar', tasks: 'tasks', files: 'files', photos: 'photos' },
+      and: 'and',
       howMuchLegend: 'How much is it?',
       howMuchHint:
         'Your current provider already shows these numbers on its storage page — check there, or keep our assumptions. Every field is editable; correcting us beats distrusting us.',
@@ -375,7 +381,7 @@ export const COPY = {
       untilLegend: 'Until when?',
       until: { m1: '1 month', m3: '3 months', m6: '6 months', ready: 'When I am ready' },
       untilHint:
-        'Duration is a choice, not a prediction: the migration keeps your copy in step until you cut over, and the recurring part of the price is yours to end.',
+        'Duration is a choice, not a prediction: the migration keeps your copy in step until you switch, and the recurring part of the price is yours to end.',
       kept:
         'The free preflight that follows keeps counts, sizes and per-folder totals — never an inventory of your items — and keeps them with your migration, never longer than your account.',
       pathsNone: 'Tick what is moving and the count appears here.',
@@ -388,7 +394,7 @@ export const COPY = {
       axisPaths: 'Migrations at the same time',
       axisData: 'Data to move',
       axisDecides: 'this one decides',
-      bandLine: 'roughly {0}–{1} GB — a ±50% band, because these are self-declared numbers, not measured ones',
+      bandLine: 'roughly {0}–{1} GB: these are your own estimates, so we allow 50% more or less',
       tierLine: 'That lands on {0}.',
       tierDerived:
         'Derived from your answers, the least they need — and it keeps deriving: finish migrations and the tier falls by itself.',
@@ -410,13 +416,13 @@ export const COPY = {
       beyondLine:
         'Past the published scale. Here we look at your actual case before quoting — talk to us.',
       billDown:
-        'Finishing migrations lowers your bill by itself, automatically. The data axis never falls, so the size of what you moved sets a floor under the tier — or a top-up buys another whole band of room and you stay where you are.',
+        'Finishing migrations lowers your bill by itself. The amount of data you have moved never goes down, so it sets a floor under your tier. When it outgrows your tier, a one-off top-up can buy more room so you stay where you are.',
       topUpLine:
         'On {0}: {1} once buys another {2} of data room at the same monthly. Moving up to {3} instead costs {4} more a month.',
       topUpBreakEven:
         'If you will keep going for longer than about {0} days, the top-up is the cheaper choice; if you will stop sooner, moving up is.',
       gmailCeiling:
-        'Google caps Gmail IMAP downloads at 2.5 GB per account per day, so {0} GB of mail needs at least {1} days. That minimum comes from Google’s published ceiling, not from a bandwidth guess — and it is exactly why Ownpace syncs continuously and cuts over when you are ready.',
+        'Google lets a mailbox download 2.5 GB a day, so {0} GB of mail needs at least {1} days. That minimum is Google’s own published limit, not a guess — and it is exactly why Ownpace keeps your copy in step until you switch, when you are ready.',
       gmailLonger: 'Note: that is longer than the {0} you picked — the mail sets the pace here.',
       cannotKnow:
         'One thing this page cannot know: whether your target accepts your data. The preflight verifies exactly that, and it is free.',
@@ -506,8 +512,8 @@ export const COPY = {
     destinations: {
       soverin: { name: 'Soverin', sub: '' },
       nextcloud: { name: 'Nextcloud', sub: '' },
-      jmap: { name: 'Een JMAP-server', sub: 'zoals Stalwart' },
-      protocols: { name: 'Elke andere aanbieder', sub: 'die IMAP, CalDAV, CardDAV of WebDAV spreekt' },
+      jmap: { name: 'Een JMAP-server', sub: 'zoals Stalwart, als u of uw aanbieder er een beheert' },
+      protocols: { name: 'Elke andere aanbieder', sub: 'die de gangbare open standaarden gebruikt, hieronder per soort gegevens genoemd' },
     },
     dataTypes: { email: 'E-mail', calendar: 'Agenda', contact: 'Contacten', file: 'Bestanden', task: 'Taken' },
     leaving: {
@@ -609,9 +615,9 @@ export const COPY = {
       ['Aan de bron wordt nooit iets verwijderd',
        (p) => `Nooit. Uw oude account is uw vangnet, en Ownpace laat het zoals het is: <a href="${p.readsOnly}">de software heeft geen code die bij een bron iets wijzigt of verwijdert</a>. Sommige toestemmingen staan meer toe dan Ownpace gebruikt; Hoe het werkt zegt welke.`],
       ['Europees, tot op de bodem',
-       (p) => `Weggaan bij Amerikaanse cloud via een Amerikaanse dienst mist het punt. Ownpace draait in de EU, en de software is <a href="${p.repository}">open source</a>, dus u kunt het nakijken in plaats van ons te geloven.`],
+       (p) => `Weggaan bij een Amerikaanse cloud via een Amerikaanse dienst schiet zijn doel voorbij. Ownpace draait in de EU, en de software is <a href="${p.repository}">open source</a>, dus u kunt het nakijken in plaats van ons te geloven.`],
       ['Of draai het zelf',
-       'Alles is Apache-2.0. Draai het op uw eigen machine en wij zien uw gegevens nooit, ontvangen geen telemetrie en hebben niets waarin u ons hoeft te vertrouwen.'],
+       'Alles is vrije, open-source software (Apache-2.0). Draai het op uw eigen machine en wij zien uw gegevens nooit, ontvangen geen gebruiksgegevens en hebben niets waarin u ons hoeft te vertrouwen.'],
     ],
     wontTitle: 'Wat het niet doet',
     wontLede: 'De eerlijke lijst, vóór de prijs in plaats van erachter.',
@@ -678,7 +684,7 @@ export const COPY = {
         note: 'Vier personen met alles. Hier komt een echt mens bij: de planning, de overstap, en iemand bij wie u terechtkunt als een aanbieder iets vreemds doet.',
       },
       xl: {
-        who: 'Een organisatie, of een MSP',
+        who: 'Een organisatie, of een IT-partner',
         note: 'Tien personen met elk vijf soorten gegevens. Veel accounts, één migratie, één aanspreekpunt.',
       },
     },
@@ -688,8 +694,8 @@ export const COPY = {
     tierNoInvoiceWhy: 'geen kaart, geen factuurgegevens',
     tierFreeEdge: (byData, paths, byPaths) =>
       `Meer gegevens brengen u naar ${byData}, en meer dan ${paths} migraties tegelijk naar ${byPaths} — en we vragen het u eerst.`,
-    beyond: (paths, data, what) =>
-      `Boven ${paths} migraties tegelijk of ${data} geldt: <a href="{MAILTO}">${what.toLowerCase()}</a> — dat is het enige dat niet gepubliceerd staat, omdat we voorbij het einde van de schaal echt naar uw situatie moeten kijken.`,
+    beyond: (paths, data) =>
+      `Boven ${paths} migraties tegelijk of ${data}: <a href="{MAILTO}">neem contact met ons op</a>. Dat is het enige dat niet gepubliceerd staat, omdat we voorbij het einde van de schaal echt naar uw situatie moeten kijken.`,
     draftBanner:
       'Dit is een concept. Stukken die er zo «UITZIEN» zijn nog niet ingevuld.',
     // The terms' §13 rule, with its exception (the owner, 2026-10-05: "English governs, with the
@@ -709,9 +715,11 @@ export const COPY = {
       fromGroup: '{0} van {1}',
       whatLegend: 'Wat wilt u migreren?',
       what: { mail: 'E-mail', contacts: 'Contacten', calendar: 'Agenda', tasks: 'Taken', files: 'Bestanden', photos: 'Foto’s' },
+      whatInText: { mail: 'e-mail', contacts: 'contacten', calendar: 'agenda', tasks: 'taken', files: 'bestanden', photos: 'foto’s' },
+      and: 'en',
       howMuchLegend: 'Hoeveel is het?',
       howMuchHint:
-        'Uw huidige aanbieder toont deze getallen al op zijn opslagpagina — kijk daar, of houd onze aannames aan. Elk veld is aanpasbaar; ons verbeteren is beter dan ons wantrouwen.',
+        'Uw huidige aanbieder toont deze getallen al op zijn opslagpagina. Kijk daar, of houd onze aannames aan; u kunt elk veld aanpassen.',
       itemsAssumed: '{0} items aangenomen',
       gbLabel: 'GB',
       smallLine: 'Contacten, agenda’s en taken nemen weinig ruimte in, dus die tellen wij voor u: {0}.',
@@ -721,7 +729,7 @@ export const COPY = {
       untilHint:
         'De duur is een keuze, geen voorspelling: de migratie houdt uw kopie bij tot u overstapt, en het terugkerende deel van de prijs beëindigt u zelf.',
       kept:
-        'De gratis preflight die volgt bewaart aantallen, omvang en totalen per map — nooit een inventaris van uw items — en bewaart ze bij uw migratie, nooit langer dan uw account.',
+        'De gratis voorcontrole die volgt, bewaart aantallen, omvang en totalen per map — nooit een inventaris van uw items — en bewaart ze bij uw migratie, nooit langer dan uw account.',
       pathsNone: 'Vink aan wat u wilt migreren en de telling verschijnt hier.',
       pathsNoSource: 'Vink aan waar u weggaat en de telling verschijnt hier.',
       uncountedLine: 'Niet meegeteld, want dit kunnen wij niet migreren vanaf wat u hebt aangevinkt: {0}.',
@@ -731,10 +739,10 @@ export const COPY = {
       axisPaths: 'Migraties tegelijk',
       axisData: 'Te migreren gegevens',
       axisDecides: 'deze bepaalt',
-      bandLine: 'ruwweg {0}–{1} GB — een band van ±50%, want dit zijn zelf opgegeven getallen, geen gemeten',
+      bandLine: 'ruwweg {0}–{1} GB: dit zijn uw eigen schattingen, dus we rekenen met 50% meer of minder',
       tierLine: 'Dat komt uit op {0}.',
       tierDerived:
-        'Afgeleid uit uw antwoorden, het minste dat ze nodig hebben — en het blijft afleiden: rond migraties af en het pakket zakt vanzelf.',
+        'Afgeleid uit uw antwoorden: het kleinste pakket dat erbij past. Rond migraties af en het pakket zakt vanzelf.',
       tierFree: 'Gratis: niets per maand en geen factuur.',
       tierFreeEdge: 'Meer dan {0} brengt u naar {1}, en meer dan {2} migraties tegelijk naar {3} — en we vragen het u eerst.',
       tierFreePace: 'Eén ronde per dag: de eerste direct na de gratis voorcontrole, de kleine dingen eerst en de bestanden als laatste.',
@@ -750,13 +758,13 @@ export const COPY = {
       beyondLine:
         'Voorbij de gepubliceerde schaal. Hier kijken we eerst naar uw werkelijke situatie — neem contact op.',
       billDown:
-        'Migraties afronden verlaagt uw rekening vanzelf, automatisch. De gegevens-as zakt nooit, dus de omvang van wat u migreerde legt een bodem onder het pakket — óf een bijkoop geeft u een hele extra band aan ruimte en u blijft waar u zit.',
+        'Migraties afronden verlaagt uw rekening vanzelf. De hoeveelheid gegevens die u hebt gemigreerd, gaat nooit omlaag en legt een bodem onder uw pakket. Groeit die boven uw pakket uit, dan kan een eenmalige bijkoop extra ruimte geven, zodat u blijft waar u zit.',
       topUpLine:
         'Op {0}: {1} eenmalig koopt nog eens {2} aan gegevensruimte, tegen hetzelfde maandbedrag. In plaats daarvan omhoog naar {3} kost {4} per maand extra.',
       topUpBreakEven:
         'Gaat u langer door dan ongeveer {0} dagen, dan is de bijkoop goedkoper; stopt u eerder, dan is omhoog gaan goedkoper.',
       gmailCeiling:
-        'Google begrenst Gmail-IMAP-downloads op 2,5 GB per account per dag, dus {0} GB e-mail heeft minstens {1} dagen nodig. Dat minimum volgt uit Googles gepubliceerde plafond, niet uit een bandbreedtegok — en het is precies waarom Ownpace doorlopend synchroniseert en pas overstapt wanneer u er klaar voor bent.',
+        'Google laat een mailbox 2,5 GB per dag downloaden, dus {0} GB e-mail heeft minstens {1} dagen nodig. Dat minimum is Googles eigen gepubliceerde grens, geen gok — en precies daarom houdt Ownpace uw kopie bij tot u overstapt, wanneer u er klaar voor bent.',
       gmailLonger: 'Let op: dat is langer dan de {0} die u koos — de e-mail bepaalt hier het tempo.',
       cannotKnow:
         'Eén ding kan deze pagina niet weten: of uw doel uw gegevens accepteert. De voorcontrole verifieert precies dat, en die is gratis.',

@@ -274,7 +274,7 @@ describe('the Leaving… pages say what the app says (0152 T5)', () => {
     const { deriveTier, freeTier, money, GMAIL_IMAP_GB_PER_DAY } = await site<{
       deriveTier: (t: unknown[], paths: number, gb: number) => { tier: { name: string; monthly: number } | null };
       freeTier: (t: unknown) => boolean;
-      money: (cents: number) => string;
+      money: (cents: number, locale?: string) => string;
       GMAIL_IMAP_GB_PER_DAY: number;
     }>('calculator.mjs');
     const { TIERS, REQUEST_ACCESS_URL } = await site<{ TIERS: unknown[]; REQUEST_ACCESS_URL: string }>('prices.mjs');
@@ -299,7 +299,7 @@ describe('the Leaving… pages say what the app says (0152 T5)', () => {
         const what = names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} ${L.and} ${names.at(-1)}`;
         const expected = freeTier(atOnce)
           ? L.costFree(what, atOnce.name)
-          : L.costPaid(what, atOnce.name, money(atOnce.monthly)) +
+          : L.costPaid(what, atOnce.name, money(atOnce.monthly, locale)) +
             (freeTier(oneByOne) ? ` ${L.costOneAtATime(oneByOne.name)}` : '');
         expect(html, `${locale}/${page.id}: the typical cost is not the calculator's`).toContain(`<p>${expected}</p>`);
         const estimate = `?from=${page.from}&amp;what=${objects.join(',')}"`;

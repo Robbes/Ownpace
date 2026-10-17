@@ -5,7 +5,7 @@ die van u.
 
 ## 1. Zie wat u hebt, voordat u iets koppelt
 
-Vertel ons ongeveer wat u wilt migreren en we laten zien wat het zou kosten. Geen account,
+[Vertel ons ongeveer wat u wilt migreren](./schatting.html) en we laten zien wat het zou kosten. Geen account,
 geen e-mailadres, geen verkoopgesprek. Als het bedrag u niet bevalt, houdt het daar op en
 bent u niets kwijt.
 
@@ -35,11 +35,11 @@ ze als een deadline. Ownpace heeft geen deadline, omdat de kopie nooit veroudert
 
 Draai het opnieuw en er wordt niets gedupliceerd. Elk item wordt vastgelegd met een kenmerk
 dat de aanbieder er zelf aan gaf, dus een tweede ronde herkent wat al gemigreerd is. Onderbreek
-het, start het opnieuw, laat het een maand staan — het komt samen.
+het, start het opnieuw, laat het een maand liggen — het gaat verder waar het was.
 
 ## 4. Controleer het, in het tempo dat u past
 
-Beide accounts werken. Gebruik het nieuwe voor echte post terwijl het oude nog binnenkrijgt.
+Beide accounts werken. Gebruik het nieuwe voor uw echte e-mail, terwijl het oude ook nog e-mail ontvangt.
 Kijk in de mappen die u belangrijk vindt. Zoek dat ene bericht waar u zich zorgen over maakte.
 
 Alles wat niet mee kon, staat voor u op een rij: stuk voor stuk, met de reden. Formaten
