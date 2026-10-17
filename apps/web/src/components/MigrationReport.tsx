@@ -72,7 +72,10 @@ export const MigrationReport: React.FC<{
   report: ReadReport;
   /** The migration's last check; undefined where it could not be read. */
   check: VerificationRunReport | undefined;
-  /** The level of the section's own headings: 2 on a migration's page, 3 inside a person's. */
+  /**
+   * The level of the section's own headings, one below the heading the page
+   * draws above it: 3 on a migration's page and on a person's.
+   */
   level?: 2 | 3;
 }> = ({ report, check, level = 2 }) => {
   const { t, locale } = useLocale();
@@ -167,7 +170,7 @@ export const MigrationReport: React.FC<{
                           <code className="whitespace-pre-wrap break-words text-xs text-red-800">{d.lastError}</code>{' '}
                         </span>
                       ) : null}
-                      <Link to={`/mappings/${id}/failures`} className="text-blue-700 hover:underline">
+                      <Link to={`/mappings/${id}/failures`} className="text-blue-700 underline underline-offset-2 hover:text-blue-900">
                         {t('migrationReport.seeWhich')}
                       </Link>
                     </td>
@@ -192,7 +195,7 @@ export const MigrationReport: React.FC<{
           <ul className="mt-1 space-y-1 text-sm">
             {report.queues.deletionsOpen > 0 && (
               <li>
-                <Link to={`/mappings/${id}/deletions`} className="text-blue-700 hover:underline">
+                <Link to={`/mappings/${id}/deletions`} className="text-blue-700 underline underline-offset-2 hover:text-blue-900">
                   {t('hub.deletions.name')}
                 </Link>{' '}
                 {t('person.step.deletions', { n: report.queues.deletionsOpen })}
@@ -200,7 +203,7 @@ export const MigrationReport: React.FC<{
             )}
             {report.queues.movesOpen > 0 && (
               <li>
-                <Link to={`/mappings/${id}/moves`} className="text-blue-700 hover:underline">
+                <Link to={`/mappings/${id}/moves`} className="text-blue-700 underline underline-offset-2 hover:text-blue-900">
                   {t('hub.moves.name')}
                 </Link>{' '}
                 {t('person.step.moves', { n: report.queues.movesOpen })}
@@ -208,7 +211,7 @@ export const MigrationReport: React.FC<{
             )}
             {report.queues.failuresNeedingDecision > 0 && (
               <li>
-                <Link to={`/mappings/${id}/failures`} className="text-blue-700 hover:underline">
+                <Link to={`/mappings/${id}/failures`} className="text-blue-700 underline underline-offset-2 hover:text-blue-900">
                   {t('hub.failures.name')}
                 </Link>{' '}
                 {report.queues.failuresNeedingDecision === 1
