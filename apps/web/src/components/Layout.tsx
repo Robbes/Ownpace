@@ -390,12 +390,20 @@ const Layout: React.FC = () => {
         : migrationName
       : navigation.find((n) =>
           [n.href, ...(n.also ?? [])].some((href) => location.pathname.startsWith(href)),
-        )?.name || 'Ownpace';
+        )?.name ||
+        // Report a problem is not a menu entry (it sits by Sign out), so no
+        // entry names it.
+        (location.pathname === '/report' ? t('nav.reportProblem') : 'Ownpace');
   // The tab used to say *Ownpace - Sovereign Data Migration*, in English, on
   // every screen. `index.html` keeps that title for the moment before the app
-  // has loaded.
+  // has loaded. Leaving the frame (not found, an invitation, the sign-in's
+  // return) says Ownpace again, not the last page's name; a page outside the
+  // frame that names itself sets its title after this.
   React.useEffect(() => {
     document.title = headerText === 'Ownpace' ? 'Ownpace' : `${headerText} — Ownpace`;
+    return () => {
+      document.title = 'Ownpace';
+    };
   }, [headerText]);
   const pageHasOwnH1 =
     !selfHostEdition &&
@@ -410,6 +418,9 @@ const Layout: React.FC = () => {
           and history no entry for it. */}
       <a
         href="#main"
+        // Out of reach with the page while the phone menu is open: it would
+        // lead to an inert page.
+        inert={drawerOpen}
         onClick={(event) => {
           const main = document.getElementById('main');
           if (!main) return;

@@ -375,6 +375,26 @@ describe('the tab says which page', () => {
     renderAt('/billing', <Route path="/" element={<Layout />}><Route path="*" element={<Page />} /></Route>, locale);
     expect(document.title).toBe(title);
   });
+
+  it('says Ownpace again on a page outside the frame, not the last page’s name', () => {
+    // Not found, an invitation and the sign-in's return are routed outside
+    // the frame; the tab kept the page before them, Billing over not found.
+    renderAt(
+      '/billing',
+      <>
+        <Route path="/" element={<Layout />}>
+          <Route path="billing" element={<Link to="/nowhere">to-nowhere</Link>} />
+        </Route>
+        <Route path="*" element={<div>not-found</div>} />
+      </>,
+    );
+    expect(document.title).toBe('Billing — Ownpace');
+
+    fireEvent.click(screen.getByRole('link', { name: 'to-nowhere' }));
+
+    expect(screen.getByText('not-found')).toBeInTheDocument();
+    expect(document.title).toBe('Ownpace');
+  });
 });
 
 describe('with the phone menu (0145 T1)', () => {

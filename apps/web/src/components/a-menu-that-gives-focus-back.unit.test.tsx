@@ -292,6 +292,21 @@ describe('a link past the menu', () => {
     fireEvent.click(skip);
     expect(document.activeElement).toBe(screen.getByRole('main'));
   });
+
+  it('is out of reach while the phone menu is open, like the page it leads to', () => {
+    // Shift+Tab from the drawer's close button used to land on it, drawn over
+    // the drawer's logo, and following it did nothing: the page it leads to
+    // is inert while the drawer is open.
+    media.wide = false;
+    renderLayout();
+    const { menu } = parts();
+    fireEvent.click(menu);
+
+    expect(focusable().map((el) => el.textContent)).not.toContain('Skip to content');
+
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    expect(focusable()[0]?.textContent).toBe('Skip to content');
+  });
 });
 
 describe('a wide screen', () => {

@@ -56,7 +56,13 @@ describe('MappingHubLink', () => {
     mappingGet.mockResolvedValue({ name: 'Pieter — Microsoft 365 naar Nextcloud' });
     renderLink(UUID);
 
-    const link = await screen.findByRole('link', { name: 'Pieter — Microsoft 365 naar Nextcloud' });
+    // Room to wait: once, under a full run beside the unit project, the
+    // answer came after the default second.
+    const link = await screen.findByRole(
+      'link',
+      { name: 'Pieter — Microsoft 365 naar Nextcloud' },
+      { timeout: 5000 },
+    );
     expect(link).toHaveAttribute('href', `/mappings/${UUID}`);
     expect(link).toHaveAttribute('title', UUID);
     // A name somebody typed is prose, not code.

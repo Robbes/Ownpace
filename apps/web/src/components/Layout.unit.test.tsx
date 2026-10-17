@@ -327,6 +327,16 @@ describe('the header on per-mapping routes (T3)', () => {
     expect(screen.getByRole('banner').textContent).not.toContain('Ownpace');
   });
 
+  it('Report a problem names itself in the bar, and is not a second h1 there', () => {
+    // Not a menu entry (it sits under the menu, by Sign out), so the bar used
+    // to say Ownpace on it.
+    renderLayout('/report');
+    const banner = screen.getByRole('banner');
+    expect(banner.textContent).toContain('Report a problem');
+    expect(banner.textContent).not.toContain('Ownpace');
+    expect(within(banner).queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
+  });
+
   /**
    * ONE H1 A PAGE (the UX sweep, `a11y-two-h1-per-page`). Billing, Migrations
    * and the other managed pages draw their own `<h1>`, so the bar's name is a
