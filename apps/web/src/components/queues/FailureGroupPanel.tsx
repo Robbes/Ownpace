@@ -249,12 +249,21 @@ export const FailureGroupPanel: React.FC<{
       });
   };
 
-  /** The groups this queue actually holds, biggest first. */
-  const groups = failureGroups(failures);
+  /**
+   * The groups this queue actually holds, biggest first, of two items or more.
+   *
+   * A group of one is not offered (the UX sweep, 2026-10-17: six groups of
+   * one item each, every one repeating its row's remedy and its row's two
+   * buttons). Its row already does exactly what its group would, and the
+   * owner asked for groups that SHARE something (2026-09-17).
+   * `failureGroups` still counts every row; only what is offered is narrowed.
+   */
+  const offered = failureGroups(failures).filter((g) => g.count >= 2);
 
   return (
     <div className="mb-4 p-3 border border-gray-200 rounded-lg bg-gray-50">
-      <h5 className="text-sm font-semibold text-gray-900 mb-1">{t('failures.group.title')}</h5>
+      {/* An h4: the card it sits in is headed by an h3 (axe 'heading-order'). */}
+      <h4 className="text-sm font-semibold text-gray-900 mb-1">{t('failures.group.title')}</h4>
       <Hint className="mb-2" text={t('failures.group.hint')} why={t('failures.group.hint.why')} />
 
       {/*
@@ -264,85 +273,89 @@ export const FailureGroupPanel: React.FC<{
         can see a shared wording the categories cannot — but it is now the
         second answer, folded away, instead of the only one.
       */}
-      <p className="text-xs font-medium text-gray-700">{t('failures.group.found')}</p>
-      <ul className="mt-1 mb-3 space-y-1">
-        {groups.map((g) => {
-          const key = `${g.domain}/${g.category ?? ''}`;
-          const mine = outcome.on === key ? outcome.result : { state: 'idle' as const };
-          return (
-            <li
-              key={key}
-              className="flex flex-wrap items-center gap-2 p-2 bg-white border border-gray-200 rounded"
-            >
-              <span className="text-xs font-medium text-gray-900">
-                {t(DOMAIN_STRING_KEY[g.domain])}
-              </span>
-              <span className="text-xs text-gray-700 flex-1 min-w-[10rem]">
-                {g.category ? (
-                  <>
-                    {t(remedyKey(g.category, sourceKind))}{' '}
-                    <SendItToUs category={g.category} dataType={g.domain} migrationId={mappingId} />
-                  </>
-                ) : (
-                  // NOT PRESSABLE, and it says why rather than sitting there
-                  // greyed out. Its only description to the server would be
-                  // its domain, which reaches every other category in that
-                  // domain too — so the count above the button would be a
-                  // promise the press does not keep.
-                  <Hint
-                    text={t('failures.group.noCategory')}
-                    why={t('failures.group.noCategory.why')}
-                  />
-                )}
-              </span>
-              <span className="text-xs text-gray-500 whitespace-nowrap tabular-nums">
-                {g.count === 1
-                  ? t('failures.group.items.one')
-                  : t('failures.group.items.many', { count: String(g.count) })}
-                {/* The same words as the section they are listed in, so the
-                    reader knows where to find them. */}
-                {g.retrying > 0 && (
-                  <>
-                    {' \u00b7 '}
-                    {g.retrying === 1
-                      ? t('failures.group.stillTrying.one')
-                      : t('failures.group.stillTrying.many', { count: String(g.retrying) })}
-                  </>
-                )}
-              </span>
-              {g.pressable && (
-                <>
-                  <ActionButton
-                    pending={mine.state === 'pending'}
-                    title={t('failures.retryCost')}
-                    onClick={() =>
-                      press(key, 'retry', {
-                        domain: g.domain,
-                        ...(g.category ? { category: g.category } : {}),
-                      })
-                    }
-                  >
-                    {t('failures.group.retry')}
-                  </ActionButton>
-                  <ActionButton
-                    pending={mine.state === 'pending'}
-                    onClick={() =>
-                      press(key, 'accept', {
-                        domain: g.domain,
-                        ...(g.category ? { category: g.category } : {}),
-                      })
-                    }
-                  >
-                    {t('failures.group.accept')}
-                  </ActionButton>
-                </>
-              )}
-              {mine.state === 'done' && <Resolved effect={mine.effect} />}
-              {mine.state === 'refused' && <Refused text={mine.text} />}
-            </li>
-          );
-        })}
-      </ul>
+      {offered.length > 0 && (
+        <>
+          <p className="text-xs font-medium text-gray-700">{t('failures.group.found')}</p>
+          <ul className="mt-1 mb-3 space-y-1">
+            {offered.map((g) => {
+              const key = `${g.domain}/${g.category ?? ''}`;
+              const mine = outcome.on === key ? outcome.result : { state: 'idle' as const };
+              return (
+                <li
+                  key={key}
+                  className="flex flex-wrap items-center gap-2 p-2 bg-white border border-gray-200 rounded"
+                >
+                  <span className="text-xs font-medium text-gray-900">
+                    {t(DOMAIN_STRING_KEY[g.domain])}
+                  </span>
+                  <span className="text-xs text-gray-700 flex-1 min-w-[10rem]">
+                    {g.category ? (
+                      <>
+                        {t(remedyKey(g.category, sourceKind))}{' '}
+                        <SendItToUs category={g.category} dataType={g.domain} migrationId={mappingId} />
+                      </>
+                    ) : (
+                      // NOT PRESSABLE, and it says why rather than sitting there
+                      // greyed out. Its only description to the server would be
+                      // its domain, which reaches every other category in that
+                      // domain too — so the count above the button would be a
+                      // promise the press does not keep.
+                      <Hint
+                        text={t('failures.group.noCategory')}
+                        why={t('failures.group.noCategory.why')}
+                      />
+                    )}
+                  </span>
+                  <span className="text-xs text-gray-500 whitespace-nowrap tabular-nums">
+                    {g.count === 1
+                      ? t('failures.group.items.one')
+                      : t('failures.group.items.many', { count: String(g.count) })}
+                    {/* The same words as the section they are listed in, so the
+                        reader knows where to find them. */}
+                    {g.retrying > 0 && (
+                      <>
+                        {' \u00b7 '}
+                        {g.retrying === 1
+                          ? t('failures.group.stillTrying.one')
+                          : t('failures.group.stillTrying.many', { count: String(g.retrying) })}
+                      </>
+                    )}
+                  </span>
+                  {g.pressable && (
+                    <>
+                      <ActionButton
+                        pending={mine.state === 'pending'}
+                        title={t('failures.retryCost')}
+                        onClick={() =>
+                          press(key, 'retry', {
+                            domain: g.domain,
+                            ...(g.category ? { category: g.category } : {}),
+                          })
+                        }
+                      >
+                        {t('failures.group.retry')}
+                      </ActionButton>
+                      <ActionButton
+                        pending={mine.state === 'pending'}
+                        onClick={() =>
+                          press(key, 'accept', {
+                            domain: g.domain,
+                            ...(g.category ? { category: g.category } : {}),
+                          })
+                        }
+                      >
+                        {t('failures.group.accept')}
+                      </ActionButton>
+                    </>
+                  )}
+                  {mine.state === 'done' && <Resolved effect={mine.effect} />}
+                  {mine.state === 'refused' && <Refused text={mine.text} />}
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
 
       {/*
         The typed match, kept and folded. It is the answer for a wording the

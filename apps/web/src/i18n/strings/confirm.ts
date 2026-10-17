@@ -87,8 +87,7 @@ export const en = {
   'applyFlag.off': 'Deleting by hand is OFF for this migration (the default).',
   'applyFlag.onMeans': 'Nothing is removed until you press a delete button on an item.',
   'applyFlag.turnOff': 'Turn off',
-  'applyFlag.refusesUntilOn':
-    'The server refuses every delete button on this screen until it is turned on.',
+  'applyFlag.refusesUntilOn': 'While it is off, the delete buttons on this screen are refused.',
   'applyFlag.config.pre': "On this appliance the value lives in the mapping's config file",
   'applyFlag.config.post': '; edit the file and restart to change it.',
   'applyFlag.turnOn': 'Turn on deleting by hand',
@@ -338,8 +337,7 @@ export const nl: Record<keyof typeof en, string> = {
   'applyFlag.off': 'Handmatig verwijderen staat UIT voor deze migratie (de standaard).',
   'applyFlag.onMeans': 'Er wordt niets verwijderd totdat u bij een item op een verwijderknop drukt.',
   'applyFlag.turnOff': 'Uitschakelen',
-  'applyFlag.refusesUntilOn':
-    'De server weigert verwijderingen op dit scherm, totdat dit is ingeschakeld.',
+  'applyFlag.refusesUntilOn': 'Zolang dit uit staat, worden de verwijderknoppen op dit scherm geweigerd.',
   'applyFlag.config.pre': 'Op deze appliance staat de waarde in het configuratiebestand van de mapping',
   'applyFlag.config.post': '; bewerk het bestand en herstart om dit te wijzigen.',
   'applyFlag.turnOn': 'Handmatig verwijderen inschakelen',
