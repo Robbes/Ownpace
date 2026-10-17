@@ -255,7 +255,7 @@ journey:
    **Where does it go?** offers only destinations that take files, and a
    create the server refuses shows there as *Not set up: …*, in the server's
    own words.
-3. **Next** on **Where does it go?** sets the migration up (it lands paused, by
+3. **Set up** on **Where does it go?** sets the migration up (it lands paused, by
    design); **Check, then start** counts it, and **Start** starts it. Then run
    drills A–E from Stage 2 at `/mappings/<id>/moves` and
    `/mappings/<id>/deletions`.

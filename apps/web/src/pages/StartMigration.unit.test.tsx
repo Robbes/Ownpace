@@ -1087,20 +1087,22 @@ describe('what migrates, for each source on the check screen', () => {
     vi.mocked(personLinkApi.list).mockResolvedValue([]);
   });
 
-  const renderCheck = (m: PlannedMigration) =>
-    render(
+  const renderCheck = (one: PlannedMigration | ReadonlyArray<PlannedMigration>) => {
+    const all: ReadonlyArray<PlannedMigration> = 'provider' in one ? [one] : one;
+    return render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter>
           <CheckStep
-            planned={[m]}
-            made={{ personId: 'p-anna', migrations: { [key(m)]: { id: 'm-1' } } }}
-            titles={{ [key(m)]: 'Anna to Nextcloud' }}
+            planned={all}
+            made={{ personId: 'p-anna', migrations: Object.fromEntries(all.map((m, i) => [key(m), { id: `m-${i + 1}` }])) }}
+            titles={Object.fromEntries(all.map((m) => [key(m), `Anna to Nextcloud from ${m.sourceCard}`]))}
             onStarted={vi.fn()}
             personName="Anna Jansen"
           />
         </MemoryRouter>
       </QueryClientProvider>,
     );
+  };
 
   const panel = () => screen.findByRole('region', { name: STRINGS.en['scope.title'] });
 
@@ -1159,6 +1161,22 @@ describe('what migrates, for each source on the check screen', () => {
     // Under its heading, as on Review and start.
     const heading = screen.getByRole('heading', { level: 3, name: 'What migrates' });
     expect(heading.closest('section')).toContainElement(region);
+  });
+
+  it('tells a Google calendar migration beside a Dropbox one nothing about Drive', async () => {
+    // Narrowed by every family and every ticked type at once, Dropbox's files
+    // let Google's Drive rows through: a Google migration that carries no
+    // files was told about Drive, its documents and their versions (the
+    // review of the UX sweep, 2026-10-17). Each migration is narrowed on its own.
+    renderCheck([plan('google', 'google', ['calendar']), plan('dropbox', 'dropbox', ['file'])]);
+    const rows = within(await panel());
+    expect(await rows.findByText(/Events, repeating ones included/)).toBeInTheDocument();
+    expect(rows.getByText(/— Files and folders\./)).toBeInTheDocument();
+    expect(rows.queryByText(/Google Drive: files and folders/)).not.toBeInTheDocument();
+    expect(rows.queryByText('Google-native files')).not.toBeInTheDocument();
+    expect(rows.queryByText('Revision history')).not.toBeInTheDocument();
+    // Google's own rows about no data type in particular still stand.
+    expect(rows.getByText('Google Keep')).toBeInTheDocument();
   });
 
   it('offers Not now, to the person’s page, where the migrations wait set up and paused', async () => {

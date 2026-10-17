@@ -50,7 +50,7 @@ import {
   type DiscoveryDomain,
   type DropboxPaperPolicy,
   type Person,
-  type ScopeFamily,
+  type ScopeManifest,
   type WizardTargetType,
 } from '@openmig/shared';
 import { addMigrationToPerson, createPerson, fetchPeople } from '../services/operating-service.ts';
@@ -252,6 +252,36 @@ export interface Made {
 
 /** One pair of accounts: the key a planned migration is made and found under. */
 const pairKey = (m: PlannedMigration): string => `${m.sourceConnectionId}→${m.targetConnectionId}`;
+
+/**
+ * The manifest's rows true of one of these migrations, each narrowed on its
+ * own: by its card's family (0153 T1 (a)) and by the data types ticked for
+ * it (the UX sweep, 2026-10-17). A row stays when one migration keeps it.
+ *
+ * Each on its own, not every family against every ticked type: a Google
+ * calendar set up beside Dropbox files was told about Drive, its documents
+ * and their versions, because the Dropbox files let Google's file rows through.
+ *
+ * By the CARD's family (2026-10-16): `scopeFamilyOf` knows the mapping
+ * file's types, not `apple`, `imap`, `graph` or `oauth2`, so those
+ * migrations had no family and were shown only the rows with none.
+ */
+function scopeManifestForEach(manifest: ScopeManifest, planned: ReadonlyArray<PlannedMigration>): ScopeManifest {
+  const each = planned.map((m) => {
+    const family = scopeFamilyOfSourceCard(m.sourceCard);
+    return scopeManifestFor(manifest, family === undefined ? [] : [family], m.types);
+  });
+  // `scopeManifestFor` keeps the rows it is given, so a row is found by
+  // itself, and the manifest's order stands.
+  const kept = (column: 'migrates' | 'partial' | 'doesNotMigrate') =>
+    manifest[column].filter((row) => each.some((one) => one[column].includes(row)));
+  return {
+    version: manifest.version,
+    migrates: kept('migrates'),
+    partial: kept('partial'),
+    doesNotMigrate: kept('doesNotMigrate'),
+  };
+}
 
 /**
  * The tile's name, where the flow says it otherwise than the card: *Another
@@ -2407,22 +2437,10 @@ export const CheckStep: React.FC<{
   /** Only exports were set up: nothing to start here, so the screen ends with *Done*. */
   const onlyExports = made_.length > 0 && made_.every((m) => m.archive !== undefined);
 
-  // The manifest's rows true of every source here, and of no other (0153 T1 (a)).
-  // By the CARD's family (2026-10-16): `scopeFamilyOf` knows the mapping file's
-  // types, not `apple`, `imap`, `graph` or `oauth2`, so those migrations had
-  // no family and were shown only the rows with none — which since Email,
-  // Calendar and Contacts name their families would have been nothing.
+  // The manifest's rows true of a migration here, for what was ticked for it,
+  // and of no other (`scopeManifestForEach`).
   const manifest = useQuery({ queryKey: ['scope-manifest'], queryFn: () => scopeManifestApi.get() });
-  const families = [
-    ...new Set(planned.flatMap((m): ScopeFamily[] => {
-      const family = scopeFamilyOfSourceCard(m.sourceCard);
-      return family === undefined ? [] : [family];
-    })),
-  ];
-  // And only the rows about what was ticked (the UX sweep, 2026-10-17): a
-  // calendar-and-contacts migration was told its mail, Drive and tasks move.
-  const ticked = [...new Set(planned.flatMap((m) => m.types))];
-  const scoped = manifest.data && scopeManifestFor(manifest.data, families, ticked);
+  const scoped = manifest.data && scopeManifestForEach(manifest.data, planned);
 
   /**
    * Start each migration not yet started, or only those named (what fits now,

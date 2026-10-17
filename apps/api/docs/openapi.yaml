@@ -5615,6 +5615,10 @@ paths:
         `microsoft#application`; the screen links it beside the row.
         A row may also carry `nl`, the same row's `item`, `detail` and `more` in
         Dutch; the screen shows the half in its reader's language.
+        A row may also carry `domains`, the data types it is about (email,
+        calendar, contact, file, task); a screen that knows what a migration
+        carries leaves out a row about none of them, and a row without
+        `domains` is shown whatever was ticked.
       responses:
         '200':
           description: The manifest.
