@@ -127,7 +127,7 @@ const SAID = {
     // The four cards Current usage no longer shows (the owner, 2026-10-05).
     gone: ['Storage', 'Data Transfer', 'Compute Time', 'API calls'],
     currentUsage: 'Current usage',
-    paymentMethods: 'Payment Methods',
+    paymentMethods: 'Payment methods',
     free: 'Free: nothing is invoiced on this tier',
     package: /which package looks right/i,
   },

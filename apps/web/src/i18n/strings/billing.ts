@@ -155,6 +155,9 @@ export const en = {
   // Moneybird's PDF of a numbered invoice (0111 T6); the format is in the file's name.
   'billing.invoice.download': 'Download the invoice',
   'billing.invoice.downloadFailed': 'The invoice could not be downloaded.',
+  // A credit note's own document says it is one (0111 T7).
+  'billing.creditNote.download': 'Download the credit note',
+  'billing.creditNote.downloadFailed': 'The credit note could not be downloaded.',
   // The withdrawal function (0111 T7, terms §7). The button and the
   // confirmation are article 11a's own words, decided 2026-10-05 (0152 T6 (f)).
   'billing.withdrawal.title': 'Withdraw from your contract',
@@ -173,7 +176,11 @@ export const en = {
   'billing.withdrawal.doneNotSent':
     'Withdrawn on {date}. Your organisation is on Free. The confirmation could not be sent just now: we send it to {email} by hand.',
   'billing.withdrawal.failed': 'Your withdrawal was not recorded:',
-  'billing.paymentMethods': 'Payment Methods',
+  'billing.paymentMethods': 'Payment methods',
+  // Mollie's method types, said as words where the method has no brand.
+  'billing.method.directdebit': 'Direct debit',
+  'billing.method.creditcard': 'Credit card',
+  'billing.method.paypal': 'PayPal',
   'billing.usageLoadFailed': 'Could not load the usage numbers.',
   'billing.pay': 'Pay',
   // A yes or a pick refused for want of invoice details (0111 decision 14).
@@ -374,6 +381,8 @@ export const nl: Record<keyof typeof en, string> = {
   'billing.invoiceDue': 'vervaldatum: {date}',
   'billing.invoice.download': 'Factuur downloaden',
   'billing.invoice.downloadFailed': 'De factuur kon niet worden gedownload.',
+  'billing.creditNote.download': 'Creditnota downloaden',
+  'billing.creditNote.downloadFailed': 'De creditnota kon niet worden gedownload.',
   'billing.withdrawal.title': 'Uw overeenkomst herroepen',
   'billing.withdrawal.lead':
     'U kunt uw overeenkomst voor Ownpace {tier} tot en met {lastDay} herroepen, zonder een reden te geven.',
@@ -391,6 +400,9 @@ export const nl: Record<keyof typeof en, string> = {
     'Herroepen op {date}. Uw organisatie staat op Free. De bevestiging kon nu niet worden verstuurd: we sturen die zelf naar {email}.',
   'billing.withdrawal.failed': 'Uw herroeping is niet vastgelegd:',
   'billing.paymentMethods': 'Betaalmethoden',
+  'billing.method.directdebit': 'Automatische incasso',
+  'billing.method.creditcard': 'Creditcard',
+  'billing.method.paypal': 'PayPal',
   'billing.usageLoadFailed': 'De verbruikscijfers konden niet worden geladen.',
   'billing.pay': 'Betalen',
   'billing.detailsFirst': 'Eerst uw factuurgegevens: de naam en het adres waarop een factuur komt te staan.',

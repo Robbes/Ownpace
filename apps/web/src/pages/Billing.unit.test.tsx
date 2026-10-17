@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Billing, { itemsMovedByKind } from './Billing.tsx';
 import { billingApi, type Invoice } from '../services/billing-service.ts';
 import { fetchProgress } from '../services/progress-service.ts';
+import { LocaleProvider } from '../i18n/index.tsx';
 import type { DiscoveryDomain, ProgressReport } from '@openmig/shared';
 
 const { authState } = vi.hoisted(() => ({
@@ -196,7 +197,25 @@ const renderBilling = (at = '/billing') => {
   );
 };
 
+/** The page in Dutch, inside the real LocaleProvider. */
+const renderBillingInDutch = () => {
+  window.localStorage.setItem('ownpace.locale', 'nl');
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <LocaleProvider>
+        <MemoryRouter initialEntries={['/billing']}>
+          <Billing />
+        </MemoryRouter>
+      </LocaleProvider>
+    </QueryClientProvider>
+  );
+};
+
 beforeEach(() => {
+  window.localStorage.clear();
   usageMock.mockReset();
   invoicesMock.mockReset();
   downloadMock.mockReset();
@@ -313,7 +332,23 @@ describe('the buyer, as data (0111 T1)', () => {
         invoiceEmail: 'r@acme.test',
       }),
     );
-    expect(await screen.findByText('Saved.')).toBeInTheDocument();
+    // Announced: the line appears after the press, away from the focus.
+    expect(await screen.findByText('Saved.')).toHaveAttribute('role', 'status');
+  });
+
+  it('announces a refused save as an alert, in the server\'s words', async () => {
+    putPartyMock.mockRejectedValue(new Error('the database is unreachable'));
+
+    renderBilling();
+    await screen.findByLabelText('Name on the invoice');
+    fireEvent.change(screen.getByLabelText('Name on the invoice'), { target: { value: 'Piet Jansen' } });
+    fireEvent.change(screen.getByLabelText('Address'), { target: { value: 'Dorpsstraat 1' } });
+    fireEvent.change(screen.getByLabelText('Postal code'), { target: { value: '1234 AB' } });
+    fireEvent.change(screen.getByLabelText('City'), { target: { value: 'Ons Dorp' } });
+    fireEvent.click(screen.getByText('Save'));
+
+    const failed = await screen.findByText(/the database is unreachable/);
+    expect(failed.closest('[role="alert"]')).not.toBeNull();
   });
 
   it('a stored buyer seeds the form, business kind included, and the ask is gone', async () => {
@@ -398,6 +433,10 @@ describe('a VAT number that was actually checked (0111 T2)', () => {
     expect(await screen.findByText(/VIES confirmed this number on/)).toBeInTheDocument();
     expect(screen.getByText('Consultation number: WAPIAAAAXYZ1234')).toBeInTheDocument();
     expect(screen.getByText('Registered to: ACME GmbH')).toBeInTheDocument();
+    // The answer arrives after the press, so it is announced, and the button is not inside it.
+    const answer = screen.getByText(/VIES confirmed this number on/).closest('[role="status"]')!;
+    expect(answer).toHaveTextContent('Consultation number: WAPIAAAAXYZ1234');
+    expect(answer.querySelector('button')).toBeNull();
   });
 
   it('an invalid answer renders red — a no is an answer, not an error', async () => {
@@ -409,7 +448,8 @@ describe('a VAT number that was actually checked (0111 T2)', () => {
 
     renderBilling();
 
-    expect(await screen.findByText(/VIES says this number is not valid/)).toBeInTheDocument();
+    // A status line of its own, not the wrapper that also holds the button.
+    expect(await screen.findByText(/VIES says this number is not valid/)).toHaveAttribute('role', 'status');
     expect(screen.queryByText(/VIES confirmed/)).not.toBeInTheDocument();
   });
 
@@ -473,7 +513,7 @@ describe('a VAT number that was actually checked (0111 T2)', () => {
     renderBilling();
     fireEvent.click(await screen.findByText('Check with VIES'));
 
-    expect(await screen.findByText(/MS_UNAVAILABLE/)).toBeInTheDocument();
+    expect(await screen.findByText(/MS_UNAVAILABLE/)).toHaveAttribute('role', 'alert');
     expect(screen.getByText('The check did not run.')).toBeInTheDocument();
     expect(screen.getByText('Check with VIES')).toBeInTheDocument();
   });
@@ -607,7 +647,8 @@ describe('the price on the screen is the published price (0121 T4)', () => {
   it('says what has moved, per kind, and not what Ownpace spends (the owner, 2026-10-05)', async () => {
     renderBilling();
 
-    expect(await screen.findByText(/Usage for 2026-08/)).toBeInTheDocument();
+    // The month in words, as the date beside it is: never the raw key '2026-08'.
+    expect(await screen.findByText(/Usage for August 2026 ·/)).toBeInTheDocument();
     // All the data first, from the meter the tier reads.
     expect(screen.getByText('All data').closest('[data-moved]')).toHaveTextContent('900 GB');
     const email = (await screen.findByText('Email')).closest('[data-moved]')!;
@@ -620,6 +661,13 @@ describe('the price on the screen is the published price (0121 T4)', () => {
     for (const gone of ['Storage', 'Data Transfer', 'Compute Time', 'API calls', 'Syncs']) {
       expect(screen.queryByText(gone)).not.toBeInTheDocument();
     }
+  });
+
+  it('says the month and the time in Dutch words on a Dutch page', async () => {
+    renderBillingInDutch();
+
+    // 'Verbruik voor 2026-08' read as a key; the month is a word, as the date is.
+    expect(await screen.findByText(/^Verbruik voor augustus 2026 · per /)).toBeInTheDocument();
   });
 
   it('says nothing has moved yet when nothing has, beside each kind at 0', async () => {
@@ -652,7 +700,7 @@ describe('the price on the screen is the published price (0121 T4)', () => {
     expect(document.querySelector('[data-moved]:not([data-moved="data"])')).toBeNull();
     // The rest of the card still stands: the usage read did not fail, and the
     // data comes from it.
-    expect(screen.getByText(/Usage for 2026-08/)).toBeInTheDocument();
+    expect(screen.getByText(/Usage for August 2026 ·/)).toBeInTheDocument();
     expect(screen.getByText('All data').closest('[data-moved]')).toHaveTextContent('900 GB');
   });
 });
@@ -680,8 +728,10 @@ describe('the invoice contract is the server contract (0039 T3)', () => {
 
     renderBilling();
 
-    // "Period:" followed by SOMETHING now — the served periodStart/periodEnd.
-    expect(await screen.findByText('Period: 2026-07-01 – 2026-07-31')).toBeInTheDocument();
+    // "Period:" followed by SOMETHING now — the served periodStart/periodEnd,
+    // as days in words like the invoice date below it, not raw ISO keys.
+    expect(await screen.findByText('Period: July 1, 2026 – July 31, 2026')).toBeInTheDocument();
+    expect(screen.getByText('Period: June 1, 2026 – June 30, 2026')).toBeInTheDocument();
     // StateChip's canonical words (0035 T1), not the raw enum.
     const overdueChip = screen.getByText('Overdue');
     expect(overdueChip.className).toContain('bg-red-100');
@@ -727,7 +777,44 @@ describe('the number the books gave it (0111 slice 5)', () => {
 
     expect(await screen.findByText('Credit note 2026-0008')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Pay' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Download the invoice' })).toBeInTheDocument();
+    // Its own document, said as a credit note, not as an invoice.
+    expect(screen.getByRole('button', { name: 'Download the credit note' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Download the invoice' })).not.toBeInTheDocument();
+  });
+
+  it('gives a credit note no due date: nothing is paid on it (0111 T7)', async () => {
+    invoicesMock.mockResolvedValue({
+      invoices: [
+        invoiceFixture({
+          id: 'inv-credit',
+          status: 'sent',
+          kind: 'credit_note',
+          invoiceNumber: '2026-0008',
+          invoiceDate: '2026-07-14',
+          dueDate: '2026-07-28',
+          total: -1084,
+        }),
+      ],
+    });
+
+    renderBilling();
+
+    // The books give a credit note a due date too; the row does not say it.
+    expect(await screen.findByText('Invoice date: July 14, 2026')).toBeInTheDocument();
+    expect(screen.queryByText(/due date/)).not.toBeInTheDocument();
+  });
+
+  it("says why beside the credit note's button when its document cannot be fetched", async () => {
+    invoicesMock.mockResolvedValue({
+      invoices: [invoiceFixture({ id: 'inv-credit', status: 'sent', kind: 'credit_note', invoiceNumber: '2026-0008', total: -1084 })],
+    });
+    downloadMock.mockRejectedValue(new Error('the books did not answer'));
+
+    renderBilling();
+    fireEvent.click(await screen.findByRole('button', { name: 'Download the credit note' }));
+
+    expect(await screen.findByText('The credit note could not be downloaded.')).toBeInTheDocument();
+    expect(screen.queryByText('The invoice could not be downloaded.')).not.toBeInTheDocument();
   });
 
   it('offers no Pay on an invoice credited in full, and says so; the rest of one credited in part (0111 7d)', async () => {
@@ -900,6 +987,55 @@ describe('the payment methods card asks before it answers (0039 T4)', () => {
     expect(screen.queryByText('No payment methods stored.')).not.toBeInTheDocument();
     // The dead "Add Payment Method" button is gone, not dormant.
     expect(screen.queryByText('Add Payment Method')).not.toBeInTheDocument();
+  });
+
+  it("says Mollie's method type in words when the method has no brand", async () => {
+    methodsMock.mockResolvedValue({
+      paymentMethods: [
+        {
+          id: 'pm-2',
+          tenantId: 't1',
+          type: 'directdebit',
+          brand: null,
+          lastFour: '4321',
+          expiryMonth: null,
+          expiryYear: null,
+          isDefault: false,
+          createdAt: '2026-08-01T00:00:00.000Z',
+        },
+      ],
+    });
+
+    const { unmount } = renderBilling();
+    // Not Mollie's raw 'directdebit'.
+    expect(await screen.findByText('Direct debit •••• 4321')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Payment methods' })).toBeInTheDocument();
+    expect(screen.queryByText(/directdebit/)).not.toBeInTheDocument();
+    unmount();
+
+    renderBillingInDutch();
+    expect(await screen.findByText('Automatische incasso •••• 4321')).toBeInTheDocument();
+  });
+
+  it('keeps a type it has no words for as it came, rather than saying nothing', async () => {
+    methodsMock.mockResolvedValue({
+      paymentMethods: [
+        {
+          id: 'pm-3',
+          tenantId: 't1',
+          type: 'ideal',
+          brand: null,
+          lastFour: null,
+          expiryMonth: null,
+          expiryYear: null,
+          isDefault: false,
+          createdAt: '2026-08-01T00:00:00.000Z',
+        },
+      ],
+    });
+
+    renderBilling();
+    expect(await screen.findByText('ideal')).toBeInTheDocument();
   });
 
   it('the true empty state renders only for a served empty list', async () => {
