@@ -166,7 +166,7 @@ describe('a kind added to a running migration', () => {
     expect(res.status).toBe(200);
     return res.body as {
       syncConfig: { domains: string[] };
-      kindChoices: Array<{ domain: string; state: string; reason?: string }>;
+      kindChoices: Array<{ domain: string; state: string; reason?: string; code?: string }>;
     };
   };
   const add = (id: string, body: unknown) =>
@@ -258,6 +258,7 @@ describe('a kind added to a running migration', () => {
       domain: 'task',
       state: 'refused',
       reason: KIND_AFTER_CUTOVER_REFUSAL,
+      code: 'after_cutover',
     });
 
     const res = await add(MAPPING.done, { domain: 'task' });
@@ -268,6 +269,10 @@ describe('a kind added to a running migration', () => {
   });
 
   it('refuses a kind the account measured it cannot carry, and says what the Test found', async () => {
+    // The page reads which refusal it is, to say it in the reader's language.
+    const choices = (await detail(MAPPING.withoutTasks)).kindChoices;
+    expect(choices.find((c) => c.domain === 'task')).toMatchObject({ state: 'refused', code: 'measured_no' });
+
     const res = await add(MAPPING.withoutTasks, { domain: 'task' });
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('kind_refused');

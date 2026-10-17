@@ -172,7 +172,7 @@ const Confirm: React.FC = () => {
           ).map(([href, key], i) => (
             <span key={href}>
               {i > 0 && ' → '}
-              <Link to={href} className="text-blue-700 hover:underline">
+              <Link to={href} className="text-blue-700 underline underline-offset-2 hover:text-blue-900">
                 {i + 1}. {t(key)}
               </Link>
             </span>
@@ -297,7 +297,7 @@ const Confirm: React.FC = () => {
                 <p className="text-sm text-gray-700">
                   {noteKey && t(noteKey)}{' '}
                   {m.migrationStatus === 'active' && (
-                    <Link to="/deletions" className="text-blue-700 hover:underline">
+                    <Link to="/deletions" className="text-blue-700 underline underline-offset-2 hover:text-blue-900">
                       {t('confirm.openConsole')}
                     </Link>
                   )}

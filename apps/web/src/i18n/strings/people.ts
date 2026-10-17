@@ -37,6 +37,10 @@ export const en = {
   'migrationLinks.whoFor': 'Who is this for?',
   'migrationLinks.whoFor.why': 'Links are made per person, so first say who this migration is for.',
   'migrationLinks.whoFor.save': 'Save',
+  // The list's first line, shown until a person is chosen (UX sweep,
+  // 2026-10-17): nobody is preset, so one press cannot give a shared mailbox
+  // to whoever comes first in the list.
+  'migrationLinks.whoFor.choose': 'Choose a person…',
   'migrationLinks.peopleFailed': 'Could not read who this migration is for.',
   'migrationLinks.sent.grant': 'Grant links sent before',
   'migrationLinks.sent.view': 'Progress links sent before',
@@ -166,6 +170,7 @@ export const nl: Record<keyof typeof en, string> = {
   'migrationLinks.whoFor': 'Voor wie is dit?',
   'migrationLinks.whoFor.why': 'Links worden per persoon gemaakt, dus kies eerst voor wie deze migratie is.',
   'migrationLinks.whoFor.save': 'Opslaan',
+  'migrationLinks.whoFor.choose': 'Kies een persoon…',
   'migrationLinks.peopleFailed': 'Kon niet lezen voor wie deze migratie is.',
   'migrationLinks.sent.grant': 'Eerder verstuurde toegangslinks',
   'migrationLinks.sent.view': 'Eerder verstuurde voortgangslinks',

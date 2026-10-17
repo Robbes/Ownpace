@@ -293,7 +293,15 @@ const MaskedConfigSchema = z.object({
 const KindChoiceSchema = z.discriminatedUnion('state', [
   z.object({ domain: DomainEnum, state: z.literal('on') }),
   z.object({ domain: DomainEnum, state: z.literal('addable') }),
-  z.object({ domain: DomainEnum, state: z.literal('refused'), reason: z.string() }),
+  z.object({
+    domain: DomainEnum,
+    state: z.literal('refused'),
+    reason: z.string(),
+    // Which refusal it was, so the page says it in the reader's language.
+    // Absent from an older API, and dropped when unknown: the English
+    // `reason` then shows as served.
+    code: z.enum(['after_cutover', 'measured_no']).optional().catch(undefined),
+  }),
 ]);
 export type KindChoiceView = z.infer<typeof KindChoiceSchema>;
 

@@ -103,6 +103,13 @@ export interface MigrationCount {
   readonly stillCounting: boolean;
   /** The polling stopped before every count landed. */
   readonly countUnfinished: boolean;
+  /**
+   * Something was copied already: a paused migration, reached by *Review and
+   * start*, that ran before. Undefined until the migration answers, so a
+   * screen says neither sentence before it knows which is true; false when
+   * the migration cannot be read.
+   */
+  readonly copiedBefore: boolean | undefined;
 }
 
 /**
@@ -253,6 +260,15 @@ export function useMigrationCount(mappingId: string): MigrationCount {
   const stillCounting =
     countRefused === null && !gaveUp && (expected !== undefined ? !everyCountLanded : mapping.isPending);
   const countUnfinished = countRefused === null && gaveUp && !everyCountLanded;
+  // WHETHER ANYTHING WAS COPIED ALREADY (UX sweep, 2026-10-17). *Review and
+  // start* is offered on every paused migration, and opens this screen; one
+  // paused at 900 of about 3,000 files was told nothing had been copied.
+  // Not known before the migration answers: opened from the Migrations list,
+  // it is not in the cache, and a guess would be read out first.
+  const copiedBefore =
+    mapping.data === undefined && !mapping.isError
+      ? undefined
+      : Boolean(mapping.data?.lastSyncAt) || (mapping.data?.domainStatus ?? []).some((d) => d.itemsSynced > 0);
   return {
     domains,
     expected,
@@ -262,6 +278,7 @@ export function useMigrationCount(mappingId: string): MigrationCount {
     gaveUp,
     stillCounting,
     countUnfinished,
+    copiedBefore,
   };
 }
 
@@ -403,10 +420,16 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
             English through 0024, unrecorded -- the recorded T5 debt names
             Dashboard/Mappings only. Keys are shared with the appliance's
             Confirm page, so the two editions' prose cannot drift. The
-            "nothing has been copied yet" sentence is CORRECT here, unlike on
-            the appliance page: this step only exists before the start. */}
+            "nothing has been copied yet" sentence is true only before the
+            first pass: *Review and start* opens this step on a paused
+            migration too, and one that already copied is told so. Neither
+            is said until the migration answers. */}
         <h2 className="text-lg font-semibold text-gray-900">{t('confirm.title')}</h2>
-        <p className="text-sm text-gray-600">{t('confirm.intro')}</p>
+        {count.copiedBefore !== undefined && (
+          <p className="text-sm text-gray-600">
+            {t(count.copiedBefore ? 'confirm.introResume' : 'confirm.intro')}
+          </p>
+        )}
       </div>
 
       {/* Discovery counts — shared with the appliance's confirm screen. */}

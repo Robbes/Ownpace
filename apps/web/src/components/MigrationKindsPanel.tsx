@@ -29,6 +29,18 @@
  * page, say because another tab added the same data type. That sentence is
  * shown verbatim, never a client-side guess at what it meant (hard rule 9).
  *
+ * A data type the rule refuses BEFORE the press carries a `code` beside its
+ * English `reason` (UX sweep, 2026-10-17), and the page says the code in the
+ * reader's words (`refusedKindWords`). The code is the rule's own statement
+ * of which refusal it was, so this is a translation, not a guess. Without
+ * one the English is shown as served, marked as English.
+ *
+ * ## Sentence case in English
+ *
+ * The buttons read *Add tasks* and *Stop email*: the data type mid-label is
+ * lower-cased (`kindWord`), in English only. Dutch starts the label with it
+ * (*E-mail stoppen*), and so does an English sentence that names it first.
+ *
  * ## Stop and resume, on both editions (workplan 0128 T4, slice 3c)
  *
  * Each data type the migration copies can be stopped and resumed, and this
@@ -48,7 +60,8 @@ import { Check, CirclePause, ListPlus } from 'lucide-react';
 import { mappingApi, type KindChoiceView, type StopChoiceView } from '../services/mapping-service.ts';
 import { stopOrResumeDataType } from '../services/operating-service.ts';
 import { serverMessage } from '../services/api.ts';
-import { useT, type StringKey } from '../i18n/index.tsx';
+import { useLocale, type StringKey } from '../i18n/index.tsx';
+import { refusedKindWords } from '../i18n/kind-refusal-words.ts';
 import { Hint } from './Hint.tsx';
 
 const MigrationKindsPanel: React.FC<{
@@ -61,7 +74,7 @@ const MigrationKindsPanel: React.FC<{
    */
   stops?: ReadonlyArray<StopChoiceView> | undefined;
 }> = ({ mappingId, choices, stops }) => {
-  const t = useT();
+  const { locale, t } = useLocale();
   const queryClient = useQueryClient();
   const [adding, setAdding] = React.useState<string | null>(null);
   const [added, setAdded] = React.useState<string | null>(null);
@@ -87,6 +100,11 @@ const MigrationKindsPanel: React.FC<{
   }
 
   const label = (domain: string) => t(`domain.${domain}` as StringKey);
+  // Mid-label in English (*Stop email*); the Dutch keys do not use it.
+  const kindWords = (domain: string) => ({
+    kind: label(domain),
+    kindWord: label(domain).toLocaleLowerCase(locale),
+  });
   const busy = adding !== null || pressing !== null;
 
   // What the last press said is cleared before the next one speaks, so a
@@ -172,9 +190,10 @@ const MigrationKindsPanel: React.FC<{
                     >
                       {pressing === c.domain
                         ? t(stop.offer === 'stop' ? 'settings.kinds.stopping' : 'settings.kinds.resuming')
-                        : t(stop.offer === 'stop' ? 'settings.kinds.stop' : 'settings.kinds.resume', {
-                            kind: label(c.domain),
-                          })}
+                        : t(
+                            stop.offer === 'stop' ? 'settings.kinds.stop' : 'settings.kinds.resume',
+                            kindWords(c.domain),
+                          )}
                     </button>
                   )}
                   {stop?.held && (
@@ -197,13 +216,13 @@ const MigrationKindsPanel: React.FC<{
                 >
                   {adding === c.domain
                     ? t('settings.kinds.adding')
-                    : t('settings.kinds.add', { kind: label(c.domain) })}
+                    : t('settings.kinds.add', kindWords(c.domain))}
                 </button>
               )}
               {c.state === 'refused' && (
                 <span className="text-gray-700">
                   <span className="font-medium">{label(c.domain)}</span>
-                  <span className="block text-amber-800">{c.reason}</span>
+                  <RefusedReason words={refusedKindWords(t, c)} />
                 </span>
               )}
             </li>
@@ -242,5 +261,12 @@ const MigrationKindsPanel: React.FC<{
     </section>
   );
 };
+
+/** The reason under a refused data type; the served English is said as English. */
+const RefusedReason: React.FC<{ words: { readonly text: string; readonly english: boolean } }> = ({ words }) => (
+  <span className="block text-amber-800" lang={words.english ? 'en' : undefined}>
+    {words.text}
+  </span>
+);
 
 export default MigrationKindsPanel;

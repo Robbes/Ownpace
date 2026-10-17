@@ -376,3 +376,78 @@ describe('a refused count says the server’s sentence too (0132 T6 (b))', () =>
     expect(mappingApi.discover).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('a paused migration that already copied (UX sweep, 2026-10-17)', () => {
+  /**
+   * *Review and start* is offered on every paused migration, and the Pause
+   * button's own hint promises it *continues from where it stopped*. It opens
+   * this screen, which said *"Nothing has been copied yet"* to a Dropbox
+   * migration paused at 900 of about 3,000 files. The sentence is true only
+   * before the first pass.
+   */
+  it('says the migration is paused and what was migrated stays, not that nothing was copied', async () => {
+    vi.mocked(mappingApi.get).mockResolvedValueOnce({
+      ...mapping('paused'),
+      domainStatus: [
+        {
+          domain: 'email',
+          state: 'in_progress',
+          itemsSynced: 900,
+          itemsFailed: 0,
+          bytesTransferred: 12_400_000,
+          itemsRetrying: 0,
+          itemsNeedingDecision: 0,
+        },
+      ],
+    });
+
+    renderWithClient(<ConfirmMigration mappingId="m1" onStarted={vi.fn()} />);
+
+    expect(await screen.findByText(STRINGS.en['confirm.introResume'])).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing has been copied yet/)).toBeNull();
+  });
+
+  it('reads a last pass as copied too', async () => {
+    vi.mocked(mappingApi.get).mockResolvedValueOnce({ ...mapping('paused'), lastSyncAt: '2026-09-16T00:00:00Z' });
+
+    renderWithClient(<ConfirmMigration mappingId="m1" onStarted={vi.fn()} />);
+
+    expect(await screen.findByText(STRINGS.en['confirm.introResume'])).toBeInTheDocument();
+  });
+
+  it('still says nothing has been copied before the first pass', async () => {
+    vi.mocked(mappingApi.get).mockResolvedValueOnce(mapping('paused'));
+
+    renderWithClient(<ConfirmMigration mappingId="m1" onStarted={vi.fn()} />);
+
+    // Start opens once the migration has answered what it carries, so the
+    // sentence below is the one said after the read, not before it.
+    await waitFor(() => expect(screen.getByRole('button', { name: /start migration/i })).not.toBeDisabled());
+    expect(screen.getByText(STRINGS.en['confirm.intro'])).toBeInTheDocument();
+    expect(screen.queryByText(STRINGS.en['confirm.introResume'])).toBeNull();
+  });
+
+  /**
+   * Opened from the Migrations list, the migration is not in the cache yet.
+   * Until it answers, the screen cannot know which sentence is true, so it
+   * says neither: a screen reader would otherwise read *"Nothing has been
+   * copied yet"* first on a migration that copied 900 files.
+   */
+  it('says neither sentence while the migration has not answered', async () => {
+    vi.mocked(mappingApi.get).mockReturnValueOnce(new Promise<Mapping>(() => {}));
+
+    renderWithClient(<ConfirmMigration mappingId="m1" onStarted={vi.fn()} />);
+
+    expect(await screen.findByRole('heading', { name: STRINGS.en['confirm.title'] })).toBeInTheDocument();
+    expect(screen.queryByText(STRINGS.en['confirm.intro'])).toBeNull();
+    expect(screen.queryByText(STRINGS.en['confirm.introResume'])).toBeNull();
+  });
+
+  it('says the first-pass sentence when the migration cannot be read', async () => {
+    vi.mocked(mappingApi.get).mockRejectedValueOnce(new Error('boom'));
+
+    renderWithClient(<ConfirmMigration mappingId="m1" onStarted={vi.fn()} />);
+
+    expect(await screen.findByText(STRINGS.en['confirm.intro'])).toBeInTheDocument();
+  });
+});

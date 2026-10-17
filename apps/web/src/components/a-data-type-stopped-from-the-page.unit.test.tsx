@@ -69,7 +69,7 @@ beforeEach(() => {
 describe('what the panel offers', () => {
   it('offers Stop for each data type the door would stop, and says what a stop does first', () => {
     renderPanel(on(COPYING), COPYING);
-    for (const name of ['Stop Email', 'Stop Calendar', 'Stop Contacts']) {
+    for (const name of ['Stop email', 'Stop calendar', 'Stop contacts']) {
       expect(screen.getByRole('button', { name })).toBeTruthy();
     }
     expect(screen.getByText(EN['settings.kinds.stop.consequence'])).toBeTruthy();
@@ -79,9 +79,9 @@ describe('what the panel offers', () => {
   it('shows a stopped data type as stopped by you, with Resume, and the last one copying with no Stop (D5)', () => {
     renderPanel(on(LAST_ONE), LAST_ONE);
     expect(screen.getAllByText(EN['settings.kinds.stoppedByYou'])).toHaveLength(2);
-    expect(screen.getByRole('button', { name: 'Resume Email' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Resume Calendar' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Stop Contacts' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Resume email' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Resume calendar' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Stop contacts' })).toBeNull();
     expect(screen.getByText(EN['settings.kinds.held.lastOne'])).toBeTruthy();
     // Nothing on the page can be stopped, so nothing is said about stopping.
     expect(screen.queryByText(EN['settings.kinds.stop.consequence'])).toBeNull();
@@ -106,14 +106,14 @@ describe('what the panel offers', () => {
 
   it('lists the stops alone where there are no choices, as on the appliance', () => {
     renderPanel(undefined, COPYING);
-    expect(screen.getByRole('button', { name: 'Stop Calendar' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Stop calendar' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^Add / })).toBeNull();
   });
 
   it('keeps offering what may be added beside the stops', () => {
     renderPanel([...on(COPYING), { domain: 'task', state: 'addable' }], COPYING);
-    expect(screen.getByRole('button', { name: 'Add Tasks' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Stop Email' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Add tasks' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Stop email' })).toBeTruthy();
   });
 });
 
@@ -122,7 +122,7 @@ describe('the press', () => {
     stopOrResumeDataType.mockResolvedValue({ id: 'm-1', domain: 'email', stopped: true, changed: true });
     const { invalidate } = renderPanel(on(COPYING), COPYING);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Stop Email' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Stop email' }));
 
     expect(stopOrResumeDataType).toHaveBeenCalledWith('m-1', 'email', 'stop');
     await waitFor(() =>
@@ -138,7 +138,7 @@ describe('the press', () => {
     stopOrResumeDataType.mockResolvedValue({ id: 'm-1', domain: 'calendar', stopped: false, changed: true });
     renderPanel(on(LAST_ONE), LAST_ONE);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Resume Calendar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Resume calendar' }));
 
     expect(stopOrResumeDataType).toHaveBeenCalledWith('m-1', 'calendar', 'resume');
     await waitFor(() =>
@@ -153,7 +153,7 @@ describe('the press', () => {
     );
     renderPanel(on(COPYING), COPYING);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Stop Email' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Stop email' }));
 
     await waitFor(() => expect(screen.getByText(`${EN['settings.kinds.stop.failed']} ${reason}`)).toBeTruthy());
     expect(screen.queryByText(/Email is stopped\./)).toBeNull();

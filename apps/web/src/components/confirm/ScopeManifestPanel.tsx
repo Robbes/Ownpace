@@ -45,6 +45,10 @@ const Column: React.FC<{
   return (
     <div>
       <h4 className={`text-sm font-semibold ${tone} mb-1`}>{title}</h4>
+      {/* An empty column says so, rather than looking unfinished: only that
+          nothing is listed for this source, which is all an empty list proves
+          (UX sweep, 2026-10-17). */}
+      {entries.length === 0 && <p className="text-xs text-gray-500">{t('scope.noneListed')}</p>}
       <ul className="space-y-1">
         {entries.map((e) => {
           // The row in the reader's language (2026-10-14): its Dutch half
