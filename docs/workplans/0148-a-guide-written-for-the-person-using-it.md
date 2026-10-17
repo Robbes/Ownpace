@@ -87,7 +87,9 @@ typed against `SERVED_GUIDES`):
 The web app draws it with `GuideLink`: *Guide: {title}* / *Handleiding: {title}*, the guide's own
 title in the reader's language, a link to `/docs/<guide>#<section>` in a new tab. It is drawn under
 a refused create on *Start a migration*, under a refused test on the account form and on
-**Accounts**, and under the scope manifest's row. `openapi.yaml` says where the field is.
+**Accounts**, and under the scope manifest's column, after that column's rows, each guide once
+(since #1628, 0159 T16; until then it was drawn beside its row). So a column that holds two
+rows' guides no longer says which row each belongs to. `openapi.yaml` says where the field is.
 
 Who reads each sentence decided what it points at. A tenant administrator's steps point at the
 Microsoft guide's `{#application}`, not `{#own-app}`: the guide puts the registration that
