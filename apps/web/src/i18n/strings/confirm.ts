@@ -259,8 +259,15 @@ export const en = {
   // accept. Kept short: the question itself is in the summary above them.
   'decisions.sharedAddress.shared_s': 'One shared mailbox',
   'decisions.sharedAddress.distribution_d': 'A distribution list',
+  // The recorded answer under "Already decided", in words rather than the
+  // JSON it is stored as (UX sweep, 2026-10-17), and the two facts the
+  // Details fold shows.
+  'decisions.answer.acceptDefault': 'Accepted the proposal',
+  'decisions.answer.preset': 'Answered by your fixed answer',
+  'decisions.detail.address': 'Address',
+  'decisions.detail.displayName': 'Name',
   'decisions.empty.noDetectors':
-    'Nothing waiting; watchers run once a day, reporting an unreadable source as a blind spot.',
+    'Nothing needs a decision. We look for changes once a day, such as a new mailbox. Where we could not look, an empty list does not mean nothing changed.',
   'decisions.empty.answered': 'Nothing has been decided yet.',
   'decisionCategory.new_mailbox': 'New mailbox',
   'decisionCategory.deleted_mailbox': 'Deleted mailbox',
@@ -454,8 +461,12 @@ export const nl: Record<keyof typeof en, string> = {
   'decisions.dismiss': 'Terzijde leggen',
   'decisions.sharedAddress.shared_s': 'Eén gedeeld postvak',
   'decisions.sharedAddress.distribution_d': 'Een distributielijst',
+  'decisions.answer.acceptDefault': 'Voorstel aangenomen',
+  'decisions.answer.preset': 'Beantwoord met uw vaste antwoord',
+  'decisions.detail.address': 'Adres',
+  'decisions.detail.displayName': 'Naam',
   'decisions.empty.noDetectors':
-    'Niets wacht; detectie wordt eenmaal per dag uitgevoerd en meldt een onleesbare bron als blinde vlek.',
+    'Er hoeft niets beslist te worden. We kijken eenmaal per dag of er iets veranderd is, zoals een nieuw postvak. Waar we niet konden kijken, betekent een lege lijst niet dat er niets veranderd is.',
   'decisions.empty.answered': 'Er is nog niets besloten.',
   'decisionCategory.new_mailbox': 'Nieuw postvak',
   'decisionCategory.deleted_mailbox': 'Verwijderd postvak',

@@ -122,13 +122,15 @@ export const en = {
   'sharing.intro.more':
     'Settle each row: apply the share on the new system, tick it as done by hand, or skip on purpose. Done and Skip both settle a row, and they record different things: Done means this access was re-established by hand, Skip means it is deliberately not carried across. After a cutover those are different answers to "why can this person no longer open what was shared?". Every settled row keeps who decided, and when.',
   'sharing.progressSettled': 'settled',
-  'sharing.openManualNote':
-    'row(s) marked manual: your steps on the new system; tick them here when done.',
+  'sharing.openManualNote.one':
+    '1 row needs a step from you on the new system; mark it done here afterwards.',
+  'sharing.openManualNote.many':
+    '{count} rows need a step from you on the new system; mark them done here afterwards.',
   'sharing.rescan': 'Refresh from the source…',
   'sharing.blindSpots': 'Not read — note these by hand before you switch over:',
   'sharing.empty': 'No shares on the list yet. Refresh from the source to scan.',
-  'sharing.apply': 'Apply Share on the new system',
-  'sharing.applyArmed': 'Click again — this shares AND invites',
+  'sharing.apply': 'Share on the new system',
+  'sharing.applyArmed': 'Press again: this shares and sends an invitation',
   'sharing.done': 'Mark done',
   'sharing.done.why': 'This access was re-established by hand on the new system.',
   'sharing.skip': 'Skip',
@@ -137,7 +139,7 @@ export const en = {
   'sharing.manualBadge': 'manual',
   'sharing.granteeLabel': 'share with',
   'sharing.inviteNote':
-    'Applying creates the share, and the new system invites this address itself; check it first.',
+    'The new system sends this address an invitation. Check the address first.',
   'sharing.state.applied': 'shared on the new system',
   'sharing.state.doneManual': 'done by hand',
   'sharing.state.skipped': 'skipped',
@@ -170,7 +172,8 @@ export const en = {
   'sharing.group.addressLabel': 'send to',
   'sharing.group.confirmOne': 'Confirm',
   'sharing.group.confirmed': 'confirmed',
-  'sharing.group.stillToConfirm': '{count} address(es) still to check.',
+  'sharing.group.stillToConfirm.one': '1 address still to check.',
+  'sharing.group.stillToConfirm.many': '{count} addresses still to check.',
   'sharing.alone.unplaced': 'The old system did not say where this sits, so it is on its own.',
   'sharing.alone.vsFolder': 'Shared differently from its folder',
   'sharing.alone.vsSiblings': 'Shared differently from the other items here',
@@ -330,22 +333,24 @@ export const nl: Record<keyof typeof en, string> = {
   'sharing.intro.more':
     'Werk elke regel af: pas het delen toe op het nieuwe systeem, vink af als handmatig gedaan, of sla bewust over. Afvinken betekent dat dit Share-recht handmatig opnieuw is ingericht, Overslaan dat het bewust niet meegaat. Van elke beslissing wordt onthouden wie deze wanneer nam.',
   'sharing.progressSettled': 'afgewerkt',
-  'sharing.openManualNote':
-    'regel(s) op handmatig: uw stappen op het nieuwe systeem; vink ze hier af zodra gedaan.',
+  'sharing.openManualNote.one':
+    '1 regel vraagt een stap van u op het nieuwe systeem; vink die hier daarna af.',
+  'sharing.openManualNote.many':
+    '{count} regels vragen een stap van u op het nieuwe systeem; vink ze hier daarna af.',
   'sharing.rescan': 'Opnieuw inlezen van de bron…',
   'sharing.blindSpots': 'Niet gelezen — noteer deze zelf voordat u overstapt:',
   'sharing.empty': 'Nog geen gedeelde rechten. Lees opnieuw in van de bron om te scannen.',
-  'sharing.apply': 'Delen toepassen op het nieuwe systeem',
+  'sharing.apply': 'Delen op het nieuwe systeem',
   'sharing.applyArmed': 'Klik nogmaals — dit stelt delen in én nodigt betreffende persoon uit',
   'sharing.done': 'Afvinken',
   'sharing.done.why': 'Dit recht is handmatig opnieuw ingericht op het nieuwe systeem.',
   'sharing.skip': 'Overslaan',
   'sharing.skip.why': 'Dit recht gaat bewust niet mee.',
-  'sharing.linkShare': 'deel-link',
+  'sharing.linkShare': 'deellink',
   'sharing.manualBadge': 'handmatig',
   'sharing.granteeLabel': 'delen met',
   'sharing.inviteNote':
-    'Toepassen maakt het Delen aan; het nieuwe systeem nodigt de persoon uit, controleer het eerst.',
+    'Het nieuwe systeem stuurt dit adres een uitnodiging. Controleer het adres eerst.',
   'sharing.state.applied': 'gedeeld op het nieuwe systeem',
   'sharing.state.doneManual': 'handmatig gedaan',
   'sharing.state.skipped': 'overgeslagen',
@@ -366,7 +371,8 @@ export const nl: Record<keyof typeof en, string> = {
   'sharing.group.addressLabel': 'sturen naar',
   'sharing.group.confirmOne': 'Bevestigen',
   'sharing.group.confirmed': 'bevestigd',
-  'sharing.group.stillToConfirm': 'Nog {count} adres(sen) te controleren.',
+  'sharing.group.stillToConfirm.one': 'Nog 1 adres te controleren.',
+  'sharing.group.stillToConfirm.many': 'Nog {count} adressen te controleren.',
   'sharing.alone.unplaced': 'Het oude systeem gaf niet aan waar dit staat, dus het staat apart.',
   'sharing.alone.vsFolder': 'Anders gedeeld dan de map zelf',
   'sharing.alone.vsSiblings': 'Anders gedeeld dan de andere items hier',

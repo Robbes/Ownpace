@@ -48,9 +48,10 @@ export interface PermissionMapping {
  * `manual` rather than a throw or a silent drop. A right this table has not
  * seen before is exactly the one an owner must be told about.
  *
- * `lang` words `target` for the person reading the report (workplan 0144);
- * the verdict never depends on it, and English is the default every other
- * caller (the sharing checklist) reads.
+ * `lang` words `target` for the person reading it (workplan 0144): the
+ * permission report, and the sharing checklist through `verdictTargetFor`
+ * (UX sweep, 2026-10-17). The verdict never depends on it. English is the
+ * default, and what the checklist stores in `verdict_target`.
  */
 export function mapGrant(grant: PermissionGrant, lang: ReportLanguage = 'en'): PermissionMapping {
   const say = (en: string, nl: string): string => (lang === 'nl' ? nl : en);

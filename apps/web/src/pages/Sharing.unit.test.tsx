@@ -90,7 +90,9 @@ describe('the checklist', () => {
     renderScreen();
 
     expect(await screen.findByText(/1 \/ 3 settled/)).toBeInTheDocument();
-    expect(screen.getByText(/marked manual: your steps/)).toBeInTheDocument();
+    expect(
+      screen.getByText('1 row needs a step from you on the new system; mark it done here afterwards.'),
+    ).toBeInTheDocument();
   });
 
   it('apply sends the address the owner corrected, not the source address', async () => {
@@ -105,9 +107,9 @@ describe('the checklist', () => {
     const input = (await screen.findByDisplayValue('anna@old.example.nl')) as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'anna@new.example.nl' } });
     // Two-step: the first click arms, the second fires.
-    const applyButton = screen.getByText('Apply Share on the new system');
+    const applyButton = screen.getByText('Share on the new system');
     fireEvent.click(applyButton);
-    fireEvent.click(screen.getByText('Click again — this shares AND invites'));
+    fireEvent.click(screen.getByText('Press again: this shares and sends an invitation'));
 
     await waitFor(() =>
       expect(decideSharing).toHaveBeenCalledWith('m1', 'g1', {
@@ -129,9 +131,9 @@ describe('the checklist', () => {
     const inputs = await screen.findAllByDisplayValue('anna@old.example.nl');
     expect(inputs).toHaveLength(2);
     fireEvent.change(inputs[0]!, { target: { value: 'anna@new.example.nl' } });
-    const applyButtons = screen.getAllByText('Apply Share on the new system');
+    const applyButtons = screen.getAllByText('Share on the new system');
     fireEvent.click(applyButtons[0]!);
-    fireEvent.click(screen.getByText('Click again — this shares AND invites'));
+    fireEvent.click(screen.getByText('Press again: this shares and sends an invitation'));
     await waitFor(() => expect(decideSharing).toHaveBeenCalled());
 
     // The OTHER row now proposes the confirmed address — the owner still
@@ -154,7 +156,7 @@ describe('the checklist', () => {
     });
     renderScreen();
 
-    const press = (await screen.findByText('Apply Share on the new system')).closest('button')!;
+    const press = (await screen.findByText('Share on the new system')).closest('button')!;
     expect(press.className).not.toMatch(/red/);
     // No bin, in either state. `lucide-react` renders its name into the
     // class, so this catches the icon coming back by any route.
@@ -162,7 +164,7 @@ describe('the checklist', () => {
 
     // And the two presses survive: still armed, still not fired on one click.
     fireEvent.click(press);
-    expect(screen.getByText('Click again — this shares AND invites')).toBeInTheDocument();
+    expect(screen.getByText('Press again: this shares and sends an invitation')).toBeInTheDocument();
     expect(decideSharing).not.toHaveBeenCalled();
   });
 
@@ -199,8 +201,8 @@ describe('the checklist', () => {
     );
     renderScreen();
 
-    fireEvent.click(await screen.findByText('Apply Share on the new system'));
-    fireEvent.click(screen.getByText('Click again — this shares AND invites'));
+    fireEvent.click(await screen.findByText('Share on the new system'));
+    fireEvent.click(screen.getByText('Press again: this shares and sends an invitation'));
 
     expect(
       await screen.findByText(/Shares are applied at or after cutover/),
@@ -292,11 +294,11 @@ describe('a refused share in the reader’s language', () => {
         </QueryClientProvider>
       </LocaleProvider>,
     );
-    const apply = locale === 'nl' ? 'Delen toepassen op het nieuwe systeem' : 'Apply Share on the new system';
+    const apply = locale === 'nl' ? 'Delen op het nieuwe systeem' : 'Share on the new system';
     const armed =
       locale === 'nl'
         ? 'Klik nogmaals — dit stelt delen in én nodigt betreffende persoon uit'
-        : 'Click again — this shares AND invites';
+        : 'Press again: this shares and sends an invitation';
     fireEvent.click(await screen.findByText(apply));
     fireEvent.click(screen.getByText(armed));
   }
@@ -318,5 +320,100 @@ describe('a refused share in the reader’s language', () => {
   it('a refusal with no Dutch half is shown as served, to a Dutch reader too', async () => {
     await refusedIn('nl', { error: 'not_cut_over', reason: 'Shares are applied at or after cutover.' });
     expect(await screen.findByText('Shares are applied at or after cutover.')).toBeInTheDocument();
+  });
+});
+
+/**
+ * THE ROWS IN THE READER'S LANGUAGE (UX sweep, 2026-10-17). A Dutch tester
+ * read an English line under every row, a raw JSON tooltip on every name, and
+ * "2 regel(s) op handmatig". The server now sends each row's line in Dutch
+ * beside the English (`verdictTargetNl`); the page shows the half in its
+ * language, and the English as served when no Dutch came.
+ */
+describe('the rows in the reader\u2019s language', () => {
+  const NL_LINE = 'een Nextcloud-deling met bewerkrechten';
+
+  function inDutch(grants: ShareGrantRow[], openManual = 0) {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    fetchSharing.mockResolvedValue({
+      migrationStatus: 'done',
+      summary: {
+        total: grants.length,
+        open: grants.length,
+        applied: 0,
+        doneManual: 0,
+        skipped: 0,
+        openManual,
+      },
+      grants,
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <LocaleProvider>
+        <QueryClientProvider client={qc}>
+          <MemoryRouter initialEntries={['/mappings/m1/sharing']}>
+            <Routes>
+              <Route path="/mappings/:mappingId/sharing" element={<Sharing />} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+  }
+
+  afterEach(() => window.localStorage.removeItem('ownpace.locale'));
+
+  it('a Dutch reader reads the Dutch line the server sent', async () => {
+    inDutch([row({ id: 'g1', verdictTargetNl: NL_LINE })]);
+    expect(await screen.findByText(NL_LINE)).toBeInTheDocument();
+    expect(screen.queryByText('a person share on the target')).toBeNull();
+  });
+
+  it('a Dutch reader reads the English as served when no Dutch came, marked as English', async () => {
+    inDutch([row({ id: 'g1' })]);
+    const line = await screen.findByText('a person share on the target');
+    expect(line.closest('[lang="en"]')).not.toBeNull();
+  });
+
+  it('an English reader reads the English line, never the Dutch', async () => {
+    fetchSharing.mockResolvedValue({
+      migrationStatus: 'done',
+      summary: { total: 1, open: 1, applied: 0, doneManual: 0, skipped: 0, openManual: 0 },
+      grants: [row({ id: 'g1', verdictTargetNl: NL_LINE })],
+    });
+    renderScreen();
+    expect(await screen.findByText('a person share on the target')).toBeInTheDocument();
+    expect(screen.queryByText(NL_LINE)).toBeNull();
+  });
+
+  it('the item name carries no raw JSON tooltip', async () => {
+    inDutch([row({ id: 'g1', verdictTargetNl: NL_LINE })]);
+    const name = await screen.findByText('Projects/budget.xlsx');
+    expect(name).not.toHaveAttribute('title');
+  });
+
+  it('one open manual row is one row, in Dutch', async () => {
+    inDutch([row({ id: 'g1', verdict: 'manual', verdictTargetNl: NL_LINE })], 1);
+    expect(
+      await screen.findByText('1 regel vraagt een stap van u op het nieuwe systeem; vink die hier daarna af.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/regel\(s\)/)).toBeNull();
+  });
+
+  it('two open manual rows are two rows, in English', async () => {
+    fetchSharing.mockResolvedValue({
+      migrationStatus: 'done',
+      summary: { total: 2, open: 2, applied: 0, doneManual: 0, skipped: 0, openManual: 2 },
+      grants: [row({ id: 'g1', verdict: 'manual' }), row({ id: 'g2', verdict: 'manual', onLabel: 'b.txt' })],
+    });
+    renderScreen();
+    expect(
+      await screen.findByText('2 rows need a step from you on the new system; mark them done here afterwards.'),
+    ).toBeInTheDocument();
+  });
+
+  it('a link share is a deellink in Dutch', async () => {
+    inDutch([row({ id: 'g1', viaLink: true, grantee: undefined, verdict: 'manual' })]);
+    expect(await screen.findByText('deellink')).toBeInTheDocument();
   });
 });
