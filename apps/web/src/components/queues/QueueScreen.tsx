@@ -93,9 +93,10 @@ export function QueueScreen<T extends QueueEnvelope>({
         .then((r) => {
           setOutcomes((o) => ({ ...o, [hash]: { state: 'done', effect: r.effect } }));
           // Re-read rather than patch the cache: the server decides what a
-          // decision did to the queue (a `keep` moves an item to
-          // `acknowledged`, an `apply` removes it), and guessing that here
-          // would be a second implementation of the same rules.
+          // decision did to the queue (a `keep` and an `apply` both move the
+          // item to `acknowledged`, because the ledger closes the entry either
+          // way), and guessing that here would be a second implementation of
+          // the same rules.
           void queryClient.invalidateQueries({ queryKey: [queryKey] });
         })
         .catch((err: unknown) => {
@@ -166,11 +167,15 @@ export function QueueScreen<T extends QueueEnvelope>({
 
       {mappings.map(([mappingId, queue]) => (
         <section key={mappingId} className="mb-8 p-4 bg-white border border-gray-200 rounded-lg">
-          <div className="flex items-center justify-between mb-3">
+          {/* On a phone the heading wraps and the chip keeps its words on
+              one line, instead of the heading squeezing it to 'In / cutover'. */}
+          <div className="flex items-start justify-between gap-3 mb-3">
             {/* The id links to its hub (0034 T1) — run history and live
                 progress live there, in both editions. */}
-            <h3 className="font-semibold text-gray-900"><MappingHubLink mappingId={mappingId} /></h3>
-            <StateChip entity="lifecycle" state={queue.migrationStatus} />
+            <h3 className="font-semibold text-gray-900 min-w-0 break-words"><MappingHubLink mappingId={mappingId} /></h3>
+            <span className="flex-shrink-0 whitespace-nowrap">
+              <StateChip entity="lifecycle" state={queue.migrationStatus} />
+            </span>
           </div>
           {queue.reportingClosed && <ClosedBanner text={queue.reportingClosed} />}
           {LIFECYCLE_NOTE_KEY[queue.migrationStatus] && (

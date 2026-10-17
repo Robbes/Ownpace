@@ -293,7 +293,15 @@ const MaskedConfigSchema = z.object({
 const KindChoiceSchema = z.discriminatedUnion('state', [
   z.object({ domain: DomainEnum, state: z.literal('on') }),
   z.object({ domain: DomainEnum, state: z.literal('addable') }),
-  z.object({ domain: DomainEnum, state: z.literal('refused'), reason: z.string() }),
+  z.object({
+    domain: DomainEnum,
+    state: z.literal('refused'),
+    reason: z.string(),
+    // Which refusal it was, so the page says it in the reader's language.
+    // Absent from an older API, and dropped when unknown: the English
+    // `reason` then shows as served.
+    code: z.enum(['after_cutover', 'measured_no']).optional().catch(undefined),
+  }),
 ]);
 export type KindChoiceView = z.infer<typeof KindChoiceSchema>;
 
@@ -698,6 +706,10 @@ export const ScopeManifestEntrySchema = z.object({
   detail: z.string(),
   more: z.string().optional(),
   appliesTo: z.array(z.enum(SCOPE_FAMILIES)).optional(),
+  /** The data types the row is about (the UX sweep, 2026-10-17): named for
+   *  the reason `appliesTo` is, or a row about mail is shown under a
+   *  calendar. */
+  domains: z.array(z.enum(DISCOVERY_DOMAINS)).optional(),
   /** The row's guide section, linked beside it (0148 T7). One this build
    *  does not know is dropped rather than failing the whole manifest. */
   guide: z

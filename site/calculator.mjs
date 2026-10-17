@@ -165,29 +165,46 @@ export function freeTier(tier) {
 }
 
 /**
+ * The decimal mark a page's language writes (the UX sweep, 2026-10-17): a
+ * comma in Dutch, as the app writes it, and a point otherwise. The Dutch pages
+ * wrote "€2.50" and "38.3 GB" beside the Gmail line's "2,5 GB". Without a
+ * locale it is English, so ADR-0014's strings and every English page stay as
+ * they were.
+ *
+ * @param {string} [locale]
+ */
+export function decimalMark(locale) {
+  return locale === 'nl' ? ',' : '.';
+}
+
+/**
  * Integer cents as the site writes a price: whole euros bare (`€5`), anything
- * else with its two decimals (`€2.50`). Never a float in, never a rounding
- * out: a price that is not whole cents is a broken price, and says so.
+ * else with its two decimals (`€2.50`, and `€2,50` in Dutch). Never a float in,
+ * never a rounding out: a price that is not whole cents is a broken price, and
+ * says so.
  *
  * @param {number} cents
+ * @param {string} [locale] the page's language; English when absent
  */
-export function money(cents) {
+export function money(cents, locale) {
   if (!Number.isInteger(cents)) throw new Error('a price must be whole cents, not ' + cents);
   const euros = Math.floor(cents / 100);
   const rest = cents % 100;
-  return '\u20ac' + euros + (rest === 0 ? '' : '.' + (rest < 10 ? '0' : '') + rest);
+  return '\u20ac' + euros + (rest === 0 ? '' : decimalMark(locale) + (rest < 10 ? '0' : '') + rest);
 }
 
 /**
  * A size as the page writes it: GB below 1 TB, and TB to one decimal from 1 TB
  * up (workplan 0152 T7 (c)). The page sums its fields to a tenth of a GB, so
  * 1,234.5 GB read "1.2345 TB". Sizes are decimal, as the site publishes them
- * (1 TB = 1,000 GB).
+ * (1 TB = 1,000 GB), and written in the page's decimals ("1,2 TB" in Dutch).
  *
  * @param {number} gb
+ * @param {string} [locale] the page's language; English when absent
  */
-export function sizeOf(gb) {
-  return gb >= 1000 ? Math.round(gb / 100) / 10 + ' TB' : gb + ' GB';
+export function sizeOf(gb, locale) {
+  const text = gb >= 1000 ? Math.round(gb / 100) / 10 + ' TB' : gb + ' GB';
+  return text.replace('.', decimalMark(locale));
 }
 
 /**

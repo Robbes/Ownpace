@@ -74,31 +74,46 @@ const LIFECYCLE_NOTE_KEY: Record<MappingLifecycle, StringKey> = {
   continuous: 'finish.note.continuous',
 };
 
-/** One line of the checklist. `done` is what the tool can verify itself. */
+/**
+ * One line of the checklist. `done` is what the tool can verify itself.
+ *
+ * Its state is said in words beside the icon (0145 T2): the icons are hidden
+ * from a screen reader, which heard the step and nothing about whether it was
+ * done.
+ */
 const Step: React.FC<{
   n: number;
   title: string;
   done?: boolean;
   children: React.ReactNode;
-}> = ({ n, title, done, children }) => (
-  <li className="flex gap-3 py-3 border-b border-gray-100 last:border-0">
-    <span className="flex-shrink-0 mt-0.5">
-      {done === true ? (
-        <Check className="w-5 h-5 text-emerald-600" />
-      ) : done === false ? (
-        <AlertTriangle className="w-5 h-5 text-amber-600" />
-      ) : (
-        <Circle className="w-5 h-5 text-gray-300" />
-      )}
-    </span>
-    <div className="min-w-0 flex-1">
-      <p className="text-sm font-medium text-gray-900">
-        {n}. {title}
-      </p>
-      <div className="mt-1 text-sm text-gray-600">{children}</div>
-    </div>
-  </li>
-);
+}> = ({ n, title, done, children }) => {
+  const t = useT();
+  return (
+    <li className="flex gap-3 py-3 border-b border-gray-100 last:border-0">
+      <span className="flex-shrink-0 mt-0.5">
+        {done === true ? (
+          <Check className="w-5 h-5 text-emerald-600" />
+        ) : done === false ? (
+          <AlertTriangle className="w-5 h-5 text-amber-600" />
+        ) : (
+          <Circle className="w-5 h-5 text-gray-300" />
+        )}
+        <span className="sr-only">
+          {t(done === true ? 'finish.state.done' : done === false ? 'finish.state.attention' : 'finish.state.notYet')}
+        </span>
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-gray-900">
+          {n}. {title}
+        </p>
+        <div className="mt-1 text-sm text-gray-600">{children}</div>
+      </div>
+    </li>
+  );
+};
+
+/** A link inside a step's sentence: underlined, so it is not told apart by colour alone. */
+const PROSE_LINK = 'text-blue-700 underline underline-offset-2 hover:text-blue-900';
 
 /** What one mapping's checklist needs to know, whichever mode supplied it. */
 interface FinishRow {
@@ -281,6 +296,9 @@ const Finish: React.FC = () => {
         const openMoves = moves.data?.[id]?.open.length ?? 0;
         const openDeletions = deletions.data?.[id]?.confirmed.length ?? 0;
         const queuesClear = needingDecision === 0 && openMoves === 0 && openDeletions === 0;
+        // What a migration without mail is told about the permissions: it has
+        // no delivery to move. Unread endings keep the delivery words.
+        const carriesMail = m.endings ? m.endings.some((e) => e.domain === 'email') : true;
         // Failed reads surface as failures, never as eternal "Reading…"
         // (0038 T3) — a failed read shown as loading, at the moment the
         // operator decides the queues are clear, is the masking hard rule 9
@@ -307,7 +325,11 @@ const Finish: React.FC = () => {
                 'done' — including on a reload right after success. */}
             {m.lifecycle === 'done' && (
               <div className="mt-3">
-                <PermissionsHandover mappingId={id} sourceKind={failures.data?.[id]?.sourceKind} />
+                <PermissionsHandover
+                  mappingId={id}
+                  sourceKind={failures.data?.[id]?.sourceKind}
+                  carriesMail={carriesMail}
+                />
                 <div className="mt-3 text-sm">
                   <p className="font-medium text-gray-900">{t('finish.aftermath.title')}</p>
                   <ul className="mt-1 list-disc pl-5 text-gray-600">
@@ -359,7 +381,11 @@ const Finish: React.FC = () => {
                 carried across after delivery moves were missing for however
                 long that took.
               */}
-              <PermissionsHandover mappingId={id} sourceKind={failures.data?.[id]?.sourceKind} />
+              <PermissionsHandover
+                mappingId={id}
+                sourceKind={failures.data?.[id]?.sourceKind}
+                carriesMail={carriesMail}
+              />
               <ol className="mt-4">
                 <Step
                   n={1}
@@ -375,7 +401,7 @@ const Finish: React.FC = () => {
                   }
                 >
                   {t('finish.step1.pre')}{' '}
-                  <Link to={`${linkBase}/verify`} className="text-blue-700 hover:underline">
+                  <Link to={`${linkBase}/verify`} className={PROSE_LINK}>
                     {t('finish.step1.link')}
                   </Link>
                   {t('finish.step1.post')}
@@ -427,10 +453,24 @@ const Finish: React.FC = () => {
                   ) : null}
                 </Step>
 
+                {/* Only items that could not be copied hold up finishing (the
+                    ending door refuses over them alone), so only they make
+                    this step need attention; open deletions and moves leave
+                    it not yet. */}
                 <Step
                   n={2}
                   title={t('finish.step2.title')}
-                  done={queueReadErrors.length > 0 ? false : queuesKnown ? queuesClear : undefined}
+                  done={
+                    queueReadErrors.length > 0
+                      ? false
+                      : !queuesKnown
+                        ? undefined
+                        : needingDecision > 0
+                          ? false
+                          : openDeletions + openMoves > 0
+                            ? undefined
+                            : true
+                  }
                 >
                   {queueReadErrors.length > 0 ? (
                     <span className="text-amber-800">
@@ -448,7 +488,7 @@ const Finish: React.FC = () => {
                     <span>
                       {needingDecision > 0 && (
                         <>
-                          <Link to={`${linkBase}/failures`} className="text-blue-700 hover:underline">
+                          <Link to={`${linkBase}/failures`} className={PROSE_LINK}>
                             {needingDecision}{' '}
                             {t(needingDecision === 1 ? 'finish.step2.failures.one' : 'finish.step2.failures.many')}
                           </Link>
@@ -457,18 +497,22 @@ const Finish: React.FC = () => {
                       )}
                       {openDeletions > 0 && (
                         <>
-                          <Link to={`${linkBase}/deletions`} className="text-blue-700 hover:underline">
+                          <Link to={`${linkBase}/deletions`} className={PROSE_LINK}>
                             {openDeletions} {t('finish.step2.deletions')}
                           </Link>
                           {openMoves > 0 && ', '}
                         </>
                       )}
                       {openMoves > 0 && (
-                        <Link to={`${linkBase}/moves`} className="text-blue-700 hover:underline">
+                        <Link to={`${linkBase}/moves`} className={PROSE_LINK}>
                           {openMoves} {t('finish.step2.moves')}
                         </Link>
                       )}
-                      {t('finish.step2.onlyFirstBlocks')}
+                      {/* What really holds up finishing, said only where it
+                          applies: failures do, deletions and moves do not. */}
+                      .
+                      {needingDecision > 0 && <> {t('finish.step2.blocks')}</>}
+                      {openDeletions + openMoves > 0 && <> {t('finish.step2.doNotBlock')}</>}
                     </span>
                   )}
                 </Step>
@@ -478,17 +522,22 @@ const Finish: React.FC = () => {
                   title={t('finish.step3.title')}
                   done={passState === 'finished' || passState === 'queued' ? true : undefined}
                 >
-                  {t('finish.step3.body')}{' '}
-                  <button
-                    onClick={() => doPass(id)}
-                    disabled={passState === 'running'}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    {passState === 'running' && <Loader2 className="w-3 h-3 animate-spin" />}
-                    {passState === 'finished' || passState === 'queued'
-                      ? t('finish.step3.runAgain')
-                      : t('finish.step3.run')}
-                  </button>
+                  {t('finish.step3.body')}
+                  {/* The step's one action, on its own line and the size of
+                      step 5's buttons, not a chip at the end of a sentence. */}
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => doPass(id)}
+                      disabled={passState === 'running'}
+                      className="inline-flex items-center gap-1 px-3 py-1 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {passState === 'running' && <Loader2 className="w-4 h-4 animate-spin" />}
+                      {passState === 'finished' || passState === 'queued'
+                        ? t('finish.step3.runAgain')
+                        : t('finish.step3.run')}
+                    </button>
+                  </div>
                   {/* Each edition's own temporal shape, said rather than blurred:
                       the appliance answered when the pass FINISHED; managed
                       queued a job that lands in the run history. */}

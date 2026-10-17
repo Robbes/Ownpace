@@ -1,9 +1,10 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 vi.mock('../services/mapping-service', () => ({
   mappingApi: {
@@ -55,7 +56,8 @@ vi.mock('../services/platform-service', () => ({
 
 import { AxiosError, AxiosHeaders } from 'axios';
 import { ConfirmMigration } from './ConfirmMigration.tsx';
-import { mappingApi, type Mapping } from '../services/mapping-service.ts';
+import { SCOPE_MANIFEST } from '@openmig/shared';
+import { mappingApi, scopeManifestApi, type Mapping } from '../services/mapping-service.ts';
 import { fetchPlatformPause } from '../services/platform-service.ts';
 import { STRINGS } from '../i18n/strings.ts';
 
@@ -167,6 +169,34 @@ describe('ConfirmMigration (0013 T6)', () => {
     expect(start).not.toBeDisabled();
     fireEvent.click(start);
     await waitFor(() => expect(mappingApi.start).toHaveBeenCalledWith('m1'));
+  });
+
+  it('tells a calendar-only migration nothing about mail (the UX sweep, 2026-10-17)', async () => {
+    // The rows were narrowed by family alone: a Google migration of a calendar
+    // was confirmed under Email, Files and Tasks too. The screen passes the
+    // migration's own data types, and only rows about none of them go.
+    vi.mocked(mappingApi.get).mockResolvedValueOnce({ ...mapping('paused'), syncConfig: { domains: ['calendar'] } });
+    vi.mocked(mappingApi.getDiscovery).mockResolvedValueOnce({
+      mappingId: 'm1',
+      discovered: true,
+      domains: [{ domain: 'calendar', collections: 1, items: 40, discoveredAt: '2026-09-22T10:00:00Z' }],
+    } as never);
+    vi.mocked(scopeManifestApi.get).mockResolvedValueOnce(SCOPE_MANIFEST as never);
+
+    // In a router: the real rows link their guides.
+    renderWithClient(
+      <MemoryRouter>
+        <ConfirmMigration mappingId="m1" onStarted={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    const rows = within(await screen.findByRole('region', { name: STRINGS.en['scope.title'] }));
+    expect(await rows.findByText(/Events, repeating ones included/)).toBeInTheDocument();
+    expect(rows.queryByText(/Every folder, Sent, Drafts and Archive included/)).not.toBeInTheDocument();
+    expect(rows.queryByText('Mail with no Message-ID')).not.toBeInTheDocument();
+    expect(rows.queryByText('Google-native files')).not.toBeInTheDocument();
+    // What is true whatever was ticked stays: what does not migrate from Google.
+    expect(rows.getByText('Google Keep')).toBeInTheDocument();
   });
 });
 
@@ -344,5 +374,80 @@ describe('a refused count says the server’s sentence too (0132 T6 (b))', () =>
     await waitFor(() => expect(fetchPlatformPause).toHaveBeenCalled());
     expect(alert).not.toHaveTextContent(STRINGS.en['confirm.countAgain']);
     expect(mappingApi.discover).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('a paused migration that already copied (UX sweep, 2026-10-17)', () => {
+  /**
+   * *Review and start* is offered on every paused migration, and the Pause
+   * button's own hint promises it *continues from where it stopped*. It opens
+   * this screen, which said *"Nothing has been copied yet"* to a Dropbox
+   * migration paused at 900 of about 3,000 files. The sentence is true only
+   * before the first pass.
+   */
+  it('says the migration is paused and what was migrated stays, not that nothing was copied', async () => {
+    vi.mocked(mappingApi.get).mockResolvedValueOnce({
+      ...mapping('paused'),
+      domainStatus: [
+        {
+          domain: 'email',
+          state: 'in_progress',
+          itemsSynced: 900,
+          itemsFailed: 0,
+          bytesTransferred: 12_400_000,
+          itemsRetrying: 0,
+          itemsNeedingDecision: 0,
+        },
+      ],
+    });
+
+    renderWithClient(<ConfirmMigration mappingId="m1" onStarted={vi.fn()} />);
+
+    expect(await screen.findByText(STRINGS.en['confirm.introResume'])).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing has been copied yet/)).toBeNull();
+  });
+
+  it('reads a last pass as copied too', async () => {
+    vi.mocked(mappingApi.get).mockResolvedValueOnce({ ...mapping('paused'), lastSyncAt: '2026-09-16T00:00:00Z' });
+
+    renderWithClient(<ConfirmMigration mappingId="m1" onStarted={vi.fn()} />);
+
+    expect(await screen.findByText(STRINGS.en['confirm.introResume'])).toBeInTheDocument();
+  });
+
+  it('still says nothing has been copied before the first pass', async () => {
+    vi.mocked(mappingApi.get).mockResolvedValueOnce(mapping('paused'));
+
+    renderWithClient(<ConfirmMigration mappingId="m1" onStarted={vi.fn()} />);
+
+    // Start opens once the migration has answered what it carries, so the
+    // sentence below is the one said after the read, not before it.
+    await waitFor(() => expect(screen.getByRole('button', { name: /start migration/i })).not.toBeDisabled());
+    expect(screen.getByText(STRINGS.en['confirm.intro'])).toBeInTheDocument();
+    expect(screen.queryByText(STRINGS.en['confirm.introResume'])).toBeNull();
+  });
+
+  /**
+   * Opened from the Migrations list, the migration is not in the cache yet.
+   * Until it answers, the screen cannot know which sentence is true, so it
+   * says neither: a screen reader would otherwise read *"Nothing has been
+   * copied yet"* first on a migration that copied 900 files.
+   */
+  it('says neither sentence while the migration has not answered', async () => {
+    vi.mocked(mappingApi.get).mockReturnValueOnce(new Promise<Mapping>(() => {}));
+
+    renderWithClient(<ConfirmMigration mappingId="m1" onStarted={vi.fn()} />);
+
+    expect(await screen.findByRole('heading', { name: STRINGS.en['confirm.title'] })).toBeInTheDocument();
+    expect(screen.queryByText(STRINGS.en['confirm.intro'])).toBeNull();
+    expect(screen.queryByText(STRINGS.en['confirm.introResume'])).toBeNull();
+  });
+
+  it('says the first-pass sentence when the migration cannot be read', async () => {
+    vi.mocked(mappingApi.get).mockRejectedValueOnce(new Error('boom'));
+
+    renderWithClient(<ConfirmMigration mappingId="m1" onStarted={vi.fn()} />);
+
+    expect(await screen.findByText(STRINGS.en['confirm.intro'])).toBeInTheDocument();
   });
 });

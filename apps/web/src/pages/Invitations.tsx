@@ -20,6 +20,18 @@
  *    people actually want when a stranger's organisation appears in front of
  *    them.
  *
+ * **Never back to `/login` while signed in** (the UX sweep, 2026-10-17). *Not
+ * now* used to go there, with the session still in the store: the sign-in page
+ * offered a sign-in, the provider was still signed in, and `AuthCallback` sent
+ * anybody with an open invitation back here. A loop, and a member of another
+ * organisation had no way to their migrations. Now somebody who belongs
+ * somewhere, or an operator, goes to the landing page (`/`), which knows where
+ * each of them goes; somebody who belongs nowhere is signed out, of the
+ * sign-in service too (`useSignOut`), which is what "later" means for them. A
+ * decline that leaves nothing does the same. The page says which address
+ * signed in, as `AuthCallback`'s no-organisation state does, and offers *Sign
+ * out*, since the sidebar's is not here.
+ *
  * Nothing here authorises anything. Policies on `tenant_member` do: the row has
  * to be an open invitation addressed to the address the issuer VERIFIED, and
  * what it may become is pinned from the other side too. A caller answering an
@@ -32,18 +44,40 @@ import { Mail, Check, X } from 'lucide-react';
 import { answerInvitation, fetchMe, type Invitation } from '../services/session.ts';
 import { rememberSignIn } from '../services/acceptance.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
-import { useT, useFormatters } from '../i18n/index.tsx';
+import { useLocale, useFormatters, type StringKey } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
+import { useSignOut } from '../components/SignOut.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
 import AlphaNote from '../components/AlphaNote.tsx';
 import SupportLine from '../components/SupportLine.tsx';
 
+/**
+ * A role as the app names it (`Tenants.tsx` does the same), in place of the
+ * API's token: *als beheerder*, not *als admin*. A role this build has no
+ * word for is shown as it came.
+ */
+const ROLE_KEY: Record<string, StringKey> = {
+  owner: 'role.owner',
+  admin: 'role.admin',
+  member: 'role.member',
+  viewer: 'role.viewer',
+};
+
 const Invitations: React.FC = () => {
-  const t = useT();
+  const { t, locale } = useLocale();
   const { dateTime } = useFormatters();
   const navigate = useNavigate();
+  const signOut = useSignOut();
   const token = useAuthStore((s) => s.token);
+  const tenantCount = useAuthStore((s) => s.tenantCount);
+  const operator = useAuthStore((s) => s.operator);
+  const email = useAuthStore((s) => s.user?.email);
   const loginToStore = useAuthStore((s) => s.login);
+  const roleWord = (role: string): string => {
+    // Own keys only: the role is the API's string, and `constructor` is not one.
+    const key = Object.prototype.hasOwnProperty.call(ROLE_KEY, role) ? ROLE_KEY[role] : undefined;
+    return key ? t(key).toLocaleLowerCase(locale) : role;
+  };
   const [waiting, setWaiting] = useState<ReadonlyArray<Invitation> | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -74,12 +108,16 @@ const Invitations: React.FC = () => {
       // subject may do, and the server is the only thing that knows what it
       // became. A client that guessed would be right until it was not.
       const me = await fetchMe(token);
+      // The name from the address, as the two sign-in doors derive it
+      // (`Login.tsx`, `AuthCallback.tsx`): the sidebar showed the whole
+      // address twice until the next sign-in.
+      const address = me.email ?? me.userId;
       loginToStore(
         token,
         {
           id: me.userId,
-          email: me.email ?? me.userId,
-          name: me.email ?? me.userId,
+          email: address,
+          name: address.split('@')[0],
           // Whatever the server now says this subject is. Accepting an
           // invitation is precisely the moment that changes, so it is read from
           // the fresh `/api/me` rather than kept from before the answer.
@@ -95,7 +133,11 @@ const Invitations: React.FC = () => {
       const left = me.invitations ?? [];
       setWaiting(left);
       if (choice === 'accept' || left.length === 0) {
-        void navigate(me.tenants.length > 0 ? '/mappings' : '/login', { replace: true });
+        // Where `AuthCallback` lands the same answer; never `/login`, which
+        // would offer a sign-in to somebody who is signed in.
+        if (me.tenants.length > 0) void navigate('/mappings', { replace: true });
+        else if (me.operator === true) void navigate('/access-requests', { replace: true });
+        else signOut();
       }
     } catch (err) {
       // The server's own sentence where there is one — a 404 says the
@@ -110,12 +152,13 @@ const Invitations: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="max-w-lg w-full space-y-6">
+      <main className="max-w-lg w-full space-y-6">
         <div className="flex items-center gap-3">
           <Mail className="w-6 h-6 text-gray-500" />
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">{t('invite.title')}</h1>
             <p className="text-sm text-gray-600">{t('invite.subtitle')}</p>
+            {email && <p className="text-sm text-gray-600">{t('login.noOrganisation.signedInAs', { email })}</p>}
           </div>
         </div>
 
@@ -145,7 +188,7 @@ const Invitations: React.FC = () => {
                 <div>
                   <p className="font-medium text-gray-900">{invitation.name}</p>
                   <p className="text-sm text-gray-600">
-                    {t('invite.asRole', { role: invitation.role })}
+                    {t('invite.asRole', { role: roleWord(invitation.role) })}
                     {invitation.invitedAt ? ` · ${dateTime(invitation.invitedAt)}` : ''}
                   </p>
                 </div>
@@ -179,7 +222,9 @@ const Invitations: React.FC = () => {
                     disabled={busy !== null}
                     // NO REQUEST. Skipping is the absence of an answer, so the
                     // invitation stays open and is offered again next sign-in.
-                    onClick={() => void navigate('/login', { replace: true })}
+                    // To the landing page for somebody it has somewhere to
+                    // send; signed out for somebody who belongs nowhere yet.
+                    onClick={() => (tenantCount > 0 || operator ? void navigate('/', { replace: true }) : signOut())}
                     className="inline-flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50"
                   >
                     {t('invite.skip')}
@@ -199,10 +244,17 @@ const Invitations: React.FC = () => {
         {/* A person to write to (workplan 0144 T6 (a)), when the deployment
             names one. Outside `Layout`, the sidebar's *Help* is not here. */}
         <div className="text-center space-y-2">
+          <button
+            type="button"
+            onClick={signOut}
+            className="text-sm text-gray-600 underline hover:text-gray-900"
+          >
+            {t('nav.signOut')}
+          </button>
           <SupportLine />
           <BuildStamp />
         </div>
-      </div>
+      </main>
     </div>
   );
 };

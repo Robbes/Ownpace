@@ -144,7 +144,7 @@ describe('the hero is the drawing (0152 T3)', () => {
       let at = 0;
       for (const [words, p] of c.facts) {
         const h = typeof words === 'function' ? words(PROOF_LINKS) : words;
-        const found = after.indexOf(`<h3>${h}</h3><p>${p}</p>`, at);
+        const found = after.indexOf(`<h2>${h}</h2><p>${p}</p>`, at);
         expect(found, `${file}: the fact "${h}" is missing or out of order`).toBeGreaterThan(at - 1);
         at = found;
       }

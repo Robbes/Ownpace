@@ -13,11 +13,13 @@
 
 import React from 'react';
 import { useT } from '../i18n/index.tsx';
+import { useDownloadName } from '../i18n/download-name.ts';
 import { fetchCompletionReport } from '../services/operating-service.ts';
 import { serverMessage } from '../services/api.ts';
 
 export const CompletionReportDownload: React.FC<{ mappingId: string }> = ({ mappingId }) => {
   const t = useT();
+  const nameFor = useDownloadName();
   const [busy, setBusy] = React.useState(false);
   const [failed, setFailed] = React.useState<string | null>(null);
 
@@ -31,12 +33,14 @@ export const CompletionReportDownload: React.FC<{ mappingId: string }> = ({ mapp
           setBusy(true);
           setFailed(null);
           fetchCompletionReport(mappingId)
-            .then(({ markdown }) => {
+            .then(async ({ markdown }) => {
+              // Named for the migration and the day, where its name is known.
+              const name = (await nameFor(mappingId, t('download.report'), 'md')) ?? `completion-report-${mappingId}.md`;
               const blob = new Blob([markdown], { type: 'text/markdown' });
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
               a.href = url;
-              a.download = `completion-report-${mappingId}.md`;
+              a.download = name;
               a.click();
               URL.revokeObjectURL(url);
             })

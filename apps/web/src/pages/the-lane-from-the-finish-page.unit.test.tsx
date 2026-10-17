@@ -150,13 +150,13 @@ describe('a data type kept copying, ended', () => {
 
     expect(await screen.findByText(EN['finish.each.title'])).toBeInTheDocument();
     expect(screen.getByText(EN['finish.ending.phase.continuous'])).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'End Files' }));
+    await userEvent.click(screen.getByRole('button', { name: 'End files' }));
 
     expect(endOrKeepDataType).toHaveBeenCalledWith('acme-mail', 'file', 'end', false);
     // The checklist is for a migration before its cutover: none of it here.
     expect(screen.queryByText(EN['finish.step1.title'], { exact: false })).not.toBeInTheDocument();
     // The one already ended offers no End.
-    expect(screen.queryByRole('button', { name: 'End Email' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'End email' })).not.toBeInTheDocument();
   });
 
   it('shows a refusal over open failures in the server’s words, and force only for that one', async () => {
@@ -172,13 +172,13 @@ describe('a data type kept copying, ended', () => {
     );
     renderScreen();
 
-    await userEvent.click(await screen.findByRole('button', { name: 'End Files' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'End files' }));
 
     expect(
       await screen.findByText('2 item(s) of file could not be migrated and are awaiting a decision.'),
     ).toBeInTheDocument();
     endOrKeepDataType.mockResolvedValueOnce({ changed: true });
-    await userEvent.click(screen.getByRole('button', { name: 'End Files anyway, leaving them behind' }));
+    await userEvent.click(screen.getByRole('button', { name: 'End files anyway, leaving them behind' }));
     expect(endOrKeepDataType).toHaveBeenLastCalledWith('acme-mail', 'file', 'end', true);
   });
 
@@ -187,7 +187,7 @@ describe('a data type kept copying, ended', () => {
       statusReport('active', [{ domain: 'file', phase: 'active', stopped: false, offers: ['end', 'keep'] }]),
     );
     renderScreen();
-    expect(await screen.findByRole('button', { name: 'End Files' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'End files' })).toBeInTheDocument();
     expect(screen.queryByText(EN['finish.each.title'])).not.toBeInTheDocument();
   });
 });
@@ -205,7 +205,7 @@ describe('a data type ended, kept copying again', () => {
     endOrKeepDataType.mockRejectedValue(axiosError(404, { error: 'Not found', message: reason }));
     renderScreen();
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Keep migrating Email' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Keep migrating email' }));
     await userEvent.click(screen.getByRole('button', { name: EN['lane.confirm'] }));
 
     await waitFor(() => expect(screen.getByText(`${EN['finish.ending.failed']} ${reason}`)).toBeInTheDocument());
@@ -217,7 +217,7 @@ describe('a data type ended, kept copying again', () => {
     endOrKeepDataType.mockResolvedValue({ changed: true });
     renderScreen();
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Keep migrating Email' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Keep migrating email' }));
     expect(screen.getByText(EN['lane.selfhost.why'])).toBeInTheDocument();
     expect(screen.queryByText(EN['lane.why'])).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: EN['lane.selfhost.confirm'] }));
@@ -227,7 +227,7 @@ describe('a data type ended, kept copying again', () => {
   it('on managed, says what the tier does before the press, and Not now takes it back', async () => {
     fetchStatus.mockResolvedValue(statusReport('continuous'));
     renderScreen();
-    await userEvent.click(await screen.findByRole('button', { name: 'Keep migrating Email' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Keep migrating email' }));
     expect(screen.getByText(EN['lane.why'])).toBeInTheDocument();
     expect(screen.getByRole('button', { name: EN['lane.confirm'] })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: EN['lane.cancel'] }));

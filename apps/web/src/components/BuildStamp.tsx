@@ -7,6 +7,10 @@
  * this?" will find it; nobody else has to look at it. `title` carries the full
  * commit for the case where seven characters are not enough.
  *
+ * Quiet, but readable: the tester guide asks for this line in every report,
+ * and in `gray-400` at 11 px it was 2.5:1 on white. `gray-500` at `text-xs`
+ * passes 4.5:1 on white, on the paper and on the panel (the UX sweep).
+ *
  * See `services/build-identity.ts` for why there can be TWO answers here and
  * why showing both on a mismatch is the whole point rather than a nicety.
  */
@@ -53,7 +57,7 @@ const BuildStamp: React.FC = () => {
     .join('\n');
 
   return (
-    <p className="mt-3 text-[11px] leading-tight text-gray-400 select-text" title={full || undefined}>
+    <p className="mt-3 text-xs leading-tight text-gray-500 select-text" title={full || undefined}>
       {text}
     </p>
   );

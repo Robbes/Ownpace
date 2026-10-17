@@ -24,7 +24,7 @@ than six migrations at the same time to Medium, and we ask you before it does.
 choose a higher one, Small for its pace while Free would do, for example; that tier is then the
 least you pay.
 
-**Finishing lowers your bill, automatically.** When a migration cuts over it stops counting,
+**Finishing lowers your bill, automatically.** When a migration finishes it stops counting,
 and the tier falls on its own without you asking. So if you start everything at once, the bill
 comes down as each thing finishes. We do not steer you either way.
 

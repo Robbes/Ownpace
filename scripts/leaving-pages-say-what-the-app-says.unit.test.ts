@@ -28,7 +28,8 @@
  *    opens it in the language of the page that links it.
  * 8. **The typical cost is the calculator's own answer**, and the estimate it
  *    links opens on the same case, which Request access carries to the form;
- *    Gmail's ceiling is the calculator's number.
+ *    Gmail's ceiling is the calculator's number, on the page and in the guide
+ *    section it links.
  * 9. **Every page is built in both languages and reachable:** the header's
  *    list, the phone's menu and the home page's hero link all six, each link
  *    named by its page's title, each tile hidden from a screen reader.
@@ -274,7 +275,7 @@ describe('the Leaving… pages say what the app says (0152 T5)', () => {
     const { deriveTier, freeTier, money, GMAIL_IMAP_GB_PER_DAY } = await site<{
       deriveTier: (t: unknown[], paths: number, gb: number) => { tier: { name: string; monthly: number } | null };
       freeTier: (t: unknown) => boolean;
-      money: (cents: number) => string;
+      money: (cents: number, locale?: string) => string;
       GMAIL_IMAP_GB_PER_DAY: number;
     }>('calculator.mjs');
     const { TIERS, REQUEST_ACCESS_URL } = await site<{ TIERS: unknown[]; REQUEST_ACCESS_URL: string }>('prices.mjs');
@@ -299,7 +300,7 @@ describe('the Leaving… pages say what the app says (0152 T5)', () => {
         const what = names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} ${L.and} ${names.at(-1)}`;
         const expected = freeTier(atOnce)
           ? L.costFree(what, atOnce.name)
-          : L.costPaid(what, atOnce.name, money(atOnce.monthly)) +
+          : L.costPaid(what, atOnce.name, money(atOnce.monthly, locale)) +
             (freeTier(oneByOne) ? ` ${L.costOneAtATime(oneByOne.name)}` : '');
         expect(html, `${locale}/${page.id}: the typical cost is not the calculator's`).toContain(`<p>${expected}</p>`);
         const estimate = `?from=${page.from}&amp;what=${objects.join(',')}"`;
@@ -310,6 +311,18 @@ describe('the Leaving… pages say what the app says (0152 T5)', () => {
         if (page.limits.some((l) => l.id === 'gmailDaily')) {
           const said = (L.limits.gmailDaily as (gb: string) => string)(GMAIL_IMAP_GB_PER_DAY.toLocaleString(COPY[locale].htmlLang));
           expect(html, `${locale}: Gmail's ceiling is not the calculator's`).toContain(said);
+          // And the guide section the limit links gives the same number (UX
+          // sweep 2026-10-17): the link landed on the scope and XOAUTH2, and
+          // no guide said the ceiling at all.
+          const [slug, section] = page.limits.find((l) => l.id === 'gmailDaily')!.guide.split('#') as [string, string];
+          const guide = read(`docs/guides/${locale}/${slug}.md`);
+          const start = guide.indexOf(`{#${section}}`);
+          const end = guide.indexOf('\n#', start);
+          const gb = `${GMAIL_IMAP_GB_PER_DAY.toLocaleString(COPY[locale].htmlLang)} GB`;
+          expect(
+            guide.slice(start, end === -1 ? undefined : end),
+            `${locale}: the guide's ${section} section does not give the calculator's ${gb}`,
+          ).toContain(gb);
         }
       }
     }

@@ -28,9 +28,17 @@
  */
 
 import { createHash } from 'node:crypto';
-import type { DiscoveryDomain, Ledger, MappingId, PermissionGrant, ShareGrantRow, TenantId } from '@openmig/shared';
+import type {
+  DiscoveryDomain,
+  Ledger,
+  MappingId,
+  PermissionGrant,
+  PermissionSubject,
+  ShareGrantRow,
+  TenantId,
+} from '@openmig/shared';
 import { DISCOVERY_DOMAINS, dataTypeOfShare, groupShareGrants } from '@openmig/shared';
-import { mapGrant } from './permission-map.ts';
+import { mapGrant, type ReportLanguage } from './permission-map.ts';
 
 /**
  * A grant's identity across rescans: what it is on, who holds it, at what
@@ -87,6 +95,38 @@ export function shareGrantRowFrom(grant: PermissionGrant): {
     ...(grant.parentKey !== undefined ? { parentKey: grant.parentKey } : {}),
     ...(grant.isContainer !== undefined ? { isContainer: grant.isContainer } : {}),
   };
+}
+
+/**
+ * The line under a checklist row, in the reader's language (UX sweep,
+ * 2026-10-17).
+ *
+ * The stored `verdictTarget` is English, with mapGrant's developer note glued
+ * on, and a Dutch reader read that under every row of the *Deel-checklist*.
+ * This says the target again from the row's own facts, in `lang`, and leaves
+ * the note off: it is for whoever reads this table, not for the owner. The
+ * stored line is left as it is, because `applyShareGrant`'s manual-only
+ * refusal quotes it.
+ *
+ * The verdict cannot differ from the stored one: mapGrant decides it from the
+ * same facts, and the language never touches it.
+ */
+export function verdictTargetFor(
+  row: Pick<ShareGrantRow, 'subject' | 'onLabel' | 'grantee' | 'role' | 'viaLink' | 'raw'>,
+  lang: ReportLanguage,
+): string {
+  return mapGrant(
+    {
+      // The row stores the subject as plain text; mapGrant only compares it.
+      subject: row.subject as PermissionSubject,
+      on: row.onLabel,
+      ...(row.grantee ? { grantee: row.grantee } : {}),
+      role: row.role,
+      viaLink: row.viaLink,
+      raw: row.raw,
+    },
+    lang,
+  ).target;
 }
 
 export interface RefreshShareGrantsDeps {

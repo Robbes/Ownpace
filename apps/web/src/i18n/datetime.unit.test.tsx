@@ -15,7 +15,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import React from 'react';
 import { render, screen, cleanup } from '@testing-library/react';
 import { LocaleProvider, useFormatters } from './index.tsx';
-import { formatRelativeToNow, formatDateTime, formatNumber, formatCurrency } from './datetime.ts';
+import { formatRelativeToNow, formatDateTime, formatNumber, formatCurrency, formatMonth } from './datetime.ts';
 
 const NOW = new Date('2026-08-02T12:00:00Z');
 
@@ -65,6 +65,20 @@ describe('formatDateTime', () => {
   });
 });
 
+describe('formatMonth', () => {
+  it('says a YYYY-MM key as the month in words, in each language', () => {
+    // Billing printed the raw key, 'Verbruik voor 2026-10', beside a date in words.
+    expect(formatMonth('2026-10', 'nl')).toBe('oktober 2026');
+    expect(formatMonth('2026-10', 'en')).toBe('October 2026');
+  });
+
+  it('keeps the month written, wherever the browser is: read in UTC', () => {
+    // Parsed as local midnight, west of Greenwich the first would be September.
+    expect(formatMonth('2026-01', 'en')).toBe('January 2026');
+    expect(formatMonth('2026-12', 'nl')).toBe('december 2026');
+  });
+});
+
 describe('formatNumber', () => {
   it('groups with the language’s separators', () => {
     expect(formatNumber(1234567, 'en')).toBe('1,234,567');
@@ -73,10 +87,11 @@ describe('formatNumber', () => {
 });
 
 const Probe: React.FC = () => {
-  const { number, relativeToNow } = useFormatters();
+  const { number, relativeToNow, month } = useFormatters();
   return (
     <div>
       <span data-testid="n">{number(9999)}</span>
+      <span data-testid="m">{month('2026-10')}</span>
       <span data-testid="r">{relativeToNow(new Date(Date.now() - 2 * 3600 * 1000))}</span>
     </div>
   );
@@ -91,12 +106,14 @@ describe('useFormatters', () => {
       </LocaleProvider>,
     );
     expect(screen.getByTestId('n').textContent).toBe('9.999');
+    expect(screen.getByTestId('m').textContent).toBe('oktober 2026');
     expect(screen.getByTestId('r').textContent).toBe('2 uur geleden');
   });
 
   it('degrades to English outside a provider, like useLocale does', () => {
     render(<Probe />);
     expect(screen.getByTestId('n').textContent).toBe('9,999');
+    expect(screen.getByTestId('m').textContent).toBe('October 2026');
     expect(screen.getByTestId('r').textContent).toBe('2 hours ago');
   });
 });

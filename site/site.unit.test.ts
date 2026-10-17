@@ -217,6 +217,15 @@ describe('the published prices agree with the decision that set them', () => {
     expect(() => money(2.5)).toThrow(/whole cents/);
   });
 
+  it('writes a size in the page’s decimals: 1.5 TB in English, 1,5 TB in Dutch', async () => {
+    const { size } = await import('./prices.mjs');
+    expect(size(1500)).toBe('1.5 TB');
+    expect(size(1500, 'en')).toBe('1.5 TB');
+    expect(size(1500, 'nl')).toBe('1,5 TB');
+    expect(size(15000, 'nl')).toBe('15 TB');
+    expect(size(150, 'nl')).toBe('150 GB');
+  });
+
   it('says "free" for the free tier, and never "€0", on every page (ADR-0014, 2026-09-24)', async () => {
     const { rendered } = (await import('./build.mjs')) as unknown as {
       rendered: Array<{ file: string; html: string }>;
@@ -227,7 +236,7 @@ describe('the published prices agree with the decision that set them', () => {
     }
     const card = (file: string) => {
       const html = rendered.find((p) => p.file === file)!.html;
-      const at = html.indexOf('<h3>Free</h3>');
+      const at = html.indexOf('<h2>Free</h2>');
       expect(at, `${file} has no Free card`).toBeGreaterThan(-1);
       return html.slice(at, html.indexOf('</div>\n', html.indexOf('<ul>', at)));
     };
@@ -386,6 +395,79 @@ describe('both locales are complete', () => {
     );
     for (const page of dutch) {
       expect(page.html.match(/\S*verhui[sz]\S*/gi) ?? [], `${page.file} says a form of verhuizen`).toEqual([]);
+    }
+  });
+
+  /**
+   * THE DUTCH PAGES WRITE DUTCH (the UX sweep, 2026-10-17). The Dutch pricing
+   * page linked "talk to us" in English, wrote its prices and sizes with an
+   * English decimal point (€2.50, 1.5 TB) where the app and the Gmail line on
+   * the estimate write a comma, and How it works called e-mail "post", which
+   * the owner retired (GLOSSARY). What a reader sees is asked: the page's text,
+   * without its scripts and their config, whose numbers are code.
+   */
+  it('writes Dutch on every Dutch page: its own link words, a decimal comma, and e-mail for mail', async () => {
+    const dutch = [...(await renderedPages()), ...(await alphaBuild())].filter((p) => p.file.startsWith('nl/'));
+    const seen = (html: string) =>
+      (html.split('<main')[1] ?? '').replace(/<script\b[\s\S]*?<\/script>/g, '').replace(/<[^>]+>/g, ' ');
+    for (const page of dutch) {
+      expect(seen(page.html), `${page.file} says "talk to us"`).not.toMatch(/talk to us/i);
+      expect(seen(page.html).match(/€\d+\.\d+/g) ?? [], `${page.file} writes a price the English way`).toEqual([]);
+      expect(seen(page.html).match(/\d\.\d+ ?[GT]B\b/g) ?? [], `${page.file} writes a size the English way`).toEqual([]);
+      expect(seen(page.html).match(/\bpost\b/gi) ?? [], `${page.file} says "post" for e-mail`).toEqual([]);
+    }
+    const prijzen = dutch.find((p) => p.file === 'nl/prijzen.html')!.html;
+    expect(prijzen).toContain('<a href="mailto:support@ownpace.eu">neem contact met ons op</a>');
+    expect(prijzen).toContain('<div class="price">€2,50 <span>per maand</span></div>');
+    expect(prijzen).toContain('<strong>1,5 TB</strong> aan gemigreerde gegevens');
+  });
+
+  it('links the estimate from How it works’ first step, which promises one (the UX sweep)', async () => {
+    const pages = await renderedPages();
+    const html = (file: string) => pages.find((p) => p.file === file)!.html;
+    expect(html('how-it-works.html')).toContain('<a href="./estimate.html">Tell us roughly what you are moving</a>');
+    expect(html('nl/hoe-het-werkt.html')).toContain('<a href="./schatting.html">Vertel ons ongeveer wat u wilt migreren</a>');
+    // Each lands on a page the build writes, beside the page that links it.
+    expect(pages.map((p) => p.file)).toEqual(expect.arrayContaining(['estimate.html', 'nl/schatting.html']));
+  });
+
+  /**
+   * ENGLISH SAYS "SWITCH", NOT "CUT OVER" (the UX sweep, 2026-10-17). The pages
+   * moved to "switch"; the home and How it works descriptions, which a search
+   * result and a link preview show, still said "cut over" and "the cutover".
+   * Asked of the whole page, its <head> included. The one "cutover" left is
+   * the hero's "No big-bang cutover", the owner's own words (0144 P5).
+   */
+  it('says "switch" for the moment you move over, on every English page and in its description', async () => {
+    const english = [...(await renderedPages()), ...(await alphaBuild())].filter((p) => !p.file.startsWith('nl/'));
+    expect(english.map((p) => p.file)).toEqual(expect.arrayContaining(['index.html', 'how-it-works.html']));
+    for (const page of english) {
+      const said = page.html.replace('No big-bang cutover.', '').match(/\bcut[- ]?over\w*/gi) ?? [];
+      expect(said, `${page.file} says "cut over" where the site says "switch"`).toEqual([]);
+    }
+    const description = (file: string) =>
+      english.find((p) => p.file === file)!.html.match(/<meta name="description" content="([^"]*)"/)![1];
+    expect(description('index.html')).toContain('and switch when you are ready.');
+    expect(description('how-it-works.html')).toBe('What a migration looks like from the first connection to the switch.');
+  });
+});
+
+/**
+ * EVERY PAGE'S HEADINGS GO DOWN ONE LEVEL AT A TIME (the UX sweep, 2026-10-17).
+ * The home page's three facts, the pricing page's tier cards and the estimate's
+ * tier were h3s straight under the page's h1, so a screen reader's list of
+ * headings showed them under nothing (axe's heading-order, on six pages). Asked
+ * of every page both builds write, from <main> on, so the header is not counted.
+ */
+describe('every page’s headings go down one level at a time', () => {
+  it('never skips a level below the h1, on any page of either build', async () => {
+    const pages = [...(await renderedPages()), ...(await alphaBuild())];
+    expect(pages.map((p) => p.file)).toEqual(expect.arrayContaining(['index.html', 'pricing.html', 'nl/schatting.html']));
+    for (const page of pages) {
+      const levels = [...(page.html.split('<main')[1] ?? '').matchAll(/<h([1-6])\b/g)].map((m) => Number(m[1]));
+      expect(levels[0], `${page.file} does not open on its h1`).toBe(1);
+      const skips = levels.flatMap((h, i) => (i > 0 && h > levels[i - 1]! + 1 ? [`h${levels[i - 1]} → h${h}`] : []));
+      expect(skips, `${page.file} skips a heading level`).toEqual([]);
     }
   });
 });
@@ -922,6 +1004,17 @@ describe('the site is warm paper, always light (the owner, 2026-10-05)', () => {
       expect(contrast(fg!, on!), `${what}: ${fg} on ${on}`).toBeGreaterThanOrEqual(least);
     }
   });
+
+  it('fades no text with opacity, so the colour a reader sees is a colour checked above (the UX sweep)', async () => {
+    // The footer's version number, which testers are asked to quote, was the
+    // muted colour at 70% (about 3:1), and the estimate's sizes that are not
+    // counted were faded to 45% (about 1.9:1). Both are --muted now: a field
+    // that counts for nothing is disabled rather than faded. An invisible
+    // control (opacity 0, the pay switch's radios) is not text a reader sees.
+    const css = (await renderedPages())[0]!.html;
+    expect(css.match(/[^{}]*\{[^}]*opacity:\s*0?\.\d+[^}]*\}/g) ?? [], 'a rule fades its text').toEqual([]);
+    expect(css).toContain('footer.site .build { font-size: 0.8rem; }');
+  });
 });
 
 /**
@@ -1168,7 +1261,7 @@ describe('the pricing page opens on yearly, and compares only prices on sale now
   it('shows each paid tier a year as twelve months, with the year’s total in bold beside it, and its monthly price', async () => {
     const { TIERS, money } = (await import('./prices.mjs')) as unknown as {
       TIERS: Array<{ id: string; name: string; monthly: number; annual: number }>;
-      money: (cents: number) => string;
+      money: (cents: number, locale?: string) => string;
     };
     const { COPY } = (await import('./copy.mjs')) as unknown as {
       COPY: Record<'en' | 'nl', { payYearTotal: (m: string) => string; payHalf: string }>;
@@ -1186,12 +1279,12 @@ describe('the pricing page opens on yearly, and compares only prices on sale now
         const year = /<div class="when-year">([\s\S]*?)<\/div>\s*<div class="when-month">/.exec(card)?.[1];
         expect(year, `${file}: ${t.name} has no yearly view`).toBeDefined();
         // The per-month figure and the year's total, in the same card, never one without the other.
-        expect(year, `${file}: ${t.name}'s year per month`).toContain(`<div class="price">${money(t.annual / 12)} <span>`);
+        expect(year, `${file}: ${t.name}'s year per month`).toContain(`<div class="price">${money(t.annual / 12, locale)} <span>`);
         expect(year, `${file}: ${t.name}'s yearly total is not beside it`).toContain(
-          `<div class="price-year">${COPY[locale].payYearTotal(money(t.annual))}</div>`,
+          `<div class="price-year">${COPY[locale].payYearTotal(money(t.annual, locale))}</div>`,
         );
         expect(year).toContain(COPY[locale].payHalf);
-        expect(card, `${file}: ${t.name}'s monthly price`).toContain(`<div class="price">${money(t.monthly)} <span>`);
+        expect(card, `${file}: ${t.name}'s monthly price`).toContain(`<div class="price">${money(t.monthly, locale)} <span>`);
       }
     }
   });

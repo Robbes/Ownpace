@@ -291,7 +291,7 @@ const Row: React.FC<{
                     {i > 0 && <span aria-hidden="true"> · </span>}
                     <Link
                       to={`/setup/${connection.role}/${card.type}`}
-                      className="whitespace-nowrap text-blue-700 hover:underline"
+                      className="whitespace-nowrap text-blue-700 underline underline-offset-2 hover:text-blue-900"
                     >
                       {t(card.nameKey)}
                     </Link>
@@ -304,7 +304,7 @@ const Row: React.FC<{
                 // way, and looking one up by kind answers an empty checklist that
                 // reads as "nothing to set up" (workplan 0065).
                 to={`/setup/${connection.role}/${wizardTypeForConnectionKind(connection.kind)}`}
-                className="whitespace-nowrap text-blue-700 hover:underline"
+                className="whitespace-nowrap text-blue-700 underline underline-offset-2 hover:text-blue-900"
               >
                 {t('connections.setupSteps')}
               </Link>
@@ -356,18 +356,24 @@ const Row: React.FC<{
           )}
           {/* What is STANDING against this connection (workplan 0094 T5): a
               pass that failed since the last Test, by category, with the
-              category's own remedy — and the button it names (Reconnect or
-              Replace credentials, whichever this row shows) is beside it.
+              category's own remedy — and the button it names is beside it.
               The line sits on the side the pass named, or on both cards when
               it could not tell; where the connection is the thing to act on,
               the tail says which case this is. The guard is against a category
-              this build has no sentence for. */}
+              this build has no sentence for.
+
+              AN EXPIRED CONNECTION, SAID FOR THIS ROW (UX sweep 2026-10-17).
+              `failure.authExpired` sends somebody to the Accounts page and
+              names both buttons, because wherever else it is read nobody
+              knows which the row shows (0140 T2 (b)). Here the row knows, so
+              the line names its own button, and the side the pass named needs
+              no second sentence: "this account" is already in the first. */}
           {(connection.standingFailures ?? [])
             .filter((f) => isFailureCategory(f.category))
             .map((f) => (
               <span
                 key={`${f.mappingId}:${f.category}`}
-                className="mt-1 block text-xs text-red-900 break-words"
+                className="mt-1 block text-sm text-red-900 break-words"
               >
                 {t('connections.standing.migration')}{' '}
                 <Link to={`/mappings/${f.mappingId}`} className="underline">
@@ -377,14 +383,18 @@ const Row: React.FC<{
                   when: relativeToNow(f.asOf),
                   domains: f.domains.map((d) => t(DOMAIN_STRING_KEY[d])).join(', '),
                 })}{' '}
-                {t(FAILURE_KEY[f.category])}{' '}
+                {f.category === 'auth_expired'
+                  ? t('connections.standing.authExpired', {
+                      button: rotateConsent.isGrantKind ? t('connections.reconnect') : t('connections.rotate'),
+                    })
+                  : t(FAILURE_KEY[f.category])}{' '}
                 <SendItToUs
                   category={f.category}
                   migrationId={f.mappingId}
                   {...(f.side ? { side: f.side } : {})}
                   {...(f.domains.length === 1 ? { dataType: f.domains[0] } : {})}
                 />
-                {ASK_TEST.has(f.category) && (
+                {ASK_TEST.has(f.category) && !(f.category === 'auth_expired' && f.side) && (
                   <> {t(f.side ? 'connections.standing.thisSide' : 'connections.standing.whichSide')}</>
                 )}
               </span>
@@ -557,15 +567,18 @@ const AddConnection: React.FC<{ open: boolean; onClose: () => void; onAdded: () 
 }) => {
   const t = useT();
   const [role, setRole] = React.useState<'source' | 'target'>('source');
-  // The first card of the side, the same one the role switch below lands on —
-  // so opening the form and switching the role read as the same door.
-  const [type, setType] = React.useState(accountCards('source')[0]?.id ?? '');
+  // NO CARD CHOSEN FOR THE PERSON (UX sweep 2026-10-17; 0153's "Provider
+  // tiles, with none preselected"). This opened on the side's first card,
+  // IMAP, which the chooser draws LAST, so the first thing somebody read was
+  // its Host and Port boxes for a provider they had not picked. The form
+  // opens, and the role switch below lands, on no card; a pick draws it.
+  const [type, setType] = React.useState('');
   // What is typed stays here, so a Cancel keeps it for the next opening; the
   // form below begins its probe answer and its consent afresh each time it
   // is drawn (`AccountForm`, 0145 T4).
   const [displayName, setDisplayName] = React.useState('');
-  // The start a pick of the same card gives: its usual port, where it has one.
-  const [values, setValues] = React.useState<Record<string, string>>(() => ({ ...formDefaultsFor('source', type) }));
+  // Empty until a card is picked: a pick starts from that card's usual port.
+  const [values, setValues] = React.useState<Record<string, string>>({});
 
   // Mounted while closed, so what was typed is still here at the next opening.
   // Its button is the page's, beside the title (`Connections`).
@@ -593,10 +606,9 @@ const AddConnection: React.FC<{ open: boolean; onClose: () => void; onAdded: () 
               role="radio"
               aria-checked={role === r}
               onClick={() => {
-                const first = accountCards(r)[0]?.id ?? '';
                 setRole(r);
-                setType(first);
-                setValues({ ...formDefaultsFor(r, first) });
+                setType('');
+                setValues({});
               }}
               className={`px-4 py-1.5 text-sm font-medium ${
                 role === r ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
@@ -628,18 +640,32 @@ const AddConnection: React.FC<{ open: boolean; onClose: () => void; onAdded: () 
       </div>
 
       {/* A fresh form for each card: its answer and its consent belong to
-          the card they were given for. */}
-      <AccountForm
-        key={`${role}:${type}`}
-        role={role}
-        type={type}
-        values={values}
-        onValues={setValues}
-        displayName={displayName}
-        onDisplayName={setDisplayName}
-        onAdded={() => onAdded()}
-        onCancel={onClose}
-      />
+          the card they were given for. Before a pick, one sentence and the
+          way out, so the form can still be closed. */}
+      {type !== '' ? (
+        <AccountForm
+          key={`${role}:${type}`}
+          role={role}
+          type={type}
+          values={values}
+          onValues={setValues}
+          displayName={displayName}
+          onDisplayName={setDisplayName}
+          onAdded={() => onAdded()}
+          onCancel={onClose}
+        />
+      ) : (
+        <>
+          <p className="mt-4 text-sm text-gray-600">{t('connections.pickFirst')}</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-3 text-sm px-3 py-1.5 border border-gray-300 rounded"
+          >
+            {t('common.cancel')}
+          </button>
+        </>
+      )}
     </section>
   );
 };

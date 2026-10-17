@@ -220,7 +220,7 @@ describe('the public site renders', () => {
     const { page } = await open('/pricing.html');
     const small = () =>
       page.evaluate(() => {
-        const card = [...document.querySelectorAll('.tier')].find((t) => t.querySelector('h3')?.textContent === 'Small')!;
+        const card = [...document.querySelectorAll('.tier')].find((t) => t.querySelector('h2')?.textContent === 'Small')!;
         const shown = (sel: string) =>
           [...card.querySelectorAll(sel)].filter((e) => e.getClientRects().length > 0).map((e) => e.textContent?.trim());
         return { price: shown('.price'), year: shown('.price-year') };
@@ -241,6 +241,18 @@ describe('the public site renders', () => {
     expect(overflows, 'the Dutch pricing page scrolls sideways at 390px').toBe(false);
     expect(await phone.page.isVisible('fieldset.pay-switch'), 'the switch is not on a phone').toBe(true);
     await phone.page.close();
+
+    // The paid cards' yearly totals line up side by side (the UX sweep): Small's
+    // "€2,50 per maand" wrapped and pushed its card's year 51 pixels lower.
+    for (const path of ['/nl/prijzen.html', '/pricing.html']) {
+      const wide = await open(path, 1280);
+      const tops = await wide.page.$$eval('.tier .when-year .price-year', (years) =>
+        years.map((y) => Math.round(y.getBoundingClientRect().top)),
+      );
+      expect(tops.length, `${path}: no paid card shows its year`).toBe(4);
+      expect(new Set(tops).size, `${path}: the paid cards' years are not in line (${tops.join(', ')})`).toBe(1);
+      await wide.page.close();
+    }
   }, 60_000);
 
   it('lands a small move on Free and says free and its pace, with no top-up; more data than Free holds lands on Small (ADR-0014, 2026-10-04)', async () => {
@@ -504,6 +516,12 @@ describe('the public site renders', () => {
   it('lays the estimate out without overlap at 1280 and 390 pixels, and says its result politely (0152 T7 (c))', async () => {
     for (const width of [1280, 390]) {
       const { page } = await open('/estimate.html', width);
+      // The page opens on Free, where neither number forces anything, so no
+      // card says it decides (the UX sweep: both did). A household lands on
+      // Large, decided by the migrations at the same time, and that card says so.
+      expect(await page.$$eval('.axis[data-decides]', (a) => a.map((e) => e.id)), 'a card says it decides Free').toEqual([]);
+      await page.check('input[name="who"][value="family"]');
+      expect(await page.$$eval('.axis[data-decides]', (a) => a.map((e) => e.id))).toEqual(['axis-paths']);
       // Each field's parts stay in its own cell: the item count wraps under
       // the box rather than running into the next field.
       const spills = await page.$$eval('.calc .amount', (cells) =>
@@ -586,7 +604,7 @@ describe('the public site renders', () => {
     expect(both.from).toEqual(['google', 'dropbox']);
     expect(both.paths).toBe('5');
     expect(both.line).toBe(
-      'Mail, Contacts, Calendar, Files from Google; Files from Dropbox, for one person — that is 5 migrations at the same time.',
+      'Mail, contacts, calendar and files from Google; files from Dropbox, for one person — that is 5 migrations at the same time.',
     );
 
     // Tasks are a migration of their own, sized for the person rather than asked.
@@ -602,6 +620,9 @@ describe('the public site renders', () => {
     expect(apple.paths).toBe('4');
     expect(apple.uncounted).toBe('Not counted, because we cannot move this from what you ticked: Files.');
     expect(await page.getAttribute('#amount-files', 'data-off'), 'a size that is not counted still looks counted').toBe('');
+    // And it takes no typing, which changed nothing (the UX sweep).
+    expect(await page.isDisabled('#gb-files'), 'a size that is not counted can still be typed in').toBe(true);
+    expect(await page.isDisabled('#gb-mail'), 'a size that is counted cannot be typed in').toBe(false);
 
     // No source at all: nothing is counted, and the page asks for one.
     await page.uncheck('input[name="from"][value="apple"]');
@@ -627,8 +648,15 @@ describe('the public site renders', () => {
       line: document.getElementById('paths-line')!.textContent,
     }));
     expect(nl.from).toEqual(['google', 'box']);
-    expect(nl.line).toBe('Bestanden van Google; Bestanden van Box, voor één persoon — dat zijn 2 migraties tegelijk.');
+    expect(nl.line).toBe('Bestanden van Google; bestanden van Box, voor één persoon — dat zijn 2 migraties tegelijk.');
     await listed.page.close();
+
+    // The Dutch page writes its sizes with a decimal comma, as its Gmail line
+    // does (the UX sweep: "38.3 GB" beside "2,5 GB").
+    const dutch = await open('/nl/schatting.html', 1200);
+    expect(await dutch.page.textContent('#axis-data-val')).toBe('38,3 GB');
+    expect(await dutch.page.textContent('#gmail-line')).toContain('Google laat een mailbox 2,5 GB per dag downloaden');
+    await dutch.page.close();
   }, 90_000);
 
   it('reaches the other language, and comes back', async () => {

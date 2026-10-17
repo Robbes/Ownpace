@@ -28,8 +28,7 @@ import { billingApi, YearSchema, type YearOffer, type YearOfferTier } from '../s
 import { serverMessage } from '../services/api.ts';
 import InvoiceDetailsFirst from './InvoiceDetailsFirst.tsx';
 import { BeginNow, useYesAsksToBegin } from './BeginNow.tsx';
-import { useFormatters, useLocale, useT } from '../i18n/index.tsx';
-import { formatDateTime } from '../i18n/datetime.ts';
+import { useFormatters, useT } from '../i18n/index.tsx';
 
 const QUERY_KEY = ['billing-year'] as const;
 
@@ -43,19 +42,6 @@ function refusalOf(error: unknown): { code: string | null; year: YearOffer | nul
   return { code: typeof d.error === 'string' ? d.error : null, year: parsed.success ? parsed.data : null };
 }
 
-/** `2026-11` as the month in the page's language, `November 2026`. Months are UTC, as the bill's are. */
-function useMonthWords(): (month: string) => string {
-  const { locale } = useLocale();
-  return (month) =>
-    formatDateTime(`${month}-01T00:00:00Z`, locale, {
-      dateStyle: undefined,
-      timeStyle: undefined,
-      month: 'long',
-      year: 'numeric',
-      timeZone: 'UTC',
-    });
-}
-
 const place = (id: string) => ['free', 'small', 'medium', 'large', 'xl'].indexOf(id);
 
 const YearAhead: React.FC = () => {
@@ -63,7 +49,8 @@ const YearAhead: React.FC = () => {
   const queryClient = useQueryClient();
   const [asking, setAsking] = React.useState<YearOfferTier | null>(null);
   const [done, setDone] = React.useState<{ tier: string; from: string } | null>(null);
-  const monthWords = useMonthWords();
+  // `2026-11` as the month in the page's language, `November 2026`; months are UTC, as the bill's are.
+  const { month: monthWords } = useFormatters();
 
   const { data: offer, isLoading, error } = useQuery({ queryKey: QUERY_KEY, queryFn: () => billingApi.getYear() });
   const asksToBegin = useYesAsksToBegin();
@@ -139,8 +126,7 @@ const YearBody: React.FC<{
   refusal: unknown;
 }> = ({ offer, asking, setAsking, pending, asksToBegin, onOrder, done, refusal }) => {
   const t = useT();
-  const { currency } = useFormatters();
-  const monthWords = useMonthWords();
+  const { currency, month: monthWords } = useFormatters();
   const { holds, placement, credit, heldCents, years } = offer;
   const refusedCode = refusal ? refusalOf(refusal).code : null;
   // The latest year's months at half price, and where any year bought now would fall.

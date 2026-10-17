@@ -22,6 +22,8 @@
  * for every paid tier.
  */
 
+import { decimalMark } from './calculator.mjs';
+
 /** @typedef {{ id: string, name: string, paths: number, dataGb: number, monthly: number, annual: number }} Tier */
 
 /** Bytes are quoted in whole GB up to 1 TB and in TB above it. */
@@ -71,11 +73,14 @@ export const TIERS = [
   },
 ];
 
-/** Past the published scale we look at the actual case before quoting. */
+/**
+ * Past the published scale we look at the actual case before quoting. The
+ * words that say so are each page's own (`copy.mjs`'s `beyond`): an English
+ * "Talk to us" here was lower-cased into the Dutch sentence.
+ */
 export const BEYOND = {
   paths: 50,
   dataGb: 15 * GB_PER_TB,
-  what: 'Talk to us',
 };
 
 export const SUPPORT_EMAIL = 'support@ownpace.eu';
@@ -190,8 +195,14 @@ export const STATUS_URL = (() => {
 
 export { money } from './calculator.mjs';
 
-/** @param {number} gb */
-export const size = (gb) => (gb >= GB_PER_TB ? `${gb / GB_PER_TB} TB` : `${gb} GB`);
+/**
+ * A ceiling as the pages publish it, in the page's decimals: "1.5 TB", and
+ * "1,5 TB" in Dutch. Without a locale it is English, which is what ADR-0014's
+ * table writes and `site/site.unit.test.ts` holds it to.
+ * @param {number} gb @param {string} [locale]
+ */
+export const size = (gb, locale) =>
+  (gb >= GB_PER_TB ? `${gb / GB_PER_TB} TB` : `${gb} GB`).replace('.', decimalMark(locale));
 
 /**
  * What a paid tier costs over `months`, paying monthly. Derived rather than

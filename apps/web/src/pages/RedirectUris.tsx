@@ -69,8 +69,12 @@ const RedirectUris: React.FC = () => {
             {inGroup.map((entry: RedirectUriEntry) => (
               <div key={entry.id} className="border border-gray-200 rounded-lg p-4 bg-white">
                 <p className="text-sm font-medium text-gray-900">{entry.provider}</p>
+                {/* "Nothing to register" only where that is the answer. An
+                    unconfigured entry has an address to register, just not
+                    one this deployment can build yet, and the warning below
+                    says so: the two together contradicted each other. */}
                 {entry.uri === null ? (
-                  <p className="mt-2 text-sm text-gray-500">{t('redirects.none')}</p>
+                  entry.unconfigured ? null : <p className="mt-2 text-sm text-gray-500">{t('redirects.none')}</p>
                 ) : (
                   <code className="mt-2 block break-all rounded bg-gray-50 border border-gray-200 px-3 py-2 font-mono text-xs text-gray-900">
                     {entry.uri}
@@ -84,10 +88,13 @@ const RedirectUris: React.FC = () => {
                 {entry.unconfigured && (
                   <div className="mt-2 flex items-start gap-1.5 text-amber-800">
                     <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                    {/* Social sign-in's address is the identity provider's, so
+                        the setting missing is the provider's, not this
+                        deployment's own address. */}
                     <Hint
                       className=""
                       tone="caution"
-                      text={t('redirects.unconfigured')}
+                      text={t(entry.id === 'social.upstream' ? 'redirects.unconfigured.upstream' : 'redirects.unconfigured')}
                       why={t('redirects.unconfigured.why')}
                     />
                   </div>

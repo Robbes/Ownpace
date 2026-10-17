@@ -13,6 +13,7 @@ export const en = {
   'report.description': 'What happened?',
   'report.descriptionHint': 'What you were doing, what you expected, and what you saw instead.',
   'report.screenshot': 'Screenshot (optional)',
+  'report.screenshotChoose': 'Choose a screenshot',
   'report.screenshotHint':
     'PNG or JPEG, up to 5 MB: choose one, drop it here, or paste it anywhere on this page. ' +
     'It shows your screen: check it first.',
@@ -87,6 +88,7 @@ export const en = {
   'report.browser.migration': 'the migration it belongs to: {migration}',
   'report.browser.recentError': 'the reference of an error from the last {minutes} minutes: {reference} ({code})',
   'report.send': 'Send the report',
+  'report.sendNeeds': 'First write what happened.',
   'report.sending': 'Sending…',
   'report.sent': 'Sent. Your report is number {ticket}, and we will reply to {email}.',
   // Where the service has no helpdesk, a report goes to the support mailbox by
@@ -95,6 +97,7 @@ export const en = {
   // reference:`. Named apart from the error's reference the form listed above
   // (`report.reference`), which the Log page finds and this one it does not.
   'report.sent.mail': 'Sent to our support team, with report reference {reference}. We will reply by email to {email}.',
+  'report.back': 'Back to the page you were on',
   'report.unavailable': 'Reporting a problem is not set up on this service.',
   'migrationReport.title': 'Report',
   'migrationReport.person.title': 'Report: {name}',
@@ -123,13 +126,18 @@ export const en = {
   'migrationReport.sharing.counts': '{applied} re-created, {manual} done by hand, {skipped} not carried over, {open} still open.',
   'migrationReport.check.heading': 'What the check compared',
   'migrationReport.check.col.old': 'On the old system',
-  'migrationReport.check.col.new': 'On the new',
+  'migrationReport.check.col.new': 'On the new system',
   'migrationReport.check.col.contents': 'Contents compared',
   'migrationReport.check.compared': '{matched} of {sampled} the same',
   'migrationReport.access.heading': 'Access you granted, which only you can withdraw',
   'migrationReport.access.lead': 'It still works after this migration, until you remove it.',
   'migrationReport.asOf': 'As it stood on {when}.',
   'migrationReport.download': 'Download the report',
+  // What a saved file is called: this word, the migration's name and the
+  // day (download-name.ts), where it was `completion-report-<id>.md`.
+  'download.report': 'Ownpace report',
+  'download.permissions': 'Ownpace permissions',
+  'download.confirmed': 'Ownpace confirmed items',
   'migrationReport.toConfirmed': 'What is confirmed, item by item',
   'migrationReport.open': 'The report',
 } as const;
@@ -140,6 +148,7 @@ export const nl: Record<keyof typeof en, string> = {
   'report.description': 'Wat gebeurde er?',
   'report.descriptionHint': 'Wat u deed, wat u verwachtte, en wat u in plaats daarvan zag.',
   'report.screenshot': 'Schermafbeelding (optioneel)',
+  'report.screenshotChoose': 'Schermafbeelding kiezen',
   'report.screenshotHint':
     'PNG of JPEG, tot 5 MB: kies er een, sleep hem hierheen of plak hem ergens op deze pagina. ' +
     'Hij toont uw scherm, dus controleer even of wat u opstuurt klopt.',
@@ -197,9 +206,11 @@ export const nl: Record<keyof typeof en, string> = {
   'report.browser.migration': 'de migratie waar die bij hoort: {migration}',
   'report.browser.recentError': 'de referentie van een fout uit de afgelopen {minutes} minuten: {reference} ({code})',
   'report.send': 'Melding versturen',
+  'report.sendNeeds': 'Schrijf eerst wat er gebeurde.',
   'report.sending': 'Versturen…',
   'report.sent': 'Verstuurd. Uw melding heeft nummer {ticket}, en we antwoorden naar {email}.',
   'report.sent.mail': 'Verstuurd naar ons supportteam met meldingskenmerk {reference}. We antwoorden naar {email}.',
+  'report.back': 'Terug naar de pagina waar u was',
   'report.unavailable': 'Een probleem melden is op deze dienst niet ingesteld.',
   'migrationReport.title': 'Rapport',
   'migrationReport.person.title': 'Rapport: {name}',
@@ -228,13 +239,16 @@ export const nl: Record<keyof typeof en, string> = {
   'migrationReport.sharing.counts': '{applied} opnieuw gemaakt, {manual} met de hand gedaan, {skipped} niet meegenomen, {open} nog open.',
   'migrationReport.check.heading': 'Wat de verificatie heeft vergeleken',
   'migrationReport.check.col.old': 'Op het oude systeem',
-  'migrationReport.check.col.new': 'Op het nieuwe',
+  'migrationReport.check.col.new': 'Op het nieuwe systeem',
   'migrationReport.check.col.contents': 'Inhoud vergeleken',
   'migrationReport.check.compared': '{matched} van {sampled} gelijk',
   'migrationReport.access.heading': 'Toegang die u gaf en die alleen u kunt intrekken',
   'migrationReport.access.lead': 'Werkt na deze migratie nog, tot u hem verwijdert.',
   'migrationReport.asOf': 'Stand van {when}.',
   'migrationReport.download': 'Download het rapport',
+  'download.report': 'Ownpace-rapport',
+  'download.permissions': 'Ownpace-rechtenlijst',
+  'download.confirmed': 'Ownpace bevestigde items',
   'migrationReport.toConfirmed': 'Wat is bevestigd, item voor item',
   'migrationReport.open': 'Het rapport',
 };

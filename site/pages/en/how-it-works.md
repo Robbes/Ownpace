@@ -4,7 +4,7 @@ Five steps, and you decide when each one happens. Nothing is on a clock but you.
 
 ## 1. See what you have, before you connect anything
 
-Tell us roughly what you are moving and we show you what it would cost. No account, no
+[Tell us roughly what you are moving](./estimate.html) and we show you what it would cost. No account, no
 email address, no sales call. If the number is wrong for you, that is the end of it and
 you have lost nothing.
 
@@ -34,7 +34,7 @@ like a deadline. Ownpace has no deadline, because the copy never goes stale.
 
 Run it again and nothing duplicates. Every item is recorded by an identifier its own
 provider gave it, so a second pass recognises what it already moved. Interrupt it, restart
-it, leave it for a month — it converges.
+it, leave it for a month — it picks up where it left off.
 
 ## 4. Check it, at whatever pace suits you
 
@@ -45,7 +45,7 @@ Anything that could not be moved is listed for you, item by item, with the reaso
 differ between providers and some things genuinely do not survive the crossing — the
 difference is whether you are told.
 
-## 5. Cut over when you are ready
+## 5. Switch when you are ready
 
 You say when. At that point the migration finishes, and your old account is still sitting
 there, untouched, for as long as you keep it.

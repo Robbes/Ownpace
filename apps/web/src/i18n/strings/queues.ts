@@ -22,8 +22,10 @@ export const en = {
   'queue.afterCutover':
     'Past the cutover of {dataTypes}, the old system no longer decides what exists, so nothing is removed from the new system because of what happened there. Those rows have no remove button. Undoing the cutover brings it back.',
   'moves.title': 'Moved on the old system',
-  'moves.intro':
-    'Items the owner filed elsewhere since the migration; nothing has changed on either side.',
+  // Not "the owner": on the managed app the owner is a Team role, held by
+  // whoever is signed in, and these were moved on the old system. "filed
+  // elsewhere" is the comparator 0035 T5 restored (i18n.unit.test.tsx).
+  'moves.intro': 'These were filed elsewhere after we copied them. We changed nothing on either side.',
   'moves.intro.more': 'The new system still has them where we put them; each row is your call.',
   'moves.empty.open': 'Nothing has moved.',
   'moves.empty.acknowledged': 'Nothing has been decided yet.',
@@ -32,11 +34,13 @@ export const en = {
   'moves.applyArmed': 'Confirm removal',
   'moves.renamedTo': 'renamed',
   'failures.title': 'Could not be copied',
+  // The frame for the provider's own message, which stays word for word.
+  'failures.technical': 'Technical message:',
   'failures.intro': 'Items that did not make it across, what went wrong, and how often we tried.',
   'failures.empty.needsDecision': 'Nothing is waiting on a decision.',
   'failures.acceptedLeave':
-    'Accepted items no longer appear here; migration continues without them, no longer counted as failed.',
-  'failures.seeRuns': 'See the pass that failed (run history)',
+    'When you choose Migrate without it, the item leaves this list. The migration goes on without it, and it no longer counts as failed.',
+  'failures.seeRuns': "See every pass under Run history, on the migration's page",
   'failures.stillTrying': 'Still trying',
   'failures.empty.retrying': 'Nothing is being retried.',
   'failures.retry': 'Try again',
@@ -66,7 +70,7 @@ export const en = {
   'failures.group.domain': 'Kind',
   'failures.group.domain.any': 'Any kind',
   'failures.group.error': 'Error contains',
-  'failures.group.error.placeholder': 'MKCOL',
+  'failures.group.error.placeholder': 'a word from the error',
   'failures.group.matches': 'Matches {count} of the {total} here.',
   'failures.group.needsNarrowing': 'Pick a kind, or type part of the error, first.',
   'failures.group.retry': 'Try all of these again',
@@ -80,8 +84,14 @@ export const en = {
   // never beside it: two numbers where one is meaningless is worse.
   'failures.parked': 'waiting on you',
   'deletions.title': 'Deleted on the old system',
-  'deletions.intro':
-    'Items the owner deleted at the source; the new system still has them, untouched.',
+  'deletions.intro': 'Someone deleted these after we copied them. The new system still has its copy.',
+  // The chips keep the server's evidence words (ADR-0024); these say what
+  // they mean where a phone can read it, above the rows (the UX sweep,
+  // 2026-10-17). Only shown above a list that has rows.
+  'deletions.evidence.lead':
+    "reported: the old system said it was deleted. trashed: it is in the old system's bin.",
+  'deletions.watching.lead':
+    'These are missing from the old system, but it never said they were deleted. Ownpace does not delete them on the new system.',
   'deletions.empty.confirmed': 'Nothing is waiting on a decision.',
   'deletions.watching': 'Watching',
   'deletions.empty.watching': 'Nothing is being watched.',
@@ -110,7 +120,7 @@ export const nl: Record<keyof typeof en, string> = {
     'Na de overstap van {dataTypes} bepaalt het oude systeem niet meer wat er bestaat, dus wordt er op het nieuwe systeem niets verwijderd vanwege wat daar is gebeurd. Die regels hebben geen verwijderknop. Wordt de overstap teruggedraaid, dan komt die terug.',
   'moves.title': 'Verplaatst op het oude systeem',
   'moves.intro':
-    'Items die de eigenaar had verplaatst; aan geen van beide kanten is iets veranderd.',
+    'Iemand verplaatste deze nadat wij ze migreerden. Wij veranderden aan geen van beide kanten iets.',
   'moves.intro.more':
     'Het nieuwe systeem heeft deze nog, waar wij ze hadden geplaatst; beslis over elke regel.',
   'moves.empty.open': 'Er is niets verplaatst.',
@@ -120,12 +130,13 @@ export const nl: Record<keyof typeof en, string> = {
   'moves.applyArmed': 'Bevestig verwijdering',
   'moves.renamedTo': 'hernoemd',
   'failures.title': 'Kon niet worden gemigreerd',
+  'failures.technical': 'Technische melding:',
   'failures.intro':
     'Items die niet zijn overgekomen, wat er misging, en hoe vaak is geprobeerd.',
   'failures.empty.needsDecision': 'Er wacht niets op een beslissing.',
   'failures.acceptedLeave':
-    'Geaccepteerde items verdwijnen uit deze lijst; de migratie gaat zonder ze verder, en ze worden niet als mislukt geteld.',
-  'failures.seeRuns': 'Bekijk de mislukte ronde (uitvoeringsgeschiedenis)',
+    'Kiest u Migreer zonder dit item, dan verdwijnt het uit deze lijst. De migratie gaat zonder het item verder, en het telt niet meer als mislukt.',
+  'failures.seeRuns': 'Bekijk elke ronde onder Uitvoeringsgeschiedenis, op de pagina van de migratie',
   'failures.stillTrying': 'Wordt nog geprobeerd',
   'failures.empty.retrying': 'Er wordt niets opnieuw geprobeerd.',
   'failures.retry': 'Probeer opnieuw',
@@ -151,7 +162,7 @@ export const nl: Record<keyof typeof en, string> = {
   'failures.group.domain': 'Soort',
   'failures.group.domain.any': 'Elke soort',
   'failures.group.error': 'Fout bevat',
-  'failures.group.error.placeholder': 'MKCOL',
+  'failures.group.error.placeholder': 'een woord uit de foutmelding',
   'failures.group.matches': 'Past op {count} van de {total} hier.',
   'failures.group.needsNarrowing': 'Kies eerst een soort, of typ een deel van de fout.',
   'failures.group.retry': 'Probeer deze allemaal opnieuw',
@@ -161,7 +172,11 @@ export const nl: Record<keyof typeof en, string> = {
   'failures.parked': 'wacht op u',
   'deletions.title': 'Verwijderd op het oude systeem',
   'deletions.intro':
-    'Items die de eigenaar bij de bron verwijderde; het nieuwe systeem heeft deze nog.',
+    'Iemand verwijderde deze nadat wij ze migreerden. Het nieuwe systeem heeft de kopie nog.',
+  'deletions.evidence.lead':
+    'reported: het oude systeem meldde dat het verwijderd is. trashed: het staat in de prullenbak van het oude systeem.',
+  'deletions.watching.lead':
+    'Deze ontbreken op het oude systeem, maar dat heeft niet gemeld dat ze verwijderd zijn. Ownpace verwijdert ze niet op het nieuwe systeem.',
   'deletions.empty.confirmed': 'Er wacht niets op een beslissing.',
   'deletions.watching': 'Wordt in de gaten gehouden',
   'deletions.empty.watching': 'Er wordt niets in de gaten gehouden.',

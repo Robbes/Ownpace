@@ -100,7 +100,7 @@ beforeEach(() => {
   window.localStorage.setItem('ownpace.locale', 'en');
   // A reader with a session, in the real store: the page asks for the
   // deployment's facts only then (0152). The one case without is marked.
-  useAuthStore.setState({ isAuthenticated: true });
+  useAuthStore.setState({ isAuthenticated: true, tenantCount: 0 });
 });
 
 /** The page as the app mounts it: a query client, the real locale provider, a router. */
@@ -157,6 +157,13 @@ function recordScrolls(): Element[] {
 afterEach(() => {
   delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
 });
+
+/** An element's text as a sighted reader sees it: without what only a screen reader hears. */
+function seen(el: Element): string {
+  const copy = el.cloneNode(true) as Element;
+  for (const hidden of copy.querySelectorAll('.sr-only')) hidden.remove();
+  return copy.textContent ?? '';
+}
 
 const FIXTURE = [
   '# A guide to a fixture',
@@ -226,7 +233,7 @@ describe('the in-app setup guides', () => {
     expect([...GUIDE_SLUGS].filter((slug) => slug.endsWith('-setup'))).toEqual([]);
     expect(container.querySelector('a[href$="-setup"]')).toBeNull();
     renderAt('/docs/box-setup');
-    expect(screen.getByText(/no guide by that name/)).toBeTruthy();
+    expect(screen.getByText(STRINGS.en['docs.notFound'])).toBeTruthy();
   });
 
   it('draws the guides, and a guide, in a white card (2026-10-05)', () => {
@@ -241,7 +248,7 @@ describe('the in-app setup guides', () => {
   it('names what DOES exist when a reference is stale, rather than a bare 404', () => {
     const { container } = renderAt('/docs/no-such-guide');
 
-    expect(screen.getByText(/no guide by that name/)).toBeTruthy();
+    expect(screen.getByText(STRINGS.en['docs.notFound'])).toBeTruthy();
     expect(container.querySelector('a[href="/docs/box"]')).not.toBeNull();
   });
 });
@@ -287,7 +294,8 @@ describe('a renderer that keeps a guide\'s shape (0148 T6 (a)), on fixtures', ()
     expect(scrolled.map((el) => el.id)).toEqual(['connect', 'connect']);
 
     // An address outside the guide still opens a tab of its own.
-    const outside = screen.getByRole('link', { name: 'somewhere else' });
+    // It says so to a screen reader (the UX sweep).
+    const outside = screen.getByRole('link', { name: /^somewhere else\s*\(opens in a new tab\)$/ });
     expect(outside.getAttribute('target')).toBe('_blank');
   });
 
@@ -321,7 +329,7 @@ describe('a renderer that keeps a guide\'s shape (0148 T6 (a)), on fixtures', ()
     const { container } = renderFixture(FIXTURE);
     const inBold = [...container.querySelectorAll('strong a')];
 
-    expect(inBold.map((a) => [a.textContent, a.getAttribute('href'), a.getAttribute('target')])).toEqual([
+    expect(inBold.map((a) => [seen(a), a.getAttribute('href'), a.getAttribute('target')])).toEqual([
       ['the button', '/docs/fixture#before-you-start', null],
       ['the provider', 'https://example.org/provider', '_blank'],
     ]);
@@ -347,7 +355,7 @@ describe('a renderer that keeps a guide\'s shape (0148 T6 (a)), on fixtures', ()
   it('renders code inside a link\'s text as code, not as backticks', () => {
     renderFixture(FIXTURE);
 
-    const link = screen.getByRole('link', { name: 'account.example.org' });
+    const link = screen.getByRole('link', { name: /^account\.example\.org\s*\(opens in a new tab\)$/ });
     expect(link.querySelector('code')?.textContent).toBe('account.example.org');
   });
 
@@ -585,10 +593,15 @@ describe('the appliance\'s /docs points to the operator documents (0148 D9)', ()
   for (const locale of ['en', 'nl'] as const) {
     it(`${locale}: the line ends the index on the appliance, and is absent on managed`, () => {
       const line = STRINGS[locale]['docs.operatorDocs'];
+      const escaped = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
       edition.selfhost = true;
       const appliance = renderAt('/docs', locale);
-      const link = within(appliance.container).getByRole('link', { name: line });
+      // It opens a new tab, and says so to a screen reader.
+      const link = within(appliance.container).getByRole('link', {
+        name: new RegExp(`^${escaped(line)}\\s*${escaped(STRINGS[locale]['common.newTab'])}$`),
+      });
+      expect(link.getAttribute('target')).toBe('_blank');
       expect(link.getAttribute('href')).toBe('https://github.com/Robbes/Ownpace/tree/main/docs');
       // The last thing on the index, after the guides.
       const items = [...appliance.container.querySelectorAll('a')];
@@ -805,8 +818,10 @@ describe('every served guide keeps its shape (0148 T6 (a) and (b))', () => {
       expect(new Set(ids).size, 'heading ids are unique').toBe(ids.length);
 
       // Every #section link stays in the tab and names an id on this page.
-      const sameTab = [...article.querySelectorAll('a')].filter((a) =>
-        (a.getAttribute('href') ?? '').startsWith(`/docs/${slug}#`),
+      // The outline's links (a `<nav>` under the title) are the page's, not
+      // links written in the guide.
+      const sameTab = [...article.querySelectorAll('a')].filter(
+        (a) => (a.getAttribute('href') ?? '').startsWith(`/docs/${slug}#`) && !a.closest('nav'),
       );
       const written = lines.join('\n').match(/\]\(#[^)]+\)/g) ?? [];
       expect(sameTab.length).toBe(written.length);
@@ -944,4 +959,135 @@ describe('every served guide keeps its shape (0148 T6 (a) and (b))', () => {
       expect(within(container).queryByText('box')).toBeNull();
     });
   }
+});
+
+/**
+ * A GUIDE YOU CAN FIND YOUR WAY AROUND (the UX sweep, 2026-10-17). A guide of
+ * 4,000 to 20,000 px on a phone had no list of its sections and no way back
+ * at its end. Its links read as plain words: teal on dark grey, underlined
+ * only under a mouse. A code address ran off the side of a phone. A link that
+ * opens a new tab did not say so. The index was in the order of the file
+ * names, so *Export archive* sat between Apple and Box. A guide, and an
+ * address with no guide, dropped Help's two tabs, and the second said the
+ * guides "ship with this version", which is a release's word.
+ */
+describe('a guide you can find your way around (UX sweep)', () => {
+  for (const locale of ['en', 'nl'] as const) {
+    it(`${locale}: /docs/google opens with an outline, one link per section, and ends with the way back`, () => {
+      const { container } = renderAt('/docs/google', locale);
+      const article = container.querySelector('article')!;
+      const outline = within(article).getByRole('navigation', { name: STRINGS[locale]['docs.onThisPage'] });
+
+      // A guide's `##` is an `<h3>`: the sections the outline lists.
+      const sections = [...article.querySelectorAll('h3')];
+      const written = linesOutsideFences(SOURCES[`${locale}/google`]!).filter((line) => /^## /.test(line));
+      expect(sections).toHaveLength(written.length);
+      expect(sections.length).toBeGreaterThanOrEqual(5);
+      const links = within(outline).getAllByRole('link');
+      expect(links.map((a) => [a.textContent, a.getAttribute('href'), a.getAttribute('target')])).toEqual(
+        sections.map((h) => [h.textContent, `/docs/google#${h.id}`, null]),
+      );
+      // Under the title, above the first section.
+      const title = article.querySelector('h2')!;
+      expect(title.compareDocumentPosition(outline) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(outline.compareDocumentPosition(sections[0]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+      // The way back: at the top, as before, and again after the guide.
+      const back = within(container).getAllByRole('link', { name: STRINGS[locale]['docs.all'] });
+      expect(back).toHaveLength(2);
+      for (const link of back) expect(link).toHaveAttribute('href', '/docs');
+      expect(article.compareDocumentPosition(back[1]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+  }
+
+  it('an outline link to the own-app section opens its fold and scrolls to it', async () => {
+    const scrolled = recordScrolls();
+    providerClientsGet.mockResolvedValue({ google: 'deployment', dropbox: 'connection', microsoft: 'connection' });
+    const { container } = renderAt('/docs/google');
+    await waitFor(() => expect(container.querySelector('details')!.open).toBe(false));
+
+    const outline = screen.getByRole('navigation', { name: 'On this page' });
+    // The toggle the closing fired has come and gone, as it has for a reader.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fireEvent.click(within(outline).getByRole('link', { name: 'With your own app' }));
+
+    expect(container.querySelector('details')!.open).toBe(true);
+    expect(scrolled.map((el) => el.id)).toEqual(['own-app']);
+  });
+
+  it('draws no outline for a guide with no sections', () => {
+    renderFixture('# Only a title\n\nAnd a line.');
+    expect(screen.queryByRole('navigation')).toBeNull();
+  });
+
+  it('underlines every link that sits among other words, and lets a code address wrap', () => {
+    const { container } = renderFixture(FIXTURE);
+    const inText = [...container.querySelectorAll('p a, li a')];
+    expect(inText.length).toBeGreaterThanOrEqual(5);
+    for (const a of inText) {
+      expect(a.className.split(/\s+/), a.textContent ?? '').toEqual(
+        expect.arrayContaining(['underline', 'underline-offset-2']),
+      );
+      expect(a.className, a.textContent ?? '').not.toMatch(/(^|\s)hover:underline(\s|$)/);
+    }
+    const code = [...container.querySelectorAll('p code')];
+    expect(code.length).toBeGreaterThan(0);
+    for (const c of code) expect(c.className.split(/\s+/)).toContain('break-words');
+  });
+
+  it.each(['en', 'nl'] as const)('%s: a link that opens a new tab says so, in the reader’s language', (locale) => {
+    const { container } = renderAt('/docs/google', locale);
+    const outside = [...container.querySelectorAll('article a[target="_blank"]')];
+    expect(outside.length).toBeGreaterThan(0);
+    const said = STRINGS[locale]['common.newTab'].replace(/[()]/g, '\\$&');
+    for (const a of outside) {
+      expect(a).toHaveAccessibleName(new RegExp(`\\S\\s*${said}$`));
+      expect(a.querySelector('.sr-only')?.textContent).toBe(` ${STRINGS[locale]['common.newTab']}`);
+    }
+    // And no link that stays in the tab says it.
+    for (const a of container.querySelectorAll('article a:not([target])')) {
+      expect(a.textContent).not.toContain(STRINGS[locale]['common.newTab']);
+    }
+  });
+
+  for (const locale of ['en', 'nl'] as const) {
+    it(`${locale}: the index lists the guides by title, in the reader's alphabet`, () => {
+      const { container } = renderAt('/docs', locale);
+      const titles = [...container.querySelectorAll('section a[href^="/docs/"]')].map((a) => a.textContent!);
+
+      expect(titles).toHaveLength(GUIDE_SLUGS.size);
+      expect(titles).toEqual([...titles].sort((a, b) => a.localeCompare(b, locale)));
+      // The case that was reported: the archive, by its file name, between Apple and Box.
+      const at = (slug: string) => titles.indexOf(container.querySelector(`a[href="/docs/${slug}"]`)!.textContent!);
+      expect(at('apple')).toBeLessThan(at('box'));
+      expect(at('archive')).toBeGreaterThan(at('box'));
+    });
+  }
+
+  for (const locale of ['en', 'nl'] as const) {
+    it(`${locale}: an address with no guide says so in plain words, under Help's tabs, above every guide`, () => {
+      useAuthStore.setState({ tenantCount: 1 });
+      const { container } = renderAt('/docs/nope', locale);
+
+      const tabs = screen.getByRole('navigation', { name: STRINGS[locale]['nav.help'] });
+      const sentence = screen.getByText(STRINGS[locale]['docs.notFound']);
+      expect(tabs.compareDocumentPosition(sentence) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(container.querySelectorAll('section a[href^="/docs/"]')).toHaveLength(GUIDE_SLUGS.size);
+    });
+  }
+
+  it('words the not-found line without a release’s word, in both languages', () => {
+    expect(STRINGS.en['docs.notFound']).toBe('There is no guide at this address. These are all the guides:');
+    expect(STRINGS.nl['docs.notFound']).toBe('Er is geen handleiding op dit adres. Dit zijn alle handleidingen:');
+  });
+
+  it('a guide keeps Help’s tabs, with the guides tab the current one', () => {
+    useAuthStore.setState({ tenantCount: 1 });
+    const { container } = renderAt('/docs/google');
+
+    const tabs = screen.getByRole('navigation', { name: STRINGS.en['nav.help'] });
+    expect(within(tabs).getByRole('link', { name: STRINGS.en['nav.docs'] })).toHaveAttribute('aria-current', 'page');
+    // Above the guide's card.
+    expect(tabs.compareDocumentPosition(container.querySelector('article')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });

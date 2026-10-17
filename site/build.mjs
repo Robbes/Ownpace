@@ -500,13 +500,16 @@ nav.menu .leaving-list a { display: flex; align-items: center; gap: 0.6rem; padd
 .hero-picture { grid-area: picture; margin: 2.25rem 0 0; }
 .hero-leaving { grid-area: leaving; }
 .hero-move { display: block; width: 100%; max-width: 560px; height: auto; }
+/* On a phone the drawing is shrunk to about 0.6, and its data types read at
+   8 pixels: those grow (the UX sweep). The other labels have no room to. */
+@media (max-width: 30rem) { .hero-move .hm-ink { font-size: 17px; } }
 @media (min-width: 60rem) {
   .hero { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-areas: "words picture" "leaving picture"; }
   .hero-picture { margin: 0; align-self: center; }
 }
 /* Three facts under the hero, and How it works in three steps (0152 T3). */
 .facts { margin-top: 0; }
-.facts .card h3 { font-size: 1.05rem; }
+.facts .card h2 { font-size: 1.05rem; margin-top: 0; }
 .strip { list-style: none; padding: 0; margin: 1.5rem 0 0.75rem; display: grid; gap: 1rem 2rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); }
 .strip li { display: flex; gap: 0.9rem; align-items: flex-start; }
 .strip .step { font-size: 1.6rem; line-height: 1; min-width: 1.2ch; color: var(--teal); }
@@ -588,7 +591,7 @@ a.verdict { text-decoration: underline; text-decoration-thickness: 1px; }
   display: flex; flex-direction: column; position: relative;
 }
 .tier.featured { border-color: var(--teal); box-shadow: 0 0 0 1px var(--teal); }
-.tier h3 { margin: 0 0 0.15rem; }
+.tier h2 { font-size: 1.15rem; margin: 0 0 0.15rem; }
 /* Two lines reserved, so a one-line subtitle does not lift its card's price
    out of line with the others. A price column that does not line up reads as
    carelessness on the one page where it costs the most. */
@@ -598,6 +601,9 @@ a.verdict { text-decoration: underline; text-decoration-thickness: 1px; }
 }
 .price { font-size: 1.9rem; font-weight: 700; letter-spacing: -0.02em; }
 .price span { font-size: 0.85rem; font-weight: 500; color: var(--muted); }
+/* The unit on its own line in every paid card, so a price that wraps (Dutch
+   "€2,50 per maand") does not push its card's year out of line. */
+.tier .price span { display: block; margin-top: 0.15rem; }
 .tier ul { list-style: none; padding: 0; margin: 1rem 0; font-size: 0.93rem; }
 .tier ul li { padding: 0.3rem 0; border-top: 1px solid var(--line); }
 .tier .note { color: var(--muted); font-size: 0.9rem; margin-top: auto; padding-top: 1rem; }
@@ -648,7 +654,10 @@ details.qa > p { margin: 0 0 1rem; }
 .calc .amount label { flex-basis: 100%; }
 .calc .amount input { width: 6.5rem; padding: 0.35rem 0.5rem; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--ink); font: inherit; }
 .calc .amount .items { color: var(--muted); font-size: 0.8rem; }
-.calc .amount[data-off] { opacity: 0.45; }
+/* A size that counts for nothing is disabled, and muted rather than faded,
+   so it still reads (a field's own colours would make it look editable). */
+.calc .amount[data-off], .calc .amount[data-off] label { color: var(--muted); }
+.calc .amount input:disabled { color: var(--muted); background: transparent; }
 #paths-line { font-weight: 600; margin: 1.5rem 0 0.5rem; }
 .axes { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin: 1rem 0; }
 .axis { border: 1px solid var(--line); border-radius: 12px; padding: 2.4rem 1.25rem 1rem; position: relative; }
@@ -662,7 +671,7 @@ details.qa > p { margin: 0 0 1rem; }
 .axis[data-decides] .decides { display: inline-block; }
 .axis[data-decides] { border-color: var(--teal); box-shadow: 0 0 0 1px var(--teal); }
 #tier-card { border: 1px solid var(--teal); box-shadow: 0 0 0 1px var(--teal); border-radius: 12px; padding: 1.25rem; margin: 1rem 0; }
-#tier-card h3 { margin: 0 0 0.5rem; }
+#tier-card h2 { font-size: 1.15rem; margin: 0 0 0.5rem; }
 #tier-card ul { list-style: none; padding: 0; margin: 0.75rem 0; }
 #tier-card ul li { padding: 0.3rem 0; border-top: 1px solid var(--line); }
 .calc .fine { color: var(--muted); font-size: 0.9rem; }
@@ -670,7 +679,7 @@ details.qa > p { margin: 0 0 1rem; }
 footer.site { border-top: 1px solid var(--line); margin-top: 5rem; padding: 2.5rem 0 4rem; color: var(--muted); font-size: 0.92rem; }
 footer.site .wrap { display: flex; gap: 2rem; flex-wrap: wrap; justify-content: space-between; }
 footer.site a { color: var(--muted); }
-footer.site .build { font-size: 0.8rem; opacity: 0.7; }
+footer.site .build { font-size: 0.8rem; }
 .skip { position: absolute; left: -9999px; }
 .skip:focus { left: 1rem; top: 1rem; background: var(--bg); padding: 0.5rem 1rem; z-index: 10; }
 `;
@@ -931,13 +940,13 @@ function tierCards(locale) {
           // two prices on sale now: nothing struck through, no former price. A
           // year that does not divide into whole cents stops the build in money().
           `<div class="when-year">
-    <div class="price">${money(t.annual / 12)} <span>${c.tierMonth}</span></div>
-    <div class="price-year">${c.payYearTotal(money(t.annual))}</div>
+    <div class="price">${money(t.annual / 12, locale)} <span>${c.tierMonth}</span></div>
+    <div class="price-year">${c.payYearTotal(money(t.annual, locale))}</div>
     <div class="price-how">${c.payYearHow}</div>
     <div class="half">${c.payHalf}</div>
   </div>
   <div class="when-month">
-    <div class="price">${money(t.monthly)} <span>${c.tierMonth}</span></div>
+    <div class="price">${money(t.monthly, locale)} <span>${c.tierMonth}</span></div>
     <div class="price-how">${c.payMonthHow}</div>
   </div>`;
       // Past Free's data the next tier; past its migrations the first that runs more.
@@ -945,14 +954,14 @@ function tierCards(locale) {
       const terms = free(t)
         ? `<li>${c.tierFreeEdge(next.name, t.paths, wider.name)}</li>`
         : `<li>${c.tierNoSetup}</li>
-    <li>${c.tierThree(money(total(t, 3)))}</li>`;
+    <li>${c.tierThree(money(total(t, 3), locale))}</li>`;
       return `<div class="tier${featured ? ' featured' : ''}">
-  <h3>${t.name}</h3>
+  <h2>${t.name}</h2>
   <p class="who">${esc(c.tierText[t.id].who)}</p>
   ${prices}
   <ul>
     <li>${c.tierPaths(t.paths)}</li>
-    <li>${c.tierData(size(t.dataGb))}</li>
+    <li>${c.tierData(size(t.dataGb, locale))}</li>
     ${terms}
   </ul>
   <p class="note">${esc(c.tierText[t.id].note)}</p>
@@ -1155,7 +1164,7 @@ function leavingPage(locale, page) {
   );
   const cost = free(atOnce)
     ? L.costFree(what, atOnce.name)
-    : `${L.costPaid(what, atOnce.name, money(atOnce.monthly))}${
+    : `${L.costPaid(what, atOnce.name, money(atOnce.monthly, locale))}${
         free(oneByOne) ? ` ${L.costOneAtATime(oneByOne.name)}` : ''
       }`;
   // The calculator opens on this page's case: the source chosen, its data types ticked.
@@ -1196,7 +1205,7 @@ ${SPRITE}
       <a class="btn btn-primary" href="${esc(orderHref(locale, null))}">${c.ctaOrder}</a>
       <a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaPricing}</a>
     </div>
-    <p class="fineprint">${c.heroFree(TIERS[0].name, size(TIERS[0].dataGb), TIERS[0].paths)} ${esc(c.vatIncluded)}</p>
+    <p class="fineprint">${c.heroFree(TIERS[0].name, size(TIERS[0].dataGb, locale), TIERS[0].paths)} ${esc(c.vatIncluded)}</p>
   </div>
   <div class="hero-picture">${heroMove({ ...c.hero, types })}</div>
   <div class="hero-leaving">
@@ -1204,7 +1213,7 @@ ${SPRITE}
     <ul class="leaving-row" aria-labelledby="leaving-label">${LEAVING.map((p) => `<li>${leavingLink(locale, p, 28, false)}</li>`).join('')}</ul>
   </div>
 </section>
-<div class="cards facts">${c.facts.map(([h, p]) => `<div class="card"><h3>${linked(h)}</h3><p>${linked(p)}</p></div>`).join('')}</div>
+<div class="cards facts">${c.facts.map(([h, p]) => `<div class="card"><h2>${linked(h)}</h2><p>${linked(p)}</p></div>`).join('')}</div>
 <h2>${c.nav.how}</h2>
 <ol class="strip">${c.strip.steps
     .map(([h, p], i) => `<li><span class="step" aria-hidden="true">${i + 1}</span><div><h3>${h}</h3><p>${p}</p></div></li>`)
@@ -1221,7 +1230,7 @@ ${cards(c.wont)}
 
 <h2>${c.costTitle}</h2>
 <p>${c.costLede}</p>
-<p>${c.costPick(small.name, money(small.monthly), money(small.annual), small.paths, size(small.dataGb))}</p>
+<p>${c.costPick(small.name, money(small.monthly, locale), money(small.annual, locale), small.paths, size(small.dataGb, locale))}</p>
 <div class="cta">
   <a class="btn btn-primary" href="${urlFor(locale, 'calculator')}">${c.ctaEstimate}</a>
   <a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaAllTiers}</a>
@@ -1308,6 +1317,10 @@ const CALC_GLUE = `
     return Array.prototype.map.call(document.querySelectorAll('input[name="from"]:checked'), function (el) { return el.value; });
   }
   function asked(t) { return cfg.asked.indexOf(t) !== -1; }
+  // Words as a sentence lists them, the last after "and": "mail, contacts and files".
+  function listed(words) {
+    return words.length < 2 ? words.join('') : words.slice(0, -1).join(', ') + ' ' + S.and + ' ' + words[words.length - 1];
+  }
   // A size the page asks for is read from its field; the rest are the
   // assumption for who is moving, said in one line rather than asked.
   function gbOf(t) {
@@ -1343,15 +1356,18 @@ const CALC_GLUE = `
     // ticked source brings is said, and neither counted nor sized.
     var made = migrationsFrom(cfg.offers, from, types);
     var counted = types.filter(function (t) { return made.uncounted.indexOf(t) === -1; });
+    // A size that counts for nothing is off, and its field disabled: typing
+    // there changed nothing, and a faded field still took the keyboard.
     cfg.asked.forEach(function (t) {
       var row = $('amount-' + t);
       if (counted.indexOf(t) === -1) row.setAttribute('data-off', ''); else row.removeAttribute('data-off');
+      $('gb-' + t).disabled = counted.indexOf(t) === -1;
     });
     var small = counted.filter(function (t) { return !asked(t); })
       .reduce(function (sum, t) { return sum + gbOf(t); }, 0);
     var smallLine = $('small-line');
     smallLine.hidden = counted.every(asked);
-    smallLine.textContent = fill(S.smallLine, small < 1 ? S.lessThanOneGb : sizeOf(Math.round(small * 10) / 10));
+    smallLine.textContent = fill(S.smallLine, small < 1 ? S.lessThanOneGb : sizeOf(Math.round(small * 10) / 10, cfg.locale));
     var uncounted = $('uncounted-line');
     uncounted.hidden = from.length === 0 || made.uncounted.length === 0;
     uncounted.textContent = fill(S.uncountedLine, made.uncounted.map(function (t) { return S.what[t]; }).join(', '));
@@ -1360,9 +1376,13 @@ const CALC_GLUE = `
     var gb = counted.reduce(function (sum, t) { return sum + gbOf(t); }, 0);
     gb = Math.round(gb * 10) / 10;
 
+    // Inside the sentence the types are lower case, as words in a sentence are
+    // (it read "E-mail, Contacten, Agenda, Bestanden van Google"), and only
+    // its first letter is a capital.
     var names = made.groups.map(function (g) {
-      return fill(S.fromGroup, g.types.map(function (t) { return S.what[t]; }).join(', '), S.fromName[g.from]);
+      return fill(S.fromGroup, listed(g.types.map(function (t) { return S.whatInText[t]; })), S.fromName[g.from]);
     }).join('; ');
+    names = names.charAt(0).toUpperCase() + names.slice(1);
     $('paths-line').textContent =
       from.length === 0 ? S.pathsNoSource
         : paths === 0 ? S.pathsNone
@@ -1371,14 +1391,18 @@ const CALC_GLUE = `
 
     var b = band(gb);
     $('axis-paths-val').textContent = String(paths);
-    $('axis-data-val').textContent = sizeOf(gb);
+    $('axis-data-val').textContent = sizeOf(gb, cfg.locale);
     $('band-line').textContent = fill(S.bandLine, b.low, b.high);
 
     var d = deriveTier(cfg.tiers, paths, gb);
     var pathsAxis = $('axis-paths'), dataAxis = $('axis-data');
     pathsAxis.removeAttribute('data-decides'); dataAxis.removeAttribute('data-decides');
-    if (d.decidedBy === 'paths' || d.decidedBy === 'both') pathsAxis.setAttribute('data-decides', '');
-    if (d.decidedBy === 'data' || d.decidedBy === 'both') dataAxis.setAttribute('data-decides', '');
+    // On the first tier neither number forces anything, so neither card says
+    // it decides: both did, beside "That lands on Free".
+    if (d.tier !== cfg.tiers[0]) {
+      if (d.decidedBy === 'paths' || d.decidedBy === 'both') pathsAxis.setAttribute('data-decides', '');
+      if (d.decidedBy === 'data' || d.decidedBy === 'both') dataAxis.setAttribute('data-decides', '');
+    }
 
     var card = $('tier-card'), beyond = $('beyond-line');
     if (!d.tier || paths === 0) {
@@ -1395,23 +1419,23 @@ const CALC_GLUE = `
     $('tier-name').textContent = fill(S.tierLine, t.name);
     var next = cfg.tiers[cfg.tiers.indexOf(t) + 1];
     var isFree = freeTier(t);
-    $('tier-monthly').textContent = isFree ? S.tierFree : fill(S.tierMonthly, money(t.monthly));
+    $('tier-monthly').textContent = isFree ? S.tierFree : fill(S.tierMonthly, money(t.monthly, cfg.locale));
     var wider = cfg.tiers.filter(function (w) { return w.paths > t.paths; })[0] || next;
     $('tier-year').textContent = isFree
-      ? fill(S.tierFreeEdge, sizeOf(t.dataGb), next.name, t.paths, wider.name)
-      : fill(S.tierYear, money(t.annual));
+      ? fill(S.tierFreeEdge, sizeOf(t.dataGb, cfg.locale), next.name, t.paths, wider.name)
+      : fill(S.tierYear, money(t.annual, cfg.locale));
     $('tier-pace').hidden = !isFree;
     // Which payment suits the answer to Until when? (0152 T7 (b)): a sentence,
     // not a choice, so the tier stays derived. A month or three paid monthly,
     // in all; six months or until ready, the year, which costs six.
     var months = { m1: 1, m3: 3 }[until];
     $('tier-suits').hidden = isFree;
-    $('tier-suits').textContent = fill(S.suits[until], money(months ? t.monthly * months : t.annual));
+    $('tier-suits').textContent = fill(S.suits[until], money(months ? t.monthly * months : t.annual, cfg.locale));
     order(t, from, counted, who);
 
     var vs = topUpAgainstStepUp(t, next);
     $('topup-line').textContent = !vs ? '' :
-      fill(S.topUpLine, t.name, money(vs.topUpOnce), sizeOf(t.dataGb), next.name, money(vs.stepUpMonthlyMore))
+      fill(S.topUpLine, t.name, money(vs.topUpOnce, cfg.locale), sizeOf(t.dataGb, cfg.locale), next.name, money(vs.stepUpMonthlyMore, cfg.locale))
       + ' ' + fill(S.topUpBreakEven, vs.breakEvenDays);
 
     var gmail = $('gmail-line');
@@ -1419,7 +1443,7 @@ const CALC_GLUE = `
     if (from.indexOf('google') !== -1 && mailGb > 0) {
       var days = gmailMailDays(mailGb);
       var chosen = { m1: 30, m3: 90, m6: 180, ready: null }[until];
-      gmail.textContent = fill(S.gmailCeiling, mailGb, days)
+      gmail.textContent = fill(S.gmailCeiling, Number(mailGb).toLocaleString(cfg.locale), days)
         + (chosen !== null && days > chosen ? ' ' + fill(S.gmailLonger, S.until[until]) : '');
       gmail.hidden = false;
     } else {
@@ -1560,7 +1584,7 @@ function calculatorPage(locale) {
 </div>
 
 <div id="tier-card" hidden>
-  <h3 id="tier-name"></h3>
+  <h2 id="tier-name"></h2>
   <p class="fine">${esc(c.tierDerived)}</p>
   <ul>
     <li id="tier-monthly"></li>
@@ -1611,8 +1635,8 @@ export const SOURCE = {
 
 const META = {
   en: {
-    home: ['Ownpace — move your data at your own pace', 'Move your mail, contacts, calendar and files from Google or Microsoft to a European provider, continuously, and cut over when you are ready.'],
-    how: ['How it works — Ownpace', 'What a migration looks like from the first connection to the cutover.'],
+    home: ['Ownpace — move your data at your own pace', 'Move your mail, contacts, calendar and files from Google or Microsoft to a European provider, continuously, and switch when you are ready.'],
+    how: ['How it works — Ownpace', 'What a migration looks like from the first connection to the switch.'],
     pricing: ['Pricing — Ownpace', 'Five tiers, published in full. Priced on how many migrations run at once and how much data you have moved.'],
     calculator: ['Estimate your migration — Ownpace', 'Five questions, an indicative band, and the tier your answers need. No account, no email, nothing stored.'],
     privacy: ['Privacy policy — Ownpace', 'What Ownpace holds, why, for how long, and what it never does.'],
@@ -1664,7 +1688,7 @@ export function build({ alpha = ALPHA } = {}) {
         body = markdown(md);
         if (key === 'pricing') {
           const beyond = c
-            .beyond(BEYOND.paths, size(BEYOND.dataGb), BEYOND.what)
+            .beyond(BEYOND.paths, size(BEYOND.dataGb, locale))
             .replace('{MAILTO}', `mailto:${SUPPORT_EMAIL}`);
           body = body.replace(
             '<p>[[TIERS]]</p>',

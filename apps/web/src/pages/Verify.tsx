@@ -27,7 +27,7 @@ import type {
 } from '@openmig/shared';
 import { VERIFICATION_DOMAINS } from '@openmig/shared';
 import { startVerification, fetchVerifyReport } from '../services/operating-service.ts';
-import { useT, useFormatters } from '../i18n/index.tsx';
+import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import { isSelfHost } from '../services/edition.ts';
 import MappingHubLink from '../components/MappingHubLink.tsx';
 import type { StringKey } from '../i18n/index.tsx';
@@ -90,29 +90,57 @@ const DOMAIN_KEY: Record<DataTypeVerification['dataType'], StringKey> = {
   tasks: DOMAIN_STRING_KEY.task,
 };
 
+/**
+ * One count on a data type's line, as `MigrationReport`'s `Count` draws it.
+ * Below 640 pixels the line is a grid and the table's header is not drawn, so
+ * the count says its own column above itself; from 640 the header says it, and
+ * the label goes.
+ */
+const Count: React.FC<{ label: string; className: string; last?: boolean; children: React.ReactNode }> = ({
+  label,
+  className,
+  last = false,
+  children,
+}) => (
+  <td className={`flex flex-col justify-between sm:table-cell sm:py-2 ${last ? '' : 'sm:pr-3'} ${className}`}>
+    <span className="text-xs text-gray-500 sm:hidden">{label}</span>
+    <span>{children}</span>
+  </td>
+);
+
 function DomainRow({ d }: { d: DataTypeVerification }): React.ReactElement {
   const t = useT();
   const { number } = useFormatters();
   const s = STATUS_STYLE[d.status];
   return (
-    <tr className="border-b border-gray-100 last:border-0">
-      <td className="py-2 pr-3 font-medium text-gray-900">{t(DOMAIN_KEY[d.dataType])}</td>
-      <td className="py-2 pr-3">
+    // A table row from 640 pixels. Below that, a block of its own: the type and
+    // its result on top, its five counts labelled beneath, so no column waits
+    // behind a sideways scroll a phone does not show. The result takes two of
+    // the three columns: NOT_VERIFIABLE is wider than one.
+    <tr className="grid grid-cols-3 gap-x-2 gap-y-1 border-b border-gray-100 py-2 last:border-0 sm:table-row sm:py-0">
+      <td className="col-span-1 font-medium text-gray-900 sm:table-cell sm:py-2 sm:pr-3">
+        {t(DOMAIN_KEY[d.dataType])}
+      </td>
+      <td className="col-span-2 sm:table-cell sm:py-2 sm:pr-3">
         <span className={`inline-flex items-center gap-1 ${s.className}`} title={t(s.helpKey)}>
           {s.icon}
           {d.status}
         </span>
       </td>
-      <td className="py-2 pr-3 tabular-nums">{number(d.sourceCount)}</td>
-      <td className="py-2 pr-3 tabular-nums">{number(d.targetCount)}</td>
-      <td className="py-2 pr-3 tabular-nums">
+      <Count label={t('verify.th.source')} className="tabular-nums">
+        {number(d.sourceCount)}
+      </Count>
+      <Count label={t('verify.th.target')} className="tabular-nums">
+        {number(d.targetCount)}
+      </Count>
+      <Count label={t('verify.th.missing')} className="tabular-nums">
         {d.missingOnTarget > 0 ? (
           <span className="text-red-700 font-medium">{number(d.missingOnTarget)}</span>
         ) : (
           '0'
         )}
-      </td>
-      <td className="py-2 pr-3 text-xs text-gray-600">
+      </Count>
+      <Count label={t('verify.th.sample')} className="col-span-2 text-xs text-gray-600">
         {/*
           The checksum leg, stated honestly. `checksumUnavailable` is neither a
           match nor a mismatch — the target exposed no content hash for those
@@ -124,32 +152,41 @@ function DomainRow({ d }: { d: DataTypeVerification }): React.ReactElement {
           : `${d.checksumMatches}/${d.checksumSampleSize} ${t('verify.matched')}` +
             (d.checksumMismatches > 0 ? `, ${d.checksumMismatches} ${t('verify.differed')}` : '') +
             (d.checksumUnavailable > 0 ? `, ${d.checksumUnavailable} ${t('verify.notComparable')}` : '')}
-      </td>
-      <td className="py-2 text-xs text-gray-600">
+      </Count>
+      <Count label={t('verify.th.bytes')} className="text-xs text-gray-600" last>
         {d.totalBytesTarget === null ? (
           <span title={t('verify.notMeasured.title')}>{t('verify.notMeasured')}</span>
         ) : (
           number(d.totalBytesTarget)
         )}
-      </td>
+      </Count>
     </tr>
   );
 }
 
 function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }): React.ReactElement {
-  const t = useT();
+  const { t, locale } = useLocale();
+  // In the reader's decimals: 100,0% in Dutch, 100.0% in English.
+  const score = new Intl.NumberFormat(locale, {
+    style: 'percent',
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(r.score);
   // Walked, not listed. The label map below has been total since T5 — and this
   // line listed four, so the Tasks row had a translated name and never a row.
   const domains = VERIFICATION_DOMAINS.map((k) => r[k]);
   const evidence = EVIDENCE_STYLE[r.contentEvidence];
   const issues = domains.flatMap((d) => d.issues.map((i) => ({ ...i, domain: d.dataType })));
+  // Names the table's box below. The appliance draws one report per migration,
+  // so the screen's title would give every box the same name.
+  const headingId = React.useId();
   return (
     <section className="mb-8 p-4 bg-white border border-gray-200 rounded-lg">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <h3 className="font-semibold text-gray-900"><MappingHubLink mappingId={mappingId} /></h3>
+        <h3 id={headingId} className="font-semibold text-gray-900"><MappingHubLink mappingId={mappingId} /></h3>
         <div className="flex items-center gap-3 text-sm">
           <span className={STATUS_STYLE[r.overallStatus].className}>{r.overallStatus}</span>
-          <span className="text-gray-500">{t('verify.score')} {(r.score * 100).toFixed(1)}%</span>
+          <span className="text-gray-500">{t('verify.score')} {score}</span>
           <span className={evidence.className} title={t(evidence.helpKey)}>
             {t(evidence.labelKey)}
           </span>
@@ -163,14 +200,16 @@ function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }):
       >
         {r.canProceedToCutover ? t('verify.ready') : t('verify.notReady')}
         {/* On the SENTENCE a person acts on, not only in the chip above it.
-            "Ready to cut over" with nothing compared is the exact reading this
+            "Ready to switch" with nothing compared is the exact reading this
             field exists to prevent. */}
         {r.contentEvidence === 'none' ? ` ${t('verify.countsOnly')}` : ''}
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
+      {/* The box takes the focus, so a keyboard can scroll it too where it is
+          wider than the screen. Its name is its migration's. */}
+      <div className="overflow-x-auto" tabIndex={0} role="region" aria-labelledby={headingId}>
+        <table className="block w-full text-sm sm:table">
+          <thead className="hidden sm:table-header-group">
             <tr className="text-left text-xs text-gray-500 border-b border-gray-200">
               <th className="py-2 pr-3 font-medium">{t('verify.th.type')}</th>
               <th className="py-2 pr-3 font-medium">{t('verify.th.result')}</th>
@@ -181,7 +220,7 @@ function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }):
               <th className="py-2 font-medium">{t('verify.th.bytes')}</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="block sm:table-row-group">
             {domains.map((d) => (
               <DomainRow key={d.dataType} d={d} />
             ))}
@@ -331,11 +370,11 @@ const Verify: React.FC = () => {
       <h2 className="text-lg font-semibold text-gray-900">{t('verify.title')}</h2>
       <p className="mt-1 mb-4 text-sm text-gray-600">{t('verify.intro')}</p>
 
-      <div className="mb-6 flex items-center gap-3">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
         <button
           onClick={run}
           disabled={state.kind === 'running'}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+          className="inline-flex items-center gap-2 whitespace-nowrap px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {state.kind === 'running' && <Loader2 className="w-4 h-4 animate-spin" />}
           {state.kind === 'done' ? t('verify.runAgain') : t('verify.run')}

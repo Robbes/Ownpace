@@ -27,7 +27,7 @@ import {
 } from '../services/billing-service.ts';
 import { serverMessage } from '../services/api.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
-import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
+import { useT, useFormatters, useLocale, type StringKey } from '../i18n/index.tsx';
 import StateChip from '../components/StateChip.tsx';
 import { isAlpha } from '../components/AlphaNote.tsx';
 import DataCeiling from '../components/DataCeiling.tsx';
@@ -66,6 +66,16 @@ const BILLABLE_COUNTRIES = [
   'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES',
   'SE', 'IS', 'LI', 'NO', 'CH', 'GB',
 ] as const;
+
+/**
+ * Mollie's method types, said as words where a method has no brand. A type
+ * not listed shows as it came, rather than not at all.
+ */
+const METHOD_KEY: ReadonlyMap<string, StringKey> = new Map<string, StringKey>([
+  ['directdebit', 'billing.method.directdebit'],
+  ['creditcard', 'billing.method.creditcard'],
+  ['paypal', 'billing.method.paypal'],
+]);
 
 const inputClass =
   'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -379,14 +389,17 @@ const InvoiceDetailsCard: React.FC<{ free: boolean }> = ({ free }) => {
                     in the field above has no status until it is saved. */}
                 {party?.kind === 'business' && party.vatNumber && (
                   <div className="mt-2 text-sm space-y-1">
+                    {/* Each answer is announced on its own line, not on this
+                        wrapper: it also holds the check button, and a live
+                        region must not hold a control. */}
                     {checkMutation.isPending ? (
-                      <p className="flex items-center gap-1 text-gray-500">
+                      <p role="status" className="flex items-center gap-1 text-gray-500">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         {t('billing.party.vat.checking')}
                       </p>
                     ) : consultation ? (
                       consultation.valid ? (
-                        <div className="space-y-1">
+                        <div role="status" className="space-y-1">
                           <p className="text-green-700">
                             {t('billing.party.vat.valid', { date: dateTime(consultation.checkedAt) })}
                           </p>
@@ -404,7 +417,7 @@ const InvoiceDetailsCard: React.FC<{ free: boolean }> = ({ free }) => {
                           </p>
                         </div>
                       ) : (
-                        <p className="text-red-800">
+                        <p role="status" className="text-red-800">
                           {t('billing.party.vat.invalid', { date: dateTime(consultation.checkedAt) })}
                         </p>
                       )
@@ -414,7 +427,7 @@ const InvoiceDetailsCard: React.FC<{ free: boolean }> = ({ free }) => {
                       </p>
                     )}
                     {checkMutation.isError && (
-                      <p className="text-red-800">
+                      <p role="alert" className="text-red-800">
                         <span className="font-medium">{t('billing.party.vat.checkFailed')}</span>{' '}
                         {serverMessage(checkMutation.error)}
                       </p>
@@ -453,9 +466,13 @@ const InvoiceDetailsCard: React.FC<{ free: boolean }> = ({ free }) => {
                 {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                 {t('billing.party.save')}
               </button>
-              {saved && <span className="text-sm text-green-700">{t('billing.party.saved')}</span>}
+              {saved && (
+                <span role="status" className="text-sm text-green-700">
+                  {t('billing.party.saved')}
+                </span>
+              )}
               {mutation.isError && (
-                <span className="text-sm text-red-800">
+                <span role="alert" className="text-sm text-red-800">
                   <span className="font-medium">{t('billing.party.saveFailed')}</span>{' '}
                   {serverMessage(mutation.error)}
                 </span>
@@ -701,13 +718,17 @@ const TierPanel: React.FC<{ usage: UsageResponse }> = ({ usage }) => {
 
 const Billing: React.FC = () => {
   const t = useT();
-  const { currency, dateTime, day } = useFormatters();
+  const { currency, dateTime, day, month } = useFormatters();
   const { user } = useAuthStore();
   // Mirrors the server's requireRole('owner','admin') — which since the
   // 2026-08-10 owner decision guards the billing READS as well as the
   // writes. A lesser role gets a clean sentence instead of three fetches
   // that can only come back 403 as red error cards.
   const canManage = user?.role === 'owner' || user?.role === 'admin';
+  const methodWord = (type: string): string => {
+    const key = METHOD_KEY.get(type);
+    return key ? t(key) : type;
+  };
 
   const { data: usage, isLoading: usageLoading, error: usageError } = useQuery({
     queryKey: ['billing-usage'],
@@ -782,9 +803,10 @@ const Billing: React.FC = () => {
           <h2 className="text-lg font-semibold text-gray-900">{t('billing.currentUsage')}</h2>
           {usage && (
             // WHICH month, and how fresh — the served period and lastUpdated
-            // were discarded before (0039 T2; 0036's as-of species).
+            // were discarded before (0039 T2; 0036's as-of species). The
+            // period is the bill's `YYYY-MM` key, said as the month in words.
             <p className="text-sm text-gray-500">
-              {t('billing.usagePeriod')} {usage.usage.period} · {t('billing.asOf')}{' '}
+              {t('billing.usagePeriod')} {month(usage.usage.period)} · {t('billing.asOf')}{' '}
               {dateTime(usage.usage.lastUpdated)}
             </p>
           )}
@@ -868,8 +890,10 @@ const Billing: React.FC = () => {
             <div className="space-y-4">
               {invoices?.invoices?.map((invoice: Invoice) => (
                 <div key={invoice.id} className="p-4 bg-gray-50 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
+                  {/* On a phone the chip, the amount and Pay wrap under the
+                      text instead of squeezing it into a narrow column. */}
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                    <div className="min-w-0 flex-1 basis-56">
                       {/* Moneybird's legal number once it numbered the
                           invoice (0111 slice 5): the number the customer's
                           own books quote. A draft has none yet, and says so
@@ -889,14 +913,18 @@ const Billing: React.FC = () => {
                       {/* The period the server actually serves —
                           periodStart/periodEnd. The old field ("period")
                           existed only in the client type, so this line
-                          rendered "Period:" followed by nothing. */}
+                          rendered "Period:" followed by nothing. Days in
+                          words, as the invoice date below says them. */}
                       <p className="text-sm text-gray-500">
-                        {t('billing.period')} {invoice.periodStart} – {invoice.periodEnd}
+                        {t('billing.period')} {day(invoice.periodStart)} – {day(invoice.periodEnd)}
                       </p>
                       {invoice.invoiceDate && (
                         <p className="text-sm text-gray-500">
                           {t('billing.invoiceDate', { date: day(invoice.invoiceDate) })}
-                          {invoice.dueDate && ` · ${t('billing.invoiceDue', { date: day(invoice.dueDate) })}`}
+                          {/* Nothing is paid on a credit note, so it has no due date to say. */}
+                          {invoice.dueDate &&
+                            invoice.kind !== 'credit_note' &&
+                            ` · ${t('billing.invoiceDue', { date: day(invoice.dueDate) })}`}
                         </p>
                       )}
                       {/* What a withdrawal took off it (0111 T7): in full, or a part. */}
@@ -911,9 +939,11 @@ const Billing: React.FC = () => {
                         </p>
                       )}
                       {/* Its document, once Moneybird has numbered it (0111 T6). */}
-                      {invoice.invoiceNumber && invoice.status !== 'draft' && <InvoiceDownload invoiceId={invoice.id} />}
+                      {invoice.invoiceNumber && invoice.status !== 'draft' && (
+                        <InvoiceDownload invoiceId={invoice.id} credit={invoice.kind === 'credit_note'} />
+                      )}
                     </div>
-                    <div className="flex items-center space-x-4">
+                    <div className="flex min-w-0 flex-wrap items-center gap-3">
                       <StateChip entity="invoice" state={invoice.status} />
                       <span className="font-medium text-gray-900">
                         {currency(invoice.total, invoice.currency)}
@@ -981,7 +1011,7 @@ const Billing: React.FC = () => {
                     <CreditCard className="w-5 h-5 text-gray-500" />
                     <div>
                       <p className="font-medium text-gray-900">
-                        {method.brand ?? method.type}
+                        {method.brand ?? methodWord(method.type)}
                         {method.lastFour ? ` •••• ${method.lastFour}` : ''}
                       </p>
                       {method.expiryMonth != null && method.expiryYear != null && (

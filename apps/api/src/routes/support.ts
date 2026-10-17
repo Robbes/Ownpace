@@ -255,7 +255,8 @@ router.get(
                WHERE tenant_id = ${tenantId}::uuid ORDER BY created_at`,
         );
         const invoices = await db.execute(
-          sql`SELECT invoice_id, period_start, period_end, status, total, currency, paid_at
+          sql`SELECT invoice_id, period_start, period_end, status, total, currency, paid_at,
+                     invoice_number, kind
                 FROM public.support_tenant_invoices
                WHERE tenant_id = ${tenantId}::uuid ORDER BY period_start DESC`,
         );

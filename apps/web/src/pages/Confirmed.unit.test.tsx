@@ -22,10 +22,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const { editionFlag } = vi.hoisted(() => ({ editionFlag: { selfhost: false } }));
 vi.mock('../services/edition', () => ({
   isSelfHost: () => editionFlag.selfhost,
+}));
+// The migration's name is read from the query cache the screen already holds;
+// a read past it would be a request no test should make.
+vi.mock('../services/mapping-service', () => ({
+  mappingApi: { get: vi.fn(() => Promise.reject(new Error('not in this test'))) },
 }));
 
 import Confirmed from './Confirmed.tsx';
@@ -356,8 +362,8 @@ describe('the confirmed list screen', () => {
         },
       }),
     );
-    expect(await screen.findByText(/The check stopped at/)).toBeInTheDocument();
-    expect(screen.queryByText(/^Checked/)).not.toBeInTheDocument();
+    expect(await screen.findByText(/Reading back stopped at/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Read back/)).not.toBeInTheDocument();
     expect(screen.getByText(/the target refused/)).toBeInTheDocument();
   });
 
@@ -378,11 +384,11 @@ describe('the confirmed list screen', () => {
         },
       }),
     );
-    const line = await screen.findByText(/This organisation was closed, so the check stopped at/);
+    const line = await screen.findByText(/This organisation was closed, so reading back stopped at/);
     expect(line).toBeInTheDocument();
     expect(line.className).not.toContain('amber');
-    expect(screen.queryByText(/^Checked/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/^The check stopped at/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Read back/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Reading back stopped at/)).not.toBeInTheDocument();
   });
 
   it('says WHY only part of the account was checked, when a pass was paused', async () => {
@@ -396,7 +402,7 @@ describe('the confirmed list screen', () => {
         pausedAt: { kind: 'daily-download-ceiling' } as never,
       }),
     );
-    expect(await screen.findByText(/Only part of the account was checked/)).toBeInTheDocument();
+    expect(await screen.findByText(/Only part of the account was read back/)).toBeInTheDocument();
   });
 
   it('polls the cheap RUNS route while a pass runs, and re-reads the walk once', async () => {
@@ -417,7 +423,7 @@ describe('the confirmed list screen', () => {
     });
     expect(listed).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole('button', { name: /Check the destination/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Read everything back/i }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
@@ -468,7 +474,7 @@ describe('the confirmed list screen', () => {
     });
 
     expect(screen.getByText(/3,500/)).toBeInTheDocument();
-    expect(screen.getByText(/checked so far/)).toBeInTheDocument();
+    expect(screen.getByText(/read back so far/)).toBeInTheDocument();
   });
 
   it('picks the watch back up on a page loaded MID-pass, with nothing pressed', async () => {
@@ -497,7 +503,7 @@ describe('the confirmed list screen', () => {
 
     expect(started).not.toHaveBeenCalled();
     expect(runs).toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: /Check the destination/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Read everything back/i })).toBeDisabled();
   });
 
   it('is not ended by somebody ELSE\'s run — only the confirm pass decides', async () => {
@@ -519,7 +525,7 @@ describe('the confirmed list screen', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    fireEvent.click(screen.getByRole('button', { name: /Check the destination/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Read everything back/i }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
@@ -565,7 +571,7 @@ describe('the confirmed list screen', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    fireEvent.click(screen.getByRole('button', { name: /Check the destination/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Read everything back/i }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(15_000);
     });
@@ -600,7 +606,7 @@ describe('the confirmed list screen', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    fireEvent.click(screen.getByRole('button', { name: /Check the destination/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Read everything back/i }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
@@ -640,9 +646,9 @@ describe('the confirmed list screen', () => {
     // silence — an intermittent failure on this assertion, roughly one run in
     // eighteen, and never when the test ran alone.
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /Check the destination/i })).toBeEnabled(),
+      expect(screen.getByRole('button', { name: /Read everything back/i })).toBeEnabled(),
     );
-    fireEvent.click(screen.getByRole('button', { name: /Check the destination/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Read everything back/i }));
     expect(await screen.findByText(/already running/i)).toBeInTheDocument();
   });
 
@@ -663,7 +669,7 @@ describe('the confirmed list screen', () => {
         <Confirmed />
       </MemoryRouter>,
     );
-    const button = screen.getByRole('button', { name: /Check the destination/i });
+    const button = screen.getByRole('button', { name: /Read everything back/i });
     expect(button).toBeDisabled();
 
     land({ 'mapping-1': queue() });
@@ -688,5 +694,99 @@ describe('the confirmed list screen', () => {
 
     show(queue({ verified: 40, total: 40 }));
     expect(await screen.findByText(/Every item was re-read and matched/)).toBeInTheDocument();
+  });
+});
+
+describe('read on a phone, by keyboard and by finger (the UX sweep)', () => {
+  it('lets the table be scrolled by keyboard: its wrapper is a named, focusable region', async () => {
+    show(queue({ verified: 0, total: 1, rows: [row()] }));
+    const table = await screen.findByRole('table');
+    const region = screen.getByRole('region', { name: 'What can your destination confirm?' });
+    expect(region).toHaveAttribute('tabindex', '0');
+    expect(region).toContainElement(table);
+  });
+
+  it('says what each result means in a fold a finger can open, listing only the results on the page', async () => {
+    // The words explained themselves only on a mouse's hover, on the page a
+    // tester decides from whether their originals can go.
+    show(
+      queue({
+        verified: 2,
+        total: 4,
+        rows: [row({ state: 'missing', naturalKey: '/gone.pdf' }), row({ state: 'unchecked', naturalKey: '/a.pdf' })],
+      }),
+    );
+    const table = await screen.findByRole('table');
+    const summary = screen.getByText('What the results mean');
+    const fold = summary.closest('details');
+    expect(fold, 'the legend is not a fold').not.toBeNull();
+    // Outside the table and outside the breakdown line, which their own
+    // tests read the state words inside of.
+    expect(table).not.toContainElement(fold);
+    expect(screen.getByText('The rest of the account:')).not.toContainElement(fold);
+
+    const legend = within(fold!);
+    expect(legend.getByText('Verified')).toBeInTheDocument();
+    expect(legend.getByText(/matched what we wrote/)).toBeInTheDocument();
+    expect(legend.getByText('Missing')).toBeInTheDocument();
+    expect(legend.getByText(/Keep your original/)).toBeInTheDocument();
+    expect(legend.getByText('Not checked')).toBeInTheDocument();
+    for (const absent of ['Differs', 'Present', 'Yours already', 'Never placed', 'Removed']) {
+      expect(legend.queryByText(absent)).toBeNull();
+    }
+    // Worst first, as the breakdown reads.
+    const said = fold!.textContent ?? '';
+    expect(said.indexOf('Missing')).toBeLessThan(said.indexOf('Not checked'));
+  });
+
+  it('has no legend where there is no result to explain', async () => {
+    show(queue({ verified: 0, total: 0 }));
+    expect(await screen.findByText(/no items yet/i)).toBeInTheDocument();
+    expect(screen.queryByText('What the results mean')).toBeNull();
+  });
+});
+
+describe('the full list is saved under a name a person can read (the UX sweep)', () => {
+  let names: string[];
+  beforeEach(() => {
+    names = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      names.push(this.download);
+    });
+    Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:x'), revokeObjectURL: vi.fn() });
+    vi.mocked(service.fetchConfirmedListExport).mockResolvedValue({
+      blob: new Blob(['a,b\n']),
+      filename: 'confirmed-mapping-1.csv',
+    } as never);
+    listed.mockResolvedValue({ 'mapping-1': queue() } as never);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const atItsAddress = (client?: QueryClient) => {
+    const page = (
+      <MemoryRouter initialEntries={['/mappings/mapping-1/confirmed']}>
+        <Routes>
+          <Route path="/mappings/:mappingId/confirmed" element={<Confirmed />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    return render(client ? <QueryClientProvider client={client}>{page}</QueryClientProvider> : page);
+  };
+
+  it('names the migration and the day, not its id', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(['mapping', 'mapping-1'], { id: 'mapping-1', name: 'Goog2NC' });
+    atItsAddress(client);
+    fireEvent.click(await screen.findByRole('button', { name: 'Download the full list' }));
+    await waitFor(() => expect(names).toHaveLength(1));
+    expect(names[0]).toMatch(/^Ownpace confirmed items - Goog2NC - \d{4}-\d{2}-\d{2}\.csv$/);
+  });
+
+  it('keeps the server’s name where no name is known', async () => {
+    atItsAddress();
+    fireEvent.click(await screen.findByRole('button', { name: 'Download the full list' }));
+    await waitFor(() => expect(names).toEqual(['confirmed-mapping-1.csv']));
   });
 });
