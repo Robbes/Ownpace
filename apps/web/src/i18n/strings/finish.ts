@@ -24,10 +24,15 @@ export const en = {
     'Finished. This migration no longer syncs and nothing is being reported for it.',
   'finish.note.continuous':
     'Continuous. It keeps syncing after cutover. Ending each data type stops it; copies already made stay.',
+  // Each step's state in words, beside its icon (0145 T2's words), so a
+  // screen reader hears what the tick, the triangle and the circle show.
+  'finish.state.done': 'done',
+  'finish.state.attention': 'needs attention',
+  'finish.state.notYet': 'not yet',
   'finish.step1.title': 'Check the copy is complete',
   'finish.step1.pre': 'Compare the two systems and sample the contents.',
   'finish.step1.link': 'Run the check',
-  'finish.step1.post': '. Reads the whole destination, so it takes minutes on a large mailbox.',
+  'finish.step1.post': '. Reads the whole destination, so on a large account it takes minutes.',
   'finish.step2.title': 'Decide what is waiting on you',
   'finish.step1.passed': 'The check passed.',
   'finish.step1.notPassed': 'The check did not pass:',
@@ -47,8 +52,11 @@ export const en = {
   'finish.step2.failures.many': 'could not be copied',
   'finish.step2.deletions': 'deleted on the old system',
   'finish.step2.moves': 'moved',
-  'finish.step2.onlyFirstBlocks':
-    '. Only the first blocks finishing; the new system’s copy answers the other two.',
+  // What really holds up finishing: the ending door refuses over open
+  // failures only, so each sentence is said only where it applies.
+  'finish.step2.blocks': 'Items that could not be copied hold up finishing: decide about each one first.',
+  'finish.step2.doNotBlock':
+    'Deletions and moves do not hold up finishing: their copies on the new system stay as they are.',
   'finish.step3.title': 'Run one final pass',
   'finish.step3.body': 'So the new system reflects the old one as of right now.',
   'finish.step3.run': 'Run a pass now',
@@ -88,9 +96,11 @@ export const en = {
   'finish.ending.phase.cutover': 'In its cutover',
   'finish.ending.phase.done': 'Ended',
   'finish.ending.phase.continuous': 'Keeps migrating after its cutover',
-  'finish.ending.end': 'End {kind}',
-  'finish.ending.keep': 'Keep migrating {kind}',
-  'finish.ending.forceButton': 'End {kind} anyway, leaving them behind',
+  // {kindWord} is the data type lower-cased, as a word mid-sentence is
+  // ('End email'); the Dutch starts with the data type and keeps {kind}.
+  'finish.ending.end': 'End {kindWord}',
+  'finish.ending.keep': 'Keep migrating {kindWord}',
+  'finish.ending.forceButton': 'End {kindWord} anyway, leaving them behind',
   'finish.ending.stopped':
     'You stopped {kind}. End it, or resume it on the migration\'s page to keep migrating it.',
   'finish.ending.failed': 'That did not go through:',
@@ -118,9 +128,12 @@ export const nl: Record<keyof typeof en, string> = {
     'Afgerond. Deze migratie synchroniseert niet meer en er wordt niets meer over gerapporteerd.',
   'finish.note.continuous':
     'Doorlopend. Blijft migreren na de overstap. Elke beëindiging van een gegevenstype stopt dat; kopieën blijven staan.',
+  'finish.state.done': 'klaar',
+  'finish.state.attention': 'vraagt aandacht',
+  'finish.state.notYet': 'nog niet',
   'finish.step1.title': 'Controleer of de kopie volledig is',
   'finish.step1.pre': 'Vergelijk de twee systemen en controleer steekproefsgewijs de inhoud.',
-  'finish.step1.link': 'Voer de controle uit',
+  'finish.step1.link': 'Voer de verificatie uit',
   'finish.step1.post':
     '. Leest de volledige bestemming; bij grote hoeveelheden duurt dit minuten.',
   'finish.step2.title': 'Beslis wat op u wacht',
@@ -142,8 +155,10 @@ export const nl: Record<keyof typeof en, string> = {
   'finish.step2.failures.many': 'konden niet worden gemigreerd',
   'finish.step2.deletions': 'verwijderd op het oude systeem',
   'finish.step2.moves': 'verplaatst',
-  'finish.step2.onlyFirstBlocks':
-    '. Alleen de eerste blokkeert; de kopie op het nieuwe systeem beantwoordt de andere twee.',
+  'finish.step2.blocks':
+    'Items die niet konden worden gemigreerd, houden het afronden tegen: beslis eerst over elk ervan.',
+  'finish.step2.doNotBlock':
+    'Verwijderingen en verplaatsingen houden het afronden niet tegen: hun kopieën op het nieuwe systeem blijven zoals ze zijn.',
   'finish.step3.title': 'Voer één laatste ronde uit',
   'finish.step3.body': 'Zodat het nieuwe systeem het oude weerspiegelt zoals het nu is.',
   'finish.step3.run': 'Voer nu een ronde uit',

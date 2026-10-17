@@ -133,6 +133,11 @@ export const en = {
   'migrationReport.access.lead': 'It still works after this migration, until you remove it.',
   'migrationReport.asOf': 'As it stood on {when}.',
   'migrationReport.download': 'Download the report',
+  // What a saved file is called: this word, the migration's name and the
+  // day (download-name.ts), where it was `completion-report-<id>.md`.
+  'download.report': 'Ownpace report',
+  'download.permissions': 'Ownpace permissions',
+  'download.confirmed': 'Ownpace confirmed items',
   'migrationReport.toConfirmed': 'What is confirmed, item by item',
   'migrationReport.open': 'The report',
 } as const;
@@ -241,6 +246,9 @@ export const nl: Record<keyof typeof en, string> = {
   'migrationReport.access.lead': 'Werkt na deze migratie nog, tot u hem verwijdert.',
   'migrationReport.asOf': 'Stand van {when}.',
   'migrationReport.download': 'Download het rapport',
+  'download.report': 'Ownpace-rapport',
+  'download.permissions': 'Ownpace-rechtenlijst',
+  'download.confirmed': 'Ownpace bevestigde items',
   'migrationReport.toConfirmed': 'Wat is bevestigd, item voor item',
   'migrationReport.open': 'Het rapport',
 };

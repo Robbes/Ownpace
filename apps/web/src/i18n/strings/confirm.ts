@@ -206,10 +206,17 @@ export const en = {
   'decisions.presets.readOnly': 'An owner or admin sets these.',
   // The permission handover, on Finish (workplan 0029 T4, SAD §14.2).
   'permissions.heading': 'Carry the permissions across before you move delivery',
+  // The same panel on a migration that carries no mail (a files-only one):
+  // it has no delivery to move, so it is told the switch instead.
+  'permissions.heading.noMail': 'Carry the permissions across before you switch',
   'permissions.body':
     'Sharing rights do not move with the mail; work the list before delivery moves.',
   'permissions.body.more':
     'Who could see whose calendar, who had access to which shared files: none of that migrated. Get the list, work through it on the new system, and do it before delivery moves; rights added afterwards were missing for however long that took. The list starts with naming what it could not read.',
+  'permissions.body.noMail':
+    'Sharing rights are not migrated; work through the list on the new system before you switch.',
+  'permissions.body.noMail.more':
+    'Who had access to which shared files and folders: none of that migrated. Get the list and work through it on the new system before you switch; rights added afterwards are missing until then. The list starts with naming what it could not read.',
   // In step with the managed report's own sentence for the second blind spot
   // (`DRIVE_SHARING_NOT_INVENTORIED_FOR_A_TESTER` in connectors, the owner,
   // 2026-10-14): a permission that reaches every file in the organisation,
@@ -233,7 +240,7 @@ export const en = {
   'permissions.blindSpot.google':
     'Two blind spots: Gmail delegation and send-as, and Google Calendar sharing.',
   'permissions.blindSpot.google.more':
-    'Who could read or send from someone’s Gmail, and who could see whose calendar: this tool does not read either from Google yet, so note them yourself in the Gmail and Google Calendar settings. Sharing on Google Drive is read, and is in the list.',
+    'Who could read or send from someone’s Gmail, and who could see whose calendar: Ownpace does not read either from Google yet, so note them yourself in the Gmail and Google Calendar settings. Sharing on Google Drive is read, and is in the list.',
   'permissions.download': 'Get the permission list',
   'permissions.failed': 'The permission list could not be fetched.',
   // Shared addresses, on Review & confirm (workplan 0027 T4).
@@ -433,10 +440,15 @@ export const nl: Record<keyof typeof en, string> = {
     'De vaste antwoorden zijn niet gelezen; sommige categorieën worden mogelijk beantwoord zonder te tonen welke.',
   'decisions.presets.readOnly': 'Een eigenaar of beheerder stelt dit in.',
   'permissions.heading': 'Zet de rechten over voordat u de e-mailbezorging omzet',
+  'permissions.heading.noMail': 'Zet de rechten over voordat u overstapt',
   'permissions.body':
     'Deelrechten worden niet gemigreerd met e-mail; werk de lijst door vóór het omzetten.',
   'permissions.body.more':
     'Wie wiens agenda kon zien, wie toegang had tot welke gedeelde bestanden: dat gaat niet mee. Haal de lijst op, werk hem door op het nieuwe systeem, en doe dat vóór het omzetten van de bezorging; rechten die daarna worden toegevoegd ontbreken. De lijst heeft bovenaan staan wat niet kon worden geraadpleegd.',
+  'permissions.body.noMail':
+    'Deelrechten worden niet gemigreerd; werk de lijst door op het nieuwe systeem voordat u overstapt.',
+  'permissions.body.noMail.more':
+    'Wie toegang had tot welke gedeelde bestanden en mappen: dat gaat niet mee. Haal de lijst op en werk hem door op het nieuwe systeem voordat u overstapt; rechten die daarna worden toegevoegd, ontbreken tot dan. De lijst heeft bovenaan staan wat niet kon worden geraadpleegd.',
   'permissions.blindSpot':
     'Twee blinde vlekken: wie het postvak van een ander kon openen of eruit kon verzenden, en delen op OneDrive en SharePoint.',
   'permissions.blindSpot.more':
@@ -448,7 +460,7 @@ export const nl: Record<keyof typeof en, string> = {
   'permissions.blindSpot.google':
     'Twee blinde vlekken: Gmail-gemachtigden en verzenden-als, en delen in Google Agenda.',
   'permissions.blindSpot.google.more':
-    'Wie iemand anders Gmail kon lezen of uit die mailbox kon verzenden, en wie wiens agenda kon zien: dit hulpmiddel leest geen van beide uit bij Google, dus noteer zelf deze instellingen en zet die over. Delen op Google Drive wordt wel gelezen en staan in de lijst.',
+    "Wie iemand anders' Gmail kon lezen of uit die mailbox kon verzenden, en wie wiens agenda kon zien: Ownpace leest geen van beide uit bij Google, dus noteer zelf deze instellingen en zet die over. Delen op Google Drive wordt wel gelezen en staat in de lijst.",
   'permissions.download': 'Haal de rechtenlijst op',
   'permissions.failed': 'De rechtenlijst kon niet worden opgehaald.',
   'sharedAddresses.heading': 'Gevonden gedeelde adressen',
