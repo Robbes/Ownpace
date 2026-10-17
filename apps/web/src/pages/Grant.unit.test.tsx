@@ -152,6 +152,15 @@ describe('what a person sees before consenting', () => {
     expect(document.title).toBe('Verbind uw account — Ownpace');
   });
 
+  it('gives the tab its name back on the way out', async () => {
+    document.title = 'Ownpace';
+    const page = renderPage();
+    await screen.findByRole('heading', { level: 1, name: 'Connect your account' });
+    expect(document.title).toBe('Connect your account — Ownpace');
+    page.unmount();
+    expect(document.title).toBe('Ownpace');
+  });
+
   it('says from which account and to which destination, before the button (0108 T8a)', async () => {
     renderPage();
     const from = await screen.findByText('someone@example.invalid');

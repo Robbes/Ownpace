@@ -93,6 +93,15 @@ const RequestAccess: React.FC = () => {
     const asked = search.get('locale');
     if ((asked === 'en' || asked === 'nl') && asked !== locale) setLocale(asked);
   }, []);
+  // The tab's name goes back to what it was when this page leaves, so the
+  // next screen is not called after this one. Its own effect, run once: a
+  // language switch renames the tab and must not bring the old name back.
+  React.useEffect(() => {
+    const before = document.title;
+    return () => {
+      document.title = before;
+    };
+  }, []);
   // The tab's name.
   React.useEffect(() => {
     document.title = `${t('access.title')} — Ownpace`;

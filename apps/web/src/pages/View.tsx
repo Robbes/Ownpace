@@ -519,6 +519,15 @@ const View: React.FC = () => {
   const one = view.data && !isPersonView(view.data) ? view.data : null;
   const moved = one?.domains.reduce((sum, d) => sum + d.bytesTransferred, 0) ?? 0;
 
+  // The tab's name goes back to what it was when this page leaves, so the
+  // next screen is not called after this one. Its own effect, run once: a
+  // language switch renames the tab and must not bring the old name back.
+  React.useEffect(() => {
+    const before = document.title;
+    return () => {
+      document.title = before;
+    };
+  }, []);
   // The tab's name, as the page's own title says it (the UX sweep, 2026-10-17).
   const title = t(person ? 'view.person.title' : 'view.title');
   React.useEffect(() => {

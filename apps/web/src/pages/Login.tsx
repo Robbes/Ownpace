@@ -92,6 +92,15 @@ const Login: React.FC = () => {
     const known = LOCALES.find((l): l is Locale => l === asked);
     if (known && known !== locale) setLocale(known);
   }, []);
+  // The tab's name goes back to what it was when this page leaves, so the
+  // next screen is not called after this one. Its own effect, run once: a
+  // language switch renames the tab and must not bring the old name back.
+  React.useEffect(() => {
+    const before = document.title;
+    return () => {
+      document.title = before;
+    };
+  }, []);
   // The tab's name; the title already names Ownpace.
   React.useEffect(() => {
     document.title = t('login.title');

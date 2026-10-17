@@ -457,7 +457,7 @@ describe('Login, in a language and as a page', () => {
   });
 
   const renderAt = async (path: string) => {
-    render(
+    const page = render(
       <LocaleProvider>
         <MemoryRouter initialEntries={[path]}>
           <Login />
@@ -467,6 +467,7 @@ describe('Login, in a language and as a page', () => {
     await vi.waitFor(() =>
       expect(screen.queryByText(/checking how to sign in|controleren hoe u zich/i)).toBeNull()
     );
+    return page;
   };
 
   it('arrives in the language the link asked for, whatever the browser says', async () => {
@@ -497,5 +498,13 @@ describe('Login, in a language and as a page', () => {
     expect(within(main).getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Sign in to Ownpace');
     expect(document.title).toBe('Sign in to Ownpace');
+  });
+
+  it('gives the tab its name back on the way out, so the next screen is not called Sign in', async () => {
+    document.title = 'Ownpace';
+    const page = await renderAt('/login');
+    expect(document.title).toBe('Sign in to Ownpace');
+    page.unmount();
+    expect(document.title).toBe('Ownpace');
   });
 });

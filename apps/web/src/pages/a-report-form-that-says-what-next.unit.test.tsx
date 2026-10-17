@@ -12,8 +12,9 @@
  *  - **Where to go once it is sent.** The sent state was the title and one
  *    sentence. Now a link goes back to the page the person came from, the
  *    `?from=` the link beside *Sign out* carries, and to the migrations when
- *    that is not one of this app's own pages: never another site (`//…`),
- *    and never the report form again.
+ *    that is not one of this app's own pages: never another site (`//…`, or
+ *    anything the browser's URL parser reads as one), and never the report
+ *    form again.
  *  - **A chooser in the reader's language.** The bare file input showed the
  *    browser's own words (*Choose File · No file chosen*), unbordered, in a
  *    Dutch form. It is now hidden for the eye and drawn as a button like
@@ -117,7 +118,28 @@ describe('once it is sent', () => {
     );
   });
 
-  it.each(['//evil.example', '/\\evil.example', '/report', '/report?from=%2F', 'https://evil.example/', ''])(
+  it('keeps the page’s own query and fragment', async () => {
+    await renderPage('/mappings/x?tab=moves#log');
+    await send();
+    const back = await screen.findByRole('link', { name: 'Back to the page you were on' });
+    expect(back).toHaveAttribute('href', '/mappings/x?tab=moves#log');
+  });
+
+  // The browser's URL parser has the last word: it drops a tab, line feed or
+  // carriage return and reads `\` as `/`, so each of these is another site
+  // once it is a link, and `/mappings/../report` is this form again.
+  it.each([
+    '//evil.example',
+    '/\\evil.example',
+    '/\t/evil.example',
+    '/\n/evil.example',
+    '/\r/evil.example',
+    '/report',
+    '/report?from=%2F',
+    '/mappings/../report',
+    'https://evil.example/',
+    '',
+  ])(
     'goes to the migrations, not to %j',
     async (from) => {
       await renderPage(from);

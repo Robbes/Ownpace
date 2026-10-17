@@ -279,6 +279,14 @@ describe('RequestAccess, as a page', () => {
     expect(document.title).toBe('Toegang aanvragen — Ownpace');
   });
 
+  it('gives the tab its name back on the way out', () => {
+    document.title = 'Ownpace';
+    const page = renderPage();
+    expect(document.title).toBe('Request access — Ownpace');
+    page.unmount();
+    expect(document.title).toBe('Ownpace');
+  });
+
   it('says under the pale button that the address comes first, and stops once it is typed', async () => {
     const user = userEvent.setup();
     renderPage();

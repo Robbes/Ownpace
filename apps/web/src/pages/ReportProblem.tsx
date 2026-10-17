@@ -331,12 +331,21 @@ const ReportProblem: React.FC = () => {
   if (send.isSuccess) {
     // Back where the person was (the UX sweep, 2026-10-17): `?from=` when it
     // is one of this app's own pages, and not this form again; otherwise the
-    // migrations. `//host` is another site, and a browser reads `/\host` as
-    // `//host`, so neither is taken.
-    const back =
-      from.startsWith('/') && !from.startsWith('//') && !from.startsWith('/\\') && !from.startsWith('/report')
-        ? from
-        : '/mappings';
+    // migrations. The browser's own URL parser decides, not a list of
+    // prefixes: it drops tabs and line breaks and reads `\` as `/`, so
+    // `//host`, `/\host` and `/<tab>/host` all come out as another origin,
+    // and `/x/../report` as this form.
+    const back = (() => {
+      if (!from.startsWith('/')) return '/mappings';
+      try {
+        const here = globalThis.location.origin;
+        const url = new URL(from, here);
+        if (url.origin !== here || url.pathname.startsWith('/report')) return '/mappings';
+        return `${url.pathname}${url.search}${url.hash}`;
+      } catch {
+        return '/mappings';
+      }
+    })();
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-gray-900">{t('report.title')}</h1>

@@ -488,6 +488,16 @@ describe('a person’s progress page', () => {
     await screen.findByRole('heading', { level: 1, name: 'Your migrations' });
     expect(document.title).toBe('Your migrations — Ownpace');
   });
+
+  it('gives the tab its name back on the way out', async () => {
+    readMock.mockResolvedValue(personPayload());
+    document.title = 'Ownpace';
+    const page = renderPage();
+    await screen.findByRole('heading', { level: 1, name: 'Your migrations' });
+    expect(document.title).toBe('Your migrations — Ownpace');
+    page.unmount();
+    expect(document.title).toBe('Ownpace');
+  });
 });
 
 /**
