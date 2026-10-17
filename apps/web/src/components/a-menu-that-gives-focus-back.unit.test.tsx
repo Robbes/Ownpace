@@ -255,6 +255,45 @@ describe('a narrow screen', () => {
   });
 });
 
+/**
+ * A WAY PAST THE MENU (0145 T1's skip link, built in the UX sweep). The
+ * sidebar comes before the page in the document, so on a wide screen a
+ * keyboard went through every entry of the menu, the language switch and
+ * Sign out before it reached the page. The first thing the layout draws is
+ * a link to `<main>`, hidden until it has focus.
+ */
+describe('a link past the menu', () => {
+  /** What Tab reaches, in document order: no `inert` ancestor, no negative tabindex. */
+  const focusable = () =>
+    [...document.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]')].filter(
+      (el) => el.tabIndex >= 0 && !el.closest('[inert]'),
+    );
+
+  it.each([
+    ['a wide screen', true],
+    ['a narrow screen', false],
+  ])('is the first thing Tab reaches on %s, and leads to the page', (_, wide) => {
+    media.wide = wide;
+    renderLayout();
+
+    const skip = focusable()[0];
+    expect(skip?.textContent).toBe('Skip to content');
+    expect(skip).toHaveAttribute('href', '#main');
+    const main = screen.getByRole('main');
+    expect(main).toHaveAttribute('id', 'main');
+    // Focusable by the link, not by Tab: a page is not a stop of its own.
+    expect(main.tabIndex).toBe(-1);
+  });
+
+  it('puts focus on the page when it is followed', () => {
+    renderLayout();
+    const skip = screen.getByRole('link', { name: 'Skip to content' });
+    skip.focus();
+    fireEvent.click(skip);
+    expect(document.activeElement).toBe(screen.getByRole('main'));
+  });
+});
+
 describe('a wide screen', () => {
   it('never makes the sidebar or the page inert', () => {
     media.wide = true;

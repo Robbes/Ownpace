@@ -323,9 +323,9 @@ describe('a new page starts at the top', () => {
     expect(scrollsToTheTop()).toBe(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'history-back' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Accounts' })).toBeInTheDocument();
+    expect(screen.getByRole('banner').textContent).toContain('Accounts');
     fireEvent.click(screen.getByRole('button', { name: 'history-forward' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Migrations' })).toBeInTheDocument();
+    expect(screen.getByRole('banner').textContent).toContain('Migrations');
 
     expect(scrollsToTheTop()).toBe(1);
   });
@@ -357,6 +357,23 @@ describe('a new page starts at the top', () => {
 
     expect(document.getElementById('connect')).not.toBeNull();
     expect(scrolls).toEqual(['top']);
+  });
+});
+
+/**
+ * THE TAB SAYS WHICH PAGE (0145 T3 (b)). Every screen's tab said
+ * *Ownpace - Sovereign Data Migration*, in English, so a list of tabs or a
+ * screen reader's window title told nobody where they were. It now says what
+ * the bar says, in the reader's language, then Ownpace. `index.html` keeps its
+ * own title for the moment before the app has loaded.
+ */
+describe('the tab says which page', () => {
+  it.each([
+    ['en', 'Billing — Ownpace'],
+    ['nl', 'Facturering — Ownpace'],
+  ] as const)('in %s: %s', (locale, title) => {
+    renderAt('/billing', <Route path="/" element={<Layout />}><Route path="*" element={<Page />} /></Route>, locale);
+    expect(document.title).toBe(title);
   });
 });
 

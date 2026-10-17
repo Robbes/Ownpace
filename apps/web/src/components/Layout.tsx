@@ -2,7 +2,7 @@
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router';
 import {
-  FolderGit2,
+  ArrowRightLeft,
   Building2,
   ListTodo,
   LogOut,
@@ -24,8 +24,10 @@ import { isSelfHost } from '../services/edition.ts';
 import { useSignOut } from './SignOut.tsx';
 import { useLocale, useOperatorT } from '../i18n/index.tsx';
 import type { StringKey } from '../i18n/index.tsx';
-import { LOCALES } from '../i18n/strings.ts';
 import BuildStamp from './BuildStamp.tsx';
+import LanguageSwitch from './LanguageSwitch.tsx';
+import NextStepLink from './NextStepLink.tsx';
+import SiteMark from './SiteMark.tsx';
 import { fetchReportingAvailable } from '../services/problem-report-service.ts';
 import { fetchAttention } from '../services/operating-service.ts';
 import { needsYouTotal } from '../services/needs-you.ts';
@@ -42,14 +44,41 @@ import {
   type MappingScreen,
 } from './layout-context.ts';
 
-/** Header titles for the per-mapping screens — the same words as the nav. */
+/** Header titles for the per-mapping screens — the same words as the nav, or the hub's. */
 const SCREEN_TITLE_KEY: Record<MappingScreen, StringKey> = {
   deletions: 'nav.deletions',
   moves: 'nav.moves',
   failures: 'nav.failures',
   verify: 'nav.check',
   finish: 'nav.finish',
+  sharing: 'hub.sharing.name',
+  confirmed: 'hub.confirmed.name',
+  report: 'migrationReport.title',
+  confirm: 'nav.review',
 };
+
+/**
+ * ONE H1 A PAGE (the UX sweep, `a11y-two-h1-per-page`). Each of these managed
+ * pages draws its own `<h1>` (Billing, Migrations, a person's name…), so the
+ * bar's name there is a paragraph and not a second, louder copy of it. Every
+ * other route keeps the bar's `<h1>`: Help's checklist and guides, whose own
+ * titles are `<h2>` by design, the appliance's flat queues, which have none,
+ * and a migration's screens, whose bar names the screen and the migration.
+ * Before adding a route here, check that its page draws an `<h1>`.
+ */
+const OWN_H1_PREFIXES = [
+  '/mappings',
+  '/people',
+  '/start',
+  '/connections',
+  '/decisions',
+  '/tenants',
+  '/billing',
+  '/report',
+  '/support',
+  '/access-requests',
+  '/redirect-uris',
+] as const;
 
 /**
  * THE CONDITION TAILWIND PUTS `lg:` BEHIND, word for word, so the script and
@@ -176,7 +205,7 @@ const Layout: React.FC = () => {
   // Out of the issuer too, not just this tab (2026-09-01): `SignOut.tsx`
   // says why, and the acceptance screen's *Not now* shares it (0139 T3).
   const signOut = useSignOut();
-  const { locale, setLocale, t } = useLocale();
+  const { t } = useLocale();
   const ot = useOperatorT();
 
   // Tenants and Billing are managed-edition concepts: the appliance is
@@ -244,12 +273,14 @@ const Layout: React.FC = () => {
     // Migrations is: every migration it is configured with, and the steps
     // before switching. Its landing once every migration has started.
     ...(selfHost
-      ? [{ name: t('nav.mappings'), href: `/people/${IMPLICIT_PERSON_ID}`, icon: FolderGit2, also: ['/people'] }]
+      ? [{ name: t('nav.mappings'), href: `/people/${IMPLICIT_PERSON_ID}`, icon: ArrowRightLeft, also: ['/people'] }]
       : []),
     ...(member
       ? [
-          // A person's page (0153 T5) is part of Migrations, so it lights it.
-          { name: t('nav.mappings'), href: '/mappings', icon: FolderGit2, also: ['/people'] },
+          // A person's page (0153 T5) is part of Migrations, so it lights it,
+          // and so does Start a migration, which the Migrations page opens: it
+          // said *Ownpace* in the bar and lit nothing (the UX sweep).
+          { name: t('nav.mappings'), href: '/mappings', icon: ArrowRightLeft, also: ['/people', '/start'] },
           // What waits on the person, across every queue: each migration's
           // line, and the decisions that belong to no migration (T6 (b)'s
           // *Needs you*, one word where there were three).
@@ -332,8 +363,63 @@ const Layout: React.FC = () => {
       : [{ name: t('nav.billing'), href: '/billing', icon: CreditCard }]),
   ];
 
+  /**
+   * WHAT THE BAR SAYS, once, for the bar and for the browser's tab (0145 T3
+   * (b)). A screen under a migration says the screen and the migration; the
+   * hub, the migration; anywhere else, the menu entry it belongs to.
+   *
+   * On managed the migration is called by the name it was given, and by
+   * *Migration* until that is read or where it cannot be: never its UUID,
+   * which is what a failed read used to put in the bar, in monospace, over two
+   * lines on a phone (the UX sweep). The id stays the name's tooltip, and in
+   * the hub's Details. The appliance's id is a slug somebody chose; it is the
+   * name there.
+   */
+  const screenTitle = routeCtx?.screen ? t(SCREEN_TITLE_KEY[routeCtx.screen]) : undefined;
+  const migrationName = !routeCtx
+    ? undefined
+    : selfHostEdition
+      ? mappingDisplayName(routeCtx.mappingId, undefined)
+      : headerMapping.data?.name?.trim() || t('hub.fallbackTitle');
+  // Monospace only when what is shown IS the id: on the appliance.
+  const showingId = selfHostEdition;
+  const headerText =
+    migrationName !== undefined
+      ? screenTitle
+        ? `${screenTitle} — ${migrationName}`
+        : migrationName
+      : navigation.find((n) =>
+          [n.href, ...(n.also ?? [])].some((href) => location.pathname.startsWith(href)),
+        )?.name || 'Ownpace';
+  // The tab used to say *Ownpace - Sovereign Data Migration*, in English, on
+  // every screen. `index.html` keeps that title for the moment before the app
+  // has loaded.
+  React.useEffect(() => {
+    document.title = headerText === 'Ownpace' ? 'Ownpace' : `${headerText} — Ownpace`;
+  }, [headerText]);
+  const pageHasOwnH1 =
+    !selfHostEdition &&
+    OWN_H1_PREFIXES.some((p) => location.pathname === p || location.pathname.startsWith(`${p}/`));
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* A way past the menu (0145 T1): the sidebar comes before the page, so
+          a keyboard went through every entry of it, the language switch and
+          Sign out on every page. The first thing Tab reaches, seen only with
+          focus. The click moves focus itself, so the address gets no `#main`
+          and history no entry for it. */}
+      <a
+        href="#main"
+        onClick={(event) => {
+          const main = document.getElementById('main');
+          if (!main) return;
+          event.preventDefault();
+          main.focus();
+        }}
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-blue-700 focus:ring-2 focus:ring-blue-600"
+      >
+        {t('nav.skipToContent')}
+      </a>
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -354,14 +440,15 @@ const Layout: React.FC = () => {
           {/* Logo */}
           <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
             <Link to="/" className="flex items-center space-x-2">
-              <FolderGit2 className="w-8 h-8 text-blue-600" />
+              {/* The site's mark, as on the sign-in page (0152 T9). */}
+              <SiteMark className="w-8 h-8" />
               <span className="text-xl font-bold text-gray-900">Ownpace</span>
             </Link>
             <button
               ref={closeButtonRef}
               onClick={closeDrawer}
               aria-label={t('common.close')}
-              className="lg:hidden text-gray-500 hover:text-gray-700"
+              className="lg:hidden p-2 -mr-2 rounded-md text-gray-500 hover:text-gray-700"
             >
               <X className="w-6 h-6" />
             </button>
@@ -432,23 +519,14 @@ const Layout: React.FC = () => {
             )}
             {/* Language switcher (ADR-0013 / workplan 0024): text-labelled
                 buttons, not an icon — WCAG 2.2 AA per SAD §23. Real on both
-                editions, so it stays on both. */}
-            <div className="flex items-center gap-2 mb-3" aria-label={t('language.label')}>
-              <span className="text-xs text-gray-500">{t('language.label')}:</span>
-              {LOCALES.map((l) => (
-                <button
-                  key={l}
-                  onClick={() => setLocale(l)}
-                  aria-pressed={locale === l}
-                  className={`px-2 py-1 text-xs font-medium rounded ${
-                    locale === l
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  {l.toUpperCase()}
-                </button>
-              ))}
+                editions, so it stays on both. The one the pages outside the
+                layout draw, so it is a named group here too; the visible
+                label is for the eye, the group's name for a screen reader. */}
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs text-gray-500" aria-hidden="true">
+                {t('language.label')}:
+              </span>
+              <LanguageSwitch />
             </div>
             {/* "Report a problem" (workplan 0130), beside Sign out because it is
                 about the session, not a screen: it carries the page the person
@@ -490,14 +568,17 @@ const Layout: React.FC = () => {
       {/* Main content */}
       <div className="lg:pl-64" inert={drawerOpen}>
         {/* Top bar */}
-        <header className="sticky top-0 z-10 flex items-center h-16 px-4 bg-white border-b border-gray-200 lg:px-8">
+        {/* At least h-16, and taller when a migration's long name needs a
+            second line: a fixed h-16 cut the title off at the top on a 360-px
+            phone (the UX sweep). */}
+        <header className="sticky top-0 z-10 flex items-center min-h-16 py-2 px-4 bg-white border-b border-gray-200 lg:px-8">
           <button
             ref={menuButtonRef}
             onClick={() => setSidebarOpen(true)}
             aria-label={t('nav.menu')}
             aria-expanded={drawerOpen}
             aria-controls={drawerId}
-            className="lg:hidden text-gray-500 hover:text-gray-700"
+            className="lg:hidden p-2 -ml-2 rounded-md text-gray-500 hover:text-gray-700"
           >
             <Menu className="w-6 h-6" />
           </button>
@@ -506,13 +587,11 @@ const Layout: React.FC = () => {
                 AND its mapping — the id links back to the hub. Before this,
                 the title fell back to the brand (selfhost) or said only
                 "Mappings" (managed), and the id lived in body text alone. */}
+            {/* text-base on a phone, so a migration's two-line title fits the
+                bar; text-xl from sm up, as it was. */}
             {(() => {
               const ctx = routeCtx;
               if (ctx) {
-                const name = mappingDisplayName(ctx.mappingId, headerMapping.data?.name);
-                // Monospace only when what is shown IS the id; a name the owner
-                // typed is prose and reads as prose.
-                const showingId = !headerMapping.data?.name?.trim();
                 return (
                   <div className="flex items-center gap-3">
                     {/* UP a level, not back in history — see `upHref`. */}
@@ -524,36 +603,31 @@ const Layout: React.FC = () => {
                     >
                       <ArrowLeft className="w-5 h-5" aria-hidden="true" />
                     </Link>
-                    <h1 className="text-xl font-semibold text-gray-900">
-                      {ctx.screen && <>{t(SCREEN_TITLE_KEY[ctx.screen])} — </>}
+                    <h1 className="text-base leading-snug sm:text-xl font-semibold text-gray-900">
+                      {screenTitle && <>{screenTitle} — </>}
                       {ctx.screen ? (
                         // On a screen UNDER the hub the name leads back to it.
                         <Link
                           to={`/mappings/${encodeURIComponent(ctx.mappingId)}`}
-                          className={`${showingId ? 'font-mono text-lg ' : ''}text-blue-700 hover:underline`}
+                          className={`${showingId ? 'font-mono text-base sm:text-lg ' : ''}text-blue-700 hover:underline`}
                           title={ctx.mappingId}
                         >
-                          {name}
+                          {migrationName}
                         </Link>
                       ) : (
                         // On the hub itself it is the page you are on — a link
                         // here pointed at itself, and was the click the owner
                         // made expecting to go back.
-                        <span className={showingId ? 'font-mono text-lg' : ''} title={ctx.mappingId}>
-                          {name}
+                        <span className={showingId ? 'font-mono text-base sm:text-lg' : undefined} title={ctx.mappingId}>
+                          {migrationName}
                         </span>
                       )}
                     </h1>
                   </div>
                 );
               }
-              return (
-                <h1 className="text-xl font-semibold text-gray-900">
-                  {navigation.find((n) =>
-                    [n.href, ...(n.also ?? [])].some((href) => location.pathname.startsWith(href)),
-                  )?.name || 'Ownpace'}
-                </h1>
-              );
+              const className = 'text-base leading-snug sm:text-xl font-semibold text-gray-900';
+              return pageHasOwnH1 ? <p className={className}>{headerText}</p> : <h1 className={className}>{headerText}</h1>;
             })()}
           </div>
         </header>
@@ -562,7 +636,7 @@ const Layout: React.FC = () => {
         {/* pb-24 on small screens: Android password managers and the on-screen
             keyboard float an overlay above the viewport bottom, which hid the
             wizard's Next button behind it with nothing left to scroll to. */}
-        <main className="p-4 pb-24 lg:p-8 lg:pb-8">
+        <main id="main" tabIndex={-1} className="p-4 pb-24 lg:p-8 lg:pb-8 focus:outline-none">
           {/* The alpha note (workplan 0131 T1), first: a standing welcome,
               not a failure, on every signed-in page, in the same amber shape as
               the hold below. Nothing unless the deployment runs the alpha, and
@@ -580,6 +654,8 @@ const Layout: React.FC = () => {
               open. Both editions; nothing while the page is current. */}
           <NewVersionPrompt />
           <Outlet />
+          {/* Under a step page of a migration, the way on to the next step. */}
+          {routeCtx?.screen && <NextStepLink mappingId={routeCtx.mappingId} screen={routeCtx.screen} />}
         </main>
       </div>
     </div>
