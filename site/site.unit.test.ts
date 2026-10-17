@@ -498,6 +498,152 @@ describe('the renderer covers what the documents actually use', () => {
 });
 
 /**
+ * THE LEGAL PAGES READ ON A PHONE (the UX sweep). The texts are the owner's and
+ * their sources stay as they are (`a-version-the-tester-accepted` hashes them);
+ * everything here is how `markdown()` renders them. Before: privacy's tables cut
+ * off their last column at 390 pixels, "Version: 1.0 Last updated: 2026-10-11"
+ * ran on as one line and split the date at its last dash, support@ownpace.eu
+ * was text to copy by hand, and 13 to 15 sections had no list to jump from.
+ */
+describe('the legal pages read on a phone (the UX sweep)', () => {
+  const LEGAL = ['privacy.html', 'nl/privacy.html', 'terms.html', 'nl/voorwaarden.html', 'alpha.html', 'nl/alpha.html'];
+  const main = (p: Page): string => p.html.split('<main')[1]?.split('</main>')[0] ?? '';
+  const find = (pages: Page[], file: string): Page => {
+    const found = pages.find((p) => p.file === file);
+    expect(found, `${file} is not among the pages`).toBeDefined();
+    return found!;
+  };
+
+  it('opens each legal page with a list of its sections, one link per section, and not the tester guide', async () => {
+    const pages = await alphaBuild();
+    const { COPY } = (await import('./copy.mjs')) as unknown as { COPY: Record<string, { tocTitle: string }> };
+    for (const file of LEGAL) {
+      const p = find(pages, file);
+      const html = main(p);
+      const toc = /<nav class="toc" aria-labelledby="toc-title"><p id="toc-title" class="toc-title">([^<]*)<\/p><ol>([\s\S]*?)<\/ol><\/nav>/.exec(html);
+      expect(toc, `${file} has no list of its sections`).not.toBeNull();
+      expect(toc![1], `${file}: the list's title is not the page's language`).toBe(COPY[p.locale]!.tocTitle);
+      const sections = [...html.matchAll(/<h2 id="([^"]+)">([\s\S]*?)<\/h2>/g)].map((m) => ({
+        href: `#${m[1]}`,
+        text: m[2]!.replace(/<[^>]+>/g, ''),
+      }));
+      const links = [...toc![2]!.matchAll(/<li><a href="([^"]+)">([\s\S]*?)<\/a><\/li>/g)].map((m) => ({
+        href: m[1]!,
+        text: m[2]!,
+      }));
+      expect(sections.length, `${file} has too few sections for this case to mean anything`).toBeGreaterThan(10);
+      expect(links, `${file}: the list is not one link per section, in order`).toEqual(sections);
+      // Before the first section, so a reader sees it before scrolling past it.
+      expect(html.indexOf('<nav class="toc"'), `${file}: the list comes after a section`).toBeLessThan(
+        html.indexOf('<h2 '),
+      );
+    }
+    for (const file of ['alpha-guide.html', 'nl/alpha-handleiding.html']) {
+      expect(main(find(pages, file)), `${file}: the tester guide's words are approved as they are`).not.toContain(
+        'class="toc"',
+      );
+    }
+  });
+
+  it('puts "Version:" and "Last updated:" on lines of their own, and keeps a date on one line', async () => {
+    const pages = await renderedPages();
+    const header = {
+      'alpha.html': ['Apply to:', 'Version:', 'Last updated:'],
+      'nl/alpha.html': ['Gelden voor:', 'Versie:', 'Laatst bijgewerkt:'],
+      'privacy.html': ['Applies to:', 'Version:', 'Last updated:'],
+      'nl/privacy.html': ['Geldt voor:', 'Versie:', 'Laatst bijgewerkt:'],
+    } as const;
+    for (const [file, labels] of Object.entries(header)) {
+      const html = main(find(pages, file));
+      const [first, ...rest] = labels;
+      expect(html, `${file}: the header's first line`).toContain(`<p><strong>${first}</strong>`);
+      for (const label of rest) {
+        expect(html, `${file}: "${label}" runs on from the line above`).toContain(`<br /><strong>${label}</strong>`);
+      }
+      expect(html, `${file}: the date can break at its dashes`).toMatch(
+        /<strong>(Last updated|Laatst bijgewerkt):<\/strong> <span class="nowrap">\d{4}-\d{2}-\d{2}<\/span>/,
+      );
+    }
+  });
+
+  it('links support@ownpace.eu wherever a legal page writes it, and leaves an address in code as code', async () => {
+    const pages = await renderedPages();
+    const { SUPPORT_EMAIL } = (await import('./prices.mjs')) as unknown as { SUPPORT_EMAIL: string };
+    for (const file of LEGAL) {
+      // Outside the header and the footer, which link it already.
+      const html = main(find(pages, file)).replace(/<a [^>]*>[\s\S]*?<\/a>/g, '');
+      expect(html, `${file}: the support address is text to copy by hand`).not.toContain(SUPPORT_EMAIL);
+      expect(main(find(pages, file)), `${file}: no link to the support address`).toContain(
+        `<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>`,
+      );
+    }
+    for (const p of pages) {
+      expect(main(p), `${p.file}: an address in code became a link`).not.toMatch(/<code>[^<]*<a /);
+    }
+  });
+
+  it('labels every cell of a legal table with its column, so a phone can stack the rows', async () => {
+    const pages = await renderedPages();
+    for (const file of ['privacy.html', 'nl/privacy.html']) {
+      const html = main(find(pages, file));
+      const tables = [...html.matchAll(/<table role="table">([\s\S]*?)<\/table>/g)].map((m) => m[1]!);
+      expect(tables.length, `${file} has no table this case can read`).toBeGreaterThan(1);
+      for (const table of tables) {
+        const heads = [...table.matchAll(/<th role="columnheader">([\s\S]*?)<\/th>/g)].map((m) =>
+          m[1]!.replace(/<[^>]+>/g, ''),
+        );
+        const rows = [...table.matchAll(/<tr role="row">([\s\S]*?)<\/tr>/g)].slice(1);
+        expect(rows.length, `${file}: a table with no rows`).toBeGreaterThan(0);
+        for (const row of rows) {
+          const labels = [...row[1]!.matchAll(/<td role="cell" data-label="([^"]*)">/g)].map((m) => m[1]);
+          expect(labels, `${file}: a row's cells do not carry their columns`).toEqual(heads.slice(0, labels.length));
+          expect(labels.length, `${file}: a cell without its column`).toBe(
+            [...row[1]!.matchAll(/<td\b/g)].length,
+          );
+        }
+      }
+    }
+  });
+});
+
+/**
+ * THE LEAVING… PAGES NAME THINGS AS THE APP DOES (the UX sweep). They said "the
+ * Microsoft 365 button" for a button the app calls *Connect with Microsoft*,
+ * "postbus" where the app and the glossary say *postvak* (Microsoft's own
+ * Dutch) or *mailbox*, and "eigen app" two days after the owner made it
+ * *eigen oauth-app* (GLOSSARY.md, 2026-10-14).
+ */
+describe('the Leaving… pages name things as the app does (the UX sweep)', () => {
+  it("names the Microsoft button by the app's own words, in both languages", async () => {
+    const connect = read('apps/web/src/i18n/strings/connect.ts');
+    const names = [...connect.matchAll(/'account\.microsoft\.connect': '([^']+)'/g)].map((m) => m[1]!);
+    expect(names.length, 'connect.ts no longer has an English and a Dutch name for the button').toBe(2);
+    const [en, nl] = names;
+    const pages = await renderedPages();
+    for (const [file, name] of [
+      ['leaving-microsoft-365.html', en],
+      ['nl/weg-bij-microsoft-365.html', nl],
+    ] as const) {
+      const html = pages.find((p) => p.file === file)?.html ?? '';
+      expect(html, `${file} does not name the button the app shows`).toContain(`<em>${name}</em>`);
+      expect(html, `${file} names a button the app does not have`).not.toMatch(/Microsoft 365 button|Microsoft 365-knop/);
+    }
+  });
+
+  // The Leaving… pages only: "postbus" is the right Dutch for a P.O. Box, which
+  // the owner's legal texts may one day carry, and those words are theirs.
+  it('says no "postbus" and no bare "eigen app" on a Dutch Leaving… page', async () => {
+    const leaving = (await renderedPages()).filter((x) => x.locale === 'nl' && /^leaving/.test(x.key));
+    expect(leaving.length, 'no Dutch Leaving… page was rendered, so this case checks nothing').toBeGreaterThan(0);
+    for (const p of leaving) {
+      const text = p.html.replace(/<[^>]+>/g, ' ');
+      expect(text, `${p.file} says postbus, where the app says postvak or mailbox`).not.toMatch(/postbus/i);
+      expect(text, `${p.file} says eigen app, where the owner says eigen oauth-app`).not.toMatch(/eigen app\b/i);
+    }
+  });
+});
+
+/**
  * THE TESTER GUIDE IS THE ALPHA'S, AND ONLY THE ALPHA'S (workplan 0144 T1).
  *
  * The owner, 2026-10-03: *"Agreed, write the Dutch version on the site"*. One
@@ -745,7 +891,11 @@ describe('the header is short, and no page is left without a link to it (workpla
     for (const page of await renderedPages()) {
       const wide = navLinks(page.html, 'site');
       expect(wide.map((l) => l.text), `${page.file}: the header's pages`).toEqual(expected[page.locale]);
-      expect(wide.at(-1)!.href, `${page.file}: Sign in goes to the app's sign-in`).toBe(SIGN_IN_URL);
+      // In the page's language: the app's sign-in reads ?locale= (the UX sweep),
+      // so a Dutch reader whose browser is English still signs in in Dutch.
+      expect(wide.at(-1)!.href, `${page.file}: Sign in goes to the app's sign-in`).toBe(
+        `${SIGN_IN_URL}?locale=${page.locale}`,
+      );
       // The phone's menu is the same list, so neither can drift from the other.
       expect(navLinks(page.html, 'menu'), `${page.file}: the phone's menu differs from the header`).toEqual(wide);
       // The language switch stays in the header, outside the folded menu.

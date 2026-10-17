@@ -155,7 +155,7 @@ export const COPY = {
       },
       title: { mail: 'Leaving another mail provider' },
       titleOf: (name) => `Leaving ${name}`,
-      lede: { mail: 'What Ownpace moves from a mail provider that is not on this list, and what you do yourself.' },
+      lede: { mail: 'What Ownpace moves from a mail provider that has no page of its own here, and what you do yourself.' },
       ledeOf: (name) => `What Ownpace moves from ${name}, the limits that come with it, and what you do yourself.`,
       photos: 'Photos',
       whatMoves: 'What moves',
@@ -194,7 +194,7 @@ export const COPY = {
         takeout:
           'Google lets no app read a whole photo library. Photos come only through a Google Takeout export, which you ask Google for and put in your new home’s files.',
         otherMailboxes:
-          'The Microsoft 365 button reads the mailbox of the person who signs in. To move other people’s mailboxes as an administrator, your organisation registers an app of its own. A shared mailbox needs one too, and no real shared mailbox has been copied that way yet.',
+          '<em>Connect with Microsoft</em> reads the mailbox of the person who signs in. To move other people’s mailboxes as an administrator, your organisation registers an app of its own. A shared mailbox needs one too, and no real shared mailbox has been copied that way yet.',
         reminders:
           'Reminders arrive as tasks, so your new home must keep task lists, as Soverin and Nextcloud do. A CalDAV server that keeps only calendars refuses them, task by task.',
         icloudDrive:
@@ -224,12 +224,12 @@ export const COPY = {
           'For photos, ask Google for a Takeout export of Google Photos, and put it in a folder called Takeout at the top of your new home’s files.',
         microsoft:
           'Sign in with Microsoft and allow Ownpace to read what you tick: mail, calendars, contacts, OneDrive and To Do.',
-        graph: 'An administrator who moves other people’s mailboxes registers an app in Microsoft Entra instead, once.',
+        graph: 'Are you an administrator moving other people’s mailboxes? Then, instead of the button, your organisation registers an app of its own in Microsoft Entra, once.',
         apple:
           'Create an app-specific password in your Apple Account, and enter it with your Apple Account’s address. Apple offers no sign-in button for this.',
         dropbox: 'Sign in with Dropbox and allow Ownpace to read your files.',
         box: 'Someone creates an app in Box’s developer console, a Box administrator authorises it once, and you enter its client id and secret with the numeric id of the account you leave.',
-        imap: 'Your mail server’s address and your password, or an app password if your provider uses them.',
+        imap: 'Enter your mail server’s address and your password, or an app password if your provider uses those.',
       },
       costTitle: 'A typical cost',
       costPaid: (what, tier, price) => `One person moving their ${what} at once: ${tier}, ${price} a month.`,
@@ -345,6 +345,8 @@ export const COPY = {
     draftBanner:
       'This is a draft. Passages marked like «THIS» are not filled in yet.',
     translationNote: null,
+    // A legal page's list of its sections (build()), above the first.
+    tocTitle: 'On this page',
     /**
      * The pre-preflight calculator (workplan 0088 T3). A CALCULATOR, not a
      * plan selector: the page derives the least tier the answers need and
@@ -528,11 +530,11 @@ export const COPY = {
       },
       title: { mail: 'Weg bij een andere mailaanbieder' },
       titleOf: (name) => `Weg bij ${name}`,
-      lede: { mail: 'Wat Ownpace migreert uit een mailaanbieder die niet in dit rijtje staat, en wat u zelf doet.' },
-      ledeOf: (name) => `Wat Ownpace uit ${name} migreert, de grenzen die daarbij horen, en wat u zelf doet.`,
+      lede: { mail: 'Wat Ownpace migreert uit een mailaanbieder die hier geen eigen pagina heeft, en wat u zelf doet.' },
+      ledeOf: (name) => `Wat Ownpace uit ${name} migreert, de beperkingen die daarbij horen, en wat u zelf doet.`,
       photos: 'Foto’s',
       whatMoves: 'Wat er meegaat',
-      verdict: { moves: 'Gaat mee', limit: 'Gaat mee, met een grens', no: 'Gaat niet mee' },
+      verdict: { moves: 'Gaat mee', limit: 'Gaat mee, met een beperking', no: 'Gaat niet mee' },
       goesTo: 'Gaat naar',
       destShort: { soverin: 'Soverin', nextcloud: 'Nextcloud', jmap: 'een JMAP-server' },
       anyProvider: (protocol) => `elke ${protocol}-aanbieder`,
@@ -554,17 +556,17 @@ export const COPY = {
         'Retention holds': 'bewaarblokkeringen',
         'Other O365 apps': 'de andere Office 365-apps',
       },
-      limitsTitle: 'Grenzen om te kennen',
+      limitsTitle: 'Beperkingen die u moet kennen',
       guideLink: 'In de handleiding',
       limits: {
         gmailDaily: (gb) =>
-          `Google laat een Gmail-postbus lezen tot ${gb} GB per dag, dus een grote postbus kost dagen. Ownpace blijft kopiëren tot alles binnen is, en uw oude account werkt intussen gewoon.`,
+          `Google laat een Gmail-mailbox lezen tot ${gb} GB per dag, dus een grote mailbox kost dagen. Ownpace blijft migreren tot alles binnen is, en uw oude account werkt intussen gewoon.`,
         googleNative:
           'Google Documenten, Spreadsheets, Presentaties en Tekeningen hebben geen bestand om te kopiëren. Ze komen aan in het formaat dat u kiest: OpenDocument, Microsoft Office of pdf. Formulieren, Sites en Mijn kaarten zijn helemaal niet te exporteren.',
         takeout:
           'Google laat geen enkele app een hele fotobibliotheek lezen. Foto’s komen alleen via een Google Takeout-export, die u bij Google aanvraagt en in de bestanden van uw nieuwe thuis zet.',
         otherMailboxes:
-          'De Microsoft 365-knop leest de postbus van wie zich aanmeldt. Om als beheerder de postbussen van anderen te migreren, registreert uw organisatie een eigen app. Een gedeelde postbus heeft die ook nodig, en op die manier is nog geen echte gedeelde postbus gekopieerd.',
+          '<em>Verbinden met Microsoft</em> leest het postvak van wie zich aanmeldt. Om als beheerder de postvakken van anderen te migreren, registreert uw organisatie een eigen oauth-app. Een gedeelde mailbox heeft die ook nodig, en op die manier is nog geen echte gedeelde mailbox gekopieerd.',
         reminders:
           'Herinneringen komen aan als taken, dus uw nieuwe thuis moet takenlijsten bewaren, zoals Soverin en Nextcloud doen. Een CalDAV-server die alleen agenda’s bewaart, weigert ze, taak voor taak.',
         icloudDrive:
@@ -581,7 +583,7 @@ export const COPY = {
       stepKind: {
         button: 'Een knop',
         password: 'Een wachtwoord',
-        app: 'Een eigen app',
+        app: 'Een eigen oauth-app',
         export: 'Een export die u aanvraagt',
       },
       steps: {
@@ -594,12 +596,12 @@ export const COPY = {
           'Vraag voor foto’s bij Google een Takeout-export van Google Foto’s aan, en zet die in een map Takeout bovenaan in de bestanden van uw nieuwe thuis.',
         microsoft:
           'Meld u aan bij Microsoft en geef Ownpace toegang om te lezen wat u aanvinkt: e-mail, agenda’s, contacten, OneDrive en To Do.',
-        graph: 'Een beheerder die de postbussen van anderen migreert, registreert in plaats daarvan één keer een app in Microsoft Entra.',
+        graph: 'Bent u beheerder en migreert u de postvakken van anderen? Registreer dan in plaats van de knop één keer de eigen oauth-app van uw organisatie in Microsoft Entra.',
         apple:
           'Maak een app-specifiek wachtwoord aan in uw Apple-account, en vul het in met het adres van uw Apple-account. Apple biedt hier geen aanmeldknop voor.',
         dropbox: 'Meld u aan bij Dropbox en geef Ownpace toegang om uw bestanden te lezen.',
-        box: 'Iemand maakt een app aan in de ontwikkelaarsconsole van Box, een Box-beheerder geeft die één keer toestemming, en u vult de client-id en het geheim ervan in, met het numerieke id van het account dat u verlaat.',
-        imap: 'Het adres van uw mailserver en uw wachtwoord, of een app-wachtwoord als uw aanbieder die gebruikt.',
+        box: 'Iemand maakt een eigen oauth-app aan in de ontwikkelaarsconsole van Box, een Box-beheerder geeft die één keer toestemming, en u vult de client-id en het geheim ervan in, met het numerieke id van het account dat u verlaat.',
+        imap: 'Vul het adres van uw mailserver en uw wachtwoord in, of een app-wachtwoord als uw aanbieder die gebruikt.',
       },
       costTitle: 'Wat het meestal kost',
       costPaid: (what, tier, price) => `Eén persoon die ${what} tegelijk migreert: ${tier}, ${price} per maand.`,
@@ -702,6 +704,7 @@ export const COPY = {
     // exception"; terms briefing, question 15). Printed above the Dutch privacy and terms pages.
     translationNote:
       'Deze vertaling is er voor uw gemak. Bij verschillen is de Engelse versie de tekst die geldt, behalve waar dwingend consumentenrecht anders bepaalt.',
+    tocTitle: 'Op deze pagina',
     calc: {
       title: 'Wat zou het bij u kosten?',
       lede:

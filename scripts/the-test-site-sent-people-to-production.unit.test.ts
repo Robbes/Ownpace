@@ -123,7 +123,10 @@ function buildFor(
       '--',
       ...(opts.public ? ['--public'] : []),
     ],
-    { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] as const },
+    // Every page's HTML passed 1 MiB, the default buffer, in the UX sweep (the
+    // legal tables' column labels, the contents lists): the build was fine and
+    // this read ENOBUFS. The size of the site is not what this file guards.
+    { env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] as const },
   );
   return { status: 0, stdout: r, stderr: '' };
 }
