@@ -706,6 +706,10 @@ export const ScopeManifestEntrySchema = z.object({
   detail: z.string(),
   more: z.string().optional(),
   appliesTo: z.array(z.enum(SCOPE_FAMILIES)).optional(),
+  /** The data types the row is about (the UX sweep, 2026-10-17): named for
+   *  the reason `appliesTo` is, or a row about mail is shown under a
+   *  calendar. */
+  domains: z.array(z.enum(DISCOVERY_DOMAINS)).optional(),
   /** The row's guide section, linked beside it (0148 T7). One this build
    *  does not know is dropped rather than failing the whole manifest. */
   guide: z

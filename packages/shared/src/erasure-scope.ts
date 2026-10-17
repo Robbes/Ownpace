@@ -91,7 +91,7 @@ const BOUNDARIES: readonly BoundaryCopy[] = [
       body:
         'De e-mail, agenda’s, contacten en bestanden die wij hebben gekopieerd, staan in uw ' +
         'eigen systeem, in uw eigen account, en die blijven daar. Het opzeggen van uw account ' +
-        'komt niet aan uw nieuwe postbus en verwijdert daar geen enkel bericht. Wat wij wissen is ' +
+        'komt niet aan uw nieuwe postvak en verwijdert daar geen enkel bericht. Wat wij wissen is ' +
         'onze REGISTRATIE van de migratie — de lijst van wat waarheen is gekopieerd, en alles ' +
         'wat wij hebben opgeslagen om te kunnen kopiëren — niet de kopieën zelf.',
     },

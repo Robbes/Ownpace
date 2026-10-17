@@ -68,7 +68,7 @@ export const en = {
   // copied for 50 minutes a day, which was true and was the defect.
   'settings.schedule.hint': 'Passes run back to back until the first copy is done.',
   'settings.schedule.hint.why':
-    'A pass runs at most 50 minutes. Until every data type has been copied once in full, the next pass starts as soon as the last one ends, and no sooner than 15 minutes after it started, whatever this schedule says. A daily download limit at the source is waited out first. After that, passes follow this schedule and migrate only what is new or has changed. Items that could not be migrated wait for you on the Failures screen. On Automatic the days count from when everything was migrated, or from the last time someone opened this migration or pressed Trigger sync, whichever is later.',
+    'A pass runs at most 50 minutes. Until every data type has been copied once in full, the next pass starts as soon as the last one ends, and no sooner than 15 minutes after it started, whatever this schedule says. A daily download limit at the source is waited out first. After that, passes follow this schedule and migrate only what is new or has changed. Items that could not be migrated wait for you on the Failures screen. On Automatic the days count from when everything was migrated, or from the last time someone opened this migration or pressed Sync now, whichever is later.',
   // Free's pace (workplan 0157 T4): one pass a day outside the alpha, whatever
   // the schedule; the faster cadences are not offered, and this says why, with
   // the link after it as the way to a higher tier. Also what a schedule the
@@ -186,14 +186,14 @@ export const en = {
   'sharing.alone.missing': 'missing:',
   'sharing.notPlacedYet':
     'Found before this tool could group by folder. Refresh from the source to fold them.',
-  'tenants.title': 'Team & organization',
+  'tenants.title': 'Team & organisation',
   'tenants.intro':
-    'Who can sign in to this organization and what they may do.',
-  'tenants.noTenant': 'No organization in this session.',
+    'Who can sign in to this organisation and what they may do.',
+  'tenants.noTenant': 'No organisation in this session.',
   'tenants.selfDemotionArmed':
     'This lowers your own role; you may not be able to change it back yourself.',
   'tenants.selfDemotionConfirm': 'Confirm role change',
-  'tenants.org.heading': 'Organization',
+  'tenants.org.heading': 'Organisation',
   // The organisation's phone number (workplan 0108 T8a): optional, and shown
   // on the grant page to the people the organisation asks.
   'tenants.org.phone': 'Phone number',
@@ -201,7 +201,7 @@ export const en = {
   'tenants.org.phone.save': 'Save',
   'tenants.org.phone.saved': 'Saved.',
   'tenants.org.phone.none': 'None given.',
-  'tenants.org.readError': "Could not read the organization's details.",
+  'tenants.org.readError': "Could not read the organisation's details.",
   'tenants.org.rename': 'Rename',
   'tenants.org.renameSave': 'Save name',
   'tenants.org.renameCancel': 'Cancel',
@@ -214,6 +214,8 @@ export const en = {
   'tenants.members.statusHeader': 'Status',
   'tenants.members.invitedHeader': 'Invited',
   'tenants.members.joinedHeader': 'Joined',
+  // The buttons' column, named for a screen reader only: its buttons say what they do.
+  'tenants.members.actionsHeader': 'Actions',
   'tenants.members.remove': 'Remove',
   'tenants.members.removeArmed': 'Confirm remove',
   // An open invitation's mail, again (0156 T3).
@@ -223,7 +225,7 @@ export const en = {
   // The invitation is mailed since 0156 T3 (the owner, 2026-10-03). The
   // line said "No email yet; tell them yourself" until then, which was true.
   'tenants.invite.hint':
-    'We email them where to sign in; they appear below as invited.',
+    'We email them where to sign in; they appear above as invited.',
   // What became of the mail, after Invite or Send again. Each leaves the
   // inviter a different thing to do, so each says it.
   'tenants.invite.mail.sent': 'Invitation emailed to {email}.',
@@ -413,12 +415,13 @@ export const nl: Record<keyof typeof en, string> = {
   'tenants.members.statusHeader': 'Status',
   'tenants.members.invitedHeader': 'Uitgenodigd',
   'tenants.members.joinedHeader': 'Toegetreden',
+  'tenants.members.actionsHeader': 'Acties',
   'tenants.members.remove': 'Verwijderen',
   'tenants.members.removeArmed': 'Bevestig verwijderen',
   'tenants.members.resend': 'Opnieuw sturen',
   'tenants.readOnly': 'Uw rol hier is alleen-lezen. Een eigenaar of beheerder beheert de leden.',
   'tenants.invite.heading': 'Iemand uitnodigen',
-  'tenants.invite.hint': 'We mailen hoe zij zich aanmelden; hieronder staan ze als uitgenodigd.',
+  'tenants.invite.hint': 'We mailen hoe zij zich aanmelden; hierboven staan ze als uitgenodigd.',
   'tenants.invite.mail.sent': 'Uitnodiging gemaild naar {email}.',
   'tenants.invite.mail.off':
     'Uitnodiging voor {email} opgeslagen, maar deze installatie verstuurt geen e-mail: vertel het hun zelf.',

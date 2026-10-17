@@ -29,7 +29,14 @@
  *   page's words;
  * - a person to write to (0144 T6 (a)) and the build stamp
  *   (`scripts/a-version-you-can-see-before-you-sign-in.unit.test.ts`);
- * - a new page starts at the top, as it does in `Layout` (0145 T3 (a)).
+ * - a new page starts at the top, as it does in `Layout` (0145 T3 (a));
+ * - the tab's title, *Setup guides — Ownpace* (0145 T3 (b)): the bundle's
+ *   own title named no screen and no language.
+ *
+ * THE FRAME AROUND THE GUIDE (the UX sweep, 2026-10-17): the guide's card
+ * starts below the mark instead of on it, and the block under it, the way in,
+ * a person to write to and the build stamp, is a `<footer>`: it sat outside
+ * every landmark.
  *
  * THE ALPHA, AS A VISITOR READS IT (0152 T1 (a); the owner, 2026-10-05: *"Do
  * suggestions for non alpha viewers"*). Not the note: its welcome is written
@@ -60,6 +67,15 @@ const PublicDocs: React.FC = () => {
   const { locale, setLocale } = useLocale();
   const [search] = useSearchParams();
   useNewPageAtTheTop();
+  React.useEffect(() => {
+    // Put the tab's old title back on the way out, so a page that sets none
+    // of its own does not go on calling itself the guides.
+    const before = document.title;
+    document.title = `${t('nav.docs')} — Ownpace`;
+    return () => {
+      document.title = before;
+    };
+  }, [t]);
   /**
    * `?locale=` rides on the guide links of the site's Leaving pages
    * (`site/build.mjs`), so a reader of the Dutch page reads the Dutch guide.
@@ -92,11 +108,11 @@ const PublicDocs: React.FC = () => {
           <AlphaVisitorLine className="mt-4" />
         </header>
 
-        <main>
+        <main className="mt-6">
           <Outlet />
         </main>
 
-        <div className="px-6 mt-8 text-center space-y-2">
+        <footer className="px-6 mt-8 text-center space-y-2">
           <p>
             <Link to="/login" className="text-sm text-site-teal hover:underline">
               {t('access.backToSignIn')}
@@ -104,7 +120,7 @@ const PublicDocs: React.FC = () => {
           </p>
           <SupportLine />
           <BuildStamp />
-        </div>
+        </footer>
       </div>
     </div>
   );

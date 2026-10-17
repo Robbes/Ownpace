@@ -193,7 +193,7 @@ describe('a sign-in that cannot read somebody else’s mailbox, in a tester’s 
         'Die kan alleen worden gelezen via de eigen oauth-app van uw organisatie, met ' +
         'toepassingsmachtigingen die een beheerder heeft goedgekeurd. Een aanmelding ' +
         '(refreshToken) leest alleen het account dat zich aanmeldde. Verwijder refreshToken en ' +
-        'vul clientSecret in, of laat de postbus leeg om uw eigen postbus te lezen.',
+        'vul clientSecret in, of laat het postvak leeg om uw eigen postvak te lezen.',
     );
   });
 

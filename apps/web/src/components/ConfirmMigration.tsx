@@ -385,8 +385,10 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
   // on the appliance's own page. Asked in the wrong vocabulary, a Drive
   // migration had no family and was shown every provider's rows.
   const family = scopeFamilyOfConnectionKind(count.sourceKind ?? '');
+  // And only the rows about what it carries (the UX sweep, 2026-10-17): its
+  // own `syncConfig.domains`, as the count reads them.
   const scoped =
-    manifest.data && scopeManifestFor(manifest.data, family ? [family] : []);
+    manifest.data && scopeManifestFor(manifest.data, family ? [family] : [], count.expected);
 
   const startMutation = useMutation({
     mutationFn: () => mappingApi.start(mappingId),

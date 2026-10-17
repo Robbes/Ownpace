@@ -17,6 +17,12 @@
  * refuses every door that stores a credential on the same reading, so this is
  * the notice and not the lock.
  *
+ * A failed read is not a dead end (the UX sweep, 2026-10-17). This stands in
+ * for the layout, so the sidebar's *Sign out* and *Help* are not there, and a
+ * 403's sentence tells the person to sign out. So under *Try again* it offers
+ * *Sign out*, a person to write to, the status page and the build stamp, as
+ * the sign-in page does. Each front is the page's one `main`.
+ *
  * ## Only a bundle built for the Alpha asks on load (review of 2026-09-29)
  *
  * The deployment that asks is the Alpha's (`OWNPACE_STAGE=alpha`), and its
@@ -56,6 +62,10 @@ import {
 import { onConditionsNotAccepted } from '../services/conditions-refused.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { isAlpha } from './AlphaNote.tsx';
+import { useSignOut } from './SignOut.tsx';
+import SupportLine from './SupportLine.tsx';
+import StatusLink from './StatusLink.tsx';
+import BuildStamp from './BuildStamp.tsx';
 import Acceptance from '../pages/Acceptance.tsx';
 
 /** One reading per organisation acted as: acceptance is recorded per organisation. */
@@ -65,6 +75,7 @@ const AcceptanceGate: React.FC<{ readonly children: React.ReactNode }> = ({ chil
   const t = useT();
   const selfhost = isSelfHost();
   const tenantId = useAuthStore((s) => s.tenantId);
+  const signOut = useSignOut();
   const queryClient = useQueryClient();
   const key = acceptanceQueryKey(tenantId);
 
@@ -97,15 +108,17 @@ const AcceptanceGate: React.FC<{ readonly children: React.ReactNode }> = ({ chil
   if (asks && reading.isPending) {
     front = (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <p role="status" className="text-sm text-gray-600">
-          {t('acceptance.checking')}
-        </p>
+        <main>
+          <p role="status" className="text-sm text-gray-600">
+            {t('acceptance.checking')}
+          </p>
+        </main>
       </div>
     );
   } else if (asks && reading.isError) {
     front = (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="max-w-md w-full text-center space-y-4">
+        <main className="max-w-md w-full text-center space-y-4">
           <p role="alert" className="text-sm text-red-600">
             {t('acceptance.readFailed')} {acceptanceFailure(reading.error, 'read', t)}
           </p>
@@ -116,7 +129,19 @@ const AcceptanceGate: React.FC<{ readonly children: React.ReactNode }> = ({ chil
           >
             {t('acceptance.retry')}
           </button>
-        </div>
+          <button
+            type="button"
+            onClick={signOut}
+            className="block mx-auto text-sm text-gray-700 underline hover:text-gray-900"
+          >
+            {t('nav.signOut')}
+          </button>
+          <SupportLine />
+          <div>
+            <StatusLink />
+          </div>
+          <BuildStamp />
+        </main>
       </div>
     );
   } else if (asks && reading.data?.due) {

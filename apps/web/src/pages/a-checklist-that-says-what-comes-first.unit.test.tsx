@@ -290,6 +290,23 @@ describe("each new profile names what its card's guide names (0148 T5 (a))", () 
     }
   });
 
+  /**
+   * BOTH DOORS (the UX sweep, 2026-10-17). *Start a migration* opens this
+   * checklist beside a form whose first box is *Your Nextcloud's address*,
+   * and adds `/remote.php/dav` itself; the checklist sent that reader to
+   * *DAV base URL*, which is folded away there. The Accounts page's form asks
+   * for the DAV base URL. The step names each door's box by its own label.
+   */
+  it("the Nextcloud steps name Start a migration's address box as well, on its own page", () => {
+    for (const locale of LOCALES) {
+      const steps = profileText(locale, 'target', 'nextcloud');
+      expect(steps, locale).toContain(words(locale, 'start.to.nextcloudAddress'));
+      expect(steps, locale).toContain(words(locale, 'mappings.new'));
+      expect(steps, locale).toContain(words(locale, 'nav.connections'));
+      expect(steps, locale).toContain('https://cloud.example.com');
+    }
+  });
+
   it("the Apple step uses the path the wizard's own line names", () => {
     const path: Readonly<Record<Locale, string>> = {
       en: 'account.apple.com → Sign-In and Security → App-Specific Passwords',

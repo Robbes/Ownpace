@@ -1,8 +1,8 @@
-# Box — the app, the authorization, the three values
+# Box — files, through an app you create
 
 A Box migration authenticates with **your own Box platform app** using the **Client Credentials Grant** — client id + client secret, plus the numeric **user id** of the account being migrated (one subject per migration).
 
-**Why no refresh token, unlike Google and Dropbox:** Box rotates refresh tokens on every use — each refresh answers a new token and invalidates the one just spent. This product stores credentials once, encrypted, and never writes them back, so a stored Box refresh token would authenticate exactly one pass and break the second. The Client Credentials Grant has no rotating state, which is why it is the shape this connector refuses to deviate from.
+**Why no refresh token, unlike Google and Dropbox:** Box rotates refresh tokens on every use — each refresh answers a new token and invalidates the one just spent. This service stores credentials once, encrypted, and never writes them back, so a stored Box refresh token would authenticate exactly one pass and break the second. The Client Credentials Grant has no rotating state, which is why it is the shape this connector refuses to deviate from.
 
 ## What you need {#before}
 
@@ -19,7 +19,7 @@ A Box migration authenticates with **your own Box platform app** using the **Cli
 On the **Configuration** tab:
 
 - App Access Level: **App + Enterprise Access**
-- Application Scopes: **Read all files and folders stored in Box** only — nothing that writes. Read-only by construction: with only the read scope this product could not write to a Box even if it wanted to.
+- Application Scopes: **Read all files and folders stored in Box** only — nothing that writes. Read-only by construction: with only the read scope this service could not write to a Box even if it wanted to.
 - Advanced Features: enable **Generate user access tokens** (this is what lets the token name whose files it reads).
 
 The **Client ID** and **Client Secret** on this tab are two of the three values.
