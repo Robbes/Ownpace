@@ -96,7 +96,11 @@
 #      MINIO_ROOT_PASSWORD and TRIGGER_DB_PASSWORD (D8, T2): each one empty or
 #      published, and whose volume does not exist yet, gets `openssl rand -hex
 #      24`, written through `env-upsert.sh --stdin`. A value the owner set is
-#      kept. No value is on any command line or printed.
+#      kept. No value is on any command line or printed. In the same write,
+#      ZITADEL_ORG_NAME=Ownpace (LIVE_ORG_NAME, stack-kind.sh) when the key is
+#      empty, so the identity provider's first start names its organisation
+#      Ownpace (workplan 0135 open question 8, the owner, 2026-10-17); a name
+#      the owner set is kept.
 #   2. bootstrap-managed.sh --only preflight, --only env (the other secrets;
 #      it never rotates one), then DOCKER_RUNNER_NETWORKS as Compose renders
 #      it must be <project>_ownpace-network (D9), then --only data.
@@ -425,23 +429,36 @@ main() {
 
   # ==== From here on, things change. =================================================
 
-  # ---- 1. The database passwords (D8) ------------------------------------------------
-  if [ "${#generate[@]}" -gt 0 ]; then
-    local key secret pairs=''
-    for key in "${generate[@]}"; do
+  # ---- 1. The database passwords (D8), and the organisation's name -------------------
+  # The name goes in the same write: Ownpace, the owner's answer of 2026-10-17
+  # (0135 open question 8), when ZITADEL_ORG_NAME is empty, so the provider's
+  # first start names its organisation so (managed.yml's
+  # ZITADEL_FIRSTINSTANCE_ORG_NAME). A name the owner set is kept.
+  local key secret pairs='' name_it=0
+  [ -n "$(env_value "$ENV_FILE" ZITADEL_ORG_NAME)" ] || name_it=1
+  if [ "${#generate[@]}" -gt 0 ] || [ "$name_it" -eq 1 ]; then
+    for key in ${generate[@]+"${generate[@]}"}; do
       secret="$(openssl rand -hex 24)" || refuse "openssl rand failed (above). Nothing was written to .env."
       [[ "$secret" =~ ^[0-9a-f]{48}$ ]] || refuse "openssl rand -hex 24 did not give 48 hex characters. Nothing was written to .env."
       pairs+="${key}=${secret}"$'\n'
     done
     secret=''
+    [ "$name_it" -eq 0 ] || pairs+="ZITADEL_ORG_NAME=${LIVE_ORG_NAME}"$'\n'
     if ! printf '%s' "$pairs" | "${SCRIPT_DIR}/env-upsert.sh" --stdin "$ENV_FILE" >/dev/null; then
       pairs=''
       refuse "env-upsert.sh could not write the passwords into live's .env (above)."
     fi
     pairs=''
+  fi
+  if [ "${#generate[@]}" -gt 0 ]; then
     say "generated ${generate[*]} on this machine, into live's .env; no value was printed (workplan 0132 D8)"
   else
     say "the database passwords are live's own already; none was generated"
+  fi
+  if [ "$name_it" -eq 1 ]; then
+    say "the identity provider's organisation will be named ${LIVE_ORG_NAME} (ZITADEL_ORG_NAME, workplan 0135)"
+  else
+    say "ZITADEL_ORG_NAME is set in live's .env already; kept"
   fi
 
   # ---- 2. The first half of the bring-up ------------------------------------------

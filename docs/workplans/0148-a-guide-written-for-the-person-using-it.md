@@ -2,7 +2,14 @@
 
 > **In one line:** Dutch and English customer guides per source and target card, operator text kept in `docs/*-setup.md`, no own-app hints where the deployment carries one, the export archive labelled experimental and readable from the tester's Nextcloud or WebDAV files, `Docs.tsx` extended.
 
-## Status — 2026-10-14 (update this block at the end of every session)
+## Status — 2026-10-17 (update this block at the end of every session)
+
+**2026-10-17: the tester guide read, the card guides not yet (T0).** T0 asks for the Dutch card
+guides to be read in the same sitting as 0144 T0's reading of the tester guide. The owner answered
+the second only, verbatim: *"The Dutch read-through of the tester guide: ok"*. That is 0144 T1's
+Dutch tester guide (`site/pages/nl/alpha-handleiding.md`), recorded in 0144. It is not a reading of
+any guide under `docs/guides/nl/`, and nothing here claims one: T0 stays the owner's. Recorded on
+branch `claude/ownpace-public-readiness-y7orc6-the-owners-sign-in-answers`, not merged.
 
 **2026-10-14, later: the server's other sentences, in a tester's words.** The owner wants every
 sentence a managed Alpha tester reads written for testers, not developers. This is the server's
@@ -1010,7 +1017,7 @@ the owner announced for *Via IMAP* (D5).
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner reads the Dutch guides against live's screens | ⏳ **Owner** | §3. In the same sitting as 0144 T0's reading of the tester guide. Open questions 1 to 5 were answered on 2026-09-24 (D5 to D9). **Before the first invitation.** |
+| T0 The owner reads the Dutch guides against live's screens | ⏳ **Owner** for the card guides; the tester guide beside them (0144 T0) ✅ read 2026-10-17: *"The Dutch read-through of the tester guide: ok"* | §3. In the same sitting as 0144 T0's reading of the tester guide. Open questions 1 to 5 were answered on 2026-09-24 (D5 to D9). **Before the first invitation.** |
 | T1 A customer guide served, operator material left in `docs/` | 🔨 **Built in English**, merged in #1173 (2026-09-25): six guides, the widened lint, the CI filter and D9's line; the Dutch is T4's. 📋 **Decided 2026-09-24** (D1) | §3. The customer text moves to `docs/guides/nl/` and `docs/guides/en/`; the existing `docs/*-setup.md` keep their names and become the operator and self-host documents. The end-user-docs lint is widened so the rule holds. The appliance's `/docs` gains one line pointing to the operator documents (D9). **Before**, for the cards live offers. |
 | T2 No hint to create an app where the deployment carries one | ✅ **done**: (a), (b) and (d) in #1177, merged 2026-09-25 (`035e9262`); (c), the guide's own-app fold (`OwnAppFold` in `Docs.tsx`), in #1173, merged 2026-09-25 (`c47970f5`). 📋 **Decided 2026-09-24** (D2) — *was:* 🟡 **(a), (b) and (d) built** merged in #1177 (2026-09-25); (c) is merged in #1173 (2026-09-25) | §3. (a) the wizard's about-lines and the redirect line under its button, (b) the setup checklist, (c) the guide's own-app section, (d) the create refusals and one Microsoft consent sentence. Each reads the fact the wizard already reads. The appliance keeps its steps. **Before.** |
 | T3 Cards that cannot work on managed are hidden there | 🔨 **Apple tag built 2026-09-24** (D7, both editions) merged in #1176 (2026-09-25) — *was:* 📋 **Decided 2026-09-24**: nothing is hidden on managed. The export archive stays, tagged experimental (D10, replacing D3), and so does *Via IMAP* (D5). The Apple export option is tagged *to be tested* on both editions (D7, D10) | §3. The flag and the hiding are not built (D10). What remains is the Apple tag. **Before.** |

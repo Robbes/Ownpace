@@ -1028,6 +1028,38 @@ front of the instance's. It prints both addresses in its summary. A fresh
 instance has them from `managed.yml`. They are always shown, also before the
 texts are published there (the owner, 2026-10-03).
 
+**A second factor offered, and a lock after ten wrong passwords** (workplan
+0135 T4; the owner, 2026-10-17: *"Two-factor sign-in: yes. Offer, but not
+requireding."* and *"The lockout limit: I proposed 10 wrong passwords."*). The
+login policy forces no second factor (`forceMfa` and `forceMfaLocalOnly` both
+false) and allows two, an authenticator app (TOTP) and a security key (U2F):
+anybody may add one from the provider's console, under their own account, and
+nobody has to. Ten wrong passwords in a row lock an account, until an operator
+unlocks it (`docs/operator-runbook.md`, *A sign-in account locked by wrong
+passwords*); the count starts again after a correct password. The number is
+one constant in `setup-zitadel.sh`, `SIGN_IN_LOCKOUT_PASSWORDS`, and the same
+in `managed.yml` for a fresh instance. Every run writes what differs (a forced
+factor back to not forced, a missing factor added, the number, with the
+policy's limit for codes kept as it was), reads all of it back, also when it
+wrote nothing, and stops if it did not take. Its summary says both under
+`sign-in`. **Enrol yours:** the first human and every operator account can
+make an address the API trusts, so each of them adds a second factor in the
+console (`/ui/console`, the account's own page, its multi-factor section) and
+signs in once with it to see it asked. That is the owner's step, live
+first (workplan 0135 T4a).
+
+**The organisation's name** (workplan 0135 open question 8; the owner,
+2026-10-17: *"The sign-in organisation name on live: "Ownpace": yes"*). The
+console and the sign-in page show the first organisation's name, upstream's
+`ZITADEL` unless `ZITADEL_ORG_NAME` in `.env` says otherwise. Live's is
+`Ownpace`: `stand-up-live.sh` writes it there before the provider's first start,
+and on live an empty key means `Ownpace`, so a live organisation that already
+stands under another name is renamed on the next run. Elsewhere an empty key
+keeps the name it has. A rename keeps the organisation's id, and moves its
+generated domain with the name, so the first user's login name changes from
+`owner@zitadel.<host>` to `owner@ownpace.<host>`; the summary prints the one
+that holds. Testers sign in with their email address, which does not change.
+
 **The mails it sends** (workplan 0135 T6). The five mails a tester can get
 from the provider are in Ownpace's words, in Dutch and English: the one after
 registering (Zitadel's *init* mail, which confirms the address), the one after
@@ -1471,7 +1503,7 @@ Two different jobs, in two different places:
 | --- | --- | --- |
 | See what a customer sees — connections, migrations, what is failing, this month's tier and the evidence for it | **Support**, in Ownpace | It is Ownpace's data. Every read is written to `support_read` against your name, and the screens say so |
 | Change who may act on an organisation, or their role | **Team**, and it belongs to that organisation's owner | Membership *is* authorization (0020 T1). An operator does not hold it, and the roles are theirs to set |
-| Reset a password, clear a lost second factor, disable an account | **The identity provider's console** | Ownpace stores no passwords and never calls the provider's user-management API — ADR-0042's second and third operative rules, and what keeps the issuer swappable |
+| Reset a password, clear a lost second factor, unlock an account locked by ten wrong passwords, disable an account | **The identity provider's console** | Ownpace stores no passwords and never calls the provider's user-management API — ADR-0042's second and third operative rules, and what keeps the issuer swappable |
 
 **Finding somebody.** Support opens with a search box: type part of an email
 address and you get matching people across every organisation, with which one
@@ -3732,7 +3764,10 @@ port, because its fix lists it), and a production name that does not resolve.
    `MINIO_ROOT_PASSWORD` and `TRIGGER_DB_PASSWORD` (Trigger.dev's own database,
    0132 T2) with `openssl rand -hex 24`, each one that is empty or a value this
    repository publishes and whose volume does not exist yet, through
-   `env-upsert.sh --stdin`: on no command line, and never printed (D8).
+   `env-upsert.sh --stdin`: on no command line, and never printed (D8). In the
+   same write, `ZITADEL_ORG_NAME=Ownpace` when that key is empty, so the identity
+   provider names its organisation `Ownpace` from its first start (0135 open
+   question 8); a name you set is kept.
 2. `bootstrap-managed.sh --only preflight`, `--only env`, a check that the
    rendered `DOCKER_RUNNER_NETWORKS` is `ownpace-live_ownpace-network` (D9), and
    `--only data`.

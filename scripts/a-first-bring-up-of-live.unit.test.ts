@@ -1586,6 +1586,9 @@ describe('the first bring-up: the stops, the resume, the checks and the first lo
       expect(called(s, 'openssl')).toEqual(Array(5).fill('openssl rand -hex 24'));
       // Through env-upsert.sh, on stdin: no KEY=VALUE on its command line.
       expect(called(s, 'env-upsert')).toEqual([`env-upsert --stdin ${join(s.compose, '.env')}`]);
+      // In the same write, the provider's organisation is named Ownpace before
+      // its first start, the owner's answer of 2026-10-17 (0135 open question 8).
+      expect(valueOf(s, 'ZITADEL_ORG_NAME')).toBe('Ownpace');
 
       // The order: passwords, preflight, env, data, the runner network,
       // app_user, the password check, then --from trigger.
@@ -1719,13 +1722,14 @@ describe('the first bring-up: the stops, the resume, the checks and the first lo
   );
 
   it(
-    "keeps the owner's own passwords, and generates only what is empty or published",
+    "keeps the owner's own passwords and organisation name, and generates only what is empty or published",
     () => {
       const own = 'a1b2'.repeat(12);
-      const s = stage({ env: { POSTGRES_PASSWORD: own } });
+      const s = stage({ env: { POSTGRES_PASSWORD: own, ZITADEL_ORG_NAME: 'Ownpace Alpha' } });
       const r = run(s, [], { STUB_TRIGGER_STOP: 'account' });
       expect(r.status, r.out).toBe(2);
       expect(valueOf(s, 'POSTGRES_PASSWORD')).toBe(own);
+      expect(valueOf(s, 'ZITADEL_ORG_NAME')).toBe('Ownpace Alpha');
       expect(called(s, 'openssl')).toHaveLength(4);
       expectNothingLeaked(s, r.out, [own]);
     },

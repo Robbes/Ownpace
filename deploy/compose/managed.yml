@@ -835,6 +835,19 @@ services:
       # where the file names come from, is said beside that step.
       ZITADEL_DEFAULTINSTANCE_PRIVACYPOLICY_TOSLINK: ${VITE_LEGAL_SITE_URL:-https://www.ownpace.eu}/nl/voorwaarden.html
       ZITADEL_DEFAULTINSTANCE_PRIVACYPOLICY_PRIVACYLINK: ${VITE_LEGAL_SITE_URL:-https://www.ownpace.eu}/nl/privacy.html
+      # A LOCK AFTER TEN WRONG PASSWORDS, AND A SECOND FACTOR OFFERED, NOT FORCED
+      # (workplan 0135 T4; the owner, 2026-10-17). Upstream's lockout policy
+      # locks nobody (MaxPasswordAttempts 0 in `cmd/defaults.yaml` at v4.19.4).
+      # Read once, at first init, like the lines above: a fresh instance locks
+      # an account after the owner's ten from its first start. ForceMFA is
+      # upstream's false already and is written out so a new default cannot
+      # change it unseen; ForceMFALocalOnly is not a key `cmd/defaults.yaml`
+      # names, so a fresh instance has its zero, false. `instance.go` gives it
+      # TOTP and U2F as second factors. setup-zitadel.sh writes all of it on an
+      # existing instance, from its one SIGN_IN_LOCKOUT_PASSWORDS, and reads it
+      # back on both; a-second-factor-for-the-keys holds the two numbers equal.
+      ZITADEL_DEFAULTINSTANCE_LOCKOUTPOLICY_MAXPASSWORDATTEMPTS: "10"
+      ZITADEL_DEFAULTINSTANCE_LOGINPOLICY_FORCEMFA: "false"
       # NO DAILY REPORT TO ZITADEL (workplan 0139, 2026-09-28). `cmd/defaults.yaml`
       # at v4.19.2 ships `ServicePing.Enabled: true`: once a day, to
       # https://zitadel.com/api/ping, the version, the id, creation date and
@@ -848,6 +861,15 @@ services:
       # `scripts/a-service-that-phones-home.unit.test.ts` fails until you have.
       ZITADEL_SERVICEPING_ENABLED: "false"
       ZITADEL_TELEMETRY_ENABLED: "false"
+      # THE FIRST ORGANISATION'S NAME (workplan 0135 open question 8). Upstream's
+      # is ZITADEL, which the console and the sign-in page show, and from which
+      # the organisation's domain, and so the first human's login name, is
+      # made. Live's is Ownpace from its first start: stand-up-live.sh writes
+      # ZITADEL_ORG_NAME=Ownpace into live's .env before the provider first
+      # starts (the owner, 2026-10-17). Empty keeps upstream's name, as every
+      # other stack has today. Read once, at first init; setup-zitadel.sh
+      # renames an organisation that already stands.
+      ZITADEL_FIRSTINSTANCE_ORG_NAME: ${ZITADEL_ORG_NAME:-ZITADEL}
       # The first human, so a fresh stack has somebody who can sign in.
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: ${ZITADEL_ADMIN_USERNAME:-owner}
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD:?run ./deploy/compose/ensure-env-secrets.sh first}

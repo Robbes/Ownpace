@@ -2,7 +2,56 @@
 
 > **In one line:** Hardening Zitadel sign-in at `id.ownpace.eu` and the OTA instance via `setup-zitadel.sh`: public organisation registration off, `hasProjectCheck`, organisation counts, MFA and lockout, legal links, Dutch and English copy, release watch, orphan accounts.
 
-## Status — 2026-10-16 (update this block at the end of every session)
+## Status — 2026-10-17 (update this block at the end of every session)
+
+**2026-10-17: the owner's answers, built: a lockout at 10, a second factor offered, and live's
+organisation named Ownpace**, on branch
+`claude/ownpace-public-readiness-y7orc6-the-owners-sign-in-answers`, not merged. The owner's
+words, verbatim: *"The lockout limit: I proposed 10 wrong passwords."* (the proposal, repeated
+without change, so accepted at 10; one number to change if the owner says otherwise); *"Two-factor
+sign-in: yes. Offer, but not requireding."*; *"The sign-in organisation name on live: "Ownpace":
+yes"*. (A fourth, *"The Dutch read-through of the tester guide: ok"*, is 0144's and is recorded
+there.)
+
+- **T4b, the lockout.** `setup-zitadel.sh` writes the instance lockout policy with
+  `PUT /admin/v1/policies/password/lockout` (`UpdateLockoutPolicy`, `admin.proto` at v4.19.4) and
+  `maxPasswordAttempts: 10`, only when it differs, `maxOtpAttempts` copied back as read (codes were
+  not answered), and reads it back with `GET /admin/v1/policies/lockout` on the instance and
+  `GET /management/v1/policies/lockout` for the organisation, refusing an organisation policy of
+  its own. The number is `SIGN_IN_LOCKOUT_PASSWORDS=10`, not a `.env` key; `managed.yml` sets
+  `ZITADEL_DEFAULTINSTANCE_LOCKOUTPOLICY_MAXPASSWORDATTEMPTS: "10"` for a fresh instance
+  (upstream's is 0, never). The unlock is in `docs/operator-runbook.md`, *A sign-in account locked
+  by wrong passwords*: the console, or `POST /v2/users` with a `USER_STATE_LOCKED` state query and
+  `POST /v2/users/{userId}/unlock` (`user_service.proto` at v4.19.4), the token in a variable and
+  never printed.
+- **T4c, open question 2: (c).** The login block writes `forceMfa` and `forceMfaLocalOnly` false
+  (it copied them from the instance before) and counts either one true as "not the described
+  policy"; `offer_second_factor` reads both back on every run, also when nothing was written, and
+  refuses a forced one, and adds `SECOND_FACTOR_TYPE_OTP` or `SECOND_FACTOR_TYPE_U2F` if missing
+  (`POST /admin/v1/policies/login/second_factors`, read back with `…/_search`). Both are upstream's
+  default at v4.19.4 already; `managed.yml` writes `ZITADEL_DEFAULTINSTANCE_LOGINPOLICY_FORCEMFA:
+  "false"` out. T4a, the owner's enrolment, stays the owner's; the bring-up guide now says it.
+- **Open question 8, live.** `ZITADEL_ORG_NAME` in `.env` becomes `ZITADEL_FIRSTINSTANCE_ORG_NAME`
+  (`${ZITADEL_ORG_NAME:-ZITADEL}`); `stand-up-live.sh` writes `ZITADEL_ORG_NAME=Ownpace` in step
+  1's write when the key is empty, before the provider's first start; `setup-zitadel.sh` renames a
+  standing organisation with `PUT /management/v1/orgs/me` when the name differs, reads it back,
+  and on live treats an empty key as `Ownpace` (`LIVE_ORG_NAME` in `stack-kind.sh`). Elsewhere an
+  empty key keeps the name: the OTA instance stays as it is. **The rename's effects**, read in
+  `ChangeOrg` and `changeDefaultDomain` at v4.19.4: the organisation keeps its id, so T2's project
+  check, idp-strays.sh and the token's organisation are untouched; the generated domain follows the
+  name (`zitadel.<host>` to `ownpace.<host>`, primary as before, the old one removed), so a login
+  name made from a user name changes, the first human's included; testers sign in by address. The
+  domain is made from the host the call is made to, so if the script reached the provider by a
+  name other than the one it was initialised with, the name changes and the domain stays.
+- **Proved by** `scripts/a-second-factor-for-the-keys.unit.test.ts` (new, 21 cases), the
+  organisation's name in `scripts/a-sign-in-page-in-our-own-words.unit.test.ts` (10 cases more, 38
+  now) and two assertions in `scripts/a-first-bring-up-of-live.unit.test.ts` (177). Against
+  main's scripts: 30 red (20 + 9 + 1), 206 green; with the change, 236 green.
+- **Legal texts:** none mentions a lockout. Privacy §4.4 lists what a sign-in account holds and
+  names no second factor; a tester who adds one adds a TOTP secret or a security key's public key,
+  and a locked account carries its failed-attempt count. Whether §4.4 gains a line is 0139's.
+- **Unverified:** nothing here has called a real Zitadel; the paths and fields are from the
+  v4.19.4 protos and `internal/command`, read on raw.githubusercontent.com.
 
 **2026-10-16: T6's other mails built**, on branch
 `claude/ownpace-public-readiness-y7orc6-the-other-sign-in-mails`, not merged. The first three
@@ -604,7 +653,7 @@ Names used from here on: **live** is the identity provider of `ownpace-live`, at
 | T1 Public organisation registration off | ✅ **done** in #1261, merged 2026-09-28 (`3be0ef03`): `managed.yml` for a fresh instance, `setup-zitadel.sh` for an existing one, read back, and the smoke asks the page; in place on live before its first invitation (D2, D7) — *was:* 🔨 **Built 2026-09-27, not merged**; 📋 **Proposed** | §3. The instance restriction `disallowPublicOrgRegistration`, set by `setup-zitadel.sh` and read back, and set by `managed.yml` for a fresh instance, which live's is. |
 | T2 The project admits its own organisation only | ✅ **done** in #1261, merged 2026-09-28 (`3be0ef03`): created with the check, an existing project updated and read back; in place on live before its first invitation (D2, D7) — *was:* 🔨 **Built 2026-09-27, not merged**; 📋 **Proposed** | §3. `hasProjectCheck` on the Ownpace project, set at creation and on an existing project, and read back. Live's project is created at its first bring-up. This sits beside `tenant_member`, not in its place. |
 | T3 One organisation, recorded and counted again | 📋 **Decided 2026-09-24** (D1) for the record; (a) the count on every run of `setup-zitadel.sh` ✅ **done** in #1272, merged 2026-09-28 (`3408c143`); live's daily count is 0132 T7's — *was:* (a) 🔨 built 2026-09-27, not merged; the count 📋 **Proposed** | §3. The owner's answer covers the OTA instance; live's starts with one. The count is per instance: a count anybody can repeat, a line in the bring-up's summary, daily on live by 0132 T7, nightly on the OTA instance by the gate's own run of `setup-zitadel.sh`. |
-| T4 Second factors for the accounts that hold the keys, and a lockout | ⏳ **Owner** for the enrolment; 📋 **Proposed** for the lockout and forced MFA | §3. The first human and every operator, on each instance, live first; the machine user cannot have one and relies on its token's short life. A lockout threshold. Whether a second factor is forced is open question 2. |
+| T4 Second factors for the accounts that hold the keys, and a lockout | (a) the enrolment ⏳ **Owner**, live first; (b) the lockout at 10 wrong passwords ✅ **built 2026-10-17** on branch `claude/ownpace-public-readiness-y7orc6-the-owners-sign-in-answers`, **not merged** (open question 3, the owner: *"The lockout limit: I proposed 10 wrong passwords."*): `setup-zitadel.sh` writes it when it differs, the codes' limit copied back, and reads it back on the instance and the organisation, `managed.yml` gives a fresh instance the same; the 5 wrong codes and the unknown login names stay open; (c) the second factor policy ✅ **decided and built 2026-10-17**, same branch, not merged (open question 2, (c): offered, not forced): `forceMfa` and `forceMfaLocalOnly` false and TOTP and U2F allowed, written when they differ and read back on every run; neither yet run against a real instance — *was:* ⏳ **Owner** for the enrolment; 📋 **Proposed** for the lockout and forced MFA | §3. The first human and every operator, on each instance, live first; the machine user cannot have one and relies on its token's short life. A lockout threshold. Whether a second factor is forced is open question 2. |
 | T5 Privacy and terms links on the registration and sign-in pages | ✅ **done** in #1440, merged 2026-10-04 (`cd318823`), with 0139 T4 (the owner, 2026-10-03, asked whether this change sets the sign-in page's links too: *"Yes, include it"*): `setup-zitadel.sh` writes the instance privacy policy's `tosLink` and `privacyLink`, the Dutch terms and privacy pages on the site `VITE_LEGAL_SITE_URL` names (empty: the production site), copies the other five fields back, and reads both links back on the instance and on the project's organisation; `managed.yml` sets them for a fresh instance; always shown, also before the texts are published (the owner: *"Always shown"*); `scripts/a-notice-before-a-password.unit.test.ts`; not yet run against a real instance — *was:* 🔨 **Built 2026-10-03** with 0139 T4 on branch `claude/ownpace-public-readiness-y7orc6-a-notice-where-data-is-collected`, **not merged**; 📋 **Proposed**; lands with 0139's publication (D5) | §3. The instance privacy policy, from `.env`, read back. Live's first. |
 | T6 Dutch and English, in Ownpace's own words | 📋 **Decided 2026-09-24** (D4) for the languages, and (a) the languages ✅ **done** in #1286, merged 2026-09-28 (`a0897c0`); (b) the mails ✅ **done** in #1604, merged 2026-10-16 (`664dbbba`): the init (after registering), verifyemail and passwordreset mails in `nl` and `en`, from `deploy/compose/sign-in-mails.json`, naming `VITE_SUPPORT_EMAIL` (empty: `support@ownpace.eu`), written by `setup-zitadel.sh` when they differ, read back, never fatal; (c) the other mails 🔨 **built 2026-10-16**, not merged, on branch `claude/ownpace-public-readiness-y7orc6-the-other-sign-in-mails`: password_change and passwordless_registration, the other five left with a reason; neither yet run against a real instance; 📋 **Proposed** for the brand | §3. Only `nl` and `en` allowed, a default from `.env`, and the verification and reset mails rewritten. Logo, colours and the organisation's name follow; live's fresh instance can carry the name from its first start. |
 | T7 A watch on the pinned identity provider | ✅ **the pin moved to v4.19.1** in #1285, merged 2026-09-28 (`f839929`) (open question 11: go); the watch 📋 **decided 2026-09-28**: (a) the owner's GitHub subscription and (b) a weekly job, seven days (open question 5); (b) ✅ **done** in #1288, merged 2026-09-28 (`07dd8ff`); its first run found v4.19.2 (open question 12); the pin ✅ **moved to v4.19.2** in #1292, 2026-09-28, after the owner's dump with `dump-idp.sh`; E2E (managed) #210 applied it to the OTA instance (open question 12: go) — *was:* 📋 **Proposed**; the three releases after the pin read 2026-09-28: v4.18.0 fixes GHSA-4hgj-wm6c-q7p2 in login v1, which this stack serves (open question 11) | §3. Read the three newer releases now, choose a watch, set a response window, and take a dump before an upgrade. |
@@ -1048,12 +1097,19 @@ short by the nightly gate on the OTA instance and by 0132 T7 on live.
   back. A fresh instance gets
   `ZITADEL_DEFAULTINSTANCE_LOCKOUTPOLICY_MAXPASSWORDATTEMPTS` and `…_MAXOTPATTEMPTS`.
 - **The numbers.** 10 and 5 are proposed (open question 3). The count resets after a correct
-  entry. By the proto's description, a locked user *"has to be unlocked by an administrator
+  entry. *Decided 2026-10-17 for passwords: 10*, the owner's *"The lockout limit: I proposed 10
+  wrong passwords."* It is one number to change if the owner says otherwise:
+  `SIGN_IN_LOCKOUT_PASSWORDS` in `setup-zitadel.sh` and
+  `ZITADEL_DEFAULTINSTANCE_LOCKOUTPOLICY_MAXPASSWORDATTEMPTS` in `managed.yml`, which the guard
+  holds equal. Not a `.env` setting, since no other policy the script writes is one. The 5 wrong
+  codes were not answered: `maxOtpAttempts` is copied back as the instance has it (0 on a fresh
+  one, never locked). The unlock step is in `docs/operator-runbook.md`, *A sign-in account locked
+  by wrong passwords*. By the proto's description, a locked user *"has to be unlocked by an administrator
   afterward"*. During the alpha that means the owner, in the console.
 - **The cost.** Anyone who knows a tester's login name can lock that tester out by guessing
   wrong. That is the price of stopping password guessing on a public page. For at most 20 people
   whom the owner supports, it is acceptable.
-- **With it, and proposed.** `ignoreUnknownUsernames` set to true, so that the page no longer
+- **With it, and proposed (not answered on 2026-10-17, so left as it is).** `ignoreUnknownUsernames` set to true, so that the page no longer
   tells a guesser which login names exist.
 - **Who it does not affect.** A person who signs in only with Google, and never set a password
   here, has no password to lock.
@@ -1074,6 +1130,15 @@ a bring-up. That is not converging on a described state. The script gets a `.env
 (working name `IDP_FORCE_MFA=off|local|all`, default `off`), writes it, and includes it in its
 "already right" probe.
 
+*Decided 2026-10-17: (c).* The owner: *"Two-factor sign-in: yes. Offer, but not requireding."*
+Built without the `.env` setting, which a single answer does not need: the login block writes
+`forceMfa` and `forceMfaLocalOnly` false and counts either one true as a reason to write, and
+`offer_second_factor` reads both back on every run and adds TOTP or U2F if the instance's second
+factors lack one (`POST /admin/v1/policies/login/second_factors`, read back with
+`…/second_factors/_search`). `managed.yml` writes `ZITADEL_DEFAULTINSTANCE_LOGINPOLICY_FORCEMFA`
+false for a fresh instance; `ForceMFALocalOnly` is not a key of `cmd/defaults.yaml` at v4.19.4, so
+a fresh instance has its zero, and `instance.go` gives it TOTP and U2F.
+
 **Unverified.** The gate's smoke signs its people in through the session API. Whether it still
 passes with MFA forced was not checked. The default of `off` leaves the OTA stack as it is; the
 setting is per `.env`, so live's can differ.
@@ -1082,13 +1147,17 @@ setting is per `.env`, so live's can differ.
 and it is not in this repository. Whether it can refuse `/ui/console` to anyone off the mesh, on
 both names, is open question 4.
 
-**Guard.** `scripts/a-second-factor-for-the-keys.unit.test.ts` fails today, because nothing sets
-a lockout. It checks that:
+**Guard.** `scripts/a-second-factor-for-the-keys.unit.test.ts`, built 2026-10-17 (the Status
+entry of that date has its counts). As first proposed, it checks that:
 
 - `setup-zitadel.sh` writes the lockout policy from `.env`, with both values above zero, and reads
   it back;
 - `policy_is_right` compares `forceMfa` and `forceMfaLocalOnly` with `IDP_FORCE_MFA`;
 - `managed.yml` passes the lockout values to a fresh instance.
+
+As built, after the owner's answers: the number is the script's one constant, not a `.env` value,
+and the login block's probe and write hold `forceMfa` and `forceMfaLocalOnly` to false rather
+than to an `IDP_FORCE_MFA`.
 
 ### T5 — privacy and terms links on the registration and sign-in pages (→ 0139)
 
@@ -1207,6 +1276,14 @@ was not checked. One pass through the pages on a throwaway stack decides.
   instance rather than building it from the default name, and a grep of `deploy/` finds the
   default organisation name only in that code's comment and in `managed.env.example`'s note on
   the login name. The rename question is then the OTA instance's only.
+  *Decided 2026-10-17 for live (open question 8), and built:* `ZITADEL_ORG_NAME` in `.env`,
+  passed as `ZITADEL_FIRSTINSTANCE_ORG_NAME` (upstream's `ZITADEL` when empty); `stand-up-live.sh`
+  writes `Ownpace` into live's `.env` when the key is empty; `setup-zitadel.sh` renames an
+  organisation that already stands (`PUT /management/v1/orgs/me`) when the name differs, and on
+  live an empty key means `Ownpace`. Read in `ChangeOrg` and `changeDefaultDomain` at v4.19.4: the
+  id stays, the generated domain follows the name, so a login name made from a user name changes
+  (the owner's own on live, if live stands already); testers sign in by address. The OTA stack
+  keeps its name until the owner answers the rest of open question 8.
 
 **Guard.** `scripts/a-sign-in-page-in-our-own-words.unit.test.ts` (the languages since #1286,
 the mails since 2026-10-16). It checks that:
@@ -1468,8 +1545,14 @@ carried T1 and T2.
      recommended.
    - (b) everyone.
    - (c) not forced.
+
+   *Answered 2026-10-17: (c), offered to everybody and forced on nobody.* The owner, verbatim:
+   *"Two-factor sign-in: yes. Offer, but not requireding."* Built the same day (T4c).
 3. **The lockout (T4b).** Are 10 wrong passwords and 5 wrong codes right? And should the page stop
-   saying whether a login name exists?
+   saying whether a login name exists? *Answered 2026-10-17 for passwords: 10.* The owner:
+   *"The lockout limit: I proposed 10 wrong passwords."*, the proposal repeated without change,
+   so accepted at 10; it is one number to change if the owner says otherwise (T4b). The 5 wrong
+   codes and the unknown login names are still open.
 4. **The console on the public origin.** Can the mesh provider's ingress refuse `/ui/console` to
    anyone off the mesh, at `id.ownpace.eu` and at `id.ota.ownpace.eu`? If it can, that is worth
    doing for the alpha. If it cannot, T4 carries the risk alone.
@@ -1487,7 +1570,9 @@ carried T1 and T2.
    upstream wording names Zitadel.
 8. **The organisation's name (T6).** On live, name it `Ownpace` from its first start, which needs
    no rename? On the OTA instance, rename it now, after a trial on a throwaway stack, or after the
-   alpha?
+   alpha? *Answered 2026-10-17 for live:* *"The sign-in organisation name on live: "Ownpace":
+   yes"*. Built the same day (T6). The OTA instance's half is still open, and its name is
+   unchanged.
 9. **A check in the API as well (T2).** Should the API also refuse a token from an unexpected
    organisation? That needs a Zitadel-only claim and an amendment to ADR-0042. Not recommended
    while T1 and T2 hold.

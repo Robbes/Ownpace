@@ -48,6 +48,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "${SCRIPT_DIR}/env-read.sh"
 # shellcheck source=deploy/compose/own-addresses.sh
 . "${SCRIPT_DIR}/own-addresses.sh"
+# Live's marker and live's organisation name, each spelled once (stack_is_live,
+# LIVE_ORG_NAME): the organisation's name below is Ownpace on live.
+# shellcheck source=deploy/compose/stack-kind.sh
+. "${SCRIPT_DIR}/stack-kind.sh"
 
 ENV_FILE="${SCRIPT_DIR}/.env"
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
@@ -1921,7 +1925,12 @@ positive_password_life() {   # reads a login-policy JSON on stdin
 # WHAT "ALREADY RIGHT" MEANS, IN FULL. Four facts, not two: the pair this block
 # is named for, plus the pair the shadow policy got wrong without saying so —
 # that nothing shadows the instance policy, and that a password check lasts
-# longer than no time at all. A probe that checked only the first two would
+# longer than no time at all. And a fifth since 2026-10-17: no second factor is
+# forced, neither `forceMfa` nor `forceMfaLocalOnly` (workplan 0135 T4c; the
+# owner: "Two-factor sign-in: yes. Offer, but not requireding."). Until then
+# this block copied both from the instance, so a factor forced in the console
+# survived every run; now a forced one is "not the described policy yet", and
+# the write below puts both back to false. A probe that checked only the first two would
 # look at the locked-out instance, find `allowRegister: true`, print "already
 # allowed" and leave every person on the sign-in page. Converging on the
 # described state (hard rule 1) means the description has to include the part
@@ -1935,6 +1944,8 @@ policy_is_right() {   # reads a login-policy JSON on stdin
       and ($p.allowRegister // false)
       and ($p.allowUsernamePassword // false)
       and (($p.allowExternalIdp // false) == $x)
+      and (($p.forceMfa // false) | not)
+      and (($p.forceMfaLocalOnly // false) | not)
   ' >/dev/null 2>&1 <<<"$json" && positive_password_life <<<"$json"
 }
 
@@ -1949,7 +1960,7 @@ else
   say "  $(jq -r --argjson x "$WANT_EXTERNAL" '
       .policy as $p
       | if $p == null then "no login policy could be read"
-        else "isDefault=\($p.isDefault // false) allowRegister=\($p.allowRegister // false) allowUsernamePassword=\($p.allowUsernamePassword // false) allowExternalIdp=\($p.allowExternalIdp // false) (want \($x)) passwordCheckLifetime=\($p.passwordCheckLifetime // "unset")"
+        else "isDefault=\($p.isDefault // false) allowRegister=\($p.allowRegister // false) allowUsernamePassword=\($p.allowUsernamePassword // false) allowExternalIdp=\($p.allowExternalIdp // false) (want \($x)) forceMfa=\($p.forceMfa // false) forceMfaLocalOnly=\($p.forceMfaLocalOnly // false) (want false) passwordCheckLifetime=\($p.passwordCheckLifetime // "unset")"
         end' <<<"$PROBED" 2>/dev/null || echo "(unreadable: ${PROBED:-nothing at all})")"
   # RESET FIRST. On an instance an older version of this script has run
   # against, the custom org policy is the thing that has to go — the settings
@@ -1962,7 +1973,7 @@ else
   # decides, which is what the org resolves NOW.
   api_try DELETE /management/v1/policies/login
 
-  # ECHO WHAT IS THERE, OVERRIDE ONLY THE THREE. `UpdateLoginPolicy` replaces
+  # ECHO WHAT IS THERE, OVERRIDE ONLY THE THREE, AND FORCE NO SECOND FACTOR. `UpdateLoginPolicy` replaces
   # the policy from the body, so every field omitted here is a field reset to
   # its zero — which is the whole bug this block exists to have fixed. The
   # lifetimes especially are Zitadel's own defaults and are NOT restated in
@@ -1973,8 +1984,8 @@ else
       allowRegister: true,
       allowUsernamePassword: true,
       allowExternalIdp: $x,
-      forceMfa: (.forceMfa // false),
-      forceMfaLocalOnly: (.forceMfaLocalOnly // false),
+      forceMfa: false,
+      forceMfaLocalOnly: false,
       passwordlessType: (.passwordlessType // "PASSWORDLESS_TYPE_NOT_ALLOWED"),
       hidePasswordReset: (.hidePasswordReset // false),
       ignoreUnknownUsernames: (.ignoreUnknownUsernames // false),
@@ -2015,14 +2026,14 @@ console at ${ISSUER}/ui/console under Settings -> Login Behaviour, or re-run
 this against an instance whose defaults have not been overwritten."
 
   # WRITE ONLY WHAT WOULD CHANGE. Everything in the body but the three flags
-  # is the instance's own answer handed back, so the write changes something
-  # exactly when one of the three differs — and Zitadel REFUSES a write that
+  # and the two that force a second factor is the instance's own answer handed
+  # back, so the write changes something exactly when one of those five differs — and Zitadel REFUSES a write that
   # changes nothing: `PUT /admin/v1/policies/login` answers HTTP 400 "Default
   # Login Policy has not been changed". That is how E2E (managed) #130 died on
   # 2026-09-02: the organisation's own policy was the only thing wrong, the
   # reset above had already removed it, and the instance policy was right all
   # along — so the bring-up failed on a write it had no reason to send.
-  SAME="$(jq -r --argjson x "$WANT_EXTERNAL" '.policy | ((.allowRegister // false) and (.allowUsernamePassword // false) and ((.allowExternalIdp // false) == $x))' <<<"$INSTANCE")"
+  SAME="$(jq -r --argjson x "$WANT_EXTERNAL" '.policy | ((.allowRegister // false) and (.allowUsernamePassword // false) and ((.allowExternalIdp // false) == $x) and ((.forceMfa // false) | not) and ((.forceMfaLocalOnly // false) | not))' <<<"$INSTANCE")"
   if [ "$SAME" = "true" ]; then
     say "the instance policy already reads that way — nothing to write; what people resolve is read back below"
   # AND IF THE PROVIDER STILL CALLS IT UNCHANGED, THAT IS AN ANSWER, NOT A
@@ -2328,6 +2339,193 @@ Read it, and put it back to the instance's, with the provisioning token:
 SIGN_IN_SITE="$(legal_site_from "$(read_env VITE_LEGAL_SITE_URL '')")"
 set_sign_in_notice "$SIGN_IN_SITE"
 
+# ------------------------------------- a second factor, offered and not forced --
+#
+# OFFERED TO EVERYBODY, FORCED ON NOBODY (workplan 0135 T4c). The owner,
+# 2026-10-17: "Two-factor sign-in: yes. Offer, but not requireding." So the
+# login policy people resolve forces no second factor, neither `forceMfa` nor
+# `forceMfaLocalOnly`, and allows two: an authenticator app (TOTP) and a
+# security key (U2F), each a person may add from the console's own account page
+# (or skip, for the instance's `mfaInitSkipLifetime`, 30 days by upstream's
+# default, when the sign-in page offers one). A fresh v4.19.4 instance has
+# exactly that (`cmd/defaults.yaml`: ForceMFA false, ForceMFALocalOnly not a
+# key and so its zero; `instance.go` adds TOTP and U2F), and managed.yml writes
+# ForceMFA false out for it. The login block above writes both flags false on
+# an existing instance where it writes at all, and counts a forced one as a
+# reason to write.
+#
+# READ BACK ON EVERY RUN, also where nothing was written, so that a factor
+# forced in the console, or a second factor taken off the list, is said and
+# put right or refused, rather than kept unseen. Forcing is a decision the
+# owner made, so a forced one this cannot clear is a refusal; a missing factor
+# is added (`POST /admin/v1/policies/login/second_factors`, admin.proto at
+# v4.19.4) and read back (`…/second_factors/_search`). Other factors the
+# instance allows are left as they are and named: a list is not this script's
+# to shorten. The organisation inherits the instance's login policy (read
+# back above as isDefault), so the instance's list is the one people get.
+#
+# Enrolling one is each person's own step, and for the first human and every
+# operator the owner's (0135 T4a): docs/managed-bring-up.md, "A second factor
+# offered, and a lock after ten wrong passwords".
+SECOND_FACTORS_OFFERED=(SECOND_FACTOR_TYPE_OTP SECOND_FACTOR_TYPE_U2F)
+second_factors_allowed() { jq -c '(.result // []) | sort' <<<"$(api POST /admin/v1/policies/login/second_factors/_search '{}')"; }
+mfa_forced() { jq -r '.policy as $p | "forceMfa=\($p.forceMfa // false) forceMfaLocalOnly=\($p.forceMfaLocalOnly // false)"' <<<"$(api GET /management/v1/policies/login)"; }
+offer_second_factor() {
+  local forced allowed type
+  forced="$(mfa_forced)"
+  [ "$forced" = "forceMfa=false forceMfaLocalOnly=false" ] || die "the login policy people resolve forces a second factor: ${forced}.
+
+The owner chose to offer one and to force it on nobody (workplan 0135 T4c,
+2026-10-17). Both should read false. Read the policy with:
+
+    curl -sS ${ISSUER}/management/v1/policies/login -H \"Authorization: Bearer \$PAT\" \\
+      | jq '.policy | {forceMfa, forceMfaLocalOnly, isDefault}'
+
+The console at ${ISSUER}/ui/console, under Settings -> Login Behaviour, holds
+both ('Force MFA'); untick them, or run this again once the cause is clear."
+  allowed="$(second_factors_allowed)"
+  for type in "${SECOND_FACTORS_OFFERED[@]}"; do
+    if ! jq -e --arg t "$type" 'any(.[]; . == $t)' >/dev/null <<<"$allowed"; then
+      say "the sign-in page does not offer ${type} as a second factor: adding it"
+      api POST /admin/v1/policies/login/second_factors "$(jq -nc --arg t "$type" '{type: $t}')" >/dev/null
+    fi
+  done
+  allowed="$(second_factors_allowed)"
+  for type in "${SECOND_FACTORS_OFFERED[@]}"; do
+    jq -e --arg t "$type" 'any(.[]; . == $t)' >/dev/null <<<"$allowed" || die "could not offer ${type} as a second factor.
+
+The instance's login policy allows ${allowed}. Read it with:
+
+    curl -sS -X POST ${ISSUER}/admin/v1/policies/login/second_factors/_search \\
+      -H 'Content-Type: application/json' -H \"Authorization: Bearer \$PAT\" -d '{}'"
+  done
+  say "a second factor is offered, not forced (forceMfa false, forceMfaLocalOnly false): allowed ${allowed}"
+}
+offer_second_factor
+
+# ------------------------------------------- a lock after ten wrong passwords --
+#
+# TEN WRONG PASSWORDS IN A ROW LOCK AN ACCOUNT (workplan 0135 T4b). Upstream's
+# lockout policy locks nobody (`DefaultInstance.LockoutPolicy` in
+# `cmd/defaults.yaml` at v4.19.4: MaxPasswordAttempts 0), so the public sign-in
+# page let anybody guess a password for as long as they liked. The owner,
+# 2026-10-17: "The lockout limit: I proposed 10 wrong passwords." The count
+# starts again after a correct password or a reset. A locked account stays
+# locked "until unlocked by an administrator" (admin.proto), which during the
+# alpha is the owner: docs/operator-runbook.md, "A sign-in account locked by
+# wrong passwords". The cost is the plan's: anybody who knows a tester's login
+# name can lock that tester out by guessing. A person who signs in only through
+# Google, Microsoft or another provider has no password here to lock.
+#
+# ONE NUMBER, HERE. Not a .env setting: no other policy this script writes is
+# one, and the number is the owner's decision, not a deployment's. managed.yml
+# gives a fresh instance the same (ZITADEL_DEFAULTINSTANCE_LOCKOUTPOLICY_
+# MAXPASSWORDATTEMPTS), and a-second-factor-for-the-keys holds the two equal.
+#
+# THE WHOLE POLICY IS WRITTEN, THE CODES' LIMIT COPIED BACK. The update
+# (`PUT /admin/v1/policies/password/lockout`, the path admin.proto declares at
+# v4.19.4; the read is `GET /admin/v1/policies/lockout`) replaces both of its
+# fields, and a field left out is a nought, so `maxOtpAttempts` goes back as it
+# was read: the owner has not answered for codes (0135 open question 3). It is
+# written only when the number differs, because Zitadel refuses an update that
+# changes nothing. The read writes the numbers as strings (uint64 in protojson)
+# and leaves a nought out, so absent is 0. Then it is read back twice, as the
+# privacy policy is: the instance's, and what the project's organisation
+# resolves, whose own lockout policy would stand in front of the instance's.
+SIGN_IN_LOCKOUT_PASSWORDS=10
+lockout_passwords() {   # <instance|organisation> — wrong passwords before a lock; 0 is never
+  local path=/admin/v1/policies/lockout
+  [ "$1" = organisation ] && path=/management/v1/policies/lockout
+  jq -r '(.policy.maxPasswordAttempts // "0") | tostring' <<<"$(api GET "$path")"
+}
+set_sign_in_lockout() {   # <wrong passwords before a lock>
+  local want="$1" current have
+  current="$(api GET /admin/v1/policies/lockout)"
+  have="$(jq -r '(.policy.maxPasswordAttempts // "0") | tostring' <<<"$current")"
+  if [ "$have" != "$want" ]; then
+    say "an account is locked after ${have} wrong passwords (0 is never): locking it after ${want}"
+    api PUT /admin/v1/policies/password/lockout "$(jq -c --argjson w "$want" '{
+        maxPasswordAttempts: $w,
+        maxOtpAttempts: ((.policy.maxOtpAttempts // "0") | tonumber)}' <<<"$current")" >/dev/null
+  fi
+  have="$(lockout_passwords instance)"
+  [ "$have" = "$want" ] || die "could not lock an account after ${want} wrong passwords.
+
+The instance's lockout policy reads ${have} (0 is never), so the sign-in page
+lets anybody guess a password without end. Read it with:
+
+    curl -sS ${ISSUER}/admin/v1/policies/lockout -H \"Authorization: Bearer \$PAT\" | jq .policy"
+  have="$(lockout_passwords organisation)"
+  [ "$have" = "$want" ] || die "the project's organisation has its own lockout policy, which locks after ${have} (0 is never).
+
+An organisation's own policy stands in front of the instance's for its people.
+Read it, and put it back to the instance's, with the provisioning token:
+
+    curl -sS ${ISSUER}/management/v1/policies/lockout -H \"Authorization: Bearer \$PAT\" | jq .policy
+    curl -sS -X DELETE ${ISSUER}/management/v1/policies/lockout -H \"Authorization: Bearer \$PAT\""
+  say "an account is locked after ${want} wrong passwords in a row, until an operator unlocks it"
+}
+set_sign_in_lockout "$SIGN_IN_LOCKOUT_PASSWORDS"
+
+# ---------------------------------------------------- the organisation's name --
+#
+# OWNPACE ON LIVE (workplan 0135 T6 and open question 8; the owner,
+# 2026-10-17: "The sign-in organisation name on live: "Ownpace": yes").
+# Upstream names the first organisation ZITADEL, and the console and the
+# sign-in page show it. A fresh instance takes the name from
+# ZITADEL_FIRSTINSTANCE_ORG_NAME, which managed.yml fills from ZITADEL_ORG_NAME
+# (ZITADEL when that is empty); stand-up-live.sh writes Ownpace there on live
+# before the provider's first start. This renames one that already stands.
+#
+# WHICH NAME. ZITADEL_ORG_NAME in .env, on any stack. Empty on live is Ownpace
+# (LIVE_ORG_NAME, stack-kind.sh). Empty anywhere else keeps the name as it is:
+# the OTA stack's is not part of the owner's answer, which open question 8
+# still asks.
+#
+# WHAT A RENAME CHANGES, read in `ChangeOrg` and `changeDefaultDomain`
+# (`internal/command` at v4.19.4). The organisation keeps its id, so nothing
+# that names it by id moves: the project's check (0135 T2), the token's
+# organisation, idp-strays.sh. Its generated domain follows the name — the
+# domain is made from the name and the domain this script calls by, the issuer's
+# host — so `zitadel.<host>` becomes `ownpace.<host>`, primary as before, and the
+# old one is removed. A login name made from a user name carries that domain:
+# the first human's changes from owner@zitadel.<host> to owner@ownpace.<host>,
+# which the summary below prints, read from the instance after this. A person
+# who signs in with their email address, as every tester does, is unaffected.
+#
+# Written only when it differs, because Zitadel refuses a rename to the name it
+# already has (Errors.Org.NotChanged), then read back.
+wanted_organisation_name() {
+  local name
+  name="$(read_env ZITADEL_ORG_NAME '')"
+  if [ -z "$name" ] && stack_is_live "$ENV_FILE"; then name="$LIVE_ORG_NAME"; fi
+  printf '%s' "$name"
+}
+organisation_name() { jq -r '.org.name // empty' <<<"$(api GET /management/v1/orgs/me)"; }
+name_the_organisation() {   # <name, empty: keep the one it has>
+  local want="$1" have
+  have="$(organisation_name)"
+  [ -n "$have" ] || die "the provider named no organisation for the provisioning token (GET /management/v1/orgs/me)"
+  if [ -z "$want" ]; then
+    say "the organisation is named ${have}; ZITADEL_ORG_NAME is empty here, so it is kept"
+    ORG_NAME_SAID="${have} (kept: ZITADEL_ORG_NAME is empty)"
+    return 0
+  fi
+  if [ "$have" != "$want" ]; then
+    say "the organisation is named ${have}: renaming it ${want}"
+    api PUT /management/v1/orgs/me "$(jq -nc --arg n "$want" '{name: $n}')" >/dev/null
+  fi
+  have="$(organisation_name)"
+  [ "$have" = "$want" ] || die "could not name the organisation ${want}: it reads '${have}'.
+
+Read it with:
+
+    curl -sS ${ISSUER}/management/v1/orgs/me -H \"Authorization: Bearer \$PAT\" | jq '.org | {name, primaryDomain}'"
+  say "the organisation is named ${want}"
+  ORG_NAME_SAID="$want"
+}
+name_the_organisation "$(wanted_organisation_name)"
+
 # ------------------------------------------------- the mails a tester gets --
 #
 # IN OWNPACE'S WORDS, IN DUTCH AND ENGLISH (workplan 0135 T6, its mails).
@@ -2557,6 +2755,9 @@ cat <<EOF
              (the Dutch pages, on the site VITE_LEGAL_SITE_URL names)
   mails      ${SIGN_IN_MAILS_SAID}
              (sign-up, address, password reset and changed, passkey link, from sign-in-mails.json)
+  sign-in    a second factor offered, not forced: an authenticator app (TOTP) or a security key (U2F)
+             locked after ${SIGN_IN_LOCKOUT_PASSWORDS} wrong passwords, until an operator unlocks it
+  organisation ${ORG_NAME_SAID}
   first user $(read_env ZITADEL_ADMIN_USERNAME owner)@${ORG_DOMAIN}
              (the login name carries the ORGANISATION's domain, not the issuer's)
              password is ZITADEL_ADMIN_PASSWORD in .env, and must be changed

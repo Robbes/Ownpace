@@ -64,6 +64,13 @@
 # each a plain KEY=value line.
 STACK_KIND_KEY=STACK_KIND
 STACK_KIND_LIVE=production
+# LIVE'S ORGANISATION AT THE IDENTITY PROVIDER is named Ownpace (workplan 0135
+# open question 8; the owner, 2026-10-17: "The sign-in organisation name on
+# live: "Ownpace": yes"). stand-up-live.sh writes it into live's .env as
+# ZITADEL_ORG_NAME before the provider's first start, which managed.yml hands
+# the provider as ZITADEL_FIRSTINSTANCE_ORG_NAME; setup-zitadel.sh renames an
+# organisation that already stands, on live, when that key is empty.
+LIVE_ORG_NAME=Ownpace
 # The kinds known NOT to be live. None yet: the OTA stack's .env does not carry
 # the key. A kind given to the OTA stack later goes here, or every refusal
 # takes it for live's.
