@@ -351,10 +351,11 @@ describe('with the alpha setting on', () => {
     // What each page shows below its title: the sign-in page's line while it
     // asks the API what it accepts, the request form's first field, the way
     // back to sign-in once the request has gone, and the invitation screen's
-    // closing line.
-    ['login', 2, () => screen.getByText(/checking how to sign in/i)],
-    ['requestAccess', 2, () => screen.getByLabelText(/email address/i)],
-    ['requestAccessSent', 2, () => screen.getByRole('link', { name: /sign in/i })],
+    // closing line. Each title is the page's one first-level heading (the
+    // UX sweep, 2026-10-17).
+    ['login', 1, () => screen.getByText(/checking how to sign in/i)],
+    ['requestAccess', 1, () => screen.getByLabelText(/email address/i)],
+    ['requestAccessSent', 1, () => screen.getByRole('link', { name: /sign in/i })],
     ['invitations', 1, () => screen.getByText(/not now changes nothing/i)],
   ] as const)('%s: stands under the title, above the rest of the page', async (page, level, rest) => {
     await PAGES[page]();
