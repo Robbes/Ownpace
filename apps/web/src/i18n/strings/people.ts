@@ -131,7 +131,11 @@ export const en = {
   'person.step.confirmed.notYet': 'After the check',
   'person.step.confirmed.done': 'Ready to read',
   'person.step.finish.notYet': 'Switch mail delivery, then end',
+  // Finish of migrations that move no mail: there is no mail delivery to switch.
+  'person.step.finish.notYet.noMail': 'Switch to the new system, then end',
   'person.step.finish.done': 'Finished',
+  // Every migration switched, and one is kept in step after it (the continuous lane).
+  'person.step.finish.continuous': 'Switched, and kept in step',
 } as const;
 
 export const nl: Record<keyof typeof en, string> = {
@@ -237,5 +241,7 @@ export const nl: Record<keyof typeof en, string> = {
   'person.step.confirmed.notYet': 'Na de verificatie',
   'person.step.confirmed.done': 'Klaar om te lezen',
   'person.step.finish.notYet': 'Zet de e-mailbezorging om, en rond dan af',
+  'person.step.finish.notYet.noMail': 'Stap over op het nieuwe systeem, en rond dan af',
   'person.step.finish.done': 'Afgerond',
+  'person.step.finish.continuous': 'Overgestapt, en wordt bijgehouden',
 };

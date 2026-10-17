@@ -262,10 +262,10 @@ export const VIEW_ROW_FIELDS: readonly (keyof ViewDomainRow)[] = [
 
 /**
  * How long, as a progress page says it (0154 T3, T8), by the rule the owner's
- * pages use: before any pass has completed, from what the count found
- * (`timeBeforeStart`); once one has, while the migration copies, from the
- * last passes' own pace (`timeWhileCopying`). Numbers and closed words only,
- * like every other field a link holder reads.
+ * pages use: before anything was copied, from what the count found
+ * (`timeBeforeStart`); once something was, while the migration copies its
+ * first pass, from the last passes' own pace (`timeWhileCopying`). Numbers
+ * and closed words only, like every other field a link holder reads.
  */
 export type ViewTime =
   | { readonly kind: 'beforeStart'; readonly estimate: TimeBeforeStart }
@@ -309,19 +309,25 @@ export function viewStageOf(
 
 /**
  * How long, for a progress page (0154 T3, T8), from the facts the owner's
- * migration page reads.
+ * migration page reads, by its rules (`MappingDetail.tsx`).
  *
- * - **Before any pass has completed**, from the count, where it counted
+ * - **Before anything was copied**, from the count, where it counted
  *   something: Gmail's mail in days from its daily ceiling, anything else
  *   *we will know after the first hour* (`timeBeforeStart`). Said while the
- *   migration waits to start, or copies its first pass.
- * - **Once a pass has completed, while it copies**, from the last passes
- *   (`timeWhileCopying`), with the provider's slowing said where a copying
- *   data type's last failure was the provider asking us to slow down.
- * - **Nothing otherwise.** Past its copying (switching, done, kept in step
- *   after the switch) there is nothing left to wait for, and on a migration
- *   held after it started a range of days would be a promise nothing is
- *   keeping.
+ *   migration waits to start, or before its first pass has copied anything.
+ *   What was copied decides, not a completed pass: a first copy cut short at
+ *   a pass's deadline completes nothing for days. Items left as they already
+ *   were, and a pass that completed, count as copying done too.
+ * - **Once something was copied, while it runs**, from the last passes
+ *   (`timeWhileCopying`), over the data types still in their first copy: not
+ *   skipped, no pass over them completed, and not stopped. The provider's
+ *   slowing is said where one of those data types' last failure was the
+ *   provider asking us to slow down.
+ * - **Nothing otherwise.** Kept in step has no time left: the gap between
+ *   what the count found and what a completed pass copied is no copy still to
+ *   come. Past its copying (switching, done, kept in step after the switch)
+ *   there is nothing left to wait for, and on a migration held after it
+ *   started a range of days would be a promise nothing is keeping.
  */
 export function viewTimeOf(input: {
   readonly lifecycle: MappingLifecycle;
@@ -337,8 +343,8 @@ export function viewTimeOf(input: {
   readonly discovery: readonly DiscoveryRecord[];
 }): ViewTime | undefined {
   const rows = input.reports.filter((r) => r.state !== 'skipped');
-  const firstPassIn = rows.some((r) => Boolean(r.lastSyncedAt));
-  if (!firstPassIn) {
+  const copiedAny = rows.some((r) => r.itemsSynced > 0 || (r.itemsAdopted ?? 0) > 0 || Boolean(r.lastSyncedAt));
+  if (!copiedAny) {
     if (input.lifecycle !== 'active' && input.lifecycle !== 'paused') return undefined;
     const counted = discoveryForSelection(input.discovery, input.selected);
     if (counted.length === 0) return undefined;
@@ -353,10 +359,11 @@ export function viewTimeOf(input: {
     };
   }
   if (input.lifecycle !== 'active') return undefined;
+  const copying = rows.filter((r) => !r.lastSyncedAt && r.state !== 'stopped' && r.stoppedByOwner !== true);
   const estimate = timeWhileCopying({
-    remainingItems: remainingItemsOf(rows),
+    remainingItems: remainingItemsOf(copying),
     passes: input.passes,
-    slowed: rows.some((r) => r.lastErrorCategory === 'rate_limited'),
+    slowed: copying.some((r) => r.lastErrorCategory === 'rate_limited'),
   });
   return estimate ? { kind: 'whileCopying', estimate } : undefined;
 }

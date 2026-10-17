@@ -341,7 +341,13 @@ const Person: React.FC = () => {
           </h2>
           <p className="mt-1 text-sm text-gray-600">{t('person.steps.hint')}</p>
           <CutoverSteps
-            migrations={migrations.map((m) => ({ id: m.id, status: m.status, label: label(m) }))}
+            migrations={migrations.map((m) => ({
+              id: m.id,
+              status: m.status,
+              label: label(m),
+              notStarted: leastAdvancedStage(lineStages(m, linesOf(m))) === 'not_started',
+              domains: m.domains,
+            }))}
             attention={attention}
             checks={checksOf(progressQuery.data)}
             pending={{ queues: attentionQuery.isPending, check: progressQuery.isPending, lifecycle: false }}

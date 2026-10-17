@@ -106,6 +106,7 @@ export const en = {
   'hub.orderIntro': 'Work them from the top, in this order.',
   'hub.noId': 'No mapping id in the address.',
   'hub.detailError': "Could not read this migration's details.",
+  'hub.detailError.retry': 'Try again',
   'hub.grantWithdrawn':
     'On {date} the person being migrated withdrew their access. Nothing reads or migrates their account now.',
   'hub.grantWithdrawn.next': 'If they agree to continue, send them a new grant link. Links are made per person: see Links below.',
@@ -286,6 +287,8 @@ export const en = {
   // about passwords.
   'failure.authExpired':
     'The connection to this account has expired. On the Accounts page, press Reconnect or Replace credentials, whichever its row shows, and this will carry on from where it stopped \u2014 nothing is lost.',
+  // The link after that sentence, to the Accounts page it names.
+  'failure.openAccounts': 'Open Accounts',
   'failure.rateLimited':
     'The provider asked us to slow down. Nothing is wrong: this pauses and resumes on its own.',
   'failure.quotaExceeded':
@@ -500,6 +503,7 @@ export const nl: Record<keyof typeof en, string> = {
   'hub.noId': 'Geen mapping-id in het adres.',
   'hub.detailError':
     'De details van deze migratie konden niet worden gelezen.',
+  'hub.detailError.retry': 'Opnieuw proberen',
   'hub.grantWithdrawn': 'Op {date} trok degene die gemigreerd wordt de toegang in. Er wordt niets meer gelezen of gemigreerd.',
   'hub.grantWithdrawn.next':
     'Is die persoon akkoord om verder te gaan, stuur dan een nieuwe toegangslink. Links worden per persoon gemaakt: zie Links hieronder.',
@@ -641,6 +645,7 @@ export const nl: Record<keyof typeof en, string> = {
   'mappings.syncFailed': 'Het synchronisatieverzoek is niet voltooid.',
   'failure.authExpired':
     'De verbinding met dit account is verlopen. Druk op de pagina Accounts op Opnieuw verbinden of Inloggegevens vervangen, welke van de twee er bij dit account staat; daarna wordt verdergegaan waar gestopt was \u2014 er gaat niets verloren.',
+  'failure.openAccounts': 'Naar Accounts',
   'failure.rateLimited':
     'De provider vroeg ons (geautomatiseerd) om rustiger aan te doen. Er is niets mis: dit pauzeert en hervat vanzelf.',
   'failure.quotaExceeded':

@@ -209,6 +209,96 @@ describe('the check, as the row says it (0154 T4)', () => {
   });
 });
 
+/**
+ * READY TO SWITCH NEEDS THE PERSON AT FINISH (UX sweep, 2026-10-17). The stage
+ * said *Ready to switch* while Finish said *Not yet*, hiding the next action.
+ * The steps read the facts the stage reads: active, a passed check, and no
+ * failure that blocks Finish, counted.
+ */
+describe('Finish, once a migration is ready to switch', () => {
+  const PASSED: CheckFacts = { state: 'passed', at: AT };
+  const finishOf = (attention: ReadonlyMap<string, MappingAttention> | undefined, check: CheckFacts = PASSED) =>
+    byKey(cutoverSteps([{ id: 'm1', status: 'active' }], attention, checks(['m1', check])))['finish']!;
+
+  it('needs the person once the check passed and no failure blocks Finish', () => {
+    expect(finishOf(read(quiet('m1')))).toMatchObject({ state: 'needsYou' });
+  });
+
+  it('is not yet while a failure waits for a decision, or the check has not passed', () => {
+    expect(finishOf(read(quiet('m1', { failuresWaiting: 2 })))).toMatchObject({ state: 'notYet' });
+    expect(finishOf(read(quiet('m1')), { state: 'not_passed', at: AT })).toMatchObject({ state: 'notYet' });
+  });
+
+  /** Hard rule 9: failures nobody could count are never none. */
+  it('is not yet where the failures could not be counted', () => {
+    expect(finishOf(undefined)).toMatchObject({ state: 'notYet' });
+    expect(finishOf(read(quiet('m1', { blindSpots: ['the failures queue: timeout'] })))).toMatchObject({
+      state: 'notYet',
+    });
+  });
+});
+
+/**
+ * KEPT IN STEP AFTER THE SWITCH (the continuous lane): past its check, and
+ * switched. A person who chose to keep migrating on Finish came back to a list
+ * that read as if it had started over.
+ */
+describe('a migration kept in step after its switch', () => {
+  it('has its check and Confirmed done, with no check read', () => {
+    const steps = byKey(cutoverSteps([{ id: 'm1', status: 'continuous' }], read(quiet('m1')), undefined));
+    expect(steps['check']).toMatchObject({ count: 1, state: 'done', check: { kind: 'passed' } });
+    expect(steps['confirmed']!.state).toBe('done');
+  });
+
+  it('needs the person for sharing while rows are open', () => {
+    const steps = byKey(stepsWith([{ id: 'm1', status: 'continuous' }], read(quiet('m1', { sharingOpen: 3 }))));
+    expect(steps['sharing']).toMatchObject({ count: 3, state: 'needsYou' });
+  });
+
+  it('has Finish done, and says it is kept in step', () => {
+    const steps = byKey(
+      stepsWith(
+        [
+          { id: 'm1', status: 'continuous' },
+          { id: 'm2', status: 'done' },
+        ],
+        read(quiet('m1'), quiet('m2')),
+      ),
+    );
+    expect(steps['finish']).toMatchObject({ count: 2, state: 'done', continuous: true });
+    const finished = byKey(stepsWith([{ id: 'm1', status: 'done' }], read(quiet('m1'))));
+    expect(finished['finish']).toMatchObject({ state: 'done' });
+    expect(finished['finish']).not.toHaveProperty('continuous');
+  });
+});
+
+/** A migration that has never run has compared nothing: its empty queues are not done. */
+describe('a migration that has not started', () => {
+  it('says its empty queues are not yet, with None as their count', () => {
+    const steps = byKey(stepsWith([{ id: 'm1', status: 'paused', notStarted: true }], read(quiet('m1'))));
+    for (const key of ['deletions', 'moves', 'failures']) {
+      expect(steps[key], key).toMatchObject({ count: 0, state: 'notYet' });
+    }
+  });
+
+  it('still needs the person where something waits, and is done once any has started', () => {
+    const waiting = byKey(
+      stepsWith([{ id: 'm1', status: 'paused', notStarted: true }], read(quiet('m1', { deletionsWaiting: 1 }))),
+    );
+    expect(waiting['deletions']).toMatchObject({ count: 1, state: 'needsYou' });
+    const oneRuns = byKey(
+      stepsWith(
+        [
+          { id: 'm1', status: 'paused', notStarted: true },
+          { id: 'm2', status: 'active', notStarted: false },
+        ],
+        read(quiet('m1'), quiet('m2')),
+      ),
+    );
+    expect(oneRuns['moves']).toMatchObject({ count: 0, state: 'done' });
+  });
+});
+
 describe('a lifecycle that could not be read (0154 T4)', () => {
   it('leaves Finish and Sharing’s state unknown, rather than guessed', () => {
     const steps = byKey(
