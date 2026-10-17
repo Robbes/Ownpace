@@ -317,6 +317,10 @@ const StartMigration: React.FC = () => {
   const [destination, setDestination] = React.useState<Partial<Record<DiscoveryDomain, string>>>({});
   // A company's mail through its own app (`PlanChoices`, 0153 open question 5).
   const [microsoftMail, setMicrosoftMail] = React.useState<MicrosoftMailThrough | undefined>(undefined);
+  // The answer to *Is this a company account with an administrator?* under
+  // Microsoft's mail, kept here so the account's form on *Connect your
+  // accounts* does not ask it again (the UX sweep, 2026-10-17).
+  const [microsoftCompany, setMicrosoftCompany] = React.useState(false);
   const choices: PlanChoices = React.useMemo(() => (microsoftMail ? { microsoftMail } : {}), [microsoftMail]);
   // The providers whose export was ticked under their tile, and where it is
   // read from (0153 open question 5, item 2).
@@ -348,6 +352,10 @@ const StartMigration: React.FC = () => {
     ticked[provider] ?? offers(provider, served);
   /** The providers whose export moves: ticked, still being left, and read by this build. */
   const exporting = providers.filter((p) => exportsTicked.includes(p) && exportOf(p)?.readable === true);
+
+  /** The company question's answer, where *What moves?* asked it: Microsoft 365's mail ticked. */
+  const companyAnswer =
+    providers.includes('microsoft') && movesFrom('microsoft').includes('email') ? microsoftCompany : undefined;
 
   const personName =
     who.personId === null ? who.name.trim() : (people.find((p) => p.id === who.personId)?.displayName ?? '');
@@ -651,6 +659,7 @@ const StartMigration: React.FC = () => {
   })();
 
   const reasonId = React.useId();
+  const setUpLineId = React.useId();
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -682,6 +691,8 @@ const StartMigration: React.FC = () => {
               onPaperFormat={setPaperFormat}
               microsoftMail={microsoftMail}
               onMicrosoftMail={setMicrosoftMail}
+              microsoftCompany={microsoftCompany}
+              onMicrosoftCompany={setMicrosoftCompany}
               exports={exportsTicked}
               onExports={setExportsTicked}
               oneFolder={oneFolder}
@@ -697,6 +708,7 @@ const StartMigration: React.FC = () => {
               exporting={exporting}
               folderFor={folderFor}
               onFolder={(card, folder) => setFolders((prev) => ({ ...prev, [card]: folder }))}
+              companyAnswer={companyAnswer}
             />
           )}
           {step === 'check' && (
@@ -772,20 +784,28 @@ const StartMigration: React.FC = () => {
           <span />
         )}
         {next !== undefined && (
-          <div className="flex flex-col items-end">
+          // Beside Back, also on a phone: what it says under it wraps here.
+          <div className="flex min-w-0 flex-1 flex-col items-end">
             <button
               type="button"
-              // Leaving *Where does it go?* sets the migrations up, paused.
+              // Leaving *Where does it go?* sets the migrations up, paused,
+              // and the button says so: it was *Next*, and once pressed there
+              // is no way back (the UX sweep, 2026-10-17).
               onClick={() => (step === 'to' ? void setUp() : setStep(next))}
               disabled={notYet !== undefined || settingUp}
-              aria-describedby={notYet === undefined ? undefined : reasonId}
+              aria-describedby={notYet !== undefined ? reasonId : step === 'to' ? setUpLineId : undefined}
               className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {settingUp ? t('start.to.settingUp') : t('account.next')}
+              {settingUp ? t('start.to.settingUp') : step === 'to' ? t('start.to.setUp') : t('account.next')}
             </button>
             {notYet !== undefined && (
               <p id={reasonId} className="mt-2 text-sm text-gray-600">
                 {notYet}
+              </p>
+            )}
+            {step === 'to' && (
+              <p id={setUpLineId} className="mt-2 max-w-xs text-sm text-gray-600">
+                {t('start.to.setUp.line')}
               </p>
             )}
             {step === 'to' && personFailed !== null && (
@@ -874,32 +894,38 @@ export const WhoStep: React.FC<{
       )}
       {/* WHOSE ACCOUNTS (T4): somebody else connects what a link can reach
           themselves, so the one starting never holds that password (0108). */}
-      <fieldset>
-        <legend className="sr-only">{t('start.who.whose')}</legend>
-        <div className="space-y-1">
-          <label className="flex min-h-[44px] items-center gap-3 cursor-pointer">
-            <input
-              type="radio"
-              name="start-whose"
-              checked={!who.someoneElse}
-              onChange={() => onWho({ ...who, someoneElse: false })}
-              className="h-4 w-4"
-            />
-            <span className="text-gray-900">{t('start.who.myself')}</span>
-          </label>
-          <label className="flex min-h-[44px] items-center gap-3 cursor-pointer">
-            <input
-              type="radio"
-              name="start-whose"
-              checked={who.someoneElse}
-              onChange={() => onWho({ ...who, someoneElse: true })}
-              className="h-4 w-4"
-            />
-            <span className="text-gray-900">{t('start.who.someoneElse')}</span>
-          </label>
-          <p className="pl-7 text-sm text-gray-600">{t('start.who.someoneElse.line')}</p>
-        </div>
-      </fieldset>
+      {/* A QUESTION OF ITS OWN, SAID ON SCREEN (the UX sweep, 2026-10-17):
+          with its legend for screen readers only, *I do* read as one more
+          answer to *Who is it for?*, under a list of people. The rule above
+          it is a wrapper's: on the fieldset itself it runs through the legend. */}
+      <div className="border-t border-gray-200 pt-4">
+        <fieldset>
+          <legend className="mb-1 text-sm font-medium text-gray-900">{t('start.who.whose')}</legend>
+          <div className="space-y-1">
+            <label className="flex min-h-[44px] items-center gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="start-whose"
+                checked={!who.someoneElse}
+                onChange={() => onWho({ ...who, someoneElse: false })}
+                className="h-4 w-4"
+              />
+              <span className="text-gray-900">{t('start.who.myself')}</span>
+            </label>
+            <label className="flex min-h-[44px] items-center gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="start-whose"
+                checked={who.someoneElse}
+                onChange={() => onWho({ ...who, someoneElse: true })}
+                className="h-4 w-4"
+              />
+              <span className="text-gray-900">{t('start.who.someoneElse')}</span>
+            </label>
+            <p className="pl-7 text-sm text-gray-600">{t('start.who.someoneElse.line')}</p>
+          </div>
+        </fieldset>
+      </div>
     </div>
   );
 };
@@ -990,6 +1016,9 @@ export const WhatStep: React.FC<{
   /** A company's mail through its own app, where its administrator chose that (0153 open question 5). */
   microsoftMail?: MicrosoftMailThrough | undefined;
   onMicrosoftMail?: (next: MicrosoftMailThrough | undefined) => void;
+  /** The answer to the company question under Microsoft's mail, which the account's form then does not ask. */
+  microsoftCompany?: boolean;
+  onMicrosoftCompany?: (company: boolean) => void;
   /** The providers whose export was ticked under their tile (0153 open question 5, item 2). */
   exports?: ReadonlyArray<StartProvider>;
   onExports?: (next: ReadonlyArray<StartProvider>) => void;
@@ -1007,6 +1036,8 @@ export const WhatStep: React.FC<{
   onPaperFormat,
   microsoftMail,
   onMicrosoftMail = () => undefined,
+  microsoftCompany = microsoftMail !== undefined,
+  onMicrosoftCompany = () => undefined,
   exports = [],
   onExports = () => undefined,
   oneFolder = [],
@@ -1063,7 +1094,12 @@ export const WhatStep: React.FC<{
                         {experimental && <ExperimentalTag />}
                       </span>
                     </label>
-                    {experimental && <ExperimentalWhy />}
+                    {/* Under the line it explains, as the Files hints are (the UX sweep, 2026-10-17). */}
+                    {experimental && (
+                      <div className="ml-8">
+                        <ExperimentalWhy />
+                      </div>
+                    )}
                     {on && type === 'file' && offersOneFolder(provider, served, choices) && (
                       <FilesFrom
                         provider={provider}
@@ -1089,7 +1125,12 @@ export const WhatStep: React.FC<{
                       </div>
                     )}
                     {on && type === 'email' && provider === 'microsoft' && (
-                      <MicrosoftMailChoice value={microsoftMail} onChange={onMicrosoftMail} />
+                      <MicrosoftMailChoice
+                        value={microsoftMail}
+                        onChange={onMicrosoftMail}
+                        company={microsoftCompany}
+                        onCompany={onMicrosoftCompany}
+                      />
                     )}
                   </div>
                 );
@@ -1205,8 +1246,8 @@ const ExportTick: React.FC<{ archive: ArchiveProvider; on: boolean; onChange: (o
           {experimental && <ExperimentalTag />}
         </span>
       </label>
-      {experimental && <ExperimentalWhy />}
       <div className="ml-8">
+        {experimental && <ExperimentalWhy />}
         {lines !== undefined && <Hint text={t(lines.line)} why={t(lines.why)} />}
         {on && (
           <p className="mt-1 text-sm text-gray-700">
@@ -1279,9 +1320,15 @@ const MAIL_THROUGH: ReadonlyArray<{ readonly value: MicrosoftMailThrough | undef
 export const MicrosoftMailChoice: React.FC<{
   value: MicrosoftMailThrough | undefined;
   onChange: (next: MicrosoftMailThrough | undefined) => void;
-}> = ({ value, onChange }) => {
+  /**
+   * The answer, held by the page (the UX sweep, 2026-10-17): the account's
+   * form on *Connect your accounts* reads it rather than asking again, and it
+   * stands when the person comes back to this screen.
+   */
+  company: boolean;
+  onCompany: (company: boolean) => void;
+}> = ({ value, onChange, company, onCompany: setCompany }) => {
   const { t } = useLocale();
-  const [company, setCompany] = React.useState(value !== undefined);
   const name = React.useId();
   return (
     <fieldset className="ml-8 mt-1 mb-3">
@@ -1514,11 +1561,28 @@ function useAccounts(personName: string): Accounts {
   };
 }
 
-/** A saved account as a choice reads: its name, and the address where the name is not it. */
+/**
+ * Whether a name already says the address, as a whole: *Soverin
+ * (anna@jansen-partners.nl)* does, and *Hanna Nextcloud* does not say *anna*.
+ */
+const nameHolds = (name: string, username: string): boolean => {
+  const at = name.indexOf(username);
+  if (at < 0) return false;
+  const apart = (ch: string | undefined) => ch === undefined || !/[\p{L}\p{N}._@-]/u.test(ch);
+  return apart(name[at - 1]) && apart(name[at + username.length]);
+};
+
+/**
+ * A saved account as a choice reads: its name, and the address where the name
+ * does not already say it. A name typed with the address in it read *Soverin
+ * (anna@…) (anna@…)* (the UX sweep, 2026-10-17).
+ */
 function useAccountLabel(): (c: ConnectionSummary) => string {
   return (c) => {
     const username = c.knownValues?.username;
-    return username && username !== c.displayName ? `${c.displayName} (${username})` : c.displayName;
+    return username && username !== c.displayName && !nameHolds(c.displayName, username)
+      ? `${c.displayName} (${username})`
+      : c.displayName;
   };
 }
 
@@ -1540,6 +1604,11 @@ export const ConnectStep: React.FC<{
   /** The folder a need's files start from, where only one folder of them moves (0153 open question 5, item 4). */
   folderFor?: (need: ConnectionNeed) => string | undefined;
   onFolder?: (card: string, folder: string) => void;
+  /**
+   * The company question's answer from *What moves?*, where it was asked
+   * there: the Microsoft 365 account's form does not ask it again.
+   */
+  companyAnswer?: boolean | undefined;
 }> = ({
   needs,
   accounts,
@@ -1548,6 +1617,7 @@ export const ConnectStep: React.FC<{
   exporting = [],
   folderFor = () => undefined,
   onFolder = () => undefined,
+  companyAnswer,
 }) => {
   const { t } = useLocale();
   const google = needs.filter((n) => n.provider === 'google');
@@ -1580,6 +1650,7 @@ export const ConnectStep: React.FC<{
               someoneElse={someoneElse}
               folder={folderFor(need)}
               onFolder={(folder) => onFolder(need.card, folder)}
+              companyAnswer={need.card === 'microsoft' ? companyAnswer : undefined}
             />
           ),
         )}
@@ -1595,13 +1666,9 @@ interface FolderAsked {
   readonly onFolder?: (folder: string) => void;
 }
 
-const NeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts; someoneElse?: boolean } & FolderAsked> = ({
-  need,
-  accounts,
-  someoneElse = false,
-  folder,
-  onFolder = () => undefined,
-}) => {
+const NeedRow: React.FC<
+  { need: ConnectionNeed; accounts: Accounts; someoneElse?: boolean; companyAnswer?: boolean | undefined } & FolderAsked
+> = ({ need, accounts, someoneElse = false, folder, onFolder = () => undefined, companyAnswer }) => {
   const { t, locale } = useLocale();
   const { list } = useFormatters();
   const accountLabel = useAccountLabel();
@@ -1683,6 +1750,7 @@ const NeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts; someoneElse?
             displayName={`${accounts.personName} · ${name}`}
             onDisplayName={() => undefined}
             onAdded={(added) => accounts.onAdded(key, added, accounts.values(key, initial))}
+            {...(companyAnswer === undefined ? {} : { companyAnswer })}
           />
           {accounts.failedCheck(key) !== undefined && (
             <button
@@ -2040,17 +2108,19 @@ export const ToStep: React.FC<{
           return (
             <li key={type}>
               <div className="flex flex-wrap items-center gap-3">
-                <span className="w-32 shrink-0 text-gray-900">
+                {/* The data type over its select on a phone, where beside it the
+                    select showed only "Soverin (anna@ja" (the UX sweep, 2026-10-17). */}
+                <span className="w-full shrink-0 text-gray-900 sm:w-32">
                   <DataTypeLabel domain={type} />
                 </span>
-                <span aria-hidden="true" className="text-gray-500">
+                <span aria-hidden="true" className="hidden text-gray-500 sm:inline">
                   →
                 </span>
                 <select
                   aria-label={t('start.to.row', { type: word(type) })}
                   value={destinationOf(type)}
                   onChange={(e) => onDestination(type, e.target.value)}
-                  className="input min-h-[44px] flex-1"
+                  className="input min-h-[44px] w-full sm:w-auto sm:flex-1"
                 >
                   {saved.length > 0 && (
                     <optgroup label={t('start.to.yours')}>
@@ -2114,20 +2184,20 @@ export const ToStep: React.FC<{
           // files serve byte ranges are offered (0148 D11).
           <li data-export-row="">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="w-32 shrink-0 text-gray-900">
+              <span className="w-full shrink-0 text-gray-900 sm:w-32">
                 <span className="inline-flex items-center gap-2">
                   <DataTypeIcon name="photos" size={20} className="shrink-0" />
                   <span>{photos}</span>
                 </span>
               </span>
-              <span aria-hidden="true" className="text-gray-500">
+              <span aria-hidden="true" className="hidden text-gray-500 sm:inline">
                 →
               </span>
               <select
                 aria-label={t('start.to.row', { type: photos.toLocaleLowerCase(locale) })}
                 value={exportRow.choice}
                 onChange={(e) => exportRow.onChoice(e.target.value)}
-                className="input min-h-[44px] flex-1"
+                className="input min-h-[44px] w-full sm:w-auto sm:flex-1"
               >
                 {savedForExport.length > 0 && (
                   <optgroup label={t('start.to.yours')}>
@@ -2349,7 +2419,10 @@ export const CheckStep: React.FC<{
       return family === undefined ? [] : [family];
     })),
   ];
-  const scoped = manifest.data && scopeManifestFor(manifest.data, families);
+  // And only the rows about what was ticked (the UX sweep, 2026-10-17): a
+  // calendar-and-contacts migration was told its mail, Drive and tasks move.
+  const ticked = [...new Set(planned.flatMap((m) => m.types))];
+  const scoped = manifest.data && scopeManifestFor(manifest.data, families, ticked);
 
   /**
    * Start each migration not yet started, or only those named (what fits now,
@@ -2417,7 +2490,13 @@ export const CheckStep: React.FC<{
           check
         );
       })}
-      {scoped && <ScopeManifestPanel manifest={scoped} />}
+      {/* Under its heading, as on Review and start (`Confirm.tsx`). */}
+      {scoped && (
+        <section className="p-4 bg-white border border-gray-200 rounded-lg">
+          <h3 className="font-semibold text-gray-900 mb-3">{t('confirm.whatMigrates')}</h3>
+          <ScopeManifestPanel manifest={scoped} />
+        </section>
+      )}
       {manifest.isError && (
         <p className="text-sm text-red-600" role="alert">
           {t('confirm.manifestError')} {serverMessage(manifest.error)}
@@ -2436,38 +2515,62 @@ export const CheckStep: React.FC<{
           onStart={(only) => void start(only)}
         />
       )}
-      <div className="flex flex-col items-end">
-        {onlyExports ? (
-          <button
-            type="button"
-            onClick={onStarted}
-            className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700"
-          >
-            {t('start.check.done')}
-          </button>
-        ) : (
-          <>
-            {!askingPaths && (
-              <button
-                type="button"
-                onClick={() => void start()}
-                disabled={starting || !allReady}
-                aria-describedby={allReady ? undefined : waitsId}
-                className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {starting ? t('confirm.starting') : t('start.check.start')}
-              </button>
-            )}
-            {!allReady && (
-              <p id={waitsId} className="mt-2 text-sm text-gray-600">
-                {t(counted.length === 0 ? 'start.check.waitsForACount' : 'start.check.waits', { person: personName })}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        {/* NOT NOW (the UX sweep, 2026-10-17): the way back closed once the
+            migrations were made, and Start was the only way on. They are on
+            the person's page, set up and paused, whatever is pressed here. */}
+        {!onlyExports && made.personId !== undefined ? (
+          <div className="min-w-0 flex-1">
+            <Link
+              to={`/people/${made.personId}`}
+              className="min-h-[44px] inline-flex items-center px-5 py-2 bg-white border border-gray-300 text-gray-800 rounded-lg hover:bg-gray-50"
+            >
+              {t('start.check.notNow')}
+            </Link>
+            {/* Not where *start.check.later*, beside Start, already says it. */}
+            {(allReady || !anyByLink) && (
+              <p className="mt-1 max-w-xs text-sm text-gray-600">
+                {t('start.check.notNow.line', { person: personName })}
               </p>
             )}
-            {!allReady && anyByLink && (
-              <p className="mt-1 text-sm text-gray-600">{t('start.check.later', { person: personName })}</p>
-            )}
-          </>
+          </div>
+        ) : (
+          <span />
         )}
+        {/* At the right, also on its own line where a phone wraps the row. */}
+        <div className="ml-auto flex flex-col items-end">
+          {onlyExports ? (
+            <button
+              type="button"
+              onClick={onStarted}
+              className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700"
+            >
+              {t('start.check.done')}
+            </button>
+          ) : (
+            <>
+              {!askingPaths && (
+                <button
+                  type="button"
+                  onClick={() => void start()}
+                  disabled={starting || !allReady}
+                  aria-describedby={allReady ? undefined : waitsId}
+                  className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {starting ? t('confirm.starting') : t('start.check.start')}
+                </button>
+              )}
+              {!allReady && (
+                <p id={waitsId} className="mt-2 text-sm text-gray-600">
+                  {t(counted.length === 0 ? 'start.check.waitsForACount' : 'start.check.waits', { person: personName })}
+                </p>
+              )}
+              {!allReady && anyByLink && (
+                <p className="mt-1 text-sm text-gray-600">{t('start.check.later', { person: personName })}</p>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -894,7 +894,8 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
       await l.page.getByText('Connected as anna@example.nl').waitFor({ timeout: 10_000 });
       await next();
       await l.page.getByRole('heading', { level: 2, name: 'Where does it go?' }).waitFor({ timeout: 10_000 });
-      await next();
+      // Leaving this screen sets the migrations up, and its button says so.
+      await l.page.getByRole('button', { name: 'Set up' }).click();
       await l.page.getByRole('heading', { level: 2, name: 'Check, then start' }).waitFor({ timeout: 15_000 });
       // Past the ceiling, the step says so with the price of moving up, and
       // never blocks: Start opens all the same.

@@ -19,7 +19,7 @@
 import React from 'react';
 import { Loader2 } from 'lucide-react';
 import { domainsCountedBeforeTheirError, type DiscoveryDomain, type DiscoveryRecord } from '@openmig/shared';
-import { useT } from '../../i18n/index.tsx';
+import { useFormatters, useLocale } from '../../i18n/index.tsx';
 import { formatBytes } from '../../i18n/bytes.ts';
 // The dictionary's own domain words — the old local map silently bypassed
 // them, so the table said "Email" beside screens saying the translated word.
@@ -85,7 +85,8 @@ export const DiscoveryCounts: React.FC<{
    */
   slow?: boolean;
 }> = ({ domains, expected, slow }) => {
-  const t = useT();
+  const { t, locale } = useLocale();
+  const { number } = useFormatters();
   const landed = new Set(domains.map((d) => d.domain));
   const pending = (expected ?? []).filter((d) => !landed.has(d));
   // Rows carrying BOTH a count and an error: the count is the last successful
@@ -115,6 +116,10 @@ export const DiscoveryCounts: React.FC<{
   // somebody hunting through their Drive; "3 Google Slides" does not.
   const refused = refusedByKind(domains);
 
+  // The column for a row's error, drawn only where a row has one: an empty
+  // column with an empty header on every table said nothing to anybody.
+  const problems = domains.some((d) => d.lastError || d.lastErrorWithheld);
+
   if (domains.length === 0) {
     return (
       <p className="flex items-center gap-2 text-sm text-gray-500" role="status">
@@ -131,7 +136,20 @@ export const DiscoveryCounts: React.FC<{
 
   return (
     <div>
-      <div className="overflow-x-auto">
+      {/* A SCROLLER A KEYBOARD CAN REACH (the UX sweep, 2026-10-17): on a
+          phone the table is wider than the screen, and a scroll area with
+          nothing focusable in it cannot be scrolled from the keyboard. Named
+          as the section it belongs to says it, and a group rather than a
+          region: Review and start's section is a region by that same name,
+          and two landmarks with one name tell a screen reader nothing.
+          Collections, the column a person needs least, is left out below the
+          `sm` width so the rest fits. */}
+      <div
+        className="overflow-x-auto rounded outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+        tabIndex={0}
+        role="group"
+        aria-label={t('confirm.foundInSource')}
+      >
         <table className="min-w-full text-sm">
           <thead>
             {/* NO "NEEDS AN ID" COLUMN (owner, 2026-09-17: *"what is that and
@@ -144,22 +162,26 @@ export const DiscoveryCounts: React.FC<{
                 including the ones carrying no mail at all, and taught a reader
                 to skip a table that has real numbers in it. */}
             <tr className="text-left text-gray-500">
-              <th className="py-1 pr-4 font-medium">{t('discovery.th.type')}</th>
-              <th className="py-1 pr-4 font-medium">{t('discovery.th.collections')}</th>
-              <th className="py-1 pr-4 font-medium">{t('discovery.th.items')}</th>
-              <th className="py-1 pr-4 font-medium">{t('discovery.th.size')}</th>
-              <th className="py-1 pr-4 font-medium">{t('discovery.th.existing')}</th>
-              <th className="py-1 font-medium" />
+              <th className="py-1 pr-2 sm:pr-4 font-medium">{t('discovery.th.type')}</th>
+              <th className="hidden sm:table-cell py-1 pr-2 sm:pr-4 font-medium">{t('discovery.th.collections')}</th>
+              <th className="py-1 pr-2 sm:pr-4 font-medium">{t('discovery.th.items')}</th>
+              <th className="py-1 pr-2 sm:pr-4 font-medium">{t('discovery.th.size')}</th>
+              <th className="py-1 pr-2 sm:pr-4 font-medium">{t('discovery.th.existing')}</th>
+              {problems && (
+                <th className="py-1 font-medium">
+                  <span className="sr-only">{t('discovery.th.problem')}</span>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
             {domains.map((d) => (
               <tr key={d.domain} className="border-t border-gray-100">
-                <td className="py-1 pr-4 font-medium text-gray-900">{t(DOMAIN_KEY[d.domain])}</td>
-                <td className="py-1 pr-4">{d.collections}</td>
-                <td className="py-1 pr-4">{d.items}</td>
-                <td className="py-1 pr-4">{formatBytes(d.bytes)}</td>
-                <td className="py-1 pr-4">
+                <td className="whitespace-nowrap py-1 pr-2 sm:pr-4 font-medium text-gray-900">{t(DOMAIN_KEY[d.domain])}</td>
+                <td className="hidden sm:table-cell whitespace-nowrap py-1 pr-2 sm:pr-4">{number(d.collections)}</td>
+                <td className="whitespace-nowrap py-1 pr-2 sm:pr-4">{number(d.items)}</td>
+                <td className="whitespace-nowrap py-1 pr-2 sm:pr-4">{formatBytes(d.bytes, locale)}</td>
+                <td className="whitespace-nowrap py-1 pr-2 sm:pr-4">
                   {/*
                     Absent, not zero, when the destination could not be
                     enumerated. Printing "0" would tell the customer their
@@ -170,18 +192,20 @@ export const DiscoveryCounts: React.FC<{
                     <span className="text-gray-400">&mdash;</span>
                   ) : d.targetColliding ? (
                     <span className="text-amber-700">
-                      {d.targetExisting} ({d.targetColliding} {t('discovery.keptAsIs')})
+                      {number(d.targetExisting)} ({number(d.targetColliding)} {t('discovery.keptAsIs')})
                     </span>
                   ) : (
-                    <span>{d.targetExisting}</span>
+                    <span>{number(d.targetExisting)}</span>
                   )}
                 </td>
                 {/* Verbatim, never summarised — §11.2's honest passthrough.
                     Unless the text is the person's to keep (ADR-0035
                     decision 5): then the row still says the count stopped. */}
-                <td className="py-1 text-red-700">
-                  {d.lastError ?? (d.lastErrorWithheld ? t('discovery.errorWithheld.cell') : '')}
-                </td>
+                {problems && (
+                  <td className="py-1 text-red-700">
+                    {d.lastError ?? (d.lastErrorWithheld ? t('discovery.errorWithheld.cell') : '')}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -236,7 +260,7 @@ export const DiscoveryCounts: React.FC<{
 
       {generatedId > 0 && (
         <p className="mt-2 text-sm text-amber-700" role="note">
-          {generatedId}{' '}
+          {number(generatedId)}{' '}
           {t(generatedId === 1 ? 'discovery.generatedId.pre.one' : 'discovery.generatedId.pre.many')}{' '}
           <strong>{t('discovery.generatedId.strong')}</strong>{' '}
           {t('discovery.generatedId.post')}
@@ -245,7 +269,7 @@ export const DiscoveryCounts: React.FC<{
 
       {unlisted > 0 && (
         <p className="mt-2 text-sm text-amber-700" role="note">
-          {unlisted}{' '}
+          {number(unlisted)}{' '}
           {t(unlisted === 1 ? 'discovery.unlisted.pre.one' : 'discovery.unlisted.pre.many')}{' '}
           <strong>
             {t(unlisted === 1 ? 'discovery.unlisted.strong.one' : 'discovery.unlisted.strong.many')}
@@ -256,7 +280,7 @@ export const DiscoveryCounts: React.FC<{
 
       {colliding > 0 && (
         <p className="mt-2 text-sm text-amber-700" role="note">
-          {colliding}{' '}
+          {number(colliding)}{' '}
           {t(colliding === 1 ? 'discovery.colliding.pre.one' : 'discovery.colliding.pre.many')}{' '}
           <strong>{t('discovery.colliding.strong')}</strong>{' '}
           {t('discovery.colliding.post')}
@@ -265,7 +289,7 @@ export const DiscoveryCounts: React.FC<{
 
       {refused.length > 0 && (
         <p className="mt-2 text-sm text-amber-700" role="note">
-          {refused.map(([kind, n]) => `${n} ${t(nativeKindKey(kind))}`).join(', ')}{' '}
+          {refused.map(([kind, n]) => `${number(n)} ${t(nativeKindKey(kind))}`).join(', ')}{' '}
           <strong>{t('discovery.refusedNative.strong')}</strong>{' '}
           {t('discovery.refusedNative.post')}
         </p>

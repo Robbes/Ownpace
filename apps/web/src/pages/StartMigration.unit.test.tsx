@@ -95,6 +95,8 @@ const renderAt = (path = '/start') =>
   );
 
 const next = () => screen.getByRole('button', { name: 'Next' });
+/** Leaving *Where does it go?* sets the migrations up, and the button says so. */
+const setUp = () => screen.getByRole('button', { name: 'Set up' });
 
 /** Walk to *What moves?* with these tiles ticked. */
 async function toWhatMoves(user: ReturnType<typeof userEvent.setup>, tiles: string[]) {
@@ -361,6 +363,8 @@ describe('Connect your accounts (screen 4)', () => {
     expect(screen.getByText('Connected as anna@example.nl')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Check the sign-in' })).not.toBeInTheDocument();
     expect(next()).toBeEnabled();
+    // Named by the card's own title, which is not repeated as "… account account".
+    expect(screen.getByRole('group', { name: 'Which account: Another mail provider' })).toBeInTheDocument();
   });
 
   it('asks a new account for what its card asks, names it itself, and keeps it once its check passes', async () => {
@@ -487,7 +491,7 @@ describe('Where does it go? (screen 5)', () => {
     expect(screen.getByRole('combobox', { name: 'Where files goes' })).toHaveDisplayValue('Add Nextcloud');
     expect(screen.getByText('Soverin does not take files.')).toBeInTheDocument();
     expect(screen.getByText('Nextcloud does not take email.')).toBeInTheDocument();
-    expect(next()).toHaveAccessibleDescription('Add each new account first.');
+    expect(setUp()).toHaveAccessibleDescription('Add each new account first.');
   });
 
   it('asks Soverin for two fields, its servers filled in and folded (T7 (b))', async () => {
@@ -591,7 +595,7 @@ describe('Where does it go? (screen 5)', () => {
     expect(said).toBe('Bij de laatste test bleek dat Anna Soverin geen e-mail aanneemt.');
   });
 
-  it('keeps Next from going on while the destination chosen does not take its type', async () => {
+  it('keeps Set up from going on while the destination chosen does not take its type', async () => {
     // Files have a saved Nextcloud, so mail is all that waits.
     const cloud = account({ id: 'c-cloud', role: 'target', kind: 'nextcloud', displayName: 'Anna Nextcloud' });
     listMock.mockResolvedValue([...SAVED_SOURCES, cloud]);
@@ -607,7 +611,46 @@ describe('Where does it go? (screen 5)', () => {
     await user.click(within(soverin).getByRole('button', { name: 'Check the sign-in' }));
     await screen.findByText('Its last test found that Anna Soverin does not take email.');
     expect(screen.getByRole('combobox', { name: 'Where email goes' })).toHaveValue('c-soverin');
-    expect(next()).toHaveAccessibleDescription('Choose a destination that takes email.');
+    expect(setUp()).toHaveAccessibleDescription('Choose a destination that takes email.');
+  });
+
+  it('says that leaving it sets the migrations up, paused, and that nothing is copied before Start', async () => {
+    listMock.mockResolvedValue([
+      ...SAVED_SOURCES,
+      account({ id: 'c-soverin', role: 'target', kind: 'soverin', displayName: 'Anna Soverin' }),
+      account({ id: 'c-cloud', role: 'target', kind: 'nextcloud', displayName: 'Anna Nextcloud' }),
+    ]);
+    const user = userEvent.setup();
+    renderAt();
+    await toWhereTo(user);
+    // Leaving this screen makes the person and the migrations: the button says so (the UX sweep, 2026-10-17).
+    expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument();
+    expect(setUp()).toBeEnabled();
+    expect(setUp()).toHaveAccessibleDescription(
+      'This sets the migrations up, paused. Nothing is copied until you press Start.',
+    );
+  });
+
+  it('shows an account whose name already holds its address once, not twice', async () => {
+    listMock.mockResolvedValue([
+      ...SAVED_SOURCES,
+      account({
+        id: 'c-soverin',
+        role: 'target',
+        kind: 'soverin',
+        displayName: 'Soverin (anna@jansen-partners.nl)',
+        knownValues: { username: 'anna@jansen-partners.nl' },
+      }),
+      account({ id: 'c-cloud', role: 'target', kind: 'nextcloud', displayName: 'Anna Nextcloud', knownValues: { username: 'anna' } }),
+    ]);
+    const user = userEvent.setup();
+    renderAt();
+    await toWhereTo(user);
+    expect(screen.getByRole('combobox', { name: 'Where email goes' })).toHaveDisplayValue(
+      'Soverin (anna@jansen-partners.nl)',
+    );
+    // A name that does not hold it still gets the address beside it.
+    expect(screen.getByRole('combobox', { name: 'Where files goes' })).toHaveDisplayValue('Anna Nextcloud (anna)');
   });
 
   it('takes a saved destination that can take the data type, and draws no form for it', async () => {
@@ -623,7 +666,7 @@ describe('Where does it go? (screen 5)', () => {
     expect(screen.getByRole('combobox', { name: 'Where files goes' })).toHaveDisplayValue('Anna Nextcloud');
     // No form for a new account: its heading names the one to add.
     expect(screen.queryByRole('heading', { level: 3, name: /^Add / })).not.toBeInTheDocument();
-    expect(next()).toBeEnabled();
+    expect(setUp()).toBeEnabled();
   });
 });
 
@@ -688,7 +731,7 @@ describe('Check, then start (screen 6)', () => {
     await onTo(user, 'Connect your accounts');
     await screen.findAllByText('Connected as anna@example.nl');
     await onTo(user, 'Where does it go?');
-    await user.click(next());
+    await user.click(setUp());
   }
 
   it('sets up one paused migration per pair of accounts, for the new person, as it leaves Where does it go?', async () => {
@@ -738,7 +781,7 @@ describe('Check, then start (screen 6)', () => {
     expect(await screen.findByText('The person’s page')).toBeInTheDocument();
   });
 
-  it('says a refused set-up under Next, and asks again only for what was not made', async () => {
+  it('says a refused set-up under Set up, and asks again only for what was not made', async () => {
     createMock.mockImplementation(async (input) => {
       if (input.targetType === 'nextcloud') throw new Error('The Nextcloud said no');
       return { id: 'm-mail' } as never;
@@ -751,7 +794,7 @@ describe('Check, then start (screen 6)', () => {
 
     createMock.mockClear();
     createMock.mockResolvedValue({ id: 'm-files' } as never);
-    await user.click(next());
+    await user.click(setUp());
     await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
     expect(createMock).toHaveBeenCalledTimes(1);
     expect(createMock).toHaveBeenCalledWith(expect.objectContaining({ targetType: 'nextcloud' }));
@@ -800,6 +843,12 @@ describe('someone else connects their own accounts, by a link where one reaches 
     renderAt();
     expect(await screen.findByRole('radio', { name: 'I do' })).toBeChecked();
     expect(screen.getByText(/They connect a Google account themselves/)).toBeInTheDocument();
+    // A question of its own, said on screen (the UX sweep, 2026-10-17): with
+    // its legend for screen readers only, *I do* read as one more person to pick.
+    const question = screen.getByRole('group', { name: 'Who signs in to the accounts?' });
+    const legend = within(question).getByText('Who signs in to the accounts?');
+    expect(legend).toBeVisible();
+    expect(legend).not.toHaveClass('sr-only');
   });
 
   it('asks for their Google address in place of a sign-in, and signs in together where no link reaches', async () => {
@@ -851,7 +900,7 @@ describe('someone else connects their own accounts, by a link where one reaches 
     await user.click(screen.getByRole('button', { name: 'Save the email address' }));
     await screen.findByText('By link: anna@gmail.com');
     await onTo(user, 'Where does it go?');
-    await user.click(next());
+    await user.click(setUp());
     await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
   }
 
@@ -876,6 +925,9 @@ describe('someone else connects their own accounts, by a link where one reaches 
     expect(
       screen.getByText(/Anna Jansen's page keeps these migrations: once they have connected, start each one from its Details/),
     ).toBeInTheDocument();
+    // The way out, without its line: the sentence above already says where they wait.
+    expect(screen.getByRole('link', { name: 'Not now' })).toHaveAttribute('href', '/people/p-new');
+    expect(screen.queryByText("They stay set up and paused on Anna Jansen's page.")).not.toBeInTheDocument();
   });
 
   const USED = {
@@ -905,7 +957,7 @@ describe('someone else connects their own accounts, by a link where one reaches 
     // The link is made here, and the next read finds it used.
     linksMock.mockResolvedValue([USED]);
     await user.click(await screen.findByRole('button', { name: /Create grant link/ }));
-    await screen.findByText('2000');
+    await screen.findByText('2,000');
     expect(screen.queryByText(/Waiting for Anna Jansen to connect/)).not.toBeInTheDocument();
     await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled());
   });
@@ -1088,6 +1140,33 @@ describe('what migrates, for each source on the check screen', () => {
     expect(await rows.findByText(/Microsoft To Do:/)).toBeInTheDocument();
     expect(rows.queryByText(/Google Tasks:/)).not.toBeInTheDocument();
   });
+
+  it('tells a Google calendar-and-contacts migration nothing about mail, files or tasks, under What migrates', async () => {
+    // Narrowed by family alone, it was told its mail, Drive and Google Tasks
+    // would move, and that its Docs are converted (the UX sweep, 2026-10-17).
+    renderCheck(plan('google', 'google', ['calendar', 'contact']));
+    const region = await panel();
+    const rows = within(region);
+    expect(await rows.findByText(/Events, repeating ones included/)).toBeInTheDocument();
+    expect(rows.getByText('Contacts')).toBeInTheDocument();
+    expect(rows.queryByText(/Every folder, Sent, Drafts and Archive included/)).not.toBeInTheDocument();
+    expect(rows.queryByText('Google-native files')).not.toBeInTheDocument();
+    expect(rows.queryByText('Mail with no Message-ID')).not.toBeInTheDocument();
+    expect(rows.queryByText(/Google Tasks:/)).not.toBeInTheDocument();
+    expect(rows.queryByText(/Google Drive: files and folders/)).not.toBeInTheDocument();
+    // What does not migrate from Google is said whatever was ticked.
+    expect(rows.getByText('Google Keep')).toBeInTheDocument();
+    // Under its heading, as on Review and start.
+    const heading = screen.getByRole('heading', { level: 3, name: 'What migrates' });
+    expect(heading.closest('section')).toContainElement(region);
+  });
+
+  it('offers Not now, to the person’s page, where the migrations wait set up and paused', async () => {
+    renderCheck(plan('dropbox', 'dropbox', ['file']));
+    const notNow = await screen.findByRole('link', { name: 'Not now' });
+    expect(notNow).toHaveAttribute('href', '/people/p-anna');
+    expect(screen.getByText("They stay set up and paused on Anna Jansen's page.")).toBeInTheDocument();
+  });
 });
 
 /**
@@ -1127,6 +1206,41 @@ describe('mail through a company’s own Microsoft app (0153 open question 5)', 
     await onTo(user, 'Connect your accounts');
     expect(await screen.findByText('Microsoft 365 account')).toBeInTheDocument();
     expect(screen.queryByText('Microsoft 365 (Graph API)')).not.toBeInTheDocument();
+  });
+
+  it('asks the company question once: a No on What moves? folds the tenant under More options on the account', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Microsoft 365']);
+    const section = microsoftSection();
+    expect(within(section).getByRole('radio', { name: 'No' })).toBeChecked();
+    await onTo(user, 'Connect your accounts');
+    const row = (await screen.findByText('Microsoft 365 account')).closest('li')!;
+    expect(
+      within(row).queryByRole('group', { name: 'Is this a company account with an administrator?' }),
+    ).not.toBeInTheDocument();
+    // Still reachable (0068 T3: the question splits the fields and never hides them).
+    const more = within(row).getByText('More options').closest('details')!;
+    expect(more).not.toHaveAttribute('open');
+    expect(within(more).getByRole('textbox', { name: /^Tenant ID/ })).toBeInTheDocument();
+  });
+
+  it('asks the company question once: a Yes on What moves? shows the tenant on the account', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Microsoft 365']);
+    await user.click(within(microsoftSection()).getByRole('radio', { name: 'Yes' }));
+    await onTo(user, 'Connect your accounts');
+    const row = (await screen.findByText('Microsoft 365 account')).closest('li')!;
+    expect(
+      within(row).queryByRole('group', { name: 'Is this a company account with an administrator?' }),
+    ).not.toBeInTheDocument();
+    const tenant = within(row).getByRole('textbox', { name: /^Tenant ID/ });
+    expect(tenant.closest('details')).toBeNull();
+    // And the answer stands when the person goes back to look.
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await screen.findByRole('heading', { level: 2, name: 'What moves?' });
+    expect(within(microsoftSection()).getByRole('radio', { name: 'Yes' })).toBeChecked();
   });
 
   it('asks the organisation’s app for the mail, with its tenant in view, and the account for the rest', async () => {
@@ -1172,7 +1286,7 @@ describe('mail through a company’s own Microsoft app (0153 open question 5)', 
     // One kind whichever way its mail is read: the saved app is offered, and the one is the default.
     expect(await screen.findByRole('radio', { name: 'Contoso mail app (info@contoso.example)' })).toBeChecked();
     await onTo(user, 'Where does it go?');
-    await user.click(next());
+    await user.click(setUp());
     await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
     expect(createMock).toHaveBeenCalledTimes(1);
     expect(createMock).toHaveBeenCalledWith(
@@ -1270,7 +1384,7 @@ describe('Google’s photos from a Takeout export (0153 open question 5, item 2)
     await onTo(user, 'Connect your accounts');
     await screen.findAllByText('Connected as anna@example.nl');
     await onTo(user, 'Where does it go?');
-    await user.click(next());
+    await user.click(setUp());
     await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
     expect(createMock).toHaveBeenCalledWith({
       name: 'Anna Jansen — Google Takeout to Nextcloud',
@@ -1317,9 +1431,11 @@ describe('Google’s photos from a Takeout export (0153 open question 5, item 2)
     await onTo(user, 'Connect your accounts');
     expect(next()).toBeEnabled();
     await onTo(user, 'Where does it go?');
-    await user.click(next());
+    await user.click(setUp());
     await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
     expect(screen.queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
+    // Nothing waits to be started here, so there is no "not now" either.
+    expect(screen.queryByRole('link', { name: 'Not now' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Done' }));
     expect(await screen.findByText('The person’s page')).toBeInTheDocument();
     expect(startMock).not.toHaveBeenCalled();
@@ -1360,7 +1476,7 @@ describe('a saved Google Calendar or Contacts account, on the Google tile (0153 
     // The one saved account that carries what was ticked is the default.
     expect(await screen.findByRole('radio', { name: 'Anna Calendar (anna@gmail.com)' })).toBeChecked();
     await onTo(user, 'Where does it go?');
-    await user.click(next());
+    await user.click(setUp());
     await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
     expect(createMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1425,7 +1541,7 @@ describe('where the copies land (0153 open question 5, item 4)', () => {
     const gmail = folders.find((f) => (f as HTMLInputElement).value === 'anna@gmail.com')!;
     await user.clear(gmail);
     await user.type(gmail, 'Gmail');
-    await user.click(next());
+    await user.click(setUp());
     await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
     expect(createMock).toHaveBeenCalledWith(
       expect.objectContaining({ sourceConnectionId: 'c-gmail', targetFolderPrefix: 'Gmail' }),
@@ -1444,7 +1560,7 @@ describe('where the copies land (0153 open question 5, item 4)', () => {
     await screen.findAllByText(/^Connected as/);
     await onTo(user, 'Where does it go?');
     expect(screen.getByText('Put it in a folder of its own').closest('details')).not.toHaveAttribute('open');
-    await user.click(next());
+    await user.click(setUp());
     await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
     expect(createMock.mock.calls[0]![0]).not.toHaveProperty('targetFolderPrefix');
   });
@@ -1518,7 +1634,7 @@ describe('Only one folder (0153 open question 5, item 4)', () => {
     expect(next()).toBeEnabled();
 
     await onTo(user, 'Where does it go?');
-    await user.click(next());
+    await user.click(setUp());
     await vi.waitFor(() => expect(createMock).toHaveBeenCalled());
     expect(createMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1544,7 +1660,7 @@ describe('Only one folder (0153 open question 5, item 4)', () => {
     await user.type(screen.getByLabelText('Which folder: its path'), 'Holiday/2019/');
 
     await onTo(user, 'Where does it go?');
-    await user.click(next());
+    await user.click(setUp());
     await vi.waitFor(() => expect(createMock).toHaveBeenCalled());
     expect(createMock).toHaveBeenCalledWith(
       expect.objectContaining({

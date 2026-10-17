@@ -415,7 +415,7 @@ const ReportProblem: React.FC = () => {
           {screenshot && (
             <div className="mt-2 flex flex-wrap items-center gap-3">
               <p role="status" className="text-sm text-gray-900">
-                {t('report.screenshotAttached', { name: screenshot.name, size: formatBytes(screenshot.size) })}
+                {t('report.screenshotAttached', { name: screenshot.name, size: formatBytes(screenshot.size, locale) })}
               </p>
               <button
                 type="button"
