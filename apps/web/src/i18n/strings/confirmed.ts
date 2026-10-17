@@ -21,22 +21,23 @@ export const en = {
   // questions, and a list that renders any two of them alike is a list
   // somebody empties the wrong folder on.
   'confirmed.title': 'What can your destination confirm?',
-  'confirmed.intro':
-    'Re-reads each item on the destination and says what the check actually compared.',
-  'confirmed.check': 'Check the destination',
+  // READ BACK, never "the check": that is Verify's (GLOSSARY.md). This
+  // page's pass reads each item back from the destination.
+  'confirmed.intro': 'Reads each item back from the destination and says what was actually compared.',
+  'confirmed.check': 'Read everything back',
   'confirmed.export': 'Download the full list',
   'confirmed.durationHint':
     'Reads the destination item by item — on a large account this takes minutes.',
-  'confirmed.applianceScope': 'On this appliance a check covers every configured migration.',
-  'confirmed.joined': 'A check was already running; this joined it.',
+  'confirmed.applianceScope': 'On this appliance, reading back covers every configured migration.',
+  'confirmed.joined': 'A read-back was already running; this joined it.',
   'confirmed.loading': 'Reading the list…',
   'confirmed.couldNotRead': 'The list could not be read.',
-  'confirmed.neverRun': 'No check has run yet, so nothing is confirmed.',
-  'confirmed.running': 'Checking since',
-  'confirmed.checkedAt': 'Checked',
-  'confirmed.passFailed': 'The check stopped at',
-  'confirmed.passStopped.closed': 'This organisation was closed, so the check stopped at',
-  'confirmed.paused': 'Only part of the account was checked:',
+  'confirmed.neverRun': 'Nothing has been read back yet, so nothing is confirmed.',
+  'confirmed.running': 'Reading back since',
+  'confirmed.checkedAt': 'Read back',
+  'confirmed.passFailed': 'Reading back stopped at',
+  'confirmed.passStopped.closed': 'This organisation was closed, so reading back stopped at',
+  'confirmed.paused': 'Only part of the account was read back:',
   'confirmed.nothingYet': 'This migration has no items yet.',
   'confirmed.allVerified': 'Every item was re-read and matched. Nothing needs your attention.',
   'confirmed.headline.of': 'of',
@@ -48,11 +49,11 @@ export const en = {
   // `confirmed.breakdown` below says where everything else stands.
   'confirmed.headline.rest': 'items in your new home are verified by hash.',
   'confirmed.breakdown': 'The rest of the account:',
-  // CHECKED, not verified: the pass has walked this many items, of which the
-  // headline above claims only the ones the target confirmed. Two numbers
+  // READ BACK, not verified: the pass has walked this many items, of which
+  // the headline above claims only the ones the target confirmed. Two numbers
   // that differ on purpose, and a reader who is told which is which.
   'confirmed.checked.of': 'of',
-  'confirmed.checked.rest': 'checked so far',
+  'confirmed.checked.rest': 'read back so far',
   'confirmed.truncated.a': 'Showing the first',
   'confirmed.truncated.b': 'rows. The download has every one of them.',
   'confirmed.noKey': 'name not recorded',
@@ -62,7 +63,7 @@ export const en = {
   'confirmed.col.item': 'Item',
   'confirmed.col.state': 'Result',
   'confirmed.col.claim': 'Compared',
-  'confirmed.col.when': 'Checked',
+  'confirmed.col.when': 'Read back',
   'confirmed.state.verified': 'Verified',
   'confirmed.state.differs': 'Differs',
   'confirmed.state.present': 'Present',
@@ -89,6 +90,9 @@ export const en = {
   'confirmed.claim.fingerprint': 'by fingerprint',
   'confirmed.claim.containerParts': "by the document's parts",
   'confirmed.claim.none': 'not compared',
+  // The fold under the list that says what each result word means, for a
+  // reader with no mouse to hover them.
+  'confirmed.legend': 'What the results mean',
 } as const;
 
 export const nl: Record<keyof typeof en, string> = {
@@ -105,28 +109,28 @@ export const nl: Record<keyof typeof en, string> = {
   'confirmed.title': 'Wat kan uw bestemming bevestigen?',
   'confirmed.intro':
     'Leest elk item terug op de bestemming en zegt wat er precies is vergeleken.',
-  'confirmed.check': 'Controleer de bestemming',
+  'confirmed.check': 'Alles teruglezen',
   'confirmed.export': 'Download de volledige lijst',
   'confirmed.durationHint':
     'Leest de bestemming item voor item — bij een groot account duurt dit minuten.',
   'confirmed.applianceScope':
-    'Op deze appliance omvat een controle elke geconfigureerde migratie.',
-  'confirmed.joined': 'Er liep al een controle; deze is daarin opgenomen.',
+    'Op deze appliance omvat het teruglezen elke geconfigureerde migratie.',
+  'confirmed.joined': 'Er liep al een terugleesronde; deze is daarin opgenomen.',
   'confirmed.loading': 'Bezig met lezen…',
   'confirmed.couldNotRead': 'De lijst kon niet worden gelezen.',
-  'confirmed.neverRun': 'Er is nog geen controle uitgevoerd, dus niets is bevestigd.',
-  'confirmed.running': 'Bezig sinds',
-  'confirmed.checkedAt': 'Gecontroleerd',
-  'confirmed.passFailed': 'De controle stopte om',
-  'confirmed.passStopped.closed': 'Deze organisatie is gesloten, dus de controle stopte om',
-  'confirmed.paused': 'Slechts een deel van het account is gecontroleerd:',
+  'confirmed.neverRun': 'Er is nog niets teruggelezen, dus niets is bevestigd.',
+  'confirmed.running': 'Bezig met teruglezen sinds',
+  'confirmed.checkedAt': 'Teruggelezen',
+  'confirmed.passFailed': 'Het teruglezen stopte om',
+  'confirmed.passStopped.closed': 'Deze organisatie is gesloten, dus het teruglezen stopte om',
+  'confirmed.paused': 'Slechts een deel van het account is teruggelezen:',
   'confirmed.nothingYet': 'Deze migratie heeft nog geen items.',
   'confirmed.allVerified': 'Elk item is teruggelezen en kwam overeen. Niets vraagt uw aandacht.',
   'confirmed.headline.of': 'van de',
   'confirmed.headline.rest': 'items in uw bestemming zijn met een hash geverifieerd.',
   'confirmed.breakdown': 'De rest van het overzicht:',
   'confirmed.checked.of': 'van de',
-  'confirmed.checked.rest': 'tot nu toe gecontroleerd',
+  'confirmed.checked.rest': 'tot nu toe teruggelezen',
   'confirmed.truncated.a': 'De eerste',
   'confirmed.truncated.b': 'rijen worden getoond. De download bevat ze allemaal.',
   'confirmed.noKey': 'naam niet vastgelegd',
@@ -136,7 +140,7 @@ export const nl: Record<keyof typeof en, string> = {
   'confirmed.col.item': 'Item',
   'confirmed.col.state': 'Resultaat',
   'confirmed.col.claim': 'Vergeleken',
-  'confirmed.col.when': 'Gecontroleerd',
+  'confirmed.col.when': 'Teruggelezen',
   'confirmed.state.verified': 'Geverifieerd',
   'confirmed.state.differs': 'Wijkt af',
   'confirmed.state.present': 'Aanwezig',
@@ -153,7 +157,7 @@ export const nl: Record<keyof typeof en, string> = {
     'Aangetroffen, maar er viel niets vergelijkbaars te berekenen. Geen fout.',
   'confirmed.help.yours': 'Uw eigen kopie was aangetroffen, niet door Ownpace via deze migratie geplaatst.',
   'confirmed.help.missing':
-    'Wat wij gemigreerd hadden, blijkt bij teruglezen niet aangetroffen te zijn / is weg. Bewaar uw origineel!',
+    'Wat wij gemigreerd hadden, is bij het teruglezen niet aangetroffen: het is weg. Bewaar uw origineel!',
   'confirmed.help.neverPlaced':
     'Het is nooit gemigreerd — overgeslagen, mislukt, of bewust achtergelaten.',
   'confirmed.help.removed':
@@ -164,4 +168,5 @@ export const nl: Record<keyof typeof en, string> = {
   'confirmed.claim.fingerprint': 'via digitale vingerafdruk',
   'confirmed.claim.containerParts': 'via stukjes van het document',
   'confirmed.claim.none': 'niet vergeleken',
+  'confirmed.legend': 'Wat de resultaten betekenen',
 };

@@ -487,7 +487,7 @@ describe('the hold’s hint says what the sentence also answers (0132 T6 (b))', 
   /**
    * Since T6 (b) the operator's sentence is not only the banner: it is the
    * answer, word for word, to every button that would start work while the
-   * hold is on (*Trigger sync*, *Start migration*, a check), and the press is
+   * hold is on (*Sync now*, *Start migration*, a check), and the press is
    * not remembered. The hint said only that new passes stop, so an operator
    * wrote *"Back in about an hour."* and every refused button answered that,
    * with no word that the press had done nothing and had to be made again.
@@ -501,7 +501,7 @@ describe('the hold’s hint says what the sentence also answers (0132 T6 (b))', 
   const PINNED = {
     hint: 'Stops new passes, buttons included; the ones already running finish.',
     answers:
-      "Your message is also shown to every button-press that would start work while the hold is on ('Trigger sync', 'Start migration', a check), and a refused press is not remembered.",
+      "Your message is also shown to every button-press that would start work while the hold is on ('Sync now', 'Start migration', a check), and a refused press is not remembered.",
     ask: "So say when copying resumes and ask them to try again after that, for example: 'We are updating the platform and copying resumes around 15:00. Nothing starts until then. Please try again after that.'",
   } as const;
   const why = OPERATOR_STRINGS['support.hold.hint.why'];

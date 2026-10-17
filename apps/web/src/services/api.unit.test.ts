@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { z } from 'zod';
 import { z as zm } from 'zod/mini';
-import apiClient, { onUnauthorized, serverMessage, unreadableAnswer } from './api.ts';
+import apiClient, { onUnauthorized, referenceIn, serverMessage, unreadableAnswer } from './api.ts';
 import { publishLocale } from '../i18n/active-locale.ts';
 import { forgetUnreadableAnswers } from './unreadable-answer.ts';
 import { forgetRecentErrors, recentErrors } from './recent-errors.ts';
@@ -163,6 +163,68 @@ describe('serverMessage — when nothing of ours answered', () => {
     expect(serverMessage(answered(500, undefined))).toBe('Request failed with status code 500');
     expect(serverMessage(new AxiosError('canceled', AxiosError.ERR_CANCELED, config, {}))).toBe('canceled');
     expect(warned).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A FAULT OF OURS, IN THE READER'S LANGUAGE (the UX sweep, 2026-10-17).
+ *
+ * Every 500 goes through `serverFault`, whose sentence is English only, so a
+ * Dutch list said *De migratielijst kon niet worden geladen.* over *Something
+ * went wrong listing your migrations — …*. A fault that carries a reference is
+ * ours to word, as an unreachable service is, and keeps the reference in the
+ * same capitalised form so it can still be quoted and found.
+ */
+describe('serverMessage — a fault on our side', () => {
+  const config = { headers: new AxiosHeaders() };
+  const answered = (status: number, data: unknown) =>
+    new AxiosError(`Request failed with status code ${status}`, 'ERR_BAD_RESPONSE', config, {}, {
+      status,
+      statusText: '',
+      headers: {},
+      config,
+      data,
+    });
+  const FAULT = {
+    error: 'list_failed',
+    reason:
+      'Something went wrong listing your migrations — this is a fault on our side, not something your ' +
+      'input caused. Reference 1a2b3c4d: mention it when you contact us.',
+  };
+  afterEach(() => publishLocale('en'));
+
+  it('en: our sentence, with the reference', () => {
+    publishLocale('en');
+    expect(serverMessage(answered(500, FAULT))).toBe(
+      'Something went wrong on our side, not something your input caused. Try again in a moment. Reference 1a2b3c4d: mention it when you contact us.',
+    );
+  });
+
+  it('nl: our sentence in Dutch, with the reference', () => {
+    publishLocale('nl');
+    expect(serverMessage(answered(500, FAULT))).toBe(
+      'Er ging bij ons iets mis, niet door iets wat u invoerde. Probeer het zo opnieuw. Referentie 1a2b3c4d: noem die als u contact met ons opneemt.',
+    );
+  });
+
+  it('leaves a 500 without a reference, and another answer that quotes one, as the server said them', () => {
+    expect(serverMessage(answered(500, { error: 'x', reason: 'Something else went wrong.' }))).toBe(
+      'Something else went wrong.',
+    );
+    expect(serverMessage(answered(409, { error: 'x', message: 'Busy. Reference 1a2b3c4d.' }))).toBe(
+      'Busy. Reference 1a2b3c4d.',
+    );
+    // A report that could not be delivered says what became of what was written.
+    const notDelivered =
+      'Your report could not be delivered just now. What you wrote is still in the form: try again in a moment. Reference 0a1b2c3d.';
+    expect(serverMessage(answered(502, { error: 'report_not_delivered', reason: notDelivered }))).toBe(notDelivered);
+  });
+
+  it('finds the reference in `reason` or `message`', () => {
+    expect(referenceIn(answered(500, FAULT))).toBe('1a2b3c4d');
+    expect(referenceIn(answered(500, { message: 'Oops. Reference 0a0b0c0d; see the log.' }))).toBe('0a0b0c0d');
+    expect(referenceIn(answered(500, { reason: 'No reference here.' }))).toBeUndefined();
+    expect(referenceIn(new Error('Reference 1a2b3c4d'))).toBeUndefined();
   });
 });
 

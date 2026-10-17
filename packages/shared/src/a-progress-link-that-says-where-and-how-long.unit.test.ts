@@ -4,9 +4,10 @@
  *
  * The person's own page reads the stage the owner's line reads, worked out on
  * the server from the same facts (`viewStageOf`), and the time the owner's
- * migration page says, by the same rules (`viewTimeOf`): before any pass has
- * completed, from the count; once one has, while it copies, from the passes.
- * Nothing where nothing is being waited for.
+ * migration page says, by the same rules (`viewTimeOf`): before anything was
+ * copied, from the count; once something was, while a first copy runs, from
+ * the passes. Nothing where nothing is being waited for, kept in step
+ * included.
  */
 import { describe, it, expect } from 'vitest';
 import { viewStageOf, viewTimeOf } from './migration-view.ts';
@@ -123,14 +124,19 @@ describe('how long, on a progress link, by the owner’s pages’ rules', () => 
     ).toBeUndefined();
   });
 
-  it('once a pass has completed and it copies, says a range from the last passes', () => {
+  /**
+   * A FIRST COPY CUT SHORT AT EACH PASS'S DEADLINE completes nothing for days,
+   * and the count's estimate stood all that time (UX sweep, 2026-10-17). What
+   * was copied decides, not a completed pass.
+   */
+  it('once something was copied in a first copy, says a range from the last passes, not the count’s', () => {
     const time = viewTimeOf({
       lifecycle: 'active',
-      reports: [row({ itemsSynced: 3_000, itemsFound: 13_000, lastSyncedAt: done })],
+      reports: [row({ state: 'in_progress', itemsSynced: 3_000, itemsFound: 13_000 })],
       passes: PASSES,
       source: 'gmail',
       selected: ['email'],
-      discovery: [],
+      discovery: [found('email', 13_000, 6 * GB)],
     });
     expect(time).toEqual({
       kind: 'whileCopying',
@@ -141,7 +147,7 @@ describe('how long, on a progress link, by the owner’s pages’ rules', () => 
   it('says the provider slowed it where a copying data type’s last failure says so', () => {
     const time = viewTimeOf({
       lifecycle: 'active',
-      reports: [row({ itemsSynced: 3_000, itemsFound: 13_000, lastSyncedAt: done, lastErrorCategory: 'rate_limited' })],
+      reports: [row({ state: 'in_progress', itemsSynced: 3_000, itemsFound: 13_000, lastErrorCategory: 'rate_limited' })],
       passes: PASSES,
       source: 'o365',
       selected: ['email'],
@@ -153,7 +159,7 @@ describe('how long, on a progress link, by the owner’s pages’ rules', () => 
   it('before three passes, says it will know after three', () => {
     const time = viewTimeOf({
       lifecycle: 'active',
-      reports: [row({ itemsSynced: 1_000, itemsFound: 13_000, lastSyncedAt: done })],
+      reports: [row({ state: 'in_progress', itemsSynced: 1_000, itemsFound: 13_000 })],
       passes: PASSES.slice(0, 1),
       source: 'gmail',
       selected: ['email'],
@@ -162,16 +168,35 @@ describe('how long, on a progress link, by the owner’s pages’ rules', () => 
     expect(time).toEqual({ kind: 'whileCopying', estimate: { kind: 'afterThreePasses', passesSoFar: 1 } });
   });
 
+  /** GLOSSARY T3 (b): *Kept in step has no time left, and says nothing here.* */
+  it('says nothing for a data type kept in step, however far its count is from what was found', () => {
+    const kept = row({ itemsSynced: 3_000, itemsFound: 13_000, lastSyncedAt: done });
+    const base = { passes: PASSES, source: 'gmail', selected: ['email' as const], discovery: [found('email', 13_000, 6 * GB)] };
+    expect(viewTimeOf({ ...base, lifecycle: 'active', reports: [kept] })).toBeUndefined();
+    // And a data type stopped, by its owner or its file, leaves no copy to wait for.
+    const stopped = row({ state: 'stopped', itemsSynced: 3_000, itemsFound: 13_000 });
+    const byOwner = row({ state: 'in_progress', itemsSynced: 3_000, itemsFound: 13_000, stoppedByOwner: true });
+    expect(viewTimeOf({ ...base, lifecycle: 'active', reports: [kept, stopped, byOwner] })).toBeUndefined();
+  });
+
   it('says nothing past copying, held after it started, or with nothing left', () => {
-    const copied = row({ itemsSynced: 3_000, itemsFound: 13_000, lastSyncedAt: done });
-    const base = { reports: [copied], passes: PASSES, source: 'gmail', selected: ['email' as const], discovery: [] };
+    const copying = row({ state: 'in_progress', itemsSynced: 3_000, itemsFound: 13_000 });
+    // The count is there: a held migration that copied something no longer says the count's estimate.
+    const base = {
+      reports: [copying],
+      passes: PASSES,
+      source: 'gmail',
+      selected: ['email' as const],
+      discovery: [found('email', 13_000, 6 * GB)],
+    };
     expect(viewTimeOf({ ...base, lifecycle: 'paused' })).toBeUndefined();
     expect(viewTimeOf({ ...base, lifecycle: 'cutover' })).toBeUndefined();
     expect(viewTimeOf({ ...base, lifecycle: 'done' })).toBeUndefined();
+    expect(viewTimeOf({ ...base, lifecycle: 'continuous' })).toBeUndefined();
     expect(
-      viewTimeOf({ ...base, lifecycle: 'active', reports: [row({ itemsSynced: 13_000, itemsFound: 13_000, lastSyncedAt: done })] }),
+      viewTimeOf({ ...base, lifecycle: 'active', reports: [row({ state: 'in_progress', itemsSynced: 13_000, itemsFound: 13_000 })] }),
     ).toBeUndefined();
     // A total nobody counted leaves the rest unknown: no range of part of it.
-    expect(viewTimeOf({ ...base, lifecycle: 'active', reports: [row({ itemsSynced: 3_000, lastSyncedAt: done })] })).toBeUndefined();
+    expect(viewTimeOf({ ...base, lifecycle: 'active', reports: [row({ state: 'in_progress', itemsSynced: 3_000 })] })).toBeUndefined();
   });
 });

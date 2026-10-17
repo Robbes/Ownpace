@@ -18,6 +18,7 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { FailuresResponse } from '@openmig/shared';
+import { STRINGS } from '../i18n/strings.ts';
 
 const { fetchFailuresMock, decideFailureGroupMock } = vi.hoisted(() => ({
   fetchFailuresMock: vi.fn(),
@@ -108,9 +109,69 @@ describe('the aftermath asymmetry is stated (0036 T2)', () => {
     fetchFailuresMock.mockResolvedValue(queue());
     renderScreen();
 
+    // Named by the button a person presses, which says "Migrate without it".
     expect(
-      await screen.findByText(/Accepted items no longer appear here/),
+      await screen.findByText(/When you choose Migrate without it, the item leaves this list/),
     ).toBeInTheDocument();
+  });
+});
+
+/**
+ * A list holds its items, and only its items (the UX sweep, 2026-10-17: axe
+ * 'list', serious). The cost sentence and the button for every row sat INSIDE
+ * the section's <ul>, flush against its border. They stand above it now.
+ */
+describe('the hint and the button for every row stand above the list', () => {
+  const SECOND = { ...FAILURE, naturalKeyHash: 'h-2', collection: 'INBOX/Sent' };
+
+  it('puts neither inside the <ul>', async () => {
+    fetchFailuresMock.mockResolvedValue(queue({ needsDecision: [FAILURE, SECOND] }));
+    renderScreen();
+
+    const hint = await screen.findByText(/re-lists everything to reach this item again/);
+    expect(hint.closest('ul')).toBeNull();
+    const all = screen.getByRole('button', { name: 'Migrate without all of these (2)' });
+    expect(all.closest('ul')).toBeNull();
+    // And the list that follows them holds rows only.
+    const list = screen.getByText('INBOX/Sent').closest('ul')!;
+    for (const child of list.children) expect(child.tagName).toBe('LI');
+  });
+});
+
+/**
+ * The provider's own message stays word for word (it says whether Retry has a
+ * chance), but it is framed now and set in grey: it was unlabelled red under
+ * the remedy, and the remedy itself was red, so a sentence that says what to
+ * do read as one more error.
+ */
+describe('the remedy and the technical message', () => {
+  it('sets the remedy in ordinary text, and frames the provider message as technical', async () => {
+    fetchFailuresMock.mockResolvedValue(
+      queue({ needsDecision: [{ ...FAILURE, category: 'quota_exceeded' as const }] }),
+    );
+    renderScreen();
+
+    const remedy = await screen.findByText(/reached what its provider allows/i);
+    expect(remedy.className).not.toMatch(/text-red-/);
+    const message = screen.getByText('IMAP APPEND failed: 507 over quota');
+    const line = message.parentElement!;
+    expect(line.textContent).toMatch(/^Technical message: IMAP APPEND failed: 507 over quota$/);
+    expect(line.className).not.toMatch(/text-red-/);
+    expect(line.className).toMatch(/\btext-gray-500\b/);
+  });
+
+  it('frames it in Dutch too', () => {
+    expect(STRINGS.nl['failures.technical']).toBe('Technische melding:');
+  });
+
+  it('lets a long name wrap on a phone instead of cutting it to a letter', async () => {
+    fetchFailuresMock.mockResolvedValue(queue());
+    renderScreen();
+
+    const name = await screen.findByText('INBOX/Archive');
+    expect(name.className).not.toMatch(/\btruncate\b/);
+    expect(name.className).toMatch(/\bbreak-words\b/);
+    expect(name.parentElement!.className).toMatch(/min-w-\[12rem\]/);
   });
 });
 

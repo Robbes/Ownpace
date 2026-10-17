@@ -51,11 +51,23 @@ import {
 import { measuredNoRefusal } from './qualification-gate.ts';
 import { SOURCE_TYPE_DOMAINS, TARGET_TYPE_DOMAINS } from './target-domains.ts';
 
+/**
+ * Which refusal it was, for a page that says it in the reader's language (UX
+ * sweep, 2026-10-17). `reason` stays English, for the API, its logs and the
+ * appliance; a Dutch screen showed it as served.
+ */
+export type KindRefusalCode = 'after_cutover' | 'measured_no';
+
 /** One kind, as the migration page shows it. */
 export type KindChoice =
   | { readonly domain: DiscoveryDomain; readonly state: 'on' }
   | { readonly domain: DiscoveryDomain; readonly state: 'addable' }
-  | { readonly domain: DiscoveryDomain; readonly state: 'refused'; readonly reason: string };
+  | {
+      readonly domain: DiscoveryDomain;
+      readonly state: 'refused';
+      readonly reason: string;
+      readonly code: KindRefusalCode;
+    };
 
 /** What the choice is made from: the migration and its two connections. */
 export interface KindChoiceInput {
@@ -125,14 +137,16 @@ export function kindChoices(input: KindChoiceInput, env: ProviderAccountEnv = {}
     }
     if (!serves?.includes(domain) || !receives?.includes(domain)) continue;
     if (isAfterCutover(input.status)) {
-      choices.push({ domain, state: 'refused', reason: KIND_AFTER_CUTOVER_REFUSAL });
+      choices.push({ domain, state: 'refused', reason: KIND_AFTER_CUTOVER_REFUSAL, code: 'after_cutover' });
       continue;
     }
     const measured =
       measuredNoRefusal(input.sourceQualification, [domain]) ??
       measuredNoRefusal(input.targetQualification, [domain]);
     choices.push(
-      measured === null ? { domain, state: 'addable' } : { domain, state: 'refused', reason: measured },
+      measured === null
+        ? { domain, state: 'addable' }
+        : { domain, state: 'refused', reason: measured, code: 'measured_no' },
     );
   }
   return choices;

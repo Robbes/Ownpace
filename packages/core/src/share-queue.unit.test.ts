@@ -27,6 +27,7 @@ import {
   refreshShareGrants,
   shareGrantHash,
   summariseShareGrants,
+  verdictTargetFor,
 } from './share-queue.ts';
 
 const TENANT = 'tenant-1' as TenantId;
@@ -851,5 +852,40 @@ describe('each share waits for its own data type\u2019s cutover (0128 T5, slice 
     expect(notCutOverReason(['drive_item', 'drive_item'])).toBe(notCutOverReason(['drive_item']));
     expect(notCutOverReason(['calendar', 'something_new'])).toBe(NOT_CUT_OVER_REASON);
     expect(notCutOverReason([])).toBe(NOT_CUT_OVER_REASON);
+  });
+});
+
+/**
+ * THE SHARING CHECKLIST IN THE READER'S LANGUAGE (UX sweep, 2026-10-17). A
+ * Dutch tester read an English line under every row of the *Deel-checklist*:
+ * the stored verdict is English, with the developer's note glued on. The line
+ * for a Dutch reader is said again from the row's own facts; the stored
+ * English stays, because a refusal quotes it.
+ */
+describe('verdictTargetFor — the line under a row, in the reader\u2019s language', () => {
+  it('says the Dutch target, without the English developer note', async () => {
+    const ledger = new MemoryLedger();
+    await refreshed(ledger);
+    const rows = await ledger.listShareGrants(TENANT, MAPPING);
+    const person = rows.find((r) => r.grantee === 'anna@example.nl')!;
+    const link = rows.find((r) => r.viaLink)!;
+
+    expect(verdictTargetFor(person, 'nl')).toBe('een Nextcloud-deling met bewerkrechten');
+    expect(verdictTargetFor(link, 'nl')).toMatch(/^beslis of deze link na de migratie nog moet bestaan/);
+    for (const row of [person, link]) {
+      expect(verdictTargetFor(row, 'nl')).not.toContain(' \u2014 ');
+    }
+  });
+
+  it('says the English target too, and leaves the stored verdict as it was', async () => {
+    const ledger = new MemoryLedger();
+    await refreshed(ledger);
+    const person = (await ledger.listShareGrants(TENANT, MAPPING)).find((r) => r.grantee === 'anna@example.nl')!;
+
+    expect(verdictTargetFor(person, 'en')).toBe('a Nextcloud share with edit permission');
+    // The stored line still carries the note: the manual-only refusal quotes it.
+    expect(person.verdictTarget).toBe(
+      'a Nextcloud share with edit permission \u2014 A per-person file or folder share exists on both sides.',
+    );
   });
 });

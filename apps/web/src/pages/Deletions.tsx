@@ -39,6 +39,7 @@ import {
   GuidancePanel,
   HashChip,
   ItemRow,
+  PathText,
   QueueSection,
   ReceiptStatus,
   Refused,
@@ -62,8 +63,10 @@ const Row: React.FC<{
   <ItemRow>
     <DomainTag domain={d.domain} />
     <EvidenceBadge evidence={d.evidence} />
-    <span className="text-gray-900 flex-1 min-w-0 truncate" title={d.collection}>
-      {d.collection}
+    {/* At least 12rem: on a phone the name takes a line of its own and
+        wraps, instead of shrinking to a letter (the UX sweep, 2026-10-17). */}
+    <span className="text-gray-900 flex-1 min-w-[12rem] break-words" title={d.collection}>
+      <PathText path={d.collection} />
     </span>
     <HashChip hash={d.naturalKeyHash} />
     <div className="flex items-center gap-2 ml-auto">
@@ -102,8 +105,8 @@ const EarlierRow: React.FC<{
       >
         {t('deletions.earlierExport.badge')}
       </span>
-      <span className="text-gray-900 flex-1 min-w-0 truncate" title={e.collection}>
-        {e.collection}
+      <span className="text-gray-900 flex-1 min-w-[12rem] break-words" title={e.collection}>
+        <PathText path={e.collection} />
       </span>
       <HashChip hash={e.naturalKeyHash} />
       <div className="flex items-center gap-2 ml-auto">
@@ -223,10 +226,14 @@ const Deletions: React.FC<{
         <AfterCutoverNote
           withheld={queue.confirmed.filter((d) => mayOfferApply(d, []) && !mayOfferApply(d, queue.afterCutover))}
         />
+        {/* The chips keep the server's own words (ADR-0024); what they mean
+            is said here, where a phone can read it, not only in a hover
+            title. */}
         <QueueSection
           title={t('queue.waitingOnYou')}
           count={queue.confirmed.length}
           empty={t('deletions.empty.confirmed')}
+          lead={<p className="text-xs text-gray-600">{t('deletions.evidence.lead')}</p>}
         >
           {queue.confirmed.map((d) => {
             const pending = outcomes[d.naturalKeyHash]?.state === 'pending';
@@ -275,6 +282,7 @@ const Deletions: React.FC<{
           title={t('deletions.watching')}
           count={queue.watching.length}
           empty={t('deletions.empty.watching')}
+          lead={<p className="text-xs text-gray-600">{t('deletions.watching.lead')}</p>}
         >
           {/*
             Shown so the queue is not a black box, and deliberately without

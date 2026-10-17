@@ -10,8 +10,11 @@
  * lifecycle words stay the operator's, on the migration's own page.
  *
  * A PERSON CHANGES NOTHING ABOUT A MIGRATION, so every migration keeps its own
- * controls here, as the table had them: *Trigger sync* or *Pause* while it
- * runs, *Review and start* for a draft, *Open*, and *Delete* in two presses.
+ * controls here, as the table had them: *Sync now* or *Pause* while it runs,
+ * *Review and start* for a draft, *Details*, and *Delete* in two presses. A
+ * finished migration has no Sync now: no data type of it runs, so the press
+ * did nothing. Each control says its word beside its icon at every width: a
+ * title never shows on a phone, and two identical ▶ did different things.
  * The migration's own page has no Delete and no Sync now, so a list without
  * them would have taken away the only way to either.
  *
@@ -20,7 +23,9 @@
  * person, and a person can be added there.
  *
  * THREE READS. The migrations and the people make the page: if either fails,
- * the page says so and shows neither cards nor an empty state (hard rule 9).
+ * the page says so and shows neither cards nor an empty state (hard rule 9),
+ * with a way to read both again and, where reports are taken, to send it to
+ * us with the fault's reference.
  * What needs a person only counts: when that read fails, the counts say they
  * could not be taken, never zero.
  *
@@ -33,7 +38,7 @@
 import React from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { FolderGit2, Plus, Play, Pause, Trash2, Edit, AlertCircle } from 'lucide-react';
+import { ArrowRightLeft, Plus, Play, Pause, Trash2, AlertCircle } from 'lucide-react';
 import { leastAdvancedStage, type Person } from '@openmig/shared';
 import { mappingApi, type MappingListItem } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
@@ -43,7 +48,8 @@ import {
   fetchAttention,
   fetchPeople,
 } from '../services/operating-service.ts';
-import { freePaceRefusal, serverMessage } from '../services/api.ts';
+import { freePaceRefusal, referenceIn, serverMessage } from '../services/api.ts';
+import { SendItToUs } from '../components/SendItToUs.tsx';
 import StateChip from '../components/StateChip.tsx';
 import { providerName } from '../components/ProviderTile.tsx';
 import { MigrationLines, lineStages } from '../components/MigrationLines.tsx';
@@ -74,6 +80,9 @@ function providerNames(
 }
 
 type SyncOutcome = { state: 'pending' } | { state: 'failed'; text: string };
+
+/** A migration's control: its icon and its word, at least 24 pixels tall (WCAG 2.5.8). */
+const ACTION = 'inline-flex min-h-6 items-center gap-1 text-sm disabled:opacity-50 disabled:cursor-not-allowed';
 
 const Mappings: React.FC = () => {
   const t = useT();
@@ -172,9 +181,11 @@ const Mappings: React.FC = () => {
   };
 
   if (mappingsQuery.isLoading || peopleQuery.isLoading) {
+    // Heard as well as seen: a spinner alone says nothing to a screen reader.
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div role="status" className="flex items-center justify-center h-64">
+        <div aria-hidden="true" className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <span className="sr-only">{t('common.loading')}</span>
       </div>
     );
   }
@@ -241,58 +252,63 @@ const Mappings: React.FC = () => {
             >
               {m.name}
             </Link>
-            <div className="flex flex-wrap items-center gap-3" onClick={(e) => e.stopPropagation()}>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2" onClick={(e) => e.stopPropagation()}>
               {m.status === 'active' ? (
                 <>
                   <button
+                    type="button"
                     onClick={() => void handleSync(m.id, 'delta')}
                     disabled={outcome?.state === 'pending'}
-                    className="p-1 text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className={`${ACTION} text-blue-700 hover:text-blue-900`}
                     title={t('mappings.action.triggerSync')}
-                    aria-label={t('mappings.action.triggerSync')}
                   >
-                    <Play className="w-5 h-5" />
+                    <Play className="w-4 h-4" aria-hidden="true" />
+                    <span>{t('mappings.action.triggerSync')}</span>
                   </button>
                   <button
+                    type="button"
                     onClick={() => void handlePause(m.id)}
                     disabled={outcome?.state === 'pending'}
-                    className="p-1 text-amber-600 hover:text-amber-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className={`${ACTION} text-amber-700 hover:text-amber-900`}
                     title={t('mappings.action.pause')}
-                    aria-label={t('mappings.action.pause')}
                   >
-                    <Pause className="w-5 h-5" />
+                    <Pause className="w-4 h-4" aria-hidden="true" />
+                    <span>{t('mappings.action.pause')}</span>
                   </button>
                 </>
               ) : m.status === 'paused' ? (
                 // A paused migration's green light lives on the confirm screen
                 // (0037 T2); a Play here would post a sync the server refuses.
-                <Link to={`/mappings/${m.id}/confirm`} className="text-green-700 hover:text-green-900 text-sm font-medium">
+                <Link to={`/mappings/${m.id}/confirm`} className={`${ACTION} font-medium text-green-700 hover:text-green-900`}>
                   {t('mappings.action.reviewAndStart')}
                 </Link>
-              ) : (
+              ) : m.status === 'done' ? null /* Finished: no data type runs, so a pass would do nothing. */ : (
                 <button
+                  type="button"
                   onClick={() => void handleSync(m.id, 'full')}
                   disabled={outcome?.state === 'pending'}
-                  className="p-1 text-green-600 hover:text-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={`${ACTION} text-blue-700 hover:text-blue-900`}
                   title={t('mappings.action.startSync')}
-                  aria-label={t('mappings.action.startSync')}
                 >
-                  <Play className="w-5 h-5" />
+                  <Play className="w-4 h-4" aria-hidden="true" />
+                  <span>{t('mappings.action.startSync')}</span>
                 </button>
               )}
-              <Link to={`/mappings/${m.id}`} aria-label={t('mappings.action.open')} className="p-1 text-blue-600 hover:text-blue-800">
-                <Edit className="w-5 h-5" />
+              {/* The migration's own page, in the person page's words. */}
+              <Link to={`/mappings/${m.id}`} className={`${ACTION} text-blue-700 hover:text-blue-900`}>
+                {t('person.details')} →
               </Link>
               <button
+                type="button"
                 onClick={() => {
                   setDeleteFailed(null);
                   setDeleteArm((arm) => (arm?.id === m.id ? null : { id: m.id }));
                 }}
-                className="p-1 text-red-600 hover:text-red-800"
+                className={`${ACTION} text-red-700 hover:text-red-900`}
                 title={t('mappings.action.delete')}
-                aria-label={t('mappings.action.delete')}
               >
-                <Trash2 className="w-5 h-5" />
+                <Trash2 className="w-4 h-4" aria-hidden="true" />
+                <span>{t('mappings.action.delete')}</span>
               </button>
             </div>
           </div>
@@ -377,7 +393,7 @@ const Mappings: React.FC = () => {
 
       {failures.length > 0 ? (
         <div className="flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
-          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" aria-hidden="true" />
           <div>
             {failures.map((f) => (
               <React.Fragment key={f.lead}>
@@ -385,12 +401,32 @@ const Mappings: React.FC = () => {
                 <p className="mt-1">{serverMessage(f.error)}</p>
               </React.Fragment>
             ))}
+            {/* Not a dead end: read both again, or send it to us with the
+                fault's reference (shown only where reports are taken). */}
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  void mappingsQuery.refetch();
+                  void peopleQuery.refetch();
+                }}
+                disabled={mappingsQuery.isFetching || peopleQuery.isFetching}
+                className="text-sm font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900 disabled:opacity-50"
+              >
+                {t('common.tryAgain')}
+              </button>
+              <SendItToUs
+                category="unknown"
+                reference={failures.map((f) => referenceIn(f.error)).find((r) => r !== undefined)}
+              />
+            </div>
           </div>
         </div>
       ) : nothingAtAll ? (
         <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-          <FolderGit2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">{t('mappings.empty.title')}</h3>
+          <ArrowRightLeft className="w-16 h-16 text-gray-400 mx-auto mb-4" aria-hidden="true" />
+          {/* An h2: it sits straight under the page's h1. */}
+          <h2 className="text-lg font-medium text-gray-900 mb-2">{t('mappings.empty.title')}</h2>
           <p className="text-gray-500 mb-6">{t('mappings.empty.hint')}</p>
           <Link
             to="/start"

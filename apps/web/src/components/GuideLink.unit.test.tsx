@@ -97,6 +97,18 @@ describe('a refusal with a guide handle links the guide, in both languages', () 
     expect(screen.getByRole('link')).toHaveAttribute('href', '/docs/box#connect');
   });
 
+  it.each(['en', 'nl'] as const)('%s: says the guide opens in a new tab, to a screen reader (UX sweep)', (locale) => {
+    inLocale(locale, <GuideLink handle="box#connect" />);
+    const link = screen.getByRole('link');
+    const frame = locale === 'en' ? 'Guide' : 'Handleiding';
+    const said = locale === 'en' ? '(opens in a new tab)' : '(opent in een nieuw tabblad)';
+    const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // The space before the words is the sr-only span's own; jsdom's name drops it.
+    const name = `^${escaped(`${frame}: ${titleOf(locale, 'box')}`)}\\s*${escaped(said)}$`;
+    expect(link).toHaveAccessibleName(new RegExp(name));
+    expect(link.querySelector('.sr-only')?.textContent).toBe(` ${said}`);
+  });
+
   it('draws nothing for a handle that names no served guide, or none at all', () => {
     inLocale('en', <GuideLinks handles={['nowhere#connect', 'box', undefined]} />);
     expect(screen.queryByRole('link')).toBeNull();

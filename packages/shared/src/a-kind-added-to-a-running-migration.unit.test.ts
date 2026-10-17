@@ -81,7 +81,12 @@ describe('what the migration page offers', () => {
 describe('when a kind that both sides carry is still not addable', () => {
   it.each(['cutover', 'done', 'continuous'])('refuses once the migration is %s', (status) => {
     const task = kindChoices({ ...GOOGLE_TO_NEXTCLOUD, status }).find((c) => c.domain === 'task');
-    expect(task).toEqual({ domain: 'task', state: 'refused', reason: KIND_AFTER_CUTOVER_REFUSAL });
+    expect(task).toEqual({
+      domain: 'task',
+      state: 'refused',
+      reason: KIND_AFTER_CUTOVER_REFUSAL,
+      code: 'after_cutover',
+    });
   });
 
   it('allows a paused migration: the next start takes the kind with the rest', () => {
@@ -98,6 +103,9 @@ describe('when a kind that both sides carry is still not addable', () => {
     expect(task && 'reason' in task ? task.reason : '').toContain(
       'The grant does not include tasks.readonly.',
     );
+    // Which refusal it was, for a page that says it in the reader's language:
+    // the English above stays for the API, its logs and the appliance.
+    expect(task && 'code' in task ? task.code : '').toBe('measured_no');
   });
 
   it('never refuses on an unknown or an absent measurement', () => {
@@ -115,6 +123,7 @@ describe('when a kind that both sides carry is still not addable', () => {
       targetQualification: measuredTasks('no', 'This Nextcloud has no Tasks app.'),
     }).find((c) => c.domain === 'task');
     expect(task?.state).toBe('refused');
+    expect(task && 'code' in task ? task.code : '').toBe('measured_no');
   });
 });
 

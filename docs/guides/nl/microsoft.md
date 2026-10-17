@@ -1,8 +1,8 @@
-# Microsoft 365 — het account, de toestemming, de registratie
+# Microsoft 365 — mail, agenda's, contacten, OneDrive en taken
 
-De kaart **Microsoft 365-account** meldt zich aan met een **appregistratie in Microsoft Entra ID** en een refresh-token waarvoor het account dat u migreert toestemming geeft. Die kaart leest alleen, en dat zit in de opbouw zelf: de toestemming vraagt alleen de gedelegeerde `.Read`-rechten die onder [Met een eigen app](#own-app) staan, dus dit product kan niet in het postvak, de agenda's, de contacten of OneDrive schrijven, ook niet als het dat zou willen. Dat is een afgedwongen garantie, geen belofte op papier. De kaarten **Via de Graph-API** en **Via IMAP** werken anders, met de registratie van een beheerder: zie [de registratie die deze twee kaarten nodig hebben](#application).
+De kaart **Microsoft 365-account** meldt zich aan met een **appregistratie in Microsoft Entra ID** en een refresh-token waarvoor het account dat u migreert toestemming geeft. Die kaart leest alleen, en dat zit in de opbouw zelf: de toestemming vraagt alleen de gedelegeerde `.Read`-rechten die onder [Met een eigen oauth-app](#own-app) staan, dus deze dienst kan niet in het postvak, de agenda's, de contacten of OneDrive schrijven, ook niet als hij dat zou willen. Dat is een afgedwongen garantie, geen belofte op papier. De kaarten **Via de Graph-API** en **Via IMAP** werken anders, met de registratie van een beheerder: zie [de registratie die deze twee kaarten nodig hebben](#application).
 
-**De meeste mensen hebben alleen de eerste kaart nodig.** Heeft deze dienst een eigen registratie, dan tonen **Migratie starten** en de pagina **Accounts** een knop **Verbinden met Microsoft**, en hoeft u niets onder [Met een eigen app](#own-app) te doen. Lees dat deel alleen als u liever uw eigen registratie gebruikt.
+**De meeste mensen hebben alleen de eerste kaart nodig.** Heeft deze dienst een eigen registratie, dan tonen **Migratie starten** en de pagina **Accounts** een knop **Verbinden met Microsoft**, en hoeft u niets onder [Met een eigen oauth-app](#own-app) te doen. Lees dat deel alleen als u liever uw eigen registratie gebruikt.
 
 ## Wat u nodig hebt {#before}
 
@@ -16,11 +16,11 @@ De kaart **Microsoft 365-account** meldt zich aan met een **appregistratie in Mi
 
 Eén Microsoft 365-account, één aanmelding: e-mail, agenda's, contacten en OneDrive, wat u aanvinkt.
 
-**De korte weg: druk op Verbinden met Microsoft.** De knop opent het toestemmingsscherm van Microsoft voor het account dat u migreert. Keurt dat account het goed, dan komt het refresh-token vanzelf in het veld **Refresh-token**, en wordt de verbinding in één keer bewaard en getest. U typt niets, en het clientgeheim verlaat de server niet.
+**De korte weg: druk op Verbinden met Microsoft.** De knop opent het toestemmingsscherm van Microsoft voor het account dat u migreert. Keurt dat account het goed, dan komt het refresh-token vanzelf in het veld **Refresh-token**, en wordt de verbinding in één keer bewaard en getest. U typt niets, en het clientsecret verlaat de server niet.
 
 Het scherm vraagt eerst **welk account**, en dat is met opzet. Zonder die vraag geeft iemand die al met het verkeerde Microsoft-account is aangemeld stilzwijgend toestemming voor dát account, en leest de migratie het verkeerde postvak. Dat ziet eruit als succes, tot iemand merkt wiens mail er is aangekomen.
 
-U kunt ook uw eigen registratie gebruiken: open **Uw eigen appregistratie gebruiken** en vul de **Client-ID (applicatie-ID)** en het **Clientsecret** in, **als paar**. Een half paar wordt geweigerd en niet aangevuld met de andere helft van deze dienst: een client-ID die niet van deze dienst is, samen met een geheim dat dat wel is, zou Entra uren later weigeren, midden in een ronde. [Met een eigen app](#own-app) heeft de stappen.
+U kunt ook uw eigen registratie gebruiken: open **Uw eigen appregistratie gebruiken** en vul de **Client-ID (applicatie-ID)** en het **Clientsecret** in, **als paar**. Een half paar wordt geweigerd en niet aangevuld met de andere helft van deze dienst: een client-ID die niet van deze dienst is, samen met een geheim dat dat wel is, zou Entra uren later weigeren, midden in een ronde. [Met een eigen oauth-app](#own-app) heeft de stappen.
 
 #### Wat de test laat zien {#what-test-shows}
 
@@ -28,7 +28,7 @@ U kunt ook uw eigen registratie gebruiken: open **Uw eigen appregistratie gebrui
 
 ### Via de Graph-API {#graph}
 
-**Via IMAP** en **Via de Graph-API** melden zich aan met uw eigen registratie, met **toepassingsrechten** die een beheerder in uw eigen tenant verleent. Dat is wat een beheerder nodig heeft die de postvakken van anderen migreert; de gedelegeerde toestemming van de kaart **Microsoft 365-account** kan dat nooit. Vink daarvoor bij **Wat wilt u migreren?** onder Microsoft 365 **E-mail** aan, beantwoord **Is dit een bedrijfsaccount met een beheerder?** met **Ja**, en kies **Via onze eigen app, met Microsoft Graph** of **Via onze eigen app, met IMAP**. **Uw accounts verbinden** vraagt dan het adres van het postvak, onder **Gebruikersnaam**, en de **Tenant-ID**, de **Client-ID (applicatie-ID)** en het **Clientsecret** van die registratie.
+**Via IMAP** en **Via de Graph-API** melden zich aan met uw eigen registratie, met **toepassingsrechten** die een beheerder in uw eigen tenant verleent. Dat is wat een beheerder nodig heeft die de postvakken van anderen migreert; de gedelegeerde toestemming van de kaart **Microsoft 365-account** kan dat nooit. Vink daarvoor bij **Wat wilt u migreren?** onder Microsoft 365 **E-mail** aan, beantwoord **Is dit een bedrijfsaccount met een beheerder?** met **Ja**, en kies **Via de app van uw organisatie, met Microsoft Graph** of **Via de app van uw organisatie, met IMAP**. **Uw accounts verbinden** vraagt dan het adres van het postvak, onder **Gebruikersnaam**, en de **Tenant-ID**, de **Client-ID (applicatie-ID)** en het **Clientsecret** van die registratie.
 
 Beide kaarten lezen de mail van één postvak. Agenda's, contacten, OneDrive en To Do lopen via de kaart **Microsoft 365-account**.
 
@@ -40,7 +40,7 @@ Dezelfde vier velden als bij **Via de Graph-API**; deze kaart leest het postvak 
 
 ### De registratie die deze twee kaarten nodig hebben {#application}
 
-Deze twee kaarten vragen altijd een eigen registratie, wat deze dienst ook heeft. Daarom staan de stappen hier en niet onder [Met een eigen app](#own-app). Een beheerder van uw Microsoft 365-organisatie doet ze één keer. Microsoft toont zijn beheercentra in de taal van uw browser; hieronder staan de schermen met hun Engelse namen, zoals Microsoft ze in zijn documentatie noemt.
+Deze twee kaarten vragen altijd een eigen registratie, wat deze dienst ook heeft. Daarom staan de stappen hier en niet onder [Met een eigen oauth-app](#own-app). Een beheerder van uw Microsoft 365-organisatie doet ze één keer. Microsoft toont zijn beheercentra in de taal van uw browser; hieronder staan de schermen met hun Engelse namen, zoals Microsoft ze in zijn documentatie noemt.
 
 1. [Entra-beheercentrum](https://entra.microsoft.com) → Identity → Applications → **App registrations** → New registration. Kies **Accounts in this organizational directory only**, laat het omleidingsadres leeg en registreer.
 2. Kopieer op de pagina Overview de **Application (client) ID** en de **Directory (tenant) ID**. Die horen in de velden **Client-ID (applicatie-ID)** en **Tenant-ID** van het formulier.
@@ -65,7 +65,7 @@ Deze kaart meldt zich als de toepassing aan bij de IMAP-server van Exchange Onli
 
 1. **API permissions** → **Add a permission** → **APIs my organization uses** → zoek **Office 365 Exchange Online** → **Application permissions**. Voeg toe:
 
-- `IMAP.AccessAsApp` — IMAP-toegang tot postvakken, als de toepassing.
+   - `IMAP.AccessAsApp` — IMAP-toegang tot postvakken, als de toepassing.
 
 2. Druk op **Grant admin consent for** uw organisatie, en bevestig.
 3. Registreer de toepassing in Exchange Online. Een Exchange-beheerder doet dat in Exchange Online PowerShell, na één keer `Install-Module -Name ExchangeOnlineManagement`:
@@ -112,7 +112,7 @@ De toestemming van een **beheerder** — die van **Via IMAP** en **Via de Graph-
 
 Voor **Via IMAP** neemt een Exchange-beheerder daarnaast het postvak terug met `Remove-MailboxPermission`, en haalt hij de toepassing uit Exchange Online met `Remove-ServicePrincipal`. Wie de appregistratie verwijdert, zorgt dat de toepassing zich helemaal niet meer kan aanmelden.
 
-## Met een eigen app {#own-app}
+## Met een eigen oauth-app {#own-app}
 
 ### De kaart Microsoft 365-account, met uw eigen registratie {#own-app-account}
 
@@ -153,10 +153,10 @@ API permissions → Add a permission → **Microsoft Graph** → **Delegated per
 - `Tasks.Read` — diens Microsoft To Do-lijsten, alleen gevraagd als Taken is aangevinkt
 - `offline_access` — het refresh-token, waarzonder de toestemming na een uur vervalt
 
-**Verder niets, en zeker niet de `.All`-varianten.** `Files.Read.All` zou de OneDrive van de hele tenant lezen; `Files.Read` leest de eigen OneDrive van de aangemelde gebruiker. Dit product migreert het account dat u koppelt, en een token dat niet verder reikt, is daar de goedkoopste garantie voor.
+**Verder niets, en zeker niet de `.All`-varianten.** `Files.Read.All` zou de OneDrive van de hele tenant lezen; `Files.Read` leest de eigen OneDrive van de aangemelde gebruiker. Deze dienst migreert het account dat u koppelt, en een token dat niet verder reikt, is daar de goedkoopste garantie voor.
 
 **Geef hier geen beheerderstoestemming.** Dit zijn gedelegeerde rechten: de persoon die u migreert keurt ze zelf goed op het toestemmingsscherm, en daar is de knop voor.
 
-#### Het clientgeheim {#own-app-secret}
+#### Het clientsecret {#own-app-secret}
 
 Certificates & secrets → New client secret. Kopieer de **Value** meteen; Entra toont hem maar één keer. De **Application (client) ID** op de pagina Overview is de andere helft. Vul beide in onder **Uw eigen appregistratie gebruiken**, en druk op **Verbinden met Microsoft**.

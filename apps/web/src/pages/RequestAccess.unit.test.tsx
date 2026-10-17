@@ -9,7 +9,7 @@
  * and a row full of `''` is one a human then has to squint at.
  */
 
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -206,8 +206,8 @@ describe('RequestAccess', () => {
   });
 
   it('arrives in the language the site linked with, and asks for the grant in it', async () => {
-    // The Dutch site links here with ?locale=nl. This page has no language
-    // switcher, and the locale it sends is the one the grant email is written in.
+    // The Dutch site links here with ?locale=nl, and the locale this page
+    // sends is the one the grant email is written in.
     const user = userEvent.setup();
     renderInLocale('/request-access?locale=nl');
 
@@ -243,5 +243,66 @@ describe('RequestAccess', () => {
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('429');
+  });
+});
+
+/**
+ * ONE PAGE, IN A LANGUAGE, THAT SAYS WHY IT WAITS (the UX sweep, 2026-10-17).
+ * The title is the page's one first-level heading inside its one `main`, in
+ * the form and once the request has gone; the language switch sits beside the
+ * way back to the site, as on the sign-in page; and the pale *Send request*
+ * says why under it, tied to it, until an address is typed (the wizard's rule,
+ * 0145 T7 (a)).
+ */
+describe('RequestAccess, as a page', () => {
+  it('is one page: a main landmark around one first-level heading, and the tab says it', async () => {
+    renderInLocale('/request-access');
+    const main = screen.getByRole('main');
+    expect(within(main).getByRole('heading', { level: 1, name: 'Request access' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(document.title).toBe('Request access — Ownpace');
+  });
+
+  it('is one page once the request has gone, too', async () => {
+    const user = userEvent.setup();
+    renderPage('/request-access?email=someone%40example.test');
+    await user.click(screen.getByRole('button', { name: /send request/i }));
+    const heading = await screen.findByRole('heading', { level: 1, name: /thank you/i });
+    expect(screen.getByRole('main')).toContainElement(heading);
+  });
+
+  it('offers the language switch, and switching changes the form', async () => {
+    const user = userEvent.setup();
+    renderInLocale('/request-access');
+    await user.click(within(screen.getByRole('group', { name: 'Language' })).getByRole('button', { name: 'NL' }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Toegang aanvragen' })).toBeInTheDocument();
+    expect(document.title).toBe('Toegang aanvragen — Ownpace');
+  });
+
+  it('gives the tab its name back on the way out', () => {
+    document.title = 'Ownpace';
+    const page = renderPage();
+    expect(document.title).toBe('Request access — Ownpace');
+    page.unmount();
+    expect(document.title).toBe('Ownpace');
+  });
+
+  it('says under the pale button that the address comes first, and stops once it is typed', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const button = screen.getByRole('button', { name: /send request/i });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAccessibleDescription('Fill in your email address first.');
+
+    await user.type(screen.getByLabelText(/email address/i), 'someone@example.test');
+    expect(button).toBeEnabled();
+    expect(button).not.toHaveAttribute('aria-describedby');
+    expect(screen.queryByText('Fill in your email address first.')).toBeNull();
+  });
+
+  it('says it in Dutch for a Dutch reader', async () => {
+    renderInLocale('/request-access?locale=nl');
+    const button = await screen.findByRole('button', { name: /aanvraag versturen/i });
+    expect(button).toHaveAccessibleDescription('Vul eerst uw e-mailadres in.');
   });
 });

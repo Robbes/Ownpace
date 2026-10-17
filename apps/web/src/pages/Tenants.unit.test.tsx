@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * Team & organization (0026 T2 — the stub replaced by a real screen).
+ * Team & organisation (0026 T2 — the stub replaced by a real screen).
  *
  * What these tests pin: the role split (owner/admin operate, member/viewer
  * read), the server's refusals rendering VERBATIM (the guards live there —
@@ -19,7 +19,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -72,6 +72,7 @@ vi.mock('../stores/auth-store', () => ({
 }));
 
 import Tenants from './Tenants.tsx';
+import { STRINGS } from '../i18n/strings.ts';
 
 const MEMBERS = [
   {
@@ -121,9 +122,11 @@ describe('the member list', () => {
     expect(screen.getByText('Acme BV')).toBeInTheDocument();
     // The owner's row marks itself.
     expect(screen.getByText('(you)')).toBeInTheDocument();
-    // Status is the dictionary's word, not the enum value. ("Invited" appears
-    // twice: the column header and the badge.)
-    expect(screen.getAllByText('Invited')).toHaveLength(2);
+    // Status is the dictionary's word, not the enum value. ("Invited" is the
+    // column heading, the badge, and each member's date label, which stands
+    // in for the hidden headings on a phone.)
+    expect(screen.getByRole('columnheader', { name: 'Invited' })).toBeInTheDocument();
+    expect(screen.getAllByText('Invited')).toHaveLength(2 + MEMBERS.length);
     expect(screen.getByText('Active')).toBeInTheDocument();
   });
 
@@ -132,9 +135,43 @@ describe('the member list', () => {
     renderScreen();
 
     expect(
-      await screen.findByText(/Could not read the organization's details/),
+      await screen.findByText(/Could not read the organisation's details/),
     ).toBeInTheDocument();
     expect(await screen.findByText('collega@acme.nl')).toBeInTheDocument();
+  });
+
+  it('names the buttons’ column for a screen reader, which axe found empty', async () => {
+    renderScreen();
+    await screen.findByText('collega@acme.nl');
+    expect(screen.getByRole('columnheader', { name: 'Actions' })).toBeInTheDocument();
+  });
+
+  it('is one list on a phone, not a table that scrolls sideways, and each button is in it once', async () => {
+    renderScreen();
+    await screen.findByText('collega@acme.nl');
+
+    const table = screen.getByRole('table');
+    // Nothing around it scrolls sideways: Send again, Remove and the dates sat
+    // out of sight behind a scroll that gave no sign of itself.
+    for (let el = table.parentElement; el; el = el.parentElement) {
+      expect(el.className ?? '').not.toContain('overflow-x-auto');
+    }
+    // A table from 640 pixels; below that each member is a block of its own.
+    expect(table.className).toContain('block');
+    expect(table.className).toContain('sm:table');
+    // One DOM at every width, so every control is found once.
+    expect(screen.getAllByRole('button', { name: 'Send again' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(1);
+    // Below 640 pixels the headings are hidden, so each date says its own.
+    const row = screen.getByText('collega@acme.nl').closest('tr')!;
+    expect(within(row).getByText('Joined')).toHaveClass('sm:hidden');
+  });
+
+  it('gives the page its own h1 when the session has no organisation', () => {
+    auth.tenantId = null as unknown as string;
+    renderScreen();
+    expect(screen.getByRole('heading', { level: 1, name: 'Team & organisation' })).toBeInTheDocument();
+    expect(screen.getByText('No organisation in this session.')).toBeInTheDocument();
   });
 });
 
@@ -178,6 +215,13 @@ describe('inviting', () => {
     await screen.findByText('collega@acme.nl');
     expect(screen.queryByText(/No email yet/)).not.toBeInTheDocument();
     expect(screen.getByText(/We email them where to sign in/)).toBeInTheDocument();
+  });
+
+  it('points to where the invited appear: the member list is above the form, not below', async () => {
+    renderScreen();
+    await screen.findByText('collega@acme.nl');
+    expect(screen.getByText('We email them where to sign in; they appear above as invited.')).toBeInTheDocument();
+    expect(STRINGS.nl['tenants.invite.hint']).toBe('We mailen hoe zij zich aanmelden; hierboven staan ze als uitgenodigd.');
   });
 
   it("renders the server's refusal verbatim when the invite fails", async () => {

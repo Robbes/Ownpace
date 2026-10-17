@@ -1,6 +1,6 @@
-# Dropbox — de toestemming, en de app
+# Dropbox — bestanden en Paper-documenten
 
-Een Dropbox-migratie meldt zich aan met een Dropbox-app, die van deze dienst als die er een heeft, of uw eigen, en een refresh-token waarvoor het account dat u migreert toestemming geeft. Het leest alleen, en dat zit in de opbouw zelf: de app vraagt alleen de leesscopes, dus dit product kan niet in de Dropbox schrijven, ook niet als het dat zou willen. Dat is een afgedwongen garantie, geen belofte op papier.
+Een Dropbox-migratie meldt zich aan met een Dropbox-app, die van deze dienst als die er een heeft, of uw eigen, en een refresh-token waarvoor het account dat u migreert toestemming geeft. Het leest alleen, en dat zit in de opbouw zelf: de app vraagt alleen de leesscopes, dus deze dienst kan niet in de Dropbox schrijven, ook niet als hij dat zou willen. Dat is een afgedwongen garantie, geen belofte op papier.
 
 ## Wat u nodig hebt {#before}
 
@@ -13,7 +13,7 @@ Een Dropbox-migratie meldt zich aan met een Dropbox-app, die van deze dienst als
 
 Bij **Uw accounts verbinden** vraagt het formulier van Dropbox het adres van het account, onder **Gebruikersnaam**, en een **Refresh-token**, dat de knop invult.
 
-**De korte weg: druk op Verbinden met Dropbox.** Heeft deze dienst een eigen Dropbox-app, dan tonen **Migratie starten** en de pagina **Accounts** een knop **Verbinden met Dropbox** onder het adres. De knop opent het toestemmingsscherm van Dropbox voor het account dat u migreert. Keurt dat account het goed, dan komt het refresh-token vanzelf in het veld, en wordt het account in één keer bewaard en getest. U typt niets, en het geheim van de app verlaat de server niet. U kunt ook uw eigen app gebruiken: open **Uw eigen Dropbox-app gebruiken** en vul de **App-sleutel** en het **Clientsecret** in, als paar. [Met een eigen app](#own-app) heeft de stappen.
+**De korte weg: druk op Verbinden met Dropbox.** Heeft deze dienst een eigen Dropbox-app, dan tonen **Migratie starten** en de pagina **Accounts** een knop **Verbinden met Dropbox** onder het adres. De knop opent het toestemmingsscherm van Dropbox voor het account dat u migreert. Keurt dat account het goed, dan komt het refresh-token vanzelf in het veld, en wordt het account in één keer bewaard en getest. U typt niets, en het geheim van de app verlaat de server niet. U kunt ook uw eigen oauth-app gebruiken: open **Uw eigen Dropbox-app gebruiken** en vul de **App-sleutel** en het **Clientsecret** in, als paar. [Met een eigen oauth-app](#own-app) heeft de stappen.
 
 Wilt u één map migreren in plaats van de hele Dropbox, kies dan **Alleen één map**, onder **Bestanden** bij **Wat wilt u migreren?**. Is het account verbonden, typ dan het pad van de map, plak het adres van de map van de website van Dropbox, of druk op **Gedeelde mappen tonen** en kies een map die aan het account is toegevoegd. De pagina van de migratie zegt daarna uit welke map de bestanden worden gelezen. De boom komt in beide gevallen op dezelfde manier aan.
 
@@ -38,9 +38,9 @@ Verwijderingen worden gelezen uit wat Dropbox zelf over verwijderde bestanden bi
 
 ## Stoppen {#leaving}
 
-Een toestemming trekt u in bij Dropbox, in de instellingen van het account onder **Connected apps**. Met [uw eigen app](#own-app) trekt het verwijderen van de app in de App Console elke toestemming in die eraan is gegeven.
+Een toestemming trekt u in bij Dropbox, in de instellingen van het account onder **Connected apps**. Met [uw eigen oauth-app](#own-app) trekt het verwijderen van de app in de App Console elke toestemming in die eraan is gegeven.
 
-## Met een eigen app {#own-app}
+## Met een eigen oauth-app {#own-app}
 
 De schermen van Dropbox staan hieronder met hun Engelse namen.
 
@@ -56,7 +56,7 @@ Verder niets. De App key en het App secret op het tabblad Settings horen in het 
 
 ### 2. Het omleidingsadres {#own-app-redirect}
 
-Wil de knop werken met uw eigen app, dan moet de app weten waarheen de browser terug moet: **Settings → OAuth 2 → Redirect URIs**. Druk één keer op **Verbinden met Dropbox** met uw App key en App secret ingevuld, en het formulier toont onder de knop het precieze adres om te registreren. Het eindigt op `/api/migrations/dropbox/callback`.
+Wil de knop werken met uw eigen oauth-app, dan moet de app weten waarheen de browser terug moet: **Settings → OAuth 2 → Redirect URIs**. Druk één keer op **Verbinden met Dropbox** met uw App key en App secret ingevuld, en het formulier toont onder de knop het precieze adres om te registreren. Het eindigt op `/api/migrations/dropbox/callback`.
 
 ### 3. Toestemming, één keer, als het account dat u migreert {#own-app-consent}
 

@@ -87,8 +87,8 @@ afterEach(() => window.localStorage.removeItem('ownpace.locale'));
 describe('a migration’s report, as a page', () => {
   it('says the verdict, and per data type what was found, arrived, left as it was and could not come', async () => {
     renderAt();
-    expect(await screen.findByRole('heading', { level: 1, name: 'Anna — Gmail to Soverin' })).toBeInTheDocument();
-    expect(screen.getByText('Everything has arrived, but some items still wait on your decision.')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 2, name: 'The report' })).toBeInTheDocument();
+    expect(await screen.findByText('Everything has arrived, but some items still wait on your decision.')).toBeInTheDocument();
     const mail = within(line('email'));
     // The state rides with the type's name, so a phone keeps it without a column of its own.
     expect(within(mail.getByText('Email').closest('td')!).getByText('Completed')).toBeInTheDocument();
@@ -101,10 +101,32 @@ describe('a migration’s report, as a page', () => {
     expect(screen.getByText('Not part of this migration: tasks.')).toBeInTheDocument();
   });
 
+  /**
+   * The frame's header is the page's one h1 ("Report — Anna — Gmail to
+   * Soverin"); the page under it said the migration's name again as a second
+   * h1. It names itself as an h2, and the report's sections sit under it.
+   */
+  it('leaves the h1 to the frame: the page is an h2, its sections h3 beneath it', async () => {
+    renderAt();
+    await screen.findByText('Everything has arrived, but some items still wait on your decision.');
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(['The report']);
+    expect(screen.getByRole('heading', { level: 3, name: 'What arrived' })).toBeInTheDocument();
+  });
+
   it('says why something could not come in the provider’s own words, and where to see which', async () => {
     renderAt();
     expect(await screen.findByText('IMAP FETCH failed: message too large')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'See which, and why' })).toHaveAttribute('href', '/mappings/m1/failures');
+  });
+
+  it('underlines a link that sits in a sentence, so it does not read as one more word', async () => {
+    // Teal on dark grey is 1.08:1; colour alone does not tell a link apart.
+    renderAt();
+    await screen.findByText('IMAP FETCH failed: message too large');
+    for (const name of ['See which, and why', 'Deletions', 'Failures']) {
+      expect(screen.getByRole('link', { name }).className.split(' '), name).toContain('underline');
+    }
   });
 
   it('lists what waits on a decision, each opening its own queue', async () => {
@@ -130,6 +152,8 @@ describe('a migration’s report, as a page', () => {
     expect(await screen.findByText('Passed 2 days ago')).toBeInTheDocument();
     const mail = document.querySelector('[data-checked="email"]') as HTMLElement;
     expect(within(mail).getByText('18,297')).toBeInTheDocument();
+    // The new system said in full, beside the old one, never cut off at "On the new".
+    expect(screen.getByRole('columnheader', { name: 'On the new system' })).toBeInTheDocument();
     expect(within(mail).getByText('50 of 50 the same')).toBeInTheDocument();
   });
 
@@ -137,7 +161,7 @@ describe('a migration’s report, as a page', () => {
   it('says the check could not be read, or was not run, as that', async () => {
     fetchVerifyReportMock.mockRejectedValue(new Error('the database is unreachable'));
     const { unmount } = renderAt();
-    await screen.findByRole('heading', { level: 1, name: 'Anna — Gmail to Soverin' });
+    await screen.findByText('Everything has arrived, but some items still wait on your decision.');
     expect(await screen.findByText('Could not be read')).toBeInTheDocument();
     unmount();
 
