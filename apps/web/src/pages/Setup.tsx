@@ -20,6 +20,14 @@
  *
  * `skipped` is a first-class answer, not a hidden one: a step that genuinely
  * does not apply is recorded as decided rather than left open forever.
+ *
+ * ONE PAGE OF HELP (the UX sweep, 2026-10-17). The checklist and the chooser
+ * keep Help's two tabs, sit in the guides' width, and title themselves with
+ * an `<h2>` under the frame's `<h1>`, as the guides do. A destination's
+ * checklist says *new provider*: the intro the owner kept says *old*, and is
+ * a source's. On a phone, Skip sits in a step's title row rather than in a
+ * third column that squeezed the step's words, and the administrator
+ * question says which answer is chosen to a screen reader too.
  */
 
 import React from 'react';
@@ -33,10 +41,12 @@ import {
   setupStepsFor,
   type GrantProvider,
 } from '@openmig/shared';
+import { isSelfHost } from '../services/edition.ts';
 import { useT, useFormatters, useLocale, type StringKey } from '../i18n/index.tsx';
+import type { Locale } from '../i18n/strings.ts';
 import { serverMessage } from '../services/api.ts';
 import { GUIDE_SLUGS } from './Docs.tsx';
-import { cardGuideHref } from '../components/front-door-cards.ts';
+import { cardGuideHref, SOURCE_CARDS } from '../components/front-door-cards.ts';
 import { HelpTabs } from '../components/HelpTabs.tsx';
 // The name on the button a provider's consent draws, kept once beside the
 // consent window's own sentence (workplan 0145 T5).
@@ -74,7 +84,7 @@ const StepRow: React.FC<{
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span
-            className={`font-medium ${state === 'skipped' ? 'text-gray-400 line-through' : 'text-gray-900'}`}
+            className={`font-medium ${state === 'skipped' ? 'text-gray-500 line-through' : 'text-gray-900'}`}
           >
             {t(step.titleKey as StringKey)}
           </span>
@@ -87,6 +97,19 @@ const StepRow: React.FC<{
               {t('setup.needsAnotherPerson')}
             </span>
           )}
+          {/* In the title's row, not a column of its own: on a phone that
+              column squeezed the how-to and the state line into the middle.
+              A finger high, and `-my-2.5` so the row stays the title's
+              height and the tick box stays level with the title. */}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onSet(state === 'skipped' ? 'open' : 'skipped')}
+            className="ml-auto shrink-0 min-h-[44px] -my-2.5 px-2 text-sm text-gray-500 hover:text-gray-700 disabled:opacity-50 inline-flex items-center gap-1"
+          >
+            <SkipForward className="w-4 h-4" />
+            {state === 'skipped' ? t('setup.unskip') : t('setup.skip')}
+          </button>
         </div>
 
         {/* The how-to folds under the title (0118 T1): the step somebody is
@@ -116,16 +139,6 @@ const StepRow: React.FC<{
           </p>
         )}
       </div>
-
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => onSet(state === 'skipped' ? 'open' : 'skipped')}
-        className="shrink-0 text-sm text-gray-500 hover:text-gray-700 disabled:opacity-50 inline-flex items-center gap-1"
-      >
-        <SkipForward className="w-4 h-4" />
-        {state === 'skipped' ? t('setup.unskip') : t('setup.skip')}
-      </button>
     </div>
   );
 };
@@ -166,6 +179,31 @@ function emptiedByDeploymentApp(
   return owners.size === 1 && owner !== undefined ? owner : undefined;
 }
 
+/** The source cards retired for new migrations (`connectionOnly`): no tile of their own here. */
+const RETIRED_SOURCES: ReadonlySet<string> = new Set(
+  SOURCE_CARDS.filter((card) => 'connectionOnly' in card && card.connectionOnly).map((card) => card.id),
+);
+
+/**
+ * The chooser's tiles for a side, by name in the reader's alphabet (the UX
+ * sweep, 2026-10-17). They were the profiles' keys in key order, so IMAP sat
+ * between the two Microsoft registrations, and:
+ *
+ * - the cards retired for new migrations, Google Calendar and Google
+ *   Contacts, had tiles. Their profiles stay, so the *Setup steps* links on
+ *   Accounts still open their checklists;
+ * - the Microsoft 365 account, the usual Microsoft card, had none. Its
+ *   checklist exists and says there is nothing to prepare, which holds where
+ *   the deployment carries Microsoft's app; it is offered off the appliance
+ *   only, which carries no app of anybody's. Its own-app profile is 0148 T5
+ *   (b)'s.
+ */
+function chooserTiles(side: 'source' | 'target', locale: Locale): string[] {
+  const tiles = providersWithSetup(side).filter((p) => side !== 'source' || !RETIRED_SOURCES.has(p));
+  if (side === 'source' && !isSelfHost() && !tiles.includes('microsoft')) tiles.push('microsoft');
+  return tiles.sort((a, b) => providerDisplayName(a, locale).localeCompare(providerDisplayName(b, locale), locale));
+}
+
 /**
  * "Which provider?" — the screen the nav used to skip (workplan 0068).
  *
@@ -178,12 +216,13 @@ const ProviderChooser: React.FC = () => {
   const t = useT();
   const { locale } = useLocale();
   // As Accounts is (2026-10-05): the question on the paper, each side a white
-  // card, and each tile saying it opens.
+  // card, and each tile saying it opens. The question is an `<h2>`: the
+  // frame's `<h1>` names the screen, *Help*, as on the guides' tab.
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-3xl">
       <HelpTabs />
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">{t('setup.choose.title')}</h1>
+        <h2 className="text-2xl font-bold text-gray-900">{t('setup.choose.title')}</h2>
         <p className="mt-1 text-gray-600">{t('setup.choose.intro')}</p>
       </div>
       {(['source', 'target'] as const).map((side) => (
@@ -192,11 +231,11 @@ const ProviderChooser: React.FC = () => {
           aria-labelledby={`setup-${side}`}
           className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6"
         >
-          <h2 id={`setup-${side}`} className="text-lg font-semibold text-gray-900">
+          <h3 id={`setup-${side}`} className="text-lg font-semibold text-gray-900">
             {t(side === 'source' ? 'setup.choose.sources' : 'setup.choose.targets')}
-          </h2>
+          </h3>
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {providersWithSetup(side).map((p) => (
+            {chooserTiles(side, locale).map((p) => (
               <Link
                 key={`${side}:${p}`}
                 to={`/setup/${side}/${p}`}
@@ -251,6 +290,7 @@ const Setup: React.FC = () => {
   const backTo: { to: string; labelKey: StringKey } = { to: '/connections', labelKey: 'setup.backToConnections' };
   const queryClient = useQueryClient();
   const [busyKey, setBusyKey] = React.useState<string | null>(null);
+  const questionId = React.useId();
 
   const resolvedSide: 'source' | 'target' = side === 'target' ? 'target' : 'source';
   const [adminAnswer, setAdminAnswer] = useAdminAnswer(resolvedSide, provider ?? '');
@@ -291,7 +331,10 @@ const Setup: React.FC = () => {
   // paper, the question and the steps in white cards. Narrower than a list,
   // since the steps are sentences to read.
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 max-w-3xl">
+      {/* Help's tabs, as on the chooser and the guides: a checklist is a page
+          of Help, and its way back to Accounts stays below (0153 D5). */}
+      <HelpTabs />
       <div className="flex flex-wrap gap-4">
         {/* Back to where you actually came FROM (workplan 0074). This was a
             hardcoded link to the wizard, so reaching the checklist from
@@ -317,10 +360,12 @@ const Setup: React.FC = () => {
       </div>
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">
+        <h2 className="text-2xl font-bold text-gray-900">
           {t('setup.title')} — {providerDisplayName(data.provider, locale)}
-        </h1>
-        {data.steps.length > 0 && <p className="mt-1 text-gray-600">{t('setup.intro')}</p>}
+        </h2>
+        {data.steps.length > 0 && (
+          <p className="mt-1 text-gray-600">{t(data.side === 'target' ? 'setup.target.intro' : 'setup.intro')}</p>
+        )}
       </div>
 
       {data.steps.length === 0 ? (
@@ -368,14 +413,16 @@ const Setup: React.FC = () => {
               account was asked whether they administer it for an organisation. */}
           {asksAdmin && (
             <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
-              <p className="text-sm font-medium text-gray-900">
+              <p id={questionId} className="text-sm font-medium text-gray-900">
                 {t('setup.admin.question')} — {providerDisplayName(data.provider, locale)}
               </p>
-              <div className="mt-2 flex flex-wrap gap-2">
+              {/* The chosen answer is said, not only coloured. */}
+              <div role="group" aria-labelledby={questionId} className="mt-2 flex flex-wrap gap-2">
                 {(['yes', 'no', 'unknown'] as const).map((a) => (
                   <button
                     key={a}
                     type="button"
+                    aria-pressed={adminAnswer === a}
                     onClick={() => setAdminAnswer(a)}
                     className={`text-sm rounded px-3 py-1.5 border ${
                       adminAnswer === a
@@ -430,14 +477,14 @@ const Setup: React.FC = () => {
                   list(
                     mine,
                     answer === 'no' ? (
-                      <h2 className="pt-2 text-sm font-medium text-gray-700">{t('setup.yours')}</h2>
+                      <h3 className="pt-2 text-sm font-medium text-gray-700">{t('setup.yours')}</h3>
                     ) : undefined,
                   )}
                 {theirs.length > 0 &&
                   list(
                     theirs,
                     <div className="pt-2">
-                      <h2 className="text-sm font-medium text-amber-800">{t('setup.forYourAdmin')}</h2>
+                      <h3 className="text-sm font-medium text-amber-800">{t('setup.forYourAdmin')}</h3>
                       <p className="mt-1 text-sm text-gray-600">{t('setup.forYourAdmin.hint')}</p>
                     </div>,
                   )}

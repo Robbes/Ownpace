@@ -380,7 +380,7 @@ describe('with the alpha setting on', () => {
           // Each named by its own title, and the new tab said out loud.
           const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           expect(link).toHaveAccessibleName(
-            new RegExp(`^${escaped(names[i]!)}\\s*${escaped(STRINGS[locale]['acceptance.newTab'])}$`),
+            new RegExp(`^${escaped(names[i]!)}\\s*${escaped(STRINGS[locale]['common.newTab'])}$`),
           );
           expect(link.target).toBe('_blank');
           expect(link.rel).toMatch(/\bnoopener\b/);
@@ -403,8 +403,8 @@ describe('with the alpha setting on', () => {
     // The owner: "Voorwaarden voor de Alpha · Handleiding voor de Alpha".
     expect(STRINGS.en['acceptance.doc.alpha']).toBe('Alpha conditions');
     expect(STRINGS.nl['acceptance.doc.alpha']).toBe('Voorwaarden voor de Alpha');
-    expect(STRINGS.en['acceptance.newTab']).toBe('(opens in a new tab)');
-    expect(STRINGS.nl['acceptance.newTab']).toBe('(opent in een nieuw tabblad)');
+    expect(STRINGS.en['common.newTab']).toBe('(opens in a new tab)');
+    expect(STRINGS.nl['common.newTab']).toBe('(opent in een nieuw tabblad)');
   });
 
   it('is a note, never an alarm', () => {

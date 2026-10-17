@@ -333,7 +333,10 @@ export const en = {
   'account.sourceClientSecret': 'Client secret',
   'docs.title': 'Setup guides',
   'docs.all': '← All setup guides',
-  'docs.notFound': 'There is no guide by that name; these ship with this version:',
+  // The UX sweep (2026-10-17): the list of a guide's sections under its title,
+  // in the guide's own language, as the own-app fold is.
+  'docs.onThisPage': 'On this page',
+  'docs.notFound': 'There is no guide at this address. These are all the guides:',
   // Workplan 0148 T4: a guide not yet written in the reader's language is
   // shown in the other one, under this line, in the reader's own.
   'docs.otherLanguage': 'This guide is not yet available in English; the Dutch version follows.',
@@ -505,6 +508,10 @@ export const en = {
   'setup.title': 'Provider setup',
   'setup.intro':
     'Steps to take in the provider’s console; ticks are saved for your whole organisation.',
+  // A destination's checklist (the UX sweep, 2026-10-17): the Dutch above is
+  // the owner's and says *uw oude aanbieder*, which a Nextcloud or a Soverin
+  // being moved to is not.
+  'setup.target.intro': 'Steps to take at your new provider; ticks are saved for your whole organisation.',
   'setup.backToConnections': '← Back to accounts',
   'setup.fullGuide': 'Read the full setup guide',
   // Beside a refusal that carries a guide handle (0148 T7): the frame is ours,
@@ -660,10 +667,13 @@ export const en = {
   'setup.nextcloud.app_password.detail':
     'In Nextcloud: Settings → Security → Devices & sessions. Type a name under App name, such as Migration, press Create new app password and copy the password. Use it rather than the account’s own password: it can be revoked without changing yours.',
   'setup.nextcloud.app_password.yields': 'an app password, for the form’s Password box.',
-  'setup.nextcloud.dav_url.title': 'Note the address with /remote.php/dav',
+  // Both doors (the UX sweep, 2026-10-17): Start a migration asks for the
+  // address and adds /remote.php/dav itself; the Accounts page's form asks
+  // for the DAV base URL. The step key stays `dav_url`, so saved ticks hold.
+  'setup.nextcloud.dav_url.title': "Note your Nextcloud's address",
   'setup.nextcloud.dav_url.detail':
-    'The address you open Nextcloud at, with /remote.php/dav on the end, such as https://cloud.example.com/remote.php/dav. It goes in DAV base URL; there is no box for a host or a port. Nextcloud shows its WebDAV address at the bottom of the Files settings page: the name after /remote.php/dav/files/ is the user name to type.',
-  'setup.nextcloud.dav_url.yields': 'the DAV base URL, and your user name.',
+    "The address you open Nextcloud at in your browser, such as https://cloud.example.com. On Start a migration it goes in Your Nextcloud's address, and /remote.php/dav is added for you. On the Accounts page, DAV base URL takes the address with /remote.php/dav on the end, such as https://cloud.example.com/remote.php/dav. Nextcloud shows its WebDAV address at the bottom of the Files settings page: the name after /remote.php/dav/files/ is the user name to type.",
+  'setup.nextcloud.dav_url.yields': "your Nextcloud's address, and your user name.",
   'setup.soverin.account_exists.title': 'Make sure the Soverin account exists',
   'setup.soverin.account_exists.detail':
     'The Soverin account must exist already, with room for what is coming. This service creates no accounts.',
@@ -880,7 +890,8 @@ export const nl: Record<keyof typeof en, string> = {
   'account.sourceClientSecret': 'Clientsecret',
   'docs.title': 'Handleidingen',
   'docs.all': '← Alle handleidingen',
-  'docs.notFound': 'Er is geen handleiding met die naam; deze horen bij deze versie:',
+  'docs.onThisPage': 'Op deze pagina',
+  'docs.notFound': 'Er is geen handleiding op dit adres. Dit zijn alle handleidingen:',
   'docs.otherLanguage': 'Deze handleiding is nog niet beschikbaar in het Nederlands; hieronder staat de Engelse versie.',
   'docs.operatorDocs':
     "Draait u een eigen appliance? Instellingen en commando's staan in de beheerdersdocumenten in de repository.",
@@ -990,6 +1001,8 @@ export const nl: Record<keyof typeof en, string> = {
   'setup.title': 'Aanbieder instellen',
   'setup.intro':
     'Stappen om door te lopen bij uw oude aanbieder; vinkjes worden voor uw hele organisatie bewaard.',
+  'setup.target.intro':
+    'Stappen om door te lopen bij uw nieuwe aanbieder; vinkjes worden voor uw hele organisatie bewaard.',
   'setup.backToConnections': '← Terug naar accounts',
   'setup.fullGuide': 'Lees de volledige handleiding',
   'setup.refusalGuide': 'Handleiding: {title}',
@@ -1129,10 +1142,10 @@ export const nl: Record<keyof typeof en, string> = {
   'setup.nextcloud.app_password.detail':
     'In Nextcloud: Instellingen → Beveiliging → Apparaten & sessies. Typ bij App naam een naam, zoals Migratie, druk op Creëer een nieuw app wachtwoord en kopieer het wachtwoord. Gebruik dat in plaats van het accountwachtwoord zelf: het kan ingetrokken worden zonder uw eigen wachtwoord te wijzigen.',
   'setup.nextcloud.app_password.yields': 'een app-wachtwoord, voor het vak Wachtwoord van het formulier.',
-  'setup.nextcloud.dav_url.title': 'Noteer het adres met /remote.php/dav',
+  'setup.nextcloud.dav_url.title': 'Noteer het adres van uw Nextcloud',
   'setup.nextcloud.dav_url.detail':
-    'Het adres waarop u Nextcloud opent, met /remote.php/dav erachter, zoals https://cloud.example.com/remote.php/dav. Dat vult u in bij DAV-basis-URL; er is geen vak voor een host of een poort. Nextcloud toont het WebDAV-adres onderaan de pagina met bestandsinstellingen: de naam na /remote.php/dav/files/ is de gebruikersnaam die u invult.',
-  'setup.nextcloud.dav_url.yields': 'de DAV-basis-URL en uw gebruikersnaam.',
+    'Het adres waarop u Nextcloud in uw browser opent, zoals https://cloud.example.com. Bij Migratie starten vult u dat in bij Het adres van uw Nextcloud; /remote.php/dav wordt er dan achter gezet. Op de pagina Accounts vult u bij DAV-basis-URL het adres met /remote.php/dav erachter in, zoals https://cloud.example.com/remote.php/dav. Nextcloud toont het WebDAV-adres onderaan de pagina met bestandsinstellingen: de naam na /remote.php/dav/files/ is de gebruikersnaam die u invult.',
+  'setup.nextcloud.dav_url.yields': 'het adres van uw Nextcloud en uw gebruikersnaam.',
   'setup.soverin.account_exists.title': 'Zorg dat het Soverin-account bestaat',
   'setup.soverin.account_exists.detail':
     'Het Soverin-account moet al bestaan, met ruimte voor wat eraan komt. Deze dienst maakt zelf geen accounts aan.',

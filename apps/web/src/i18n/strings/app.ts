@@ -35,6 +35,10 @@ export const en = {
   'nav.reportProblem': 'Report a problem',
   'language.label': 'Language',
   'common.requestFailed': 'The request did not complete.',
+  // Said after a link that opens a new tab, to a screen reader only: the
+  // legal texts, the tester guide, a guide's outside links and a refusal's
+  // guide (it was the acceptance screen's own until the UX sweep).
+  'common.newTab': '(opens in a new tab)',
   'asof.updated': 'Updated',
   'asof.refresh': 'Refresh',
   // The tag on a source that has not yet met a real account (workplan 0131
@@ -160,6 +164,7 @@ export const nl: Record<keyof typeof en, string> = {
   'nav.reportProblem': 'Een probleem melden',
   'language.label': 'Taal',
   'common.requestFailed': 'Het verzoek is niet voltooid.',
+  'common.newTab': '(opent in een nieuw tabblad)',
   'asof.updated': 'Bijgewerkt',
   'asof.refresh': 'Vernieuwen',
   'frontDoor.experimental': 'Experimenteel',
