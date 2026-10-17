@@ -83,8 +83,8 @@ describe('one line per row, the rest folded', () => {
     const folds = screen.getAllByText('More');
     expect(folds.length).toBeGreaterThan(0);
     for (const fold of folds) expect(fold).toBeVisible();
-    // The shared-mailbox row's guide, beside the row rather than a file name
-    // in it (0148 T7), and Google Photos' Takeout route (2026-10-14).
+    // The shared-mailbox row's guide, under its column rather than a file
+    // name in the row (0148 T7), and Google Photos' Takeout route (2026-10-14).
     const guides = screen.getAllByRole('link', { name: /^Guide: / }).map((a) => a.getAttribute('href'));
     expect(guides).toContain('/docs/microsoft#application');
     expect(guides).toContain('/docs/google#photos');

@@ -254,8 +254,8 @@ export interface ScopeManifestEntry {
   readonly more?: string;
   /**
    * The section of a served guide that says the rest (workplan 0148 T7). A
-   * screen draws the link beside the row, in its reader's language; the row's
-   * words name no file.
+   * screen draws the link under the row's column, after its rows and each
+   * guide once, in its reader's language; the row's words name no file.
    */
   readonly guide?: GuideHandle;
   /**
