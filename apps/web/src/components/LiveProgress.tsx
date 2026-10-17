@@ -24,6 +24,7 @@
  */
 
 import React from 'react';
+import { Link } from 'react-router';
 import type {
   DomainStatusReport,
   FailureCategory,
@@ -114,7 +115,12 @@ const LiveProgress: React.FC<{
    * screen, the strip says the pass's state, as it always has.
    */
   stages?: Readonly<Partial<Record<DomainStatusReport['domain'], Stage>>>;
-}> = ({ domains, stages }) => {
+  /**
+   * Its heading's level in the page's outline: 4 under the review screen's
+   * h3 (the default), 3 on a migration's own page, under its name's h2.
+   */
+  headingLevel?: 3 | 4;
+}> = ({ domains, stages, headingLevel = 4 }) => {
   const t = useT();
   const { locale } = useLocale();
   const { relativeToNow } = useFormatters();
@@ -123,9 +129,10 @@ const LiveProgress: React.FC<{
   // hiding it is the silence that made a switched-off data type invisible.
   const running = domains.filter((d) => d.state !== 'skipped');
   if (running.length === 0) return null;
+  const H = headingLevel === 3 ? 'h3' : 'h4';
   return (
     <div className="mb-3">
-      <h4 className="text-sm font-medium text-gray-700 mb-1">{t('confirm.progress.heading')}</h4>
+      <H className="text-sm font-medium text-gray-700 mb-1">{t('confirm.progress.heading')}</H>
       <ul className="space-y-2">
         {running.map((d) => {
           // OF ABOUT HOW MANY (0154 T2): the copies set against what discovery
@@ -291,6 +298,16 @@ const LiveProgress: React.FC<{
                   {/* And the side, when the pass could tell (0094 T5, second
                       slice): "reconnect it" then points at the right account. */}
                   {d.failedSide && <> {t(FAILURE_SIDE_KEY[d.failedSide])}</>}
+                  {/* The page that sentence names, one press away: on a phone
+                      Accounts sits behind the menu button. */}
+                  {d.lastErrorCategory === 'auth_expired' && (
+                    <>
+                      {' '}
+                      <Link to="/connections" className="font-medium underline">
+                        {t('failure.openAccounts')}
+                      </Link>
+                    </>
+                  )}
                   {/* And the way out that `unknown` promises: the report form,
                       with this failure's reference in it (0130 T3). */}
                   {d.lastErrorCategory === 'unknown' && (
