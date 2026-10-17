@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * Team & organization (the managed edition's tenants entry).
+ * Team & organisation (the managed edition's tenants entry).
  *
  * Membership IS authorization here — `authenticate` takes the caller's role
  * from their `tenant_member` row (workplan 0020 T1) — so this screen is where
@@ -30,9 +30,16 @@
  * every outcome but the first leaves telling them to the inviter. An open
  * invitation this page made can be mailed again from its row.
  *
- * The email-summary card is 0030 T4: how often this organization is emailed a
+ * The email-summary card is 0030 T4: how often this organisation is emailed a
  * summary of what is waiting, read every morning by the `managed-digest` task.
  * Owner/admin only, like every other change here.
+ *
+ * THE MEMBERS TABLE IS ONE LIST ON A PHONE. Below 640 pixels each member is a
+ * block of its own: the address, then role and status side by side, the two
+ * dates each with its own label, and the buttons on a line of their own. It
+ * used to scroll sideways, with no sign that it did, and Send again, Remove
+ * and both dates sat out of sight. It is one DOM at every width (the pattern
+ * `MigrationReport` uses), so every button is in it once.
  */
 
 import React from 'react';
@@ -153,7 +160,13 @@ const Tenants: React.FC = () => {
   });
 
   if (!tenantId) {
-    return <p className="text-gray-500">{t('tenants.noTenant')}</p>;
+    // The page's own h1: the header names it as a line of text, not a heading.
+    return (
+      <div className="space-y-2">
+        <h1 className="text-2xl font-bold text-gray-900">{t('tenants.title')}</h1>
+        <p className="text-gray-500">{t('tenants.noTenant')}</p>
+      </div>
+    );
   }
 
   const refetchMembers = () =>
@@ -328,7 +341,7 @@ const Tenants: React.FC = () => {
         <p className="text-gray-500 mt-1">{t('tenants.intro')}</p>
       </div>
 
-      {/* Organization */}
+      {/* Organisation */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-3">{t('tenants.org.heading')}</h2>
         {tenantQuery.isError ? (
@@ -485,151 +498,157 @@ const Tenants: React.FC = () => {
         ) : members.length === 0 ? (
           <p className="text-gray-500">{t('tenants.members.empty')}</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 border-b border-gray-200">
-                  <th className="py-2 pr-4 font-medium">{t('tenants.members.emailHeader')}</th>
-                  <th className="py-2 pr-4 font-medium">{t('tenants.members.roleHeader')}</th>
-                  <th className="py-2 pr-4 font-medium">{t('tenants.members.statusHeader')}</th>
-                  <th className="py-2 pr-4 font-medium">{t('tenants.members.invitedHeader')}</th>
-                  <th className="py-2 pr-4 font-medium">{t('tenants.members.joinedHeader')}</th>
-                  {canManage && <th className="py-2" />}
-                </tr>
-              </thead>
-              <tbody>
-                {members.map((member) => {
-                  const isSelf = member.userId === user?.id;
-                  // Only an owner can change or remove an owner (0137 T3 (c)):
-                  // the server answers an admin's role change or removal on
-                  // any owner row, invited or declined too, with 403. So an
-                  // admin sees that row's role as text and gets no Remove,
-                  // rather than two controls that always fail.
-                  const canChangeRow = canManage && (isOwner || member.role !== 'owner');
-                  return (
-                    <React.Fragment key={member.id}>
-                      <tr className="border-b border-gray-100">
-                        <td className="py-3 pr-4 text-gray-900">
-                          {member.email}
-                          {isSelf && (
-                            <span className="ml-2 text-xs text-gray-500">
-                              ({t('tenants.members.you')})
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 pr-4">
-                          {canChangeRow ? (
-                            <select
-                              value={member.role}
-                              aria-label={`${t('tenants.members.roleHeader')} ${member.email}`}
-                              disabled={busyRow === member.id}
-                              onChange={(e) =>
-                                changeRole(member, e.target.value as Member['role'], isSelf)
-                              }
-                              className="px-2 py-1 border border-gray-300 rounded text-gray-900 bg-white"
-                            >
-                              {rowRoles(member.role).map((role) => (
-                                <option
-                                  key={role}
-                                  value={role}
-                                  // Granting owner is owner-only (the server's
-                                  // guard) — an admin's select says so up front.
-                                  // A role below admin is shown as the row's
-                                  // own and cannot be chosen (0137 T7).
-                                  disabled={(role === 'owner' && !isOwner) || !ROLES.includes(role)}
-                                >
-                                  {t(`role.${role}` as StringKey)}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span className="text-gray-900">
-                              {t(`role.${member.role}` as StringKey)}
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 pr-4">
-                          <span
-                            className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_STYLE[member.status]}`}
-                          >
-                            {t(`memberStatus.${member.status}` as StringKey)}
+          <table className="block w-full text-sm sm:table">
+            <thead className="hidden sm:table-header-group">
+              <tr className="text-left text-gray-500 border-b border-gray-200">
+                <th className="py-2 pr-4 font-medium">{t('tenants.members.emailHeader')}</th>
+                <th className="py-2 pr-4 font-medium">{t('tenants.members.roleHeader')}</th>
+                <th className="py-2 pr-4 font-medium">{t('tenants.members.statusHeader')}</th>
+                <th className="py-2 pr-4 font-medium">{t('tenants.members.invitedHeader')}</th>
+                <th className="py-2 pr-4 font-medium">{t('tenants.members.joinedHeader')}</th>
+                {canManage && (
+                  <th className="py-2">
+                    <span className="sr-only">{t('tenants.members.actionsHeader')}</span>
+                  </th>
+                )}
+              </tr>
+            </thead>
+            <tbody className="block sm:table-row-group">
+              {members.map((member) => {
+                const isSelf = member.userId === user?.id;
+                // Only an owner can change or remove an owner (0137 T3 (c)):
+                // the server answers an admin's role change or removal on
+                // any owner row, invited or declined too, with 403. So an
+                // admin sees that row's role as text and gets no Remove,
+                // rather than two controls that always fail.
+                const canChangeRow = canManage && (isOwner || member.role !== 'owner');
+                return (
+                  <React.Fragment key={member.id}>
+                    <tr className="grid grid-cols-2 gap-x-3 gap-y-1 border-b border-gray-100 py-3 sm:table-row sm:py-0">
+                      <td className="col-span-2 break-words text-gray-900 sm:table-cell sm:py-3 sm:pr-4">
+                        {member.email}
+                        {isSelf && (
+                          <span className="ml-2 text-xs text-gray-500">
+                            ({t('tenants.members.you')})
                           </span>
-                        </td>
-                        <td className="py-3 pr-4 text-gray-500">
-                          {member.invitedAt ? dateTime(member.invitedAt) : '—'}
-                        </td>
-                        <td className="py-3 pr-4 text-gray-500">
-                          {member.joinedAt ? dateTime(member.joinedAt) : '—'}
-                        </td>
-                        {canManage && (
-                          <td className="py-3 text-right whitespace-nowrap">
-                            {/* An invitation this page made, still open
-                                (0156 T3); a granted access request was mailed
-                                by its grant, and the server says so. */}
-                            {member.status === 'invited' && member.origin !== 'requested' && (
-                              <button
-                                onClick={() => resend(member)}
-                                disabled={busyRow === member.id}
-                                className="mr-2 px-3 py-1.5 text-sm font-medium rounded-lg text-blue-700 hover:bg-blue-50 disabled:opacity-50"
-                              >
-                                {t('tenants.members.resend')}
-                              </button>
-                            )}
-                            {!isSelf && canChangeRow && (
-                              <button
-                                onClick={() => remove(member)}
-                                disabled={busyRow === member.id}
-                                className={`px-3 py-1.5 text-sm font-medium rounded-lg disabled:opacity-50 ${
-                                  armedRemove === member.id
-                                    ? 'bg-red-600 text-white hover:bg-red-700'
-                                    : 'text-red-700 hover:bg-red-50'
-                                }`}
-                              >
-                                {armedRemove === member.id
-                                  ? t('tenants.members.removeArmed')
-                                  : t('tenants.members.remove')}
-                              </button>
-                            )}
-                          </td>
                         )}
-                      </tr>
-                      {armedSelfDemotion?.memberId === member.id && (
-                        <tr>
-                          <td colSpan={canManage ? 6 : 5} className="pb-3 text-amber-700">
-                            {t('tenants.selfDemotionArmed')}{' '}
-                            <button
-                              onClick={() => changeRole(member, armedSelfDemotion.role, true)}
-                              disabled={busyRow === member.id}
-                              className="ml-2 px-3 py-1 text-sm font-medium rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
-                            >
-                              {t('tenants.selfDemotionConfirm')}
-                            </button>
-                          </td>
-                        </tr>
-                      )}
-                      {rowErrors[member.id] && (
-                        <tr>
-                          <td colSpan={canManage ? 6 : 5} className="pb-3 text-amber-700">
-                            {rowErrors[member.id]}
-                          </td>
-                        </tr>
-                      )}
-                      {rowMail[member.id] && (
-                        <tr>
-                          <td
-                            colSpan={canManage ? 6 : 5}
-                            className={`pb-3 ${MAIL_OUTCOME_TONE[rowMail[member.id]!]}`}
+                      </td>
+                      <td className="sm:table-cell sm:py-3 sm:pr-4">
+                        {canChangeRow ? (
+                          <select
+                            value={member.role}
+                            aria-label={`${t('tenants.members.roleHeader')} ${member.email}`}
+                            disabled={busyRow === member.id}
+                            onChange={(e) =>
+                              changeRole(member, e.target.value as Member['role'], isSelf)
+                            }
+                            className="px-2 py-1 border border-gray-300 rounded text-gray-900 bg-white"
                           >
-                            {t(MAIL_OUTCOME[rowMail[member.id]!], { email: member.email })}
-                          </td>
-                        </tr>
+                            {rowRoles(member.role).map((role) => (
+                              <option
+                                key={role}
+                                value={role}
+                                // Granting owner is owner-only (the server's
+                                // guard) — an admin's select says so up front.
+                                // A role below admin is shown as the row's
+                                // own and cannot be chosen (0137 T7).
+                                disabled={(role === 'owner' && !isOwner) || !ROLES.includes(role)}
+                              >
+                                {t(`role.${role}` as StringKey)}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-gray-900">
+                            {t(`role.${member.role}` as StringKey)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="self-center sm:table-cell sm:py-3 sm:pr-4">
+                        <span
+                          className={`whitespace-nowrap px-2 py-0.5 rounded text-xs font-medium ${STATUS_STYLE[member.status]}`}
+                        >
+                          {t(`memberStatus.${member.status}` as StringKey)}
+                        </span>
+                      </td>
+                      {/* Below 640 pixels the column headings are hidden, so
+                          each date says its own. */}
+                      <td className="col-span-2 text-gray-500 sm:table-cell sm:py-3 sm:pr-4">
+                        <span className="text-xs text-gray-500 sm:hidden">{t('tenants.members.invitedHeader')} </span>
+                        {member.invitedAt ? dateTime(member.invitedAt) : '—'}
+                      </td>
+                      <td className="col-span-2 text-gray-500 sm:table-cell sm:py-3 sm:pr-4">
+                        <span className="text-xs text-gray-500 sm:hidden">{t('tenants.members.joinedHeader')} </span>
+                        {member.joinedAt ? dateTime(member.joinedAt) : '—'}
+                      </td>
+                      {canManage && (
+                        <td className="col-span-2 flex flex-wrap gap-2 max-sm:empty:hidden sm:table-cell sm:py-3 sm:text-right sm:whitespace-nowrap">
+                          {/* An invitation this page made, still open
+                              (0156 T3); a granted access request was mailed
+                              by its grant, and the server says so. */}
+                          {member.status === 'invited' && member.origin !== 'requested' && (
+                            <button
+                              onClick={() => resend(member)}
+                              disabled={busyRow === member.id}
+                              className="sm:mr-2 px-3 py-1.5 text-sm font-medium rounded-lg text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+                            >
+                              {t('tenants.members.resend')}
+                            </button>
+                          )}
+                          {!isSelf && canChangeRow && (
+                            <button
+                              onClick={() => remove(member)}
+                              disabled={busyRow === member.id}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-lg disabled:opacity-50 ${
+                                armedRemove === member.id
+                                  ? 'bg-red-600 text-white hover:bg-red-700'
+                                  : 'text-red-700 hover:bg-red-50'
+                              }`}
+                            >
+                              {armedRemove === member.id
+                                ? t('tenants.members.removeArmed')
+                                : t('tenants.members.remove')}
+                            </button>
+                          )}
+                        </td>
                       )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                    </tr>
+                    {armedSelfDemotion?.memberId === member.id && (
+                      <tr className="block sm:table-row">
+                        <td colSpan={canManage ? 6 : 5} className="block py-3 text-amber-700 sm:table-cell sm:pt-0">
+                          {t('tenants.selfDemotionArmed')}{' '}
+                          <button
+                            onClick={() => changeRole(member, armedSelfDemotion.role, true)}
+                            disabled={busyRow === member.id}
+                            className="ml-2 px-3 py-1 text-sm font-medium rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
+                          >
+                            {t('tenants.selfDemotionConfirm')}
+                          </button>
+                        </td>
+                      </tr>
+                    )}
+                    {rowErrors[member.id] && (
+                      <tr className="block sm:table-row">
+                        <td colSpan={canManage ? 6 : 5} className="block py-3 text-amber-700 sm:table-cell sm:pt-0">
+                          {rowErrors[member.id]}
+                        </td>
+                      </tr>
+                    )}
+                    {rowMail[member.id] && (
+                      <tr className="block sm:table-row">
+                        <td
+                          colSpan={canManage ? 6 : 5}
+                          className={`block py-3 sm:table-cell sm:pt-0 ${MAIL_OUTCOME_TONE[rowMail[member.id]!]}`}
+                        >
+                          {t(MAIL_OUTCOME[rowMail[member.id]!], { email: member.email })}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
 

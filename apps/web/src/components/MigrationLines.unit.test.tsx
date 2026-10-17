@@ -64,6 +64,29 @@ describe('a migration’s lines, in Dutch', () => {
   });
 });
 
+describe('a line says which way it goes, to a screen reader too', () => {
+  // The arrow is drawn (aria-hidden) and each tile's letter is hidden, so the
+  // line was heard as *Gmail Soverin*: nothing said which was the source.
+  const line = () => {
+    const arrows = document.querySelectorAll('[data-domain="email"] span[aria-hidden="true"]');
+    return [...arrows].find((a) => a.textContent === '→')!.parentElement!;
+  };
+
+  it('en: Gmail to Soverin', () => {
+    render(
+      <LocaleProvider>
+        <MigrationLines migration={MAIL} />
+      </LocaleProvider>,
+    );
+    expect(line().textContent).toBe('GGmail→toSSoverin');
+  });
+
+  it('nl: Gmail naar Soverin', () => {
+    inDutch(progress({ state: 'not_run' }));
+    expect(line().textContent).toBe('GGmail→naarSSoverin');
+  });
+});
+
 describe('an export’s line (0153 open question 5, item 2)', () => {
   const EXPORT = {
     sourceType: 'archive',

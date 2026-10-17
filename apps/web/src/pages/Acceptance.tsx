@@ -135,7 +135,7 @@ const Acceptance: React.FC<{
                     {t('acceptance.newVersion')}
                   </span>
                 )}
-                <span className="sr-only"> {t('acceptance.newTab')}</span>
+                <span className="sr-only"> {t('common.newTab')}</span>
               </a>
             </li>
           ))}

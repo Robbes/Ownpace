@@ -69,6 +69,10 @@ export const en = {
   // What the count leaves out, short: its meaning is on the migration's page.
   'people.line.leftAsIs': '{count} left as they are',
   'people.line.checkPassed': 'The check passed {when}',
+  // Between the two providers' tiles, for a screen reader: the arrow is
+  // drawn, and the tiles' letters are hidden, so without it the line was
+  // heard as *Gmail Soverin*, with no way to tell which is the source.
+  'people.line.to': 'to',
   'people.loadFailed': 'Could not load who each migration is for.',
   'people.unassigned.title': 'Not with a person yet',
   'people.unassigned.hint': 'Add each to the person it is for; it joins their card.',
@@ -98,6 +102,10 @@ export const en = {
   'person.awaiting.ranBefore': 'Waits for {name} to connect again.',
   'person.awaiting.unread': 'Which of these wait for {name} to connect could not be read.',
   'person.links.title': 'For {name}',
+  // In place of the grant link, for a person none of whose migrations reads
+  // Google: the server would only refuse one (`nothing_to_grant`).
+  'person.links.noGoogle':
+    "A grant link is only for Google accounts, and none of {name}'s migrations reads one. Their other accounts are connected on the Accounts page.",
   'person.steps.title': 'Before you switch',
   'person.steps.hint': 'Each step, summed across this person’s migrations.',
   'person.state.done': 'Done',
@@ -181,6 +189,7 @@ export const nl: Record<keyof typeof en, string> = {
   'people.line.lastPass': 'laatste ronde {when}',
   'people.line.leftAsIs': '{count} ongemoeid gelaten',
   'people.line.checkPassed': 'De verificatie is {when} geslaagd',
+  'people.line.to': 'naar',
   'people.loadFailed': 'Kon niet laden bij wie elke migratie hoort.',
   'people.unassigned.title': 'Nog niet bij een persoon',
   'people.unassigned.hint': 'Voeg elke migratie toe aan de persoon voor wie ze is.',
@@ -206,6 +215,8 @@ export const nl: Record<keyof typeof en, string> = {
   'person.awaiting.ranBefore': 'Wacht tot {name} opnieuw verbindt.',
   'person.awaiting.unread': 'Welke hiervan wachten tot {name} verbindt, kon niet worden gelezen.',
   'person.links.title': 'Voor {name}',
+  'person.links.noGoogle':
+    'Een toegangslink is alleen voor Google-accounts, en geen van de migraties van {name} leest er een. Andere accounts verbindt u op de pagina Accounts.',
   'person.steps.title': 'Voordat u overstapt',
   'person.steps.hint': 'Elke stap, opgeteld over de migraties van deze persoon.',
   'person.state.done': 'Klaar',

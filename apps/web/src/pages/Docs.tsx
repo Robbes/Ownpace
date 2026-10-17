@@ -53,6 +53,15 @@
  * list indented inside it. Anything the renderer does not understand renders
  * as its own text rather than disappearing, which is the right failure for a
  * document.
+ *
+ * FINDING ONE'S WAY (the UX sweep, 2026-10-17). A guide is 4,000 to 20,000
+ * px on a phone. Under its title it lists its sections, *On this page*, in
+ * the guide's own language, and the way back to the index comes again after
+ * it. A link among other words is underlined, not only under a mouse: the
+ * link teal and the text grey are 1.08:1 apart. A code address may wrap
+ * rather than push the page sideways. A link that opens a new tab says so to
+ * a screen reader. The index is in the order of the titles, not of the file
+ * names, and a guide or an address with no guide keeps Help's two tabs.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -60,7 +69,7 @@ import { useParams, useLocation, Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react';
 import { GRANT_PROVIDERS, type GrantProvider } from '@openmig/shared';
-import { useLocale } from '../i18n/index.tsx';
+import { useLocale, useT } from '../i18n/index.tsx';
 import { STRINGS, LOCALES, type Locale } from '../i18n/strings.ts';
 import { providerClientsApi } from '../services/mapping-service.ts';
 import { isSelfHost } from '../services/edition.ts';
@@ -137,12 +146,19 @@ export function pickGuide(library: GuideLibrary, slug: string, locale: Locale): 
 const OPERATOR_DOCS_URL = 'https://github.com/Robbes/Ownpace/tree/main/docs';
 
 /**
+ * A link among other words: underlined, since its colour alone does not set
+ * it apart from the text around it (the UX sweep, 2026-10-17).
+ */
+const LINK_IN_TEXT = 'text-blue-700 underline underline-offset-2 hover:text-blue-900';
+
+/**
  * Inline spans: `code`, **bold**, *italics*, [text](href). Escapes nothing
  * else. Bold may hold italics, a link or code, and is parsed again. Only the
  * asterisk makes italics: an underscore is left as written, since the guides
  * name scopes and fields such as `sharing.read` and `client_secret`.
  */
 const Inline: React.FC<{ text: string }> = ({ text }) => {
+  const t = useT();
   const parts: React.ReactNode[] = [];
   const pattern = /`([^`]+)`|\*\*(?=\S)(.+?)\*\*(?!\*)|\[([^\]]+)\]\(([^)]+)\)|\*(?=[^\s*])([^*]*[^\s*]|[^\s*])\*/g;
   let last = 0;
@@ -152,7 +168,7 @@ const Inline: React.FC<{ text: string }> = ({ text }) => {
     if (match.index > last) parts.push(text.slice(last, match.index));
     if (match[1] !== undefined) {
       parts.push(
-        <code key={key++} className="px-1 py-0.5 bg-gray-100 rounded text-[0.9em] font-mono">
+        <code key={key++} className="px-1 py-0.5 bg-gray-100 rounded text-[0.9em] font-mono break-words">
           {match[1]}
         </code>,
       );
@@ -176,7 +192,7 @@ const Inline: React.FC<{ text: string }> = ({ text }) => {
         // A section of this page: the same tab, and `GuideArticle` scrolls
         // to it once the address carries the hash.
         parts.push(
-          <Link key={key++} to={href} className="text-blue-700 hover:underline">
+          <Link key={key++} to={href} className={LINK_IN_TEXT}>
             {label}
           </Link>,
         );
@@ -184,7 +200,7 @@ const Inline: React.FC<{ text: string }> = ({ text }) => {
         // Another guide, by its file name: `microsoft.md`, or `microsoft.md#own-app`.
         const hash = href.includes('#') ? href.slice(href.indexOf('#')) : '';
         parts.push(
-          <Link key={key++} to={`/docs/${slugOf(href)}${hash}`} className="text-blue-700 hover:underline">
+          <Link key={key++} to={`/docs/${slugOf(href)}${hash}`} className={LINK_IN_TEXT}>
             {label}
           </Link>,
         );
@@ -195,9 +211,10 @@ const Inline: React.FC<{ text: string }> = ({ text }) => {
             href={href}
             target="_blank"
             rel="noreferrer noopener"
-            className="text-blue-700 hover:underline"
+            className={LINK_IN_TEXT}
           >
             {label}
+            <span className="sr-only"> {t('common.newTab')}</span>
           </a>,
         );
       }
@@ -471,7 +488,7 @@ export function guideTitle(body: string, slug: string): string {
  * `Layout`'s or, without a session, `PublicDocs`'s.
  * `###` and `####` both land on `<h4>`, the deepest level a guide has.
  * `scroll-mt-20` keeps a heading that was scrolled to clear of the layout's
- * sticky header, which is `h-16`.
+ * sticky header, which is at least `h-16`: on `/docs` its title is one word.
  */
 const HEADING_TAG = { 1: 'h2', 2: 'h3', 3: 'h4', 4: 'h4' } as const;
 const HEADING_SIZE = { 1: 'text-xl', 2: 'text-lg', 3: 'text-base', 4: 'text-base' } as const;
@@ -632,7 +649,13 @@ const OwnAppFold: React.FC<{
   return (
     <details
       open={open}
-      onToggle={(event) => setOpen(event.currentTarget.open)}
+      // Only a change: the toggle that follows the page's own opening or
+      // closing echoes the state, and that no-op update, left queued, made
+      // React drop the opening a `#own-app` link asks for above (the UX
+      // sweep, 2026-10-17, found it through the outline's link).
+      onToggle={(event) => {
+        if (event.currentTarget.open !== open) setOpen(event.currentTarget.open);
+      }}
       className="my-2 border-l-2 border-gray-200 pl-4"
     >
       <summary className="cursor-pointer text-sm text-blue-700 hover:underline">{summary}</summary>
@@ -640,6 +663,29 @@ const OwnAppFold: React.FC<{
     </details>
   );
 };
+
+/**
+ * *On this page*: a guide's sections, in the guide's language, each a link
+ * that stays in the tab and scrolls to its heading, as a `#section` link in
+ * the text does (and opens the own-app fold, which its heading names).
+ */
+const Outline: React.FC<{ lang: Locale; sections: ReadonlyArray<{ id: string; text: string }> }> = ({
+  lang,
+  sections,
+}) => (
+  <nav aria-label={STRINGS[lang]['docs.onThisPage']} className="my-3">
+    <p className="text-sm font-medium text-gray-700">{STRINGS[lang]['docs.onThisPage']}</p>
+    <ul className="mt-1 space-y-1 text-sm">
+      {sections.map((section) => (
+        <li key={section.id}>
+          <Link to={`#${section.id}`} className="text-blue-700 underline underline-offset-2">
+            {plainText(section.text)}
+          </Link>
+        </li>
+      ))}
+    </ul>
+  </nav>
+);
 
 const Markdown: React.FC<{
   body: string;
@@ -650,10 +696,19 @@ const Markdown: React.FC<{
   visit: string;
 }> = ({ body, lang, ownAppFolded, target, visit }) => {
   const blocks = parseGuide(body);
+  // The guide's sections, its `##`s, for the outline under its title.
+  const sections = blocks.filter(
+    (block): block is Extract<Block, { kind: 'heading' }> => block.kind === 'heading' && block.depth === 2,
+  );
+  let outlined = false;
   const out: React.ReactNode[] = [];
   for (let i = 0; i < blocks.length; i += 1) {
     const block = blocks[i]!;
     out.push(<BlockView key={i} block={block} />);
+    if (!outlined && block.kind === 'heading' && block.depth === 1 && sections.length > 0) {
+      outlined = true;
+      out.push(<Outline key="outline" lang={lang} sections={sections} />);
+    }
     if (block.kind !== 'heading' || block.id !== OWN_APP_ID) continue;
 
     // Everything under the own-app heading, to the next heading of its level
@@ -732,25 +787,30 @@ export const GuideArticle: React.FC<{ body: string; lang: Locale; ownAppFolded?:
 
 /**
  * Every served guide by its title, in the reader's language or the one it
- * falls back to, in a stable order: the index, and the not-found page.
+ * falls back to, in the order of those titles in the reader's alphabet: the
+ * index, and the not-found page. It was the order of the file names, so
+ * *Export archive* (`archive`) sat between Apple and Box.
  */
 const GuideList: React.FC<{ className: string; locale: Locale }> = ({ className, locale }) => (
   <ul className={className}>
-    {[...GUIDE_SLUGS].sort().map((s) => {
-      const picked = pickGuide(LIBRARY, s, locale)!;
-      return (
-        <li key={s}>
+    {[...GUIDE_SLUGS]
+      .map((slug) => {
+        const picked = pickGuide(LIBRARY, slug, locale)!;
+        return { slug, picked, title: guideTitle(picked.body, slug) };
+      })
+      .sort((a, b) => a.title.localeCompare(b.title, locale))
+      .map(({ slug, picked, title }) => (
+        <li key={slug}>
           <Link
-            to={`/docs/${s}`}
+            to={`/docs/${slug}`}
             lang={picked.lang}
             className="group flex items-center justify-between gap-3 py-3 text-blue-700"
           >
-            <span className="group-hover:underline">{guideTitle(picked.body, s)}</span>
+            <span className="group-hover:underline">{title}</span>
             <ChevronRight className="w-4 h-4 shrink-0 text-gray-400 group-hover:text-blue-700" aria-hidden="true" />
           </Link>
         </li>
-      );
-    })}
+      ))}
   </ul>
 );
 
@@ -800,6 +860,7 @@ const Docs: React.FC = () => {
             <p className="mt-4 text-sm text-gray-600">
               <a href={OPERATOR_DOCS_URL} target="_blank" rel="noreferrer noopener" className="text-blue-700 hover:underline">
                 {t('docs.operatorDocs')}
+                <span className="sr-only"> {t('common.newTab')}</span>
               </a>
             </p>
           )}
@@ -813,6 +874,7 @@ const Docs: React.FC = () => {
     // reference from a refusal message.
     return (
       <div className="max-w-3xl">
+        <HelpTabs />
         <section className="bg-white rounded-lg border border-gray-200 p-6">
           <p className="text-gray-700">{t('docs.notFound')}</p>
           <GuideList className="mt-2 divide-y divide-gray-200" locale={locale} />
@@ -823,6 +885,7 @@ const Docs: React.FC = () => {
 
   return (
     <div className="max-w-3xl">
+      <HelpTabs />
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <Link to="/docs" className="text-sm text-blue-700 hover:underline">
           {t('docs.all')}
@@ -834,6 +897,10 @@ const Docs: React.FC = () => {
           </p>
         )}
         <GuideArticle body={picked.body} lang={picked.lang} ownAppFolded={ownAppFolded} />
+        {/* The way back again at the end: a guide is a long page on a phone. */}
+        <Link to="/docs" className="mt-6 inline-block text-sm text-blue-700 hover:underline">
+          {t('docs.all')}
+        </Link>
       </div>
     </div>
   );

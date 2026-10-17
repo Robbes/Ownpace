@@ -193,7 +193,7 @@ describe('what is offered', () => {
     expect(EN['account.schedule.automatic.hint']).toBe('Hourly for 14 days, then every 6 hours, daily from day 30.');
     expect(NL['account.schedule.automatic.hint']).toBe('14 dagen elk uur, daarna elke 6 uur, vanaf dag 30 dagelijks.');
     expect(EN['settings.schedule.hint.why']).toContain(
-      'On Automatic the days count from when everything was migrated, or from the last time someone opened this migration or pressed Trigger sync, whichever is later.',
+      'On Automatic the days count from when everything was migrated, or from the last time someone opened this migration or pressed Sync now, whichever is later.',
     );
     expect(NL['settings.schedule.hint.why']).toContain(
       'Bij Automatisch tellen de dagen vanaf het moment dat alles was gemigreerd, of vanaf de laatste keer dat iemand deze migratie opende of op Synchroniseer nu drukte, wat het laatst was.',

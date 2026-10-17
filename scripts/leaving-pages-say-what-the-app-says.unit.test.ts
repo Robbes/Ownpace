@@ -28,7 +28,8 @@
  *    opens it in the language of the page that links it.
  * 8. **The typical cost is the calculator's own answer**, and the estimate it
  *    links opens on the same case, which Request access carries to the form;
- *    Gmail's ceiling is the calculator's number.
+ *    Gmail's ceiling is the calculator's number, on the page and in the guide
+ *    section it links.
  * 9. **Every page is built in both languages and reachable:** the header's
  *    list, the phone's menu and the home page's hero link all six, each link
  *    named by its page's title, each tile hidden from a screen reader.
@@ -310,6 +311,18 @@ describe('the Leaving… pages say what the app says (0152 T5)', () => {
         if (page.limits.some((l) => l.id === 'gmailDaily')) {
           const said = (L.limits.gmailDaily as (gb: string) => string)(GMAIL_IMAP_GB_PER_DAY.toLocaleString(COPY[locale].htmlLang));
           expect(html, `${locale}: Gmail's ceiling is not the calculator's`).toContain(said);
+          // And the guide section the limit links gives the same number (UX
+          // sweep 2026-10-17): the link landed on the scope and XOAUTH2, and
+          // no guide said the ceiling at all.
+          const [slug, section] = page.limits.find((l) => l.id === 'gmailDaily')!.guide.split('#') as [string, string];
+          const guide = read(`docs/guides/${locale}/${slug}.md`);
+          const start = guide.indexOf(`{#${section}}`);
+          const end = guide.indexOf('\n#', start);
+          const gb = `${GMAIL_IMAP_GB_PER_DAY.toLocaleString(COPY[locale].htmlLang)} GB`;
+          expect(
+            guide.slice(start, end === -1 ? undefined : end),
+            `${locale}: the guide's ${section} section does not give the calculator's ${gb}`,
+          ).toContain(gb);
         }
       }
     }

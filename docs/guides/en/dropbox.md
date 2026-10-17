@@ -1,6 +1,6 @@
-# Dropbox — the consent, and the app
+# Dropbox — files and Paper documents
 
-A Dropbox migration authenticates with a Dropbox app — this service's, where it has one, or your own — and a refresh token consented by the account being migrated. Read-only by construction: the app asks only for the read scopes, so this product could not write to the Dropbox even if it wanted to — an enforced guarantee, not a promise in a document.
+A Dropbox migration authenticates with a Dropbox app — this service's, where it has one, or your own — and a refresh token consented by the account being migrated. Read-only by construction: the app asks only for the read scopes, so this service could not write to the Dropbox even if it wanted to — an enforced guarantee, not a promise in a document.
 
 ## What you need {#before}
 

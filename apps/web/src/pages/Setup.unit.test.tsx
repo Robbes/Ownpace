@@ -10,17 +10,27 @@
  * state, and "nothing to set up" renders as an answer instead of an empty page.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { setupStepsFor, summariseSetup, type SetupSide } from '@openmig/shared';
+import { providerDisplayName, setupStepsFor, summariseSetup, type SetupSide } from '@openmig/shared';
 import type { SetupChecklist } from '../services/mapping-service.ts';
+import { LocaleProvider } from '../i18n/index.tsx';
+import { STRINGS, type Locale } from '../i18n/strings.ts';
+import { useAuthStore } from '../stores/auth-store.ts';
 
 const { get, setStep } = vi.hoisted(() => ({ get: vi.fn(), setStep: vi.fn() }));
+/** The edition the chooser and Help's tabs read: managed unless a case says the appliance. */
+const { edition } = vi.hoisted(() => ({ edition: { selfhost: false } }));
 
 vi.mock('../services/mapping-service', () => ({
   setupApi: { get, setStep },
+}));
+
+vi.mock('../services/edition.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/edition.ts')>()),
+  isSelfHost: () => edition.selfhost,
 }));
 
 import Setup from './Setup.tsx';
@@ -308,5 +318,184 @@ describe('Help draws its content in white cards, as the other pages do (2026-10-
     expect(step.closest('section')?.className).toContain('bg-white');
     // Each step was a `<li>` drawn inside the list's own `<li>`.
     expect(container.querySelectorAll('li li')).toHaveLength(0);
+  });
+});
+
+
+/**
+ * HELP'S CHECKLIST, AS THE UX SWEEP FOUND IT (2026-10-17).
+ *
+ * - The Dutch intro said *uw oude aanbieder* on a destination's checklist,
+ *   Nextcloud's and Soverin's included: one sentence served both sides. The
+ *   owner's sentence stays for a source (text review decision 25); a
+ *   destination says *new provider*.
+ * - *Do you manage this system?* marked the chosen answer by its colour only,
+ *   so a screen reader could not tell which was in force.
+ * - Opening a checklist dropped Help's two tabs, and the checklist had a
+ *   second `<h1>` beside the frame's and a wider column than the guides.
+ * - The chooser had no entry for the Microsoft 365 account, the usual card,
+ *   listed the two Google cards retired for new migrations, and kept the
+ *   profiles' key order, so IMAP sat between the two Microsoft entries.
+ * - On a phone the Skip button was a third column, squeezing each step's
+ *   words into the middle; a skipped step's title was gray-400 (2.5:1).
+ */
+describe('the checklist matches the forms, and Help stays one page (UX sweep)', () => {
+  const realChecklist = (side: SetupSide, provider: string): SetupChecklist => {
+    const steps = setupStepsFor(side, provider).map((step) => ({ step, state: 'open' as const }));
+    return { side, provider, steps, progress: summariseSetup(steps) };
+  };
+
+  /** A route of Help, as the app mounts it: the real locale provider, a router. */
+  function renderIn(locale: Locale, path: string) {
+    window.localStorage.setItem('ownpace.locale', locale);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <LocaleProvider>
+        <QueryClientProvider client={client}>
+          <MemoryRouter initialEntries={[path]}>
+            <Routes>
+              <Route path="/setup" element={<Setup />} />
+              <Route path="/setup/:side/:provider" element={<Setup />} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+  }
+
+  beforeEach(() => {
+    edition.selfhost = false;
+    useAuthStore.setState({ tenantCount: 0 });
+  });
+
+  afterEach(() => {
+    window.localStorage.removeItem('ownpace.locale');
+    window.localStorage.removeItem('setup.admin.source.box');
+  });
+
+  it.each(['en', 'nl'] as const)(
+    '%s: a destination’s checklist says new provider; a source’s keeps the owner’s sentence',
+    async (locale) => {
+      get.mockResolvedValue(realChecklist('target', 'nextcloud'));
+      const target = renderIn(locale, '/setup/target/nextcloud');
+      expect(await screen.findByText(STRINGS[locale]['setup.target.intro'])).toBeTruthy();
+      expect(screen.queryByText(STRINGS[locale]['setup.intro'])).toBeNull();
+      target.unmount();
+
+      get.mockResolvedValue(realChecklist('source', 'google'));
+      renderIn(locale, '/setup/source/google');
+      expect(await screen.findByText(STRINGS[locale]['setup.intro'])).toBeTruthy();
+      expect(screen.queryByText(STRINGS[locale]['setup.target.intro'])).toBeNull();
+    },
+  );
+
+  it('words the destination’s intro as the sweep gives it, and leaves the owner’s as it was', () => {
+    expect(STRINGS.en['setup.target.intro']).toBe(
+      'Steps to take at your new provider; ticks are saved for your whole organisation.',
+    );
+    expect(STRINGS.nl['setup.target.intro']).toBe(
+      'Stappen om door te lopen bij uw nieuwe aanbieder; vinkjes worden voor uw hele organisatie bewaard.',
+    );
+    expect(STRINGS.nl['setup.intro']).toBe(
+      'Stappen om door te lopen bij uw oude aanbieder; vinkjes worden voor uw hele organisatie bewaard.',
+    );
+  });
+
+  it('tells a screen reader which answer to the administrator question is chosen', async () => {
+    get.mockResolvedValue(checklist());
+    renderIn('en', '/setup/source/box');
+
+    const group = await screen.findByRole('group', { name: `${STRINGS.en['setup.admin.question']} — Box` });
+    const pressed = () => within(group).getAllByRole('button').map((b) => b.getAttribute('aria-pressed'));
+    // Nobody has answered: "Show me everything" is in force.
+    expect(pressed()).toEqual(['false', 'false', 'true']);
+
+    fireEvent.click(within(group).getByRole('button', { name: STRINGS.en['setup.admin.no'] }));
+    expect(pressed()).toEqual(['false', 'true', 'false']);
+  });
+
+  it('keeps Help’s tabs on a checklist, the checklist tab current, above the way back to Accounts', async () => {
+    useAuthStore.setState({ tenantCount: 1 });
+    get.mockResolvedValue(checklist());
+    renderIn('en', '/setup/source/box');
+
+    const back = await screen.findByRole('link', { name: STRINGS.en['setup.backToConnections'] });
+    const tabs = screen.getByRole('navigation', { name: STRINGS.en['nav.help'] });
+    expect(within(tabs).getByRole('link', { name: STRINGS.en['nav.setup'] })).toHaveAttribute('aria-current', 'page');
+    expect(tabs.compareDocumentPosition(back) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(back).toHaveAttribute('href', '/connections');
+  });
+
+  it('heads a checklist with an h2 under the frame’s h1, its two lists with h3s, in the guides’ width', async () => {
+    window.localStorage.setItem('setup.admin.source.box', 'no');
+    get.mockResolvedValue(checklist());
+    const { container } = renderIn('en', '/setup/source/box');
+
+    expect(await screen.findByRole('heading', { level: 2, name: 'Provider setup — Box' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+    expect(screen.getByRole('heading', { level: 3, name: STRINGS.en['setup.yours'] })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 3, name: STRINGS.en['setup.forYourAdmin'] })).toBeTruthy();
+    expect((container.firstElementChild as HTMLElement).className.split(/\s+/)).toContain('max-w-3xl');
+  });
+
+  it.each(['en', 'nl'] as const)(
+    '%s: the chooser offers the Microsoft 365 account and not the retired Google cards, by name, as an h2 over two h3s',
+    (locale) => {
+      renderIn(locale, '/setup');
+
+      expect(screen.getByRole('heading', { level: 2, name: STRINGS[locale]['setup.choose.title'] })).toBeTruthy();
+      expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(2);
+      expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+
+      const from = screen.getByRole('region', { name: STRINGS[locale]['setup.choose.sources'] });
+      const sources = within(from).getAllByRole('link').map((a) => a.textContent!);
+      expect(within(from).getByRole('link', { name: providerDisplayName('microsoft', locale) })).toHaveAttribute(
+        'href',
+        '/setup/source/microsoft',
+      );
+      expect(sources).not.toContain(providerDisplayName('google-calendar', locale));
+      expect(sources).not.toContain(providerDisplayName('google-contacts', locale));
+      expect(sources).toEqual([...sources].sort((a, b) => a.localeCompare(b, locale)));
+
+      const to = screen.getByRole('region', { name: STRINGS[locale]['setup.choose.targets'] });
+      const targets = within(to).getAllByRole('link').map((a) => a.textContent!);
+      expect(targets).toEqual([...targets].sort((a, b) => a.localeCompare(b, locale)));
+      expect(targets).toContain('Nextcloud');
+    },
+  );
+
+  it('the appliance offers no Microsoft 365 account tile: it carries no Microsoft app', () => {
+    edition.selfhost = true;
+    renderIn('en', '/setup');
+
+    const from = screen.getByRole('region', { name: STRINGS.en['setup.choose.sources'] });
+    expect(within(from).queryByRole('link', { name: providerDisplayName('microsoft', 'en') })).toBeNull();
+    expect(within(from).getByRole('link', { name: 'Box' })).toBeTruthy();
+  });
+
+  it('puts Skip in a step’s title row, a finger high, so the step’s words take the card’s width', async () => {
+    get.mockResolvedValue(checklist());
+    renderIn('en', '/setup/source/box');
+
+    const title = await screen.findByText('Create a Box platform app');
+    const skip = screen.getAllByRole('button', { name: STRINGS.en['setup.skip'] })[0]!;
+    expect(skip.parentElement).toBe(title.parentElement);
+    // A finger high, without making the row taller than its title (the tick box stays level).
+    expect(skip.className.split(/\s+/)).toEqual(expect.arrayContaining(['ml-auto', 'min-h-[44px]', '-my-2.5']));
+  });
+
+  it('a skipped step’s title stays readable: struck through in gray-500, not gray-400', async () => {
+    const open = checklist();
+    get.mockResolvedValue(
+      checklist({
+        steps: [{ ...open.steps[0]!, state: 'skipped' }, open.steps[1]!],
+        progress: { total: 2, done: 0, skipped: 1, open: 1, blockedOnOthers: 1, complete: false },
+      }),
+    );
+    renderIn('en', '/setup/source/box');
+
+    const title = await screen.findByText('Create a Box platform app');
+    expect(title.className.split(/\s+/)).toEqual(expect.arrayContaining(['line-through', 'text-gray-500']));
+    expect(title.className).not.toContain('text-gray-400');
   });
 });

@@ -16,7 +16,7 @@
  */
 
 import axios from 'axios';
-import apiClient, { serverMessage } from './api.ts';
+import apiClient, { referenceIn, serverMessage } from './api.ts';
 import type { Locale, StringKey } from '../i18n/strings.ts';
 import { isConditionsNotAccepted } from './conditions-refused.ts';
 
@@ -111,15 +111,6 @@ type Translate = (key: StringKey, vars?: Record<string, string | number>) => str
  */
 export function conditionsRefusal(err: unknown, t: Translate): string | null {
   return isConditionsNotAccepted(err) ? t('acceptance.refused') : null;
-}
-
-/** The reference a fault on our side carries in its sentence (`serverFault`: "Reference 0a1b2c3d;"). */
-function referenceIn(err: unknown): string | undefined {
-  const data: unknown = axios.isAxiosError(err) ? err.response?.data : undefined;
-  if (!data || typeof data !== 'object') return undefined;
-  const d = data as { reason?: unknown; message?: unknown };
-  const sentence = [d.reason, d.message].find((v): v is string => typeof v === 'string');
-  return sentence ? /\bReference ([0-9a-f]{8})\b/.exec(sentence)?.[1] : undefined;
 }
 
 /**
