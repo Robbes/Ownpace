@@ -68,7 +68,7 @@ export const en = {
   // copied for 50 minutes a day, which was true and was the defect.
   'settings.schedule.hint': 'Passes run back to back until the first copy is done.',
   'settings.schedule.hint.why':
-    'A pass runs at most 50 minutes. Until every data type has been copied once in full, the next pass starts as soon as the last one ends, and no sooner than 15 minutes after it started, whatever this schedule says. A daily download limit at the source is waited out first. After that, passes follow this schedule and migrate only what is new or has changed. Items that could not be migrated wait for you on the Failures screen. On Automatic the days count from when everything was migrated, or from the last time someone opened this migration or pressed Trigger sync, whichever is later.',
+    'A pass runs at most 50 minutes. Until every data type has been copied once in full, the next pass starts as soon as the last one ends, and no sooner than 15 minutes after it started, whatever this schedule says. A daily download limit at the source is waited out first. After that, passes follow this schedule and migrate only what is new or has changed. Items that could not be migrated wait for you on the Failures screen. On Automatic the days count from when everything was migrated, or from the last time someone opened this migration or pressed Sync now, whichever is later.',
   // Free's pace (workplan 0157 T4): one pass a day outside the alpha, whatever
   // the schedule; the faster cadences are not offered, and this says why, with
   // the link after it as the way to a higher tier. Also what a schedule the
@@ -84,7 +84,7 @@ export const en = {
   // WHAT THIS MIGRATION COPIES, and what it may still gain (workplan 0125 T6).
   // Adding only: the page never offers to take a data type off.
   'settings.kinds': 'Data types this migration copies',
-  'settings.kinds.add': 'Add {kind}',
+  'settings.kinds.add': 'Add {kindWord}',
   'settings.kinds.adding': 'Adding…',
   'settings.kinds.added': '{kind} added. The next pass copies it.',
   // Before the press, like the export format's: what adding does and does not do.
@@ -95,8 +95,9 @@ export const en = {
   'settings.kinds.failed': 'That was not added:',
   // STOP AND RESUME ONE DATA TYPE (workplan 0128 T4, slice 3c). Offered where
   // the stop door accepts the press; what a stop does is said before it.
-  'settings.kinds.stop': 'Stop {kind}',
-  'settings.kinds.resume': 'Resume {kind}',
+  // Sentence case: the data type mid-label is lower-cased ({kindWord}).
+  'settings.kinds.stop': 'Stop {kindWord}',
+  'settings.kinds.resume': 'Resume {kindWord}',
   'settings.kinds.stopping': 'Stopping…',
   'settings.kinds.resuming': 'Resuming…',
   'settings.kinds.stoppedByYou': 'stopped by you',
@@ -110,6 +111,13 @@ export const en = {
     'The last data type is still active. To stop it, end the migration instead.',
   'settings.kinds.held.notRunning': 'This can be resumed once the migration runs again.',
   'settings.kinds.stop.failed': 'That did not change:',
+  // A data type the rule refuses, by its `code` (UX sweep, 2026-10-17): the
+  // rule's own `reason` is English for the API and its logs. 'Test' is the
+  // Accounts row's button (connections.test).
+  'settings.kinds.refused.afterCutover':
+    'Can no longer be added once the switch has started. Start a new migration for it.',
+  'settings.kinds.refused.measured':
+    'One of the two accounts said it cannot hold this. If that has changed, press Test on the Accounts page.',
   // The channel's state, shown only when it is OFF (0043 T3). "On" is not worth
   // a banner; "off" is the state somebody has to act on, and until now it was
   // visible only in a container log line written once at boot.
@@ -122,13 +130,15 @@ export const en = {
   'sharing.intro.more':
     'Settle each row: apply the share on the new system, tick it as done by hand, or skip on purpose. Done and Skip both settle a row, and they record different things: Done means this access was re-established by hand, Skip means it is deliberately not carried across. After a cutover those are different answers to "why can this person no longer open what was shared?". Every settled row keeps who decided, and when.',
   'sharing.progressSettled': 'settled',
-  'sharing.openManualNote':
-    'row(s) marked manual: your steps on the new system; tick them here when done.',
+  'sharing.openManualNote.one':
+    '1 row needs a step from you on the new system; mark it done here afterwards.',
+  'sharing.openManualNote.many':
+    '{count} rows need a step from you on the new system; mark them done here afterwards.',
   'sharing.rescan': 'Refresh from the source…',
   'sharing.blindSpots': 'Not read — note these by hand before you switch over:',
   'sharing.empty': 'No shares on the list yet. Refresh from the source to scan.',
-  'sharing.apply': 'Apply Share on the new system',
-  'sharing.applyArmed': 'Click again — this shares AND invites',
+  'sharing.apply': 'Share on the new system',
+  'sharing.applyArmed': 'Press again: this shares and sends an invitation',
   'sharing.done': 'Mark done',
   'sharing.done.why': 'This access was re-established by hand on the new system.',
   'sharing.skip': 'Skip',
@@ -137,7 +147,7 @@ export const en = {
   'sharing.manualBadge': 'manual',
   'sharing.granteeLabel': 'share with',
   'sharing.inviteNote':
-    'Applying creates the share, and the new system invites this address itself; check it first.',
+    'The new system sends this address an invitation. Check the address first.',
   'sharing.state.applied': 'shared on the new system',
   'sharing.state.doneManual': 'done by hand',
   'sharing.state.skipped': 'skipped',
@@ -170,7 +180,8 @@ export const en = {
   'sharing.group.addressLabel': 'send to',
   'sharing.group.confirmOne': 'Confirm',
   'sharing.group.confirmed': 'confirmed',
-  'sharing.group.stillToConfirm': '{count} address(es) still to check.',
+  'sharing.group.stillToConfirm.one': '1 address still to check.',
+  'sharing.group.stillToConfirm.many': '{count} addresses still to check.',
   'sharing.alone.unplaced': 'The old system did not say where this sits, so it is on its own.',
   'sharing.alone.vsFolder': 'Shared differently from its folder',
   'sharing.alone.vsSiblings': 'Shared differently from the other items here',
@@ -178,14 +189,14 @@ export const en = {
   'sharing.alone.missing': 'missing:',
   'sharing.notPlacedYet':
     'Found before this tool could group by folder. Refresh from the source to fold them.',
-  'tenants.title': 'Team & organization',
+  'tenants.title': 'Team & organisation',
   'tenants.intro':
-    'Who can sign in to this organization and what they may do.',
-  'tenants.noTenant': 'No organization in this session.',
+    'Who can sign in to this organisation and what they may do.',
+  'tenants.noTenant': 'No organisation in this session.',
   'tenants.selfDemotionArmed':
     'This lowers your own role; you may not be able to change it back yourself.',
   'tenants.selfDemotionConfirm': 'Confirm role change',
-  'tenants.org.heading': 'Organization',
+  'tenants.org.heading': 'Organisation',
   // The organisation's phone number (workplan 0108 T8a): optional, and shown
   // on the grant page to the people the organisation asks.
   'tenants.org.phone': 'Phone number',
@@ -193,7 +204,7 @@ export const en = {
   'tenants.org.phone.save': 'Save',
   'tenants.org.phone.saved': 'Saved.',
   'tenants.org.phone.none': 'None given.',
-  'tenants.org.readError': "Could not read the organization's details.",
+  'tenants.org.readError': "Could not read the organisation's details.",
   'tenants.org.rename': 'Rename',
   'tenants.org.renameSave': 'Save name',
   'tenants.org.renameCancel': 'Cancel',
@@ -206,6 +217,8 @@ export const en = {
   'tenants.members.statusHeader': 'Status',
   'tenants.members.invitedHeader': 'Invited',
   'tenants.members.joinedHeader': 'Joined',
+  // The buttons' column, named for a screen reader only: its buttons say what they do.
+  'tenants.members.actionsHeader': 'Actions',
   'tenants.members.remove': 'Remove',
   'tenants.members.removeArmed': 'Confirm remove',
   // An open invitation's mail, again (0156 T3).
@@ -215,7 +228,7 @@ export const en = {
   // The invitation is mailed since 0156 T3 (the owner, 2026-10-03). The
   // line said "No email yet; tell them yourself" until then, which was true.
   'tenants.invite.hint':
-    'We email them where to sign in; they appear below as invited.',
+    'We email them where to sign in; they appear above as invited.',
   // What became of the mail, after Invite or Send again. Each leaves the
   // inviter a different thing to do, so each says it.
   'tenants.invite.mail.sent': 'Invitation emailed to {email}.',
@@ -321,6 +334,10 @@ export const nl: Record<keyof typeof en, string> = {
     'Het laatste gegevenstype dat nog wordt gemigreerd. Wilt u het stoppen, beëindig dan de migratie.',
   'settings.kinds.held.notRunning': 'Dit kan worden hervat zodra de migratie weer actief is.',
   'settings.kinds.stop.failed': 'Dat is niet gewijzigd:',
+  'settings.kinds.refused.afterCutover':
+    'Kan niet meer worden toegevoegd nu de overstap is begonnen. Start hiervoor een nieuwe migratie.',
+  'settings.kinds.refused.measured':
+    'Een van de twee accounts gaf aan dit niet te kunnen bewaren. Is dat veranderd? Druk dan op Testen op de pagina Accounts.',
   'notifications.off': 'E-mailmeldingen staan uit',
   'notifications.offHint':
     'Niemand wordt gemaild als deze migratie een beslissing nodig heeft; stel SMTP in.',
@@ -330,22 +347,24 @@ export const nl: Record<keyof typeof en, string> = {
   'sharing.intro.more':
     'Werk elke regel af: pas het delen toe op het nieuwe systeem, vink af als handmatig gedaan, of sla bewust over. Afvinken betekent dat dit Share-recht handmatig opnieuw is ingericht, Overslaan dat het bewust niet meegaat. Van elke beslissing wordt onthouden wie deze wanneer nam.',
   'sharing.progressSettled': 'afgewerkt',
-  'sharing.openManualNote':
-    'regel(s) op handmatig: uw stappen op het nieuwe systeem; vink ze hier af zodra gedaan.',
+  'sharing.openManualNote.one':
+    '1 regel vraagt een stap van u op het nieuwe systeem; vink die hier daarna af.',
+  'sharing.openManualNote.many':
+    '{count} regels vragen een stap van u op het nieuwe systeem; vink ze hier daarna af.',
   'sharing.rescan': 'Opnieuw inlezen van de bron…',
   'sharing.blindSpots': 'Niet gelezen — noteer deze zelf voordat u overstapt:',
   'sharing.empty': 'Nog geen gedeelde rechten. Lees opnieuw in van de bron om te scannen.',
-  'sharing.apply': 'Delen toepassen op het nieuwe systeem',
+  'sharing.apply': 'Delen op het nieuwe systeem',
   'sharing.applyArmed': 'Klik nogmaals — dit stelt delen in én nodigt betreffende persoon uit',
   'sharing.done': 'Afvinken',
   'sharing.done.why': 'Dit recht is handmatig opnieuw ingericht op het nieuwe systeem.',
   'sharing.skip': 'Overslaan',
   'sharing.skip.why': 'Dit recht gaat bewust niet mee.',
-  'sharing.linkShare': 'deel-link',
+  'sharing.linkShare': 'deellink',
   'sharing.manualBadge': 'handmatig',
   'sharing.granteeLabel': 'delen met',
   'sharing.inviteNote':
-    'Toepassen maakt het Delen aan; het nieuwe systeem nodigt de persoon uit, controleer het eerst.',
+    'Het nieuwe systeem stuurt dit adres een uitnodiging. Controleer het adres eerst.',
   'sharing.state.applied': 'gedeeld op het nieuwe systeem',
   'sharing.state.doneManual': 'handmatig gedaan',
   'sharing.state.skipped': 'overgeslagen',
@@ -366,7 +385,8 @@ export const nl: Record<keyof typeof en, string> = {
   'sharing.group.addressLabel': 'sturen naar',
   'sharing.group.confirmOne': 'Bevestigen',
   'sharing.group.confirmed': 'bevestigd',
-  'sharing.group.stillToConfirm': 'Nog {count} adres(sen) te controleren.',
+  'sharing.group.stillToConfirm.one': 'Nog 1 adres te controleren.',
+  'sharing.group.stillToConfirm.many': 'Nog {count} adressen te controleren.',
   'sharing.alone.unplaced': 'Het oude systeem gaf niet aan waar dit staat, dus het staat apart.',
   'sharing.alone.vsFolder': 'Anders gedeeld dan de map zelf',
   'sharing.alone.vsSiblings': 'Anders gedeeld dan de andere items hier',
@@ -401,12 +421,13 @@ export const nl: Record<keyof typeof en, string> = {
   'tenants.members.statusHeader': 'Status',
   'tenants.members.invitedHeader': 'Uitgenodigd',
   'tenants.members.joinedHeader': 'Toegetreden',
+  'tenants.members.actionsHeader': 'Acties',
   'tenants.members.remove': 'Verwijderen',
   'tenants.members.removeArmed': 'Bevestig verwijderen',
   'tenants.members.resend': 'Opnieuw sturen',
   'tenants.readOnly': 'Uw rol hier is alleen-lezen. Een eigenaar of beheerder beheert de leden.',
   'tenants.invite.heading': 'Iemand uitnodigen',
-  'tenants.invite.hint': 'We mailen hoe zij zich aanmelden; hieronder staan ze als uitgenodigd.',
+  'tenants.invite.hint': 'We mailen hoe zij zich aanmelden; hierboven staan ze als uitgenodigd.',
   'tenants.invite.mail.sent': 'Uitnodiging gemaild naar {email}.',
   'tenants.invite.mail.off':
     'Uitnodiging voor {email} opgeslagen, maar deze installatie verstuurt geen e-mail: vertel het hun zelf.',

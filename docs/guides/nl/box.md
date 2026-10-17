@@ -1,8 +1,8 @@
-# Box — de app, de autorisatie, de drie waarden
+# Box — bestanden, via een app die u zelf maakt
 
-Een Box-migratie meldt zich aan met **uw eigen Box-platformapp** via de **Client Credentials Grant**: een client-ID en clientgeheim, plus het numerieke **gebruikers-ID** van het account dat u migreert (één account per migratie).
+Een Box-migratie meldt zich aan met **uw eigen Box-platformapp** via de **Client Credentials Grant**: een client-ID en clientsecret, plus het numerieke **gebruikers-ID** van het account dat u migreert (één account per migratie).
 
-**Waarom geen refresh-token, anders dan bij Google en Dropbox:** Box vernieuwt refresh-tokens bij elk gebruik. Elke vernieuwing geeft een nieuw token en maakt het net gebruikte ongeldig. Dit product bewaart inloggegevens één keer, versleuteld, en schrijft ze nooit terug, dus een bewaard Box-refresh-token zou precies één ronde werken en de tweede breken. De Client Credentials Grant heeft geen wisselende toestand, en daarom is dit de vorm waar deze koppeling niet van afwijkt.
+**Waarom geen refresh-token, anders dan bij Google en Dropbox:** Box vernieuwt refresh-tokens bij elk gebruik. Elke vernieuwing geeft een nieuw token en maakt het net gebruikte ongeldig. Deze dienst bewaart inloggegevens één keer, versleuteld, en schrijft ze nooit terug, dus een bewaard Box-refresh-token zou precies één ronde werken en de tweede breken. De Client Credentials Grant heeft geen wisselende toestand, en daarom is dit de vorm waar deze koppeling niet van afwijkt.
 
 ## Wat u nodig hebt {#before}
 
@@ -21,7 +21,7 @@ De schermen van Box staan hieronder met hun Engelse namen.
 Op het tabblad **Configuration**:
 
 - App Access Level: **App + Enterprise Access**
-- Application Scopes: alleen **Read all files and folders stored in Box**, niets wat schrijft. Het leest alleen, en dat zit in de opbouw zelf: met alleen de leesscope kan dit product niet in een Box schrijven, ook niet als het dat zou willen.
+- Application Scopes: alleen **Read all files and folders stored in Box**, niets wat schrijft. Het leest alleen, en dat zit in de opbouw zelf: met alleen de leesscope kan deze dienst niet in een Box schrijven, ook niet als hij dat zou willen.
 - Advanced Features: zet **Generate user access tokens** aan (daarmee kan het token noemen wiens bestanden het leest).
 
 De **Client ID** en het **Client Secret** op dit tabblad zijn twee van de drie waarden.

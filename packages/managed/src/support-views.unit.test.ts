@@ -316,6 +316,32 @@ describe('an operator sees metadata, and only metadata', () => {
     });
   });
 
+  it('names an invoice by the number the customer quotes, and says whether it is a credit note (managed 0058)', async () => {
+    // The column list is the boundary here too: the number and the kind were
+    // added, last, and nothing else of the books (their ids, the reference,
+    // the evidence) came with them.
+    const columns = await asSubject(OPERATOR, async (q) => {
+      const r = await q(
+        `SELECT column_name FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'support_tenant_invoices'
+          ORDER BY ordinal_position`,
+      );
+      return (r.rows as Array<{ column_name: string }>).map((c) => c.column_name);
+    });
+    expect(columns).toEqual([
+      'tenant_id',
+      'invoice_id',
+      'period_start',
+      'period_end',
+      'status',
+      'total',
+      'currency',
+      'paid_at',
+      'invoice_number',
+      'kind',
+    ]);
+  });
+
   it('CANNOT reach a connection secret or its config', async () => {
     for (const column of ['secret_ref', 'encrypted_credentials', 'config']) {
       await expect(

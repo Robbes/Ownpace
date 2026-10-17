@@ -36,6 +36,7 @@ import { describe, it, expect } from 'vitest';
 import type { MappingAttention, TenantAttention } from '@openmig/shared';
 import { AttentionSummary, organisationWants, wantsSomeone } from './AttentionSummary.tsx';
 import { queueScreenPathFor } from '../services/edition.ts';
+import { LocaleProvider } from '../i18n/index.tsx';
 
 const UUID = '0cc9a844-4075-4d65-a562-374df8299b77';
 
@@ -91,7 +92,7 @@ describe('the line the owner came looking for', () => {
       screen.getByText(label).closest('a')?.getAttribute('href');
     expect(href(/items that could not be copied/)).toBe(`/mappings/${UUID}/failures`);
     expect(href(/deletions to confirm/)).toBe(`/mappings/${UUID}/deletions`);
-    expect(href(/moves to acknowledge/)).toBe(`/mappings/${UUID}/moves`);
+    expect(href(/move to acknowledge/)).toBe(`/mappings/${UUID}/moves`);
     expect(href(/sharing checklist/)).toBe(`/mappings/${UUID}/sharing`);
   });
 
@@ -120,7 +121,7 @@ describe('what it does not say', () => {
     expect(screen.queryByText('Quiet')).not.toBeInTheDocument();
     // Said rather than left as an absence: a list showing one of two looks
     // like it has lost one.
-    expect(screen.getByText(/1 running by themselves/)).toBeVisible();
+    expect(screen.getByText('1 running by itself, with nothing waiting.')).toBeVisible();
   });
 
   it('says nothing is waiting, rather than rendering an empty box', () => {
@@ -243,5 +244,65 @@ describe('the organisation, which is not one of its migrations', () => {
     expect(organisationWants({ blindSpots: [] })).toBe(false);
     expect(organisationWants({ pendingDecisions: 1 })).toBe(true);
     expect(organisationWants({ blindSpots: ['x'] })).toBe(true);
+  });
+});
+
+/**
+ * ONE IS NOT MANY (UX sweep, 2026-10-17). The Dutch screen read "1
+ * verplaatsingen om te bevestigen" and "1 wijzigingen die een beslissing
+ * vragen", and the quiet line "1 lopen rustig door": every label was a
+ * plural, joined to whatever number came.
+ */
+describe('a count of one is said in the singular', () => {
+  it('says each queue of one in the singular, in English', () => {
+    show([
+      mapping({ pendingDecisions: 1, failuresWaiting: 1, deletionsWaiting: 1, movesWaiting: 1, sharingOpen: 1 }),
+    ]);
+    for (const label of [
+      'change needing a decision',
+      'item that could not be copied',
+      'deletion to confirm',
+      'move to acknowledge',
+      'row open on the sharing checklist',
+    ]) {
+      expect(screen.getByText(label, { exact: false }).textContent).toBe(`1 ${label}`);
+    }
+  });
+
+  it('keeps the plural for two', () => {
+    show([mapping({ movesWaiting: 2, mappingId: 'm-2' }), mapping({}), mapping({ mappingId: 'q-2' })]);
+    expect(screen.getByText(/moves to acknowledge/).textContent).toBe('2 moves to acknowledge');
+    expect(screen.getByText('2 running by themselves, with nothing waiting.')).toBeVisible();
+  });
+
+  it('says one in the singular in Dutch too', () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      render(
+        <LocaleProvider>
+          <MemoryRouter>
+            <AttentionSummary
+              mappings={[mapping({ movesWaiting: 1, pendingDecisions: 1 }), mapping({ mappingId: 'quiet-1' })]}
+            />
+          </MemoryRouter>
+        </LocaleProvider>,
+      );
+      expect(screen.getByText(/verplaatsing om te bevestigen/).textContent).toBe('1 verplaatsing om te bevestigen');
+      expect(screen.getByText(/wijziging die een beslissing vraagt/).textContent).toBe(
+        '1 wijziging die een beslissing vraagt',
+      );
+      expect(screen.getByText('1 loopt rustig door, er wacht niets op u.')).toBeVisible();
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
+  it('draws the number in the link\u2019s own colour, so the link is one colour', () => {
+    show([mapping({ failuresWaiting: 34 })]);
+    const link = screen.getByText(/items that could not be copied/).closest('a')!;
+    const number = screen.getByText('34');
+    expect(link.contains(number)).toBe(true);
+    expect(number.className).not.toMatch(/text-gray/);
+    expect(number.className).toContain('font-medium');
   });
 });

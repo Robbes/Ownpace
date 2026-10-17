@@ -36,7 +36,7 @@ Here too the test writes nothing: it signs in and counts the target mailbox's fo
 
 **Where the copies land**, under the rows, says where the mail goes in that account. Left as it is, the mail merges into the account: the source's folders arrive beside the folders already there. Open **Put it in a folder of its own** and type a name in **Folder**, such as `Gmail`, and everything lands under that folder. Where two migrations send mail to the same account, it opens by itself, filled in with the account each comes from.
 
-You can also add an IMAP account in advance, under **Accounts** → **Add an account**. Choose **Sources** or **Targets** under **Source or target?**, then the **IMAP** card, and press **Add and test**.
+You can also add an IMAP account in advance, under **Accounts** → **Add an account**. Choose **Sources** or **Destinations** under **Source or destination?**, then the **IMAP** card, and press **Add and test**.
 
 ## What moves {#what-moves}
 

@@ -38,7 +38,24 @@
  * `confirmed-list.ts` is explicit: the claims are different QUESTIONS, not
  * confidence levels, and `unchecked` / `missing` / `never-placed` are three
  * different facts a list must never render alike. So each state gets its own
- * word and its own hover sentence, and none of them is a star rating.
+ * word and its own sentence, and none of them is a star rating. The sentence
+ * is the word's hover for a mouse, and a fold under the list for everyone
+ * else: a phone has no hover, on the page somebody decides from whether
+ * their originals can go (the UX sweep).
+ *
+ * ## Read back, never "the check"
+ *
+ * This page's pass reads each item back from the destination. *The check* is
+ * Verify's run, and on the same day both pages said *Checked <date>* about
+ * different runs; this one is *read back* / *teruglezen* (GLOSSARY.md).
+ *
+ * ## One list, read on a phone
+ *
+ * Six columns did not fit a phone: names broke mid-letter and two columns ran
+ * off the edge. Below `sm` each row is a small grid (the item on its own
+ * line, then where it is, then the result and how it was compared), the same
+ * cells restyled rather than drawn twice, so each value is still one text
+ * node. From `sm` up it is the table it was, in a box a keyboard can scroll.
  *
  * ## An identifier that is blank, and why it says so
  *
@@ -69,6 +86,7 @@ import {
   startConfirmation,
 } from '../services/operating-service.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
+import { useDownloadName } from '../i18n/download-name.ts';
 import { isSelfHost } from '../services/edition.ts';
 import MappingHubLink from '../components/MappingHubLink.tsx';
 import type { StringKey } from '../i18n/index.tsx';
@@ -205,15 +223,46 @@ function Breakdown({ q }: { q: ConfirmedListQueue }): React.ReactElement | null 
   );
 }
 
+/**
+ * The legend: what each result word means, in a fold a finger can open
+ * (0145 T7 (b)'s rule: a `title` that carries information shown nowhere
+ * else moves into text or a fold). Only the results this account has, in
+ * the order the breakdown reads them; the hover stays for a mouse.
+ */
+function Legend({ q }: { q: ConfirmedListQueue }): React.ReactElement | null {
+  const t = useT();
+  const shown: RowState[] = [
+    ...(q.verified > 0 ? (['verified'] as const) : []),
+    ...BREAKDOWN_ORDER.filter((state) => q.byState[state] > 0),
+  ];
+  if (shown.length === 0) return null;
+  return (
+    <details className="mt-3 text-sm">
+      <summary className="cursor-pointer select-none text-gray-500">{t('confirmed.legend')}</summary>
+      <ul className="mt-1 space-y-1 text-gray-600">
+        {shown.map((state) => (
+          <li key={state}>
+            <span className={STATE[state].className}>{t(STATE[state].nameKey)}</span>: {t(STATE[state].helpKey)}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/** A Type and a Where cell: small on a phone, under the item; a column from `sm`. */
+const SIDE_CELL =
+  'text-xs text-gray-600 [overflow-wrap:anywhere] sm:table-cell sm:py-2 sm:pr-3 sm:text-sm';
+
 function Row({ r }: { r: ConfirmedRowView }): React.ReactElement {
   const t = useT();
   const { dateTime } = useFormatters();
   const s = STATE[r.state];
   return (
-    <tr className="border-b border-gray-100 last:border-0 align-top">
-      <td className="py-2 pr-3 text-gray-900">{t(DOMAIN_STRING_KEY[r.domain])}</td>
-      <td className="py-2 pr-3 text-gray-600 break-all">{r.collection}</td>
-      <td className="py-2 pr-3 break-all">
+    <tr className="grid grid-cols-2 gap-x-3 gap-y-0.5 border-b border-gray-100 py-2 last:border-0 sm:table-row sm:py-0 align-top">
+      <td className={SIDE_CELL}>{t(DOMAIN_STRING_KEY[r.domain])}</td>
+      <td className={SIDE_CELL}>{r.collection}</td>
+      <td className="col-span-2 order-first font-medium [overflow-wrap:anywhere] sm:order-none sm:table-cell sm:py-2 sm:pr-3">
         {/* THE NAME, WHEN THERE IS ONE (the owner, 2026-09-17: *"Why not show
             calander item names and contact names?"*).
             The identifier moves to the hover rather than onto a second line.
@@ -240,13 +289,13 @@ function Row({ r }: { r: ConfirmedRowView }): React.ReactElement {
           <span className="text-gray-900">{r.naturalKey}</span>
         )}
       </td>
-      <td className="py-2 pr-3">
+      <td className="sm:table-cell sm:py-2 sm:pr-3">
         <span className={s.className} title={t(s.helpKey)}>
           {t(s.nameKey)}
         </span>
       </td>
-      <td className="py-2 pr-3 text-xs text-gray-600">{t(CLAIM[r.claim])}</td>
-      <td className="py-2 text-xs text-gray-600">
+      <td className="text-xs text-gray-600 sm:table-cell sm:py-2 sm:pr-3">{t(CLAIM[r.claim])}</td>
+      <td className="text-xs text-gray-600 sm:table-cell sm:py-2 sm:pr-3">
         {r.confirmedAt === null ? '—' : dateTime(r.confirmedAt)}
       </td>
     </tr>
@@ -255,6 +304,7 @@ function Row({ r }: { r: ConfirmedRowView }): React.ReactElement {
 
 function ExportButton({ mappingId }: { mappingId?: string }): React.ReactElement {
   const t = useT();
+  const nameFor = useDownloadName();
   const [busy, setBusy] = React.useState(false);
   const [failed, setFailed] = React.useState<string | null>(null);
   return (
@@ -266,11 +316,14 @@ function ExportButton({ mappingId }: { mappingId?: string }): React.ReactElement
           setBusy(true);
           setFailed(null);
           fetchConfirmedListExport(mappingId)
-            .then(({ blob, filename }) => {
+            .then(async ({ blob, filename }) => {
+              // Named for the migration and the day where its name is known;
+              // the server's name otherwise (the appliance's flat list).
+              const name = (await nameFor(mappingId, t('download.confirmed'), 'csv')) ?? filename;
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
               a.href = url;
-              a.download = filename;
+              a.download = name;
               a.click();
               URL.revokeObjectURL(url);
             })
@@ -319,7 +372,7 @@ function PassLine({
         <span>
           {t('confirmed.running')} {dateTime(p.startedAt)}
           {/*
-            CHECKED, not verified, and the two words are not interchangeable:
+            READ BACK, not verified, and the two are not interchangeable:
             this counts every item the pass has walked, while the headline
             above counts only the ones the target confirmed by hash. The
             smaller number is the claim; this one is the progress. Labelling
@@ -413,9 +466,11 @@ function Mapping({
           {q.total === 0 ? t('confirmed.nothingYet') : t('confirmed.allVerified')}
         </p>
       ) : (
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
+        // The box takes the focus, so a keyboard can scroll it where the
+        // table is wider than the screen.
+        <div className="mt-3 overflow-x-auto" tabIndex={0} role="region" aria-label={t('confirmed.title')}>
+          <table className="block w-full text-sm sm:table">
+            <thead className="hidden sm:table-header-group">
               <tr className="text-left text-xs uppercase tracking-wide text-gray-500 border-b border-gray-200">
                 <th className="py-2 pr-3 font-medium">{t('confirmed.col.domain')}</th>
                 <th className="py-2 pr-3 font-medium">{t('confirmed.col.collection')}</th>
@@ -425,7 +480,7 @@ function Mapping({
                 <th className="py-2 font-medium">{t('confirmed.col.when')}</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="block sm:table-row-group">
               {q.rows.map((r, i) => (
                 <Row key={`${r.domain}:${r.collection}:${r.naturalKey}:${i}`} r={r} />
               ))}
@@ -445,6 +500,8 @@ function Mapping({
           {t('confirmed.truncated.a')} {number(q.rows.length)} {t('confirmed.truncated.b')}
         </p>
       )}
+
+      <Legend q={q} />
     </section>
   );
 }

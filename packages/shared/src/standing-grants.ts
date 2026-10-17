@@ -99,7 +99,7 @@ const GRANTS: readonly StandingGrant[] = [
     nl:
       'De beheerderstoestemming die u aan deze toepassing hebt gegeven, blijft in uw Microsoft ' +
       'Entra-tenant staan totdat een beheerder die verwijdert. Tot dat moment blijft het een ' +
-      'permanente machtiging om de betrokken postbussen te lezen, of iemand die nu gebruikt of niet.',
+      'permanente machtiging om de betrokken postvakken te lezen, of die nu wordt gebruikt of niet.',
   },
   {
     // The ACCOUNT kind's grant (workplan 0114), and a SECOND Microsoft entry
@@ -130,7 +130,7 @@ const GRANTS: readonly StandingGrant[] = [
       'De toestemming die u aan deze toepassing hebt gegeven, blijft op uw Microsoft-account ' +
       'staan totdat u die daar verwijdert. Tot dat moment blijft het een permanente machtiging ' +
       'om de e-mail, agenda\u0027s, contacten en bestanden te lezen die u hebt goedgekeurd, of ' +
-      'iemand die nu gebruikt of niet. Microsoft biedt ons geen manier om die namens u in te trekken.',
+      'die nu wordt gebruikt of niet. Microsoft biedt ons geen manier om die namens u in te trekken.',
   },
   {
     id: 'google',
@@ -274,6 +274,13 @@ export interface CredentialRetirement {
    * language; where we cannot name the screen and describe it instead
    * (`archive`, `mail_password`, `dav_password`), the description is prose of
    * ours, and an English sentence on a Dutch page is a page half-translated.
+   *
+   * One exception, and it is still the label on their screen: where the app's
+   * own Dutch steps already name the provider's screen by its Dutch labels
+   * (`nextcloud`: the connection form's steps in `connect.ts` and the Dutch
+   * Nextcloud guide say *Instellingen → Beveiliging → Apparaten & sessies*, as
+   * a Dutch Nextcloud shows it), the Dutch label is used here too, so the
+   * report and the setup steps send the reader to the same words.
    */
   readonly whatTheyCallItNl?: string;
   readonly whereNl?: string;
@@ -343,6 +350,9 @@ const CREDENTIALS: readonly CredentialRetirement[] = [
     impliedBy: ['nextcloud'],
     whatTheyCallIt: 'Settings → Security → Devices & sessions',
     where: 'your Nextcloud account → Settings → Security → Devices & sessions',
+    // A Dutch Nextcloud's own labels, as the app's Dutch steps quote them.
+    whatTheyCallItNl: 'Instellingen → Beveiliging → Apparaten & sessies',
+    whereNl: 'uw Nextcloud-account → Instellingen → Beveiliging → Apparaten & sessies',
     en:
       'The app password you created for this migration still works on your Nextcloud account. ' +
       'Deleting our copy does not delete it there — revoke the device entry to end it.',
@@ -379,10 +389,10 @@ const CREDENTIALS: readonly CredentialRetirement[] = [
       'only you can retire it, by deleting that app password or changing the account password. ' +
       'We cannot name the exact screen because it belongs to your provider, not to us.',
     nl:
-      'Het postbuswachtwoord of app-wachtwoord dat u ons hebt gegeven werkt nog steeds. Wij ' +
-      'hebben onze kopie verwijderd; alleen u kunt het intrekken, door dat app-wachtwoord te ' +
-      'verwijderen of het accountwachtwoord te wijzigen. Wij kunnen het exacte scherm niet ' +
-      'noemen omdat het van uw aanbieder is, niet van ons.',
+      'Het wachtwoord van het postvak of het app-wachtwoord dat u ons hebt gegeven, werkt nog ' +
+      'steeds. Wij hebben onze kopie verwijderd; alleen u kunt het intrekken, door dat ' +
+      'app-wachtwoord te verwijderen of het accountwachtwoord te wijzigen. Wij kunnen het ' +
+      'exacte scherm niet noemen omdat het van uw aanbieder is, niet van ons.',
   },
   {
     id: 'dav_password',

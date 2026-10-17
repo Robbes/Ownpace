@@ -267,6 +267,9 @@ describe('an operator is served, and the serving is recorded', () => {
     expect(res.body.migrations[0].name).toBe('Alpha migration');
     expect(res.body.invoices).toHaveLength(1);
     expect(res.body.invoices[0].status).toBe('sent');
+    // What the customer quotes from their own page, and whether it is a
+    // credit note (managed 0058). This one predates the books, so it has none.
+    expect(res.body.invoices[0]).toMatchObject({ invoice_number: null, kind: 'invoice' });
   });
 
   it('records that organisation, named', async () => {

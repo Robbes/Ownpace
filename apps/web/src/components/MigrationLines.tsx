@@ -163,13 +163,19 @@ export const MigrationLines: React.FC<{ migration: MigrationLineFacts; progress?
             <span className="flex items-center gap-2 text-gray-700">
               <ProviderTile type={m.sourceType} role="source" size={20} />
               <span aria-hidden="true">→</span>
+              {/* Heard, not seen: the arrow is drawn and the tiles' letters are
+                  hidden, so without it a screen reader said *Gmail Soverin*. */}
+              <span className="sr-only">{t('people.line.to')}</span>
               <ProviderTile type={m.targetType} role="target" size={20} />
             </span>
             {stage && <StateChip entity="stage" state={stage} />}
             {waitsForExport ? (
               <span className="text-gray-600">
                 {t('people.line.waitsForExport')} ·{' '}
-                <Link to="/docs/archive#from-the-flow" className="text-blue-700 hover:underline">
+                <Link
+                  to="/docs/archive#from-the-flow"
+                  className="text-blue-700 underline underline-offset-2 hover:text-blue-900"
+                >
                   {t('people.line.howToExport')} →
                 </Link>
               </span>

@@ -248,9 +248,17 @@ describe("a migration's page, since a link is the person's", () => {
     renderPanel();
     const links = await section('Links');
     expect(await links.findByText('Links are made per person, so first say who this migration is for.')).toBeInTheDocument();
-    expect((links.getByLabelText('Who is this for?') as HTMLSelectElement).value).toBe('p-anna');
+    // Nobody is chosen for the owner (UX sweep, 2026-10-17): one press would
+    // have given an organisation's info@ box to whoever came first in the list.
+    const who = links.getByLabelText('Who is this for?') as HTMLSelectElement;
+    expect(who.value).toBe('');
+    expect(within(who).getByRole('option', { name: 'Choose a person…' })).toBeDisabled();
+    const save = links.getByRole('button', { name: 'Save' });
+    expect(save).toBeDisabled();
 
-    await userEvent.click(links.getByRole('button', { name: 'Save' }));
+    await userEvent.selectOptions(who, 'p-anna');
+    expect(save).not.toBeDisabled();
+    await userEvent.click(save);
 
     await waitFor(() => expect(addMigrationMock).toHaveBeenCalledWith('p-anna', 'acme-mail'));
     expect(createPersonMock).not.toHaveBeenCalled();

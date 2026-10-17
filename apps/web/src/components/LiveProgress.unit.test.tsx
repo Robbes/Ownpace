@@ -14,7 +14,9 @@
  * it, the way out for whoever does not.
  */
 
-import { render, screen } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { render as renderBare, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { afterEach, describe, it, expect } from 'vitest';
 import LiveProgress from './LiveProgress.tsx';
 import type { LiveProgressRow } from './LiveProgress.tsx';
@@ -22,6 +24,9 @@ import { STRINGS, LOCALES } from '../i18n/strings.ts';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { FAILURE_CATEGORIES } from '@openmig/shared';
 import { FAILURE_KEY } from '../i18n/failure-key.ts';
+
+/** The strip links to the Accounts page, so it is drawn inside a router, as every page is. */
+const render = (ui: ReactElement) => renderBare(<MemoryRouter>{ui}</MemoryRouter>);
 
 const row = (over: Partial<LiveProgressRow> = {}): LiveProgressRow => ({
   domain: 'email',
@@ -118,6 +123,29 @@ describe('a failed domain says what to do about it', () => {
     // the error they always showed.
     render(<LiveProgress domains={[row({ lastError: 'something went wrong' })]} />);
     expect(screen.getByText('something went wrong')).toBeTruthy();
+  });
+
+  /**
+   * The remedy names the Accounts page; on a phone that page sits behind the
+   * menu button. The way there, after the sentence (UX sweep, 2026-10-17).
+   */
+  it('links an expired connection’s remedy to the Accounts page it names', () => {
+    render(<LiveProgress domains={[row({ lastErrorCategory: 'auth_expired', failedSide: 'source' })]} />);
+    expect(screen.getByRole('link', { name: 'Open Accounts' })).toHaveAttribute('href', '/connections');
+  });
+
+  it('offers that link only for an expired connection', () => {
+    render(<LiveProgress domains={[row({ lastErrorCategory: 'rate_limited' })]} />);
+    expect(screen.queryByRole('link', { name: 'Open Accounts' })).toBeNull();
+  });
+
+  /** One outline per page: under the review screen's h3, or a migration page's h2. */
+  it('heads the strip at the level its page asks, an h4 unless told', () => {
+    const { unmount } = render(<LiveProgress domains={[row()]} />);
+    expect(screen.getByRole('heading', { name: 'Live progress', level: 4 })).toBeTruthy();
+    unmount();
+    render(<LiveProgress domains={[row()]} headingLevel={3} />);
+    expect(screen.getByRole('heading', { name: 'Live progress', level: 3 })).toBeTruthy();
   });
 
   it("unknown carries the way OUT of self-service, not a shrug", () => {

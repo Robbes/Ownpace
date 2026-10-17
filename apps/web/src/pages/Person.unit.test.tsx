@@ -191,21 +191,35 @@ describe("a person's page (0153 T5)", () => {
   it("opens each migration's own page for a step, when the person has several", async () => {
     renderAt();
     await screen.findByRole('heading', { name: 'Before you switch' });
-    const links = within(step('failures')).getAllByRole('link');
-    expect(links.map((a) => a.getAttribute('href'))).toEqual([
-      '/mappings/m-mail/failures',
-      '/mappings/m-files/failures',
-    ]);
+    const links = within(step('check')).getAllByRole('link');
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/mappings/m-mail/verify', '/mappings/m-files/verify']);
   });
 
   it("says on each migration's link what that migration holds of a queue's step, so the work can be found", async () => {
     renderAt();
     await screen.findByRole('heading', { name: 'Before you switch' });
-    const names = (key: string) => within(step(key)).getAllByRole('link').map((a) => a.textContent);
-    expect(names('deletions')).toEqual(['Anna mail (2)', 'Anna files (0)']);
-    expect(names('sharing')).toEqual(['Anna mail (0)', 'Anna files (5)']);
+    const names = (key: string) => within(step(key)).queryAllByRole('link').map((a) => a.textContent);
+    // Only the migrations with work in the queue: a (0) link points at none.
+    expect(names('deletions')).toEqual(['Anna mail (2)']);
+    expect(names('sharing')).toEqual(['Anna files (5)']);
+    expect(names('moves')).toEqual([]);
     // The check is not a queue: its links name the migration alone.
     expect(names('check')).toEqual(['Anna mail', 'Anna files']);
+  });
+
+  it('says Finish without the mail for a person whose migrations move none, and not yet for queues nothing compared', async () => {
+    const PAUSED_FILES = { ...FILES, status: 'paused' as const };
+    listMock.mockResolvedValue([MAIL, PAUSED_FILES]);
+    peopleMock.mockResolvedValue({
+      people: [person('p-anna', 'Anna Jansen', [{ id: 'm-files', status: 'paused' }])],
+      unassigned: [],
+    });
+    attentionMock.mockResolvedValue({ mappings: [quiet('m-files')] });
+    renderAt();
+    await vi.waitFor(() => expect(step('finish').textContent).toContain('Switch to the new system, then end'));
+    // Never run: its empty queues are not yet done.
+    expect(step('moves').textContent).toContain('None');
+    expect(step('moves').textContent).toContain('Not yet');
   });
 
   it("says a migration's own count could not be read, rather than showing none (hard rule 9)", async () => {

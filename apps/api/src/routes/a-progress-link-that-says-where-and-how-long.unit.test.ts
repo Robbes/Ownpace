@@ -13,9 +13,11 @@
  *
  * Three migrations of one Gmail account, each behind its own link:
  *
- *  - COPYING: a pass has completed, 300 of the 1,300 found are in, and
- *    three passes an hour apart copied 100 each: *kept in step*, and about
- *    10 to 11 hours more;
+ *  - COPYING: a first copy no pass has completed yet (each stops at its
+ *    deadline and the next carries on), 300 of the 1,300 found are in, and
+ *    three passes an hour apart copied 100 each: *copying*, and about 10 to
+ *    11 hours more. Kept in step has no time left, so a completed pass would
+ *    say none (`viewTimeOf`);
  *  - WAITING: no pass yet, and the count found 6 GB of mail: two to three
  *    days, from Gmail's daily ceiling;
  *  - CHECKED: all in, and the check passed: *ready to switch*, with when;
@@ -134,11 +136,11 @@ beforeAll(async () => {
     ]);
   }
 
-  // COPYING: a completed pass, 300 in of 1,300 found, three passes an hour apart.
+  // COPYING: a first copy no pass has completed, 300 in of 1,300 found, three passes an hour apart.
   await q(
-    `INSERT INTO migration_status (tenant_id, mapping_id, domain, state, completed_at)
-     VALUES ($1,$2,'email','in_progress',$3)`,
-    [TENANT, COPYING, hoursAgo(1)],
+    `INSERT INTO migration_status (tenant_id, mapping_id, domain, state)
+     VALUES ($1,$2,'email','in_progress')`,
+    [TENANT, COPYING],
   );
   await copied(COPYING, 300);
   await q(
@@ -231,7 +233,7 @@ describe('a progress link, after 0154 T8', () => {
   it('says each data type’s stage and its count against what was found, and how long from the passes', async () => {
     const body = await page(COPYING);
     const [mail] = body.domains;
-    expect(mail).toMatchObject({ domain: 'email', stage: 'kept_in_step', itemsSynced: 300, itemsFound: 1300 });
+    expect(mail).toMatchObject({ domain: 'email', stage: 'copying', itemsSynced: 300, itemsFound: 1300 });
     expect(body.time).toEqual({
       kind: 'whileCopying',
       estimate: { kind: 'range', unit: 'hours', low: 10, high: 11, passes: 3, slowed: false },

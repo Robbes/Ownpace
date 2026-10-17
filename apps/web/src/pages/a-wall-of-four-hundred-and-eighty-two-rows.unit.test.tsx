@@ -159,7 +159,7 @@ describe('a folder is one row', () => {
     expect(screen.getByText('IMG_0.jpg')).toBeInTheDocument();
     expect(screen.getByText('IMG_3.jpg')).toBeInTheDocument();
     // The per-row outward-facing press is still exactly where it was.
-    expect(screen.getAllByText('Apply Share on the new system').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Share on the new system').length).toBeGreaterThan(0);
   });
 });
 
@@ -209,7 +209,7 @@ describe('one press over a folder', () => {
     // Apply is per-row, inside the folder — never over the whole group, because
     // it emails a real person per row.
     expect(await screen.findByText('Foto shoot Emma')).toBeInTheDocument();
-    expect(screen.queryByText('Apply Share on the new system')).not.toBeInTheDocument();
+    expect(screen.queryByText('Share on the new system')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText(/Mark all done \(5\)/));
     await waitFor(() => expect(decideSharing).toHaveBeenCalledTimes(5));
@@ -404,7 +404,7 @@ describe('one press over one folder', () => {
     await openPanel();
 
     expect(screen.getByLabelText('send to')).toBeInTheDocument();
-    expect(screen.getByText(/1 address\(es\) still to check/)).toBeInTheDocument();
+    expect(screen.getByText('1 address still to check.')).toBeInTheDocument();
     // The outward-facing press is not on screen at all yet.
     expect(screen.queryByText(/Share this folder on the new system \(1\)/)).toBeNull();
 

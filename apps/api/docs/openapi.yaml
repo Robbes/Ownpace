@@ -2333,7 +2333,11 @@ paths:
 
         `kindChoices` lists each data type the migration copies (`on`) or could
         gain (`addable`, or `refused` with a `reason`). It is the list
-        `POST /api/migrations/{mappingId}/domains` accepts from.
+        `POST /api/migrations/{mappingId}/domains` accepts from. A `refused`
+        entry also carries `code`, which refusal it is: `after_cutover` (the
+        migration has switched over) or `measured_no` (a side measured that it
+        cannot carry the data type). The page says the code in the reader's
+        language; `reason` stays English, for logs and the appliance.
 
         `stopChoices` (workplan 0128 T4) lists each data type the migration
         carries with its stop: `stopped`, and `offer`, the press
@@ -4050,7 +4054,17 @@ paths:
                         viaLink: { type: boolean }
                         raw: { type: string }
                         verdict: { type: string, enum: [clean, manual] }
-                        verdictTarget: { type: string }
+                        verdictTarget:
+                          type: string
+                          description: >-
+                            What it corresponds to on the target, or what to do
+                            instead, in English, as stored (a refusal quotes it).
+                        verdictTargetNl:
+                          type: string
+                          description: >-
+                            The same line in Dutch, without the English developer
+                            note; said on each read, never stored (UX sweep,
+                            2026-10-17). The page shows it to a Dutch reader.
                         state: { type: string, enum: [open, applied, done_manual, skipped] }
                         stateReason: { type: string }
                         decidedBy: { type: string }
@@ -5615,6 +5629,10 @@ paths:
         `microsoft#application`; the screen links it beside the row.
         A row may also carry `nl`, the same row's `item`, `detail` and `more` in
         Dutch; the screen shows the half in its reader's language.
+        A row may also carry `domains`, the data types it is about (email,
+        calendar, contact, file, task); a screen that knows what a migration
+        carries leaves out a row about none of them, and a row without
+        `domains` is shown whatever was ticked.
       responses:
         '200':
           description: The manifest.
@@ -7517,9 +7535,14 @@ components:
         period_start: { type: string, format: date }
         period_end: { type: string, format: date }
         status: { type: string }
-        total: { type: string }
+        total: { type: string, description: 'In cents, as the invoice table holds it.' }
         currency: { type: string }
         paid_at: { type: string, format: date-time, nullable: true }
+        invoice_number:
+          type: string
+          nullable: true
+          description: The books' number, which the customer quotes; none until the invoice is numbered.
+        kind: { type: string, enum: [invoice, credit_note] }
     SupportRetainedInvoice:
       type: object
       description: |

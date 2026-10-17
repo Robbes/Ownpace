@@ -131,6 +131,33 @@ describe('money to give back', () => {
     await waitFor(() => expect(listMock).toHaveBeenCalledTimes(2));
   });
 
+  it('puts the action right after the organisation, so a phone shows it without scrolling sideways', async () => {
+    mount();
+    await screen.findByText('2026-0010');
+    const open = within(section(O['support.money.open.heading']));
+    const heads = open.getAllByRole('columnheader').map((th) => th.textContent);
+    expect(heads.slice(0, 2)).toEqual([O['support.money.col.organisation'], O['support.money.col.action']]);
+    // Each row agrees with its header: the button is in the second cell, once.
+    const row = open.getByText('2026-0010').closest('tr')!;
+    expect(within(row.cells[1]!).getByRole('button', { name: O['support.money.mark'] })).toBeInTheDocument();
+    expect(within(row).getAllByRole('button')).toHaveLength(1);
+
+    const done = within(section(O['support.money.done.heading']));
+    expect(done.getAllByRole('columnheader').map((th) => th.textContent).slice(0, 2)).toEqual([
+      O['support.money.col.organisation'],
+      O['support.money.col.givenBack'],
+    ]);
+    expect(done.getByText('2026-0016').closest('tr')!.cells[1]).toHaveTextContent(/by operator@ownpace\.eu/);
+  });
+
+  it('lets a keyboard scroll each table, named after its heading', async () => {
+    mount();
+    await screen.findByText('2026-0010');
+    for (const heading of [O['support.money.open.heading'], O['support.money.done.heading']]) {
+      expect(screen.getByRole('region', { name: heading })).toHaveAttribute('tabindex', '0');
+    }
+  });
+
   it('says plainly when nothing is owed', async () => {
     listMock.mockResolvedValue([]);
     mount();
