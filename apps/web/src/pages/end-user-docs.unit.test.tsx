@@ -660,6 +660,37 @@ describe('the guides name no step, since no screen has one', () => {
 });
 
 /**
+ * A guide is served by whoever runs the service, so it calls it "this service"
+ * ("deze dienst"), not "this product". Dutch "dienst" is a de-word, so a
+ * sentence that points back to it says "hij", not "het". When "dit product"
+ * became "deze dienst", two "het" stayed behind in the Apple guide ("het meet
+ * ze, of zegt dat het dat niet deed"). The review found them.
+ */
+describe('the guides call it "this service", and Dutch points back to it with "hij"', () => {
+  const PRODUCT = { en: /\bthis product\b/i, nl: /\bdit product\b/i } as const;
+  /** "deze dienst … als het dat …" or "… dat het dat …" in one sentence. */
+  const NEUTER_BACK = /\bdeze dienst\b[^.]*?\b(?:als|dat) het dat\b/gi;
+  const neuterBackIn = (text: string) => [...text.matchAll(NEUTER_BACK)].map((m) => m[0]);
+
+  it('reads "het" pointing back to "deze dienst" where it is written', () => {
+    expect(neuterBackIn('Deze dienst gokt niets: het meet ze, of zegt dat het dat niet deed.')).toHaveLength(1);
+    expect(neuterBackIn('Dus kan deze dienst niet schrijven, ook niet als het dat zou willen.')).toHaveLength(1);
+    expect(neuterBackIn('Deze dienst meet ze, of zegt dat hij dat niet deed.')).toEqual([]);
+  });
+
+  it.each(Object.keys(GUIDES))('%s', (path) => {
+    const text = GUIDES[path]!;
+    const lang = langOf(path);
+    if (lang === 'en' || lang === 'nl') {
+      expect(PRODUCT[lang].exec(text)?.[0], `${nameOf(path)} says "this product": say "this service"`).toBeUndefined();
+    }
+    if (lang === 'nl') {
+      expect(neuterBackIn(text), `${nameOf(path)}: "deze dienst" is a de-word, so it is "hij", not "het"`).toEqual([]);
+    }
+  });
+});
+
+/**
  * microsoft-setup.md told the administrator to add "exactly" four `.Read`
  * permissions and offline_access, and "nothing else" — while the consent asks
  * for `Tasks.Read` whenever Tasks is ticked, and the same guide said so further

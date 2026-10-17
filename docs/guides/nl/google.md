@@ -20,7 +20,7 @@ Eén Google-account, één aanmelding. De regel onder de naam van de kaart zegt 
 
 ### Google Drive {#google-drive}
 
-Het token vraagt `https://www.googleapis.com/auth/drive.readonly`, en verder niets. Een migratie leest. Het token dat deze dienst aanmaakt, kan in de Drive van de bron niets maken, wijzigen of verwijderen. Dat is sterker dan een belofte op papier: Google dwingt het af.
+Het token vraagt `https://www.googleapis.com/auth/drive.readonly`, en verder niets. Een migratie leest. Het token dat deze dienst krijgt, kan in de Drive van de bron niets maken, wijzigen of verwijderen. Dat is sterker dan een belofte op papier: Google dwingt het af.
 
 Het token is **gedelegeerd**: het leest de Drive van de persoon die toestemming geeft, met de gedeelde Drives die die persoon kan zien. Voor een hele Workspace is er een tweede weg, die u zelf kiest: **[domeinbrede delegatie](#domain-wide-delegation)**, aan het eind van deze handleiding. Tokens per gebruiker blijven de standaard: de kleinste toegang, per persoon in te trekken, en zonder beheerder.
 

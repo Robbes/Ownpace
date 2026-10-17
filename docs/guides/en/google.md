@@ -20,7 +20,7 @@ One Google account, one sign-in. The line under the card's name says what it car
 
 ### Google Drive {#google-drive}
 
-The token asks for `https://www.googleapis.com/auth/drive.readonly`, and nothing else. A migration reads. The token this service creates cannot create, modify or delete anything in the source Drive, which is a stronger guarantee than a promise in a document — it is enforced by Google.
+The token asks for `https://www.googleapis.com/auth/drive.readonly`, and nothing else. A migration reads. The token this service receives cannot create, modify or delete anything in the source Drive, which is a stronger guarantee than a promise in a document — it is enforced by Google.
 
 It is a **delegated** credential: it reads the Drive of the person who consents, including the shared drives that person can see. For a whole Workspace there is a second, opt-in path — **[domain-wide delegation](#domain-wide-delegation)**, at the end of this guide. Per-user tokens stay the default: smallest access, revocable per person, no admin needed.
 

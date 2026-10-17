@@ -43,7 +43,7 @@ Google, Microsoft and Dropbox connections offer a one-click consent button. The 
 
 **Apple publishes no OAuth scope for Mail, Calendar, Contacts, Reminders or iCloud Drive to anybody outside Apple.** There is no consent screen to send you to, no token to receive, and nothing for a button to do. This is not a permission we have yet to request or a verification we have yet to buy — the scope does not exist for third parties at all.
 
-**Sign in with Apple is a different thing, and it does exist here.** If this service offers it, you can sign in to this service with your Apple Account. That grants a name and an email address: an identity, not a mailbox. It reaches none of your data, and it is not a substitute for the connection above. Both can be true at once and often confuse people: the button on the sign-in screen is about **who you are**; the password on this page is about **what may be read**.
+**Sign in with Apple is a different thing, and it does exist here.** If this service offers it, you can sign in here with your Apple Account. That grants a name and an email address: an identity, not a mailbox. It reaches none of your data, and it is not a substitute for the connection above. Both can be true at once and often confuse people: the button on the sign-in screen is about **who you are**; the password on this page is about **what may be read**.
 
 ## What moves {#what-moves}
 

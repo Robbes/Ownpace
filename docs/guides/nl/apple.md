@@ -43,7 +43,7 @@ Verbindingen met Google, Microsoft en Dropbox bieden een toestemmingsknop met é
 
 **Apple publiceert voor Mail, Agenda, Contacten, Herinneringen en iCloud Drive geen OAuth-scope voor wie dan ook buiten Apple.** Er is geen toestemmingsscherm om u naartoe te sturen, geen token om te ontvangen, en niets wat een knop zou kunnen doen. Het is geen recht dat wij nog moeten aanvragen of een verificatie die we nog moeten kopen: de scope bestaat voor derden gewoon niet.
 
-**De knop Log in met Apple is iets anders, en die bestaat hier wel.** Biedt deze dienst het aan, dan kunt u zich met uw Apple-account bij deze dienst aanmelden. Dat geeft een naam en een e-mailadres: een identiteit, geen postvak. Het bereikt geen van uw gegevens, en het vervangt de verbinding hierboven niet. Beide kunnen tegelijk waar zijn en brengen mensen vaak in de war: de knop op het aanmeldscherm gaat over **wie u bent**; het wachtwoord op deze pagina gaat over **wat er gelezen mag worden**.
+**De knop Log in met Apple is iets anders, en die bestaat hier wel.** Biedt deze dienst het aan, dan kunt u zich hier met uw Apple-account aanmelden. Dat geeft een naam en een e-mailadres: een identiteit, geen postvak. Het bereikt geen van uw gegevens, en het vervangt de verbinding hierboven niet. Beide kunnen tegelijk waar zijn en brengen mensen vaak in de war: de knop op het aanmeldscherm gaat over **wie u bent**; het wachtwoord op deze pagina gaat over **wat er gelezen mag worden**.
 
 ## Wat er meegaat {#what-moves}
 
@@ -115,7 +115,7 @@ Zegt iemand u dat iCloud Drive automatisch te migreren is, vraag dan welke API d
 
 ### Wat gemeten is, en wat beredeneerd {#measured}
 
-Deze dienst gokt geen serveradres of gedrag van een aanbieder: het meet ze, of zegt dat het dat niet deed. Daarom is het goed om duidelijk te zijn over welke zinnen hierboven wat zijn.
+Deze dienst gokt geen serveradres of gedrag van een aanbieder: hij meet ze, of zegt dat hij dat niet deed. Daarom is het goed om duidelijk te zijn over welke zinnen hierboven wat zijn.
 
 - De **servers en poorten** zijn de gepubliceerde waarden van Apple, vastgelegd met de dag waarop ze zijn gelezen.
 - Het **ontbreken van een API voor iCloud Drive** en het **ontbreken van een OAuth-scope voor gegevens** komen uit de ontwikkelaarsdocumentatie van Apple: het zijn afwezigheden, en juist zo'n bewering moet opnieuw worden nagekeken in plaats van te worden aangenomen dat ze blijft kloppen.
