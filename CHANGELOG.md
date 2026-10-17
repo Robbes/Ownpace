@@ -25,6 +25,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   wrong passwords in a row lock the account until an operator unlocks it; an
   authenticator app or a security key may be added and is never required; and
   the organisation on live's sign-in page is named Ownpace.
+- **Every screen of the app and the site, swept for a tester** (workplan 0159,
+  #1613 to #1628):
+  - each screen names itself once, in the top bar and the browser tab, and a
+    migration is called by its name, never its id;
+  - the pages before sign-in have an English/Dutch switch, and *Not now* on an
+    invitation no longer loops back to sign-in;
+  - *Start a migration* says what each step does, step 5's button is *Set up* /
+    *Klaarzetten*, and step 6 lists only the data types chosen;
+  - the queues, Verify, Confirmed, Team and Billing read on a phone, and links
+    inside sentences are underlined;
+  - Dutch screens give answers, refusals and numbers in Dutch (18.734, 3,4 GB);
+  - the site writes Dutch prices the Dutch way (€2,50), and its legal pages
+    stack their tables on a phone.
 
 ### Fixed
 
