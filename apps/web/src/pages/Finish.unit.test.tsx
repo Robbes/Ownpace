@@ -142,7 +142,7 @@ beforeEach(() => {
   fetchMappingDataTypes.mockResolvedValue({ domains: [], endings: MAIL_ENDING.active });
 });
 
-const END_MAIL = /^End Email$/;
+const END_MAIL = /^End email$/;
 
 describe('the migration state, said in words (workplan 0153 T1 (d))', () => {
   afterEach(() => {
@@ -185,10 +185,38 @@ describe('the cutover order', () => {
 
     const button = await screen.findByRole('button', { name: END_MAIL });
     expect(button).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Keep migrating Email' })).toBeDisabled();
+    const keep = screen.getByRole('button', { name: 'Keep migrating email' });
+    expect(keep).toBeDisabled();
+
+    // WHY, where a finger can read it (0145 T7 (a)): text under the row, not
+    // a tooltip a phone never shows, and both buttons point at it.
+    const reason = screen.getByRole('status');
+    expect(reason).toHaveTextContent(STRINGS.en['finish.button.disabledTitle']);
+    expect(reason).toBeVisible();
+    for (const b of [button, keep]) {
+      expect(b).not.toHaveAttribute('title');
+      expect(b).toHaveAccessibleDescription(STRINGS.en['finish.button.disabledTitle']);
+    }
 
     fireEvent.click(button);
     expect(endOrKeepDataType).not.toHaveBeenCalled();
+  });
+
+  it('says no reason once delivery is confirmed moved, and none on a data type that does not wait', async () => {
+    fetchStatus.mockResolvedValue(
+      statusReport('active', 0, [
+        ...MAIL_ENDING.active,
+        { domain: 'calendar', phase: 'active', stopped: false, offers: ['end', 'keep'] },
+      ]),
+    );
+    renderScreen();
+
+    expect(await screen.findByRole('status')).toHaveTextContent(STRINGS.en['finish.button.disabledTitle']);
+    expect(screen.getByRole('button', { name: 'End calendar' })).not.toHaveAccessibleDescription();
+
+    fireEvent.click(screen.getByLabelText(/Delivery now goes to the new system/));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: END_MAIL })).not.toHaveAccessibleDescription();
   });
 
   it('spells out what happens if you finish first, rather than assuming it is understood', async () => {
@@ -224,7 +252,7 @@ describe('the cutover order', () => {
     renderScreen();
 
     expect(await screen.findByRole('button', { name: END_MAIL })).toBeDisabled();
-    const calendars = screen.getByRole('button', { name: 'End Calendar' });
+    const calendars = screen.getByRole('button', { name: 'End calendar' });
     expect(calendars).toBeEnabled();
     fireEvent.click(calendars);
     await waitFor(() => expect(endOrKeepDataType).toHaveBeenCalledWith('acme-mail', 'calendar', 'end', false));
@@ -241,7 +269,40 @@ describe('the cutover order', () => {
 
     expect(await screen.findByText(`4. ${STRINGS.en['finish.step5.title']}`)).toBeInTheDocument();
     expect(screen.queryByText(STRINGS.en['finish.step4.title'], { exact: false })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'End Files' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'End files' })).toBeEnabled();
+  });
+
+  it('tells a migration without mail to carry the permissions across before the switch, not before a delivery move', async () => {
+    // A files-only migration has no delivery to move, and step 4 is rightly
+    // absent; the permissions panel above it still said "before you move
+    // delivery" (the UX sweep).
+    fetchStatus.mockResolvedValue(
+      statusReport('active', 0, [{ domain: 'file', phase: 'active', stopped: false, offers: ['end', 'keep'] }]),
+    );
+    renderScreen();
+
+    expect(await screen.findByText(STRINGS.en['permissions.heading.noMail'])).toBeInTheDocument();
+    expect(screen.queryByText(/delivery/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps the delivery words for a migration that carries mail', async () => {
+    fetchStatus.mockResolvedValue(statusReport('active'));
+    renderScreen();
+
+    expect(await screen.findByText(STRINGS.en['permissions.heading'])).toBeInTheDocument();
+    expect(screen.queryByText(STRINGS.en['permissions.heading.noMail'])).not.toBeInTheDocument();
+  });
+
+  it('underlines the links inside a step’s sentence, so they are not told apart by colour alone', async () => {
+    fetchStatus.mockResolvedValue(statusReport('active', 2));
+    renderScreen();
+
+    for (const link of [
+      await screen.findByRole('link', { name: STRINGS.en['finish.step1.link'] }),
+      screen.getByRole('link', { name: /could not be copied/ }),
+    ]) {
+      expect(link.className.split(/\s+/)).toContain('underline');
+    }
   });
 
   it('asks nothing of step 4 once mail is past its own cutover: its delivery moved then', async () => {
@@ -265,7 +326,7 @@ describe('the cutover order', () => {
     endOrKeepDataType.mockResolvedValue({ changed: true });
     renderScreen();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Keep migrating Calendar' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Keep migrating calendar' }));
     expect(endOrKeepDataType).not.toHaveBeenCalled();
     expect(screen.getByText(STRINGS.en['lane.intro'])).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: STRINGS.en['lane.confirm'] }));
@@ -281,8 +342,8 @@ describe('the cutover order', () => {
     );
     renderScreen();
 
-    expect(await screen.findByRole('button', { name: 'End Calendar' })).toBeEnabled();
-    expect(screen.queryByRole('button', { name: 'Keep migrating Calendar' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'End calendar' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Keep migrating calendar' })).not.toBeInTheDocument();
     expect(screen.getByText(/You stopped Calendar\. End it, or resume it/)).toBeInTheDocument();
   });
 
@@ -333,6 +394,59 @@ describe('the failure queue', () => {
     expect(await screen.findByText(/3 could not be copied/)).toBeInTheDocument();
   });
 
+  // WHAT REALLY HOLDS UP FINISHING (the UX sweep). Step 2 ended every count
+  // with "Only the first blocks finishing; the new system's copy answers the
+  // other two", whatever was open: over deletions and moves alone it named a
+  // blocker that did not exist, and over failures alone it spoke of "the
+  // other two". The ending door refuses over open failures only.
+  it('says deletions and moves do not hold up finishing, and asks for no decision, when only they are open', async () => {
+    fetchStatus.mockResolvedValue(statusReport('active', 0));
+    fetchDeletions.mockResolvedValue({ 'acme-mail': { ...emptyQueue['acme-mail'], confirmed: [{}, {}, {}] } });
+    fetchMoves.mockResolvedValue({ 'acme-mail': { ...emptyQueue['acme-mail'], open: [{}, {}] } });
+    renderScreen();
+
+    expect(await screen.findByText(/Deletions and moves do not hold up finishing/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '3 deleted on the old system' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '2 moved' })).toBeInTheDocument();
+    expect(screen.queryByText(/decide about each one first/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Only the first blocks/)).not.toBeInTheDocument();
+  });
+
+  it('says only the blocking sentence when only failures are open', async () => {
+    fetchStatus.mockResolvedValue(statusReport('active', 3));
+    renderScreen();
+
+    expect(await screen.findByText(/hold up finishing: decide about each one first/)).toBeInTheDocument();
+    expect(screen.queryByText(/do not hold up finishing/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/the other two/)).not.toBeInTheDocument();
+  });
+
+  it('says both, in Dutch too, when failures, deletions and moves are all open', async () => {
+    globalThis.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      fetchStatus.mockResolvedValue(statusReport('active', 1));
+      fetchDeletions.mockResolvedValue({ 'acme-mail': { ...emptyQueue['acme-mail'], confirmed: [{}] } });
+      fetchMoves.mockResolvedValue({ 'acme-mail': { ...emptyQueue['acme-mail'], open: [{}] } });
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <LocaleProvider>
+          <QueryClientProvider client={qc}>
+            <MemoryRouter>
+              <Finish />
+            </MemoryRouter>
+          </QueryClientProvider>
+        </LocaleProvider>,
+      );
+
+      const line = (await screen.findByRole('link', { name: '1 kon niet worden gemigreerd' })).parentElement!;
+      expect(line).toHaveTextContent(
+        `1 kon niet worden gemigreerd, 1 verwijderd op het oude systeem, 1 verplaatst. ${STRINGS.nl['finish.step2.blocks']} ${STRINGS.nl['finish.step2.doNotBlock']}`,
+      );
+    } finally {
+      globalThis.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
   it("offers force only AFTER the server has said what it would cost", async () => {
     fetchStatus.mockResolvedValue(statusReport('active', 3));
     endOrKeepDataType.mockRejectedValueOnce(
@@ -356,7 +470,7 @@ describe('the failure queue', () => {
       await screen.findByText('3 item(s) of email could not be migrated and are awaiting a decision.'),
     ).toBeInTheDocument();
     // Now it does, with the cost stated above it.
-    const force = screen.getByRole('button', { name: 'End Email anyway, leaving them behind' });
+    const force = screen.getByRole('button', { name: 'End email anyway, leaving them behind' });
     endOrKeepDataType.mockResolvedValue({ changed: true, migration: { from: 'active', to: 'done' } });
     fireEvent.click(force);
     await waitFor(() => expect(endOrKeepDataType).toHaveBeenLastCalledWith('acme-mail', 'email', 'end', true));
@@ -381,7 +495,7 @@ describe('a migration that cannot be finished', () => {
     expect(screen.queryByText(/Run the check/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: END_MAIL })).not.toBeInTheDocument();
     expect(screen.getByText(STRINGS.en['finish.each.title'])).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Keep migrating Email' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Keep migrating email' })).toBeEnabled();
   });
 });
 
@@ -420,7 +534,7 @@ describe('the per-mapping mode (workplan 0019 T5)', () => {
     });
     renderPerMapping();
 
-    expect(await screen.findByRole('button', { name: 'End Files' })).toBeEnabled();
+    expect(await screen.findByRole('button', { name: 'End files' })).toBeEnabled();
     expect(fetchMappingDataTypes).toHaveBeenCalledWith('acme-mail');
   });
 

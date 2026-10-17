@@ -19,7 +19,8 @@
  * Step 4 asks for mail only. Before its cutover, mail's End and Keep wait
  * for step 4's tick, because either press is its cutover: ending it before
  * delivery has moved loses what arrives afterwards. No other data type has a
- * delivery to move, so none waits.
+ * delivery to move, so none waits. Why they wait is text under the row, which
+ * both buttons point at, never a tooltip a phone cannot open (0145 T7 (a)).
  *
  * ## Keep copying is two presses
  *
@@ -41,7 +42,7 @@ import type { PathEndingChoice } from '@openmig/shared';
 import { endOrKeepDataType, PathEndingRefusedError } from '../../services/operating-service.ts';
 import { serverMessage } from '../../services/api.ts';
 import { isSelfHost } from '../../services/edition.ts';
-import { useFormatters, useT, type StringKey } from '../../i18n/index.tsx';
+import { useFormatters, useLocale, type StringKey } from '../../i18n/index.tsx';
 import { DOMAIN_STRING_KEY } from '../../i18n/domain-words.ts';
 import { Hint } from '../Hint.tsx';
 
@@ -67,7 +68,7 @@ const EachDataTypeEnds: React.FC<{
   /** Step 4's tick: mail before its cutover waits on it. */
   deliveryMoved: boolean;
 }> = ({ mappingId, endings, deliveryMoved }) => {
-  const t = useT();
+  const { t, locale } = useLocale();
   const { dateTime } = useFormatters();
   const queryClient = useQueryClient();
   const [said, setSaid] = React.useState<Readonly<Record<string, Said>>>({});
@@ -104,8 +105,13 @@ const EachDataTypeEnds: React.FC<{
     <ul className="divide-y divide-gray-100">
       {endings.map((e) => {
         const kind = t(DOMAIN_STRING_KEY[e.domain]);
+        // Mid-sentence in English the data type is a word, not a name:
+        // 'End email', not 'End Email'. The Dutch starts with it and keeps {kind}.
+        const kindWord = kind.toLocaleLowerCase(locale);
         const phaseKey = PHASE_KEY[e.phase];
         const waitsForDelivery = e.domain === 'email' && e.phase === 'active' && !deliveryMoved;
+        const showsWhy = waitsForDelivery && (e.offers.includes('end') || e.offers.includes('keep'));
+        const whyId = `waits-${e.domain}`;
         const s = said[e.domain];
         const pending = s?.state === 'pending';
         return (
@@ -113,17 +119,19 @@ const EachDataTypeEnds: React.FC<{
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium text-gray-900">{kind}</span>
               {phaseKey && <span className="text-xs text-gray-500">{t(phaseKey)}</span>}
-              <span className="ml-auto flex flex-wrap gap-2">
+              {/* On a phone every row's buttons start at the left, on their
+                  own line under the data type; beside it from sm up. */}
+              <span className="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto">
                 {e.offers.includes('end') && (
                   <button
                     type="button"
                     onClick={() => void press(e.domain, 'end')}
                     disabled={busy || waitsForDelivery}
-                    title={waitsForDelivery ? t('finish.button.disabledTitle') : undefined}
+                    aria-describedby={showsWhy ? whyId : undefined}
                     className="inline-flex items-center gap-1 px-3 py-1 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {pending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Flag className="w-3 h-3" />}
-                    {t('finish.ending.end', { kind })}
+                    {t('finish.ending.end', { kind, kindWord })}
                   </button>
                 )}
                 {e.offers.includes('keep') && keepAsked !== e.domain && (
@@ -131,15 +139,22 @@ const EachDataTypeEnds: React.FC<{
                     type="button"
                     onClick={() => setKeepAsked(e.domain)}
                     disabled={busy || waitsForDelivery}
-                    title={waitsForDelivery ? t('finish.button.disabledTitle') : undefined}
+                    aria-describedby={showsWhy ? whyId : undefined}
                     className="inline-flex items-center gap-1 px-3 py-1 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Repeat className="w-3 h-3" />
-                    {t('finish.ending.keep', { kind })}
+                    {t('finish.ending.keep', { kind, kindWord })}
                   </button>
                 )}
               </span>
             </div>
+
+            {/* Why mail's two buttons wait, where a finger can read it. */}
+            {showsWhy && (
+              <p id={whyId} role="status" className="mt-1 text-sm text-amber-800">
+                {t('finish.button.disabledTitle')}
+              </p>
+            )}
 
             {/* Its grace period ended and nobody chose: it no longer copies (D7). */}
             {e.graceEndedAt && (
@@ -197,7 +212,7 @@ const EachDataTypeEnds: React.FC<{
                     className="mt-2 inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border border-amber-600 text-amber-800 hover:bg-amber-50 disabled:opacity-50"
                   >
                     <Flag className="w-3 h-3" />
-                    {t('finish.ending.forceButton', { kind })}
+                    {t('finish.ending.forceButton', { kind, kindWord })}
                   </button>
                 )}
               </div>

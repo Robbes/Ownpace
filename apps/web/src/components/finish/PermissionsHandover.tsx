@@ -15,12 +15,17 @@
  * across after delivery moves are rights that were missing for however long
  * that took, and the assistant who cannot open the shared mailbox on Monday
  * morning is the failure this exists to prevent.
+ *
+ * A migration that carries no mail (a files-only one) has no delivery to
+ * move, and Finish leaves step 4 out for it; the panel says *before you
+ * switch* there instead (the UX sweep).
  */
 
 import React from 'react';
 import { KeyRound } from 'lucide-react';
 import { scopeFamilyOf, scopeFamilyOfConnectionKind, type ScopeFamily } from '@openmig/shared';
 import { useLocale, type StringKey } from '../../i18n/index.tsx';
+import { useDownloadName } from '../../i18n/download-name.ts';
 import { fetchPermissionReport } from '../../services/operating-service.ts';
 import { Hint } from '../Hint.tsx';
 
@@ -69,9 +74,15 @@ export const PermissionsHandover: React.FC<{
    * Absent while it is read, and then no blind-spot line is shown.
    */
   sourceKind?: string | undefined;
-}> = ({ mappingId, sourceKind }) => {
+  /**
+   * Whether the migration carries mail, and so has a delivery to move. A
+   * files-only one does not; the default keeps the delivery words.
+   */
+  carriesMail?: boolean;
+}> = ({ mappingId, sourceKind, carriesMail = true }) => {
   // The screen's language is the document's too (workplan 0144).
   const { t, locale } = useLocale();
+  const nameFor = useDownloadName();
   const blindSpot = blindSpotOf(sourceKind);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState('');
@@ -81,10 +92,11 @@ export const PermissionsHandover: React.FC<{
     setError('');
     try {
       const markdown = await fetchPermissionReport(mappingId, locale);
+      const name = (await nameFor(mappingId, t('download.permissions'), 'md')) ?? `permissions-${mappingId}.md`;
       const url = URL.createObjectURL(new Blob([markdown], { type: 'text/markdown' }));
       const link = document.createElement('a');
       link.href = url;
-      link.download = `permissions-${mappingId}.md`;
+      link.download = name;
       link.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -114,9 +126,15 @@ export const PermissionsHandover: React.FC<{
     <section className="mt-4 p-4 rounded-lg border border-amber-200 bg-amber-50">
       <h3 className="flex items-center gap-2 font-semibold text-amber-900">
         <KeyRound className="w-4 h-4" />
-        {t('permissions.heading')}
+        {t(carriesMail ? 'permissions.heading' : 'permissions.heading.noMail')}
       </h3>
-      <Hint className="mt-1" tone="caution" label="more" text={t('permissions.body')} why={t('permissions.body.more')} />
+      <Hint
+        className="mt-1"
+        tone="caution"
+        label="more"
+        text={t(carriesMail ? 'permissions.body' : 'permissions.body.noMail')}
+        why={t(carriesMail ? 'permissions.body.more' : 'permissions.body.noMail.more')}
+      />
       {/* Said here, not only inside the document: the one class of right that
           cannot be read at all is the one most likely to break, and somebody
           who never opens the report should still learn it. */}

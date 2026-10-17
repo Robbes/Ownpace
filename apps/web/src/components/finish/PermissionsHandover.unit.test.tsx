@@ -10,15 +10,22 @@
  * which mailbox it reads" is actionable and "the request failed" is not.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const { fetchPermissionReport } = vi.hoisted(() => ({ fetchPermissionReport: vi.fn() }));
 vi.mock('../../services/operating-service', () => ({ fetchPermissionReport }));
+// The migration's name is read from the query cache the screen already holds;
+// a read past it would be a request no test should make.
+vi.mock('../../services/mapping-service', () => ({
+  mappingApi: { get: vi.fn(() => Promise.reject(new Error('not in this test'))) },
+}));
 
 import PermissionsHandover from './PermissionsHandover.tsx';
 import { LocaleProvider } from '../../i18n/index.tsx';
+import { STRINGS } from '../../i18n/strings.ts';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -206,5 +213,85 @@ describe('fetching the list', () => {
 
     // Never silent: a button that does nothing reads as "there is nothing".
     expect(await screen.findByText(/could not be fetched/)).toBeInTheDocument();
+  });
+});
+
+describe('a migration without mail is not told about delivery (the UX sweep)', () => {
+  // A files-only migration (Box to Nextcloud) has no delivery to move, and
+  // Finish rightly leaves step 4 out; this panel still said "before you move
+  // delivery" and "do not move with the mail".
+  it('says to carry the permissions across before the switch', () => {
+    render(<PermissionsHandover mappingId="m1" sourceKind="dropbox" carriesMail={false} />);
+
+    expect(screen.getByText(STRINGS.en['permissions.heading.noMail'])).toBeInTheDocument();
+    expect(screen.getByText(STRINGS.en['permissions.body.noMail'])).toBeInTheDocument();
+    expect(screen.getByText(STRINGS.en['permissions.body.noMail.more'])).toBeInTheDocument();
+    expect(screen.queryByText(/delivery|mail/i)).not.toBeInTheDocument();
+  });
+
+  it('in Dutch too', () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      render(
+        <LocaleProvider>
+          <PermissionsHandover mappingId="m1" sourceKind="dropbox" carriesMail={false} />
+        </LocaleProvider>,
+      );
+      expect(screen.getByText('Zet de rechten over voordat u overstapt')).toBeInTheDocument();
+      expect(screen.getByText(STRINGS.nl['permissions.body.noMail'])).toBeInTheDocument();
+      expect(screen.queryByText(/bezorging|e-mail/i)).not.toBeInTheDocument();
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
+  it('keeps the delivery words where the migration carries mail, as it does unless told otherwise', () => {
+    render(<PermissionsHandover mappingId="m1" />);
+    expect(screen.getByText(STRINGS.en['permissions.heading'])).toBeInTheDocument();
+    expect(screen.queryByText(STRINGS.en['permissions.heading.noMail'])).not.toBeInTheDocument();
+  });
+});
+
+describe('the list is saved under a name a person can read (the UX sweep)', () => {
+  // It was `permissions-<uuid>.md`, in English, whatever the screen's language.
+  let names: string[];
+  beforeEach(() => {
+    names = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      names.push(this.download);
+    });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const withName = (name: string) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(['mapping', 'm-42'], { id: 'm-42', name });
+    return client;
+  };
+
+  it('names the migration and the day, in the screen’s language', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      render(
+        <LocaleProvider>
+          <QueryClientProvider client={withName('Pieter: Box/Nextcloud')}>
+            <PermissionsHandover mappingId="m-42" />
+          </QueryClientProvider>
+        </LocaleProvider>,
+      );
+      await userEvent.click(screen.getByRole('button', { name: /rechtenlijst/i }));
+      await waitFor(() => expect(names).toHaveLength(1));
+      expect(names[0]).toMatch(/^Ownpace-rechtenlijst - Pieter BoxNextcloud - \d{4}-\d{2}-\d{2}\.md$/);
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
+  it('keeps the old name where no name is known', async () => {
+    render(<PermissionsHandover mappingId="m-42" />);
+    await userEvent.click(screen.getByRole('button', { name: /permission list/i }));
+    await waitFor(() => expect(names).toEqual(['permissions-m-42.md']));
   });
 });
