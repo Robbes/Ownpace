@@ -71,6 +71,9 @@
  *     build prints when `OWNPACE_APP_URL` is missing): the app on that
  *     stack links the guide whenever its `.env` says alpha, and a site built
  *     without it has no guide, so every one of those links would be a 404.
+ *     The same commands hand the stack's own `GOOGLE_ACCOUNT_SCOPE_CLASS`
+ *     (the owner, 2026-10-18), which decides how many Google sign-ins
+ *     Leaving Google says (`scripts/leaving-pages-say-what-the-app-says`).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -638,13 +641,27 @@ describe("the tester guide's link (0144 T1)", () => {
   describe("the OTA site's documented build hands the stack's own stage", () => {
     /** `OWNPACE_STAGE` read from the stack's own `.env`, with the repo's one reader. */
     const STAGE_FROM_ENV = /OWNPACE_STAGE="\$\(env_value deploy\/compose\/\.env OWNPACE_STAGE\)"/;
+    /**
+     * And `GOOGLE_ACCOUNT_SCOPE_CLASS`, the same way (the owner, 2026-10-18):
+     * the app on that stack asks for one Google sign-in whenever its `.env`
+     * says restricted, and Leaving Google says one only when built with it.
+     */
+    const SCOPE_FROM_ENV = /GOOGLE_ACCOUNT_SCOPE_CLASS="\$\(env_value deploy\/compose\/\.env GOOGLE_ACCOUNT_SCOPE_CLASS\)"/;
 
-    /** The lines of a text that run the site build for the OTA app, with the line before each. */
-    const otaBuilds = (text: string): string[] =>
-      text
-        .split('\n')
-        .map((line, i, all) => `${all[i - 1] ?? ''}\n${line}`)
-        .filter((pair) => /node site\/build\.mjs/.test(pair.split('\n')[1]!) && /app\.ota\.ownpace\.eu/.test(pair));
+    /** A line the command goes on past: a trailing backslash, or the `\\` a string in a module writes for one. */
+    const continues = (line: string): boolean => /\\['",]*\s*$/.test(line);
+
+    /** Each command in a text that runs the site build for the OTA app, with every line it continues from. */
+    const otaBuilds = (text: string): string[] => {
+      const lines = text.split('\n');
+      return lines.flatMap((line, i) => {
+        if (!/node site\/build\.mjs/.test(line)) return [];
+        let start = i;
+        while (start > 0 && continues(lines[start - 1]!)) start--;
+        const command = lines.slice(start, i + 1).join('\n');
+        return /app\.ota\.ownpace\.eu/.test(command) ? [command] : [];
+      });
+    };
 
     it.each([
       ["www.yml's header", 'deploy/compose/www.yml'],
@@ -666,6 +683,12 @@ describe("the tester guide's link (0144 T1)", () => {
             'that stack links the tester guide whenever its .env says alpha; a site built\n' +
             'without it writes no guide, so every one of those links is a 404.',
         ).toMatch(STAGE_FROM_ENV);
+        expect(
+          command,
+          `${file} builds the OTA site without the stack's own GOOGLE_ACCOUNT_SCOPE_CLASS. The app\n` +
+            'on that stack asks for one Google sign-in whenever its .env says restricted; a site\n' +
+            'built without it tells a tester to expect three.',
+        ).toMatch(SCOPE_FROM_ENV);
       }
       // Read with the repo's one reader, never the shell's value.
       expect(text).toContain('. deploy/compose/env-read.sh');

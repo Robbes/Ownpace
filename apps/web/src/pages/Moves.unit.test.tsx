@@ -10,9 +10,10 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { STRINGS } from '../i18n/strings.ts';
-import type { MovesResponse } from '@openmig/shared';
+import { LocaleProvider } from '../i18n/index.tsx';
+import { MOVES_MEANING, MOVE_GUIDANCE, type MovesResponse } from '@openmig/shared';
 
 const { fetchMovesMock, applyMoveMock, fetchMoveApplyReceiptMock, isSelfHostMock } = vi.hoisted(
   () => ({
@@ -351,5 +352,66 @@ describe('after cutover', () => {
     expect(await screen.findByRole('button', { name: /Remove the old copy/ })).toBeInTheDocument();
     // No row lost its button, so there is nothing to explain.
     expect(screen.queryByText(/Past the cutover of/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * *What this means and what you can do* showed the operator's guidance from
+ * the API, word for word: `POST /mappings/{mappingId}/moves/…/keep` and
+ * `toNaturalKeyHash`, in English, under a Dutch heading (the UX sweep,
+ * 2026-10-17). The owner chose words for the person reading it (2026-10-18),
+ * kept beside the operator's in `@openmig/shared`; the API still serves its
+ * own, as the fixture here does.
+ */
+describe('what this means and what you can do', () => {
+  const API_WORDS = /POST |\/mappings\/|naturalKeyHash|toNaturalKeyHash|apply/;
+  const served = () => queue({ whatThisMeans: MOVES_MEANING, howToResolve: MOVE_GUIDANCE });
+
+  afterEach(() => {
+    window.localStorage.removeItem('ownpace.locale');
+  });
+
+  it('tells a Dutch reader what the rows are and what each button does, in Dutch', async () => {
+    fetchMovesMock.mockResolvedValue(served());
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <LocaleProvider>
+        <QueryClientProvider client={qc}>
+          <MemoryRouter>
+            <Moves receiptPollMs={10} />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+
+    const fold = (await screen.findByText('Wat dit betekent en wat u kunt doen')).closest('details')!;
+    const text = fold.textContent ?? '';
+    expect(text).toContain(
+      'Deze items zijn op het oude systeem naar een andere map verplaatst. Op het nieuwe systeem staan ze nog waar wij ze neerzetten.',
+    );
+    expect(text).toContain('Laat staan: aan geen van beide kanten verandert iets.');
+    expect(text).toContain(
+      'Verwijder de oude kopie (alleen bestanden): het bestand staat al in de nieuwe map op het nieuwe systeem; dit verwijdert de kopie in de oude map.',
+    );
+    expect(text).toContain('Of verplaats het zelf op het nieuwe systeem en druk daarna op Laat staan.');
+    expect(text).not.toMatch(API_WORDS);
+  });
+
+  it('tells an English reader the same, and never the API’s paths', async () => {
+    fetchMovesMock.mockResolvedValue(served());
+    renderScreen();
+
+    const fold = (await screen.findByText('What this means and what you can do')).closest('details')!;
+    const text = fold.textContent ?? '';
+    expect(text).toContain(
+      'These items were moved to another folder on the old system. On the new system they are still where we put them.',
+    );
+    expect(text).toContain('Leave it where it is: nothing changes on either side.');
+    expect(text).toContain(
+      'Remove the old copy (files only): the file is already in its new folder on the new system; this deletes the copy in the old folder.',
+    );
+    expect(text).toContain('Or move it yourself on the new system, then press Leave it where it is.');
+    expect(text).not.toMatch(API_WORDS);
   });
 });

@@ -408,7 +408,15 @@ export const SCOPE_MANIFEST: ScopeManifest = {
   // which (`domains`), so a migration is shown only the rows about what it
   // carries; and *Google-native files* says they are converted OR left in
   // Google, since leaving them is the default on *What moves?*.
-  version: '2026-10-17',
+  //
+  // Bumped on 2026-10-18 at the owner's word, not for a change to the set:
+  // *Mail with no Message-ID* is *Mail without a message identifier*, in
+  // plain words on its label and its line, with the header's name kept once
+  // in the fold. The promise is the same, and still says *where the
+  // connection allows it*. The owner chose the old words on 2026-10-14 under
+  // that version, and asked for a new one with the new words (UX sweep,
+  // answers of 2026-10-18).
+  version: '2026-10-18',
   migrates: [
     // MAIL, CALENDARS AND CONTACTS, for the families that carry them (2026-10-16).
     // Read from the code, not from memory: Google (its account, and `gmail`),
@@ -628,22 +636,25 @@ export const SCOPE_MANIFEST: ScopeManifest = {
       },
     },
     {
-      item: 'Mail with no Message-ID',
-      detail: 'Migrated with a generated Message-ID on the copy, where the connection can add one.',
+      // In plain words since 2026-10-18 (the owner): it was *Mail with no
+      // Message-ID*, and the header keeps its name once, in the fold.
+      item: 'Mail without a message identifier',
+      detail: 'Migrated with an identifier of our own on the copy, where the connection allows it.',
       // Email's families: a source that carries no mail has none without one.
       appliesTo: ['google', 'microsoft', 'standards', 'imap'],
       domains: ['email'],
       more:
-        'We need one to copy each message exactly once. The original on the source is never ' +
-        'modified. The count before you start says how many messages get one, and how many ' +
-        'this connection cannot give one, which are not migrated.',
+        'We need one to copy each message exactly once; its technical name is Message-ID. The ' +
+        'original on the source is never modified. The count before you start says how many ' +
+        'messages get one, and how many this connection cannot give one, which are not migrated.',
       nl: {
-        item: 'Mail zonder Message-ID',
-        detail: 'Gemigreerd met een gegenereerde Message-ID op de kopie, waar de verbinding dat kan.',
+        item: 'Mail zonder berichtkenmerk',
+        detail: 'Gemigreerd met een eigen kenmerk op de kopie, waar de verbinding dat toelaat.',
         more:
-          'We hebben er een nodig om elk bericht precies één keer te migreren. Het origineel op ' +
-          'de bron wordt nooit gewijzigd. De telling voordat u start, zegt hoeveel berichten er ' +
-          'een krijgen, en hoeveel deze verbinding er geen kan geven; die worden niet gemigreerd.',
+          'We hebben er een nodig om elk bericht precies één keer te migreren; de technische naam ' +
+          'is Message-ID. Het origineel op de bron wordt nooit gewijzigd. De telling voordat u ' +
+          'start, zegt hoeveel berichten er een krijgen, en hoeveel deze verbinding er geen kan ' +
+          'geven; die worden niet gemigreerd.',
       },
     },
     // Corrected 2026-08-04 (workplan 0029 T1–T3). The old wording — "only the

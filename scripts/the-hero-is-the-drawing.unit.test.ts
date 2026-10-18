@@ -50,8 +50,12 @@ type Copy = Record<
   'en' | 'nl',
   {
     hero: HeroWords;
-    /** A fact that is a claim links its proof: its words are a function of the links (0152 T8). */
-    facts: Array<[string | ((links: Record<string, string>) => string), string]>;
+    /**
+     * A fact that is a claim links its proof: its words are a function of the
+     * links (0152 T8), its body's since the owner moved the link out of the
+     * title (2026-10-18), so a heading never opens a code file.
+     */
+    facts: Array<[string | ((links: Record<string, string>) => string), string | ((links: Record<string, string>) => string)]>;
     strip: { steps: Array<[string, string]>; more: string };
     dataTypes: Record<string, string>;
     leaving: { photos: string };
@@ -142,10 +146,13 @@ describe('the hero is the drawing (0152 T3)', () => {
 
       const after = html.slice(html.indexOf('</section>'));
       let at = 0;
-      for (const [words, p] of c.facts) {
+      for (const [words, body] of c.facts) {
         const h = typeof words === 'function' ? words(PROOF_LINKS) : words;
+        const p = typeof body === 'function' ? body(PROOF_LINKS) : body;
         const found = after.indexOf(`<h2>${h}</h2><p>${p}</p>`, at);
         expect(found, `${file}: the fact "${h}" is missing or out of order`).toBeGreaterThan(at - 1);
+        // A fact's heading is words, never a link: the proof is in its body.
+        expect(h, `${file}: the fact "${h}" is a link`).not.toMatch(/<a\b/);
         at = found;
       }
       const strip = after.slice(after.indexOf('<ol class="strip">'), after.indexOf('</ol>', after.indexOf('<ol class="strip">')));

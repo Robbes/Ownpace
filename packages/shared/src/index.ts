@@ -22,6 +22,9 @@ export * from './mail-headers.ts';
 export * from './mail-subject.ts';
 export * from './ports.ts';
 export * from './operating-contract.ts';
+// The queues' guidance in the reader's words, English and Dutch, beside the
+// operator's that the contract serves (the owner, 2026-10-18).
+export * from './queue-guidance.ts';
 // Workplan 0122 T1 — what a progress-link holder may see. Beside the
 // operating contract it narrows, so the pair is found together.
 export * from './migration-view.ts';

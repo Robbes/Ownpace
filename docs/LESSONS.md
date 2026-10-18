@@ -622,6 +622,7 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/services/start-plan.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 
 ### `apps/web/src/services/tester-guide-link.ts`
 
@@ -846,6 +847,7 @@ reading a file drops off its entry by itself.
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 
@@ -1007,6 +1009,7 @@ reading a file drops off its entry by itself.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [managed-env-contract](../scripts/managed-env-contract.unit.test.ts) — Every variable `managed.yml` demands can actually be obtained.
 - [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
@@ -1410,6 +1413,7 @@ reading a file drops off its entry by itself.
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/zitadel-db-password.sh`
@@ -5102,6 +5106,10 @@ THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 Reads:
 
 - `apps/web/src/components/ProviderTile.tsx`
+- `apps/web/src/services/start-plan.ts`
+- `deploy/compose/deploy-live.sh`
+- `deploy/compose/managed.env.example`
+- `deploy/compose/www.yml`
 - `docs/guides/en/imap.md`
 - `site/build.mjs`
 - `site/calculator.mjs`

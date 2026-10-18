@@ -11,11 +11,26 @@ Two kinds of words render; only the first belongs to this glossary:
 
 - **Client words** — names, states, labels the CLIENT chooses: translated,
   unified, listed here.
-- **Server vocabulary** — verification findings (`PASS`/`FAIL`/`WARN`),
-  evidence words (`reported`/`trashed`/`inferred`), refusal and effect prose,
-  error text. The server's own claims, rendered VERBATIM, never translated,
-  never restyled through StateChip. (Explanations *around* them — the
-  `verify.help.*` keys — are client words and are translated.)
+- **Server vocabulary** — refusal and effect prose, error text. The
+  server's own claims, rendered VERBATIM, never translated, never restyled
+  through StateChip.
+- **Server tokens** — verification verdicts (`PASS`/`FAIL`/`WARN`…), issue
+  severities and evidence words (`reported`/`trashed`/`inferred`). Until
+  2026-10-18 the chips said the token, in English on a Dutch screen; the
+  owner chose client words for them (below). The token stays on the wire, in
+  downloads, and at the end of the chip's title, so a support thread can
+  still quote it; it never goes through StateChip, which holds states, not
+  findings. (Explanations *around* them — the `verify.help.*` keys, the
+  Deletions lead — are client words and are translated.)
+
+| token | EN | NL | rule |
+|---|---|---|---|
+| `reported` | Reported by the source | **Gemeld door de bron** | The chip on Deletions (`evidence.reported`). The line above the rows says what it means. |
+| `trashed` | In the source's bin | **In de prullenbak van de bron** | As above (`evidence.trashed`). |
+| `inferred` | Assumed: missing from full scans | **Vermoeden: ontbreekt in volledige scans** | As above (`evidence.inferred`). A sentence names it by the part before the colon: *never for an item marked Assumed* / *nooit voor een item met het label Vermoeden* (the queues' guidance, `@openmig/shared`). |
+| `PASS` / `WARN` / `FAIL` | Passed / Passed, with warnings / Did not pass | **Geslaagd** / **Geslaagd, met waarschuwingen** / **Niet geslaagd** | Verify's verdicts, and Finish where it repeats them. The same words as the steps list's *Geslaagd* / *Niet geslaagd*. |
+| `SKIPPED` / `NOT_VERIFIABLE` | Not checked / Could not be checked | **Niet geverifieerd** / **Kon niet worden geverifieerd** | The *verifiëren* family is Check's (*Feature names*). |
+| an issue's `ERROR` / `WARNING` | Problem / Warning | **Probleem** / **Waarschuwing** | Also after *De verificatie is niet geslaagd:* on Finish. |
 
 ## The thing being managed
 
@@ -58,6 +73,7 @@ Two kinds of words render; only the first belongs to this glossary:
 | The operator and self-host documents in the repository's `docs/` (workplan 0148 D9) | operator documents | **beheerdersdocumenten** | Named only in the appliance's `/docs` line, whose reader runs the appliance. Not *operatordocumenten*. |
 | An app a person creates at Google, Dropbox or Microsoft instead of this service's (workplan 0148 T2) | your own app | **eigen oauth-app** | The owner's word (2026-10-10; was *eigen app*): the Dutch names the kind of app, *uw eigen oauth-app*. The service's is *de eigen app van deze dienst* in a guide; in the app, under *Use your own Google client*, it is Ownpace's (*Ownpace heeft een eigen Google-app; vul beide alleen in om uw eigen oauth-app te gebruiken*, the owner, 2026-10-14; was *Deze installatie heeft een eigen Google-oauth-client*). The guide's fold reads *Alleen als u een eigen oauth-app wilt gebruiken*. |
 | A company's own Microsoft app reading its mail with application permissions, behind *Is this a company account with an administrator?* on *Start a migration*'s *What moves?* (0153 open question 5) | your organisation's own OAuth app, with application permissions; *Through your organisation's app, with Microsoft Graph* / *with IMAP* | **de eigen oauth-app van uw organisatie, met toepassingsmachtigingen** (the owner's words, 2026-10-10, with *eigen oauth-app* for *your own app* since 2026-10-14; was *de eigen OAuth-client-app van uw organisatie*, and before that *de eigen app van uw organisatie*); *Via de app van uw organisatie, met Microsoft Graph* / *met IMAP* | The options said *Through our own app* / *Via onze eigen app* until 2026-10-14: the organisation's words, which a tester read as Ownpace's app (the owner, 2026-10-14: every text a tester reads written for testers). *Toepassingsmachtigingen* is Microsoft's own Dutch word for application permissions. The choice says how the mail is read, never which card carries it; *Via the Graph API* and *Via IMAP* stay the cards' names on Accounts. It is also how a shared mailbox is read (*gedeelde mailbox*). |
+| The company that holds an account, old or new: Google, Microsoft, a mail host (the owner, 2026-10-18) | provider | **aanbieder** | Never *provider* in a Dutch sentence: the grant page, a person's progress page and the failure lines said *provider* while the rest of the Dutch said *aanbieder* (*een andere aanbieder*, *een andere mailaanbieder*, *uw oude aanbieder*). A name filled in (*{provider}*) is the company's own; the *identiteitsprovider* of signing in is another thing and keeps its word. `the-owners-words-at-the-door.unit.test.ts` refuses the word in the Dutch dictionary. |
 | A provider's export of a person's data, under that provider's tile on *Start a migration*'s *What moves?* (0153 open question 5, item 2) | **export**: *Photos: from a Takeout export*; *Waiting for the Takeout export* | **export**: *Foto's: uit een Takeout-export*; *Wacht op de Takeout-export* | *Takeout* and *Apple Data & Privacy* are the companies' own names, never translated (`ARCHIVE_PROVIDER_NAMES`): a Dutch rendering would send somebody looking for a page that does not exist. *Exportarchief* stays the Accounts card's word; the flow says *export*, because the person meets it as something they ask a company for. |
 | The test phase the managed service is in (workplan 0131 D1, D4) | Alpha | **Alpha** | A proper name, with a capital, in running text in both languages, as the Alpha conditions write it: *the Alpha can end*, *during the Alpha*, *de Alpha kan stoppen*, *tijdens de Alpha*, *Welkom bij de Alpha!*. *De Alpha-fase* is the same word, and stays where the owner wrote it (*alpha.visitor.line*, *alpha.nothingCharged*; the owner, 2026-10-10): both are allowed. Never *alfa*, never a lower-case *alpha* in copy (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; until then this row said *alfa*, lower case). Not *bèta*, *test* or *proef*. The note, the mails, the API's sentences, 0131 T3's Billing line and request hint, 0144's tester guide, and the line a visitor reads on the site and in the public guides (0152 T1 (a): *in its Alpha, by invitation* / *in de Alpha, op uitnodiging*) use this word; `scripts/the-alpha-by-its-name.unit.test.ts` holds them to it. Keys, codes and the stage value stay lower case (`alpha.note.lead`, `OWNPACE_STAGE=alpha`). |
 | Money a customer pays, as the Alpha promises there is none (workplan 0131 T3) | charged | **in rekening gebracht** | *Nothing is charged* / *Er wordt niets in rekening gebracht*: both Alpha mails (access-granted and invitation), the Billing line's first sentence, the request hint, and the visitor's line on the site and in the public guides (0152 T1 (a)). The Alpha note said it until 2026-10-04; it is now the owner's welcome (0131 D4's amendment). Not *invoiced* / *gefactureerd*, which is what a tier says (0109 T8, *"Free: nothing is invoiced on this tier"*): a tier's word is about the invoice, and the Alpha's covers every tier, the paid ones too. The Billing line's second sentence is the free tier's own, *"nothing is invoiced"* included, by the owner's choice (0131 open question 7). |

@@ -226,14 +226,22 @@ const Deletions: React.FC<{
         <AfterCutoverNote
           withheld={queue.confirmed.filter((d) => mayOfferApply(d, []) && !mayOfferApply(d, queue.afterCutover))}
         />
-        {/* The chips keep the server's own words (ADR-0024); what they mean
-            is said here, where a phone can read it, not only in a hover
-            title. */}
+        {/* What the chips mean is said here, where a phone can read it, not
+            only in a hover title, and only for the chips the rows carry: an
+            assumed row is the one with no delete button, and says why (the
+            owner, 2026-10-18). */}
         <QueueSection
           title={t('queue.waitingOnYou')}
           count={queue.confirmed.length}
           empty={t('deletions.empty.confirmed')}
-          lead={<p className="text-xs text-gray-600">{t('deletions.evidence.lead')}</p>}
+          lead={
+            <div className="space-y-1 text-xs text-gray-600">
+              {queue.confirmed.some((d) => d.evidence !== 'inferred') && <p>{t('deletions.evidence.lead')}</p>}
+              {queue.confirmed.some((d) => d.evidence === 'inferred') && (
+                <p>{t('deletions.evidence.lead.inferred')}</p>
+              )}
+            </div>
+          }
         >
           {queue.confirmed.map((d) => {
             const pending = outcomes[d.naturalKeyHash]?.state === 'pending';
@@ -339,7 +347,7 @@ const Deletions: React.FC<{
           ))}
         </QueueSection>
 
-        <GuidancePanel meaning={queue.whatThisMeans} entries={queue.howToResolve} />
+        <GuidancePanel queue="deletions" />
       </>
     )}
   />

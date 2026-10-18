@@ -295,6 +295,39 @@ describe('Migrations — one card per person (0153 T3)', () => {
     expect(within(card).getAllByText('Copying')).toHaveLength(2);
   });
 
+  it('names a mail server in plain words on the card and its line, the protocol in brackets (the owner, 2026-10-18)', async () => {
+    // Pieter's card read *From Microsoft 365 and IMAP to Nextcloud and JMAP*.
+    const KPN = sampleMapping({
+      id: 'm-kpn',
+      name: 'Pieter — KPN',
+      sourceType: 'imap',
+      targetType: 'jmap',
+      domains: ['email'],
+      lastSyncAt: new Date(Date.now() - 120_000).toISOString(),
+    });
+    const OFFICE = sampleMapping({ id: 'm-office', name: 'Pieter — Office', sourceType: 'o365', targetType: 'nextcloud' });
+    listMock.mockResolvedValue([OFFICE, KPN]);
+    peopleMock.mockResolvedValue({
+      people: [
+        person('p-pieter', 'Pieter', [
+          { id: 'm-office', status: 'active' },
+          { id: 'm-kpn', status: 'active' },
+        ]),
+      ],
+      unassigned: [],
+    });
+
+    renderMappings();
+
+    const card = await screen.findByRole('region', { name: 'Pieter' });
+    expect(
+      within(card).getByText('From Microsoft 365 and Other mail provider (IMAP) to Nextcloud and Mail server (JMAP)'),
+    ).toBeInTheDocument();
+    expect(within(card).getAllByText('Other mail provider (IMAP)').length).toBeGreaterThan(0);
+    expect(within(card).queryByText('IMAP')).toBeNull();
+    expect(within(card).queryByText('JMAP')).toBeNull();
+  });
+
   it('counts what needs the person and leads to it, and the top line counts people', async () => {
     listMock.mockResolvedValue([MAIL, FILES]);
     peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });

@@ -14,9 +14,10 @@
 // So: a real Chromium, pointed at the real appliance the e2e stack already
 // brought up, loading the same bundle a user gets. This is a BOOT smoke, not a
 // visual test — it asserts the app evaluates, renders, talks to the appliance,
-// and honours two ADR-0026 behaviours that are invisible to HTTP-level tests
-// (the prose contract, and Verify's you-must-click rule). Screenshots, pixel
-// diffs and interaction flows are deliberately out of scope.
+// and honours two behaviours that are invisible to HTTP-level tests (the
+// queues' guidance in the reader's words, and ADR-0026's rule that Verify
+// waits for a click). Screenshots, pixel diffs and interaction flows are
+// deliberately out of scope.
 //
 // ## Read-only, and placed BEFORE the sync gates
 //
@@ -37,10 +38,12 @@
 //
 // Root-level e2e files import only vitest, node builtins and root
 // devDependencies (see vitest.config.ts — workspace aliases do not resolve
-// here), which is also why the prose assertions below compare against the
-// appliance's own JSON rather than importing `@openmig/shared`: the JSON is the
-// contract on the wire, and self-synchronising against it means a prose edit
-// cannot strand this test.
+// here), which is also why the prose assertions below read the appliance's own
+// JSON rather than importing `@openmig/shared`: the JSON is the contract on the
+// wire. Since the owner's answer of 2026-10-18 the queue screens show the
+// customer's guidance from `@openmig/shared` instead of the JSON's operator
+// prose, so the assertion is the other way round: the JSON keeps its API paths
+// for its callers, and the screen shows none of them.
 //
 // ## A PAGE READ BEFORE IT ANSWERED (E2E self-hosted #215 and #216, red)
 //
@@ -180,10 +183,12 @@ describe('the operating UI boots in a real browser', () => {
     await r.page.close();
   }, 60_000);
 
-  it('the queue screens render the SAME prose the JSON carries (ADR-0026)', async () => {
-    // The contract says the UI renders the wire prose rather than paraphrasing
-    // it — the guidance strings ARE the operating semantics. Compare against
-    // what this very appliance serves, so the assertion survives prose edits.
+  it('the queue screens explain themselves in the reader\'s words, and leave the API\'s to the JSON', async () => {
+    // The screens rendered the JSON's guidance verbatim (ADR-0026) until the
+    // owner chose words for the person reading it (2026-10-18): a tester read
+    // `POST /mappings/{mappingId}/moves/…/keep` under a Dutch heading. The
+    // JSON still carries the operator's text for its callers; the screen's
+    // fold says the customer's version, kept in `@openmig/shared`.
     for (const [screen, jsonPath] of [
       ['/ui/deletions', '/deletions'],
       ['/ui/moves', '/moves'],
@@ -194,24 +199,17 @@ describe('the operating UI boots in a real browser', () => {
         { whatThisMeans?: string; howToResolve?: Record<string, string> }
       >;
       const first = Object.values(queues)[0];
-      const prose = first?.whatThisMeans ?? Object.values(first?.howToResolve ?? {})[0];
-      expect(prose, `${jsonPath} served no guidance prose to compare against`).toBeTruthy();
-      // The first sentence is enough to prove it is the same text and not a
-      // summary; whole-string equality would fail on markup-driven whitespace.
-      const sentence = prose!.split(/[.!]/)[0]!.trim();
+      const operator = Object.values(first?.howToResolve ?? {}).join(' ');
+      expect(operator, `${jsonPath} no longer serves the operator's guidance`).toContain('POST /mappings/');
 
       const r = await open(screen);
-      // Waited for, not read once: see the header. The screen shows `Loading…`
-      // until its own fetch resolves, and `networkidle` can fire before that
-      // fetch has even been ISSUED — the silence is ahead of the first request,
-      // not between a failed one and its retry: a request that failed would
-      // have been recorded in `failedAssets`, and `expectClean` passed on both
-      // red runs. A string function body, not a closure, so this file (which
-      // compiles under Node lib, not DOM — see test/ui/tsconfig.json for why
-      // that split exists) never has to name `document` where tsc can see it.
+      // Waited for, not read once: see the header. The fold is drawn inside
+      // each migration's section, so its summary appears only once the
+      // screen's own fetch has answered; `Loading…` never says it.
+      const summary = 'What this means and what you can do';
       await r.page
         .waitForFunction(
-          `document.body.textContent && document.body.textContent.includes(${JSON.stringify(sentence)})`,
+          `document.body.textContent && document.body.textContent.includes(${JSON.stringify(summary)})`,
           undefined,
           { timeout: 15_000 },
         )
@@ -220,11 +218,11 @@ describe('the operating UI boots in a real browser', () => {
       // console error or a non-2xx raised BY it is invisible to a check that
       // ran while the screen was still a spinner.
       expectClean(r, screen);
-      // Unchanged, and still the one that speaks: a screen that genuinely never
-      // renders the wire prose fails here with this sentence and the last text
-      // it showed — the error panel's words when the read failed, `Loading…`
-      // when the appliance never answered at all.
-      expect(await r.text(), `${screen} does not render the wire prose`).toContain(sentence);
+      const text = await r.text();
+      // The error panel's words when the read failed, `Loading…` when the
+      // appliance never answered at all.
+      expect(text, `${screen} does not render its guidance`).toContain(summary);
+      expect(text, `${screen} shows the API's guidance to the person reading it`).not.toContain('POST /mappings/');
       await r.page.close();
     }
   }, 120_000);
