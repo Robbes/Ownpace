@@ -62,15 +62,38 @@ describe('an address the source could not describe', () => {
 
   it('asks it as a question about the organisation, not about our data', () => {
     const q = sharedAddressQuestion(group({ store: 'unknown', displayName: 'Info' }));
-    // §14.1's own wording. The person answering knows how info@ is used;
-    // they do not know what a `groupTypes` array said.
-    expect(q).toContain('jointly handle one shared mailbox');
-    expect(q).toContain('distribution list');
+    // §14.1's question, in the owner's words (2026-10-18). The person
+    // answering knows how info@ is used; they do not know what a
+    // `groupTypes` array said.
+    expect(q).toContain('read it together in one shared mailbox');
+    expect(q).toContain('(a distribution list)');
     expect(q).toContain('Info (info@acme.nl)');
+    expect(q).toContain(`We could not tell from the old system: ${classifyStoreSignal('unknown').reason}.`);
   });
 
   it('names the bare address when the group has no display name', () => {
-    expect(sharedAddressQuestion(group({ store: 'unknown' }))).toContain('at info@acme.nl,');
+    expect(sharedAddressQuestion(group({ store: 'unknown' }))).toContain('at info@acme.nl read');
+  });
+});
+
+describe('the reason in Dutch (the owner, 2026-10-18)', () => {
+  it('carries a Dutch twin beside every English reason', () => {
+    // The reason is stored in the decision's detail in both languages, so a
+    // Dutch reader's question says why in Dutch.
+    for (const store of ['has_store', 'no_store', 'unknown'] as const) {
+      const { reason, reasonNl } = classifyStoreSignal(store);
+      expect(reason.length).toBeGreaterThan(0);
+      expect(reasonNl.length).toBeGreaterThan(0);
+      expect(reasonNl).not.toBe(reason);
+    }
+  });
+
+  it('says what each wrong guess would cost, in Dutch too', () => {
+    const { reasonNl } = classifyStoreSignal('unknown');
+    expect(reasonNl).toContain('postvak vol mail');
+    expect(reasonNl).toContain('niemand bereikt');
+    // Dutch conventions: never a form of verhuizen.
+    expect(reasonNl).not.toMatch(/verhui/);
   });
 });
 

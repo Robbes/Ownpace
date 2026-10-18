@@ -9,16 +9,20 @@
  * what they still lack is the tenant's admin consent to LOOK, and the empty
  * state distinguishes "no drift" from "cannot look yet" (rule 9).
  *
- * The frame is the dictionary's (bilingual, 0024); `summary` is the server's
- * words, verbatim — the prose boundary. The recorded answer and the facts in
- * Details are said through the dictionary (UX sweep, 2026-10-17): they are
- * stored as JSON and internal keys, which is what the screen used to print.
+ * The frame is the dictionary's (bilingual, 0024). A decision's question
+ * and its accept button are said in the reader's language by
+ * `@openmig/shared` (`decision-words.ts`, class 4 of the prose boundary),
+ * built from its category and detail (the owner, 2026-10-18); where they
+ * cannot be, the stored summary and the detector's proposal render as
+ * served, marked English. The recorded answer and the facts in Details are
+ * said through the dictionary (UX sweep, 2026-10-17): they are stored as JSON
+ * and internal keys, which is what the screen used to print.
  */
 
 import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ListTodo } from 'lucide-react';
-import type { DecisionRow } from '@openmig/shared';
+import { decisionAcceptLabel, decisionSummary, type DecisionRow } from '@openmig/shared';
 import {
   fetchAttention,
   fetchDriftDecisions,
@@ -29,7 +33,7 @@ import {
 } from '../services/operating-service.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { isSelfHost } from '../services/edition.ts';
-import { useT, useFormatters } from '../i18n/index.tsx';
+import { useLocale, useFormatters } from '../i18n/index.tsx';
 import StateChip from '../components/StateChip.tsx';
 import AsOf from '../components/AsOf.tsx';
 import type { StringKey } from '../i18n/index.tsx';
@@ -71,7 +75,10 @@ function errorText(err: unknown, fallback: string): string {
 }
 
 const Decisions: React.FC = () => {
-  const t = useT();
+  const { t, locale } = useLocale();
+  // Text in another language than the page's says which (a stored English
+  // sentence under Dutch), so a screen reader reads it as English.
+  const langOf = (said: { lang: string }) => (said.lang !== locale ? said.lang : undefined);
   const { dateTime } = useFormatters();
   const queryClient = useQueryClient();
   const [busyRow, setBusyRow] = React.useState<string | null>(null);
@@ -193,7 +200,14 @@ const Decisions: React.FC = () => {
   };
 
   const decisions = query.data?.decisions ?? [];
-  const pending = decisions.filter((d) => d.status === 'pending');
+  // Each row's question and accept button, in the reader's language.
+  const pending = decisions
+    .filter((d) => d.status === 'pending')
+    .map((decision) => ({
+      decision,
+      said: decisionSummary(decision, locale),
+      accept: decisionAcceptLabel(decision, locale),
+    }));
   const answered = decisions.filter((d) => d.status !== 'pending');
 
   return (
@@ -285,7 +299,7 @@ const Decisions: React.FC = () => {
               </div>
             ) : (
               <ul className="divide-y divide-gray-100">
-                {pending.map((decision) => (
+                {pending.map(({ decision, said, accept }) => (
                   <li key={decision.id} className="py-3 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">
@@ -295,8 +309,9 @@ const Decisions: React.FC = () => {
                         {dateTime(decision.createdAt)}
                       </span>
                     </div>
-                    {/* The server's words, verbatim. */}
-                    <p className="text-gray-900">{decision.summary}</p>
+                    {/* The question in the reader's language, or the stored
+                        English where it cannot be built. */}
+                    <p className="text-gray-900" lang={langOf(said)}>{said.text}</p>
                     <div className="flex flex-wrap items-center gap-2 pt-1">
                       {/* §14.1's two answers (0028 T3). Named, not defaulted:
                           this category is raised precisely because the source
@@ -312,14 +327,17 @@ const Decisions: React.FC = () => {
                             {t(`decisions.sharedAddress.${pattern}` as StringKey)}
                           </button>
                         ))}
-                      {decision.proposedDefault && (
+                      {accept && (
                         <button
                           onClick={() => act(decision, 'resolve')}
                           disabled={busyRow === decision.id}
+                          lang={langOf(accept)}
                           className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
                         >
-                          {/* The detector's own proposal, verbatim, as the button. */}
-                          {decision.proposedDefault}
+                          {/* What pressing does: a new mailbox's answer only
+                              records it, and says so; another category's is
+                              the detector's own proposal, as served. */}
+                          {accept.text}
                         </button>
                       )}
                       <button
@@ -356,6 +374,7 @@ const Decisions: React.FC = () => {
                   const by = decision.resolvedBy?.includes('@') ? decision.resolvedBy : undefined;
                   const address = detailText(decision, 'address');
                   const displayName = detailText(decision, 'displayName');
+                  const said = decisionSummary(decision, locale);
                   return (
                     <li key={decision.id} className="py-3 space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -372,7 +391,7 @@ const Decisions: React.FC = () => {
                           </span>
                         )}
                       </div>
-                      <p className="text-gray-600">{decision.summary}</p>
+                      <p className="text-gray-600" lang={langOf(said)}>{said.text}</p>
                       {/* The whole story (0038 T5): the contract carries the
                           recorded answer, who gave it, and the structured facts
                           — the screen rendered none of them (its own header
@@ -421,8 +440,11 @@ const Decisions: React.FC = () => {
                         </details>
                       )}
                       {rowEffects[decision.id] && (
-                        // What the click DID — the server's sentence, verbatim.
-                        <p className="text-xs text-emerald-700">{rowEffects[decision.id]}</p>
+                        // What the click DID — the server's sentence, verbatim,
+                        // in English (marked so under Dutch).
+                        <p className="text-xs text-emerald-700" lang={locale === 'en' ? undefined : 'en'}>
+                          {rowEffects[decision.id]}
+                        </p>
                       )}
                     </li>
                   );

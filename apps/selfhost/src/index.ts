@@ -50,6 +50,7 @@ import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentia
 // data by accident.
 import {
   DECISION_EFFECTS,
+  decisionResolvedEffect,
   MAPPING_LIFECYCLES,
   PASS_RUNNING_STATES,
   REPORTING_CLOSED,
@@ -2984,7 +2985,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         }
         return sendJson(res, 200, {
           ...closed!,
-          effect: action === 'resolve' ? DECISION_EFFECTS.resolved : DECISION_EFFECTS.dismissed,
+          effect: action === 'resolve' ? decisionResolvedEffect(closed!.category) : DECISION_EFFECTS.dismissed,
         });
       }
       // The migration completion report (workplan 0047): the SAME shared

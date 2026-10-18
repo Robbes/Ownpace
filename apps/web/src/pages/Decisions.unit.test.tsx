@@ -5,12 +5,14 @@
  *
  * The load-bearing pin is the EMPTY state: no detector exists yet, so the
  * screen must say "not watched yet", never "no changes" (rule 9). The rest:
- * a pending decision renders the server's summary VERBATIM with the
- * detector's proposed default as the button, resolve/dismiss hit the API,
- * and a refusal renders the server's words.
+ * a pending decision says its question in the reader's language, built in
+ * shared from its category and detail (the owner, 2026-10-18), with the
+ * stored summary as served where it cannot be built; a new mailbox's button
+ * says it records; resolve/dismiss hit the API, and a refusal renders the
+ * server's words.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -58,10 +60,18 @@ vi.mock('../services/edition', () => ({
 import Decisions from './Decisions.tsx';
 import { LocaleProvider } from '../i18n/index.tsx';
 
+/** What the page says about PENDING, in each language (the owner's words, 2026-10-18). */
+const NEW_MAILBOX_EN =
+  'nieuw@acme.nl is on the old system, and no migration covers it. Nothing is copied from it.';
+const NEW_MAILBOX_NL =
+  'nieuw@acme.nl staat op het oude systeem, en geen migratie omvat het. Er wordt niets van gemigreerd.';
+
 const PENDING = {
   id: 'dec-1',
   tenantId: 'acme',
   category: 'new_mailbox',
+  // An old row's stored English: the page builds its sentence from the
+  // detail instead, so this is only what a fallback would show.
   summary: 'A mailbox appeared on the source that no mapping covers: nieuw@acme.nl',
   detail: { address: 'nieuw@acme.nl' },
   proposedDefault: 'create a mapping',
@@ -166,6 +176,8 @@ describe('the shared-address question (workplan 0028 T3)', () => {
     summary:
       'Do recipients jointly handle one shared mailbox at Sales (sales@acme.nl), or should it ' +
       'work as a distribution list where each recipient receives the mail?',
+    // A row stored before reasons were kept: asked without one.
+    detail: { address: 'sales@acme.nl', displayName: 'Sales' },
     subjectKey: 'sales@acme.nl',
     // No proposed default — not knowing which it is is why it was asked.
     proposedDefault: undefined,
@@ -178,7 +190,13 @@ describe('the shared-address question (workplan 0028 T3)', () => {
     expect(await screen.findByRole('button', { name: 'One shared mailbox' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'A distribution list' })).toBeInTheDocument();
     // A decision with no proposed default must not render an empty button.
-    expect(screen.getByText(/Do recipients jointly handle/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Do the people who get mail at Sales (sales@acme.nl) read it together in one shared mailbox, ' +
+          'or should each of them get their own copy (a distribution list)? We could not tell from the old system.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole('button')).toHaveLength(3 + 1); // two answers, Dismiss, and the as-of Refresh
   });
 
   it('sends the chosen pattern, which is what writes it back to the group', async () => {
@@ -202,23 +220,22 @@ describe('the shared-address question (workplan 0028 T3)', () => {
     fetchDecisions.mockResolvedValue({ decisions: [PENDING] });
     renderScreen();
 
-    await screen.findByRole('button', { name: 'create a mapping' });
+    await screen.findByRole('button', { name: 'Noted, I will handle it' });
     expect(screen.queryByRole('button', { name: 'One shared mailbox' })).not.toBeInTheDocument();
   });
 });
 
 describe('a pending decision', () => {
-  it("renders the server's summary verbatim, with the proposed default as the button", async () => {
+  it('says a new mailbox in the owner’s sentence, with a button that records, never one that promises a mapping', async () => {
     fetchDecisions.mockResolvedValue({ decisions: [PENDING] });
     renderScreen();
 
-    expect(
-      await screen.findByText(
-        'A mailbox appeared on the source that no mapping covers: nieuw@acme.nl',
-      ),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(NEW_MAILBOX_EN)).toBeInTheDocument();
     expect(screen.getByText('New mailbox')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'create a mapping' })).toBeInTheDocument();
+    // The row stored "create a mapping"; pressing it only ever recorded the
+    // answer, so the button says what pressing does (the owner, 2026-10-18).
+    expect(screen.getByRole('button', { name: 'Noted, I will handle it' })).toBeInTheDocument();
+    expect(screen.queryByText(/mapping/i)).not.toBeInTheDocument();
   });
 
   it('accepting the default resolves and refreshes', async () => {
@@ -226,7 +243,7 @@ describe('a pending decision', () => {
     resolveDecision.mockResolvedValue({ ...PENDING, status: 'resolved' });
     renderScreen();
 
-    await userEvent.click(await screen.findByRole('button', { name: 'create a mapping' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Noted, I will handle it' }));
 
     await waitFor(() =>
       expect(resolveDecision).toHaveBeenCalledWith('dec-1', {
@@ -362,7 +379,7 @@ describe('the standing-answer control', () => {
 
     // Two independent reads: losing the preferences must not lose the
     // decisions themselves.
-    expect(await screen.findByText(new RegExp(PENDING.summary.slice(0, 30)))).toBeInTheDocument();
+    expect(await screen.findByText(NEW_MAILBOX_EN)).toBeInTheDocument();
   });
 });
 
@@ -711,5 +728,116 @@ describe('the answer, in words', () => {
 
     await screen.findByText('Decided');
     expect(screen.queryByText('Details')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * THE QUESTION IN THE READER'S LANGUAGE (the owner's answer of 2026-10-18 on
+ * `queues-decisions-server-english`). *Wacht op u* showed Dutch chips above
+ * the detectors' English sentences, with an English *Create a mapping…*
+ * button. The sentence is built in shared from the category and the detail,
+ * in both languages; the stored English shows, marked as English, only where
+ * it cannot be built.
+ */
+describe('the question in the reader’s language', () => {
+  function renderIn(locale: 'en' | 'nl') {
+    window.localStorage.setItem('ownpace.locale', locale);
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <LocaleProvider>
+        <QueryClientProvider client={qc}>
+          <MemoryRouter>
+            <Decisions />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+  }
+
+  afterEach(() => window.localStorage.removeItem('ownpace.locale'));
+
+  it('a Dutch reader reads a new mailbox in Dutch, with the Dutch button', async () => {
+    fetchDecisions.mockResolvedValue({ decisions: [PENDING] });
+    renderIn('nl');
+
+    const sentence = await screen.findByText(NEW_MAILBOX_NL);
+    expect(sentence).not.toHaveAttribute('lang');
+    expect(screen.getByRole('button', { name: 'Genoteerd, ik regel het zelf' })).toBeInTheDocument();
+    expect(screen.queryByText(/is on the old system|mapping/i)).not.toBeInTheDocument();
+  });
+
+  it('a Dutch reader reads the shared-address question in Dutch, with its Dutch reason', async () => {
+    fetchDecisions.mockResolvedValue({
+      decisions: [
+        {
+          ...PENDING,
+          id: 'dec-2',
+          category: 'shared_address_pattern',
+          summary: 'Do the people who get mail at info@acme.nl read it together …',
+          detail: {
+            address: 'info@acme.nl',
+            reason: 'the source did not say',
+            reasonNl: 'de bron gaf het niet aan',
+          },
+          proposedDefault: undefined,
+        },
+      ],
+    });
+    renderIn('nl');
+
+    expect(
+      await screen.findByText(
+        'Lezen de mensen die mail krijgen op info@acme.nl die samen in één gedeeld postvak, ' +
+          'of moet ieder een eigen kopie krijgen (een distributielijst)? ' +
+          'Dat konden we niet zien op het oude systeem: de bron gaf het niet aan.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Eén gedeeld postvak' })).toBeInTheDocument();
+    expect(screen.queryByText(/the source did not say/)).not.toBeInTheDocument();
+  });
+
+  it('a category nothing can say shows its stored English, marked as English', async () => {
+    fetchDecisions.mockResolvedValue({
+      decisions: [
+        {
+          ...PENDING,
+          id: 'dec-3',
+          category: 'quota',
+          summary: 'The mailbox for sophie@acme.nl is 98% full',
+          detail: { usedGb: 49 },
+          proposedDefault: 'raise the quota',
+        },
+      ],
+    });
+    renderIn('nl');
+
+    expect(await screen.findByText('The mailbox for sophie@acme.nl is 98% full')).toHaveAttribute('lang', 'en');
+    expect(screen.getByRole('button', { name: 'raise the quota' })).toHaveAttribute('lang', 'en');
+  });
+
+  it('a new mailbox whose detail has no address falls back to the stored English', async () => {
+    fetchDecisions.mockResolvedValue({ decisions: [{ ...PENDING, detail: {} }] });
+    renderIn('nl');
+
+    expect(await screen.findByText(PENDING.summary)).toHaveAttribute('lang', 'en');
+    // The button is the category's, not the row's stored words.
+    expect(screen.getByRole('button', { name: 'Genoteerd, ik regel het zelf' })).toBeInTheDocument();
+  });
+
+  it('an answered row says its question in the reader’s language too', async () => {
+    fetchDecisions.mockResolvedValue({
+      decisions: [{ ...PENDING, status: 'dismissed', resolvedAt: '2026-08-09T08:00:00Z' }],
+    });
+    renderIn('nl');
+
+    expect(await screen.findByText(NEW_MAILBOX_NL)).toBeInTheDocument();
+  });
+
+  it('an English reader reads the English, not marked', async () => {
+    fetchDecisions.mockResolvedValue({ decisions: [PENDING] });
+    renderIn('en');
+
+    expect(await screen.findByText(NEW_MAILBOX_EN)).not.toHaveAttribute('lang');
+    expect(screen.getByRole('button', { name: 'Noted, I will handle it' })).not.toHaveAttribute('lang');
   });
 });

@@ -43,6 +43,7 @@ export * from './confirmed-list.ts';
 export * from './verification-report.ts';
 export * from './discovery.ts';
 export * from './decisions.ts';
+export * from './decision-words.ts';
 export * from './permissions.ts';
 export * from './notifications.ts';
 export * from './tenant-contact.ts';

@@ -122,7 +122,7 @@ export const en = {
   'migrationReport.removed.counts':
     '{deletions} removed on a decision, {relocations} old copies of moved items removed, {refused} refused by a safeguard.',
   'migrationReport.removed.inTheLog': 'Each removal is in the log, and was made only on a decision.',
-  'migrationReport.sharing.heading': 'Access carried over',
+  'migrationReport.sharing.heading': 'Shares carried over',
   'migrationReport.sharing.counts': '{applied} re-created, {manual} done by hand, {skipped} not carried over, {open} still open.',
   'migrationReport.check.heading': 'What the check compared',
   'migrationReport.check.col.old': 'On the old system',
@@ -130,7 +130,7 @@ export const en = {
   'migrationReport.check.col.contents': 'Contents compared',
   'migrationReport.check.compared': '{matched} of {sampled} the same',
   'migrationReport.access.heading': 'Access you granted, which only you can withdraw',
-  'migrationReport.access.lead': 'It still works after this migration, until you remove it.',
+  'migrationReport.access.lead': 'It still works after this migration, until you withdraw it.',
   'migrationReport.asOf': 'As it stood on {when}.',
   'migrationReport.download': 'Download the report',
   // What a saved file is called: this word, the migration's name and the
@@ -235,7 +235,7 @@ export const nl: Record<keyof typeof en, string> = {
   'migrationReport.removed.counts':
     '{deletions} verwijderd na een beslissing, {relocations} oude kopieën van verplaatste items verwijderd, {refused} geweigerd door een beveiligingsregel.',
   'migrationReport.removed.inTheLog': 'Elke verwijdering staat in het logboek, en werd genomen vanuit een beslissing.',
-  'migrationReport.sharing.heading': 'Meegenomen Share-toegang',
+  'migrationReport.sharing.heading': 'Meegenomen deelrechten',
   'migrationReport.sharing.counts': '{applied} opnieuw gemaakt, {manual} met de hand gedaan, {skipped} niet meegenomen, {open} nog open.',
   'migrationReport.check.heading': 'Wat de verificatie heeft vergeleken',
   'migrationReport.check.col.old': 'Op het oude systeem',
@@ -243,7 +243,7 @@ export const nl: Record<keyof typeof en, string> = {
   'migrationReport.check.col.contents': 'Inhoud vergeleken',
   'migrationReport.check.compared': '{matched} van {sampled} gelijk',
   'migrationReport.access.heading': 'Toegang die u gaf en die alleen u kunt intrekken',
-  'migrationReport.access.lead': 'Werkt na deze migratie nog, tot u hem verwijdert.',
+  'migrationReport.access.lead': 'Deze toegang werkt na de migratie nog, tot u hem intrekt.',
   'migrationReport.asOf': 'Stand van {when}.',
   'migrationReport.download': 'Download het rapport',
   'download.report': 'Ownpace-rapport',
