@@ -85,11 +85,14 @@ export const en = {
   'failures.parked': 'waiting on you',
   'deletions.title': 'Deleted on the old system',
   'deletions.intro': 'Someone deleted these after we copied them. The new system still has its copy.',
-  // The chips keep the server's evidence words (ADR-0024); these say what
-  // they mean where a phone can read it, above the rows (the UX sweep,
-  // 2026-10-17). Only shown above a list that has rows.
+  // What the chips say (`evidence.*`), said where a phone can read it, above
+  // the rows (the UX sweep, 2026-10-17). Each line only above a list with a
+  // row it is about. The chips said the server's tokens until the owner chose
+  // these words (2026-10-18); the token stays in the chip's title.
   'deletions.evidence.lead':
-    "reported: the old system said it was deleted. trashed: it is in the old system's bin.",
+    "Reported by the source: the old system said it was deleted. In the source's bin: it is in the old system's bin.",
+  'deletions.evidence.lead.inferred':
+    'Assumed: it is missing from full scans, but the old system never said it was deleted. Ownpace does not delete it on the new system.',
   'deletions.watching.lead':
     'These are missing from the old system, but it never said they were deleted. Ownpace does not delete them on the new system.',
   'deletions.empty.confirmed': 'Nothing is waiting on a decision.',
@@ -174,7 +177,9 @@ export const nl: Record<keyof typeof en, string> = {
   'deletions.intro':
     'Iemand verwijderde deze nadat wij ze migreerden. Het nieuwe systeem heeft de kopie nog.',
   'deletions.evidence.lead':
-    'reported: het oude systeem meldde dat het verwijderd is. trashed: het staat in de prullenbak van het oude systeem.',
+    'Gemeld door de bron: het oude systeem meldde dat het verwijderd is. In de prullenbak van de bron: het staat in de prullenbak van het oude systeem.',
+  'deletions.evidence.lead.inferred':
+    'Vermoeden: het ontbreekt in volledige scans, maar het oude systeem heeft niet gemeld dat het verwijderd is. Ownpace verwijdert het niet op het nieuwe systeem.',
   'deletions.watching.lead':
     'Deze ontbreken op het oude systeem, maar dat heeft niet gemeld dat ze verwijderd zijn. Ownpace verwijdert ze niet op het nieuwe systeem.',
   'deletions.empty.confirmed': 'Er wacht niets op een beslissing.',

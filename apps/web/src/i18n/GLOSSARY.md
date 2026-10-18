@@ -11,11 +11,26 @@ Two kinds of words render; only the first belongs to this glossary:
 
 - **Client words** — names, states, labels the CLIENT chooses: translated,
   unified, listed here.
-- **Server vocabulary** — verification findings (`PASS`/`FAIL`/`WARN`),
-  evidence words (`reported`/`trashed`/`inferred`), refusal and effect prose,
-  error text. The server's own claims, rendered VERBATIM, never translated,
-  never restyled through StateChip. (Explanations *around* them — the
-  `verify.help.*` keys — are client words and are translated.)
+- **Server vocabulary** — refusal and effect prose, error text. The
+  server's own claims, rendered VERBATIM, never translated, never restyled
+  through StateChip.
+- **Server tokens** — verification verdicts (`PASS`/`FAIL`/`WARN`…), issue
+  severities and evidence words (`reported`/`trashed`/`inferred`). Until
+  2026-10-18 the chips said the token, in English on a Dutch screen; the
+  owner chose client words for them (below). The token stays on the wire, in
+  downloads, and at the end of the chip's title, so a support thread can
+  still quote it; it never goes through StateChip, which holds states, not
+  findings. (Explanations *around* them — the `verify.help.*` keys, the
+  Deletions lead — are client words and are translated.)
+
+| token | EN | NL | rule |
+|---|---|---|---|
+| `reported` | Reported by the source | **Gemeld door de bron** | The chip on Deletions (`evidence.reported`). The line above the rows says what it means. |
+| `trashed` | In the source's bin | **In de prullenbak van de bron** | As above (`evidence.trashed`). |
+| `inferred` | Assumed: missing from full scans | **Vermoeden: ontbreekt in volledige scans** | As above (`evidence.inferred`). A sentence names it by the part before the colon: *never for an item marked Assumed* / *nooit voor een item met het label Vermoeden* (the queues' guidance, `@openmig/shared`). |
+| `PASS` / `WARN` / `FAIL` | Passed / Passed, with warnings / Did not pass | **Geslaagd** / **Geslaagd, met waarschuwingen** / **Niet geslaagd** | Verify's verdicts, and Finish where it repeats them. The same words as the steps list's *Geslaagd* / *Niet geslaagd*. |
+| `SKIPPED` / `NOT_VERIFIABLE` | Not checked / Could not be checked | **Niet geverifieerd** / **Kon niet worden geverifieerd** | The *verifiëren* family is Check's (*Feature names*). |
+| an issue's `ERROR` / `WARNING` | Problem / Warning | **Probleem** / **Waarschuwing** | Also after *De verificatie is niet geslaagd:* on Finish. |
 
 ## The thing being managed
 

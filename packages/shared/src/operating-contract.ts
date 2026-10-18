@@ -19,9 +19,12 @@
  *    `howToResolve` are the operating semantics — how an owner is told what a
  *    queue means and what their options are. If each edition wrote its own, the
  *    two would drift, and the drift would be in exactly the explanations that
- *    stop somebody destroying data by accident. One source, both editions, and
- *    the UI renders the same words the JSON carries instead of inventing its
- *    own.
+ *    stop somebody destroying data by accident. One source, both editions.
+ *    They are the OPERATOR's words, API paths and field names included, and
+ *    the API serves them as they are. The screens say the customer's version
+ *    instead, in English or Dutch, from `queue-guidance.ts` beside this file
+ *    (the owner, 2026-10-18); a change to what an action does is made in
+ *    both.
  *  - Item rows are the LEDGER's types (`ItemFailure`, `ItemMove`,
  *    `ItemDeletion` in `ports.ts`), re-used verbatim. The queues are envelopes
  *    around them — grouping, status and guidance — and deliberately add no

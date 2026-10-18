@@ -10,8 +10,9 @@
  * the failure worth a test.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { STRINGS } from '../i18n/strings.ts';
+import { LocaleProvider } from '../i18n/index.tsx';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -111,6 +112,25 @@ function renderScreen() {
   );
 }
 
+/** The screen in Dutch, inside the real LocaleProvider. */
+function renderDutch() {
+  window.localStorage.setItem('ownpace.locale', 'nl');
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <LocaleProvider>
+      <MemoryRouter>
+        <QueryClientProvider client={qc}>
+          <Deletions receiptPollMs={10} />
+        </QueryClientProvider>
+      </MemoryRouter>
+    </LocaleProvider>,
+  );
+}
+
+afterEach(() => {
+  window.localStorage.removeItem('ownpace.locale');
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -144,27 +164,64 @@ describe('an item’s hash', () => {
 });
 
 /**
- * The chips say *reported*, *trashed* and *inferred*: the server's own words,
- * kept as they are (the prose boundary, ADR-0024). Until the UX sweep
- * (2026-10-17) only a hover title said what they meant, and a phone has no
- * hover. A line above each list says it now, and only above a list that has
- * rows: a sentence about rows that are not there explains nothing.
+ * The chips say how we know an item is gone. They said the server's own
+ * tokens, *reported*, *trashed* and *inferred*, in English on a Dutch screen,
+ * until the owner chose words for them (2026-10-18): the chip says the
+ * client's word, and the token stays in its title, where a support thread can
+ * still quote it. A line above each list says what they mean, where a phone
+ * can read it, and only above a list that has rows: a sentence about rows
+ * that are not there explains nothing.
  */
 describe('what the chips mean, said above the rows', () => {
   const EVIDENCE = STRINGS.en['deletions.evidence.lead'];
+  const ASSUMED = STRINGS.en['deletions.evidence.lead.inferred'];
   const WATCHING = STRINGS.en['deletions.watching.lead'];
 
-  it('explains reported and trashed above the rows waiting on you', async () => {
+  it('explains the chips of the rows waiting on you, by the words on them', async () => {
     fetchDeletions.mockResolvedValue(
       queue({ confirmed: [deletion({ naturalKeyHash: 'h-reported', evidence: 'reported' })] }),
     );
     renderScreen();
 
     const lead = await screen.findByText(EVIDENCE);
-    expect(EVIDENCE).toMatch(/^reported: .* trashed: /);
+    expect(EVIDENCE).toMatch(/^Reported by the source: .* In the source's bin: /);
     // Beside the list, not inside it: a <ul> holds list items only.
     expect(lead.closest('ul')).toBeNull();
     expect(screen.queryByText(WATCHING)).not.toBeInTheDocument();
+    // No row is assumed, so nothing is said about one.
+    expect(screen.queryByText(ASSUMED)).not.toBeInTheDocument();
+  });
+
+  it('says why an assumed row waiting on you has no delete button', async () => {
+    fetchDeletions.mockResolvedValue(
+      queue({ confirmed: [deletion({ naturalKeyHash: 'h-inferred', evidence: 'inferred' })] }),
+    );
+    renderScreen();
+
+    const lead = await screen.findByText(ASSUMED);
+    expect(ASSUMED).toMatch(/^Assumed: /);
+    expect(lead.closest('ul')).toBeNull();
+    // Only the assumed row is there: the line about the others is not.
+    expect(screen.queryByText(EVIDENCE)).not.toBeInTheDocument();
+  });
+
+  it('says it in Dutch, with the Dutch words on the chips', async () => {
+    fetchDeletions.mockResolvedValue(
+      queue({
+        confirmed: [
+          deletion({ naturalKeyHash: 'h-trashed', evidence: 'trashed' }),
+          deletion({ naturalKeyHash: 'h-inferred', evidence: 'inferred' }),
+        ],
+      }),
+    );
+    renderDutch();
+
+    expect(await screen.findByText(STRINGS.nl['deletions.evidence.lead'])).toBeInTheDocument();
+    expect(screen.getByText(STRINGS.nl['deletions.evidence.lead.inferred'])).toBeInTheDocument();
+    expect(screen.getByText('In de prullenbak van de bron')).toBeInTheDocument();
+    expect(screen.getByText('Vermoeden: ontbreekt in volledige scans')).toBeInTheDocument();
+    expect(STRINGS.nl['deletions.evidence.lead']).toMatch(/^Gemeld door de bron: .* In de prullenbak van de bron: /);
+    expect(STRINGS.nl['deletions.evidence.lead.inferred']).toMatch(/^Vermoeden: /);
   });
 
   it('says why a watched row has no button, above the watched rows', async () => {
@@ -176,6 +233,7 @@ describe('what the chips mean, said above the rows', () => {
     const lead = await screen.findByText(WATCHING);
     expect(lead.closest('ul')).toBeNull();
     expect(screen.queryByText(EVIDENCE)).not.toBeInTheDocument();
+    expect(screen.queryByText(ASSUMED)).not.toBeInTheDocument();
   });
 
   it('says neither when both lists are empty', async () => {
@@ -187,13 +245,74 @@ describe('what the chips mean, said above the rows', () => {
     expect(screen.queryByText(WATCHING)).not.toBeInTheDocument();
   });
 
-  it('keeps the chip words themselves as the server sent them', async () => {
+  it('shows the client’s word on the chip, and keeps the server’s token in its title', async () => {
     fetchDeletions.mockResolvedValue(
-      queue({ confirmed: [deletion({ naturalKeyHash: 'h-trashed', evidence: 'trashed' })] }),
+      queue({
+        confirmed: [
+          deletion({ naturalKeyHash: 'h-reported', evidence: 'reported' }),
+          deletion({ naturalKeyHash: 'h-trashed', evidence: 'trashed' }),
+          deletion({ naturalKeyHash: 'h-inferred', evidence: 'inferred' }),
+        ],
+      }),
     );
     renderScreen();
 
-    expect(await screen.findByText('trashed')).toBeInTheDocument();
+    for (const [word, token] of [
+      ['Reported by the source', 'reported'],
+      ["In the source's bin", 'trashed'],
+      ['Assumed: missing from full scans', 'inferred'],
+    ] as const) {
+      const chip = await screen.findByText(word);
+      expect(chip.getAttribute('title')).toMatch(new RegExp(`\\(${token}\\)$`));
+      // The token is in the title only, never the chip's text.
+      expect(screen.queryByText(token)).not.toBeInTheDocument();
+    }
+  });
+});
+
+/**
+ * *What this means and what you can do* showed the operator's guidance from
+ * the API, word for word: `POST /mappings/{mappingId}/deletions/…/apply`,
+ * `allowApplyDeletions: true` and *"inferred" evidence*, in English, under a
+ * Dutch heading (the UX sweep, 2026-10-17). The owner chose words for the
+ * person reading it (2026-10-18), kept beside the operator's in
+ * `@openmig/shared`; the API still serves its own.
+ */
+describe('what this means and what you can do', () => {
+  const API_WORDS = /POST |\/mappings\/|naturalKeyHash|allowApplyDeletions|"inferred"/;
+
+  it('tells a Dutch reader what the rows are and what each button does, in Dutch', async () => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion({ naturalKeyHash: 'h-1' })] }));
+    renderDutch();
+
+    const fold = (await screen.findByText('Wat dit betekent en wat u kunt doen')).closest('details')!;
+    const text = fold.textContent ?? '';
+    expect(text).toContain(
+      'Deze items zijn op het oude systeem verwijderd. Het nieuwe systeem heeft de kopie nog, en daar wordt niets verwijderd tenzij u daarvoor kiest.',
+    );
+    expect(text).toContain('Behoud de kopie: de kopie blijft op het nieuwe systeem staan. Meestal is dit het juiste antwoord.');
+    expect(text).toContain(
+      'Verwijder het hier ook: de kopie op het nieuwe systeem wordt ook verwijderd. Dit kan alleen zolang Handmatig verwijderen aan staat, en nooit voor een item met het label Vermoeden.',
+    );
+    expect(text).toContain('Niets doen: de regel blijft hier staan en er gebeurt niets.');
+    expect(text).not.toMatch(API_WORDS);
+  });
+
+  it('tells an English reader the same, and never the API’s paths', async () => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion({ naturalKeyHash: 'h-1' })] }));
+    renderScreen();
+
+    const fold = (await screen.findByText('What this means and what you can do')).closest('details')!;
+    const text = fold.textContent ?? '';
+    expect(text).toContain(
+      'These items were deleted on the old system. The new system still has its copy, and nothing is deleted there unless you choose so.',
+    );
+    expect(text).toContain('Keep our copy: the copy stays on the new system. This is usually the right answer.');
+    expect(text).toContain(
+      'Delete it here too: the copy on the new system is deleted as well. This works only while deleting by hand is on, and never for an item marked Assumed.',
+    );
+    expect(text).toContain('Do nothing: the row stays here and nothing happens.');
+    expect(text).not.toMatch(API_WORDS);
   });
 });
 
@@ -257,7 +376,7 @@ describe('the apply gate', () => {
 
     // It is listed, and it is actionable...
     expect(await screen.findByText('Keep our copy')).toBeInTheDocument();
-    expect(screen.getByText('inferred')).toBeInTheDocument();
+    expect(screen.getByText('Assumed: missing from full scans')).toBeInTheDocument();
     // ...but there is no destructive option at all — not a disabled one.
     expect(screen.queryByText('Delete it here too')).not.toBeInTheDocument();
     expect(screen.queryByText('Confirm delete')).not.toBeInTheDocument();
@@ -536,7 +655,14 @@ describe('earlier exports', () => {
     expect(screen.getByText(/The documents were not deleted in Google/)).toBeInTheDocument();
     expect(screen.getByText('earlier export')).toBeInTheDocument();
     // No evidence word: nothing was deleted at the source.
-    for (const word of ['reported', 'trashed', 'inferred']) {
+    for (const word of [
+      'reported',
+      'trashed',
+      'inferred',
+      'Reported by the source',
+      "In the source's bin",
+      'Assumed: missing from full scans',
+    ]) {
       expect(screen.queryByText(word)).not.toBeInTheDocument();
     }
     expect(screen.getByText('Keep our copy')).toBeInTheDocument();
