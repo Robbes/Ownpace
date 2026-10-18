@@ -56,3 +56,26 @@ const buildEnv = (): LegalSiteEnv =>
 export function testerGuideUrl(locale: Locale, source: LegalSiteEnv = buildEnv()): string {
   return `${legalSiteFrom(source)}/${TESTER_GUIDE_FILES[locale]}`;
 }
+
+/**
+ * A section of the guide the app links on its own (the owner, 2026-10-18):
+ * the id its heading carries in the guide's source, per language
+ * (`### When you connect Google {#google-connect}` in `site/pages/en/`,
+ * `### Als u Google koppelt {#google-koppelen}` in `site/pages/nl/`).
+ * `AlphaGoogleLine.unit.test.tsx` reads both sources and fails when an id is
+ * gone, so a renamed section is not a link to the top of the page.
+ */
+export const TESTER_GUIDE_SECTIONS = {
+  google: { en: 'google-connect', nl: 'google-koppelen' },
+} as const satisfies Readonly<Record<string, Readonly<Record<Locale, string>>>>;
+
+export type TesterGuideSection = keyof typeof TESTER_GUIDE_SECTIONS;
+
+/** One section of the guide, in the reader's language. */
+export function testerGuideSectionUrl(
+  locale: Locale,
+  section: TesterGuideSection,
+  source: LegalSiteEnv = buildEnv(),
+): string {
+  return `${testerGuideUrl(locale, source)}#${TESTER_GUIDE_SECTIONS[section][locale]}`;
+}

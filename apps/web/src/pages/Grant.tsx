@@ -105,6 +105,7 @@ import type { StringKey } from '../i18n/strings.ts';
 import BuildStamp from '../components/BuildStamp.tsx';
 import LanguageSwitch from '../components/LanguageSwitch.tsx';
 import ReportThisLink from '../components/ReportThisLink.tsx';
+import AlphaGoogleLine from '../components/AlphaGoogleLine.tsx';
 import { TARGET_CARDS } from '../components/front-door-cards.ts';
 import { scopeWordKeys } from '../i18n/google-scope-words.ts';
 
@@ -225,6 +226,9 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
           migration's page offers it: the report names the person and every
           migration of theirs. Offered only where a report can reach somebody. */}
       <ReportThisLink kind="grant" link={link} organisation={data.organisation} next="linkReport.next.grant" />
+      {/* During the Alpha, above the first Google button (the owner,
+          2026-10-18): where an account still has one to press. */}
+      {data.accounts.some((a) => !(a.granted && !a.again) && !a.notReady) && <AlphaGoogleLine className="mt-6" />}
 
       {data.accounts.map((a, i) => (
         <section
@@ -477,6 +481,10 @@ const Grant: React.FC = () => {
               link again in a real browser spends nothing (`grant.ts`), and
               the line says so. */}
           <p className="mt-3 text-sm text-gray-600">{t('grant.inAppBrowser')}</p>
+
+          {/* During the Alpha, the guide's section on connecting Google,
+              right above the button (the owner, 2026-10-18). */}
+          <AlphaGoogleLine className="mt-3" />
 
           <button
             type="button"

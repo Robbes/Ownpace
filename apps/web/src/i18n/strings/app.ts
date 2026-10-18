@@ -98,6 +98,13 @@ export const en = {
   // by `acceptance.doc.alpha`, and the tester guide (0144 T1), by this, the
   // guide page's own title (site/build.mjs, without " — Ownpace").
   'alpha.note.guide': 'Guide to the Alpha',
+  // Above the first Google sign-in a person meets, while the Alpha runs: the
+  // first Google card on *Connect your accounts* and the grant page's button
+  // (`AlphaGoogleLine.tsx`; the owner, 2026-10-18, the lighter of two
+  // options). The link is the guide's section by its own heading, so its
+  // words are the guide's (`site/pages/`), not this file's choice.
+  'alpha.google.lead': 'Connecting Google during the Alpha? Read this first:',
+  'alpha.google.guide': 'When you connect Google',
   // The Alpha, said to a visitor who was not invited (workplan 0152 T1 (a);
   // the owner, 2026-10-05: "Do suggestions for non alpha viewers"). The
   // welcome above is written for the people invited, and stays theirs. A
@@ -148,7 +155,7 @@ export const nl: Record<keyof typeof en, string> = {
   'fold.how': 'Hoe?',
   // Het woord op een uitklapbaar deel (workplan 0118) — zie het Engelse blok.
   'fold.more': 'Meer',
-  'status.link': 'Service status',
+  'status.link': 'Servicestatus',
   'notFound.heading': 'Hier staat niets... we migreren rustig aan verder.',
   'notFound.lede':
     'Geen pagina heeft dit adres (meer), uw migraties zijn ongemoeid.',
@@ -165,7 +172,7 @@ export const nl: Record<keyof typeof en, string> = {
   'nav.log': 'Logboek',
   'nav.tenants': 'Team',
   'nav.billing': 'Facturering',
-  'nav.signOut': 'Uitloggen',
+  'nav.signOut': 'Afmelden',
   'nav.skipToContent': 'Naar de inhoud',
   'nav.reportProblem': 'Een probleem melden',
   'language.label': 'Taal',
@@ -195,6 +202,8 @@ export const nl: Record<keyof typeof en, string> = {
   'alpha.note.welcome':
     'Probeer Ownpace rustig uit, op uw eigen tempo en stap geleidelijk aan over op Europese alternatieven.',
   'alpha.note.guide': 'Handleiding voor de Alpha',
+  'alpha.google.lead': 'Koppelt u Google tijdens de Alpha? Lees eerst:',
+  'alpha.google.guide': 'Als u Google koppelt',
   // Engelse blok.
   'alpha.visitor.line': 'Ownpace is gedurende de Alpha-fase enkel op uitnodiging.',
   'alpha.nothingCharged': 'Tijdens de Alpha-fase wordt niets in rekening gebracht.',

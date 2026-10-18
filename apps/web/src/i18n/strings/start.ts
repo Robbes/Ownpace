@@ -26,7 +26,7 @@ export const en = {
   'start.who.myself': 'I do',
   'start.who.someoneElse': 'They do, with a link',
   'start.who.someoneElse.line':
-    'They connect a Google account themselves, so you never hold those credentials. Other providers that can not grant, you sign in together.',
+    'They connect a Google account themselves, so you never hold those credentials. With other providers, which no link can reach, you sign in together.',
   'start.who.needName': 'Type a name first.',
   'start.who.peopleFailed': 'The people you migrate for could not be read. A new name still works.',
   'start.from.heading': 'Which account are you leaving or moving?',

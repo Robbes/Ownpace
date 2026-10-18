@@ -34,7 +34,8 @@
  *  - the texts that changed are marked, under a heading that says so;
  *  - a failure is said in the reader's language, with the reference kept;
  *  - the screen is a `main` landmark, and its Dutch says *aanvaarden*, as the
- *    texts do, and *uitloggen*, as the nav does.
+ *    texts do, and *afmelden*, as the nav does: the pair of *aanmelden* (the
+ *    owner, 2026-10-18; it said *uitloggen* until then).
  *
  * The links are the site's pages (`services/legal-links.ts`), which
  * `scripts/a-policy-link-that-answers.unit.test.ts` holds to the files the site
@@ -219,7 +220,7 @@ describe('when acceptance is due', () => {
     expect(got.terms).toHaveAccessibleName(/Servicevoorwaarden.*1\.3/);
     // The texts' own word (terms §1, Alpha §2, privacy §4.4), and the nav's.
     expect(screen.getByRole('button', { name: 'Allemaal aanvaarden' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Nu niet, uitloggen' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Nu niet, afmelden' })).toBeInTheDocument();
     expect(screen.getByRole('list', { name: 'De teksten om te aanvaarden' })).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/accepte/i);
   });
@@ -443,7 +444,7 @@ describe('when the answer could not be read', () => {
     getMock.mockRejectedValue(refused(500, { error: 'me_failed', message: 'the database is unreachable' }));
     renderGate('en');
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/could not be read.*error on our side/);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not be read.*wrong on our side/);
     expect(screen.queryByText('screen:dashboard')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
   });
@@ -478,6 +479,24 @@ describe('when the answer could not be read', () => {
     expect(alert).toHaveTextContent('0a1b2c3d');
     expect(alert).not.toHaveTextContent(/Something went wrong/);
     expect(alert).toHaveTextContent(/Uw account kon niet worden gelezen/);
+    // The owner's words of 2026-10-18: no '...', no English 'support'; the
+    // support line beside it says where to write.
+    expect(alert).toHaveTextContent('Er ging bij ons iets mis. Probeer het later opnieuw, of schrijf ons.');
+    expect(alert.textContent).not.toMatch(/support|\.\.\./);
+  });
+
+  // A 403 tells the person to sign out and in again, with the menu's word:
+  // *afmelden*, the pair of *aanmelden* (the owner, 2026-10-18).
+  it('says a 403 in Dutch with afmelden and aanmelden, and its button says Afmelden', async () => {
+    getMock.mockRejectedValue(refused(403, { error: 'forbidden' }));
+    renderGate('nl');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(
+      'Dit account heeft geen toegang tot deze organisatie. Meld u af en meld u opnieuw aan met het account waarmee u bent uitgenodigd.',
+    );
+    expect(screen.getByRole('button', { name: 'Afmelden' })).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/uitlog|log uit/i);
   });
 
   it('says a connection that never answered in the reader’s language', async () => {
