@@ -1236,6 +1236,7 @@ interface EventLines {
   readonly person: string;
   readonly arrived: string;
   readonly arrivedKept: string;
+  readonly arrivedCheck: string;
   readonly arrivedOnFree: string;
   readonly lessOften: string;
   readonly nowSixHourly: string;
@@ -1366,6 +1367,10 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     person: 'Person',
     arrived: 'Everything has arrived:',
     arrivedKept: 'It is kept in step until you switch. Nothing needs your attention urgently.',
+    // What to do next, when the reader is ready (the owner, 2026-10-18): the
+    // step the tester guide names next, by the name the migration's page
+    // gives it (`hub.check.name`; notifications.unit.test.ts reads it there).
+    arrivedCheck: 'When you are ready, check what arrived: open the migration in the app and choose Check.',
     // Free's pace (workplan 0157 T5): what keeping in step means on Free.
     arrivedOnFree:
       'On Free that is one pass a day. A higher tier looks for changes as often as every 15 minutes: check tiers in the Billing section in the app.',
@@ -1477,7 +1482,9 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     act: 'Open de app om actie te ondernemen.',
     person: 'Persoon',
     arrived: 'Alles is aangekomen:',
-    arrivedKept: 'Het wordt bijgehouden tot u overstapt. U hoeft niets te doen.',
+    arrivedKept: 'Het wordt bijgehouden tot u overstapt. Er is niets dat dringend uw aandacht vraagt.',
+    arrivedCheck:
+      'Bent u er klaar voor? Controleer dan wat er is aangekomen: open de migratie in de app en kies Verificatie.',
     arrivedOnFree:
       'Op Free is dat één ronde per dag. Bij een hoger pakket kijken we tot maximaal iedere 15 minuten naar wijzigingen: pas het pakket aan via Facturering in de app.',
     lessOften: 'Alles is bijgewerkt, dus we doen het nu wat rustiger aan:',
@@ -1693,6 +1700,9 @@ export function renderEvent(
       lines.push(`${b.arrived} ${said}.`, '');
       lines.push(b.arrivedKept);
       if (event.onePassADay) lines.push(b.arrivedOnFree);
+      // Its own paragraph, after Free's pace: "that is one pass a day" says
+      // what keeping in step means, and must follow the sentence it explains.
+      lines.push('', b.arrivedCheck);
       break;
     }
     case 'looking_less_often':
@@ -1767,8 +1777,9 @@ export function renderEvent(
     event.kind !== 'access_granted' &&
     event.kind !== 'access_declined' &&
     event.kind !== 'member_invited';
-  // Nor after the first copy, which has just said that nothing is needed:
-  // "act on this" under it would contradict it (0154 T7). Nor after a slower
+  // Nor after the first copy, which has just said that nothing is urgent and
+  // what to do when the reader is ready: "act on this" under it would
+  // contradict the one and repeat the other (0154 T7). Nor after a slower
   // cadence, which has just said how to choose more often (0157 T7).
   // Nor after a withdrawal's acknowledgement or an order's confirmation, which
   // ask nothing of their reader. Nor after a credit running out, which has

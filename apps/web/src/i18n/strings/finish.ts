@@ -35,7 +35,8 @@ export const en = {
   'finish.step1.post': '. Reads the whole destination, so on a large account it takes minutes.',
   'finish.step2.title': 'Decide what is waiting on you',
   'finish.step1.passed': 'The check passed.',
-  'finish.step1.notPassed': 'The check did not pass:',
+  'finish.step1.failed': 'The check did not pass.',
+  'finish.step1.notPassed': "The check's result is not enough to finish yet:",
   'finish.step1.noRun': 'No check has run yet.',
   'finish.step1.running': 'A check is running now.',
   'finish.step1.readFailed': 'Could not read the check status:',
@@ -74,8 +75,11 @@ export const en = {
     'You stopped it. Its copies stay on the new system, but what changed on the old one since then has not reached them. If they must be current, resume it on the migration\'s page and let a pass run before you finish.',
   'finish.step3.stoppedUnread': 'Could not read whether a data type is stopped:',
   'finish.step4.title': 'Move delivery to the new system',
+  // How delivery moves, for each kind of address (the owner, 2026-10-18): an
+  // own domain's MX records, or forwarding from an address like @gmail.com,
+  // which has no MX record of its own to change.
   'finish.step4.body':
-    'Change MX/DNS and reconfigure clients so new email arrives on your new system.',
+    'Make new email arrive at the new system: with your own domain, change its mail settings (MX records) at your domain provider; with an address like @gmail.com, turn on forwarding to your new address. Then set up the mail app on your phone and computer for the new account.',
   'finish.step4.more':
     'This happens outside Ownpace\'s reach, so it is the one step here nobody can check for you.',
   'finish.step4.warn.pre': 'If you finish before this is done',
@@ -138,7 +142,8 @@ export const nl: Record<keyof typeof en, string> = {
     '. Leest de volledige bestemming; bij grote hoeveelheden duurt dit minuten.',
   'finish.step2.title': 'Beslis wat op u wacht',
   'finish.step1.passed': 'De verificatie is geslaagd.',
-  'finish.step1.notPassed': 'De verificatie is niet geslaagd:',
+  'finish.step1.failed': 'De verificatie is niet geslaagd.',
+  'finish.step1.notPassed': 'De uitkomst van de verificatie is nog niet genoeg om af te ronden:',
   'finish.step1.noRun': 'Er is nog geen verificatie uitgevoerd.',
   'finish.step1.running': 'Er loopt nu een verificatie.',
   'finish.step1.readFailed': 'De verificatiestatus kon niet worden gelezen:',
@@ -175,7 +180,7 @@ export const nl: Record<keyof typeof en, string> = {
   'finish.step3.stoppedUnread': 'Kon niet lezen of een gegevenstype gestopt is:',
   'finish.step4.title': 'Zet de e-mailbezorging om naar het nieuwe systeem',
   'finish.step4.body':
-    'Wijzig MX/DNS en configureer de clients opnieuw, zodat nieuwe e-mail op het nieuwe systeem aankomt.',
+    'Zorg dat nieuwe e-mail op het nieuwe systeem aankomt: hebt u een eigen domein, wijzig dan de mailinstellingen (MX-records) bij uw domeinaanbieder; hebt u een adres als @gmail.com, zet dan doorsturen aan naar uw nieuwe adres. Stel daarna de mail-app op uw telefoon en computer in voor het nieuwe account.',
   'finish.step4.more':
     'Dit gebeurt buiten Ownpace; Ownpace kan dit niet controleren.',
   'finish.step4.warn.pre': 'Als u afrondt voordat dit is gedaan',
@@ -191,7 +196,7 @@ export const nl: Record<keyof typeof en, string> = {
     'Bevestig eerst stap 4; wie afrondt voordat de bezorging is omgezet, verliest alles wat daarna nog op het oude systeem binnenkomt.',
   'finish.each.title': 'Per gegevenstype',
   'finish.ending.phase.active': 'Migreert; nog niet overgestapt',
-  'finish.ending.phase.cutover': 'Bezig met overstap',
+  'finish.ending.phase.cutover': 'Bezig met overstappen',
   'finish.ending.phase.done': 'Beëindigd',
   'finish.ending.phase.continuous': 'Blijft migreren na de overstap',
   'finish.ending.end': '{kind} beëindigen',

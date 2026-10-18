@@ -46,6 +46,29 @@ export const en = {
   'verify.notMeasured.title': 'Not compared: the new system gives no size.',
   'verify.issues': 'Issues',
   'verify.whatToDo': 'What to do',
+  // What the check found, in the reader's words (the owner, 2026-10-18). The
+  // server's own text, and its recommendations, stay under this fold, closed:
+  // a support thread can still quote them.
+  'verify.technical': 'Technical details',
+  // A finding's severity, and below each verdict, in words; the server's
+  // token stays in the title (`verdict-words.ts`).
+  'verify.severity.ERROR': 'Problem',
+  'verify.severity.WARNING': 'Warning',
+  // The four findings the client knows by their id. {type} is the data type's
+  // word in lower case, {n} a count in the reader's digits. Any other id says
+  // the server's text.
+  'verify.issue.folderMissing':
+    'The {type} folder is gone from the new system, so the copies in it are missing. Restore it (on Nextcloud: Deleted files), then check again.',
+  'verify.issue.targetUnread':
+    'The new system did not answer for {type}, so it could not be checked. Look at the account on the Accounts page, then check again.',
+  'verify.issue.missing':
+    '{n} {type} items are on the old system but not on the new one. Let another pass run, then check again.',
+  'verify.issue.checksum': '{n} sampled {type} items differ from the original. Confirmed shows which.',
+  'verify.verdict.PASS': 'Passed',
+  'verify.verdict.WARN': 'Passed, with warnings',
+  'verify.verdict.FAIL': 'Did not pass',
+  'verify.verdict.SKIPPED': 'Not checked',
+  'verify.verdict.NOT_VERIFIABLE': 'Could not be checked',
   'verify.help.PASS': 'Counts matched and the sampled content compared clean.',
   'verify.help.WARN': 'Discrepancies within tolerance. Read the issues before proceeding.',
   'verify.help.FAIL': 'Items are missing on the target, or sampled content did not match.',
@@ -100,6 +123,22 @@ export const nl: Record<keyof typeof en, string> = {
   'verify.notMeasured.title': 'Niet vergeleken: het nieuwe systeem geeft geen grootte.',
   'verify.issues': 'Problemen',
   'verify.whatToDo': 'Wat te doen',
+  'verify.technical': 'Technische details',
+  'verify.severity.ERROR': 'Probleem',
+  'verify.severity.WARNING': 'Waarschuwing',
+  'verify.issue.folderMissing':
+    'De map voor {type} staat niet meer op het nieuwe systeem, dus de kopieën daarin ontbreken. Zet de map terug (in Nextcloud: Verwijderde bestanden) en verifieer opnieuw.',
+  'verify.issue.targetUnread':
+    'Het nieuwe systeem gaf geen antwoord voor {type}, dus dit kon niet worden geverifieerd. Bekijk het account op de pagina Accounts en verifieer daarna opnieuw.',
+  'verify.issue.missing':
+    '{n} items ({type}) staan op het oude systeem maar niet op het nieuwe. Laat nog een ronde lopen en verifieer daarna opnieuw.',
+  'verify.issue.checksum':
+    '{n} items ({type}) uit de steekproef wijken af van het origineel. Bevestigd laat zien welke.',
+  'verify.verdict.PASS': 'Geslaagd',
+  'verify.verdict.WARN': 'Geslaagd, met waarschuwingen',
+  'verify.verdict.FAIL': 'Niet geslaagd',
+  'verify.verdict.SKIPPED': 'Niet geverifieerd',
+  'verify.verdict.NOT_VERIFIABLE': 'Kon niet worden geverifieerd',
   'verify.help.PASS': 'De aantallen kwamen overeen en de gecontroleerde inhoud was gelijk.',
   'verify.help.WARN':
     'Afwijkingen binnen de tolerantie. Beoordeel de problemen voordat u verdergaat.',

@@ -45,9 +45,12 @@ export const en = {
   // read "items are in your new home, verified by hash" — two claims in one
   // sentence, and the first was wrong whenever the second was: six thousand of
   // the owner's items WERE in his new home, as copies he already had, and the
-  // page led with a nought. The headline is the hash claim now, and
-  // `confirmed.breakdown` below says where everything else stands.
-  'confirmed.headline.rest': 'items in your new home are verified by hash.',
+  // page led with a nought. The headline is the claim now, and
+  // `confirmed.breakdown` below says where everything else stands. It says
+  // READ BACK AND MATCH, not "by hash" (the owner, 2026-10-18): the count
+  // holds calendar and contact rows, which match by fingerprint; how each row
+  // was compared is the Compared column's, row by row.
+  'confirmed.headline.rest': 'items on your new system were read back and match.',
   'confirmed.breakdown': 'The rest of the account:',
   // READ BACK, not verified: the pass has walked this many items, of which
   // the headline above claims only the ones the target confirmed. Two numbers
@@ -127,8 +130,8 @@ export const nl: Record<keyof typeof en, string> = {
   'confirmed.nothingYet': 'Deze migratie heeft nog geen items.',
   'confirmed.allVerified': 'Elk item is teruggelezen en kwam overeen. Niets vraagt uw aandacht.',
   'confirmed.headline.of': 'van de',
-  'confirmed.headline.rest': 'items in uw bestemming zijn met een hash geverifieerd.',
-  'confirmed.breakdown': 'De rest van het overzicht:',
+  'confirmed.headline.rest': 'items op uw nieuwe systeem zijn teruggelezen en komen overeen.',
+  'confirmed.breakdown': 'De rest van het account:',
   'confirmed.checked.of': 'van de',
   'confirmed.checked.rest': 'tot nu toe teruggelezen',
   'confirmed.truncated.a': 'De eerste',

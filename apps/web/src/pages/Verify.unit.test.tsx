@@ -12,6 +12,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { MemoryRouter, Route, Routes } from 'react-router';
 const { editionFlag } = vi.hoisted(() => ({ editionFlag: { selfhost: false } }));
 vi.mock('../services/edition', () => ({
@@ -432,5 +434,165 @@ describe('the check on a phone, and in the reader’s numbers', () => {
     );
     await screen.findByRole('link', { name: 'mapping-1' });
     expect(screen.getByText('score 100.0%')).toBeInTheDocument();
+  });
+});
+
+/**
+ * WHAT THE CHECK FOUND, IN THE READER'S WORDS (the owner, 2026-10-18, on
+ * finish-verify-english-findings and words-verdict-evidence-english).
+ *
+ * A Dutch screen read `ERROR PROPFIND on / failed with 401 Unauthorized` and
+ * `NOT_VERIFIABLE` beside `Geverifieerd`. The verdicts and the severities are
+ * the client's words now, the server's token kept in the title, where a
+ * support thread can still quote it. The four findings the client knows by
+ * their id are the client's sentences; the server's own text stays, closed,
+ * under *Technical details*, with the recommendations. A finding the client
+ * does not know keeps the server's text, so nothing found is ever dropped.
+ */
+describe('what the check found, in the reader’s words (owner, 2026-10-18)', () => {
+  const issue = (id: string, severity: 'ERROR' | 'WARNING', message: string) => ({ id, severity, message });
+  const UNREAD = '811 contacts item(s) were copied, but the target could not be read for this domain: PROPFIND on / failed with 401 Unauthorized.';
+  const GONE = 'The folder /Ownpace does not exist on the new system any more, so none of the 40 files item(s) copied into it are there.';
+  const MISSING = '1234 mail item(s) missing on target';
+  const DIFFERS = '2 mail item(s) have content mismatches';
+  const EXTRA = '1 calendar item(s) exist on target but not source';
+  const RECOMMENDATION = 'Fix all errors before proceeding to cutover';
+
+  /** One data type of the report, as `domainFor` draws it, with what this case changes. */
+  const found = (dataType: string, change: Record<string, unknown>) =>
+    ({ ...(domainFor(dataType) as object), ...change }) as never;
+
+  const FOUND: VerificationResult = {
+    ...RESULT,
+    overallStatus: 'FAIL',
+    canProceedToCutover: false,
+    contentEvidence: 'partial',
+    score: 0.5,
+    mail: found('mail', {
+      status: 'FAIL',
+      missingOnTarget: 1234,
+      checksumMismatches: 2,
+      issues: [issue('MISSING_mail', 'ERROR', MISSING), issue('CHECKSUM_mail', 'ERROR', DIFFERS)],
+    }),
+    calendar: found('calendar', { status: 'WARN', issues: [issue('EXTRA_calendar', 'WARNING', EXTRA)] }),
+    contacts: found('contacts', {
+      status: 'NOT_VERIFIABLE',
+      issues: [issue('TARGET_UNREAD_contacts', 'ERROR', UNREAD)],
+    }),
+    files: found('files', {
+      status: 'FAIL',
+      missingOnTarget: 40,
+      issues: [issue('TARGET_FOLDER_MISSING_files', 'ERROR', GONE)],
+    }),
+    tasks: found('tasks', { status: 'SKIPPED' }),
+    recommendations: [RECOMMENDATION],
+  };
+
+  async function renderIn(locale: 'en' | 'nl') {
+    window.localStorage.setItem('ownpace.locale', locale);
+    fetched.mockResolvedValue({
+      state: 'done',
+      startedAt: '2026-07-31T12:00:00Z',
+      finishedAt: '2026-07-31T12:03:00Z',
+      report: { 'mapping-1': FOUND },
+    });
+    render(
+      <LocaleProvider>
+        <MemoryRouter><Verify /></MemoryRouter>
+      </LocaleProvider>,
+    );
+    await screen.findByRole('link', { name: 'mapping-1' });
+  }
+
+  /** Outside the closed fold: what somebody reads without opening anything. */
+  const shown = (text: string | RegExp) =>
+    screen.queryAllByText(text).filter((el) => el.closest('details') === null);
+
+  const WORDS = {
+    en: {
+      verdicts: { Email: ['Did not pass', 'FAIL'], Calendar: ['Passed, with warnings', 'WARN'], Contacts: ['Could not be checked', 'NOT_VERIFIABLE'], Files: ['Did not pass', 'FAIL'], Tasks: ['Not checked', 'SKIPPED'] },
+      failed: 'Did not pass',
+      problem: 'Problem',
+      warning: 'Warning',
+      fold: 'Technical details',
+      sentences: [
+        'The files folder is gone from the new system, so the copies in it are missing. Restore it (on Nextcloud: Deleted files), then check again.',
+        'The new system did not answer for contacts, so it could not be checked. Look at the account on the Accounts page, then check again.',
+        '1,234 email items are on the old system but not on the new one. Let another pass run, then check again.',
+        '2 sampled email items differ from the original. Confirmed shows which.',
+      ],
+    },
+    nl: {
+      verdicts: { 'E-mail': ['Niet geslaagd', 'FAIL'], Agenda: ['Geslaagd, met waarschuwingen', 'WARN'], Contacten: ['Kon niet worden geverifieerd', 'NOT_VERIFIABLE'], Bestanden: ['Niet geslaagd', 'FAIL'], Taken: ['Niet geverifieerd', 'SKIPPED'] },
+      failed: 'Niet geslaagd',
+      problem: 'Probleem',
+      warning: 'Waarschuwing',
+      fold: 'Technische details',
+      sentences: [
+        'De map voor bestanden staat niet meer op het nieuwe systeem, dus de kopieën daarin ontbreken. Zet de map terug (in Nextcloud: Verwijderde bestanden) en verifieer opnieuw.',
+        'Het nieuwe systeem gaf geen antwoord voor contacten, dus dit kon niet worden geverifieerd. Bekijk het account op de pagina Accounts en verifieer daarna opnieuw.',
+        '1.234 items (e-mail) staan op het oude systeem maar niet op het nieuwe. Laat nog een ronde lopen en verifieer daarna opnieuw.',
+        '2 items (e-mail) uit de steekproef wijken af van het origineel. Bevestigd laat zien welke.',
+      ],
+    },
+  } as const;
+
+  it.each(['en', 'nl'] as const)('says each verdict in words, the token kept in its title, in %s', async (locale) => {
+    await renderIn(locale);
+    const w = WORDS[locale];
+    for (const [type, [word, token]] of Object.entries(w.verdicts)) {
+      const row = screen.getByRole('cell', { name: type }).closest('tr')!;
+      const said = within(row).getByText(word);
+      expect(said.getAttribute('title'), `${type}'s verdict keeps ${token} to quote`).toContain(token);
+    }
+    // The migration's own verdict, beside its score.
+    const overall = shown(w.failed).find((el) => el.closest('tr') === null);
+    expect(overall?.getAttribute('title')).toContain('FAIL');
+    for (const token of ['PASS', 'WARN', 'FAIL', 'SKIPPED', 'NOT_VERIFIABLE', 'ERROR', 'WARNING']) {
+      expect(shown(token), `${token} is said outside the fold`).toEqual([]);
+    }
+  });
+
+  it.each(['en', 'nl'] as const)('says what it found in sentences of its own, the server’s text closed under the fold, in %s', async (locale) => {
+    await renderIn(locale);
+    const w = WORDS[locale];
+    for (const sentence of w.sentences) {
+      expect(shown(sentence), sentence).toHaveLength(1);
+    }
+    // Each finding's severity in words, its token in the title.
+    expect(shown(w.problem)).toHaveLength(4);
+    for (const el of shown(w.problem)) expect(el).toHaveAttribute('title', 'ERROR');
+    expect(shown(w.warning)).toHaveLength(1);
+    expect(shown(w.warning)[0]).toHaveAttribute('title', 'WARNING');
+
+    // The server's words for the four it knows: only in the fold, closed.
+    const fold = screen.getByText(w.fold).closest('details')!;
+    expect(fold).not.toBeNull();
+    expect(fold).not.toHaveAttribute('open');
+    for (const text of [UNREAD, GONE, MISSING, DIFFERS, RECOMMENDATION]) {
+      expect(shown(new RegExp(text.replace(/[.*+?^$()|[\]\\{}]/g, '\\$&'))), text).toEqual([]);
+      expect(within(fold).getByText(new RegExp(text.replace(/[.*+?^$()|[\]\\{}]/g, '\\$&')))).toBeInTheDocument();
+    }
+    // The ids, for whoever quotes them.
+    expect(within(fold).getByText(/TARGET_UNREAD_contacts/)).toBeInTheDocument();
+  });
+
+  it('keeps the server’s text for a finding it has no sentence for', async () => {
+    await renderIn('nl');
+    // Nothing found is dropped: an unknown id says what the server said.
+    expect(shown(EXTRA)).toHaveLength(1);
+  });
+
+  it('knows only ids the check really writes', () => {
+    // The four sentences answer to ids `runVerification` builds. Renamed
+    // there and not here, each would fall back to the server's English in
+    // silence; so the source is read for each one.
+    const core = readFileSync(join(__dirname, '../../../../packages/core/src/verification.ts'), 'utf8');
+    expect(core).toContain("export const TARGET_UNREAD = 'TARGET_UNREAD';");
+    expect(core).toContain("export const TARGET_FOLDER_MISSING = 'TARGET_FOLDER_MISSING';");
+    expect(core).toContain('id: `${TARGET_FOLDER_MISSING}_${dataType}`');
+    expect(core).toMatch(/'NOT_VERIFIABLE',[^;]*TARGET_UNREAD,\s*\);/);
+    expect(core).toContain('id: `MISSING_${dataType}`');
+    expect(core).toContain('id: `CHECKSUM_${dataType}`');
   });
 });

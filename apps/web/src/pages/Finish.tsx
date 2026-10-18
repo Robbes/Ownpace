@@ -55,6 +55,7 @@ import {
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import { formatNumber } from '../i18n/datetime.ts';
 import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
+import { VERDICT_KEY } from '../i18n/verdict-words.ts';
 import { Hint } from '../components/Hint.tsx';
 import MappingHubLink from '../components/MappingHubLink.tsx';
 import StateChip from '../components/StateChip.tsx';
@@ -435,9 +436,26 @@ const Finish: React.FC = () => {
                       </p>
                     ) : (
                       <p className="mt-1 text-amber-800">
-                        {/* The status word verbatim — a finding, not a frame. */}
-                        {t('finish.step1.notPassed')}{' '}
-                        {verifyOutcome.data.report[id]!.overallStatus}
+                        {/* The verdict in Verify's word (the owner, 2026-10-18);
+                            the server's token stays in the title, to quote.
+                            A FAIL is said once, as a sentence: "did not pass:
+                            Did not pass" said it twice. Any other verdict that
+                            holds finishing back (a WARN under the score
+                            finishing needs, a type not checked) follows a lead
+                            that does not contradict it, where "did not pass:
+                            Passed, with warnings" did. */}
+                        {verifyOutcome.data.report[id]!.overallStatus === 'FAIL' ? (
+                          <span title={verifyOutcome.data.report[id]!.overallStatus}>
+                            {t('finish.step1.failed')}
+                          </span>
+                        ) : (
+                          <>
+                            {t('finish.step1.notPassed')}{' '}
+                            <span title={verifyOutcome.data.report[id]!.overallStatus}>
+                              {t(VERDICT_KEY[verifyOutcome.data.report[id]!.overallStatus])}
+                            </span>
+                          </>
+                        )}
                         {verifyOutcome.data.finishedAt && (
                           <span className="text-gray-500">
                             {' '}

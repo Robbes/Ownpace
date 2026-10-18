@@ -202,6 +202,40 @@ describe('the cutover order', () => {
     expect(endOrKeepDataType).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [
+      'en',
+      'Make new email arrive at the new system: with your own domain, change its mail settings (MX records) at your domain provider; with an address like @gmail.com, turn on forwarding to your new address. Then set up the mail app on your phone and computer for the new account.',
+    ],
+    [
+      'nl',
+      'Zorg dat nieuwe e-mail op het nieuwe systeem aankomt: hebt u een eigen domein, wijzig dan de mailinstellingen (MX-records) bij uw domeinaanbieder; hebt u een adres als @gmail.com, zet dan doorsturen aan naar uw nieuwe adres. Stel daarna de mail-app op uw telefoon en computer in voor het nieuwe account.',
+    ],
+  ] as const)('says how delivery moves for an own domain and for an address like @gmail.com, in %s (owner, 2026-10-18)', async (locale, body) => {
+    // 'Change MX/DNS and reconfigure clients' was jargon on the step whose
+    // mistake loses mail, and wrong for an @gmail.com address, which has no
+    // MX record of its own to change.
+    globalThis.localStorage.setItem('ownpace.locale', locale);
+    try {
+      fetchStatus.mockResolvedValue(statusReport('active'));
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <LocaleProvider>
+          <QueryClientProvider client={qc}>
+            <MemoryRouter>
+              <Finish />
+            </MemoryRouter>
+          </QueryClientProvider>
+        </LocaleProvider>,
+      );
+
+      expect(await screen.findByText(body)).toBeInTheDocument();
+      expect(screen.queryByText(/MX\/DNS|clients/)).toBeNull();
+    } finally {
+      globalThis.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
   it('says no reason once delivery is confirmed moved, and none on a data type that does not wait', async () => {
     fetchStatus.mockResolvedValue(
       statusReport('active', 0, [
@@ -341,6 +375,12 @@ describe('the cutover order', () => {
     expect(await screen.findByRole('button', { name: END_MAIL })).toBeEnabled();
     expect(screen.queryByLabelText(/Delivery now goes to the new system/)).not.toBeInTheDocument();
     expect(screen.getByText(STRINGS.en['finish.ending.phase.cutover'])).toBeInTheDocument();
+  });
+
+  it('says a data type in its cutover with the stage’s own Dutch word (owner, 2026-10-18)', () => {
+    // 'Bezig met overstap' beside the stage everywhere else called 'Bezig met
+    // overstappen' (`a-stage-with-no-word`): one stage, one word.
+    expect(STRINGS.nl['finish.ending.phase.cutover']).toBe('Bezig met overstappen');
   });
 
   it('keeps a data type copying in two presses, the first saying what the lane costs', async () => {
@@ -706,18 +746,66 @@ describe('the checklist checks what it claims to check (0038 T3)', () => {
     expect(screen.getByText(/No content was compared/)).toBeInTheDocument();
   });
 
-  it('step 1 renders the failing status VERBATIM from a not-ready report', async () => {
+  function renderVerdict(locale: 'en' | 'nl', token: string) {
+    globalThis.localStorage.setItem('ownpace.locale', locale);
     fetchStatus.mockResolvedValue(statusReport('active'));
     fetchVerifyReport.mockResolvedValue({
       state: 'done',
       startedAt: '2026-08-09T10:00:00Z',
       finishedAt: '2026-08-09T10:05:00Z',
-      report: { 'acme-mail': { overallStatus: 'FAIL', canProceedToCutover: false } },
+      report: { 'acme-mail': { overallStatus: token, canProceedToCutover: false } },
     });
-    renderScreen();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <LocaleProvider>
+        <QueryClientProvider client={qc}>
+          <MemoryRouter>
+            <Finish />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+  }
 
-    expect(await screen.findByText(/The check did not pass:/)).toBeInTheDocument();
-    expect(screen.getByText(/FAIL/)).toBeInTheDocument();
+  it.each([
+    ['en', 'WARN', 'Passed, with warnings'],
+    ['nl', 'WARN', 'Geslaagd, met waarschuwingen'],
+    ['en', 'SKIPPED', 'Not checked'],
+    ['nl', 'NOT_VERIFIABLE', 'Kon niet worden geverifieerd'],
+  ] as const)('step 1 says a not-ready verdict in words, in %s, its token %s kept in the title', async (locale, token, word) => {
+    // It said the token, `WARN`, after a translated sentence; the owner's
+    // answer of 2026-10-18 is the word Verify says, the token to quote. The
+    // lead says the result is not enough to finish, not that the check
+    // "did not pass": "did not pass: Passed, with warnings" contradicted itself.
+    try {
+      renderVerdict(locale, token);
+      const line = (await screen.findByText(STRINGS[locale]['finish.step1.notPassed'], { exact: false })).closest('p')!;
+      expect(line).toHaveTextContent(`${STRINGS[locale]['finish.step1.notPassed']} ${word}`);
+      expect(screen.getByText(word)).toHaveAttribute('title', token);
+      expect(line).not.toHaveTextContent(token);
+      expect(line).not.toHaveTextContent(STRINGS[locale]['finish.step1.failed']);
+    } finally {
+      globalThis.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
+  it.each([
+    ['en', 'Did not pass'],
+    ['nl', 'Niet geslaagd'],
+  ] as const)('step 1 says a FAIL once, as a sentence, in %s', async (locale, word) => {
+    // "The check did not pass: Did not pass" said it twice.
+    try {
+      renderVerdict(locale, 'FAIL');
+      const said = await screen.findByText(STRINGS[locale]['finish.step1.failed']);
+      expect(said).toHaveAttribute('title', 'FAIL');
+      const line = said.closest('p')!;
+      expect(line.textContent!.startsWith(STRINGS[locale]['finish.step1.failed'])).toBe(true);
+      expect(line.textContent).not.toContain(word);
+      expect(line).not.toHaveTextContent('FAIL');
+      expect(line).not.toHaveTextContent(STRINGS[locale]['finish.step1.notPassed']);
+    } finally {
+      globalThis.localStorage.removeItem('ownpace.locale');
+    }
   });
 
   it('step 1 says no check has run when none has', async () => {
