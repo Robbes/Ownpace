@@ -543,8 +543,11 @@ describe('the answer, in words', () => {
     fetchDecisions.mockResolvedValue({
       decisions: [
         {
+          // A category whose button is the detector's own proposal; a new
+          // mailbox's answer is said in its button's words (below).
           ...ANSWERED,
-          resolution: { action: 'accept_default', proposedDefault: 'create a mapping' },
+          category: 'quota',
+          resolution: { action: 'accept_default', proposedDefault: 'raise the quota' },
           resolvedBy: 'marieke@acme.nl',
         },
       ],
@@ -561,7 +564,9 @@ describe('the answer, in words', () => {
     window.localStorage.setItem('ownpace.locale', 'nl');
     try {
       fetchDecisions.mockResolvedValue({
-        decisions: [{ ...ANSWERED, resolution: { action: 'accept_default' }, resolvedBy: 'marieke@acme.nl' }],
+        decisions: [
+          { ...ANSWERED, category: 'quota', resolution: { action: 'accept_default' }, resolvedBy: 'marieke@acme.nl' },
+        ],
       });
       const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
       render(
@@ -575,6 +580,47 @@ describe('the answer, in words', () => {
       );
       const line = (await screen.findByText(/Antwoord:/)).closest('p')!;
       expect(line).toHaveTextContent('Antwoord: Voorstel aangenomen door marieke@acme.nl');
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
+  /**
+   * A new mailbox's answer is the button the person pressed (review of the
+   * owner's 2026-10-18 answers). The page never showed it a proposal, so
+   * *Accepted the proposal* under it recorded something nobody saw; the
+   * button's own words, *Noted, I will handle it*, say what was answered.
+   */
+  it('a new mailbox’s answer reads the words of the button that gave it', async () => {
+    fetchDecisions.mockResolvedValue({
+      decisions: [{ ...ANSWERED, resolution: { action: 'accept_default' }, resolvedBy: 'marieke@acme.nl' }],
+    });
+    renderScreen();
+
+    const line = (await screen.findByText(/Answer:/)).closest('p')!;
+    expect(line).toHaveTextContent('Answer: Noted, I will handle it by marieke@acme.nl');
+    expect(line.textContent).not.toMatch(/proposal/i);
+  });
+
+  it('in Dutch a new mailbox’s answer reads "Genoteerd, ik regel het zelf"', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      fetchDecisions.mockResolvedValue({
+        decisions: [{ ...ANSWERED, resolution: { action: 'accept_default' }, resolvedBy: 'marieke@acme.nl' }],
+      });
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <LocaleProvider>
+          <QueryClientProvider client={qc}>
+            <MemoryRouter>
+              <Decisions />
+            </MemoryRouter>
+          </QueryClientProvider>
+        </LocaleProvider>,
+      );
+      const line = (await screen.findByText(/Antwoord:/)).closest('p')!;
+      expect(line).toHaveTextContent('Antwoord: Genoteerd, ik regel het zelf door marieke@acme.nl');
+      expect(line.textContent).not.toMatch(/Voorstel/);
     } finally {
       window.localStorage.removeItem('ownpace.locale');
     }
@@ -692,7 +738,7 @@ describe('the answer, in words', () => {
     renderScreen();
 
     const line = (await screen.findByText(/Answer:/)).closest('p')!;
-    expect(line).toHaveTextContent('Answer: Accepted the proposal');
+    expect(line).toHaveTextContent('Answer: Noted, I will handle it');
     expect(line.textContent).not.toMatch(/ by |312987465012938475/);
   });
 

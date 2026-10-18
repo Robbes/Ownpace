@@ -29,7 +29,13 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 
 import { createPgDb, PgLedger, PgDecisionStore } from '@openmig/ledger';
-import { asTenantId, asMappingId, MAX_ITEM_ATTEMPTS, wantsAttention } from '@openmig/shared';
+import {
+  DECISION_EFFECTS,
+  asTenantId,
+  asMappingId,
+  MAX_ITEM_ATTEMPTS,
+  wantsAttention,
+} from '@openmig/shared';
 import { start, type SelfhostHandle } from './index.ts';
 import { uuidFromString } from './config-dir.ts';
 import { collectAttention } from './digest-collect.ts';
@@ -401,6 +407,27 @@ describe('the decision queue', () => {
     );
   });
 
+  it('says a new mailbox’s answer is only recorded', async () => {
+    // *Noted, I will handle it* starts no migration and changes none, so
+    // the line under the row must not say the migration acts on it (the
+    // owner, 2026-10-18). The same words as managed (ADR-0026).
+    const { decision } = await decisions.raise({
+      tenantId: asTenantId(TENANT_ID),
+      category: 'new_mailbox',
+      subjectKey: 'genoteerd@example.nl',
+      summary: 'genoteerd@example.nl is on the old system, and no migration covers it.',
+      proposedDefault: 'Noted, I will handle it',
+    });
+
+    const res = await fetch(`${base}/decisions/${decision.id}/resolve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ resolution: { action: 'accept_default' } }),
+    });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { effect: string }).effect).toBe(DECISION_EFFECTS.recorded);
+  });
+
   /**
    * The one category whose answer CHANGES something (workplan 0028 T3).
    *
@@ -436,6 +463,8 @@ describe('the decision queue', () => {
       }),
     });
     expect(res.status).toBe(200);
+    // The one answer the migration acts on, and the one effect that says so.
+    expect(((await res.json()) as { effect: string }).effect).toBe(DECISION_EFFECTS.resolved);
 
     const { rows } = await pool.query(
       `SELECT pattern FROM group_def WHERE tenant_id = $1 AND address = 'sales@example.nl'`,
@@ -478,6 +507,8 @@ describe('the decision queue', () => {
       body: JSON.stringify({ resolution: { action: 'accept_default' } }),
     });
     expect(res.status).toBe(200);
+    // Nothing was written, so the answer does not claim the migration acts on it.
+    expect(((await res.json()) as { effect: string }).effect).toBe(DECISION_EFFECTS.recorded);
 
     // Recording a pattern nobody chose is worse than leaving it open.
     const { rows } = await pool.query(

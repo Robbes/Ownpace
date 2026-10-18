@@ -158,12 +158,13 @@ describe('a category nothing here can say', () => {
 });
 
 describe('what answering says it did', () => {
-  it('claims the migration acts only where the answer changes something', () => {
-    // A shared address's answer is written back to the discovered group; a
-    // new mailbox's (and every other category's) is only recorded.
-    expect(decisionResolvedEffect('shared_address_pattern')).toBe(DECISION_EFFECTS.resolved);
-    expect(decisionResolvedEffect('new_mailbox')).toBe(DECISION_EFFECTS.recorded);
-    expect(decisionResolvedEffect('quota')).toBe(DECISION_EFFECTS.recorded);
+  it('claims the migration acts only where the answer changed something', () => {
+    // A shared address's pattern, written back to its discovered group, is
+    // the one answer the migration reads, and the resolve says whether it
+    // was: a new mailbox's answer, or a shared address's answer that names
+    // no pattern (the API accepts one), is only recorded.
+    expect(decisionResolvedEffect(true)).toBe(DECISION_EFFECTS.resolved);
+    expect(decisionResolvedEffect(false)).toBe(DECISION_EFFECTS.recorded);
     expect(DECISION_EFFECTS.recorded).not.toMatch(/acts on it/);
   });
 });

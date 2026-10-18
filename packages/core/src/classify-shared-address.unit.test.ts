@@ -95,6 +95,17 @@ describe('the reason in Dutch (the owner, 2026-10-18)', () => {
     // Dutch conventions: never a form of verhuizen.
     expect(reasonNl).not.toMatch(/verhui/);
   });
+
+  it('reads on after the question’s colon, about the old system, in plain words', () => {
+    // It is the one Dutch reason a person reads: a decision is raised only
+    // for an address that could not be classified. It follows *Dat konden we
+    // niet zien op het oude systeem:*, so it does not name *de bron* again;
+    // an answer does not migrate, what is copied does; and no jargon
+    // (review of the owner's 2026-10-18 answers).
+    const { reasonNl } = classifyStoreSignal('unknown');
+    expect(reasonNl).toMatch(/^er staat niet bij of dit adres een eigen postvak heeft/);
+    expect(reasonNl).not.toMatch(/de bron|antwoorden migreren|berichtenopslag/);
+  });
 });
 
 describe('reading the owner’s answer (workplan 0028 T3)', () => {

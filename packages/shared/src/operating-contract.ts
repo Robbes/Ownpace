@@ -599,10 +599,11 @@ export interface StatusReport {
  * all effect prose: it says what is now true, for the person who just
  * clicked.
  *
- * `resolved` is said only where the answer changes something: a shared
- * address's pattern is written back to its group. Every other answer is
- * `recorded` (`decisionResolvedEffect`): a new mailbox's *Noted, I will handle
- * it* starts no migration, and the sentence said it did until 2026-10-18.
+ * `resolved` is said only where the answer changed something: a shared
+ * address's pattern written back to its group. Every other answer, and a
+ * shared address's answer that wrote no pattern, is `recorded`
+ * (`decisionResolvedEffect`): a new mailbox's *Noted, I will handle it*
+ * starts no migration, and the sentence said it did until 2026-10-18.
  */
 export const DECISION_EFFECTS = {
   resolved: 'Answer recorded — the migration acts on it from here on.',

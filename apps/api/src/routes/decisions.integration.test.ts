@@ -232,6 +232,8 @@ describe('Decision Queue Routes', () => {
       // The decision is answered — that is the caller's business — but
       // recording a pattern nobody chose is worse than leaving it open.
       expect(response.status).toBe(200);
+      // Nothing was written, so the answer does not claim the migration acts on it.
+      expect(response.body.effect).toBe(DECISION_EFFECTS.recorded);
       const { rows } = await superuserPool.query(
         `SELECT pattern FROM group_def WHERE tenant_id = $1 AND address = 'vague@acme.nl'`,
         [DEC_TENANT_A],

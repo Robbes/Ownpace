@@ -88,11 +88,11 @@ export function classifyStoreSignal(store: GroupStore): SharedAddressClassificat
           'behind, and guessing a shared mailbox would recreate no group, so ' +
           'mail sent to the address after cutover would reach nobody',
         reasonNl:
-          'de bron gaf niet aan of dit adres een eigen berichtenopslag heeft, en ' +
-          'de twee antwoorden migreren anders: gokken op een distributielijst laat ' +
-          'ongemerkt een postvak vol mail achter, en gokken op een gedeeld postvak ' +
-          'maakt geen groep opnieuw aan, zodat mail die na de overstap naar het ' +
-          'adres gaat niemand bereikt',
+          'er staat niet bij of dit adres een eigen postvak heeft, en bij elk ' +
+          'antwoord wordt iets anders gemigreerd: kiezen we ten onrechte een ' +
+          'distributielijst, dan blijft er ongemerkt een postvak vol mail achter; ' +
+          'kiezen we ten onrechte een gedeeld postvak, dan wordt er geen groep ' +
+          'aangemaakt, zodat mail die na de overstap naar het adres gaat niemand bereikt',
       };
   }
 }

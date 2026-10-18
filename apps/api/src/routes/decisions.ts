@@ -113,6 +113,9 @@ router.post(
       }
       const body = ResolveSchema.parse(req.body);
 
+      // Whether the answer changed something the migration reads: only a
+      // pattern written back to a discovered group does.
+      let changedSomething = false;
       const resolved = await withTenantDb(tenantId, getSharedPool(), async (db) => {
         const store = new PgDecisionStore(db);
         const row = await store.resolve(
@@ -135,6 +138,7 @@ router.post(
               row.subjectKey,
               pattern,
             );
+            changedSomething = rows > 0;
             // Said, not swallowed: the decision IS answered either way, and an
             // answer that landed on no row means discovery has stopped seeing
             // the address — worth knowing, not worth a 500 (rule 9).
@@ -156,8 +160,9 @@ router.post(
         return;
       }
       // What the answer did: the migration acts on a shared address's
-      // pattern; every other answer is only recorded, and says so.
-      res.json({ ...resolved, effect: decisionResolvedEffect(resolved.category) });
+      // pattern once it is written; every other answer is only recorded, and
+      // says so.
+      res.json({ ...resolved, effect: decisionResolvedEffect(changedSomething) });
     } catch (error) {
       if (error instanceof z.ZodError) {
         res.status(400).json({ error: 'Validation error', details: error.issues });

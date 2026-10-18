@@ -141,9 +141,12 @@ export function decisionAcceptLabel(
 
 /**
  * What answering a decision says it did: that the migration acts on it only
- * where the answer changes something, which today is a shared address's
- * pattern. Both editions answer a resolve with this.
+ * where the answer changed something, which today is a shared address's
+ * pattern written back to its discovered group. The caller says whether it
+ * wrote one: a category alone cannot, because the API accepts a shared
+ * address's answer that names no pattern, and that changes nothing. Both
+ * editions answer a resolve with this.
  */
-export function decisionResolvedEffect(category: DecisionRow['category']): string {
-  return category === 'shared_address_pattern' ? DECISION_EFFECTS.resolved : DECISION_EFFECTS.recorded;
+export function decisionResolvedEffect(changedSomething: boolean): string {
+  return changedSomething ? DECISION_EFFECTS.resolved : DECISION_EFFECTS.recorded;
 }

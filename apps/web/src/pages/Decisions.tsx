@@ -22,7 +22,12 @@
 import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ListTodo } from 'lucide-react';
-import { decisionAcceptLabel, decisionSummary, type DecisionRow } from '@openmig/shared';
+import {
+  NEW_MAILBOX_ANSWER,
+  decisionAcceptLabel,
+  decisionSummary,
+  type DecisionRow,
+} from '@openmig/shared';
 import {
   fetchAttention,
   fetchDriftDecisions,
@@ -59,6 +64,24 @@ function answerKey(decision: DecisionRow): StringKey | undefined {
   if (r.action === 'accept_default') return 'decisions.answer.acceptDefault';
   if ('preset' in r) return 'decisions.answer.preset';
   return undefined;
+}
+
+/**
+ * The recorded answer's words. A new mailbox's accepted answer is said in the
+ * words of the button that gave it, *Noted, I will handle it*: the page never
+ * showed that row a proposal, so *Accepted the proposal* would record
+ * something nobody read (review of the owner's 2026-10-18 answers).
+ */
+function answerWords(
+  decision: DecisionRow,
+  locale: 'en' | 'nl',
+  t: (key: StringKey) => string,
+): string | undefined {
+  const key = answerKey(decision);
+  if (key === 'decisions.answer.acceptDefault' && decision.category === 'new_mailbox') {
+    return NEW_MAILBOX_ANSWER[locale];
+  }
+  return key && t(key);
 }
 
 /** One of the detail's facts when it is text, else nothing. */
@@ -367,7 +390,7 @@ const Decisions: React.FC = () => {
             ) : (
               <ul className="divide-y divide-gray-100">
                 {answered.map((decision) => {
-                  const answer = answerKey(decision);
+                  const answer = answerWords(decision, locale, t);
                   // "by" names somebody only when it is an address a person
                   // can read: on managed the server holds the sign-in's id,
                   // and a preset's own name, neither of which says who.
@@ -398,7 +421,7 @@ const Decisions: React.FC = () => {
                           comment claimed detail renders; it never did). */}
                       {answer ? (
                         <p className="text-xs text-gray-600">
-                          {t('decisions.answer')} {t(answer)}
+                          {t('decisions.answer')} {answer}
                           {by && (
                             <span className="text-gray-500">
                               {' '}
