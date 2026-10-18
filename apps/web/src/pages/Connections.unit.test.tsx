@@ -314,6 +314,32 @@ describe('the connections screen', () => {
     expect(setupHrefs()).toEqual(['/setup/source/box', '/setup/target/webdav']);
   });
 
+  // *Instellen* read as an action, while the link opens the *Instelchecklist*;
+  // the English says *Setup steps* (the owner, 2026-10-18).
+  it('names the checklist link Instelstappen in Dutch, never Instellen', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      list.mockResolvedValue([conn({ kind: 'box' })]);
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <QueryClientProvider client={client}>
+          <LocaleProvider>
+            <MemoryRouter initialEntries={['/connections']}>
+              <Routes>
+                <Route path="/connections" element={<Connections />} />
+              </Routes>
+            </MemoryRouter>
+          </LocaleProvider>
+        </QueryClientProvider>,
+      );
+      const link = (await screen.findByText('Instelstappen')) as HTMLAnchorElement;
+      expect(link.getAttribute('href')).toBe('/setup/source/box');
+      expect(screen.queryByText('Instellen')).toBeNull();
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
   it('an empty tenant says so instead of rendering nothing', async () => {
     list.mockResolvedValue([]);
     renderPage();

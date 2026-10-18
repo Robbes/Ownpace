@@ -595,6 +595,39 @@ describe('what this month bills', () => {
   });
 });
 
+/**
+ * COUNTED AND NOT COUNTED, IN THE HEADING'S VERB (the owner, 2026-10-18).
+ * During the Alpha the tier block read *Data verplaatst, in totaal: 0 GB*
+ * right under *Alle gegevens: 214 GB*: the row is what counts, and nothing
+ * the Alpha moves does. The two rows now say *counted* and *not counted*, and
+ * the Dutch uses *gemigreerd*, as *Gemigreerd* over the figures does.
+ */
+describe('what counts and what does not, in the owner’s words (2026-10-18)', () => {
+  const ALPHA = { ...usageFixture, evidence: { ...usageFixture.evidence, gbMoved: 0 }, gbMovedInTheAlpha: 214 };
+
+  it('en: the total that counts beside what the Alpha moved', async () => {
+    usageMock.mockResolvedValue(ALPHA);
+    renderBilling();
+    expect(await screen.findByText('Moved in total, counted')).toBeInTheDocument();
+    expect(screen.getByText('Moved during the Alpha, not counted')).toBeInTheDocument();
+    expect(screen.queryByText('Data moved, in total')).not.toBeInTheDocument();
+  });
+
+  it('nl: telt mee and telt niet mee, migrated, with the article the tier’s reason missed', async () => {
+    usageMock.mockResolvedValue({ ...ALPHA, decidedBy: 'paths' as const });
+    vi.mocked(billingApi.getCeiling).mockResolvedValue({ ...UNDER_THE_CEILING, gbMovedInTheAlpha: 214 });
+    renderBillingInDutch();
+    expect(await screen.findByText('In totaal gemigreerd, telt mee')).toBeInTheDocument();
+    expect(screen.getByText('Gemigreerd tijdens de Alpha, telt niet mee')).toBeInTheDocument();
+    expect(screen.getByText('Bepaald door het aantal gelijktijdige migraties.')).toBeInTheDocument();
+    expect(await screen.findByText(/^10 GB van 250 GB gemigreerd, op Free\.$/)).toBeInTheDocument();
+    expect(
+      screen.getByText('Daarnaast is 214 GB gemigreerd tijdens de Alpha; dit telt niet mee voor uw limiet.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/verplaatst/i)).not.toBeInTheDocument();
+  });
+});
+
 describe('the price on the screen is the published price (0121 T4)', () => {
   it('shows the tier and its money in EUROS: the month and the year, and no setup fee', async () => {
     renderBilling();
@@ -618,7 +651,7 @@ describe('the price on the screen is the published price (0121 T4)', () => {
     // screen must say WHICH — the invoice quotes the same sentence.
     expect(await screen.findByText('Set by how much data has been moved.')).toBeInTheDocument();
     expect(screen.getByText('Most migrations at once')).toBeInTheDocument();
-    expect(screen.getByText('Data moved, in total')).toBeInTheDocument();
+    expect(screen.getByText('Moved in total, counted')).toBeInTheDocument();
     // In total, for ever, against the ceiling it counts toward (the owner, 2026-10-04).
     expect(screen.getByText('900 GB of 2 TB')).toBeInTheDocument();
   });
