@@ -55,7 +55,9 @@ export const EXPORT_TARGETS = ['nextcloud', 'webdav'];
  * - `limits`: the limits the page explains, each with the guide section it links;
  * - `steps`: what the person does, per card: `button` (a consent), `password`
  *   (one they create at the provider), `app` (an app of their own, registered
- *   by an administrator) or `export` (an export they ask the provider for);
+ *   by an administrator) or `export` (an export they ask the provider for),
+ *   in the words `copy.mjs` keeps under the card's id, or under `words` where
+ *   a step says more than its card (`GOOGLE_ONE_CONSENT` below);
  * - `typical`: the data types of the typical case its cost is worked out for;
  * - `from`: the calculator's own answer to *Moving away from?*;
  * - `tile`: the initial on its tile (0152 D4), the app's for its first card.
@@ -181,3 +183,45 @@ export const LEAVING = [
     from: 'other',
   },
 ];
+
+/**
+ * LEAVING GOOGLE WHERE THE STACK ASKS ONCE (the owner, 2026-10-18).
+ *
+ * A deployment whose own Google application carries the restricted scopes says
+ * so in `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted` (ADR-0041), and the app then
+ * reads mail and files through the Google account too: `carrierOf` in
+ * `apps/web/src/services/start-plan.ts` hands them to the `google` card, so
+ * *Start a migration* asks for one sign-in where the default asks for three.
+ * On that build the Google page says the same. Its mail row is the account's,
+ * tagged as the app tags the account's mail face (not yet proven through the
+ * account, `SOURCE_PROOFS`), its files row is the account's, and the person
+ * does two things: the one button, and the export for photos.
+ *
+ * Only the rows and the steps differ; the cards, the limits and the typical
+ * case are the default page's. `site/build.mjs` picks this from the stack's
+ * own setting, and the guard holds both pages to the app.
+ */
+export const GOOGLE_ONE_CONSENT = {
+  rows: [
+    { type: 'email', verdict: 'moves', by: 'google', experimental: true },
+    { type: 'calendar', verdict: 'moves', by: 'google', experimental: false },
+    { type: 'contact', verdict: 'moves', by: 'google', experimental: false },
+    { type: 'file', verdict: 'limit', by: 'google', limit: 'googleNative', experimental: false },
+    { type: 'task', verdict: 'moves', by: 'google', experimental: true },
+    { type: 'photos', verdict: 'limit', by: 'archive', limit: 'takeout', experimental: true },
+  ],
+  steps: [
+    { card: 'google', kind: 'button', words: 'googleAll' },
+    { card: 'archive', kind: 'export' },
+  ],
+};
+
+/**
+ * The six pages as a build says them: `LEAVING` itself, or, where the stack
+ * declared Google's restricted scopes, with the Google page's rows and steps
+ * replaced by `GOOGLE_ONE_CONSENT`'s.
+ */
+export function leavingPages({ googleRestricted = false } = {}) {
+  if (!googleRestricted) return LEAVING;
+  return LEAVING.map((page) => (page.id === 'google' ? { ...page, ...GOOGLE_ONE_CONSENT } : page));
+}
