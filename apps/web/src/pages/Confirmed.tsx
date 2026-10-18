@@ -374,10 +374,11 @@ function PassLine({
           {/*
             READ BACK, not verified, and the two are not interchangeable:
             this counts every item the pass has walked, while the headline
-            above counts only the ones the target confirmed by hash. The
-            smaller number is the claim; this one is the progress. Labelling
-            both "verified" would inflate the claim by everything the pass
-            looked at and did not confirm.
+            above counts only the ones the target confirmed (by hash, or by
+            fingerprint for calendar and contacts). The smaller number is the
+            claim; this one is the progress. Labelling both "verified" would
+            inflate the claim by everything the pass looked at and did not
+            confirm.
           */}
           {checked !== null && (
             <>

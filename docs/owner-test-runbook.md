@@ -584,8 +584,8 @@ a row, do this after step 4, for each person:
 
 - On the migration's page, open *Verificatie* / *Check* (`/mappings/<id>/verify`) and press
   *Voer de verificatie uit* / *Run the check*. Each data type's *Resultaat* / *Result* reads
-  `PASS`. Write down its two counts, *Op het oude systeem* / *On the old system* and *Op het
-  nieuwe systeem* / *On the new system*.
+  *Geslaagd* / *Passed* (`PASS` in its hover). Write down its two counts, *Op het oude
+  systeem* / *On the old system* and *Op het nieuwe systeem* / *On the new system*.
 - Run one more pass: on *Migraties* / *Migrations*, press the play button in the migration's row
   (its tooltip reads *Synchroniseer nu* / *Trigger sync*). When the pass has ended, press
   *Verifieer opnieuw* / *Check again*. Each data type's *On the new system* count is the one you
