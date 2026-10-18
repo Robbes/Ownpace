@@ -16,6 +16,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   renderDigest,
   renderEvent,
@@ -289,7 +292,40 @@ describe('everything has arrived — the first copy, once per person (0154 T7)',
     expect(nl.subject).toBe('Ownpace — alles is aangekomen');
     expect(nl.body).toContain('Persoon: Anna Jansen');
     expect(nl.body).toContain('Alles is aangekomen: e-mail, agenda en contacten.');
-    expect(nl.body).toContain('Het wordt bijgehouden tot u overstapt. U hoeft niets te doen.');
+    expect(nl.body).toContain(
+      'Het wordt bijgehouden tot u overstapt. Er is niets dat dringend uw aandacht vraagt.',
+    );
+  });
+
+  it('says what to do next, when the reader is ready: the Check step (owner, 2026-10-18)', () => {
+    // The Dutch said 'U hoeft niets te doen' while the tester guide's next step
+    // is Verificatie, and neither language named it.
+    const en = renderEvent(anna, 'en').body;
+    expect(en).toContain('When you are ready, check what arrived: open the migration in the app and choose Check.');
+    const nl = renderEvent(anna, 'nl').body;
+    expect(nl).toContain(
+      'Bent u er klaar voor? Controleer dan wat er is aangekomen: open de migratie in de app en kies Verificatie.',
+    );
+    expect(nl).not.toContain('U hoeft niets te doen');
+    // Its own paragraph, after Free's pace: "that is one pass a day" explains
+    // keeping in step, and must still follow the sentence it explains.
+    const free = renderEvent({ ...anna, onePassADay: true }, 'en').body;
+    expect(free).toContain('Nothing needs your attention urgently.\nOn Free that is one pass a day.');
+    expect(free).toContain('in the app.\n\nWhen you are ready, check what arrived');
+  });
+
+  it('names the step by the name the app gives it, in each language', () => {
+    // The mail cannot import the web app's dictionary, so it reads it: a step
+    // renamed on the migration's page would otherwise send the reader to a
+    // button that no longer exists.
+    const migrations = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'apps', 'web', 'src', 'i18n', 'strings', 'migrations.ts'),
+      'utf8',
+    );
+    const names = [...migrations.matchAll(/'hub\.check\.name': '([^']+)'/g)].map((m) => m[1]);
+    expect(names).toEqual(['Check', 'Verificatie']);
+    expect(renderEvent(anna, 'en').body).toContain(`choose ${names[0]}.`);
+    expect(renderEvent(anna, 'nl').body).toContain(`kies ${names[1]}.`);
   });
 
   it('says one data type on its own, and names nobody for the appliance’s one person', () => {

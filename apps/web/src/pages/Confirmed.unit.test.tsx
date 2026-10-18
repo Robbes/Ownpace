@@ -35,6 +35,8 @@ vi.mock('../services/mapping-service', () => ({
 }));
 
 import Confirmed from './Confirmed.tsx';
+import { LocaleProvider } from '../i18n/index.tsx';
+import { STRINGS } from '../i18n/strings.ts';
 import * as service from '../services/operating-service.ts';
 import { ROW_STATES } from '@openmig/shared';
 import type { ConfirmedListQueue, ConfirmedRowView, RowState, RunReport } from '@openmig/shared';
@@ -141,8 +143,44 @@ describe('the confirmed list screen', () => {
     show(queue({ verified: 6079, total: 7468, rows: [row()] }));
     expect(await screen.findByText('6,079')).toBeInTheDocument();
     expect(screen.getByText(/7,468/)).toBeInTheDocument();
-    expect(screen.getByText(/verified by hash/i)).toBeInTheDocument();
+    expect(screen.getByText(/items on your new system were read back and match\./)).toBeInTheDocument();
   });
+
+  it.each([
+    ['en', 'items on your new system were read back and match.', 'The rest of the account:'],
+    ['nl', 'items op uw nieuwe systeem zijn teruggelezen en komen overeen.', 'De rest van het account:'],
+  ] as const)(
+    'says what the headline counts without saying how it was compared, in %s (owner, 2026-10-18)',
+    async (locale, headline, rest) => {
+      // It said "verified by hash" over every verified row, and a calendar or
+      // contact row is verified by FINGERPRINT (the guard
+      // a-list-somebody-deletes-on-the-strength-of, its third case). How each
+      // row was compared stays in the Compared column, row by row.
+      expect(STRINGS[locale]['confirmed.headline.rest']).toBe(headline);
+      expect(STRINGS[locale]['confirmed.headline.rest']).not.toMatch(/hash/i);
+      window.localStorage.setItem('ownpace.locale', locale);
+      try {
+        listed.mockResolvedValue({
+          'mapping-1': queue({
+            verified: 2,
+            total: 3,
+            rows: [row({ domain: 'contact', claim: 'none', state: 'unchecked' })],
+          }),
+        } as never);
+        render(
+          <LocaleProvider>
+            <MemoryRouter>
+              <Confirmed />
+            </MemoryRouter>
+          </LocaleProvider>,
+        );
+        expect(await screen.findByText(new RegExp(headline.replace('.', '\\.')))).toBeInTheDocument();
+        expect(screen.getByText(rest)).toBeInTheDocument();
+      } finally {
+        window.localStorage.removeItem('ownpace.locale');
+      }
+    },
+  );
 
   it('reads the list on mount but starts NO pass', async () => {
     show(queue());
@@ -281,11 +319,11 @@ describe('the confirmed list screen', () => {
     expect(within(rest).queryByText('Differs')).toBeNull();
     expect(within(rest).queryByText('Present')).toBeNull();
     expect(within(rest).queryByText('Removed')).toBeNull();
-    // The headline is still the hash claim alone. It must never widen to
-    // include `yours`: nobody re-read those bytes.
+    // The headline is still the read-back claim alone. It must never widen
+    // to include `yours`: nobody re-read those bytes.
     expect(within(rest).queryByText('Verified')).toBeNull();
     expect(
-      screen.getByText(/items in your new home are verified by hash/),
+      screen.getByText(/items on your new system were read back and match/),
     ).toBeInTheDocument();
   });
 
@@ -320,7 +358,7 @@ describe('the confirmed list screen', () => {
     // left over there is nothing to account for, and a lead-in followed by
     // white space reads as a page that failed to load.
     show(queue({ verified: 4, total: 4, rows: [] }));
-    await waitFor(() => expect(screen.getByText(/verified by hash/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/were read back and match/)).toBeInTheDocument());
     expect(screen.queryByText('The rest of the account:')).toBeNull();
   });
 

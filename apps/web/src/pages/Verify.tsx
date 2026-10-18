@@ -33,9 +33,11 @@ import MappingHubLink from '../components/MappingHubLink.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
 import { serverMessage } from '../services/api.ts';
+import { issueSentence, SEVERITY_KEY, VERDICT_KEY } from '../i18n/verdict-words.ts';
 
-// The status WORD (PASS/FAIL/…) stays the server's vocabulary; the hover help
-// is client prose and translates (workplan 0024 T2).
+// Each verdict's look and its hover help (workplan 0024 T2). Its WORD is the
+// client's since the owner's answer of 2026-10-18 (`verdict-words.ts`); the
+// server's token stays in the title, to quote.
 const STATUS_STYLE: Record<DataTypeVerificationStatus, { icon: React.ReactNode; className: string; helpKey: StringKey }> = {
   PASS: { icon: <CheckCircle2 className="w-4 h-4" />, className: 'text-emerald-700', helpKey: 'verify.help.PASS' },
   WARN: { icon: <AlertCircle className="w-4 h-4" />, className: 'text-amber-700', helpKey: 'verify.help.WARN' },
@@ -108,6 +110,11 @@ const Count: React.FC<{ label: string; className: string; last?: boolean; childr
   </td>
 );
 
+/** A verdict's hover: what it means, then the server's token, to quote. */
+function verdictTitle(t: ReturnType<typeof useT>, status: DataTypeVerificationStatus): string {
+  return `${t(STATUS_STYLE[status].helpKey)} (${status})`;
+}
+
 function DomainRow({ d }: { d: DataTypeVerification }): React.ReactElement {
   const t = useT();
   const { number } = useFormatters();
@@ -122,9 +129,9 @@ function DomainRow({ d }: { d: DataTypeVerification }): React.ReactElement {
         {t(DOMAIN_KEY[d.dataType])}
       </td>
       <td className="col-span-2 sm:table-cell sm:py-2 sm:pr-3">
-        <span className={`inline-flex items-center gap-1 ${s.className}`} title={t(s.helpKey)}>
+        <span className={`inline-flex items-center gap-1 ${s.className}`} title={verdictTitle(t, d.status)}>
           {s.icon}
-          {d.status}
+          {t(VERDICT_KEY[d.status])}
         </span>
       </td>
       <Count label={t('verify.th.source')} className="tabular-nums">
@@ -166,6 +173,7 @@ function DomainRow({ d }: { d: DataTypeVerification }): React.ReactElement {
 
 function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }): React.ReactElement {
   const { t, locale } = useLocale();
+  const { number } = useFormatters();
   // In the reader's decimals: 100,0% in Dutch, 100.0% in English.
   const score = new Intl.NumberFormat(locale, {
     style: 'percent',
@@ -176,7 +184,18 @@ function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }):
   // line listed four, so the Tasks row had a translated name and never a row.
   const domains = VERIFICATION_DOMAINS.map((k) => r[k]);
   const evidence = EVIDENCE_STYLE[r.contentEvidence];
-  const issues = domains.flatMap((d) => d.issues.map((i) => ({ ...i, domain: d.dataType })));
+  // Each finding with its data type's line, which holds the counts a known
+  // finding's sentence says.
+  const issues = domains.flatMap((d) => d.issues.map((issue) => ({ issue, d })));
+  /** What a known finding says, in the reader's words; the server's text for any other. */
+  const said = ({ issue, d }: (typeof issues)[number]): string => {
+    const known = issueSentence(issue, d);
+    if (!known) return issue.message;
+    return t(known.key, {
+      type: t(DOMAIN_KEY[d.dataType]).toLocaleLowerCase(locale),
+      ...(known.n === undefined ? {} : { n: number(known.n) }),
+    });
+  };
   // Names the table's box below. The appliance draws one report per migration,
   // so the screen's title would give every box the same name.
   const headingId = React.useId();
@@ -184,8 +203,12 @@ function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }):
     <section className="mb-8 p-4 bg-white border border-gray-200 rounded-lg">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h3 id={headingId} className="font-semibold text-gray-900"><MappingHubLink mappingId={mappingId} /></h3>
-        <div className="flex items-center gap-3 text-sm">
-          <span className={STATUS_STYLE[r.overallStatus].className}>{r.overallStatus}</span>
+        {/* Wraps whole: a verdict in words is wider than its token was, and
+            on a phone each of the three would otherwise break mid-phrase. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+          <span className={STATUS_STYLE[r.overallStatus].className} title={verdictTitle(t, r.overallStatus)}>
+            {t(VERDICT_KEY[r.overallStatus])}
+          </span>
           <span className="text-gray-500">{t('verify.score')} {score}</span>
           <span className={evidence.className} title={t(evidence.helpKey)}>
             {t(evidence.labelKey)}
@@ -232,31 +255,53 @@ function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }):
         <div className="mt-4">
           <h4 className="text-sm font-semibold text-gray-900 mb-2">{t('verify.issues')} ({issues.length})</h4>
           <ul className="space-y-1 text-sm">
-            {issues.map((i) => (
-              <li key={`${i.domain}-${i.id}`} className="flex items-start gap-2">
+            {issues.map((found) => (
+              <li key={`${found.d.dataType}-${found.issue.id}`} className="flex items-start gap-2">
                 <span
+                  title={found.issue.severity}
                   className={
-                    i.severity === 'ERROR' ? 'text-red-700 text-xs' : 'text-amber-700 text-xs'
+                    found.issue.severity === 'ERROR' ? 'text-red-700 text-xs' : 'text-amber-700 text-xs'
                   }
                 >
-                  {i.severity}
+                  {t(SEVERITY_KEY[found.issue.severity])}
                 </span>
-                <span className="text-gray-800">{i.message}</span>
+                <span className="text-gray-800">{said(found)}</span>
               </li>
             ))}
           </ul>
         </div>
       )}
 
-      {r.recommendations.length > 0 && (
-        <div className="mt-4">
-          <h4 className="text-sm font-semibold text-gray-900 mb-2">{t('verify.whatToDo')}</h4>
-          <ul className="list-disc list-inside space-y-1 text-sm text-gray-800">
-            {r.recommendations.map((rec) => (
-              <li key={rec}>{rec}</li>
-            ))}
-          </ul>
-        </div>
+      {/* THE SERVER'S OWN WORDS, closed (the owner, 2026-10-18): each finding
+          by its id and severity token as the check wrote it, and the check's
+          recommendations. English, and for whoever quotes them in a support
+          thread; the sentences above are what the reader acts on. */}
+      {(issues.length > 0 || r.recommendations.length > 0) && (
+        <details className="mt-4 text-sm">
+          <summary className="cursor-pointer select-none text-gray-600">{t('verify.technical')}</summary>
+          {issues.length > 0 && (
+            <ul className="mt-2 space-y-1 text-gray-800">
+              {issues.map(({ issue, d }) => (
+                <li key={`${d.dataType}-${issue.id}`} className="break-words">
+                  <span className="font-mono text-xs text-gray-600">
+                    {issue.severity} {issue.id}
+                  </span>{' '}
+                  {issue.message}
+                </li>
+              ))}
+            </ul>
+          )}
+          {r.recommendations.length > 0 && (
+            <>
+              <h4 className="mt-3 mb-1 font-semibold text-gray-900">{t('verify.whatToDo')}</h4>
+              <ul className="list-disc list-inside space-y-1 text-gray-800">
+                {r.recommendations.map((rec) => (
+                  <li key={rec}>{rec}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </details>
       )}
     </section>
   );
