@@ -225,12 +225,28 @@ describe('which side it happened on (workplan 0094 T5, second slice)', () => {
       />,
     );
     expect(screen.getByText(/press Reconnect or Replace credentials, whichever its row shows/i)).toBeTruthy();
-    expect(screen.getByText(/It happened on the source side\./)).toBeTruthy();
+    expect(screen.getByText(/It happened at your old account\./)).toBeTruthy();
   });
 
   it('says nothing about the side when the pass could not tell — never a guess', () => {
     render(<LiveProgress domains={[row({ lastErrorCategory: 'auth_expired' })]} />);
-    expect(screen.queryByText(/side\./)).toBeNull();
+    for (const side of ['failure.side.source', 'failure.side.target'] as const) {
+      expect(screen.queryByText(new RegExp(STRINGS.en[side].replace(/\./g, '\\.')))).toBeNull();
+    }
+  });
+
+  // *Trad op aan de bronkant* was awkward Dutch, and *doelkant* the word the
+  // glossary retired; the English said *the source side* (the owner,
+  // 2026-10-18): the reader's old account, and the destination.
+  it.each([
+    ['source', 'It happened at your old account.', 'Dit gebeurde bij uw oude account.'],
+    ['target', 'It happened at the destination.', 'Dit gebeurde bij de bestemming.'],
+  ] as const)('names the %s side as the reader knows it, in both languages', (side, en, nl) => {
+    expect(STRINGS.en[`failure.side.${side}`]).toBe(en);
+    expect(STRINGS.nl[`failure.side.${side}`]).toBe(nl);
+    for (const locale of LOCALES) {
+      expect(STRINGS[locale][`failure.side.${side}`]).not.toMatch(/side|kant\b|bronkant|doelkant/);
+    }
   });
 
   it('has a sentence for every side, in every locale', () => {

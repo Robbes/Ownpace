@@ -55,6 +55,9 @@ function textsOf(entry: ScopeManifestEntry): Array<readonly [string, string]> {
   return out;
 }
 
+/** The one developer word a fold may say, once, as the technical name of what its row names in plain words. */
+const HEADER_BY_NAME = 'a mail header by its technical name';
+
 /** Words for us, not for a tester: what each one is, and how to find it. */
 const DEVELOPER_WORDS: ReadonlyArray<readonly [string, RegExp]> = [
   ['an architecture pattern label', /Pattern /],
@@ -68,6 +71,10 @@ const DEVELOPER_WORDS: ReadonlyArray<readonly [string, RegExp]> = [
   ['a protocol no destination card is named after', /\b(?:vCard|ICS|CardDAV|CalDAV|WebDAV|JSContact|VTODO|VEVENT|iCalendar)\b/],
   ['a checksum', /checksum/i],
   ['an API this product reads through', /\b(?:Drive API|Microsoft Graph|Graph)\b/],
+  // A mail header by its own name (the owner, 2026-10-18): *Mail with no
+  // Message-ID* was the row's label on *Review and start*. A fold may name it
+  // once, as the technical name, for a reader who wants to look it up.
+  [HEADER_BY_NAME, /\bMessage-ID\b/i],
 ];
 
 /** Each developer word a text says, by name. */
@@ -79,7 +86,9 @@ describe('the manifest says nothing a tester needs us to explain', () => {
   it('no text a reader can reach carries an internal label', () => {
     const found = everyEntry().flatMap((entry) =>
       textsOf(entry).flatMap(([where, text]) =>
-        developerWordsIn(text).map((what) => `"${entry.item}" (${where}) says ${what}: ${text}`),
+        developerWordsIn(text)
+          .filter((what) => !(what === HEADER_BY_NAME && where.endsWith(' more')))
+          .map((what) => `"${entry.item}" (${where}) says ${what}: ${text}`),
       ),
     );
     expect(found, found.join('\n')).toEqual([]);
@@ -101,11 +110,33 @@ describe('the manifest says nothing a tester needs us to explain', () => {
     expect(developerWordsIn('not reachable through the Drive API this tool uses')).toEqual([
       'an API this product reads through',
     ]);
+    expect(developerWordsIn('Mail with no Message-ID')).toEqual([HEADER_BY_NAME]);
     // …and leaves alone what a tester does read: a destination card's name,
-    // an email header, a product.
+    // a message identifier in plain words, a product.
     expect(developerWordsIn('a JMAP destination cannot hand a contact back')).toEqual([]);
-    expect(developerWordsIn('Mail with no Message-ID')).toEqual([]);
+    expect(developerWordsIn('Mail without a message identifier')).toEqual([]);
+    expect(developerWordsIn('Mail zonder berichtkenmerk')).toEqual([]);
     expect(developerWordsIn('OneDrive and SharePoint libraries: files and folders.')).toEqual([]);
+  });
+
+  it('names mail without an identifier in plain words, and Message-ID once, in the fold (2026-10-18)', () => {
+    // The owner's answer of 2026-10-18 to the UX sweep: the label and the line
+    // in plain words, and the header's own name kept once behind the fold.
+    const row = everyEntry().find((e) => e.item === 'Mail without a message identifier');
+    expect(row).toBeDefined();
+    expect(row!.detail).toBe('Migrated with an identifier of our own on the copy, where the connection allows it.');
+    expect(row!.nl?.item).toBe('Mail zonder berichtkenmerk');
+    expect(row!.nl?.detail).toBe('Gemigreerd met een eigen kenmerk op de kopie, waar de verbinding dat toelaat.');
+    for (const more of [row!.more ?? '', row!.nl?.more ?? '']) {
+      expect(more.match(/\bMessage-ID\b/g), more).toHaveLength(1);
+    }
+    // Nowhere else, and never on a label or a line.
+    const elsewhere = everyEntry().flatMap((entry) =>
+      textsOf(entry)
+        .filter(([where, text]) => /\bMessage-ID\b/.test(text) && !(entry === row && where.endsWith(' more')))
+        .map(([where]) => `"${entry.item}" (${where})`),
+    );
+    expect(elsewhere).toEqual([]);
   });
 
   it('says Google Photos can come from a Takeout export, and links the guide that says how', () => {

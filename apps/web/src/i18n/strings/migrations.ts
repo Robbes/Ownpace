@@ -131,7 +131,7 @@ export const en = {
   // Under each step page of a migration, the way on to the next (NextStepLink).
   'hub.nextStep': 'Next step: {step} →',
   'hub.finish.blurb':
-    'The cutover checklist, to end the migration.',
+    'The checklist for switching over, to end the migration.',
   'runs.title': 'Run history',
   'runs.blurb':
     'Every pass this migration has made, newest first, with what each one said.',
@@ -178,7 +178,7 @@ export const en = {
   'view.state.paused': 'Copying is on hold at the moment.',
   'view.state.cutover': 'Your new account is now the one in use.',
   'view.state.done': 'Your migration is finished.',
-  'view.state.continuous': 'Anything new is still kept in sync for you.',
+  'view.state.continuous': 'Anything new on your old account is still kept in step for you.',
   'view.notStarted': 'Nothing has been copied yet.',
   'view.notStarted.why':
     'Migration has not started, so there is nothing to count here yet. That is normal for the first day or two: a migration begins once everything it needs is connected, and this page fills in on its own. Nothing is missing and nothing has gone wrong.',
@@ -366,8 +366,8 @@ export const en = {
   // The reference the failure was recorded under (0129 T1), what a person
   // quotes when they report it.
   'failure.reference': 'Reference: {reference}',
-  'failure.side.source': 'It happened on the source side.',
-  'failure.side.target': 'It happened on the destination side.',
+  'failure.side.source': 'It happened at your old account.',
+  'failure.side.target': 'It happened at the destination.',
   // One state, three reasons (see pause-reason.ts); the sentence says which.
   'pause.ceiling':
     '{provider} reached its daily download limit. Migration continues after {resets}.',
@@ -464,8 +464,8 @@ export const nl: Record<keyof typeof en, string> = {
     'Free omvat één migratieronde per dag. De volgende ronde begint op {time}. Een hoger pakket kijkt zo vaak als tot elke 15 minuten naar wijzigingen en migreert deze.',
   'mappings.action.pause': 'Pauzeren',
   'hub.connections': 'Van {source} naar {target}',
-  'hub.lands.folder': 'De bestanden komen in de map {folder} van de bestemming.',
-  'hub.lands.merged': 'De bestanden komen in de eigen mappen van de bestemming.',
+  'hub.lands.folder': 'De kopieën komen in de map {folder} van de bestemming.',
+  'hub.lands.merged': 'De kopieën komen in de eigen mappen van de bestemming.',
   'hub.filesFrom.all': 'De bestanden worden uit {place} gelezen.',
   'hub.filesFrom.path': 'De bestanden worden alleen uit {folder} gelezen.',
   'hub.filesFrom.id': 'De bestanden worden alleen uit één map gelezen: {folder}.',
@@ -520,7 +520,7 @@ export const nl: Record<keyof typeof en, string> = {
     'Verwijderd op het oude systeem, nog op het nieuwe; beslis per item.',
   'hub.moves.name': 'Verplaatsingen',
   'hub.moves.blurb':
-    'Items die het oude systeem heeft herschikt sinds de migratie. Een bestand in uw doelsysteem dat had moeten meeverplaatsen, kunt u handmatig verwijderen, of automatisch als u dat hebt aangezet.',
+    'Items die het oude systeem heeft herschikt sinds de migratie. Een bestand in het nieuwe systeem dat had moeten meeverplaatsen, kunt u handmatig verwijderen, of automatisch als u dat hebt aangezet.',
   'hub.failures.name': 'Mislukkingen',
   'hub.failures.blurb':
     'Items die niet gemigreerd konden worden en op uw beslissing wachten; ze blokkeren het afronden.',
@@ -536,7 +536,7 @@ export const nl: Record<keyof typeof en, string> = {
   'hub.finish.name': 'Afronden',
   'hub.nextStep': 'Volgende stap: {step} →',
   'hub.finish.blurb':
-    'De cutover-checklist; beëindigt de migratie in enkele stappen.',
+    'De checklist voor de overstap; beëindigt de migratie in enkele stappen.',
   'runs.title': 'Uitvoeringsgeschiedenis',
   'runs.blurb':
     'Iedere ronde van deze migratie, nieuwste eerst, met wat elke ronde meldde.',
@@ -561,7 +561,7 @@ export const nl: Record<keyof typeof en, string> = {
   'view.state.paused': 'Het migreren ligt op dit moment stil.',
   'view.state.cutover': 'U bent overgestapt naar uw nieuwe omgeving.',
   'view.state.done': 'Uw migratie is klaar.',
-  'view.state.continuous': 'Wat nieuw binnenkomt op uw oude omgeving, wordt nog steeds in sync gehouden.',
+  'view.state.continuous': 'Wat nieuw binnenkomt op uw oude omgeving, wordt nog steeds bijgehouden.',
   'view.notStarted': 'Er is nog niets gemigreerd.',
   'view.notStarted.why':
     'Het migreren is nog niet aangevangen, dus er valt nog niets te tellen. Dat is normaal in de eerste dag of twee: een migratie start zodra alles wat daarvoor nodig is, binnen is. Deze pagina vult zich verder vanzelf. Er ontbreekt niets en er is niets misgegaan.',
@@ -676,8 +676,8 @@ export const nl: Record<keyof typeof en, string> = {
     'We konden dit niet classificeren. De melding van de provider zelf staat hieronder \u2014 biedt dat geen duidelijkheid, stuur hem ons dan en we kijken mee.',
   'failure.sendItToUs': 'Stuur naar ons',
   'failure.reference': 'Referentie: {reference}',
-  'failure.side.source': 'Trad op aan de bronkant.',
-  'failure.side.target': 'Trad op aan de doelkant.',
+  'failure.side.source': 'Dit gebeurde bij uw oude account.',
+  'failure.side.target': 'Dit gebeurde bij de bestemming.',
   'pause.ceiling':
     '{provider} heeft de daglimiet voor downloaden bereikt. Migreren gaat verder na {resets}.',
   'pause.ceiling.unknown':

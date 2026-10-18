@@ -37,7 +37,7 @@ export const en = {
   'billing.tierDecidedByData': 'Set by how much data has been moved.',
   'billing.tierDecidedByBoth': 'Set by both what ran at once and how much was moved.',
   'billing.tierPeakPaths': 'Most migrations at once',
-  'billing.tierDataMoved': 'Data moved, in total',
+  'billing.tierDataMoved': 'Moved in total, counted',
   'billing.tierBeyondTable':
     'Past the highest tier — contact us.',
   'billing.noUsage': 'No usage data available yet',
@@ -259,7 +259,7 @@ export const nl: Record<keyof typeof en, string> = {
   'billing.yourTier': 'Waar u hiermee op uitkomt',
   'billing.monthBills': 'Wat deze maand kost',
   'billing.tierDataOf': '{moved} van {ceiling}',
-  'billing.tierAlphaMoved': 'Verplaatst tijdens de Alpha, telt niet mee',
+  'billing.tierAlphaMoved': 'Gemigreerd tijdens de Alpha, telt niet mee',
   'billing.tierBeyond.bands': 'Daar zit(ten) {count} bijgekocht(e) blok(ken) bij, dus valt binnen {tier}.',
   'billing.tierBeyond.paths':
     'Er liepen meer migraties tegelijk dan past binnen {tier}, dus deze maand kost {tier}. Er kunnen geen nieuwe aanvangen tot er migraties worden gestopt of u naar een groter pakket gaat.',
@@ -268,18 +268,18 @@ export const nl: Record<keyof typeof en, string> = {
   'billing.tierPerYear': 'voor een jaar',
   'billing.tierPerMonth': 'per maand',
   'billing.tierFree': 'Gratis: op dit pakket wordt niets gefactureerd',
-  'billing.tierDecidedByPaths': 'Bepaald door aantal gelijktijdige migraties.',
+  'billing.tierDecidedByPaths': 'Bepaald door het aantal gelijktijdige migraties.',
   'billing.tierDecidedByData': 'Bepaald door hoeveelheid verplaatste gegevens.',
   'billing.tierDecidedByBoth':
     'Bepaald door zowel wat er gelijktijdig migreerde als de hoeveelheid verplaatste data.',
   'billing.tierPeakPaths': 'Hoogste aantal gelijktijdige migraties',
-  'billing.tierDataMoved': 'Data verplaatst, in totaal',
+  'billing.tierDataMoved': 'In totaal gemigreerd, telt mee',
   'billing.tierBeyondTable': 'Voorbij het hoogste pakket — neem contact op met ons.',
   'billing.noUsage': 'Nog geen verbruiksgegevens beschikbaar',
   'billing.ceiling.title': 'Uw datalimiet',
-  'billing.ceiling.moved': '{moved} van {ceiling} verplaatst, op {tier}.',
+  'billing.ceiling.moved': '{moved} van {ceiling} gemigreerd, op {tier}.',
   'billing.ceiling.bands': 'Inclusief {count} extra blok(ken) data bijgekocht.',
-  'billing.ceiling.alphaMoved': 'Daarnaast is {moved} verplaatst tijdens de Alpha; dit telt niet mee voor uw limiet.',
+  'billing.ceiling.alphaMoved': 'Daarnaast is {moved} gemigreerd tijdens de Alpha; dit telt niet mee voor uw limiet.',
   'billing.ceiling.under':
     'Vanaf 80% van de limiet kunt u hier kiezen: naar een groter pakket, of eenmalig extra data.',
   'billing.ceiling.near':

@@ -13,6 +13,9 @@
  *   reads the name once and never the letter;
  * - a line of words names the company a person leaves (`providerName`):
  *   Gmail and a Google Drive connection are both "Google";
+ * - an IMAP source and a JMAP destination are named in plain words on a
+ *   line and a tile, the protocol in brackets, while Accounts keeps the
+ *   protocol's own name (the owner, 2026-10-18);
  * - the two colours are the site's (`site/build.mjs`) and the drawing's
  *   (`docs/design/0152-0154/tiles.svg`).
  */
@@ -23,7 +26,15 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { connectableTypes } from '@openmig/shared';
-import ProviderTile, { TILE_MINT, TILE_TEAL, providerName, tileLetter, type TileRole } from './ProviderTile.tsx';
+import { LocaleProvider } from '../i18n/index.tsx';
+import ProviderTile, {
+  TILE_MINT,
+  TILE_TEAL,
+  connectionKindName,
+  providerName,
+  tileLetter,
+  type TileRole,
+} from './ProviderTile.tsx';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const read = (...path: string[]) => readFileSync(join(REPO_ROOT, ...path), 'utf8');
@@ -89,9 +100,10 @@ describe('the provider tile', () => {
     ['o365', 'source', 'Microsoft 365'],
     ['apple', 'source', 'Apple iCloud'],
     ['dropbox', 'source', 'Dropbox'],
-    ['imap', 'source', 'IMAP'],
+    ['imap', 'source', 'Other mail provider (IMAP)'],
     ['soverin', 'target', 'Soverin'],
     ['nextcloud', 'target', 'Nextcloud'],
+    ['jmap', 'target', 'Mail server (JMAP)'],
   ] as [string, TileRole, string][])('names %s as a %s "%s" in a line of words', (type, role, name) => {
     expect(providerName(type, role, 'en')).toBe(name);
   });
@@ -106,6 +118,42 @@ describe('the provider tile', () => {
     expect(providerName('archive', 'source', 'en')).toBe('Export archive');
     expect(providerName('gmail', 'source', 'nl')).toBe('Google');
     expect(providerName('soverin', 'target', 'nl')).toBe('Soverin');
+  });
+
+  // Pieter's card read *From Microsoft 365 and IMAP to Nextcloud and JMAP*,
+  // and his KPN line *IMAP → JMAP*, where the wizard had said *Another mail
+  // provider* (the owner, 2026-10-18). Only these two sides: an IMAP
+  // destination and the Accounts cards keep the protocol's name.
+  it.each([
+    ['imap', 'source', 'en', 'Other mail provider (IMAP)'],
+    ['imap', 'source', 'nl', 'Andere mailaanbieder (IMAP)'],
+    ['jmap', 'target', 'en', 'Mail server (JMAP)'],
+    ['jmap', 'target', 'nl', 'Mailserver (JMAP)'],
+    ['imap', 'target', 'en', 'IMAP'],
+    ['imap', 'target', 'nl', 'IMAP'],
+  ] as [string, TileRole, 'en' | 'nl', string][])(
+    'names %s as a %s in %s "%s", on a line and on its tile (2026-10-18)',
+    (type, role, locale, name) => {
+      expect(providerName(type, role, locale)).toBe(name);
+      window.localStorage.setItem('ownpace.locale', locale);
+      try {
+        render(
+          <LocaleProvider>
+            <ProviderTile type={type} role={role} />
+          </LocaleProvider>,
+        );
+        expect(screen.getByText(name)).toBeTruthy();
+      } finally {
+        window.localStorage.removeItem('ownpace.locale');
+      }
+    },
+  );
+
+  it('leaves the Accounts cards their protocol names (2026-10-18)', () => {
+    for (const locale of ['en', 'nl'] as const) {
+      expect(connectionKindName('imap', locale)).toBe('IMAP');
+      expect(connectionKindName('jmap', locale)).toBe('JMAP');
+    }
   });
 
   it('uses the same two colours as the site and the drawing', () => {

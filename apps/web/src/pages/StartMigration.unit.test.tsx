@@ -1112,7 +1112,7 @@ describe('what migrates, for each source on the check screen', () => {
     expect(await rows.findByText(/— Files and folders\./)).toBeInTheDocument();
     expect(rows.queryByText(/Every folder, Sent, Drafts and Archive included/)).not.toBeInTheDocument();
     expect(rows.queryByText('Calendar')).not.toBeInTheDocument();
-    expect(rows.queryByText('Mail with no Message-ID')).not.toBeInTheDocument();
+    expect(rows.queryByText('Mail without a message identifier')).not.toBeInTheDocument();
   });
 
   it('tells an Apple migration about its mail and its Reminders', async () => {
@@ -1129,7 +1129,7 @@ describe('what migrates, for each source on the check screen', () => {
     renderCheck(plan('imap', 'imap', ['email']));
     const rows = within(await panel());
     expect(await rows.findByText(/Every folder, Sent, Drafts and Archive included/)).toBeInTheDocument();
-    expect(rows.getByText('Mail with no Message-ID')).toBeInTheDocument();
+    expect(rows.getByText('Mail without a message identifier')).toBeInTheDocument();
     for (const item of ['Calendar', 'Contacts', 'Tasks', 'Files']) {
       expect(rows.queryByText(item), item).not.toBeInTheDocument();
     }
@@ -1153,7 +1153,7 @@ describe('what migrates, for each source on the check screen', () => {
     expect(rows.getByText('Contacts')).toBeInTheDocument();
     expect(rows.queryByText(/Every folder, Sent, Drafts and Archive included/)).not.toBeInTheDocument();
     expect(rows.queryByText('Google-native files')).not.toBeInTheDocument();
-    expect(rows.queryByText('Mail with no Message-ID')).not.toBeInTheDocument();
+    expect(rows.queryByText('Mail without a message identifier')).not.toBeInTheDocument();
     expect(rows.queryByText(/Google Tasks:/)).not.toBeInTheDocument();
     expect(rows.queryByText(/Google Drive: files and folders/)).not.toBeInTheDocument();
     // What does not migrate from Google is said whatever was ticked.

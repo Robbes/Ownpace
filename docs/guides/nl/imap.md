@@ -22,7 +22,7 @@ Aan beide kanten vraagt de kaart **IMAP** dezelfde velden. In **Migratie starten
 5. Vul bij **Wachtwoord** het app-wachtwoord in, of het wachtwoord van het postvak als de aanbieder dat voor IMAP toelaat.
 6. Druk op **Aanmelding controleren**.
 
-De test meldt zich alleen-lezen aan en schrijft niets. Werkt het, dan staat er **Verbonden.**, met daaronder wat hij vond, en is het account bewaard. Bij een volgende migratie biedt **Uw accounts verbinden** het aan, zodat u niets opnieuw hoeft in te vullen. De link **Instellen** onder het formulier zet de voorbereiding op een lijst die onthoudt wat u al gedaan hebt.
+De test meldt zich alleen-lezen aan en schrijft niets. Werkt het, dan staat er **Verbonden.**, met daaronder wat hij vond, en is het account bewaard. Bij een volgende migratie biedt **Uw accounts verbinden** het aan, zodat u niets opnieuw hoeft in te vullen. De link **Instelstappen** onder het formulier zet de voorbereiding op een lijst die onthoudt wat u al gedaan hebt.
 
 ### IMAP als doel {#imap-target}
 
