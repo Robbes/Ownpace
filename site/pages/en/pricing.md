@@ -16,7 +16,7 @@ same time; one person moving them one after another is one.
 
 **Free is free.** Six migrations at the same time, up to 150 GB, cost nothing: nothing a
 month, no invoice, and no card or billing details to give us. That is everything one person
-moves, at one pass a day: the first right after the free preflight, the small things first and
+moves, at one pass a day: the first right after you start, the small things first and
 the files last. A paid tier copies pass after pass. More than 150 GB moves you to Small, more
 than six migrations at the same time to Medium, and we ask you before it does.
 

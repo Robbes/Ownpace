@@ -8,6 +8,7 @@
 #
 #   . deploy/compose/env-read.sh
 #   OWNPACE_APP_URL=https://app.ota.ownpace.eu \
+#   GOOGLE_ACCOUNT_SCOPE_CLASS="$(env_value deploy/compose/.env GOOGLE_ACCOUNT_SCOPE_CLASS)" \
 #   OWNPACE_STAGE="$(env_value deploy/compose/.env OWNPACE_STAGE)" node site/build.mjs   # site/dist
 #   docker compose -f deploy/compose/www.yml up -d                    # serve it
 #
@@ -28,6 +29,14 @@
 # for a stack that does not run the alpha. Read with `env_value`, the repo's
 # one reader, never the shell's value. Nothing rebuilds the OTA site but a
 # person; live's is built by `deploy-live.sh`, which hands live's own value.
+#
+# GOOGLE_ACCOUNT_SCOPE_CLASS IS THE STACK'S OWN TOO (the owner, 2026-10-18).
+# With `restricted` in this stack's `.env`, the app reads mail and files
+# through the Google account and asks for one Google sign-in, and the site's
+# Leaving Google says one (`GOOGLE_RESTRICTED` in `site/build.mjs`). Built
+# without the same value, the page tells a tester to expect three sign-ins and
+# the app asks once. Rebuild the site when the value changes: the API follows
+# it on a restart, the site only on its next build.
 #
 # Netbird maps the external name to WWW_PORT on this host; externally the name
 # is on 443/https and the port is an internal detail, which is why the redirect

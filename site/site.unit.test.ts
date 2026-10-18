@@ -43,6 +43,7 @@ import {
   realpathSync,
   rmSync,
   existsSync,
+  readdirSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, sep } from 'node:path';
@@ -1381,5 +1382,57 @@ describe('the pricing page asks its rules as questions (workplan 0152 T6 (b))', 
     expect(finishing).toBeGreaterThan(-1);
     expect(unless - finishing, 'the exception drifted away from the answer it qualifies').toBeGreaterThan(0);
     expect(unless - finishing).toBeLessThan(4);
+  });
+});
+
+/**
+ * ONE NAME FOR THE COUNT BEFORE A MIGRATION (the owner, 2026-10-18).
+ *
+ * The site promised "the free preflight" and "de gratis voorcontrole"; the app
+ * never says either. Its screen says the count happens *when you review the
+ * migration*, *wanneer u de migratie controleert* (`strings/connect.ts`), and
+ * the in-app guide said "at the preflight". A visitor who looks for the
+ * preflight in the app finds nothing by that name. So the site and the guides
+ * say the app's words, and neither old name reaches a visitor.
+ *
+ * NOT the legal texts: privacy §4.3 still says preflight, and changes only with
+ * the next legal version (`site/legal/README.md`). Code names, comments and the
+ * calculator's script, which a visitor does not read, keep theirs.
+ */
+describe('the count before a migration has the app’s name (the owner, 2026-10-18)', () => {
+  const OLD_NAMES = /preflight|voorcontrole/i;
+  const LEGAL = ['privacy', 'terms', 'alpha'];
+  /** What a visitor reads: the page without its scripts (the JSON of words the estimate shows kept), styles and tags. */
+  const visible = (html: string): string =>
+    html
+      .replace(/<script\b(?![^>]*application\/json)[^>]*>[\s\S]*?<\/script>/g, ' ')
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/g, ' ')
+      .replace(/<!--[\s\S]*?-->/g, ' ')
+      .replace(/<[^>]+>/g, ' ');
+
+  it('says neither old name on any page but the legal texts, and the app’s words on the estimate', async () => {
+    const pages = (await renderedPages()).filter((p) => !LEGAL.includes(p.key));
+    expect(pages.map((p) => p.key), 'the vacuity check: the estimate is among the pages read').toContain('calculator');
+    for (const p of pages) {
+      expect(visible(p.html).match(OLD_NAMES)?.[0], `${p.file} says ${visible(p.html).match(OLD_NAMES)?.[0]}`).toBeUndefined();
+    }
+    // The app's own phrase, which the estimate now uses for the same step.
+    const app = read('apps/web/src/i18n/strings/connect.ts');
+    expect(app, 'the app no longer names the count by its review').toContain('when you review the migration');
+    expect(app, 'the app no longer names the count by its review').toContain('wanneer u de migratie controleert');
+    const estimate = (file: string) => visible(pages.find((p) => p.file === file)!.html);
+    expect(estimate('estimate.html')).toContain('when you review your migration');
+    expect(estimate('nl/schatting.html')).toContain('wanneer u uw migratie controleert');
+  });
+
+  it('says neither in the app’s guides, which the app shows as they are', () => {
+    for (const locale of ['en', 'nl']) {
+      const guides = readdirSync(join(REPO, 'docs/guides', locale)).filter((f) => f.endsWith('.md'));
+      expect(guides.length).toBeGreaterThan(0);
+      for (const guide of guides) {
+        const said = read(`docs/guides/${locale}/${guide}`).match(OLD_NAMES)?.[0];
+        expect(said, `docs/guides/${locale}/${guide} says ${said}`).toBeUndefined();
+      }
+    }
   });
 });
