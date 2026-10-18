@@ -37,15 +37,36 @@
  *    reader only, never an `aria-label` over the name it shows: a label that
  *    does not hold the visible name is one voice control cannot find (axe's
  *    label-content-name-mismatch, the UX sweep's follow-ups).
+ * 10. **Where the stack asks once, the Google page says once** (the owner,
+ *    2026-10-18). A stack that declares Google's restricted scopes
+ *    (`GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`, ADR-0041) reads mail and files
+ *    through the Google account, so *Start a migration* asks for one sign-in
+ *    (`carrierOf` and `connectionsFor` in `apps/web/src/services/start-plan.ts`),
+ *    and a site built for it wrote three until then. Points 1 to 4 hold both
+ *    builds of the page; each row moves by the card the app's own plan picks,
+ *    and no page asks for a sign-in the plan does not. The build reads the
+ *    stack's own setting, by the app's rule (`providerAccountDomains`), and
+ *    never infers it from `OWNPACE_STAGE`. `deploy-live.sh` hands live's value
+ *    to every site build (`a-deploy-from-a-named-tag`), and the OTA site's
+ *    documented build hands its stack's (`a-policy-link-that-answers`).
  */
 
 import { describe, it, expect } from 'vitest';
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { connectableTypes, credentialFieldsFor } from '../packages/shared/src/credential-fields.ts';
-import { SOURCE_TYPE_DOMAINS, type WizardSourceType } from '../packages/shared/src/target-domains.ts';
+import { sourceTypeDomains, type WizardSourceType } from '../packages/shared/src/target-domains.ts';
+import { providerAccountDomains, type ProviderAccountEnv } from '../packages/shared/src/provider-accounts.ts';
 import { sourceFaceIsExperimental } from '../packages/shared/src/front-door.ts';
+import {
+  TYPE_ORDER,
+  carrierOf,
+  connectionsFor,
+  type ServedFacts,
+  type StartProvider,
+} from '../apps/web/src/services/start-plan.ts';
 import { SCOPE_MANIFEST, scopeFamilyOf } from '../packages/shared/src/scope-manifest.ts';
 import { ARCHIVE_READABLE_TARGETS } from '../packages/shared/src/archive-in-target.ts';
 import type { DiscoveryDomain } from '../packages/shared/src/discovery.ts';
@@ -72,7 +93,7 @@ interface Page {
   rows: Row[];
   staysBehind: { family: string; items: string[]; except: string[] } | null;
   limits: Array<{ id: string; guide: string }>;
-  steps: Array<{ card: string; kind: 'button' | 'password' | 'app' | 'export' }>;
+  steps: Array<{ card: string; kind: 'button' | 'password' | 'app' | 'export'; words?: string }>;
   typical: string[];
   from: string;
 }
@@ -98,15 +119,42 @@ type Copy = Record<
 >;
 
 const sources = () =>
-  site<{ LEAVING: Page[]; LEAVING_TYPES: string[]; DOMAIN_OF: Record<string, DiscoveryDomain>; EXPORT_TARGETS: string[] }>(
-    'sources.mjs',
-  );
+  site<{
+    LEAVING: Page[];
+    LEAVING_TYPES: string[];
+    DOMAIN_OF: Record<string, DiscoveryDomain>;
+    EXPORT_TARGETS: string[];
+    leavingPages: (opts: { googleRestricted: boolean }) => Page[];
+  }>('sources.mjs');
 const copy = async () => (await site<{ COPY: Copy }>('copy.mjs')).COPY;
+type Rendered = Array<{ file: string; locale: string; key: string; html: string }>;
 const rendered = async () => {
   process.env.OWNPACE_APP_URL ??= 'https://app.ota.ownpace.eu';
-  return (await site<{ rendered: Array<{ file: string; locale: string; key: string; html: string }> }>('build.mjs'))
-    .rendered;
+  return (await site<{ rendered: Rendered }>('build.mjs')).rendered;
 };
+/** Every page, as a build for a stack that declared Google's restricted scopes, or not, renders it. */
+const builtFor = async (googleRestricted: boolean): Promise<Rendered> => {
+  process.env.OWNPACE_APP_URL ??= 'https://app.ota.ownpace.eu';
+  const m = await site<{ build: (opts: { googleRestricted: boolean }) => { rendered: Rendered } }>('build.mjs');
+  return m.build({ googleRestricted }).rendered;
+};
+
+/**
+ * THE TWO BUILDS A PAGE IS HELD IN (point 10): the default, and a stack whose
+ * `.env` declares Google's restricted scopes. `served` is what that stack's
+ * API answers for the Google account, by the app's own rule, and so what
+ * *Start a migration* plans with.
+ */
+const VARIANTS: ReadonlyArray<{ name: string; googleRestricted: boolean; env: ProviderAccountEnv }> = [
+  { name: 'the default build', googleRestricted: false, env: {} },
+  { name: 'a build for a stack that declared the restricted scopes', googleRestricted: true, env: { GOOGLE_ACCOUNT_SCOPE_CLASS: 'restricted' } },
+];
+const servedFor = (env: ProviderAccountEnv): ServedFacts => ({ google: providerAccountDomains('google', env) });
+const pagesFor = async (v: (typeof VARIANTS)[number]): Promise<Page[]> =>
+  (await sources()).leavingPages({ googleRestricted: v.googleRestricted });
+
+/** The provider *Start a migration* names for a page: its own id, and IMAP for another mail provider. */
+const providerOf = (page: Page): StartProvider => (page.id === 'mail' ? 'imap' : page.id) as StartProvider;
 
 /**
  * The cards with no row in `SOURCE_TYPE_DOMAINS`, because what they read is the
@@ -117,9 +165,9 @@ const rendered = async () => {
  */
 const MAIL_ONLY = ['imap', 'graph', 'oauth2'];
 
-/** What a source card carries, as the app decides it. */
-const carries = (card: string): ReadonlyArray<string> =>
-  SOURCE_TYPE_DOMAINS[card as WizardSourceType] ?? (MAIL_ONLY.includes(card) ? ['email'] : []);
+/** What a source card carries, as the app decides it on a stack that serves `served`. */
+const carries = (card: string, served: ServedFacts = {}): ReadonlyArray<string> =>
+  sourceTypeDomains(card as WizardSourceType, served.google) ?? (MAIL_ONLY.includes(card) ? ['email'] : []);
 
 describe('the Leaving… pages say what the app says (0152 T5)', () => {
   it('names only cards the app has, and every card it can read from has an answer', async () => {
@@ -134,9 +182,10 @@ describe('the Leaving… pages say what the app says (0152 T5)', () => {
     }
   });
 
-  it('moves a data type only by a card of its page that carries it, and refuses one no card of it carries', async () => {
-    const { LEAVING, LEAVING_TYPES, DOMAIN_OF } = await sources();
-    for (const page of LEAVING) {
+  it.each(VARIANTS)('moves a data type only by a card of its page that carries it, and refuses one no card of it carries ($name)', async (v) => {
+    const { LEAVING_TYPES, DOMAIN_OF } = await sources();
+    const served = servedFor(v.env);
+    for (const page of await pagesFor(v)) {
       expect(new Set(page.rows.map((r) => r.type)).size, `${page.id}: a data type has two rows`).toBe(page.rows.length);
       for (const row of page.rows) {
         expect(LEAVING_TYPES, `${page.id}: ${row.type} is not a data type a page lists`).toContain(row.type);
@@ -144,20 +193,42 @@ describe('the Leaving… pages say what the app says (0152 T5)', () => {
         if (row.verdict === 'no') {
           // Nothing on the page could carry it: a no that one card answers yes is a page that undersells.
           for (const card of page.cards) {
-            expect(carries(card), `${page.id}: ${row.type} is "does not move", and ${card} carries it`).not.toContain(domain);
+            expect(carries(card, served), `${page.id}: ${row.type} is "does not move", and ${card} carries it`).not.toContain(domain);
           }
           expect(row.by, `${page.id}: ${row.type} does not move, by nothing`).toBeUndefined();
           continue;
         }
         expect(page.cards, `${page.id}: ${row.type} moves by ${row.by}, which is not this page's`).toContain(row.by);
-        expect(carries(row.by!), `${page.id}: ${row.by} does not carry ${domain}`).toContain(domain);
+        expect(carries(row.by!, served), `${page.id}: ${row.by} does not carry ${domain}`).toContain(domain);
       }
     }
   });
 
-  it('tags a row experimental exactly when the app tags that face, in the app’s words', async () => {
-    const { LEAVING, DOMAIN_OF } = await sources();
-    for (const page of LEAVING) {
+  it.each(VARIANTS)('moves each row by the card Start a migration plans it with, and asks for no sign-in the plan does not ($name)', async (v) => {
+    const { DOMAIN_OF } = await sources();
+    const served = servedFor(v.env);
+    for (const page of await pagesFor(v)) {
+      const provider = providerOf(page);
+      // Photos come by an export, which the plan keeps under its own tick box (`exportOf`).
+      for (const row of page.rows.filter((r) => r.verdict !== 'no' && r.by !== 'archive')) {
+        expect(row.by, `${page.id}: ${row.type} moves by ${row.by}, and the app plans it by another card`).toBe(
+          carrierOf(provider, DOMAIN_OF[row.type]!, served),
+        );
+      }
+      // A button is a sign-in the person makes: one the plan never asks for is
+      // a page promising more sign-ins than the app has (three, where it asks once).
+      const signIns = connectionsFor(provider, TYPE_ORDER, served).map((c) => c.card);
+      for (const step of page.steps.filter((s) => s.kind === 'button')) {
+        expect(signIns, `${page.id}: a sign-in with ${step.card}, which Start a migration does not ask for here`).toContain(
+          step.card,
+        );
+      }
+    }
+  });
+
+  it.each(VARIANTS)('tags a row experimental exactly when the app tags that face, in the app’s words ($name)', async (v) => {
+    const { DOMAIN_OF } = await sources();
+    for (const page of await pagesFor(v)) {
       for (const row of page.rows.filter((r) => r.verdict !== 'no')) {
         expect(row.experimental, `${page.id}: ${row.type} by ${row.by} is tagged unlike the app`).toBe(
           sourceFaceIsExperimental(row.by!, DOMAIN_OF[row.type]!),
@@ -172,8 +243,7 @@ describe('the Leaving… pages say what the app says (0152 T5)', () => {
     }
   });
 
-  it('writes a step only as the card’s own credential asks it, in both languages', async () => {
-    const { LEAVING } = await sources();
+  it.each(VARIANTS)('writes a step only as the card’s own credential asks it, in both languages ($name)', async (v) => {
     const COPY = await copy();
     const kindOf = (card: string) => {
       const fields = credentialFieldsFor('source', card);
@@ -184,13 +254,14 @@ describe('the Leaving… pages say what the app says (0152 T5)', () => {
       if (has('clientId') && fields.some((f) => f.key === 'clientSecret' && f.secret)) return 'app';
       return undefined;
     };
-    for (const page of LEAVING) {
+    for (const page of await pagesFor(v)) {
       expect(page.steps.length, `${page.id} says nothing of what the person does`).toBeGreaterThan(0);
       for (const step of page.steps) {
         expect(page.cards, `${page.id}: a step for ${step.card}, which is not this page's`).toContain(step.card);
         expect(step.kind, `${page.id}: ${step.card}'s step is not what its credential asks`).toBe(kindOf(step.card));
         for (const locale of ['en', 'nl'] as const) {
-          expect(COPY[locale].leaving.steps[step.card], `${locale}: no words for ${step.card}'s step`).toBeTruthy();
+          const words = step.words ?? step.card;
+          expect(COPY[locale].leaving.steps[words], `${locale}: no words for ${step.card}'s step (${words})`).toBeTruthy();
         }
       }
       // Every card that moves a row says how it is connected.
@@ -391,6 +462,88 @@ describe('the Leaving… pages say what the app says (0152 T5)', () => {
       expect(home, `${locale}: the site has no sr-only rule for the Leaving… links' words`).toMatch(
         /\.sr-only \{[^}]*position: absolute;[^}]*overflow: hidden; clip-path: inset\(50%\);/,
       );
+    }
+  });
+});
+
+describe('leaving Google, where the stack asks once (point 10; the owner, 2026-10-18)', () => {
+  /** The steps of a built Google page, as the words of each item, in order. */
+  const stepsOf = (html: string): string[] =>
+    [...(/<ul class="steps">([\s\S]*?)<\/ul>/.exec(html)?.[1] ?? '').matchAll(/<li><span class="kind">[^<]*<\/span>([\s\S]*?)<\/li>/g)].map(
+      (m) => m[1]!,
+    );
+  const googlePage = (pages: Rendered, locale: 'en' | 'nl') =>
+    pages.find((p) => p.key === 'leaving-google' && p.locale === locale)!.html;
+
+  it('says one sign-in and the export on a build for that stack, and the three sign-ins of today on the default', async () => {
+    const COPY = await copy();
+    const once = await builtFor(true);
+    const today = await builtFor(false);
+    for (const locale of ['en', 'nl'] as const) {
+      const L = COPY[locale].leaving;
+      expect(stepsOf(googlePage(once, locale)), `${locale}: the restricted build's steps`).toEqual([
+        L.steps.googleAll,
+        L.steps.archive,
+      ]);
+      expect(stepsOf(googlePage(today, locale)), `${locale}: the default build's steps changed`).toEqual([
+        L.steps.google,
+        L.steps.gmail,
+        L.steps['google-drive'],
+        L.steps.archive,
+      ]);
+      // Mail through the account is not yet proven (`SOURCE_PROOFS`), so its row
+      // wears the tag there and not where the Gmail card carries it.
+      const mailRow = (html: string) => /<li class="move" data-type="email"[^>]*>/.exec(html)?.[0] ?? '';
+      expect(mailRow(googlePage(once, locale)), `${locale}: mail through the account is not tagged`).toContain(
+        'data-experimental',
+      );
+      expect(mailRow(googlePage(today, locale)), `${locale}: mail through Gmail is tagged`).not.toContain('data-experimental');
+      // Only the Google page differs between the two builds.
+      for (const page of today.filter((p) => p.locale === locale && p.key !== 'leaving-google')) {
+        expect(once.find((p) => p.file === page.file)?.html, `${page.file} differs between the two builds`).toBe(page.html);
+      }
+    }
+  });
+
+  it('reads the stack’s own GOOGLE_ACCOUNT_SCOPE_CLASS by the app’s rule, and never infers it from OWNPACE_STAGE', async () => {
+    const COPY = await copy();
+    /** The Google page, by locale, as `node site/build.mjs` renders it with only these settings. */
+    const builtWith = (settings: Record<string, string | undefined>): Record<'en' | 'nl', string> => {
+      const env: NodeJS.ProcessEnv = { ...process.env, OWNPACE_APP_URL: 'https://app.ota.ownpace.eu' };
+      delete env.GOOGLE_ACCOUNT_SCOPE_CLASS;
+      delete env.OWNPACE_STAGE;
+      for (const [key, value] of Object.entries(settings)) if (value !== undefined) env[key] = value;
+      const build = pathToFileURL(join(REPO_ROOT, 'site', 'build.mjs')).href;
+      const script =
+        `const { rendered } = await import(${JSON.stringify(build)});\n` +
+        "process.stdout.write(JSON.stringify(rendered.filter((p) => p.key === 'leaving-google').map((p) => [p.locale, p.html])));";
+      const r = spawnSync(process.execPath, ['--input-type=module', '-e', script], { env, encoding: 'utf8' });
+      expect(r.status, r.stderr).toBe(0);
+      return Object.fromEntries(JSON.parse(r.stdout) as Array<[string, string]>) as Record<'en' | 'nl', string>;
+    };
+    const asksOnce = (pages: Record<'en' | 'nl', string>, locale: 'en' | 'nl') =>
+      stepsOf(pages[locale]).includes(COPY[locale].leaving.steps.googleAll!);
+
+    let on = 0;
+    for (const value of [undefined, '', 'sensitive', 'restricted', '  restricted  ', 'RESTRICTED', 'restrictd']) {
+      const pages = builtWith({ GOOGLE_ACCOUNT_SCOPE_CLASS: value });
+      // The app's rule: one consent covers mail exactly where the API serves it through the account.
+      const app = providerAccountDomains('google', { GOOGLE_ACCOUNT_SCOPE_CLASS: value }).includes('email');
+      if (app) on++;
+      for (const locale of ['en', 'nl'] as const) {
+        expect(asksOnce(pages, locale), `${locale}: GOOGLE_ACCOUNT_SCOPE_CLASS=${JSON.stringify(value)} says other than the app`).toBe(app);
+      }
+    }
+    // The vacuity check: the loop above turned it on at least once.
+    expect(on).toBeGreaterThan(0);
+    // The alpha's setting decides the alpha, never which consent a stack's Google application holds.
+    for (const stage of ['alpha', '']) {
+      for (const [value, once] of [[undefined, false], ['restricted', true]] as const) {
+        const pages = builtWith({ OWNPACE_STAGE: stage, GOOGLE_ACCOUNT_SCOPE_CLASS: value });
+        for (const locale of ['en', 'nl'] as const) {
+          expect(asksOnce(pages, locale), `${locale}: OWNPACE_STAGE=${stage} with GOOGLE_ACCOUNT_SCOPE_CLASS=${value}`).toBe(once);
+        }
+      }
     }
   });
 });

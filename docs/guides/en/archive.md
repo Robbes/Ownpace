@@ -96,7 +96,7 @@ On a self-hosted appliance, the **Accounts** page offers it: press **Add an acco
 - **Where the export is**: **In a folder on your destination (Nextcloud or WebDAV)**, or **On this appliance's disk**.
 - The folder, in a box whose name follows that choice. **Folder in your destination for files**: the folder as your files show it, from the top, such as `Exports/takeout-20260904`, or one `.zip` in it (see [Your export in your own Nextcloud](#own-nextcloud)). **Where the archive is**, for a disk: the folder you extracted the download into, or the `.zip` itself.
 
-Then press **Add and test**. Testing does not move anything. For an export on a disk, it opens the archive and tells you what is in it; for an export in your destination's files, it says the export is counted at the preflight, because the destination comes with a migration and until then there is nowhere to look. Either way, before anything moves, you learn:
+Then press **Add and test**. Testing does not move anything. For an export on a disk, it opens the archive and tells you what is in it; for an export in your destination's files, it says the export is counted when you review the migration, because the destination comes with a migration and until then there is nowhere to look. Either way, before anything moves, you learn:
 
 - how many items,
 - how many bytes,

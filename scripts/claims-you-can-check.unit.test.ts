@@ -13,11 +13,13 @@
  *    renamed or deleted is a claim that outlived its proof, and this fails on it.
  * 2. **Each claim links its own proof, in both languages:** the footer's *Open
  *    source* the repository and *Run it yourself* the self-host quickstart;
- *    the hero's fact *Nothing is deleted at the source* and *the software has
- *    no code that changes or deletes anything at a source* (the card's words
- *    since 2026-10-05, workplan 0144 T3 (b)) the guard that counts every
- *    source connector's methods; *Whatever cannot be moved* the scope
- *    manifest; the open-source sentence the repository.
+ *    the hero's fact *Nothing is deleted at the source*, by a link in its body
+ *    that says it is code (*The test that checks this (code, on GitHub)*, the
+ *    owner, 2026-10-18; its title opened a test file without saying so), and
+ *    *the software has no code that changes or deletes anything at a source*
+ *    (the card's words since 2026-10-05, workplan 0144 T3 (b)) the guard that
+ *    counts every source connector's methods; *Whatever cannot be moved* the
+ *    scope manifest; the open-source sentence the repository.
  * 3. **The repository is the one the README clones,** so the site cannot point
  *    at a fork or an old name.
  */
@@ -78,13 +80,13 @@ describe('the site links each claim to what holds it (0152 T8)', () => {
     const pages = await rendered();
     const expectations: Record<'en' | 'nl', Array<[string, string]>> = {
       en: [
-        ['Nothing is deleted at the source.', PROOF_LINKS.readsOnly!],
+        ['The test that checks this', PROOF_LINKS.readsOnly!],
         ['the software has no code that changes or deletes anything at a source', PROOF_LINKS.readsOnly!],
         ['Whatever cannot be moved', PROOF_LINKS.cannotMove!],
         ['open source', PROOF_LINKS.repository!],
       ],
       nl: [
-        ['Bij de bron wordt niets verwijderd.', PROOF_LINKS.readsOnly!],
+        ['De test die dit controleert', PROOF_LINKS.readsOnly!],
         ['de software heeft geen code die bij een bron iets wijzigt of verwijdert', PROOF_LINKS.readsOnly!],
         ['Wat niet mee kan', PROOF_LINKS.cannotMove!],
         ['open source', PROOF_LINKS.repository!],
@@ -106,6 +108,18 @@ describe('the site links each claim to what holds it (0152 T8)', () => {
       for (const [text, href] of expectations[locale]) {
         expect(body, `${home.file}: "${text}" does not link its proof`).toContainEqual({ href, text });
       }
+      // The fact's proof is in its body, says it is code before anyone opens it,
+      // and its heading is plain words (the owner, 2026-10-18).
+      const facts = home.html.slice(home.html.indexOf('<div class="cards facts">'));
+      const first = /<div class="card"><h2>([\s\S]*?)<\/h2><p>([\s\S]*?)<\/p><\/div>/.exec(facts);
+      expect(first, `${home.file}: the first fact is not a card with a heading and a body`).not.toBeNull();
+      expect(first![1], `${home.file}: the first fact's heading is a link`).not.toMatch(/<a\b/);
+      expect(linksOf(first![2]!), `${home.file}: the first fact's body does not link its proof`).toEqual([
+        { href: PROOF_LINKS.readsOnly!, text: expectations[locale][0]![0] },
+      ]);
+      expect(first![2], `${home.file}: the link to the proof does not say it is code`).toMatch(
+        locale === 'en' ? /<\/a> \(code, on GitHub\)\.$/ : /<\/a> \(code, op GitHub\)\.$/,
+      );
       for (const page of pages.filter((p) => p.locale === locale)) {
         const foot = linksOf(page.html.slice(page.html.indexOf('<footer')));
         for (const [text, href] of footer[locale]) {

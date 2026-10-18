@@ -282,8 +282,11 @@ describe('the words the page must and must not say (T5, grep-guarded)', () => {
       expect(p.html).toContain('50%');
       // A visible version and date — a quoted estimate gets screenshotted.
       expect(p.html).toContain(`v${PROFILES_VERSION.version}, ${PROFILES_VERSION.date}`);
-      // The line about what it cannot know.
-      expect(p.html).toMatch(/preflight verifies|voorcontrole verifieert/);
+      // The line about what it cannot know, and the step that counts it, by the
+      // app's name for it (the owner, 2026-10-18).
+      expect(p.html).toMatch(
+        /cannot know: what your destination already holds\. Ownpace counts exactly that when you review your migration|niet weten: wat er al op uw bestemming staat\. Ownpace telt precies dat wanneer u uw migratie controleert/,
+      );
       // Bill-goes-down, and its floor, in the same breath.
       expect(p.html).toMatch(/sets a floor|legt een bodem/);
       // The ceiling sentence machinery (0090 T5) is in the shipped script.

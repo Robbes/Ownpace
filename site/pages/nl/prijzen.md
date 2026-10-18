@@ -16,7 +16,7 @@ zes tegelijk; iemand die ze na elkaar doet, doet er één.
 
 **Free is gratis.** Zes migraties tegelijk, tot 150 GB, kosten niets: niets per maand, geen
 factuur, en geen kaart of factuurgegevens die u ons hoeft te geven. Dat is alles wat één
-persoon migreert, met één ronde per dag: de eerste direct na de gratis voorcontrole, de kleine
+persoon migreert, met één ronde per dag: de eerste direct na de start, de kleine
 dingen eerst en de bestanden als laatste. Een betaald pakket kopieert ronde na ronde. Meer dan
 150 GB brengt u naar Small, meer dan zes migraties tegelijk naar Medium, en we vragen het u
 eerst.
