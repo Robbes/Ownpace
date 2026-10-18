@@ -556,7 +556,7 @@ export const nl: Record<keyof typeof en, string> = {
   'answer.unreachable': 'De dienst was niet bereikbaar. Controleer uw verbinding en probeer het opnieuw.',
   'view.title': 'Uw migratie',
   'view.loading': 'Een moment…',
-  'view.who': '{organisation} migreert uw account naar een nieuwe provider.',
+  'view.who': '{organisation} migreert uw account naar een nieuwe aanbieder.',
   'view.state.active': 'De migratie is actief.',
   'view.state.paused': 'Het migreren ligt op dit moment stil.',
   'view.state.cutover': 'U bent overgestapt naar uw nieuwe omgeving.',
@@ -576,7 +576,7 @@ export const nl: Record<keyof typeof en, string> = {
   'view.retrying.many': '{count} items worden opnieuw geprobeerd.',
   'view.moved': 'Tot nu toe {bytes} overgezet.',
   'view.failure.authExpired': 'De koppeling met uw account moet worden vernieuwd. Wie dit heeft ingesteld kan dat.',
-  'view.failure.rateLimited': 'Uw provider vroeg ons (geautomatiseerd) rustiger aan te doen. Dit gaat vanzelf verder.',
+  'view.failure.rateLimited': 'Uw aanbieder vroeg ons (automatisch) rustiger aan te doen. Dit gaat vanzelf verder.',
   'view.failure.quotaExceeded': 'Een daglimiet is bereikt. Morgen gaat het migreren vanzelf verder.',
   'view.failure.policyRefused':
     'Sommige items konden niet worden gemigreerd door de instellingen van deze migratie, niet door uw accounts.',
@@ -611,7 +611,7 @@ export const nl: Record<keyof typeof en, string> = {
   'view.withdrawn.check': 'Uw Google-account toont welke apps nog toegang hebben:',
   // De voortgangspagina van een PERSOON (ADR-0035, gewijzigd 2026-09-29; 0153 T5 (b), deel 3).
   'view.person.title': 'Uw migraties',
-  'view.person.who': '{organisation} migreert uw accounts naar nieuwe providers. Hier ziet u hoe elke migratie ervoor staat.',
+  'view.person.who': '{organisation} migreert uw accounts naar nieuwe aanbieders. Hier ziet u hoe elke migratie ervoor staat.',
   'view.person.none': 'Er zijn hier nog geen migraties.',
   'view.person.account.only': 'Uw Google-account',
   'view.person.account': 'Google-account {n}',
@@ -655,9 +655,9 @@ export const nl: Record<keyof typeof en, string> = {
     'De verbinding met dit account is verlopen. Druk op de pagina Accounts op Opnieuw verbinden of Inloggegevens vervangen, welke van de twee er bij dit account staat; daarna wordt verdergegaan waar gestopt was \u2014 er gaat niets verloren.',
   'failure.openAccounts': 'Naar Accounts',
   'failure.rateLimited':
-    'De provider vroeg ons (geautomatiseerd) om rustiger aan te doen. Er is niets mis: dit pauzeert en hervat vanzelf.',
+    'De aanbieder vroeg ons (automatisch) om rustiger aan te doen. Er is niets mis: dit pauzeert en hervat vanzelf.',
   'failure.quotaExceeded':
-    'Dit account heeft de limiet bereikt die de provider per dag toestaat. Het hervat morgen vanzelf \u2014 u hoeft niets te doen.',
+    'Dit account heeft de limiet bereikt die de aanbieder per dag toestaat. Het hervat morgen vanzelf \u2014 u hoeft niets te doen.',
   'failure.policyRefused':
     'Nog niet gemigreerd: Google-bestanden in een formaat dat het nieuwe account niet kan ontvangen. Kies een formaat dat beide kanten aankan onder Exportformaat voor Google-bestanden, en klik op Probeer opnieuw \u2014 of laat deze items achter.',
   'failure.policyRefused.dropbox':
@@ -673,7 +673,7 @@ export const nl: Record<keyof typeof en, string> = {
   'failure.network':
     'We konden de server niet bereiken. Dit is meestal tijdelijk, en er wordt vanzelf opnieuw geprobeerd.',
   'failure.unknown':
-    'We konden dit niet classificeren. De melding van de provider zelf staat hieronder \u2014 biedt dat geen duidelijkheid, stuur hem ons dan en we kijken mee.',
+    'We konden dit niet classificeren. De melding van de aanbieder zelf staat hieronder \u2014 biedt dat geen duidelijkheid, stuur hem ons dan en we kijken mee.',
   'failure.sendItToUs': 'Stuur naar ons',
   'failure.reference': 'Referentie: {reference}',
   'failure.side.source': 'Dit gebeurde bij uw oude account.',
@@ -683,7 +683,7 @@ export const nl: Record<keyof typeof en, string> = {
   'pause.ceiling.unknown':
     '{provider} heeft de daglimiet voor downloaden bereikt. Migreren gaat verder zodra die reset.',
   'pause.ceiling.why':
-    'Deze limiet is van uw bron / oude provider, niet van ons. Als wij daar overheen gaan, kan dat u ongeveer een dag buitensluiten uit uw eigen live mailbox, dus is de migratie voordien al gestopt. Er is niets misgegaan en er gaat niets verloren — de volgende ronde gaan we weer rustig verder.',
+    'Deze limiet is van uw oude aanbieder, niet van ons. Als wij daar overheen gaan, kan dat u ongeveer een dag buitensluiten uit uw eigen live mailbox, dus is de migratie voordien al gestopt. Er is niets misgegaan en er gaat niets verloren — de volgende ronde gaan we weer rustig verder.',
   'pause.dataCeiling':
     'Nieuwe items wachten bij uw datalimiet van {ceiling}: {held} nog niet gemigreerd. Wijzigingen in items die al gemigreerd waren worden nog wel gemigreerd.',
   'pause.dataCeiling.moveUp': 'Ga naar {tier}: €{monthly} per maand.',

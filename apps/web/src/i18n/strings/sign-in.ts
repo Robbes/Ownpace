@@ -9,7 +9,9 @@
 
 export const en = {
   'login.title': 'Sign in to Ownpace',
-  'login.tagline': 'Sovereign data migrations for families and SMBs',
+  // The owner's own words (2026-10-18), in place of 'Sovereign data
+  // migrations for families and SMBs', which the site never says.
+  'login.tagline': 'Your mail, calendars, tasks, contacts and files back to Europe.',
   'login.tokenLabel': 'Access token',
   'login.invalidToken':
     'That does not look like a valid access token (need sub, email, tenantId, role).',
@@ -126,8 +128,7 @@ export const en = {
   'acceptance.retry': 'Try again',
   // The failures this screen can meet, in the reader's language; the
   // reference a fault carries is kept ('failure.reference').
-  'acceptance.fault.read':
-    'We ran into some error on our side; try again later or contact support.',
+  'acceptance.fault.read': 'Something went wrong on our side. Try again later, or write to us.',
   'acceptance.fault.record': 'Your acceptance was not recorded, please try again.',
   'acceptance.unreachable': 'The service could not be reached. Check your connection and try again.',
   'acceptance.forbidden':
@@ -189,7 +190,7 @@ export const en = {
 
 export const nl: Record<keyof typeof en, string> = {
   'login.title': 'Aanmelden bij Ownpace',
-  'login.tagline': 'Soevereine datamigratie voor gezinnen en mkb',
+  'login.tagline': 'Uw e-mail, agenda\'s, taken, contacten en bestanden terug naar Europa.',
   'login.tokenLabel': 'Toegangstoken',
   'login.invalidToken':
     'Dit lijkt geen geldig toegangstoken (sub, e-mail, tenantId en rol zijn vereist).',
@@ -222,7 +223,7 @@ export const nl: Record<keyof typeof en, string> = {
   'login.noOrganisation.already':
     'Al aangevraagd? Dan wacht u tot wij, of een eigenaar van uw organisatie, u toegang geven.',
   'login.noOrganisation.already.why':
-    'Nogmaals aanvragen kan geen kwaad: een tweede aanvraag terwijl de eerste openstaat wordt echter niet dubbel vastgelegd.',
+    'Nogmaals aanvragen helpt niet: een tweede aanvraag terwijl de eerste openstaat, wordt niet dubbel vastgelegd.',
   // ---- Een uitnodiging beantwoorden (workplan 0099) — zie het Engelse blok. ----
   'invite.title': 'U bent uitgenodigd',
   'invite.subtitle': 'Wilt u migreren?',
@@ -232,13 +233,14 @@ export const nl: Record<keyof typeof en, string> = {
   'invite.joining': 'Bezig toe te treden…',
   'invite.decline': 'Afwijzen',
   'invite.skip': 'Nu niet',
-  'invite.skipHelp': 'Nu geen keuze is geen afstel, wij vragen het opnieuw bij uw volgende aanmelding.',
+  'invite.skipHelp': 'Kiest u nu niet, dan vragen wij het opnieuw bij uw volgende aanmelding.',
   'invite.skipHelp.why':
     'Afwijzen wordt vastgelegd, en alleen eigenaren en beheerders van de organisatie kunnen u opnieuw uitnodigen.',
   'invite.confirmDecline':
     'De uitnodiging van {name} afwijzen? Alleen zij kunnen u opnieuw uitnodigen.',
   // "Aanvaarden", the texts' own word (terms §1, Alpha §2 and §11, privacy
-  // §4.4), and "uitloggen", the nav's (review of 2026-09-29).
+  // §4.4), and "afmelden", the nav's: the pair of "aanmelden" (the owner,
+  // 2026-10-18; "uitloggen" from the review of 2026-09-29 until then).
   'acceptance.title': 'Voordat u begint',
   'acceptance.changedTitle': 'De teksten zijn gewijzigd',
   'acceptance.lead': 'Lees deze teksten. Ze zeggen wat we met uw accounts en uw gegevens doen.',
@@ -252,17 +254,17 @@ export const nl: Record<keyof typeof en, string> = {
   'acceptance.record': 'We leggen vast welke versie van elke tekst u hebt aanvaard, in welke taal, en wanneer.',
   'acceptance.accept': 'Allemaal aanvaarden',
   'acceptance.accepting': 'Bezig met vastleggen…',
-  'acceptance.notNow': 'Nu niet, uitloggen',
+  'acceptance.notNow': 'Nu niet, afmelden',
   'acceptance.notCurrent':
     'Deze teksten zijn gewijzigd terwijl deze pagina openstond. Lees de huidige versies en aanvaard die.',
   'acceptance.checking': 'Uw account wordt gecontroleerd…',
   'acceptance.readFailed': 'Uw account kon niet worden gelezen.',
   'acceptance.retry': 'Opnieuw proberen',
-  'acceptance.fault.read': 'Er ging iets fout bij ons... probeer later nog eens of neem contact op met support.',
+  'acceptance.fault.read': 'Er ging bij ons iets mis. Probeer het later opnieuw, of schrijf ons.',
   'acceptance.fault.record': 'Uw aanvaarding is niet vastgelegd: iets ging fout bij ons, probeer het opnieuw.',
   'acceptance.unreachable': 'De dienst was niet bereikbaar. Controleer uw verbinding en probeer het opnieuw.',
   'acceptance.forbidden':
-    'Dit account heeft geen toegang tot deze organisatie. Log uit en log in met het account waarmee u bent uitgenodigd.',
+    'Dit account heeft geen toegang tot deze organisatie. Meld u af en meld u opnieuw aan met het account waarmee u bent uitgenodigd.',
   'acceptance.refused':
     'Er is niets opgeslagen: de voorwaarden waren nog niet aanvaard. Probeer het opnieuw zodra u ze hebt aanvaard.',
   // ---- Asking for access (workplan 0093) ----
@@ -275,7 +277,7 @@ export const nl: Record<keyof typeof en, string> = {
   'access.organisation': 'Organisatie',
   'access.optional': 'optioneel',
   'access.note': 'Wat wilt u migreren?',
-  'access.noteHint': 'Ongeveer hoeveel mailboxes en bestanden, welke omvang, en waarvandaan; één zin is genoeg.',
+  'access.noteHint': 'Ongeveer hoeveel postvakken en bestanden, hoe groot, en waarvandaan; één zin is genoeg.',
   'access.answers.from': 'Weg bij {name}',
   'access.answers.noFrom': 'Migreren',
   'access.answers.provider.google': 'Google',
