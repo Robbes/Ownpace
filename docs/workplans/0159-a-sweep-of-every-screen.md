@@ -2,7 +2,16 @@
 
 > **In one line:** Every screen of the managed app and the public site, in English and Dutch, on a phone and a desktop, looked at as a tester meets it: what reads wrong, does not fit or a screen reader cannot follow is fixed where the words are ours, and put to the owner where they are the owner's.
 
-## Status — 2026-10-17 (update this block at the end of every session)
+## Status — 2026-10-18 (update this block at the end of every session)
+
+**2026-10-18: the owner's answers, built and merged; two asked again.** The owner answered the 31
+questions of §5 on a page that offered *Yes*, *Keep* or their own words for each item. 29 were
+built in seven PRs, #1630 to #1636, each from main. A second reviewer tried to break each one,
+and each merged on its own, one after the other, on 2026-10-18 (UTC). Each was green in CI
+(`ci-complete`) at its head commit, and each head already held the main it merged into. Two
+answers asked for the proposal again: rows 19 (the tiles on a phone) and 24 (the legal texts).
+Round 2 of both went to the owner the same day, and both wait for the owner. §5 gives each answer
+with its PR, and §6 the follow-ups the seven PRs left.
 
 **2026-10-17/18: the sweep, from the owner's request to sixteen fix sets merged.** On
 2026-10-17 the owner asked: *"Do a full sweep of the UX of the app and website. Improve where you
@@ -220,37 +229,107 @@ later PR builds the answers.
 
 | # | The question | Answer |
 |---|---|---|
-| 1 | The sharing checklist tells every Microsoft 365 tester their rows were *found before grouping by folder existed*, which is wrong for Microsoft (the owner wrote the Dutch on 2026-10-10) | ⏳ Owner |
-| 2 | One sharing feature has many Dutch names (*Share-recht*, *Share-toegang*, *Deelrechten*, *rechtenlijst*), and the sharing buttons' words | ⏳ Owner |
-| 3 | *What this means and what you can do* shows English API documentation (POST paths, `toNaturalKeyHash`) on Deletions, Moves and Failures | ⏳ Owner |
-| 4 | Decisions are the server's English sentences, and the new-mailbox button promises *Create a mapping* where it only records the answer | ⏳ Owner |
-| 5 | When the check finds something, Verify shows English developer prose on a Dutch screen | ⏳ Owner |
-| 6 | Verify's and Deletions' chips are raw tokens on Dutch screens (PASS, SKIPPED, NOT_VERIFIABLE, ERROR, reported, trashed, inferred) | ⏳ Owner |
-| 7 | Finish step 4, *Change MX/DNS and reconfigure clients*, is jargon, and wrong for an @gmail.com address | ⏳ Owner |
-| 8 | Confirmed's headline says *verified by hash*, which says too much for calendars and contacts | ⏳ Owner |
-| 9 | The Dutch migration page says *De bestanden komen…* (files) for mail, calendars and contacts | ⏳ Owner |
-| 10 | Finish's step description is *De cutover-checklist* | ⏳ Owner |
-| 11 | Lines before sign-in the owner reviewed carry an abbreviation, English words, a comma splice or a vague invitation | **Yes** |
-| 12 | English and Dutch give opposite advice about asking for access again | **Yes** |
-| 13 | Dutch says *Aanmelden* to sign in but *Uitloggen* to sign out | **Yes** |
-| 14 | The sign-in tagline *Soevereine datamigratie voor gezinnen en mkb* is jargon the site never uses | **The owner's own words:** EN *"Your mail, calendars, tasks, contacts and files back to Europe."* NL *"Uw e-mail, agenda's, taken, contacten en bestanden terug naar Europa."* |
-| 15 | The English line under *They do, with a link* is broken grammar | ⏳ Owner |
-| 16 | Dutch *Instellen* reads as an action, not as the link to the setup checklist | ⏳ Owner |
-| 17 | The checklist title *Aanbieder instellen* and the English intro (the destination's sentence is T6's) | ⏳ Owner |
-| 18 | Lines a person reads call providers *IMAP* and *JMAP* where the wizard said *Another mail provider* | ⏳ Owner |
-| 19 | On a phone each data type repeats the same *source → destination* tiles | ⏳ Owner |
-| 20 | *Mail with no Message-ID* on Review and confirm (kept in #1596) | ⏳ Owner |
-| 21 | During the Alpha, Billing shows *Data verplaatst, in totaal: 0 GB* under *Alle gegevens: 214 GB* | ⏳ Owner |
-| 22 | Other words from the owner's review of 2026-10-10 that drift from the glossary | ⏳ Owner |
-| 23 | Dutch says *provider* where the rest of the app says *aanbieder*, the grant and progress pages included | ⏳ Owner |
-| 24 | The Alpha conditions and the terms still use the old names of the two deletion switches | ⏳ Owner |
-| 25 | The site's hero paragraph (0144 P5a): *Geen big bang* / *No big-bang cutover* | ⏳ Owner |
-| 26 | The site promises a *free preflight* the app never names (privacy §4.3 says preflight) | ⏳ Owner |
-| 27 | The Dutch home page says in two ways that nothing is deleted at the source | ⏳ Owner |
-| 28 | The first facts card's heading opens a TypeScript test on GitHub without saying so | ⏳ Owner |
-| 29 | Leaving Google says you sign in three times; on the OTA stack the app asks once | ⏳ Owner |
-| 30 | Connecting Google during the Alpha can end on Google's *Access blocked* page with no warning in the app | ⏳ Owner |
-| 31 | The *everything arrived* mail tells a Dutch tester *U hoeft niets te doen* while the guide's next step is *Verificatie* | ⏳ Owner |
+| 1 | The sharing checklist tells every Microsoft 365 tester their rows were *found before grouping by folder existed*, which is wrong for Microsoft (the owner wrote the Dutch on 2026-10-10) | **Yes** — #1636 |
+| 2 | One sharing feature has many Dutch names (*Share-recht*, *Share-toegang*, *Deelrechten*, *rechtenlijst*), and the sharing buttons' words | **Yes** — #1636 |
+| 3 | *What this means and what you can do* shows English API documentation (POST paths, `toNaturalKeyHash`) on Deletions, Moves and Failures | **Yes** — #1634 |
+| 4 | Decisions are the server's English sentences, and the new-mailbox button promises *Create a mapping* where it only records the answer | **Yes** — #1636 |
+| 5 | When the check finds something, Verify shows English developer prose on a Dutch screen | **Yes** — #1635 |
+| 6 | Verify's and Deletions' chips are raw tokens on Dutch screens (PASS, SKIPPED, NOT_VERIFIABLE, ERROR, reported, trashed, inferred) | **Yes** — #1634 (Deletions), #1635 (Verify and Finish) |
+| 7 | Finish step 4, *Change MX/DNS and reconfigure clients*, is jargon, and wrong for an @gmail.com address | **Yes** — #1635 |
+| 8 | Confirmed's headline says *verified by hash*, which says too much for calendars and contacts | **Yes** — #1635 |
+| 9 | The Dutch migration page says *De bestanden komen…* (files) for mail, calendars and contacts | **Yes** — #1632 |
+| 10 | Finish's step description is *De cutover-checklist* | **Yes** — #1632 |
+| 11 | Lines before sign-in the owner reviewed carry an abbreviation, English words, a comma splice or a vague invitation | **Yes** — #1633 |
+| 12 | English and Dutch give opposite advice about asking for access again | **Yes** — #1633 |
+| 13 | Dutch says *Aanmelden* to sign in but *Uitloggen* to sign out | **Yes** — #1633 |
+| 14 | The sign-in tagline *Soevereine datamigratie voor gezinnen en mkb* is jargon the site never uses | **The owner's own words:** EN *"Your mail, calendars, tasks, contacts and files back to Europe."* NL *"Uw e-mail, agenda's, taken, contacten en bestanden terug naar Europa."* — #1633 |
+| 15 | The English line under *They do, with a link* is broken grammar | **Yes** — #1633 |
+| 16 | Dutch *Instellen* reads as an action, not as the link to the setup checklist | **Yes** — #1632 |
+| 17 | The checklist title *Aanbieder instellen* and the English intro (the destination's sentence is T6's) | **Yes** — #1632 |
+| 18 | Lines a person reads call providers *IMAP* and *JMAP* where the wizard said *Another mail provider* | **Yes** — #1632 |
+| 19 | On a phone each data type repeats the same *source → destination* tiles | **Asked again** (2026-10-18): the owner said round 1 was not in Dutch; round 2 shows a phone-only prototype, before and after |
+| 20 | *Mail with no Message-ID* on Review and confirm (kept in #1596) | **Yes** — #1632 |
+| 21 | During the Alpha, Billing shows *Data verplaatst, in totaal: 0 GB* under *Alle gegevens: 214 GB* | **Yes** — #1632 |
+| 22 | Other words from the owner's review of 2026-10-10 that drift from the glossary | **Yes** — #1632, with `access.noteHint` in #1633 and `finish.ending.phase.cutover` in #1635 |
+| 23 | Dutch says *provider* where the rest of the app says *aanbieder*, the grant and progress pages included | **Yes** — #1633 |
+| 24 | The Alpha conditions and the terms still use the old names of the two deletion switches | **Asked again** (2026-10-18): the owner said the proposed Dutch held English; round 2 is a checked draft of version 1.1 of the three legal texts |
+| 25 | The site's hero paragraph (0144 P5a): *Geen big bang* / *No big-bang cutover* | **Yes** — #1631 |
+| 26 | The site promises a *free preflight* the app never names (privacy §4.3 says preflight) | **Yes** — #1630 |
+| 27 | The Dutch home page says in two ways that nothing is deleted at the source | **Yes** — #1631 |
+| 28 | The first facts card's heading opens a TypeScript test on GitHub without saying so | **Yes** — #1630 |
+| 29 | Leaving Google says you sign in three times; on the OTA stack the app asks once | **Yes** — #1630 |
+| 30 | Connecting Google during the Alpha can end on Google's *Access blocked* page with no warning in the app | **Yes** — #1633 |
+| 31 | The *everything arrived* mail tells a Dutch tester *U hoeft niets te doen* while the guide's next step is *Verificatie* | **Yes** — #1635 |
+
+**The answers (2026-10-18).** The owner answered on a page that offered *Yes*, *Keep* or their
+own words for each item: *Yes* to 28, their own words for row 14 (the same words as above), and
+for rows 19 and 24 a note asking for the proposal again. The 29 answered were built in seven PRs.
+Each was built from main, reviewed by a second reviewer who tried to break it, gated, and merged
+one at a time on 2026-10-18 (UTC). In the order they merged:
+
+- **#1630** (`3477c38f`), the site: *Leaving Google* says one sign-in where the stack asks once;
+  the estimate, pricing and the archive guide no longer promise a *free preflight*; and the first
+  fact's proof link says it opens code (rows 26, 28, 29).
+- **#1631** (`c4d2ed28`), the site's home page: the first paragraph without *big bang*, and the
+  Dutch source promise said one way (rows 25, 27).
+- **#1632** (`8742e94d`), the migration pages, Accounts, Help and Billing: *De kopieën komen…*,
+  *The checklist for switching over*, *Instelstappen*, *Instelchecklist*, the IMAP and JMAP
+  names, *Mail without a message identifier*, Billing's Alpha lines, and the review's leftover
+  words (rows 9, 10, 16 to 18, 20 to 22).
+- **#1633** (`c1a12c98`), sign-in, the first screens and the grant page: *Aanmelden* and
+  *Afmelden*, the owner's tagline, the entry lines, *aanbieder*, and a line before the first
+  Google sign-in during the Alpha (rows 11 to 15, 22, 23, 30).
+- **#1634** (`e9913b4e`), the queues: *What this means and what you can do* written for the
+  reader, in their language, and Deletions' chips in words (rows 3, 6).
+- **#1636** (`f20bbce8`), Decisions in the reader's language with a button that says what it
+  does, and one name for a share (rows 1, 2, 4).
+- **#1635** (`5f5e64d1`), Verify, Confirmed and Finish: the verdicts and four findings in words,
+  the server's text in a closed *Technical details*, Finish step 4 in plain words, Confirmed's
+  headline, and the *everything arrived* mail (rows 5 to 8, 22, 31).
+
+**Asked again.** Rows 19 and 24 went back to the owner on 2026-10-18, as a round 2. *Row 19*: the
+owner said round 1 was not in Dutch. Round 2 shows before and after shots of a prototype, on a phone only: the
+tiles once, under the migration's name, and the desktop unchanged. It saves fewer rows in Dutch
+than in English, and a migration of one data type can gain a row in Dutch. It has no new words.
+*Row 24*: the owner said the proposed Dutch held English. Round 2 is a checked draft of version
+1.1 of the Alpha conditions, the terms and the privacy statement, in four cards: the switches'
+names (Alpha §8, terms §2), *aanmelden* and *afmelden* in the Dutch texts, the count before a
+migration renamed (privacy §4.3, §5, §9), and two-factor sign-in, passkeys and the lock after ten
+wrong passwords (privacy §4.4, §5, §9, §10, on a legitimate-interest basis). It also asks whether
+anyone besides the owner accepted 1.0, since privacy §13 promises 30 days' notice by email of a
+material change. Nothing in `site/legal` changes before the owner says yes. Both wait for the
+owner.
+
+**Deviations worth recording.**
+
+- **#1630.** The estimate's *cannot know* line now says the page cannot know what the destination
+  already holds, and that Ownpace counts it when you review your migration. It no longer says the
+  review checks that the destination accepts your data, because the review step does not check
+  that.
+- **#1630.** The site's build reads `GOOGLE_ACCOUNT_SCOPE_CLASS` by the API's rule: `restricted`,
+  trimmed, and in exactly that case (not lower-cased). The site follows a change on its next
+  build.
+- **#1632.** The IMAP and JMAP names are made in `providerName` (`ProviderTile.tsx`), so they also
+  show outside the Migrations list and a person's page: in the name a new migration to a JMAP
+  destination is saved with, in the rare *Slowed by …* line, and in the heading of the migrated
+  person's `/view`. Accounts, the site and a migration's *From … to …* line keep *IMAP* and
+  *JMAP*.
+- **#1632.** The scope manifest's version went to `2026-10-18` for a change of words only, as the
+  owner approved. The promise is unchanged.
+- **#1633.** The Alpha's Google line stands above the Google cards on step 4 of *Start a
+  migration*, and right above *Continue with Google* on a migration's grant link. On a person's
+  grant link it stands above the first account that still has a button, after any account
+  already connected, and is not shown when no account has one.
+- **#1635.** Finish step 1, built as asked, read *The check did not pass: Did not pass*, or *…:
+  Passed, with warnings*. A change before the merge says a failed check once, as a sentence (*The
+  check did not pass.* / *De verificatie is niet geslaagd.*), and puts any other verdict that
+  holds finishing back after *The check's result is not enough to finish yet:* / *De uitkomst van
+  de verificatie is nog niet genoeg om af te ronden:*. This answered the question the PR had put
+  to the owner: that line came with 0038, not with the owner's text review.
+- **#1636.** `decisionResolvedEffect` takes `changedSomething`, not the category. An answer says
+  the migration acts on it only when a shared address's pattern was written to a discovered
+  group. Any other answer, one that names no pattern or matches no group included, says *Answer
+  recorded. Nothing in your migrations changes because of it.*
 
 ## 6. Follow-ups and known limits
 
@@ -258,10 +337,12 @@ later PR builds the answers.
    managed-only, so on the appliance the bar keeps its h1 beside the page's own (D4).
 2. **Billing has no h1 for a moment while it loads.** Its lazy route's `Suspense` fallback is
    `null` (`AppRoutes.tsx`); T16's h1 is in the page's own loading state, which comes after.
-3. **An *inferred* row under Deletions' *Waiting on you* is explained only on hover.** The new
-   lead explains *reported* and *trashed*. An inferred row reaches that list after enough passes,
-   and has no delete button. It needs words: an *inferred* clause in the lead, or a third lead
-   shown when the list holds one.
+3. ~~**An *inferred* row under Deletions' *Waiting on you* is explained only on hover.**~~
+   **Resolved in #1634.** An inferred row reaches that list after enough passes and has no delete
+   button, and the sweep's lead explained only *reported* and *trashed*. A line of its own now
+   shows when an assumed row is listed (`deletions.evidence.lead.inferred`): the item is missing
+   from full scans, was never reported deleted, and is not deleted on the new system. The builder
+   wrote its words; the owner approved the explanation, not its wording.
 4. **Accounts, an expired sign-in whose side is not known.** The row says the connection to this
    account has expired, then *Test this one to find out which*
    (`connections.standing.whichSide`). A key of its own for that case, which does not say
@@ -294,13 +375,39 @@ later PR builds the answers.
     longer says which row each belongs to. 0148 now says so.
 11. **A person's error and not-found states** show *← Migrations* just above the h1
     *Migrations* (T16). The same word twice, one above the other.
+12. **A decision's effect line is English under a Dutch page** (#1636). `DECISION_EFFECTS` in
+    `operating-contract.ts` has no Dutch twin, so the line under an answered decision stays
+    English, marked `lang="en"`. It needs a Dutch twin beside the English in `@openmig/shared`
+    (class 4 of `docs/i18n-prose-boundary.md`).
+13. **Verify's sentences have no singular** (#1635). With one item they read *1 email items are
+    on the old system…* / *1 items (e-mail) staan…* and *1 sampled … items differ*. They are the
+    owner's approved words, so a singular form is the owner's call.
+14. **The privacy statement keeps *preflight*** (§4.3 in both languages) until its version 1.1,
+    where #1630 left it. Round 2 of row 24 renames it.
+15. **With *Technical details* open, an unknown finding's text shows twice** (#1635): in the list,
+    since no sentence of ours covers it, and again in the fold beside its id.
+16. **Words #1632 left for a later round**, as the owner did not name them: Review and start's
+    counts still say *Message-ID* (`discovery.generatedId.*`, `discovery.unlisted.pre.*`), the
+    report says *source side* / *bronkant* / *doelkant* (`report.browser.side.*`),
+    `docs/guides/nl/google.md` says *aan de bronkant*, and Billing's other Dutch *verplaatst*
+    words remain. The IMAP and JMAP names start with a capital mid-sentence (*… en Andere
+    mailaanbieder (IMAP) naar …*); an in-sentence form, as *Start a migration* has, can follow.
+    If the owner wants the names only on the Migrations list and a person's page, the saved name
+    and the *Slowed by …* line can go back to the old names.
+17. **A share still has other names in a few places** (#1636): the downloaded file's name
+    (*Ownpace-rechtenlijst*), the downloaded report's *Access carried over*, the scope manifest's
+    *permission list* / *rechtenlijst*, the checklist's hover lines *This access …* / *Dit recht
+    …*, and *Nog geen gedeelde rechten*. The glossary's share row lists them; they wait for the
+    owner.
 
 ## Open questions
 
-1. **The owner's items** still open: 27 of 31 (§5).
+1. **The owner's items** still open: two of 31, both asked again on 2026-10-18 (§5): row 19, the
+   tiles on a phone, and row 24, the legal texts' version 1.1.
 2. **Follow-up 4.** Words for an expired sign-in whose side is not known.
 3. **Follow-up 5.** One Dutch word for the Gmail mailbox.
-4. **Follow-up 3.** Words for an inferred row under *Waiting on you*.
+4. ~~**Follow-up 3.** Words for an inferred row under *Waiting on you*.~~ **Built in #1634**, in
+   words the builder wrote, for the owner to read.
 5. **For the owner to read**, changed by the sweep: the warning before *Turn on deleting by hand*,
    rewritten in both languages, and its line *"While it is off, the delete buttons on this screen
    are refused."* (possibly *"While it is off, every delete on this screen is refused."*); the

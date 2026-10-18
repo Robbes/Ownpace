@@ -22,6 +22,14 @@ Two kinds of words render; only the first belongs to this glossary:
   still quote it; it never goes through StateChip, which holds states, not
   findings. (Explanations *around* them — the `verify.help.*` keys, the
   Deletions lead — are client words and are translated.)
+- **Verification findings** — the check's `issues[].message` and
+  `recommendations`. Since 2026-10-18 (the owner) Verify says four of them
+  in client words, matched by the whole id: `TARGET_FOLDER_MISSING_<type>`,
+  `TARGET_UNREAD_<type>`, `MISSING_<type>` and `CHECKSUM_<type>`
+  (`verify.issue.*`, chosen by `issueSentence` in `verdict-words.ts`). Any
+  other finding says the server's text. The server's text, each finding's
+  id and severity token, and the recommendations are VERBATIM in a closed
+  *Technical details* / *Technische details* fold.
 
 | token | EN | NL | rule |
 |---|---|---|---|
