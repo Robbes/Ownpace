@@ -53,7 +53,7 @@ import { LOCALES, DEFAULT_LOCALE, localeRoot, COPY } from './copy.mjs';
 import { CUSTOMER_TYPES, INDICATIVE_PROFILES, OBJECT_TYPES, PROFILES_VERSION, SIZE_ASKED } from './profiles.mjs';
 import { DATA_TYPES, DESTINATIONS, PROTOCOL_NAMES } from './destinations.mjs';
 import { SPRITE, icon } from './icons.mjs';
-import { LEAVING, DOMAIN_OF, EXPORT_TARGETS } from './sources.mjs';
+import { LEAVING, DOMAIN_OF, EXPORT_TARGETS, leavingPages } from './sources.mjs';
 import { PROOF_LINKS } from './proof.mjs';
 import { heroMove } from './hero.mjs';
 
@@ -137,6 +137,31 @@ if (!PUBLIC && APP_URL === PUBLIC_APP_URL) {
  * the app on that stack links the guide whenever its `.env` says alpha.
  */
 const ALPHA = (process.env.OWNPACE_STAGE ?? '').trim().toLowerCase() === 'alpha';
+
+/**
+ * Whether the stack this site is built for declared Google's RESTRICTED scopes
+ * (the owner, 2026-10-18).
+ *
+ * The same one setting the stack's API reads for it, `GOOGLE_ACCOUNT_SCOPE_CLASS`
+ * (ADR-0041), by the same rule (`providerAccountDomains` in
+ * `packages/shared/src/provider-accounts.ts`): `restricted`, trimmed and in
+ * exactly that case, is the only value that turns it on; unset, empty,
+ * `sensitive` or anything else is off, as it is for the API. Written out here
+ * rather than imported, because `site/` imports nothing. Never inferred from
+ * `OWNPACE_STAGE`: the Alpha is one question, which consent a stack's own Google
+ * application holds is another, and live may run either without the other.
+ *
+ * It decides one page. Where it is on, the app reads mail and files through the
+ * Google account and *Start a migration* asks for one sign-in, so Leaving Google
+ * says one sign-in and the export (`GOOGLE_ONE_CONSENT` in `sources.mjs`); off,
+ * the page is what it was, three sign-ins and the export. `deploy-live.sh` hands
+ * every site build live's own value, read from its `.env`, and never the
+ * shell's; the OTA site's documented build (`deploy/compose/www.yml`) hands its
+ * stack's own value the same way, because the app on that stack asks once
+ * whenever its `.env` says restricted. The API follows a change on its restart;
+ * the site follows on its next build.
+ */
+const GOOGLE_RESTRICTED = (process.env.GOOGLE_ACCOUNT_SCOPE_CLASS ?? '').trim() === 'restricted';
 
 // ---------------------------------------------------------------- markdown --
 
@@ -1172,7 +1197,7 @@ function leavingPage(locale, page) {
     .join('');
 
   const steps = page.steps
-    .map((s) => `<li><span class="kind">${L.stepKind[s.kind]}</span>${L.steps[s.card]}</li>`)
+    .map((s) => `<li><span class="kind">${L.stepKind[s.kind]}</span>${L.steps[s.words ?? s.card]}</li>`)
     .join('');
 
   const { objects, atOnce, oneByOne } = typicalCase(page);
@@ -1678,14 +1703,18 @@ const META = {
  * Every page, rendered to memory. `alpha` says whether the build is for the
  * alpha, which adds `ALPHA_ONLY`'s pages; it defaults to the environment's
  * answer (`ALPHA`), and is a parameter so `site/site.unit.test.ts` can render
- * both builds in one process.
+ * both builds in one process. `googleRestricted` says whether the stack
+ * declared Google's restricted scopes, which changes what Leaving Google says
+ * (`leavingPages`); it defaults to the environment's answer
+ * (`GOOGLE_RESTRICTED`), and is a parameter for the same reason.
  */
-export function build({ alpha = ALPHA } = {}) {
+export function build({ alpha = ALPHA, googleRestricted = GOOGLE_RESTRICTED } = {}) {
   const rendered = [];
+  const leaving = leavingPages({ googleRestricted });
   for (const locale of LOCALES) {
     const c = COPY[locale];
     for (const key of [...PAGE_KEYS, ...LEAVING_KEYS, ...OUTSIDE_NAV, ...(alpha ? ALPHA_ONLY : [])]) {
-      const page = LEAVING.find((p) => `leaving-${p.id}` === key);
+      const page = leaving.find((p) => `leaving-${p.id}` === key);
       // A Leaving… page's title and description are its heading and its lede.
       const [title, description] = page
         ? [`${leavingTitle(locale, page)} — Ownpace`, c.leaving.lede[page.id] ?? c.leaving.ledeOf(c.leaving.names[page.id])]

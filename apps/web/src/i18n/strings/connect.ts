@@ -511,12 +511,15 @@ export const en = {
   // Filled in, but not usable — distinct from "still needed" (0072).
   'connections.invalidValues.lead': 'These values cannot be used as they are:',
   // ---- Provider setup checklist (workplan 0061) ----
-  'setup.title': 'Provider setup',
+  // The Help tab's own name (GLOSSARY, the owner, 2026-10-18): *Provider
+  // setup* / *Aanbieder instellen* read as an order about the provider.
+  'setup.title': 'Setup checklist',
+  // The English as the owner's Dutch says it (2026-10-18): *uw oude aanbieder*.
   'setup.intro':
-    'Steps to take in the provider’s console; ticks are saved for your whole organisation.',
-  // A destination's checklist (the UX sweep, 2026-10-17): the Dutch above is
-  // the owner's and says *uw oude aanbieder*, which a Nextcloud or a Soverin
-  // being moved to is not.
+    'Steps to take at your old provider; ticks are saved for your whole organisation.',
+  // A destination's checklist (the UX sweep, 2026-10-17): the sentence above
+  // says *your old provider*, as the owner's Dutch does, which a Nextcloud or
+  // a Soverin being moved to is not.
   'setup.target.intro': 'Steps to take at your new provider; ticks are saved for your whole organisation.',
   'setup.backToConnections': '← Back to accounts',
   'setup.fullGuide': 'Read the full setup guide',
@@ -929,7 +932,7 @@ export const nl: Record<keyof typeof en, string> = {
   'connections.usedBy.other': 'Gebruikt door {count} migraties',
   'connections.usedBy.none': 'Nog door geen enkele migratie gebruikt',
   'connections.addedWhen': 'Toegevoegd {when}',
-  'connections.setupSteps': 'Instellen',
+  'connections.setupSteps': 'Instelstappen',
   'connections.standing.migration': 'Migratie',
   'connections.standing.stopped': 'is {when} gestopt ({domains}):',
   'connections.standing.whichSide':
@@ -1007,7 +1010,7 @@ export const nl: Record<keyof typeof en, string> = {
   'connections.removed.none': 'Er waren geen inloggegevens opgeslagen.',
   'connections.invalidValues.lead': 'Deze waarden kunnen zo niet worden gebruikt:',
   // ---- Provider setup checklist (workplan 0061) ----
-  'setup.title': 'Aanbieder instellen',
+  'setup.title': 'Instelchecklist',
   'setup.intro':
     'Stappen om door te lopen bij uw oude aanbieder; vinkjes worden voor uw hele organisatie bewaard.',
   'setup.target.intro':

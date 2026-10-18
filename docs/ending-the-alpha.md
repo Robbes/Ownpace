@@ -197,7 +197,7 @@ Before lifting the hold:
    ```
 
 5. **Billing, as the owner of your own organisation.** The Billing page's panel is titled *What
-   this month bills*. Its data line counts from 0 (*Data moved, in total: 0 GB of 250 GB*), and
+   this month bills*. Its data line counts from 0 (*Moved in total, counted: 0 GB of 250 GB*), and
    what the alpha moved is on a line of its own.
 
 After lifting the hold, once passes have copied new items:

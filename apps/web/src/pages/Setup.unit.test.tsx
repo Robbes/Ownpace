@@ -401,6 +401,27 @@ describe('the checklist matches the forms, and Help stays one page (UX sweep)', 
     );
   });
 
+  // *Aanbieder instellen — Nextcloud* read as an order about the provider
+  // being left. A checklist is headed with its tab's own name, which the
+  // glossary keeps (the owner, 2026-10-18); and the English source intro says
+  // *your old provider*, as the owner's Dutch does.
+  it.each([
+    ['en', 'Setup checklist — Nextcloud'],
+    ['nl', 'Instelchecklist — Nextcloud'],
+  ] as const)('%s: heads a checklist with the tab’s own name', async (locale, heading) => {
+    get.mockResolvedValue(realChecklist('target', 'nextcloud'));
+    renderIn(locale, '/setup/target/nextcloud');
+    expect(await screen.findByRole('heading', { level: 2, name: heading })).toBeTruthy();
+    // The tab's name, word for word.
+    expect(STRINGS[locale]['setup.title']).toBe(STRINGS[locale]['nav.setup']);
+  });
+
+  it('says in English, as in Dutch, that a source’s steps are taken at the old provider', () => {
+    expect(STRINGS.en['setup.intro']).toBe(
+      'Steps to take at your old provider; ticks are saved for your whole organisation.',
+    );
+  });
+
   it('tells a screen reader which answer to the administrator question is chosen', async () => {
     get.mockResolvedValue(checklist());
     renderIn('en', '/setup/source/box');
@@ -431,7 +452,7 @@ describe('the checklist matches the forms, and Help stays one page (UX sweep)', 
     get.mockResolvedValue(checklist());
     const { container } = renderIn('en', '/setup/source/box');
 
-    expect(await screen.findByRole('heading', { level: 2, name: 'Provider setup — Box' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Setup checklist — Box' })).toBeTruthy();
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
     expect(screen.getByRole('heading', { level: 3, name: STRINGS.en['setup.yours'] })).toBeTruthy();
     expect(screen.getByRole('heading', { level: 3, name: STRINGS.en['setup.forYourAdmin'] })).toBeTruthy();

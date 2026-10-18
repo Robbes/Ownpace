@@ -98,7 +98,7 @@ Op een eigen appliance biedt de pagina **Accounts** het aan: druk op **Account t
 - **Waar de export staat**: **In een map in uw bestemming (Nextcloud of WebDAV)**, of **Op de schijf van deze appliance**.
 - De map, in een vak waarvan de naam die keuze volgt. **Map in de bestanden van uw bestemming**: de map zoals uw bestanden die tonen, vanaf de hoofdmap, zoals `Exports/takeout-20260904`, of één `.zip` daarin (zie [Uw export in uw eigen Nextcloud](#own-nextcloud)). **Waar het archief staat**, voor een schijf: de map waarin u de download uitpakte, of de `.zip` zelf.
 
-Druk dan op **Toevoegen en testen**. Testen verplaatst niets. Voor een export op een schijf opent het het archief en vertelt het u wat erin zit. Voor een export in de bestanden van uw bestemming zegt het dat de export bij de preflight wordt geteld, omdat de bestemming bij een migratie hoort en er tot dan nergens te kijken valt. Hoe dan ook weet u, voordat er iets wordt gemigreerd:
+Druk dan op **Toevoegen en testen**. Testen verplaatst niets. Voor een export op een schijf opent het het archief en vertelt het u wat erin zit. Voor een export in de bestanden van uw bestemming zegt het dat de export wordt geteld wanneer u de migratie controleert, omdat de bestemming bij een migratie hoort en er tot dan nergens te kijken valt. Hoe dan ook weet u, voordat er iets wordt gemigreerd:
 
 - hoeveel items,
 - hoeveel bytes,

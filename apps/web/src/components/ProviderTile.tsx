@@ -17,7 +17,8 @@
  * THE NAME IS ALWAYS WRITTEN, and the tile is `aria-hidden`, so a screen
  * reader reads the name once and never the letter. It is
  * `providerDisplayName`'s unless the caller gives one: the new flow's tiles
- * say "Google", where the card says "Google account".
+ * say "Google", where the card says "Google account". An IMAP source and a
+ * JMAP destination are named in plain words (`PLAIN_NAMES`).
  */
 import React from 'react';
 import { providerDisplayName, wizardTypeForConnectionKind, type ProviderNameLocale } from '@openmig/shared';
@@ -84,6 +85,27 @@ const SOURCE_COMPANY: Readonly<Record<string, string>> = {
 };
 
 /**
+ * A PROTOCOL NAMED FOR WHAT A PERSON HAS (the owner, 2026-10-18). Pieter's card
+ * read *From Microsoft 365 and IMAP to Nextcloud and JMAP*, and his KPN line
+ * *IMAP → JMAP*, where *Start a migration* had called the same account
+ * *Another mail provider*. On a line of words and on a tile, the two are named
+ * in plain words with the protocol in brackets, as the Microsoft pair keeps
+ * its own (`providerDisplayName`'s *Microsoft 365 (IMAP)*). An IMAP
+ * destination, the Accounts cards (`connectionKindName`) and the site keep the
+ * protocol's name.
+ */
+const PLAIN_NAMES: Readonly<Record<TileRole, Readonly<Record<string, Readonly<Record<ProviderNameLocale, string>>>>>> = {
+  source: { imap: { en: 'Other mail provider (IMAP)', nl: 'Andere mailaanbieder (IMAP)' } },
+  target: { jmap: { en: 'Mail server (JMAP)', nl: 'Mailserver (JMAP)' } },
+};
+
+/** A type's plain name on this side, in the reader's language, where it has one. */
+function plainName(type: string, role: TileRole, locale: ProviderNameLocale): string | undefined {
+  const names = PLAIN_NAMES[role];
+  return Object.prototype.hasOwnProperty.call(names, type) ? names[type]![locale] : undefined;
+}
+
+/**
  * A stored connection kind's name, for a row that has only the kind (0153 T6
  * (a), (c)): `gmail` is *Gmail* and `google_drive` is *Google Drive*, never the
  * kind itself. `o365` is *Microsoft 365*, whichever of its two cards saved it.
@@ -99,13 +121,19 @@ export function connectionKindName(kind: string, locale: ProviderNameLocale): st
 
 /**
  * What a line of words calls a type or a connection kind on this side, in the
- * reader's language: a company is the same in both, and the export archive is
- * an *Exportarchief* in Dutch.
+ * reader's language: a company is the same in both, the export archive is an
+ * *Exportarchief* in Dutch, and an IMAP source is *Andere mailaanbieder (IMAP)*.
  */
 export function providerName(typeOrKind: string, role: TileRole, locale: ProviderNameLocale): string {
   const type = wizardTypeForConnectionKind(typeOrKind);
   if (role === 'source' && Object.prototype.hasOwnProperty.call(SOURCE_COMPANY, type)) return SOURCE_COMPANY[type]!;
-  return providerDisplayName(type, locale);
+  return plainName(type, role, locale) ?? providerDisplayName(type, locale);
+}
+
+/** The name a tile writes when the caller gives none: the provider's, or its plain name on this side. */
+function tileName(typeOrKind: string, role: TileRole, locale: ProviderNameLocale): string {
+  const type = wizardTypeForConnectionKind(typeOrKind);
+  return plainName(type, role, locale) ?? providerDisplayName(type, locale);
 }
 
 /** Corner radius 22% of the size, the letter 45% of it, as the drawing says. */
@@ -146,7 +174,7 @@ export default function ProviderTile({
           {letter}
         </span>
       )}
-      <span>{name ?? providerDisplayName(wizardTypeForConnectionKind(type), locale)}</span>
+      <span>{name ?? tileName(type, role, locale)}</span>
     </span>
   );
 }

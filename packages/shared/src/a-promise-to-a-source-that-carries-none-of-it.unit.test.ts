@@ -63,7 +63,7 @@ const carries = (card: string): ReadonlyArray<DiscoveryDomain> =>
 /** The data a row is about, by its English item: the rows that promise one type each. */
 const ROW_DOMAIN: Readonly<Record<string, DiscoveryDomain>> = {
   Email: 'email',
-  'Mail with no Message-ID': 'email',
+  'Mail without a message identifier': 'email',
   Calendar: 'calendar',
   Contacts: 'contact',
   Tasks: 'task',
@@ -130,14 +130,14 @@ describe('a files-only source is told about files only', () => {
  * never carry.
  */
 describe('a mail-only source is told about mail only', () => {
-  const MAIL_ROWS = ['Email', 'Mail with no Message-ID'];
+  const MAIL_ROWS = ['Email', 'Mail without a message identifier'];
   const NOT_MAIL = ['Calendar', 'Contacts', 'Tasks', 'Files'];
 
   it.each([
     ['the IMAP card', scopeFamilyOfSourceCard('imap')],
     ['the imap connection kind', scopeFamilyOfConnectionKind('imap')],
     ['the appliance’s imap-oauth2 type', scopeFamilyOf('imap-oauth2')],
-  ])('%s: Email and Message-ID, and no Calendar, Contacts, Tasks or Files row', (_name, family) => {
+  ])('%s: Email and mail without an identifier, and no Calendar, Contacts, Tasks or Files row', (_name, family) => {
     expect(family).toBeDefined();
     const items = rowsOf([family!]).map((e) => e.item);
     for (const item of MAIL_ROWS) expect(items, item).toContain(item);
@@ -263,7 +263,7 @@ describe('each row about one kind of data says which, and an unticked kind is no
     for (const item of ['Calendar', 'Contacts', 'Permissions', 'Google Keep', 'Google Photos']) {
       expect(items, item).toContain(item);
     }
-    for (const item of ['Email', 'Mail with no Message-ID', 'Files', 'Tasks', 'Google-native files', 'Revision history']) {
+    for (const item of ['Email', 'Mail without a message identifier', 'Files', 'Tasks', 'Google-native files', 'Revision history']) {
       expect(items, item).not.toContain(item);
     }
   });
