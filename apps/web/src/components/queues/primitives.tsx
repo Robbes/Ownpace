@@ -4,19 +4,27 @@
  *
  * The queues differ in what they list and what can be done about each item, but
  * they are the same kind of screen: a per-mapping list of things waiting on a
- * person, with the guidance the server sent alongside it. Kept together so the
- * three cannot drift into three different idioms for the same idea.
+ * person, with what it means and what can be done about it. Kept together so
+ * the three cannot drift into three different idioms for the same idea.
  */
 
 import React from 'react';
 import { AlertCircle, AlertTriangle, Check, Info, Loader2, Trash2 } from 'lucide-react';
-import type { ApplyReceipt, DeletionEvidence, MappingLifecycle } from '@openmig/shared';
-import { useT } from '../../i18n/index.tsx';
+import {
+  queueGuidance,
+  type ApplyReceipt,
+  type DeletionEvidence,
+  type GuidedQueue,
+  type MappingLifecycle,
+} from '@openmig/shared';
+import { useLocale, useT } from '../../i18n/index.tsx';
 import type { StringKey } from '../../i18n/index.tsx';
 
 // Client-authored strings here go through the dictionary (workplan 0024 T2);
-// SERVER prose (guidance entries, refusal reasons, whatThisMeans) renders
-// verbatim as ever — translating it is drift (rule 2/ADR-0026).
+// SERVER prose (refusal reasons, effects) renders verbatim as ever —
+// translating it is drift (rule 2/ADR-0026). The queues' guidance is the
+// customer's version from @openmig/shared, in both languages (the owner,
+// 2026-10-18); the operator's stays on the API.
 
 const DOMAIN_KEY: Record<string, StringKey> = {
   email: 'domain.email',
@@ -70,28 +78,33 @@ export const HashChip: React.FC<{ hash: string }> = ({ hash }) => {
  * `inferred` gets a visibly different one because it may not, however long it
  * has been missing. Someone scanning this list should be able to see which
  * items could ever have an apply button without reading a word.
+ *
+ * THE WORD IS THE CLIENT'S, THE TOKEN STAYS IN THE TITLE (the owner,
+ * 2026-10-18). The chip said the server's token, *reported*, *trashed* or
+ * *inferred*, in English on a Dutch screen. It says the client's word now,
+ * and the token closes the title, the way a refused receipt's code follows its
+ * reason (`ReceiptStatus`), so a support thread can still quote it. The API
+ * and its downloads keep the token.
  */
+const EVIDENCE_WORDS: Record<DeletionEvidence, { word: StringKey; title: StringKey }> = {
+  reported: { word: 'evidence.reported', title: 'evidence.reported.title' },
+  trashed: { word: 'evidence.trashed', title: 'evidence.trashed.title' },
+  inferred: { word: 'evidence.inferred', title: 'evidence.inferred.title' },
+};
+
 export const EvidenceBadge: React.FC<{ evidence: DeletionEvidence }> = ({ evidence }) => {
   const t = useT();
   const style =
     evidence === 'inferred'
       ? 'bg-amber-50 text-amber-800 border-amber-200'
       : 'bg-emerald-50 text-emerald-800 border-emerald-200';
-  // The badge TEXT stays the server's own evidence word (the operating
-  // vocabulary the docs and receipts use); the explanatory title is client
-  // prose and translates.
-  const title =
-    evidence === 'reported'
-      ? t('evidence.reported.title')
-      : evidence === 'trashed'
-        ? t('evidence.trashed.title')
-        : t('evidence.inferred.title');
+  const words = EVIDENCE_WORDS[evidence];
   return (
     <span
       className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${style}`}
-      title={title}
+      title={`${t(words.title)} (${evidence})`}
     >
-      {evidence}
+      {t(words.word)}
     </span>
   );
 };
@@ -105,35 +118,40 @@ export const ClosedBanner: React.FC<{ text: string }> = ({ text }) => (
 );
 
 /**
- * The server's own guidance, rendered verbatim.
+ * What a queue means and what can be done about it, in the reader's language.
  *
- * Deliberately not paraphrased. These strings are the operating semantics
- * (ADR-0026) and the UI's job is to put them in front of somebody, not to
- * improve them — a screen that summarised "refused for inferred evidence" into
- * "not available" would delete the reason, which is the part that matters.
+ * It showed the server's `whatThisMeans` and `howToResolve` verbatim, which
+ * are the operator's: `POST /mappings/{mappingId}/moves/…/keep` and
+ * `toNaturalKeyHash`, in English under a Dutch heading (the UX sweep,
+ * 2026-10-17). The owner chose words for the person reading it (2026-10-18):
+ * they live in `@openmig/shared` (`queue-guidance.ts`), English and Dutch
+ * beside each other, the way `APPLY_FLAG_WARNING_NL` does, and this only
+ * PICKS the language, never rephrases. The API keeps serving the operator's.
+ *
+ * Each option is said as one line, the button's name and then what it does,
+ * so the reader finds the button the sentence is about.
  */
-export const GuidancePanel: React.FC<{
-  entries: Readonly<Record<string, string>>;
-  meaning?: string;
-}> = ({ entries, meaning }) => {
-  const t = useT();
+export const GuidancePanel: React.FC<{ queue: GuidedQueue }> = ({ queue }) => {
+  const { locale, t } = useLocale();
+  const guidance = queueGuidance(queue, locale);
   return (
-  <details className="mt-4 text-sm">
-    <summary className="cursor-pointer text-gray-600 hover:text-gray-900">
-      {t('guidance.summary')}
-    </summary>
-    <div className="mt-2 p-4 rounded-lg bg-gray-50 space-y-2">
-      {meaning && <p className="text-gray-800">{meaning}</p>}
-      <dl className="space-y-2">
-        {Object.entries(entries).map(([k, v]) => (
-          <div key={k}>
-            <dt className="font-medium text-gray-900">{k}</dt>
-            <dd className="text-gray-700">{v}</dd>
-          </div>
-        ))}
-      </dl>
-    </div>
-  </details>
+    <details className="mt-4 text-sm">
+      <summary className="cursor-pointer text-gray-600 hover:text-gray-900">
+        {t('guidance.summary')}
+      </summary>
+      <div className="mt-2 p-4 rounded-lg bg-gray-50 space-y-2">
+        {guidance.meaning && <p className="text-gray-800">{guidance.meaning}</p>}
+        <dl className="space-y-2">
+          {guidance.options.map((option) => (
+            <div key={option.label}>
+              <dt className="inline font-medium text-gray-900">{option.label}:</dt>{' '}
+              <dd className="inline text-gray-700">{option.text}</dd>
+            </div>
+          ))}
+        </dl>
+        {guidance.closing && <p className="text-gray-700">{guidance.closing}</p>}
+      </div>
+    </details>
   );
 };
 

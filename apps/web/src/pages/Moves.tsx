@@ -297,7 +297,7 @@ const Moves: React.FC<{
           ))}
         </QueueSection>
 
-        <GuidancePanel meaning={queue.whatThisMeans} entries={queue.howToResolve} />
+        <GuidancePanel queue="moves" />
       </>
     )}
   />

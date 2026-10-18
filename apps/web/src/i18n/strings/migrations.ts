@@ -94,6 +94,11 @@ export const en = {
   'evidence.reported.title': 'The source itself reported the object gone.',
   'evidence.trashed.title': 'Found in the owner’s Deleted Items.',
   'evidence.inferred.title': 'Missing from complete scans: a suspicion, never applied.',
+  // The chip's word for each evidence token (the owner, 2026-10-18): the
+  // token itself closes the chip's title, and the API keeps it.
+  'evidence.reported': 'Reported by the source',
+  'evidence.trashed': "In the source's bin",
+  'evidence.inferred': 'Assumed: missing from full scans',
   'guidance.summary': 'What this means and what you can do',
   'lifecycle.paused': 'This migration has not started (paused).',
   // *Rename* beside a migration's title (0153 open question 5, item 4).
@@ -498,6 +503,9 @@ export const nl: Record<keyof typeof en, string> = {
   'evidence.reported.title': 'De bron zelf meldde het object als verwijderd.',
   'evidence.trashed.title': 'Gevonden in Verwijderde items van de bron.',
   'evidence.inferred.title': 'Ontbreekt in volledige scans: een vermoeden, nooit toegepast.',
+  'evidence.reported': 'Gemeld door de bron',
+  'evidence.trashed': 'In de prullenbak van de bron',
+  'evidence.inferred': 'Vermoeden: ontbreekt in volledige scans',
   'guidance.summary': 'Wat dit betekent en wat u kunt doen',
   'lifecycle.paused':
     'Deze migratie is niet gestart (pauze).',

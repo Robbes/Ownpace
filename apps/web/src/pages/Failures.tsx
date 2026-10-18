@@ -292,7 +292,7 @@ const Failures: React.FC = () => {
             filters status='failed'). */}
         <p className="mt-2 text-xs text-gray-500">{t('failures.acceptedLeave')}</p>
 
-        <GuidancePanel entries={queue.howToResolve} />
+        <GuidancePanel queue="failures" />
       </>
     )}
   />
