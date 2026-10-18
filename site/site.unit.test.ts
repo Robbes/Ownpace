@@ -43,6 +43,7 @@ import {
   realpathSync,
   rmSync,
   existsSync,
+  readdirSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, sep } from 'node:path';
@@ -435,20 +436,63 @@ describe('both locales are complete', () => {
    * ENGLISH SAYS "SWITCH", NOT "CUT OVER" (the UX sweep, 2026-10-17). The pages
    * moved to "switch"; the home and How it works descriptions, which a search
    * result and a link preview show, still said "cut over" and "the cutover".
-   * Asked of the whole page, its <head> included. The one "cutover" left is
-   * the hero's "No big-bang cutover", the owner's own words (0144 P5).
+   * Asked of the whole page, its <head> included. The hero's "No big-bang
+   * cutover" was excused as the owner's words (0144 P5) until the owner chose
+   * new ones (2026-10-18), so nothing is excused now.
    */
   it('says "switch" for the moment you move over, on every English page and in its description', async () => {
     const english = [...(await renderedPages()), ...(await alphaBuild())].filter((p) => !p.file.startsWith('nl/'));
     expect(english.map((p) => p.file)).toEqual(expect.arrayContaining(['index.html', 'how-it-works.html']));
     for (const page of english) {
-      const said = page.html.replace('No big-bang cutover.', '').match(/\bcut[- ]?over\w*/gi) ?? [];
+      const said = page.html.match(/\bcut[- ]?over\w*/gi) ?? [];
       expect(said, `${page.file} says "cut over" where the site says "switch"`).toEqual([]);
     }
     const description = (file: string) =>
       english.find((p) => p.file === file)!.html.match(/<meta name="description" content="([^"]*)"/)![1];
     expect(description('index.html')).toContain('and switch when you are ready.');
     expect(description('how-it-works.html')).toBe('What a migration looks like from the first connection to the switch.');
+  });
+
+  /**
+   * THE HOME PAGE'S FIRST PARAGRAPH, AND ITS SOURCE PROMISE, IN THE OWNER'S
+   * WORDS (the UX sweep; the owner, 2026-10-18). The hero's paragraph ended
+   * "No big-bang cutover" in English and "Geen deadline in het weekend. Geen
+   * big bang." in Dutch, an English phrase carried over word for word. And the
+   * Dutch home made one promise two ways: the facts said "Bij de bron wordt
+   * niets verwijderd", the card further down "Aan de bron wordt nooit iets
+   * verwijderd", above a body that opens "Nooit." The owner chose the words
+   * below; the card's body stays theirs.
+   */
+  it("writes the hero's first paragraph and the source promise in the owner's words, in both languages", async () => {
+    const pages = await renderedPages();
+    const home = (file: string) => pages.find((p) => p.file === file)!.html;
+    const en = home('index.html');
+    const nl = home('nl/index.html');
+
+    expect(en).toContain(
+      'until <em>you</em> decide to switch over. No weekend deadline. No switching everything in one go. ' +
+        'Your old account stays exactly where it is, for as long as you keep it.</p>',
+    );
+    expect(nl).toContain(
+      'tot <em>u</em> besluit over te stappen. Geen weekend waarin alles af moet. Niet alles in één keer. ' +
+        'Uw oude account blijft precies waar het is, zolang u het aanhoudt.</p>',
+    );
+    for (const [file, html] of [['index.html', en], ['nl/index.html', nl]] as const) {
+      expect(html.match(/big[- ]bang/gi) ?? [], `${file} says "big bang"`).toEqual([]);
+    }
+    // The Dutch paragraph says it in Dutch; the strip's "Geen deadline." is
+    // other words of the owner's, and stays.
+    const lede = nl.match(/<p class="lede">([\s\S]*?)<\/p>/)![1]!;
+    expect(lede.match(/\bdeadline\b/gi) ?? [], "nl/index.html's first paragraph says \"deadline\"").toEqual([]);
+
+    // Every heading on the Dutch home that promises nothing is deleted at the
+    // source says it the one way, link or not; there are two (facts, card).
+    const promises = [...nl.matchAll(/<h([23])>([\s\S]*?)<\/h\1>/g)]
+      .map((m) => m[2]!.replace(/<[^>]+>/g, '').trim())
+      .filter((h) => /verwijderd/i.test(h));
+    expect(promises.length, 'the Dutch home no longer promises it in its facts and in its card').toBe(2);
+    for (const h of promises) expect(h.replace(/\.$/, '')).toBe('Bij de bron wordt niets verwijderd');
+    expect(nl).toContain('<h3>Bij de bron wordt niets verwijderd</h3><p>Nooit. Uw oude account is uw vangnet,');
   });
 });
 
@@ -1338,5 +1382,57 @@ describe('the pricing page asks its rules as questions (workplan 0152 T6 (b))', 
     expect(finishing).toBeGreaterThan(-1);
     expect(unless - finishing, 'the exception drifted away from the answer it qualifies').toBeGreaterThan(0);
     expect(unless - finishing).toBeLessThan(4);
+  });
+});
+
+/**
+ * ONE NAME FOR THE COUNT BEFORE A MIGRATION (the owner, 2026-10-18).
+ *
+ * The site promised "the free preflight" and "de gratis voorcontrole"; the app
+ * never says either. Its screen says the count happens *when you review the
+ * migration*, *wanneer u de migratie controleert* (`strings/connect.ts`), and
+ * the in-app guide said "at the preflight". A visitor who looks for the
+ * preflight in the app finds nothing by that name. So the site and the guides
+ * say the app's words, and neither old name reaches a visitor.
+ *
+ * NOT the legal texts: privacy §4.3 still says preflight, and changes only with
+ * the next legal version (`site/legal/README.md`). Code names, comments and the
+ * calculator's script, which a visitor does not read, keep theirs.
+ */
+describe('the count before a migration has the app’s name (the owner, 2026-10-18)', () => {
+  const OLD_NAMES = /preflight|voorcontrole/i;
+  const LEGAL = ['privacy', 'terms', 'alpha'];
+  /** What a visitor reads: the page without its scripts (the JSON of words the estimate shows kept), styles and tags. */
+  const visible = (html: string): string =>
+    html
+      .replace(/<script\b(?![^>]*application\/json)[^>]*>[\s\S]*?<\/script>/g, ' ')
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/g, ' ')
+      .replace(/<!--[\s\S]*?-->/g, ' ')
+      .replace(/<[^>]+>/g, ' ');
+
+  it('says neither old name on any page but the legal texts, and the app’s words on the estimate', async () => {
+    const pages = (await renderedPages()).filter((p) => !LEGAL.includes(p.key));
+    expect(pages.map((p) => p.key), 'the vacuity check: the estimate is among the pages read').toContain('calculator');
+    for (const p of pages) {
+      expect(visible(p.html).match(OLD_NAMES)?.[0], `${p.file} says ${visible(p.html).match(OLD_NAMES)?.[0]}`).toBeUndefined();
+    }
+    // The app's own phrase, which the estimate now uses for the same step.
+    const app = read('apps/web/src/i18n/strings/connect.ts');
+    expect(app, 'the app no longer names the count by its review').toContain('when you review the migration');
+    expect(app, 'the app no longer names the count by its review').toContain('wanneer u de migratie controleert');
+    const estimate = (file: string) => visible(pages.find((p) => p.file === file)!.html);
+    expect(estimate('estimate.html')).toContain('when you review your migration');
+    expect(estimate('nl/schatting.html')).toContain('wanneer u uw migratie controleert');
+  });
+
+  it('says neither in the app’s guides, which the app shows as they are', () => {
+    for (const locale of ['en', 'nl']) {
+      const guides = readdirSync(join(REPO, 'docs/guides', locale)).filter((f) => f.endsWith('.md'));
+      expect(guides.length).toBeGreaterThan(0);
+      for (const guide of guides) {
+        const said = read(`docs/guides/${locale}/${guide}`).match(OLD_NAMES)?.[0];
+        expect(said, `docs/guides/${locale}/${guide} says ${said}`).toBeUndefined();
+      }
+    }
   });
 });

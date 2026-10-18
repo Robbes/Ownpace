@@ -169,7 +169,7 @@ export const nl: Record<keyof typeof en, string> = {
   'grantLink.revokeArmed': 'Bevestig intrekken',
   'grant.title': 'Verbind uw account',
   'grant.loading': 'Een moment…',
-  'grant.asking': '{organisation} migreert uw account naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat voor u moet worden gemigreerd.',
+  'grant.asking': '{organisation} migreert uw account naar een nieuwe aanbieder en heeft uw toestemming nodig om te lezen wat voor u moet worden gemigreerd.',
   'grant.reads': 'U staat op het punt (lees)toegang te geven tot {reads}.',
   'grant.reads.email': 'uw e-mail: berichten, mappen en labels',
   'grant.reads.calendar': 'uw agenda’s en de afspraken daarin',
@@ -207,7 +207,7 @@ export const nl: Record<keyof typeof en, string> = {
     'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar uw favoriete browser, zoals Safari of Chrome. De link blijft werken.',
   'grant.connect': 'Doorgaan met Google',
   'grant.person.asking':
-    '{organisation} migreert uw accounts naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat erin zit. Elk account hieronder vraagt het één keer.',
+    '{organisation} migreert uw accounts naar een nieuwe aanbieder en heeft uw toestemming nodig om te lezen wat erin zit. Elk account hieronder vraagt het één keer.',
   'grant.person.migration': 'Naar {where}: {reads}.',
   'grant.person.where': '{account}, {place}',
   'grant.person.connect': 'Doorgaan met Google als {account}',

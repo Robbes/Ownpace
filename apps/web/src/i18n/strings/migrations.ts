@@ -136,7 +136,7 @@ export const en = {
   // Under each step page of a migration, the way on to the next (NextStepLink).
   'hub.nextStep': 'Next step: {step} →',
   'hub.finish.blurb':
-    'The cutover checklist, to end the migration.',
+    'The checklist for switching over, to end the migration.',
   'runs.title': 'Run history',
   'runs.blurb':
     'Every pass this migration has made, newest first, with what each one said.',
@@ -183,7 +183,7 @@ export const en = {
   'view.state.paused': 'Copying is on hold at the moment.',
   'view.state.cutover': 'Your new account is now the one in use.',
   'view.state.done': 'Your migration is finished.',
-  'view.state.continuous': 'Anything new is still kept in sync for you.',
+  'view.state.continuous': 'Anything new on your old account is still kept in step for you.',
   'view.notStarted': 'Nothing has been copied yet.',
   'view.notStarted.why':
     'Migration has not started, so there is nothing to count here yet. That is normal for the first day or two: a migration begins once everything it needs is connected, and this page fills in on its own. Nothing is missing and nothing has gone wrong.',
@@ -371,8 +371,8 @@ export const en = {
   // The reference the failure was recorded under (0129 T1), what a person
   // quotes when they report it.
   'failure.reference': 'Reference: {reference}',
-  'failure.side.source': 'It happened on the source side.',
-  'failure.side.target': 'It happened on the destination side.',
+  'failure.side.source': 'It happened at your old account.',
+  'failure.side.target': 'It happened at the destination.',
   // One state, three reasons (see pause-reason.ts); the sentence says which.
   'pause.ceiling':
     '{provider} reached its daily download limit. Migration continues after {resets}.',
@@ -469,8 +469,8 @@ export const nl: Record<keyof typeof en, string> = {
     'Free omvat één migratieronde per dag. De volgende ronde begint op {time}. Een hoger pakket kijkt zo vaak als tot elke 15 minuten naar wijzigingen en migreert deze.',
   'mappings.action.pause': 'Pauzeren',
   'hub.connections': 'Van {source} naar {target}',
-  'hub.lands.folder': 'De bestanden komen in de map {folder} van de bestemming.',
-  'hub.lands.merged': 'De bestanden komen in de eigen mappen van de bestemming.',
+  'hub.lands.folder': 'De kopieën komen in de map {folder} van de bestemming.',
+  'hub.lands.merged': 'De kopieën komen in de eigen mappen van de bestemming.',
   'hub.filesFrom.all': 'De bestanden worden uit {place} gelezen.',
   'hub.filesFrom.path': 'De bestanden worden alleen uit {folder} gelezen.',
   'hub.filesFrom.id': 'De bestanden worden alleen uit één map gelezen: {folder}.',
@@ -528,7 +528,7 @@ export const nl: Record<keyof typeof en, string> = {
     'Verwijderd op het oude systeem, nog op het nieuwe; beslis per item.',
   'hub.moves.name': 'Verplaatsingen',
   'hub.moves.blurb':
-    'Items die het oude systeem heeft herschikt sinds de migratie. Een bestand in uw doelsysteem dat had moeten meeverplaatsen, kunt u handmatig verwijderen, of automatisch als u dat hebt aangezet.',
+    'Items die het oude systeem heeft herschikt sinds de migratie. Een bestand in het nieuwe systeem dat had moeten meeverplaatsen, kunt u handmatig verwijderen, of automatisch als u dat hebt aangezet.',
   'hub.failures.name': 'Mislukkingen',
   'hub.failures.blurb':
     'Items die niet gemigreerd konden worden en op uw beslissing wachten; ze blokkeren het afronden.',
@@ -544,7 +544,7 @@ export const nl: Record<keyof typeof en, string> = {
   'hub.finish.name': 'Afronden',
   'hub.nextStep': 'Volgende stap: {step} →',
   'hub.finish.blurb':
-    'De cutover-checklist; beëindigt de migratie in enkele stappen.',
+    'De checklist voor de overstap; beëindigt de migratie in enkele stappen.',
   'runs.title': 'Uitvoeringsgeschiedenis',
   'runs.blurb':
     'Iedere ronde van deze migratie, nieuwste eerst, met wat elke ronde meldde.',
@@ -564,12 +564,12 @@ export const nl: Record<keyof typeof en, string> = {
   'answer.unreachable': 'De dienst was niet bereikbaar. Controleer uw verbinding en probeer het opnieuw.',
   'view.title': 'Uw migratie',
   'view.loading': 'Een moment…',
-  'view.who': '{organisation} migreert uw account naar een nieuwe provider.',
+  'view.who': '{organisation} migreert uw account naar een nieuwe aanbieder.',
   'view.state.active': 'De migratie is actief.',
   'view.state.paused': 'Het migreren ligt op dit moment stil.',
   'view.state.cutover': 'U bent overgestapt naar uw nieuwe omgeving.',
   'view.state.done': 'Uw migratie is klaar.',
-  'view.state.continuous': 'Wat nieuw binnenkomt op uw oude omgeving, wordt nog steeds in sync gehouden.',
+  'view.state.continuous': 'Wat nieuw binnenkomt op uw oude omgeving, wordt nog steeds bijgehouden.',
   'view.notStarted': 'Er is nog niets gemigreerd.',
   'view.notStarted.why':
     'Het migreren is nog niet aangevangen, dus er valt nog niets te tellen. Dat is normaal in de eerste dag of twee: een migratie start zodra alles wat daarvoor nodig is, binnen is. Deze pagina vult zich verder vanzelf. Er ontbreekt niets en er is niets misgegaan.',
@@ -584,7 +584,7 @@ export const nl: Record<keyof typeof en, string> = {
   'view.retrying.many': '{count} items worden opnieuw geprobeerd.',
   'view.moved': 'Tot nu toe {bytes} overgezet.',
   'view.failure.authExpired': 'De koppeling met uw account moet worden vernieuwd. Wie dit heeft ingesteld kan dat.',
-  'view.failure.rateLimited': 'Uw provider vroeg ons (geautomatiseerd) rustiger aan te doen. Dit gaat vanzelf verder.',
+  'view.failure.rateLimited': 'Uw aanbieder vroeg ons (automatisch) rustiger aan te doen. Dit gaat vanzelf verder.',
   'view.failure.quotaExceeded': 'Een daglimiet is bereikt. Morgen gaat het migreren vanzelf verder.',
   'view.failure.policyRefused':
     'Sommige items konden niet worden gemigreerd door de instellingen van deze migratie, niet door uw accounts.',
@@ -619,7 +619,7 @@ export const nl: Record<keyof typeof en, string> = {
   'view.withdrawn.check': 'Uw Google-account toont welke apps nog toegang hebben:',
   // De voortgangspagina van een PERSOON (ADR-0035, gewijzigd 2026-09-29; 0153 T5 (b), deel 3).
   'view.person.title': 'Uw migraties',
-  'view.person.who': '{organisation} migreert uw accounts naar nieuwe providers. Hier ziet u hoe elke migratie ervoor staat.',
+  'view.person.who': '{organisation} migreert uw accounts naar nieuwe aanbieders. Hier ziet u hoe elke migratie ervoor staat.',
   'view.person.none': 'Er zijn hier nog geen migraties.',
   'view.person.account.only': 'Uw Google-account',
   'view.person.account': 'Google-account {n}',
@@ -663,9 +663,9 @@ export const nl: Record<keyof typeof en, string> = {
     'De verbinding met dit account is verlopen. Druk op de pagina Accounts op Opnieuw verbinden of Inloggegevens vervangen, welke van de twee er bij dit account staat; daarna wordt verdergegaan waar gestopt was \u2014 er gaat niets verloren.',
   'failure.openAccounts': 'Naar Accounts',
   'failure.rateLimited':
-    'De provider vroeg ons (geautomatiseerd) om rustiger aan te doen. Er is niets mis: dit pauzeert en hervat vanzelf.',
+    'De aanbieder vroeg ons (automatisch) om rustiger aan te doen. Er is niets mis: dit pauzeert en hervat vanzelf.',
   'failure.quotaExceeded':
-    'Dit account heeft de limiet bereikt die de provider per dag toestaat. Het hervat morgen vanzelf \u2014 u hoeft niets te doen.',
+    'Dit account heeft de limiet bereikt die de aanbieder per dag toestaat. Het hervat morgen vanzelf \u2014 u hoeft niets te doen.',
   'failure.policyRefused':
     'Nog niet gemigreerd: Google-bestanden in een formaat dat het nieuwe account niet kan ontvangen. Kies een formaat dat beide kanten aankan onder Exportformaat voor Google-bestanden, en klik op Probeer opnieuw \u2014 of laat deze items achter.',
   'failure.policyRefused.dropbox':
@@ -681,17 +681,17 @@ export const nl: Record<keyof typeof en, string> = {
   'failure.network':
     'We konden de server niet bereiken. Dit is meestal tijdelijk, en er wordt vanzelf opnieuw geprobeerd.',
   'failure.unknown':
-    'We konden dit niet classificeren. De melding van de provider zelf staat hieronder \u2014 biedt dat geen duidelijkheid, stuur hem ons dan en we kijken mee.',
+    'We konden dit niet classificeren. De melding van de aanbieder zelf staat hieronder \u2014 biedt dat geen duidelijkheid, stuur hem ons dan en we kijken mee.',
   'failure.sendItToUs': 'Stuur naar ons',
   'failure.reference': 'Referentie: {reference}',
-  'failure.side.source': 'Trad op aan de bronkant.',
-  'failure.side.target': 'Trad op aan de doelkant.',
+  'failure.side.source': 'Dit gebeurde bij uw oude account.',
+  'failure.side.target': 'Dit gebeurde bij de bestemming.',
   'pause.ceiling':
     '{provider} heeft de daglimiet voor downloaden bereikt. Migreren gaat verder na {resets}.',
   'pause.ceiling.unknown':
     '{provider} heeft de daglimiet voor downloaden bereikt. Migreren gaat verder zodra die reset.',
   'pause.ceiling.why':
-    'Deze limiet is van uw bron / oude provider, niet van ons. Als wij daar overheen gaan, kan dat u ongeveer een dag buitensluiten uit uw eigen live mailbox, dus is de migratie voordien al gestopt. Er is niets misgegaan en er gaat niets verloren — de volgende ronde gaan we weer rustig verder.',
+    'Deze limiet is van uw oude aanbieder, niet van ons. Als wij daar overheen gaan, kan dat u ongeveer een dag buitensluiten uit uw eigen live mailbox, dus is de migratie voordien al gestopt. Er is niets misgegaan en er gaat niets verloren — de volgende ronde gaan we weer rustig verder.',
   'pause.dataCeiling':
     'Nieuwe items wachten bij uw datalimiet van {ceiling}: {held} nog niet gemigreerd. Wijzigingen in items die al gemigreerd waren worden nog wel gemigreerd.',
   'pause.dataCeiling.moveUp': 'Ga naar {tier}: €{monthly} per maand.',

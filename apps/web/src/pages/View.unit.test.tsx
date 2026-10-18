@@ -104,6 +104,35 @@ describe('what the page says', () => {
     expect(screen.queryByText('Active')).not.toBeInTheDocument();
   });
 
+  // *Kept in sync* left the progress row long ago: the stage says *kept in
+  // step* / *wordt bijgehouden*, and this sentence now does too (the owner,
+  // 2026-10-18), saying where the new things come from.
+  it.each([
+    ['en', 'Anything new on your old account is still kept in step for you.'],
+    ['nl', 'Wat nieuw binnenkomt op uw oude omgeving, wordt nog steeds bijgehouden.'],
+  ] as const)('%s: a migration that keeps following says so in the stage’s words', async (locale, sentence) => {
+    window.localStorage.setItem('ownpace.locale', locale);
+    try {
+      readMock.mockResolvedValue(payload({ state: 'continuous' }));
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <QueryClientProvider client={qc}>
+          <LocaleProvider>
+            <MemoryRouter initialEntries={['/view/abc.def']}>
+              <Routes>
+                <Route path="/view/:link" element={<View />} />
+              </Routes>
+            </MemoryRouter>
+          </LocaleProvider>
+        </QueryClientProvider>,
+      );
+      expect(await screen.findByText(sentence)).toBeInTheDocument();
+      expect(screen.queryByText(/in sync/)).not.toBeInTheDocument();
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
   it('counts what has been copied, and says how much has moved', async () => {
     renderPage();
     expect(await screen.findByText('4211 migrated')).toBeInTheDocument();

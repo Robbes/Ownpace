@@ -78,7 +78,7 @@ export const COPY = {
     },
     heroTitle: 'Move off Google or Microsoft. At your own pace.',
     heroLede:
-      'Ownpace copies your mail, contacts, calendar, tasks and files to a European provider you choose — and keeps the copy in step until <em>you</em> decide to switch over. No weekend deadline. No big-bang cutover. Your old account stays exactly where it is, for as long as you keep it.',
+      'Ownpace copies your mail, contacts, calendar, tasks and files to a European provider you choose — and keeps the copy in step until <em>you</em> decide to switch over. No weekend deadline. No switching everything in one go. Your old account stays exactly where it is, for as long as you keep it.',
     ctaOrder: 'Request access',
     ctaPricing: 'See what it costs',
     ctaAllTiers: 'All five tiers, in full',
@@ -101,9 +101,13 @@ export const COPY = {
     },
     // Three facts under the hero (T3 (a)). None says "read-only": that word is
     // 0144 T3's to keep within what the scopes allow. The first is a claim, and
-    // links the guard that holds it (T8, proof.mjs).
+    // links the guard that holds it (T8, proof.mjs): from its body, saying it
+    // is code, never from its title (the owner, 2026-10-18).
     facts: [
-      [(p) => `<a href="${p.readsOnly}">Nothing is deleted at the source.</a>`, 'Your old account stays whole: it is your way back.'],
+      [
+        'Nothing is deleted at the source.',
+        (p) => `Your old account stays whole: it is your way back. <a href="${p.readsOnly}">The test that checks this</a> (code, on GitHub).`,
+      ],
       ['Kept in step until you switch.', 'New mail and changed files keep arriving.'],
       ['A list of what arrived, item by item.', 'And what could not come, with the reason.'],
     ],
@@ -220,6 +224,10 @@ export const COPY = {
         gmail:
           'Sign in with Google again for your mail, which Google asks about on its own. For mail too, Google describes a broader permission than Ownpace uses. On a personal account an app password can stand in, though Google advises against it.',
         'google-drive': 'And once more for your Drive, which Google lets Ownpace read and never change.',
+        // Where the stack declared Google's restricted scopes, one sign-in
+        // covers all five (`GOOGLE_ONE_CONSENT` in sources.mjs; the owner, 2026-10-18).
+        googleAll:
+          'Sign in with Google once and allow Ownpace to read what you tick: mail, calendars, contacts, Drive and tasks. For mail, calendars and contacts, Google describes a broader permission than Ownpace uses; Ownpace only reads. On a personal account an app password can stand in for mail, though Google advises against it.',
         archive:
           'For photos, ask Google for a Takeout export of Google Photos, and put it in a folder called Takeout at the top of your new home’s files.',
         microsoft:
@@ -311,7 +319,7 @@ export const COPY = {
     tierText: {
       free: {
         who: 'One person, at a pass a day',
-        note: 'Everything one person moves, one pass a day: the first right after the free preflight, the small things first and the files last. The patient option, and free.',
+        note: 'Everything one person moves, one pass a day: the first right after you start, the small things first and the files last. The patient option, and free.',
       },
       small: {
         who: 'One person, at full pace',
@@ -356,7 +364,7 @@ export const COPY = {
     calc: {
       title: 'What would yours cost?',
       lede:
-        'Answer five questions and this page works out the tier they need. Everything is indicative: these are our assumptions until the free preflight measures your real accounts, and you can change every size below.',
+        'Answer five questions and this page works out the tier they need. Everything is indicative: these are our assumptions until Ownpace counts your real accounts, for free, when you review your migration, and you can change every size below.',
       whoLegend: 'Who is moving?',
       who: { individual: 'Just me', family: 'My household (4 people)', sme: 'My business (10 seats)' },
       fromLegend: 'Moving away from?',
@@ -385,7 +393,7 @@ export const COPY = {
       untilHint:
         'Duration is a choice, not a prediction: the migration keeps your copy in step until you switch, and the recurring part of the price is yours to end.',
       kept:
-        'The free preflight that follows keeps counts, sizes and per-folder totals — never an inventory of your items — and keeps them with your migration, never longer than your account.',
+        'When Ownpace counts your accounts, it keeps counts, sizes and per-folder totals — never an inventory of your items — and keeps them with your migration, never longer than your account.',
       pathsNone: 'Tick what is moving and the count appears here.',
       pathsNoSource: 'Tick what you are leaving and the count appears here.',
       // A type none of the ticked sources keeps, or lets go of (the Leaving pages say which).
@@ -405,7 +413,7 @@ export const COPY = {
       tierFree: 'Free: nothing a month, and no invoice.',
       tierFreeEdge: 'More than {0} moves you to {1}, and more than {2} migrations at the same time to {3} — and we ask you first.',
       // Free's pace (ADR-0014, 2026-10-04), said where the estimate lands on it.
-      tierFreePace: 'One pass a day: the first right after the free preflight, the small things first and the files last.',
+      tierFreePace: 'One pass a day: the first right after you start, the small things first and the files last.',
       // Which payment suits the answer to Until when? (0152 T7 (b), D9, D10): a
       // sentence under the result, not a choice, so the tier stays derived.
       suits: {
@@ -427,10 +435,10 @@ export const COPY = {
         'Google lets a mailbox download 2.5 GB a day, so {0} GB of mail needs at least {1} days. That minimum is Google’s own published limit, not a guess — and it is exactly why Ownpace keeps your copy in step until you switch, when you are ready.',
       gmailLonger: 'Note: that is longer than the {0} you picked — the mail sets the pace here.',
       cannotKnow:
-        'One thing this page cannot know: whether your target accepts your data. The preflight verifies exactly that, and it is free.',
+        'One thing this page cannot know: what your destination already holds. Ownpace counts exactly that when you review your migration, and that is free.',
       assumptionsTitle: 'Where these numbers come from',
       assumptionsVersion:
-        'Assumptions v{0}, {1} — judgement, not yet measured. They will be replaced by medians from real preflights, and this line will say so. Until then: argue with them above, every field is yours.',
+        'Assumptions v{0}, {1} — judgement, not yet measured. They will be replaced by medians from real counts, and this line will say so. Until then: argue with them above, every field is yours.',
       noscript:
         'This estimator runs one small script, on this page and nowhere else on the site. Without it, nothing is lost: the five tiers are published in full on the pricing page.',
       seeAllTiers: 'All five tiers, in full',
@@ -474,7 +482,7 @@ export const COPY = {
     },
     heroTitle: 'Weg bij Google of Microsoft. In uw eigen tempo.',
     heroLede:
-      'Ownpace kopieert uw e-mail, contacten, agenda, taken en bestanden naar een Europese aanbieder die u zelf kiest — en houdt die kopie bij tot <em>u</em> besluit over te stappen. Geen deadline in het weekend. Geen big bang. Uw oude account blijft precies waar het is, zolang u het aanhoudt.',
+      'Ownpace kopieert uw e-mail, contacten, agenda, taken en bestanden naar een Europese aanbieder die u zelf kiest — en houdt die kopie bij tot <em>u</em> besluit over te stappen. Geen weekend waarin alles af moet. Niet alles in één keer. Uw oude account blijft precies waar het is, zolang u het aanhoudt.',
     ctaOrder: 'Toegang aanvragen',
     ctaPricing: 'Bekijk wat het kost',
     ctaAllTiers: 'Alle vijf de pakketten, volledig',
@@ -490,7 +498,10 @@ export const COPY = {
       keeps: ['houdt daarna bij,', 'tot u overstapt'],
     },
     facts: [
-      [(p) => `<a href="${p.readsOnly}">Bij de bron wordt niets verwijderd.</a>`, 'Uw oude account blijft heel: het is uw weg terug.'],
+      [
+        'Bij de bron wordt niets verwijderd.',
+        (p) => `Uw oude account blijft heel: het is uw weg terug. <a href="${p.readsOnly}">De test die dit controleert</a> (code, op GitHub).`,
+      ],
       ['Bijgehouden tot u overstapt.', 'Nieuwe e-mail en gewijzigde bestanden blijven binnenkomen.'],
       ['Een lijst van wat er aankwam, item voor item.', 'En van wat niet mee kon, met de reden.'],
     ],
@@ -592,6 +603,8 @@ export const COPY = {
         gmail:
           'Meld u opnieuw aan bij Google voor uw e-mail, waar Google apart om vraagt. Ook voor e-mail beschrijft Google een ruimere toestemming dan Ownpace gebruikt. Bij een persoonlijk account kan een app-wachtwoord dat vervangen, al raadt Google het af.',
         'google-drive': 'En nog één keer voor uw Drive, die Ownpace van Google mag lezen en nooit mag wijzigen.',
+        googleAll:
+          'Meld u één keer aan bij Google en geef Ownpace toegang om te lezen wat u aanvinkt: e-mail, agenda’s, contacten, Drive en taken. Voor e-mail, agenda’s en contacten beschrijft Google een ruimere toestemming dan Ownpace gebruikt; Ownpace leest alleen. Bij een persoonlijk account kan voor e-mail een app-wachtwoord dat vervangen, al raadt Google het af.',
         archive:
           'Vraag voor foto’s bij Google een Takeout-export van Google Foto’s aan, en zet die in een map Takeout bovenaan in de bestanden van uw nieuwe thuis.',
         microsoft:
@@ -614,7 +627,7 @@ export const COPY = {
     diff: [
       ['Het is een migratie, geen kopie',
        'De meeste migratietools draaien één kopieerklus en geven u het resultaat. Ownpace blijft draaien: elke wijziging in uw oude account komt aan in het nieuwe, zolang u wilt, tot u overstapt.'],
-      ['Aan de bron wordt nooit iets verwijderd',
+      ['Bij de bron wordt niets verwijderd',
        (p) => `Nooit. Uw oude account is uw vangnet, en Ownpace laat het zoals het is: <a href="${p.readsOnly}">de software heeft geen code die bij een bron iets wijzigt of verwijdert</a>. Sommige toestemmingen staan meer toe dan Ownpace gebruikt; Hoe het werkt zegt welke.`],
       ['Europees, tot op de bodem',
        (p) => `Weggaan bij een Amerikaanse cloud via een Amerikaanse dienst schiet zijn doel voorbij. Ownpace draait in de EU, en de software is <a href="${p.repository}">open source</a>, dus u kunt het nakijken in plaats van ons te geloven.`],
@@ -671,7 +684,7 @@ export const COPY = {
     tierText: {
       free: {
         who: 'Eén persoon, één ronde per dag',
-        note: 'Alles wat één persoon migreert, één ronde per dag: de eerste direct na de gratis voorcontrole, de kleine dingen eerst en de bestanden als laatste. De geduldige keuze, en gratis.',
+        note: 'Alles wat één persoon migreert, één ronde per dag: de eerste direct na de start, de kleine dingen eerst en de bestanden als laatste. De geduldige keuze, en gratis.',
       },
       small: {
         who: 'Eén persoon, op volle snelheid',
@@ -708,7 +721,7 @@ export const COPY = {
     calc: {
       title: 'Wat zou het bij u kosten?',
       lede:
-        'Beantwoord vijf vragen en deze pagina rekent uit welk pakket daarbij hoort. Alles is indicatief: dit zijn onze aannames totdat de gratis voorcontrole uw echte accounts meet, en elke grootte hieronder kunt u aanpassen.',
+        'Beantwoord vijf vragen en deze pagina rekent uit welk pakket daarbij hoort. Alles is indicatief: dit zijn onze aannames totdat Ownpace uw echte accounts telt, gratis, wanneer u uw migratie controleert, en elke grootte hieronder kunt u aanpassen.',
       whoLegend: 'Voor wie is het?',
       who: { individual: 'Alleen ik', family: 'Mijn huishouden (4 personen)', sme: 'Mijn bedrijf (10 werkplekken)' },
       fromLegend: 'Weg bij?',
@@ -732,7 +745,7 @@ export const COPY = {
       untilHint:
         'De duur is een keuze, geen voorspelling: de migratie houdt uw kopie bij tot u overstapt, en het terugkerende deel van de prijs beëindigt u zelf.',
       kept:
-        'De gratis voorcontrole die volgt, bewaart aantallen, omvang en totalen per map — nooit een inventaris van uw items — en bewaart ze bij uw migratie, nooit langer dan uw account.',
+        'Als Ownpace uw accounts telt, bewaart het aantallen, omvang en totalen per map — nooit een inventaris van uw items — en bewaart het die bij uw migratie, nooit langer dan uw account.',
       pathsNone: 'Vink aan wat u wilt migreren en de telling verschijnt hier.',
       pathsNoSource: 'Vink aan waar u weggaat en de telling verschijnt hier.',
       uncountedLine: 'Niet meegeteld, want dit kunnen wij niet migreren vanaf wat u hebt aangevinkt: {0}.',
@@ -748,7 +761,7 @@ export const COPY = {
         'Afgeleid uit uw antwoorden: het kleinste pakket dat erbij past. Rond migraties af en het pakket zakt vanzelf.',
       tierFree: 'Gratis: niets per maand en geen factuur.',
       tierFreeEdge: 'Meer dan {0} brengt u naar {1}, en meer dan {2} migraties tegelijk naar {3} — en we vragen het u eerst.',
-      tierFreePace: 'Eén ronde per dag: de eerste direct na de gratis voorcontrole, de kleine dingen eerst en de bestanden als laatste.',
+      tierFreePace: 'Eén ronde per dag: de eerste direct na de start, de kleine dingen eerst en de bestanden als laatste.',
       tierMonthly: '{0} per maand',
       tierYear: '{0} voor een jaar, vooruitbetaald: de helft van de maandprijs',
       suits: {
@@ -770,10 +783,10 @@ export const COPY = {
         'Google laat een mailbox 2,5 GB per dag downloaden, dus {0} GB e-mail heeft minstens {1} dagen nodig. Dat minimum is Googles eigen gepubliceerde grens, geen gok — en precies daarom houdt Ownpace uw kopie bij tot u overstapt, wanneer u er klaar voor bent.',
       gmailLonger: 'Let op: dat is langer dan de {0} die u koos — de e-mail bepaalt hier het tempo.',
       cannotKnow:
-        'Eén ding kan deze pagina niet weten: of uw doel uw gegevens accepteert. De voorcontrole verifieert precies dat, en die is gratis.',
+        'Eén ding kan deze pagina niet weten: wat er al op uw bestemming staat. Ownpace telt precies dat wanneer u uw migratie controleert, en dat is gratis.',
       assumptionsTitle: 'Waar deze getallen vandaan komen',
       assumptionsVersion:
-        'Aannames v{0}, {1} — inschatting, nog niet gemeten. Ze worden vervangen door medianen uit echte voorcontroles, en deze regel zal dat dan zeggen. Tot die tijd: wees het er gerust mee oneens, elk veld is van u.',
+        'Aannames v{0}, {1} — inschatting, nog niet gemeten. Ze worden vervangen door medianen uit echte tellingen, en deze regel zal dat dan zeggen. Tot die tijd: wees het er gerust mee oneens, elk veld is van u.',
       noscript:
         'Deze rekenhulp draait één klein script, op deze pagina en nergens anders op de site. Zonder dat script mist u niets: de vijf pakketten staan volledig op de prijzenpagina.',
       seeAllTiers: 'Alle vijf de pakketten, volledig',

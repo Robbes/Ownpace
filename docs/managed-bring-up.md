@@ -1750,6 +1750,13 @@ boxes on the Accounts page, follow the setting on the next page load.
 There is deliberately no `VITE_` twin: two separately settable copies of one
 fact is how a screen comes to offer what the server then refuses.
 
+**The public site reads the same line, at its build.** Its Leaving Google page
+says how many Google sign-ins to expect, so the site's build reads this one
+setting from the same `.env` (the owner, 2026-10-18), and a site built before
+you changed it still says the old number: rebuild it as
+[the public site's section](#the-public-site-is-a-separate-stack-and-it-must-be-told-which-one-it-is)
+shows. `deploy-live.sh` does that for live on every deploy.
+
 #### Nobody has to paste a client secret
 
 Registering the client is one job; typing it into a form once per connection
@@ -2543,8 +2550,10 @@ with it. To publish or re-publish:
 ```bash
 . deploy/compose/env-read.sh
 OWNPACE_APP_URL=https://app.ota.ownpace.eu \
+GOOGLE_ACCOUNT_SCOPE_CLASS="$(env_value deploy/compose/.env GOOGLE_ACCOUNT_SCOPE_CLASS)" \
 OWNPACE_STAGE="$(env_value deploy/compose/.env OWNPACE_STAGE)" node site/build.mjs   # test (OTA)
-# production (live): deploy-live.sh builds it, with --public and live's own OWNPACE_STAGE (below)
+# production (live): deploy-live.sh builds it, with --public and live's own OWNPACE_STAGE
+# and GOOGLE_ACCOUNT_SCOPE_CLASS (below)
 docker compose -f deploy/compose/www.yml up -d
 ```
 
@@ -2553,6 +2562,12 @@ docker compose -f deploy/compose/www.yml up -d
 links from its note and both mails (workplan 0131 T1 (b), 0144 T1). Empty is no
 guide, and no links to one. Live's site gets live's own value from
 `deploy-live.sh`, below.
+
+**And its own `GOOGLE_ACCOUNT_SCOPE_CLASS`.** With `restricted` in that `.env`,
+the app asks for one Google sign-in, and the site's Leaving Google page says
+one sign-in instead of three (the owner, 2026-10-18). Anything else leaves the
+page as it is. Rebuild the site when the value changes: the API follows it on a
+restart, the site on its next build.
 
 **A second copy beside it names its own project, with `-p`.** `ownpace-www`,
 `www.yml`'s project, is a default, and the container is named after the
@@ -2685,9 +2700,10 @@ not move at all. Switch it on with the first tag whose texts are final.
    the checkout, whose exit code decides. A dry run runs that test build too;
    it builds nothing in the checkout. After the bring-up the deploy
    builds the site in the checkout
-   (`OWNPACE_APP_URL=https://app.ownpace.eu OWNPACE_STAGE=<live's> GIT_SHA=<commit> node site/build.mjs --public`,
-   where `OWNPACE_STAGE` is the value in live's `.env`, never the shell's; with
-   `alpha` the site carries the tester guide, workplan 0144 T1),
+   (`OWNPACE_APP_URL=https://app.ownpace.eu OWNPACE_STAGE=<live's> GOOGLE_ACCOUNT_SCOPE_CLASS=<live's> GIT_SHA=<commit> node site/build.mjs --public`,
+   where both settings are the values in live's `.env`, never the shell's; with
+   `alpha` the site carries the tester guide, workplan 0144 T1, and with
+   `restricted` Leaving Google says one Google sign-in),
    brings it up with
    `docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env up -d --force-recreate`
    (a `WWW_PORT` another container publishes makes this `up` fail, and the

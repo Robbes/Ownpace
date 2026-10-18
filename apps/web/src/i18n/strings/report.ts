@@ -9,7 +9,7 @@
 
 export const en = {
   'report.title': 'Report a problem',
-  'report.lead': 'Tell us what happened, we read every report and will contact you by email.',
+  'report.lead': 'Tell us what happened. We read every report and will contact you by email.',
   'report.description': 'What happened?',
   'report.descriptionHint': 'What you were doing, what you expected, and what you saw instead.',
   'report.screenshot': 'Screenshot (optional)',
@@ -144,7 +144,7 @@ export const en = {
 
 export const nl: Record<keyof typeof en, string> = {
   'report.title': 'Een probleem melden',
-  'report.lead': 'Wat is aan de hand? U krijgt zsm. antwoord per e-mail.',
+  'report.lead': 'Wat is er aan de hand? U krijgt zo snel mogelijk antwoord per e-mail.',
   'report.description': 'Wat gebeurde er?',
   'report.descriptionHint': 'Wat u deed, wat u verwachtte, en wat u in plaats daarvan zag.',
   'report.screenshot': 'Schermafbeelding (optioneel)',

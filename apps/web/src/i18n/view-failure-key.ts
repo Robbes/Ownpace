@@ -47,10 +47,11 @@ export const VIEW_FAILURE_KEY: Record<FailureCategory, StringKey> = {
 /**
  * Which side, as this reader thinks of it: their old account and their new one.
  *
- * `failure.side.*` says "the source side" and "the destination side", which are
- * the product's words for a person who has been reading the product's screens.
- * Both accounts here belong to the reader, and telling them WHICH is the single
- * most useful thing on the line.
+ * `failure.side.*` said "the source side" and "the destination side" until the
+ * owner's words of 2026-10-18 (now *your old account* and *the destination*),
+ * written for the person running the migration. Both accounts here belong to
+ * the reader, and telling them WHICH is the single most useful thing on the
+ * line.
  */
 export const VIEW_SIDE_KEY: Record<FailureSide, StringKey> = {
   source: 'view.failure.side.source',

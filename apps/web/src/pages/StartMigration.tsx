@@ -100,6 +100,7 @@ import { CeilingAtStartNote, measuredBytes } from '../components/CeilingAtStartN
 import { PathsAtStartNote } from '../components/PathsAtStartNote.tsx';
 import { needsAcknowledgement } from '../components/confirm/native-refusals.tsx';
 import ScopeManifestPanel from '../components/confirm/ScopeManifestPanel.tsx';
+import AlphaGoogleLine from '../components/AlphaGoogleLine.tsx';
 import { PersonGrantLinkSection } from '../components/MappingLinksPanel.tsx';
 import { personLinkApi } from '../services/grant-link-service.ts';
 import { AccountForm } from '../components/AccountForm.tsx';
@@ -1659,6 +1660,10 @@ export const ConnectStep: React.FC<{
           {t('start.accountsFailed')}
         </p>
       )}
+      {/* During the Alpha, before the first Google sign-in: the guide's
+          section on connecting Google (the owner, 2026-10-18). Above the
+          cards, which is above the first Google card: Google's come first. */}
+      {google.length > 0 && <AlphaGoogleLine />}
       {google.length > 1 && (
         <p className="text-sm text-gray-700">{t('start.connect.googleApart', { n: google.length })}</p>
       )}
