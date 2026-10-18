@@ -510,8 +510,11 @@ step.
 - **Hard rule 9.** A number that could not be read says so. It is never a zero or an empty bar.
 - **Hard rule 10.** A stage belongs to the state the server reported. No state is made up for the
   screen, and the state table stays `StateChip`'s.
-- **The server's words stay verbatim.** Verification findings (`PASS`, `WARN`, `FAIL`) and
-  refusals are rendered as given (ADR-0013). The words around them are translated.
+- **The server's words stay verbatim.** Refusals are rendered as given (ADR-0013). The words
+  around them are translated. Since the owner's answer of 2026-10-18, the verdicts (`PASS`,
+  `WARN`, `FAIL`) show as the client's words with the token in the title, and Verify says its
+  four known findings in the client's words, with the server's text in a closed *Technical
+  details* fold (`docs/i18n-prose-boundary.md`).
 - **Progress refreshes without F5.** `scripts/a-live-progress-that-needed-f5` holds this.
 - **Email only** (0030). Counts on cards are not a notification centre.
 - **Word budgets** (0118).

@@ -38,6 +38,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   - Dutch screens give answers, refusals and numbers in Dutch (18.734, 3,4 GB);
   - the site writes Dutch prices the Dutch way (€2,50), and its legal pages
     stack their tables on a phone.
+- **The owner's word choices from the sweep** (workplan 0159 §5, the owner's
+  answers of 2026-10-18, #1630 to #1636): Dutch signs in and out with
+  *Aanmelden* / *Afmelden*, and says *aanbieder*, never *provider*; the
+  check's verdicts and Deletions' chips are words, with the server's token in
+  the title; Verify explains its four common findings and keeps the server's
+  text in a closed *Technical details*; the queues' *What this means and what
+  you can do* is written for the reader, in their language; a new mailbox's
+  and a shared address's decision ask in the reader's language, and the new
+  mailbox's button says what it does; a share has one name on the sharing
+  checklist, the report and Finish; and the site's estimate, pricing and
+  archive guide no longer promise a *free preflight* (the privacy statement
+  keeps the word until its version 1.1). Two items, the tiles on a phone and
+  the legal texts' wording, were asked again.
 
 ### Fixed
 

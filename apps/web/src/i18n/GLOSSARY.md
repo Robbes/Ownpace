@@ -22,15 +22,23 @@ Two kinds of words render; only the first belongs to this glossary:
   still quote it; it never goes through StateChip, which holds states, not
   findings. (Explanations *around* them — the `verify.help.*` keys, the
   Deletions lead — are client words and are translated.)
+- **Verification findings** — the check's `issues[].message` and
+  `recommendations`. Since 2026-10-18 (the owner) Verify says four of them
+  in client words, matched by the whole id: `TARGET_FOLDER_MISSING_<type>`,
+  `TARGET_UNREAD_<type>`, `MISSING_<type>` and `CHECKSUM_<type>`
+  (`verify.issue.*`, chosen by `issueSentence` in `verdict-words.ts`). Any
+  other finding says the server's text. The server's text, each finding's
+  id and severity token, and the recommendations are VERBATIM in a closed
+  *Technical details* / *Technische details* fold.
 
 | token | EN | NL | rule |
 |---|---|---|---|
 | `reported` | Reported by the source | **Gemeld door de bron** | The chip on Deletions (`evidence.reported`). The line above the rows says what it means. |
 | `trashed` | In the source's bin | **In de prullenbak van de bron** | As above (`evidence.trashed`). |
 | `inferred` | Assumed: missing from full scans | **Vermoeden: ontbreekt in volledige scans** | As above (`evidence.inferred`). A sentence names it by the part before the colon: *never for an item marked Assumed* / *nooit voor een item met het label Vermoeden* (the queues' guidance, `@openmig/shared`). |
-| `PASS` / `WARN` / `FAIL` | Passed / Passed, with warnings / Did not pass | **Geslaagd** / **Geslaagd, met waarschuwingen** / **Niet geslaagd** | Verify's verdicts, and Finish where it repeats them. The same words as the steps list's *Geslaagd* / *Niet geslaagd*. |
+| `PASS` / `WARN` / `FAIL` | Passed / Passed, with warnings / Did not pass | **Geslaagd** / **Geslaagd, met waarschuwingen** / **Niet geslaagd** | Verify's verdicts, and Finish where it repeats them. The same words as the steps list's *Geslaagd* / *Niet geslaagd*. On Finish, a verdict other than FAIL follows *De uitkomst van de verificatie is nog niet genoeg om af te ronden:*; a FAIL is the sentence *De verificatie is niet geslaagd.* |
 | `SKIPPED` / `NOT_VERIFIABLE` | Not checked / Could not be checked | **Niet geverifieerd** / **Kon niet worden geverifieerd** | The *verifiëren* family is Check's (*Feature names*). |
-| an issue's `ERROR` / `WARNING` | Problem / Warning | **Probleem** / **Waarschuwing** | Also after *De verificatie is niet geslaagd:* on Finish. |
+| an issue's `ERROR` / `WARNING` | Problem / Warning | **Probleem** / **Waarschuwing** | Beside each finding on Verify. |
 
 ## The thing being managed
 
