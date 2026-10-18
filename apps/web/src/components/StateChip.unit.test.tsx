@@ -27,9 +27,9 @@ describe('the canonical state table', () => {
 
   it('contains NO server vocabulary — findings are not states (the prose boundary)', () => {
     // PASS/FAIL are verification findings; reported/trashed/inferred are
-    // evidence words. They render verbatim, never through StateChip. If one
-    // of these appears in the table, the boundary rule in StateChip's header
-    // has been violated.
+    // evidence words. They never go through StateChip (their client words
+    // are in GLOSSARY.md's server-tokens table). If one of these appears in
+    // the table, the boundary rule in StateChip's header has been violated.
     const serverWords = ['PASS', 'FAIL', 'WARNING', 'reported', 'trashed', 'inferred'];
     for (const states of Object.values(STATE_TABLE)) {
       for (const word of serverWords) {

@@ -22,12 +22,13 @@
  *   through this component. Different entities MAY keep different words
  *   (run `success` → "Succeeded", domain `completed` → "Completed"); what
  *   is banned is same-entity drift and unchosen raw enums.
- * - **Server vocabulary** — verification statuses (`PASS`/`FAIL`), evidence
- *   words (`reported`/`trashed`/`inferred`), refusal/effect prose, error
- *   text. These are the server's own claims and render VERBATIM, never
- *   through this component and never translated. If you are about to add a
- *   PASS entry to the table below, stop — that word is a finding, not a
- *   state.
+ * - **Server tokens and prose** — verification statuses (`PASS`/`FAIL`),
+ *   evidence words (`reported`/`trashed`/`inferred`), refusal/effect prose,
+ *   error text. These are the server's own claims and never render through
+ *   this component. The prose renders VERBATIM; a token is shown as the
+ *   client's word with the token kept in its title (apps/web/src/i18n/
+ *   GLOSSARY.md, the owner, 2026-10-18). If you are about to add a PASS
+ *   entry to the table below, stop — that word is a finding, not a state.
  *
  * Each call site names its entity, which types the accepted states — a
  * server-vocabulary word does not compile.
