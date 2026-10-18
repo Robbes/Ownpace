@@ -288,17 +288,17 @@ one at a time on 2026-10-18 (UTC). In the order they merged:
   headline, and the *everything arrived* mail (rows 5 to 8, 22, 31).
 
 **Asked again.** Rows 19 and 24 went back to the owner on 2026-10-18, as a round 2. *Row 19*: the
-owner said round 1 was not in Dutch. Round 2 shows before and after shots of a prototype, on a phone only: the
-tiles once, under the migration's name, and the desktop unchanged. It saves fewer rows in Dutch
-than in English, and a migration of one data type can gain a row in Dutch. It has no new words.
-*Row 24*: the owner said the proposed Dutch held English. Round 2 is a checked draft of version
-1.1 of the Alpha conditions, the terms and the privacy statement, in four cards: the switches'
-names (Alpha §8, terms §2), *aanmelden* and *afmelden* in the Dutch texts, the count before a
-migration renamed (privacy §4.3, §5, §9), and two-factor sign-in, passkeys and the lock after ten
-wrong passwords (privacy §4.4, §5, §9, §10, on a legitimate-interest basis). It also asks whether
-anyone besides the owner accepted 1.0, since privacy §13 promises 30 days' notice by email of a
-material change. Nothing in `site/legal` changes before the owner says yes. Both wait for the
-owner.
+owner said round 1 was not in Dutch. Round 2 shows before and after shots of a prototype, on a
+phone only: the tiles once, under the migration's name, and the desktop unchanged. It saves fewer
+rows in Dutch than in English, and a migration of one data type can gain a row in Dutch. It has
+no new words. *Row 24*: the owner said the proposed Dutch held English. Round 2 is a checked
+draft of version 1.1 of the Alpha conditions, the terms and the privacy statement, in four cards:
+the switches' names (Alpha §8, terms §2), *aanmelden* and *afmelden* in the Dutch texts, the
+count before a migration renamed (privacy §4.3, §5, §9), and two-factor sign-in, passkeys and
+the lock after ten wrong passwords (privacy §4.4, §5, §9, §10, on a legitimate-interest basis).
+It also asks whether anyone besides the owner accepted 1.0, since privacy §13 promises 30 days'
+notice by email of a material change. Nothing in `site/legal` changes before the owner says yes.
+Both wait for the owner.
 
 **Deviations worth recording.**
 
@@ -382,8 +382,9 @@ owner.
 13. **Verify's sentences have no singular** (#1635). With one item they read *1 email items are
     on the old system…* / *1 items (e-mail) staan…* and *1 sampled … items differ*. They are the
     owner's approved words, so a singular form is the owner's call.
-14. **The privacy statement keeps *preflight*** (§4.3 in both languages) until its version 1.1,
-    where #1630 left it. Round 2 of row 24 renames it.
+14. **The privacy statement keeps *preflight*** (§4.3, §5 and §9, in both languages) until its
+    version 1.1, where #1630 left it. Round 2 of row 24 proposes a new name for it; nothing in
+    `site/legal` changes before the owner says yes.
 15. **With *Technical details* open, an unknown finding's text shows twice** (#1635): in the list,
     since no sentence of ours covers it, and again in the fold beside its id.
 16. **Words #1632 left for a later round**, as the owner did not name them: Review and start's

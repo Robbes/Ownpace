@@ -36,9 +36,9 @@ Two kinds of words render; only the first belongs to this glossary:
 | `reported` | Reported by the source | **Gemeld door de bron** | The chip on Deletions (`evidence.reported`). The line above the rows says what it means. |
 | `trashed` | In the source's bin | **In de prullenbak van de bron** | As above (`evidence.trashed`). |
 | `inferred` | Assumed: missing from full scans | **Vermoeden: ontbreekt in volledige scans** | As above (`evidence.inferred`). A sentence names it by the part before the colon: *never for an item marked Assumed* / *nooit voor een item met het label Vermoeden* (the queues' guidance, `@openmig/shared`). |
-| `PASS` / `WARN` / `FAIL` | Passed / Passed, with warnings / Did not pass | **Geslaagd** / **Geslaagd, met waarschuwingen** / **Niet geslaagd** | Verify's verdicts, and Finish where it repeats them. The same words as the steps list's *Geslaagd* / *Niet geslaagd*. |
+| `PASS` / `WARN` / `FAIL` | Passed / Passed, with warnings / Did not pass | **Geslaagd** / **Geslaagd, met waarschuwingen** / **Niet geslaagd** | Verify's verdicts, and Finish where it repeats them. The same words as the steps list's *Geslaagd* / *Niet geslaagd*. On Finish, a verdict other than FAIL follows *De uitkomst van de verificatie is nog niet genoeg om af te ronden:*; a FAIL is the sentence *De verificatie is niet geslaagd.* |
 | `SKIPPED` / `NOT_VERIFIABLE` | Not checked / Could not be checked | **Niet geverifieerd** / **Kon niet worden geverifieerd** | The *verifiëren* family is Check's (*Feature names*). |
-| an issue's `ERROR` / `WARNING` | Problem / Warning | **Probleem** / **Waarschuwing** | Also after *De verificatie is niet geslaagd:* on Finish. |
+| an issue's `ERROR` / `WARNING` | Problem / Warning | **Probleem** / **Waarschuwing** | Beside each finding on Verify. |
 
 ## The thing being managed
 

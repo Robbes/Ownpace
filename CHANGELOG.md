@@ -46,9 +46,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   text in a closed *Technical details*; the queues' *What this means and what
   you can do* is written for the reader, in their language; a new mailbox's
   and a shared address's decision ask in the reader's language, and the new
-  mailbox's button says what it does; a share has one name; and the site no
-  longer promises a *free preflight*. Two items, the tiles on a phone and the
-  legal texts' wording, were asked again.
+  mailbox's button says what it does; a share has one name on the sharing
+  checklist, the report and Finish; and the site's estimate, pricing and
+  archive guide no longer promise a *free preflight* (the privacy statement
+  keeps the word until its version 1.1). Two items, the tiles on a phone and
+  the legal texts' wording, were asked again.
 
 ### Fixed
 
