@@ -23,6 +23,7 @@
  */
 
 import type { RaiseDecisionInput, TenantId, DirectoryListing } from '@openmig/shared';
+import { NEW_MAILBOX_ANSWER, newMailboxSummary } from '@openmig/shared';
 
 export type { DirectoryListing };
 
@@ -114,14 +115,15 @@ export function detectNewMailboxes(input: DetectInput): DetectResult {
       category: 'new_mailbox',
       // The address itself, so re-detection is idempotent at the database.
       subjectKey: address,
-      // The owner's own words are not available here — this is the server's
-      // sentence, and it is what the screen and the email will both show
-      // verbatim. Say what was found and what it means, not what to click.
-      summary:
-        `${raw.trim()} exists on the source and no migration covers it. ` +
-        'Nothing is being copied from it.',
+      // Say what was found and what it means, not what to click. The English
+      // of the sentence `@openmig/shared` builds from the detail in both
+      // languages (the owner's words, 2026-10-18): stored for the email, and
+      // the page says the half in its reader's language.
+      summary: newMailboxSummary(raw.trim(), 'en'),
       detail: { address: raw.trim() },
-      proposedDefault: 'Create a mapping for this mailbox',
+      // Accepting only RECORDS the answer: no migration starts. The button
+      // said "Create a mapping for this mailbox" until 2026-10-18.
+      proposedDefault: NEW_MAILBOX_ANSWER.en,
     });
   }
 

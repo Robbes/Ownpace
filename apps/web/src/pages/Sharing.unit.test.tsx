@@ -297,7 +297,7 @@ describe('a refused share in the reader’s language', () => {
     const apply = locale === 'nl' ? 'Delen op het nieuwe systeem' : 'Share on the new system';
     const armed =
       locale === 'nl'
-        ? 'Klik nogmaals — dit stelt delen in én nodigt betreffende persoon uit'
+        ? 'Druk nogmaals: dit deelt en stuurt een uitnodiging'
         : 'Press again: this shares and sends an invitation';
     fireEvent.click(await screen.findByText(apply));
     fireEvent.click(screen.getByText(armed));

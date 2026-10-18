@@ -129,7 +129,7 @@ export async function runGroupDiscovery(
   let failed = 0;
 
   for (const group of listing.groups) {
-    const { pattern } = classifySharedAddress(group);
+    const { pattern, reason, reasonNl } = classifySharedAddress(group);
     const usable = membersUsable(group);
 
     if (!usable) {
@@ -187,6 +187,12 @@ export async function runGroupDiscovery(
         ...(group.displayName ? { displayName: group.displayName } : {}),
         ...(group.id ? { sourceGroupId: group.id } : {}),
         sourceConnectionId: deps.sourceConnectionId,
+        // Why we could not tell, in both languages: the page builds the
+        // question in its reader's language from this detail (the owner,
+        // 2026-10-18). A row raised before then has no reason here, and is
+        // asked without one.
+        reason,
+        reasonNl,
       },
     };
 

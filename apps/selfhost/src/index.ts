@@ -50,6 +50,7 @@ import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentia
 // data by accident.
 import {
   DECISION_EFFECTS,
+  decisionResolvedEffect,
   MAPPING_LIFECYCLES,
   PASS_RUNNING_STATES,
   REPORTING_CLOSED,
@@ -2960,6 +2961,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         // with the same words and the same ordering as managed (ADR-0026):
         // applied only AFTER the resolve succeeded, because the conditional
         // UPDATE is what guarantees exactly one answer wins.
+        let changedSomething = false;
         if (closed! && closedTenant && closed!.category === 'shared_address_pattern' && closed!.subjectKey) {
           const pattern = sharedAddressAnswer(resolution);
           if (pattern) {
@@ -2968,6 +2970,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
               closed!.subjectKey,
               pattern,
             );
+            changedSomething = rows > 0;
             if (rows === 0) {
               log.warn(
                 `[decisions] answered ${closed!.subjectKey} as ${pattern} but no group_def row matched`,
@@ -2984,7 +2987,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         }
         return sendJson(res, 200, {
           ...closed!,
-          effect: action === 'resolve' ? DECISION_EFFECTS.resolved : DECISION_EFFECTS.dismissed,
+          effect: action === 'resolve' ? decisionResolvedEffect(changedSomething) : DECISION_EFFECTS.dismissed,
         });
       }
       // The migration completion report (workplan 0047): the SAME shared

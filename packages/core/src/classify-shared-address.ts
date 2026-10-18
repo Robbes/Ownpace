@@ -27,14 +27,16 @@
  * `decision` table has carried a `shared_address_pattern` category since
  * ledger v1, because the S-or-D question is *designed* to be asked.
  *
- * The wizard asks it in these words (§14.1): "Do recipients jointly handle one
- * shared mailbox, or should it work as a distribution list (multiple
- * recipients each receive the mail)?" Source detection provides a default; the
+ * §14.1 words it: "Do recipients jointly handle one shared mailbox, or should
+ * it work as a distribution list (multiple recipients each receive the
+ * mail)?" The decision asks it in the owner's plainer words of 2026-10-18
+ * (`sharedAddressQuestion`). Source detection provides a default; the
  * admin may override — which is why a confident answer here is still only a
  * default, never a lock.
  */
 
 import type { DiscoveredGroup, GroupStore, SharedAddressPattern } from '@openmig/shared';
+import { sharedAddressSummary } from '@openmig/shared';
 
 export type { SharedAddressPattern };
 
@@ -43,6 +45,13 @@ export interface SharedAddressClassification {
   readonly pattern?: SharedAddressPattern;
   /** Why, in words fit for a decision summary an owner reads. */
   readonly reason: string;
+  /**
+   * The same reason in Dutch, beside its English and updated with it or not
+   * at all (`docs/i18n-prose-boundary.md`, class 4). Discovery keeps both in
+   * the question's detail, so a Dutch reader's question says why in Dutch
+   * (the owner, 2026-10-18).
+   */
+  readonly reasonNl: string;
 }
 
 /** Classify from the store signal alone. */
@@ -54,6 +63,9 @@ export function classifyStoreSignal(store: GroupStore): SharedAddressClassificat
         reason:
           'it has its own message store, so there is a folder tree to copy ' +
           '(§14.1: an M365 group with a store is Pattern S)',
+        reasonNl:
+          'het heeft een eigen berichtenopslag, dus er is een mappenstructuur om te migreren ' +
+          '(§14.1: een M365-groep met opslag is patroon S)',
       };
     case 'no_store':
       return {
@@ -62,6 +74,10 @@ export function classifyStoreSignal(store: GroupStore): SharedAddressClassificat
           'it has no message store — mail sent to it is delivered into the ' +
           'members’ own mailboxes, so what migrates is the group definition ' +
           'and its member list (§14.1 Pattern D)',
+        reasonNl:
+          'het heeft geen eigen berichtenopslag: mail aan dit adres komt in de ' +
+          'eigen postvakken van de leden, dus wat migreert is de groep zelf en ' +
+          'de ledenlijst (§14.1 patroon D)',
       };
     case 'unknown':
       return {
@@ -71,6 +87,12 @@ export function classifyStoreSignal(store: GroupStore): SharedAddressClassificat
           'distribution list would silently leave a mailbox full of mail ' +
           'behind, and guessing a shared mailbox would recreate no group, so ' +
           'mail sent to the address after cutover would reach nobody',
+        reasonNl:
+          'er staat niet bij of dit adres een eigen postvak heeft, en bij elk ' +
+          'antwoord wordt iets anders gemigreerd: kiezen we ten onrechte een ' +
+          'distributielijst, dan blijft er ongemerkt een postvak vol mail achter; ' +
+          'kiezen we ten onrechte een gedeeld postvak, dan wordt er geen groep ' +
+          'aangemaakt, zodat mail die na de overstap naar het adres gaat niemand bereikt',
       };
   }
 }
@@ -121,17 +143,20 @@ export function sharedAddressAnswer(
 }
 
 /**
- * The summary an owner reads when the pattern has to be asked.
+ * The summary an owner reads when the pattern has to be asked, as stored.
  *
  * Written as a question about their organisation rather than about our data
  * model: the person answering knows how info@ is used, not what a `groupTypes`
- * array said.
+ * array said. The English of `sharedAddressSummary` in `@openmig/shared`,
+ * which the page also builds the Dutch from (the owner's words, 2026-10-18).
  */
 export function sharedAddressQuestion(group: DiscoveredGroup): string {
-  const name = group.displayName ? `${group.displayName} (${group.address})` : group.address;
-  return (
-    `Do recipients jointly handle one shared mailbox at ${name}, or should it ` +
-    `work as a distribution list where each recipient receives the mail? ` +
-    `We could not tell from the source: ${classifySharedAddress(group).reason}.`
+  return sharedAddressSummary(
+    {
+      address: group.address,
+      ...(group.displayName ? { displayName: group.displayName } : {}),
+      reason: classifySharedAddress(group).reason,
+    },
+    'en',
   );
 }

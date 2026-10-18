@@ -232,8 +232,10 @@ describe('a mapping scanned before folders could be grouped', () => {
   /**
    * THE 482 CASE, one release earlier. Nothing is placed, so every row is
    * correctly "on its own" — and printing that sentence against each of them
-   * would rebuild the wall in a new font. One line at the top, naming the
-   * remedy, and the list renders exactly as it did before this existed.
+   * would rebuild the wall in a new font. One line at the top, saying why,
+   * and the list renders exactly as it did before this existed. A Microsoft
+   * checklist is the same case for good: Microsoft never says where an item
+   * sits.
    */
   it('says it once at the top, not once per row', async () => {
     answerWith([
@@ -243,7 +245,12 @@ describe('a mapping scanned before folders could be grouped', () => {
     ]);
     renderScreen();
 
-    expect(await screen.findByText(/Refresh from the source to fold them/)).toBeInTheDocument();
+    // Why, in plain words: Microsoft never says which folder an item is in,
+    // so "refresh to fold them" was a remedy that changed nothing (the owner,
+    // 2026-10-18).
+    expect(
+      await screen.findByText('Not grouped by folder: your old system did not say which folder each item is in.'),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/did not say where this sits/)).not.toBeInTheDocument();
     for (const label of ['One.pdf', 'Two.pdf', 'Three.pdf']) {
       expect(screen.getByText(label)).toBeInTheDocument();
