@@ -746,38 +746,63 @@ describe('the checklist checks what it claims to check (0038 T3)', () => {
     expect(screen.getByText(/No content was compared/)).toBeInTheDocument();
   });
 
-  it.each([
-    ['en', 'FAIL', 'Did not pass'],
-    ['en', 'WARN', 'Passed, with warnings'],
-    ['nl', 'FAIL', 'Niet geslaagd'],
-    ['nl', 'WARN', 'Geslaagd, met waarschuwingen'],
-  ] as const)('step 1 says a not-ready verdict in words, in %s, its token %s kept in the title', async (locale, token, word) => {
-    // It said the token, `FAIL`, after a translated sentence; the owner's
-    // answer of 2026-10-18 is the word Verify says, the token to quote.
+  function renderVerdict(locale: 'en' | 'nl', token: string) {
     globalThis.localStorage.setItem('ownpace.locale', locale);
-    try {
-      fetchStatus.mockResolvedValue(statusReport('active'));
-      fetchVerifyReport.mockResolvedValue({
-        state: 'done',
-        startedAt: '2026-08-09T10:00:00Z',
-        finishedAt: '2026-08-09T10:05:00Z',
-        report: { 'acme-mail': { overallStatus: token, canProceedToCutover: false } },
-      });
-      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-      render(
-        <LocaleProvider>
-          <QueryClientProvider client={qc}>
-            <MemoryRouter>
-              <Finish />
-            </MemoryRouter>
-          </QueryClientProvider>
-        </LocaleProvider>,
-      );
+    fetchStatus.mockResolvedValue(statusReport('active'));
+    fetchVerifyReport.mockResolvedValue({
+      state: 'done',
+      startedAt: '2026-08-09T10:00:00Z',
+      finishedAt: '2026-08-09T10:05:00Z',
+      report: { 'acme-mail': { overallStatus: token, canProceedToCutover: false } },
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <LocaleProvider>
+        <QueryClientProvider client={qc}>
+          <MemoryRouter>
+            <Finish />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+  }
 
+  it.each([
+    ['en', 'WARN', 'Passed, with warnings'],
+    ['nl', 'WARN', 'Geslaagd, met waarschuwingen'],
+    ['en', 'SKIPPED', 'Not checked'],
+    ['nl', 'NOT_VERIFIABLE', 'Kon niet worden geverifieerd'],
+  ] as const)('step 1 says a not-ready verdict in words, in %s, its token %s kept in the title', async (locale, token, word) => {
+    // It said the token, `WARN`, after a translated sentence; the owner's
+    // answer of 2026-10-18 is the word Verify says, the token to quote. The
+    // lead says the result is not enough to finish, not that the check
+    // "did not pass": "did not pass: Passed, with warnings" contradicted itself.
+    try {
+      renderVerdict(locale, token);
       const line = (await screen.findByText(STRINGS[locale]['finish.step1.notPassed'], { exact: false })).closest('p')!;
       expect(line).toHaveTextContent(`${STRINGS[locale]['finish.step1.notPassed']} ${word}`);
       expect(screen.getByText(word)).toHaveAttribute('title', token);
       expect(line).not.toHaveTextContent(token);
+      expect(line).not.toHaveTextContent(STRINGS[locale]['finish.step1.failed']);
+    } finally {
+      globalThis.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
+  it.each([
+    ['en', 'Did not pass'],
+    ['nl', 'Niet geslaagd'],
+  ] as const)('step 1 says a FAIL once, as a sentence, in %s', async (locale, word) => {
+    // "The check did not pass: Did not pass" said it twice.
+    try {
+      renderVerdict(locale, 'FAIL');
+      const said = await screen.findByText(STRINGS[locale]['finish.step1.failed']);
+      expect(said).toHaveAttribute('title', 'FAIL');
+      const line = said.closest('p')!;
+      expect(line.textContent!.startsWith(STRINGS[locale]['finish.step1.failed'])).toBe(true);
+      expect(line.textContent).not.toContain(word);
+      expect(line).not.toHaveTextContent('FAIL');
+      expect(line).not.toHaveTextContent(STRINGS[locale]['finish.step1.notPassed']);
     } finally {
       globalThis.localStorage.removeItem('ownpace.locale');
     }
