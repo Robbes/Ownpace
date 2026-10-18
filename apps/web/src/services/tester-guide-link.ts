@@ -23,7 +23,10 @@
  * `LegalLinks`), which stands on every signed-in page, on `/login`,
  * `/request-access`, `/invitations` and the acceptance screen, and only when
  * `isAlpha` says so (0131 T1 (b)). Always shown there, also before the site is
- * published (the owner, 2026-10-03: *"Always shown"*). The access-granted mail
+ * published (the owner, 2026-10-03: *"Always shown"*). And by
+ * `AlphaGoogleLine.tsx` (the guide's Google section, `testerGuideSectionUrl`)
+ * above the first Google sign-in on Start a migration's step 4 and on the
+ * grant page, under the same `isAlpha` rule. The access-granted mail
  * and the invitation link it too, during the alpha; the API makes their copy
  * (`TESTER_GUIDE_FILE` and `testerGuideUrl` in
  * `packages/shared/src/privacy-policy-link.ts`). A stack that runs the alpha

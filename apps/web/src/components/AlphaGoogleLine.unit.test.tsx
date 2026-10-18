@@ -21,7 +21,9 @@
  *  - only while the deployment runs the Alpha, and never on the appliance;
  *  - where it stands: above the first Google card on *Connect your accounts*
  *    (and nowhere on that screen without one), and above the Google button on
- *    the grant page, for a migration's link and for a person's.
+ *    the grant page, for a migration's link and for a person's; on a person's
+ *    link, above the first account that still has a button (after any card
+ *    already connected), and nowhere when no account has one.
  */
 import React from 'react';
 import { readFileSync } from 'node:fs';
@@ -294,7 +296,62 @@ describe('on the grant page', () => {
       expect(before(screen.getByRole('note'), button)).toBe(true);
       expect(screen.getByRole('note').textContent).toBe(SAID[locale]);
     });
+
+    it(`${locale}: a person's link whose first account is connected has it after that card, above the button`, async () => {
+      inAlpha();
+      readMock.mockResolvedValue({
+        ...PERSON,
+        accounts: [
+          { ...PERSON.accounts[0], granted: true },
+          { ...PERSON.accounts[0], account: 'anna.work@gmail.com' },
+        ],
+      });
+      renderGrant(locale);
+      const button = await screen.findByRole('button', { name: BUTTON[locale] });
+      const connected = screen.getByRole('region', { name: 'anna@gmail.com' });
+      const waiting = screen.getByRole('region', { name: 'anna.work@gmail.com' });
+      const note = screen.getByRole('note');
+      expect(note.textContent).toBe(SAID[locale]);
+      expect(within(connected).queryByRole('button')).not.toBeInTheDocument();
+      expect(waiting).toContainElement(button);
+      // Between the connected card and the card with the button: right above
+      // the button a reader presses, not above a card that needs nothing.
+      expect(before(connected, note)).toBe(true);
+      expect(before(note, waiting)).toBe(true);
+    });
   }
+
+  const CONNECTED: Readonly<Record<Locale, RegExp>> = { en: /^Connected\./, nl: /^Verbonden\./ };
+
+  for (const locale of LOCALES) {
+    it(`${locale}: a person's link with every account connected has no line`, async () => {
+      inAlpha();
+      readMock.mockResolvedValue({ ...PERSON, accounts: [{ ...PERSON.accounts[0], granted: true }] });
+      renderGrant(locale);
+      await screen.findByText(CONNECTED[locale]);
+      expect(screen.queryByRole('button', { name: BUTTON[locale] })).not.toBeInTheDocument();
+      expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    });
+  }
+
+  it("a person's link with no account ready to connect has no line", async () => {
+    inAlpha();
+    readMock.mockResolvedValue({
+      ...PERSON,
+      accounts: [
+        { ...PERSON.accounts[0], granted: true },
+        {
+          ...PERSON.accounts[0],
+          account: 'anna.work@gmail.com',
+          notReady: { reason: 'Not ready yet.', reasonNl: 'Nog niet klaar.' },
+        },
+      ],
+    });
+    renderGrant('en');
+    await screen.findByText('Not ready yet.');
+    expect(screen.queryByRole('button', { name: BUTTON.en })).not.toBeInTheDocument();
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+  });
 
   it('has no line outside the Alpha', async () => {
     readMock.mockResolvedValue(SUBJECT);

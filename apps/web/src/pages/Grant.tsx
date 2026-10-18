@@ -189,6 +189,10 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
     return to.account ? t('grant.person.where', { account: to.account, place }) : place;
   };
 
+  // The first account that still shows a button to press: not connected (or
+  // connected and asked for again), and ready. -1 when none does.
+  const firstPressable = data.accounts.findIndex((a) => !(a.granted && !a.again) && !a.notReady);
+
   return (
     <>
       <p className="mt-4 text-gray-900">{t('grant.person.asking', { organisation: data.organisation })}</p>
@@ -226,70 +230,69 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
           migration's page offers it: the report names the person and every
           migration of theirs. Offered only where a report can reach somebody. */}
       <ReportThisLink kind="grant" link={link} organisation={data.organisation} next="linkReport.next.grant" />
-      {/* During the Alpha, above the first Google button (the owner,
-          2026-10-18): where an account still has one to press. */}
-      {data.accounts.some((a) => !(a.granted && !a.again) && !a.notReady) && <AlphaGoogleLine className="mt-6" />}
 
       {data.accounts.map((a, i) => (
-        <section
-          key={a.account}
-          aria-labelledby={`grant-account-${i}`}
-          className="mt-6 p-4 border border-gray-200 rounded-lg"
-        >
-          <h2 id={`grant-account-${i}`} className="text-base font-semibold text-gray-900 break-words">
-            {a.account}
-          </h2>
-          <ul className="mt-2 space-y-1 text-sm text-gray-700">
-            {a.migrations.map((m, j) => (
-              <li key={j} className="break-words">
-                {t('grant.person.migration', {
-                  where: where(m.to),
-                  reads: list(m.domains.map((d) => t(READS_KEY[d]))),
-                })}
-              </li>
-            ))}
-          </ul>
-          {a.granted && !a.again ? (
-            <p className="mt-3 flex items-center gap-2 text-sm font-medium text-green-800">
-              <CheckCircle2 className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
-              {t('grant.person.connected')}
-            </p>
-          ) : a.notReady ? (
-            <p className="mt-3 text-sm text-amber-800">{locale === 'nl' ? a.notReady.reasonNl : a.notReady.reason}</p>
-          ) : (
-            <>
-              {/* Connected, and asked for again: a link made while every
-                  account was connected, because a connection can stop
-                  working while its token is still held. */}
-              {a.again && <p className="mt-3 text-sm text-gray-900">{t('grant.person.again')}</p>}
-              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                <p className="flex items-start gap-2 text-sm text-green-900">
-                  <ShieldCheck className="w-5 h-5 flex-shrink-0" />
-                  <span>{t(a.readOnlyAtProvider ? 'grant.readOnly' : 'grant.readsOnly')}</span>
-                </p>
-              </div>
-              {a.scope !== null && <GrantScope scope={a.scope} className="mt-3" />}
-              <p className="mt-3 text-sm font-medium text-gray-900 break-words">
-                {t('grant.signInAs', { account: a.account })}
+        <React.Fragment key={a.account}>
+          {/* During the Alpha, above the first Google button (the owner,
+              2026-10-18): above the first account that still has a button,
+              after any card already connected, and nowhere when none has. */}
+          {i === firstPressable && <AlphaGoogleLine className="mt-6" />}
+          <section aria-labelledby={`grant-account-${i}`} className="mt-6 p-4 border border-gray-200 rounded-lg">
+            <h2 id={`grant-account-${i}`} className="text-base font-semibold text-gray-900 break-words">
+              {a.account}
+            </h2>
+            <ul className="mt-2 space-y-1 text-sm text-gray-700">
+              {a.migrations.map((m, j) => (
+                <li key={j} className="break-words">
+                  {t('grant.person.migration', {
+                    where: where(m.to),
+                    reads: list(m.domains.map((d) => t(READS_KEY[d]))),
+                  })}
+                </li>
+              ))}
+            </ul>
+            {a.granted && !a.again ? (
+              <p className="mt-3 flex items-center gap-2 text-sm font-medium text-green-800">
+                <CheckCircle2 className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
+                {t('grant.person.connected')}
               </p>
-              <button
-                type="button"
-                onClick={() => void connect(a.account)}
-                disabled={starting !== null}
-                className="mt-3 min-h-[44px] px-4 py-2.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 break-words"
-              >
-                {starting === a.account
-                  ? t('grant.connecting')
-                  : t(a.again ? 'grant.person.connectAgain' : 'grant.person.connect', { account: a.account })}
-              </button>
-              {failure?.account === a.account && (
-                <p role="alert" className="mt-3 text-sm text-amber-800">
-                  {linkRefusal(failure.error, locale, t)}
+            ) : a.notReady ? (
+              <p className="mt-3 text-sm text-amber-800">{locale === 'nl' ? a.notReady.reasonNl : a.notReady.reason}</p>
+            ) : (
+              <>
+                {/* Connected, and asked for again: a link made while every
+                    account was connected, because a connection can stop
+                    working while its token is still held. */}
+                {a.again && <p className="mt-3 text-sm text-gray-900">{t('grant.person.again')}</p>}
+                <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="flex items-start gap-2 text-sm text-green-900">
+                    <ShieldCheck className="w-5 h-5 flex-shrink-0" />
+                    <span>{t(a.readOnlyAtProvider ? 'grant.readOnly' : 'grant.readsOnly')}</span>
+                  </p>
+                </div>
+                {a.scope !== null && <GrantScope scope={a.scope} className="mt-3" />}
+                <p className="mt-3 text-sm font-medium text-gray-900 break-words">
+                  {t('grant.signInAs', { account: a.account })}
                 </p>
-              )}
-            </>
-          )}
-        </section>
+                <button
+                  type="button"
+                  onClick={() => void connect(a.account)}
+                  disabled={starting !== null}
+                  className="mt-3 min-h-[44px] px-4 py-2.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 break-words"
+                >
+                  {starting === a.account
+                    ? t('grant.connecting')
+                    : t(a.again ? 'grant.person.connectAgain' : 'grant.person.connect', { account: a.account })}
+                </button>
+                {failure?.account === a.account && (
+                  <p role="alert" className="mt-3 text-sm text-amber-800">
+                    {linkRefusal(failure.error, locale, t)}
+                  </p>
+                )}
+              </>
+            )}
+          </section>
+        </React.Fragment>
       ))}
 
       <p className="mt-6 text-sm text-gray-600">{t('grant.until', { date: dateTime(data.expiresAt) })}</p>
