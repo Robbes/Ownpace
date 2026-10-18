@@ -436,20 +436,63 @@ describe('both locales are complete', () => {
    * ENGLISH SAYS "SWITCH", NOT "CUT OVER" (the UX sweep, 2026-10-17). The pages
    * moved to "switch"; the home and How it works descriptions, which a search
    * result and a link preview show, still said "cut over" and "the cutover".
-   * Asked of the whole page, its <head> included. The one "cutover" left is
-   * the hero's "No big-bang cutover", the owner's own words (0144 P5).
+   * Asked of the whole page, its <head> included. The hero's "No big-bang
+   * cutover" was excused as the owner's words (0144 P5) until the owner chose
+   * new ones (2026-10-18), so nothing is excused now.
    */
   it('says "switch" for the moment you move over, on every English page and in its description', async () => {
     const english = [...(await renderedPages()), ...(await alphaBuild())].filter((p) => !p.file.startsWith('nl/'));
     expect(english.map((p) => p.file)).toEqual(expect.arrayContaining(['index.html', 'how-it-works.html']));
     for (const page of english) {
-      const said = page.html.replace('No big-bang cutover.', '').match(/\bcut[- ]?over\w*/gi) ?? [];
+      const said = page.html.match(/\bcut[- ]?over\w*/gi) ?? [];
       expect(said, `${page.file} says "cut over" where the site says "switch"`).toEqual([]);
     }
     const description = (file: string) =>
       english.find((p) => p.file === file)!.html.match(/<meta name="description" content="([^"]*)"/)![1];
     expect(description('index.html')).toContain('and switch when you are ready.');
     expect(description('how-it-works.html')).toBe('What a migration looks like from the first connection to the switch.');
+  });
+
+  /**
+   * THE HOME PAGE'S FIRST PARAGRAPH, AND ITS SOURCE PROMISE, IN THE OWNER'S
+   * WORDS (the UX sweep; the owner, 2026-10-18). The hero's paragraph ended
+   * "No big-bang cutover" in English and "Geen deadline in het weekend. Geen
+   * big bang." in Dutch, an English phrase carried over word for word. And the
+   * Dutch home made one promise two ways: the facts said "Bij de bron wordt
+   * niets verwijderd", the card further down "Aan de bron wordt nooit iets
+   * verwijderd", above a body that opens "Nooit." The owner chose the words
+   * below; the card's body stays theirs.
+   */
+  it("writes the hero's first paragraph and the source promise in the owner's words, in both languages", async () => {
+    const pages = await renderedPages();
+    const home = (file: string) => pages.find((p) => p.file === file)!.html;
+    const en = home('index.html');
+    const nl = home('nl/index.html');
+
+    expect(en).toContain(
+      'until <em>you</em> decide to switch over. No weekend deadline. No switching everything in one go. ' +
+        'Your old account stays exactly where it is, for as long as you keep it.</p>',
+    );
+    expect(nl).toContain(
+      'tot <em>u</em> besluit over te stappen. Geen weekend waarin alles af moet. Niet alles in één keer. ' +
+        'Uw oude account blijft precies waar het is, zolang u het aanhoudt.</p>',
+    );
+    for (const [file, html] of [['index.html', en], ['nl/index.html', nl]] as const) {
+      expect(html.match(/big[- ]bang/gi) ?? [], `${file} says "big bang"`).toEqual([]);
+    }
+    // The Dutch paragraph says it in Dutch; the strip's "Geen deadline." is
+    // other words of the owner's, and stays.
+    const lede = nl.match(/<p class="lede">([\s\S]*?)<\/p>/)![1]!;
+    expect(lede.match(/\bdeadline\b/gi) ?? [], "nl/index.html's first paragraph says \"deadline\"").toEqual([]);
+
+    // Every heading on the Dutch home that promises nothing is deleted at the
+    // source says it the one way, link or not; there are two (facts, card).
+    const promises = [...nl.matchAll(/<h([23])>([\s\S]*?)<\/h\1>/g)]
+      .map((m) => m[2]!.replace(/<[^>]+>/g, '').trim())
+      .filter((h) => /verwijderd/i.test(h));
+    expect(promises.length, 'the Dutch home no longer promises it in its facts and in its card').toBe(2);
+    for (const h of promises) expect(h.replace(/\.$/, '')).toBe('Bij de bron wordt niets verwijderd');
+    expect(nl).toContain('<h3>Bij de bron wordt niets verwijderd</h3><p>Nooit. Uw oude account is uw vangnet,');
   });
 });
 
