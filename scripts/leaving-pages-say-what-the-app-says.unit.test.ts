@@ -546,4 +546,20 @@ describe('leaving Google, where the stack asks once (point 10; the owner, 2026-1
       }
     }
   });
+
+  it('managed.env.example says, where the setting is set, that the site’s build reads it too and is rebuilt', () => {
+    // An operator who reads "the API is the only thing that reads it" changes the
+    // value, restarts the API, and leaves the public site saying three sign-ins.
+    // Said where the value is set, as OWNPACE_STAGE's comment names its builds.
+    const lines = readFileSync(join(REPO_ROOT, 'deploy/compose/managed.env.example'), 'utf8').split('\n');
+    const at = lines.findIndex((line) => /^GOOGLE_ACCOUNT_SCOPE_CLASS=/.test(line));
+    expect(at, 'managed.env.example does not set GOOGLE_ACCOUNT_SCOPE_CLASS').toBeGreaterThan(-1);
+    let top = at;
+    while (top > 0 && lines[top - 1]!.startsWith('#')) top--;
+    const comment = lines.slice(top, at).join('\n');
+    expect(comment, 'the comment still says the API is the only reader').not.toMatch(/only thing that reads it/i);
+    expect(comment, 'the comment does not name live’s site build').toContain('deploy-live.sh');
+    expect(comment, 'the comment does not name the OTA site’s build').toContain('www.yml');
+    expect(comment, 'the comment does not say the site must be rebuilt').toMatch(/rebuild the site/i);
+  });
 });

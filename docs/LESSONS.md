@@ -1009,6 +1009,7 @@ reading a file drops off its entry by itself.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [managed-env-contract](../scripts/managed-env-contract.unit.test.ts) — Every variable `managed.yml` demands can actually be obtained.
 - [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
@@ -1412,6 +1413,7 @@ reading a file drops off its entry by itself.
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/zitadel-db-password.sh`
@@ -5106,6 +5108,8 @@ Reads:
 - `apps/web/src/components/ProviderTile.tsx`
 - `apps/web/src/services/start-plan.ts`
 - `deploy/compose/deploy-live.sh`
+- `deploy/compose/managed.env.example`
+- `deploy/compose/www.yml`
 - `docs/guides/en/imap.md`
 - `site/build.mjs`
 - `site/calculator.mjs`
