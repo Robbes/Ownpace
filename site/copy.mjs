@@ -78,7 +78,7 @@ export const COPY = {
     },
     heroTitle: 'Move off Google or Microsoft. At your own pace.',
     heroLede:
-      'Ownpace copies your mail, contacts, calendar, tasks and files to a European provider you choose — and keeps the copy in step until <em>you</em> decide to switch over. No weekend deadline. No big-bang cutover. Your old account stays exactly where it is, for as long as you keep it.',
+      'Ownpace copies your mail, contacts, calendar, tasks and files to a European provider you choose — and keeps the copy in step until <em>you</em> decide to switch over. No weekend deadline. No switching everything in one go. Your old account stays exactly where it is, for as long as you keep it.',
     ctaOrder: 'Request access',
     ctaPricing: 'See what it costs',
     ctaAllTiers: 'All five tiers, in full',
@@ -474,7 +474,7 @@ export const COPY = {
     },
     heroTitle: 'Weg bij Google of Microsoft. In uw eigen tempo.',
     heroLede:
-      'Ownpace kopieert uw e-mail, contacten, agenda, taken en bestanden naar een Europese aanbieder die u zelf kiest — en houdt die kopie bij tot <em>u</em> besluit over te stappen. Geen deadline in het weekend. Geen big bang. Uw oude account blijft precies waar het is, zolang u het aanhoudt.',
+      'Ownpace kopieert uw e-mail, contacten, agenda, taken en bestanden naar een Europese aanbieder die u zelf kiest — en houdt die kopie bij tot <em>u</em> besluit over te stappen. Geen weekend waarin alles af moet. Niet alles in één keer. Uw oude account blijft precies waar het is, zolang u het aanhoudt.',
     ctaOrder: 'Toegang aanvragen',
     ctaPricing: 'Bekijk wat het kost',
     ctaAllTiers: 'Alle vijf de pakketten, volledig',
@@ -614,7 +614,7 @@ export const COPY = {
     diff: [
       ['Het is een migratie, geen kopie',
        'De meeste migratietools draaien één kopieerklus en geven u het resultaat. Ownpace blijft draaien: elke wijziging in uw oude account komt aan in het nieuwe, zolang u wilt, tot u overstapt.'],
-      ['Aan de bron wordt nooit iets verwijderd',
+      ['Bij de bron wordt niets verwijderd',
        (p) => `Nooit. Uw oude account is uw vangnet, en Ownpace laat het zoals het is: <a href="${p.readsOnly}">de software heeft geen code die bij een bron iets wijzigt of verwijdert</a>. Sommige toestemmingen staan meer toe dan Ownpace gebruikt; Hoe het werkt zegt welke.`],
       ['Europees, tot op de bodem',
        (p) => `Weggaan bij een Amerikaanse cloud via een Amerikaanse dienst schiet zijn doel voorbij. Ownpace draait in de EU, en de software is <a href="${p.repository}">open source</a>, dus u kunt het nakijken in plaats van ons te geloven.`],
