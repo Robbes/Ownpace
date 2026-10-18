@@ -37,6 +37,7 @@ process.env.APP_DATABASE_URL = getAppUserConnectionString(PG_CONNECTION_STRING);
 
 import app from '../index.ts';
 import { seedMembership } from '../__tests__/seed-membership.ts';
+import { DECISION_EFFECTS } from '@openmig/shared';
 
 const DEC_TENANT_A = '5e3c0000-e29b-41d4-a716-446655440001';
 const DEC_TENANT_B = '5e3c0000-e29b-41d4-a716-446655440002';
@@ -163,6 +164,9 @@ describe('Decision Queue Routes', () => {
       expect(first.body.status).toBe('resolved');
       expect(first.body.resolution).toEqual({ action: 'create_mapping' });
       expect(first.body.resolvedBy).toBe(`user-owner-${DEC_TENANT_A}`);
+      // A new mailbox's answer is only recorded: the effect must not claim
+      // the migration acts on it (the owner, 2026-10-18).
+      expect(first.body.effect).toBe(DECISION_EFFECTS.recorded);
 
       const second = await request
         .post(`/api/decisions/${pendingId}/resolve`)
@@ -206,6 +210,8 @@ describe('Decision Queue Routes', () => {
         .send({ resolution: { action: 'set_shared_address_pattern', pattern: 'distribution_d' } });
 
       expect(response.status).toBe(200);
+      // The one answer the migration acts on, and the one effect that says so.
+      expect(response.body.effect).toBe(DECISION_EFFECTS.resolved);
       // The whole point of the category: the answer CHANGES something. A
       // decision that closes and leaves the ledger untouched is dead surface.
       const { rows } = await superuserPool.query(
@@ -226,6 +232,8 @@ describe('Decision Queue Routes', () => {
       // The decision is answered — that is the caller's business — but
       // recording a pattern nobody chose is worse than leaving it open.
       expect(response.status).toBe(200);
+      // Nothing was written, so the answer does not claim the migration acts on it.
+      expect(response.body.effect).toBe(DECISION_EFFECTS.recorded);
       const { rows } = await superuserPool.query(
         `SELECT pattern FROM group_def WHERE tenant_id = $1 AND address = 'vague@acme.nl'`,
         [DEC_TENANT_A],

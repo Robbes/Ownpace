@@ -86,7 +86,9 @@ describe('what counts as new', () => {
       tenantId: TENANT,
       category: 'new_mailbox',
       subjectKey: 'info@acme.nl',
-      proposedDefault: 'Create a mapping for this mailbox',
+      // It records the answer and starts nothing, so it says so (the owner,
+      // 2026-10-18): never "Create a mapping".
+      proposedDefault: 'Noted, I will handle it',
     });
     expect(result.blindSpot).toBeUndefined();
   });
@@ -100,9 +102,11 @@ describe('what counts as new', () => {
 
     // This sentence is rendered verbatim on the screen and in the email, so
     // it has to stand on its own.
-    expect(decision?.summary).toContain('info@acme.nl');
-    expect(decision?.summary).toContain('no migration covers it');
-    expect(decision?.summary).toContain('Nothing is being copied from it');
+    expect(decision?.summary).toBe(
+      'info@acme.nl is on the old system, and no migration covers it. Nothing is copied from it.',
+    );
+    // The detail carries what the page builds the Dutch from.
+    expect(decision?.detail).toEqual({ address: 'info@acme.nl' });
   });
 
   it('matches coverage case-insensitively', () => {

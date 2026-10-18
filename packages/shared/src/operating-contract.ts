@@ -19,9 +19,12 @@
  *    `howToResolve` are the operating semantics — how an owner is told what a
  *    queue means and what their options are. If each edition wrote its own, the
  *    two would drift, and the drift would be in exactly the explanations that
- *    stop somebody destroying data by accident. One source, both editions, and
- *    the UI renders the same words the JSON carries instead of inventing its
- *    own.
+ *    stop somebody destroying data by accident. One source, both editions.
+ *    They are the OPERATOR's words, API paths and field names included, and
+ *    the API serves them as they are. The screens say the customer's version
+ *    instead, in English or Dutch, from `queue-guidance.ts` beside this file
+ *    (the owner, 2026-10-18); a change to what an action does is made in
+ *    both.
  *  - Item rows are the LEDGER's types (`ItemFailure`, `ItemMove`,
  *    `ItemDeletion` in `ports.ts`), re-used verbatim. The queues are envelopes
  *    around them — grouping, status and guidance — and deliberately add no
@@ -598,9 +601,16 @@ export interface StatusReport {
  * `DecisionAccepted.effect` predates it). Rendered verbatim by the UI, like
  * all effect prose: it says what is now true, for the person who just
  * clicked.
+ *
+ * `resolved` is said only where the answer changed something: a shared
+ * address's pattern written back to its group. Every other answer, and a
+ * shared address's answer that wrote no pattern, is `recorded`
+ * (`decisionResolvedEffect`): a new mailbox's *Noted, I will handle it*
+ * starts no migration, and the sentence said it did until 2026-10-18.
  */
 export const DECISION_EFFECTS = {
   resolved: 'Answer recorded — the migration acts on it from here on.',
+  recorded: 'Answer recorded. Nothing in your migrations changes because of it.',
   dismissed:
     'Closed without acting; the detector may raise it again if the situation persists.',
 } as const;

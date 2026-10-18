@@ -103,7 +103,7 @@ describe("the blind spots are the migration's own source's (the owner, 2026-10-0
     expect(screen.queryByText(/blind spots/)).not.toBeInTheDocument();
     // The panel itself and its button stay: the document still names what
     // it could not read, at the top.
-    expect(screen.getByRole('button', { name: /permission list/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /list of shares/i })).toBeInTheDocument();
   });
 
   it('says nothing about blind spots while the source is not yet known', () => {
@@ -145,7 +145,7 @@ describe('fetching the list', () => {
   it('asks for the report by mapping, not by a retyped address', async () => {
     render(<PermissionsHandover mappingId="m-42" />);
 
-    await userEvent.click(screen.getByRole('button', { name: /permission list/i }));
+    await userEvent.click(screen.getByRole('button', { name: /list of shares/i }));
 
     await waitFor(() => expect(fetchPermissionReport).toHaveBeenCalledWith('m-42', 'en'));
   });
@@ -161,7 +161,7 @@ describe('fetching the list', () => {
         </LocaleProvider>,
       );
 
-      await userEvent.click(screen.getByRole('button', { name: /rechtenlijst/i }));
+      await userEvent.click(screen.getByRole('button', { name: /lijst met deelrechten/i }));
 
       await waitFor(() => expect(fetchPermissionReport).toHaveBeenCalledWith('m-42', 'nl'));
     } finally {
@@ -180,7 +180,7 @@ describe('fetching the list', () => {
     });
     render(<PermissionsHandover mappingId="m1" />);
 
-    await userEvent.click(screen.getByRole('button', { name: /permission list/i }));
+    await userEvent.click(screen.getByRole('button', { name: /list of shares/i }));
 
     expect(
       await screen.findByText(/does not record which mailbox it reads/),
@@ -209,7 +209,7 @@ describe('fetching the list', () => {
     fetchPermissionReport.mockRejectedValue(new Error('Network Error'));
     render(<PermissionsHandover mappingId="m1" />);
 
-    await userEvent.click(screen.getByRole('button', { name: /permission list/i }));
+    await userEvent.click(screen.getByRole('button', { name: /list of shares/i }));
 
     // Never silent: a button that does nothing reads as "there is nothing".
     expect(await screen.findByText(/could not be fetched/)).toBeInTheDocument();
@@ -281,7 +281,7 @@ describe('the list is saved under a name a person can read (the UX sweep)', () =
           </QueryClientProvider>
         </LocaleProvider>,
       );
-      await userEvent.click(screen.getByRole('button', { name: /rechtenlijst/i }));
+      await userEvent.click(screen.getByRole('button', { name: /lijst met deelrechten/i }));
       await waitFor(() => expect(names).toHaveLength(1));
       expect(names[0]).toMatch(/^Ownpace-rechtenlijst - Pieter BoxNextcloud - \d{4}-\d{2}-\d{2}\.md$/);
     } finally {
@@ -291,7 +291,7 @@ describe('the list is saved under a name a person can read (the UX sweep)', () =
 
   it('keeps the old name where no name is known', async () => {
     render(<PermissionsHandover mappingId="m-42" />);
-    await userEvent.click(screen.getByRole('button', { name: /permission list/i }));
+    await userEvent.click(screen.getByRole('button', { name: /list of shares/i }));
     await waitFor(() => expect(names).toEqual(['permissions-m-42.md']));
   });
 });

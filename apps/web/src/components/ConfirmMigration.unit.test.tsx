@@ -193,7 +193,7 @@ describe('ConfirmMigration (0013 T6)', () => {
     const rows = within(await screen.findByRole('region', { name: STRINGS.en['scope.title'] }));
     expect(await rows.findByText(/Events, repeating ones included/)).toBeInTheDocument();
     expect(rows.queryByText(/Every folder, Sent, Drafts and Archive included/)).not.toBeInTheDocument();
-    expect(rows.queryByText('Mail with no Message-ID')).not.toBeInTheDocument();
+    expect(rows.queryByText('Mail without a message identifier')).not.toBeInTheDocument();
     expect(rows.queryByText('Google-native files')).not.toBeInTheDocument();
     // What is true whatever was ticked stays: what does not migrate from Google.
     expect(rows.getByText('Google Keep')).toBeInTheDocument();

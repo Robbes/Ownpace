@@ -127,3 +127,41 @@ describe('an export’s line (0153 open question 5, item 2)', () => {
     expect(screen.getByRole('link', { name: 'zo maakt u er een →' })).toBeInTheDocument();
   });
 });
+
+/**
+ * A MAIL SERVER'S LINE, IN WORDS A PERSON HAS (the owner, 2026-10-18). Pieter's
+ * KPN line read *IMAP → JMAP*, where *Start a migration* had called the same
+ * account *Another mail provider*. The line names both sides in plain words,
+ * the protocol in brackets, as the Microsoft pair keeps its own.
+ */
+describe('a mail server’s line names both sides in plain words (2026-10-18)', () => {
+  const KPN = {
+    sourceType: 'imap',
+    targetType: 'jmap',
+    status: 'active' as const,
+    domains: ['email'] as 'email'[],
+    lastSyncAt: ago(120_000),
+  };
+  const draw = (locale: 'en' | 'nl') => {
+    window.localStorage.setItem('ownpace.locale', locale);
+    render(
+      <LocaleProvider>
+        <MigrationLines migration={KPN} />
+      </LocaleProvider>,
+    );
+  };
+
+  it('en: Other mail provider (IMAP) to Mail server (JMAP)', () => {
+    draw('en');
+    expect(screen.getByText('Other mail provider (IMAP)')).toBeInTheDocument();
+    expect(screen.getByText('Mail server (JMAP)')).toBeInTheDocument();
+    expect(screen.queryByText('IMAP')).toBeNull();
+    expect(screen.queryByText('JMAP')).toBeNull();
+  });
+
+  it('nl: Andere mailaanbieder (IMAP) naar Mailserver (JMAP)', () => {
+    draw('nl');
+    expect(screen.getByText('Andere mailaanbieder (IMAP)')).toBeInTheDocument();
+    expect(screen.getByText('Mailserver (JMAP)')).toBeInTheDocument();
+  });
+});

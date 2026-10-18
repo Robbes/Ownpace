@@ -9,11 +9,12 @@
  * navigation degrading to a dead end would recreate the problem.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { STRINGS } from '../i18n/strings.ts';
+import { LocaleProvider } from '../i18n/index.tsx';
 
 const {
   mappingApiGet,
@@ -567,6 +568,64 @@ describe('where the copies land (0153 open question 5, item 4)', () => {
     renderHub();
     await screen.findByRole('heading', { level: 2, name: 'Acme mail' });
     expect(screen.queryByText(/The copies land/)).toBeNull();
+  });
+});
+
+/**
+ * THE OWNER'S WORDS OF 2026-10-18, on a migration's own page. An email-only
+ * Gmail migration read *De bestanden komen in de eigen mappen van de
+ * bestemming*: mail and appointments are not files, and the English says *The
+ * copies land*. Finish was *De cutover-checklist*, the only *cutover* left in
+ * the Dutch, where the glossary says *overstap*; Moves said *uw doelsysteem*.
+ */
+describe('the owner’s words of 2026-10-18 on a migration’s page', () => {
+  function renderHubIn(locale: 'en' | 'nl') {
+    window.localStorage.setItem('ownpace.locale', locale);
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <LocaleProvider>
+        <QueryClientProvider client={qc}>
+          <MemoryRouter initialEntries={['/mappings/acme-mail']}>
+            <Routes>
+              <Route path="/mappings/:id" element={<MappingDetail />} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+  }
+
+  afterEach(() => window.localStorage.removeItem('ownpace.locale'));
+
+  it('nl: the copies land, not the files, with or without a folder', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ targetFolderPrefix: null }));
+    const merged = renderHubIn('nl');
+    expect(await screen.findByText('De kopieën komen in de eigen mappen van de bestemming.')).toBeInTheDocument();
+    expect(screen.queryByText(/De bestanden komen/)).toBeNull();
+    merged.unmount();
+
+    mappingApiGet.mockResolvedValue(aMapping({ targetFolderPrefix: 'anna@gmail.com' }));
+    renderHubIn('nl');
+    expect(
+      await screen.findByText('De kopieën komen in de map anna@gmail.com van de bestemming.'),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ['en', 'The checklist for switching over, to end the migration.'],
+    ['nl', 'De checklist voor de overstap; beëindigt de migratie in enkele stappen.'],
+  ] as const)('%s: Finish is the checklist for switching over, never the cutover checklist', async (locale, blurb) => {
+    renderHubIn(locale);
+    await vi.waitFor(() => expect(step('finish')).toBeTruthy());
+    expect(step('finish').textContent).toContain(blurb);
+    expect(step('finish').textContent).not.toMatch(/cutover/i);
+  });
+
+  it('nl: Moves speaks of the new system, not a doelsysteem', async () => {
+    renderHubIn('nl');
+    await vi.waitFor(() => expect(step('moves')).toBeTruthy());
+    expect(step('moves').textContent).toContain('Een bestand in het nieuwe systeem dat had moeten meeverplaatsen');
+    expect(step('moves').textContent).not.toContain('doelsysteem');
   });
 });
 

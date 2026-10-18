@@ -16,9 +16,10 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { FailuresResponse } from '@openmig/shared';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { FAILURE_GUIDANCE, type FailuresResponse } from '@openmig/shared';
 import { STRINGS } from '../i18n/strings.ts';
+import { LocaleProvider } from '../i18n/index.tsx';
 
 const { fetchFailuresMock, decideFailureGroupMock } = vi.hoisted(() => ({
   fetchFailuresMock: vi.fn(),
@@ -351,5 +352,64 @@ describe('a failure says whose card it is', () => {
     renderScreen();
 
     expect(await screen.findByText('INBOX/Archive')).toBeInTheDocument();
+  });
+});
+
+/**
+ * *What this means and what you can do* showed the operator's guidance from
+ * the API, word for word: `POST /mappings/{mappingId}/failures/…/retry` and
+ * *"needsDecision"*, in English, under a Dutch heading (the UX sweep,
+ * 2026-10-17). The owner chose words for the person reading it (2026-10-18),
+ * kept beside the operator's in `@openmig/shared`; the API still serves its
+ * own, as the fixture here does.
+ */
+describe('what this means and what you can do', () => {
+  const API_WORDS = /POST |\/mappings\/|naturalKeyHash|needsDecision|"retrying"/;
+  const served = () => queue({ howToResolve: FAILURE_GUIDANCE });
+
+  afterEach(() => {
+    window.localStorage.removeItem('ownpace.locale');
+  });
+
+  it('tells a Dutch reader what each button does, in Dutch', async () => {
+    fetchFailuresMock.mockResolvedValue(served());
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <LocaleProvider>
+        <QueryClientProvider client={qc}>
+          <MemoryRouter>
+            <Failures />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+
+    const fold = (await screen.findByText('Wat dit betekent en wat u kunt doen')).closest('details')!;
+    const text = fold.textContent ?? '';
+    expect(text).toContain(
+      'Probeer opnieuw: de volgende ronde probeert dit item opnieuw. Gebruik dit als de oorzaak is opgelost.',
+    );
+    expect(text).toContain(
+      'Migreer zonder dit item: de migratie gaat verder zonder dit item, en het telt niet meer als mislukt. Dit kunt u niet terugdraaien.',
+    );
+    expect(text).toContain(
+      'Wordt nog geprobeerd: deze worden elke ronde vanzelf opnieuw geprobeerd. U hoeft niets te doen.',
+    );
+    expect(text).not.toMatch(API_WORDS);
+  });
+
+  it('tells an English reader the same, and never the API’s paths', async () => {
+    fetchFailuresMock.mockResolvedValue(served());
+    renderScreen();
+
+    const fold = (await screen.findByText('What this means and what you can do')).closest('details')!;
+    const text = fold.textContent ?? '';
+    expect(text).toContain('Try again: the next pass tries this item again. Use it once the cause is fixed.');
+    expect(text).toContain(
+      'Migrate without it: the migration goes on without this item, and it no longer counts as failed. This cannot be undone.',
+    );
+    expect(text).toContain('Still trying: these are tried again by themselves on every pass. You need not do anything.');
+    expect(text).not.toMatch(API_WORDS);
   });
 });

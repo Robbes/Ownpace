@@ -20,8 +20,8 @@
  *
  *  - that on a JMAP destination the check cannot compare contacts' contents,
  *    so it counts them and checks that each one is there instead;
- *  - that a generated Message-ID is added to the COPY and the original is
- *    never touched;
+ *  - that an identifier of our own (a generated Message-ID) is added to the
+ *    COPY and the original is never touched;
  *  - that permissions are inventoried and NOT applied for them;
  *  - that who else could open or send from a mailbox cannot be read at all,
  *    so they must note it themselves before they switch over;
@@ -91,7 +91,9 @@ describe('the caveats a customer acts on are still there', () => {
   const MUST_SURVIVE: ReadonlyArray<readonly [string, RegExp]> = [
     ['JMAP contacts cannot be compared by content', /JMAP destination[^.]*does not compare\s+their contents/i],
     ['…so verification checks counts and presence', /how many there are and that each one is there/i],
-    ['a generated Message-ID goes on the copy', /generated Message-ID/i],
+    // In plain words since 2026-10-18 (the owner): *an identifier of our own
+    // on the copy*, where it said *a generated Message-ID on the copy*.
+    ['an identifier of our own goes on the copy', /identifier of our own on the copy/i],
     ['…and the original is never modified', /original on the source is never modified/i],
     ['…and mail a connection cannot give one is not migrated', /cannot give one, which are not migrated/i],
     ['permissions are not applied for them', /nothing is applied for you/i],

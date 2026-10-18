@@ -561,8 +561,8 @@ one of them.
    Write down which answer the page gave, the browser and whether A's paste attached the picture,
    whether the mail arrived with its screenshot and the same reference, and whether Reply's To
    field showed the tester's address or the support address.
-8. **The permission list.** On the Finish page (`/mappings/<id>/finish`), press *Haal de
-   rechtenlijst op* / *Get the permission list*, and read the file it downloads.
+8. **The list of shares.** On the Finish page (`/mappings/<id>/finish`), press *Haal de
+   lijst met deelrechten op* / *Get the list of shares*, and read the file it downloads.
    **Expect:** every sentence in it is true of that source. For A's Google account, the
    calendar section says *"Google Calendar sharing is not yet read by this tool …"*, which is
    true. For B's Microsoft 365 account it says *"this source is a Microsoft account, connected

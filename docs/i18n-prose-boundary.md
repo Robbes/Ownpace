@@ -17,10 +17,10 @@ of* it.
 |---|---|---|
 | **Refusals** | `code` + `reason` (queue actions, apply-deletions), `error` + `hint` (Finish) | The gates' words are the gates' words (hard rule 2's protections, ADR-0024). A translation layer between a refusal and the operator is drift by design. Pinned by test: `i18n.unit.test.tsx` renders a refusal under `nl` and asserts the exact English words + code. |
 | **Failure diagnostics** | `lastError` | Evidence, not copy (hard rule 9). The difference between a 507, a 403 and a parse error is the only thing that tells an operator whether `retry` has any chance of working; summarising or translating it removes exactly that. On managed, the API answers it in its own English for a host a tester typed (workplan 0136 T3, second step, `apps/api/src/failure-answer.ts`): our prose and the status stay, a server's words only as an error document we know. The screen still renders what it is served. |
-| **Operating guidance** | `whatThisMeans`, `howToResolve` | These ARE the operating semantics, deliberately authored once in `@openmig/shared` so the two editions cannot drift (ADR-0026). A web-side translation would fork them per language — the one thing the shared contract exists to prevent. If Dutch guidance is ever wanted, it is built the shared-package way (below), not translated in the client. |
+| **Operating guidance** | `whatThisMeans`, `howToResolve` | The operator's text, API paths and field names included, deliberately authored once in `@openmig/shared` so the two editions cannot drift (ADR-0026), and served as it is to the API's callers. **The screens do not show it** (the owner, 2026-10-18): a tester read `POST /mappings/{mappingId}/moves/…/keep` under a Dutch heading. They show the customer's version, written the shared-package way (class 4 below, *the queues' guidance*). A web-side translation of either would fork it per language — the one thing the shared contract exists to prevent. |
 | **Action outcomes** | `effect`, `ifYouNeedToResume` | Written (in the contract, on purpose) to be read verbatim by the person who just clicked. |
 | **Verification findings** | `issues[].message`, `recommendations` | Findings about this run, same footing as `lastError`. On managed, the API answers them by the same rule, and a failed scan's `error` and a failed apply receipt's `error` too (workplan 0136 T3, second step). The screen still renders what it is served. |
-| **Verdict + evidence vocabulary** | `PASS`/`WARN`/`FAIL`/`SKIPPED`/`NOT_VERIFIABLE`; `reported`/`trashed`/`inferred`; mapping status words | Server vocabulary an operator may need to quote in a support thread or grep in a log. The WORD stays; its *explanation* is class 2 below. |
+| **Verdict + evidence tokens** | `PASS`/`WARN`/`FAIL`/`SKIPPED`/`NOT_VERIFIABLE`, an issue's `ERROR`/`WARNING`; `reported`/`trashed`/`inferred`; mapping status words | Server vocabulary an operator may need to quote in a support thread or grep in a log. The TOKEN stays: on the wire, in downloads, and in the title of the chip that shows it. **What the chip says is the client's word** (the owner, 2026-10-18; it said the token, in English on a Dutch screen): *Passed* / *Geslaagd* for `PASS`, *Reported by the source* / *Gemeld door de bron* for `reported`, the rest in `apps/web/src/i18n/GLOSSARY.md`. Its *explanation* is class 2 below. |
 
 ## Classes the client localizes
 
@@ -32,9 +32,12 @@ of* it.
    that says it (`one-area-per-key.unit.test.ts`).
 2. **Explanations keyed off stable codes/enums** — lifecycle notes keyed on
    the mapping-status enum, hover help on verdict words, hover titles on
-   evidence badges. The server's token is the handle; the localized prose
-   sits beside it. This is the sanctioned path if client-side explanation of
-   refusal `code`s is ever wanted — the `reason` still renders as served.
+   evidence badges, and the words on those chips themselves (the owner,
+   2026-10-18). The server's token is the handle; the localized prose sits
+   beside it, and a chip that says the client's word keeps the token at the
+   end of its title, as *(reported)*. This is the sanctioned path if
+   client-side explanation of refusal `code`s is ever wanted — the `reason`
+   still renders as served.
 
    **A Test at an address the tester typed is the one place the client says
    the `reason` itself** (workplan 0136 T3). On managed, that `reason` is not
@@ -100,6 +103,18 @@ of* it.
    reference the target's words are logged under. The Sharing page shows the
    half in its reader's language. The appliance answers with the target's
    words, as served.
+
+   **The queues' guidance is the fifth** (the owner, 2026-10-18, option A of
+   the UX sweep's word choices). *What this means and what you can do* on
+   Deletions, Moves and Failures says `QUEUE_GUIDANCE` from
+   `packages/shared/src/queue-guidance.ts`: what the rows are and what each
+   button does, written for the person reading them, English and Dutch side
+   by side, beside the operator's `whatThisMeans` and `howToResolve`, which
+   the API keeps serving unchanged. The screen only picks the language
+   (`GuidancePanel`). Each option is labelled with the button it is about,
+   and `apps/web/src/components/queues/primitives.unit.test.tsx` holds every
+   label to the dictionary's word for that button, in both languages.
+   ADR-0026 stands: the operator's text stays in the contract.
 5. **Customer guides** (workplan 0148 T4) — the guides `/docs` serves, written
    for the person who connects an account:
    - documents authored in each language, side by side in `docs/guides/nl/`

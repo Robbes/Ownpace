@@ -10,8 +10,9 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { asTenantId } from '@openmig/shared';
-import type { DiscoveredGroup } from '@openmig/shared';
+import { asTenantId, decisionSummary, sharedAddressSummary } from '@openmig/shared';
+import type { DiscoveredGroup, RaiseDecisionInput } from '@openmig/shared';
+import { classifyStoreSignal } from './classify-shared-address.ts';
 import { listImapGroups } from '@openmig/connectors';
 import { runGroupDiscovery, type GroupDiscoveryDeps, type RecordGroupInput } from './run-group-discovery.ts';
 
@@ -202,6 +203,38 @@ describe('asking which pattern it is (workplan 0028 T3)', () => {
     expect(raised).toEqual(['sales@acme.nl']);
     expect(announced).toEqual(['sales@acme.nl']);
     expect(summary).toMatchObject({ unclassified: 1, asked: 1, alreadyAsked: 0 });
+  });
+
+  it('keeps the reason in the detail, in English and Dutch, and asks in the owner’s words', async () => {
+    // The page builds the Dutch question from the detail (the owner,
+    // 2026-10-18); the stored summary is the English of the same sentence.
+    let asked: RaiseDecisionInput | undefined;
+    const d = deps({
+      listGroups: async () => ({ kind: 'listed', groups: [{ ...DL, store: 'unknown' }] }),
+      raise: async (input) => {
+        asked = input;
+        return { created: true, id: 'x' };
+      },
+    });
+    await runGroupDiscovery(d);
+
+    const { reason, reasonNl } = classifyStoreSignal('unknown');
+    expect(asked?.detail).toEqual({
+      address: 'sales@acme.nl',
+      displayName: 'Sales',
+      sourceGroupId: 'g1',
+      sourceConnectionId: CONN,
+      reason,
+      reasonNl,
+    });
+    expect(asked?.summary).toBe(
+      sharedAddressSummary({ address: 'sales@acme.nl', displayName: 'Sales', reason }, 'en'),
+    );
+    const dutch = decisionSummary(
+      { category: 'shared_address_pattern', summary: asked!.summary, detail: asked!.detail! },
+      'nl',
+    );
+    expect(dutch.text).toContain(`Dat konden we niet zien op het oude systeem: ${reasonNl}.`);
   });
 
   it('does NOT ask about an address it could classify', async () => {

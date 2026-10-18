@@ -126,7 +126,7 @@ export const en = {
     'Nobody is emailed when this migration needs a decision; configure SMTP to turn that on.',
   'notifications.offReason': 'Reason given by the server:',
   'sharing.title': 'Sharing checklist',
-  'sharing.intro': 'Everything someone else could reach on the old system, one row per grant.',
+  'sharing.intro': 'Everything someone else could reach on the old system, one row per share.',
   'sharing.intro.more':
     'Settle each row: apply the share on the new system, tick it as done by hand, or skip on purpose. Done and Skip both settle a row, and they record different things: Done means this access was re-established by hand, Skip means it is deliberately not carried across. After a cutover those are different answers to "why can this person no longer open what was shared?". Every settled row keeps who decided, and when.',
   'sharing.progressSettled': 'settled',
@@ -188,7 +188,7 @@ export const en = {
   'sharing.alone.extra': 'extra:',
   'sharing.alone.missing': 'missing:',
   'sharing.notPlacedYet':
-    'Found before this tool could group by folder. Refresh from the source to fold them.',
+    'Not grouped by folder: your old system did not say which folder each item is in.',
   'tenants.title': 'Team & organisation',
   'tenants.intro':
     'Who can sign in to this organisation and what they may do.',
@@ -343,9 +343,9 @@ export const nl: Record<keyof typeof en, string> = {
     'Niemand wordt gemaild als deze migratie een beslissing nodig heeft; stel SMTP in.',
   'notifications.offReason': 'Reden van de server:',
   'sharing.title': 'Deel-checklist',
-  'sharing.intro': 'Alles wat met iemand was gedeeld op uw oude systeem, één regel per Share-recht.',
+  'sharing.intro': 'Alles wat met iemand was gedeeld op uw oude systeem, één regel per deelrecht.',
   'sharing.intro.more':
-    'Werk elke regel af: pas het delen toe op het nieuwe systeem, vink af als handmatig gedaan, of sla bewust over. Afvinken betekent dat dit Share-recht handmatig opnieuw is ingericht, Overslaan dat het bewust niet meegaat. Van elke beslissing wordt onthouden wie deze wanneer nam.',
+    'Werk elke regel af: pas het delen toe op het nieuwe systeem, vink af als handmatig gedaan, of sla bewust over. Afvinken betekent dat dit deelrecht handmatig opnieuw is ingericht, Overslaan dat het bewust niet meegaat. Van elke beslissing wordt onthouden wie deze wanneer nam.',
   'sharing.progressSettled': 'afgewerkt',
   'sharing.openManualNote.one':
     '1 regel vraagt een stap van u op het nieuwe systeem; vink die hier daarna af.',
@@ -355,7 +355,7 @@ export const nl: Record<keyof typeof en, string> = {
   'sharing.blindSpots': 'Niet gelezen — noteer deze zelf voordat u overstapt:',
   'sharing.empty': 'Nog geen gedeelde rechten. Lees opnieuw in van de bron om te scannen.',
   'sharing.apply': 'Delen op het nieuwe systeem',
-  'sharing.applyArmed': 'Klik nogmaals — dit stelt delen in én nodigt betreffende persoon uit',
+  'sharing.applyArmed': 'Druk nogmaals: dit deelt en stuurt een uitnodiging',
   'sharing.done': 'Afvinken',
   'sharing.done.why': 'Dit recht is handmatig opnieuw ingericht op het nieuwe systeem.',
   'sharing.skip': 'Overslaan',
@@ -374,7 +374,7 @@ export const nl: Record<keyof typeof en, string> = {
   'sharing.group.holds': 'bevat',
   'sharing.group.sharedWith': 'Gedeeld met',
   'sharing.grant.link': 'iedereen met de link',
-  'sharing.group.doneAll': 'Alles op Gedaan zetten',
+  'sharing.group.doneAll': 'Alles afvinken',
   'sharing.group.skipAll': 'Alles overslaan',
   'sharing.group.applyInside': 'Open de map om items op het nieuwe systeem te delen.',
   'sharing.group.applyFolder': 'Deze map delen op het nieuwe systeem',
@@ -393,7 +393,7 @@ export const nl: Record<keyof typeof en, string> = {
   'sharing.alone.extra': 'extra:',
   'sharing.alone.missing': 'ontbreekt:',
   'sharing.notPlacedYet':
-    'Gevonden voordat groeperen per map bestond. Ververs vanaf de bron om samen te beoordelen.',
+    'Niet per map gegroepeerd: uw oude systeem gaf niet aan in welke map elk item staat.',
   'tenants.title': 'Team & organisatie',
   'tenants.intro':
     'Wie zich bij deze organisatie kan aanmelden en wat zij mogen.',

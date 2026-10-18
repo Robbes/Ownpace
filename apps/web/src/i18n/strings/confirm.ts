@@ -241,8 +241,8 @@ export const en = {
     'Two blind spots: Gmail delegation and send-as, and Google Calendar sharing.',
   'permissions.blindSpot.google.more':
     'Who could read or send from someone’s Gmail, and who could see whose calendar: Ownpace does not read either from Google yet, so note them yourself in the Gmail and Google Calendar settings. Sharing on Google Drive is read, and is in the list.',
-  'permissions.download': 'Get the permission list',
-  'permissions.failed': 'The permission list could not be fetched.',
+  'permissions.download': 'Get the list of shares',
+  'permissions.failed': 'The list of shares could not be fetched.',
   // Shared addresses, on Review & confirm (workplan 0027 T4).
   'sharedAddresses.heading': 'Shared addresses found',
   'sharedAddresses.pattern.shared_s': 'Shared mailbox — the store is copied',
@@ -461,8 +461,8 @@ export const nl: Record<keyof typeof en, string> = {
     'Twee blinde vlekken: Gmail-gemachtigden en verzenden-als, en delen in Google Agenda.',
   'permissions.blindSpot.google.more':
     "Wie iemand anders' Gmail kon lezen of uit die mailbox kon verzenden, en wie wiens agenda kon zien: Ownpace leest geen van beide uit bij Google, dus noteer zelf deze instellingen en zet die over. Delen op Google Drive wordt wel gelezen en staat in de lijst.",
-  'permissions.download': 'Haal de rechtenlijst op',
-  'permissions.failed': 'De rechtenlijst kon niet worden opgehaald.',
+  'permissions.download': 'Haal de lijst met deelrechten op',
+  'permissions.failed': 'De lijst met deelrechten kon niet worden opgehaald.',
   'sharedAddresses.heading': 'Gevonden gedeelde adressen',
   'sharedAddresses.pattern.shared_s': 'Gedeeld postvak — het postvak wordt gemigreerd',
   'sharedAddresses.pattern.distribution_d': 'Distributielijst — de leden worden opnieuw aangemaakt',

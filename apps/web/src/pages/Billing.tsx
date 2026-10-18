@@ -574,7 +574,7 @@ export function itemsMovedByKind(
  * So, in total, across every migration:
  * - **All data**, first: what the meter counted, the alpha's share included.
  *   It is the meter the tier reads (`/api/billing/usage`), so it and the tier
- *   block's *Data moved, in total* are one figure, the alpha's share aside.
+ *   block's *Moved in total, counted* are one figure, the alpha's share aside.
  * - **Each kind's items**, after it, every kind the app moves, tasks included:
  *   an email, a contact and a 4 GB film are not one unit, so their sum is a
  *   number nobody can check, and a kind is what a person can hold against
