@@ -13,6 +13,19 @@
  * a line falls back to what the list carries: the migration's stage, and its
  * last pass. That reading cannot say *Ready to switch*, since the list does not
  * carry the check, and says *Kept in step* instead.
+ *
+ * ON A PHONE THE TILES ARE DRAWN ONCE (workplan 0159 row 19; the owner,
+ * 2026-10-19: always, not only for a migration of several data types): below
+ * `sm` every line repeating *Microsoft 365 account → Nextcloud* under a
+ * migration already named for it took three rows a line. There the caller
+ * draws the pair once, right under the migration's name (`MigrationTiles`),
+ * and each line keeps its data type, chip and sentence; from `sm` up each line
+ * draws it as before, and the caller's pair is gone. Only CSS chooses, so the
+ * words in the page are the same at both widths, and the copy not shown is
+ * `display: none`, which a screen reader does not read either: it hears the
+ * pair once a migration on a phone, and once a line on a computer. A page that
+ * draws `MigrationLines` draws `MigrationTiles` with it, or on a phone its
+ * lines say neither where from nor where to.
  */
 import React from 'react';
 import { Link } from 'react-router';
@@ -126,6 +139,36 @@ export function useLineSentence(): (stage: Stage | undefined, facts: SentenceFac
   };
 }
 
+/** Where from and where to, as two tiles. `className` says at which widths it shows (see the header). */
+const Tiles: React.FC<{ migration: Pick<MigrationLineFacts, 'sourceType' | 'targetType'>; className: string }> = ({
+  migration: m,
+  className,
+}) => {
+  const t = useT();
+  return (
+    <span className={`${className} items-center gap-2 text-gray-700`}>
+      <ProviderTile type={m.sourceType} role="source" size={20} />
+      <span aria-hidden="true">→</span>
+      {/* Heard, not seen: the arrow is drawn and the tiles' letters are
+          hidden, so without it a screen reader said *Gmail Soverin*. */}
+      <span className="sr-only">{t('people.line.to')}</span>
+      <ProviderTile type={m.targetType} role="target" size={20} />
+    </span>
+  );
+};
+
+/**
+ * The pair once, under a migration's name, on a phone only (see the header).
+ * Full width, so in a wrapping row of the name and its actions it takes a row
+ * of its own between them.
+ */
+export const MigrationTiles: React.FC<{
+  migration: Pick<MigrationLineFacts, 'sourceType' | 'targetType'>;
+  className?: string;
+}> = ({ migration, className }) => (
+  <Tiles migration={migration} className={['flex w-full text-sm sm:hidden', className].filter(Boolean).join(' ')} />
+);
+
 export const MigrationLines: React.FC<{ migration: MigrationLineFacts; progress?: LinesProgress }> = ({
   migration: m,
   progress,
@@ -160,14 +203,7 @@ export const MigrationLines: React.FC<{ migration: MigrationLineFacts; progress?
             ) : (
               <DataTypeLabel domain={domain} size={18} />
             )}
-            <span className="flex items-center gap-2 text-gray-700">
-              <ProviderTile type={m.sourceType} role="source" size={20} />
-              <span aria-hidden="true">→</span>
-              {/* Heard, not seen: the arrow is drawn and the tiles' letters are
-                  hidden, so without it a screen reader said *Gmail Soverin*. */}
-              <span className="sr-only">{t('people.line.to')}</span>
-              <ProviderTile type={m.targetType} role="target" size={20} />
-            </span>
+            <Tiles migration={m} className="hidden sm:flex" />
             {stage && <StateChip entity="stage" state={stage} />}
             {waitsForExport ? (
               <span className="text-gray-600">
