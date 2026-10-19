@@ -6,7 +6,10 @@
      with the owner's answers of 2026-09-28 until the first tester accepts it
      (alpha-version-number (a)), and once more on 2026-10-05, §8 and §10, in
      the owner's final-text pull request, before anybody could accept it
-     (alpha.md's briefing says how we know). The briefing for the reviewing lawyer,
+     (alpha.md's briefing says how we know). Version 1.1 (2026-10-19): §8 names the
+     two deletion switches as the app does, and §6 says "aanmelden" as the
+     app does; alpha.md's briefing has the words.
+     The briefing for the reviewing lawyer,
      including which language governs and which answer changed which section,
      is the comment at the top of alpha.md — it applies to both files.
      Rendered by the site build since 0139 T3 (outside the site's nav), whose
@@ -16,8 +19,8 @@
 # Voorwaarden voor de Alpha
 
 **Gelden voor:** de Alpha van de **beheerde Ownpace-dienst** op `ownpace.eu`.
-**Versie:** 1.0
-**Laatst bijgewerkt:** 2026-10-07
+**Versie:** 1.1
+**Laatst bijgewerkt:** 2026-10-19
 
 ---
 
@@ -98,7 +101,7 @@ gewist, dan kunnen uw gegevens nog hoogstens 7 dagen in die kopie staan.
 Gaat de hostingomgeving van de Alpha verloren, dan gaan de gegevens van de dienst en die kopie
 mee verloren. Uw eigen gegevens niet: Ownpace verwijdert niets uit uw oude account, en wat naar
 uw nieuwe aanbieder is gekopieerd, blijft daar staan. Wij laten u dan opnieuw toe, net als de
-eerste keer. U logt opnieuw in, koppelt uw accounts opnieuw en zet uw migraties opnieuw op.
+eerste keer. U meldt zich opnieuw aan, koppelt uw accounts opnieuw en zet uw migraties opnieuw op.
 De eerste ronde herkent wat al bij uw nieuwe aanbieder staat en kopieert dat niet nog een keer.
 Wat hij herkent, wordt daarna niet meer bijgewerkt als het in uw oude account verandert, en wat
 u bij uw nieuwe aanbieder hebt verwijderd of verplaatst, wordt opnieuw gekopieerd. Als dit
@@ -120,10 +123,10 @@ Uw account is alleen voor u. Deel uw inloggegevens met niemand.
 Nodig tijdens de Alpha niemand anders uit in uw organisatie. Wil iemand een migratie volgen,
 stuur die persoon dan de voortgangslink van die migratie: die toont aantallen en statussen,
 nooit de inhoud. Nodigt u toch iemand uit, geef die persoon dan de rol beheerder, en weet dat
-een beheerder alles kan wat u kunt, behalve de organisatie sluiten of heropenen, het toepassen
-van verwijderingen of het automatisch toepassen van verplaatsingen aan- of uitzetten, iemand
-eigenaar maken, en een eigenaar of een uitnodiging als eigenaar een andere rol geven of
-verwijderen. Tijdens de Alpha kan iemand alleen eigenaar of beheerder zijn. U bent zelf
+een beheerder alles kan wat u kunt, behalve de organisatie sluiten of heropenen, *handmatig
+verwijderen* of *het automatisch verwijderen van oude kopieën van inmiddels verplaatste
+bestanden* aan- of uitzetten, iemand eigenaar maken, en een eigenaar of een uitnodiging als
+eigenaar een andere rol geven of verwijderen. Tijdens de Alpha kan iemand alleen eigenaar of beheerder zijn. U bent zelf
 verantwoordelijk voor wie u uitnodigt.
 
 ## 9. Google vraagt opnieuw

@@ -139,7 +139,8 @@ describe('what a person accepted, per text and version', () => {
   });
 
   it('refuses a version that is not the current one, and writes nothing', async () => {
-    const stale = { ...LEGAL_VERSIONS, privacy: '1.1' };
+    // 1.0 is an earlier number than any current one since 1.1 (2026-10-19), so it stays stale.
+    const stale = { ...LEGAL_VERSIONS, privacy: '1.0' };
     const got = await withTenant(driver, OURS, (db) => recordAcceptance(db, OURS, BRAM, stale, 'en'));
 
     expect(got).toEqual({ kind: 'not_current', stale: ['privacy'], current: LEGAL_VERSIONS });

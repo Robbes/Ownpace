@@ -100,9 +100,9 @@ placeholder is left in a text the site renders.
 
 | File | *Version* line | Where it stands |
 |---|---|---|
-| `privacy.md`, `privacy.nl.md` | `1.0`; 2026-10-11 | Final, on the owner's approval (2026-10-05), without the lawyer's pass. **Numbered 1.0 since 2026-10-14** (the owner: *"go on the 1.0 reset"*): it was final as 1.2 to 1.5, but no tester had accepted any of those, so the first version testers accept is 1.0. The drafts' history, in the file's comments: 1.3 says visits to this website are counted from its logs (below); 1.4 adds the invoice email address to §4.4; 1.5 says in §9 that invoices are kept in the bookkeeping system and that an erasure deletes our copy and keeps the numbers (workplan 0111 T10). Pinned in `ACCEPTED_WORDS` under 1.0; a change gets a new number (1.1). No placeholder. |
-| `terms.md`, `terms.nl.md` | `1.0`; 2026-10-12 | Final, on the owner's approval (2026-10-05), without the lawyer's pass. **Numbered 1.0 since 2026-10-14** (the owner): it was final as 1.3 to 1.6, but no tester had accepted any of those. The drafts' history, in the file's comments: 1.4 is the owner's own text review; 1.5 puts §7's request to begin within the 14 days in one sentence beside the order button (workplan 0111 slice 7e); 1.6 says in §8 that closing the account ends a year's credit left, and the credit in plain words (workplan 0111 T11). Pinned in `ACCEPTED_WORDS` under 1.0; a change gets a new number (1.1). No placeholder. |
-| `alpha.md`, `alpha.nl.md` | `1.0`; 2026-10-05 (the merge day, once merged) | The owner's text for the Alpha, taken as final without the lawyer's pass. Edited in place with the owner's answers, and on 2026-10-05 in §8 and §10, because nobody had accepted it: it stays 1.0 (alpha-version-number (a)), and every change from the first acceptance on gets a new number. No placeholder. Rendered since 0139 T3, outside the site's nav, at `/alpha.html` and `/nl/alpha.html` (below) |
+| `privacy.md`, `privacy.nl.md` | `1.1`; 2026-10-19 | Final, on the owner's approval (2026-10-05), without the lawyer's pass. **Numbered 1.0 since 2026-10-14** (the owner: *"go on the 1.0 reset"*): it was final as 1.2 to 1.5, but no tester had accepted any of those, so the first version testers accept is 1.0. The drafts' history, in the file's comments: 1.3 says visits to this website are counted from its logs (below); 1.4 adds the invoice email address to §4.4; 1.5 says in §9 that invoices are kept in the bookkeeping system and that an erasure deletes our copy and keeps the numbers (workplan 0111 T10). **1.1 since 2026-10-19**, on the owner's approval: §4.3 names the count when you review your migration (no longer "preflight"), §4.4, §5, §9 and §10 name a second step or passkey, every failed attempt and the lock after 10 wrong passwords, and the Dutch says *aanmelden*/*afmelden*; the briefing at the top of `privacy.md` has the detail. Nobody besides the owner had accepted 1.0 (the owner, 2026-10-19: *"Nobody yet"*), so §13's 30 days' notice was owed to nobody and 1.1 applies from publication. Pinned in `ACCEPTED_WORDS` under 1.0 and 1.1; a change gets a new number (1.2). No placeholder. |
+| `terms.md`, `terms.nl.md` | `1.1`; 2026-10-19 | Final, on the owner's approval (2026-10-05), without the lawyer's pass. **Numbered 1.0 since 2026-10-14** (the owner): it was final as 1.3 to 1.6, but no tester had accepted any of those. The drafts' history, in the file's comments: 1.4 is the owner's own text review; 1.5 puts §7's request to begin within the 14 days in one sentence beside the order button (workplan 0111 slice 7e); 1.6 says in §8 that closing the account ends a year's credit left, and the credit in plain words (workplan 0111 T11). **1.1 since 2026-10-19**, on the owner's approval: §2 names the two deletion switches as the app does, *deleting by hand* and *the automatic removal of moved files' old copies*. Pinned in `ACCEPTED_WORDS` under 1.0 and 1.1; a change gets a new number (1.2). No placeholder. |
+| `alpha.md`, `alpha.nl.md` | `1.1`; 2026-10-19 | The owner's text for the Alpha, taken as final without the lawyer's pass. Edited in place with the owner's answers, and on 2026-10-05 in §8 and §10, because nobody had accepted it: it stayed 1.0 (alpha-version-number (a)), and every change from the first acceptance on gets a new number. **1.1 since 2026-10-19**, on the owner's approval: §8 names the two deletion switches as the app does, and the Dutch §6 says *aanmelden*. Pinned in `ACCEPTED_WORDS` under 1.0 and 1.1; a change gets a new number (1.2). No placeholder. Rendered since 0139 T3, outside the site's nav, at `/alpha.html` and `/nl/alpha.html` (below) |
 | `subprocessors.md` | `0.2 (draft — not yet published)`; 2026-09-28 | English only. Unpublished until the first business customer: during the Alpha, privacy §7's table is the complete list (rec-subprocessors-url (a)). Not rendered (below) |
 | `dpa.md` | No *Version* line: its *Status* line says `draft v0.2`; 2026-09-28 | English only, on purpose. Unpublished until the first business customer, and corrected in one pass before then (dpa-unpublished-until-business (a)). Not part of the Alpha, which admits households only (0139 open question 6) |
 
@@ -653,10 +653,10 @@ commit.
   text (privacy §4.2). No body, no attachment, no file content. Saying "technical data" instead
   would be vaguer and no more honest, and §4.2 says plainly that the metadata can be revealing.
 - **Nothing is deleted at the source, ever.** At the target nothing is deleted unless the
-  customer switches on *applying deletions* and approves each deletion (ADR-0024). A second
-  switch, *auto-applying relocations*, removes the old copy of a file that moved at the source,
-  after strict checks and without asking each time; deletions never apply unattended (ADR-0031).
-  Both are off until turned on (terms §2).
+  customer switches on *deleting by hand* and approves each deletion (ADR-0024). A second
+  switch, *the automatic removal of moved files' old copies*, removes the old copy of a file that
+  moved at the source, after strict checks and without asking each time; deletions never apply
+  unattended (ADR-0031). Both are off until turned on (terms §2).
 - **There is no reverse sync**, so the source stays the customer's fallback.
 - **Everything runs in the EU, with one named exception.** Privacy §8 says the service runs in
   the EU; the machine is in the Netherlands, and the service in front of it that ends TLS,
@@ -692,7 +692,8 @@ commit.
   were drafted on 2026-09-28 as version 0.1, at the owner's request, for the owner's reading and
   the lawyer's pass. The owner reviewed them the same day and set their *Version* line to 1.0,
   with no draft marker. The owner's answers of the same day changed §2, §4, §5, §6, §9, §10 and
-  §11, and on 2026-10-05 §8 and §10, and the text stays 1.0 until the first tester accepts it
+  §11, and on 2026-10-05 §8 and §10, and the text stayed 1.0 until it could be accepted; every
+  change after that gets a new number, the first being 1.1 on 2026-10-19
   (alpha-version-number (a)). The
   site build renders them since 0139 T3, outside the site's nav, and the app's acceptance screen
   links them (`LEGAL_PAGES` in `apps/web/src/services/legal-links.ts`); a `--public` build refuses

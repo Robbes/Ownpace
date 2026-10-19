@@ -68,12 +68,18 @@ export type LegalVersions = Readonly<Record<LegalDocument, string>>;
  * any draft words.
  */
 export const LEGAL_VERSIONS: LegalVersions = {
-  alpha: '1.0',
-  // Restarted at 1.0 on 2026-10-14 (the owner): no tester had accepted any number, and no
-  // acceptance anywhere records privacy 1.0 or terms 1.0 (the screen began at 1.2 and 1.3), so a
-  // stored acceptance of an older number simply asks again (`acceptanceOf` compares equality).
-  privacy: '1.0',
-  terms: '1.0',
+  // 1.1 on 2026-10-19, on the owner's approval, all three together: alpha §8 and terms §2 name the
+  // deletion switches as the app does, and privacy names the count when you review your migration,
+  // a second step or passkey, every failed attempt and the lock after 10 wrong passwords. The Dutch
+  // says aanmelden/afmelden. Nobody besides the owner had accepted 1.0 (the owner: "Nobody yet"),
+  // and a stored acceptance of 1.0 simply asks again (`acceptanceOf` compares equality).
+  //
+  // Before that, privacy and terms restarted at 1.0 on 2026-10-14 (the owner): no tester had
+  // accepted any number, and no acceptance anywhere records privacy 1.0 or terms 1.0 (the screen
+  // began at 1.2 and 1.3).
+  alpha: '1.1',
+  privacy: '1.1',
+  terms: '1.1',
 };
 
 /**

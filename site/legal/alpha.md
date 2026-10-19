@@ -1,5 +1,19 @@
 <!-- Copyright 2026 The Ownpace authors (Apache-2.0) -->
 <!--
+  VERSION 1.1, 2026-10-19, on the owner's approval: §8 names the two deletion switches as the
+  invitation dialog does since workplan 0156 T6 (tenants.invite.adminCan): "turn *deleting by
+  hand* or *the automatic removal of moved files' old copies* on or off" / "*handmatig
+  verwijderen* of *het automatisch verwijderen van oude kopieën van inmiddels verplaatste
+  bestanden* aan- of uitzetten", in italics as terms §2 marks them, so the Dutch does not read
+  "handmatig verwijderen" as an action of its own. It said "turn applying deletions or
+  auto-applying relocations on or off" / "het toepassen van verwijderingen of het automatisch
+  toepassen van verplaatsingen aan- of uitzetten" (workplan 0159 §5 item 24). Same switches,
+  and the same list of what an admin cannot do. §6, Dutch only: "U logt opnieuw in" reads
+  "U meldt zich opnieuw aan", the app's pair Aanmelden/Afmelden (workplan 0159 §5 item 13, the
+  owner: yes); it lands with or after the app's Aanmelden/Afmelden build. 1.0 was final and
+  pinned in ACCEPTED_WORDS, so the words take 1.1, in both languages, LEGAL_VERSIONS and
+  ACCEPTED_WORDS.
+
   VERSION 1.0, 2026-09-28: the owner's text for the Alpha. It stays 1.0 while
   it is edited, until the first tester accepts it; every change after that
   gets a new number (alpha-version-number (a), 2026-09-28). Edited in place
@@ -204,8 +218,8 @@
 # Alpha conditions
 
 **Apply to:** the Alpha of the Ownpace **managed service** at `ownpace.eu`.
-**Version:** 1.0
-**Last updated:** 2026-10-07
+**Version:** 1.1
+**Last updated:** 2026-10-19
 
 ---
 
@@ -306,9 +320,9 @@ Your account is for you alone. Share your sign-in details with nobody.
 During the Alpha, do not invite anyone else into your organisation. If somebody wants to follow
 a migration, send them that migration's progress link: it shows counts and states, never
 content. If you do invite someone, invite them as an admin, and know that an admin can do
-everything you can except close or reopen the organisation, turn applying deletions or
-auto-applying relocations on or off, make somebody an owner, and change or remove an owner or an
-invitation as owner. During the Alpha, a person can only be an owner or an admin. You are
+everything you can except close or reopen the organisation, turn *deleting by hand* or *the
+automatic removal of moved files' old copies* on or off, make somebody an owner, and change or
+remove an owner or an invitation as owner. During the Alpha, a person can only be an owner or an admin. You are
 responsible for whom you invite.
 
 ## 9. Google asks again

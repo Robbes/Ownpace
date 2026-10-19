@@ -22,8 +22,8 @@
 # Servicevoorwaarden
 
 **Gelden voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`.
-**Versie:** 1.0
-**Laatst bijgewerkt:** 2026-10-12
+**Versie:** 1.1
+**Laatst bijgewerkt:** 2026-10-19
 
 > **Deze voorwaarden gelden niet voor de software.** Ownpace is open source onder de Apache
 > License 2.0, en het zelf draaien valt onder die licentie, niet onder deze voorwaarden. Deze
@@ -63,10 +63,11 @@ over te stappen. Ook biedt het inzicht in en overzicht van wat er is gemigreerd.
 
 **Wat het niet doet:**
 
-- **Het verwijdert nooit iets bij uw bron.** Bij uw doel wordt ook niets verwijderd, tenzij u *het
-  toepassen van verwijderingen* aanzet en elke verwijdering goedkeurt. Zet u ook *het automatisch
-  toepassen van verplaatsingen* aan, dan wordt de oude kopie van een bestand dat bij uw bron is
-  verplaatst, na strenge controles bij uw doel weggehaald, zonder dat we het u elke keer vragen.
+- **Het verwijdert nooit iets bij uw bron.** Bij uw doel wordt ook niets verwijderd, tenzij u *handmatig
+  verwijderen* aanzet en elke verwijdering goedkeurt. Zet u ook *het automatisch verwijderen van
+  oude kopieën van inmiddels verplaatste bestanden* aan, dan wordt de oude kopie van een bestand
+  dat bij uw bron is verplaatst, na strenge controles bij uw doel weggehaald, zonder dat we het u
+  elke keer vragen.
   Beide staan standaard uit, tot u deze functies expliciet aanzet.
 - **Het synchroniseert niet terug.** Gegevens gaan van bron naar doel, nooit anders. Uw bron blijft
   uw vangnet zolang u die aanhoudt.
