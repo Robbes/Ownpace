@@ -654,3 +654,54 @@ describe("the pace of their migrations (0157 T5)", () => {
     expect(screen.queryByText(STRINGS.en['pace.free.eachMigration'], { exact: false })).toBeNull();
   });
 });
+
+/**
+ * ON A PHONE, A MIGRATION DRAWS ITS TWO TILES ONCE, UNDER ITS NAME (the owner,
+ * 2026-10-19, workplan 0159 round 2; `MigrationLines.tsx`'s header). Every
+ * migration, whether it moves one data type or several: its pair under its
+ * name and Details, before what waits for the grant and its lines, below `sm`
+ * only; each line's own pair from `sm` up only. jsdom applies no CSS, so this
+ * reads the classes.
+ */
+describe('on a phone, a migration draws its two tiles once, under its name (2026-10-19)', () => {
+  /** Every pair of tiles in `root`: the arrow's parent. */
+  const pairsIn = (root: ParentNode) =>
+    [...root.querySelectorAll('span[aria-hidden="true"]')].filter((a) => a.textContent === '→').map((a) => a.parentElement!);
+  const before = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) && !a.contains(b);
+
+  it('draws one pair per migration under its name, before its lines, and each line’s from sm up only', async () => {
+    const CALENDAR = migration({ id: 'm-cal', name: 'Anna calendar', sourceType: 'google', domains: ['calendar', 'contact'] });
+    listMock.mockResolvedValue([MAIL, FILES, CALENDAR]);
+    peopleMock.mockResolvedValue({
+      people: [
+        person('p-anna', 'Anna Jansen', [
+          { id: 'm-mail', status: 'active' },
+          { id: 'm-files', status: 'active' },
+          { id: 'm-cal', status: 'active' },
+        ]),
+      ],
+      unassigned: [],
+    });
+    vi.mocked(personLinkApi.awaiting).mockResolvedValue([{ mappingId: 'm-mail', then: 'ran_before' }]);
+
+    renderAt();
+    await screen.findByText('Waits for Anna Jansen to connect again.');
+
+    for (const m of [MAIL, FILES, CALENDAR]) {
+      const block = document.querySelector<HTMLElement>(`[data-app-screen="migrations"] [data-migration="${m.id}"]`)!;
+      const pairs = pairsIn(block);
+      const once = pairs.filter((p) => p.classList.contains('sm:hidden'));
+      const perLine = pairs.filter((p) => p.classList.contains('hidden') && p.classList.contains('sm:flex'));
+      expect(once, `${m.name}: not one pair on a phone`).toHaveLength(1);
+      expect(perLine, `${m.name}: a line draws its pair on a phone`).toHaveLength(m.domains.length);
+      expect(pairs).toHaveLength(m.domains.length + 1);
+      const [tiles] = once;
+      expect(before(within(block).getByText(m.name), tiles!), `${m.name}: the pair is above the name`).toBe(true);
+      expect(before(within(block).getByRole('link', { name: 'Details →' }), tiles!), `${m.name}: the pair is above Details`).toBe(true);
+      expect(before(tiles!, block.querySelector('[data-domain]')!), `${m.name}: the pair is below the lines`).toBe(true);
+    }
+    const mail = document.querySelector('[data-app-screen="migrations"] [data-migration="m-mail"]')!;
+    const [tiles] = pairsIn(mail).filter((p) => p.classList.contains('sm:hidden'));
+    expect(before(tiles!, mail.querySelector('[data-awaiting-grant]')!), 'the pair is below what waits for the grant').toBe(true);
+  });
+});

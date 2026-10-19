@@ -52,7 +52,7 @@ import { freePaceRefusal, referenceIn, serverMessage } from '../services/api.ts'
 import { SendItToUs } from '../components/SendItToUs.tsx';
 import StateChip from '../components/StateChip.tsx';
 import { providerName } from '../components/ProviderTile.tsx';
-import { MigrationLines, lineStages } from '../components/MigrationLines.tsx';
+import { MigrationLines, MigrationTiles, lineStages } from '../components/MigrationLines.tsx';
 import { fetchProgress } from '../services/progress-service.ts';
 import { progressRefetchInterval } from '../services/progress-poll.ts';
 import { linesProgressOf } from '../services/stage-line.ts';
@@ -258,6 +258,7 @@ const Mappings: React.FC = () => {
             >
               {m.name}
             </Link>
+            <MigrationTiles migration={m} />
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2" onClick={(e) => e.stopPropagation()}>
               {m.status === 'active' ? (
                 <>

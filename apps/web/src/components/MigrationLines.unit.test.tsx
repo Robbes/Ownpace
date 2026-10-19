@@ -9,11 +9,11 @@
  * photos, and before it starts it says it waits for the export, with how to
  * make one, in either language.
  */
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { LocaleProvider } from '../i18n/index.tsx';
-import { MigrationLines } from './MigrationLines.tsx';
+import { MigrationLines, MigrationTiles } from './MigrationLines.tsx';
 import type { LinesProgress } from '../services/stage-line.ts';
 
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -163,5 +163,74 @@ describe('a mail server’s line names both sides in plain words (2026-10-18)', 
     draw('nl');
     expect(screen.getByText('Andere mailaanbieder (IMAP)')).toBeInTheDocument();
     expect(screen.getByText('Mailserver (JMAP)')).toBeInTheDocument();
+  });
+});
+
+/**
+ * ON A PHONE, A MIGRATION DRAWS ITS TWO TILES ONCE, UNDER ITS NAME (the owner,
+ * 2026-10-19, workplan 0159 round 2). Below `sm` every line repeated *Gmail →
+ * Soverin* under a migration whose name already said it, three rows a line.
+ * There the page draws the pair once (`MigrationTiles`), and each line keeps
+ * its data type, stage and sentence; from `sm` up each line draws the pair, as
+ * it always did. Only CSS chooses, which jsdom does not apply, so these read
+ * the classes: the copy not shown is `display: none`, so a screen reader hears
+ * the pair once per migration on a phone, and once per line on a computer.
+ */
+describe('on a phone, a migration draws its two tiles once, under its name (2026-10-19)', () => {
+  /** Every pair of tiles in `root`: the arrow's parent. */
+  const pairsIn = (root: ParentNode) =>
+    [...root.querySelectorAll('span[aria-hidden="true"]')].filter((a) => a.textContent === '→').map((a) => a.parentElement!);
+
+  it('draws a line’s tiles from sm up only, and the rest of the line at every width', () => {
+    render(
+      <LocaleProvider>
+        <MigrationLines migration={MAIL} progress={progress({ state: 'not_run' })} />
+      </LocaleProvider>,
+    );
+    const lines = [...document.querySelectorAll('li[data-domain]')];
+    expect(lines).toHaveLength(2);
+    for (const li of lines) {
+      const pairs = pairsIn(li);
+      expect(pairs).toHaveLength(1);
+      expect(pairs[0]!.classList, 'a line’s tiles still show on a phone').toContain('hidden');
+      expect(pairs[0]!.classList, 'a line’s tiles are gone on a computer').toContain('sm:flex');
+      expect(pairs[0]!.classList).not.toContain('flex');
+      // Nothing else of the line is hidden at any width: its data type, stage
+      // and sentence are what a phone reads of it.
+      expect([...li.querySelectorAll('.hidden, .sm\\:hidden')]).toEqual(pairs);
+    }
+    expect(screen.getByText('Email')).toBeInTheDocument();
+    expect(screen.getByText('Calendar')).toBeInTheDocument();
+    expect(screen.getByText('18,234 of ~19,000 · last pass 2 minutes ago')).toBeInTheDocument();
+  });
+
+  it('draws the migration’s pair below sm only, naming where from and where to, heard as such', () => {
+    render(
+      <LocaleProvider>
+        <MigrationTiles migration={MAIL} />
+      </LocaleProvider>,
+    );
+    const pairs = pairsIn(document.body);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0]!.classList, 'the migration’s pair is not drawn on a phone').toContain('flex');
+    expect(pairs[0]!.classList, 'the migration’s pair shows on a computer too').toContain('sm:hidden');
+    expect(pairs[0]!.classList).not.toContain('hidden');
+    expect(pairs[0]!.textContent).toBe('GGmail→toSSoverin');
+    expect(within(pairs[0]!).getByText('to')).toHaveClass('sr-only');
+  });
+
+  it('nl: Gmail naar Soverin, in the words a line says it with', () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    render(
+      <LocaleProvider>
+        <MigrationTiles migration={MAIL} />
+        <MigrationLines migration={MAIL} />
+      </LocaleProvider>,
+    );
+    const [once, ...lines] = pairsIn(document.body);
+    expect(once!.textContent).toBe('GGmail→naarSSoverin');
+    expect(within(once!).getByText('naar')).toHaveClass('sr-only');
+    // The same words at both widths: only which copy is drawn changes.
+    expect(lines.map((l) => l.textContent)).toEqual(['GGmail→naarSSoverin', 'GGmail→naarSSoverin']);
   });
 });

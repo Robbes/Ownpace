@@ -60,7 +60,7 @@ import { waitingOn } from '../services/needs-you.ts';
 import { checksOf } from '../services/cutover-steps.ts';
 import StateChip from '../components/StateChip.tsx';
 import { PaceLine } from '../components/PaceLine.tsx';
-import { MigrationLines, lineStages } from '../components/MigrationLines.tsx';
+import { MigrationLines, MigrationTiles, lineStages } from '../components/MigrationLines.tsx';
 import { CutoverSteps } from '../components/CutoverSteps.tsx';
 import { fetchProgress } from '../services/progress-service.ts';
 import { progressRefetchInterval } from '../services/progress-poll.ts';
@@ -309,6 +309,7 @@ const Person: React.FC = () => {
                   {t('person.details')} →
                 </Link>
               </div>
+              <MigrationTiles migration={m} className="mt-1" />
               {awaiting.has(m.id) && (
                 <p data-awaiting-grant={awaiting.get(m.id)} className="mt-1 flex items-start gap-1.5 text-sm text-gray-700">
                   <Clock className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500" aria-hidden="true" />
