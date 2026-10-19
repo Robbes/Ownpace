@@ -4,6 +4,15 @@
   accepted any number yet, so the first version testers accept is 1.0, with these words.
   The numbers below (1.2 to 1.6) are the drafts' history, kept for the record; git holds the
   texts. From here every change of words takes a new number again: 1.1, 1.2, and so on.
+
+  v1.1, 2026-10-19, on the owner's approval: §2's first bullet names the two deletion switches as
+  the app's Deletions page names them since workplan 0156 T6: *deleting by hand* / *handmatig
+  verwijderen* (was *applying deletions* / *het toepassen van verwijderingen*) and *the
+  automatic removal of moved files' old copies* / *het automatisch verwijderen van oude kopieën
+  van inmiddels verplaatste bestanden* (was *auto-applying relocations* / *het automatisch
+  toepassen van verplaatsingen*); workplan 0159 §5 item 24. Same switches, both still off by
+  default, the same promise. 1.0 was final and pinned, so the words take 1.1, in both
+  languages, LEGAL_VERSIONS and ACCEPTED_WORDS.
 -->
 <!--
   FINAL — v1.3, 2026-10-05 (the date on the Last updated line moves to the
@@ -559,8 +568,8 @@
 # Terms of service
 
 **Applies to:** the Ownpace **managed service** at `ownpace.eu`.
-**Version:** 1.0
-**Last updated:** 2026-10-12
+**Version:** 1.1
+**Last updated:** 2026-10-19
 
 > **These terms do not govern the software.** Ownpace is open source under the Apache
 > License 2.0, and running it yourself is governed by that licence, not by these terms. These
@@ -602,9 +611,9 @@ what has been migrated.
 **What it will not do:**
 
 - **It never deletes anything at your source.** At your target, nothing is deleted either, unless you
-  switch on *applying deletions* and approve each deletion. If you also switch on
-  *auto-applying relocations*, the old copy of a file that moved at your source is removed at
-  your target after strict checks, without asking you each time. Both are off by default,
+  switch on *deleting by hand* and approve each deletion. If you also switch on *the automatic
+  removal of moved files' old copies*, the old copy of a file that moved at your source is removed
+  at your target after strict checks, without asking you each time. Both are off by default,
   until you explicitly turn these features on.
 - **It does not sync back.** Data flows from source to target, never the other way. Your source
   remains your fallback for as long as you keep it.

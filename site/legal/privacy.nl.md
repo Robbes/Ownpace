@@ -21,8 +21,8 @@
 # Privacyverklaring
 
 **Geldt voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`, en deze website.
-**Versie:** 1.0
-**Laatst bijgewerkt:** 2026-10-11
+**Versie:** 1.1
+**Laatst bijgewerkt:** 2026-10-19
 
 > **Draait u Ownpace zelf**, dan geldt deze verklaring niet voor u en valt er voor ons niets
 > te verklaren: de software draait op uw eigen infrastructuur, uw gegevens bereiken ons nooit,
@@ -65,7 +65,7 @@ staat in §4.2.
 
 ## 3. Onze rol, die afhangt van wie u bent
 
-Voor **uw account bij ons** — inloggen, facturatie, contact met support — zijn wij de
+Voor **uw account bij ons** — aanmelden, facturatie, contact met support — zijn wij de
 **verwerkingsverantwoordelijke**, wie u ook bent.
 
 Voor de **inhoud van uw migratie** — uw e-mail, bestanden, contacten en agenda-items — hangt
@@ -139,14 +139,14 @@ beslissingen die u over items nam, de uitkomsten van haar controles, en de lijst
 gedeeld was (§4.6). Bij uw organisatie bewaren we de distributielijsten die een migratie vond,
 met de adressen van hun leden.
 
-### 4.3 Wat een preflight bewaart
+### 4.3 De telling bij het controleren van uw migratie
 
-Een gratis preflight leest uw bron om te tellen wat er staat. Daarvan worden **aantallen,
-omvang en totalen per map** bewaard — geen inventaris van afzonderlijke items — en de reden van
-de aanbieder als iets niet te tellen was. Kenmerken van items komen pas in het register terecht
-wanneer een echte migratie begint. De tellingen horen bij de migratie waarvoor ze zijn
-geteld: ze blijven daarbij bewaard en verdwijnen wanneer u die verwijdert of uw gegevens worden
-gewist (§9).
+Wanneer u uw migratie controleert, leest Ownpace uw bron om te tellen wat er staat. Die telling is
+gratis. Daarvan worden **aantallen, omvang en totalen per map** bewaard — geen inventaris van
+afzonderlijke items — en de reden van de aanbieder als iets niet te tellen was. Kenmerken van
+items komen pas in het register terecht wanneer de migratie echt begint. De tellingen horen bij
+de migratie waarvoor ze zijn geteld: ze blijven daarbij bewaard en verdwijnen wanneer u die
+migratie verwijdert of uw gegevens worden gewist (§9).
 
 ### 4.4 Uw aanvraag voor toegang, en uw account
 
@@ -158,15 +158,30 @@ ons besluit, wie het nam en wanneer. We gebruiken dit om over uw aanvraag te bes
 antwoorden. Over elke nieuwe aanvraag krijgen we een e-mail met uw adres en de organisatie en het
 pakket die u noemde, maar zonder uw toelichting. Een aanvraag maakt nog geen account aan.
 
-**Uw inlogaccount.** Inloggen loopt via een inlogdienst die we zelf draaien, op dezelfde machine
+**Uw inlogaccount.** Aanmelden loopt via een inlogdienst die we zelf draaien, op dezelfde machine
 als de dienst. Uw inlogaccount staat daar, niet bij een ander bedrijf; §7 zegt waar uw verbinding
 ermee doorheen gaat. Het bevat uw voor- en achternaam, uw e-mailadres, een gebruikersnaam, een
-hash van uw wachtwoord (nooit het wachtwoord zelf) en uw sessies: wanneer u inlogde, en de
-browser en het IP-adres waarmee u inlogde. Die dienst houdt ook een geschiedenis bij van elke
+hash van uw wachtwoord (nooit het wachtwoord zelf) en uw sessies: wanneer u zich aanmeldde, en de
+browser en het IP-adres waarmee u zich aanmeldde. Die dienst houdt ook een geschiedenis bij van elke
 wijziging aan uw inlogaccount (§9). Iedereen kan op onze inlogpagina een inlogaccount aanmaken,
 maar dat opent niets zolang we die persoon niet hebben toegelaten. Mail van de inlogdienst aan u,
 zoals een inlogcode of een link om uw wachtwoord opnieuw in te stellen, gaat via onze
 e-mailaanbieder (§7).
+
+**Tweestapsverificatie.** Naast uw wachtwoord biedt onze inlogdienst u bij het aanmelden een tweede
+stap aan: een authenticatie-app of een beveiligingssleutel. Die tweede stap is niet verplicht. U
+kunt ook een passkey toevoegen; daarmee meldt u zich aan zonder wachtwoord. Voegt u een
+authenticatie-app toe, dan bewaart de inlogdienst versleuteld de geheime sleutel waarmee die app uw
+codes maakt. Voegt u een beveiligingssleutel of een passkey toe, dan bewaart hij de openbare sleutel
+ervan en de naam die u eraan geeft; de privésleutel die erbij hoort, krijgen wij nooit. De
+inlogdienst legt elke mislukte poging vast: een verkeerd wachtwoord, een verkeerde code uit uw
+authenticatie-app, of een beveiligingssleutel of passkey die niet wordt herkend. Hij bewaart
+daarbij het tijdstip, en bij een aanmeldpoging ook de browser en het IP-adres. Het wachtwoord of de
+code die werd geprobeerd, bewaart hij nooit. Na 10 verkeerde wachtwoorden op rij blokkeert hij uw
+inlogaccount, tot wij het op uw verzoek weer vrijgeven. Dit alles dient om uw inlogaccount te
+beschermen. Een tweede stap of passkey blijft bewaard tot u die verwijdert, of tot uw
+inlogaccount wordt verwijderd. Wat de inlogdienst daarvan bijhoudt in de geschiedenis van uw
+inlogaccount, blijft zo lang als §9 zegt; dat geldt ook voor elke mislukte poging.
 
 <!-- BUILT 2026-09-28 (0139 T3; the owner, terms-acceptance-route (b): "accepting fits in there
      and should record what time/version the accepted of what document"): after sign-in the app
@@ -388,9 +403,10 @@ Een migratie raakt mensen die zich nooit bij ons hebben aangemeld. Dit bewaren w
 
 | Wat | Doel | Grondslag |
 |---|---|---|
-| Toegangsgegevens, register, preflight-tellingen | De migratie uitvoeren die u hebt gevraagd | Overeenkomst, inclusief stappen die u vooraf vraagt (art. 6 lid 1 sub b) — op uw instructie als verwerker voor een organisatie; als verwerkingsverantwoordelijke bij een migratie voor uw gezin (§3) |
+| Toegangsgegevens, register, de telling bij het controleren van uw migratie | De migratie uitvoeren die u hebt gevraagd | Overeenkomst, inclusief stappen die u vooraf vraagt (art. 6 lid 1 sub b) — op uw instructie als verwerker voor een organisatie; als verwerkingsverantwoordelijke bij een migratie voor uw gezin (§3) |
 | Uw aanvraag voor toegang | Besluiten of we u toelaten, en u dat laten weten | Stappen die u vóór een overeenkomst vraagt (art. 6 lid 1 sub b) |
-| Uw account en inlogaccount, facturen, gebruikscijfers | De dienst leveren, u veilig laten inloggen, en factureren | Overeenkomst (art. 6 lid 1 sub b); wettelijke plicht voor het bewaren van facturen (art. 6 lid 1 sub c). Tijdens de Alpha geen facturen |
+| Uw account en inlogaccount, facturen, gebruikscijfers | De dienst leveren, zorgen dat u zich veilig kunt aanmelden, en factureren | Overeenkomst (art. 6 lid 1 sub b); wettelijke plicht voor het bewaren van facturen (art. 6 lid 1 sub c). Tijdens de Alpha geen facturen |
+| De vastlegging van mislukte pogingen, en de blokkering van uw inlogaccount na 10 verkeerde wachtwoorden op rij (§4.4) | Uw inlogaccount beschermen tegen gebruik door een ander | Gerechtvaardigd belang (art. 6 lid 1 sub f) — dat van u evenzeer als dat van ons |
 | Uw Google-adres op de lijst van testgebruikers bij Google (Alpha) | Google de koppeling laten toestaan waar u om vraagt | Overeenkomst (art. 6 lid 1 sub b) |
 | Gegevens van andere mensen (§4.6): in wat u migreert, de toegang en het adres van een gezinslid, de mensen die u uitnodigt, en de mail aan mensen met wie u items deelde | De migratie uitvoeren die u vroeg, de mensen binnenlaten die u uitnodigt, en mensen op uw verzoek laten weten waar hun gedeelde items zijn | Gerechtvaardigd belang (art. 6 lid 1 sub f): het uwe, bij het migreren van de e-mail en bestanden van uw huishouden, en het onze, bij het uitvoeren daarvan; de grenzen in §4 en §9 beschermen het hunne |
 | Het auditlog van wie wat deed in uw organisatie, en wanneer | U, en ons, laten zien wat er in uw organisatie is gedaan en door wie | Gerechtvaardigd belang (art. 6 lid 1 sub f) |
@@ -402,14 +418,15 @@ Een migratie raakt mensen die zich nooit bij ons hebben aangemeld. Dit bewaren w
 **We gebruiken uw gegevens niet voor advertenties, we stellen geen profielen op, en we
 verkopen of verhuren uw gegevens aan niemand.** Er zit geen analysetracker in de applicatie of
 op deze website; bezoeken aan deze website tellen we alleen uit onze serverlogs (§4.5). De app
-bewaart uw aanmelding in de eigen opslag van uw browser tot u uitlogt, en onthoudt daar uw taal
-en een paar keuzes; zelf plaatst ze geen cookie, en deze website ook niet. Onze inlogpagina
-plaatst de cookies die nodig zijn om in te loggen. Deze website laadt niets van andere servers.
+bewaart uw aanmelding in de eigen opslag van uw browser tot u zich afmeldt, en onthoudt daar uw
+taal en een paar keuzes; zelf plaatst ze geen cookie, en deze website ook niet. Onze inlogpagina
+plaatst de cookies die nodig zijn voor het aanmelden. Deze website laadt niets van andere servers.
 
-We nemen geen besluit over u dat alleen op geautomatiseerde verwerking berust: over elke
-aanvraag voor toegang beslist een mens. Om mee te doen, geeft u ons uw e-mailadres; om tijdens
-de Alpha een Google-account te koppelen, geeft u ons ook het adres daarvan. Zonder die gegevens
-kunnen we u niet toelaten, of dat account niet koppelen.
+We nemen geen besluit over u dat alleen op geautomatiseerde verwerking berust: over elke aanvraag
+voor toegang beslist een mens. Alleen de blokkering na 10 verkeerde wachtwoorden op rij (§4.4)
+gebeurt vanzelf, en die heffen wij op als u daarom vraagt. Om mee te doen, geeft u ons uw
+e-mailadres; om tijdens de Alpha een Google-account te koppelen, geeft u ons ook het adres daarvan.
+Zonder die gegevens kunnen we u niet toelaten, of dat account niet koppelen.
 
 ## 6. Google-gebruikersgegevens — de concrete toezeggingen
 
@@ -524,7 +541,7 @@ machine die we zelf beheren, in Nederland.
 
 | Subverwerker | Waarvoor | Waar |
 |---|---|---|
-| NetBird GmbH | Uw verbindingen met app.ownpace.eu, id.ownpace.eu, status.ownpace.eu en www.ownpace.eu doorgeven naar onze machine. Het beëindigt de versleuteling (TLS) van die verbindingen, dus wat erdoorheen gaat, zoals wat u typt als u inlogt en wat de app u toont, gaat er leesbaar doorheen. Het stuurt ze door naar onze machine via een versleutelde tunnel (WireGuard). Het houdt 7 dagen een eigen log bij van elk verzoek: het tijdstip, het IP-adres en een locatie die daaruit is afgeleid, de gevraagde pagina, ook het geheime deel van een link, hoeveel er elke kant op ging, en de status van het antwoord en hoe lang het duurde | Duitsland (EU) |
+| NetBird GmbH | Uw verbindingen met app.ownpace.eu, id.ownpace.eu, status.ownpace.eu en www.ownpace.eu doorgeven naar onze machine. Het beëindigt de versleuteling (TLS) van die verbindingen, dus wat erdoorheen gaat, zoals wat u typt als u zich aanmeldt en wat de app u toont, gaat er leesbaar doorheen. Het stuurt ze door naar onze machine via een versleutelde tunnel (WireGuard). Het houdt 7 dagen een eigen log bij van elk verzoek: het tijdstip, het IP-adres en een locatie die daaruit is afgeleid, de gevraagde pagina, ook het geheime deel van een link, hoeveel er elke kant op ging, en de status van het antwoord en hoe lang het duurde | Duitsland (EU) |
 | Proton AG | De mail van de dienst versturen, zoals inlogcodes, ons antwoord op uw aanvraag voor toegang, voortgangsoverzichten, en de berichten die u ons laat sturen. Onze supportmailbox bewaren, support@ownpace.eu, waar uw mail aan ons en tijdens de Alpha ook probleemmeldingen binnenkomen, en waar een kopie van elke mail van de dienst wordt bewaard (§4.5) | Zwitserland, buiten de EU (§8) |
 
 Deze tabel is de volledige lijst van onze subverwerkers. Gaat de dienst na de Alpha over naar een
@@ -622,6 +639,24 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
        (privacy-signin-history (a), the owner: "still needs to be checked"): CHECKED 2026-10-15 on the test stack (Zitadel v4.19.4), the owner: a test account's
        entries went from 6 to 7 when it was removed (one removal entry added), and the one
        holding its address stayed (1 to 1). The history is kept, as the row says; it stands.
+     - Een tweede stap of passkey die u aan uw inlogaccount toevoegde, and De blokkering van
+       uw inlogaccount na 10 verkeerde wachtwoorden op rij
+       (§4.4; workplan 0135 T4b and T4c, #1612, 780b0fdd): deploy/compose/setup-zitadel.sh
+       forces no second factor, allows TOTP and U2F (offer_second_factor) and locks after
+       SIGN_IN_LOCKOUT_PASSWORDS=10 (set_sign_in_lockout); managed.yml gives a fresh instance
+       the same. A passkey is allowed by Zitadel's default
+       login policy (PasswordlessType 1), which setup-zitadel.sh copies and does not check. The
+       unlock is docs/operator-runbook.md, "A sign-in account locked by wrong passwords". True
+       on live once setup-zitadel.sh from a main that carries #1612 has run there and the login
+       policy reads PASSWORDLESS_TYPE_ALLOWED; nothing had called a real Zitadel with it on
+       2026-10-17 (0135 Status). What the rows name is read in Zitadel's source at v4.19.4, not
+       on a stack: the secret in HumanOTPAddedEvent, the public key and name in
+       HumanWebAuthNVerifiedEvent, and a failed check of a password, an authenticator code, a
+       security key or a passkey, with no password or code, in HumanPasswordCheckFailedEvent,
+       HumanOTPCheckFailedEvent, HumanU2FCheckFailedEvent and HumanPasswordlessCheckFailedEvent;
+       at sign-in each carries the browser, its language and the address, and a wrong current
+       password typed while changing the password carries none. All are events, so the history
+       row holds for them as for the rest.
      - Een inlogaccount dat we nooit hebben toegelaten, "30 dagen nadat het is aangemaakt", en
        dat van een verwijderd lid, "7 dagen nadat die persoon is verwijderd"
        (ops-unadmitted-signin-cleanup (a), "A daily script, built before the first tester"; 0135
@@ -661,7 +696,7 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
 |---|---|
 | Toegangsgegevens | Tot u ze verwijdert. De toegang van een koppeling verdwijnt wanneer u die koppeling verwijdert; de app staat dat toe zodra geen migratie haar meer gebruikt. Toegang die een gezinslid via een toegangslink gaf, verdwijnt wanneer u die migratie verwijdert, of wanneer die persoon haar op de eigen voortgangspagina intrekt. Een afgeronde migratie houdt de toegang die u ons gaf, zodat u hem kunt hervatten. Sluit u uw account, dan begint er geen nieuw werk meer met die toegang. Werk dat al loopt, maakt af waar het op dat moment mee bezig is, en stopt dan. Een ronde van een migratie kan na de sluiting nog ongeveer vijftien seconden doorgaan, en maakt daarna af wat ze begon. Hebt u een hele Microsoft 365-organisatie gekoppeld, dan kan een dagelijkse controle die al was begonnen, nog één keer de lijst van haar mailboxen lezen, en die van haar distributielijsten en groepen met de adressen van hun leden (§11 van de servicevoorwaarden). Alles wordt vernietigd wanneer uw gegevens worden gewist. Telkens trekken we de toegang ook in bij de aanbieder, waar die dat toestaat. |
 | Het migratieregister (§4.2), en wat elke migratie daarnaast bewaart, zoals de lijst van wat er gedeeld was (§4.6) | Tot u de migratie verwijdert; dan mee verwijderd. Anders tot uw gegevens worden gewist. |
-| Preflight-tellingen | Bij de migratie waarvoor ze zijn geteld: tot u die verwijdert, of tot uw gegevens worden gewist. |
+| De telling bij het controleren van uw migratie (§4.3) | Bij de migratie waarvoor ze is gedaan: tot u die migratie verwijdert, of tot uw gegevens worden gewist. |
 | Wat bij uw organisatie hoort en niet bij één migratie: de leden en uitnodigingen, de distributielijsten die een migratie vond, en het auditlog van wie wat deed en wanneer | Tot uw gegevens worden gewist, ook nadat u de migratie verwijdert die ze vond. |
 | Welke versies van de Voorwaarden voor de Alpha, de servicevoorwaarden en deze verklaring elk lid heeft aanvaard, in welke taal, en wanneer (§4.4) | Tot uw gegevens worden gewist, ook nadat dat lid uw organisatie heeft verlaten, zodat vastgelegd blijft wie waarmee heeft ingestemd. |
 | De mensen voor wie u migreert: ieders naam, en een e-mailadres als u dat gaf (§4.6) | Tot u die persoon verwijdert, of tot uw gegevens worden gewist. Het verwijderen van een migratie verwijdert de persoon niet. |
@@ -669,7 +704,9 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
 | De logregels van een ronde | 60 dagen. |
 | De eigen fouten en waarschuwingen van de app (een categorie en een referentie, geen tekst) | 30 dagen. |
 | Uw account, uw organisatie en uw inlogaccount | Zolang uw account bestaat. Sluit u het, dan kiest u wanneer uw gegevens worden gewist: meteen, of na 7, 30 of 90 dagen. Op die dag halen we ook uw inlogaccount uit onze inlogdienst, en uw Google-adres en dat van een gezinslid van de lijst van testgebruikers bij Google (§6); dat zijn stappen die we met de hand doen. |
-| De geschiedenis die onze inlogdienst van uw inlogaccount bijhoudt: elke wijziging eraan, zoals uw naam en e-mailadres zoals ze waren, en uw inlogmomenten | Zolang we deze inlogdienst draaien, omdat die ze niet kan verwijderen. Het verwijderen van uw inlogaccount voegt een regel aan die geschiedenis toe; het verwijdert de eerdere niet. |
+| Een tweede stap of passkey die u aan uw inlogaccount toevoegde: de versleutelde geheime sleutel van een authenticatie-app, of de openbare sleutel en de naam van een beveiligingssleutel of passkey (§4.4) | Tot u die verwijdert, of tot uw inlogaccount wordt verwijderd. Wat de geschiedenis van onze inlogdienst ervan bijhoudt, blijft zo lang als de rij over die geschiedenis zegt. |
+| De blokkering van uw inlogaccount na 10 verkeerde wachtwoorden op rij (§4.4) | Tot wij uw inlogaccount op uw verzoek weer vrijgeven, of tot het wordt verwijderd. |
+| De geschiedenis die onze inlogdienst van uw inlogaccount bijhoudt: elke wijziging eraan, zoals uw naam en e-mailadres zoals ze waren en een tweede stap of passkey die u toevoegde, ook nadat u die verwijderde; uw inlogmomenten; en elke mislukte poging, zoals een verkeerd wachtwoord (§4.4) | Zolang we deze inlogdienst draaien, omdat die ze niet kan verwijderen. Het verwijderen van uw inlogaccount voegt een regel aan die geschiedenis toe; het verwijdert de eerdere niet. |
 | Uw aanvraag voor toegang (§4.4) | Zolang die openstaat. Afgewezen: verwijderd 30 dagen na ons besluit. Toegekend: bewaard bij uw account, en daarmee gewist. |
 | Een inlogaccount dat iemand op onze inlogpagina aanmaakte maar dat we nooit hebben toegelaten, en dat dus niets opent (§4.4) | 30 dagen nadat het is aangemaakt, tenzij een aanvraag voor toegang met dat adres nog openstaat. |
 | Het inlogaccount van iemand die uit een organisatie is verwijderd en van geen enkele organisatie meer lid is (§4.4) | 7 dagen nadat die persoon is verwijderd, tenzij een aanvraag voor toegang of een uitnodiging met dat adres nog openstaat. |
@@ -700,12 +737,12 @@ rechten gelden jegens ons overal waar §3 ons verwerkingsverantwoordelijke maakt
 in een gemigreerde mailbox, en iedereen die §4.6 noemt, die nooit een account hadden, kunnen naar
 hetzelfde adres schrijven.
 
-**Uw recht van bezwaar.** Waar we op een gerechtvaardigd belang steunen (§5) — onze logs, het
-auditlog, de vastlegging van wat wij bij uw account inzagen, de kopie vlak voor een update, en
-de gegevens van andere mensen in een migratie — kunt u op elk moment bezwaar maken, om redenen
-die met uw situatie te maken hebben. We stoppen dan, tenzij we dwingende gerechtvaardigde
-gronden hebben die zwaarder wegen dan uw belangen, rechten en vrijheden, of de gegevens nodig
-hebben voor een rechtsvordering.
+**Uw recht van bezwaar.** Waar we op een gerechtvaardigd belang steunen (§5) — onze logs, de
+vastlegging van mislukte pogingen (§4.4), het auditlog, de vastlegging van wat wij bij uw account
+inzagen, de kopie vlak voor een update, en de gegevens van andere mensen in een migratie — kunt u op
+elk moment bezwaar maken, om redenen die met uw situatie te maken hebben. We stoppen dan, tenzij we
+dwingende gerechtvaardigde gronden hebben die zwaarder wegen dan uw belangen, rechten en vrijheden,
+of de gegevens nodig hebben voor een rechtsvordering.
 
 **Overdraagbaarheid verdient een opmerking.** Dit product bestaat juist omdat uw eigen gegevens
 tussen aanbieders verplaatsen moeilijker is dan het zou moeten zijn. Wilt u uw gegevens uit

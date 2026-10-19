@@ -356,10 +356,10 @@ be limited. Where this DPA and the terms conflict about the processing of person
 |---|---|
 | **Data subjects** | The controller's users whose accounts are migrated; their correspondents; any person appearing in migrated content |
 | **Personal data — content in transit** | Mail (bodies, attachments, headers), contacts, calendar entries, files — transferred source → target, never warehoused |
-| **Personal data — held** | Account credentials for source and target (encrypted, Annex B); the migration ledger: source-assigned identifiers, hashes of identifier and content, sizes, folder and collection names, each item's name (a message's subject, an event's or task's title, a contact's name, a file's name or path), timestamps, outcomes; preflight counts and per-folder aggregates |
+| **Personal data — held** | Account credentials for source and target (encrypted, Annex B); the migration ledger: source-assigned identifiers, hashes of identifier and content, sizes, folder and collection names, each item's name (a message's subject, an event's or task's title, a contact's name, a file's name or path), timestamps, outcomes; the count made when a migration is reviewed (counts, sizes and per-folder aggregates) |
 | **Special categories** | Not sought; may occur inside migrated content and pass through uninspected, and may appear in the item names the ledger keeps (§4) |
 | **Processing operations** | Read source, write target, keep the ledger, report progress |
-| **Duration & retention** | Credentials: until the controller deletes the connection or the migration that holds them; after the account is closed nothing uses them, and they are destroyed when its data is erased, at the end of the period the controller chose. Ledger, item names included: deleted with the migration. Preflight counts: with the migration they were counted for. Invoices and underlying usage figures: 7 years (Dutch tax law) |
+| **Duration & retention** | Credentials: until the controller deletes the connection or the migration that holds them; after the account is closed nothing uses them, and they are destroyed when its data is erased, at the end of the period the controller chose. Ledger, item names included: deleted with the migration. The count made when a migration is reviewed: with that migration. Invoices and underlying usage figures: 7 years (Dutch tax law) |
 | **Location** | European Union; the service's mail through Proton AG, in Switzerland, on an EU adequacy decision (§12) |
 
 ## Annex B — technical and organisational measures

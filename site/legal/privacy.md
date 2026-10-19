@@ -4,6 +4,59 @@
   accepted any number yet, so the first version testers accept is 1.0, with these words.
   The numbers below (1.2 to 1.6) are the drafts' history, kept for the record; git holds the
   texts. From here every change of words takes a new number again: 1.1, 1.2, and so on.
+
+  v1.1, 2026-10-19, on the owner's approval, in both languages:
+  - §4.3, and the rows of §5 and §9 that name it: the preflight is called by the name the site
+    gives the same count since the owner's answer to workplan 0159 §5 item 26 (2026-10-18),
+    "the count when you review your migration" / "de telling bij het controleren van uw
+    migratie", after the screen where it happens, "Review & confirm your migration" /
+    "Controleer en bevestig uw migratie" (confirm.title, apps/web/src/i18n/strings/confirm.ts).
+    The site's sentence says "wanneer u uw migratie controleert"; as a name the Dutch takes
+    "bij het controleren van". The app's probe.countedAtPreflight (connect.ts) says "when you
+    review the migration" / "wanneer u de migratie controleert". What is counted, what is
+    kept and for how long do not change. "a real migration starts" reads "the migration
+    actually starts" / "de migratie echt begint", because the section now names the
+    migration first.
+  - §4.4 gains "Two-factor sign-in" / "Tweestapsverificatie", §9 two rows, and §9's history
+    row names a second step or passkey and every failed attempt. The sign-in service offers
+    a second step and forces none (an authenticator app, TOTP, or a security key, U2F), allows
+    a passkey for signing in without a password (Zitadel's default PasswordlessType 1, which
+    setup-zitadel.sh copies from the instance; the passkey mail in sign-in-mails.json), and
+    locks a sign-in account after 10 wrong passwords in a row until an operator unlocks it at
+    the person's request (workplan 0135 T4b and T4c, #1612, 780b0fdd: offer_second_factor and
+    set_sign_in_lockout in deploy/compose/setup-zitadel.sh; docs/operator-runbook.md, "A
+    sign-in account locked by wrong passwords"). What it keeps is read in Zitadel's source at
+    v4.19.4 (internal/repository/user), not on a stack: the TOTP secret, encrypted
+    (HumanOTPAddedEvent); the key's public key and the name given to it
+    (HumanWebAuthNVerifiedEvent, also inside HumanPasswordlessVerifiedEvent); and each failed
+    check of a password, an authenticator code, a security key or a passkey, with no password
+    or code (HumanPasswordCheckFailedEvent, HumanOTPCheckFailedEvent, HumanU2FCheckFailedEvent,
+    HumanPasswordlessCheckFailedEvent). At sign-in each carries AuthRequestInfo, which login v1
+    fills with the browser, its language and the IP address; a wrong current password typed
+    while changing the password carries none (checkCurrentPassword passes nil), so §4.4 says
+    "the time" for it. §4.4 says "the browser", as the 1.0 sentence on sessions does for the
+    same AuthRequestInfo. Failed password checks were recorded before #1612 too. All are
+    events, so the history keeps them as it keeps every other change (§9's row, checked
+    2026-10-15).
+  - §5 gains a row: the record of failed attempts and the lock rest on legitimate interests
+    (Art. 6(1)(f), Recital 49), because an attempt can come from someone who is not our
+    customer; the second step itself stays on the account row ("letting you sign in safely",
+    contract). §5's sentence on automated decisions names the lock, and §10's right to object
+    names the record. Question 22 asks the lawyer.
+  - Dutch only: the verbs for signing in and out are the app's pair Aanmelden/Afmelden
+    (workplan 0159 §5 item 13, the owner: yes): "tot u uitlogt" reads "tot u zich afmeldt"
+    (§5), and inloggen reads aanmelden in §3, §4.4, §5 (the table and the cookie sentence) and
+    §7's NetBird row. The nouns inlogdienst, inlogaccount, inlogpagina, inlogcode and
+    inlogmomenten stay. §4.6's family member who "logt ... in bij de eigen aanbieder" stays:
+    that is the provider's own sign-in, which the grant page calls "Log in als". The English
+    "sign in" / "sign out" are the app's words already. Lands with or after the app's
+    Aanmelden/Afmelden build.
+  - §13: 1.1 names processing that 1.0 did not (a second step or passkey, every failed attempt
+    with its browser and IP address, and the lock), so it is a material change. Nobody besides
+    the owner had accepted 1.0 when 1.1 merged (the owner, 2026-10-19: "Nobody yet"), so no
+    notice was owed and 1.1 applies from publication; the app asks every member to accept 1.1.
+  1.0 was final and pinned, so the words take 1.1, in both languages, LEGAL_VERSIONS and
+  ACCEPTED_WORDS.
 -->
 <!--
   FINAL — v1.2, 2026-10-05 (the date on the Last updated line moves to the
@@ -354,11 +407,12 @@
      change before the first tester uses the feature). Please confirm our
      reading of Art. 14(3)(b): the information is due at the first
      communication at the latest. Correspondents in a mailbox stay open.
-  3. Mollie as independent controller; 5. the preflight's basis for someone
-     with no contract yet; 7. invoices kept 7 years (since 1.5 in the
+  3. Mollie as independent controller; 5. the basis of the count when you
+     review your migration (§4.3; "the preflight" until 1.1) for someone with
+     no contract yet; 7. invoices kept 7 years (since 1.5 in the
      bookkeeping system, our copy deleted on erasure and its number kept).
      privacy-after-alpha-questions (a): for the lawyer's pass before the first
-     paid tier, or before a preflight is offered to someone who is not a
+     paid tier, or before that count is offered to someone who is not a
      tester. None arises during the Alpha.
   4. The DPA "on request": settled for the Alpha (households only), and the
      DPA stays unpublished until the first business customer
@@ -478,6 +532,24 @@
       page, the site it came from, its browser and its system. Does such a
       report single somebody out (Recital 26) for someone who knows to whom a
       link was sent?
+  22. Sign-in security (§4.4, §5, §9, §10; v1.1). The sign-in service records
+      each failed attempt (a wrong password, authenticator code, security key
+      or passkey) with the time and, at sign-in, the browser, its language and
+      the IP address, and locks a sign-in account after 10 wrong passwords in
+      a row until we unlock it at the person's request. (a) §5 rests the
+      record and the lock on legitimate interests (Art. 6(1)(f), Recital 49),
+      not on the contract, because an attempt can come from someone who is not
+      our customer; the second step itself stays on the account row
+      (Art. 6(1)(b)). Is that right? (b) The record is an event in the
+      sign-in service's history, so §9 keeps it as long as we run that service
+      (question 19), and so is the encrypted secret of a second step the
+      person removed. Is that proportionate (Recital 49; Art. 5(1)(c) and
+      (e))? (c) §5 names the lock as the one thing that happens by itself. We
+      read it as no decision with legal or similarly significant effects
+      (Art. 22(1)), with a person lifting it on request. Please confirm.
+      (d) A copy for an access request (Art. 15) can hold another person's IP
+      address, when someone else tried the account. We would leave that
+      address out (Art. 15(4)). Please confirm.
 
   Still to do before the first invitation (facts, checks and code; written
   as the list before the draft marker came off on 2026-10-05, and kept as the
@@ -567,6 +639,14 @@
   - By hand until something does it: pruning the support mailbox and its Sent
     folder at Proton under §9's rule.
   - Proton: where its agreement says it processes (question 11).
+  - The operator runbook: how to export one person's events from the sign-in service's
+    history, failed attempts included, for an access request (§10; question 22 (d)).
+  - Live, for 1.1 (§4.4, §9): setup-zitadel.sh from a main that carries #1612 has run on live
+    and logged the lock after 10 wrong passwords and the allowed second factors (OTP, U2F),
+    and the login policy reads passwordlessType PASSWORDLESS_TYPE_ALLOWED; if passkeys are
+    not allowed, every passkey in §4.4 and §9 comes out before 1.1 merges. Best run in the
+    deploy that publishes 1.1, so the lock and the second step do not run under a policy
+    that does not name them (the owner's call).
   - The visit totals (§4.5, §9; the owner, 2026-10-05: "go with GoAccess on
     the logs and the sentence"): the run that counts them, on live's copy of
     the site, with what the comment beside §4.5 lists: no --persist or
@@ -582,8 +662,8 @@
 # Privacy policy
 
 **Applies to:** the Ownpace **managed service** at `ownpace.eu`, and this website.
-**Version:** 1.0
-**Last updated:** 2026-10-11
+**Version:** 1.1
+**Last updated:** 2026-10-19
 
 > **If you run Ownpace yourself**, this policy does not apply to you and there is nothing for
 > us to state: the software runs on your infrastructure, your data never reaches us, and we
@@ -694,13 +774,13 @@ With each migration we also keep the folders it maps, how far each pass got, the
 made about items, the results of its checks, and the list of what was shared (§4.6). With your
 organisation we keep the distribution lists a migration found, with their members' addresses.
 
-### 4.3 What a preflight keeps
+### 4.3 The count when you review your migration
 
-A free preflight reads your source to count what is there. It stores **counts, sizes and
-per-folder aggregates** — not an inventory of individual items — and the provider's reason if
-something could not be counted. Item identifiers reach the ledger only when a real migration
-starts. The counts belong to the migration they were counted for: kept with it, and gone when
-you delete it or your data is erased (§9).
+When you review your migration, Ownpace reads your source to count what is there. That count is
+free. It stores **counts, sizes and per-folder aggregates** — not an inventory of individual
+items — and the provider's reason if something could not be counted. Item identifiers reach the
+ledger only when the migration actually starts. The counts belong to the migration they were
+counted for: kept with it, and gone when you delete it or your data is erased (§9).
 
 ### 4.4 Your request for access, and your account
 
@@ -721,6 +801,20 @@ history of every change to your sign-in account (§9). Anyone can create a sign-
 sign-in page, but it opens nothing until we let that person in. The sign-in service's mail to
 you, such as a sign-in code or a link to reset your password, goes through our mail provider
 (§7).
+
+**Two-factor sign-in.** Besides your password, our sign-in service offers you a second step when
+you sign in: an authenticator app or a security key. That second step is not required. You can
+also add a passkey; with it, you sign in without a password. If you add an authenticator app, the
+sign-in service keeps, encrypted, the secret key that app makes your codes with. If you add a
+security key or a passkey, it keeps its public key and the name you give it; we never receive the
+private key that belongs to it. The sign-in service records every failed attempt: a wrong
+password, a wrong code from your authenticator app, or a security key or passkey that is not
+recognised. It keeps the time, and for an attempt to sign in also the browser and the IP address.
+It never keeps the password or code that was tried. After 10 wrong passwords in a row, it locks
+your sign-in account until we unlock it at your request. All of this serves to protect your
+sign-in account. A second step or passkey is kept until you remove it or your sign-in account is
+removed; what the sign-in service's history keeps of it, and of every failed attempt, stays as
+long as §9 says.
 
 <!-- BUILT 2026-09-28 (0139 T3; the owner, terms-acceptance-route (b): "accepting fits in there
      and should record what time/version the accepted of what document"): after sign-in the app
@@ -935,9 +1029,10 @@ A migration touches people who never signed up with us. This is what we hold abo
 
 | What | Purpose | Lawful basis |
 |---|---|---|
-| Credentials, ledger, preflight counts | Performing the migration you asked for | Contract, including steps you request before one (Art. 6(1)(b)) — on your instructions as processor for an organisation; as controller for a household migration (§3) |
+| Credentials, ledger, the count when you review your migration | Performing the migration you asked for | Contract, including steps you request before one (Art. 6(1)(b)) — on your instructions as processor for an organisation; as controller for a household migration (§3) |
 | Your request for access | Deciding whether to let you in, and telling you | Steps you ask for before a contract (Art. 6(1)(b)) |
 | Your account and sign-in account, invoices, usage figures | Providing the service, letting you sign in safely, and billing for it | Contract (Art. 6(1)(b)); legal obligation for invoice retention (Art. 6(1)(c)). No invoices during the Alpha |
+| The record of failed attempts, and the lock on your sign-in account after 10 wrong passwords in a row (§4.4) | Protecting your sign-in account from use by someone else | Legitimate interests (Art. 6(1)(f)) — yours as much as ours |
 | Your Google address on Google's list of test users (Alpha) | Letting Google allow the connection you ask for | Contract (Art. 6(1)(b)) |
 | Other people's data (§4.6): in what you migrate, a family member's access and address, the people you invite, and the mail to people you shared items with | Carrying out the migration you asked for, letting in the people you invite, and telling people, at your request, where their shared items went | Legitimate interests (Art. 6(1)(f)): yours, in moving your household's mail and files, and ours, in doing it; the limits in §4 and §9 protect theirs |
 | The audit log of who did what in your organisation, and when | Showing you, and us, what was done in your organisation and by whom | Legitimate interests (Art. 6(1)(f)) |
@@ -953,9 +1048,10 @@ your browser's own storage until you sign out, and remembers your language and a
 there; it sets no cookie of its own, and neither does this website. Our sign-in page sets the
 cookies that signing in needs. This website loads nothing from other servers.
 
-We make no decision about you by automated means alone: a person decides every request for
-access. To take part, you give us your email address; to connect a Google account during the
-Alpha, you also give us its address. Without them we cannot let you in, or connect that account.
+We make no decision about you by automated means alone: a person decides every request for access.
+Only the lock after 10 wrong passwords in a row (§4.4) happens by itself, and we lift it when you
+ask. To take part, you give us your email address; to connect a Google account during the Alpha, you
+also give us its address. Without them we cannot let you in, or connect that account.
 
 ## 6. Google user data — the specific commitments
 
@@ -1168,6 +1264,23 @@ target. We show you the target before anything is written.
        (privacy-signin-history (a), the owner: "still needs to be checked"): CHECKED 2026-10-15 on the test stack (Zitadel v4.19.4), the owner: a test account's
        entries went from 6 to 7 when it was removed (one removal entry added), and the one
        holding its address stayed (1 to 1). The history is kept, as the row says; it stands.
+     - A second step or passkey, and the lock after 10 wrong passwords
+       (§4.4; workplan 0135 T4b and T4c, #1612, 780b0fdd): deploy/compose/setup-zitadel.sh
+       forces no second factor, allows TOTP and U2F (offer_second_factor) and locks after
+       SIGN_IN_LOCKOUT_PASSWORDS=10 (set_sign_in_lockout); managed.yml gives a fresh instance
+       the same. A passkey is allowed by Zitadel's default
+       login policy (PasswordlessType 1), which setup-zitadel.sh copies and does not check. The
+       unlock is docs/operator-runbook.md, "A sign-in account locked by wrong passwords". True
+       on live once setup-zitadel.sh from a main that carries #1612 has run there and the login
+       policy reads PASSWORDLESS_TYPE_ALLOWED; nothing had called a real Zitadel with it on
+       2026-10-17 (0135 Status). What the rows name is read in Zitadel's source at v4.19.4, not
+       on a stack: the secret in HumanOTPAddedEvent, the public key and name in
+       HumanWebAuthNVerifiedEvent, and a failed check of a password, an authenticator code, a
+       security key or a passkey, with no password or code, in HumanPasswordCheckFailedEvent,
+       HumanOTPCheckFailedEvent, HumanU2FCheckFailedEvent and HumanPasswordlessCheckFailedEvent;
+       at sign-in each carries the browser, its language and the address, and a wrong current
+       password typed while changing the password carries none. All are events, so the history
+       row holds for them as for the rest.
      - A sign-in account nobody let in, "30 days after it was created", and a removed member's,
        "7 days after they were removed" (ops-unadmitted-signin-cleanup (a), "A daily script,
        built before the first tester"; 0135 open question 13, answered 2026-09-29: "Samen number
@@ -1206,7 +1319,7 @@ target. We show you the target before anything is written.
 |---|---|
 | Credentials | Until you delete them. The access on a connection goes when you delete that connection; the app lets you once no migration uses it. Access a family member gave through a grant link goes when you delete that migration, or when they withdraw it on their progress page. A finished migration keeps the access you gave us, so that you can resume it. If you close your account, no new work starts with any of it from then on. Work that is already running finishes what it is doing at that moment, and then stops. A pass of a migration can carry on for about fifteen seconds after the close, and then finishes what it began. If you connected a whole Microsoft 365 organisation, a daily check that had already started can still read, once, the list of its mailboxes, and the list of its distribution lists and groups with their members' addresses (§11 of the terms). All of it is destroyed when your data is erased. Each time, we also revoke the access at the provider, where the provider allows that. |
 | The migration ledger (§4.2), and what each migration keeps beside it, such as the list of what was shared (§4.6) | Until you delete the migration; then deleted with it. Otherwise until your data is erased. |
-| Preflight counts | With the migration they were counted for: until you delete it, or your data is erased. |
+| The count when you review your migration (§4.3) | With the migration it was made for: until you delete that migration, or your data is erased. |
 | What belongs to your organisation rather than to one migration: its members and invitations, the distribution lists a migration found, and the audit log of who did what, and when | Until your data is erased, also after you delete the migration that found them. |
 | Which versions of the Alpha conditions, the terms and this policy each member accepted, in which language, and when (§4.4) | Until your data is erased, also after that member has left your organisation, so that it stays on record who agreed to what. |
 | The people you migrate for: each one's name, and an email address if you gave one (§4.6) | Until you delete that person, or your data is erased. Deleting a migration does not delete the person. |
@@ -1214,7 +1327,9 @@ target. We show you the target before anything is written.
 | A pass's log lines | 60 days. |
 | The app's own errors and warnings (a category and a reference, no text) | 30 days. |
 | Your account, your organisation and your sign-in account | While your account exists. When you close it, you choose when your data is erased: at once, or after 7, 30 or 90 days. On that day we also remove your sign-in account from our sign-in service, and take your Google address, and any family member's, off Google's list of test users (§6); these are steps we take by hand. |
-| The history our sign-in service keeps of your sign-in account: every change to it, such as your name and email address as they were, and your sign-ins | As long as we run this sign-in service, because it cannot remove them. Removing your sign-in account adds an entry to that history; it does not remove the earlier ones. |
+| A second step or passkey you added to your sign-in account: an authenticator app's secret key, encrypted, or a security key's or passkey's public key and name (§4.4) | Until you remove it, or your sign-in account is removed. What our sign-in service's history keeps of it stays as long as the row on that history says. |
+| The lock on your sign-in account after 10 wrong passwords in a row (§4.4) | Until we unlock your sign-in account at your request, or it is removed. |
+| The history our sign-in service keeps of your sign-in account: every change to it, such as your name and email address as they were and a second step or passkey you added, also after you removed it; your sign-ins; and every failed attempt, such as a wrong password (§4.4) | As long as we run this sign-in service, because it cannot remove them. Removing your sign-in account adds an entry to that history; it does not remove the earlier ones. |
 | Your request for access (§4.4) | While it is open. Declined: deleted 30 days after our decision. Granted: kept with your account, and erased with it. |
 | A sign-in account that someone created at our sign-in page but that we never let in, and that therefore opens nothing (§4.4) | 30 days after it was created, unless a request for access with that address is still open. |
 | The sign-in account of someone who was removed from an organisation and is no longer a member of any (§4.4) | 7 days after they were removed, unless a request for access or an invitation with that address is still open. |
@@ -1244,11 +1359,11 @@ writing from the address your account uses. These rights hold against us whereve
 controller — and the people in a migrated mailbox, and anyone else §4.6 names, who never held
 an account, can write to the same address.
 
-**Your right to object.** Where we rely on legitimate interests (§5) — our logs, the audit log,
-the record of what we viewed on your account, the copy made before an update, and the data of
-other people in a migration — you may object at any time, on grounds relating to your situation.
-We then stop, unless we have compelling legitimate grounds that override your interests, rights
-and freedoms, or need the data for a legal claim.
+**Your right to object.** Where we rely on legitimate interests (§5) — our logs, the record of
+failed attempts (§4.4), the audit log, the record of what we viewed on your account, the copy made
+before an update, and the data of other people in a migration — you may object at any time, on
+grounds relating to your situation. We then stop, unless we have compelling legitimate grounds that
+override your interests, rights and freedoms, or need the data for a legal claim.
 
 **Portability deserves a note.** This whole product exists because moving your own data between
 providers is harder than it should be. If you want your data out of Ownpace, you already have

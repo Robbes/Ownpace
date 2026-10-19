@@ -106,6 +106,17 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   'privacy.nl.md@1.0': '73230b94a258a3ebec6022b8a4fd97c9f5d00f1d6711c9eeaf8f7d48deb168b5',
   'terms.md@1.0': '25d9f3035f223a8d2981ca582fb3173ce968211271d7121b799769e7c5538ba1',
   'terms.nl.md@1.0': 'be8ee22678cfc3411d67cf8b938b6fd1fd49d12c464768f6125de001cf142b08',
+  // 1.1, 2026-10-19, on the owner's approval: the first new number after 1.0, all six together
+  // (alpha §6 and §8, terms §2, privacy §3 to §10; each file's briefing says what changed). The
+  // 1.0 pins above stay, as the words any stored acceptance of 1.0 refers to: the owner's own
+  // accounts at most, since nobody besides the owner had accepted 1.0 (the owner, 2026-10-19:
+  // "Nobody yet"). The guard reads only the pin under each file's current number.
+  'alpha.md@1.1': 'a56f408aa737a105deeadfade87b63c39a599435644603648907c3fd6bbdd25d',
+  'alpha.nl.md@1.1': '4047c60870042cbfef16d8c1190ed55f1b66f43bbf5355fa30d4f0a46c908c78',
+  'privacy.md@1.1': '5bd261061ba00e53839a928cb895d842b1a38b92327be7e9ca001b33c0eb763c',
+  'privacy.nl.md@1.1': '1d41945edf3602ea0b811fc64b8027e46bebde9f691044e85bf5ac283f6fdac4',
+  'terms.md@1.1': 'f9b8506742ad64a390266af7af48fe178f2f437e4f58dd01e9a4159d488c0c66',
+  'terms.nl.md@1.1': 'b6e91143b6d576cd5cf32b13248259ba055db2308e74ea001253ba6941f2479f',
 };
 
 /** The digest `ACCEPTED_WORDS` pins: the text outside HTML comments, white space collapsed. */
