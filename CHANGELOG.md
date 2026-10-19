@@ -6,6 +6,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **Version 1.1 of the Alpha conditions, the terms and the privacy statement**
+  (workplan 0159 row 24, the owner's approval of 2026-10-19, #1639): the two
+  deletion switches carry the app's names; the Dutch texts say *aanmelden* and
+  *afmelden*; the count before a migration is *the count when you review your
+  migration*, no longer a *preflight*; and the privacy statement says what
+  two-factor sign-in, passkeys and the lock after ten wrong passwords keep, on
+  which basis, for how long, and that you can object. Nobody besides the owner
+  had accepted 1.0, so 1.1 applies from publication.
+- **On a phone, a migration draws its two tiles once, under its name** (workplan
+  0159 row 19, #1638); each data type keeps its icon, name, state and sentence,
+  and a computer shows the page as before.
 - **The permission report comes in the reader's language** (workplan 0144): the
   Finish page asks for it in the screen's language (`lang=nl` or `lang=en` on
   `GET /api/permissions/report` and the appliance's `/permissions/report`), and

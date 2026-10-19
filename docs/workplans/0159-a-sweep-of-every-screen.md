@@ -2,7 +2,16 @@
 
 > **In one line:** Every screen of the managed app and the public site, in English and Dutch, on a phone and a desktop, looked at as a tester meets it: what reads wrong, does not fit or a screen reader cannot follow is fixed where the words are ours, and put to the owner where they are the owner's.
 
-## Status — 2026-10-18 (update this block at the end of every session)
+## Status — 2026-10-19 (update this block at the end of every session)
+
+**2026-10-19: round 2 answered and built; all 31 items done.** The owner answered rows 19 and 24
+on 2026-10-19: *Yes* to the tiles drawn once on a phone, and *Yes* to all four cards of version
+1.1 of the legal texts. Asked whether anyone besides the owner had accepted version 1.0, the
+owner answered *nobody yet*, so privacy §13's 30 days' notice by email was owed to nobody and 1.1
+applies from publication. #1638 draws the tiles once, under the migration's name, on a phone only.
+#1639 is version 1.1 of the Alpha conditions, the terms and the privacy statement, applied word
+for word from the draft the owner approved, with its version pins. Each was built from main, a
+second reviewer tried to break it, and it merged on its own after `ci-complete` was green.
 
 **2026-10-18: the owner's answers, built and merged; two asked again.** The owner answered the 31
 questions of §5 on a page that offered *Yes*, *Keep* or their own words for each item. 29 were
@@ -247,12 +256,12 @@ later PR builds the answers.
 | 16 | Dutch *Instellen* reads as an action, not as the link to the setup checklist | **Yes** — #1632 |
 | 17 | The checklist title *Aanbieder instellen* and the English intro (the destination's sentence is T6's) | **Yes** — #1632 |
 | 18 | Lines a person reads call providers *IMAP* and *JMAP* where the wizard said *Another mail provider* | **Yes** — #1632 |
-| 19 | On a phone each data type repeats the same *source → destination* tiles | **Asked again** (2026-10-18): the owner said round 1 was not in Dutch; round 2 shows a phone-only prototype, before and after |
+| 19 | On a phone each data type repeats the same *source → destination* tiles | **Yes** (round 2, 2026-10-19) — #1638 |
 | 20 | *Mail with no Message-ID* on Review and confirm (kept in #1596) | **Yes** — #1632 |
 | 21 | During the Alpha, Billing shows *Data verplaatst, in totaal: 0 GB* under *Alle gegevens: 214 GB* | **Yes** — #1632 |
 | 22 | Other words from the owner's review of 2026-10-10 that drift from the glossary | **Yes** — #1632, with `access.noteHint` in #1633 and `finish.ending.phase.cutover` in #1635 |
 | 23 | Dutch says *provider* where the rest of the app says *aanbieder*, the grant and progress pages included | **Yes** — #1633 |
-| 24 | The Alpha conditions and the terms still use the old names of the two deletion switches | **Asked again** (2026-10-18): the owner said the proposed Dutch held English; round 2 is a checked draft of version 1.1 of the three legal texts |
+| 24 | The Alpha conditions and the terms still use the old names of the two deletion switches | **Yes** (round 2, 2026-10-19), with the rest of version 1.1 of the legal texts — #1639 |
 | 25 | The site's hero paragraph (0144 P5a): *Geen big bang* / *No big-bang cutover* | **Yes** — #1631 |
 | 26 | The site promises a *free preflight* the app never names (privacy §4.3 says preflight) | **Yes** — #1630 |
 | 27 | The Dutch home page says in two ways that nothing is deleted at the source | **Yes** — #1631 |
@@ -298,6 +307,14 @@ count before a migration renamed (privacy §4.3, §5, §9), and two-factor sign-
 the lock after ten wrong passwords (privacy §4.4, §5, §9, §10, on a legitimate-interest basis).
 It also asks whether anyone besides the owner accepted 1.0, since privacy §13 promises 30 days'
 notice by email of a material change. Nothing in `site/legal` changes before the owner says yes.
+
+**Round 2, answered.** On 2026-10-19 the owner said *Yes* to row 19 and *Yes* to all four cards of
+row 24, and answered that nobody besides the owner had accepted 1.0. #1638 built row 19: on a
+phone, `MigrationTiles` draws the two tiles once under the migration's name on the Migrations list
+and a person's page, and each line keeps its data type, chip and sentence; from `sm` up nothing
+changed, and the site's picture of a person's page was taken again. #1639 built row 24 as version
+1.1 of the three texts, dated 2026-10-19: `LEGAL_VERSIONS`, the hashes a tester accepts and the
+legal README's table say 1.1, and the privacy briefing records that no notice was owed.
 Both wait for the owner.
 
 **Deviations worth recording.**
@@ -382,9 +399,9 @@ Both wait for the owner.
 13. **Verify's sentences have no singular** (#1635). With one item they read *1 email items are
     on the old system…* / *1 items (e-mail) staan…* and *1 sampled … items differ*. They are the
     owner's approved words, so a singular form is the owner's call.
-14. **The privacy statement keeps *preflight*** (§4.3, §5 and §9, in both languages) until its
-    version 1.1, where #1630 left it. Round 2 of row 24 proposes a new name for it; nothing in
-    `site/legal` changes before the owner says yes.
+14. ~~**The privacy statement keeps *preflight*** (§4.3, §5 and §9, in both languages) until its
+    version 1.1, where #1630 left it.~~ **Resolved in #1639**: version 1.1 names it *the count when
+    you review your migration* / *de telling bij het controleren van uw migratie*.
 15. **With *Technical details* open, an unknown finding's text shows twice** (#1635): in the list,
     since no sentence of ours covers it, and again in the fold beside its id.
 16. **Words #1632 left for a later round**, as the owner did not name them: Review and start's
@@ -403,8 +420,8 @@ Both wait for the owner.
 
 ## Open questions
 
-1. **The owner's items** still open: two of 31, both asked again on 2026-10-18 (§5): row 19, the
-   tiles on a phone, and row 24, the legal texts' version 1.1.
+1. ~~**The owner's items** still open: two of 31.~~ **None**: rows 19 and 24 were answered on
+   2026-10-19 and built in #1638 and #1639 (§5).
 2. **Follow-up 4.** Words for an expired sign-in whose side is not known.
 3. **Follow-up 5.** One Dutch word for the Gmail mailbox.
 4. ~~**Follow-up 3.** Words for an inferred row under *Waiting on you*.~~ **Built in #1634**, in
