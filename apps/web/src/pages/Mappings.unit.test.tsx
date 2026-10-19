@@ -888,3 +888,59 @@ describe('Migrations — a line per data type says where it is (0154 T1 (b))', (
     expect(within(card).queryByText('Ready to switch')).not.toBeInTheDocument();
   });
 });
+
+/**
+ * ON A PHONE, A MIGRATION DRAWS ITS TWO TILES ONCE, UNDER ITS NAME (the owner,
+ * 2026-10-19, workplan 0159 round 2; `MigrationLines.tsx`'s header). Every
+ * migration, whether it moves one data type or several: its pair right under
+ * its name, before its actions and lines, below `sm` only; each line's own pair
+ * from `sm` up only. jsdom applies no CSS, so this reads the classes.
+ */
+describe('Migrations — on a phone, a migration draws its two tiles once, under its name (2026-10-19)', () => {
+  const MAIL = sampleMapping({ id: 'm-mail', name: 'Anna — Gmail to Soverin', sourceType: 'gmail', targetType: 'soverin', domains: ['email'] });
+  const GOOGLE = sampleMapping({
+    id: 'm-google',
+    name: 'Anna — Google to Soverin',
+    sourceType: 'google',
+    targetType: 'soverin',
+    domains: ['calendar', 'contact'],
+  });
+  const LOOSE = sampleMapping({ id: 'm-loose', name: 'Inbox', sourceType: 'o365', targetType: 'nextcloud', domains: ['email', 'file'] });
+  /** Every pair of tiles in `root`: the arrow's parent. */
+  const pairsIn = (root: ParentNode) =>
+    [...root.querySelectorAll('span[aria-hidden="true"]')].filter((a) => a.textContent === '→').map((a) => a.parentElement!);
+  const before = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) && !a.contains(b);
+
+  it('draws one pair per migration under its name, before its actions and lines, and each line’s from sm up only', async () => {
+    listMock.mockResolvedValue([MAIL, GOOGLE, LOOSE]);
+    peopleMock.mockResolvedValue({
+      people: [
+        person('p-anna', 'Anna', [
+          { id: 'm-mail', status: 'active' },
+          { id: 'm-google', status: 'active' },
+        ]),
+      ],
+      unassigned: [{ id: 'm-loose', status: 'active' }],
+    });
+
+    renderMappings();
+    await screen.findByRole('region', { name: 'Anna' });
+
+    for (const m of [MAIL, GOOGLE, LOOSE]) {
+      const block = document.querySelector<HTMLElement>(`[data-migration="${m.id}"]`)!;
+      const pairs = pairsIn(block);
+      const once = pairs.filter((p) => p.classList.contains('sm:hidden'));
+      const perLine = pairs.filter((p) => p.classList.contains('hidden') && p.classList.contains('sm:flex'));
+      expect(once, `${m.name}: not one pair on a phone`).toHaveLength(1);
+      expect(perLine, `${m.name}: a line draws its pair on a phone`).toHaveLength(m.domains.length);
+      expect(pairs).toHaveLength(m.domains.length + 1);
+      const [tiles] = once;
+      // A row of its own in the name's wrapping row: under the name, above the actions.
+      expect(tiles!.classList).toContain('w-full');
+      const name = within(block).getByRole('link', { name: m.name });
+      expect(before(name, tiles!), `${m.name}: the pair is above the name`).toBe(true);
+      expect(before(tiles!, within(block).getByTitle('Delete')), `${m.name}: the pair is below the actions`).toBe(true);
+      expect(before(tiles!, block.querySelector('[data-domain]')!), `${m.name}: the pair is below the lines`).toBe(true);
+    }
+  });
+});

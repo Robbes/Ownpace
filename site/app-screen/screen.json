@@ -7,7 +7,7 @@
     },
     "person-phone.en.webp": {
       "width": 390,
-      "height": 662
+      "height": 590
     },
     "person.nl.webp": {
       "width": 992,
@@ -19,7 +19,7 @@
     }
   },
   "words": {
-    "en": "Anna Jansen Copying From Google and Dropbox to Soverin and Nextcloud Anna — Gmail to Soverin Details → Email G Gmail → to S Soverin Kept in step 18,234 of ~19,000 · last pass 2 minutes ago Anna — Google to Soverin Details → Calendar G Google account → to S Soverin Copying 1,204 of ~2,000 Contacts G Google account → to S Soverin Kept in step 612 of ~612 · last pass 10 minutes ago Anna — Dropbox to Nextcloud Details → Files D Dropbox → to N Nextcloud Copying 12.4 of ~38.0 GB Add a migration",
-    "nl": "Anna Jansen Wordt gemigreerd Van Google en Dropbox naar Soverin en Nextcloud Anna — Gmail naar Soverin Details → E-mail G Gmail → naar S Soverin Wordt bijgehouden 18.234 van ~19.000 · laatste ronde 2 minuten geleden Anna — Google naar Soverin Details → Agenda G Google-account → naar S Soverin Wordt gemigreerd 1.204 van ~2.000 Contacten G Google-account → naar S Soverin Wordt bijgehouden 612 van ~612 · laatste ronde 10 minuten geleden Anna — Dropbox naar Nextcloud Details → Bestanden D Dropbox → naar N Nextcloud Wordt gemigreerd 12,4 van ~38,0 GB Migratie toevoegen"
+    "en": "Anna Jansen Copying From Google and Dropbox to Soverin and Nextcloud Anna — Gmail to Soverin Details → G Gmail → to S Soverin Email G Gmail → to S Soverin Kept in step 18,234 of ~19,000 · last pass 2 minutes ago Anna — Google to Soverin Details → G Google account → to S Soverin Calendar G Google account → to S Soverin Copying 1,204 of ~2,000 Contacts G Google account → to S Soverin Kept in step 612 of ~612 · last pass 10 minutes ago Anna — Dropbox to Nextcloud Details → D Dropbox → to N Nextcloud Files D Dropbox → to N Nextcloud Copying 12.4 of ~38.0 GB Add a migration",
+    "nl": "Anna Jansen Wordt gemigreerd Van Google en Dropbox naar Soverin en Nextcloud Anna — Gmail naar Soverin Details → G Gmail → naar S Soverin E-mail G Gmail → naar S Soverin Wordt bijgehouden 18.234 van ~19.000 · laatste ronde 2 minuten geleden Anna — Google naar Soverin Details → G Google-account → naar S Soverin Agenda G Google-account → naar S Soverin Wordt gemigreerd 1.204 van ~2.000 Contacten G Google-account → naar S Soverin Wordt bijgehouden 612 van ~612 · laatste ronde 10 minuten geleden Anna — Dropbox naar Nextcloud Details → D Dropbox → naar N Nextcloud Bestanden D Dropbox → naar N Nextcloud Wordt gemigreerd 12,4 van ~38,0 GB Migratie toevoegen"
   }
 }
