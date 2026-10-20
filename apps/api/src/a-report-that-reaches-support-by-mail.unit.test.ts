@@ -28,11 +28,12 @@
  * - **a mail the relay refused:** answered as a Zammad refusal is, a 502 with
  *   a reference, recorded as `report.not-delivered`;
  * - **a relay that does not answer:** given up on at `REPORT_MAIL_DEADLINE_MS`,
- *   twenty seconds, however many addresses it has. nodemailer's waits restart
- *   at each address it falls back to, so they alone do not bound a send: with
- *   nodemailer itself, over a relay that resolves to several addresses and
- *   lets every connection hang, the send ends inside the deadline. A mail that
- *   went out after it was given up on is said in the log;
+ *   twenty seconds, however many addresses it has. With nodemailer itself,
+ *   over a relay that resolves to several addresses and lets every connection
+ *   hang, connecting is given up on at `connectionMs` however many addresses
+ *   there are (nodemailer 10.1 bounds all of connecting with it; up to 10.0
+ *   each address had its own), well inside the deadline. A mail that went out
+ *   after it was given up on is said in the log;
  * - **the same per-person limit**, and for a link's report the same per-link
  *   one, and a day's cap on every report mail together, since the relay's
  *   login sends the identity provider's sign-in codes too: the one count the
@@ -48,6 +49,7 @@
 
 import { describe, it, expect, vi, afterEach, beforeEach, beforeAll, afterAll } from 'vitest';
 import net from 'node:net';
+import type { LookupAddress } from 'node:dns';
 import express from 'express';
 import request from 'supertest';
 import { dnsCache } from 'nodemailer/lib/shared';
@@ -489,17 +491,35 @@ describe('a relay that does not answer', () => {
    * connection hang, its first packet dropped, as smtp.protonmail.ch's three
    * would if they stopped answering. nodemailer's own name cache is filled, so
    * no name is looked up, and `net.connect` hands back a socket that never
-   * connects, so nothing leaves the machine. Returns the addresses tried.
+   * connects, so nothing leaves the machine. Returns what each `net.connect`
+   * was given.
    */
-  function aRelayThatLetsEveryConnectionHang(host: string, addresses: string[]): string[] {
+  function aRelayThatLetsEveryConnectionHang(host: string, addresses: string[]): net.TcpNetConnectOpts[] {
     hosts.push(host);
     dnsCache.set(host, { value: { addresses }, expires: Date.now() + 60 * 60 * 1000 });
-    const tried: string[] = [];
+    const connects: net.TcpNetConnectOpts[] = [];
     vi.spyOn(net, 'connect').mockImplementation(((options: net.TcpNetConnectOpts) => {
-      tried.push(String(options.host));
+      connects.push(options);
       return new net.Socket();
     }) as unknown as typeof net.connect);
-    return tried;
+    return connects;
+  }
+
+  /**
+   * The addresses one `net.connect` would try, in turn, asked of the lookup
+   * nodemailer handed it, as Node asks it (`all`). A connect without one
+   * tries only its host.
+   */
+  async function addressesTried(options: net.TcpNetConnectOpts): Promise<string[]> {
+    const { lookup } = options;
+    if (!lookup) return [String(options.host)];
+    const all = new Promise<string[]>((resolve, reject) =>
+      lookup(String(options.host), { all: true }, (err, list) =>
+        err ? reject(err) : resolve((list as LookupAddress[]).map((entry) => entry.address)),
+      ),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    return all;
   }
 
   it('is given up on at the deadline, whatever the transport is still doing', async () => {
@@ -545,32 +565,44 @@ describe('a relay that does not answer', () => {
     expect(warned[1]).toContain('a report mail given up on at 20 seconds failed after all: 421 closing the connection');
   });
 
-  it("with nodemailer itself: tries each of the relay's three addresses, and ends inside the deadline", async () => {
+  /**
+   * Since nodemailer 10.1, its `connectionTimeout` covers ALL of connecting:
+   * the name lookup and every address. It hands the addresses to one
+   * `net.connect`, which tries them in turn, each with its share of the time
+   * left. Up to 10.0 each address had a fresh `connectionTimeout`, so a relay
+   * with three hanging addresses took three times as long; these two pin the
+   * new rule, so a nodemailer that went back to the old one is noticed.
+   */
+  it("with nodemailer itself: tries each of the relay's three addresses, in one connect, and ends inside the deadline", async () => {
     vi.useFakeTimers();
     const addresses = ['192.0.2.1', '192.0.2.2', '192.0.2.3'];
-    const tried = aRelayThatLetsEveryConnectionHang('three.relay.example.invalid', addresses);
+    const connects = aRelayThatLetsEveryConnectionHang('three.relay.example.invalid', addresses);
     const started = Date.now();
-    let when: { ms: number; tried: string[]; error: unknown } | undefined;
+    let when: { ms: number; error: unknown } | undefined;
     const sending = sendReportMail(RELAY_CONFIG('three.relay.example.invalid'), { subject: 's', body: 'b' }).catch(
-      (error: unknown) => void (when = { ms: Date.now() - started, tried: [...tried], error }),
+      (error: unknown) => void (when = { ms: Date.now() - started, error }),
     );
     await vi.advanceTimersByTimeAsync(30_000);
     await sending;
 
-    // nodemailer's own failure, after all three: not the deadline's.
-    expect(when!.tried.sort()).toEqual(addresses);
+    // nodemailer's own failure, at the end of connecting: not the deadline's.
+    expect(connects).toHaveLength(1);
+    expect((await addressesTried(connects[0]!)).sort()).toEqual(addresses);
+    const share = (connects[0] as net.TcpNetConnectOpts & { autoSelectFamilyAttemptTimeout?: number })
+      .autoSelectFamilyAttemptTimeout;
+    expect(share! * addresses.length).toBeLessThanOrEqual(REPORT_MAIL_TIMEOUTS.connectionMs);
     expect(String(when!.error)).toMatch(/Connection timeout/);
-    expect(when!.ms).toBe(addresses.length * REPORT_MAIL_TIMEOUTS.connectionMs);
+    expect(when!.ms).toBe(REPORT_MAIL_TIMEOUTS.connectionMs);
     expect(when!.ms + REPORT_MAIL_TIMEOUTS.greetingMs).toBeLessThanOrEqual(REPORT_MAIL_DEADLINE_MS);
   });
 
-  it('with nodemailer itself: is given up on at the deadline however many addresses the relay has, not after all of them', async () => {
+  it('with nodemailer itself: six addresses are given up on as soon as three, inside the deadline, not after all of them', async () => {
     vi.useFakeTimers();
     const warned: string[] = [];
     vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => void warned.push(args.map(String).join(' ')));
-    // Six: 6 × 5 s is thirty seconds of connecting, just when a link's page gives up.
+    // Six: at 5 s each, up to nodemailer 10.0, thirty seconds of connecting, just when a link's page gives up.
     const addresses = ['192.0.2.1', '192.0.2.2', '198.51.100.1', '198.51.100.2', '203.0.113.1', '203.0.113.2'];
-    const tried = aRelayThatLetsEveryConnectionHang('six.relay.example.invalid', addresses);
+    const connects = aRelayThatLetsEveryConnectionHang('six.relay.example.invalid', addresses);
     const started = Date.now();
     let when: { ms: number; error: unknown } | undefined;
     const sending = sendReportMail(RELAY_CONFIG('six.relay.example.invalid'), { subject: 's', body: 'b' }).catch(
@@ -579,11 +611,13 @@ describe('a relay that does not answer', () => {
     await vi.advanceTimersByTimeAsync(40_000);
     await sending;
 
-    expect(when!.ms).toBe(REPORT_MAIL_DEADLINE_MS);
-    expect(String(when!.error)).toContain('the relay did not take the report mail within 20 seconds');
-    // nodemailer went on to the last address, and its failure was said when it came.
-    expect(tried.sort()).toEqual([...addresses].sort());
-    expect(warned.join('\n')).toMatch(/given up on at 20 seconds failed after all: .*Connection timeout/);
+    expect(connects).toHaveLength(1);
+    expect((await addressesTried(connects[0]!)).sort()).toEqual([...addresses].sort());
+    expect(String(when!.error)).toMatch(/Connection timeout/);
+    expect(when!.ms).toBe(REPORT_MAIL_TIMEOUTS.connectionMs);
+    expect(when!.ms).toBeLessThan(REPORT_MAIL_DEADLINE_MS);
+    // Given up on by nodemailer, so the deadline had nothing to give up on and nothing to say later.
+    expect(warned.join('\n')).not.toMatch(/given up on at 20 seconds/);
   });
 });
 

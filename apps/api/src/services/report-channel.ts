@@ -117,13 +117,15 @@ export function reportChannel(env: NodeJS.ProcessEnv = process.env): ReportChann
  * seconds to connect, five for the greeting, twenty of silence after that.
  * Nodemailer's own defaults are two minutes, thirty seconds and ten minutes.
  *
- * These bound each wait, not the send. When a connection times out, nodemailer
- * tries the relay's next address with a fresh `connectionMs`, and
- * `smtp.protonmail.ch` resolves to three. With ten seconds to connect, a relay
- * that let every connection hang was given up on only after thirty (0130 T5's
- * review), just when a link's page stops waiting. So
- * {@link REPORT_MAIL_DEADLINE_MS} bounds the send, and five seconds to connect
- * lets three addresses be tried, and the greeting waited for, inside it.
+ * These bound each wait, not the send. Since nodemailer 10.1, `connectionMs`
+ * covers all of connecting: the name lookup and every address the relay
+ * resolves to (`smtp.protonmail.ch` resolves to three), tried in turn, each
+ * with its share. Up to 10.0 each address had a fresh `connectionMs`, and with
+ * ten seconds to connect a relay that let every connection hang was given up
+ * on only after thirty (0130 T5's review), just when a link's page stops
+ * waiting. So {@link REPORT_MAIL_DEADLINE_MS} bounds the send whatever the
+ * transport does, and five seconds to connect leaves the greeting room inside
+ * it.
  */
 export const REPORT_MAIL_TIMEOUTS: SmtpTimeouts = { connectionMs: 5_000, greetingMs: 5_000, socketMs: 20_000 };
 
