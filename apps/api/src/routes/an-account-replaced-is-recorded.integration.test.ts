@@ -22,6 +22,8 @@
  *   `accountStored: false`: somebody tried;
  * - a request refused before any probe, or for another organisation's
  *   connection, writes none;
+ * - nor does one whose connection was deleted while the new account was
+ *   probed: the update changed nothing, so the answer is 404, not `rotated`;
  * - no address, user name or password goes in the record;
  * - the update and its record are one transaction: a record that cannot be
  *   written leaves the old account in place.
@@ -38,14 +40,17 @@ import supertest from 'supertest';
 import jwt from 'jsonwebtoken';
 import { SecretStore } from '@openmig/core/secret-store';
 
-const probe = vi.hoisted(() => ({ ok: true }));
+/** The stubbed probe's answer, and what happens while it is being asked (a delete, say). */
+const probe = vi.hoisted(() => ({ ok: true, meanwhile: undefined as undefined | (() => Promise<unknown>) }));
 
 vi.mock('@openmig/orchestration/probe-connection', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@openmig/orchestration/probe-connection')>();
-  const answer = async () =>
-    probe.ok
+  const answer = async () => {
+    await probe.meanwhile?.();
+    return probe.ok
       ? { ok: true, detail: 'stubbed', outcome: { code: 'connectedSession' } }
       : { ok: false, reason: 'stubbed', outcome: { code: 'providerRefused' } };
+  };
   return { ...actual, probeTargetConnection: vi.fn(answer), probeSourceConnection: vi.fn(answer) };
 });
 
@@ -77,6 +82,7 @@ const { resetProbeTestLimit } = await import('../probe-limit.ts');
 const TENANT = '7c4a0000-e29b-41d4-a716-446655440001';
 const OTHER = '7c4a0000-e29b-41d4-a716-446655440002';
 const TARGET = '7c4a0000-e29b-41d4-a716-446655440011';
+const SOURCE = '7c4a0000-e29b-41d4-a716-446655440012';
 
 const OLD = { username: 'anna@example.invalid', password: 'the-old-password' };
 const NEW = { url: 'https://cloud.example.invalid/remote.php/dav', username: 'someone-else@example.invalid', password: 'a-new-password' };
@@ -135,9 +141,10 @@ describe('PUT /api/connections/:id/credentials records who replaced the account'
 
   beforeEach(async () => {
     probe.ok = true;
+    probe.meanwhile = undefined;
     resetProbeTestLimit();
     await pool.query(`DELETE FROM audit_log WHERE tenant_id IN ($1, $2)`, [TENANT, OTHER]);
-    await pool.query(`DELETE FROM connection WHERE id = $1`, [TARGET]);
+    await pool.query(`DELETE FROM connection WHERE id IN ($1, $2)`, [TARGET, SOURCE]);
     await pool.query(
       `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, secret_ref, status)
        VALUES ($1, $2, 'target', 'nextcloud', 'Anna at the family cloud', $3, $4, 'connected')`,
@@ -161,6 +168,41 @@ describe('PUT /api/connections/:id/credentials records who replaced the account'
     });
     // Not the old account, not the new one, not the password, not the server.
     expect(JSON.stringify(recorded[0]!.detail)).not.toMatch(/@|password|example|Anna/);
+  });
+
+  it("a source's replacement is recorded as a source: the side is the connection's own", async () => {
+    await pool.query(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, secret_ref, status)
+       VALUES ($1, $2, 'source', 'imap', 'Anna at the old provider', $3, $4, 'connected')`,
+      [
+        SOURCE,
+        TENANT,
+        JSON.stringify({ host: 'imap.example.invalid', port: 993, username: OLD.username }),
+        stored({ host: 'imap.example.invalid', port: '993', ...OLD }),
+      ],
+    );
+    const res = await request
+      .put(`/api/connections/${SOURCE}/credentials`)
+      .set('Authorization', `Bearer ${token(TENANT)}`)
+      .send({ values: { host: 'imap.example.invalid', port: '993', username: NEW.username, password: NEW.password } });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.rotated).toBe(true);
+
+    expect((await replacementsOf(SOURCE)).rows.map((r) => r.detail)).toEqual([
+      { connectionId: SOURCE, side: 'source', kind: 'imap', accountStored: true },
+    ]);
+  });
+
+  it('records nothing, and stores nothing, when the connection was deleted while the new account was probed', async () => {
+    // The route reads the connection, probes the new account (seconds, over
+    // the network), and only then stores it. A delete in between leaves the
+    // update nothing to change: answering `rotated: true` and recording
+    // `accountStored: true` would say an account was stored that was not.
+    probe.meanwhile = () => pool.query(`DELETE FROM connection WHERE id = $1`, [TARGET]);
+    const res = await replace(NEW);
+    expect(res.status, JSON.stringify(res.body)).toBe(404);
+    expect(res.body.error).toBe('not_found');
+    expect((await replacementsOf(TARGET)).rows, 'a stored account was recorded that was never stored').toEqual([]);
   });
 
   it('one the probe refuses stores nothing, and still writes one row with accountStored false', async () => {

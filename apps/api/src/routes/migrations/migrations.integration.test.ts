@@ -837,6 +837,28 @@ describe('Migrations Routes - Tenant Isolation', () => {
       ]);
     });
 
+    it('names the data type when one alone was prepared', async () => {
+      // A preparation of one data type is a different act from the whole
+      // migration's (0128 T5, slice 5c), so its record says which one.
+      await seedT4Cutover();
+      await superuserPool.query(
+        `INSERT INTO scope_selection (tenant_id, mapping_id, domain, included) VALUES ($1, $2, 'email', true)`,
+        [MIG_TENANT_A, T4_CUTOVER_MAPPING],
+      );
+
+      const response = await request
+        .post(`/api/migrations/${T4_CUTOVER_MAPPING}/cutover`)
+        .set('Authorization', `Bearer ${TOKEN_TENANT_A}`)
+        .send({ domain: 'email' });
+      expect(response.status, JSON.stringify(response.body)).toBe(202);
+      expect(response.body.domain).toBe('email');
+
+      const recorded = (await preparationsOf(T4_CUTOVER_MAPPING)).rows;
+      expect(recorded.map((r) => r.detail)).toEqual([
+        { mappingId: T4_CUTOVER_MAPPING, runId: 'run_mock_test', revokesApproval: false, domain: 'email' },
+      ]);
+    });
+
     it('keeps its 202 when the record cannot be written, and says so on the log page', async () => {
       // The enqueue is in no transaction, so the record cannot share one with
       // it: by the time it is written the preparation is under way, and a 500

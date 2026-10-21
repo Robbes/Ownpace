@@ -128,8 +128,8 @@ export const AUDIT_DETAIL_FIELDS = {
   // Who deleted a migration or a connection, replaced an account or prepared
   // a cutover (0137 T4): the status the migration had, the connection's side
   // (`source` or `target`), whether the new account was stored, the
-  // preparation's run id and whether it revoked an approval. States, an id
-  // and two yes-or-nos, naming nobody.
+  // preparation's run id and whether the ledger, as the door read it, held an
+  // approval it revokes. States, an id and two yes-or-nos, naming nobody.
   statusBefore: 'keep',
   side: 'keep',
   accountStored: 'keep',

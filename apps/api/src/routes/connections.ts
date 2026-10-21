@@ -1075,7 +1075,9 @@ async function recordCredentialsReplaced(
  * (`accountStored: true`, and a record that cannot be written keeps the old
  * account), and in one of its own when the probe refuses it and nothing is
  * stored (`accountStored: false`). A request refused before the probe records
- * nothing. Guard: `an-account-replaced-is-recorded.integration.test.ts`.
+ * nothing, and so does one whose connection was deleted while the new account
+ * was probed: the update finds no row, nothing is stored, and it answers 404.
+ * Guard: `an-account-replaced-is-recorded.integration.test.ts`.
  */
 router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   const startedAt = Date.now();
@@ -1198,8 +1200,11 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
       return void res.status(200).json({ ...probe, rotated: false });
     }
 
-    await withTenantDb(tenantId, pool(), async (db) => {
-      await db
+    // The probe takes seconds, and the connection may be deleted meanwhile.
+    // Then the update changes no row: nothing was stored, so it is a 404 and
+    // no `accountStored: true` record (0137 T4).
+    const storedIt = await withTenantDb(tenantId, pool(), async (db) => {
+      const updated = await db
         .update(schema.connection)
         .set({
           secretRef: JSON.stringify(
@@ -1208,9 +1213,15 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
           status: 'connected',
           updatedAt: new Date(),
         })
-        .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId)));
+        .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId)))
+        .returning({ id: schema.connection.id });
+      if (updated.length === 0) return false;
       await recordCredentialsReplaced(db, tenantId, actor, row, true);
+      return true;
     });
+    if (!storedIt) {
+      return void res.status(404).json({ error: 'not_found', reason: 'No such connection.' });
+    }
 
     // A rotated credential may carry different protocol scopes than the one
     // it replaces (an app-password minted for IMAP only, say) — re-qualify
@@ -1248,8 +1259,9 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
  * the answer is actionable rather than a flat no.
  *
  * A delete that goes through is recorded as `connection.deleted` (workplan
- * 0137 T4), with the caller as actor, in the delete's own transaction. Guard:
- * `connection-delete-revokes.integration.test.ts`.
+ * 0137 T4), with the caller as actor, in the delete's own transaction. The
+ * second of two deletes that overlap removes no row, so it records nothing
+ * and answers 404. Guard: `connection-delete-revokes.integration.test.ts`.
  */
 /**
  * The one revoker both editions use (0085 T4a/T9): Google's endpoint for the
@@ -1318,9 +1330,15 @@ router.delete('/:id', authenticate, async (req: AuthenticatedRequest, res: Respo
         return { status: 409 as const, used: users.length, names };
       }
 
-      await db
+      // The read above takes no lock, so two presses of the same delete can
+      // both get this far. The second one's DELETE waits for the first and
+      // then removes nothing: it is a 404, not a second delete to record, to
+      // answer 200 for or to revoke again (0137 T4).
+      const gone = await db
         .delete(schema.connection)
-        .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId)));
+        .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId)))
+        .returning({ id: schema.connection.id });
+      if (gone.length === 0) return { status: 404 as const };
       // Who deleted it (0137 T4), in the delete's own transaction: a record
       // that cannot be written keeps the connection, and revokes nothing. Its
       // id, side and kind, never its name, address or user name.

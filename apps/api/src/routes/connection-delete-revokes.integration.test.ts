@@ -121,6 +121,14 @@ describe('DELETE /api/connections/:id revokes the grant it lets go of', () => {
   const rowsLeft = async (id: string): Promise<number> =>
     (await pool.query(`SELECT id FROM connection WHERE id = $1`, [id])).rows.length;
 
+  /** The `connection.deleted` audit rows for one connection (workplan 0137 T4). */
+  const deletionsOf = (id: string) =>
+    pool.query<{ tenant_id: string; actor: string; entity: string; detail: Record<string, unknown> }>(
+      `SELECT tenant_id, actor, entity, detail FROM audit_log
+        WHERE action = 'connection.deleted' AND detail ->> 'connectionId' = $1`,
+      [id],
+    );
+
   it('revokes a Google refresh token at Google, then answers 200 with the outcome', async () => {
     await insertConnection(GOOGLE_CONN, 'gmail', { refreshToken: 'rt-gmail-one' });
 
@@ -172,6 +180,10 @@ describe('DELETE /api/connections/:id revokes the grant it lets go of', () => {
     expect(res.body.revocation.reason).toMatch(/password/i);
     expect(revokeCalls).toHaveLength(0);
     expect(await rowsLeft(IMAP_CONN)).toBe(0);
+    // Recorded as a source: the side is the connection's own, not assumed (0137 T4).
+    expect((await deletionsOf(IMAP_CONN)).rows.map((r) => r.detail)).toEqual([
+      { connectionId: IMAP_CONN, side: 'source', kind: 'imap' },
+    ]);
   });
 
   it('revokes NOTHING on a refused delete — the connection stays and must keep working', async () => {
@@ -217,12 +229,6 @@ describe('DELETE /api/connections/:id revokes the grant it lets go of', () => {
   // WHO DELETED IT (workplan 0137 T4): one `audit_log` row with the caller as
   // actor, written in the delete's own transaction, naming the connection by
   // id, side and kind, and never by its address, user name or name.
-  const deletionsOf = (id: string) =>
-    pool.query<{ tenant_id: string; actor: string; entity: string; detail: Record<string, unknown> }>(
-      `SELECT tenant_id, actor, entity, detail FROM audit_log
-        WHERE action = 'connection.deleted' AND detail ->> 'connectionId' = $1`,
-      [id],
-    );
   const RECORDED_TARGET = '5a9c0000-e29b-41d4-a716-446655445041';
   const KEPT_CONN = '5a9c0000-e29b-41d4-a716-446655445042';
 
@@ -287,6 +293,67 @@ describe('DELETE /api/connections/:id revokes the grant it lets go of', () => {
     } finally {
       await pool.query('DROP TRIGGER IF EXISTS refuse_t4_connection_deleted ON audit_log');
       await pool.query('DROP FUNCTION IF EXISTS refuse_t4_connection_deleted()');
+    }
+  });
+
+  /** Poll until `query` returns a row, and return it; a race that never lines up fails here, not later. */
+  const until = async <T extends Record<string, unknown>>(query: string, params: unknown[]): Promise<T> => {
+    for (let tries = 0; tries < 400; tries++) {
+      const found = await pool.query<T>(query, params);
+      if (found.rows[0]) return found.rows[0];
+      await new Promise((settle) => setTimeout(settle, 25));
+    }
+    throw new Error(`never saw: ${query}`);
+  };
+
+  it('records one delete when two overlap: the second deleted nothing, and says so (0137 T4)', async () => {
+    // Two presses of the same delete, from two people or one impatient one.
+    // Both read the connection before either commits, so both pass the in-use
+    // check; the second's DELETE waits on the first's and then removes no row.
+    // It must not record a delete it did not make, answer 200 for it, or
+    // revoke the grant a second time. Lined up for certain, not by timing: the
+    // first press is held in its record by an advisory lock this test holds,
+    // until the second is seen waiting on the first.
+    const RACED_CONN = '5a9c0000-e29b-41d4-a716-446655445043';
+    const LOCK = 1370_4043;
+    await insertConnection(RACED_CONN, 'gmail', { refreshToken: 'rt-raced' });
+    await pool.query(`CREATE OR REPLACE FUNCTION hold_t4_connection_deleted() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN PERFORM pg_advisory_xact_lock(${LOCK}); RETURN NEW; END $$`);
+    await pool.query(`CREATE TRIGGER hold_t4_connection_deleted BEFORE INSERT ON audit_log
+      FOR EACH ROW WHEN (NEW.action = 'connection.deleted' AND NEW.detail ->> 'connectionId' = '${RACED_CONN}')
+      EXECUTE FUNCTION hold_t4_connection_deleted()`);
+    const holder = await pool.connect();
+    try {
+      await holder.query('SELECT pg_advisory_lock($1)', [LOCK]);
+      const press = () =>
+        request
+          .delete(`/api/connections/${RACED_CONN}`)
+          .set('Authorization', `Bearer ${token(TENANT)}`)
+          .then((res) => res);
+
+      // The first press has deleted the row and waits, uncommitted, in its record.
+      const first = press();
+      const { pid } = await until<{ pid: number }>(
+        `SELECT pid FROM pg_locks WHERE locktype = 'advisory' AND objid = $1 AND objsubid = 1 AND NOT granted`,
+        [LOCK],
+      );
+      // The second has read the row the first has not let go of, and waits on its delete.
+      const second = press();
+      await until(`SELECT pid FROM pg_stat_activity WHERE $1 = ANY (pg_blocking_pids(pid))`, [pid]);
+      await holder.query('SELECT pg_advisory_unlock($1)', [LOCK]);
+
+      const answers = await Promise.all([first, second]);
+      expect(answers.map((res) => res.status).sort(), JSON.stringify(answers.map((res) => res.body))).toEqual([
+        200, 404,
+      ]);
+      expect((await deletionsOf(RACED_CONN)).rows, 'a delete was recorded that deleted nothing').toHaveLength(1);
+      expect(revokeCalls).toHaveLength(1);
+      expect(await rowsLeft(RACED_CONN)).toBe(0);
+    } finally {
+      await holder.query('SELECT pg_advisory_unlock_all()');
+      holder.release();
+      await pool.query('DROP TRIGGER IF EXISTS hold_t4_connection_deleted ON audit_log');
+      await pool.query('DROP FUNCTION IF EXISTS hold_t4_connection_deleted()');
     }
   });
 });

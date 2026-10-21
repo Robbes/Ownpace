@@ -1542,11 +1542,17 @@ connection (`connection.deleted`), replacing a connection's account
 account too) and preparing a cutover (`cutover.preparation_requested`). Type
 the name in **Event starts with**. A deleted migration's row still carries its
 id in the **Migration** column, without a name, because its own row is gone;
-the id narrows the log to everything else that migration recorded. The
-detail says the status it had (`statusBefore`), whether a replaced account was
-stored (`accountStored`), and the preparation's run and whether it revoked an
-approval (`runId`, `revokesApproval`). A preparation whose record could not be
-written is still under way, and the page shows it as
+the id narrows the log to the audit rows that migration left (its errors and
+warnings lost their migration when it was deleted, because
+`app_event.mapping_id` is set to null). A row's `audit_log.detail`, which the
+page does not show (read it with the query below), holds the status a deleted
+migration had (`statusBefore`), whether a replaced account was stored
+(`accountStored`), and a preparation's run and whether the ledger, as the door
+read it, held an approval the preparation revokes (`runId`,
+`revokesApproval`; the job re-reads the ledger and remains the authority). Of
+two deletes of the same migration or connection that overlap, the second
+deleted nothing: it answers 404 and leaves no row. A preparation whose record
+could not be written is still under way, and the page shows it as
 `cutover.preparation_not_recorded` under a reference.
 
 What an audit event changed is not on the page. It stays in `audit_log.detail`

@@ -3804,9 +3804,11 @@ export const CUTOVER_PREPARATION_REQUESTED_ACTION = 'cutover.preparation_request
  * the authority on a ledger that moved in between.
  *
  * A 202 is recorded as `cutover.preparation_requested` (workplan 0137 T4): the
- * caller as actor, the migration's id under `mappingId`, the run's id, whether
- * it revoked an approval, and the data type when one was named. A refusal
- * records nothing, because nothing was enqueued.
+ * caller as actor, the migration's id under `mappingId`, the run's id,
+ * `revokesApproval`, and the data type when one was named. `revokesApproval`
+ * is this door's reading: whether the ledger, as it read it, held an approval
+ * this preparation revokes. The job re-reads the ledger and remains the
+ * authority. A refusal records nothing, because nothing was enqueued.
  */
 router.post(
   '/:mappingId/cutover',
@@ -3923,14 +3925,14 @@ router.post(
         tags: [`tenant:${tenantId}`, `mapping:${mappingId}`, 'type:cutover'],
       });
 
-      // Who prepared it, and whether it revoked an approval (0137 T4). After
-      // the enqueue, because the run id exists only then, and in a
-      // transaction of its own, because the enqueue is in none. The
-      // preparation is under way by now, so a record that cannot be written
-      // does not turn the 202 into a failure (hard rule 10). It is said
-      // instead: in the log with the run and the actor, and on the operator's
-      // log page as `cutover.preparation_not_recorded` under the same
-      // reference.
+      // Who prepared it, and whether the ledger as read above held an
+      // approval it revokes (0137 T4). After the enqueue, because the run id
+      // exists only then, and in a transaction of its own, because the
+      // enqueue is in none. The preparation is under way by now, so a record
+      // that cannot be written does not turn the 202 into a failure (hard
+      // rule 10). It is said instead: in the log with the run and the actor,
+      // and on the operator's log page as `cutover.preparation_not_recorded`
+      // under the same reference.
       try {
         await withTenantDb(tenantId, pool, (db) =>
           new PgLedger(db).recordAuditEvent(tenantId as TenantId, {
