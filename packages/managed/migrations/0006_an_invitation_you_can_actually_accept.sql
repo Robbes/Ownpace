@@ -1,5 +1,9 @@
 -- Binding an invitation to the person it was addressed to (workplan 0093 T6).
 --
+-- Superseded in part by managed 0059, which recreates both policies below to
+-- compare the address in any case and without the spaces around it. The SQL
+-- here is as it was first applied.
+--
 -- ## The gap this closes, which predates T6
 --
 -- `POST /api/tenants/:id/members` has been writing invitations since workplan

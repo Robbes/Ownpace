@@ -74,12 +74,16 @@
 #       2026-10-04); TRUST_PROXY not 2 or 3, the proxies in front of the api
 #       (NetBird's and the web container's nginx, so the api's log names the
 #       visitor, and 3 where NetBird's cluster adds one: T3 (d); more believes
-#       the caller's own header); BACKUP_RETENTION_DAYS empty, 0 or not a whole
+#       the caller's own header); any sign-in provider's key holding a value
+#       (LIVE_REFUSED_SIGN_IN_KEYS, stack-kind.sh: the IDP_* keys of Google,
+#       Microsoft, GitHub and Apple), since live's sign-in page offers email
+#       and password only (privacy §4.4, §7 and §8; the owner,
+#       ops-social-signin (a)); BACKUP_RETENTION_DAYS empty, 0 or not a whole
 #       number above 0 (the most days a dump of live's databases taken before a
 #       deploy is kept: 7, workplan 0134; deploy-live.sh takes that copy, and
 #       it is deleted once the update is proven, and after day 6 by the daily
 #       duties, workplan 0139); OWNPACE_REACHABLE_HOSTS set;
-#       APP_DB_USER not app_user; a gate placeholder client (gate-…,
+#       APP_DB_USER not app_user; a gate placeholder consent client (gate-…,
 #       gatedropboxappkey); SMTP_HOST empty or mailpit, SMTP_PORT empty or
 #       not a port, NOTIFY_FROM or NOTIFY_TO empty or an address in .invalid,
 #       any of those four in double quotes (live has a real relay from its
@@ -677,6 +681,19 @@ check_settings() {
   # header, on live, shows NetBird's own cluster adds a hop; nothing else.
   [[ "$(env_value "$ENV_FILE" TRUST_PROXY)" =~ ^[23]$ ]] ||
     _p+=("TRUST_PROXY: not 2 or 3. Live's api is behind two proxies, NetBird's and the web container's nginx, so it is 2, or 3 where the bring-up's check on live shows NetBird adds one: then the api names the visitor, whose address NetBird passes on, as privacy §4.5 says. With less it names one of the proxies for every visitor; with more, or true, whatever a caller writes in X-Forwarded-For (T3 (d)).")
+  # Email and password only at live's sign-in page (privacy §4.4, §7 and §8;
+  # the owner's ops-social-signin (a)): every sign-in provider's key empty
+  # (LIVE_REFUSED_SIGN_IN_KEYS, stack-kind.sh). setup-zitadel.sh, which the
+  # bring-up runs, adds a provider whose keys are set, and live's .env carries
+  # the OTA stack's Google client for the consent (0140 T11), a pair easily
+  # copied into these keys too. It deletes no provider, since a person may be
+  # linked to one: a run with every pair empty turns 'External IDP allowed'
+  # off, which hides the buttons, so the line below sends nobody to the
+  # console to delete one.
+  while IFS= read -r key; do
+    [ -n "$key" ] || continue
+    _p+=("${key}: set. It is a sign-in provider's key, and live's sign-in page offers email and password only (privacy §4.4, §7 and §8; ops-social-signin (a)): with the provider's keys set, setup-zitadel.sh puts its button there. Leave it empty, ${key}= and nothing after it. A provider setup-zitadel.sh added before stays configured at the identity provider, but with every one of these keys empty the bring-up turns 'External IDP allowed' off, which takes every provider's button off the sign-in page (docs/managed-bring-up.md, §8b, *Emptying a pair removes less than it looks like*).")
+  done <<<"$(live_sign_in_keys_set "$ENV_FILE")"
   # Live's databases are copied before each deploy and each copy is deleted
   # after at most this many days: the owner's answer to 0134's open question
   # 1, (b), with 7 days, on 2026-09-28, and rec-copies (a) the same day.
@@ -694,13 +711,15 @@ check_settings() {
   value="$(env_value "$ENV_FILE" APP_DB_USER)"
   [ -z "$value" ] || [ "$value" = app_user ] ||
     _p+=("APP_DB_USER: not app_user. The migrations grant to app_user by name (workplan 0132 T2 step 5).")
+  # The consent clients only: a sign-in provider's key (IDP_GOOGLE_* among
+  # them) is refused above whatever it holds, the gate's placeholder too.
   while IFS= read -r key; do
     [ -n "$key" ] || continue
     case "$(env_value "$ENV_FILE" "$key")" in
       gate-* | gatedropboxappkey)
-        _p+=("${key}: the nightly gate's placeholder. Live offers only a client that exists: empty it, or set live's own (0132 T5, 0140).") ;;
+        _p+=("${key}: the nightly gate's placeholder. Live offers only a client that exists: empty it, or set the client live uses (0132 T5, 0140 T11).") ;;
     esac
-  done <<<"$(sed -n 's/^\(GOOGLE_OAUTH_[A-Z_]*\|DROPBOX_OAUTH_[A-Z_]*\|MICROSOFT_OAUTH_[A-Z_]*\|IDP_GOOGLE_[A-Z_]*\)=.*/\1/p' "$ENV_FILE" | sort -u)"
+  done <<<"$(sed -n 's/^\(GOOGLE_OAUTH_[A-Z_]*\|DROPBOX_OAUTH_[A-Z_]*\|MICROSOFT_OAUTH_[A-Z_]*\)=.*/\1/p' "$ENV_FILE" | sort -u)"
   # Mail: a real relay from live's first day, and no catcher (the owner's
   # answer to 0133's open questions 1 and 5, 2026-09-28). The sign-up's
   # verification code is the first mail live sends.

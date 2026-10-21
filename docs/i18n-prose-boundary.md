@@ -103,8 +103,13 @@ of* it.
    `reason` and `reasonNl` on `…/sharing/:grantId/decision` and on each
    refused row of `apply-all` and `apply-folder`, each ending with the
    reference the target's words are logged under. The Sharing page shows the
-   half in its reader's language. The appliance answers with the target's
-   words, as served.
+   half in its reader's language: a row's own press under the row, and the
+   rows a folder press did not share under the folder, one line per person
+   and reason, and again in each row's card (`apply-all` has no caller on the
+   page). A refusal of our own gates has no Dutch half. From a folder press
+   it is shown in English, marked `lang="en"` under a Dutch page, under the
+   folder and in the row's card; a row's own press shows it unmarked. The
+   appliance answers with the target's words, as served.
 
    **The queues' guidance is the fifth** (the owner, 2026-10-18, option A of
    the UX sweep's word choices). *What this means and what you can do* on
@@ -130,8 +135,14 @@ of* it.
    category's button is its stored proposal, marked the same way. A shared
    address's reason is kept in the detail in both languages (`reason`,
    `reasonNl`) from 2026-10-18 on; an older row is asked without one. The
-   line after an answer (`DECISION_EFFECTS`, an action outcome) has no Dutch
-   twin yet and stays English, marked `lang="en"` (workplan 0159 §6).
+   line after an answer or a dismiss (`DECISION_EFFECTS`, an action outcome)
+   has its Dutch beside the English as well (workplan 0159 §6 item 12). Both
+   editions serve the English as `effect`, as before, and the Dutch as
+   `effectNl` (`decisionEffectFields`). The page says the half in its
+   reader's language (`decisionEffectText`). From a server that sent no
+   Dutch it shows the English as served, marked `lang="en"`. The item
+   queues' effect lines (Deletions, Moves, Failures) are not paired yet and
+   stay English.
 5. **Customer guides** (workplan 0148 T4) — the guides `/docs` serves, written
    for the person who connects an account:
    - documents authored in each language, side by side in `docs/guides/nl/`

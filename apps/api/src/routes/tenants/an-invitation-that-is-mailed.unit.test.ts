@@ -277,6 +277,41 @@ describe('inviting mails the invited person', () => {
     expect(res.status).toBe(409);
     expect(SENT).toHaveLength(0);
   });
+
+  // An invitation binds to the signed-in address whatever its case or spaces
+  // (managed 0059), so the duplicate check asks the same question: one address,
+  // one live row, however it was typed the second time.
+  it('refuses a second invitation to the same address in another case or with spaces, and mails nobody', async () => {
+    await invite('dubbel@ownpace.test');
+    SENT.length = 0;
+
+    for (const again of ['DUBBEL@Ownpace.test', '  dubbel@ownpace.test ']) {
+      const res = await invite(again);
+      expect(res.status, again).toBe(409);
+      // It names the row the Team list shows, not the address as typed again.
+      expect(res.body.message, again).toMatch(/^dubbel@ownpace\.test already has an open invitation/);
+    }
+    expect(SENT).toHaveLength(0);
+    expect(
+      await rows('SELECT email FROM tenant_member WHERE tenant_id = $1 AND status = $2', [TENANT, 'invited']),
+    ).toEqual([{ email: 'dubbel@ownpace.test' }]);
+  });
+
+  it('refuses to invite a member who is already in, in another case', async () => {
+    const res = await invite('Rob@Example.TEST');
+    expect(res.status).toBe(409);
+    expect(res.body.message).toMatch(/^rob@example\.test is already a member/);
+    expect(SENT).toHaveLength(0);
+  });
+
+  it('keeps the address without the spaces around it, and mails that address', async () => {
+    const res = await invite('  Spatie@Ownpace.test ');
+
+    expect(res.status).toBe(201);
+    expect(res.body.email).toBe('Spatie@Ownpace.test');
+    expect(SENT.map((m) => m.to)).toEqual([['Spatie@Ownpace.test']]);
+    expect(SENT[0]!.body).toContain('Gebruik dit e-mailadres: Spatie@Ownpace.test\n');
+  });
 });
 
 describe('sending an open invitation again', () => {

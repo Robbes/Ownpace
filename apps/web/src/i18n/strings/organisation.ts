@@ -182,6 +182,13 @@ export const en = {
   'sharing.group.confirmed': 'confirmed',
   'sharing.group.stillToConfirm.one': '1 address still to check.',
   'sharing.group.stillToConfirm.many': '{count} addresses still to check.',
+  // What a folder press could not share (workplan 0136 T3's row-level half):
+  // the heading over the server's own sentences, one per person and reason.
+  // Not *refused*: a gate of ours (no share API) is in the same list.
+  'sharing.group.refused.one':
+    'Sharing on the new system did not work for 1 share in this folder. Its row stays open.',
+  'sharing.group.refused.many':
+    'Sharing on the new system did not work for {count} shares in this folder. Their rows stay open.',
   'sharing.alone.unplaced': 'The old system did not say where this sits, so it is on its own.',
   'sharing.alone.vsFolder': 'Shared differently from its folder',
   'sharing.alone.vsSiblings': 'Shared differently from the other items here',
@@ -387,6 +394,10 @@ export const nl: Record<keyof typeof en, string> = {
   'sharing.group.confirmed': 'bevestigd',
   'sharing.group.stillToConfirm.one': 'Nog 1 adres te controleren.',
   'sharing.group.stillToConfirm.many': 'Nog {count} adressen te controleren.',
+  'sharing.group.refused.one':
+    'Delen op het nieuwe systeem lukte niet voor 1 deelrecht in deze map. De regel blijft open.',
+  'sharing.group.refused.many':
+    'Delen op het nieuwe systeem lukte niet voor {count} deelrechten in deze map. De regels blijven open.',
   'sharing.alone.unplaced': 'Het oude systeem gaf niet aan waar dit staat, dus het staat apart.',
   'sharing.alone.vsFolder': 'Anders gedeeld dan de map zelf',
   'sharing.alone.vsSiblings': 'Anders gedeeld dan de andere items hier',
