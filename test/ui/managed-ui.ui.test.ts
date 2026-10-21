@@ -127,6 +127,12 @@ const PERSON_VIEW_LINK = 'a0000000-0000-4000-8000-0000000000f4.ui-smoke-not-a-se
  */
 const WHO_SIGNED_IN = 'openid https://www.googleapis.com/auth/userinfo.email';
 const MAIL_AND_CALENDAR_SCOPE = `https://mail.google.com/ https://www.googleapis.com/auth/calendar ${WHO_SIGNED_IN}`;
+/**
+ * A person's account, as their progress page names it: 32 lowercase hex, the
+ * shape of `refOf`'s ref (`apps/api/src/routes/person-progress.ts`), which is
+ * all a withdrawal may name (`PersonWithdrawalSchema`).
+ */
+const ACCOUNT_REF = '0123456789abcdef0123456789abcdef';
 
 const b64url = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
 
@@ -364,8 +370,9 @@ const FIXTURES: Record<string, unknown> = {
    * THE PAGES A STRANGER OPENS (workplan 0141 T12 (b)): what the API answers
    * for the four links above. The migration's grant link has the shape of
    * `SubjectSchema` and the person's of `PersonSubjectSchema`
-   * (`apps/web/src/services/grant-service.ts`), as `grant.ts` answers them;
-   * the two progress links have `view-service.ts`'s, as `view.ts` answers them.
+   * (`apps/web/src/services/grant-service.ts`), as
+   * `apps/api/src/routes/grant.ts` answers them; the two progress links have
+   * `view-service.ts`'s, as `apps/api/src/routes/view.ts` answers them.
    * Each page also asks whether a report of its link can reach somebody, and
    * here one can, so *Report this link* is drawn as a tester meets it.
    *
@@ -489,12 +496,12 @@ const FIXTURES: Record<string, unknown> = {
             lastActiveAt: new Date(Date.now() - 5 * 60_000).toISOString(),
           },
         ],
-        account: 'acct-1',
+        account: ACCOUNT_REF,
       },
       // Waiting for its first pass: the page says nothing has been copied.
-      { from: 'google', to: 'nextcloud', state: 'active', started: false, domains: [], account: 'acct-1' },
+      { from: 'google', to: 'nextcloud', state: 'active', started: false, domains: [], account: ACCOUNT_REF },
     ],
-    accounts: [{ ref: 'acct-1', grant: { state: 'granted' } }],
+    accounts: [{ ref: ACCOUNT_REF, grant: { state: 'granted' } }],
   },
   [`GET /api/view/${PERSON_VIEW_LINK}/report`]: { available: true },
 };
@@ -619,7 +626,10 @@ async function newPage(
   return page;
 }
 
-/** Load a route as a signed-in operator, recording what a user cannot see. */
+/**
+ * Load a route, signed in as an operator unless `signedIn: false`, on a phone
+ * when `phone` (PHONE), recording what a user cannot see.
+ */
 async function open(
   path: string,
   opts: { locale?: 'en' | 'nl'; signedIn?: boolean; clock?: Date; phone?: boolean } = {},
@@ -1490,10 +1500,15 @@ describe('signed in by somebody who has not accepted the texts yet', () => {
  *
  * Each also holds that the page raised nothing in the browser and broke no
  * policy (`open` turns a violation into a console error), and asked the API
- * for its own link and the build stamp only: a stranger's page that called a
- * signed-in route would meet a refusal it could not explain. Then each is
- * opened on a phone, in Dutch, whose words are the longer, and must not scroll
- * sideways (0145 T8 (a), for these two pages).
+ * for its own link, that link's /report and the build stamp only: a
+ * stranger's page that called a signed-in route would meet a refusal it could
+ * not explain. Then each is opened on a phone, in Dutch, whose words are the
+ * longer, and must not scroll sideways (0145 T8 (a), for these two pages).
+ *
+ * They open the bundle CI and the OTA stack build, without the Alpha
+ * (`VITE_OWNPACE_STAGE` unset). The Alpha's build adds `AlphaGoogleLine`, a
+ * line and a link to the tester guide, above the Google button; its own unit
+ * tests cover that, not this file.
  *
  * They catch a page that does not render, a route that went, a word that left
  * the bundle and a page wider than a phone. They prove nothing about the API,
@@ -1506,7 +1521,11 @@ describe('the grant and progress links, opened by the person they were sent to (
     readonly path: string;
     /** The API paths the page may ask for, the build stamp's apart. */
     readonly asks: readonly string[];
-    /** What its reader must find on it; the first is waited for, as the page's answer. */
+    /**
+     * What its reader must find on it, in the words a reader sees (`innerText`:
+     * not what CSS hides or a closed fold holds); the first is waited for, as
+     * the page's answer.
+     */
     readonly says: Readonly<Record<Locale, readonly string[]>>;
     /** Every button on it, in order, by its words. */
     readonly buttons: Readonly<Record<Locale, readonly string[]>>;
@@ -1660,6 +1679,8 @@ describe('the grant and progress links, opened by the person they were sent to (
           'Google to Nextcloud',
           'Nothing has been copied yet.', // view.notStarted
           'The access you gave',
+          'Your things are being migrated across now.', // view.state.active
+          'This page only shows numbers; it holds nothing from your account.', // view.readOnly
         ],
         nl: [
           'Acme Families migreert uw accounts naar nieuwe aanbieders. Hier ziet u hoe elke migratie ervoor staat.',
@@ -1669,6 +1690,8 @@ describe('the grant and progress links, opened by the person they were sent to (
           'Google naar Nextcloud',
           'Er is nog niets gemigreerd.',
           'De toegang die u gaf',
+          'De migratie is actief.',
+          'Deze pagina toont alleen aantallen; er staat niets uit uw account op.',
         ],
       },
       buttons: {
@@ -1699,7 +1722,7 @@ describe('the grant and progress links, opened by the person they were sent to (
 
         expect(new URL(l.page.url()).pathname, `${p.what} sent its reader away`).toBe(p.path);
         expect(await l.page.getAttribute('html', 'lang')).toBe(locale);
-        const text = await l.text();
+        const text = await l.page.innerText('body');
         for (const words of p.says[locale]) expect(text, `${p.what} does not say it`).toContain(words);
 
         const buttons = await l.page.$$eval('button', (bs) => bs.map((b) => (b.textContent ?? '').trim()));
@@ -1736,6 +1759,14 @@ describe('the grant and progress links, opened by the person they were sent to (
       // nothing scrolls. So both are held to the phone's 390 pixels, not the
       // page to the window (which is all `site.ui.test.ts` needs, without
       // `isMobile`).
+      // Every fold is opened first: the grant page's *Technical details* holds
+      // its widest words, the scope's unbroken addresses, and a closed fold is
+      // not laid out, so it would never count.
+      await l.page.evaluate(() =>
+        document.querySelectorAll('details').forEach((d) => {
+          d.open = true;
+        }),
+      );
       const width = await l.page.evaluate(() => ({
         window: window.innerWidth,
         page: document.documentElement.scrollWidth,
