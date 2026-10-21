@@ -357,4 +357,24 @@ describe('where an upgrade is told to use it', () => {
     const watch = readFileSync(join(REPO_ROOT, 'scripts', 'idp-pin-watch.mjs'), 'utf8');
     expect(watch).toContain('./deploy/compose/dump-idp.sh');
   });
+
+  // The OTA stack's dumps held the provider's accounts and nothing said when
+  // they could go (workplan 0146 T8). On live the copy's rules delete them.
+  const WHEN_IT_GOES = "once main's first scheduled E2E (managed) on the new pin is green";
+
+  it('says, on a stack that is not live, when the dump can be deleted, and the pin watch says the same', () => {
+    const r = run();
+    expect(r.status, r.err).toBe(0);
+    expect(r.out).toContain(`delete this dump ${WHEN_IT_GOES}`);
+    const watch = readFileSync(join(REPO_ROOT, 'scripts', 'idp-pin-watch.mjs'), 'utf8');
+    expect(watch).toContain(`Delete the OTA dump ${WHEN_IT_GOES}`);
+  });
+
+  it("says nothing of the kind on live, where the copy's own rules delete it", () => {
+    const r = run({
+      dotenv: `COMPOSE_PROJECT_NAME=${LIVE}\nSTACK_KIND=production\nZITADEL_MASTERKEY=${MASTERKEY}\n`,
+    });
+    expect(r.status, r.err).toBe(0);
+    expect(r.out).not.toContain(WHEN_IT_GOES);
+  });
 });
