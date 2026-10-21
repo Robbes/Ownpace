@@ -221,3 +221,101 @@ compose_project() {
   fi
   printf '%s' "$name"
 }
+
+# future_iso <days> — UTC, RFC3339, <days> from now: GNU date, then BSD.
+# iso_to_epoch <date> — the seconds since 1970 of a UTC RFC3339 date, and it
+# tolerates the provider stamping fractional seconds on one.
+# Here, not in setup-zitadel.sh, since the seed below uses them too: the
+# rotation there and the seed here read and write the token's date one way.
+future_iso() {
+  date -u -d "+${1} day" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null && return 0
+  date -u -v"+${1}d" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null && return 0
+  return 1
+}
+iso_to_epoch() {
+  local iso="${1%%.*}"
+  iso="${iso%Z}Z"
+  date -u -d "$iso" +%s 2>/dev/null && return 0
+  date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$iso" +%s 2>/dev/null && return 0
+  return 1
+}
+
+# seed_pat_expiry <env-file>
+#
+# THE PROVISIONING TOKEN'S FIRST DATE, WRITTEN BEFORE THE PROVIDER FIRST STARTS
+# (the lifecycle round, 2026-10-21). The identity provider reads
+# ZITADEL_PAT_EXPIRY once, at its first start, as the expiry of the token it
+# writes for setup-zitadel.sh, and it refuses a date that has passed: the
+# start fails with Errors.AuthNKey.ExpireBeforeNow and the container restarts
+# for ever. managed.yml used to fill an empty line with 2026-12-31, and the
+# bring-up started the provider before setup-zitadel.sh wrote the only seed
+# there was, so every first start on an empty line (a new stack, the runbook's
+# recovery of live) had that date, and from 2027-01-01 none of them could
+# start. managed.yml now requires the line, and this writes it.
+#
+# Here because every script that can come before that first start sources this
+# file: ensure-env-secrets.sh (the env phase, stand-up-live.sh --only env, the
+# gate's Fill step), bootstrap-managed.sh's load_env (before its first compose
+# call) and setup-zitadel.sh (before it starts the provider). One rule for all
+# three:
+#
+#   a date still more than an hour ahead   kept, as it is, and nothing said. On
+#                                          a running stack it is the live
+#                                          token's, which setup-zitadel.sh
+#                                          keeps there on every run.
+#   empty, or no line                      now + ZITADEL_PAT_LIFETIME_DAYS (7).
+#   past, or due within the hour, or not   the same, said on stderr with the
+#   a UTC date (2027-01-31T00:00:00Z)      date it replaced (a value that is not
+#                                          a date is not printed). Within the
+#                                          hour because a first start begins a
+#                                          while after this runs. A provider
+#                                          already running never reads the
+#                                          line again, and setup-zitadel.sh asks
+#                                          IT for the token's date: so this
+#                                          only ever changes what a first start
+#                                          gets, and the note's old date is in
+#                                          the log.
+#
+# Through env-upsert.sh beside this file, the one writer of a .env: it keeps
+# the line where it is and follows a symlinked .env. A lifetime that is not a
+# whole number of days is refused and nothing is written, as setup-zitadel.sh
+# refuses it. Returns 0 when the line holds a date still ahead afterwards.
+seed_pat_expiry() {
+  local file="${1:-}" upsert days current when fresh why='' replaced=''
+  local shape='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$'
+  upsert="$(dirname "${BASH_SOURCE[0]}")/env-upsert.sh"
+  if [ -z "$file" ] || [ ! -f "$file" ]; then
+    echo "seed_pat_expiry: no .env at '${file}'; nothing was written." >&2
+    return 1
+  fi
+  days="$(env_value "$file" ZITADEL_PAT_LIFETIME_DAYS 7)"
+  if ! [[ "$days" =~ ^[1-9][0-9]*$ ]]; then
+    echo "seed_pat_expiry: ZITADEL_PAT_LIFETIME_DAYS in ${file} must be a whole number of days, not '${days}'. Nothing was written." >&2
+    return 1
+  fi
+  current="$(env_value "$file" ZITADEL_PAT_EXPIRY)"
+  if [ -z "$current" ]; then
+    why='was empty'
+  elif ! [[ "$current" =~ $shape ]] || ! when="$(iso_to_epoch "$current")"; then
+    why='held something that is not a UTC date like 2027-01-31T00:00:00Z (not printed)'
+    replaced=1
+  elif [ "$when" -le $(( $(date -u +%s) + 3600 )) ]; then
+    why="held ${current}, which has passed or is less than an hour away"
+    replaced=1
+  else
+    return 0
+  fi
+  if ! fresh="$(future_iso "$days")"; then
+    echo "seed_pat_expiry: could not compute a date ${days} days from now: neither GNU nor BSD \`date\` worked. Nothing was written." >&2
+    return 1
+  fi
+  if ! "$upsert" "$file" "ZITADEL_PAT_EXPIRY=${fresh}" >/dev/null; then
+    echo "seed_pat_expiry: ${upsert} could not write ZITADEL_PAT_EXPIRY into ${file} (above)." >&2
+    return 1
+  fi
+  if [ -n "$replaced" ]; then
+    echo "seed_pat_expiry: ZITADEL_PAT_EXPIRY ${why}: wrote ZITADEL_PAT_EXPIRY=${fresh}, ${days} days out, for the identity provider's first start. A provider that is running already keeps its own token's date." >&2
+  else
+    echo "seed_pat_expiry: ZITADEL_PAT_EXPIRY ${why}: wrote ZITADEL_PAT_EXPIRY=${fresh}, ${days} days out, the date the identity provider gives its first token."
+  fi
+}

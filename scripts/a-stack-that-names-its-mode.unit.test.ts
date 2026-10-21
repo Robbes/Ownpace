@@ -304,6 +304,8 @@ describe('the bring-up names the fix for a .env without NODE_ENV, not the secret
       'note_dashboard_on_this_machine_only',
       'refuse_a_bind_that_is_not_an_address',
       'refuse_shipped_passwords',
+      // env-read.sh's; scripts/idp-wiring.unit.test.ts runs the real one here.
+      'seed_pat_expiry',
     ].map((f) => `${f}() { :; }`);
     const script = [
       'die() { echo "!!! $*" >&2; exit 1; }',

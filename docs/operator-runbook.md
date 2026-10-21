@@ -839,9 +839,10 @@ What you do:
 1. Tell each tester, from the list of testers (0134 T4), with the alpha conditions' paragraph on
    backups (0134 T2).
 2. Bring live up again as 0132 T1b to T1e do, with the copy of live's `.env` if you have one.
-   Empty its `ZITADEL_PAT_EXPIRY` line first. A new identity provider reads that date once, at
-   first initialisation, and a date already past gives a provisioning token that is born expired;
-   `setup-zitadel.sh` seeds a fresh date only into an empty line. If the old machine could be in
+   Its `ZITADEL_PAT_EXPIRY` line can stay as it is. A new identity provider reads that date once,
+   at its first start, and refuses to start on a date already past; the bring-up writes a fresh
+   date into the line before that start when the line is empty, past or not a date, and keeps one
+   still ahead (`seed_pat_expiry`, `deploy/compose/env-read.sh`). If the old machine could be in
    someone else's hands, replace every value instead: nothing depends on the old ones any more,
    and the OAuth client secrets are replaced in each provider's console.
 3. Do Trigger.dev's one-time steps on live's plane (0132 T1c).

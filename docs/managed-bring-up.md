@@ -547,6 +547,16 @@ five Trigger.dev secrets, `PGBOUNCER_AUTH_PASSWORD` — and writes
 `pgbouncer/userlist.txt`. It is idempotent: a value you already set is never
 rotated. Then it pins `DEPLOY_IMAGE_PLATFORM` to this host's architecture.
 
+**The provisioning token's first date.** It also writes `ZITADEL_PAT_EXPIRY`,
+`ZITADEL_PAT_LIFETIME_DAYS` (7) days out, which `managed.yml` requires: the
+identity provider reads it once, at its first start, as the expiry of the token
+`setup-zitadel.sh` works with, and refuses to start on a date already past. A
+date still ahead is kept; an empty, past or unreadable one is replaced, and a
+replaced date is printed. Every later phase writes it the same way before its
+first compose command, so a `--from` run that skips this phase is covered too.
+After the first start, `setup-zitadel.sh` keeps the line on the live token's
+own date.
+
 **The five database passwords** (workplan 0132 T2): `POSTGRES_PASSWORD`,
 `APP_DB_PASSWORD`, `CLICKHOUSE_PASSWORD`, `MINIO_ROOT_PASSWORD` and
 `TRIGGER_DB_PASSWORD` (Trigger.dev's own database, `trigger-db`). The example
