@@ -108,8 +108,9 @@
 # sandbox invoice a night, `ownpace-nightly-{YYYY-MM-DD}`, made, paid by a
 # registered payment and read back as paid, after counting the month's
 # invoices (from 40 of the sandbox's 50 it makes none). Refused as the proof
-# is; with Moneybird off it says it skipped and exits 0. See
-# moneybird-nightly.ts.
+# is; with Moneybird off it says it skipped and exits 0. When Moneybird says
+# try later it asks once more, after 30 s (a 429's Retry-After, up to 120 s),
+# and never posts a payment twice. See moneybird-nightly.ts.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
