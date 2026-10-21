@@ -2,7 +2,44 @@
 
 > **In one line:** Hardening Zitadel sign-in at `id.ownpace.eu` and the OTA instance via `setup-zitadel.sh`: public organisation registration off, `hasProjectCheck`, organisation counts, MFA and lockout, legal links, Dutch and English copy, release watch, orphan accounts.
 
-## Status — 2026-10-17 (update this block at the end of every session)
+## Status — 2026-10-21 (update this block at the end of every session)
+
+**2026-10-21: the pin moves to v4.19.5, from the watch's issue #1643 (2026-10-19)**, on branch
+`claude/ownpace-public-readiness-y7orc6-zitadel-4-19-5`, not merged. Three of its fixes are
+security fixes, so T7's seven days apply and count until live runs it. Read commit by commit
+(`git log v4.19.4..v4.19.5`, eleven commits; five are docs, one bumps the console's, login v2's
+and the docs' npm packages):
+- **Device authorizations need consent and a permission (a618740).** Login v2 approved one as soon
+  as a signed-in user opened its page; the API's approval now runs the auth code flow's project
+  check, and `GetDeviceAuthorizationRequest` needs `session.read`. Not used here: every client
+  `setup-zitadel.sh` and the smoke create has the authorization-code grant (and refresh tokens),
+  none the device-code grant, and login v1's device page passes the old behaviour on unchanged.
+- **Login v2's verification and IdP-link proofs signed with a server secret (e32ba7a).** Only
+  `apps/login`, the login v2 application, which this stack does not deploy (`LoginV2.Required` is
+  pinned off; `the-login-page-nobody-chose` holds it). Login v1 needs no new secret or setting.
+- **An invalid public host header is refused instead of ignored (6493aa9).** Only the headers in
+  `PublicHostHeaders` (`x-zitadel-public-host` by default): a value that fails the host check, a
+  non-numeric port or userinfo, was dropped, which skipped the trusted-domain check; now it is kept
+  and the check answers not found. The instance host (`Host`, `:authority`, `X-Forwarded-Host`,
+  `Forwarded`) is untouched: an invalid one is still ignored and the request's host used. Nothing
+  here sends that header or sets `ZITADEL_PUBLICHOSTHEADERS`: the API reaches its issuer by
+  `ZITADEL_EXTERNALDOMAIN` and port, `setup-zitadel.sh` and the smoke present the public name as
+  Host (with `curl --resolve` where it carries a port), `wait_for_idp_ready` and the status page ask
+  `/debug/ready`. No change was needed to keep them working.
+- **List limits on the v2 and v1 APIs (247d8ce, fe4f4fd), and the console that relied on unbounded
+  ones (95dae90).** A v2 list without a limit now returns 100, a v1 list 1000, and a limit above
+  1000 is refused (`QUERY-4M0fs`). `idp-strays.sh` asks for 1000 members (the maximum, allowed) and
+  pages accounts by 100 to the count; `setup-zitadel.sh`'s lists hold a handful each and its
+  organisation count reads `totalResult`; the smoke's leftover sweep asks `/v2/users` without a
+  limit and now sees at most 100, against the four people a dead run can leave.
+- **No setup step**: nothing under `cmd/setup` changed, so the schema moves no further than
+  v4.19.4's step 80. `cmd/defaults.yaml` loses the two unused `SearchLimit` keys and rewords the
+  query-limit comments; `LoginV2.Required`, `ServicePing`, `Telemetry`, the lockout and privacy
+  defaults are unchanged, as are the admin SMTP handler and `zitadel ready`.
+- The pin's guards pass (ten files, 306 cases); `a-service-that-phones-home` names v4.19.5.
+  **Owed, in this order:** the owner dumps the OTA instance's `zitadel` database
+  (`./deploy/compose/dump-idp.sh`, issue #1643's step 1, not yet done); then E2E (managed) on the
+  branch applies v4.19.5 to the OTA instance; then the merge, and live takes it from a release tag.
 
 **2026-10-17: the owner's answers, built: a lockout at 10, a second factor offered, and live's
 organisation named Ownpace**, on branch
