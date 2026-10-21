@@ -672,6 +672,35 @@ export async function decideFailureGroup(
 }
 
 /**
+ * One row a folder press did not share (`applyShareGrantsInFolder`, core). The
+ * row stays open. `reason` is the server's sentence: on managed ours, with
+ * its Dutch beside it as `reasonNl` when the new system refused (workplan 0136
+ * T3); on the appliance the new system's own words. A refusal of our own
+ * gates (`no_share_api`, `already_settled`) is English only.
+ */
+export interface ShareRowRefused {
+  readonly id: string;
+  /** The item, as the row names it (`onLabel`). */
+  readonly on: string;
+  readonly grantee?: string;
+  readonly code: string;
+  readonly reason: string;
+  readonly reasonNl?: string;
+}
+
+/** What a folder press that went ahead did, row by row (the route's 200). */
+export interface ShareFolderApplied {
+  readonly status: string;
+  readonly pressedBy: string;
+  readonly parentKey: string;
+  readonly applied: ReadonlyArray<ShareGrantRow>;
+  readonly refused: ReadonlyArray<ShareRowRefused>;
+  /** Links and manual rows, which the press leaves to the checklist. */
+  readonly leftForChecklist: { readonly links: number; readonly manual: number };
+  readonly waitingForCutover: number;
+}
+
+/**
  * ONE PRESS OVER ONE FOLDER (2026-09-19), every address confirmed first.
  *
  * Not `apply-all` with a filter. The one-go press is the cutover moment —
@@ -688,16 +717,20 @@ export async function decideFailureGroup(
  * A refusal arrives as `DecisionRefusedError`, like every other refusal on
  * this surface, so the screen renders the server's sentence rather than a
  * client-side guess at what it must have meant.
+ *
+ * A press that went ahead answers 200, and the rows the new system refused
+ * are in `refused`, each with the server's sentence (`ShareRowRefused`). They
+ * stay open, so the screen says them under the folder.
  */
 export async function applyShareFolder(
   mappingId: string,
   parentKey: string,
   confirmed: Readonly<Record<string, string>>,
   note?: string,
-): Promise<{ status: string; applied: unknown[]; refused: unknown[] }> {
+): Promise<ShareFolderApplied> {
   try {
     return (
-      await client.post<{ status: string; applied: unknown[]; refused: unknown[] }>(
+      await client.post<ShareFolderApplied>(
         `${mappingPath(mappingId)}/sharing/apply-folder`,
         { parentKey, confirmed, ...(note ? { note } : {}) },
       )
