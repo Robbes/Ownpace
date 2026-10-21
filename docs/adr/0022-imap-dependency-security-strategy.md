@@ -12,7 +12,7 @@
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
 - The vulnerable chain is **gone, not overridden**: `imap-simple`→`utf7`→`semver@5.3.0` left the lockfile with the imapflow migration (workplan 0032).
-- The `semver: ^7.5.2` pnpm override **stays** — it was never only about that chain; removing it is a separate decision with its own blast radius.
+- The `semver` pnpm override **stays** — it was never only about that chain; removing it is a separate decision with its own blast radius. Since 2026-10-21 it is scoped like every other entry (`"semver@>=7.0.0 <7.5.2": ^7.5.2`): it lifts a 7.x below the fix and no longer moves other majors.
 
 > ## Update, 2026-08-06 — the workaround is no longer load-bearing
 >
