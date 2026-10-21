@@ -68,7 +68,9 @@ import {
   isArchiveProvider,
   isProviderAccountKind,
   log,
+  newReference,
   parseArchiveSource,
+  recordAppEvent,
 } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
 import { HttpTokenRevoker } from '@openmig/connectors';
@@ -3483,6 +3485,9 @@ router.put(
 let revoker: TokenRevoker | undefined;
 const tokenRevoker = (): TokenRevoker => (revoker ??= new HttpTokenRevoker());
 
+/** The audit action a migration's delete is recorded under (0137 T4). */
+export const MAPPING_DELETED_ACTION = 'mapping.deleted';
+
 /**
  * DELETE /api/mappings/:mappingId
  *
@@ -3519,6 +3524,15 @@ const tokenRevoker = (): TokenRevoker => (revoker ??= new HttpTokenRevoker());
  * refuses when it is gone, so this delete either waits for that list and then
  * takes it, or comes first and leaves the rescan no migration to write for. Guard:
  * `a-rescan-that-outlives-its-migration.integration.test.ts`.
+ *
+ * And record who deleted it, in the same transaction (workplan 0137 T4):
+ * `mapping.deleted`, the caller as actor, the migration's id under
+ * `mappingId` and the status it had. `audit_log` has no foreign key to the
+ * migration and is kept until the organisation is erased, so the record
+ * outlives the cascade it describes, and the operator's log page (`support_log`
+ * reads `detail.mappingId`) answers "who deleted my migration" without a
+ * database query. A record that cannot be written keeps the migration. Guard:
+ * `migrations.integration.test.ts`.
  */
 router.delete(
   '/:mappingId',
@@ -3566,6 +3580,13 @@ router.delete(
         await db
           .delete(schema.shareGrant)
           .where(and(eq(schema.shareGrant.mappingId, row.id), eq(schema.shareGrant.tenantId, tenantId)));
+        // Who deleted it (0137 T4): ids and a state, never a name or an address.
+        await new PgLedger(db).recordAuditEvent(tenantId as TenantId, {
+          actor: req.userId ?? 'unknown',
+          action: MAPPING_DELETED_ACTION,
+          entity: 'mapping',
+          detail: { mappingId: row.id, statusBefore: row.status },
+        });
         return { secretRef: row.sourceSecretRef, sourceKind: source?.kind ?? '' };
       });
 
@@ -3763,6 +3784,9 @@ router.post('/:mappingId/visit', authenticate, async (req: AuthenticatedRequest,
   }
 });
 
+/** The audit action a cutover preparation is recorded under (0137 T4). */
+export const CUTOVER_PREPARATION_REQUESTED_ACTION = 'cutover.preparation_requested';
+
 /**
  * POST /api/mappings/:mappingId/cutover
  *
@@ -3778,6 +3802,13 @@ router.post('/:mappingId/visit', authenticate, async (req: AuthenticatedRequest,
  * before it acts) — and answers 409 with the reason, or 202 that says what
  * will happen. The read is advisory: the job re-reads the ledger and remains
  * the authority on a ledger that moved in between.
+ *
+ * A 202 is recorded as `cutover.preparation_requested` (workplan 0137 T4): the
+ * caller as actor, the migration's id under `mappingId`, the run's id,
+ * `revokesApproval`, and the data type when one was named. `revokesApproval`
+ * is this door's reading: whether the ledger, as it read it, held an approval
+ * this preparation revokes. The job re-reads the ledger and remains the
+ * authority. A refusal records nothing, because nothing was enqueued.
  */
 router.post(
   '/:mappingId/cutover',
@@ -3893,6 +3924,44 @@ router.post(
       const run = await enqueue(taskId, payload, {
         tags: [`tenant:${tenantId}`, `mapping:${mappingId}`, 'type:cutover'],
       });
+
+      // Who prepared it, and whether the ledger as read above held an
+      // approval it revokes (0137 T4). After the enqueue, because the run id
+      // exists only then, and in a transaction of its own, because the
+      // enqueue is in none. The preparation is under way by now, so a record
+      // that cannot be written does not turn the 202 into a failure (hard
+      // rule 10). It is said instead: in the log with the run and the actor,
+      // and on the operator's log page as `cutover.preparation_not_recorded`
+      // under the same reference.
+      try {
+        await withTenantDb(tenantId, pool, (db) =>
+          new PgLedger(db).recordAuditEvent(tenantId as TenantId, {
+            actor: req.userId ?? 'unknown',
+            action: CUTOVER_PREPARATION_REQUESTED_ACTION,
+            entity: 'mapping',
+            detail: {
+              mappingId,
+              runId: run.id,
+              revokesApproval: preparation.revokesApproval,
+              ...(body.domain !== undefined ? { domain: body.domain } : {}),
+            },
+          }),
+        );
+      } catch (err) {
+        const reference = newReference();
+        log.error(
+          `[cutover] mapping ${mappingId}: preparation ${run.id} is enqueued, but who requested it ` +
+            `(${req.userId ?? 'unknown'}) could not be recorded [ref ${reference}]:`,
+          err,
+        );
+        void recordAppEvent({
+          level: 'error',
+          event: 'cutover.preparation_not_recorded',
+          reference,
+          tenantId,
+          mappingId,
+        });
+      }
 
       res.status(202).json({
         success: true,
