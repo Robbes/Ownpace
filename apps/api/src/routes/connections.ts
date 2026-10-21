@@ -1028,6 +1028,29 @@ export function keptTenant(
   return (stored.clientId ?? '').trim() === (values.clientId ?? '').trim() ? tenant : undefined;
 }
 
+/** The audit action a replacement of a connection's credentials is recorded under (0137 T4). */
+export const CREDENTIALS_REPLACED_ACTION = 'connection.credentials_replaced';
+
+/**
+ * Who replaced a connection's account, on the transaction it is handed: the
+ * connection by id, side and kind, and whether the new account was stored.
+ * Never the address, the user name or the password, old or new.
+ */
+async function recordCredentialsReplaced(
+  db: ConstructorParameters<typeof PgLedger>[0],
+  tenantId: string,
+  actor: string,
+  row: { readonly id: string; readonly role: string; readonly kind: string },
+  accountStored: boolean,
+): Promise<void> {
+  await new PgLedger(db).recordAuditEvent(tenantId as TenantId, {
+    actor,
+    action: CREDENTIALS_REPLACED_ACTION,
+    entity: 'connection',
+    detail: { connectionId: row.id, side: row.role, kind: row.kind, accountStored },
+  });
+}
+
 /**
  * Replace a connection's credentials in place (workplan 0065).
  *
@@ -1041,6 +1064,18 @@ export function keptTenant(
  * credentials are PROBED BEFORE they replace the old ones, and a failure
  * leaves the old ones in place: half-rotating a working connection into a
  * broken one because somebody pasted the wrong value is worse than refusing.
+ *
+ * WHO REPLACED IT IS RECORDED (workplan 0137 T4). For a target, the account is
+ * where every migration on the connection writes, and the probe passes for any
+ * real account on the same server, so a replacement can repoint a migration
+ * at somebody else's account and still look healthy. `connection.qualified`
+ * did not say so: a plain Test press writes the same row. Every probed
+ * replacement now writes `connection.credentials_replaced`, with the caller as
+ * actor: in the update's own transaction when the new account is stored
+ * (`accountStored: true`, and a record that cannot be written keeps the old
+ * account), and in one of its own when the probe refuses it and nothing is
+ * stored (`accountStored: false`). A request refused before the probe records
+ * nothing. Guard: `an-account-replaced-is-recorded.integration.test.ts`.
  */
 router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   const startedAt = Date.now();
@@ -1154,14 +1189,17 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
           ),
     );
 
+    const actor = req.userId ?? 'unknown';
     if (!probe.ok) {
       // The old credentials stay. Every mapping on this connection keeps
-      // whatever it had, which may well still be working.
+      // whatever it had, which may well still be working. Somebody tried to
+      // replace the account all the same, and that is recorded (0137 T4).
+      await withTenantDb(tenantId, pool(), (db) => recordCredentialsReplaced(db, tenantId, actor, row, false));
       return void res.status(200).json({ ...probe, rotated: false });
     }
 
-    await withTenantDb(tenantId, pool(), (db) =>
-      db
+    await withTenantDb(tenantId, pool(), async (db) => {
+      await db
         .update(schema.connection)
         .set({
           secretRef: JSON.stringify(
@@ -1170,8 +1208,9 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
           status: 'connected',
           updatedAt: new Date(),
         })
-        .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId))),
-    );
+        .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId)));
+      await recordCredentialsReplaced(db, tenantId, actor, row, true);
+    });
 
     // A rotated credential may carry different protocol scopes than the one
     // it replaces (an app-password minted for IMAP only, say) — re-qualify
@@ -1182,7 +1221,7 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
       row.kind,
       (row.config ?? {}) as Record<string, unknown>,
       creds as Record<string, string>,
-      req.userId ?? 'unknown',
+      actor,
       startedAt + DOOR_BUDGET_MS,
       answers,
     );
@@ -1207,6 +1246,10 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
  *
  * So: refuse while anything uses it, and say how many and which migrations, so
  * the answer is actionable rather than a flat no.
+ *
+ * A delete that goes through is recorded as `connection.deleted` (workplan
+ * 0137 T4), with the caller as actor, in the delete's own transaction. Guard:
+ * `connection-delete-revokes.integration.test.ts`.
  */
 /**
  * The one revoker both editions use (0085 T4a/T9): Google's endpoint for the
@@ -1216,6 +1259,9 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
  */
 let revoker: TokenRevoker | undefined;
 const tokenRevoker = (): TokenRevoker => (revoker ??= new HttpTokenRevoker());
+
+/** The audit action a connection's delete is recorded under (0137 T4). */
+export const CONNECTION_DELETED_ACTION = 'connection.deleted';
 
 router.delete('/:id', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -1232,6 +1278,7 @@ router.delete('/:id', authenticate, async (req: AuthenticatedRequest, res: Respo
           id: schema.connection.id,
           displayName: schema.connection.displayName,
           kind: schema.connection.kind,
+          role: schema.connection.role,
           secretRef: schema.connection.secretRef,
           // The legacy column is not modelled by drizzle — nothing has written
           // it for a long time — but the shared revocation still reads it, so
@@ -1274,6 +1321,15 @@ router.delete('/:id', authenticate, async (req: AuthenticatedRequest, res: Respo
       await db
         .delete(schema.connection)
         .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId)));
+      // Who deleted it (0137 T4), in the delete's own transaction: a record
+      // that cannot be written keeps the connection, and revokes nothing. Its
+      // id, side and kind, never its name, address or user name.
+      await new PgLedger(db).recordAuditEvent(tenantId as TenantId, {
+        actor: req.userId ?? 'unknown',
+        action: CONNECTION_DELETED_ACTION,
+        entity: 'connection',
+        detail: { connectionId: found[0].id, side: found[0].role, kind: found[0].kind },
+      });
       return { status: 200 as const, row: found[0] };
     });
 

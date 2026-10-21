@@ -213,4 +213,80 @@ describe('DELETE /api/connections/:id revokes the grant it lets go of', () => {
     expect(revokeCalls).toHaveLength(0);
     expect(await rowsLeft(USED_CONN)).toBe(1);
   });
+
+  // WHO DELETED IT (workplan 0137 T4): one `audit_log` row with the caller as
+  // actor, written in the delete's own transaction, naming the connection by
+  // id, side and kind, and never by its address, user name or name.
+  const deletionsOf = (id: string) =>
+    pool.query<{ tenant_id: string; actor: string; entity: string; detail: Record<string, unknown> }>(
+      `SELECT tenant_id, actor, entity, detail FROM audit_log
+        WHERE action = 'connection.deleted' AND detail ->> 'connectionId' = $1`,
+      [id],
+    );
+  const RECORDED_TARGET = '5a9c0000-e29b-41d4-a716-446655445041';
+  const KEPT_CONN = '5a9c0000-e29b-41d4-a716-446655445042';
+
+  it('records who deleted it: one connection.deleted row with the id, side and kind (0137 T4)', async () => {
+    await pool.query(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, secret_ref)
+       VALUES ($1, $2, 'target', 'nextcloud', 'Anna at the family cloud', $3, $4)`,
+      [
+        RECORDED_TARGET,
+        TENANT,
+        JSON.stringify({ url: 'https://cloud.example.invalid/remote.php/dav', username: 'anna@example.invalid' }),
+        stored({ username: 'anna@example.invalid', password: 'target-pw' }),
+      ],
+    );
+
+    const res = await request
+      .delete(`/api/connections/${RECORDED_TARGET}`)
+      .set('Authorization', `Bearer ${token(TENANT)}`);
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+
+    const recorded = (await deletionsOf(RECORDED_TARGET)).rows;
+    expect(recorded, 'the delete left no record of who did it').toHaveLength(1);
+    expect(recorded[0]).toEqual({
+      tenant_id: TENANT,
+      actor: `user-${TENANT}`,
+      entity: 'connection',
+      detail: { connectionId: RECORDED_TARGET, side: 'target', kind: 'nextcloud' },
+    });
+    expect(JSON.stringify(recorded[0]!.detail)).not.toMatch(/@|Anna|example/);
+  });
+
+  it('records nothing for a delete it refused or did not find', async () => {
+    // USED_CONN was refused (409, in use) and asked for by another tenant
+    // (404) above; neither deleted it.
+    expect(await rowsLeft(USED_CONN)).toBe(1);
+    const refused = await request
+      .delete(`/api/connections/${USED_CONN}`)
+      .set('Authorization', `Bearer ${token(TENANT)}`);
+    expect(refused.status).toBe(409);
+    const elsewhere = await request
+      .delete(`/api/connections/${USED_CONN}`)
+      .set('Authorization', `Bearer ${token(OTHER)}`);
+    expect(elsewhere.status).toBe(404);
+    expect((await deletionsOf(USED_CONN)).rows).toEqual([]);
+  });
+
+  it('deletes nothing when the record cannot be written: the delete and its record are one transaction', async () => {
+    await insertConnection(KEPT_CONN, 'gmail', { refreshToken: 'rt-kept' });
+    await pool.query(`CREATE OR REPLACE FUNCTION refuse_t4_connection_deleted() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'the record is refused'; END $$`);
+    await pool.query(`CREATE TRIGGER refuse_t4_connection_deleted BEFORE INSERT ON audit_log
+      FOR EACH ROW WHEN (NEW.action = 'connection.deleted' AND NEW.detail ->> 'connectionId' = '${KEPT_CONN}')
+      EXECUTE FUNCTION refuse_t4_connection_deleted()`);
+    try {
+      const res = await request
+        .delete(`/api/connections/${KEPT_CONN}`)
+        .set('Authorization', `Bearer ${token(TENANT)}`);
+      expect(res.status).toBe(500);
+      expect(await rowsLeft(KEPT_CONN), 'the connection was deleted with no record of who did it').toBe(1);
+      // And its grant was not revoked: the revocation follows the commit.
+      expect(revokeCalls).toHaveLength(0);
+    } finally {
+      await pool.query('DROP TRIGGER IF EXISTS refuse_t4_connection_deleted ON audit_log');
+      await pool.query('DROP FUNCTION IF EXISTS refuse_t4_connection_deleted()');
+    }
+  });
 });

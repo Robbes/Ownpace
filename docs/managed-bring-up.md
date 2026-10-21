@@ -1535,6 +1535,20 @@ output, on the line carrying the same `[ref …]`. A page that could not read on
 of the API's answers records itself here too, as `web.answer_unreadable` under
 the reference it showed (workplan 0145; `incident-runbook.md`).
 
+**Who deleted it** (workplan 0137 T4). Four acts leave an audit row with the
+member who did them: deleting a migration (`mapping.deleted`), deleting a
+connection (`connection.deleted`), replacing a connection's account
+(`connection.credentials_replaced`, written when the probe refused the new
+account too) and preparing a cutover (`cutover.preparation_requested`). Type
+the name in **Event starts with**. A deleted migration's row still carries its
+id in the **Migration** column, without a name, because its own row is gone;
+the id narrows the log to everything else that migration recorded. The
+detail says the status it had (`statusBefore`), whether a replaced account was
+stored (`accountStored`), and the preparation's run and whether it revoked an
+approval (`runId`, `revokesApproval`). A preparation whose record could not be
+written is still under way, and the page shows it as
+`cutover.preparation_not_recorded` under a reference.
+
 What an audit event changed is not on the page. It stays in `audit_log.detail`
 until the organisation is erased, and an investigation reads it as the database
 owner:
