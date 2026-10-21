@@ -261,7 +261,9 @@ fi
 # Four attempts, 2s + 4s + 8s ≈ 14 seconds of patience. Long enough to ride out
 # a front reloading a certificate or a container finishing its start; short
 # enough that a provider which is really gone still fails well inside the gate's
-# own timeout, with exactly the diagnosis it has always printed.
+# own timeout, with exactly the diagnosis it has always printed. A 502, 503 or
+# 504 from the front spends the same budget (#263; rule 1 on
+# `curl_read_retrying`).
 #
 # NOT applied to the CURL_ORIGIN probe further up, and that is deliberate: that
 # one asks "can this machine reach the issuer directly?", where a fast NO is the
@@ -458,12 +460,39 @@ ${#PAT} characters long, which is too short to be one:
 # A READ THAT NEVER GOT AN ANSWER IS RE-ASKED. Sets CURL_OUT, CURL_RC and
 # CURL_ATTEMPTS; the caller decides what a failure means.
 #
+# Every caller ends curl's output with the status (`-w '…%{http_code}'`), so the
+# last line of CURL_OUT is it: `api` writes the body and then the status on a
+# line of its own, and the successor-token probe writes the status alone.
+#
 # Three rules, and each is why this is not simply `curl --retry`:
 #
-#   1. ONLY A TRANSPORT FAILURE — a curl EXIT CODE, never an HTTP status. A 401,
-#      403 or 404 is the provider ANSWERING, and every one of those has a
+#   1. ONLY NO ANSWER FROM THE PROVIDER — a curl EXIT CODE, or a 502, 503 or 504.
+#      A 401, 403 or 404 is the provider ANSWERING, and every one of those has a
 #      diagnosis written out in `api` below. Retrying them would delay a correct
 #      message by fourteen seconds and change nothing about it.
+#
+#      A 502, 503 or 504 is NOT the provider answering. It is whatever stands in
+#      front of it saying it could not get an answer — a gateway error, the same
+#      thing a dropped handshake is one layer further in. E2E (managed) #263
+#      died of it on both attempts, 2026-10-21: the NetBird front answered 502
+#      with its own "Connection Error" page, once on `GET /auth/v1/users/me`
+#      right after the provider started and once on
+#      `GET /management/v1/projects/{id}/apps/{id}` after several reads had gone
+#      through the same front. `api` took it for the
+#      provider's answer and died. Runs through the same front that morning
+#      were green. A 503 or 504 can also come from the provider itself, when ITS
+#      upstream — the database — is not answering; that is still no answer to
+#      the question asked, and re-asking a read is just as safe.
+#
+#      The retry line names the status and NEVER the body: the front's page is
+#      a screen of HTML, and the last failure prints it anyway (rule 3).
+#
+#      TO STDERR. `api` runs inside `$( )` at every call site, so a line this
+#      writes on stdout becomes part of the answer the caller hands to jq — a
+#      read re-asked and then answered handed jq `[setup-zitadel] …` in front of
+#      the JSON. That was true of the transport retry from the day #174 added
+#      it: a blip it rode out would have killed the run one line later, on jq's
+#      parse error, with no FATAL line to say why.
 #
 #   2. ONLY READS. A `recv failure` can land after the server has already acted,
 #      so a re-sent WRITE can apply twice. This script MINTS PERSONAL ACCESS
@@ -481,6 +510,7 @@ ${#PAT} characters long, which is too short to be one:
 #      quieter about a provider that is really gone.
 curl_read_retrying() { # curl_read_retrying <label> <curl args…>
   local label="$1"; shift
+  local why code
   CURL_ATTEMPTS=1
   while : ; do
     # `A && B || C`, NOT `A; rc=$?`. `set -euo pipefail` is on (line 39), and a
@@ -490,8 +520,17 @@ curl_read_retrying() { # curl_read_retrying <label> <curl args…>
     # FATAL:` line at all. The careful diagnosis below has been unreachable
     # since it was written, and a retry written the same way would never loop.
     CURL_OUT="$(curl "$@")" && CURL_RC=0 || CURL_RC=$?
-    if [ "$CURL_RC" -eq 0 ] || [ "$CURL_ATTEMPTS" -ge "$IDP_READ_ATTEMPTS" ]; then return 0; fi
-    say "${label}: no answer at all (curl exited ${CURL_RC}) — attempt ${CURL_ATTEMPTS} of ${IDP_READ_ATTEMPTS}, retrying in $(( 2 ** CURL_ATTEMPTS ))s"
+    if [ "$CURL_RC" -ne 0 ]; then
+      why="no answer at all (curl exited ${CURL_RC})"
+    else
+      code="${CURL_OUT##*$'\n'}"
+      case "$code" in
+        502|503|504) why="the front answered HTTP ${code} without reaching the provider" ;;
+        *) return 0 ;;
+      esac
+    fi
+    [ "$CURL_ATTEMPTS" -lt "$IDP_READ_ATTEMPTS" ] || return 0
+    say "${label}: ${why} — attempt ${CURL_ATTEMPTS} of ${IDP_READ_ATTEMPTS}, retrying in $(( 2 ** CURL_ATTEMPTS ))s" >&2
     sleep "$(( 2 ** CURL_ATTEMPTS ))"
     CURL_ATTEMPTS=$(( CURL_ATTEMPTS + 1 ))
   done
@@ -788,7 +827,9 @@ if [ "$LEFT_SECONDS" -lt $(( PAT_ROTATE_BELOW_DAYS * 86400 )) ] ||
   # PROVE THE SUCCESSOR before the predecessor is touched: the same question
   # the old token just answered.
   # Through the same retry as every other read, and it cannot use `api` because
-  # it deliberately presents a DIFFERENT credential from $PAT.
+  # it deliberately presents a DIFFERENT credential from $PAT. Its `-w` writes
+  # the status and nothing else, which is the last line the retry reads, so a
+  # 502 from the front is re-asked here exactly as it is in `api`.
   curl_read_retrying "GET /auth/v1/users/me (proving the new token)" \
     -sS "${CURL_ORIGIN[@]}" -o /dev/null -w '%{http_code}' \
     -H "Authorization: Bearer ${NEW_TOKEN}" "${ISSUER}/auth/v1/users/me"
@@ -796,12 +837,14 @@ if [ "$LEFT_SECONDS" -lt $(( PAT_ROTATE_BELOW_DAYS * 86400 )) ] ||
   # into `|| echo 000` and then said "refused", which sends whoever reads it
   # looking at grants and expiry for what was a network that never carried the
   # question. Both still rotate nothing — the outcome was never in doubt; the
-  # sentence was wrong.
+  # sentence was wrong. A 502, 503 or 504 that outlasted the retry is the second
+  # kind too: the front never got the question to the provider (#263).
   [ "$CURL_RC" -eq 0 ] ||
     die "could not reach the provider to prove the freshly minted token (curl exited ${CURL_RC}, asked ${CURL_ATTEMPTS} time(s)) — keeping the old one, rotating nothing"
   new_code="$CURL_OUT"
   case "$new_code" in
     2*) : ;;
+    502|503|504) die "could not reach the provider to prove the freshly minted token: the front answered HTTP ${new_code} without reaching it, asked ${CURL_ATTEMPTS} time(s) — keeping the old one, rotating nothing" ;;
     *) die "the freshly minted token was refused (HTTP ${new_code}) — keeping the old one, rotating nothing" ;;
   esac
 
