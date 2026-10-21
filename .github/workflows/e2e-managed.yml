@@ -291,7 +291,10 @@ jobs:
         #   ensure-env-secrets.sh   generates the secrets. Idempotent by
         #                           construction — it fills a MISSING key and
         #                           REFUSES to replace a live one, which is why
-        #                           it is safe to run on every pass.
+        #                           it is safe to run on every pass. One
+        #                           exception: a ZITADEL_PAT_EXPIRY already
+        #                           past, or not a date, is replaced with a
+        #                           fresh one (seed_pat_expiry, env-read.sh).
         #   managed.env.example     carries the non-secret defaults.
         #
         # A variable in neither is a genuine gap and this refuses, naming it.
@@ -376,7 +379,9 @@ jobs:
           # the key the identity provider encrypts its own data with: generate a
           # different one next run and every user it holds is stranded, which is
           # exactly the hazard ensure-env-secrets.sh has a refusal list for. The
-          # copy is additive — the script never replaced anything above.
+          # copy is additive — the script never replaced anything above, except
+          # a passed ZITADEL_PAT_EXPIRY, which the canonical copy should not
+          # keep either.
           . deploy/compose/env-read.sh
           COMPOSE_PROJECT="$(compose_project deploy/compose)"
           PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/${COMPOSE_PROJECT}}"

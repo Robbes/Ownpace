@@ -42,6 +42,11 @@
 #
 # Usage:  . "${SCRIPT_DIR}/env-read.sh"
 #         value="$(env_value "$ENV_FILE" SOME_KEY [default])"
+#
+# It also holds the one function here that WRITES the file: seed_pat_expiry
+# <env-file> (the provisioning token's first date, near the end), which writes
+# through env-upsert.sh beside this file. And the two date helpers it shares
+# with setup-zitadel.sh's rotation: future_iso <days> and iso_to_epoch <date>.
 
 # env_value <env-file> <key> [default]
 env_value() {

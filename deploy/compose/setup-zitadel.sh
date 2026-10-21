@@ -564,9 +564,10 @@ cover nearly every case:
   IT EXPIRED. The token carries its own deadline. This script's note of it —
   ZITADEL_PAT_EXPIRY in ${ENV_FILE}, last written when a run last synced it —
   says: $(read_env ZITADEL_PAT_EXPIRY unknown). A note that had passed is
-  replaced with a fresh date before the provider's first start (a line from
-  seed_pat_expiry above says so, with the date it replaced); on a provider
-  that was already running, the token keeps the old date.
+  replaced with a fresh date by every bring-up and every full run of this
+  script, whether or not a first start follows (a seed_pat_expiry line above
+  names the date it replaced); a provider that was already running keeps the
+  token's old date, so the note can look fresh while the token has expired.
   Every run of this script rotates the token when fewer than
   ${PAT_ROTATE_BELOW_DAYS} days remain, so an expired one means the gate has
   not run since before that window closed. The way back in without destroying
