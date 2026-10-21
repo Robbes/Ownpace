@@ -52,14 +52,31 @@ const services = (path: string): Record<string, Service> =>
   (parse(read(path), { merge: true, logLevel: 'error' }) as { services?: Record<string, Service> })
     .services ?? {};
 
+/**
+ * A cap that still caps. The shape alone would let `max-size: "0m"`,
+ * `max-file: "0"` or a disk's worth through, so the numbers are held too: at
+ * least one file of at least 1 MB, and no more than 100 MB a container in all,
+ * the most the appliance's compose file and the managed guides promise (five
+ * files of 20 MB today, in both).
+ */
+function expectCapped(logging: Service['logging']): void {
+  expect(logging?.driver).toBe('json-file');
+  const size = logging?.options?.['max-size'];
+  const files = logging?.options?.['max-file'];
+  expect(size).toMatch(/^\d+m$/);
+  expect(files).toMatch(/^\d+$/);
+  const megabytes = Number.parseInt(size!, 10);
+  const count = Number.parseInt(files!, 10);
+  expect(megabytes, 'max-size').toBeGreaterThanOrEqual(1);
+  expect(count, 'max-file').toBeGreaterThanOrEqual(1);
+  expect(megabytes * count, 'max-size times max-file, in MB').toBeLessThanOrEqual(100);
+}
+
 describe("the appliance's containers", () => {
   const base = services('deploy/selfhost/compose.yml');
 
   it.each(Object.keys(base))('%s keeps a bounded amount of output', (name) => {
-    const logging = base[name]!.logging;
-    expect(logging?.driver).toBe('json-file');
-    expect(logging?.options?.['max-size']).toMatch(/^\d+m$/);
-    expect(logging?.options?.['max-file']).toMatch(/^\d+$/);
+    expectCapped(base[name]!.logging);
   });
 
   it('are all found, so the cases above are not vacuous', () => {
@@ -80,10 +97,7 @@ describe("the managed stacks' containers", () => {
   const managed = services('deploy/compose/managed.yml');
 
   it.each(Object.keys(managed))('%s keeps a bounded amount of output', (name) => {
-    const logging = managed[name]!.logging;
-    expect(logging?.driver).toBe('json-file');
-    expect(logging?.options?.['max-size']).toMatch(/^\d+m$/);
-    expect(logging?.options?.['max-file']).toMatch(/^\d+$/);
+    expectCapped(managed[name]!.logging);
   });
 
   it('are all found, the one-off ones among them, so the cases above are not vacuous', () => {

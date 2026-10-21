@@ -156,6 +156,8 @@ are **not** product-named and keep their names; nothing above touches them.
   oldest lines can go sooner, never later, as they do under the stack's cap.
   That is what the privacy policy says of server logs (§9): kept until the
   part of the service that wrote them is replaced, with no fixed period.
+  But on `local` the site's log is capped too, and the visit count then covers
+  only what is left of it, which is why `json-file` is the one to keep.
   The host's journal would keep them after the container is gone, for as long
   as the journal keeps anything, so do not hand them to it. Check the machine
   (`stand-up-live.sh` asks too, and refuses any other answer):

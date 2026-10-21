@@ -218,7 +218,9 @@ the part of the service that wrote them is replaced"*. The stack's own services
 size, five files of 20 MB: one that writes a lot keeps only about its last
 100 MB, so its oldest lines go sooner, never later. The site's (`www.yml`) keeps
 all of it, with no limit of age or size, because the visit count reads the
-whole log. On the daemon, `local` would do too: it rotates by size the same way.
+whole log; that holds while the daemon stays at `json-file`. `local` on the
+daemon would keep to §9 as well, but it rotates by size, the site's log
+included, so the visit count would then cover only the last 100 MB or so.
 `docker info --format '{{.LoggingDriver}}'` prints `json-file` (or `local`) on a
 machine that keeps to it, and `stand-up-live.sh` refuses any other answer; the
 journal would keep every line past its container (managed-bring-up.md, *Before

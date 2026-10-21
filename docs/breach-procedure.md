@@ -45,7 +45,8 @@ which recreates the app's and the site's containers, removes their output with t
 run's output went when its run ended. There is no copy in the host's journal to go back to.
 And the stack's own services keep only about the last 100 MB each (five files of 20 MB,
 `managed.yml`), so a service that writes a lot drops its oldest lines while you wait: what the
-copy below holds is what is left after that cap. The site's output is kept whole.
+copy below holds is what is left after that cap. The site's output is kept whole, on Docker's
+default, `json-file`; a daemon set to `local` would rotate it by size the same way.
 
 ```bash
 # Every service's output, while its container still stands (the stack's, then the website's):
