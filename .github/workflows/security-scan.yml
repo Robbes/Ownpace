@@ -103,20 +103,23 @@ jobs:
           git fetch --no-tags --depth=1 origin '+refs/tags/v*:refs/tags/v*'
           node scripts/release-names-agree.mjs
 
-      # Node.js 24 is pre-installed on the self-hosted runner via apt
-      # Install pnpm using the standalone installer
-      - name: Install pnpm
-        run: |
-          curl -fsSL https://get.pnpm.io/install.sh | PNPM_HOME="$HOME/.local/share/pnpm" sh -
-          export PNPM_HOME="$HOME/.local/share/pnpm"
-          echo "PNPM_HOME=$PNPM_HOME" >> $GITHUB_ENV
-          echo "$PNPM_HOME/bin" >> $GITHUB_PATH
+      # PNPM AND NODE AS EVERY OTHER JOB SETS THEM UP: the pnpm `packageManager`
+      # names and the Node major the images run, the newest release of it.
+      # Until 2026-10-21 this job had neither step. It ran the Spark's apt Node
+      # on main and the hosted image's default elsewhere, which no guard saw,
+      # and it installed pnpm by piping get.pnpm.io's script into `sh` with no
+      # version, into the runner user's own pnpm home, so every merge replaced
+      # the pnpm that user's shell runs with whatever `latest` was that day.
+      # action-setup installs into a directory of its own. The Node step is
+      # held by a-gate-on-a-version-nothing-ships.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
       - name: Verify versions
-        run: |
-          echo "Node version: $(node --version)"
-          echo "pnpm version: $(pnpm --version)"
-          which pnpm
-      - run: pnpm install
+        run: echo "node $(node --version), pnpm $(pnpm --version)"
+      - run: pnpm install --frozen-lockfile
 
       # ---------- WHAT IS IN THE TREE, NAMED ONE BY ONE ----------
       #
@@ -183,6 +186,15 @@ jobs:
         id: trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
+          # THE TRIVY THAT RUNS, NAMED. Without it the action installs its own
+          # default, v0.70.0 (2026-04-17) at this SHA, and Dependabot moves the
+          # action, not that default: v0.36.0 is still its newest release. The
+          # vulnerability database updates daily either way; this is the engine
+          # (parsers, detection). v0.76.0 is from 2026-10-14; v0.76.1
+          # (2026-10-21) is three days old, the age CONTRIBUTING.md asks of a
+          # dependency, on 2026-10-24.
+          # Raise or drop when Dependabot takes trivy-action > v0.36.0.
+          version: v0.76.0
           scan-type: fs
           format: sarif
           output: trivy.sarif

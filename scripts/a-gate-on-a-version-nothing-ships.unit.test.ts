@@ -27,6 +27,30 @@
  * whatever Node the runner image happens to carry, which is a version nobody
  * chose.
  *
+ * ## Node: and the newest release of that major, on a runner that keeps its cache
+ *
+ * The right major was not enough. With `check-latest` left at its default,
+ * false, setup-node takes the first `24.x` it finds in the runner's own tool
+ * cache. A GitHub-hosted runner gets a fresh image every week; the Spark's
+ * self-hosted runner keeps its cache for ever. Its jobs logged `check-latest:
+ * false`, `Found in cache @ …/_tool/node/24.18.0/arm64` and `node: v24.18.0`
+ * on 2026-10-21 (E2E (managed) #262 and the unit-tests job of the same day's
+ * push run), while the images built `FROM node:24.22.0-slim` and 24.18.1
+ * (2026-07-28) and 24.22.1 (2026-10-20) were security releases. Every
+ * push-to-main job and every nightly gate on the Spark ran four minors and two
+ * security releases behind what ships, and nothing would ever have moved it.
+ * So every `setup-node` step says `check-latest: true`, the hosted ones too:
+ * it costs them nothing, and one rule is simpler to hold than "the steps whose
+ * `runs-on` can land on the Spark". If the version manifest cannot be reached,
+ * setup-node logs it and falls back to the cache, so the flag cannot fail a job.
+ *
+ * Security Scan had no `setup-node` step at all, so none of this saw it: it ran
+ * the Spark's apt Node on main and the hosted image's default elsewhere, and
+ * installed pnpm by piping get.pnpm.io's script into `sh` with no version, into
+ * the runner user's own pnpm home (found 2026-10-21). It now sets up pnpm and
+ * Node like every other job, and STEP_ANCHORS below names it, so a scan job
+ * that loses its `setup-node` again fails here instead of escaping the walk.
+ *
  * ## Node: the tasks' runtime is the major the images run
  *
  * The other way round: something that ships, on a version no gate runs. The
@@ -93,7 +117,7 @@ function imageNodeMajors(): ReadonlyArray<{ image: string; major: number }> {
 }
 
 /** Every `actions/setup-node` step in every workflow, with what it asks for. */
-function setupNodeSteps(): ReadonlyArray<{ where: string; version: string | undefined }> {
+function setupNodeSteps(): ReadonlyArray<{ where: string; version: string | undefined; checkLatest: unknown }> {
   return readdirSync(join(REPO_ROOT, '.github/workflows'))
     .filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'))
     .flatMap((file) => {
@@ -106,6 +130,10 @@ function setupNodeSteps(): ReadonlyArray<{ where: string; version: string | unde
             return {
               where: `.github/workflows/${file} job ${job}`,
               version: version === undefined ? undefined : String(version),
+              // As the YAML parser hands it over: `check-latest: true` is the
+              // boolean true, and anything else (absent, 'false', a quoted
+              // 'true') is refused below.
+              checkLatest: s.with?.['check-latest'],
             };
           }),
       );
@@ -117,6 +145,30 @@ function setupNodeSteps(): ReadonlyArray<{ where: string; version: string | unde
  * them fails here instead of passing on less.
  */
 const ANCHORS = ['.github/workflows/e2e-managed.yml', '.github/workflows/e2e-live-target.yml'];
+
+/**
+ * Every `setup-node` step there is, by workflow and job: the nine that can run
+ * on the Spark (ci.yml's five on a push, the four E2E lanes), the three that
+ * run on hosted runners only, and Security Scan's. Named rather than counted,
+ * so a walk that stops seeing one fails here and says which, while a new
+ * workflow's step needs no number raised (it is still held to everything
+ * below).
+ */
+const STEP_ANCHORS = [
+  '.github/workflows/ci.yml job docs-hygiene',
+  '.github/workflows/ci.yml job lint',
+  '.github/workflows/ci.yml job unit-tests',
+  '.github/workflows/ci.yml job ui-tests',
+  '.github/workflows/ci.yml job integration-tests',
+  '.github/workflows/e2e-managed.yml job e2e-managed',
+  '.github/workflows/e2e.yml job e2e-selfhost',
+  '.github/workflows/e2e-o365.yml job e2e-o365',
+  '.github/workflows/e2e-live-target.yml job live-target',
+  '.github/workflows/exposure-probe.yml job probe',
+  '.github/workflows/idp-pin-watch.yml job watch',
+  '.github/workflows/windows-payload.yml job build',
+  '.github/workflows/security-scan.yml job security-scan',
+];
 
 describe('every gate runs the Node major the images ship', () => {
   const images = imageNodeMajors();
@@ -134,6 +186,12 @@ describe('every gate runs the Node major the images ship', () => {
         `no setup-node step found in ${anchor}`,
       ).toBe(true);
     }
+    const missing = STEP_ANCHORS.filter((where) => !steps.some((s) => s.where === where));
+    expect(
+      missing,
+      'setup-node steps the walk no longer finds (a job without one runs whatever Node the runner has)',
+    ).toEqual([]);
+    expect(steps.length).toBeGreaterThanOrEqual(STEP_ANCHORS.length);
   });
 
   it('the images agree with each other on one major', () => {
@@ -149,6 +207,20 @@ describe('every gate runs the Node major the images ship', () => {
     expect(
       wrong,
       `the images run Node ${shipped}; a gate on another major checks something nothing ships`,
+    ).toEqual([]);
+  });
+
+  it('every setup-node step asks for the newest release of it, not the first one in the cache', () => {
+    const cached = steps
+      .filter((s) => s.checkLatest !== true)
+      .map(
+        (s) =>
+          `${s.where}: check-latest ${s.checkLatest === undefined ? '(absent, so false)' : JSON.stringify(s.checkLatest)}`,
+      );
+    expect(
+      cached,
+      'without `check-latest: true` setup-node takes the first matching version in the tool cache, and the ' +
+        "self-hosted runner's cache is never refreshed: the Spark ran 24.18.0 for months while the images moved on",
     ).toEqual([]);
   });
 });
