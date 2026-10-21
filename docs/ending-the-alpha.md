@@ -143,32 +143,57 @@ hold (step 3), because the privacy policy promises it for the end of the Alpha.
    `0 pass(es) still in flight`.
 3. **Empty the background tasks' history**, on live only. Privacy §9 keeps their records *"Until
    the end of the Alpha at the latest: then the background tasks start with an empty history."*
-   All of that history is in the task runner's own database, `triggerdb`: runs are not copied to
-   ClickHouse (`RUN_REPLICATION_ENABLED` is not set, which is why its dashboard's Runs page is
-   empty), their log events are kept in `triggerdb` (`EVENT_REPOSITORY_DEFAULT_STORE` is not set),
-   and MinIO takes only a payload of 512 KB or more, which these tasks do not make.
-   `reset-trigger.sh` removes that database and nothing else: the application's database, with
-   every organisation, migration, run log and invoice, is not touched. Run it, and what it prints
-   next, **before the `.env` change in step 4**:
+   That history is in every store the task runner writes, not in its own database alone
+   (Trigger.dev v4.7.2):
+   - **`triggerdb`**, its database: the runs, their payloads, outputs and errors, and their log
+     events (`EVENT_REPOSITORY_DEFAULT_STORE` is not set, so they are kept there).
+   - **ClickHouse**, although runs are not copied there (`RUN_REPLICATION_ENABLED` is not set,
+     which is why its dashboard's Runs page is empty). Every task process sends its host and
+     Node.js metrics, collected every 10 seconds, to `trigger_dev.metrics_v1`, whatever either key
+     says. Each row carries the run's id, its task and attempt, and Trigger.dev's ids of the
+     organisation, project and environment, and is kept 60 days.
+   - **Redis**, the queues: a run that died keeps its id in its queue's set for good.
+   - **MinIO**: a payload of 512 KB or more, or an output of 128 KB or more.
+
+   `reset-trigger.sh` removes `triggerdb`, and the two lines after it remove the other three, each
+   container and volume. Nothing of the application is touched: its database, with every
+   organisation, migration, run log and invoice, is another one, and only the task runner uses
+   these four. Start only once the drain is done and the hold is at least
+   `DEPLOY_LIVE_QUIET_MINUTES` old (5 by default), as `deploy-live.sh` asks before it replaces the
+   task containers. A pass the tick queued just before the hold is in no count until it starts,
+   and the reset would end it halfway, its run left `running` until the tick takes it for dead two
+   hours later. `./deploy/compose/deploy-live.sh --dry-run <tag>` says
+   `the hold is on and nothing is in flight` once both are true. Then, **before the `.env` change
+   in step 4**:
 
    ```bash
    ./deploy/compose/reset-trigger.sh --yes
+   docker compose -f deploy/compose/managed.yml rm -s -f trigger-redis clickhouse minio
+   docker volume rm ownpace-live_redis_data ownpace-live_clickhouse_data_v2 ownpace-live_clickhouse_logs ownpace-live_minio_data
    ./deploy/compose/ensure-env-secrets.sh
    ./deploy/compose/bootstrap-managed.sh --from trigger
    ```
 
-   The bring-up starts the task runner empty and stops at its `account` phase (exit 2) with the
-   one human step: on live's Trigger.dev dashboard, sign in and name an organisation and a project.
-   Then:
+   A volume `docker volume rm` refuses is one something still holds: see *If a check fails*. The
+   bring-up starts the task runner and its stores empty (`trigger-api` applies ClickHouse's
+   schema when it starts, and MinIO makes `packets`) and stops at its `account` phase (exit 2)
+   with the one human step: on live's Trigger.dev dashboard, sign in and name an organisation and
+   a project. Then:
 
    ```bash
    ./deploy/compose/bootstrap-managed.sh --from account
    ```
 
-   It reads the new project's ref and key into live's `.env`, stops once more for the deploy CLI's
-   login under live's own profile (the old login went with the old database; run the line it
-   prints), and finishes: the app brought up with the new key, the task environment uploaded and
-   the tasks deployed, all under the hold. Not `stand-up-live.sh --resume`: it refuses once live's
+   It reads the new project's ref and key into live's `.env` and stops once more (exit 2) for the
+   deploy CLI's login under live's own profile: the old login went with the old database. Run the
+   `npx -y trigger.dev@… login … --profile …` line it prints, then:
+
+   ```bash
+   ./deploy/compose/bootstrap-managed.sh --from login
+   ```
+
+   That finishes: the app brought up with the new key, the task environment uploaded and the
+   tasks deployed, all under the hold. Not `stand-up-live.sh --resume`: it refuses once live's
    deploy log has a line. The task deploy can strip `apps/worker/package.json`'s last newline, and
    the deploy in step 5 refuses a tree that is not clean: if `git status` shows only that file,
    `git checkout -- apps/worker/package.json`.
@@ -180,10 +205,12 @@ hold (step 3), because the privacy policy promises it for the end of the Alpha.
    - **What still holds the old history, and how long:** a copy before an update taken in the
      week before, when its tag moved the Trigger.dev pin, until that update is proven and after
      day 6 at the latest (privacy §9's row for that copy). Live keeps no daily dumps of the task
-     runner's database: `trigger-version.sh` refuses its drill there.
-   - **The OTA stack is not in the promise**, which is live's. A rehearsal there is optional: it
-     costs that stack its dashboard step, and the gate's CLI login (its `TRIGGER_ACCESS_TOKEN`, or
-     the session it restores) was made on the old instance and has to be made again.
+     runner's database: `trigger-version.sh` refuses its drill there. No copy or dump takes
+     ClickHouse, Redis or MinIO, and each container removed takes its log with it.
+   - **The OTA stack is not in the promise**, which is live's. A rehearsal there is optional, with
+     its own project's volume names (`ownpace-managed_…`): it costs that stack its dashboard step,
+     and the gate's CLI login (its `TRIGGER_ACCESS_TOKEN`, or the session it restores) was made on
+     the old instance and has to be made again.
 
    *Checks*, step 6, proves it.
 4. **Empty the stage in live's `.env`.** Keep the line and leave it empty, so the next reader sees
@@ -247,24 +274,16 @@ Before lifting the hold:
 5. **Billing, as the owner of your own organisation.** The Billing page's panel is titled *What
    this month bills*. Its data line counts from 0 (*Moved in total, counted: 0 GB of 250 GB*), and
    what the alpha moved is on a line of its own.
-6. **The background tasks start with an empty history** (*The switch*, step 3). The task
-   runner's database is new: its oldest run is younger than the reset, or there is none yet.
+6. **The background tasks start with an empty history** (*The switch*, step 3). Every store the
+   task runner writes is new: each volume was made in step 3, and the oldest run in `triggerdb`
+   and the oldest metrics row in ClickHouse are younger than the reset, or there are none yet.
+   Both read in UTC. `clickhouse-client` takes the container's own user and password, so none is
+   typed.
 
    ```bash
+   docker volume inspect -f '{{.Name}} {{.CreatedAt}}' ownpace-live_trigger_db_data ownpace-live_redis_data ownpace-live_clickhouse_data_v2 ownpace-live_clickhouse_logs ownpace-live_minio_data   # each at step 3
    docker compose -f deploy/compose/managed.yml exec -T trigger-db psql -X -At -U trigger -d triggerdb -c 'SELECT min("createdAt") FROM "TaskRun"'   # after the reset, or empty
-   ```
-
-   And the two stores the reset leaves alone hold none of it. ClickHouse would hold the runs, their
-   payloads and their events only with replication or its event store switched on, and
-   `clickhouse-client` takes the container's own user and password, so none is typed:
-
-   ```bash
-   docker compose -f deploy/compose/managed.yml exec -T clickhouse clickhouse-client --query "
-     SELECT 'task_runs_v2', count() FROM trigger_dev.task_runs_v2
-     UNION ALL SELECT 'raw_task_runs_payload_v1', count() FROM trigger_dev.raw_task_runs_payload_v1
-     UNION ALL SELECT 'task_events_v1', count() FROM trigger_dev.task_events_v1
-     UNION ALL SELECT 'task_events_v2', count() FROM trigger_dev.task_events_v2"   # each 0
-   docker compose -f deploy/compose/managed.yml exec -T minio ls -A /bitnami/minio/data/packets   # nothing
+   docker compose -f deploy/compose/managed.yml exec -T clickhouse clickhouse-client --query "SELECT count(), min(bucket_start) FROM trigger_dev.metrics_v1"   # 0, or an oldest after the reset
    ```
 
 After lifting the hold, once passes have copied new items:
@@ -298,19 +317,22 @@ After lifting the hold, once passes have copied new items:
   with the same tag, after checking `.env` (step 4).
 - **The guide or the line is still on the site.** The site step built with live's old stage, or
   `WWW_LIVE` is not `true`. Check `.env` and run the deploy again.
-- **The history is not empty** (check 6), with the hold still on.
-  - A run older than the reset in `triggerdb`: the reset did not remove its volume. It says so
-    and exits 1, and `docker ps -a --filter volume=ownpace-live_trigger_db_data` names what still
-    holds it. Run step 3 again.
-  - A count above 0 in ClickHouse, or anything in `packets`: something sent the history there
-    (replication or the event store switched on, or a payload of 512 KB or more). Empty that store
-    the way `reset-trigger.sh` empties `triggerdb`. Stop and remove `trigger-supervisor`,
-    `trigger-api` and the store's service (`clickhouse` or `minio`), then
-    `docker volume rm ownpace-live_clickhouse_data_v2` (or `ownpace-live_minio_data`), then
-    `./deploy/compose/bootstrap-managed.sh --from trigger`. That starts them again:
-    `trigger-api` applies ClickHouse's schema when it starts, and MinIO makes `packets`. Then run
-    check 6 again, and record the store in workplan 0139: that is when `reset-trigger.sh` should
-    learn to remove it.
+- **The history is not empty** (check 6), with the hold still on. A volume made before step 3,
+  or a row older than the reset, is a volume that was not removed. `reset-trigger.sh` says so and
+  exits 1, `docker volume rm` names the one it refused, and
+  `docker ps -a --filter volume=<its name>` names what still holds it.
+  - `ownpace-live_trigger_db_data`: run step 3 again.
+  - One of the others: stop what holds it, then, from `~/ownpace-live`:
+
+    ```bash
+    docker compose -f deploy/compose/managed.yml rm -s -f trigger-supervisor trigger-api trigger-redis clickhouse minio
+    docker volume rm <its name>
+    ./deploy/compose/bootstrap-managed.sh --from trigger
+    ```
+
+    That starts them again and walks the rest with the project the task runner has, so there is
+    no dashboard step. Then the `git checkout` of step 3 if `git status` shows that file, and
+    check 6 again.
 
 ## What changes for customers
 

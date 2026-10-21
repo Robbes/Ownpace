@@ -2541,9 +2541,10 @@ steps for a tester's report. The items below are causes it points to.
   ClickHouse; without run-replication it renders empty. Cosmetic — ACCEPTED (0020 T7 decision,
   2026-08-01): the smoke and the DB rows are the operational truth, the Tasks tab still works,
   and enabling replication adds moving parts for a page nobody depends on. Revisit only if the
-  Runs page becomes someone's tool. Not an outage. Replication on would also copy the run history
-  to ClickHouse, which the end of the Alpha's reset does not empty
-  ([ending-the-alpha.md](./ending-the-alpha.md), *Checks*, step 6).
+  Runs page becomes someone's tool. Not an outage. ClickHouse holds run history even so: every
+  task process's metrics, each row with its run's id, for 60 days. The end of the Alpha empties
+  it with the task runner's database ([ending-the-alpha.md](./ending-the-alpha.md), *The switch*,
+  step 3).
 - **White screen / login loop on the dashboard:** two known causes, both env. (1) A missing
   `TRIGGER_TLS_HOST` in `.env` — Caddy falls back to `localhost`, your browser's `Host` header
   matches no site block, and the response is EMPTY (a white screen, not an error; confirmed

@@ -800,6 +800,7 @@ reading a file drops off its entry by itself.
 - [the-alias-that-shadowed-the-front](../scripts/the-alias-that-shadowed-the-front.unit.test.ts) — THE ALIAS THAT SHADOWED THE FRONT.
 - [the-catcher-only-where-it-catches](../scripts/the-catcher-only-where-it-catches.unit.test.ts) — THE CATCHER ONLY WHERE IT CATCHES (workplan 0133 T3 (b), the owner's D5).
 - [the-check-postgres-never-made](../scripts/the-check-postgres-never-made.unit.test.ts) — A CREDENTIAL CHECK THAT POSTGRES NEVER MADE.
+- [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 - [the-volume-a-recipe-forgot-to-prepare](../scripts/the-volume-a-recipe-forgot-to-prepare.unit.test.ts) — A RECIPE THAT DELETES WHAT ONLY ONE PHASE KNOWS HOW TO RESTORE.
@@ -850,6 +851,7 @@ reading a file drops off its entry by itself.
 - [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
+- [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
 
 ### `deploy/compose/deploy-tasks.sh`
 
@@ -5525,6 +5527,8 @@ THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md
 
 Reads:
 
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/deploy-live.sh`
 - `deploy/compose/ensure-env-secrets.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/reset-trigger.sh`

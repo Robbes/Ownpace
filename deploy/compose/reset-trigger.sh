@@ -11,9 +11,11 @@
 #
 # AND AT THE END OF THE ALPHA, ON LIVE. Privacy §9 keeps the background tasks'
 # records until then: "then the background tasks start with an empty history".
-# All of that history is in this database: runs are not replicated to
-# ClickHouse, and their events are kept here. docs/ending-the-alpha.md (The
-# switch, step 3) runs this under the hold, and its Checks prove the rest.
+# This database holds most of that history, not all of it: every task process
+# sends its metrics, each row with its run's id, to ClickHouse, which keeps them
+# 60 days, and Redis and MinIO keep what the runs left there. So
+# docs/ending-the-alpha.md (The switch, step 3) runs this under the hold, then
+# removes those three stores' volumes too, and its Checks prove each one new.
 #
 # WHAT IT DESTROYS: the Trigger.dev database — the account, the organisation, the
 # project (so its `proj_` ref and `tr_prod_` key), every deployment, and the run
