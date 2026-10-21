@@ -77,7 +77,7 @@
  *     cut to its site (or `(an address)`), a User-Agent cut to its versions.
  *     Not the status page's Website row, which asks through the public name
  *     every 60 seconds as `Gatus/1.0` (`gatus.yaml`; Gatus's own User-Agent at
- *     v5.36.0): it is ours, not a visit.
+ *     v5.37.0): it is ours, not a visit.
  *   - No address from the recorded log (the visitors', NetBird's, the
  *     healthcheck's, the one in nginx's error line, a Referer's) and nothing a
  *     link, a path or a browser string said about a person appears in anything

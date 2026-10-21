@@ -965,9 +965,11 @@ describe('nothing in the managed stack runs whatever `latest` happens to mean', 
    *
    * So the rule is narrow and absolute: NO image in the managed stack may be
    * `latest` or tagless. It deliberately does NOT demand a digest everywhere —
-   * `postgres:18-alpine` and `redis:7-alpine` fix the major version and take
-   * patches on purpose, which is a trade somebody made. `latest` is not a
-   * trade; it is the absence of one.
+   * `postgres:18-alpine` fixes the major version and `redis:7.4-bookworm` the
+   * line the owner chose (on Debian 12 since 2026-10-21: the 7.4 Alpine images
+   * sit on Alpine 3.21, out of support from 2026-11-01), and both take patches
+   * on purpose, which is a trade somebody made. `latest` is not a trade; it is
+   * the absence of one.
    *
    * A float that remains is NAMED here with its reason, the way the connector
    * coverage guard lists what it is owed. An unlisted float fails, and so does

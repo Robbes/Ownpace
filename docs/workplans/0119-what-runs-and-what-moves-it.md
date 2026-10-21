@@ -2,7 +2,22 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-09-09 (update this block at the end of every session)
+## Status — 2026-10-21 (update this block at the end of every session)
+
+**2026-10-21: four pins moved by hand, and Redis off Alpine 3.21.** PgBouncer v1.26.1-p0
+fixes CVE-2026-107350 (whoever knows the password of the user in `auth_file` logs in as any
+other SCRAM user) and CVE-2026-107349 (an unauthenticated client stops the pooler), and this
+stack's `pgbouncer.ini` is open to both: `auth_type = scram-sha-256`, and
+`ignore_startup_parameters` set without `options`. Not 1.26.0, whose default tracking of
+`search_path` overrode that same line until 1.26.1 restored 1.25's behaviour. Mailpit v1.31.6
+by digest, Gatus v5.37.0 and the registry 3.1.2 go with it, each re-read where a fact is
+pinned on its version: Mailpit's release check, Gatus's alert rules and User-Agent, the
+registry's trace exporter. Redis stays on 7.4 (§3 item 3) and moves to `7.4-bookworm`,
+because the 7.4 Alpine images sit on Alpine 3.21, out of security support on 2026-11-01.
+Dependabot moved none of the four; the "Moves by" column below is corrected separately.
+Proved here: the unit guards that read these lines. Owed before merge: E2E (managed) on the
+branch, which recreates pgbouncer, trigger-redis, the registry, the status page and mailpit
+on the OTA stack; live takes them at its next deploy, inside the hold.
 
 **2026-09-09, evening: Redis decided — stay on 7.4 — and the Trigger.dev pin applied.**
 Item 3 closed with a revisit trigger rather than a shrug: `redis:7-alpine` is already
@@ -125,18 +140,18 @@ is who moves it after T1.
 | `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.27-alpine | 1.30.4-alpine stable, 1.31.5 mainline (2026-09-03) | 1.27 is a 2024 mainline, past its end | Dependabot `docker` + `docker-compose` | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows |
 | `postgres` (self-host) | `deploy/selfhost/compose.yml` | digest `9a8afca5…` = 18.4-alpine, no tag | 18.6-alpine (2026-08-15), digest `d3e1620b…` | two patch releases | Dependabot `docker-compose` | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
 | `postgres` (managed ×2, dev) | `managed.yml`, `dev.yml` | 18-alpine, floating | 18.6 | none, it floats within 18 | `docker compose pull` | stays floating; a major (`pg_upgrade`) is ignored in Dependabot and is the owner's |
-| `edoburu/pgbouncer` | `managed.yml` | v1.24.1-p1 | v1.25.2-p0 (2026-06-10) | one minor | Dependabot `docker-compose` | **T2** — stateless; the managed gate proves it |
-| `redis` | `managed.yml` | 7-alpine, floating (7.4.11) | 8.8.2-alpine | one major | owner | **§3** — the licence changed at 7.4, which is the line this floats on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
+| `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for two CVEs this stack's `pgbouncer.ini` is open to; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19) | current | Dependabot `docker-compose` | **T2** — stateless; the managed gate proves it |
+| `redis` | `managed.yml` | 7.4-bookworm, floating (7.4.11 on Debian 12; 7-alpine, on Alpine 3.21, until 2026-10-21) | 8.8.2-alpine | one major | owner | **§3** — the licence changed at 7.4, which is the line this floats on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
 | `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, `apps/worker/package.json` | v4.5.12; v4.5.16 pinned in #827 | v4.5.16 | — once #827 is applied | `trigger-version.sh` only | **§3, pinned** — one way (three Prisma migrations, one ClickHouse); the gate run in the owner's window applies it, not the merge. Dependabot told to leave all four places alone |
 | `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | nobody | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`) |
-| `registry` | `managed.yml` | 3.1.1 (#825) | 3.1.1 (2026-06-23) | current | Dependabot `docker-compose` for patches and minors; a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
+| `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | Dependabot `docker-compose` for patches and minors; a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
 | `tecnativa/docker-socket-proxy` | `managed.yml` | v0.5.0 | v0.5.0 | current | Dependabot `docker-compose` | — |
 | `bitnamilegacy/minio` | `managed.yml` | 2025.5.24-debian-12-r5 by digest | none: `bitnamilegacy` stopped at 2025.7.23 (pushed 2025-08-19); `minio/minio` stopped at RELEASE.2025-09-07 | no upstream | owner | **§3** — the object store has no maintained free image; a replacement is a decision, and item 5 names a candidate |
 | `caddy` | `managed.yml` | 2-alpine, floating (2.11.4) | 2.11.4 | current | `docker compose pull` | stays floating; a major is ignored and is the owner's |
 | `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.19.2 (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.19.2 | current | owner; ignored by name; releases and advisories watched, and the pin compared with the newest release weekly (0135 T7) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`; one test pins the printed command | 1.37 | 1.38 | one minor | Dependabot for the compose line; the scripts by hand, and the test says so | **T2** |
-| `ghcr.io/twin/gatus` | `managed.yml` | v5.36.0 | v5.36.0 | current | Dependabot `docker-compose` | — |
-| `axllent/mailpit` | `managed.yml` | v1.31.0 by digest | v1.31.1, digest `98b916bd…` | one patch | Dependabot `docker-compose` | **T2** — a mail catcher for the gate |
+| `ghcr.io/twin/gatus` | `managed.yml` | v5.37.0 (2026-10-21) | v5.37.0 (2026-09-24) | current | Dependabot `docker-compose` | — |
+| `axllent/mailpit` | `managed.yml` | v1.31.6 by digest (2026-10-21; v1.31.1 from T2) | v1.31.6 (2026-10-15), digest `23fe39e8…` | current | Dependabot `docker-compose` | **T2** — a mail catcher for the gate |
 | `nextcloud` | `managed.yml`, `dev.yml` | 34-apache, floating (34.0.3) | 34.0.3 (2026-09-02) | current | `docker compose pull` | stays floating; a fixture and a demo target; a major is ignored |
 | `ghcr.io/robbes/ownpace-selfhost` | `deploy/selfhost/compose.yml` | `edge` | ours | — | `images.yml` | — |
 
@@ -216,6 +231,12 @@ is beside each; none is urgent tonight.
    is not a decision that quietly expires:** upstream's compose moving to Redis 8, or the
    7.4 line going out of patch support. Valkey stays the answer if OSI-only components
    ever become the rule; that would be a new decision, not this one.
+   **2026-10-21: the base moved, not the line.** `redis:7-alpine` is built on Alpine 3.21,
+   whose security support ends on 2026-11-01; only the Redis 8 images moved to a newer
+   Alpine. The stack now runs `redis:7.4-bookworm`, still 7.4.11 and still this decision,
+   on Debian 12, whose LTS runs to 2028-06-30. The revisit trigger did not fire: the Redis
+   line is supported, and only the OS under it was not. Both images run Redis as uid 999,
+   so the append-only file in `redis_data` carries over, and back again if it has to.
 4. **registry 2 → 3.** The 2 line has had no release since 2.8.3; 3.0 rewrote the
    configuration file. The registry only serves Trigger.dev's deploy images inside the
    stack; moving it is a config rewrite plus a bring-up, not a patch. **Taken
@@ -318,7 +339,8 @@ is beside each; none is urgent tonight.
 
 ## 4. Not done, honestly
 
-- **The floating tags stay floating.** `postgres:18-alpine`, `redis:7-alpine`, `caddy:2-alpine`,
+- **The floating tags stay floating.** `postgres:18-alpine`, `redis:7.4-bookworm` (`redis:7-alpine`
+  until 2026-10-21, §3 item 3), `caddy:2-alpine`,
   `nextcloud:34-apache` move on every `docker compose pull`, within their major, with no PR.
   That is the intended behaviour for a fixture and for stores that upgrade in place, and the
   majors are what the owner decides — so Dependabot is told to ignore their majors rather
