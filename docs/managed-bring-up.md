@@ -4225,9 +4225,10 @@ Each message has a row under its name in the
   filesystem holding both is one check. Under `ALERT_DISK_FREE_GB` (live's
   `.env`, 15 without it, the figure the preflight warns at) it mails *Disk
   below the floor* once, *Disk recovered* once it is back, and *Disk not read*
-  when `df` or `docker info` cannot say. Never one every ten minutes: it
-  remembers each state in `~/.persistent/ownpace-live/box-checks/`, and a
-  message that could not be sent is sent again by the next run.
+  when `df` or `docker info` cannot say two runs in a row (one run alone is a
+  Docker daemon restarting, and only in the journal). Never one every ten
+  minutes: it remembers each state in `~/.persistent/ownpace-live/box-checks/`,
+  and a message that could not be sent is sent again by the next run.
 - **One summary a day,** at its first run from 07:00 UTC: *Daily summary*,
   numbers only. Free space; the duties' last run and pass, their timer and
   the token's date; every database of each stack's `postgres` and
@@ -4236,7 +4237,9 @@ Each message has a row under its name in the
   `app_event`, and the age of the sync tick's beat. It reads each database
   with `docker exec` into the container its compose labels name, psql over
   the container's own socket, SELECTs only. A morning without it means the
-  machine, the box checks' timer or the relay is broken.
+  machine, the box checks' timer or the relay is broken. One that could not be
+  sent is tried again an hour later, not at every run, and its send error is
+  in `journalctl --user -u ownpace-box-checks`.
   `./deploy/compose/box-checks.sh --summary` sends one now.
 
 `box-checks.sh` exits 0 when everything was checked and every message due was

@@ -4,7 +4,7 @@
 
 ## Status — 2026-10-21 (update this block at the end of every session)
 
-**2026-10-21: T3 built** (the owner's *"Life cycle management on what needs it"*, 2026-10-21), on
+**2026-10-21: T3 built** (asked for in the owner's lifecycle round of 2026-10-21), on
 branch `claude/ownpace-public-readiness-y7orc6-owner-told`, not merged. Live's duties and its disk
 reach the owner by mail, through T1's relay and addresses.
 
@@ -26,8 +26,10 @@ reach the owner by mail, through T1's relay and addresses.
   service has no `OnFailure=`. It checks:
   - free space on Docker's filesystem and on `~/.persistent/<project>`'s, against
     `ALERT_DISK_FREE_GB` (default 15). It mails once on going below the floor, once on recovery,
-    and *Disk not read* when `df` or `docker info` cannot say. Its state is in
-    `~/.persistent/<project>/box-checks/`, and a message that could not be sent is sent again;
+    and *Disk not read* when `df` or `docker info` cannot say two runs in a row (one run alone
+    is a Docker daemon restarting, and the journal's). Its state is in
+    `~/.persistent/<project>/box-checks/`, and a message that could not be sent is sent again by
+    the next run;
   - *Daily duties late*, the dead man's switch, when the last pass is more than 26 hours old, or
     none is recorded 26 hours after it started watching;
   - *Daily summary*, at its first run from 07:00 UTC: free space, the duties' last run and pass,
@@ -35,7 +37,8 @@ reach the owner by mail, through T1's relay and addresses.
     OTA), the five largest volumes, and live's `run`, `run_event`, `item` and `app_event` rows
     with the beat's age. It reads by `docker exec` into containers found by their compose labels,
     psql over the container's socket, SELECTs only. The counts come only from a role that passes
-    row security.
+    row security. A summary that could not be sent is tried again an hour later, not at every
+    run.
 - **The units.** `stand-up-live.sh` copies all five. After a deploy that took, `deploy-live.sh`
   names each unit the tag carries that is installed otherwise or not at all (`cmp -s`), with the
   `cp` to run, and copies none. The first deploy that says so is the one after the deploy of a
@@ -43,7 +46,7 @@ reach the owner by mail, through T1's relay and addresses.
 - **The docs.** `docs/managed-bring-up.md` has the five units word for word, the install steps
   and *Who is told*. `docs/incident-runbook.md` has a row per message. *"Nobody is told when it
   fails"* is gone from both places that said it.
-- **Proved:** `scripts/a-disk-that-says-it-is-filling.unit.test.ts`, 34 cases, with stubbed `df`,
+- **Proved:** `scripts/a-disk-that-says-it-is-filling.unit.test.ts`, 36 cases, with stubbed `df`,
   `docker`, `systemctl`, `date` and `curl`. It includes the plan's four, and a sweep finds no
   address, UUID or secret in anything sent or printed. Also extended:
   - `a-duty-the-gate-used-to-do` (the record, the units, the old sentence gone);
@@ -52,6 +55,16 @@ reach the owner by mail, through T1's relay and addresses.
   - `a-deploy-from-a-named-tag` (the units note).
 
   Red first: 47 of 488 failed in those five files before the code; all pass after it.
+- **The review's findings, on the same branch.** Taken: the `crlf` line in curl's config is
+  asserted (without it the message goes with bare LF line ends, which a relay hardened against
+  SMTP smuggling refuses); each mail carries a `Message-ID` of its own on the sender's domain; a
+  `docker system df -v` whose volumes table or a size in it cannot be read is *not read* and a
+  failed exit, never *none*; *Disk not read* waits for a second run in a row, so a Docker daemon
+  restarting is not two mails; a summary that could not be sent is tried again an hour later;
+  the runbook's *Daily summary* row points at box-checks' journal, where its send errors are;
+  `docs/rls-guide.md` §2 lists `box-checks.sh`; the two-stacks guard's header names both of its
+  exemptions. Red first: 7 of 36 failed before the code; 5 mutations, 5 caught. Left: whether the
+  relay adds its own headers is still proved only by the owner's test mail.
 - **For the owner, after `deploy-live.sh` to a tag that carries this:** from `~/ownpace-live`, run
   the cp of all five units in the bring-up guide's *Installing them*, then
   `systemctl --user daemon-reload`, `systemctl --user enable --now ownpace-box-checks.timer` and

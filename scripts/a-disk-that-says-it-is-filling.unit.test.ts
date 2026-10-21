@@ -35,20 +35,25 @@
  *   one message naming the mount point; a second run at 14 GB sends nothing;
  *   16 GB sends one recovery; the floor is live's `ALERT_DISK_FREE_GB`; two
  *   paths on one filesystem are one message; a `df` or a `docker` that cannot
- *   answer is a message of its own, never free space, and a failed exit; a
- *   message that could not be sent is sent again by the next run. The duties'
- *   last pass more than 26 hours ago, or none in the first 26 hours of
- *   watching, is one message, and a fresh pass arms it again. The summary goes
- *   once a day at the first run from 07:00 UTC, or with `--summary`, and holds
- *   numbers only: a pattern sweep over everything it sent and printed finds no
- *   e-mail address, no UUID, no IPv4 address and no secret from the `.env`.
- *   It refuses, before any check, a `.env` that is not live's.
+ *   answer is never free space and always a failed exit, and two runs in a row
+ *   of it are a message of its own (one, between two that read, is a daemon
+ *   restarting and the journal's); a message that could not be sent is sent
+ *   again by the next run. The duties' last pass more than 26 hours ago, or
+ *   none in the first 26 hours of watching, is one message, and a fresh pass
+ *   arms it again. The summary goes once a day at the first run from 07:00
+ *   UTC, or with `--summary`, is tried again an hour after one that could not
+ *   be sent, and holds numbers only: a pattern sweep over everything it sent
+ *   and printed finds no e-mail address, no UUID, no IPv4 address and no
+ *   secret from the `.env`. A `docker system df -v` it cannot read is "not
+ *   read", never "none". It refuses, before any check, a `.env` that is not
+ *   live's.
  *
  *   `tell-owner.sh`, run for real with `curl` stubbed: the relay, the login
  *   and the addresses reach curl in a config on a file descriptor, never on its
  *   command line or in its environment; STARTTLS is required on 587 and
  *   implicit TLS used on 465 or with `SMTP_SECURE=true`; the envelope sender is
- *   the bare address; `ALERT_*` comes before `SMTP_*` and `NOTIFY_*`, as
+ *   the bare address; the message goes with CRLF line ends (`crlf`) and a
+ *   Message-ID of its own; `ALERT_*` comes before `SMTP_*` and `NOTIFY_*`, as
  *   `managed.yml` gives them to the status page; a `"` or `\` in the password
  *   reaches curl escaped; a curl that fails is a failed exit; it refuses a
  *   `.env` that is not live's, a relay that is a placeholder, and a traced
@@ -524,25 +529,54 @@ describe('the disk: one message when it goes below the floor, one when it recove
     expect(told(s).map((m) => m.detail)).toEqual(['/var/lib/docker has 9 GB free, under 15']);
   });
 
-  it('a df that cannot answer is "Disk not read", once, a failed exit every run, and never free space (hard rule 9)', () => {
+  it('a df that cannot answer twice in a row is "Disk not read", once, a failed exit every run, and never free space (hard rule 9)', () => {
     const s = stage();
     dutiesPassed(s);
     free(s, { docker: 100, persist: 'fail' });
     const first = checks(s);
     expect(first.status, first.out).toBe(1);
     expect(first.out).toContain('Input/output error');
+    expect(told(s), 'one run that cannot read is the journal\'s, not a mail').toEqual([]);
+
+    const second = checks(s);
+    expect(second.status, second.out).toBe(1);
     expect(told(s).map((m) => m.name)).toEqual(['Disk not read']);
     expect(told(s)[0]!.detail).toBe("live's persisted directory");
 
     clearTold(s);
-    const second = checks(s);
-    expect(second.status, second.out).toBe(1);
+    const third = checks(s);
+    expect(third.status, third.out).toBe(1);
     expect(told(s)).toEqual([]);
 
     free(s, { docker: 100, persist: 100 });
-    const third = checks(s);
-    expect(third.status, third.out).toBe(0);
+    const fourth = checks(s);
+    expect(fourth.status, fourth.out).toBe(0);
     expect(told(s).map((m) => `${m.name}: ${m.detail}`)).toEqual(['Disk recovered: /home has 100 GB free, the floor is 15']);
+  });
+
+  it('one run that cannot read, between two that can, sends nothing unless the state changed (a Docker daemon restarting)', () => {
+    // ok, not read once, ok: nothing.
+    const s = stage();
+    dutiesPassed(s);
+    checks(s);
+    expect(checks(s, [], { STUB_DOCKER_INFO_FAIL: '1' }).status).toBe(1);
+    expect(checks(s).status).toBe(0);
+    expect(told(s), 'a daemon restarting between two runs is not two mails').toEqual([]);
+
+    // low, not read once, low: the one mail it already sent.
+    free(s, { docker: 12, persist: 100 });
+    checks(s);
+    expect(told(s).map((m) => m.name)).toEqual(['Disk below the floor']);
+    clearTold(s);
+    checks(s, [], { STUB_DOCKER_INFO_FAIL: '1' });
+    checks(s);
+    expect(told(s)).toEqual([]);
+
+    // low, not read once, ok: it recovered, and says so.
+    checks(s, [], { STUB_DOCKER_INFO_FAIL: '1' });
+    free(s, { docker: 100, persist: 100 });
+    checks(s);
+    expect(told(s).map((m) => `${m.name}: ${m.detail}`)).toEqual(['Disk recovered: /var/lib/docker has 100 GB free, the floor is 15']);
   });
 
   it("a docker that cannot be asked leaves Docker's filesystem not read, and the persisted directory is still checked", () => {
@@ -552,10 +586,11 @@ describe('the disk: one message when it goes below the floor, one when it recove
     const r = checks(s, [], { STUB_DOCKER_INFO_FAIL: '1' });
     expect(r.status, r.out).toBe(1);
     expect(r.out).toContain('Cannot connect to the Docker daemon');
-    expect(told(s).map((m) => `${m.name}: ${m.detail}`)).toEqual([
-      "Disk not read: Docker's data root",
-      'Disk below the floor: /home has 12 GB free, under 15',
-    ]);
+    expect(told(s).map((m) => `${m.name}: ${m.detail}`)).toEqual(['Disk below the floor: /home has 12 GB free, under 15']);
+    clearTold(s);
+    const again = checks(s, [], { STUB_DOCKER_INFO_FAIL: '1' });
+    expect(again.status, again.out).toBe(1);
+    expect(told(s).map((m) => `${m.name}: ${m.detail}`)).toEqual(["Disk not read: Docker's data root"]);
   });
 
   it('a message that could not be sent is sent again by the next run, and the run fails', () => {
@@ -706,14 +741,36 @@ describe('one summary a day, numbers only', () => {
     expect(told(s).map((m) => `${m.name}: ${m.detail}`)).toEqual(['Daily summary: 2026-10-22']);
   });
 
-  it('a summary that could not be sent goes at the next run', () => {
+  it('a summary that could not be sent is tried again an hour later, not every ten minutes', () => {
     const s = stage();
     dutiesPassed(s);
     rmSync(join(s.persist, 'box-checks', 'summary'));
-    expect(checks(s, [], { STUB_TELL_FAIL: '1' }).status).toBe(1);
+    const failed = checks(s, [], { STUB_TELL_FAIL: '1' });
+    expect(failed.status, failed.out).toBe(1);
+    expect(failed.out).toMatch(/"Daily summary" could not be sent/);
     clearTold(s);
-    expect(checks(s).status).toBe(0);
+
+    // Ten and fifty minutes on: not tried, and not gathered again.
+    for (const later of [NOW + 600, NOW + 3000]) {
+      writeFileSync(s.log, '');
+      const r = checks(s, [], { STUB_NOW: String(later) });
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toContain(`tried again from ${iso(NOW + HOUR)}`);
+      expect(told(s)).toEqual([]);
+      expect(calls(s, 'docker').filter((l) => l.startsWith('docker system') || l.startsWith('docker exec'))).toEqual([]);
+    }
+    // --summary does not wait.
+    expect(checks(s, ['--summary'], { STUB_NOW: String(NOW + 3000) }).status).toBe(0);
     expect(told(s).map((m) => m.name)).toEqual(['Daily summary']);
+
+    // Without it, an hour after the failed one.
+    const t = stage();
+    dutiesPassed(t);
+    rmSync(join(t.persist, 'box-checks', 'summary'));
+    expect(checks(t, [], { STUB_TELL_FAIL: '1' }).status).toBe(1);
+    clearTold(t);
+    expect(checks(t, [], { STUB_NOW: String(NOW + HOUR) }).status).toBe(0);
+    expect(told(t).map((m) => m.name)).toEqual(['Daily summary']);
   });
 
   it("the OTA stack not running here is said, and is not a failure", () => {
@@ -756,22 +813,53 @@ describe('one summary a day, numbers only', () => {
     expect(told(s)[0]!.body).toMatch(/volumes[^\n]*\n\s*not read/i);
   });
 
+  it("a `docker system df -v` this cannot read is not read, never \"none\" (hard rule 9); none of the stacks' is an answer", () => {
+    const volumesTable = /Local Volumes space usage:[\s\S]*?(?=\nBuild cache usage:)/;
+    const cases: Array<[string, string]> = [
+      ['no volumes table', SYSTEM_DF.replace(volumesTable, '')],
+      ['no header row', SYSTEM_DF.replace(/^VOLUME NAME.*\n/m, '')],
+      ['a size in a unit it does not know', SYSTEM_DF.replace('12.3GB', '12.3QB')],
+    ];
+    for (const [what, text] of cases) {
+      const s = stage();
+      dutiesPassed(s);
+      writeFileSync(s.env.STUB_SYSTEM_DF!, text);
+      const r = checks(s, ['--summary']);
+      expect(r.status, `${what}: ${r.out}`).toBe(1);
+      expect(r.out, what).toMatch(/docker system df -v: /);
+      const body = told(s)[0]!.body;
+      expect(body, what).toMatch(/volumes[^\n]*\n\s*not read/i);
+      expect(body, what).not.toContain('none of the two stacks');
+      expect(body, what).toMatch(/What could not be read[\s\S]*the volumes/);
+    }
+    // A table that holds nobody's volume of the two stacks is an answer.
+    const s = stage();
+    dutiesPassed(s);
+    writeFileSync(s.env.STUB_SYSTEM_DF!, SYSTEM_DF.replace(/^ownpace-.*\n/gm, ''));
+    const r = checks(s, ['--summary']);
+    expect(r.status, r.out).toBe(0);
+    expect(told(s)[0]!.body).toMatch(/volumes[^\n]*\n\s*none of the two stacks/i);
+  });
+
   it('sends and prints no address, no UUID and no secret: a sweep over everything', () => {
     const s = stage();
     writeRecord(s, 'last-run', NOW - 2 * HOUR, 'failed', 'token');
     writeRecord(s, 'last-pass', NOW - 30 * HOUR, 'passed');
     free(s, { docker: 3, persist: 'fail' });
+    // Two runs, so the disk that cannot be read is told too; the summary is due at the second.
+    const first = checks(s);
+    expect(first.status, first.out).toBe(1);
     rmSync(join(s.persist, 'box-checks', 'summary'));
-    const r = checks(s);
-    expect(r.status, r.out).toBe(1);
+    const second = checks(s);
+    expect(second.status, second.out).toBe(1);
     expect(told(s).map((m) => m.name)).toEqual([
       'Disk below the floor',
-      'Disk not read',
       'Daily duties late',
+      'Disk not read',
       'Daily summary',
     ]);
     expectNothingIdentifying(readFileSync(s.told, 'utf8'), 'what it sent');
-    expectNothingIdentifying(r.out, 'what it printed');
+    expectNothingIdentifying(first.out + second.out, 'what it printed');
   });
 });
 
@@ -831,6 +919,10 @@ describe('tell-owner.sh sends one mail through the alert relay, and puts nothing
     ]);
     expect(lines).toContain(`user relay-login@example.test:${RELAY_PASSWORD}`);
     expect(lines).toContain('upload-file -');
+    // Without it curl sends the message with bare LF line ends, which a relay
+    // hardened against SMTP smuggling refuses or rewrites (Postfix's
+    // smtpd_forbid_bare_newline, for one).
+    expect(lines, 'no crlf: the message would go with bare LF line ends').toContain('crlf');
     expect(lines.some((l) => l.startsWith('UNREADABLE'))).toBe(false);
     // Never on its command line, never in its environment, never printed.
     const argv = readFileSync(s.curl.args, 'utf8');
@@ -852,9 +944,17 @@ describe('tell-owner.sh sends one mail through the alert relay, and puts nothing
     expect(head).toMatch(/^Date: \w{3}, \d{2} \w{3} \d{4} \d{2}:\d{2}:\d{2} \+0000$/m);
     expect(head).toContain('Content-Type: text/plain; charset=utf-8');
     expect(head).toContain('Auto-Submitted: auto-generated');
+    // A Message-ID of its own, on the sender's domain: some receivers refuse a
+    // mail without one, and a relay that adds one is not proved here.
+    expect(head).toMatch(/^Message-ID: <\d+\.\d+\.\d+@example\.test>$/m);
     expect(body).toContain('Free space on /: 14 GB.\nThe floor is 15 GB.');
     expect(body).toContain('docs/incident-runbook.md, the row "Disk below the floor"');
     expectNothingIdentifying(body, 'the body');
+    // Each mail its own.
+    tell(s, ['Disk recovered', '/ has 16 GB free, the floor is 15'], 'x\n');
+    const ids = mails(s).map((m) => /^Message-ID: (.*)$/m.exec(m)?.[1]);
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).not.toBe(ids[1]);
   });
 
   it('implicit TLS on 465, and with SMTP_SECURE=true on SMTP_PORT, as the product mails', () => {

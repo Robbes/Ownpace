@@ -44,11 +44,16 @@
  *   filters by a name built from the project: the daemon holds both stacks,
  *   and the task runs' `runner-` names carry no project, so the smoke's
  *   runner-log watcher would have copied live's task-run logs into the OTA
- *   gate's public evidence. Every script that runs Compose asks the reader
- *   (`compose_project`) before its first Compose command, because Compose
- *   follows a name exported in the shell and the reader refuses one that
- *   disagrees with the checkout. The reader of shell text that tells a command
- *   from a printed recipe is checked to reach the end of every script.
+ *   gate's public evidence. Two scripts are named exemptions, each checked to
+ *   exist: `exposure-check.sh` asks the whole daemon (it covers both stacks
+ *   and prints names and ports only), and `box-checks.sh` reads both stacks'
+ *   database sizes on live (0142 T3), held to a rule of its own: every listing
+ *   it makes is narrowed by one project's compose label. Every script that
+ *   runs Compose asks the reader (`compose_project`) before its first Compose
+ *   command, because Compose follows a name exported in the shell and the
+ *   reader refuses one that disagrees with the checkout. The reader of shell
+ *   text that tells a command from a printed recipe is checked to reach the
+ *   end of every script.
  *
  *   The second half renders `managed.yml` the way Compose does, under two
  *   project names and two sets of port values. The two stacks may share no

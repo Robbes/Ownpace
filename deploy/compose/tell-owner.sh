@@ -264,10 +264,16 @@ cfg_value() {
 SUBJECT="[${COMPOSE_PROJECT}] ${NAME}${DETAIL:+: ${DETAIL}}"
 TO_LINE="$(printf '%s, ' "${RCPTS[@]}")"
 TO_LINE="${TO_LINE%, }"
+# A Message-ID of its own, on the sender's domain: some receivers refuse a mail
+# without one (Gmail answers 550 5.7.1), and whether a relay adds one is the
+# relay's to decide. The time, this process and two random numbers: unique per
+# mail, and nothing about the machine.
+MESSAGE_ID="<$(date -u +%s).$$.${RANDOM}${RANDOM}@${FROM_BARE##*@}>"
 MESSAGE="From: ${FROM}
 To: ${TO_LINE}
 Subject: ${SUBJECT}
 Date: $(date -u -R)
+Message-ID: ${MESSAGE_ID}
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
@@ -286,6 +292,9 @@ for rcpt in "${RCPTS[@]}"; do
   CONFIG+="mail-rcpt = $(cfg_value "$rcpt")"$'\n'
 done
 [ -z "$LOGIN" ] || CONFIG+="user = $(cfg_value "${LOGIN}:${PASSWORD}")"$'\n'
+# crlf: the message is written with LF line ends, and curl's SMTP sends them as
+# they are without it. A relay hardened against SMTP smuggling refuses or
+# rewrites bare LF (Postfix's smtpd_forbid_bare_newline, for one).
 CONFIG+=$'upload-file = "-"\ncrlf\nconnect-timeout = 20\nmax-time = 60\nsilent\nshow-error\n'
 unset PASSWORD
 

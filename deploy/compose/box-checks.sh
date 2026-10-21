@@ -21,9 +21,11 @@
 #                .env (default 15, the figure the bring-up's preflight warns
 #                at). One filesystem holding both is one check. A mail when a
 #                filesystem goes below the floor ("Disk below the floor"), when
-#                its free space cannot be read ("Disk not read"), and when it is
-#                back at or above the floor ("Disk recovered"): one each time
-#                the state changes, never one every ten minutes.
+#                its free space cannot be read two runs in a row ("Disk not
+#                read"; one run alone is a Docker daemon restarting, and the
+#                journal's), and when it is back at or above the floor ("Disk
+#                recovered"): one each time the state changes, never one every
+#                ten minutes.
 #   the duties   when all of box-duties.sh's duties last passed, from the
 #                record it leaves (~/.persistent/<project>/box-duties/last-pass).
 #                More than 26 hours ago, or none in the 26 hours since this
@@ -40,20 +42,23 @@
 # stacks; on live, the rows of run, run_event, item and app_event, and the age
 # of the sync tick's beat (0142 T2). It is also the channel's proof of life: a
 # morning without it means this machine, this timer or the relay is broken.
+# One that could not be sent is tried again an hour later, not at every run:
+# each try asks both stacks' databases and Docker's volumes again.
 #
 # WHAT IT REMEMBERS, in ~/.persistent/<project>/box-checks, this account's
-# alone (umask 077): each check's last state, when it started watching, and
-# the day of the last summary. A message that could not be sent leaves its
-# state as it was, so the next run sends it again.
+# alone (umask 077): each check's last state, when it started watching, the
+# day of the last summary and when one last could not be sent. A message that
+# could not be sent leaves its state as it was, so the next run sends it again
+# (the summary, an hour later).
 #
 # HOW IT READS THE DATABASES. `docker exec` into each stack's postgres and
 # trigger-db containers, found by their compose labels (the project and the
 # service, never a container's name), psql over the container's own socket as
 # the owner the image created, the way deploy-live.sh's db_read asks. It sends
-# SELECTs only and composes no connection string, so docs/rls-guide.md §2's
-# list has no row for it. Live's row counts are given only when that role
-# passes row security (a superuser), or they would count no organisation's
-# rows.
+# SELECTs only and composes no connection string; docs/rls-guide.md §2 lists
+# it among those that hold the owner at the machine, because its counts span
+# every organisation. Live's row counts are given only when that role passes
+# row security (a superuser), or they would count no organisation's rows.
 #
 # NOTHING SECRET, NO ADDRESS. It sends and prints numbers, mount points, the
 # names of databases, volumes and duties, and dates. Of the .env's values it
@@ -97,6 +102,8 @@ MSG_SUMMARY='Daily summary'
 LATE_AFTER_SECONDS=$((26 * 3600))
 # The summary's hour, in UTC: after the appliance nightly's, before the day.
 SUMMARY_HOUR=7
+# A summary that could not be sent waits this long for its next try.
+SUMMARY_RETRY_SECONDS=3600
 
 say() { echo "[box-checks] $*"; }
 fail_line() { echo "[box-checks] $*" >&2; }
@@ -182,13 +189,14 @@ state_set() {
   return 1
 }
 
-# tell <name> <detail> — one message, the body on stdin; true when it was sent.
+# tell <name> <detail> [<when it is sent again>] — one message, the body on
+# stdin; true when it was sent.
 tell() {
   if "$TELL" "$1" "$2"; then
     say "told the owner: $1: $2"
     return 0
   fi
-  PROBLEMS+=("\"$1\" could not be sent (tell-owner.sh); the next run sends it again")
+  PROBLEMS+=("\"$1\" could not be sent (tell-owner.sh); ${3:-the next run sends it again}")
   return 1
 }
 
@@ -252,9 +260,19 @@ SEEN_MOUNTS=()
 DISK_LINES=()
 # check_disk <key> <what> <path> — one filesystem against the floor, and a
 # message when its state changes. An empty path is one that was not found.
+#
+# Its state is ok, low or unread, or unread-once:<the state before>: a first
+# run that could not read it. That one is the journal's and a failed exit, not
+# a mail: a Docker daemon restarting (unattended upgrades, a boot) would
+# otherwise send "Disk not read" and then "Disk recovered" ten minutes later.
+# A second run in a row is the mail; a run that reads it compares with the
+# state before.
 check_disk() {
-  local key="$1" what="$2" path="$3" was now m
+  local key="$1" what="$2" path="$3" was now m once=''
   was="$(state_get "disk-${key}")"
+  case "$was" in
+    unread-once:*) once=1; was="${was#unread-once:}" ;;
+  esac
   FREE_GB=''
   MOUNT=''
   if [ -n "$path" ] && disk_free "$path"; then
@@ -272,7 +290,15 @@ check_disk() {
     DISK_LINES+=("${what}: not read")
     PROBLEMS+=("the free space of ${what}")
   fi
-  [ "$now" != "$was" ] || return 0
+  if [ "$now" = unread ] && [ "$was" != unread ] && [ -z "$once" ]; then
+    say "${what}: not read; a second run in a row that cannot read it tells the owner"
+    state_set "disk-${key}" "unread-once:${was}" || true
+    return 0
+  fi
+  if [ "$now" = "$was" ]; then
+    [ -z "$once" ] || state_set "disk-${key}" "$now" || true
+    return 0
+  fi
   case "$now" in
     low)
       tell "$MSG_DISK_LOW" "${MOUNT} has ${FREE_GB} GB free, under ${FLOOR_GB}" <<EOF || return 0
@@ -433,15 +459,18 @@ SQL
 }
 
 # largest_volumes — sets VOLUME_LINES: the five largest volumes of the two
-# stacks, largest first, with the sizes `docker system df -v` gives them.
+# stacks, largest first, with the sizes `docker system df -v` gives them. The
+# table is read as Docker prints it; a table it cannot find, or a size in a
+# unit it does not know, is "not read", never "none" (AGENTS rule 9).
 largest_volumes() {
-  local rows sorted
+  local rows sorted rc=0
   VOLUME_LINES='  not read'
   if ! capture docker system df -v; then
     fail_line "docker system df -v: ${ERR_TEXT}"
     PROBLEMS+=("the volumes")
     return 0
   fi
+  # Exit 3: no volumes table, or no header row in it; 4: a size it cannot read.
   rows="$(awk -v a="${STACKS[0]}_" -v b="${STACKS[1]:-${STACKS[0]}}_" '
     /^Local Volumes space usage:/ { s = 1; next }
     s == 1 && /^VOLUME NAME/      { s = 2; next }
@@ -449,9 +478,20 @@ largest_volumes() {
     s == 2 && (index($1, a) == 1 || index($1, b) == 1) {
       n = $NF; u = $NF
       sub(/[A-Za-z]+$/, "", n); sub(/^[0-9.]+/, "", u)
-      m = (u == "B") ? 1 : (u == "kB") ? 1e3 : (u == "MB") ? 1e6 : (u == "GB") ? 1e9 : (u == "TB") ? 1e12 : 0
+      m = (u == "B") ? 1 : (u == "kB") ? 1e3 : (u == "MB") ? 1e6 : (u == "GB") ? 1e9 : (u == "TB") ? 1e12 : (u == "PB") ? 1e15 : 0
+      if (m == 0 || n !~ /^[0-9]+(\.[0-9]+)?$/) { bad = 1; exit }
       printf "%.0f %s %s\n", n * m, $1, $NF
-    }' <<<"$OUT")"
+    }
+    END { if (bad) exit 4; if (s < 2) exit 3 }' <<<"$OUT")" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    case "$rc" in
+      3) fail_line "docker system df -v: no \"Local Volumes space usage:\" table with a VOLUME NAME row in what it printed" ;;
+      4) fail_line "docker system df -v: a volume's size this cannot read" ;;
+      *) fail_line "docker system df -v: its table could not be read (awk exit ${rc})" ;;
+    esac
+    PROBLEMS+=("the volumes")
+    return 0
+  fi
   if [ -z "$rows" ]; then
     VOLUME_LINES='  none of the two stacks'
     return 0
@@ -461,9 +501,15 @@ largest_volumes() {
 }
 
 summary_due() {
+  local tried
   [ -z "$FORCE_SUMMARY" ] || return 0
   [ "$((10#$HOUR))" -ge "$SUMMARY_HOUR" ] || return 1
-  [ "$(state_get summary)" != "$TODAY" ]
+  [ "$(state_get summary)" != "$TODAY" ] || return 1
+  tried="$(state_get summary-failed)"
+  if [[ "$tried" =~ ^[0-9]+$ ]] && [ "$((NOW - tried))" -ge 0 ] && [ "$((NOW - tried))" -lt "$SUMMARY_RETRY_SECONDS" ]; then
+    say "the summary could not be sent at $(utc "$tried"); it is tried again from $(utc "$((tried + SUMMARY_RETRY_SECONDS))")"
+    return 1
+  fi
 }
 
 send_summary() {
@@ -512,8 +558,10 @@ What could not be read"
     for ((i = 0; i < ${#PROBLEMS[@]}; i++)); do body+=$'\n'"  ${PROBLEMS[$i]}"; done
     body+=$'\n'"The journal has what each tool answered: journalctl --user -u ownpace-box-checks -n 100 --no-pager"
   fi
-  if tell "$MSG_SUMMARY" "$TODAY" <<<"$body"; then
+  if tell "$MSG_SUMMARY" "$TODAY" "a run tries again from $(utc "$((NOW + SUMMARY_RETRY_SECONDS))")" <<<"$body"; then
     state_set summary "$TODAY" || true
+  else
+    state_set summary-failed "$NOW" || true
   fi
 }
 

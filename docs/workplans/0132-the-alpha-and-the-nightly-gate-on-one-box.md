@@ -3608,7 +3608,10 @@ steps go in the bring-up. It does four things:
   from where, is 0135's to say.
 
 The script exits non-zero and names the duty that failed, and it writes to the journal. Nobody is
-told when it fails; 0142 is where that changes.
+told when it fails; 0142 is where that changes. *2026-10-21: a failed run mails the owner
+(`OnFailure=` and `tell-owner.sh`), and a run that never came mails "Daily duties late" (0142
+T3, `box-checks.sh`); on branch `claude/ownpace-public-readiness-y7orc6-owner-told`, not
+merged.*
 
 The guard, `scripts/a-duty-the-gate-used-to-do.unit.test.ts`, checks that every step of
 `e2e-managed.yml` that maintains the stack rather than testing it is also in `box-duties.sh`.
