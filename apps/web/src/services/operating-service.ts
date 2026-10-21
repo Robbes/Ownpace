@@ -30,6 +30,7 @@ import type {
   StatusReport,
   DomainStatusReport,
   DecisionRow,
+  DecisionEffectFields,
   MappingLifecycle,
   ShareGrantRow,
   MappingAttention,
@@ -330,23 +331,28 @@ export async function setDecisionPreset(
   ).data;
 }
 
+/**
+ * A decision just answered or set aside, with what that did: in English as
+ * `effect` and in Dutch as `effectNl`. Partial, because an appliance from
+ * before the Dutch sends the English alone.
+ */
+type ClosedDriftDecision = DecisionRow & Partial<DecisionEffectFields>;
+
 export async function resolveDriftDecision(
   decisionId: string,
   resolution: Record<string, unknown>,
-): Promise<DecisionRow & { effect?: string }> {
+): Promise<ClosedDriftDecision> {
   return (
-    await client.post<DecisionRow & { effect?: string }>(
+    await client.post<ClosedDriftDecision>(
       `/decisions/${encodeURIComponent(decisionId)}/resolve`,
       { resolution },
     )
   ).data;
 }
 
-export async function dismissDriftDecision(
-  decisionId: string,
-): Promise<DecisionRow & { effect?: string }> {
+export async function dismissDriftDecision(decisionId: string): Promise<ClosedDriftDecision> {
   return (
-    await client.post<DecisionRow & { effect?: string }>(
+    await client.post<ClosedDriftDecision>(
       `/decisions/${encodeURIComponent(decisionId)}/dismiss`,
       {},
     )

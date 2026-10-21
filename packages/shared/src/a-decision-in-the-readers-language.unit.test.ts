@@ -17,6 +17,8 @@ import { describe, it, expect } from 'vitest';
 import {
   NEW_MAILBOX_ANSWER,
   decisionAcceptLabel,
+  decisionEffectFields,
+  decisionEffectText,
   decisionResolvedEffect,
   decisionSummary,
   newMailboxSummary,
@@ -165,6 +167,80 @@ describe('what answering says it did', () => {
     // no pattern (the API accepts one), is only recorded.
     expect(decisionResolvedEffect(true)).toBe(DECISION_EFFECTS.resolved);
     expect(decisionResolvedEffect(false)).toBe(DECISION_EFFECTS.recorded);
-    expect(DECISION_EFFECTS.recorded).not.toMatch(/acts on it/);
+    expect(DECISION_EFFECTS.recorded.en).not.toMatch(/acts on it/);
+    expect(DECISION_EFFECTS.recorded.nl).not.toMatch(/handelt er/);
+  });
+});
+
+/**
+ * THE LINE UNDER A DECIDED DECISION, IN THE READER'S LANGUAGE (workplan 0159
+ * §6 item 12). *Wacht op u* said its questions in Dutch from 2026-10-18 on,
+ * and then, under the answer, *Answer recorded. Nothing in your migrations
+ * changes because of it.*, in English, marked `lang="en"`: the effect lines
+ * had no Dutch twin. The Dutch lives beside the English here (class 4 of
+ * `docs/i18n-prose-boundary.md`), both editions serve it as `effectNl` beside
+ * `effect`, and the page says the half in its reader's language.
+ */
+describe('what answering says it did, in English and in Dutch', () => {
+  it('has a Dutch twin beside every English line', () => {
+    for (const [key, said] of Object.entries(DECISION_EFFECTS)) {
+      expect(said.en, key).toMatch(/\S/);
+      expect(said.nl, key).toMatch(/\S/);
+      expect(said.nl, key).not.toBe(said.en);
+    }
+  });
+
+  it('says each line in the builder’s words, the Dutch in the glossary’s', () => {
+    // The English is unchanged: a page from before the twin reads it.
+    // The Dutch is the builder's, for the owner to read; it sets aside
+    // (*terzijde leggen*), never rejects, as the glossary and the button do.
+    expect(DECISION_EFFECTS).toEqual({
+      resolved: {
+        en: 'Answer recorded — the migration acts on it from here on.',
+        nl: 'Antwoord vastgelegd. De migratie handelt er vanaf nu naar.',
+      },
+      recorded: {
+        en: 'Answer recorded. Nothing in your migrations changes because of it.',
+        nl: 'Antwoord vastgelegd. Er verandert daardoor niets aan uw migraties.',
+      },
+      dismissed: {
+        en: 'Closed without acting; the detector may raise it again if the situation persists.',
+        nl: 'Terzijde gelegd; er is niets mee gedaan. Blijft de situatie zo, dan kan de vraag terugkomen.',
+      },
+    });
+  });
+
+  it('travels as `effect` in English and `effectNl` in Dutch', () => {
+    expect(decisionEffectFields(DECISION_EFFECTS.dismissed)).toEqual({
+      effect: DECISION_EFFECTS.dismissed.en,
+      effectNl: DECISION_EFFECTS.dismissed.nl,
+    });
+    expect(decisionEffectFields(decisionResolvedEffect(false))).toEqual({
+      effect: DECISION_EFFECTS.recorded.en,
+      effectNl: DECISION_EFFECTS.recorded.nl,
+    });
+  });
+
+  it('says the half in the reader’s language', () => {
+    const served = decisionEffectFields(DECISION_EFFECTS.recorded);
+    expect(decisionEffectText(served, 'nl')).toEqual({ text: DECISION_EFFECTS.recorded.nl, lang: 'nl' });
+    expect(decisionEffectText(served, 'en')).toEqual({ text: DECISION_EFFECTS.recorded.en, lang: 'en' });
+  });
+
+  it('says the English as served, marked English, when the server sent no Dutch', () => {
+    // An appliance from before the twin answers with `effect` alone.
+    expect(decisionEffectText({ effect: 'Closed without acting.' }, 'nl')).toEqual({
+      text: 'Closed without acting.',
+      lang: 'en',
+    });
+    expect(decisionEffectText({ effect: 'Closed without acting.', effectNl: '' }, 'nl')).toEqual({
+      text: 'Closed without acting.',
+      lang: 'en',
+    });
+  });
+
+  it('says nothing when nothing was served', () => {
+    expect(decisionEffectText({}, 'nl')).toBeUndefined();
+    expect(decisionEffectText({ effectNl: 'Alleen Nederlands.' }, 'en')).toBeUndefined();
   });
 });
