@@ -134,6 +134,36 @@ describe('pin refuses what it cannot pin', () => {
   });
 });
 
+describe('probe, which the pin watch runs, never reads an unread registry as "nothing newer"', () => {
+  /**
+   * `scripts/idp-pin-watch.mjs` asks `probe` for the tags above the pin
+   * (workplan 0146 T8). The probe asks one manifest at a time, and a request
+   * that fails reads exactly like a tag that does not exist. So a registry it
+   * could not reach would say "nothing newer", and the watch would close its
+   * issue. The tag it starts from has to answer first.
+   */
+  function offline(args: string[]) {
+    const bin = join(dir, 'bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, 'curl'), '#!/usr/bin/env bash\necho "curl: (6) Could not resolve host" >&2\nexit 6\n', { mode: 0o755 });
+    return run(args, { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}` });
+  }
+
+  it('refuses when the tag it starts from does not answer, and prints no tag', () => {
+    const r = offline(['probe', 'v4.7.2']);
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toBe('');
+    expect(r.stderr).toContain('v4.7.2 does not answer in both images');
+  });
+
+  it('refuses something that is not a version, before asking the registry', () => {
+    const r = offline(['probe', 'latest']);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('expected a tag like');
+    expect(r.stderr).not.toContain('Could not resolve host');
+  });
+});
+
 describe('pin moves every place the CI guard compares', () => {
   /**
    * `pin` moved apps/worker's SDK and left the root package.json (sdk AND

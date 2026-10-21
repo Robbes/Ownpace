@@ -37,6 +37,7 @@
 #   trigger-version.sh drill                dump, restore into a throwaway, compare
 #   trigger-version.sh restore <file|--latest> --yes    DESTRUCTIVE, see below
 #   trigger-version.sh pin <version|--latest>           move every place
+#   trigger-version.sh probe [version]      the usable tags above it, newest first
 #
 # The order for an actual upgrade is in docs/managed-bring-up.md, and it is not
 # optional: upgrading with runs in flight left the reference deployment looping
@@ -238,6 +239,22 @@ cmd_list() {
   echo
   echo "  next:     $0 pin ${latest}      (or: $0 pin --latest)"
   echo "            $0 backup before-${latest}"
+}
+
+# THE SAME PROBE, FOR THE PIN WATCH (workplan 0146 T8). scripts/idp-pin-watch.mjs
+# runs this once a week on a GitHub-hosted runner, so the watch and `list` ask
+# the registry the same question. It prints the tags only, newest first, one
+# per line, and nothing when nothing newer is published.
+#
+# A FAILED REQUEST READS EXACTLY LIKE A MISSING TAG, so a registry the probe
+# could not reach would say "nothing newer", and the watch would close its
+# issue. The tag it starts from has to answer in both images first.
+cmd_probe() {
+  need curl; need jq
+  local from="${1:-$(repo_tag)}"
+  case "$from" in v[0-9]*.[0-9]*.[0-9]*) : ;; *) die "expected a tag like v4.5.12, got '${from}'" ;; esac
+  tag_usable "$from" || die "${from} does not answer in both images: ghcr.io could not be read, or the tag is not published. Nothing newer can be called current."
+  probe_upgrades "$from"
 }
 
 # ---------------------------------------------------------------- backup --
@@ -488,5 +505,6 @@ case "${1:-}" in
   drill)   shift; cmd_drill "$@" ;;
   restore) shift; cmd_restore "$@" ;;
   pin)     shift; cmd_pin "$@" ;;
+  probe)   shift; cmd_probe "$@" ;;
   *) sed -n '/^# Usage:/,/^#$/p' "$0" | sed 's/^# \?//' >&2; exit 1 ;;
 esac

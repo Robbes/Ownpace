@@ -1,6 +1,15 @@
 # Dependency lifecycle management. Detection already runs (security-scan.yml: Trivy + pnpm audit,
-# weekly); this closes the loop by opening the actual update PRs so transitive CVEs don't accumulate.
-# Grouped weekly to keep PR noise low; security updates are ungrouped so they land fast.
+# weekly); this opens the weekly version-update PRs, grouped to keep the noise low.
+#
+# SECURITY UPDATES ARE NOT CONFIGURED HERE. They come from the repository's own setting
+# (Settings, Advanced Security: Dependabot alerts and Dependabot security updates), and only
+# while it is on. Even then they do not cover a transitive pnpm dependency the lockfile alone
+# cannot lift (those take an override in pnpm-workspace.yaml, by hand), nor a name ignored
+# below: an ignore applies to security updates too.
+#
+# WHAT THIS FILE DOES NOT SEE is scripts/idp-pin-watch.mjs's (workplan 0146 T8): every image
+# in deploy/compose, Trigger.dev, the tasks' Node, `packageManager`, the Trivy the scan runs,
+# and the TypeScript split. It runs on Mondays after this, and keeps an issue open per pin.
 version: 2
 updates:
   # npm/pnpm workspace (root manifest + all packages/* and apps/* via the workspace).
@@ -19,7 +28,10 @@ updates:
       # one Dependabot offers costs a triage it cannot pass. `tsc` itself is fine; the
       # linter is the blocker, and it is waiting on ESLint gaining async parser support.
       # See workplan 0026 row 22 for the evidence and the revisit trigger.
-      # REMOVE THIS when TypeScript 7.1 ships and typescript-eslint#10940 closes.
+      # INERT TODAY: every `typescript` in the manifests is an `npm:` alias (the two-TypeScript
+      # split in AGENTS.md), and Dependabot skips aliased entries, so it offers no TypeScript
+      # at all. The pin watch opens "The TypeScript split can go" when typescript-eslint
+      # admits a stable 7.1; delete this with the split.
       - dependency-name: typescript
         update-types: ["version-update:semver-major"]
       # The Trigger.dev SDK moves with the Trigger.dev image or not at all: the two
@@ -86,12 +98,17 @@ updates:
     commit-message:
       prefix: chore(images)
 
-  # Every image the managed and self-host stacks run (workplan 0119 T1). What is
-  # ignored here is ignored by name and for a reason, so that a green tick on a
-  # Monday cannot make a decision that is the owner's — see 0119 §2.1 and §3.
+  # The self-host stack's images (workplan 0119 T1). Dependabot's compose fetcher
+  # reads only the files directly in a directory whose names match
+  # `(docker-)?compose(-\w+)?(\.[\w-]+)?\.ya?ml`, so `deploy/compose` is not
+  # here: managed.yml, www.yml and dev.yml all miss, the entry covered nothing
+  # from 2026-09-06, and it errored every Monday. scripts/idp-pin-watch.mjs
+  # compares those images instead, and
+  # scripts/a-dependabot-directory-with-nothing-to-read.unit.test.ts holds
+  # that every directory listed here has a file Dependabot reads, and that
+  # every ignore names an image one of those files runs.
   - package-ecosystem: docker-compose
     directories:
-      - "/deploy/compose"
       - "/deploy/selfhost"
     schedule:
       interval: weekly
@@ -100,27 +117,8 @@ updates:
       timezone: Etc/UTC
     open-pull-requests-limit: 5
     ignore:
-      # One way: Trigger.dev migrates its schema, and the webapp, the supervisor
-      # and the SDK are ONE version, moved together by trigger-version.sh.
-      - dependency-name: ghcr.io/triggerdotdev/trigger.dev
-      - dependency-name: ghcr.io/triggerdotdev/supervisor
-      # One way: Zitadel migrates its schema at boot, on the persistent gate stack.
-      - dependency-name: ghcr.io/zitadel/zitadel
-      # Pinned by digest to what Trigger.dev's own compose pins, on purpose
-      # (docs/managed-bring-up.md: the version that rejected a migration).
-      - dependency-name: clickhouse/clickhouse-server
-      # No upstream left to follow (0119 §3); a replacement is a design decision.
-      - dependency-name: bitnamilegacy/minio
-      # Majors are decisions: pg_upgrade, a licence, a config rewrite, a fixture.
+      # A major is pg_upgrade, and the owner's decision (0119 §2.1).
       - dependency-name: postgres
-        update-types: ["version-update:semver-major"]
-      - dependency-name: redis
-        update-types: ["version-update:semver-major"]
-      - dependency-name: registry
-        update-types: ["version-update:semver-major"]
-      - dependency-name: nextcloud
-        update-types: ["version-update:semver-major"]
-      - dependency-name: caddy
         update-types: ["version-update:semver-major"]
     groups:
       images:
