@@ -265,6 +265,14 @@ fi
 # 504 from the front spends the same budget (#263; rule 1 on
 # `curl_read_retrying`).
 #
+# The fourteen seconds are the WAITS between asks, not the whole bound: each
+# ask also takes as long as its answer does, and `api` sets no `--max-time`. A
+# front answers 504 only once ITS OWN upstream timeout has run out, so four
+# 504s take four of those plus the waits. The transport retry had the same open
+# end before (curl's own connect timeout, on every ask). No cap is added here:
+# one would be a new way to fail a read that is slow and right, and nothing
+# measured says where it should sit.
+#
 # NOT applied to the CURL_ORIGIN probe further up, and that is deliberate: that
 # one asks "can this machine reach the issuer directly?", where a fast NO is the
 # right answer and the fallback is safe. Retrying it would add fourteen seconds
@@ -492,7 +500,10 @@ ${#PAT} characters long, which is too short to be one:
 #      read re-asked and then answered handed jq `[setup-zitadel] …` in front of
 #      the JSON. That was true of the transport retry from the day #174 added
 #      it: a blip it rode out would have killed the run one line later, on jq's
-#      parse error, with no FATAL line to say why.
+#      parse error, with no FATAL line to say why. Stderr keeps the answer
+#      clean only where the caller leaves stderr alone, so a caller that also
+#      wants die's words keeps them APART from the answer, never `2>&1`:
+#      `sign_in_mail_read` is the one read that does, and says how.
 #
 #   2. ONLY READS. A `recv failure` can land after the server has already acted,
 #      so a re-sent WRITE can apply twice. This script MINTS PERSONAL ACCESS
@@ -2659,8 +2670,20 @@ sign_in_mail_wanted() {   # <language> <type> <support address> — the seven fi
           or (.text | contains("{{.Code}}"))))' "$SIGN_IN_MAILS"
 }
 sign_in_mail_read() {   # <language> <type> — the seven fields the instance holds, or why it cannot say
-  local out
-  out="$( ( api GET "/admin/v1/text/message/${2}/${1}" ) 2>&1 )" || { printf '%s' "$out"; return 1; }
+  # `api`'s STDERR APART FROM ITS ANSWER, never `2>&1`. This read wants die's
+  # words when it fails, and merged, it also took the line a read that rode out
+  # a 502 or a dropped connection writes there (rule 1 on `curl_read_retrying`):
+  # that line stood in front of the JSON, jq refused it, and a mail that WAS
+  # read was said to be one that could not be. What came before the FATAL goes
+  # to the log, as it does at every other call site; the FATAL is the reason.
+  local out err
+  err="$(mktemp)"
+  out="$( ( api GET "/admin/v1/text/message/${2}/${1}" ) 2>"$err" )" || {
+    sed '/^\[setup-zitadel\] FATAL: /,$d' "$err" >&2
+    sed -n '/^\[setup-zitadel\] FATAL: /,$p' "$err"
+    rm -f "$err"; return 1
+  }
+  cat "$err" >&2; rm -f "$err"
   jq -ce '(.customText // {}) as $c
     | reduce ("title", "preHeader", "subject", "greeting", "text", "buttonText", "footerText") as $k
         ({}; . + {($k): ($c[$k] // "")})' <<<"$out" 2>/dev/null || { printf '%s' "$out"; return 1; }
