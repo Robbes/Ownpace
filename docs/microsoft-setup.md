@@ -83,6 +83,18 @@ button.
 Certificates & secrets → New client secret. Copy the **Value** immediately; Entra shows it
 once. The **Application (client) ID** on the Overview page is the other half.
 
+**It expires.** A client secret made in the portal lasts 24 months at most (the portal suggests
+6), and Entra shows the date as **Expires** beside it. When it passes, every connection that
+uses the pair fails its next token refresh, all at once. Write the date down, never the value,
+and renew 30 days ahead: a new secret beside the old one, its Value where the old one was, and
+the old one deleted only once a connection has tested green and synced on the new one. A
+connection on the deployment's registration (*Configure it*, below) stores neither half of the
+pair, so its refresh token survives the renewal and nobody has to connect again. A connection
+that carries its own registration stores its own pair, and is renewed on the connection itself,
+on the Accounts page, with the client ID and the new secret together. Operators of this
+repository's two stacks have the order, and a daily check of the date, in
+[`managed-bring-up.md`](managed-bring-up.md) (*The deployment's own Entra registration*).
+
 ## 2. Consent, once, as the migrated account
 
 **The short way: press *Connect with Microsoft*.** It opens Microsoft's consent screen for the

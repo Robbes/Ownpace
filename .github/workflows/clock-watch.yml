@@ -1,0 +1,79 @@
+# The clocks nobody else watches.
+#
+# Three things the Alpha depends on stop on a date, and nothing warned before
+# it: the production certificates NetBird's reverse proxy renews for app., id.
+# and status.ownpace.eu (and www. once it is routed to live), the Expires of
+# www.ownpace.eu's security.txt, which only a live deploy renews, and the
+# Microsoft Entra client secret both stacks share. Live's status rows see an
+# expired certificate only once it has expired.
+#
+# Once a day, and on demand, scripts/clock-watch.mjs reads each clock from a
+# GitHub-hosted runner, from where a tester stands, and keeps ONE issue open
+# while any is inside its window: fewer than 14 days left on a production
+# certificate, fewer than 30 on security.txt's Expires or the secret's date.
+# A change in what is inside the window updates the issue and says so in a
+# comment; the issue is closed when nothing is. A clock it could not read
+# fails the run and never closes the issue. The OTA names are read and
+# reported, never counted.
+#
+# WHAT THE OWNER SETS (Settings, Secrets and variables, Actions, Variables):
+#   CLOCK_WATCH_SITE           `required` once www.ownpace.eu is routed to
+#                              live (docs/managed-bring-up.md, the site's step
+#                              4); until then the name points at another host
+#                              and is not asked.
+#   CLOCK_WATCH_ENTRA_EXPIRES  optional: the date, YYYY-MM-DD, the Entra portal
+#                              shows as the client secret's Expires. A date,
+#                              never the secret: a variable is printed in the
+#                              log of every run.
+#
+# ITS LOG IS PUBLIC, so it prints names and dates only, and a failure by its
+# error code. Certificate dates are public anyway, in the CT logs; that is why
+# this may run on a schedule, where the exposure probe, whose failures name
+# open ports, runs by dispatch only.
+#
+# GitHub disables the schedules of a public repository after 60 days without
+# activity in it. A quiet spell that long would stop this watch too.
+#
+# TO TEST IT: Actions, "Clock watch", Run workflow. Each clock is one line of
+# the job's log and of its summary.
+#
+# scripts/a-clock-that-knows-it-is-running-out.unit.test.ts holds the windows,
+# the one issue, what the log prints, and this file's trigger, permissions and
+# command.
+name: Clock watch
+
+on:
+  schedule:
+    # Every day, 06:41 UTC. Off the hour, after the nights' gates, and not on
+    # the pin watch's minute.
+    - cron: '41 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: clock-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: Read every clock
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+      - name: Read the clocks, and keep one issue open while one is inside its window
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CLOCK_WATCH_SITE: ${{ vars.CLOCK_WATCH_SITE }}
+          CLOCK_WATCH_ENTRA_EXPIRES: ${{ vars.CLOCK_WATCH_ENTRA_EXPIRES }}
+        run: node scripts/clock-watch.mjs --issue
