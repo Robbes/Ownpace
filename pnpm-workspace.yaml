@@ -41,16 +41,21 @@ overrides:
   # five were bare, and ">=" let a consumer onto a major it never asked for: express 5.3 got
   # cookie 2 (ESM-only, no serialize), and @opentelemetry/core 3 (no otperformance) waited
   # only for the cooldown below to pass, under Trigger.dev's exact 2.8.0 OTel pins.
-  # semver CVE-2022-25883 (ReDoS), fixed in 7.5.2.
+  # semver CVE-2022-25883 (ReDoS), fixed on three lines: 5.7.2, 6.3.1 and 7.5.2. One entry per
+  # line, like brace-expansion's: pnpm applies an entry to a range that intersects it, so the 7.x
+  # entry alone would leave a 5.x or 6.x below its fix where it is.
+  "semver@<5.7.2": ^5.7.2
+  "semver@>=6.0.0 <6.3.1": ^6.3.1
   "semver@>=7.0.0 <7.5.2": ^7.5.2
   # ws CVE-2026-48779 + CVE-2026-45736, fixed in 8.21.0; engine.io-client asks for ~8.21.0.
   "ws@>=8.0.0 <8.21.0": ^8.21.0
+  # Bare on purpose (set 2026-07-09 with ws): lifts @trigger.dev/core's exact 4.7.5 within 4.x.
   socket.io-client: ^4.8.0
-  # No CVE of its own: set with the ws entry (2026-07-09) to take socket.io-client off 6.5.x.
+  # No CVE of its own. Set with ws (2026-07-09): socket.io-client's engine.io-client was on 6.5.x.
   "engine.io-client@<6.6.0": ^6.6.0
-  # @opentelemetry/core CVE-2026-54285, fixed in 2.8.0.
+  # @opentelemetry/core CVE-2026-54285: every version below 2.8.0 (1.x too), fixed only in 2.8.0.
   "@opentelemetry/core@<2.8.0": ^2.8.0
-  # cookie CVE-2024-47764, fixed in 0.7.0.
+  # cookie CVE-2024-47764: every version below 0.7.0, fixed only in 0.7.0.
   "cookie@<0.7.0": ^0.7.2
   # Security overrides (transitive CVEs surfaced by Trivy → code-scanning + pnpm audit):
   #   engine.io  GHSA-r635-g3xr-vw7x (HIGH, prod via @trigger.dev → socket.io)

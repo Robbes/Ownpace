@@ -172,7 +172,7 @@ live in [README.md](./README.md), the register.
 ## [ADR-0022: IMAP Dependency Security Strategy](./0022-imap-dependency-security-strategy.md)
 
 - The vulnerable chain is **gone, not overridden**: `imap-simple`→`utf7`→`semver@5.3.0` left the lockfile with the imapflow migration (workplan 0032).
-- The `semver` pnpm override **stays** — it was never only about that chain; removing it is a separate decision with its own blast radius. Since 2026-10-21 it is scoped like every other entry (`"semver@>=7.0.0 <7.5.2": ^7.5.2`): it lifts a 7.x below the fix and no longer moves other majors.
+- The `semver` pnpm override **stays** — it was never only about that chain; removing it is a separate decision with its own blast radius. Since 2026-10-21 it is one scoped entry per fixed line (5.7.2, 6.3.1, 7.5.2): a 5.x, 6.x or 7.x below its fix is lifted within its major, and nothing is moved to 7.
 
 ## [ADR-0023: Persistence — Postgres-only across both editions](./0023-persistence-postgres-only.md)
 
