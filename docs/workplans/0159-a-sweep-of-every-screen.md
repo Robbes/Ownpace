@@ -29,14 +29,25 @@ both cases, are the builder's and wait for the owner's reading (open question 8)
   runs, which now check that an applied row says so (first run: the scheduled E2E after the
   merge, not yet run).
 
+**2026-10-21: the legal texts stay version 1.0.** The owner: *"no-one accepted the terms so far,
+so keep them on version 1.0."* The Alpha conditions, the terms and the privacy statement keep the
+words the owner approved on 2026-10-19, word for word, and their number goes back from 1.1 to
+1.0, edited in place, as the Alpha conditions' own rule says until the first tester accepts
+(alpha-version-number (a)). Their *Last updated* line stays 2026-10-19, the day the words last
+changed. `LEGAL_VERSIONS` says 1.0 for all three, `ACCEPTED_WORDS` pins these words under 1.0
+and drops the 1.1 pins, and the legal README, the briefings and the CHANGELOG say so. From the
+first tester's acceptance on, a change of words takes a new number again.
+
 **2026-10-19: round 2 answered and built; all 31 items done.** The owner answered rows 19 and 24
 on 2026-10-19: *Yes* to the tiles drawn once on a phone, and *Yes* to all four cards of version
 1.1 of the legal texts. Asked whether anyone besides the owner had accepted version 1.0, the
 owner answered *nobody yet*, so privacy §13's 30 days' notice by email was owed to nobody and 1.1
 applies from publication. #1638 draws the tiles once, under the migration's name, on a phone only.
 #1639 is version 1.1 of the Alpha conditions, the terms and the privacy statement, applied word
-for word from the draft the owner approved, with its version pins. Each was built from main, a
-second reviewer tried to break it, and it merged on its own after `ci-complete` was green.
+for word from the draft the owner approved, with its version pins (renumbered 1.0 on 2026-10-21,
+on the owner's word, edited in place before anyone accepted them: the entry above). Each was
+built from main, a second reviewer tried to break it, and it merged on its own after
+`ci-complete` was green.
 
 **2026-10-18: the owner's answers, built and merged; two asked again.** The owner answered the 31
 questions of §5 on a page that offered *Yes*, *Keep* or their own words for each item. 29 were
@@ -286,7 +297,7 @@ later PR builds the answers.
 | 21 | During the Alpha, Billing shows *Data verplaatst, in totaal: 0 GB* under *Alle gegevens: 214 GB* | **Yes** — #1632 |
 | 22 | Other words from the owner's review of 2026-10-10 that drift from the glossary | **Yes** — #1632, with `access.noteHint` in #1633 and `finish.ending.phase.cutover` in #1635 |
 | 23 | Dutch says *provider* where the rest of the app says *aanbieder*, the grant and progress pages included | **Yes** — #1633 |
-| 24 | The Alpha conditions and the terms still use the old names of the two deletion switches | **Yes** (round 2, 2026-10-19), with the rest of version 1.1 of the legal texts — #1639 |
+| 24 | The Alpha conditions and the terms still use the old names of the two deletion switches | **Yes** (round 2, 2026-10-19), with the rest of version 1.1 of the legal texts — #1639; renumbered 1.0 on 2026-10-21, on the owner's word, edited in place before anyone accepted them |
 | 25 | The site's hero paragraph (0144 P5a): *Geen big bang* / *No big-bang cutover* | **Yes** — #1631 |
 | 26 | The site promises a *free preflight* the app never names (privacy §4.3 says preflight) | **Yes** — #1630 |
 | 27 | The Dutch home page says in two ways that nothing is deleted at the source | **Yes** — #1631 |
@@ -339,7 +350,9 @@ phone, `MigrationTiles` draws the two tiles once under the migration's name on t
 and a person's page, and each line keeps its data type, chip and sentence; from `sm` up nothing
 changed, and the site's picture of a person's page was taken again. #1639 built row 24 as version
 1.1 of the three texts, dated 2026-10-19: `LEGAL_VERSIONS`, the hashes a tester accepts and the
-legal README's table say 1.1, and the privacy briefing records that no notice was owed.
+legal README's table say 1.1, and the privacy briefing records that no notice was owed. On
+2026-10-21 the owner kept the same words on version 1.0, edited in place, since nobody had
+accepted any version (the Status block).
 Both wait for the owner.
 
 **Deviations worth recording.**
@@ -444,8 +457,9 @@ Both wait for the owner.
     on the old system…* / *1 items (e-mail) staan…* and *1 sampled … items differ*. They are the
     owner's approved words, so a singular form is the owner's call.
 14. ~~**The privacy statement keeps *preflight*** (§4.3, §5 and §9, in both languages) until its
-    version 1.1, where #1630 left it.~~ **Resolved in #1639**: version 1.1 names it *the count when
-    you review your migration* / *de telling bij het controleren van uw migratie*.
+    version 1.1, where #1630 left it.~~ **Resolved in #1639**: the words of 2026-10-19 (version
+    1.1 there, 1.0 since 2026-10-21) name it *the count when you review your migration* / *de
+    telling bij het controleren van uw migratie*.
 15. **With *Technical details* open, an unknown finding's text shows twice** (#1635): in the list,
     since no sentence of ours covers it, and again in the fold beside its id.
 16. **Words #1632 left for a later round**, as the owner did not name them: Review and start's

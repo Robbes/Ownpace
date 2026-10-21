@@ -1,18 +1,20 @@
 <!-- Copyright 2026 The Ownpace authors (Apache-2.0) -->
 <!--
-  VERSION 1.1, 2026-10-19, on the owner's approval: §8 names the two deletion switches as the
-  invitation dialog does since workplan 0156 T6 (tenants.invite.adminCan): "turn *deleting by
-  hand* or *the automatic removal of moved files' old copies* on or off" / "*handmatig
-  verwijderen* of *het automatisch verwijderen van oude kopieën van inmiddels verplaatste
-  bestanden* aan- of uitzetten", in italics as terms §2 marks them, so the Dutch does not read
-  "handmatig verwijderen" as an action of its own. It said "turn applying deletions or
+  STILL 1.0, EDITED IN PLACE ON 2026-10-19, on the owner's approval: §8 names the two deletion
+  switches as the invitation dialog does since workplan 0156 T6 (tenants.invite.adminCan): "turn
+  *deleting by hand* or *the automatic removal of moved files' old copies* on or off" /
+  "*handmatig verwijderen* of *het automatisch verwijderen van oude kopieën van inmiddels
+  verplaatste bestanden* aan- of uitzetten", in italics as terms §2 marks them, so the Dutch does
+  not read "handmatig verwijderen" as an action of its own. It said "turn applying deletions or
   auto-applying relocations on or off" / "het toepassen van verwijderingen of het automatisch
   toepassen van verplaatsingen aan- of uitzetten" (workplan 0159 §5 item 24). Same switches,
   and the same list of what an admin cannot do. §6, Dutch only: "U logt opnieuw in" reads
   "U meldt zich opnieuw aan", the app's pair Aanmelden/Afmelden (workplan 0159 §5 item 13, the
-  owner: yes); it lands with or after the app's Aanmelden/Afmelden build. 1.0 was final and
-  pinned in ACCEPTED_WORDS, so the words take 1.1, in both languages, LEGAL_VERSIONS and
-  ACCEPTED_WORDS.
+  owner: yes); it lands with or after the app's Aanmelden/Afmelden build. #1639 numbered these
+  words 1.1, because 1.0 was final and pinned. On 2026-10-21 the owner put them back under 1.0:
+  "no-one accepted the terms so far, so keep them on version 1.0". Nobody had accepted any
+  version, so the text stays 1.0 until the first tester accepts it (alpha-version-number (a),
+  below), in both languages, LEGAL_VERSIONS and ACCEPTED_WORDS, which pins these words under 1.0.
 
   VERSION 1.0, 2026-09-28: the owner's text for the Alpha. It stays 1.0 while
   it is edited, until the first tester accepts it; every change after that
@@ -218,7 +220,7 @@
 # Alpha conditions
 
 **Apply to:** the Alpha of the Ownpace **managed service** at `ownpace.eu`.
-**Version:** 1.1
+**Version:** 1.0
 **Last updated:** 2026-10-19
 
 ---

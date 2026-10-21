@@ -6,9 +6,11 @@
      with the owner's answers of 2026-09-28 until the first tester accepts it
      (alpha-version-number (a)), and once more on 2026-10-05, §8 and §10, in
      the owner's final-text pull request, before anybody could accept it
-     (alpha.md's briefing says how we know). Version 1.1 (2026-10-19): §8 names the
-     two deletion switches as the app does, and §6 says "aanmelden" as the
-     app does; alpha.md's briefing has the words.
+     (alpha.md's briefing says how we know). Edited in place again on
+     2026-10-19, still 1.0: §8 names the two deletion switches as the app
+     does, and §6 says "aanmelden" as the app does; alpha.md's briefing has
+     the words. #1639 numbered them 1.1; the owner put them back under 1.0 on
+     2026-10-21, as nobody had accepted any version.
      The briefing for the reviewing lawyer,
      including which language governs and which answer changed which section,
      is the comment at the top of alpha.md — it applies to both files.
@@ -19,7 +21,7 @@
 # Voorwaarden voor de Alpha
 
 **Gelden voor:** de Alpha van de **beheerde Ownpace-dienst** op `ownpace.eu`.
-**Versie:** 1.1
+**Versie:** 1.0
 **Laatst bijgewerkt:** 2026-10-19
 
 ---

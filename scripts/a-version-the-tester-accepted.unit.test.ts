@@ -44,7 +44,11 @@
  * The pin is changed without a new number only while nobody can have accepted
  * that number: while some text in `LEGAL_DRAFTS` is still a draft, since the
  * API then asks nobody. Otherwise give the text a new number, change
- * `LEGAL_VERSIONS`, and pin the new words under the new number.
+ * `LEGAL_VERSIONS`, and pin the new words under the new number. The one other
+ * case is the owner's word, before the first tester, that nobody has accepted
+ * any version: then the text stays 1.0 and is edited in place, as
+ * alpha-version-number (a) says (the owner, 2026-10-14 and 2026-10-21; the
+ * comment beside the pins records each).
  *
  * ## What it reads
  *
@@ -77,7 +81,8 @@ const FILES = {
  * The words of each final text, as a tester accepts them under its number: a
  * sha256 of the file outside its HTML comments, white space collapsed
  * (`wordsOf`). A draft needs none. Changed without a new number only while
- * some text is still a draft (the header says why).
+ * some text is still a draft, or on the owner's word that nobody has accepted
+ * any version (the header says why).
  */
 const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // The Last updated line is part of the words, in all six files: moving it to the merge day means
@@ -93,30 +98,30 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // advance, §7 and §8 — changed the terms' words under 1.3. All six are pinned together, as the
   // header's note requires. No tester has accepted any of these numbers: privacy and terms carried
   // their draft markers until this pull request, and the API asks nobody while any text is a draft.
-  'alpha.md@1.0': '241b73f563475774af1d539fb64d9f13876146dce3a1dda49e3dc3cb2631b257',
-  'alpha.nl.md@1.0': '1d3cfaa24fbdf051f78a14936ef9a855d3f7a59585d66cf6a7c71deed070102f',
+  //
   // RESTARTED AT 1.0 on 2026-10-14 (the owner: "go on the 1.0 reset"). Privacy had been final as
   // 1.2 to 1.5 and the terms as 1.3 to 1.6, and their pins stood here, but no tester had accepted
   // any of them: the Alpha had not opened, and only the owner's own accounts and test accounts
   // hold acceptances. No acceptance anywhere records privacy 1.0 or terms 1.0 (the screen began at
   // 1.2 and 1.3, managed 0032), and the app compares the number for equality, so every older
-  // acceptance is simply asked again. This is the one restart the rule allows, made before any
-  // tester; from here a change of words takes 1.1. The older pins are in git, with the texts.
-  'privacy.md@1.0': '4cc3ad890251961c18da20ef26344243d1ac2edc3487f00b410e75d4f701758c',
-  'privacy.nl.md@1.0': '73230b94a258a3ebec6022b8a4fd97c9f5d00f1d6711c9eeaf8f7d48deb168b5',
-  'terms.md@1.0': '25d9f3035f223a8d2981ca582fb3173ce968211271d7121b799769e7c5538ba1',
-  'terms.nl.md@1.0': 'be8ee22678cfc3411d67cf8b938b6fd1fd49d12c464768f6125de001cf142b08',
-  // 1.1, 2026-10-19, on the owner's approval: the first new number after 1.0, all six together
-  // (alpha §6 and §8, terms §2, privacy §3 to §10; each file's briefing says what changed). The
-  // 1.0 pins above stay, as the words any stored acceptance of 1.0 refers to: the owner's own
-  // accounts at most, since nobody besides the owner had accepted 1.0 (the owner, 2026-10-19:
-  // "Nobody yet"). The guard reads only the pin under each file's current number.
-  'alpha.md@1.1': 'a56f408aa737a105deeadfade87b63c39a599435644603648907c3fd6bbdd25d',
-  'alpha.nl.md@1.1': '4047c60870042cbfef16d8c1190ed55f1b66f43bbf5355fa30d4f0a46c908c78',
-  'privacy.md@1.1': '5bd261061ba00e53839a928cb895d842b1a38b92327be7e9ca001b33c0eb763c',
-  'privacy.nl.md@1.1': '1d41945edf3602ea0b811fc64b8027e46bebde9f691044e85bf5ac283f6fdac4',
-  'terms.md@1.1': 'f9b8506742ad64a390266af7af48fe178f2f437e4f58dd01e9a4159d488c0c66',
-  'terms.nl.md@1.1': 'b6e91143b6d576cd5cf32b13248259ba055db2308e74ea001253ba6941f2479f',
+  // acceptance is simply asked again. A restart is made only before any tester has accepted
+  // (the header says so). The older pins are in git, with the texts.
+  //
+  // RE-PINNED UNDER 1.0 on 2026-10-21 (the owner: "no-one accepted the terms so far, so keep them
+  // on version 1.0"): the words the owner approved on 2026-10-19 (#1639, alpha §6 and §8, terms
+  // §2, privacy §3 to §10), which #1639 pinned under 1.1. Nobody had accepted any version, so the
+  // number goes back to 1.0, edited in place, as alpha-version-number (a) says until the first
+  // tester accepts, and the 1.1 pins go. An acceptance of 1.1 asks again; one of 1.0 recorded
+  // before these words reached a stack counts for them, and only the owner's own and test
+  // accounts can hold one.
+  // From the first tester's acceptance on, a change of words takes a new number (1.1); the pins of
+  // earlier words are in git, with the texts.
+  'alpha.md@1.0': 'acc56aaf5e570d53687793a4e6951ae5732c5ce7273328a5ac5ed4201785018c',
+  'alpha.nl.md@1.0': 'bf9a41a1679f8ee912c8e611b52eb4daf93f0e4042f8c708c476dea99cfd4bfb',
+  'privacy.md@1.0': 'e18bfc5249c4077d7ba56f24c22adfa51b9e66f8339533c3f28dd78d864194ed',
+  'privacy.nl.md@1.0': 'c177e80f1ac4880ccc054aa78c006dc7409df15dd8d3a422a6f2fc3664add3e0',
+  'terms.md@1.0': 'b743e1286302fcbc0ab0570f0e3b5afd7bc86a82de3d2d55233e9517ccc90633',
+  'terms.nl.md@1.0': '7024556d073d4f12216250c1c0183223304721d2631f244707e46d523f1cc47a',
 };
 
 /** The digest `ACCEPTED_WORDS` pins: the text outside HTML comments, white space collapsed. */
