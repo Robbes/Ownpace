@@ -42,10 +42,10 @@ first tester's acceptance on, a change of words takes a new number again.
 on 2026-10-19: *Yes* to the tiles drawn once on a phone, and *Yes* to all four cards of version
 1.1 of the legal texts. Asked whether anyone besides the owner had accepted version 1.0, the
 owner answered *nobody yet*, so privacy §13's 30 days' notice by email was owed to nobody and 1.1
-applies from publication. #1638 draws the tiles once, under the migration's name, on a phone only.
+(1.0 since 2026-10-21) applies from publication. #1638 draws the tiles once, under the migration's name, on a phone only.
 #1639 is version 1.1 of the Alpha conditions, the terms and the privacy statement, applied word
 for word from the draft the owner approved, with its version pins (renumbered 1.0 on 2026-10-21,
-on the owner's word, edited in place before anyone accepted them: the entry above). Each was
+on the owner's word, edited in place before any tester accepted them: the entry above). Each was
 built from main, a second reviewer tried to break it, and it merged on its own after
 `ci-complete` was green.
 
@@ -297,7 +297,7 @@ later PR builds the answers.
 | 21 | During the Alpha, Billing shows *Data verplaatst, in totaal: 0 GB* under *Alle gegevens: 214 GB* | **Yes** — #1632 |
 | 22 | Other words from the owner's review of 2026-10-10 that drift from the glossary | **Yes** — #1632, with `access.noteHint` in #1633 and `finish.ending.phase.cutover` in #1635 |
 | 23 | Dutch says *provider* where the rest of the app says *aanbieder*, the grant and progress pages included | **Yes** — #1633 |
-| 24 | The Alpha conditions and the terms still use the old names of the two deletion switches | **Yes** (round 2, 2026-10-19), with the rest of version 1.1 of the legal texts — #1639; renumbered 1.0 on 2026-10-21, on the owner's word, edited in place before anyone accepted them |
+| 24 | The Alpha conditions and the terms still use the old names of the two deletion switches | **Yes** (round 2, 2026-10-19), with the rest of version 1.1 of the legal texts — #1639; renumbered 1.0 on 2026-10-21, on the owner's word, edited in place before any tester accepted them |
 | 25 | The site's hero paragraph (0144 P5a): *Geen big bang* / *No big-bang cutover* | **Yes** — #1631 |
 | 26 | The site promises a *free preflight* the app never names (privacy §4.3 says preflight) | **Yes** — #1630 |
 | 27 | The Dutch home page says in two ways that nothing is deleted at the source | **Yes** — #1631 |
@@ -351,9 +351,8 @@ and a person's page, and each line keeps its data type, chip and sentence; from 
 changed, and the site's picture of a person's page was taken again. #1639 built row 24 as version
 1.1 of the three texts, dated 2026-10-19: `LEGAL_VERSIONS`, the hashes a tester accepts and the
 legal README's table say 1.1, and the privacy briefing records that no notice was owed. On
-2026-10-21 the owner kept the same words on version 1.0, edited in place, since nobody had
+2026-10-21 the owner kept the same words on version 1.0, edited in place, since no tester had
 accepted any version (the Status block).
-Both wait for the owner.
 
 **Deviations worth recording.**
 

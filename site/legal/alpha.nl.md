@@ -10,7 +10,7 @@
      2026-10-19, still 1.0: §8 names the two deletion switches as the app
      does, and §6 says "aanmelden" as the app does; alpha.md's briefing has
      the words. #1639 numbered them 1.1; the owner put them back under 1.0 on
-     2026-10-21, as nobody had accepted any version.
+     2026-10-21, as no tester had accepted any version.
      The briefing for the reviewing lawyer,
      including which language governs and which answer changed which section,
      is the comment at the top of alpha.md — it applies to both files.

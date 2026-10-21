@@ -12,7 +12,7 @@
   "U meldt zich opnieuw aan", the app's pair Aanmelden/Afmelden (workplan 0159 §5 item 13, the
   owner: yes); it lands with or after the app's Aanmelden/Afmelden build. #1639 numbered these
   words 1.1, because 1.0 was final and pinned. On 2026-10-21 the owner put them back under 1.0:
-  "no-one accepted the terms so far, so keep them on version 1.0". Nobody had accepted any
+  "no-one accepted the terms so far, so keep them on version 1.0". No tester had accepted any
   version, so the text stays 1.0 until the first tester accepts it (alpha-version-number (a),
   below), in both languages, LEGAL_VERSIONS and ACCEPTED_WORDS, which pins these words under 1.0.
 

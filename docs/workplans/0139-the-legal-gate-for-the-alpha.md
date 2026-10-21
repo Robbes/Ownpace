@@ -13,7 +13,14 @@ words stay as approved and the number goes back to 1.0, edited in place, as on 2
 alpha-version-number (a) says until the first tester accepts. The *Last updated* lines stay
 2026-10-19. `LEGAL_VERSIONS` says 1.0, and `ACCEPTED_WORDS` pins these words under 1.0, with the
 1.1 pins gone; the guard's header and the comment beside the pins say why. The 2026-10-14 entry's
-*"from here, a change of words takes 1.1"* now holds from the first tester's acceptance on.
+*"from here, a change of words takes 1.1"* now holds from the first tester's acceptance on, and
+the 2026-10-14 reset is no longer the only one: the guard's comment records both.
+
+- **Stored acceptances.** An acceptance of 1.1 is asked again (`acceptanceOf` compares the
+  number for equality). An acceptance of 1.0 recorded on a stack before the deploy that carries
+  these words counts for them and is not asked again; only the owner's own accounts and the
+  test accounts (the OTA's smoke and E2E accounts) can hold one. Whether to delete those rows is
+  the owner's call, per stack, by the database owner: the app cannot delete them.
 
 **2026-10-15: the sign-in history is checked, and §9 stands.** The owner ran the test on the
 test stack (Zitadel v4.19.4): a fresh account's entries went from 6 to 7 when `idp-strays.sh

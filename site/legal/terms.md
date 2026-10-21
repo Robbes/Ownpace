@@ -14,7 +14,7 @@
   verwijderen van oude kopieën van inmiddels verplaatste bestanden* (was *auto-applying
   relocations* / *het automatisch toepassen van verplaatsingen*); workplan 0159 §5 item 24. Same
   switches, both still off by default, the same promise. #1639 numbered these words 1.1, because
-  1.0 was final and pinned; on 2026-10-21 the owner put them back under 1.0, as nobody had
+  1.0 was final and pinned; on 2026-10-21 the owner put them back under 1.0, as no tester had
   accepted any version, in both languages, LEGAL_VERSIONS and ACCEPTED_WORDS.
 -->
 <!--

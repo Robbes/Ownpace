@@ -45,8 +45,8 @@
  * that number: while some text in `LEGAL_DRAFTS` is still a draft, since the
  * API then asks nobody. Otherwise give the text a new number, change
  * `LEGAL_VERSIONS`, and pin the new words under the new number. The one other
- * case is the owner's word, before the first tester, that nobody has accepted
- * any version: then the text stays 1.0 and is edited in place, as
+ * case is the owner's word, before the first tester, that no tester has
+ * accepted any version: then the text stays 1.0 and is edited in place, as
  * alpha-version-number (a) says (the owner, 2026-10-14 and 2026-10-21; the
  * comment beside the pins records each).
  *
@@ -81,8 +81,8 @@ const FILES = {
  * The words of each final text, as a tester accepts them under its number: a
  * sha256 of the file outside its HTML comments, white space collapsed
  * (`wordsOf`). A draft needs none. Changed without a new number only while
- * some text is still a draft, or on the owner's word that nobody has accepted
- * any version (the header says why).
+ * some text is still a draft, or on the owner's word that no tester has
+ * accepted any version (the header says why).
  */
 const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // The Last updated line is part of the words, in all six files: moving it to the merge day means
@@ -109,7 +109,7 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   //
   // RE-PINNED UNDER 1.0 on 2026-10-21 (the owner: "no-one accepted the terms so far, so keep them
   // on version 1.0"): the words the owner approved on 2026-10-19 (#1639, alpha §6 and §8, terms
-  // §2, privacy §3 to §10), which #1639 pinned under 1.1. Nobody had accepted any version, so the
+  // §2, privacy §3 to §10), which #1639 pinned under 1.1. No tester had accepted any version, so the
   // number goes back to 1.0, edited in place, as alpha-version-number (a) says until the first
   // tester accepts, and the 1.1 pins go. An acceptance of 1.1 asks again; one of 1.0 recorded
   // before these words reached a stack counts for them, and only the owner's own and test
@@ -259,7 +259,8 @@ describe('the versions the app asks a tester to accept', () => {
           'the words pinned in ACCEPTED_WORDS, and would be recorded as having accepted these. Give the text a ' +
           'new number (both languages, and LEGAL_VERSIONS), and pin the new words under it. Change the pin ' +
           'under the same number only while some text in LEGAL_DRAFTS is still a draft: the API then asks ' +
-          'nobody, so nobody has accepted it.',
+          "nobody, so nobody has accepted it. Or on the owner's word, before the first tester, that no " +
+          'tester has accepted any version (the header says how that is recorded).',
       ).toBe(ACCEPTED_WORDS[key]);
     },
   );

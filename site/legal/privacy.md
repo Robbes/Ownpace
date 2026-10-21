@@ -59,7 +59,7 @@
     change. Nobody besides the owner had accepted 1.0 when they merged (the owner, 2026-10-19:
     "Nobody yet"), so no notice was owed and they apply from publication.
   #1639 numbered these words 1.1, because 1.0 was final and pinned. On 2026-10-21 the owner put
-  them back under 1.0: "no-one accepted the terms so far, so keep them on version 1.0". Nobody
+  them back under 1.0: "no-one accepted the terms so far, so keep them on version 1.0". No tester
   had accepted any version, so the text stays 1.0 until the first tester accepts it, as on the
   1.0 reset of 2026-10-14, in both languages, LEGAL_VERSIONS and ACCEPTED_WORDS, which pins these
   words under 1.0. The app asks for 1.0: an acceptance of 1.1 is asked again, and one of 1.0
