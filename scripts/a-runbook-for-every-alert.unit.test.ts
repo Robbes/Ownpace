@@ -20,9 +20,11 @@
  *   runbook tells somebody to do something the product refuses;
  * - **0139 T8's breach procedure**, linked wherever a tester's data may have
  *   leaked, once that page exists;
- * - **0142 T3's `box-checks.sh`**, whose messages will need rows too. It does
- *   not exist yet. When it does, this file fails until it is taught to read
- *   them.
+ * - **0142 T3's mail from the machine itself**: every message `box-checks.sh`
+ *   and `tell-owner.sh` can send has a row too, under the name the script
+ *   gives it. Each script names its messages once, as `MSG_…='<name>'` lines,
+ *   and each of those names is used in its code, so a message added without a
+ *   name, or a name nobody sends, fails here as well as a name without a row.
  *
  * And the operator runbook links it, where an operator already looks when
  * something is wrong (0142 T6).
@@ -31,7 +33,6 @@
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { execFileSync } from 'node:child_process';
 import { parse } from 'yaml';
 import { updateTransition } from '@openmig/shared';
 
@@ -47,6 +48,15 @@ interface Endpoint {
 const PAGE = parse(readFileSync(join(ROOT, 'deploy/compose/gatus.yaml'), 'utf8')) as {
   readonly endpoints?: ReadonlyArray<Endpoint>;
 };
+
+/** The scripts that mail the owner from the machine itself (0142 T3). */
+const MAILERS = ['deploy/compose/box-checks.sh', 'deploy/compose/tell-owner.sh'];
+
+/** The messages a script names, one `MSG_<VARIABLE>='<name>'` line each. */
+function messages(rel: string): Array<{ variable: string; name: string }> {
+  const text = existsSync(join(ROOT, rel)) ? readFileSync(join(ROOT, rel), 'utf8') : '';
+  return [...text.matchAll(/^(MSG_[A-Z_]+)='([^']+)'$/gm)].map((m) => ({ variable: m[1]!, name: m[2]! }));
+}
 
 /** The first column of the runbook's alert table, bold markers removed. */
 function runbookRows(): string[] {
@@ -86,13 +96,32 @@ describe('every alert has a row', () => {
     expect(rows).toContain('Scheduled syncs');
   });
 
-  it("is taught to read 0142 T3's box checks the day they exist", () => {
-    const found = execFileSync('git', ['ls-files', '*box-checks.sh'], { cwd: ROOT, encoding: 'utf8' }).trim();
+  it("has a row for every message 0142 T3's scripts send from the machine, under the same name", () => {
+    const names = MAILERS.flatMap((rel) => messages(rel).map((m) => m.name));
+    // Five from box-checks.sh, three from tell-owner.sh: not vacuous.
+    expect(names.length, 'no MSG_ names found in box-checks.sh and tell-owner.sh').toBeGreaterThanOrEqual(8);
     expect(
-      found,
-      'box-checks.sh has landed (0142 T3). Teach this file to read the names of the messages it ' +
-        'sends, and give each a row in docs/incident-runbook.md.',
-    ).toBe('');
+      names.filter((name) => !rows.includes(name)),
+      'a message box-checks.sh or tell-owner.sh sends has no row in docs/incident-runbook.md: say what it ' +
+        'means, where to look first, and the first thing to do',
+    ).toEqual([]);
+  });
+
+  it('each message is named once, and every name is one the script sends', () => {
+    for (const rel of MAILERS) {
+      const text = readFileSync(join(ROOT, rel), 'utf8');
+      const found = messages(rel);
+      expect(new Set(found.map((m) => m.name)).size, `${rel} names a message twice`).toBe(found.length);
+      const code = text
+        .split('\n')
+        .filter((l) => !/^\s*#/.test(l) && !/^MSG_[A-Z_]+='/.test(l))
+        .join('\n');
+      for (const { variable } of found) {
+        expect(code, `${rel}: ${variable} is named and never sent`).toContain(`$${variable}`);
+      }
+      // No message by a name of its own, around the list: a subject is always one of them.
+      expect(code, `${rel} passes tell-owner.sh a name that is not a MSG_ variable`).not.toMatch(/\btell\s+'[^']*'|\btell\s+"[^$"][^"]*"/);
+    }
   });
 });
 

@@ -99,6 +99,17 @@
 # once the update is proven, by the owner's `copy-before-update.sh delete`,
 # and after day 6 whatever happens, by the daily duties' backstop.
 #
+# THE UNITS ARE COPIED, NOT LINKED (docs/managed-bring-up.md, "Live's daily
+# duties"): a tag that changes a unit under deploy/compose/systemd/, or adds
+# one (0142 T3's box checks and the mail on a failed run), leaves the copy in
+# ~/.config/systemd/user as it was. After a deploy that took, it compares each
+# unit the tag carries with the installed copy (cmp -s) and names every one
+# that differs or is not installed, with the cp and daemon-reload to run. It
+# copies nothing and tells systemd nothing: which units run is the owner's.
+# Like every step, this is the one in the script that started, from before the
+# checkout moved, so the first deploy that says it is the one after the deploy
+# of a tag that carries it.
+#
 # WHAT IT DOES NOT DO. It does not open the hold (step 2): that is the
 # owner's, before it. It does not LIFT the hold (step
 # 8): the owner lifts it after looking at what this printed, and watches the
@@ -704,6 +715,7 @@ main() {
   say "The hold is still on. Lift it yourself, after looking (workplan 0132 T6 step 8): the tick's next summary shows passes started, and one of your own migrations should complete a pass on the new tasks."
   say "Then the update is proven: delete the copy taken before it, ./deploy/compose/copy-before-update.sh delete, which checks all three. Not proven by day 6: roll back from the copy (docs/operator-runbook.md, The copy before an update). The daily duties delete it after day 6 whatever happens."
   log_deploy "$deploy_log" "$tag" "$commit" took "$verdict"
+  units_note
   # The next deploy refuses a tree that is not clean, so say it now.
   if ! dirty="$(git -C "$REPO_ROOT" status --porcelain --untracked-files=normal)"; then
     say "NOTE: git could not read the working tree after the deploy (above); the next deploy asks again."
@@ -711,6 +723,22 @@ main() {
     say "NOTE: the deploy left the working tree changed, and the next deploy refuses that:" "$dirty" \
       "Look at it (git diff). The task deploy is known to strip apps/worker/package.json's last newline."
   fi
+}
+
+# units_note — after a deploy that took: the user units the tag carries that
+# are not installed as the tag has them (0142 T3). Says so; changes nothing.
+units_note() {
+  local dir="${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user" f stale=() shown
+  for f in "${SCRIPT_DIR}"/systemd/*.service "${SCRIPT_DIR}"/systemd/*.timer; do
+    [ -f "$f" ] || continue
+    cmp -s "$f" "${dir}/$(basename "$f")" || stale+=("deploy/compose/systemd/$(basename "$f")")
+  done
+  [ "${#stale[@]}" -gt 0 ] || return 0
+  shown="${dir/#"${HOME}"/\~}"
+  say "NOTE: ${#stale[@]} unit(s) in ${shown} are not the tag's, changed or not installed. They are copied, not linked; copy them, from ~/${COMPOSE_PROJECT}:" \
+    "  cp ${stale[*]} ${shown}/" \
+    "  systemctl --user daemon-reload" \
+    "  A timer new to this machine also needs systemctl --user enable --now <its name> once (docs/managed-bring-up.md, Live's daily duties)."
 }
 
 # json_string <field> — the string value of that field of the JSON object on

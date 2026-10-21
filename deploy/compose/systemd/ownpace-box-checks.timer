@@ -1,0 +1,10 @@
+# ownpace-box-checks.timer — every ten minutes, on the minute that ends in 0.
+# A run missed while the machine was off is not made up: the next one looks.
+[Unit]
+Description=ownpace-live: the box checks, every ten minutes
+
+[Timer]
+OnCalendar=*:0/10
+
+[Install]
+WantedBy=timers.target

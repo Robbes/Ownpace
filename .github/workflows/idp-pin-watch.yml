@@ -1,27 +1,37 @@
-# The identity provider's pin against its newest release (workplan 0135 T7 (b)).
+# The identity provider's pin against its newest release (workplan 0135 T7 (b)),
+# and since 0146 T8 every pin Dependabot cannot see.
 #
-# Dependabot ignores the identity provider by name, because an upgrade moves
-# its schema one way and is the owner's call (0119 §3 item 2). So nothing said
-# when upstream moved on: v4.18.0 fixed GHSA-4hgj-wm6c-q7p2 on 2026-09-21, and a
-# week later a person reading release notes is what found it.
+# Dependabot does not move the identity provider: it reads no file in
+# deploy/compose (its compose fetcher wants names like compose.yml), and an
+# upgrade moves its schema one way and is the owner's call (0119 §3 item 2).
+# So nothing said when upstream moved on: v4.18.0 fixed GHSA-4hgj-wm6c-q7p2 on
+# 2026-09-21, and a week later a person reading release notes is what found
+# it. For the same reason the managed stacks' other images, Trigger.dev, the
+# tasks' Node, packageManager and the Trivy the scan runs had nothing watching
+# them either.
 #
-# Once a week, and on demand, scripts/idp-pin-watch.mjs reads the pin from
-# deploy/compose/managed.yml, compares it with the newest release of the same
-# major on upstream's repository (`git ls-remote`, no token needed), and keeps
-# ONE issue open while the two differ. A newer release updates that issue and
-# says so in a comment, since an edit notifies nobody; the issue is closed when
-# the pin catches up. The owner decided the window on 2026-09-28: a security
-# release is applied within seven days.
+# Once a week, and on demand, scripts/idp-pin-watch.mjs reads each pin from the
+# checkout and compares it with its upstream, without a token: git ls-remote,
+# the registries' tag lists (Docker Hub and ghcr, anonymous), the Trigger.dev
+# probe (deploy/compose/trigger-version.sh probe), npm and nodejs.org's index.
+# It keeps ONE issue open per row that is the owner's call (the identity
+# provider, under the title it always had; Trigger.dev; ClickHouse; the tasks'
+# Node; pnpm; the TypeScript split, as a cleanup notice) and ONE summary issue
+# for the routine pins. A newer release updates the issue and says so in a
+# comment, since an edit notifies nobody; the issue is closed when the pin
+# catches up. A row that cannot read its upstream touches nothing and fails
+# the run. The owner decided the identity provider's window on 2026-09-28: a
+# security release is applied within seven days.
 #
-# It opens no pull request and moves nothing. The issue spells out the route
-# an upgrade takes: a dump first, its own PR, the gate, live from a tag.
+# It opens no pull request and moves nothing. Each issue spells out the route
+# its upgrade takes.
 #
 # TO TEST IT: Actions, "Identity provider pin watch", Run workflow. The job's
-# first line says pinned, newest and current/behind. The issue appears only
-# when the pin is behind.
+# log is a table: each row with its pin, its newest and its state. An issue
+# appears only for a row that is behind.
 #
-# scripts/a-pin-that-knows-it-is-behind.unit.test.ts holds the comparison, the
-# one issue, and this file's trigger, permissions and command.
+# scripts/a-pin-that-knows-it-is-behind.unit.test.ts holds the comparisons, the
+# issues, and this file's trigger, permissions and command.
 name: Identity provider pin watch
 
 on:
@@ -50,6 +60,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
+          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
       - name: Compare, and keep one issue open while the pin is behind
         env:
           GH_TOKEN: ${{ github.token }}

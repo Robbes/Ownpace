@@ -3934,8 +3934,9 @@ port, because its fix lists it), and a production name that does not resolve.
    runs.
 8. Appends the first line of `~/.persistent/ownpace-live/deploys.log`, in
    `deploy-live.sh`'s format: the date, the tag, the commit, `took`, `one-way`.
-9. Copies the two units of *Live's daily duties* to `~/.config/systemd/user`
-   and runs `systemctl --user daemon-reload`.
+9. Copies the five units of *Live's daily duties* to `~/.config/systemd/user`
+   (the duties' pair, the box checks' pair and the mail on a failed run,
+   workplan 0142 T3) and runs `systemctl --user daemon-reload`.
 10. Prints what is left, below.
 
 It exits 0 when live stands, 1 when it refused (nothing changed), 2 at a stop
@@ -3955,7 +3956,10 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    so `sudo loginctl enable-linger "$USER"`, then
    `systemctl --user enable --now ownpace-box-duties.timer`, one
    `systemctl --user start ownpace-box-duties.service`, and the journal: all
-   eight duties pass.
+   eight duties pass. Then the box checks and the test mail (*Who is told*,
+   below): `systemctl --user enable --now ownpace-box-checks.timer` and
+   `systemctl --user start ownpace-tell-owner@test.service`, which mails one
+   *Test mail* to `ALERT_TO`.
 4. **Rehearse the next deploy.** Open a hold on the support screen with a Dutch
    sentence, wait five minutes, then `./deploy/compose/deploy-live.sh --dry-run <tag>`:
    every refusal passes, it says reversible (the same tag), and nothing moves.
@@ -4077,16 +4081,19 @@ past 20 minutes (`BOX_DUTY_TIMEOUT`, in seconds) is a failed duty. Ctrl-C in a
 run by hand, or a SIGTERM, stops the running duty, says which, starts no other
 and exits 130 or 143. It prints no value from the `.env`, and this machine's
 addresses in a duty's output, stdout and stderr alike, are replaced by the key
-that holds them. Nobody is told when it fails (0142 is where that changes):
-read the journal.
+that holds them. When a run fails, systemd mails you, and when no run
+happens, the box checks do (*Who is told*, below, workplan 0142 T3); the
+journal has what each duty said.
 
 **Until the timer is installed,** run `./deploy/compose/setup-zitadel.sh
 --token-only` from `~/ownpace-live` at least every three days. It replaces the
 token only when fewer than three of its seven days remain, so a gap of four
 days can miss that window.
 
-**The units.** A user unit pair, run as the account that owns live's checkout
-and reaches Docker. Both are in
+**The units.** Five user units, run as the account that owns live's checkout
+and reaches Docker: the duties' service and timer, the box checks' service
+and timer, and the template unit that mails you when a run fails (*Who is
+told*, below). All five are in
 [`deploy/compose/systemd/`](../deploy/compose/systemd/):
 
 ```ini
@@ -4096,9 +4103,12 @@ and reaches Docker. Both are in
 # the accounts nobody let in (0135 T8), the support screens' searches kept
 # a year (0139 T6) and the site's visits, counted as totals (privacy §4.5). A
 # user unit, started by ownpace-box-duties.timer; the install steps are in
-# docs/managed-bring-up.md, "Live's daily duties".
+# docs/managed-bring-up.md, "Live's daily duties". A run that fails, by its
+# exit or by TimeoutStartSec, starts ownpace-tell-owner@ for this unit, which
+# mails the owner (workplan 0142 T3). OnFailure= belongs here, in [Unit].
 [Unit]
 Description=ownpace-live: the duties the nightly gate does for the OTA stack
+OnFailure=ownpace-tell-owner@%n.service
 
 [Service]
 Type=oneshot
@@ -4126,6 +4136,59 @@ Persistent=true
 WantedBy=timers.target
 ```
 
+```ini
+# ownpace-tell-owner@.service — one mail to the owner when a unit fails
+# (workplan 0142 T3). Started by systemd for the unit whose OnFailure= names
+# it, ownpace-box-duties.service, with that unit's name as the instance; and
+# by hand as ownpace-tell-owner@test.service, which sends the test mail.
+# tell-owner.sh sends it through live's alert relay. Never enabled, and with
+# no OnFailure= of its own: a mail that failed cannot mail that it failed,
+# and the journal has why (journalctl --user -u 'ownpace-tell-owner@*').
+[Unit]
+Description=ownpace-live: tell the owner that %i failed
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/ownpace-live
+ExecStart=%h/ownpace-live/deploy/compose/tell-owner.sh --unit %i
+SyslogIdentifier=ownpace-tell-owner
+TimeoutStartSec=3min
+```
+
+```ini
+# ownpace-box-checks.service — live's machine watched for the owner (workplan
+# 0142 T3): the free space on Docker's filesystem and on live's persisted
+# directory, the age of the daily duties' last pass, and once a day a summary
+# of numbers, each sent by mail through tell-owner.sh. A user unit, started by
+# ownpace-box-checks.timer; the install steps are in docs/managed-bring-up.md,
+# "Live's daily duties". No OnFailure=: a check that failed every ten minutes
+# would mail every ten minutes. A morning without the summary says it stopped.
+[Unit]
+Description=ownpace-live: the disk, the duties' last pass, and a summary a day
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/ownpace-live
+ExecStart=%h/ownpace-live/deploy/compose/box-checks.sh
+SyslogIdentifier=ownpace-box-checks
+# Ends before the next run starts; the summary's docker system df -v is the
+# slowest part.
+TimeoutStartSec=9min
+```
+
+```ini
+# ownpace-box-checks.timer — every ten minutes, on the minute that ends in 0.
+# A run missed while the machine was off is not made up: the next one looks.
+[Unit]
+Description=ownpace-live: the box checks, every ten minutes
+
+[Timer]
+OnCalendar=*:0/10
+
+[Install]
+WantedBy=timers.target
+```
+
 **Installing them,** once live stands (T1b to T1e), on the machine, as that
 account:
 
@@ -4137,14 +4200,22 @@ sudo loginctl enable-linger "$USER"
 mkdir -p ~/.config/systemd/user
 cp ~/ownpace-live/deploy/compose/systemd/ownpace-box-duties.service \
    ~/ownpace-live/deploy/compose/systemd/ownpace-box-duties.timer \
+   ~/ownpace-live/deploy/compose/systemd/ownpace-tell-owner@.service \
+   ~/ownpace-live/deploy/compose/systemd/ownpace-box-checks.service \
+   ~/ownpace-live/deploy/compose/systemd/ownpace-box-checks.timer \
    ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now ownpace-box-duties.timer
+systemctl --user enable --now ownpace-box-checks.timer
 
 # When it fires next, then one run now, and what it said.
 systemctl --user list-timers ownpace-box-duties.timer
 systemctl --user start ownpace-box-duties.service
 journalctl --user -u ownpace-box-duties -n 200 --no-pager
+
+# One test mail to ALERT_TO, through the unit a failed run starts (0142 T3).
+systemctl --user start ownpace-tell-owner@test.service
+journalctl --user -u 'ownpace-tell-owner@*' -n 20 --no-pager
 ```
 
 - **The journal.** A failure line is logged at the error priority, so
@@ -4154,12 +4225,21 @@ journalctl --user -u ownpace-box-duties -n 200 --no-pager
 - **What it runs with.** The user manager's `PATH`, which holds `/usr/bin`:
   `docker`, `curl` and `jq` must be there, and the account must reach Docker
   (the `docker` group). `systemctl --user edit ownpace-box-duties.service`
-  adds an `Environment=` line if not.
+  adds an `Environment=` line if not. The mail needs a `curl` that speaks
+  SMTP: `curl --version` lists `smtp` and `smtps` among its protocols.
 - **After a deploy that changed the units,** copy them again and run
   `systemctl --user daemon-reload`. The first tag with the duty `visits`
   does: `TimeoutStartSec` goes from 150 to 170 minutes, eight duties of 20.
   A unit copied before it still runs all eight, and cuts a run short only
-  when nearly every duty runs to its 20 minutes.
+  when nearly every duty runs to its 20 minutes. The first tag with the box
+  checks (workplan 0142 T3) does too: `ownpace-box-duties.service` gains its
+  `OnFailure=` line, and three units are new, so copy all five, then
+  `systemctl --user enable --now ownpace-box-checks.timer` and the test mail.
+  `deploy-live.sh` names, after a deploy that took, each unit the tag carries
+  that is installed otherwise or not at all, with the `cp` to run; it copies
+  nothing. That note is in the script that starts the deploy, from before the
+  checkout moves, so it first appears on the deploy after the one to a tag
+  that carries it.
 - **A run after a stop.** `Persistent=true` runs a missed day at the next
   start, which may fall inside the appliance nightly's hours; its dev
   Nextcloud then fails `exposure`, by name.
@@ -4175,7 +4255,68 @@ journalctl --user -u ownpace-box-duties -n 200 --no-pager
   Then nothing deletes the copy before an update, so `copy-before-update.sh
   take` refuses and no deploy moves live until the timer is active again. A
   copy already there stays until you delete it or the timer runs again:
-  delete it by its seventh day yourself (workplan 0134 T0).
+  delete it by its seventh day yourself (workplan 0134 T0). The box checks
+  mail *Daily duties late* 26 hours after the last pass, which is the
+  reminder to turn it on again.
+
+### Who is told: a failed run, a run that never came, and the disk
+
+Workplan 0142 T3. Four things reach you by mail, through the relay and the
+addresses the status page's alerts use (*8d*: `ALERT_SMTP_*`, `ALERT_FROM` and
+`ALERT_TO`, falling back to `SMTP_*`, `NOTIFY_FROM` and `NOTIFY_TO`), sent by
+[`tell-owner.sh`](../deploy/compose/tell-owner.sh). It passes curl the relay
+and the login in a config on a file descriptor, never on a command line, uses
+STARTTLS, required, on 587 and implicit TLS on 465 (or with `SMTP_SECURE=true`
+on `SMTP_PORT`), and refuses a `.env` that is not live's. A body holds
+numbers, the names of duties, databases and volumes, mount points and dates:
+no address, and no value from the `.env` but the floor and
+`ZITADEL_PAT_EXPIRY`'s date.
+Each message has a row under its name in the
+[incident runbook](./incident-runbook.md#one-row-per-alert).
+
+- **A failed run.** `OnFailure=` in `ownpace-box-duties.service` starts
+  `ownpace-tell-owner@ownpace-box-duties.service.service` when a run exits
+  non-zero or is cut short by `TimeoutStartSec`. It mails *Daily duties
+  failed*, naming the duties that failed from the record the run left in
+  `~/.persistent/ownpace-live/box-duties/last-run` (or saying the run left
+  none: refused, stopped, timed out), with the token's date.
+- **A run that never came.** `OnFailure=` never fires for a run that does not
+  happen: a timer disabled or never enabled, removed unit copies, a machine
+  that was off. [`box-checks.sh`](../deploy/compose/box-checks.sh), every ten
+  minutes on `ownpace-box-checks.timer`, reads the last pass
+  (`.../box-duties/last-pass`, written only when all eight passed) and mails
+  *Daily duties late* once it is more than 26 hours old, or when none is
+  recorded 26 hours after it started watching. A pass leaves the token more
+  than three days, so that mail still leaves more than 46 hours to run
+  `./deploy/compose/setup-zitadel.sh --token-only` by hand.
+- **The disk.** The same run checks the free space on the filesystem of
+  Docker's data root and on that of `~/.persistent/ownpace-live`: one
+  filesystem holding both is one check. Under `ALERT_DISK_FREE_GB` (live's
+  `.env`, 15 without it, the figure the preflight warns at) it mails *Disk
+  below the floor* once, *Disk recovered* once it is back, and *Disk not read*
+  when `df` or `docker info` cannot say two runs in a row (one run alone is a
+  Docker daemon restarting, and only in the journal). Never one every ten
+  minutes: it remembers each state in `~/.persistent/ownpace-live/box-checks/`,
+  and a message that could not be sent is sent again by the next run.
+- **One summary a day,** at its first run from 07:00 UTC: *Daily summary*,
+  numbers only. Free space; the duties' last run and pass, their timer and
+  the token's date; every database of each stack's `postgres` and
+  `trigger-db`, live's and the OTA stack's, by size; the five largest volumes
+  of the two stacks; live's rows of `run`, `run_event`, `item` and
+  `app_event`, and the age of the sync tick's beat. It reads each database
+  with `docker exec` into the container its compose labels name, psql over
+  the container's own socket, SELECTs only. A morning without it means the
+  machine, the box checks' timer or the relay is broken. One that could not be
+  sent is tried again an hour later, not at every run, and its send error is
+  in `journalctl --user -u ownpace-box-checks`.
+  `./deploy/compose/box-checks.sh --summary` sends one now.
+
+`box-checks.sh` exits 0 when everything was checked and every message due was
+sent, 1 when something could not be checked or sent (each named in the journal,
+`journalctl --user -u ownpace-box-checks`), and 2 when it refused. Its service
+has no `OnFailure=`, or a check that failed every ten minutes would mail every
+ten minutes. `tell-owner.sh` exits 0 sent, 1 not sent (curl's words in the
+journal of whatever ran it), 2 refused.
 
 ## When it goes wrong
 
@@ -4760,6 +4901,16 @@ the newest `v4.5.x` it returns is `v4.5.4`, while `v4.5.9` and `v4.5.12` both
 exist. Asking whether a specific tag exists is the question it answers
 reliably, so that is the question asked, upward from the version already
 pinned.
+
+`trigger-version.sh probe [version]` prints that probe's answer alone, the
+tags above the pin newest first, and nothing when nothing newer is published.
+The weekly pin watch (`.github/workflows/idp-pin-watch.yml`, workplan 0146 T8)
+runs it and keeps an issue open while a newer tag is in both images, with this
+section's route in it. A request that fails reads exactly like a tag that does
+not exist, so `probe` first asks for the tag it starts from and refuses when
+that does not answer, and on the walk upward takes only a 404 as a missing tag:
+any other answer (a 429, a 5xx, a timeout) refuses too. An unread registry
+never reads as "nothing newer", nor as an older newest.
 
 > **Back the database up first, because the upgrade is one way.** The webapp
 > applies its own schema migrations on boot and Prisma has no down-migrations,
