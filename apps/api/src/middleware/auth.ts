@@ -506,6 +506,42 @@ function addressedTo(address: string) {
 }
 
 /**
+ * ONE OPEN INVITATION PER ORGANISATION, AND NONE TO ONE YOU ARE ALREADY IN.
+ *
+ * Until managed 0059 the Team page refused only an exact repeat, so an
+ * organisation can hold rows from before it that now match one person twice:
+ * an invitation to `Pat@Example.com` beside the member `pat@example.com`, or
+ * two open invitations to one address in other capitals. Offered as they are,
+ * the person is invited to an organisation they are in, or to one twice, and
+ * accepting writes their subject into a second row of that organisation,
+ * which UNIQUE (tenant_id, user_id) refuses as a 500.
+ *
+ * So the offer and the acceptance both take the FIRST open invitation to the
+ * address in each organisation (oldest `invited_at`, then `id`), so the role
+ * offered is the role accepting gives, and neither takes a row in an
+ * organisation where this subject already has one. What is left over stays
+ * `invited` on the Team list, where an owner can remove it. Declining still
+ * answers every open row: no is no to the organisation.
+ *
+ * Both only narrow. The subqueries read under the same policies as the
+ * statement: an open invitation to the verified address (0059), and the
+ * subject's own rows (`own_membership_select`, 0003).
+ */
+function firstOpenInvitationNotYetJoined(address: string, userId: string) {
+  return sql`${tenantMember.id} = (
+      SELECT first_open.id FROM tenant_member first_open
+       WHERE first_open.tenant_id = ${tenantMember.tenantId}
+         AND first_open.status = 'invited'
+         AND lower(btrim(first_open.email)) = lower(btrim(${address}))
+       ORDER BY first_open.invited_at, first_open.id
+       LIMIT 1)
+    AND NOT EXISTS (
+      SELECT 1 FROM tenant_member mine
+       WHERE mine.tenant_id = ${tenantMember.tenantId}
+         AND mine.user_id = ${userId})`;
+}
+
+/**
  * The verified address to match invitations by, or nothing.
  *
  * Nothing unless the issuer asserted `email_verified: true`, and nothing for a
@@ -596,6 +632,8 @@ export async function pendingInvitations(
             // here would put "You have been invited" over an organisation they
             // asked for and were granted.
             eq(tenantMember.origin, 'invited'),
+            // Once per organisation, and not to one they are in (see the helper).
+            firstOpenInvitationNotYetJoined(address, userId),
           ),
         );
       return rows.map((r) => ({
@@ -714,6 +752,9 @@ export async function acceptInvitation(
             eq(tenantMember.tenantId, tenantId),
             addressedTo(address),
             eq(tenantMember.status, 'invited'),
+            // The row that was offered, and none in an organisation this
+            // subject is already in: 404, not UNIQUE's 500 (see the helper).
+            firstOpenInvitationNotYetJoined(address, userId),
           ),
         )
         .returning({ tenantId: tenantMember.tenantId }),

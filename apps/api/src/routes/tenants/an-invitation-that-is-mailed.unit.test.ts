@@ -288,7 +288,8 @@ describe('inviting mails the invited person', () => {
     for (const again of ['DUBBEL@Ownpace.test', '  dubbel@ownpace.test ']) {
       const res = await invite(again);
       expect(res.status, again).toBe(409);
-      expect(res.body.message, again).toMatch(/already has an open invitation/);
+      // It names the row the Team list shows, not the address as typed again.
+      expect(res.body.message, again).toMatch(/^dubbel@ownpace\.test already has an open invitation/);
     }
     expect(SENT).toHaveLength(0);
     expect(
@@ -299,7 +300,7 @@ describe('inviting mails the invited person', () => {
   it('refuses to invite a member who is already in, in another case', async () => {
     const res = await invite('Rob@Example.TEST');
     expect(res.status).toBe(409);
-    expect(res.body.message).toMatch(/already a member/);
+    expect(res.body.message).toMatch(/^rob@example\.test is already a member/);
     expect(SENT).toHaveLength(0);
   });
 

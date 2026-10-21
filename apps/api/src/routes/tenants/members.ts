@@ -261,9 +261,14 @@ router.post(
         //
         // IN ANY CASE (managed 0059): `Pat@Example.com` and `pat@example.com`
         // are one person to the invitation, so they are one person here too,
-        // by the same `lower(btrim(...))` the policies use.
+        // by the same `lower(btrim(...))` the policies use. The refusal names
+        // the address as the row holds it, which is how the Team list shows it.
         const existing = await db
-          .select({ status: schema.tenantMember.status, role: schema.tenantMember.role })
+          .select({
+            status: schema.tenantMember.status,
+            role: schema.tenantMember.role,
+            email: schema.tenantMember.email,
+          })
           .from(schema.tenantMember)
           .where(
             and(
@@ -296,9 +301,9 @@ router.post(
           error: 'Conflict',
           message:
             result.duplicate.status === 'invited'
-              ? `${body.email} already has an open invitation (as ${result.duplicate.role}). ` +
+              ? `${result.duplicate.email} already has an open invitation (as ${result.duplicate.role}). ` +
                 'Use Send again on that row, or remove it first if you want a new one.'
-              : `${body.email} is already a member of this organization (as ${result.duplicate.role}).`,
+              : `${result.duplicate.email} is already a member of this organization (as ${result.duplicate.role}).`,
         });
         return;
       }

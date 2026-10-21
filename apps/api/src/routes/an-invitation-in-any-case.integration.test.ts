@@ -18,6 +18,8 @@
 // the policies answer: `GET /api/me` binds a granted organisation and offers an
 // invitation in another case, and the invitation can be accepted and declined
 // in another case. An unverified address and another address still get nothing.
+// Rows from before 0059 that now match one person twice are offered once, and
+// never accepted into an organisation the person is already in.
 //
 // UUID Family: 0156ac00-e29b-41d4-a716-44665544xxxx (subjects are text, not uuids)
 
@@ -46,6 +48,8 @@ import app from '../index.ts';
 const OPERATOR = 'anyc-operator-subject';
 const INVITED_TENANT = '0156ac00-e29b-41d4-a716-446655440001';
 const DECLINED_TENANT = '0156ac00-e29b-41d4-a716-446655440002';
+const MEMBER_TENANT = '0156ac00-e29b-41d4-a716-446655440003';
+const TWICE_TENANT = '0156ac00-e29b-41d4-a716-446655440004';
 
 /**
  * Every address this file writes starts with this, in lower case, so its
@@ -71,7 +75,7 @@ describe('an invitation binds to the signed-in address whatever its case or spac
     // Requests first: a granted one keeps its organisation from being deleted.
     await pool.query(`DELETE FROM access_request WHERE lower(btrim(email)) LIKE $1`, [`${MARK}%`]);
     await pool.query(`DELETE FROM tenant WHERE id = ANY($1::uuid[])`, [
-      [INVITED_TENANT, DECLINED_TENANT, ...provisioned],
+      [INVITED_TENANT, DECLINED_TENANT, MEMBER_TENANT, TWICE_TENANT, ...provisioned],
     ]);
     provisioned.length = 0;
     await pool.query(`DELETE FROM platform_operator WHERE user_id = $1`, [OPERATOR]);
@@ -92,11 +96,24 @@ describe('an invitation binds to the signed-in address whatever its case or spac
 
   const rowOf = async (tenantId: string) =>
     (
-      await pool.query<{ user_id: string; status: string; email: string }>(
-        `SELECT user_id, status, email FROM tenant_member WHERE tenant_id = $1`,
+      await pool.query<{ user_id: string; status: string; email: string; role: string }>(
+        `SELECT user_id, status, email, role FROM tenant_member WHERE tenant_id = $1 ORDER BY invited_at, id`,
         [tenantId],
       )
     ).rows;
+
+  /** One more row in an organisation that already exists. */
+  const alsoIn = async (
+    tenantId: string,
+    row: { userId: string; email: string; role: string; status: 'active' | 'invited'; invitedAt: string },
+  ) => {
+    await pool.query(
+      `INSERT INTO tenant_member (tenant_id, user_id, email, role, status, origin, invited_at, joined_at)
+       VALUES ($1, $2, $3, $4, $5, 'invited', $6::timestamptz,
+               CASE WHEN $5 = 'active' THEN $6::timestamptz END)`,
+      [tenantId, row.userId, row.email, row.role, row.status, row.invitedAt],
+    );
+  };
 
   beforeAll(() => {
     pool = new Pool({ connectionString: PG });
@@ -120,6 +137,10 @@ describe('an invitation binds to the signed-in address whatever its case or spac
     const knocked = await request.post('/api/access-requests').send({ email: typed, note: 'one mailbox', locale: 'nl' });
     expect(knocked.status).toBe(201);
     const { rows } = await pool.query<{ id: string }>(`SELECT id FROM access_request WHERE email = $1`, [typed]);
+    // Integration files share `access_request`, and a sibling file that
+    // empties it whole between the POST and this read would leave nothing to
+    // grant. Say so here, rather than as a TypeError or a 404 further down.
+    expect(rows, 'the request is gone: a sibling file emptied access_request').toHaveLength(1);
     const granted = await request
       .post(`/api/access-requests/${rows[0]!.id}/grant`)
       .set('Authorization', signedIn(OPERATOR, 'op@integration.test', true))
@@ -206,5 +227,78 @@ describe('an invitation binds to the signed-in address whatever its case or spac
       expect(decline.status).toBe(404);
     }
     expect((await rowOf(INVITED_TENANT))[0]).toMatchObject({ status: 'invited', user_id: `pending:${INVITED_TENANT}` });
+  });
+
+  // ROWS FROM BEFORE 0059. The Team page used to refuse only an exact repeat,
+  // so an organisation can hold an invitation to a member's own address in
+  // other capitals, or two open invitations to one address. Each was invisible
+  // until 0059 and now matches the same person. Neither may be offered as an
+  // invitation to an organisation they are already in, and accepting must
+  // not trip UNIQUE (tenant_id, user_id) into a 500.
+  it('offers no invitation to an organisation the person is already in, and accepting one answers 404', async () => {
+    await invitedAs(MEMBER_TENANT, 'Al Binnen', `${MARK}Pat@Example.test`);
+    await alsoIn(MEMBER_TENANT, {
+      userId: 'anyc-member',
+      email: `${MARK}pat@example.test`,
+      role: 'owner',
+      status: 'active',
+      invitedAt: '2026-10-01T09:00:00Z',
+    });
+    const bearer = signedIn('anyc-member', `${MARK}pat@example.test`, true);
+
+    const me = await request.get('/api/me').set('Authorization', bearer);
+    expect(me.status).toBe(200);
+    expect(me.body.tenants).toEqual([expect.objectContaining({ tenantId: MEMBER_TENANT, role: 'owner' })]);
+    expect(me.body.invitations).toEqual([]);
+
+    const accepted = await request.post(`/api/invitations/${MEMBER_TENANT}/accept`).set('Authorization', bearer).send({});
+    expect(accepted.status).toBe(404);
+    expect((await rowOf(MEMBER_TENANT)).map((r) => [r.user_id, r.status, r.role])).toEqual([
+      ['anyc-member', 'active', 'owner'],
+      [`pending:${MEMBER_TENANT}`, 'invited', 'admin'],
+    ]);
+  });
+
+  it('offers two open invitations to one address in one organisation once, and accepting binds the first', async () => {
+    await pool.query(`INSERT INTO tenant (id, name, status, settings) VALUES ($1, 'Twee Keer', 'active', '{}')`, [
+      TWICE_TENANT,
+    ]);
+    await alsoIn(TWICE_TENANT, {
+      userId: `pending:${TWICE_TENANT}-a`,
+      email: `${MARK}Sam@Example.test`,
+      role: 'admin',
+      status: 'invited',
+      invitedAt: '2026-10-01T09:00:00Z',
+    });
+    await alsoIn(TWICE_TENANT, {
+      userId: `pending:${TWICE_TENANT}-b`,
+      email: `${MARK}sam@example.test`,
+      role: 'owner',
+      status: 'invited',
+      invitedAt: '2026-10-02T09:00:00Z',
+    });
+    const bearer = signedIn('anyc-sam', `${MARK}SAM@example.test`, true);
+
+    const me = await request.get('/api/me').set('Authorization', bearer);
+    expect(me.status).toBe(200);
+    // One organisation, offered once, with the role that accepting gives.
+    expect(me.body.invitations).toEqual([
+      expect.objectContaining({ tenantId: TWICE_TENANT, name: 'Twee Keer', role: 'admin' }),
+    ]);
+
+    const accepted = await request.post(`/api/invitations/${TWICE_TENANT}/accept`).set('Authorization', bearer).send({});
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.outcome).toBe('accepted');
+    expect((await rowOf(TWICE_TENANT)).map((r) => [r.user_id, r.status, r.role])).toEqual([
+      ['anyc-sam', 'active', 'admin'],
+      [`pending:${TWICE_TENANT}-b`, 'invited', 'owner'],
+    ]);
+
+    // In once, and the other row is not offered again.
+    const after = await request.get('/api/me').set('Authorization', bearer);
+    expect(after.body.tenants).toEqual([expect.objectContaining({ tenantId: TWICE_TENANT, role: 'admin' })]);
+    expect(after.body.invitations).toEqual([]);
+    const again = await request.post(`/api/invitations/${TWICE_TENANT}/accept`).set('Authorization', bearer).send({});
+    expect(again.status).toBe(404);
   });
 });
