@@ -1,0 +1,16 @@
+# ownpace-tell-owner@.service — one mail to the owner when a unit fails
+# (workplan 0142 T3). Started by systemd for the unit whose OnFailure= names
+# it, ownpace-box-duties.service, with that unit's name as the instance; and
+# by hand as ownpace-tell-owner@test.service, which sends the test mail.
+# tell-owner.sh sends it through live's alert relay. Never enabled, and with
+# no OnFailure= of its own: a mail that failed cannot mail that it failed,
+# and the journal has why (journalctl --user -u 'ownpace-tell-owner@*').
+[Unit]
+Description=ownpace-live: tell the owner that %i failed
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/ownpace-live
+ExecStart=%h/ownpace-live/deploy/compose/tell-owner.sh --unit %i
+SyslogIdentifier=ownpace-tell-owner
+TimeoutStartSec=3min

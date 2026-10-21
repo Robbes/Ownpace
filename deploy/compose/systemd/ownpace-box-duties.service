@@ -4,9 +4,12 @@
 # the accounts nobody let in (0135 T8), the support screens' searches kept
 # a year (0139 T6) and the site's visits, counted as totals (privacy §4.5). A
 # user unit, started by ownpace-box-duties.timer; the install steps are in
-# docs/managed-bring-up.md, "Live's daily duties".
+# docs/managed-bring-up.md, "Live's daily duties". A run that fails, by its
+# exit or by TimeoutStartSec, starts ownpace-tell-owner@ for this unit, which
+# mails the owner (workplan 0142 T3). OnFailure= belongs here, in [Unit].
 [Unit]
 Description=ownpace-live: the duties the nightly gate does for the OTA stack
+OnFailure=ownpace-tell-owner@%n.service
 
 [Service]
 Type=oneshot
