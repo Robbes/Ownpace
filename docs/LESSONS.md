@@ -388,6 +388,7 @@ reading a file drops off its entry by itself.
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+- [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
 
 ### `apps/selfhost/src/a-button-only-one-edition-answers.unit.test.ts`
@@ -5295,6 +5296,7 @@ The staged appliance payload actually runs (workplan 0015 T3).
 
 Reads:
 
+- `apps/selfhost/Dockerfile`
 - `apps/web/vite.config.ts`
 - `packages/ledger/migrations/0001_baseline.sql`
 - `scripts/package-appliance.mjs`

@@ -152,12 +152,35 @@ function buildIdentity() {
  * is ~93 MB, so this is OPT-IN — a Linux dev build has a perfectly good Node
  * already and should not pay for a download it will never run.
  *
- * Pinned rather than floating. A packaging step that silently changes the
- * interpreter between builds makes "works on my machine" unfalsifiable, and the
- * runtime we ship is one we are then responsible for patching — that should be
- * a visible edit to this line, in a diff someone reviews.
+ * Pinned rather than floating, and pinned in ONE place: the version is the one
+ * the self-host image's `FROM node:<x.y.z>-slim@sha256:…` line names, in
+ * `apps/selfhost/Dockerfile`. That image runs this same payload, so the e2e
+ * gates test the Node the Windows zip ships. It used to be a constant here,
+ * which nothing moved — Dependabot cannot see a string in a .mjs file — so the
+ * images went to 24.22.0 while node.exe sat on 24.19.0, and a security release
+ * would reach the containers and never the zip every release tag attaches. A
+ * bump is still a visible edit in a reviewed diff: Dependabot's image PR, which
+ * now moves both.
+ *
+ * Read only on the `--with-node` path. The image build stages a payload
+ * without it, and the unit test imports this module, so neither the image
+ * build nor that import depends on the Dockerfile's text. A FROM line without an exact `x.y.z` is a refusal, not a
+ * guess: a floating tag would let the runtime change between two builds of the
+ * same commit.
  */
-const NODE_RUNTIME_VERSION = 'v24.19.0';
+export function nodeRuntimeVersion(dockerfileText) {
+  const m = dockerfileText.match(/^FROM\s+node:(\d+\.\d+\.\d+)-/m);
+  if (!m) {
+    throw new Error(
+      'apps/selfhost/Dockerfile has no `FROM node:<x.y.z>-…` line, so the Node version the ' +
+        'Windows payload ships cannot be read from it. Refusing to guess one.',
+    );
+  }
+  return `v${m[1]}`;
+}
+
+/** Where the self-host image, and so the payload's Node version, is defined. */
+const SELFHOST_DOCKERFILE = join(REPO, 'apps/selfhost/Dockerfile');
 
 /** Where a platform's single-file runtime lives on nodejs.org, and what it is called here. */
 const NODE_RUNTIMES = {
@@ -198,9 +221,9 @@ export function verifySha256(bytes, expected, what) {
 /**
  * Download and verify a Node runtime, caching it between builds.
  *
- * The cache is keyed by version and platform, so bumping
- * `NODE_RUNTIME_VERSION` fetches afresh rather than reusing a stale binary
- * under the same name.
+ * The cache is keyed by version and platform, so a bump of the self-host
+ * image's Node fetches afresh rather than reusing a stale binary under the
+ * same name.
  */
 async function stageNodeRuntime(out, platform) {
   const spec = NODE_RUNTIMES[platform];
@@ -209,12 +232,13 @@ async function stageNodeRuntime(out, platform) {
       `Unknown --with-node platform '${platform}'. Known: ${Object.keys(NODE_RUNTIMES).join(', ')}.`,
     );
   }
-  const base = `https://nodejs.org/dist/${NODE_RUNTIME_VERSION}`;
-  const cacheDir = join(REPO, 'node_modules', '.cache', 'openmig-node', NODE_RUNTIME_VERSION, platform);
+  const nodeVersion = nodeRuntimeVersion(readFileSync(SELFHOST_DOCKERFILE, 'utf-8'));
+  const base = `https://nodejs.org/dist/${nodeVersion}`;
+  const cacheDir = join(REPO, 'node_modules', '.cache', 'openmig-node', nodeVersion, platform);
   const cached = join(cacheDir, spec.local);
 
   if (!existsSync(cached)) {
-    console.log(`  fetching Node ${NODE_RUNTIME_VERSION} for ${platform} …`);
+    console.log(`  fetching Node ${nodeVersion} (apps/selfhost/Dockerfile) for ${platform} …`);
     const shasums = await fetch(`${base}/SHASUMS256.txt`).then((r) => {
       if (!r.ok) throw new Error(`Could not fetch SHASUMS256.txt: HTTP ${r.status}`);
       return r.text();
@@ -229,7 +253,7 @@ async function stageNodeRuntime(out, platform) {
     const res = await fetch(`${base}/${spec.remote}`);
     if (!res.ok) throw new Error(`Could not fetch ${spec.remote}: HTTP ${res.status}`);
     const bytes = Buffer.from(await res.arrayBuffer());
-    verifySha256(bytes, expected, `${NODE_RUNTIME_VERSION} ${spec.remote}`);
+    verifySha256(bytes, expected, `${nodeVersion} ${spec.remote}`);
     mkdirSync(cacheDir, { recursive: true });
     writeFileSync(cached, bytes);
   }

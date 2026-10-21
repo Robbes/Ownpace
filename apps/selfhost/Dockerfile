@@ -35,8 +35,12 @@
 # test (apps/selfhost/src/no-managed-leakage.unit.test.ts) enforces this.
 #
 # NOTE (§22.1): base images are digest-pinned for reproducibility.
+#
+# This FROM line is also the Windows payload's Node: `package-appliance.mjs
+# --with-node` ships the node.exe of exactly this x.y.z, and refuses a line
+# without one. Dependabot's image bump therefore moves both.
 
-FROM node:24.22.0-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5 AS base
+FROM node:24.22.1-slim@sha256:1681862882da07ee5476fee047bcf34138833f1df42633bb25bcb0f438d5bf3d AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable

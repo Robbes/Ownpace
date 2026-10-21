@@ -13,7 +13,7 @@
      node scripts/adr-operative.mjs --write -->
 
 - The Windows appliance is a **Task Scheduler task** (At-Startup, `NT AUTHORITY\LocalService`), **not a Windows Service** whatever the title says, plus a Start-menu shortcut to the operating UI. No native shell, no wrapper binary (WinSW, nssm rejected). Held by `scripts/windows/install-task.ps1`; reasons in *Decision*.
-- The Windows payload carries its **own pinned Node runtime** (`NODE_RUNTIME_VERSION`), staged by the opt-in `--with-node` flag and verified against the release's `SHASUMS256.txt` — a mismatch stops the build. Held by `scripts/package-appliance.mjs` and its unit test; `install-task.ps1` refuses a payload without `node.exe`.
+- The Windows payload carries its **own pinned Node runtime**, the exact version `apps/selfhost/Dockerfile`'s `FROM node:` line names, staged by the opt-in `--with-node` flag and verified against the release's `SHASUMS256.txt` — a mismatch stops the build. Held by `scripts/package-appliance.mjs` and its unit test; `install-task.ps1` refuses a payload without `node.exe`.
 - **The no-wrapper decision rests on a hard kill being safe**: PGlite and the migration ledger survive `Stop-Process -Force` (measured on real Windows 2026-08-07 and 2026-08-09, *Decision*). Anything that breaks that reopens it.
 - `install-task.ps1` **must set `ExecutionTimeLimit` to zero** (no test checks it): the three-day default would stop a healthy appliance, the likeliest quiet failure.
 - Writable state lives in **`C:\ProgramData\OpenMigrate`**, outside the payload; `uninstall-task.ps1` **keeps it** (the migration ledger, hard rule 2) unless `-IncludeData` is passed.
@@ -214,6 +214,14 @@ Do **not** revisit on size alone. The Node runtime, not the shell, is the bulk.
 - **2026-10-03** — consolidated in place under
   [ADR-0051](./0051-an-adr-reads-as-it-stands.md) (owner decision): the updates above folded
   into the Decision; title unchanged.
+- **2026-10-21** — the payload's Node is the self-host image's: `package-appliance.mjs` reads
+  the exact `x.y.z` from `apps/selfhost/Dockerfile`'s `FROM node:` line, and refuses a line
+  without one, in place of its own `NODE_RUNTIME_VERSION` constant. That constant had sat on
+  v24.19.0 while Dependabot moved the images to 24.22.0, so a Node security release would
+  reach the containers and never the zip every release tag attaches; v24.22.1 (2026-10-21,
+  HIGH) was the first to need both.
+  Still pinned, verified and opt-in; the reviewed edit the Decision names is now Dependabot's
+  image PR, which moves both. Record: *Operative rules*; this entry.
 
 The full record, word for word as it read before this consolidation:
 [history/0027-windows-packaging-shell.md](./history/0027-windows-packaging-shell.md).
