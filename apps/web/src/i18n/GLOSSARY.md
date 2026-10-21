@@ -13,7 +13,12 @@ Two kinds of words render; only the first belongs to this glossary:
   unified, listed here.
 - **Server vocabulary** — refusal and effect prose, error text. The
   server's own claims, rendered VERBATIM, never translated, never restyled
-  through StateChip.
+  through StateChip. Where the server writes a sentence in both languages,
+  the page shows the half in its reader's language and never translates it
+  itself: a refusal's `reason`/`reasonNl`, and the line under a decided
+  decision, `effect`/`effectNl` (`DECISION_EFFECTS` in `@openmig/shared`,
+  in this glossary's words: a dismissed decision is *terzijde gelegd*, never
+  *afgewezen*).
 - **Server tokens** — verification verdicts (`PASS`/`FAIL`/`WARN`…), issue
   severities and evidence words (`reported`/`trashed`/`inferred`). Until
   2026-10-18 the chips said the token, in English on a Dutch screen; the

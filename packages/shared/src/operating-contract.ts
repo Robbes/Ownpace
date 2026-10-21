@@ -607,12 +607,27 @@ export interface StatusReport {
  * shared address's answer that wrote no pattern, is `recorded`
  * (`decisionResolvedEffect`): a new mailbox's *Noted, I will handle it*
  * starts no migration, and the sentence said it did until 2026-10-18.
+ *
+ * IN ENGLISH AND IN DUTCH (workplan 0159 §6 item 12). The Dutch lives beside
+ * its English, updated together or neither (class 4 of
+ * `docs/i18n-prose-boundary.md`). Both editions serve the English as
+ * `effect`, as before, and the Dutch beside it as `effectNl`
+ * (`decisionEffectFields`); the page says the half in its reader's language.
+ * The Dutch is the builder's, for the owner to read.
  */
 export const DECISION_EFFECTS = {
-  resolved: 'Answer recorded — the migration acts on it from here on.',
-  recorded: 'Answer recorded. Nothing in your migrations changes because of it.',
-  dismissed:
-    'Closed without acting; the detector may raise it again if the situation persists.',
+  resolved: {
+    en: 'Answer recorded — the migration acts on it from here on.',
+    nl: 'Antwoord vastgelegd. De migratie handelt er vanaf nu naar.',
+  },
+  recorded: {
+    en: 'Answer recorded. Nothing in your migrations changes because of it.',
+    nl: 'Antwoord vastgelegd. Er verandert daardoor niets aan uw migraties.',
+  },
+  dismissed: {
+    en: 'Closed without acting; the detector may raise it again if the situation persists.',
+    nl: 'Terzijde gelegd; er is niets mee gedaan. Blijft de situatie zo, dan kan de vraag terugkomen.',
+  },
 } as const;
 
 /** The decisions an owner can make, across all three queues. */

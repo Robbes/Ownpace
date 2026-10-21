@@ -130,8 +130,14 @@ of* it.
    category's button is its stored proposal, marked the same way. A shared
    address's reason is kept in the detail in both languages (`reason`,
    `reasonNl`) from 2026-10-18 on; an older row is asked without one. The
-   line after an answer (`DECISION_EFFECTS`, an action outcome) has no Dutch
-   twin yet and stays English, marked `lang="en"` (workplan 0159 §6).
+   line after an answer or a dismiss (`DECISION_EFFECTS`, an action outcome)
+   has its Dutch beside the English as well (workplan 0159 §6 item 12). Both
+   editions serve the English as `effect`, as before, and the Dutch as
+   `effectNl` (`decisionEffectFields`). The page says the half in its
+   reader's language (`decisionEffectText`). From a server that sent no
+   Dutch it shows the English as served, marked `lang="en"`. The item
+   queues' effect lines (Deletions, Moves, Failures) are not paired yet and
+   stay English.
 5. **Customer guides** (workplan 0148 T4) — the guides `/docs` serves, written
    for the person who connects an account:
    - documents authored in each language, side by side in `docs/guides/nl/`

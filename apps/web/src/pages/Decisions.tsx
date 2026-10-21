@@ -16,7 +16,9 @@
  * cannot be, the stored summary and the detector's proposal render as
  * served, marked English. The recorded answer and the facts in Details are
  * said through the dictionary (UX sweep, 2026-10-17): they are stored as JSON
- * and internal keys, which is what the screen used to print.
+ * and internal keys, which is what the screen used to print. The line under
+ * an answer is the server's, which serves it in both languages (`effect`,
+ * `effectNl`; workplan 0159 §6 item 12); the page shows the reader's half.
  */
 
 import React from 'react';
@@ -25,7 +27,9 @@ import { ListTodo } from 'lucide-react';
 import {
   NEW_MAILBOX_ANSWER,
   decisionAcceptLabel,
+  decisionEffectText,
   decisionSummary,
+  type DecisionEffectFields,
   type DecisionRow,
 } from '@openmig/shared';
 import {
@@ -106,7 +110,11 @@ const Decisions: React.FC = () => {
   const queryClient = useQueryClient();
   const [busyRow, setBusyRow] = React.useState<string | null>(null);
   const [rowErrors, setRowErrors] = React.useState<Record<string, string>>({});
-  const [rowEffects, setRowEffects] = React.useState<Record<string, string>>({});
+  // Both halves of each row's effect, as served: the line follows the
+  // reader's language, also when they switch it after answering.
+  const [rowEffects, setRowEffects] = React.useState<
+    Record<string, Partial<DecisionEffectFields>>
+  >({});
   const { user } = useAuthStore();
   // The appliance has ONE operator and no roles (a genuine edition seam,
   // hard rule 5): its server accepts the preset PUT from that operator, but
@@ -181,35 +189,34 @@ const Decisions: React.FC = () => {
     setBusyRow(decision.id);
     setRowErrors((errors) => ({ ...errors, [decision.id]: '' }));
     try {
-      let effect: string | undefined;
+      let closed: Partial<DecisionEffectFields>;
       if (action === 'resolve') {
         // Two shapes of answer. Accepting a proposed default is the general
         // one; `shared_address_pattern` names WHICH pattern instead, because
         // it has no default — not knowing which of the two it is is the whole
         // reason it was asked. The server reads `pattern` and writes it back
         // to the discovered group.
-        effect = (
-          await resolveDriftDecision(
-            decision.id,
-            pattern
-              ? { action: 'set_shared_address_pattern', pattern }
-              : {
-                  action: 'accept_default',
-                  ...(decision.proposedDefault
-                    ? { proposedDefault: decision.proposedDefault }
-                    : {}),
-                },
-          )
-        ).effect;
+        closed = await resolveDriftDecision(
+          decision.id,
+          pattern
+            ? { action: 'set_shared_address_pattern', pattern }
+            : {
+                action: 'accept_default',
+                ...(decision.proposedDefault
+                  ? { proposedDefault: decision.proposedDefault }
+                  : {}),
+              },
+        );
       } else {
-        effect = (await dismissDriftDecision(decision.id)).effect;
+        closed = await dismissDriftDecision(decision.id);
       }
-      // The server's effect sentence, verbatim (0036 T2) — the row moves to
-      // "Already decided" on the refetch, and this line under it says what
-      // the click actually did. Decisions was the one surface whose answers
-      // vanished silently.
-      if (effect) {
-        setRowEffects((prev) => ({ ...prev, [decision.id]: effect }));
+      // The server's effect sentence (0036 T2), in English and in Dutch
+      // (0159 §6 item 12) — the row moves to "Already decided" on the
+      // refetch, and this line under it says what the click actually did.
+      // Decisions was the one surface whose answers vanished silently.
+      const { effect, effectNl } = closed;
+      if (effect || effectNl) {
+        setRowEffects((prev) => ({ ...prev, [decision.id]: { effect, effectNl } }));
       }
       await queryClient.invalidateQueries({ queryKey: ['drift-decisions'] });
     } catch (err) {
@@ -398,6 +405,8 @@ const Decisions: React.FC = () => {
                   const address = detailText(decision, 'address');
                   const displayName = detailText(decision, 'displayName');
                   const said = decisionSummary(decision, locale);
+                  const served = rowEffects[decision.id];
+                  const effect = served && decisionEffectText(served, locale);
                   return (
                     <li key={decision.id} className="py-3 space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -462,11 +471,12 @@ const Decisions: React.FC = () => {
                           </dl>
                         </details>
                       )}
-                      {rowEffects[decision.id] && (
-                        // What the click DID — the server's sentence, verbatim,
-                        // in English (marked so under Dutch).
-                        <p className="text-xs text-emerald-700" lang={locale === 'en' ? undefined : 'en'}>
-                          {rowEffects[decision.id]}
+                      {effect && (
+                        // What the click DID — the server's sentence, in the
+                        // reader's language; the English as served, marked so
+                        // under Dutch, from a server that sent no Dutch.
+                        <p className="text-xs text-emerald-700" lang={langOf(effect)}>
+                          {effect.text}
                         </p>
                       )}
                     </li>

@@ -5303,10 +5303,16 @@ paths:
             schema: { type: object }
       responses:
         '200':
-          description: Resolved.
+          description: |
+            Resolved: the answered decision, with what answering it did. `effect`
+            says it in English and `effectNl` in Dutch, the same sentence
+            (`DECISION_EFFECTS` in `@openmig/shared`). The page says the half in
+            its reader's language. The migration acts on the answer only where
+            it changed something: a shared address's pattern, written back to
+            its group. Every other answer says it is only recorded.
           content:
             application/json:
-              schema: { type: object }
+              schema: { $ref: '#/components/schemas/DecisionClosed' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -5323,10 +5329,12 @@ paths:
         about what happened.
       responses:
         '200':
-          description: Dismissed.
+          description: |
+            Dismissed: the decision set aside, with what that did. `effect` says
+            it in English and `effectNl` in Dutch, the same sentence.
           content:
             application/json:
-              schema: { type: object }
+              schema: { $ref: '#/components/schemas/DecisionClosed' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
@@ -8811,6 +8819,18 @@ components:
             when nothing matched, where it says so rather than reporting
             success over an empty set.
       required: [status, action, matched, match, effect]
+
+    DecisionClosed:
+      type: object
+      description: |
+        A drift decision just answered or set aside, with what that did, in
+        a sentence for the person who pressed the button.
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [resolved, dismissed] }
+        effect: { type: string, description: What answering or setting aside did, in English. }
+        effectNl: { type: string, description: "`effect` in Dutch (workplan 0159 §6 item 12)." }
+      required: [id, status, effect, effectNl]
 
     Usage:
       type: object

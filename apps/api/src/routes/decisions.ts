@@ -21,6 +21,7 @@ import {
   DECISION_EFFECTS,
   asTenantId,
   asMappingId,
+  decisionEffectFields,
   decisionResolvedEffect,
   log,
   type DecisionStatus,
@@ -161,8 +162,8 @@ router.post(
       }
       // What the answer did: the migration acts on a shared address's
       // pattern once it is written; every other answer is only recorded, and
-      // says so.
-      res.json({ ...resolved, effect: decisionResolvedEffect(changedSomething) });
+      // says so, in English as `effect` and in Dutch as `effectNl`.
+      res.json({ ...resolved, ...decisionEffectFields(decisionResolvedEffect(changedSomething)) });
     } catch (error) {
       if (error instanceof z.ZodError) {
         res.status(400).json({ error: 'Validation error', details: error.issues });
@@ -209,7 +210,7 @@ router.post(
         });
         return;
       }
-      res.json({ ...dismissed, effect: DECISION_EFFECTS.dismissed });
+      res.json({ ...dismissed, ...decisionEffectFields(DECISION_EFFECTS.dismissed) });
     } catch (error) {
       serverFault(res, 'dismiss_failed', 'dismissing this decision', error);
     }

@@ -540,6 +540,9 @@ describe('the link pages’ wire (0145 T6)', () => {
     { path: '/api/view/{link}', method: 'get', status: '503', half: 'messageNl' },
     // Not a link's: a share the new system refused, said in our words (0136 T3).
     { path: '/api/migrations/{mappingId}/sharing/{grantId}/decision', method: 'post', status: '409', half: 'reasonNl' },
+    // Not a refusal: what answering a decision did, in both languages (0159 §6 item 12).
+    { path: '/api/decisions/{decisionId}/resolve', method: 'post', status: '200', half: 'effectNl' },
+    { path: '/api/decisions/{decisionId}/dismiss', method: 'post', status: '200', half: 'effectNl' },
   ];
   it.each(PAIRED)('$method $path $status says it carries $half', ({ path, method, status, half }) => {
     expect(op(path, method)?.responses?.[status]?.description ?? '').toContain(half);
