@@ -187,6 +187,16 @@ overrides:
   "seroval@<1.6.3": ^1.6.3
   "source-map-js@<1.2.2": ^1.2.2
   #
+  # 2026-10-21. follow-redirects, two HIGH advisories the gate named on three branches that
+  # touched no dependency (the tree again, not the diff), one fix floor:
+  #   GHSA-8r9p-f939-6h3c  the sensitiveHeaders regex is not escaped, so credential headers
+  #                        can survive a redirect to another host
+  #   GHSA-q3jh-wrc6-jgq8  headers given in array form skip the cross-origin credential strip
+  # PRODUCTION by the scanner's reading: axios, a runtime dependency of apps/web, holds it. One
+  # copy in the tree (1.16.0). 1.16.1 was published 2026-10-01, well before the 3-day cooldown
+  # below, so no minimumReleaseAgeExclude entry is needed.
+  "follow-redirects@<1.16.1": ^1.16.1
+  #
   # libxmljs2 is NOT INSTALLED, on purpose. It is optional for the CycloneDX SBOM tool (an
   # optional dependency of cyclonedx-npm and an optional peer of cyclonedx-library), which uses it
   # for one thing: validating an XML SBOM against its schema. The security scan writes JSON
