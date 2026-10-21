@@ -16,6 +16,19 @@
  * owner chose Docker's default instead (ops-log-driver (a)), which privacy §9
  * describes: a container's output goes with the container. That half is
  * `a-journal-that-outlived-the-container` now, and it holds the opposite.
+ *
+ * THE MANAGED STACKS CAP IT TOO (2026-10-21). Docker's default kept all of it,
+ * and a managed service whose image and settings do not change keeps its
+ * container for months, so the databases', the Trigger.dev plane's and the
+ * identity provider's output grew on a shared disk without end. Every service
+ * of `deploy/compose/managed.yml` now writes `json-file` with the appliance's
+ * cap, five files of 20 MB, the one-off `zitadel-machinekey` included, so the
+ * check needs no list of exceptions. It is still Docker's default driver and
+ * the output still goes with the container, so privacy §9 and
+ * `a-journal-that-outlived-the-container` hold: lines go sooner, never later.
+ * The website's `deploy/compose/www.yml` sets no cap, and that is held here
+ * too: `site-visits.sh` counts visits from the whole of its log on every run,
+ * and a rotated file would quietly shrink the totals.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -61,6 +74,38 @@ describe("the appliance's containers", () => {
       }
     },
   );
+});
+
+describe("the managed stacks' containers", () => {
+  const managed = services('deploy/compose/managed.yml');
+
+  it.each(Object.keys(managed))('%s keeps a bounded amount of output', (name) => {
+    const logging = managed[name]!.logging;
+    expect(logging?.driver).toBe('json-file');
+    expect(logging?.options?.['max-size']).toMatch(/^\d+m$/);
+    expect(logging?.options?.['max-file']).toMatch(/^\d+$/);
+  });
+
+  it('are all found, the one-off ones among them, so the cases above are not vacuous', () => {
+    expect(Object.keys(managed)).toEqual(
+      expect.arrayContaining(['postgres', 'trigger-api', 'zitadel', 'zitadel-machinekey', 'api', 'web']),
+    );
+  });
+});
+
+describe("the website's containers", () => {
+  const www = services('deploy/compose/www.yml');
+
+  // site-visits.sh counts visits from the whole of this log on every run, so
+  // a rotated file would shrink the totals; a deploy removes it with the
+  // container, as privacy §9 says.
+  it.each(Object.keys(www))('%s keeps all of its output until the container is removed', (name) => {
+    expect(www[name]!.logging, `www.yml sets logging on ${name}`).toBeUndefined();
+  });
+
+  it('are all found, so the cases above are not vacuous', () => {
+    expect(Object.keys(www).length).toBeGreaterThan(0);
+  });
 });
 
 describe('exactly thirty days, with the host journal', () => {

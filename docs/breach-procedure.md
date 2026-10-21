@@ -43,6 +43,9 @@ private as the database: they hold what it holds. Run them from live's checkout,
 container's output with the container and nowhere else (`json-file`, privacy §9), so a deploy,
 which recreates the app's and the site's containers, removes their output with them, and a task
 run's output went when its run ended. There is no copy in the host's journal to go back to.
+And the stack's own services keep only about the last 100 MB each (five files of 20 MB,
+`managed.yml`), so a service that writes a lot drops its oldest lines while you wait: what the
+copy below holds is what is left after that cap. The site's output is kept whole.
 
 ```bash
 # Every service's output, while its container still stands (the stack's, then the website's):
