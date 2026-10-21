@@ -1683,6 +1683,7 @@ reading a file drops off its entry by itself.
 
 ### `docs/testing.md`
 
+- [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts) — A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 
 ### `docs/windows-appliance-runbook.md`
@@ -2992,6 +2993,7 @@ Reads:
 - `.github/workflows/clock-watch.yml`
 - `docs/managed-bring-up.md`
 - `docs/microsoft-setup.md`
+- `docs/testing.md`
 - `scripts/clock-watch.mjs`
 - `site/security-txt.mjs`
 

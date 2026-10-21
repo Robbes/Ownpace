@@ -2,7 +2,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * THE CLOCKS NOBODY ELSE WATCHES (the lifecycle survey of 2026-10-21).
+ * THE CLOCKS NOBODY ELSE WATCHES.
  *
  * Three things the Alpha depends on stop on a date, and nothing warned before
  * the date:
@@ -15,9 +15,9 @@
  *   certificate has expired, and only for the names they probe.
  * - `security.txt`'s `Expires`, which the site build writes 180 days after the
  *   day it runs (`site/security-txt.mjs`). Only a live deploy rebuilds it.
- * - THE MICROSOFT ENTRA CLIENT SECRET both stacks share. Entra ends every
- *   secret, 24 months after it was made at most, and when it does every
- *   Microsoft connection on both stacks fails its next token refresh at once.
+ * - THE MICROSOFT ENTRA CLIENT SECRET both stacks share. A secret made in
+ *   the portal lasts 24 months at most, and when it ends every Microsoft
+ *   connection on both stacks fails its next token refresh at once.
  *   Nothing can read that date from outside, so the owner records it in the
  *   repository variable `CLOCK_WATCH_ENTRA_EXPIRES` (a date, `YYYY-MM-DD`).
  *
@@ -40,9 +40,10 @@
  * `required`, which the owner sets once the name is routed to live: until
  * then it points at another host. The OTA names (`OTA_NAMES`) are read and
  * reported, never counted. A clock that counts and could not be read (no
- * answer, no `Expires`, a status other than 200) is never called fine: the run
- * fails, and the issue is not closed on its account. A certificate that does
- * not verify is read anyway, and counts, with its code.
+ * answer, a status other than 200) is never called fine: the run fails, and
+ * an issue already open is left as it is. A certificate that does not verify
+ * is read anyway, and counts, with its code; so does a `security.txt` without
+ * exactly one `Expires`.
  *
  * ITS LOG IS PUBLIC, so it prints names and dates only: no address, and a
  * failure by its error code, never Node's message, which names the address it
@@ -280,14 +281,22 @@ function sameText(a, b) {
  * Keeps one issue open while a clock that counts is inside its window: opens
  * it, or brings the one already open up to date, with a comment, since an edit
  * notifies nobody. Closes it once every clock that counts was read and none is
- * inside its window; a clock that could not be read keeps it as it is. `gh`
- * takes the arguments of the GitHub CLI and returns its output.
+ * inside its window. An issue already open is left as it is while a clock
+ * that counts could not be read, whatever the others say: dropping that
+ * clock's line would edit and comment twice over a network blip, and for a day
+ * not name a clock that may still be running out. The run is red that day,
+ * and the next run that reads every clock brings the issue up to date. With
+ * none open, a clock inside its window still opens one. `gh` takes the
+ * arguments of the GitHub CLI and returns its output.
  */
 export function keepIssue(clocks, gh) {
   const counted = clocks.filter((c) => c.counted);
   const due = counted.filter((c) => c.state === 'due');
-  const listed = JSON.parse(gh(['issue', 'list', '--state', 'open', '--limit', '1000', '--json', 'number,title,body']) || '[]');
+  // Numbers and titles only: a list with every body grows with every issue
+  // anyone opens; the one body compared is read on its own.
+  const listed = JSON.parse(gh(['issue', 'list', '--state', 'open', '--limit', '1000', '--json', 'number,title']) || '[]');
   const open = listed.filter((issue) => issue.title === ISSUE_TITLE);
+  if (open.length > 0 && counted.some((c) => c.state === 'unread')) return 'untouched';
   if (due.length > 0) {
     const body = issueBody(due);
     if (open.length === 0) {
@@ -295,7 +304,8 @@ export function keepIssue(clocks, gh) {
       return 'opened';
     }
     const [issue] = open;
-    if (sameText(issue.body, body)) return 'unchanged';
+    const { body: openBody } = JSON.parse(gh(['issue', 'view', String(issue.number), '--json', 'body']) || '{}');
+    if (sameText(openBody, body)) return 'unchanged';
     const number = String(issue.number);
     gh(['issue', 'edit', number, '--body', body]);
     gh(['issue', 'comment', number, '--body', ['The clocks inside their window are now:', '', ...due.map(issueLine)].join('\n')]);
@@ -373,7 +383,10 @@ async function main(argv) {
   if (summary) appendFileSync(summary, `## Clock watch\n\n\`\`\`\n${lines.join('\n')}\n\`\`\`\n`);
   if (argv.includes('--issue')) {
     // gh's own complaints go straight to the log; its answers come back here.
-    const gh = (args) => execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
+    // A list of 1000 titles of 256 characters stays under the default 1 MiB
+    // only while they are ASCII; the larger buffer is the margin.
+    const gh = (args) =>
+      execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], maxBuffer: 16 * 1024 * 1024 });
     console.log(`issue: ${keepIssue(clocks, gh)}`);
   }
   return code;

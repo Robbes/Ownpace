@@ -419,9 +419,10 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   serve; `www.ownpace.eu`'s and its `security.txt` `Expires` once the repository variable
   `CLOCK_WATCH_SITE` is `required`; and the Entra client secret's date from
   `CLOCK_WATCH_ENTRA_EXPIRES`. It keeps one issue open while a certificate has fewer than 14
-  days left, or either of the others fewer than 30, and closes it when none has. The OTA names
-  are reported, never counted, and a clock it could not read fails the run. Its log names names
-  and dates, never an address.
+  days left or does not verify, while `security.txt` lacks exactly one `Expires`, or while
+  either of the others has fewer than 30, and closes it when none of that holds. The OTA names
+  are reported, never counted, and a clock it could not read fails the run and leaves an open
+  issue as it is. Its log names names and dates, never an address.
 - `exposure-probe.yml` — dispatch only, never scheduled, on a GitHub-hosted runner: the probe
   from outside (workplan 0132 T3). It tries every port the two stacks, the site and the demo
   publish, derived from the files, on the addresses the production and OTA names resolve to, and

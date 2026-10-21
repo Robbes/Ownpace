@@ -2009,14 +2009,14 @@ every door; and the pair is handed only to a `microsoft` row. `GET
 set, which is what the account form reads, on *Start a migration* and the
 Accounts page, before it offers the button.
 
-**The secret expires, and both stacks stop at once.** Entra ends every client
-secret, 24 months after it was made at most (the portal suggests 6), and shows
-the date as **Expires** beside it under *Certificates & secrets*. Nothing reads
-that date for you, and when it passes every Microsoft connection on
-the deployment fails its next token refresh, while the nightly smoke, which
-builds the consent URL and never exchanges a token, stays green. So write the
-date down, never the value, and renew 30 days ahead. Set the repository
-variable `CLOCK_WATCH_ENTRA_EXPIRES` to it (`YYYY-MM-DD`; Settings, Secrets and
+**The secret expires, and both stacks stop at once.** A client secret made in
+the portal lasts 24 months at most (the portal suggests 6), and Entra shows the
+date as **Expires** beside it under *Certificates & secrets*. Nothing reads
+that date for you, and when it passes every Microsoft connection on the
+deployment fails its next token refresh, while the nightly smoke, which builds
+the consent URL and never exchanges a token, stays green. So write the date
+down, never the value, and renew 30 days ahead. Set the repository variable
+`CLOCK_WATCH_ENTRA_EXPIRES` to it (`YYYY-MM-DD`; Settings, Secrets and
 variables, Actions, Variables), and the daily *Clock watch*
 (`.github/workflows/clock-watch.yml`) keeps an issue open from 30 days before.
 It is a date, never the secret: a variable is printed in the log of every run.
@@ -2036,18 +2036,24 @@ Renew while no E2E (managed) run is in progress: the gate copies the persisted
 `.env` in at its start and back out partway through, so an edit made in between
 is lost.
 
-1. In Entra, **New client secret**. 24 months is the longest Entra allows,
-   and the fewest renewals; Microsoft recommends under 12. Copy its **Value**,
-   and keep the old secret for now.
-2. The OTA stack, whose next nightly applies it. The first line must print
-   `OTA .env`; stop if it prints `STOP`:
+1. In Entra, **New client secret**. 24 months is the longest the portal
+   allows, and the fewest renewals; Microsoft recommends under 12. Copy its
+   **Value**, and keep the old secret for now.
+2. The OTA stack, whose next nightly applies it: the gate reads the persisted
+   `.env`, which the second line writes. The first line says what this
+   checkout's own `deploy/compose/.env` is, which a hand-run compose call
+   reads:
 
    ```bash
-   cd ~/ownpace-managed && [ "$(readlink -f deploy/compose/.env)" = "$(readlink -f ~/.persistent/ownpace-managed/.env)" ] && echo 'OTA .env' || echo STOP
+   cd ~/ownpace-managed && { [ "$(readlink -f deploy/compose/.env)" = "$(readlink -f ~/.persistent/ownpace-managed/.env)" ] && echo 'a link' || echo 'a copy'; }
    read -rs -p 'New Entra client secret (Value): ' t && printf 'MICROSOFT_OAUTH_CLIENT_SECRET=%s\n' "$t" | ./deploy/compose/env-upsert.sh --stdin ~/.persistent/ownpace-managed/.env; unset t; echo
    ```
 
-   To have it at once rather than after the night:
+   `a link` needs nothing more. `a copy` is a copy of its own, which *The OTA
+   stack: the nightly gate, or a pull* allows, and it still holds the old
+   secret: run the second line again with `deploy/compose/.env` in place of the
+   persisted path, or a hand-run compose call brings the old secret back. To
+   have it at once rather than after the night:
    `./deploy/compose/bootstrap-managed.sh --only app && ./deploy/compose/set-task-env.sh`.
 3. Live, the same way. The second line must print `live .env`:
 

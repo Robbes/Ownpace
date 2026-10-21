@@ -5,23 +5,22 @@
  * certificate, the site's `security.txt` or the Microsoft Entra client secret
  * reached its end date.
  *
- * Found in the lifecycle survey of 2026-10-21. NetBird's reverse proxy ends
- * TLS for `app.`, `id.` and `status.ownpace.eu` (and `www.` once it is routed
- * to live) and renews their certificates itself. A renewal that fails, after a
- * DNS or CAA change or a fault in the proxy, showed only at expiry. Live's
- * status rows verify TLS and live's alerts mail the owner, but only once the
- * certificate has expired, and only for the names they probe: `id.` is probed
- * on its container port and `status.` not by its public name at all. Let's
- * Encrypt stopped its expiry mails on 2025-06-04, and any authority's notice
- * would reach NetBird's account, not the owner. Certificates keep getting
- * shorter (CA/B Forum ballot SC-081v3: 200 days since 2026-03-15, 100 from
- * 2027-03-15, 47 from 2029-03-15), so there are more renewals to fail.
- * `security.txt`'s `Expires` is the site build's day plus 180 days
- * (`site/security-txt.mjs`), renewed only by a live deploy. And the Entra
- * client secret both stacks share has an end date nobody had written down:
- * when it passes, every Microsoft connection on both stacks fails its next
- * token refresh at once, while the nightly smoke, which builds the consent URL
- * and never exchanges a token, stays green.
+ * Found on 2026-10-21. NetBird's reverse proxy ends TLS for `app.`, `id.` and
+ * `status.ownpace.eu` (and `www.` once it is routed to live) and renews their
+ * certificates itself. A renewal that fails, after a DNS or CAA change or a
+ * fault in the proxy, showed only at expiry. Live's status rows verify TLS and
+ * live's alerts mail the owner, but only once the certificate has expired, and
+ * only for the names they probe: `id.` is probed on its container port and
+ * `status.` not by its public name at all. Let's Encrypt stopped its expiry
+ * mails on 2025-06-04, and any authority's notice would reach NetBird's
+ * account, not the owner. Certificates keep getting shorter (CA/B Forum ballot
+ * SC-081v3: 200 days since 2026-03-15, 100 from 2027-03-15, 47 from
+ * 2029-03-15), so there are more renewals to fail. `security.txt`'s `Expires`
+ * is the site build's day plus 180 days (`site/security-txt.mjs`), renewed only
+ * by a live deploy. And the Entra client secret both stacks share has an end
+ * date nobody had written down: when it passes, every Microsoft connection on
+ * both stacks fails its next token refresh at once, while the nightly smoke,
+ * which builds the consent URL and never exchanges a token, stays green.
  *
  * `scripts/clock-watch.mjs` now reads each clock once a day from a
  * GitHub-hosted runner and keeps ONE issue open while any clock is inside its
@@ -119,20 +118,31 @@ function allIn(days: number) {
 
 type Issue = { number: number; title: string; body: string; state: 'open' | 'closed' };
 
-/** A `gh` that answers `issue list` as the real one would, and records every other call. */
+/**
+ * A `gh` that answers `issue list` and `issue view` as the real one would,
+ * records those reads in `reads`, and records every other call in `calls`.
+ */
 function fakeGh(issues: Issue[]) {
   const calls: string[][] = [];
+  const reads: string[][] = [];
+  const pick = (issue: Issue, args: string[]) =>
+    Object.fromEntries((args[args.indexOf('--json') + 1] ?? '').split(',').map((f) => [f, issue[f as keyof Issue]]));
   const gh = (args: string[]) => {
     if (args[0] === 'issue' && args[1] === 'list') {
+      reads.push(args);
       const state = args[args.indexOf('--state') + 1];
-      const fields = (args[args.indexOf('--json') + 1] ?? '').split(',');
-      const listed = issues.filter((i) => state === 'all' || i.state === state);
-      return JSON.stringify(listed.map((i) => Object.fromEntries(fields.map((f) => [f, i[f as keyof Issue]]))));
+      return JSON.stringify(issues.filter((i) => state === 'all' || i.state === state).map((i) => pick(i, args)));
+    }
+    if (args[0] === 'issue' && args[1] === 'view') {
+      reads.push(args);
+      const issue = issues.find((i) => String(i.number) === args[2]);
+      if (!issue) throw new Error(`no issue ${args[2]}`);
+      return JSON.stringify(pick(issue, args));
     }
     calls.push(args);
     return '';
   };
-  return { gh, calls };
+  return { gh, calls, reads };
 }
 
 const OTHER: Issue = { number: 7, title: 'Something else', body: 'x', state: 'open' };
@@ -466,6 +476,39 @@ describe('the one issue', () => {
     expect(calls).toEqual([]);
   });
 
+  it('leaves the open one as it is while a clock could not be read, even when another is inside its window', () => {
+    // app. and id. are both inside their window and the issue lists both; the
+    // next day id. times out. Dropping it would edit and comment twice over a
+    // network blip, and for a day not name a clock that is still running out.
+    const app = due({ name: 'app.ownpace.eu', expires: '2026-11-03' });
+    const unread: Clock = { kind: 'certificate', name: 'id.ownpace.eu', counted: true, window: CERTIFICATE_DAYS, state: 'unread', why: 'ETIMEDOUT' };
+    const { gh, calls } = fakeGh([OTHER, watch(issueBody([app, due()]))]);
+    expect(keepIssue([app, unread], gh)).toBe('untouched');
+    expect(calls).toEqual([]);
+  });
+
+  it('still opens one for a clock inside its window while another could not be read, when none is open', () => {
+    const unread: Clock = { kind: 'certificate', name: 'app.ownpace.eu', counted: true, window: CERTIFICATE_DAYS, state: 'unread', why: 'ETIMEDOUT' };
+    const { gh, calls } = fakeGh([OTHER]);
+    expect(keepIssue([unread, due()], gh)).toBe('opened');
+    expect(calls).toEqual([['issue', 'create', '--title', ISSUE_TITLE, '--body', issueBody([due()])]]);
+  });
+
+  it('lists the open issues by number and title only, and reads the one body it compares', () => {
+    // A list with every body grows with every issue anyone opens, past the
+    // buffer the run reads it into; a title is at most 256 characters.
+    const { gh, calls, reads } = fakeGh([OTHER, watch(issueBody([due()]))]);
+    expect(keepIssue([due()], gh)).toBe('unchanged');
+    expect(calls).toEqual([]);
+    const list = reads.find((r) => r[1] === 'list')!;
+    expect(list[list.indexOf('--json') + 1]).toBe('number,title');
+    expect(reads.filter((r) => r[1] === 'view')).toEqual([['issue', 'view', '42', '--json', 'body']]);
+
+    const quiet = fakeGh([OTHER, watch(issueBody([due()]))]);
+    expect(keepIssue([ok('app.ownpace.eu'), ok('id.ownpace.eu')], quiet.gh)).toBe('closed');
+    expect(quiet.reads.filter((r) => r[1] === 'view'), 'closing reads no body').toEqual([]);
+  });
+
   it('names each clock and its date, the window, and the route for each kind it lists', () => {
     const body = issueBody([
       due({ verified: false, why: 'CERT_HAS_EXPIRED', expires: '2026-10-19', daysLeft: -2 }),
@@ -545,13 +588,36 @@ describe('the docs that set the two variables', () => {
   it("the Entra registration says the secret expires, and records its date in CLOCK_WATCH_ENTRA_EXPIRES", () => {
     const bringUp = read('docs/managed-bring-up.md');
     const section = bringUp.slice(bringUp.indexOf("#### The deployment's own Entra registration"), bringUp.indexOf('### 8f.'));
-    expect(section).toMatch(/24 months/);
+    // The cap is the portal's: a secret made through Graph or PowerShell can
+    // run longer unless an app-management policy caps it.
+    expect(section.replace(/\s+/g, ' ')).toMatch(/made in the portal[^.]*24 months at most/);
     expect(section).toMatch(/`CLOCK_WATCH_ENTRA_EXPIRES`/);
     expect(section).toMatch(/stores neither half/);
     const setup = read('docs/microsoft-setup.md');
     const secret = setup.slice(setup.indexOf('### The client secret'), setup.indexOf('## 2. Consent'));
-    expect(secret).toMatch(/24 months/);
+    expect(secret.replace(/\s+/g, ' ')).toMatch(/made in the portal[^.]*24 months at most/);
     expect(secret).toMatch(/30 days/);
+  });
+
+  it("the renewal's OTA step writes the persisted .env whatever the checkout has, and the checkout's own copy too", () => {
+    // The nightly reads the persisted file; an OTA checkout may keep a copy of
+    // its own (*The OTA stack: the nightly gate, or a pull*), which a hand-run
+    // compose call reads. A STOP on a copy left the owner no route.
+    const bringUp = read('docs/managed-bring-up.md');
+    const section = bringUp.slice(bringUp.indexOf("#### The deployment's own Entra registration"), bringUp.indexOf('### 8f.'));
+    const ota = section.slice(section.indexOf('2. The OTA stack'), section.indexOf('3. Live'));
+    expect(ota).not.toMatch(/STOP/);
+    expect(ota).toMatch(/env-upsert\.sh --stdin ~\/\.persistent\/ownpace-managed\/\.env/);
+    expect(ota.replace(/\s+/g, ' ')).toMatch(/`a copy`.*`deploy\/compose\/\.env` in place of the persisted path/);
+  });
+
+  it("docs/testing.md says what keeps the issue open: a window, a certificate that does not verify, a security.txt without one Expires", () => {
+    const testing = read('docs/testing.md');
+    const start = testing.indexOf('- `clock-watch.yml`');
+    const bullet = testing.slice(start, testing.indexOf('\n- ', start + 1));
+    expect(bullet).toMatch(/fewer than 14/);
+    expect(bullet).toMatch(/does not verify/);
+    expect(bullet).toMatch(/exactly one `Expires`/);
   });
 });
 
