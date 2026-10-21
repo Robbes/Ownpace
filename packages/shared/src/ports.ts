@@ -2164,7 +2164,10 @@ export interface ItemMove {
    * - `'applied'`: the old copy is gone from the new system, removed by this
    *   tool (`deletionAppliedAt`): a *Remove the old copy*, the automatic
    *   removal of moved files' old copies, or a deletion carried out on the
-   *   same row.
+   *   same row. A known limit of that last one: a mail message or event keeps
+   *   its key when it moves, so when it was deleted through Deletions and its
+   *   move answered afterwards, there was no other copy, and *old copy
+   *   removed* says more than happened (0159 §6 item 6, a follow-up).
    *
    * The ledger closes the entry the same way for both, so without this a
    * screen cannot say which, and a title that guessed named the opposite of

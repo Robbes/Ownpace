@@ -20,7 +20,8 @@
  * is what says it was one.
  *
  * The SQL half of the same contract is
- * `packages/ledger/src/a-row-that-says-what-was-decided.integration.test.ts`.
+ * `packages/ledger/src/a-row-that-says-what-was-decided.integration.test.ts`,
+ * and its PGlite twin `packages/ledger/src/a-row-that-says-what-was-decided.unit.test.ts`.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -93,6 +94,21 @@ describe('a decided row says what was decided (MemoryLedger)', () => {
 
     expect(await deletionOf('moved')).toMatchObject({ decided: 'relocated' });
     expect(await moveOf('moved')).toMatchObject({ decided: 'applied' });
+  });
+
+  it('a deletion kept, and the old copy then removed through Moves, says relocated', async () => {
+    // The other order: Deletions answered first. The relocation re-closes the
+    // deletion entry with its own time, and the removal is still a renamed
+    // item's old copy, so the row is never called kept or deleted after it.
+    await renamed('kr');
+    await ledger.recordReportedDeletion(TENANT, MAPPING, 'file', 'kr');
+    expect(await ledger.resolveDeletion(TENANT, MAPPING, 'kr', 'keep')).toBe(true);
+    expect(await deletionOf('kr')).toMatchObject({ decided: 'kept' });
+
+    expect(await ledger.applyRelocation(TENANT, MAPPING, 'file', 'kr')).toBe(true);
+
+    expect(await deletionOf('kr')).toMatchObject({ decided: 'relocated' });
+    expect(await moveOf('kr')).toMatchObject({ decided: 'applied' });
   });
 
   it('a renamed file removed through Deletions says applied there, and its move stays open', async () => {

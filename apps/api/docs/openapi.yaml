@@ -3885,7 +3885,8 @@ paths:
         Each `acknowledged` row says what its decision did on the new system,
         as `decided` (workplan 0159 §6 item 6): `kept` (the keep route below),
         `applied` (deleted there too, by the apply route), or `relocated` (the
-        item moved, and the old copy was removed through the moves queue; the
+        item moved, and the old copy was removed through the moves queue, by a
+        person or by the automatic removal of moved files' old copies; the
         item is still on the new system under its new key). An open row has
         none.
       responses:

@@ -170,11 +170,10 @@ Rename one migrated file **in Drive**, same folder — `report.pdf` →
   you.
 - **Also worth one deliberate minute:** rename another file and answer **keep**
   this time. The row moves to *Already decided*, saying *Left where it is on the
-  new system*, and the remove button is gone —
-  and stays gone: `keep` is final by design, enforced on the server and in the
-  database, not by the missing button (that enforcement is what PR #408 added).
-  The row you removed above is there too, saying *Old copy removed on the new
-  system*.
+  new system*, and the remove button is gone — and stays gone: `keep` is final
+  by design, enforced on the server and in the database, not by the missing
+  button (that enforcement is what PR #408 added). The row you removed above is
+  there too, saying *Old copy removed on the new system*.
 
 ### Drill C — a real move (expect: folder → folder, same buttons)
 

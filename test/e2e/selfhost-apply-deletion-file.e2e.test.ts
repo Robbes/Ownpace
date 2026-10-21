@@ -108,6 +108,8 @@ describe('apply — file domain (WebDAV/Nextcloud)', () => {
       const q = await getDeletions();
       expect(q.confirmed.map((d) => d.naturalKeyHash)).not.toContain(FILE_HASH);
       expect(q.acknowledged.map((d) => d.naturalKeyHash)).toContain(FILE_HASH);
+      // And it says what was decided: deleted on the new system too.
+      expect(q.acknowledged.find((d) => d.naturalKeyHash === FILE_HASH)?.decided).toBe('applied');
     },
     PASS_WAIT_MS + 60000,
   );

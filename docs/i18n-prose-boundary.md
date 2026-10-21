@@ -43,6 +43,8 @@ of* it.
    a row under *Already decided* says was decided on Deletions and Moves
    (workplan 0159 §6 item 6): the row's `decided` (`kept`, `applied`,
    `relocated`) is the handle, and the row says it in the reader's language.
+   There is no server text to keep beside it, and the token stays on the wire
+   (`decided` in the queue's answer) rather than on the row.
 
    **A Test at an address the tester typed is the one place the client says
    the `reason` itself** (workplan 0136 T3). On managed, that `reason` is not
