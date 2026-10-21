@@ -8823,12 +8823,15 @@ components:
     DecisionClosed:
       type: object
       description: |
-        A drift decision just answered or set aside, with what that did, in
-        a sentence for the person who pressed the button.
+        A drift decision just answered or set aside: its whole row, as
+        `GET /api/decisions` lists it (category, summary, detail, resolution,
+        resolvedAt, resolvedBy, …), with what that did in a sentence for the
+        person who pressed the button, in `effect` (English) and `effectNl`
+        (Dutch).
       properties:
         id: { type: string, format: uuid }
         status: { type: string, enum: [resolved, dismissed] }
-        effect: { type: string, description: What answering or setting aside did, in English. }
+        effect: { type: string, description: "What answering or setting aside did, in English." }
         effectNl: { type: string, description: "`effect` in Dutch (workplan 0159 §6 item 12)." }
       required: [id, status, effect, effectNl]
 
