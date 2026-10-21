@@ -37,12 +37,13 @@
  * on 2026-10-21 (E2E (managed) #262 and the unit-tests job of the same day's
  * push run), while the images built `FROM node:24.22.0-slim` and 24.18.1
  * (2026-07-28) and 24.22.1 (2026-10-20) were security releases. Every
- * push-to-main job and every nightly gate on the Spark ran four minors and two
- * security releases behind what ships, and nothing would ever have moved it.
- * So every `setup-node` step says `check-latest: true`, the hosted ones too:
- * it costs them nothing, and one rule is simpler to hold than "the steps whose
- * `runs-on` can land on the Spark". If the version manifest cannot be reached,
- * setup-node logs it and falls back to the cache, so the flag cannot fail a job.
+ * push-to-main job and every nightly gate on the Spark ran four minors behind
+ * what ships and two security releases behind the newest 24.x, and nothing
+ * would ever have moved it. So every `setup-node` step says `check-latest:
+ * true`, the hosted ones too: it costs them a few seconds at most, and one rule
+ * is simpler to hold than "the steps whose `runs-on` can land on the Spark". If
+ * the version manifest cannot be reached, setup-node logs it and falls back to
+ * the cache, so the flag cannot fail a job.
  *
  * Security Scan had no `setup-node` step at all, so none of this saw it: it ran
  * the Spark's apt Node on main and the hosted image's default elsewhere, and
@@ -50,6 +51,18 @@
  * the runner user's own pnpm home (found 2026-10-21). It now sets up pnpm and
  * Node like every other job, and STEP_ANCHORS below names it, so a scan job
  * that loses its `setup-node` again fails here instead of escaping the walk.
+ *
+ * ## Trivy: the scan names the engine it runs
+ *
+ * The same scan had the same shape one step further down. trivy-action
+ * installs the Trivy its `version` input names, and with none it installs the
+ * default compiled into the action: v0.70.0 (2026-04-17) at the pinned v0.36.0,
+ * six months behind on 2026-10-21. Dependabot moves the action, never that
+ * default, and the vulnerability database updating daily does not move the
+ * engine that parses lockfiles and matches against it. It is the `setup-node`
+ * step with no `node-version` again: a version nobody chose. So every
+ * trivy-action (or setup-trivy) step in every workflow names an exact release,
+ * `vX.Y.Z`, not `latest`, and a second scan step added later is held to it too.
  *
  * ## Node: the tasks' runtime is the major the images run
  *
@@ -191,7 +204,6 @@ describe('every gate runs the Node major the images ship', () => {
       missing,
       'setup-node steps the walk no longer finds (a job without one runs whatever Node the runner has)',
     ).toEqual([]);
-    expect(steps.length).toBeGreaterThanOrEqual(STEP_ANCHORS.length);
   });
 
   it('the images agree with each other on one major', () => {
@@ -221,6 +233,46 @@ describe('every gate runs the Node major the images ship', () => {
       cached,
       'without `check-latest: true` setup-node takes the first matching version in the tool cache, and the ' +
         "self-hosted runner's cache is never refreshed: the Spark ran 24.18.0 for months while the images moved on",
+    ).toEqual([]);
+  });
+});
+
+/** Every step that installs Trivy, in every workflow, with the version it names. */
+function trivySteps(): ReadonlyArray<{ where: string; version: unknown }> {
+  return readdirSync(join(REPO_ROOT, '.github/workflows'))
+    .filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'))
+    .flatMap((file) => {
+      const workflow = parseYaml(read(`.github/workflows/${file}`)) as Workflow;
+      return Object.entries(workflow.jobs ?? {}).flatMap(([job, { steps }]) =>
+        (steps ?? [])
+          .filter((s) => typeof s.uses === 'string' && /^aquasecurity\/(trivy-action|setup-trivy)@/.test(s.uses))
+          .map((s) => ({ where: `.github/workflows/${file} job ${job}`, version: s.with?.['version'] })),
+      );
+    });
+}
+
+describe('every Trivy the scans run is one somebody named', () => {
+  const steps = trivySteps();
+
+  it('found the scan', () => {
+    // Vacuity guard: a renamed action or job would pass the case below on nothing.
+    expect(
+      steps.some((s) => s.where === '.github/workflows/security-scan.yml job security-scan'),
+      'no trivy-action step found in security-scan.yml job security-scan',
+    ).toBe(true);
+  });
+
+  it('every Trivy step names an exact release, not the action default or latest', () => {
+    const unnamed = steps
+      .filter((s) => typeof s.version !== 'string' || !/^v\d+\.\d+\.\d+$/.test(s.version))
+      .map(
+        (s) =>
+          `${s.where}: version ${s.version === undefined ? "(absent, so the action's default)" : JSON.stringify(s.version)}`,
+      );
+    expect(
+      unnamed,
+      'without `version: vX.Y.Z` trivy-action installs the default compiled into it (v0.70.0 at v0.36.0), and ' +
+        'Dependabot moves the action, never that default',
     ).toEqual([]);
   });
 });

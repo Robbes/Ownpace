@@ -193,7 +193,8 @@ jobs:
           # (parsers, detection). v0.76.0 is from 2026-10-14; v0.76.1
           # (2026-10-21) is three days old, the age CONTRIBUTING.md asks of a
           # dependency, on 2026-10-24.
-          # Raise or drop when Dependabot takes trivy-action > v0.36.0.
+          # Raise when Dependabot takes trivy-action > v0.36.0. Every Trivy step
+          # must name one: held by a-gate-on-a-version-nothing-ships.
           version: v0.76.0
           scan-type: fs
           format: sarif
