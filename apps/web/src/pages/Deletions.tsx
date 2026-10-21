@@ -52,8 +52,31 @@ import {
   fetchDeletions,
   keepDeletion,
 } from '../services/operating-service.ts';
-import { useT } from '../i18n/index.tsx';
+import { useT, type StringKey } from '../i18n/index.tsx';
 import { serverMessage } from '../services/api.ts';
+
+/**
+ * What a decided row's decision did on the new system (workplan 0159 §6 item
+ * 6), from the server's `decided`.
+ *
+ * The ledger closes an entry the same way for *Keep our copy* and for *Delete
+ * it here too*, so the section's heading cannot say which and stays the
+ * owner's *Already decided*: a title that guessed named the opposite of what
+ * happened after a delete (#1621's review). Each row says it instead, where
+ * its buttons were. A row the server says nothing about says nothing more.
+ */
+const DECIDED: Record<NonNullable<ItemDeletion['decided']>, StringKey> = {
+  kept: 'deletions.decided.kept',
+  applied: 'deletions.decided.applied',
+  // The old copy of an item that MOVED: never called deleted, because the
+  // item is on the new system under its new name.
+  relocated: 'deletions.decided.relocated',
+};
+
+const Decided: React.FC<{ decided: NonNullable<ItemDeletion['decided']> }> = ({ decided }) => {
+  const t = useT();
+  return <Resolved effect={t(DECIDED[decided])} />;
+};
 
 const Row: React.FC<{
   d: ItemDeletion;
@@ -76,6 +99,8 @@ const Row: React.FC<{
         <Refused text={outcome.text} />
       ) : outcome?.state === 'receipt' ? (
         <ReceiptStatus receipt={outcome.receipt} />
+      ) : d.decided ? (
+        <Decided decided={d.decided} />
       ) : (
         actions
       )}
@@ -114,6 +139,10 @@ const EarlierRow: React.FC<{
           <Resolved effect={outcome.effect} />
         ) : outcome?.state === 'refused' ? (
           <Refused text={outcome.text} />
+        ) : e.acknowledgedAt !== undefined ? (
+          // Kept is the only answer an earlier export has: nothing removes
+          // one for you (the owner, 2026-09-23).
+          <Resolved effect={t('deletions.decided.kept')} />
         ) : (
           actions
         )}

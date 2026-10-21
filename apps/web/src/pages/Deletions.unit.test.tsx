@@ -13,7 +13,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { STRINGS } from '../i18n/strings.ts';
 import { LocaleProvider } from '../i18n/index.tsx';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { DeletionsResponse, EarlierExport, ItemDeletion } from '@openmig/shared';
@@ -615,6 +615,99 @@ describe('a finished migration', () => {
     expect(
       screen.getByRole('heading', { name: /Already decided\s*\(1\)/ }),
     ).toBeInTheDocument();
+  });
+});
+
+/**
+ * A row under *Already decided* says what was decided (workplan 0159 §6 item
+ * 6).
+ *
+ * The ledger closes an entry the same way for *Keep our copy* and for *Delete
+ * it here too*, so the section's heading cannot say which: the sweep titled it
+ * *Kept on the new system*, and its review took that back, because after a
+ * delete it named the opposite of what happened. Each row says it instead,
+ * from the server's `decided`: kept, deleted on the new system too, or the old
+ * copy of an item that moved, removed there. A row the server says nothing
+ * about says nothing more than it did.
+ */
+describe('a row already decided says what was decided', () => {
+  const decided = (naturalKeyHash: string, outcome?: ItemDeletion['decided']): ItemDeletion =>
+    deletion({
+      naturalKeyHash,
+      acknowledgedAt: '2026-10-01T00:00:00Z',
+      ...(outcome ? { decided: outcome } : {}),
+    });
+  const answered = () =>
+    queue({
+      acknowledged: [
+        decided('h-kept', 'kept'),
+        decided('h-applied', 'applied'),
+        decided('h-relocated', 'relocated'),
+        decided('h-untold'),
+      ],
+      earlierExports: {
+        waiting: [],
+        kept: [earlier({ naturalKeyHash: 'h-earlier', acknowledgedAt: '2026-10-01T00:00:00Z' })],
+      },
+    });
+  const rowOf = async (hash: string) => (await screen.findByText(hash)).closest('li')!;
+
+  it('says kept, deleted there too, or moved, each on its own row', async () => {
+    fetchDeletions.mockResolvedValue(answered());
+    renderScreen();
+
+    const KEPT = 'Kept on the new system';
+    const APPLIED = 'Deleted on the new system too';
+    const RELOCATED = 'Moved: the old copy was removed on the new system';
+    expect(within(await rowOf('h-kept')).getByText(KEPT)).toBeInTheDocument();
+    expect(within(await rowOf('h-applied')).getByText(APPLIED)).toBeInTheDocument();
+    // An item that MOVED is not called deleted: its new copy is still there.
+    const relocated = await rowOf('h-relocated');
+    expect(within(relocated).getByText(RELOCATED)).toBeInTheDocument();
+    expect(within(relocated).queryByText(APPLIED)).not.toBeInTheDocument();
+    // Nothing from the server, nothing claimed.
+    const untold = (await rowOf('h-untold')).textContent ?? '';
+    for (const word of [KEPT, APPLIED, RELOCATED]) expect(untold).not.toContain(word);
+    // An earlier export is only ever kept: nothing removes one for you.
+    expect(within(await rowOf('h-earlier')).getByText(KEPT)).toBeInTheDocument();
+    // The section keeps the owner's heading.
+    expect(screen.getByRole('heading', { name: /Already decided\s*\(5\)/ })).toBeInTheDocument();
+  });
+
+  it('says it in Dutch', async () => {
+    fetchDeletions.mockResolvedValue(answered());
+    renderDutch();
+
+    expect(within(await rowOf('h-kept')).getByText('Behouden op het nieuwe systeem')).toBeInTheDocument();
+    expect(
+      within(await rowOf('h-applied')).getByText('Ook verwijderd op het nieuwe systeem'),
+    ).toBeInTheDocument();
+    expect(
+      within(await rowOf('h-relocated')).getByText('Verplaatst: de oude kopie is verwijderd op het nieuwe systeem'),
+    ).toBeInTheDocument();
+    expect(within(await rowOf('h-earlier')).getByText('Behouden op het nieuwe systeem')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Al besloten\s*\(5\)/ })).toBeInTheDocument();
+  });
+
+  it('says it on the row a delete just moved there, after the queue is read again', async () => {
+    // The appliance's answer to *Delete it here too*: the row resolves, the
+    // queue is read again, and the row is under *Already decided*. Before,
+    // it said nothing there, so the one question after a destructive press
+    // went unanswered once the list was read again.
+    fetchDeletions
+      .mockResolvedValueOnce(queue({ confirmed: [deletion({ naturalKeyHash: 'h-pressed' })] }))
+      .mockResolvedValue(queue({ acknowledged: [decided('h-pressed', 'applied')] }));
+    applyDeletion.mockResolvedValue({
+      mode: 'immediate',
+      result: { status: 'ok', action: 'apply', naturalKeyHash: 'h-pressed', effect: 'Removed.' },
+    });
+    renderScreen();
+
+    fireEvent.click(await screen.findByText('Delete it here too'));
+    fireEvent.click(screen.getByText('Confirm delete'));
+
+    expect(await screen.findByRole('heading', { name: /Already decided\s*\(1\)/ })).toBeInTheDocument();
+    expect(within(await rowOf('h-pressed')).getByText('Deleted on the new system too')).toBeInTheDocument();
   });
 });
 

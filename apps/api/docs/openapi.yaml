@@ -3881,6 +3881,13 @@ paths:
         system no longer decides what exists (2026-10-05): the apply route
         refuses their deletions (`after_cutover`), so a screen offers none.
         Empty before cutover, and again after a rollback.
+
+        Each `acknowledged` row says what its decision did on the new system,
+        as `decided` (workplan 0159 §6 item 6): `kept` (the keep route below),
+        `applied` (deleted there too, by the apply route), or `relocated` (the
+        item moved, and the old copy was removed through the moves queue; the
+        item is still on the new system under its new key). An open row has
+        none.
       responses:
         '200':
           description: The deletion queue.
@@ -4407,6 +4414,10 @@ paths:
         `afterCutover` lists the data types past their cutover (2026-10-05):
         the apply route refuses their moves (`after_cutover`), so a screen
         offers none. Empty before cutover, and again after a rollback.
+
+        Each `acknowledged` row says what its decision did on the new system,
+        as `decided` (workplan 0159 §6 item 6): `kept` (left where it is), or
+        `applied` (the old copy removed there). An open row has none.
       responses:
         '200':
           description: The move queue.

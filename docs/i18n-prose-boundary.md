@@ -39,7 +39,10 @@ of* it.
    client-side explanation of refusal `code`s is ever wanted — the `reason`
    still renders as served. Verify's sentences for the four findings it knows
    by their id are the same kind (*Verification findings* above): the id is
-   the handle, and the server's text stays in the fold beside it.
+   the handle, and the server's text stays in the fold beside it. So is what
+   a row under *Already decided* says was decided on Deletions and Moves
+   (workplan 0159 §6 item 6): the row's `decided` (`kept`, `applied`,
+   `relocated`) is the handle, and the row says it in the reader's language.
 
    **A Test at an address the tester typed is the one place the client says
    the `reason` itself** (workplan 0136 T3). On managed, that `reason` is not

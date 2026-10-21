@@ -33,6 +33,11 @@ export const en = {
   'moves.apply': 'Remove the old copy',
   'moves.applyArmed': 'Confirm removal',
   'moves.renamedTo': 'renamed',
+  // What a row under *Already decided* says was decided (0159 §6 item 6),
+  // from the server's `decided`: the ledger closes a move the same way for
+  // both buttons, so the heading cannot say which and stays *Already decided*.
+  'moves.decided.kept': 'Left where it is on the new system',
+  'moves.decided.applied': 'Old copy removed on the new system',
   'failures.title': 'Could not be copied',
   // The frame for the provider's own message, which stays word for word.
   'failures.technical': 'Technical message:',
@@ -102,6 +107,12 @@ export const en = {
   'deletions.keep': 'Keep our copy',
   'deletions.apply': 'Delete it here too',
   'deletions.applyArmed': 'Confirm delete',
+  // What a row under *Already decided* says was decided (0159 §6 item 6), as
+  // the moves' pair above. *Moved* is a renamed item's old copy, removed from
+  // the new system: never *deleted*, as the item is still there.
+  'deletions.decided.kept': 'Kept on the new system',
+  'deletions.decided.applied': 'Deleted on the new system too',
+  'deletions.decided.relocated': 'Moved: the old copy was removed on the new system',
   // Copies an earlier export policy left (workplan 0042 T8 (b), second half):
   // on this screen, and never called a deletion.
   'deletions.earlierExports': 'Earlier exports',
@@ -132,6 +143,8 @@ export const nl: Record<keyof typeof en, string> = {
   'moves.apply': 'Verwijder de oude kopie',
   'moves.applyArmed': 'Bevestig verwijdering',
   'moves.renamedTo': 'hernoemd',
+  'moves.decided.kept': 'Blijft staan op het nieuwe systeem',
+  'moves.decided.applied': 'Oude kopie verwijderd op het nieuwe systeem',
   'failures.title': 'Kon niet worden gemigreerd',
   'failures.technical': 'Technische melding:',
   'failures.intro':
@@ -189,6 +202,9 @@ export const nl: Record<keyof typeof en, string> = {
   'deletions.keep': 'Behoud de kopie',
   'deletions.apply': 'Verwijder het hier ook',
   'deletions.applyArmed': 'Bevestig verwijderen',
+  'deletions.decided.kept': 'Behouden op het nieuwe systeem',
+  'deletions.decided.applied': 'Ook verwijderd op het nieuwe systeem',
+  'deletions.decided.relocated': 'Verplaatst: de oude kopie is verwijderd op het nieuwe systeem',
   'deletions.earlierExports': 'Eerdere exports',
   'deletions.earlierExports.intro':
     'Kopieën die een eerder exportformaat achterliet. De documenten zijn niet verwijderd in Google.',
