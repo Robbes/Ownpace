@@ -135,16 +135,29 @@ services:
   # and `compose up -d`. Every service reads those, so that one change puts the
   # whole stack back on direct connections without touching this file.
   #
-  # v1.26.1-p0, AND NOT 1.26.0 (2026-10-21). PgBouncer 1.26.1 fixes two holes
-  # that pgbouncer.ini's own settings leave open in 1.25 (NEWS.md, 1.26.1):
-  # CVE-2026-107350, where whoever knows the password of a user in auth_file
-  # (here the lookup role) logs in as any other SCRAM user, admins included;
-  # and CVE-2026-107349, an unauthenticated client that stops the pooler for
-  # everybody, possible because ignore_startup_parameters is set and does not
-  # name `options`. 1.26.0 is the wrong stop on the way: it tracks search_path
-  # by default and so ignored `ignore_startup_parameters = search_path`, which
-  # 1.26.1 restores (see pgbouncer.ini). 1.26 also removed online restart
-  # (-R), which nothing here uses, and left SHOW POOLS' columns as they were.
+  # v1.26.1-p0, AND NOT 1.26.0 (2026-10-21). From 1.25.2 this closes three
+  # holes that pgbouncer.ini's own settings leave open, each to a client that
+  # has not logged in (NEWS.md, 1.26.0 and 1.26.1): CVE-2026-19888, a SCRAM
+  # client-final-message without a nonce crashes the pooler (auth_type is
+  # scram-sha-256); CVE-2026-6668, a hang, because max_packet_size is left at
+  # its default; and CVE-2026-107349, a spin that stops the pooler for
+  # everybody, because ignore_startup_parameters is set and does not name
+  # `options`. A fourth, CVE-2026-107350, lets whoever knows the password of a
+  # user in auth_file (here the lookup role) log in as any other SCRAM user,
+  # admins included, but only through a database PgBouncer does not know, and
+  # the `*` line in [databases] should leave none; 1.26.1 closes it anyway.
+  # 1.26.0 is the wrong stop on the way: it tracks search_path by default and
+  # so ignored `ignore_startup_parameters = search_path` for the startup
+  # packet, which 1.26.1 restores (see pgbouncer.ini). 1.26 also removed online
+  # restart (-R), which nothing here uses, and left SHOW POOLS' columns as they
+  # were.
+  #
+  # The image tag has no git tag behind it: edoburu/docker-pgbouncer's tags
+  # stop at v1.26.0-p0, this image is its master ("Bump pgbouncer to v1.26.1
+  # (#137)"), and its images are pushed by hand, so a tag can be pushed again.
+  # Its index digest, read on 2026-10-21 (pushed 2026-10-19T14:11Z), so that a
+  # re-push can be noticed:
+  #   sha256:488422e38cff912895d0d65d8963fcd306e6ac589a724398b6eb8e294e94d624
   pgbouncer:
     image: edoburu/pgbouncer:v1.26.1-p0
     container_name: ${COMPOSE_PROJECT_NAME}-pgbouncer
