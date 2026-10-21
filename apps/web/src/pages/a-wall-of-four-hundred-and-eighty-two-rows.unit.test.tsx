@@ -38,8 +38,9 @@
  *     card, on the row it explains, once.
  */
 
+import type React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import type { ShareGrantRow } from '@openmig/shared';
@@ -73,7 +74,7 @@ vi.mock('../services/operating-service', () => ({
 }));
 
 import Sharing from './Sharing.tsx';
-import { LocaleProvider } from '../i18n/index.tsx';
+import { LocaleProvider, useLocale } from '../i18n/index.tsx';
 
 const row = (over: Partial<ShareGrantRow> & { id: string }): ShareGrantRow => ({
   grantHash: `hash-${over.id}`,
@@ -588,11 +589,12 @@ describe('what a folder press could not share, and why', () => {
     },
   } as const;
 
-  function renderIn(locale: 'en' | 'nl') {
+  function renderIn(locale: 'en' | 'nl', extra?: React.ReactNode) {
     window.localStorage.setItem('ownpace.locale', locale);
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     return render(
       <LocaleProvider>
+        {extra}
         <QueryClientProvider client={qc}>
           <MemoryRouter initialEntries={['/mappings/m1/sharing']}>
             <Routes>
@@ -616,6 +618,13 @@ describe('what a folder press could not share, and why', () => {
     await waitFor(() => expect(applyShareFolder).toHaveBeenCalled());
   }
 
+  // `clearAllMocks` keeps a queued `…Once` answer; a case that stops early
+  // would hand its unused one to the next case, so each starts empty.
+  beforeEach(() => {
+    fetchSharing.mockReset();
+    decideSharing.mockReset();
+    applyShareFolder.mockReset();
+  });
   afterEach(() => window.localStorage.removeItem('ownpace.locale'));
 
   it('says under the folder which shares were refused, and why, once per person and reason', async () => {
@@ -683,6 +692,157 @@ describe('what a folder press could not share, and why', () => {
     expect(screen.queryByText(BOB_EN)).toBeNull();
     const english = screen.getByText(OURS_EN);
     expect(english.closest('[lang="en"]')).not.toBeNull();
+
+    // And in each row's own card, once the folder is opened: the same choice,
+    // the English marked as English there too.
+    fireEvent.click(screen.getByRole('button', { name: /Foto shoot Emma/, expanded: false }));
+    expect(screen.getAllByText(BOB_NL)).toHaveLength(3);
+    expect(screen.queryByText(BOB_EN)).toBeNull();
+    const inEnglish = screen.getAllByText(OURS_EN);
+    expect(inEnglish).toHaveLength(2);
+    for (const node of inEnglish) expect(node.closest('[lang="en"]')).not.toBeNull();
+    for (const node of screen.getAllByText(BOB_NL)) expect(node.closest('[lang="en"]')).toBeNull();
+  });
+
+  it('follows a switch of language after the press', async () => {
+    answerWith(folderForTwo());
+    applyShareFolder.mockResolvedValue(twoRefusedFor(true));
+    const SwitchToDutch: React.FC = () => {
+      const { setLocale } = useLocale();
+      return (
+        <button type="button" onClick={() => setLocale('nl')}>
+          to Dutch
+        </button>
+      );
+    };
+    renderIn('en', <SwitchToDutch />);
+    await pressFolder('en');
+    expect(await screen.findByText(BOB_EN)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('to Dutch'));
+    expect(
+      await screen.findByText(
+        'Delen op het nieuwe systeem lukte niet voor 3 deelrechten in deze map. De regels blijven open.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(BOB_NL)).toBeInTheDocument();
+    expect(screen.getByText(ANNA_NL)).toBeInTheDocument();
+    expect(screen.queryByText(BOB_EN)).toBeNull();
+    expect(screen.queryByText(ANNA_EN)).toBeNull();
+  });
+
+  it('one person refused for two reasons is two lines, one per reason', async () => {
+    const BOB_OTHER_EN = 'The new system did not accept the sign-in (status 401). Reference 0136cc03.';
+    answerWith(folderForTwo());
+    applyShareFolder.mockResolvedValue({
+      ...twoRefusedFor(true),
+      refused: [
+        { id: 'fb', on: 'Foto shoot Emma', grantee: 'bob@example.test', code: 'target_refused', reason: BOB_EN },
+        { id: 'cb', on: 'IMG_0.jpg', grantee: 'bob@example.test', code: 'target_refused', reason: BOB_OTHER_EN },
+      ],
+    });
+    renderIn('en');
+    await pressFolder('en');
+
+    const heading = await screen.findByText(
+      'Sharing on the new system did not work for 2 shares in this folder. Their rows stay open.',
+    );
+    const region = heading.closest('[role="status"]')!;
+    expect(region.textContent).toContain('bob@example.test · Foto shoot Emma');
+    expect(region.textContent).toContain('bob@example.test · IMG_0.jpg');
+    expect(region.contains(screen.getByText(BOB_EN))).toBe(true);
+    expect(region.contains(screen.getByText(BOB_OTHER_EN))).toBe(true);
+  });
+
+  it("a folder press's answer replaces what a row's own press was told", async () => {
+    // Bob's file was refused on its own press (a 403), and so was anna's.
+    // The folder press then refuses bob's for another reason and shares
+    // anna's: each card says the newer answer, not the older one.
+    const OLD_BOB = 'The new system refused this share (status 403). Reference 0136dd04.';
+    const OLD_ANNA = 'The new system refused this share (status 403). Reference 0136ee05.';
+    answerWith(folderForTwo());
+    applyShareFolder.mockResolvedValue(twoRefusedFor(true));
+    decideSharing
+      .mockRejectedValueOnce(new DecisionRefusedError({ error: 'target_refused', reason: OLD_BOB }, 502))
+      .mockRejectedValueOnce(new DecisionRefusedError({ error: 'target_refused', reason: OLD_ANNA }, 502));
+    renderIn('en');
+
+    fireEvent.click(await screen.findByRole('button', { name: /Foto shoot Emma/, expanded: false }));
+    const card = (who: string) =>
+      screen
+        .getAllByText('IMG_0.jpg')
+        .map((n) => n.closest('li')!)
+        .find((li) => li.textContent!.includes(who))!;
+    for (const [who, old] of [
+      ['bob@example.test', OLD_BOB],
+      ['anna@example.test', OLD_ANNA],
+    ] as const) {
+      fireEvent.click(within(card(who)).getByText('Share on the new system'));
+      fireEvent.click(within(card(who)).getByText('Press again: this shares and sends an invitation'));
+      expect(await screen.findByText(old)).toBeInTheDocument();
+    }
+
+    await pressFolder('en');
+    await screen.findByText(
+      'Sharing on the new system did not work for 3 shares in this folder. Their rows stay open.',
+    );
+    expect(screen.queryByText(OLD_BOB)).toBeNull();
+    expect(screen.queryByText(OLD_ANNA)).toBeNull();
+    expect(within(card('bob@example.test')).getByText(BOB_EN)).toBeInTheDocument();
+  });
+
+  it("a row's own press after the folder's says its own answer in its card", async () => {
+    const NEWER = 'The new system did not accept the sign-in (status 401). Reference 0136ff06.';
+    answerWith(folderForTwo());
+    applyShareFolder.mockResolvedValue(twoRefusedFor(true));
+    decideSharing.mockRejectedValueOnce(
+      new DecisionRefusedError({ error: 'target_refused', reason: NEWER }, 502),
+    );
+    renderIn('en');
+    await pressFolder('en');
+    await screen.findByText(BOB_EN);
+
+    fireEvent.click(screen.getByRole('button', { name: /Foto shoot Emma/, expanded: false }));
+    const bobsFile = () =>
+      screen
+        .getAllByText('IMG_0.jpg')
+        .map((n) => n.closest('li')!)
+        .find((li) => li.textContent!.includes('bob@example.test'))!;
+    expect(within(bobsFile()).getByText(BOB_EN)).toBeInTheDocument();
+    fireEvent.click(within(bobsFile()).getByText('Share on the new system'));
+    fireEvent.click(within(bobsFile()).getByText('Press again: this shares and sends an invitation'));
+
+    expect(await within(bobsFile()).findByText(NEWER)).toBeInTheDocument();
+    expect(within(bobsFile()).queryByText(BOB_EN)).toBeNull();
+  });
+
+  it('a press refused as a whole leaves what each row was told', async () => {
+    // Nothing happened to the rows, so their own answers still stand.
+    const OLD_BOB = 'The new system refused this share (status 403). Reference 0136dd04.';
+    answerWith(folderForTwo());
+    applyShareFolder.mockRejectedValue(
+      new DecisionRefusedError(
+        { error: 'not_cut_over', reason: 'Shares are applied at or after cutover, not before.' },
+        409,
+      ),
+    );
+    decideSharing.mockRejectedValueOnce(
+      new DecisionRefusedError({ error: 'target_refused', reason: OLD_BOB }, 502),
+    );
+    renderIn('en');
+
+    fireEvent.click(await screen.findByRole('button', { name: /Foto shoot Emma/, expanded: false }));
+    const bobsFile = screen
+      .getAllByText('IMG_0.jpg')
+      .map((n) => n.closest('li')!)
+      .find((li) => li.textContent!.includes('bob@example.test'))!;
+    fireEvent.click(within(bobsFile).getByText('Share on the new system'));
+    fireEvent.click(within(bobsFile).getByText('Press again: this shares and sends an invitation'));
+    expect(await screen.findByText(OLD_BOB)).toBeInTheDocument();
+
+    await pressFolder('en');
+    expect(await screen.findByText(/Shares are applied at or after cutover/)).toBeInTheDocument();
+    expect(screen.getByText(OLD_BOB)).toBeInTheDocument();
   });
 
   it('says nothing when every share in the folder went through', async () => {
@@ -695,6 +855,19 @@ describe('what a folder press could not share, and why', () => {
     expect(screen.queryByText(/did not work for/)).toBeNull();
     expect(screen.queryByText(ANNA_EN)).toBeNull();
     expect(screen.queryByText(BOB_EN)).toBeNull();
+  });
+
+  it('an answer that names no refused rows says nothing, and the page stands', async () => {
+    // Both editions send `refused` today; an answer without it must not take
+    // the whole page down.
+    answerWith(folderForTwo());
+    applyShareFolder.mockResolvedValue({ status: 'ok' });
+    renderIn('en');
+    await pressFolder('en');
+
+    await waitFor(() => expect(fetchSharing).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('Foto shoot Emma')).toBeInTheDocument();
+    expect(screen.queryByText(/did not work for/)).toBeNull();
   });
 
   it('the next press clears what the last one said, even when it is refused as a whole', async () => {

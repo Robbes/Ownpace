@@ -174,6 +174,8 @@ const Row: React.FC<{
     grantee?: string,
   ) => void;
   refusal?: string;
+  /** `en` when the refusal is English on a page in another language. */
+  refusalLang?: 'en';
   /** A pair the owner already confirmed on another row of the same grantee. */
   confirmedGrantee?: string;
   /**
@@ -185,7 +187,7 @@ const Row: React.FC<{
    * about, or the reader has to guess which one it points at.
    */
   note?: React.ReactNode;
-}> = ({ row, busy, onDecide, refusal, confirmedGrantee, note }) => {
+}> = ({ row, busy, onDecide, refusal, refusalLang, confirmedGrantee, note }) => {
   // The grantee box and its label are joined by id (0067 T7 (a)); one Row per share.
   const granteeId = React.useId();
   const { t, locale } = useLocale();
@@ -311,7 +313,7 @@ const Row: React.FC<{
         <p className="mt-1 text-xs text-gray-500">{t('sharing.inviteNote')}</p>
       )}
       {refusal && (
-        <div className="mt-2">
+        <div className="mt-2" lang={refusalLang}>
           <Refused text={refusal} />
         </div>
       )}
@@ -708,7 +710,13 @@ const Sharing: React.FC = () => {
     }
     applyShareFolder(mappingId, group.parentKey, confirmed)
       .then((outcome) => {
-        setFolderNotShared((r) => ({ ...r, [group.parentKey]: outcome.refused }));
+        const refused = outcome.refused ?? [];
+        // The press's answer is the newest word on every row it shared or
+        // refused, so what a row's own earlier press was told goes. A row it
+        // did not reach (a link, a manual row) keeps its own answer.
+        const answered = new Set([...(outcome.applied ?? []), ...refused].map((r) => r.id));
+        setRefusals((r) => Object.fromEntries(Object.entries(r).filter(([id]) => !answered.has(id))));
+        setFolderNotShared((r) => ({ ...r, [group.parentKey]: refused }));
         refresh();
       })
       .catch((err: unknown) => {
@@ -765,21 +773,26 @@ const Sharing: React.FC = () => {
       .flat()
       .map((r) => [r.id, r] as const),
   );
-  const notSharedText = (row: ShareGrantRow): string | undefined => {
+  const notSharedLine = (row: ShareGrantRow) => {
     const r = notSharedById.get(row.id);
-    return r && row.state === 'open' ? notSharedSaid(r, locale).text : undefined;
+    return r && row.state === 'open' ? notSharedSaid(r, locale) : undefined;
   };
-  const renderRow = (row: ShareGrantRow, note?: React.ReactNode) => (
-    <Row
-      key={row.id}
-      row={row}
-      busy={busyId === row.id}
-      onDecide={onDecide}
-      refusal={refusals[row.id] || notSharedText(row)}
-      confirmedGrantee={row.grantee ? confirmedPairs[row.grantee] : undefined}
-      note={note}
-    />
-  );
+  const renderRow = (row: ShareGrantRow, note?: React.ReactNode) => {
+    const own = refusals[row.id];
+    const fromFolder = own ? undefined : notSharedLine(row);
+    return (
+      <Row
+        key={row.id}
+        row={row}
+        busy={busyId === row.id}
+        onDecide={onDecide}
+        refusal={own || fromFolder?.text}
+        refusalLang={fromFolder?.english ? 'en' : undefined}
+        confirmedGrantee={row.grantee ? confirmedPairs[row.grantee] : undefined}
+        note={note}
+      />
+    );
+  };
 
   return (
     <div>

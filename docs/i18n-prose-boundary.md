@@ -106,9 +106,10 @@ of* it.
    half in its reader's language: a row's own press under the row, and the
    rows a folder press did not share under the folder, one line per person
    and reason, and again in each row's card (`apply-all` has no caller on the
-   page). A refusal of our own gates has no Dutch half and is shown in
-   English, marked `lang="en"` under a Dutch page. The appliance answers with
-   the target's words, as served.
+   page). A refusal of our own gates has no Dutch half. From a folder press
+   it is shown in English, marked `lang="en"` under a Dutch page, under the
+   folder and in the row's card; a row's own press shows it unmarked. The
+   appliance answers with the target's words, as served.
 
    **The queues' guidance is the fifth** (the owner, 2026-10-18, option A of
    the UX sweep's word choices). *What this means and what you can do* on
