@@ -425,7 +425,30 @@ describe('the decision queue', () => {
       body: JSON.stringify({ resolution: { action: 'accept_default' } }),
     });
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { effect: string }).effect).toBe(DECISION_EFFECTS.recorded);
+    // The same pair as managed (ADR-0026): English as `effect`, Dutch as
+    // `effectNl` (workplan 0159 §6 item 12).
+    expect(await res.json()).toMatchObject({
+      effect: DECISION_EFFECTS.recorded.en,
+      effectNl: DECISION_EFFECTS.recorded.nl,
+    });
+  });
+
+  it('says what setting a decision aside did, in English and in Dutch', async () => {
+    const { decision } = await decisions.raise({
+      tenantId: asTenantId(TENANT_ID),
+      category: 'new_mailbox',
+      subjectKey: 'terzijde@example.nl',
+      summary: 'terzijde@example.nl is on the old system, and no migration covers it.',
+      proposedDefault: 'Noted, I will handle it',
+    });
+
+    const res = await fetch(`${base}/decisions/${decision.id}/dismiss`, { method: 'POST' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      status: 'dismissed',
+      effect: DECISION_EFFECTS.dismissed.en,
+      effectNl: DECISION_EFFECTS.dismissed.nl,
+    });
   });
 
   /**
@@ -464,7 +487,10 @@ describe('the decision queue', () => {
     });
     expect(res.status).toBe(200);
     // The one answer the migration acts on, and the one effect that says so.
-    expect(((await res.json()) as { effect: string }).effect).toBe(DECISION_EFFECTS.resolved);
+    expect(await res.json()).toMatchObject({
+      effect: DECISION_EFFECTS.resolved.en,
+      effectNl: DECISION_EFFECTS.resolved.nl,
+    });
 
     const { rows } = await pool.query(
       `SELECT pattern FROM group_def WHERE tenant_id = $1 AND address = 'sales@example.nl'`,
@@ -508,7 +534,12 @@ describe('the decision queue', () => {
     });
     expect(res.status).toBe(200);
     // Nothing was written, so the answer does not claim the migration acts on it.
-    expect(((await res.json()) as { effect: string }).effect).toBe(DECISION_EFFECTS.recorded);
+    // The same pair as managed (ADR-0026): English as `effect`, Dutch as
+    // `effectNl` (workplan 0159 §6 item 12).
+    expect(await res.json()).toMatchObject({
+      effect: DECISION_EFFECTS.recorded.en,
+      effectNl: DECISION_EFFECTS.recorded.nl,
+    });
 
     // Recording a pattern nobody chose is worse than leaving it open.
     const { rows } = await pool.query(

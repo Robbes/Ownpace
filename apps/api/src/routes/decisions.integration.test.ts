@@ -166,7 +166,10 @@ describe('Decision Queue Routes', () => {
       expect(first.body.resolvedBy).toBe(`user-owner-${DEC_TENANT_A}`);
       // A new mailbox's answer is only recorded: the effect must not claim
       // the migration acts on it (the owner, 2026-10-18).
-      expect(first.body.effect).toBe(DECISION_EFFECTS.recorded);
+      // English as `effect`, as ever, and its Dutch twin beside it
+      // (workplan 0159 §6 item 12), so a Dutch page says the line in Dutch.
+      expect(first.body.effect).toBe(DECISION_EFFECTS.recorded.en);
+      expect(first.body.effectNl).toBe(DECISION_EFFECTS.recorded.nl);
 
       const second = await request
         .post(`/api/decisions/${pendingId}/resolve`)
@@ -211,7 +214,8 @@ describe('Decision Queue Routes', () => {
 
       expect(response.status).toBe(200);
       // The one answer the migration acts on, and the one effect that says so.
-      expect(response.body.effect).toBe(DECISION_EFFECTS.resolved);
+      expect(response.body.effect).toBe(DECISION_EFFECTS.resolved.en);
+      expect(response.body.effectNl).toBe(DECISION_EFFECTS.resolved.nl);
       // The whole point of the category: the answer CHANGES something. A
       // decision that closes and leaves the ledger untouched is dead surface.
       const { rows } = await superuserPool.query(
@@ -233,7 +237,8 @@ describe('Decision Queue Routes', () => {
       // recording a pattern nobody chose is worse than leaving it open.
       expect(response.status).toBe(200);
       // Nothing was written, so the answer does not claim the migration acts on it.
-      expect(response.body.effect).toBe(DECISION_EFFECTS.recorded);
+      expect(response.body.effect).toBe(DECISION_EFFECTS.recorded.en);
+      expect(response.body.effectNl).toBe(DECISION_EFFECTS.recorded.nl);
       const { rows } = await superuserPool.query(
         `SELECT pattern FROM group_def WHERE tenant_id = $1 AND address = 'vague@acme.nl'`,
         [DEC_TENANT_A],
@@ -280,6 +285,9 @@ describe('Decision Queue Routes', () => {
         .set('Authorization', `Bearer ${TOKEN_OWNER_A}`);
       expect(dismissed.status).toBe(200);
       expect(dismissed.body.status).toBe('dismissed');
+      // What setting it aside did, in English and in Dutch.
+      expect(dismissed.body.effect).toBe(DECISION_EFFECTS.dismissed.en);
+      expect(dismissed.body.effectNl).toBe(DECISION_EFFECTS.dismissed.nl);
 
       const again = await request
         .post(`/api/decisions/${id}/dismiss`)

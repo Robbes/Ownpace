@@ -21,6 +21,8 @@ const SHARE_WORDS: readonly StringKey[] = [
   'migrationReport.sharing.heading',
   'permissions.download',
   'permissions.failed',
+  'sharing.group.refused.one',
+  'sharing.group.refused.many',
 ];
 
 describe('one name for a share', () => {
