@@ -30,13 +30,17 @@
  * the sandbox, not a fault in the books, painted a scheduled night red. So an
  * `unavailable` or `slow_down` answer to the count, to making the invoice
  * (`pushInvoice`, its own read back included) or to the read back after the
- * payment is asked once more, after 30 s, or after a 429's `Retry-After` up
- * to 120 s. Making it again finds the invoice by its reference and sends
- * nothing twice. **A payment is never posted twice:** one whose answer did not
- * come is read instead, and the night goes on only if the invoice reads as
- * paid or has nothing left to pay. One ask-again a night at most, and the
- * lines keep both answers. A refusal, a wrong state and a refused payment
- * fail at once, as before.
+ * payment is asked once more, after 30 s, or after a 429's `Retry-After` when
+ * it is two minutes or less; a 429 that asks for longer fails the night at
+ * once rather than asking early. Making it again finds the invoice by its
+ * reference and sends nothing twice. **A payment is never posted twice:** one
+ * whose answer did not come is read instead, and the night goes on only if
+ * the invoice reads as paid or has nothing left to pay; read as paid, that
+ * read is the read back. One ask-again a night at most, and the lines keep
+ * both answers. A refusal (`refused`), a wrong state and a refused payment
+ * fail at once, as before. A refused token is filed as `unavailable` by
+ * `moneybird-http.ts`, so it is asked once more and then fails with both
+ * answers.
  */
 
 import { decimalFromCents } from './line-price.ts';
@@ -60,7 +64,10 @@ export const NIGHTLY_MONTH_LIMIT = 40;
 /** How long the night waits before it asks Moneybird once more, unless a 429 says. */
 export const NIGHTLY_ASK_AGAIN_MS = 30_000;
 
-/** The longest a 429's `Retry-After` keeps the night waiting: the gate has a run to finish. */
+/**
+ * The longest `Retry-After` the night waits out: the gate has a run to finish.
+ * A 429 that asks for longer is not asked again early; it fails the night.
+ */
 export const NIGHTLY_ASK_AGAIN_CAP_MS = 120_000;
 
 export interface NightlyOptions {
@@ -96,15 +103,19 @@ type TryLater = { readonly kind: 'unavailable'; readonly reason: string } | Slow
 const isTryLater = (outcome: { readonly kind: string }): outcome is TryLater =>
   outcome.kind === 'unavailable' || outcome.kind === 'slow_down';
 
-/** 30 s, or a 429's `Retry-After` up to 120 s. */
-function askAgainAfterMs(answer: TryLater): number {
+/**
+ * 30 s, or a 429's `Retry-After` when it is two minutes or less. Null when it
+ * asks for longer: the night does not ask again before Moneybird's time is up.
+ */
+function askAgainAfterMs(answer: TryLater): number | null {
   if (answer.kind === 'slow_down' && answer.retryAfterSeconds !== undefined) {
-    return Math.min(answer.retryAfterSeconds * 1000, NIGHTLY_ASK_AGAIN_CAP_MS);
+    const ms = answer.retryAfterSeconds * 1000;
+    return ms <= NIGHTLY_ASK_AGAIN_CAP_MS ? ms : null;
   }
   return NIGHTLY_ASK_AGAIN_MS;
 }
 
-/** A line that fails the night: what did not happen, and Moneybird's answer. */
+/** A line naming what did not happen, and Moneybird's answer. */
 const said = (head: string, answer: { readonly kind: string; readonly reason: string }): string =>
   `${head} (${answer.kind}): ${answer.reason}`;
 
@@ -137,21 +148,23 @@ export async function nightlyMoneybird(
 
   const lines: string[] = [];
   // The night's one ask-again: the line that says so, then the wait. Once it
-  // has asked, `askAgain` answers false, and what Moneybird says next stands.
+  // has asked, or when a 429 asks for longer than the night waits, `askAgain`
+  // answers false, and what Moneybird said stands.
   const wait = options.wait ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   let askedAgain = false;
   const askAgain = async (head: string, answer: TryLater, then: (after: string) => string): Promise<boolean> => {
-    if (askedAgain) return false;
-    askedAgain = true;
     const ms = askAgainAfterMs(answer);
+    if (askedAgain || ms === null) return false;
+    askedAgain = true;
     lines.push(`${said(head, answer).replace(/\.$/, '')}; ${then(`after ${Math.round(ms / 1000)} s`)}.`);
     await wait(ms);
     return true;
   };
   const asked = (after: string) => `asked again ${after}`;
 
-  // The month's room first: the sandbox makes 50 a month. Counted once: the
-  // night makes one invoice at most, so the room it found stays found.
+  // The month's room first: the sandbox makes 50 a month. Counted again only
+  // when the count itself said try later, never when a later step asks again:
+  // the night makes one invoice at most, so the room it found stays found.
   const countHead = "The month's invoices could not be counted";
   let counted = await countSalesInvoicesThisMonth(settings, NIGHTLY_MONTH_LIMIT, fetchImpl);
   if (isTryLater(counted) && (await askAgain(countHead, counted, asked))) {
@@ -187,7 +200,8 @@ export async function nightlyMoneybird(
   );
 
   // Paid by a registered payment, unless it reads back as paid already. A
-  // payment is never posted twice: one whose answer did not come is read.
+  // payment is never posted twice: one whose answer did not come is read, and
+  // a read that shows it paid is the read back, so a lag after it is no red.
   if (made.state !== 'paid') {
     const cents = made.totalUnpaidCents ?? made.totalInclTaxCents;
     if (cents === null || cents <= 0) {
@@ -219,6 +233,10 @@ export async function nightlyMoneybird(
         `It reads as ${state === 'paid' ? 'paid' : `${state ?? 'no state'} with nothing left to pay`}: ` +
           'Moneybird registered the payment after all, so none was posted again.',
       );
+      if (state === 'paid') {
+        lines.push('Read back as paid.');
+        return { ok: true, skipped: false, lines };
+      }
     }
   }
 

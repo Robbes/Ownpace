@@ -109,8 +109,10 @@
 # registered payment and read back as paid, after counting the month's
 # invoices (from 40 of the sandbox's 50 it makes none). Refused as the proof
 # is; with Moneybird off it says it skipped and exits 0. When Moneybird says
-# try later it asks once more, after 30 s (a 429's Retry-After, up to 120 s),
-# and never posts a payment twice. See moneybird-nightly.ts.
+# try later it asks once more, after 30 s, or after a 429's Retry-After when
+# it is two minutes or less (a 429 that asks for longer fails at once rather
+# than asking early), and never posts a payment twice. See
+# moneybird-nightly.ts.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
