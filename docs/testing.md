@@ -414,6 +414,14 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   request, so it blocks nothing.
 - `e2e-o365.yml` — dispatch only, on the Spark: the secret-gated real-tenant O365 e2e (workplan
   0008 T7); the tenant and its secrets are in `docs/test-tenant.md`.
+- `clock-watch.yml` — daily (06:41 UTC) and on dispatch, on a GitHub-hosted runner: the clocks
+  nothing else warns about. It reads the certificates `app.`, `id.` and `status.ownpace.eu`
+  serve; `www.ownpace.eu`'s and its `security.txt` `Expires` once the repository variable
+  `CLOCK_WATCH_SITE` is `required`; and the Entra client secret's date from
+  `CLOCK_WATCH_ENTRA_EXPIRES`. It keeps one issue open while a certificate has fewer than 14
+  days left, or either of the others fewer than 30, and closes it when none has. The OTA names
+  are reported, never counted, and a clock it could not read fails the run. Its log names names
+  and dates, never an address.
 - `exposure-probe.yml` — dispatch only, never scheduled, on a GitHub-hosted runner: the probe
   from outside (workplan 0132 T3). It tries every port the two stacks, the site and the demo
   publish, derived from the files, on the addresses the production and OTA names resolve to, and

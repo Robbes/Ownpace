@@ -39,6 +39,10 @@ reading a file drops off its entry by itself.
 - [ui-build-output](../scripts/ui-build-output.unit.test.ts) — The operating UI is BUILT, and what comes out of the build is a styled page.
 - [workplan-index](../scripts/workplan-index.unit.test.ts) — The workplan index cannot fall behind the plans again (workplan 0147 T1).
 
+### `.github/workflows/clock-watch.yml`
+
+- [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts) — A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
+
 ### `.github/workflows/e2e-live-target.yml`
 
 - [a-credential-the-next-step-printed](../scripts/a-credential-the-next-step-printed.unit.test.ts) — A CREDENTIAL THE NEXT STEP PRINTED.
@@ -1591,6 +1595,7 @@ reading a file drops off its entry by itself.
 
 ### `docs/managed-bring-up.md`
 
+- [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts) — A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
 - [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
@@ -1619,6 +1624,7 @@ reading a file drops off its entry by itself.
 
 ### `docs/microsoft-setup.md`
 
+- [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts) — A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
 - [a-refusal-that-links-its-guide](../scripts/a-refusal-that-links-its-guide.unit.test.ts) — A REFUSAL THAT LINKS ITS GUIDE (workplan 0148 T7, the second half).
 
 ### `docs/o365-application-access.md`
@@ -2446,6 +2452,10 @@ reading a file drops off its entry by itself.
 
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 
+### `scripts/clock-watch.mjs`
+
+- [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts) — A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
+
 ### `scripts/conflict-markers.mjs`
 
 - [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
@@ -2744,6 +2754,7 @@ reading a file drops off its entry by itself.
 
 ### `site/security-txt.mjs`
 
+- [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts) — A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 
@@ -2971,6 +2982,18 @@ Reads:
 - `packages/orchestration/src/probe-connection.ts`
 - `packages/orchestration/src/the-application-a-stored-row-leans-on.unit.test.ts`
 - `packages/shared/src/google-deployment-client.unit.test.ts`
+
+### [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts)
+
+A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
+
+Reads:
+
+- `.github/workflows/clock-watch.yml`
+- `docs/managed-bring-up.md`
+- `docs/microsoft-setup.md`
+- `scripts/clock-watch.mjs`
+- `site/security-txt.mjs`
 
 ### [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts)
 
