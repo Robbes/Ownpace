@@ -578,9 +578,10 @@ describe('the payload says which build it is', () => {
 describe('importing the script does not run it', () => {
   /**
    * This file imports `shaFor`, `verifySha256` and `nodeRuntimeVersion` from
-   * the packaging script. Until 2026-08-06 the script called `main()` at module scope, so that import
-   * STAGED A WHOLE PAYLOAD as a side effect — and in CI, where
-   * `apps/web/dist-selfhost` is not built, it threw before a single test ran.
+   * the packaging script. Until 2026-08-06 the script called `main()` at
+   * module scope, so that import STAGED A WHOLE PAYLOAD as a side effect — and
+   * in CI, where `apps/web/dist-selfhost` is not built, it threw before a
+   * single test ran.
    *
    * It passed locally because a developer who has just built the UI cannot see
    * the difference. That is as close to the definition of "works on my machine"

@@ -155,18 +155,19 @@ function buildIdentity() {
  * Pinned rather than floating, and pinned in ONE place: the version is the one
  * the self-host image's `FROM node:<x.y.z>-slim@sha256:…` line names, in
  * `apps/selfhost/Dockerfile`. That image runs this same payload, so the e2e
- * gates test the Node the Windows zip ships. It used to be a constant here,
- * which nothing moved — Dependabot cannot see a string in a .mjs file — so the
- * images went to 24.22.0 while node.exe sat on 24.19.0, and a security release
- * would reach the containers and never the zip every release tag attaches. A
- * bump is still a visible edit in a reviewed diff: Dependabot's image PR, which
- * now moves both.
+ * gates test the same Node version the Windows zip ships (as the linux build,
+ * not the win-x64 node.exe). It used to be a constant here, which nothing
+ * moved — Dependabot cannot see a string in a .mjs file — so the images went
+ * to 24.22.0 while node.exe sat on 24.19.0, and a security release would reach
+ * the containers and never the zip every release tag attaches. A bump is still
+ * a visible edit in a reviewed diff: Dependabot's image PR, which now moves
+ * both.
  *
  * Read only on the `--with-node` path. The image build stages a payload
  * without it, and the unit test imports this module, so neither the image
- * build nor that import depends on the Dockerfile's text. A FROM line without an exact `x.y.z` is a refusal, not a
- * guess: a floating tag would let the runtime change between two builds of the
- * same commit.
+ * build nor that import depends on the Dockerfile's text. A FROM line without
+ * an exact `x.y.z` is a refusal, not a guess: a floating tag would let the
+ * runtime change between two builds of the same commit.
  */
 export function nodeRuntimeVersion(dockerfileText) {
   const m = dockerfileText.match(/^FROM\s+node:(\d+\.\d+\.\d+)-/m);

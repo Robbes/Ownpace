@@ -12,14 +12,16 @@ node.exe to v24.19.0 in a constant nothing moved, while the images went to 24.22
 v0.2.0-alpha.1 zip ships it. The packager now reads the exact `x.y.z` from
 `apps/selfhost/Dockerfile`'s `FROM` line and refuses a line without one, so each image bump
 moves the zip too. The digest is the tag's second push (amd64 and arm64); its first was an
-index listing no image at all, which no build can pull. pnpm 11.22.0 → 11.28.6, `latest-11`
-and six days old — the three-day rule is kept by hand here, since corepack and
-`pnpm/action-setup` fetch pnpm itself past it — with the lockfile byte-identical; pnpm 11 is
-supported until 2027-04-30 (pnpm's `SECURITY.md`). Proved here: unit, with the two new cases
-red first and three mutations caught; a `--with-node win-x64` staging whose node.exe hashes to
-the published `d702daa8…` and reports 24.22.1. Owed before merge: the images built on the PR,
-E2E (self-hosted) and E2E (managed) on the branch, and the Windows payload workflow (win-x64)
-on the branch, the first run of the 24.22.1 download outside this machine.
+index listing no image at all, which no build can pull; a third that evening only added
+ppc64le around the same two images, a digest-only move Dependabot will offer. pnpm 11.22.0 →
+11.28.6, `latest-11` and six days old — the three-day rule is kept by hand here, since
+corepack and `pnpm/action-setup` fetch pnpm itself past it — with the lockfile
+byte-identical; pnpm 11 is supported until 2027-04-30 (pnpm's `SECURITY.md`). Proved here:
+unit, with the two new cases red first and three mutations caught; a `--with-node win-x64`
+staging whose node.exe hashes to the published `d702daa8…` and reports 24.22.1. Owed before
+merge: the images built on the PR, E2E (self-hosted) and E2E (managed) on the branch, and the
+Windows payload workflow (win-x64) on the branch, the first run of the 24.22.1 download
+outside this machine.
 
 **2026-09-09, evening: Redis decided — stay on 7.4 — and the Trigger.dev pin applied.**
 Item 3 closed with a revisit trigger rather than a shrug: `redis:7-alpine` is already
@@ -138,7 +140,7 @@ is who moves it after T1.
 
 | Image | Where | Pinned | Newest | Distance | Moves by | Decision |
 |---|---|---|---|---|---|---|
-| `node` (24-slim) | `apps/api`, `apps/web`, `apps/selfhost` Dockerfiles; the Windows payload's node.exe follows `apps/selfhost` | 24.22.1-slim by digest (2026-10-21, the October security release; digest `6f7b03f7…` with no tag at the audit, 24.20.0-slim from T2) | 24.22.1-slim (2026-10-21), digest `16818628…` | current | Dependabot `docker`, which moves the payload with it since 2026-10-21 | **T2** — and T1 gives it its tag |
+| `node` (24-slim) | `apps/api`, `apps/web`, `apps/selfhost` Dockerfiles; the Windows payload's node.exe follows `apps/selfhost` | 24.22.1-slim by digest (2026-10-21, the October security release; digest `6f7b03f7…` with no tag at the audit, 24.20.0-slim from T2) | 24.22.1-slim (Node released 2026-10-20); the tag's digest moves as more architectures land (ppc64le at 17:39 UTC on 2026-10-21) and Dependabot offers each move | current: the pin's amd64 and arm64 images are the tag's | Dependabot `docker`, which moves the payload with it since 2026-10-21 | **T2** — and T1 gives it its tag |
 | `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.27-alpine | 1.30.4-alpine stable, 1.31.5 mainline (2026-09-03) | 1.27 is a 2024 mainline, past its end | Dependabot `docker` + `docker-compose` | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows |
 | `postgres` (self-host) | `deploy/selfhost/compose.yml` | digest `9a8afca5…` = 18.4-alpine, no tag | 18.6-alpine (2026-08-15), digest `d3e1620b…` | two patch releases | Dependabot `docker-compose` | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
 | `postgres` (managed ×2, dev) | `managed.yml`, `dev.yml` | 18-alpine, floating | 18.6 | none, it floats within 18 | `docker compose pull` | stays floating; a major (`pg_upgrade`) is ignored in Dependabot and is the owner's |

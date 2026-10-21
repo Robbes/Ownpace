@@ -1,6 +1,6 @@
 # ADR-0027: The Windows appliance ships as a service with a shortcut, not a native shell
 
-- **Status:** Accepted 2026-07-30; updated three times — amended 2026-08-06 (bundled Node) and 2026-08-07 (scheduled task), measured on real Windows 2026-08-09 — plus a build correction (2026-07-31); consolidated 2026-10-03 (ADR-0051). **Despite the title, it is a scheduled task, not a Windows Service.**
+- **Status:** Accepted 2026-07-30; updated three times — amended 2026-08-06 (bundled Node) and 2026-08-07 (scheduled task), measured on real Windows 2026-08-09 — plus a build correction (2026-07-31); consolidated 2026-10-03 (ADR-0051); amended 2026-10-21 (the payload's Node follows the self-host image). **Despite the title, it is a scheduled task, not a Windows Service.**
 - **Date:** 2026-07-30; consolidated 2026-10-03
 - **Supersedes:** the "optional Tauri tray variant (planned)" in [ADR-0019](./0019-packaging-runtime-targets.md) §2, as the *first* packaging target. Tauri is not rejected — it is deferred, with a named revisit condition below.
 - **Relates to:** [ADR-0023](./0023-persistence-postgres-only.md) (Postgres everywhere), [ADR-0026](./0026-one-operating-ui-one-contract.md) (one operating UI), [ADR-0028](./0028-pglite-appliance-persistence.md) (PGlite for the appliance), workplans [0015](../workplans/0015-native-windows-installer.md) T2–T4 and [0016](../workplans/0016-pglite-adoption.md), the [Windows runbook](../windows-appliance-runbook.md).
@@ -218,7 +218,7 @@ Do **not** revisit on size alone. The Node runtime, not the shell, is the bulk.
   the exact `x.y.z` from `apps/selfhost/Dockerfile`'s `FROM node:` line, and refuses a line
   without one, in place of its own `NODE_RUNTIME_VERSION` constant. That constant had sat on
   v24.19.0 while Dependabot moved the images to 24.22.0, so a Node security release would
-  reach the containers and never the zip every release tag attaches; v24.22.1 (2026-10-21,
+  reach the containers and never the zip every release tag attaches; v24.22.1 (2026-10-20,
   HIGH) was the first to need both.
   Still pinned, verified and opt-in; the reviewed edit the Decision names is now Dependabot's
   image PR, which moves both. Record: *Operative rules*; this entry.
