@@ -2,7 +2,40 @@
 
 > **In one line:** Provider consent for testers on `ownpace-live`: its Google OAuth client, test users, Testing or Production, a Microsoft registration ADR and publisher verification, read-only Dropbox scope, Box and Apple as experimental, the sign-in buttons.
 
-## Status — 2026-10-05 (update this block at the end of every session)
+## Status — 2026-10-21 (update this block at the end of every session)
+
+**2026-10-21, build: T10 held by a refusal on live, in #1644, merged 2026-10-21 (`a4763981`).**
+T10 was decided by 0139 T0's fact 4, the owner's ops-social-signin (a): email and password only.
+That keeps privacy §4.4, §7 and §8 as they are, and live's `.env` sets no `IDP_*` key. Nothing
+checked that. Live's `.env` carries the OTA stack's Google client for the consent (T11), a pair
+easily copied into `IDP_GOOGLE_*` too. `setup-zitadel.sh` would then add a Google button for
+every tester. It deletes no provider, so the button would stay until every pair was emptied and
+the bring-up ran again.
+
+- `stand-up-live.sh` and `deploy-live.sh` now refuse live's `.env`, before anything moves and in
+  a dry run too, while any sign-in provider's key holds a value. The keys are the eleven `IDP_*`
+  keys of Google, Microsoft, GitHub and Apple: every `IDP_*` key `managed.env.example` declares
+  but `IDP_UPSTREAM_CALLBACK_URL` (`LIVE_REFUSED_SIGN_IN_KEYS`, read by `live_sign_in_keys_set`,
+  in `stack-kind.sh`).
+- Each is named by its key, never its value, with the privacy sections and the line that empties
+  it. A value in double quotes counts, empty ones too, as `setup-zitadel.sh` reads it; `KEY=` and
+  `KEY=''` pass. `IDP_UPSTREAM_CALLBACK_URL`, `IDP_READY_TIMEOUT` and `IDP_READ_ATTEMPTS` pass.
+- A provider added before stays configured at the identity provider. With every key empty, the
+  next stand-up or deploy turns "External IDP allowed" off, which hides its button. The refusal
+  says so (the review corrected it: the first build sent the owner to the console to remove the
+  provider), and sends nobody to delete a provider a tester may be linked to.
+- The stand-up's placeholder check now reads the consent clients only, and says *"set the client
+  live uses"*.
+- Guards in `a-first-bring-up-of-live` and `a-deploy-from-a-named-tag` read the keys from the
+  example, so a provider added there is refused the same day: 25 red on `main` (29693244), 30
+  green.
+- `docs/managed-bring-up.md` and `managed.env.example` say so. In the guide that is step 6, *The
+  script*, `deploy-live.sh`'s refusals, §8b's *Not on `ownpace-live`*, and the *One issuer or
+  two?* bullet, which no longer promises production a redirect URI.
+- **Still open:** a `bootstrap-managed.sh` or `setup-zitadel.sh` run by hand on live is not
+  checked. A refusal or a skip inside `setup-zitadel.sh` on live is a possible follow-up. Live
+  carries the refusal once it runs a tag that has it.
+- No legal text changes.
 
 **2026-10-05: open questions 7 and 8 answered: live reuses the OTA stack's Google client for the
 Alpha, and tries the OTA stack's Microsoft and Dropbox registrations first.** Plans only; nothing is built or
@@ -256,7 +289,7 @@ tester does not wait on them), T3's optional in-app detection, and T8's rewordin
 | T7 Dropbox: the app's limits read in the console, and a consent that asks only to read | ✅ **(b), the read-only consent, done** in #1194, merged 2026-09-26. 📋 **(b) Decided 2026-09-25 (owner)**; (a) **Proposed** (D3), the owner's | §3. The limit must be read in the Dropbox App Console, for the app live uses. The code change reverses a pinned test on purpose. |
 | T8 Box: experimental, and for organisations with a Box administrator | ✅ **(a), the label, done** in #1171, merged 2026-09-25. 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2 and is decided. Rewording the guide's "read-only by construction" is **Proposed**. |
 | T9 Apple: experimental, with the password's own steps | ✅ **(a), the label, done** in #1171, merged 2026-09-25. 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2. Never measured against a live account. |
-| T10 Which sign-in buttons the alpha offers | 📋 **Proposed** | §3. Email and password only on live's identity provider, unless the owner's own sign-in needs one. 0133 waits on this. The OTA stack's Google client already carries that stack's sign-in address (D5); live's gets live's only if a Google sign-in stays, recorded in ADR-0041 (T11). |
+| T10 Which sign-in buttons the alpha offers | ✅ **Decided** by 0139 T0 fact 4 (ops-social-signin (a)): email and password only; **held** by `stand-up-live.sh` and `deploy-live.sh`, which refuse any sign-in provider's `IDP_*` key in live's `.env`, in #1644, merged 2026-10-21 (`a4763981`) — *was:* 📋 **Proposed** | §3. Email and password only on live's identity provider, unless the owner's own sign-in needs one. 0133 waits on this. The OTA stack's Google client already carries that stack's sign-in address (D5); live's gets live's only if a Google sign-in stays, recorded in ADR-0041 (T11). |
 | T11 Live's own Google client, and live's addresses at Microsoft and Dropbox | ⏳ **Owner** (0132 D7, D5), before T0; 📋 **Decided 2026-10-05** (open questions 7 and 8): the OTA stack's Google client reused for the Alpha (*"We reuse the current Google OTA-client for the apha."*), with live's consent address added to it; Microsoft and Dropbox: the OTA stack's registrations tried first, live's own only if that cannot work (the owner's correction, 2026-10-05: *"correction: we will first try to reuser the Microsoft and Dropbox oauth client. If that cannot work, i'll register a new client."*) | §3. *Since 2026-10-05: live's consent address goes on the OTA stack's client, whose pair live's `.env` carries, in that client's project, so the two stacks share one publishing status, test-user list and cap; Microsoft and Dropbox first try the OTA stack's registrations, with live's callbacks added, and get registrations of live's own only if that cannot work (Status, 2026-10-05). Before that, T11 advised:* A new Google client for live, with its own secret and live's consent address, `https://app.ownpace.eu/api/migrations/google/callback`. Live's sign-in address, `https://id.ownpace.eu/ui/login/login/externalidp/callback`, is added only if T10 keeps a Google sign-in, and then recorded in ADR-0041, whose decision gives production exactly one redirect URI (T10). The test client holds the OTA stack's two and no production address (D5; corrected 2026-09-24, §1). Its project: the test client's is enough while live stays in Testing; a project of its own if live leaves Testing (T1, open question 7). Microsoft and Dropbox get live's two callbacks. Whether they get registrations of their own is open question 8. |
 
 ## 1. What there is today

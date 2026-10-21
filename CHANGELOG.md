@@ -62,12 +62,40 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   archive guide no longer promise a *free preflight* (the privacy statement
   keeps the word until its version 1.1). Two items, the tiles on a phone and
   the legal texts' wording, were asked again.
+- **Live refuses a sign-in provider's key, so its sign-in page stays email and
+  password only** (workplan 0140 T10, #1644): the stand-up and the deploy
+  refuse live's settings while a Google, Microsoft, GitHub or Apple sign-in key
+  holds a value, as privacy §4.4, §7 and §8 say.
+- **Deletions and Moves say what was decided on each row under *Already
+  decided*** (workplan 0159 follow-up 6, #1652): kept, deleted on the new
+  system too, or, for a moved item, its old copy removed.
+
+### Added
+
+- **The operator's log says who deleted a migration or a connection, replaced
+  an account's sign-in or prepared a cutover** (workplan 0137 T4, #1648). No
+  address, user name or password goes in the record.
+- **The grant and progress link pages are opened in a real browser on every
+  pull request** (workplan 0141 T12 (b), #1646), in English and in Dutch, and on
+  a phone, where neither may scroll sideways.
 
 ### Fixed
 
 - **An IMAP account is shown what an IMAP server holds** (workplan 0013): a
   migration from the IMAP card is told about its mail, and no longer about
   calendars, contacts, files or tasks. An Apple account keeps every row it had.
+- **Sharing says which shares a folder press could not make, and why**
+  (workplan 0136 T3, #1645), in the reader's language, under the folder and in
+  each row's card.
+- **The line under an answered or set-aside decision is in Dutch on a Dutch
+  screen** (workplan 0159 follow-up 12, #1649).
+- **An invitation reaches the person whatever capitals or spaces their address
+  was typed with** (workplan 0156 T3, managed migration 0059, #1650), and so
+  does the organisation a granted access request makes.
+- **The managed nightly's sandbox invoice asks Moneybird once more when it says
+  try later** (workplan 0111 slice 5d, #1653): it waits out a 429's Retry-After
+  of up to two minutes rather than asking early, and never posts a payment
+  twice.
 
 ## [0.2.0-alpha.2] - 2026-10-11
 

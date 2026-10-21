@@ -2,7 +2,7 @@
 
 > **In one line:** Six defects from the owner's testing on 2026-10-03: a permission list that read other migrations' sources, a verification one missing folder ended, invitations mailed to nobody, files over 1 GiB refused by Nextcloud, a first copy run once a day, and two deletion switches that read as one.
 
-## Status — 2026-10-04 (update this block at the end of every session)
+## Status — 2026-10-21 (update this block at the end of every session)
 
 **2026-10-03: opened from the owner's report of six screenshots**, on the managed edition, with
 three migrations in one organisation: *MS-2-NC* (a Microsoft account into Nextcloud), *Goog2NC*
@@ -24,11 +24,26 @@ alpha, in the organisation's language (0131 T1 (b)), on
 what changed. Guards first: `an-invitation-that-is-mailed` (Dutch and English) and
 `an-invitation-that-says-who-asked` failed on cd318823; green after.
 
+**2026-10-21: T3's *Not done* is done**, in #1650, merged 2026-10-21 (`2916c702`). An invitation,
+and the organisation a granted access request makes, now binds to the verified sign-in address
+whatever its case or the spaces around it. Managed 0059 recreates the five invitation policies
+from 0006 and 0008 with `lower(btrim(...))`, the rule managed 0020's index and `auth.ts` already
+use. Every other clause is kept word for word, and an empty or blank setting matches nothing.
+`auth.ts`'s four statements narrow the same way. Old rows that now match one person twice (an
+invitation beside a member's own address in other capitals, or two open invitations to one
+address) are offered once per organisation, the oldest, and never accepted into an organisation
+the person is already in: 404, not a 500. The Team page's invitation is stored trimmed. It refuses
+the same address in another case, and the refusal names the address as the list shows it. Guards
+first: `claim-invitation-under-rls` 8 of 21 and `decline-invitation-under-rls` 5 of 17 failed
+without 0059, and `an-invitation-that-is-mailed` 3 of 14 and `an-invitation-in-any-case`
+(integration) 3 of 4 failed on 29693244. The review round's two integration cases and two 409
+assertions failed on the first build. All are green after. §3 says what changed.
+
 | Task | Status | Notes |
 |---|---|---|
 | T1 A migration's permission list reads its own source | ✅ **Done 2026-10-03** | §1. `migrationInventoryScans` resolves the migration's own source, migration → mailbox → connection, and the report measures its own target. The appliance reads the mapping asked about. The Finish page's blind-spot line follows the source. |
 | T2 A missing target folder is a finding, and the other data types are still verified | ✅ **Done 2026-10-04** | §2. A 404 on the listing's own folder is `TargetFolderMissingError`, a FAIL naming the folder with advice to restore it; any other listing failure is NOT_VERIFIABLE for its own data type; every other data type is still verified. |
-| T3 An invitation is mailed to the person invited | ✅ **Done 2026-10-04** (owner, 2026-10-03: send it) | §3. `member_invited`, mailed after the row commits, with `notified` on the answer and Send again on the row; privacy §4.6 says so. A declined invitation no longer makes the member list unreadable. |
+| T3 An invitation is mailed to the person invited | ✅ **Done 2026-10-04** (owner, 2026-10-03: send it) | §3. `member_invited`, mailed after the row commits, with `notified` on the answer and Send again on the row; privacy §4.6 says so. A declined invitation no longer makes the member list unreadable. Since 2026-10-21 the address matches in any case and without surrounding spaces (managed 0059, #1650). |
 | T4 Files over 1 GiB reach Nextcloud | ✅ **Done 2026-10-04** | §4. A file over 64 MiB goes to a Nextcloud target in pieces (chunked upload); a 413 is said as the request limit and parked for a person; the demo Nextcloud's body limit is lifted. |
 | T5 A first copy runs back to back | ✅ **Done 2026-10-04** (owner, 2026-10-03: 0125 T8's (a)) | §5. While some data type has never completed a pass, the managed tick runs the migration at the 15-minute floor whatever its schedule; then the schedule applies. |
 | T6 The Deletions page's two switches say what each does | ✅ **Done 2026-10-04** | §6. *Deleting by hand* and *Automatic removal of moved files' old copies*, each with its own Turn off; turning the first off turns both off. |
@@ -172,9 +187,21 @@ after; `409` for a declined invitation and for a granted request; twenty mails, 
 `Tenants.unit.test.tsx` holds the four outcome lines and Send again;
 `a-declined-invitation-the-list-could-not-read.unit.test.ts` every status the column holds.
 
-**Not done.** An invitation still matches the signed-in address exactly, case included
-(migration 0006): the mail names the exact address, but an address typed with capitals and
-registered in lower case still matches nothing.
+**Done 2026-10-21 (was *Not done*), in #1650.** An invitation binds to the verified address in
+any case and without the spaces around it. Managed 0059 recreates `see_own_invitation`,
+`claim_own_invitation`, `see_own_answered_invitation`, `decline_own_invitation` (its WITH CHECK
+pin included) and `see_tenant_you_were_invited_to` with `lower(btrim(email)) =
+lower(NULLIF(btrim(app.current_email), ''))`. `pendingInvitations`, `claimRequestedMembership`,
+`acceptInvitation` and `declineInvitation` narrow the same way. The offer and the acceptance take
+one open invitation per organisation (the oldest), and none in an organisation the person is
+already in, so rows from before 0059 cannot cause a 500. `POST /members` stores the address
+trimmed, and refuses the same address in another case with 409, naming the stored row. Still
+refused: an unverified address, a blank one, another address, and an already-active row. Proof:
+`claim-invitation-under-rls` and `decline-invitation-under-rls` (PGlite as `app_user`; the
+statements narrow by organisation only), `an-invitation-that-is-mailed`, and
+`an-invitation-in-any-case.integration.test.ts`. That last file covers grant, offer, accept and
+decline in another case on the served app, plus a member re-invited in other capitals and two
+open invitations to one address. Atlas lint was not run where it was built; CI runs it.
 
 **Follow-up, 2026-10-04 (0131 T1 (b)), on
 `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged.** During the alpha
