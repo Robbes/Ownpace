@@ -3,7 +3,9 @@
   NUMBERING RESTARTED AT 1.0 (the owner, 2026-10-14: "go on the 1.0 reset"). No tester had
   accepted any number yet, so the first version testers accept is 1.0, with these words.
   The numbers below (1.2 to 1.6) are the drafts' history, kept for the record; git holds the
-  texts. From here every change of words takes a new number again: 1.1, 1.2, and so on.
+  texts. A change of words after the first tester accepts takes a new number again: 1.1, 1.2,
+  and so on. Until then the words are edited in place under 1.0 (the owner, 2026-10-21: "no-one
+  accepted the terms so far, so keep them on version 1.0").
 -->
 <!-- Dutch translation of privacy.md. Keep the SECTION NUMBERING identical, so
      the two can be diffed against each other when either changes. The site
@@ -21,7 +23,7 @@
 # Privacyverklaring
 
 **Geldt voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`, en deze website.
-**Versie:** 1.1
+**Versie:** 1.0
 **Laatst bijgewerkt:** 2026-10-19
 
 > **Draait u Ownpace zelf**, dan geldt deze verklaring niet voor u en valt er voor ons niets

@@ -37,7 +37,9 @@
  * The API says so in its log when it starts (`acceptanceAtStart`).
  *
  * Once a text is final and asked for, its words are pinned to its number
- * (`ACCEPTED_WORDS` in the guard): a change after that gets a new number.
+ * (`ACCEPTED_WORDS` in the guard): a change after that gets a new number,
+ * unless the owner says no tester has accepted any version yet (the guard's
+ * header says how that is recorded).
  *
  * ## Managed only, and alpha only
  *
@@ -68,18 +70,19 @@ export type LegalVersions = Readonly<Record<LegalDocument, string>>;
  * any draft words.
  */
 export const LEGAL_VERSIONS: LegalVersions = {
-  // 1.1 on 2026-10-19, on the owner's approval, all three together: alpha §8 and terms §2 name the
-  // deletion switches as the app does, and privacy names the count when you review your migration,
-  // a second step or passkey, every failed attempt and the lock after 10 wrong passwords. The Dutch
-  // says aanmelden/afmelden. Nobody besides the owner had accepted 1.0 (the owner: "Nobody yet"),
-  // and a stored acceptance of 1.0 simply asks again (`acceptanceOf` compares equality).
+  // 1.0 for all three: no tester has accepted any version yet. The owner, 2026-10-21: "no-one
+  // accepted the terms so far, so keep them on version 1.0". So the words the owner approved on
+  // 2026-10-19 (#1639, which numbered them 1.1) are 1.0, edited in place, as the Alpha conditions'
+  // own rule says until the first tester accepts (alpha-version-number (a)). A stored acceptance of
+  // 1.1 asks again (`acceptanceOf` compares equality); one of 1.0 recorded before these words
+  // reached a stack counts for them, and only the owner's own and test accounts can hold one.
   //
-  // Before that, privacy and terms restarted at 1.0 on 2026-10-14 (the owner): no tester had
-  // accepted any number, and no acceptance anywhere records privacy 1.0 or terms 1.0 (the screen
-  // began at 1.2 and 1.3).
-  alpha: '1.1',
-  privacy: '1.1',
-  terms: '1.1',
+  // Privacy and terms had restarted at 1.0 once before, on 2026-10-14 (the owner), for the same
+  // reason: no tester had accepted any number. (Then no stored acceptance named privacy or terms
+  // 1.0, because the screen began at 1.2 and 1.3; this time one of 1.0 may exist, see above.)
+  alpha: '1.0',
+  privacy: '1.0',
+  terms: '1.0',
 };
 
 /**

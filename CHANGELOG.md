@@ -13,14 +13,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **Deletions and Moves say what was decided on each row under *Already
   decided*** (workplan 0159 follow-up 6, #1652): kept, deleted on the new
   system too, or, for a moved item, its old copy removed.
-- **Version 1.1 of the Alpha conditions, the terms and the privacy statement**
-  (workplan 0159 row 24, the owner's approval of 2026-10-19, #1639): the two
-  deletion switches carry the app's names; the Dutch texts say *aanmelden* and
-  *afmelden*; the count before a migration is *the count when you review your
-  migration*, no longer a *preflight*; and the privacy statement says what
-  two-factor sign-in, passkeys and the lock after ten wrong passwords keep, on
-  which basis, for how long, and that you can object. Nobody besides the owner
-  had accepted 1.0, so 1.1 applies from publication.
+- **The Alpha conditions, the terms and the privacy statement, reworded and
+  still version 1.0** (workplan 0159 row 24, the owner's approval of
+  2026-10-19, #1639): the two deletion switches carry the app's names; the
+  Dutch texts say *aanmelden* and *afmelden*; the count before a migration is
+  *the count when you review your migration*, no longer a *preflight*; and the
+  privacy statement says what two-factor sign-in, passkeys and the lock after
+  ten wrong passwords keep, on which basis, for how long, and that you can
+  object. #1639 numbered the words 1.1; on 2026-10-21 the owner kept them on
+  1.0, edited in place, because no tester had accepted any version yet. They
+  apply from publication.
 - **On a phone, a migration draws its two tiles once, under its name** (workplan
   0159 row 19, #1638); each data type keeps its icon, name, state and sentence,
   and a computer shows the page as before.
@@ -67,7 +69,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   mailbox's button says what it does; a share has one name on the sharing
   checklist, the report and Finish; and the site's estimate, pricing and
   archive guide no longer promise a *free preflight* (the privacy statement
-  keeps the word until its version 1.1). Two items, the tiles on a phone and
+  kept the word until #1639). Two items, the tiles on a phone and
   the legal texts' wording, were asked again.
 
 ### Added
