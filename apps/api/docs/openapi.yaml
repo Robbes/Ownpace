@@ -346,7 +346,8 @@ paths:
         email and still carrying a `pending:` placeholder is bound to their
         subject — but only against an address the issuer says it VERIFIED,
         since otherwise whoever registers an address inherits what was granted
-        to it.
+        to it. The address is compared in any case and without the spaces
+        around it (managed migration 0059).
         While the deployment asks for acceptance (`OWNPACE_STAGE=alpha`, and
         no text still a draft; workplan 0139 T3) and an organisation is
         current, `acceptance` says which texts wait to be accepted, each with
@@ -427,7 +428,12 @@ paths:
         be an open invitation addressed to the address in `app.current_email`,
         which is set only when the issuer asserted `email_verified: true`, and
         what the row may BECOME is pinned too — so this cannot be turned into
-        "set somebody else's user id".
+        "set somebody else's user id". The address is compared in any case and
+        without the spaces around it (managed migration 0059).
+
+        Where an organisation holds more than one open invitation to the
+        address, the oldest is the one `GET /api/me` offers and the one taken
+        up here, with its role.
       responses:
         '200':
           description: Joined.
@@ -438,7 +444,8 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
           description: |
-            No open invitation for this caller there — or one they cannot see.
+            No open invitation for this caller there — or one they cannot see,
+            or one to an organisation they already belong to.
             The same answer on purpose: distinguishing them would tell anybody
             who asked whether an address has an invitation at an organisation.
           content:
@@ -959,7 +966,9 @@ paths:
       description: |
         A second invitation for an address that already has a live row is
         refused with `409` naming that row, rather than quietly creating a
-        duplicate whose role nobody can predict.
+        duplicate whose role nobody can predict. The address is kept without
+        the spaces around it, and compared in any case: the invitation binds
+        to the signed-in address that way (managed migration 0059).
 
         During the alpha the role is `owner` or `admin` (workplan 0137 T7);
         any other role, sent as a string in an otherwise valid body, answers
@@ -8360,6 +8369,8 @@ components:
             Open invitations addressed to this caller's VERIFIED address. Empty
             is the ordinary case — and is also what an issuer that will not
             assert `email_verified` gets, because email is not identity.
+            At most one per organisation, the oldest, and none to an
+            organisation the caller already belongs to.
           items: { $ref: '#/components/schemas/Invitation' }
         operator:
           type: boolean
