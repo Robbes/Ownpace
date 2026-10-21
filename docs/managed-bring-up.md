@@ -3294,9 +3294,10 @@ Ownpace.)
 
 **The one rule: a code goes by mail, and only to the address it was sent to.**
 A granted organisation and an invitation both bind to an address the identity
-provider verified (`claimRequestedMembership` and `pendingInvitations` in
-`apps/api/src/middleware/auth.ts`). Sent on to that same address, your mail
-still proves the tester reads that mailbox. Sent anywhere else, by chat or by
+provider verified, in any case and without the spaces around it
+(`claimRequestedMembership` and `pendingInvitations` in
+`apps/api/src/middleware/auth.ts`, managed migration 0059). Sent on to that
+same address, your mail still proves the tester reads that mailbox. Sent anywhere else, by chat or by
 text message, it lets whoever receives it verify an address that may not be
 theirs, and take what was meant for its owner.
 

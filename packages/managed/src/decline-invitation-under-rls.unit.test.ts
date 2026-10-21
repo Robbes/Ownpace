@@ -85,7 +85,7 @@ beforeEach(async () => {
   }
 });
 
-/** The decline, exactly as `auth.ts` issues it. */
+/** The decline, narrowed by the exact address (`auth.ts` compares in any case since managed 0059; see below). */
 const declineAs = (
   userId: string,
   verifiedEmail: string | undefined,
@@ -223,5 +223,148 @@ describe('reading the organisation that invited you', () => {
     // `tenant_isolation_select` cast '' to uuid here and the whole query threw,
     // which is a 500 on a screen whose job is to say "nothing is waiting".
     expect(rows).toEqual([]);
+  });
+});
+
+/**
+ * DECLINING IN ANY CASE (managed 0059; workplan 0156 §3's "Not done").
+ *
+ * The decline's USING and its WITH CHECK both pinned the address exactly, and
+ * so did the policy that shows the answer afterwards and the one that lets an
+ * invitee read the organisation's name. 0059 compares all four in any case and
+ * without the spaces around it, as the rest of the system already does. The
+ * WITH CHECK still refuses a real subject on the row and still refuses another
+ * address; only the case of the same address stops mattering.
+ *
+ * Every statement narrows by organisation, never by address, so the policy
+ * alone decides.
+ */
+describe('declining in any case (managed 0059)', () => {
+  const CASED_TENANT = '01220000-e29b-41d4-a716-446655442003';
+  const STORED = 'Pat.Jansen@Example.test ';
+  const VERIFIED = 'pat.jansen@example.test';
+
+  beforeEach(async () => {
+    const conn = await driver.acquire();
+    try {
+      await conn.query(`INSERT INTO tenant (id, name, status) VALUES ($1,'Cased Ltd','active')`, [
+        CASED_TENANT,
+      ]);
+      await conn.query(
+        `INSERT INTO tenant_member (tenant_id, user_id, email, role, status, invited_at)
+           VALUES ($1,'pending:ccc',$2,'admin','invited', now())`,
+        [CASED_TENANT, STORED],
+      );
+    } finally {
+      conn.release();
+    }
+  });
+
+  const casedRow = async () => {
+    const conn = await driver.acquire();
+    try {
+      const { rows } = await conn.query<{ status: string; user_id: string; email: string }>(
+        `SELECT status, user_id, email FROM tenant_member WHERE tenant_id = $1`,
+        [CASED_TENANT],
+      );
+      return rows[0]!;
+    } finally {
+      conn.release();
+    }
+  };
+
+  /** The decline, narrowed to the organisation only. */
+  const declineTheOrganisation = (
+    verifiedEmail: string | undefined,
+    set = `status = 'declined'`,
+  ) =>
+    withSubject(
+      driver,
+      DECLINER,
+      async (db) =>
+        db.execute(
+          `UPDATE tenant_member SET ${set}
+            WHERE tenant_id = '${CASED_TENANT}' AND status = 'invited'`,
+        ),
+      verifiedEmail === undefined ? {} : { verifiedEmail },
+    );
+
+  it('records the refusal from the verified address in another case, binding nobody', async () => {
+    await declineTheOrganisation(VERIFIED);
+    expect(await casedRow()).toMatchObject({ status: 'declined', user_id: 'pending:ccc', email: STORED });
+  });
+
+  it('leaves the refusal visible to the person who gave it, in another case', async () => {
+    await declineTheOrganisation(VERIFIED);
+    const seen = await withSubject(
+      driver,
+      DECLINER,
+      async (db) => db.execute(`SELECT tenant_id, status FROM tenant_member`),
+      { verifiedEmail: 'PAT.JANSEN@EXAMPLE.TEST' },
+    );
+    const rows = (seen as unknown as { rows: Array<{ tenant_id: string; status: string }> }).rows;
+    expect(rows).toEqual([{ tenant_id: CASED_TENANT, status: 'declined' }]);
+  });
+
+  it('lets the invitee read the organisation that invited them, in another case', async () => {
+    const names = await withSubject(
+      driver,
+      DECLINER,
+      async (db) => db.execute(`SELECT name FROM tenant ORDER BY name`),
+      { verifiedEmail: `  ${VERIFIED.toUpperCase()}` },
+    );
+    const rows = (names as unknown as { rows: Array<{ name: string }> }).rows;
+    // Only the one that invited this address; the other two are addressed to others.
+    expect(rows.map((r) => r.name)).toEqual(['Cased Ltd']);
+  });
+
+  /** Every message in the cause chain: Drizzle puts Postgres's reason in `.cause`. */
+  const refusalOf = async (attempt: Promise<unknown>) => {
+    const err = await attempt.then(
+      () => null,
+      (e: unknown) => e,
+    );
+    const out: string[] = [];
+    for (let current: unknown = err; current instanceof Error; current = current.cause) {
+      out.push(current.message);
+    }
+    return out.join(' | ');
+  };
+
+  it('still REFUSES to write somebody else into the declined row, in another case', async () => {
+    expect(
+      await refusalOf(declineTheOrganisation(VERIFIED, `status = 'declined', user_id = '${VICTIM}'`)),
+    ).toMatch(/violates row-level security policy/);
+    expect(await casedRow()).toMatchObject({ status: 'invited', user_id: 'pending:ccc' });
+  });
+
+  it('still REFUSES to rewrite the address to somebody else on the way through', async () => {
+    // The WITH CHECK's address pin, which 0059 keeps: the declined row must
+    // still be addressed to the verified address, in whatever case.
+    expect(
+      await refusalOf(
+        declineTheOrganisation(VERIFIED, `status = 'declined', email = 'someone.else@example.test'`),
+      ),
+    ).toMatch(/violates row-level security policy/);
+    expect(await casedRow()).toMatchObject({ status: 'invited', email: STORED });
+  });
+
+  it.each([
+    ['no verified address', undefined],
+    ['an empty setting', ''],
+    ['another address', 'other@example.test'],
+  ])('declines NOTHING for %s', async (_how, verified) => {
+    await declineTheOrganisation(verified);
+    expect(await casedRow()).toMatchObject({ status: 'invited', user_id: 'pending:ccc' });
+  });
+
+  it('shows the organisation to nobody holding another address', async () => {
+    const names = await withSubject(
+      driver,
+      'sub-stranger',
+      async (db) => db.execute(`SELECT name FROM tenant`),
+      { verifiedEmail: 'Stranger@Example.test' },
+    );
+    expect((names as unknown as { rows: unknown[] }).rows).toEqual([]);
   });
 });

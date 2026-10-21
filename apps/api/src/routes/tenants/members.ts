@@ -161,9 +161,11 @@ function refusedOverRole(error: z.ZodError, body: unknown): boolean {
   );
 }
 
-// Schema validation
+// Schema validation. The address is kept without the spaces around it, as an
+// access request's is: an invitation binds to the signed-in address in any
+// case and without those spaces (managed 0059), and the mail names it as kept.
 const InviteMemberSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().email(),
   role: z.enum(ALPHA_ROLES),
 });
 
@@ -256,13 +258,17 @@ router.post(
         // silently created a second row — and which row's role wins on
         // acceptance was undefined. The refusal names the row that exists;
         // it renders verbatim through the screen's inviteError plumbing.
+        //
+        // IN ANY CASE (managed 0059): `Pat@Example.com` and `pat@example.com`
+        // are one person to the invitation, so they are one person here too,
+        // by the same `lower(btrim(...))` the policies use.
         const existing = await db
           .select({ status: schema.tenantMember.status, role: schema.tenantMember.role })
           .from(schema.tenantMember)
           .where(
             and(
               eq(schema.tenantMember.tenantId, tenantId),
-              eq(schema.tenantMember.email, body.email),
+              sql`lower(btrim(${schema.tenantMember.email})) = lower(btrim(${body.email}))`,
             ),
           );
         const live = existing.find((m) => m.status === 'active' || m.status === 'invited');

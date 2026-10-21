@@ -13,7 +13,7 @@ import jwt from 'jsonwebtoken';
 import { jwtVerify, createRemoteJWKSet, decodeJwt } from 'jose';
 import type { AuthenticatedRequest, MappingLinkRequest, PersonLinkRequest } from '../types/api.ts';
 import { Pool } from 'pg';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import {
   withTenant as ledgerWithTenant,
   withSubject as ledgerWithSubject,
@@ -491,6 +491,36 @@ export async function reconcileMemberEmail(
 }
 
 /**
+ * THE ROW IS ADDRESSED TO THIS VERIFIED ADDRESS, in any case and without the
+ * spaces around it (managed 0059; workplan 0156 §3).
+ *
+ * The policies decide what may be seen and claimed; this narrows the statement
+ * to the same rows, by the same rule. It used to be `eq(email, …)`, exact, so
+ * an organisation granted to `Jan@Example.nl` never bound for a provider that
+ * verified `jan@example.nl`. `lower(btrim(...))` is how the rest of the system
+ * already decides two addresses are one person (`labelsToUpdate` above,
+ * managed 0020's index, the access queue's owner check).
+ */
+function addressedTo(address: string) {
+  return sql`lower(btrim(${tenantMember.email})) = lower(btrim(${address}))`;
+}
+
+/**
+ * The verified address to match invitations by, or nothing.
+ *
+ * Nothing unless the issuer asserted `email_verified: true`, and nothing for a
+ * blank claim: a blank address names nobody, and managed 0059 matches no row
+ * on one either.
+ */
+function verifiedAddress(
+  email: string | undefined,
+  emailVerified: boolean | undefined,
+): string | undefined {
+  if (emailVerified !== true) return undefined;
+  return email?.trim() || undefined;
+}
+
+/**
  * Bind any invitation addressed to this subject's VERIFIED email (0093 T6).
  *
  * Called at one moment only: when tenant resolution is about to refuse somebody
@@ -501,9 +531,9 @@ export async function reconcileMemberEmail(
  *
  * **The database decides what may be claimed**, not this function: migration
  * 0006's policy requires the row to be an open invitation to `app.current_email`
- * and requires the result to name this subject and be active. All this does is
- * refuse to set that setting at all unless the issuer asserted the address, and
- * run the statement.
+ * (in any case since managed 0059) and requires the result to name this subject
+ * and be active. All this does is refuse to set that setting at all unless the
+ * issuer asserted the address, and run the statement.
  *
  * Returns how many invitations were bound, which the caller uses to decide
  * whether re-resolving is worth a second round trip.
@@ -536,7 +566,8 @@ export async function pendingInvitations(
   email: string | undefined,
   emailVerified: boolean | undefined,
 ): Promise<PendingInvitation[]> {
-  if (emailVerified !== true || !email) return [];
+  const address = verifiedAddress(email, emailVerified);
+  if (!address) return [];
 
   return await ledgerWithSubject(
     getAuthPool(),
@@ -557,7 +588,7 @@ export async function pendingInvitations(
         .innerJoin(tenantTable, eq(tenantTable.id, tenantMember.tenantId))
         .where(
           and(
-            eq(tenantMember.email, email),
+            addressedTo(address),
             eq(tenantMember.status, 'invited'),
             // ONLY WHAT SOMEBODY ELSE STARTED (migration 0021, owner decision
             // 2026-09-01). A `requested` row is the answer to this person's own
@@ -574,7 +605,7 @@ export async function pendingInvitations(
         invitedAt: r.invitedAt ? new Date(r.invitedAt).toISOString() : null,
       }));
     },
-    { verifiedEmail: email },
+    { verifiedEmail: address },
   );
 }
 
@@ -604,10 +635,10 @@ export async function pendingInvitations(
  * a provider.
  *
  * The POLICY authorises, not this function (migration 0006's
- * `claim_own_invitation`): open invitation to `app.current_email`, and the
- * result must be active and name this subject. All this adds is the narrowing
- * `origin = 'requested'` — it cannot widen what the policy allows, and it never
- * writes `origin`.
+ * `claim_own_invitation`, in any case since managed 0059): open invitation to
+ * `app.current_email`, and the result must be active and name this subject.
+ * All this adds is the narrowing `origin = 'requested'` — it cannot widen what
+ * the policy allows, and it never writes `origin`.
  *
  * ## Called at ONE moment
  *
@@ -623,7 +654,8 @@ export async function claimRequestedMembership(
   email: string | undefined,
   emailVerified: boolean | undefined,
 ): Promise<number> {
-  if (emailVerified !== true || !email) return 0;
+  const address = verifiedAddress(email, emailVerified);
+  if (!address) return 0;
 
   const bound = await ledgerWithSubject(
     getAuthPool(),
@@ -634,13 +666,13 @@ export async function claimRequestedMembership(
         .set({ userId, status: 'active', joinedAt: new Date() })
         .where(
           and(
-            eq(tenantMember.email, email),
+            addressedTo(address),
             eq(tenantMember.status, 'invited'),
             eq(tenantMember.origin, 'requested'),
           ),
         )
         .returning({ tenantId: tenantMember.tenantId }),
-    { verifiedEmail: email },
+    { verifiedEmail: address },
   );
 
   for (const row of bound) {
@@ -667,7 +699,8 @@ export async function acceptInvitation(
   emailVerified: boolean | undefined,
   tenantId: string,
 ): Promise<InvitationAnswer> {
-  if (emailVerified !== true || !email) return 'notFound';
+  const address = verifiedAddress(email, emailVerified);
+  if (!address) return 'notFound';
 
   const bound = await ledgerWithSubject(
     getAuthPool(),
@@ -679,12 +712,12 @@ export async function acceptInvitation(
         .where(
           and(
             eq(tenantMember.tenantId, tenantId),
-            eq(tenantMember.email, email),
+            addressedTo(address),
             eq(tenantMember.status, 'invited'),
           ),
         )
         .returning({ tenantId: tenantMember.tenantId }),
-    { verifiedEmail: email },
+    { verifiedEmail: address },
   );
 
   if (bound.length === 0) return 'notFound';
@@ -711,7 +744,8 @@ export async function declineInvitation(
   emailVerified: boolean | undefined,
   tenantId: string,
 ): Promise<InvitationAnswer> {
-  if (emailVerified !== true || !email) return 'notFound';
+  const address = verifiedAddress(email, emailVerified);
+  if (!address) return 'notFound';
 
   const refused = await ledgerWithSubject(
     getAuthPool(),
@@ -723,12 +757,12 @@ export async function declineInvitation(
         .where(
           and(
             eq(tenantMember.tenantId, tenantId),
-            eq(tenantMember.email, email),
+            addressedTo(address),
             eq(tenantMember.status, 'invited'),
           ),
         )
         .returning({ tenantId: tenantMember.tenantId }),
-    { verifiedEmail: email },
+    { verifiedEmail: address },
   );
 
   if (refused.length === 0) return 'notFound';
