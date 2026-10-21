@@ -71,6 +71,24 @@ STACK_KIND_LIVE=production
 # the provider as ZITADEL_FIRSTINSTANCE_ORG_NAME; setup-zitadel.sh renames an
 # organisation that already stands, on live, when that key is empty.
 LIVE_ORG_NAME=Ownpace
+# LIVE'S SIGN-IN PAGE OFFERS EMAIL AND PASSWORD ONLY (privacy §4.4, §7 and §8;
+# the owner's ops-social-signin (a), workplan 0139 T0 fact 4, 0140 T10).
+# setup-zitadel.sh adds Google, Microsoft, GitHub or Apple as a way to sign in
+# whenever that provider's keys below hold a value, and never deletes one:
+# emptying every pair only hides the buttons, on its next run
+# (docs/managed-bring-up.md, §8b). So stand-up-live.sh and deploy-live.sh
+# refuse live's .env while any of them does (live_sign_in_keys_set), before a
+# button reaches a tester. They are every IDP_* key managed.env.example
+# declares but IDP_UPSTREAM_CALLBACK_URL, the identity provider's own return
+# address, which setup-zitadel.sh writes; the two scripts' guards read the
+# list from the example, so a provider added there fails them until it is
+# added here.
+LIVE_REFUSED_SIGN_IN_KEYS=(
+  IDP_GOOGLE_CLIENT_ID IDP_GOOGLE_CLIENT_SECRET
+  IDP_MICROSOFT_CLIENT_ID IDP_MICROSOFT_CLIENT_SECRET IDP_MICROSOFT_TENANT
+  IDP_GITHUB_CLIENT_ID IDP_GITHUB_CLIENT_SECRET
+  IDP_APPLE_CLIENT_ID IDP_APPLE_TEAM_ID IDP_APPLE_KEY_ID IDP_APPLE_PRIVATE_KEY
+)
 # The kinds known NOT to be live. None yet: the OTA stack's .env does not carry
 # the key. A kind given to the OTA stack later goes here, or every refusal
 # takes it for live's.
@@ -98,6 +116,17 @@ stack_kind() {
 # stack_is_live <env-file> — true when that file carries exactly live's marker.
 stack_is_live() {
   [ "$(stack_kind "${1:-}")" = "$STACK_KIND_LIVE" ]
+}
+
+# live_sign_in_keys_set <env-file> — each key of LIVE_REFUSED_SIGN_IN_KEYS that
+# holds a value in that file, one per line: its name, never its value. Read as
+# setup-zitadel.sh reads them (env_value), so double quotes count as a value,
+# empty ones too, and KEY= or KEY='' does not.
+live_sign_in_keys_set() {
+  local key
+  for key in "${LIVE_REFUSED_SIGN_IN_KEYS[@]}"; do
+    [ -z "$(env_value "${1:-}" "$key")" ] || printf '%s\n' "$key"
+  done
 }
 
 # stack_kind_may_be_live <cleaned value> — true for any value but nothing and

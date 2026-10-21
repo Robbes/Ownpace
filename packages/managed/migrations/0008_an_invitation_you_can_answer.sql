@@ -1,5 +1,9 @@
 -- An invitation you can answer: accept, decline, or leave it (workplan 0099).
 --
+-- Superseded in part by managed 0059, which recreates the three policies below
+-- (and 0006's two) to compare the address in any case and without the spaces
+-- around it. The SQL here is as it was first applied.
+--
 -- ## What this changes about a decision already made
 --
 -- Migration 0006 made an invitation CLAIMABLE, and `claimInvitations` claimed

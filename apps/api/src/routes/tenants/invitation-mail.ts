@@ -8,9 +8,10 @@
  * appear below as invited". The owner invited a tester, nobody heard, and
  * asked how this should work. Their answer, the same day: the invited person
  * is mailed. Who invited them to which organisation, where to sign in, and
- * the exact address to sign in with, because the invitation binds to the
- * address the issuer says it verified (migration 0006) and a different one
- * signs in to nothing. No token and no link that signs anybody in: the mail
+ * the address to sign in with, because the invitation binds to the address
+ * the issuer says it verified (migration 0006; in any case and without the
+ * spaces around it since managed 0059) and a different address signs in to
+ * nothing. No token and no link that signs anybody in: the mail
  * authorises nothing, as the access-granted mail does not (`access_granted`).
  *
  * WHAT EACH OUTCOME MEANS, said to the person who pressed Invite, because each

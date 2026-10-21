@@ -23,12 +23,13 @@
  *
  * ## Nothing here authorises anything
  *
- * Migrations 0006 and 0008 do. Both statements are bounded from both sides by
- * policy: the row must be an OPEN invitation addressed to the address in
- * `app.current_email` — which `auth.ts` sets only when the issuer asserted
- * `email_verified: true` — and what it may BECOME is pinned too, so accepting
- * cannot write somebody else's subject and declining cannot write any real
- * subject at all.
+ * Managed migrations 0006, 0008 and 0059 do. Both statements are bounded from
+ * both sides by policy: the row must be an OPEN invitation addressed to the
+ * address in `app.current_email` — which `auth.ts` sets only when the issuer
+ * asserted `email_verified: true`, and which managed 0059 compares in any case
+ * and without the spaces around it — and what it may BECOME is pinned too, so
+ * accepting cannot write somebody else's subject and declining cannot write
+ * any real subject at all.
  *
  * So a caller answering an invitation that is not theirs, or that does not
  * exist, gets the same `404` either way. That is deliberate: distinguishing

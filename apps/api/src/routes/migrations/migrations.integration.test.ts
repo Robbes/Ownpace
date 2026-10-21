@@ -44,6 +44,7 @@ process.env.APP_DATABASE_URL = getAppUserConnectionString(PG_CONNECTION_STRING);
 
 import app from '../../index.ts';
 import { seedMembership } from '../../__tests__/seed-membership.ts';
+import { setAppEventSink, type AppEvent } from '@openmig/shared';
 // import * as schema from '@open-migrate/ledger'; // Not needed - using raw SQL queries
 
 // UUIDs for migration tests
@@ -555,6 +556,128 @@ describe('Migrations Routes - Tenant Isolation', () => {
       );
       expect(check.rows.length).toBe(1);
     });
+
+    // WHO DELETED IT (workplan 0137 T4). A delete takes the migration's row,
+    // its ledger and its sharing list, and until T4 it left nothing to say it
+    // had happened: the operator could not tell a delete from lost data
+    // without a shell. The record lives in `audit_log`, which has no foreign
+    // key to the migration, so it outlives the cascade it describes.
+    const T4_MAPPING = '5a1b0000-e29b-41d4-a716-446655443631';
+    const T4_MAILBOX = '5a1b0000-e29b-41d4-a716-446655443632';
+    const T4_OPERATOR = 'operator-subject-0137-t4';
+    const deletionsOf = (mappingId: string) =>
+      superuserPool.query<{ tenant_id: string; actor: string; entity: string; detail: Record<string, unknown> }>(
+        `SELECT tenant_id, actor, entity, detail FROM audit_log
+          WHERE action = 'mapping.deleted' AND detail ->> 'mappingId' = $1`,
+        [mappingId],
+      );
+    const seedT4Mapping = async (status: string) => {
+      await superuserPool.query('DELETE FROM mailbox_mapping WHERE id = $1', [T4_MAPPING]);
+      await superuserPool.query('DELETE FROM mailbox WHERE id = $1', [T4_MAILBOX]);
+      await superuserPool.query(`DELETE FROM audit_log WHERE action = 'mapping.deleted' AND detail ->> 'mappingId' = $1`, [
+        T4_MAPPING,
+      ]);
+      await superuserPool.query(
+        `INSERT INTO mailbox (id, tenant_id, connection_id, display_name, kind)
+         VALUES ($1, $2, $3, 'Recorded', 'user')`,
+        [T4_MAILBOX, MIG_TENANT_A, '5a1b0000-e29b-41d4-a716-446655443301'],
+      );
+      await superuserPool.query(
+        `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, status, mode, name)
+         VALUES ($1, $2, $3, $3, $4, 'mirror', 'Anna mail')`,
+        [T4_MAPPING, MIG_TENANT_A, T4_MAILBOX, status],
+      );
+    };
+
+    it('records who deleted it: one mapping.deleted row, the caller as actor, the id and the status before (0137 T4)', async () => {
+      await seedT4Mapping('paused');
+
+      const response = await request
+        .delete(`/api/migrations/${T4_MAPPING}`)
+        .set('Authorization', `Bearer ${TOKEN_TENANT_A}`);
+      expect(response.status).toBe(200);
+
+      const recorded = (await deletionsOf(T4_MAPPING)).rows;
+      expect(recorded, 'the delete left no record of who did it').toHaveLength(1);
+      expect(recorded[0]).toEqual({
+        tenant_id: MIG_TENANT_A,
+        actor: `user-${MIG_TENANT_A}`,
+        entity: 'mapping',
+        detail: { mappingId: T4_MAPPING, statusBefore: 'paused' },
+      });
+      // No address, user name or name of the migration: ids and a state.
+      expect(JSON.stringify(recorded[0]!.detail)).not.toMatch(/@|Anna/);
+
+      // The operator's log page reads it (`support_log`, managed migration
+      // 0025): the migration's id from `detail.mappingId`, and the member's
+      // address for the subject. The migration's name is gone with its row.
+      await superuserPool.query(`INSERT INTO platform_operator (user_id, email) VALUES ($1, 'op@integration.test')`, [
+        T4_OPERATOR,
+      ]);
+      const client = await superuserPool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('SET LOCAL ROLE app_user');
+        await client.query(`SELECT set_config('app.current_user', $1, true)`, [T4_OPERATOR]);
+        await client.query(`SELECT set_config('app.current_tenant', '', true)`);
+        const seen = await client.query(
+          `SELECT mapping_id, migration_name, event, actor FROM support_log
+            WHERE tenant_id = $1 AND event = 'mapping.deleted' AND mapping_id = $2`,
+          [MIG_TENANT_A, T4_MAPPING],
+        );
+        expect(seen.rows).toEqual([
+          {
+            mapping_id: T4_MAPPING,
+            migration_name: null,
+            event: 'mapping.deleted',
+            actor: `user-${MIG_TENANT_A}@integration.test`,
+          },
+        ]);
+      } finally {
+        await client.query('ROLLBACK');
+        client.release();
+        await superuserPool.query('DELETE FROM platform_operator WHERE user_id = $1', [T4_OPERATOR]);
+      }
+    });
+
+    it('records nothing for a migration it did not delete', async () => {
+      await seedT4Mapping('active');
+
+      // Another organisation's migration is not found, and not deleted.
+      const response = await request
+        .delete(`/api/migrations/${T4_MAPPING}`)
+        .set('Authorization', `Bearer ${TOKEN_TENANT_B}`);
+      expect(response.status).toBe(404);
+      expect((await deletionsOf(T4_MAPPING)).rows).toEqual([]);
+
+      // Nor is one that does not exist.
+      const missing = '5a1b0000-e29b-41d4-a716-446655443639';
+      const none = await request.delete(`/api/migrations/${missing}`).set('Authorization', `Bearer ${TOKEN_TENANT_A}`);
+      expect(none.status).toBe(404);
+      expect((await deletionsOf(missing)).rows).toEqual([]);
+    });
+
+    it('deletes nothing when the record cannot be written: the delete and its record are one transaction', async () => {
+      await seedT4Mapping('active');
+      await superuserPool.query(`CREATE OR REPLACE FUNCTION refuse_t4_mapping_deleted() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION 'the record is refused'; END $$`);
+      await superuserPool.query(`CREATE TRIGGER refuse_t4_mapping_deleted BEFORE INSERT ON audit_log
+        FOR EACH ROW WHEN (NEW.action = 'mapping.deleted' AND NEW.detail ->> 'mappingId' = '${T4_MAPPING}')
+        EXECUTE FUNCTION refuse_t4_mapping_deleted()`);
+      try {
+        const response = await request
+          .delete(`/api/migrations/${T4_MAPPING}`)
+          .set('Authorization', `Bearer ${TOKEN_TENANT_A}`);
+        expect(response.status).toBe(500);
+        const kept = await superuserPool.query('SELECT status FROM mailbox_mapping WHERE id = $1', [T4_MAPPING]);
+        expect(kept.rows, 'the migration was deleted with no record of who did it').toEqual([{ status: 'active' }]);
+      } finally {
+        await superuserPool.query('DROP TRIGGER IF EXISTS refuse_t4_mapping_deleted ON audit_log');
+        await superuserPool.query('DROP FUNCTION IF EXISTS refuse_t4_mapping_deleted()');
+        await superuserPool.query('DELETE FROM mailbox_mapping WHERE id = $1', [T4_MAPPING]);
+        await superuserPool.query('DELETE FROM mailbox WHERE id = $1', [T4_MAILBOX]);
+      }
+    });
   });
 
   describe('POST /api/migrations/:id/sync', () => {
@@ -639,6 +762,161 @@ describe('Migrations Routes - Tenant Isolation', () => {
 
       expect(response.status).toBe(404);
       expect(triggerMock).not.toHaveBeenCalled();
+    });
+
+    // WHO PREPARED IT (workplan 0137 T4). A preparation pressed on an approved
+    // cutover revokes the approval, and until T4 nothing said who pressed it.
+    const T4_CUTOVER_MAPPING = '5a1b0000-e29b-41d4-a716-446655443641';
+    const T4_CUTOVER_MAILBOX = '5a1b0000-e29b-41d4-a716-446655443642';
+    const preparationsOf = (mappingId: string) =>
+      superuserPool.query<{ tenant_id: string; actor: string; entity: string; detail: Record<string, unknown> }>(
+        `SELECT tenant_id, actor, entity, detail FROM audit_log
+          WHERE action = 'cutover.preparation_requested' AND detail ->> 'mappingId' = $1`,
+        [mappingId],
+      );
+    const seedT4Cutover = async (state?: string) => {
+      await superuserPool.query('DELETE FROM mailbox_mapping WHERE id = $1', [T4_CUTOVER_MAPPING]);
+      await superuserPool.query('DELETE FROM mailbox WHERE id = $1', [T4_CUTOVER_MAILBOX]);
+      await superuserPool.query(
+        `DELETE FROM audit_log WHERE action = 'cutover.preparation_requested' AND detail ->> 'mappingId' = $1`,
+        [T4_CUTOVER_MAPPING],
+      );
+      await superuserPool.query(
+        `INSERT INTO mailbox (id, tenant_id, connection_id, display_name, kind)
+         VALUES ($1, $2, $3, 'Prepared', 'user')`,
+        [T4_CUTOVER_MAILBOX, MIG_TENANT_A, '5a1b0000-e29b-41d4-a716-446655443301'],
+      );
+      await superuserPool.query(
+        `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, status, mode)
+         VALUES ($1, $2, $3, $3, 'active', 'mirror')`,
+        [T4_CUTOVER_MAPPING, MIG_TENANT_A, T4_CUTOVER_MAILBOX],
+      );
+      if (state) {
+        await superuserPool.query(`INSERT INTO cutover_state (tenant_id, mapping_id, state) VALUES ($1, $2, $3)`, [
+          MIG_TENANT_A,
+          T4_CUTOVER_MAPPING,
+          state,
+        ]);
+      }
+    };
+
+    it('records who prepared it: one cutover.preparation_requested row with the run id (0137 T4)', async () => {
+      await seedT4Cutover();
+      triggerMock.mockClear();
+
+      const response = await request
+        .post(`/api/migrations/${T4_CUTOVER_MAPPING}/cutover`)
+        .set('Authorization', `Bearer ${TOKEN_TENANT_A}`)
+        .send({});
+      expect(response.status, JSON.stringify(response.body)).toBe(202);
+      expect(triggerMock).toHaveBeenCalledTimes(1);
+
+      const recorded = (await preparationsOf(T4_CUTOVER_MAPPING)).rows;
+      expect(recorded, 'the preparation left no record of who pressed it').toHaveLength(1);
+      expect(recorded[0]).toEqual({
+        tenant_id: MIG_TENANT_A,
+        actor: `user-${MIG_TENANT_A}`,
+        entity: 'mapping',
+        detail: { mappingId: T4_CUTOVER_MAPPING, runId: 'run_mock_test', revokesApproval: false },
+      });
+    });
+
+    it('and says so when the preparation revoked an approval', async () => {
+      await seedT4Cutover('APPROVED');
+
+      const response = await request
+        .post(`/api/migrations/${T4_CUTOVER_MAPPING}/cutover`)
+        .set('Authorization', `Bearer ${TOKEN_TENANT_A}`)
+        .send({});
+      expect(response.status, JSON.stringify(response.body)).toBe(202);
+      expect(response.body.preparation.revokesApproval).toBe(true);
+
+      const recorded = (await preparationsOf(T4_CUTOVER_MAPPING)).rows;
+      expect(recorded.map((r) => r.detail)).toEqual([
+        { mappingId: T4_CUTOVER_MAPPING, runId: 'run_mock_test', revokesApproval: true },
+      ]);
+    });
+
+    it('names the data type when one alone was prepared', async () => {
+      // A preparation of one data type is a different act from the whole
+      // migration's (0128 T5, slice 5c), so its record says which one.
+      await seedT4Cutover();
+      await superuserPool.query(
+        `INSERT INTO scope_selection (tenant_id, mapping_id, domain, included) VALUES ($1, $2, 'email', true)`,
+        [MIG_TENANT_A, T4_CUTOVER_MAPPING],
+      );
+
+      const response = await request
+        .post(`/api/migrations/${T4_CUTOVER_MAPPING}/cutover`)
+        .set('Authorization', `Bearer ${TOKEN_TENANT_A}`)
+        .send({ domain: 'email' });
+      expect(response.status, JSON.stringify(response.body)).toBe(202);
+      expect(response.body.domain).toBe('email');
+
+      const recorded = (await preparationsOf(T4_CUTOVER_MAPPING)).rows;
+      expect(recorded.map((r) => r.detail)).toEqual([
+        { mappingId: T4_CUTOVER_MAPPING, runId: 'run_mock_test', revokesApproval: false, domain: 'email' },
+      ]);
+    });
+
+    it('keeps its 202 when the record cannot be written, and says so on the log page', async () => {
+      // The enqueue is in no transaction, so the record cannot share one with
+      // it: by the time it is written the preparation is under way, and a 500
+      // then would report a success as a failure (hard rule 10).
+      await seedT4Cutover();
+      triggerMock.mockClear();
+      const said: AppEvent[] = [];
+      setAppEventSink({ record: async (e) => void said.push(e) });
+      await superuserPool.query(`CREATE OR REPLACE FUNCTION refuse_t4_preparation() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION 'the record is refused'; END $$`);
+      await superuserPool.query(`CREATE TRIGGER refuse_t4_preparation BEFORE INSERT ON audit_log
+        FOR EACH ROW WHEN (NEW.action = 'cutover.preparation_requested' AND NEW.detail ->> 'mappingId' = '${T4_CUTOVER_MAPPING}')
+        EXECUTE FUNCTION refuse_t4_preparation()`);
+      try {
+        const response = await request
+          .post(`/api/migrations/${T4_CUTOVER_MAPPING}/cutover`)
+          .set('Authorization', `Bearer ${TOKEN_TENANT_A}`)
+          .send({});
+        expect(response.status, JSON.stringify(response.body)).toBe(202);
+        expect(triggerMock).toHaveBeenCalledTimes(1);
+        expect((await preparationsOf(T4_CUTOVER_MAPPING)).rows).toEqual([]);
+        expect(said).toEqual([
+          expect.objectContaining({
+            level: 'error',
+            event: 'cutover.preparation_not_recorded',
+            tenantId: MIG_TENANT_A,
+            mappingId: T4_CUTOVER_MAPPING,
+          }),
+        ]);
+      } finally {
+        setAppEventSink(undefined);
+        await superuserPool.query('DROP TRIGGER IF EXISTS refuse_t4_preparation ON audit_log');
+        await superuserPool.query('DROP FUNCTION IF EXISTS refuse_t4_preparation()');
+      }
+    });
+
+    it('records nothing for a preparation it refused or did not find', async () => {
+      // A cutover under way is refused with 409, and nothing is enqueued.
+      await seedT4Cutover('CUTOVER_IN_PROGRESS');
+      triggerMock.mockClear();
+      const refused = await request
+        .post(`/api/migrations/${T4_CUTOVER_MAPPING}/cutover`)
+        .set('Authorization', `Bearer ${TOKEN_TENANT_A}`)
+        .send({});
+      expect(refused.status, JSON.stringify(refused.body)).toBe(409);
+      expect(triggerMock).not.toHaveBeenCalled();
+      expect((await preparationsOf(T4_CUTOVER_MAPPING)).rows).toEqual([]);
+
+      // Another organisation's migration is not found.
+      await seedT4Cutover();
+      const elsewhere = await request
+        .post(`/api/migrations/${T4_CUTOVER_MAPPING}/cutover`)
+        .set('Authorization', `Bearer ${TOKEN_TENANT_B}`)
+        .send({});
+      expect(elsewhere.status).toBe(404);
+      expect((await preparationsOf(T4_CUTOVER_MAPPING)).rows).toEqual([]);
+      await superuserPool.query('DELETE FROM mailbox_mapping WHERE id = $1', [T4_CUTOVER_MAPPING]);
+      await superuserPool.query('DELETE FROM mailbox WHERE id = $1', [T4_CUTOVER_MAILBOX]);
     });
   });
 

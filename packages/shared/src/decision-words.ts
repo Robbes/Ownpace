@@ -139,6 +139,9 @@ export function decisionAcceptLabel(
   return { text: decision.proposedDefault, lang: 'en' };
 }
 
+/** What answering or setting aside a decision did, in English and in Dutch. */
+export type DecisionEffect = Readonly<Record<DecisionLanguage, string>>;
+
 /**
  * What answering a decision says it did: that the migration acts on it only
  * where the answer changed something, which today is a shared address's
@@ -147,6 +150,34 @@ export function decisionAcceptLabel(
  * address's answer that names no pattern, and that changes nothing. Both
  * editions answer a resolve with this.
  */
-export function decisionResolvedEffect(changedSomething: boolean): string {
+export function decisionResolvedEffect(changedSomething: boolean): DecisionEffect {
   return changedSomething ? DECISION_EFFECTS.resolved : DECISION_EFFECTS.recorded;
+}
+
+/**
+ * How an effect travels, beside the decision in a resolve's or a dismiss's
+ * answer: the English as `effect`, which a page from before the Dutch reads,
+ * and the Dutch as `effectNl`, the pairing `reason`/`reasonNl` has. Both
+ * editions build their answer with this, so the two cannot drift (ADR-0026).
+ */
+export interface DecisionEffectFields {
+  readonly effect: string;
+  readonly effectNl: string;
+}
+
+export function decisionEffectFields(said: DecisionEffect): DecisionEffectFields {
+  return { effect: said.en, effectNl: said.nl };
+}
+
+/**
+ * The line under a decision just answered or set aside, in the reader's
+ * language. A server from before the Dutch sends only `effect`, which shows
+ * as served and says it is English. Nothing served, nothing said.
+ */
+export function decisionEffectText(
+  served: Partial<DecisionEffectFields>,
+  lang: DecisionLanguage,
+): DecisionText | undefined {
+  if (lang === 'nl' && served.effectNl) return { text: served.effectNl, lang: 'nl' };
+  return served.effect ? { text: served.effect, lang: 'en' } : undefined;
 }
