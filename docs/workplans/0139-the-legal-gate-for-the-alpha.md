@@ -4,6 +4,35 @@
 
 ## Status — 2026-10-21 (update this block at the end of every session)
 
+**2026-10-21: the end of the Alpha empties the task runner's history** (privacy-task-records
+(a)). Privacy §9 keeps the background tasks' records *"Until the end of the Alpha at the latest:
+then the background tasks start with an empty history"*, and the comments beside that row in
+`privacy.md` and `privacy.nl.md` said the step was *"not written yet"*. It is now step 3 of *The
+switch* in `docs/ending-the-alpha.md`, on live only, under the hold and after the drain, before
+live's `.env` loses its stage and before the deploy: `reset-trigger.sh --yes`, then what it
+prints (`ensure-env-secrets.sh`, `bootstrap-managed.sh --from trigger`, the one dashboard step,
+`--from account`, which uploads the task environment and deploys the tasks). *Checks* step 6
+proves it before the hold lifts: `triggerdb`'s oldest run is younger than the reset, the four
+ClickHouse tables the history would reach count 0, and MinIO's `packets` bucket is empty.
+
+- **Why the reset alone keeps the promise.** Read at Trigger.dev v4.7.2: runs reach ClickHouse
+  only with `RUN_REPLICATION_ENABLED=1` (default `"0"`), run events go to `triggerdb` unless
+  `EVENT_REPOSITORY_DEFAULT_STORE` says otherwise (default `postgres`), and MinIO takes only a
+  payload of 512 KB or more or an output of 128 KB or more. `managed.yml` sets neither key. A
+  `--with-stores` flag for `reset-trigger.sh`, the lifecycle finding's first proposal, would empty
+  stores that hold nothing; it is built if check 6 ever finds rows.
+- **What else holds the old history:** a copy before an update whose tag moved the Trigger.dev
+  pin, for its own 7 days at most (T6). Live takes no daily dumps of `triggerdb` (T6's drill off
+  live).
+- **Guarded** by `scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts`: the promise
+  in both languages, the step and its order, `reset-trigger.sh`'s *Next* line for line, the three
+  checks (no password on a command line, MinIO's path as `managed.yml` mounts it), and the two keys
+  unset. Red on main (7 of its 9 cases), green after; 11 mutations, all killed.
+- **No text changes:** the texts stay 1.0, words and pins. The two comments that still say *"not
+  written yet"*, and `site/legal/README.md`'s *Later* item, change with the next change to those
+  files.
+- **Still to do:** the owner runs it on the day the Alpha ends.
+
 **2026-10-21: the texts testers accept stay 1.0.** On 2026-10-19 the owner approved new words for
 all three texts (workplan 0159 row 24): the deletion switches by the app's names, *aanmelden* and
 *afmelden* in Dutch, the count when you review your migration, and two-factor sign-in, passkeys

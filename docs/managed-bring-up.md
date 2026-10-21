@@ -5013,6 +5013,10 @@ ledger, tenants, mappings, items and invoices live in the application database
 serving throughout. You are then back at the one human step, and
 `trigger-credentials.sh` reads the new project's credentials.
 
+On `ownpace-live` these lines are also a step of the end of the Alpha, under its hold, because
+privacy §9 promises the background tasks an empty history then:
+[ending-the-alpha.md](./ending-the-alpha.md), *The switch*, step 3.
+
 **Turning the pooler off** is two values: `DB_HOST=postgres`, `DB_PORT=5432`,
 then `up -d`. Every service reads them, so nothing in `managed.yml` is edited.
 
