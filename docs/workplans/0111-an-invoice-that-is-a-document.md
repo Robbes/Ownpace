@@ -2,7 +2,57 @@
 
 > **In one line:** The invoice as a legal document, numbered and rendered by Moneybird: `billing_party` buyer data, VIES checks in `vat_consultation`, VAT treatment and OSS, the Moneybird adapter and mirror, an immutability trigger, credit notes and VAT-inclusive prices.
 
-## Status — 2026-10-12 (update this block at the end of every session)
+## Status — 2026-10-21 (update this block at the end of every session)
+
+**2026-10-21: slice 5d, followed up — the night asks Moneybird once more when it says try later**,
+in #1653, merged 2026-10-21 (`064f3585`). E2E (managed) #260, the scheduled run of 2026-10-20,
+went red on the books alone: *"The night's invoice did not go through (unavailable): Moneybird
+answered HTTP 404 to reading invoice …"*. That was `pushInvoice`'s read-back just after the send.
+About an hour later, #261 (dispatched, on 29693244) printed *"Found tonight's invoice 2026-0017
+(ownpace-nightly-2026-10-20), made by an earlier run."* So #260 had made and numbered the invoice,
+and only the sandbox's read lagged. It was not a fault in the books, but a red scheduled run
+starts 0141 T14's two-night count again.
+
+- **Asked once more.** An `unavailable` or `slow_down` answer to the count, to making the invoice
+  (its own read-back included) or to the read-back after the payment is asked once more. The
+  night waits 30 s, or a 429's `Retry-After` when that is two minutes or less. A 429 that asks for
+  longer fails the night at once rather than asking early (AGENTS.md hard rule 4; the review
+  added this). The wait is a new optional `wait` in `nightlyMoneybird`'s
+  options (`moneybird-nightly.ts`), which tests replace with a clock of their own; `operator.ts`
+  calls it as before.
+- **Nothing twice.** Making it again finds the invoice by its reference and sends nothing twice.
+  The month is not counted again when a later step asks again: counted 39, the 40th would
+  otherwise read as a skip and leave an unpaid invoice behind a green gate. **A payment is never
+  posted twice:** if its answer does not come (a 5xx or a 429), the invoice is read instead, and
+  the night goes on only if it reads as paid or has nothing left to pay. A read that shows it
+  paid is the read-back.
+- **Once a night.** The night asks again once at most, and the lines keep both answers. A
+  refusal, a wrong state, a refused payment and a half-configured stack still fail at once. A
+  refused token is filed as `unavailable` (`moneybird-http.ts`), so it is asked once more before
+  it goes red. The last line is still *"Read back as paid."*, so the gate's grep stands. The
+  gate's comment (`smoke-managed.sh`), `operator.sh`, the push's header and the bring-up guide say
+  the night asks once more.
+- **Left open.** If the sandbox's lag also reached `find_by_reference` within those 30 s, the
+  second push would make a second sandbox invoice under the night's reference. That would be
+  sandbox-only, would pay no invoice twice, and is the same property the hourly push relies on. A
+  second invoice under one `ownpace-nightly-…` reference in the sandbox would be its sign.
+- **Guards:** `moneybird-nightly.unit.test.ts`, whose sandbox now answers wrongly on cue. The
+  cases:
+  - #260's 404 once passes, with one invoice made, sent and paid; twice fails with both answers
+    and pays nothing.
+  - A read-back after the payment is read once more.
+  - A payment that answered 500 or 429 but was registered reads as paid, with no second POST.
+  - One that was not registered fails with €1.00 still to pay and one POST.
+  - A paid re-read is the read-back, so a later 404 cannot paint it red; a re-read that does not
+    answer fails.
+  - A 429 waits its `Retry-After` up to and including 120 s, or 30 s without one; one of 600 s
+    fails at once with no second request.
+  - The month is counted once when the push is asked again (39 already, the 40th still paid).
+  - Asked again once, an unconfirmed payment or a silent read-back fails.
+  - A refusal, a wrong state and a half-configured stack fail with no wait.
+  - The default timer waits 30 s.
+
+  16 red on main, 30 green; thirteen mutations, each caught.
 
 **2026-10-12, T11 slice Y4: the year in the docs, and a rehearsal of the whole chain. T11 is
 built.** ADR-0014 gains *Amendment 2026-10-12* (the owner's four answers) and its operative rule
@@ -522,6 +572,10 @@ keys is their check.
   contact without an e-mail address, sent `Manual`, paid `1.00` on the night's date and read back
   as paid; a second run writes nothing; a refused payment and an invoice that stays `open` fail the
   night; the token in no line). The fetch guard counts the adapter's two new requests.
+- **Followed up 2026-10-21 (#1653):** the first nights with keys were its check, and one of them,
+  #260, went red on the sandbox's lag. The night now asks once more when Moneybird says try later,
+  honours a 429's `Retry-After` rather than asking early, and never posts a payment twice (Status,
+  2026-10-21).
 
 **2026-10-10: slice 5c — `operator.sh moneybird proof`** (decision 12, the operator's half). One
 invoice a month, made by hand to prove the books: it goes through `pushInvoice` the way the hourly
@@ -1278,7 +1332,8 @@ slice 5. The annual credit is not in this chain (decision 6).
    (`paid`, `late`). **The push built 2026-10-06** (slice 5a, managed 0047, hourly, Status). The Billing page shows the legal number and date; Pay shows only where an
    invoice can be paid: **built 2026-10-10** (slice 5b, Status). `operator.sh moneybird proof` makes one invoice in the sandbox, by hand,
    never by e-mail, and running it again answers that it exists (**built 2026-10-10**, slice 5c); the nightly managed run makes one
-   with a payment registered (12; **built 2026-10-10**, slice 5d). Invoice details first (14): **built
+   with a payment registered (12; **built 2026-10-10**, slice 5d), and asks once more when
+   Moneybird says try later (**2026-10-21**, #1653). Invoice details first (14): **built
    2026-10-10** (slice 5e, managed 0048, Status).
 6. **Moneybird's PDF in the app** (T6). The app streams Moneybird's own document and keeps no
    copy; a draft has none. Delivery as decided in 11. **Built 2026-10-10** (slice 6, Status).

@@ -2,7 +2,22 @@
 
 > **In one line:** The web app on phones, screen readers and in-app browsers: phone menu focus, `CreateMapping` wizard focus, the consent popup opened on the press, grant page language, ARIA state, axe and WebKit tests, an accessibility statement.
 
-## Status — 2026-09-29 (update this block at the end of every session)
+## Status — 2026-10-21 (update this block at the end of every session)
+
+**2026-10-21: the grant and view fixtures exist** (0141 T12 (b), merged as #1646 on 2026-10-21,
+`fb7962c5`). `open()` in `test/ui/managed-ui.ui.test.ts` has a `phone` option (390 × 844,
+`isMobile`, `hasTouch`). The grant and progress links, a migration's and a person's, are opened
+with it in Dutch, in the non-Alpha bundle, with every fold open, and checked for sideways
+scrolling. Two lessons for the rest of T8 (a):
+
+- With `isMobile`, a page that is too wide does not scroll: the browser zooms out and
+  `innerWidth` grows. So the check must hold `innerWidth` to 390, not only `scrollWidth` to
+  `innerWidth`.
+- A closed `<details>` is not laid out, so the folds must be opened before measuring.
+
+Still open in T8 (a): the other four pages (`/login` in Dutch, `/request-access?locale=nl`,
+`/mappings`, `/mappings/new`), the menu-focus and wizard-top checks, and the Alpha bundle's
+`AlphaGoogleLine` at phone width. T8 (b) and (c) are unchanged.
 
 **2026-09-29, build: the deploy check and the reload prompt (the owner: *"build the deploy check
 and the reload prompt in this session"*), on branch `claude/affectionate-mayer-xqkjdh`, after the
@@ -812,7 +827,7 @@ only a keyboard, and T9 (a) says so before anyone starts.
 | T5 The consent window opens on the press itself | ✅ **done** in #1308, merged 2026-09-28 (`7e7d89ca`), with T7 (a); T0 found Safari blocking the window it replaces (2026-09-28), and T0's retest after it is the owner's — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged** (2026-09-28); 📋 **Proposed** | §3. The window opens in the click and is pointed at the provider afterwards. A blocked window says so and offers a link. One shared helper serves both call sites. A same-tab fallback is 🅿️ **Parked (trigger: a phone or browser in T0 or T10 where neither the window nor the link comes back)**. **Before.** |
 | T6 The grant flow and the consent endings in one language | ✅ **done** in #1208, merged 2026-09-27, both halves; the Dutch wording ⏳ **Owner**, before merge — *was:* 📋 **Proposed**; the Dutch wording ⏳ **Owner** | §3. The "reads" phrase comes from the dictionary. The link-holder refusals come in pairs, as `credential-refusals.ts` does it. The endings are rendered in the language the page was in, and the public pages get a language switch. **Before**, the grant half only if grant links are used in the alpha. The grant half is built ahead of 0140's open question 2, and the switch follows open question 2 below as recommended; both answers are still the owner's. |
 | T7 Help a finger can reach | (a) ✅ **done** in #1308, merged 2026-09-28 (`7e7d89ca`), with T5; (b) 📋 **Proposed**, after — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged (2026-09-28); 📋 **Proposed** | §3. (a) The reason a Connect button is greyed out, as text under it, in T5's change: **before**. (b) Verify's help moves into the Hint fold, and the Mappings row actions get names and targets a thumb can hit: **after**. |
-| T8 Checks that run: phone width, axe, WebKit | 📋 **Proposed** | §3. A 390 px case, an axe scan of the key pages and a WebKit run, all in `test/ui`. Adding the dev dependency and the CI minutes is the maintainer's decision. **After.** |
+| T8 Checks that run: phone width, axe, WebKit | 📋 **Proposed**, all but a part of (a): the grant and progress links at 390 px ✅ **done** in #1646, merged 2026-10-21, with 0141 T12 (b) — *was:* 📋 **Proposed** | §3. A 390 px case, an axe scan of the key pages and a WebKit run, all in `test/ui`. Adding the dev dependency and the CI minutes is the maintainer's decision. **After.** |
 | T9 An accessibility statement in Dutch and English | (a) 📋 **Proposed**, **before**; (b) 📋 **Proposed**, **after**; whether the European Accessibility Act applies ⏳ **Owner**, with 0139's legal pass (D4) | §3. (a) One paragraph in 0144 T1's guide. (b) A page on the site: the target, what has been checked, what has not, known limitations, a contact and a date. |
 | T10 The walk on two phones | ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 9); ⏳ **Owner** (the walk) — *was:* ⏳ **Owner** (the walk); 📋 **Proposed** (the runbook stage) | §3. An iPhone with Safari and an Android phone with Chrome, both in Dutch, with one pass under VoiceOver and one under TalkBack. It also produces the list of in-app browsers. **Before the first invitation**, on `ownpace-live`, once a release that carries the minimum runs there. |
 
