@@ -1014,9 +1014,12 @@ describe("live's TRUST_PROXY: the proxies in front of its api, 2, or 3 where Net
 // Live's sign-in page offers email and password only: privacy §4.4, §7 and §8
 // say so, and the owner chose it (ops-social-signin (a); 0139 T0 fact 4, 0140
 // T10). setup-zitadel.sh adds Google, Microsoft, GitHub or Apple as a way in
-// whenever that provider's keys are set, and never takes one away, so one
-// stray pair, copied into live's .env with the OTA stack's Google client
-// (0140 T11), would put a button in front of every tester for good.
+// whenever that provider's keys are set, so one stray pair, copied into
+// live's .env with the OTA stack's Google client (0140 T11), would put a
+// button in front of every tester. It deletes no provider: only a run with
+// every pair empty hides the buttons, by turning 'External IDP allowed' off
+// (docs/managed-bring-up.md, §8b), so the refusal says that, and never sends
+// the owner to delete one a tester may be linked to.
 describe("live's sign-in page offers email and password only: a sign-in provider's key holding a value is refused (privacy §4.4, §7, §8; ops-social-signin (a))", () => {
   it('the keys come from managed.env.example, and include every provider key setup-zitadel.sh reads', () => {
     expect(SIGN_IN_KEYS).toEqual(
@@ -1050,6 +1053,10 @@ describe("live's sign-in page offers email and password only: a sign-in provider
       expect(r.out).toContain('privacy §4.4, §7 and §8');
       expect(r.out).toContain('ops-social-signin (a)');
       expect(r.out).toContain(`${key}= and nothing after it`);
+      expect(r.out, 'with every key empty the bring-up hides the buttons itself').toContain(
+        "with every one of these keys empty the bring-up turns 'External IDP allowed' off, which takes every provider's button off the sign-in page (docs/managed-bring-up.md, §8b",
+      );
+      expect(r.out, 'no provider needs deleting, and a tester may be linked to one').not.toContain('stays until you remove');
       expect(shown(r.out)).not.toContain(value);
       expectNothingLeaked(s, r.out);
     },

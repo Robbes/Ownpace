@@ -1126,9 +1126,10 @@ thing to keep patched for nothing.
 What that means in practice:
 
 - Every upstream OAuth client registered below gets a redirect URI on
-  `id.ota.ownpace.eu` today, and a **second** one on `id.ownpace.eu` when
-  production arrives — the same client may carry both, or you may register a
-  separate client per environment, which
+  `id.ota.ownpace.eu` today. It gets a **second** one on `id.ownpace.eu` only if
+  production ever offers that provider: `ownpace-live` offers email and password
+  only (*Not on `ownpace-live`*, below). The same client may carry both, or you
+  may register a separate client per environment, which
   [ADR-0041](./adr/0041-who-owns-the-oauth-client.md) prefers for the
   *migration* client and which applies equally here.
 - Accounts do not travel. Somebody who signed in to the test stack has no
@@ -1146,8 +1147,11 @@ never learns anybody used Google.
 **Not on `ownpace-live`.** Live's sign-in page offers email and password only,
 as privacy §4.4, §7 and §8 say (the owner, ops-social-signin (a)), so
 `stand-up-live.sh` and `deploy-live.sh` refuse live's `.env` while any of the
-keys below holds a value (`LIVE_REFUSED_SIGN_IN_KEYS`, `stack-kind.sh`). This
-section is for the OTA stack and other managed deployments.
+keys below holds a value (`LIVE_REFUSED_SIGN_IN_KEYS`, `stack-kind.sh`). A
+provider added there before stays configured at the identity provider; with
+every key empty, the next stand-up or deploy turns "External IDP allowed" off,
+which hides its button (*Emptying a pair removes less than it looks like*,
+below). This section is for the OTA stack and other managed deployments.
 
 **Your half** is registering an OAuth client at each provider's console. The
 redirect URI is **not the same for all four** — Apple posts its answer back,
@@ -3686,8 +3690,8 @@ No script can do these. The script checks each one before it changes anything.
    second way in*): live's sign-in page offers email and password only, as
    privacy §4.4, §7 and §8 say (the owner, ops-social-signin (a)), and the
    script refuses a key that holds a value. `GOOGLE_OAUTH_*`, the consent's
-   pair from the OTA stack's client (workplan 0140 T11), is another key and
-   stays. Write
+   pair from the OTA stack's client (workplan 0140 T11), are other keys and
+   stay. Write
    every line `KEY=value` at its start: Compose also reads a key indented, with
    a space before `=`, or with `:`, the script's checks do not, and it refuses
    such a line. `NODE_ENV=production` is live's mode: `managed.yml` takes no

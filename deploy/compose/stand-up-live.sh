@@ -684,12 +684,15 @@ check_settings() {
   # Email and password only at live's sign-in page (privacy §4.4, §7 and §8;
   # the owner's ops-social-signin (a)): every sign-in provider's key empty
   # (LIVE_REFUSED_SIGN_IN_KEYS, stack-kind.sh). setup-zitadel.sh, which the
-  # bring-up runs, adds a provider whose keys are set and never removes one,
-  # and live's .env carries the OTA stack's Google client for the consent
-  # (0140 T11), a pair easily copied into these keys too.
+  # bring-up runs, adds a provider whose keys are set, and live's .env carries
+  # the OTA stack's Google client for the consent (0140 T11), a pair easily
+  # copied into these keys too. It deletes no provider, since a person may be
+  # linked to one: a run with every pair empty turns 'External IDP allowed'
+  # off, which hides the buttons, so the line below sends nobody to the
+  # console to delete one.
   while IFS= read -r key; do
     [ -n "$key" ] || continue
-    _p+=("${key}: set. It is a sign-in provider's key, and live's sign-in page offers email and password only (privacy §4.4, §7 and §8; ops-social-signin (a)): with the provider's keys set, setup-zitadel.sh puts its button there. Leave it empty, ${key}= and nothing after it. A button setup-zitadel.sh added before stays until you remove that provider in the identity provider's console (docs/managed-bring-up.md, 8b).")
+    _p+=("${key}: set. It is a sign-in provider's key, and live's sign-in page offers email and password only (privacy §4.4, §7 and §8; ops-social-signin (a)): with the provider's keys set, setup-zitadel.sh puts its button there. Leave it empty, ${key}= and nothing after it. A provider setup-zitadel.sh added before stays configured at the identity provider, but with every one of these keys empty the bring-up turns 'External IDP allowed' off, which takes every provider's button off the sign-in page (docs/managed-bring-up.md, §8b, *Emptying a pair removes less than it looks like*).")
   done <<<"$(live_sign_in_keys_set "$ENV_FILE")"
   # Live's databases are copied before each deploy and each copy is deleted
   # after at most this many days: the owner's answer to 0134's open question

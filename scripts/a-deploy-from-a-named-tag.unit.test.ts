@@ -1029,9 +1029,12 @@ describe('a stack, a checkout or a moment that is not ready is refused, and noth
   // Live's sign-in page offers email and password only: privacy §4.4, §7 and
   // §8 say so, and the owner chose it (ops-social-signin (a); 0139 T0 fact 4,
   // 0140 T10). The bring-up's setup-zitadel.sh adds a provider whenever its
-  // keys are set, and never takes one away, so a pair copied into live's .env
-  // with the OTA stack's Google client (0140 T11) is refused before the
-  // fetch, the checkout or any docker call, in a dry run too. The keys are
+  // keys are set, so a pair copied into live's .env with the OTA stack's
+  // Google client (0140 T11) is refused before the fetch, the checkout or any
+  // docker call, in a dry run too. It deletes no provider: with every key
+  // empty, the deploy's own run turns 'External IDP allowed' off, which hides
+  // the buttons (docs/managed-bring-up.md, §8b), and the refusal says so
+  // rather than sending the owner to delete one. The keys are
   // every IDP_* key managed.env.example declares but IDP_UPSTREAM_CALLBACK_URL,
   // which setup-zitadel.sh writes: a provider added there is refused the same
   // day.
@@ -1058,6 +1061,10 @@ describe('a stack, a checkout or a moment that is not ready is refused, and noth
         expect(r.out).toContain('privacy §4.4, §7 and §8');
         expect(r.out).toContain('ops-social-signin (a)');
         expect(r.out).toContain(`./deploy/compose/env-upsert.sh deploy/compose/.env ${key}=\n`);
+        expect(r.out, "with every key empty the deploy's setup-zitadel.sh hides the buttons itself").toContain(
+          "with every key empty, the deploy's setup-zitadel.sh turns 'External IDP allowed' off, which takes its button off the sign-in page (docs/managed-bring-up.md, §8b",
+        );
+        expect(r.out, 'no provider needs deleting, and a tester may be linked to one').not.toContain('stays until you remove');
         expect(r.out, "the file's own value is never printed").not.toContain(value);
         expect(r.out).toContain('The checkout and the stack are as they were.');
         expect(r.out, 'it fetched before refusing').not.toContain('fetching tags');
@@ -1069,16 +1076,19 @@ describe('a stack, a checkout or a moment that is not ready is refused, and noth
   );
 
   it(
-    "a pair in double quotes, as the OTA client's might be copied, with NODE_ENV absent: every key named at once, one line empties the pair",
+    "a pair in double quotes, as the OTA client's might be copied, and empty double quotes, which setup-zitadel.sh's reader takes for a value, with NODE_ENV absent: every key named at once, one line empties them",
     () => {
-      const dotEnv = `${LIVE_ENV.replace('NODE_ENV=production\n', '')}IDP_GOOGLE_CLIENT_ID="ota-client-q1.apps.example.test"\nIDP_GOOGLE_CLIENT_SECRET="ota-secret-q2"\n`;
+      const dotEnv = `${LIVE_ENV.replace('NODE_ENV=production\n', '')}IDP_GOOGLE_CLIENT_ID="ota-client-q1.apps.example.test"\nIDP_GOOGLE_CLIENT_SECRET="ota-secret-q2"\nIDP_GITHUB_CLIENT_ID=""\n`;
       const s = stage({ releases: [NEXT], dotEnv });
       const r = run(s, [NEXT.tag]);
       expect(r.status, r.out).toBe(1);
       expect(r.out).toContain('NODE_ENV:');
       expect(r.out).toContain('IDP_GOOGLE_CLIENT_ID: set.');
       expect(r.out).toContain('IDP_GOOGLE_CLIENT_SECRET: set.');
-      expect(r.out).toContain('./deploy/compose/env-upsert.sh deploy/compose/.env IDP_GOOGLE_CLIENT_ID= IDP_GOOGLE_CLIENT_SECRET=\n');
+      expect(r.out).toContain('IDP_GITHUB_CLIENT_ID: set.');
+      expect(r.out).toContain(
+        './deploy/compose/env-upsert.sh deploy/compose/.env IDP_GOOGLE_CLIENT_ID= IDP_GOOGLE_CLIENT_SECRET= IDP_GITHUB_CLIENT_ID=\n',
+      );
       expect(r.out).not.toContain('ota-client-q1');
       expect(r.out).not.toContain('ota-secret-q2');
       expectNothingChanged(s, r.out);

@@ -385,8 +385,10 @@ main() {
   # Email and password only at live's sign-in page (privacy §4.4, §7 and §8;
   # the owner's ops-social-signin (a)): every sign-in provider's key empty
   # (LIVE_REFUSED_SIGN_IN_KEYS, stack-kind.sh), as stand-up-live.sh refuses it.
-  # The bring-up's setup-zitadel.sh adds a provider whose keys are set and
-  # never removes one. Each key by name, then one line that empties them all.
+  # The bring-up's setup-zitadel.sh adds a provider whose keys are set. It
+  # deletes none, since a person may be linked to one: with every pair empty,
+  # its run in this deploy turns 'External IDP allowed' off, which hides the
+  # buttons. Each key by name, then one line that empties them all.
   local sign_in_key sign_in_empty=''
   while IFS= read -r sign_in_key; do
     [ -n "$sign_in_key" ] || continue
@@ -396,7 +398,7 @@ main() {
   [ -z "$sign_in_empty" ] ||
     unready+=("Leave every sign-in provider's key empty:" \
       "  ./deploy/compose/env-upsert.sh deploy/compose/.env${sign_in_empty}" \
-      "  A button setup-zitadel.sh added before stays until you remove that provider in the identity provider's console (docs/managed-bring-up.md, 8b).")
+      "  A provider added before stays configured at the identity provider; with every key empty, the deploy's setup-zitadel.sh turns 'External IDP allowed' off, which takes its button off the sign-in page (docs/managed-bring-up.md, §8b).")
   if [ "${#unready[@]}" -gt 0 ]; then
     refuse "live's .env is not ready for a deploy. Each line names a key, never its value:" "${unready[@]}"
   fi

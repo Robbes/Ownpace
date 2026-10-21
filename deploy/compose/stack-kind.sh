@@ -74,9 +74,11 @@ LIVE_ORG_NAME=Ownpace
 # LIVE'S SIGN-IN PAGE OFFERS EMAIL AND PASSWORD ONLY (privacy §4.4, §7 and §8;
 # the owner's ops-social-signin (a), workplan 0139 T0 fact 4, 0140 T10).
 # setup-zitadel.sh adds Google, Microsoft, GitHub or Apple as a way to sign in
-# whenever that provider's keys below hold a value, and never takes one away,
-# so stand-up-live.sh and deploy-live.sh refuse live's .env while any of them
-# does (live_sign_in_keys_set). They are every IDP_* key managed.env.example
+# whenever that provider's keys below hold a value, and never deletes one:
+# emptying every pair only hides the buttons, on its next run
+# (docs/managed-bring-up.md, §8b). So stand-up-live.sh and deploy-live.sh
+# refuse live's .env while any of them does (live_sign_in_keys_set), before a
+# button reaches a tester. They are every IDP_* key managed.env.example
 # declares but IDP_UPSTREAM_CALLBACK_URL, the identity provider's own return
 # address, which setup-zitadel.sh writes; the two scripts' guards read the
 # list from the example, so a provider added there fails them until it is
