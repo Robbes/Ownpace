@@ -4833,6 +4833,16 @@ exist. Asking whether a specific tag exists is the question it answers
 reliably, so that is the question asked, upward from the version already
 pinned.
 
+`trigger-version.sh probe [version]` prints that probe's answer alone, the
+tags above the pin newest first, and nothing when nothing newer is published.
+The weekly pin watch (`.github/workflows/idp-pin-watch.yml`, workplan 0146 T8)
+runs it and keeps an issue open while a newer tag is in both images, with this
+section's route in it. A request that fails reads exactly like a tag that does
+not exist, so `probe` first asks for the tag it starts from and refuses when
+that does not answer, and on the walk upward takes only a 404 as a missing tag:
+any other answer (a 429, a 5xx, a timeout) refuses too. An unread registry
+never reads as "nothing newer", nor as an older newest.
+
 > **Back the database up first, because the upgrade is one way.** The webapp
 > applies its own schema migrations on boot and Prisma has no down-migrations,
 > so putting the old tag back restores the IMAGES and not the schema they

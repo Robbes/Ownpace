@@ -1,8 +1,8 @@
 # ADR-0042: Who holds the passwords — an issuer we can replace
 
 - **Status:** Accepted 2026-08-22, on the owner's condition; consolidated 2026-10-03
-  (ADR-0051); amended seven times (latest 2026-10-05: on managed, the app's policy names the
-  issuer, so the issuer has no path and its token endpoint is on its own origin)
+  (ADR-0051); amended eight times (latest 2026-10-21: Dependabot never read the image's file,
+  so the weekly pin watch, not an ignore, keeps the pin from moving unnoticed)
 - **Date:** 2026-08-22; consolidated 2026-10-03
 - **Deciders:** Owner, 2026-08-22 — accepted with a condition: *confirm* the issuer is
   replaceable rather than assert it (*Decision* 4)
@@ -340,6 +340,13 @@ they meant to link.
   the policy changed too. Found by the review of 0158 T1. To make room in the operative section,
   the appliance bullet drops its reason, which *Decision* 1 gives. Record: *Operative rules*, the
   bullet "Zitadel is the accepted issuer", and *Decision* 4.
+- **2026-10-21** — *Decision* 6's "Dependabot ignores the image by name" no longer holds, and
+  never did anything: Dependabot's compose fetcher reads only files named like `compose.yml`,
+  so it read no file in `deploy/compose` and never offered Zitadel at all. The ignore is gone
+  from `.github/dependabot.yml`. What keeps the pin from moving unnoticed is the weekly pin
+  watch, which keeps its issue open while the pin is behind (workplan 0146 T8,
+  `scripts/idp-pin-watch.mjs`). Nothing was decided: upgrades stay deliberate. Record: this
+  entry; *Decision* 6 stays as written.
 
 The full record, word for word as it read before this consolidation:
 [history/0042-who-holds-the-passwords.md](./history/0042-who-holds-the-passwords.md).

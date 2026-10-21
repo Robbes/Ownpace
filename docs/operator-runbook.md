@@ -668,7 +668,10 @@ refuses a `--dir` naming another: the copy `deploy-live.sh` takes already holds 
 them it writes a note: the image that was running, a fingerprint of the master key the dump needs,
 and the commands that go back to it. It stops and changes nothing (workplan 0135 T7). On the same
 server, going back replaces the database only: its roles are still there, and restoring them would
-set the provider's database password back to the dumped one.
+set the provider's database password back to the dumped one. A dump holds the provider's accounts,
+so on the OTA stack delete it once main's first scheduled E2E (managed) on the new pin is green;
+the script says so when it is done, and so does the pin watch's issue (workplan 0146 T8). On live
+the copy's own rules delete it.
 
 Notes:
 - The ledger is a **rebuildable cache** (ADR-0020): even without a ledger backup, a reindex/adopt
