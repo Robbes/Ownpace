@@ -1126,9 +1126,10 @@ thing to keep patched for nothing.
 What that means in practice:
 
 - Every upstream OAuth client registered below gets a redirect URI on
-  `id.ota.ownpace.eu` today, and a **second** one on `id.ownpace.eu` when
-  production arrives — the same client may carry both, or you may register a
-  separate client per environment, which
+  `id.ota.ownpace.eu` today. It gets a **second** one on `id.ownpace.eu` only if
+  production ever offers that provider: `ownpace-live` offers email and password
+  only (*Not on `ownpace-live`*, below). The same client may carry both, or you
+  may register a separate client per environment, which
   [ADR-0041](./adr/0041-who-owns-the-oauth-client.md) prefers for the
   *migration* client and which applies equally here.
 - Accounts do not travel. Somebody who signed in to the test stack has no
@@ -1142,6 +1143,15 @@ Optional, and configuration only — nothing in the product knows a provider's
 name (ADR-0042; `no-issuer-lock-in.unit.test.ts` fails the build on one). The
 upstream goes into Zitadel, Zitadel still mints the token, and `tenant_member`
 never learns anybody used Google.
+
+**Not on `ownpace-live`.** Live's sign-in page offers email and password only,
+as privacy §4.4, §7 and §8 say (the owner, ops-social-signin (a)), so
+`stand-up-live.sh` and `deploy-live.sh` refuse live's `.env` while any of the
+keys below holds a value (`LIVE_REFUSED_SIGN_IN_KEYS`, `stack-kind.sh`). A
+provider added there before stays configured at the identity provider; with
+every key empty, the next stand-up or deploy turns "External IDP allowed" off,
+which hides its button (*Emptying a pair removes less than it looks like*,
+below). This section is for the OTA stack and other managed deployments.
 
 **Your half** is registering an OAuth client at each provider's console. The
 redirect URI is **not the same for all four** — Apple posts its answer back,
@@ -3694,7 +3704,14 @@ No script can do these. The script checks each one before it changes anything.
    the machine that are not Ownpace's, by name (*Containers on the machine that
    are not Ownpace's*, under *Which address a port answers on*); leave it empty
    when there are none. The same check refuses an Ownpace container in it. Leave `POSTGRES_BIND`, `API_BIND`, `TRIGGER_BIND`, `TRIGGER_ACCESS_TOKEN` and
-   `OWNPACE_REACHABLE_HOSTS` empty, and keep `APP_DB_USER=app_user`. Write
+   `OWNPACE_REACHABLE_HOSTS` empty, and keep `APP_DB_USER=app_user`. Leave
+   every sign-in provider's key empty, the `IDP_*` keys of Google, Microsoft,
+   GitHub and Apple (§8b, *Offering Google, Microsoft, GitHub or Apple as a
+   second way in*): live's sign-in page offers email and password only, as
+   privacy §4.4, §7 and §8 say (the owner, ops-social-signin (a)), and the
+   script refuses a key that holds a value. `GOOGLE_OAUTH_*`, the consent's
+   pair from the OTA stack's client (workplan 0140 T11), are other keys and
+   stay. Write
    every line `KEY=value` at its start: Compose also reads a key indented, with
    a space before `=`, or with `:`, the script's checks do not, and it refuses
    such a line. `NODE_ENV=production` is live's mode: `managed.yml` takes no
@@ -3788,7 +3805,8 @@ live's database volume already there without `--resume`; and, all listed at
 once, a line of live's `.env` that sets a key in a form Compose reads and the
 checks do not (indented, a space before `=`, or `:`), every setting from steps
 2, 3 and 6 above that is wrong for live (`NODE_ENV` not `production` and
-`ALERT_ENABLED` not exactly `true` among them, on a `--resume` too), a port that is any of the OTA stack's
+`ALERT_ENABLED` not exactly `true` among them, on a `--resume` too, and a
+sign-in provider's `IDP_*` key that holds a value), a port that is any of the OTA stack's
 under whatever key (read from its persisted `.env`, or the compose files'
 default) or, on a first run, already in use, a port live publishes that lies in
 the kernel's ephemeral range and is not reserved (step 2; that refusal names the
@@ -4230,7 +4248,9 @@ stack changes, each with its own message: `--with-demo`; a `.env` without live's
 marker (`STACK_KIND=production`, `stack-kind.sh`) or without `WEB_URL`; a
 `.env` whose `NODE_ENV` is not `production` (workplan 0132 T4) or whose
 `ALERT_ENABLED` is not exactly `true` (workplan 0142 T0: testers are on live,
-so nobody deploys it without alerts), both named at once, by key, before the
+so nobody deploys it without alerts), or that sets a sign-in provider's `IDP_*`
+key (live's sign-in page offers email and password only: privacy §4.4, §7 and
+§8, ops-social-signin (a)), all named at once, by key, before the
 fetch and any docker call, with any line that sets a key in a form the script
 does not read and the bring-up does (indented, a space before `=`, or `:`), by
 line and key, as the stand-up refuses it;
