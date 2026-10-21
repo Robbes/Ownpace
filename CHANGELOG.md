@@ -6,6 +6,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **Live refuses a sign-in provider's key, so its sign-in page stays email and
+  password only** (workplan 0140 T10, #1644): the stand-up and the deploy
+  refuse live's settings while a Google, Microsoft, GitHub or Apple sign-in key
+  holds a value, as privacy §4.4, §7 and §8 say.
+- **Deletions and Moves say what was decided on each row under *Already
+  decided*** (workplan 0159 follow-up 6, #1652): kept, deleted on the new
+  system too, or, for a moved item, its old copy removed.
 - **Version 1.1 of the Alpha conditions, the terms and the privacy statement**
   (workplan 0159 row 24, the owner's approval of 2026-10-19, #1639): the two
   deletion switches carry the app's names; the Dutch texts say *aanmelden* and
@@ -62,13 +69,6 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   archive guide no longer promise a *free preflight* (the privacy statement
   keeps the word until its version 1.1). Two items, the tiles on a phone and
   the legal texts' wording, were asked again.
-- **Live refuses a sign-in provider's key, so its sign-in page stays email and
-  password only** (workplan 0140 T10, #1644): the stand-up and the deploy
-  refuse live's settings while a Google, Microsoft, GitHub or Apple sign-in key
-  holds a value, as privacy §4.4, §7 and §8 say.
-- **Deletions and Moves say what was decided on each row under *Already
-  decided*** (workplan 0159 follow-up 6, #1652): kept, deleted on the new
-  system too, or, for a moved item, its old copy removed.
 
 ### Added
 
@@ -85,8 +85,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   migration from the IMAP card is told about its mail, and no longer about
   calendars, contacts, files or tasks. An Apple account keeps every row it had.
 - **Sharing says which shares a folder press could not make, and why**
-  (workplan 0136 T3, #1645), in the reader's language, under the folder and in
-  each row's card.
+  (workplan 0136 T3, #1645), in Dutch where the server gave Dutch and in
+  English otherwise, under the folder and in each row's card.
 - **The line under an answered or set-aside decision is in Dutch on a Dutch
   screen** (workplan 0159 follow-up 12, #1649).
 - **An invitation reaches the person whatever capitals or spaces their address

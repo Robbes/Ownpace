@@ -26,7 +26,8 @@ both cases, are the builder's and wait for the owner's reading (open question 8)
   owner's *Already decided* / *Al besloten*. 29 guards were red on main and are green. The SQL
   half is pinned three ways: on Postgres in the integration job (also run on a throwaway
   Postgres, `scripts/local-pg.sh`), on PGlite in the unit gate, and in the appliance's e2e apply
-  runs, which now check that an applied row says so.
+  runs, which now check that an applied row says so (first run: the scheduled E2E after the
+  merge, not yet run).
 
 **2026-10-19: round 2 answered and built; all 31 items done.** The owner answered rows 19 and 24
 on 2026-10-19: *Yes* to the tiles drawn once on a phone, and *Yes* to all four cards of version
