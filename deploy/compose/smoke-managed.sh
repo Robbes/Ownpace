@@ -6019,7 +6019,15 @@ fi
 # night makes none, and says so). It refuses live and e-mail delivery itself
 # (moneybird-nightly.ts, with its tests). With no MONEYBIRD_* key in .env
 # there are no books to prove: said beside the verdict, not failed, until the
-# owner gives this stack the sandbox's keys.
+# owner gives this stack the sandbox's keys. When Moneybird says try later
+# (no answer, an unexpected status such as a 404 or a 5xx, or a 429), the
+# night asks once more, after 30 s, or after the 429's Retry-After when it is
+# two minutes or less; a 429 that asks for longer fails the night at once
+# rather than asking early. Asked again, it finds the invoice by its
+# reference, sends nothing twice and never posts a payment twice: E2E
+# (managed) #260 went red on the sandbox's 404 to reading back the invoice it
+# had just numbered, and the next run found it. Twice is red, with both
+# answers among its lines.
 note "the books: one sandbox invoice a night (0111, decision 12)"
 books_out="$("${SCRIPT_DIR}/operator.sh" moneybird nightly 2>&1)"
 books_rc=$?
