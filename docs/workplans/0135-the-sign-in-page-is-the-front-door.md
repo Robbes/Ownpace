@@ -7,8 +7,8 @@
 **2026-10-21: the pin moves to v4.19.5, from the watch's issue #1643 (2026-10-19)**, on branch
 `claude/ownpace-public-readiness-y7orc6-zitadel-4-19-5`, not merged. Three of its fixes are
 security fixes, so T7's seven days apply and count until live runs it. Read commit by commit
-(`git log v4.19.4..v4.19.5`, eleven commits; five are docs, one bumps the console's, login v2's
-and the docs' npm packages):
+(`git log v4.19.4..v4.19.5`, eleven commits; four are docs (6a8e5db, 7c87eb4, a224988,
+c51dae6), one bumps the console's, login v2's and the docs' npm packages):
 - **Device authorizations need consent and a permission (a618740).** Login v2 approved one as soon
   as a signed-in user opened its page; the API's approval now runs the auth code flow's project
   check, and `GetDeviceAuthorizationRequest` needs `session.read`. Not used here: every client
@@ -35,11 +35,13 @@ and the docs' npm packages):
 - **No setup step**: nothing under `cmd/setup` changed, so the schema moves no further than
   v4.19.4's step 80. `cmd/defaults.yaml` loses the two unused `SearchLimit` keys and rewords the
   query-limit comments; `LoginV2.Required`, `ServicePing`, `Telemetry`, the lockout and privacy
-  defaults are unchanged, as are the admin SMTP handler and `zitadel ready`.
+  defaults are unchanged, as are the admin SMTP handler's two test verbs and `zitadel ready`.
 - The pin's guards pass (ten files, 306 cases); `a-service-that-phones-home` names v4.19.5.
   **Owed, in this order:** the owner dumps the OTA instance's `zitadel` database
   (`./deploy/compose/dump-idp.sh`, issue #1643's step 1, not yet done); then E2E (managed) on the
-  branch applies v4.19.5 to the OTA instance; then the merge, and live takes it from a release tag.
+  branch applies v4.19.5 to the OTA instance; once that run is green, `managed.yml`'s v4.19.5
+  paragraph and this entry say the dump and the run happened, with the run's number, as #1528's
+  did; then the merge, and live takes it from a release tag.
 
 **2026-10-17: the owner's answers, built: a lockout at 10, a second factor offered, and live's
 organisation named Ownpace**, on branch
