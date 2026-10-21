@@ -87,8 +87,22 @@
 # count asks with a token that is alive. A duty that fails, is missing from the
 # checkout, or runs past BOX_DUTY_TIMEOUT seconds (default 1200) is recorded,
 # and the next one starts. At the end the script names every duty that failed
-# and exits 1; all eight passing is exit 0. Nobody is told when it fails
-# (0142 is where that changes); the journal has it.
+# and exits 1; all eight passing is exit 0.
+#
+# THE OWNER IS TOLD (workplan 0142 T3). A run that fails, by its exit or by the
+# unit's time limit, makes systemd start ownpace-tell-owner@<this unit>
+# (OnFailure= in ownpace-box-duties.service), which mails the owner through
+# tell-owner.sh. So that the mail can name what failed, and box-checks.sh can
+# see a run that never happened, which OnFailure= never reports, each run that
+# got past its refusals leaves a record in ~/.persistent/<project>/box-duties,
+# this account's alone:
+#
+#   last-run    <epoch> <UTC time> passed|failed|interrupted <duties failed, or ->
+#   last-pass   the same line, written only when all eight passed
+#
+# A record that cannot be written fails the run: box-checks.sh would call the
+# duties late a day later, and the owner is better told today. The journal has
+# what each duty said.
 #
 # STOPPED IS STOPPED. `timeout` puts the duty in a process group of its own,
 # so a terminal's Ctrl-C, which goes to the foreground group, reaches this
@@ -200,6 +214,25 @@ FAILED=()
 RUNNING=""
 FILTER_PID=""
 
+# WHAT A RUN LEAVES BEHIND (0142 T3), for the mail on a failed run and for
+# box-checks.sh: in live's persisted directory, beside its .env, never one the
+# shell names (MANAGED_ENV_PERSIST_DIR is unset above).
+RECORD_DIR="${HOME}/.persistent/${COMPOSE_PROJECT}/box-duties"
+
+# record_run <passed|failed|interrupted> [<names, comma-separated>] — last-run,
+# and last-pass when passed, each one written whole or not at all.
+record_run() {
+  local result="$1" names="${2:-}" now stamp f files=(last-run)
+  [ "$result" != passed ] || files+=(last-pass)
+  now="$(date -u +%s)" || return 1
+  stamp="$(date -u -d "@${now}" +%Y-%m-%dT%H:%M:%SZ)" || return 1
+  mkdir -p "$RECORD_DIR" || return 1
+  for f in "${files[@]}"; do
+    printf '%s %s %s %s\n' "$now" "$stamp" "$result" "${names:--}" >"${RECORD_DIR}/.${f}.new" || return 1
+    mv -f "${RECORD_DIR}/.${f}.new" "${RECORD_DIR}/${f}" || return 1
+  done
+}
+
 # on_signal <name> <exit> — stop the running duty, and start no other.
 on_signal() {
   trap '' INT TERM
@@ -218,8 +251,10 @@ on_signal() {
   else
     fail_line "interrupted (SIG$1) between duties; no later duty ran"
   fi
+  local names="${FAILED[*]}"
+  record_run interrupted "${names// /,}" ||
+    fail_line "this run could not be recorded in ${RECORD_DIR} (above)"
   if [ "${#FAILED[@]}" -gt 0 ]; then
-    local names="${FAILED[*]}"
     fail_line "FAILED before it: ${names// /, }. Each one's own words are above."
   fi
   exit "$2"
@@ -290,7 +325,13 @@ run_duty visits "the visits in the log of live's copy of the site, counted as to
 
 if [ "${#FAILED[@]}" -gt 0 ]; then
   names="${FAILED[*]}"
+  record_run failed "${names// /,}" ||
+    fail_line "this run could not be recorded in ${RECORD_DIR} (above); the mail on a failed run will not name the duties"
   fail_line "FAILED: ${names// /, } (${#FAILED[@]} of 8 duties). Each one's own words are above."
+  exit 1
+fi
+if ! record_run passed; then
+  fail_line "all 8 duties passed, but the run could not be recorded in ${RECORD_DIR} (above): box-checks.sh will call the duties late (workplan 0142 T3). Make that directory this account's again."
   exit 1
 fi
 say "all 8 duties passed"
