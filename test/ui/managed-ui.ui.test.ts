@@ -67,7 +67,7 @@ import { createServer, type Server } from 'node:http';
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium, type Browser, type Page, type Request } from 'playwright-core';
+import { chromium, type Browser, type BrowserContextOptions, type Page, type Request } from 'playwright-core';
 import { envsubst, headersFor, parseNginx } from '../../scripts/nginx-config.ts';
 import {
   APP_SCREEN_NOW,
@@ -110,6 +110,23 @@ const EXPLICIT_CHROMIUM = process.env.E2E_CHROMIUM ?? '/opt/pw-browsers/chromium
 const TENANT = 'a0000000-0000-4000-8000-000000000001';
 const MAPPING = 'a0000000-0000-4000-8000-0000000000d1';
 const PERSON = 'a0000000-0000-4000-8000-0000000000e1';
+
+/**
+ * FOUR LINKS THE FIXTURES KNOW (workplan 0141 T12 (b)): a migration's grant
+ * link and progress link, and a person's. Each is `<id>.<secret>`, the one
+ * segment `/grant/:link` and `/view/:link` take. NOT CREDENTIALS: nothing here
+ * checks a secret, and the API that would is absent from this suite.
+ */
+const GRANT_LINK = 'a0000000-0000-4000-8000-0000000000f1.ui-smoke-not-a-secret';
+const PERSON_GRANT_LINK = 'a0000000-0000-4000-8000-0000000000f2.ui-smoke-not-a-secret';
+const VIEW_LINK = 'a0000000-0000-4000-8000-0000000000f3.ui-smoke-not-a-secret';
+const PERSON_VIEW_LINK = 'a0000000-0000-4000-8000-0000000000f4.ui-smoke-not-a-secret';
+/**
+ * What a link asks Google for, as `grant-link-readiness.ts` words it: the data
+ * types' scopes, then the two that say who signed in.
+ */
+const WHO_SIGNED_IN = 'openid https://www.googleapis.com/auth/userinfo.email';
+const MAIL_AND_CALENDAR_SCOPE = `https://mail.google.com/ https://www.googleapis.com/auth/calendar ${WHO_SIGNED_IN}`;
 
 const b64url = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
 
@@ -343,6 +360,143 @@ const FIXTURES: Record<string, unknown> = {
       },
     ],
   },
+  /**
+   * THE PAGES A STRANGER OPENS (workplan 0141 T12 (b)): what the API answers
+   * for the four links above. The migration's grant link has the shape of
+   * `SubjectSchema` and the person's of `PersonSubjectSchema`
+   * (`apps/web/src/services/grant-service.ts`), as `grant.ts` answers them;
+   * the two progress links have `view-service.ts`'s, as `view.ts` answers them.
+   * Each page also asks whether a report of its link can reach somebody, and
+   * here one can, so *Report this link* is drawn as a tester meets it.
+   *
+   * Nobody in them is real: the addresses are on reserved example domains.
+   */
+  [`GET /api/grant/${GRANT_LINK}`]: {
+    organisation: 'Acme Families',
+    checkedCompany: null,
+    askedBy: 'owner-a@demo.openmigrate.test',
+    organisationPhone: null,
+    domains: ['email', 'calendar'],
+    scope: MAIL_AND_CALENDAR_SCOPE,
+    readOnlyAtProvider: false,
+    from: 'anna@example.com',
+    to: { provider: 'nextcloud', host: 'cloud.example.org', account: 'anna@example.org' },
+    expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+  },
+  [`GET /api/grant/${GRANT_LINK}/report`]: { available: true },
+  [`GET /api/grant/${PERSON_GRANT_LINK}`]: {
+    kind: 'person',
+    organisation: 'Acme Families',
+    checkedCompany: null,
+    askedBy: 'owner-a@demo.openmigrate.test',
+    organisationPhone: null,
+    accounts: [
+      {
+        account: 'anna@example.com',
+        granted: false,
+        again: false,
+        domains: ['email', 'calendar'],
+        scope: MAIL_AND_CALENDAR_SCOPE,
+        readOnlyAtProvider: false,
+        notReady: null,
+        migrations: [
+          { domains: ['email'], to: { provider: 'soverin', host: null, account: 'anna@soverin.example' }, granted: false },
+          {
+            domains: ['calendar'],
+            to: { provider: 'nextcloud', host: 'cloud.example.org', account: 'anna@example.org' },
+            granted: false,
+          },
+        ],
+      },
+      // Connected already: its card says so, and has no button.
+      {
+        account: 'anna.files@example.com',
+        granted: true,
+        again: false,
+        domains: ['file'],
+        scope: `https://www.googleapis.com/auth/drive.readonly ${WHO_SIGNED_IN}`,
+        readOnlyAtProvider: true,
+        notReady: null,
+        migrations: [
+          {
+            domains: ['file'],
+            to: { provider: 'nextcloud', host: 'cloud.example.org', account: 'anna@example.org' },
+            granted: true,
+          },
+        ],
+      },
+    ],
+    expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+  },
+  [`GET /api/grant/${PERSON_GRANT_LINK}/report`]: { available: true },
+  [`GET /api/view/${VIEW_LINK}`]: {
+    organisation: 'Acme Families',
+    state: 'active',
+    started: true,
+    from: 'gmail',
+    domains: [
+      {
+        domain: 'email',
+        state: 'in_progress',
+        stage: 'copying',
+        itemsSynced: 4211,
+        itemsFound: 5000,
+        itemsFailed: 0,
+        bytesTransferred: 91_000_000,
+        itemsRetrying: 0,
+        itemsNeedingDecision: 0,
+        lastActiveAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+      },
+      {
+        domain: 'calendar',
+        state: 'completed',
+        stage: 'kept_in_step',
+        itemsSynced: 120,
+        itemsFound: 120,
+        itemsFailed: 0,
+        bytesTransferred: 240_000,
+        itemsRetrying: 0,
+        itemsNeedingDecision: 0,
+        lastSyncedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+        lastActiveAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+      },
+    ],
+    expiresAt: new Date(Date.now() + 90 * 86_400_000).toISOString(),
+    grant: { state: 'granted' },
+  },
+  [`GET /api/view/${VIEW_LINK}/report`]: { available: true },
+  [`GET /api/view/${PERSON_VIEW_LINK}`]: {
+    kind: 'person',
+    organisation: 'Acme Families',
+    expiresAt: new Date(Date.now() + 90 * 86_400_000).toISOString(),
+    migrations: [
+      {
+        from: 'gmail',
+        to: 'soverin',
+        state: 'active',
+        started: true,
+        domains: [
+          {
+            domain: 'email',
+            state: 'in_progress',
+            stage: 'copying',
+            itemsSynced: 4211,
+            itemsFound: 5000,
+            itemsFailed: 0,
+            bytesTransferred: 91_000_000,
+            itemsRetrying: 0,
+            itemsNeedingDecision: 0,
+            lastActiveAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+          },
+        ],
+        account: 'acct-1',
+      },
+      // Waiting for its first pass: the page says nothing has been copied.
+      { from: 'google', to: 'nextcloud', state: 'active', started: false, domains: [], account: 'acct-1' },
+    ],
+    accounts: [{ ref: 'acct-1', grant: { state: 'granted' } }],
+  },
+  [`GET /api/view/${PERSON_VIEW_LINK}/report`]: { available: true },
 };
 
 /** Per-test failures: `METHOD /path` -> status. Cleared between tests. */
@@ -437,13 +591,19 @@ interface Loaded {
 }
 
 /**
+ * A PHONE (workplan 0145 T8 (a)): its width and height, and a browser that
+ * says it is one, with touch.
+ */
+const PHONE: BrowserContextOptions = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
+
+/**
  * A new page that reports every policy violation it meets: as a console error
  * the page's own listeners see, and into `violations`. Before any script of
  * the app runs, so a violation while the bundle loads is caught too.
  */
 async function newPage(
   locale: 'en-GB' | 'nl-NL' = 'en-GB',
-  options: { timezoneId?: string } = {},
+  options: Pick<BrowserContextOptions, 'timezoneId' | 'viewport' | 'isMobile' | 'hasTouch'> = {},
 ): Promise<Page> {
   const page = await browser.newPage({ ...options, locale });
   page.on('console', (m) => {
@@ -462,12 +622,13 @@ async function newPage(
 /** Load a route as a signed-in operator, recording what a user cannot see. */
 async function open(
   path: string,
-  opts: { locale?: 'en' | 'nl'; signedIn?: boolean; clock?: Date } = {},
+  opts: { locale?: 'en' | 'nl'; signedIn?: boolean; clock?: Date; phone?: boolean } = {},
 ): Promise<Loaded> {
   const page = await newPage(opts.locale === 'nl' ? 'nl-NL' : 'en-GB', {
     // A page held to a moment reads it in the servers' zone, as the pictures
     // taken at that moment did (`scripts/shoot-the-app-screen.mjs`).
     ...(opts.clock ? { timezoneId: 'UTC' } : {}),
+    ...(opts.phone ? PHONE : {}),
   });
   if (opts.clock) await page.clock.setFixedTime(opts.clock);
   const errors: string[] = [];
@@ -1310,6 +1471,283 @@ describe('signed in by somebody who has not accepted the texts yet', () => {
   });
 });
 
+/**
+ * THE PAGES A STRANGER OPENS, WITH SOMETHING ON THEM (workplan 0141 T12 (b)).
+ *
+ * A family member's grant link and their progress link open the two pages of
+ * this product whose reader has no account, and who is the least able to say
+ * that one is broken. The unit tests draw them with their services mocked, and
+ * the policy case below opens them only on a link no fixture knows, so the
+ * shipped bundle had only ever drawn their refusal. Here each is opened signed
+ * out, on a link the fixtures know, in English and in Dutch, and asked for
+ * what its reader must see:
+ *
+ *  - a grant link: who asks, who asked, the account it reads and where it
+ *    goes, the Google button, the line about a chat app's own browser, and the
+ *    privacy policy and terms in the reader's language;
+ *  - a progress link: where each data type is, and no control but its own
+ *    withdrawal and *Report this link*: no field, and no link into the app.
+ *
+ * Each also holds that the page raised nothing in the browser and broke no
+ * policy (`open` turns a violation into a console error), and asked the API
+ * for its own link and the build stamp only: a stranger's page that called a
+ * signed-in route would meet a refusal it could not explain. Then each is
+ * opened on a phone, in Dutch, whose words are the longer, and must not scroll
+ * sideways (0145 T8 (a), for these two pages).
+ *
+ * They catch a page that does not render, a route that went, a word that left
+ * the bundle and a page wider than a phone. They prove nothing about the API,
+ * which is absent here; the journey against the real one is T12 (c).
+ */
+describe('the grant and progress links, opened by the person they were sent to (0141 T12 (b))', () => {
+  type Locale = 'en' | 'nl';
+  interface LinkPage {
+    readonly what: string;
+    readonly path: string;
+    /** The API paths the page may ask for, the build stamp's apart. */
+    readonly asks: readonly string[];
+    /** What its reader must find on it; the first is waited for, as the page's answer. */
+    readonly says: Readonly<Record<Locale, readonly string[]>>;
+    /** Every button on it, in order, by its words. */
+    readonly buttons: Readonly<Record<Locale, readonly string[]>>;
+    /** Every link on it, as its words and where it goes. */
+    readonly links: Readonly<Record<Locale, ReadonlyArray<readonly [string, string]>>>;
+    /** Each data type's row, in order: the type, then words its row must say. */
+    readonly rows: Readonly<Record<Locale, ReadonlyArray<readonly [string, ...string[]]>>>;
+  }
+
+  /** The policy and the terms, in the reader's language (`services/legal-links.ts`). */
+  const LEGAL: Readonly<Record<Locale, ReadonlyArray<readonly [string, string]>>> = {
+    en: [
+      ['Privacy policy', 'https://www.ownpace.eu/privacy.html'], // acceptance.doc.privacy
+      ['Terms of service', 'https://www.ownpace.eu/terms.html'], // acceptance.doc.terms
+    ],
+    nl: [
+      ['Privacyverklaring', 'https://www.ownpace.eu/nl/privacy.html'],
+      ['Servicevoorwaarden', 'https://www.ownpace.eu/nl/voorwaarden.html'],
+    ],
+  };
+  /** The language switch both pages carry, as `Layout` does (0145 T6). */
+  const SWITCH = ['EN', 'NL'] as const;
+
+  const PAGES: readonly LinkPage[] = [
+    {
+      what: "a migration's grant link",
+      path: `/grant/${GRANT_LINK}`,
+      asks: [`/api/grant/${GRANT_LINK}`, `/api/grant/${GRANT_LINK}/report`],
+      says: {
+        en: [
+          'Acme Families is migrating your account and/or content to a new provider', // grant.asking
+          'Connect your account', // grant.title
+          'owner-a@demo.openmigrate.test', // who asked
+          'anna@example.com', // from
+          'anna@example.org', // to
+          'Nextcloud at cloud.example.org', // grant.toWhere
+          'You are about to give (read) access to your email — messages, folders and labels and your calendars and their events.', // grant.reads
+          // Google does not hold the mail scope to reading, so the box says
+          // that Ownpace only reads (0144 T3 (c)).
+          'Ownpace only reads.', // grant.readsOnly
+          'The permission Google will ask you for:', // grant.scopeIntro
+          'Gmail: read, send and permanently delete all your email.', // grant.scope.mail
+          'Sign in as anna@example.com.', // grant.signInAs
+          "If this page opened inside another app, such as a chat or mail app, use that app's 'Open in browser' option", // grant.inAppBrowser
+          'By continuing you accept how your data is handled:', // grant.disclosure
+        ],
+        nl: [
+          'Acme Families migreert uw account naar een nieuwe aanbieder',
+          'Verbind uw account',
+          'owner-a@demo.openmigrate.test',
+          'anna@example.com',
+          'anna@example.org',
+          'Nextcloud op cloud.example.org',
+          'U staat op het punt (lees)toegang te geven tot uw e-mail: berichten, mappen en labels en uw agenda’s en de afspraken daarin.',
+          'Ownpace leest alleen.',
+          'De toestemming die Google u vraagt:',
+          'Gmail: al uw e-mail lezen, verzenden en definitief verwijderen.',
+          'Log in als anna@example.com.',
+          "Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar 'Openen in browser'",
+          'Door door te gaan gaat u akkoord met hoe uw gegevens worden verwerkt:',
+        ],
+      },
+      buttons: {
+        en: [...SWITCH, 'Report this link', 'Continue with Google'], // linkReport.open, grant.connect
+        nl: [...SWITCH, 'Deze link melden', 'Doorgaan met Google'],
+      },
+      links: LEGAL,
+      rows: { en: [], nl: [] },
+    },
+    {
+      what: "a person's grant link",
+      path: `/grant/${PERSON_GRANT_LINK}`,
+      asks: [`/api/grant/${PERSON_GRANT_LINK}`, `/api/grant/${PERSON_GRANT_LINK}/report`],
+      says: {
+        en: [
+          'Acme Families is moving your accounts and/or content to a new provider', // grant.person.asking
+          'owner-a@demo.openmigrate.test',
+          'To anna@soverin.example, Soverin: your email — messages, folders and labels.', // grant.person.migration
+          'To anna@example.org, Nextcloud at cloud.example.org: your calendars and their events.',
+          'Sign in as anna@example.com.',
+          'Connected. Nothing more is needed for this account.', // grant.person.connected
+          "If this page opened inside another app, such as a chat or mail app, use that app's 'Open in browser' option",
+          'By continuing you accept how your data is handled:',
+        ],
+        nl: [
+          'Acme Families migreert uw accounts naar een nieuwe aanbieder',
+          'owner-a@demo.openmigrate.test',
+          'Naar anna@soverin.example, Soverin: uw e-mail: berichten, mappen en labels.',
+          'Naar anna@example.org, Nextcloud op cloud.example.org: uw agenda’s en de afspraken daarin.',
+          'Log in als anna@example.com.',
+          'Verbonden. Dit account is klaar om te gebruiken in een migratie.',
+          "Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar 'Openen in browser'",
+          'Door door te gaan gaat u akkoord met hoe uw gegevens worden verwerkt:',
+        ],
+      },
+      // One Google button: the account still to connect has it, the one
+      // connected already has none.
+      buttons: {
+        en: [...SWITCH, 'Report this link', 'Continue with Google as anna@example.com'], // grant.person.connect
+        nl: [...SWITCH, 'Deze link melden', 'Doorgaan met Google als anna@example.com'],
+      },
+      links: LEGAL,
+      rows: { en: [], nl: [] },
+    },
+    {
+      what: "a migration's progress link",
+      path: `/view/${VIEW_LINK}`,
+      asks: [`/api/view/${VIEW_LINK}`, `/api/view/${VIEW_LINK}/report`],
+      says: {
+        en: [
+          'Acme Families is migrating your account / content to a new provider.', // view.who
+          'Your migration', // view.title
+          'Your things are being migrated across now.', // view.state.active
+          'The access you gave', // view.grant.title
+          'This page only shows numbers; it holds nothing from your account.', // view.readOnly
+        ],
+        nl: [
+          'Acme Families migreert uw account naar een nieuwe aanbieder.',
+          'Uw migratie',
+          'De migratie is actief.',
+          'De toegang die u gaf',
+          'Deze pagina toont alleen aantallen; er staat niets uit uw account op.',
+        ],
+      },
+      buttons: {
+        en: [...SWITCH, 'Withdraw access', 'Report this link'], // view.grant.withdraw
+        nl: [...SWITCH, 'Toegang intrekken', 'Deze link melden'],
+      },
+      links: { en: [], nl: [] },
+      rows: {
+        en: [
+          ['email', 'Email', 'Copying', '4,211 of ~5,000'], // domain.email, state.stage.copying
+          ['calendar', 'Calendar', 'Kept in step'], // state.stage.kept_in_step
+        ],
+        nl: [
+          ['email', 'E-mail', 'Wordt gemigreerd', '4.211 van ~5.000'],
+          ['calendar', 'Agenda', 'Wordt bijgehouden'],
+        ],
+      },
+    },
+    {
+      what: "a person's progress link",
+      path: `/view/${PERSON_VIEW_LINK}`,
+      asks: [`/api/view/${PERSON_VIEW_LINK}`, `/api/view/${PERSON_VIEW_LINK}/report`],
+      says: {
+        en: [
+          'Acme Families is moving your accounts to new providers. Here is where each migration stands.', // view.person.who
+          'Your migrations', // view.person.title
+          'Your Google account', // view.person.account.only
+          'Google to Soverin', // view.person.route
+          'Google to Nextcloud',
+          'Nothing has been copied yet.', // view.notStarted
+          'The access you gave',
+        ],
+        nl: [
+          'Acme Families migreert uw accounts naar nieuwe aanbieders. Hier ziet u hoe elke migratie ervoor staat.',
+          'Uw migraties',
+          'Uw Google-account',
+          'Google naar Soverin',
+          'Google naar Nextcloud',
+          'Er is nog niets gemigreerd.',
+          'De toegang die u gaf',
+        ],
+      },
+      buttons: {
+        en: [...SWITCH, 'Withdraw access', 'Report this link'],
+        nl: [...SWITCH, 'Toegang intrekken', 'Deze link melden'],
+      },
+      links: { en: [], nl: [] },
+      rows: {
+        en: [['email', 'Email', 'Copying', '4,211 of ~5,000']],
+        nl: [['email', 'E-mail', 'Wordt gemigreerd', '4.211 van ~5.000']],
+      },
+    },
+  ];
+
+  /** Open a link signed out, as its reader does, and wait for the page's answer. */
+  async function openLink(p: LinkPage, locale: Locale, phone = false): Promise<Loaded> {
+    const l = await open(p.path, { signedIn: false, locale, phone });
+    await l.page.getByText(p.says[locale][0]!).first().waitFor({ timeout: 15_000 });
+    return l;
+  }
+
+  for (const p of PAGES) {
+    for (const locale of ['en', 'nl'] as const) {
+      it(`opens ${p.what} in ${locale === 'en' ? 'English' : 'Dutch'}, with what its reader must see`, async () => {
+        const before = apiHits.length;
+        const missesBefore = apiMisses.length;
+        const l = await openLink(p, locale);
+
+        expect(new URL(l.page.url()).pathname, `${p.what} sent its reader away`).toBe(p.path);
+        expect(await l.page.getAttribute('html', 'lang')).toBe(locale);
+        const text = await l.text();
+        for (const words of p.says[locale]) expect(text, `${p.what} does not say it`).toContain(words);
+
+        const buttons = await l.page.$$eval('button', (bs) => bs.map((b) => (b.textContent ?? '').trim()));
+        expect(buttons, `the controls on ${p.what}`).toEqual(p.buttons[locale]);
+        expect(await l.page.locator('input, textarea, select').count(), `a field on ${p.what}`).toBe(0);
+        const links = await l.page.$$eval('a[href]', (as) =>
+          as.map((a) => [(a.textContent ?? '').trim(), (a as HTMLAnchorElement).href]),
+        );
+        expect(links, `the links on ${p.what}`).toEqual(p.links[locale]);
+        const rows = await l.page.$$eval('[data-domain]', (rs) =>
+          rs.map((r) => [(r as HTMLElement).dataset.domain ?? '', r.textContent ?? ''] as const),
+        );
+        expect(rows.map(([domain]) => domain), `the data types on ${p.what}`).toEqual(
+          p.rows[locale].map(([domain]) => domain),
+        );
+        p.rows[locale].forEach(([domain, ...words], i) => {
+          for (const w of words) expect(rows[i]![1], `the ${domain} row on ${p.what}`).toContain(w);
+        });
+
+        const asked = [...new Set(apiHits.slice(before))].filter((path) => path !== '/api/version').sort();
+        expect(asked, `what ${p.what} asked the API for`).toEqual([...p.asks].sort());
+        expect(apiMisses.slice(missesBefore), `${p.what} called endpoints with no fixture`).toEqual([]);
+        expectClean(l, `${p.what} (${locale})`);
+        await l.page.close();
+      });
+    }
+  }
+
+  for (const p of PAGES) {
+    it(`opens ${p.what} on a phone, in Dutch, without scrolling sideways (0145 T8 (a))`, async () => {
+      const l = await openLink(p, 'nl', true);
+      // A phone shows a page wider than itself by zooming out: its layout
+      // grows to the page's width, so the window's width follows the page and
+      // nothing scrolls. So both are held to the phone's 390 pixels, not the
+      // page to the window (which is all `site.ui.test.ts` needs, without
+      // `isMobile`).
+      const width = await l.page.evaluate(() => ({
+        window: window.innerWidth,
+        page: document.documentElement.scrollWidth,
+      }));
+      expect(width.window, `${p.what} is wider than a phone, which zoomed out to fit it`).toBe(390);
+      expect(width.page, `${p.what} scrolls sideways at 390px`).toBeLessThanOrEqual(391);
+      expectClean(l, `${p.what} on a phone`);
+      await l.page.close();
+    });
+  }
+});
+
 describe('the app runs under the policy nginx serves it with (workplan 0158)', () => {
   it('is served with the policy the template names', async () => {
     // The fixture server reads its headers from the template; this holds that
@@ -1325,7 +1763,8 @@ describe('the app runs under the policy nginx serves it with (workplan 0158)', (
     async (path) => {
       // The grant and view pages ask the API about a link no fixture knows,
       // and show their refusal: the browser logs that 404, so only the
-      // policy is asked here, and that the page mounted.
+      // policy is asked here, and that the page mounted. Opened on links the
+      // fixtures know, with what they say, they are 0141 T12 (b)'s above.
       const page = await newPage();
       const own: string[] = [];
       page.on('console', (m) => {
