@@ -117,7 +117,10 @@
 #   a .env whose NODE_ENV is not production (workplan 0132 T4: managed.yml
 #       takes no default), or whose ALERT_ENABLED is not exactly true (0142
 #       T0: testers are on live, so nobody deploys it without alerts; the
-#       owner, 2026-10-04). Both named at once, by key, before the fetch and
+#       owner, 2026-10-04), or that sets any sign-in provider's key
+#       (LIVE_REFUSED_SIGN_IN_KEYS, stack-kind.sh: live's sign-in page offers
+#       email and password only, privacy §4.4, §7 and §8; the owner,
+#       ops-social-signin (a)). All named at once, by key, before the fetch and
 #       before any docker call. "true" in double quotes is refused: env_value
 #       keeps the quotes. With them, any line that sets a key in a form the
 #       script does not read and the bring-up does (indented, a space before
@@ -379,6 +382,21 @@ main() {
     unready+=("ALERT_ENABLED: not true. Testers are on live, so nobody deploys it without alerts (workplan 0142 T0):" \
       "  ./deploy/compose/env-upsert.sh deploy/compose/.env ALERT_ENABLED=true" \
       "  then send the test alert 0142 T0 asks for, once.")
+  # Email and password only at live's sign-in page (privacy §4.4, §7 and §8;
+  # the owner's ops-social-signin (a)): every sign-in provider's key empty
+  # (LIVE_REFUSED_SIGN_IN_KEYS, stack-kind.sh), as stand-up-live.sh refuses it.
+  # The bring-up's setup-zitadel.sh adds a provider whose keys are set and
+  # never removes one. Each key by name, then one line that empties them all.
+  local sign_in_key sign_in_empty=''
+  while IFS= read -r sign_in_key; do
+    [ -n "$sign_in_key" ] || continue
+    sign_in_empty+=" ${sign_in_key}="
+    unready+=("${sign_in_key}: set. It is a sign-in provider's key, and live's sign-in page offers email and password only (privacy §4.4, §7 and §8; ops-social-signin (a)): with the provider's keys set, the bring-up's setup-zitadel.sh puts its button there.")
+  done <<<"$(live_sign_in_keys_set "$ENV_FILE")"
+  [ -z "$sign_in_empty" ] ||
+    unready+=("Leave every sign-in provider's key empty:" \
+      "  ./deploy/compose/env-upsert.sh deploy/compose/.env${sign_in_empty}" \
+      "  A button setup-zitadel.sh added before stays until you remove that provider in the identity provider's console (docs/managed-bring-up.md, 8b).")
   if [ "${#unready[@]}" -gt 0 ]; then
     refuse "live's .env is not ready for a deploy. Each line names a key, never its value:" "${unready[@]}"
   fi

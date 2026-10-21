@@ -28,8 +28,11 @@
  *   refused before the checkout moves. None of them may reach the bring-up.
  *   Nor may a live `.env` whose `NODE_ENV` is not `production` (0132 T4) or
  *   whose `ALERT_ENABLED` is not exactly `true` (0142 T0; the owner,
- *   2026-10-04, "Refuse to deploy"): both are named at once, by key, before
- *   the fetch and before any docker call, in a dry run too. So is a line that
+ *   2026-10-04, "Refuse to deploy"), or that sets a sign-in provider's
+ *   `IDP_*` key, read from `managed.env.example` (live's sign-in page offers
+ *   email and password only: privacy §4.4, §7 and §8; ops-social-signin
+ *   (a)): all are named at once, by key, before the fetch and before any
+ *   docker call, in a dry run too. So is a line that
  *   sets any key in a form the check does not read and the bring-up does
  *   (indented, a space before `=`, `:` for `=`), by line and key: an
  *   indented `NODE_ENV` after a correct one would pass the check and run.
@@ -1019,6 +1022,80 @@ describe('a stack, a checkout or a moment that is not ready is refused, and noth
         expectNothingChanged(s, r.out);
         expect(called(s, 'copy-before-update'), 'a copy was taken for a deploy that is refused').toEqual([]);
       }
+    },
+    CASE_MS,
+  );
+
+  // Live's sign-in page offers email and password only: privacy §4.4, §7 and
+  // §8 say so, and the owner chose it (ops-social-signin (a); 0139 T0 fact 4,
+  // 0140 T10). The bring-up's setup-zitadel.sh adds a provider whenever its
+  // keys are set, and never takes one away, so a pair copied into live's .env
+  // with the OTA stack's Google client (0140 T11) is refused before the
+  // fetch, the checkout or any docker call, in a dry run too. The keys are
+  // every IDP_* key managed.env.example declares but IDP_UPSTREAM_CALLBACK_URL,
+  // which setup-zitadel.sh writes: a provider added there is refused the same
+  // day.
+  const SIGN_IN_KEYS = [...readFileSync(join(COMPOSE_DIR, 'managed.env.example'), 'utf8').matchAll(/^(IDP_[A-Z0-9_]+)=/gm)]
+    .map((m) => m[1]!)
+    .filter((key) => key !== 'IDP_UPSTREAM_CALLBACK_URL');
+
+  it('the sign-in provider keys come from managed.env.example: all four providers', () => {
+    for (const key of ['IDP_GOOGLE_CLIENT_ID', 'IDP_MICROSOFT_CLIENT_SECRET', 'IDP_MICROSOFT_TENANT', 'IDP_GITHUB_CLIENT_ID', 'IDP_APPLE_PRIVATE_KEY']) {
+      expect(SIGN_IN_KEYS).toContain(key);
+    }
+  });
+
+  it.each(SIGN_IN_KEYS.map((key, i) => [key, `signin-value-q${i}`] as const))(
+    "a .env with a sign-in provider's key holding a value: %s, named by its key with the line that empties it",
+    (key, value) => {
+      const s = stage({ releases: [NEXT], dotEnv: `${LIVE_ENV}${key}=${value}\n` });
+      for (const args of [[NEXT.tag], ['--dry-run', NEXT.tag]]) {
+        const r = run(s, args);
+        expect(r.status, `${args.join(' ')}:\n${r.out}`).toBe(1);
+        expect(r.out).toContain('[deploy-live] refused: ');
+        expect(r.out).toContain(`${key}: set.`);
+        expect(r.out).toContain('email and password only');
+        expect(r.out).toContain('privacy §4.4, §7 and §8');
+        expect(r.out).toContain('ops-social-signin (a)');
+        expect(r.out).toContain(`./deploy/compose/env-upsert.sh deploy/compose/.env ${key}=\n`);
+        expect(r.out, "the file's own value is never printed").not.toContain(value);
+        expect(r.out).toContain('The checkout and the stack are as they were.');
+        expect(r.out, 'it fetched before refusing').not.toContain('fetching tags');
+        expectNothingChanged(s, r.out);
+        expect(called(s, 'copy-before-update'), 'a copy was taken for a deploy that is refused').toEqual([]);
+      }
+    },
+    CASE_MS,
+  );
+
+  it(
+    "a pair in double quotes, as the OTA client's might be copied, with NODE_ENV absent: every key named at once, one line empties the pair",
+    () => {
+      const dotEnv = `${LIVE_ENV.replace('NODE_ENV=production\n', '')}IDP_GOOGLE_CLIENT_ID="ota-client-q1.apps.example.test"\nIDP_GOOGLE_CLIENT_SECRET="ota-secret-q2"\n`;
+      const s = stage({ releases: [NEXT], dotEnv });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(1);
+      expect(r.out).toContain('NODE_ENV:');
+      expect(r.out).toContain('IDP_GOOGLE_CLIENT_ID: set.');
+      expect(r.out).toContain('IDP_GOOGLE_CLIENT_SECRET: set.');
+      expect(r.out).toContain('./deploy/compose/env-upsert.sh deploy/compose/.env IDP_GOOGLE_CLIENT_ID= IDP_GOOGLE_CLIENT_SECRET=\n');
+      expect(r.out).not.toContain('ota-client-q1');
+      expect(r.out).not.toContain('ota-secret-q2');
+      expectNothingChanged(s, r.out);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'taken: every sign-in provider key empty or in empty single quotes, with IDP_UPSTREAM_CALLBACK_URL, which setup-zitadel.sh writes, and the two waits set',
+    () => {
+      const keys = SIGN_IN_KEYS.map((key, i) => `${key}=${i % 2 ? "''" : ''}\n`).join('');
+      const dotEnv = `${LIVE_ENV}${keys}IDP_UPSTREAM_CALLBACK_URL=https://id.ownpace.eu/ui/login/login/externalidp/callback\nIDP_READY_TIMEOUT=600\nIDP_READ_ATTEMPTS=6\n`;
+      const s = stage({ releases: [NEXT], dotEnv });
+      const r = run(s, ['--dry-run', NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toContain(`dry run: a deploy of ${NEXT.tag} now would be reversible.`);
+      expect(r.out).not.toMatch(/IDP_|sign-in provider/);
     },
     CASE_MS,
   );

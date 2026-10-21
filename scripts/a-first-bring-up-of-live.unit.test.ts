@@ -30,8 +30,11 @@
  *   live's `.env` that is wrong for live, named by its key and never by its
  *   value, `NODE_ENV` not `production` (0132 T4) and `ALERT_ENABLED` not
  *   exactly `true` (0142 T0; the owner, 2026-10-04: testers are on live, so
- *   it is not stood up without alerts) among them. None of them reaches the
- *   bring-up, generates a password or writes to the `.env`.
+ *   it is not stood up without alerts) among them, and any sign-in
+ *   provider's `IDP_*` key that holds a value, read from
+ *   `managed.env.example` (live's sign-in page offers email and password
+ *   only: privacy §4.4, §7 and §8; the owner, ops-social-signin (a)). None of
+ *   them reaches the bring-up, generates a password or writes to the `.env`.
  *
  *   The passwords it generates never appear on any command line or in
  *   anything it prints: `openssl`'s output goes to `env-upsert.sh --stdin`,
@@ -195,6 +198,17 @@ const envText = (vars: Record<string, string | undefined>): string =>
     .filter(([, v]) => v !== undefined)
     .map(([k, v]) => `${k}=${v}`)
     .join('\n')}\n`;
+
+/**
+ * The sign-in provider keys: every IDP_* key managed.env.example declares but
+ * IDP_UPSTREAM_CALLBACK_URL, the identity provider's own return address, which
+ * setup-zitadel.sh writes. Read from the example, as
+ * a-second-door-with-the-linking-decided reads them, so a provider added there
+ * is a key live refuses the same day.
+ */
+const SIGN_IN_KEYS = [...readFileSync(join(COMPOSE_DIR, 'managed.env.example'), 'utf8').matchAll(/^(IDP_[A-Z0-9_]+)=/gm)]
+  .map((m) => m[1]!)
+  .filter((key) => key !== 'IDP_UPSTREAM_CALLBACK_URL');
 
 /** Every value in live's .env that is not the script's own constant: none may be printed. */
 const PRIVATE_VALUES = [
@@ -992,6 +1006,110 @@ describe("live's TRUST_PROXY: the proxies in front of its api, 2, or 3 where Net
     () => {
       const s = stage({ env: { TRUST_PROXY: '3' } });
       expectPassed(run(s, [], { STUB_TRIGGER_STOP: 'account' }), 'TRUST_PROXY');
+    },
+    CASE_MS,
+  );
+});
+
+// Live's sign-in page offers email and password only: privacy §4.4, §7 and §8
+// say so, and the owner chose it (ops-social-signin (a); 0139 T0 fact 4, 0140
+// T10). setup-zitadel.sh adds Google, Microsoft, GitHub or Apple as a way in
+// whenever that provider's keys are set, and never takes one away, so one
+// stray pair, copied into live's .env with the OTA stack's Google client
+// (0140 T11), would put a button in front of every tester for good.
+describe("live's sign-in page offers email and password only: a sign-in provider's key holding a value is refused (privacy §4.4, §7, §8; ops-social-signin (a))", () => {
+  it('the keys come from managed.env.example, and include every provider key setup-zitadel.sh reads', () => {
+    expect(SIGN_IN_KEYS).toEqual(
+      expect.arrayContaining([
+        'IDP_GOOGLE_CLIENT_ID',
+        'IDP_GOOGLE_CLIENT_SECRET',
+        'IDP_MICROSOFT_CLIENT_ID',
+        'IDP_MICROSOFT_CLIENT_SECRET',
+        'IDP_MICROSOFT_TENANT',
+        'IDP_GITHUB_CLIENT_ID',
+        'IDP_GITHUB_CLIENT_SECRET',
+        'IDP_APPLE_CLIENT_ID',
+        'IDP_APPLE_TEAM_ID',
+        'IDP_APPLE_KEY_ID',
+        'IDP_APPLE_PRIVATE_KEY',
+      ]),
+    );
+    const read = [...readFileSync(join(COMPOSE_DIR, 'setup-zitadel.sh'), 'utf8').matchAll(/read_env (IDP_[A-Z0-9_]+)/g)].map((m) => m[1]!);
+    expect(read.length, 'setup-zitadel.sh reads no IDP_ key with read_env').toBeGreaterThan(0);
+    for (const key of read) expect(SIGN_IN_KEYS, `setup-zitadel.sh reads ${key}, and nothing here refuses it on live`).toContain(key);
+  });
+
+  it.each(SIGN_IN_KEYS.map((key, i) => [key, `signin-value-q${i}`] as const))(
+    '%s holding a value: named by its key, never its value, with the privacy statement and how to leave it empty',
+    (key, value) => {
+      const s = stage({ env: { [key]: value } });
+      const before = envNow(s);
+      const r = run(s);
+      expectRefused(s, r, `- ${key}: set.`, 'reads', before);
+      expect(r.out).toContain('email and password only');
+      expect(r.out).toContain('privacy §4.4, §7 and §8');
+      expect(r.out).toContain('ops-social-signin (a)');
+      expect(r.out).toContain(`${key}= and nothing after it`);
+      expect(shown(r.out)).not.toContain(value);
+      expectNothingLeaked(s, r.out);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "a pair in double quotes, and empty double quotes, which setup-zitadel.sh's reader takes for a value: each key named, on a resume too",
+    () => {
+      const s = stage({
+        env: { IDP_GOOGLE_CLIENT_ID: '"ota-client-q1.apps.example.test"', IDP_GOOGLE_CLIENT_SECRET: '"ota-secret-q2"', IDP_GITHUB_CLIENT_ID: '""' },
+      });
+      for (const args of [[], ['--resume']]) {
+        const r = run(s, args);
+        expectRefused(s, r, '- IDP_GOOGLE_CLIENT_ID: set.', 'reads', envNow(s));
+        expect(r.out).toContain('- IDP_GOOGLE_CLIENT_SECRET: set.');
+        expect(r.out).toContain('- IDP_GITHUB_CLIENT_ID: set.');
+        expect(shown(r.out)).not.toContain('ota-client-q1');
+        expect(shown(r.out)).not.toContain('ota-secret-q2');
+      }
+    },
+    CASE_MS,
+  );
+
+  it(
+    "the nightly gate's placeholder in IDP_GOOGLE_*: refused as a sign-in key, never told to set one of live's own",
+    () => {
+      const s = stage({ env: { IDP_GOOGLE_CLIENT_ID: 'gate-signin-client-q3', IDP_GOOGLE_CLIENT_SECRET: 'gate-q4' } });
+      const r = run(s);
+      expectRefused(s, r, '- IDP_GOOGLE_CLIENT_ID: set.', 'reads', envNow(s));
+      expect(r.out).toContain('- IDP_GOOGLE_CLIENT_SECRET: set.');
+      expect(r.out).not.toMatch(/IDP_GOOGLE_[A-Z_]*: the nightly gate's placeholder/);
+      expect(r.out).not.toContain("set live's own");
+      expect(shown(r.out)).not.toContain('gate-signin-client-q3');
+    },
+    CASE_MS,
+  );
+
+  it(
+    'taken: every key empty or in empty single quotes, with IDP_UPSTREAM_CALLBACK_URL, which setup-zitadel.sh writes, and the two waits set',
+    () => {
+      const s = stage({
+        env: {
+          ...Object.fromEntries(SIGN_IN_KEYS.map((key, i) => [key, i % 2 ? "''" : ''])),
+          IDP_UPSTREAM_CALLBACK_URL: 'https://id.ownpace.eu/ui/login/login/externalidp/callback',
+          IDP_READY_TIMEOUT: '600',
+          IDP_READ_ATTEMPTS: '6',
+        },
+      });
+      expectPassed(run(s, [], { STUB_TRIGGER_STOP: 'account' }), /IDP_|sign-in provider/);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'a .env copied from managed.env.example is not refused for one: the example ships every key empty',
+    () => {
+      const s = stage({ envPrefix: readFileSync(join(COMPOSE_DIR, 'managed.env.example'), 'utf8') });
+      const r = run(s);
+      expect(r.out).not.toMatch(/IDP_[A-Z0-9_]+: set\./);
     },
     CASE_MS,
   );
