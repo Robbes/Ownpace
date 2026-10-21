@@ -93,6 +93,8 @@ export interface DeletionEntry {
   reportedAt?: string;
   trashedAt?: string;
   acknowledgedAt?: string;
+  /** What a decided row did on the new system (workplan 0159 §6 item 6). */
+  decided?: 'kept' | 'applied' | 'relocated';
 }
 export interface DeletionsForMapping {
   confirmed: DeletionEntry[];

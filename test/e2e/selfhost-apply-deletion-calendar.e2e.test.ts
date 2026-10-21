@@ -107,6 +107,8 @@ describe('apply — calendar domain (CalDAV/Nextcloud)', () => {
       const q = await getDeletions();
       expect(q.confirmed.map((d) => d.naturalKeyHash)).not.toContain(EVENT_HASH);
       expect(q.acknowledged.map((d) => d.naturalKeyHash)).toContain(EVENT_HASH);
+      // And it says what was decided: deleted on the new system too.
+      expect(q.acknowledged.find((d) => d.naturalKeyHash === EVENT_HASH)?.decided).toBe('applied');
     },
     PASS_WAIT_MS + 60000,
   );

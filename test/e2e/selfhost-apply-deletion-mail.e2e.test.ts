@@ -148,6 +148,8 @@ describe('apply — mail domain (JMAP/Stalwart)', () => {
       const q = await getDeletions();
       expect(q.confirmed.map((d) => d.naturalKeyHash)).not.toContain(MESSAGE_HASH);
       expect(q.acknowledged.map((d) => d.naturalKeyHash)).toContain(MESSAGE_HASH);
+      // And it says what was decided: deleted on the new system too.
+      expect(q.acknowledged.find((d) => d.naturalKeyHash === MESSAGE_HASH)?.decided).toBe('applied');
     },
     PASS_WAIT_MS + 60000,
   );

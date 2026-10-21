@@ -2156,6 +2156,24 @@ export interface ItemMove {
    * ones somebody already decided about.
    */
   readonly acknowledgedAt?: string;
+  /**
+   * What the decision did on the new system, on a row with `acknowledgedAt`
+   * (workplan 0159 §6 item 6). Absent on an open row.
+   *
+   * - `'kept'`: left where it is; nothing changed on either side.
+   * - `'applied'`: the old copy is gone from the new system, removed by this
+   *   tool (`deletionAppliedAt`): a *Remove the old copy*, the automatic
+   *   removal of moved files' old copies, or a deletion carried out on the
+   *   same row. A known limit of that last one: a mail message or event keeps
+   *   its key when it moves, so when it was deleted through Deletions and its
+   *   move answered afterwards, there was no other copy, and *old copy
+   *   removed* says more than happened (0159 §6 item 6, a follow-up).
+   *
+   * The ledger closes the entry the same way for both, so without this a
+   * screen cannot say which, and a title that guessed named the opposite of
+   * what happened after a removal (the UX sweep's review, #1621).
+   */
+  readonly decided?: 'kept' | 'applied';
 }
 
 /**
@@ -2264,6 +2282,22 @@ export interface ItemDeletion {
   readonly trashedAt?: string;
   /** When the owner decided to keep the target's copy anyway. */
   readonly acknowledgedAt?: string;
+  /**
+   * What the decision did on the new system, on a row with `acknowledgedAt`
+   * (workplan 0159 §6 item 6). Absent on an open row.
+   *
+   * - `'kept'`: the new system keeps its copy (`keep`).
+   * - `'applied'`: deleted on the new system too (`applyDeletion`).
+   * - `'relocated'`: the item MOVED on the old system, and the old copy was
+   *   removed from the new system because the same bytes are there under the
+   *   item's new key (`applyRelocation`, which also closes a deletion entry
+   *   the row carried). Never `'applied'`: the item is still on the new
+   *   system, and *deleted there too* would say the opposite.
+   *
+   * The ledger closes the entry the same way for all three (it sets
+   * `acknowledgedAt`), so without this a screen cannot say which.
+   */
+  readonly decided?: 'kept' | 'applied' | 'relocated';
 }
 
 /**

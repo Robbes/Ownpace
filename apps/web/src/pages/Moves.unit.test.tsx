@@ -7,7 +7,7 @@
  * screen regressing to a silent success would be visible: each queue either
  * shows decided items or states why not, and this is Moves' proof.
  */
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -99,6 +99,73 @@ describe('the aftermath section (0036 T2 pin)', () => {
     renderScreen();
 
     expect(await screen.findByText('Nothing has been decided yet.')).toBeInTheDocument();
+  });
+});
+
+/**
+ * A row under *Already decided* says what was decided (workplan 0159 §6 item
+ * 6): left where it is, or its old copy removed on the new system. The ledger
+ * closes a move the same way for *Leave it where it is* and for *Remove the
+ * old copy*, so only the server's `decided` can say which, and the heading
+ * stays the owner's *Already decided*. With *the automatic removal of moved
+ * files' old copies* on, a removal can be one nobody pressed, and the row is
+ * the only place that says so.
+ */
+describe('a row already decided says what was decided', () => {
+  const answered = () =>
+    queue({
+      acknowledged: [
+        { ...MOVE, naturalKeyHash: 'h-left', acknowledgedAt: '2026-10-01T00:00:00Z', decided: 'kept' },
+        {
+          ...MOVE,
+          naturalKeyHash: 'h-removed',
+          from: 'Docs',
+          to: 'Docs',
+          toNaturalKeyHash: 'h-removed-new',
+          acknowledgedAt: '2026-10-01T00:00:00Z',
+          decided: 'applied',
+        },
+        { ...MOVE, naturalKeyHash: 'h-untold', acknowledgedAt: '2026-10-01T00:00:00Z' },
+      ],
+    });
+  const rowOf = async (hash: string) => (await screen.findByText(hash)).closest('li')!;
+
+  afterEach(() => {
+    window.localStorage.removeItem('ownpace.locale');
+  });
+
+  it('says left where it is, or the old copy removed, each on its own row', async () => {
+    fetchMovesMock.mockResolvedValue(answered());
+    renderScreen();
+
+    const LEFT = 'Left where it is on the new system';
+    const REMOVED = 'Old copy removed on the new system';
+    expect(within(await rowOf('h-left')).getByText(LEFT)).toBeInTheDocument();
+    expect(within(await rowOf('h-removed')).getByText(REMOVED)).toBeInTheDocument();
+    const untold = (await rowOf('h-untold')).textContent ?? '';
+    for (const word of [LEFT, REMOVED]) expect(untold).not.toContain(word);
+    expect(screen.getByRole('heading', { name: /Already decided\s*\(3\)/ })).toBeInTheDocument();
+  });
+
+  it('says it in Dutch', async () => {
+    fetchMovesMock.mockResolvedValue(answered());
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <LocaleProvider>
+        <QueryClientProvider client={qc}>
+          <MemoryRouter>
+            <Moves receiptPollMs={10} />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+
+    expect(within(await rowOf('h-left')).getByText('Blijft staan op het nieuwe systeem')).toBeInTheDocument();
+    expect(
+      within(await rowOf('h-removed')).getByText('Oude kopie verwijderd op het nieuwe systeem'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Al besloten\s*\(3\)/ })).toBeInTheDocument();
   });
 });
 
