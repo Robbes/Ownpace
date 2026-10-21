@@ -445,6 +445,14 @@ idp_pat() {
 # HOW MANY TIMES IT IS ASKED. THE SAME NAME AS setup-zitadel.sh's, ON PURPOSE:
 # one setting covers both scripts, and the gate runs them one after the other
 # against the same front. Four asks, 2s + 4s + 8s ≈ 14 seconds of patience.
+# The wait doubles with no ceiling, as setup-zitadel.sh's does: the knob is for
+# a blip, not an outage.
+#
+# THOSE 14 SECONDS ARE THE WAITS ONLY. Each ask keeps its own time limit, the
+# `-m 15` of the requests that had one. `idp_api` has none, as before, so a front
+# that never completes a handshake costs curl's own connect timeout (300 s) on
+# each of the four asks, where it cost it once before. A front that ANSWERS — a
+# 502, a refused connection — costs only the waits.
 #
 # WHY THIS EXISTS. E2E (managed) #263 and #264 stopped in setup-zitadel.sh on
 # 2026-10-21: its token check went through the public issuer, and the NetBird
@@ -478,9 +486,9 @@ IDP_READ_ATTEMPTS="${IDP_READ_ATTEMPTS:-4}"
 #   3. THE LAST FAILURE STILL FAILS, in the caller, with the message it always
 #      had. This rides out a blip; it must not hide a front that stays down.
 #
-# THE RETRY LINE GOES TO STDERR. Every caller runs inside `$( )` — `idp_api`
-# and `sign_in_as` at every call site — so a line on stdout would become part
-# of the answer jq is handed. That is the second fault #1662 found in
+# THE RETRY LINE GOES TO STDERR. idp_api's reads and sign_in_as run inside
+# `$( )` at every call site, so a line on stdout would become part of the
+# answer jq is handed. That is the second fault #1662 found in
 # setup-zitadel.sh, and the reason its retry line moved.
 #
 # AND IT NAMES THE METHOD AND THE PATH, READ OFF THE REQUEST, NEVER THE QUERY,
@@ -520,9 +528,19 @@ read_retrying() {
   done
 }
 
-# IS THIS CALL A READ — whatever verb it travels under? The same predicate as
-# setup-zitadel.sh's: GET, HEAD, or a POST on a path ENDING in `_search`, which
-# is how Zitadel spells a list whose filters do not fit in a URL.
+# IS THIS CALL A READ — whatever verb it travels under? setup-zitadel.sh's
+# predicate (GET, or a POST on a path ENDING in `_search`, which is how Zitadel
+# spells a list whose filters do not fit in a URL), plus HEAD, plus the one list
+# Zitadel v2 spells as a bare POST.
+#
+# `POST /v2/users` IS ListUsers, MATCHED AS THE WHOLE PATH. Zitadel's own
+# definition says so (proto/zitadel/user/v2/user_service.proto, v4.19.4): its
+# CreateUser lives at `/v2/users/new` only "to avoid a conflict with the
+# ListUsers endpoint, which already handles POST /v2/users". That listing is
+# idp_sweep_leftovers, the FIRST question the managed section asks the issuer,
+# behind `|| fail_at`: outside this rule, one 502 from the front there — what
+# #263 and #264 got — was still a red gate. NEVER `/v2/users*`:
+# `POST /v2/users/human` and `/v2/users/new` CREATE A PERSON, and are sent once.
 #
 # NARROW ON PURPOSE. A WRITE asked twice can apply twice, because a dropped
 # connection or a 502 can come after the provider has already acted. This
@@ -535,6 +553,7 @@ is_read() { # is_read <method> <path> — true when re-asking is safe
   case "$1" in GET|HEAD) return 0 ;; esac
   case "$1:$2" in
     POST:*/_search) return 0 ;;
+    POST:/v2/users) return 0 ;;
   esac
   return 1
 }
@@ -551,7 +570,7 @@ idp_api() { # idp_api <method> <path> [json] — body on stdout, "" and rc 1 on 
     -w '\n%{http_code}')
   [ -n "${3:-}" ] && args+=(-d "$3")
   # Reads are asked again on no answer, writes are sent once — `is_read` decides
-  # which this is, by meaning rather than by verb (#263, #264).
+  # which this is, by the verb AND the path, not by the verb alone (#263, #264).
   if is_read "$1" "$2"; then
     read_retrying curl "${args[@]}"
     out="$CURL_OUT"; rc="$CURL_RC"
@@ -706,6 +725,8 @@ idp_take_back() {
 # shrug.
 idp_sweep_leftovers() {
   local listing
+  # ListUsers: a READ, though it travels as a POST, and asked again on no answer
+  # like the others — see is_read.
   listing="$(idp_api POST /v2/users \
     '{"queries":[{"emailQuery":{"emailAddress":"@smoke.local","method":"TEXT_QUERY_METHOD_ENDS_WITH"}}]}')" ||
     { echo "could not ask the provider for leftover smoke people" >&2; return 1; }

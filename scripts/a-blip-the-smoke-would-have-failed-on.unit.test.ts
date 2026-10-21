@@ -25,10 +25,15 @@
  *
  *   - only NO ANSWER is re-asked: a curl exit code, or a 502, 503 or 504. A
  *     400, 401, 403, 404 or 500 is the provider answering, and is asked once.
- *   - only READS: GET, HEAD, or a POST on a path ending in `_search`. Creating
- *     a person, proving a session, finalising an auth request and exchanging
- *     the code at the token endpoint are WRITES, and the code is one-time: it
- *     must never be sent twice.
+ *   - only READS. Which calls those are is NOT quite #1662's predicate:
+ *     setup-zitadel.sh's is GET, or a POST on a path ending in `_search`, and
+ *     this script's is that plus HEAD, plus Zitadel v2's ListUsers, which is a
+ *     bare `POST /v2/users` matched as the whole path. That listing is the
+ *     sweep for leftover people, the first question the managed section asks,
+ *     behind `|| fail_at`. Creating a person (`POST /v2/users/human`, under the
+ *     same prefix), proving a session, finalising an auth request and
+ *     exchanging the code at the token endpoint are WRITES, and the code is
+ *     one-time: it must never be sent twice.
  *   - the last failure still fails, with the message it always had.
  *
  * The rules are asserted by RUNNING the real functions and blocks, lifted
@@ -171,6 +176,7 @@ curl() {
       case "$m $path" in
         "GET /auth/v1/users/me") body='{"user":{"id":"u-1"}}' ;;
         "POST /v2/users/human") body='{"userId":"u-1"}' ;;
+        "POST /v2/users") body='{"result":[]}' ;;
         "POST /v2/sessions") body='{"sessionId":"s-1","sessionToken":"${SESSION_TOKEN}"}' ;;
         "POST /v2/oidc/auth_requests/"*) body='{"callbackUrl":"https://app.example.invalid/auth/callback?code=${AUTH_CODE}&state=s"}' ;;
         "POST /oauth/v2/token") body='{"id_token":"h.p.s"}' ;;
@@ -206,10 +212,11 @@ interface Asked {
 }
 
 /**
- * Runs `call` after the REAL `read_retrying`, `is_read`, `idp_api` and
- * `sign_in_as`, under the script's own `set -uo pipefail`, with `sleep`
- * replaced so a test does not wait fourteen seconds. `attempts: null` runs with
- * IDP_READ_ATTEMPTS unset and the script's own default line.
+ * Runs `call` after the REAL `read_retrying`, `is_read`, `idp_api`,
+ * `sign_in_as` and `idp_sweep_leftovers`, under the script's own
+ * `set -uo pipefail`, with `sleep` replaced so a test does not wait fourteen
+ * seconds. `attempts: null` runs with IDP_READ_ATTEMPTS unset and the script's
+ * own default line.
  */
 function ask(answers: readonly string[], call: string, attempts: number | null = 4): Asked {
   const dir = mkdtempSync(join(tmpdir(), 'smoke-blip-'));
@@ -234,6 +241,7 @@ function ask(answers: readonly string[], call: string, attempts: number | null =
       lift('is_read'),
       lift('idp_api'),
       lift('sign_in_as'),
+      lift('idp_sweep_leftovers'),
       call,
     ].join('\n');
     const env: NodeJS.ProcessEnv = { ...process.env, BLIP_DIR: dir };
@@ -389,6 +397,7 @@ describe('a status the provider gave is still not re-asked', () => {
 describe('a WRITE is sent exactly once, whatever answers', () => {
   const writes: Array<[string, string, string]> = [
     ['POST', '/v2/users/human', '{"username":"x"}'],
+    ['POST', '/v2/users/new', '{"username":"x"}'],
     ['POST', '/v2/sessions', '{"checks":{}}'],
     ['POST', '/v2/oidc/auth_requests/V2_1', '{"session":{}}'],
     ['POST', '/management/v1/projects/P/apps/oidc', '{"name":"x"}'],
@@ -456,6 +465,55 @@ describe('signing in re-asks the authorization request and nothing after it', ()
     expect(r.calls.at(-1)).toBe(write);
     expect(r.slept).toEqual([]);
     expect(r.rc).not.toBe(0);
+  });
+});
+
+/**
+ * `idp_sweep_leftovers || fail_at`, as the managed section opens. Its listing is
+ * Zitadel v2's ListUsers, a READ that travels as a bare `POST /v2/users`, and it
+ * is the first question the section asks the issuer: asked once, one 502 from
+ * the front there was a red gate before anything else had been tried.
+ */
+const SWEEP = 'idp_sweep_leftovers || fail_at';
+
+describe('the sweep for leftover people, the first question the managed section asks', () => {
+  it('a 502 on the listing and then the list: asked again, and the gate stays green', () => {
+    const r = ask(['502', '200'], SWEEP);
+    expect(r.calls).toEqual(['POST /v2/users', 'POST /v2/users']);
+    expect(r.slept).toEqual([2]);
+    expect(r.stdout).toContain('no leftover smoke people to sweep');
+    expect(r.stdout).not.toContain('FAIL_AT');
+    expect(r.stderr).toContain(
+      'POST /v2/users: the front answered HTTP 502 without reaching the provider — attempt 1 of 4, retrying in 2s',
+    );
+  });
+
+  it('a dropped connection on the listing is ridden out the same way', () => {
+    const r = ask(['x56', '200'], SWEEP);
+    expect(r.calls).toEqual(['POST /v2/users', 'POST /v2/users']);
+    expect(r.stdout).toContain('no leftover smoke people to sweep');
+    expect(r.stdout).not.toContain('FAIL_AT');
+  });
+
+  it('a front that stays down still fails the run, with today\'s message', () => {
+    const r = ask(['503'], SWEEP);
+    expect(r.calls).toHaveLength(4);
+    expect(r.stderr).toContain('could not ask the provider for leftover smoke people');
+    expect(r.stdout).toContain('FAIL_AT');
+  });
+
+  it('a status the provider gave is asked once', () => {
+    const r = ask(['403', '200'], SWEEP);
+    expect(r.calls).toEqual(['POST /v2/users']);
+    expect(r.stdout).toContain('FAIL_AT');
+  });
+
+  it('the listing never carries the filter or the token onto the retry line', () => {
+    const r = ask(['502', '200'], SWEEP);
+    expect(r.stderr).toContain('POST /v2/users: the front answered HTTP 502');
+    for (const secret of ['smoke.local', 'emailQuery', 'TEXT_QUERY_METHOD_ENDS_WITH', PAT, 'Bearer']) {
+      expect(r.stderr, `the retry line printed ${secret}`).not.toContain(secret);
+    }
   });
 });
 
@@ -678,15 +736,33 @@ function readable(pairs: ReadonlyArray<readonly [string, string]>): boolean[] {
 }
 
 describe('the boundary the retry must not cross', () => {
-  it('reads are GET, HEAD and a POST on `_search`', () => {
+  it('reads are GET, HEAD, a POST on `_search` and Zitadel v2\'s ListUsers', () => {
     expect(
       readable([
         ['GET', '/auth/v1/users/me'],
         ['HEAD', '/debug/healthz'],
         ['POST', '/management/v1/projects/P/apps/_search'],
         ['POST', '/admin/v1/idps/templates/_search'],
+        ['POST', '/v2/users'],
       ]),
-    ).toEqual([true, true, true, true]);
+    ).toEqual([true, true, true, true, true]);
+  });
+
+  it('ListUsers is matched as the WHOLE path: what lives under it creates people', () => {
+    // `POST /v2/users/human` is AddHumanUser and `/v2/users/new` is CreateUser
+    // — Zitadel named it `/new` only because ListUsers already holds the bare
+    // path. A prefix match would re-send both.
+    expect(
+      readable([
+        ['POST', '/v2/users/human'],
+        ['POST', '/v2/users/new'],
+        ['POST', '/v2/users/'],
+        ['POST', '/v2/users/u-1/password'],
+        ['POST', '/v2/usersX'],
+        ['PUT', '/v2/users'],
+        ['DELETE', '/v2/users'],
+      ]),
+    ).toEqual([false, false, false, false, false, false, false]);
   });
 
   it('everything else is a write, underscore or not', () => {
@@ -715,8 +791,15 @@ describe('the boundary the retry must not cross', () => {
     const verdicts = readable(sites);
     const wrong = sites
       .map((site, i) => ({ site, retried: verdicts[i]! }))
-      .filter(({ site, retried }) => retried !== (site[0] === 'GET' || site[0] === 'HEAD' || site[1].endsWith('/_search')));
+      .filter(
+        ({ site: [m, p], retried }) =>
+          retried !== (m === 'GET' || m === 'HEAD' || (m === 'POST' && (p.endsWith('/_search') || p === '/v2/users'))),
+      );
     expect(wrong, `misclassified: ${JSON.stringify(wrong)}`).toEqual([]);
+    // The sweep's listing is among them, and is asked again: it is the first
+    // question the managed section asks.
+    expect(sites).toContainEqual(['POST', '/v2/users']);
+    expect(sites).toContainEqual(['POST', '/v2/users/human']);
   });
 
   it('idp_api asks is_read, and sends what is not a read once', () => {
