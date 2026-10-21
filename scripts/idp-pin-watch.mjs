@@ -7,9 +7,10 @@
  * see.
  *
  * The identity provider is pinned in `deploy/compose/managed.yml`, and
- * Dependabot ignores it by name, because an upgrade is deliberate: Zitadel
- * moves its schema one way when it boots on the persistent stack (0119 §3
- * item 2). So nothing said when upstream moved on. v4.18.0 fixed
+ * Dependabot does not move it: it reads no file in `deploy/compose` (below),
+ * and an upgrade is the owner's call, because Zitadel moves its schema one
+ * way when it boots on the persistent stack (0119 §3 item 2). So nothing said
+ * when upstream moved on. v4.18.0 fixed
  * GHSA-4hgj-wm6c-q7p2 on 2026-09-21, a rename of any account through login v1,
  * which this stack serves. A week later the stack still ran v4.17.3, and a
  * person reading release notes is what found it.
@@ -46,13 +47,16 @@
  *                      Its own issue; a newer major is a line in it.
  *   TypeScript split   a cleanup notice, opened when typescript-eslint's
  *                      latest release admits a stable TypeScript 7.1 or later.
- *   routine pins       ONE summary issue: every other image in managed.yml and
- *                      dev.yml against its registry's tag list (Docker Hub and
- *                      ghcr, anonymous tokens), the busybox copies in the
- *                      scripts, www.yml's nginx against apps/web/Dockerfile's,
- *                      Stalwart's copies and its newest v0.16.x, GoAccess, and
- *                      the Trivy the Security Scan runs. cosign-installer's
- *                      default is a status line only.
+ *   routine pins       ONE summary issue: every other image line of
+ *                      managed.yml, dev.yml and www.yml against its registry's
+ *                      tag list (Docker Hub and ghcr, anonymous tokens), the
+ *                      busybox copies in the scripts, www.yml's nginx against
+ *                      apps/web/Dockerfile's, Stalwart's copies and its newest
+ *                      v0.16.x, GoAccess, and the Trivy the Security Scan runs.
+ *                      cosign-installer's default is a status line only. Any
+ *                      other image a script in deploy/compose runs is not
+ *                      compared; today that is only db-roles.sh's floating
+ *                      postgres:18-alpine, and the rest are in comments.
  *
  * A tag is compared with the tags shaped like it (the same letters and
  * separators, numbers where the digits are) that keep its major, since a major
@@ -119,6 +123,10 @@ export const COMPARED_ELSEWHERE = {
   'clickhouse/clickhouse-server': 'the ClickHouse row',
   'bitnamilegacy/minio': 'no upstream left to follow (0119 §3 item 5): a replacement is a decision',
 };
+
+/** How Stalwart moves, said beside its line in the summary issue: AGENTS.md forbids moving it otherwise. */
+export const STALWART_RULE =
+  "the owner's call: it moves only by docs/stalwart-integration-fix.md and ADR-0022, every copy together (AGENTS.md)";
 
 /** Every copy of the Stalwart pin. The fixture's Dockerfile may go; a missing file is skipped. */
 export const STALWART_FILES = [
@@ -749,7 +757,10 @@ export async function routineRows(repo, net) {
     const pin = [...pins].sort(compareParts);
     const newest = newestLike(pin[0], await tagsFor('stalwartlabs/stalwart'), 2);
     const state = pin.length > 1 ? 'behind' : stateOf(pin[0], newest);
-    return { pin: pin.join(' / '), newest, state, notes: pin.length > 1 ? ['the copies disagree'] : [] };
+    // AGENTS.md: "Never change the pinned Stalwart version". An agent reading
+    // the summary issue is told whose call it is, and by which document.
+    const notes = [...(pin.length > 1 ? ['the copies disagree'] : []), ...(state === 'behind' ? [STALWART_RULE] : [])];
+    return { pin: pin.join(' / '), newest, state, notes };
   }]);
 
   // GoAccess: the visit count's image, two-part tags.
@@ -806,18 +817,26 @@ export async function routineRows(repo, net) {
 }
 
 const lineOf = (row) => `- \`${row.name}\` (${row.where}): ${row.pin}, newest **${row.newest}**${row.notes?.length ? `; ${row.notes.join('; ')}` : ''}`;
+const failedLineOf = (row) =>
+  row.state === 'ahead'
+    ? `- \`${row.name}\` (${row.where}): ${row.pin} is ahead of every listed tag (newest listed ${row.newest}): a tag withdrawn upstream, or a list read short`
+    : `- \`${row.name}\` (${row.where}): ${row.error}`;
 
-/** The one issue for the routine pins: open while any is behind, closed when none is and every row was read. */
+/**
+ * The one issue for the routine pins: open while any is behind, closed when
+ * none is and every row was read. A pin ahead of every listed tag is a read
+ * this cannot trust, like an error: it never lets the issue close.
+ */
 export function summaryOf(rows, status) {
   const behind = rows.filter((r) => r.state === 'behind');
-  const failed = rows.filter((r) => r.state === 'error');
+  const failed = rows.filter((r) => r.state === 'error' || r.state === 'ahead');
   const body = [
     "Dependabot does not read these pins: its compose fetcher reads only files named like `compose.yml`, and no file in `deploy/compose` is (`a-dependabot-directory-with-nothing-to-read`). So this watch reads them, each against its own registry's tags of the same major. Behind:",
     '',
     ...behind.map(lineOf),
     '',
     'Each moves in a pull request with its release notes read, and with what it phones home re-read where `scripts/a-service-that-phones-home.unit.test.ts` pins it. An image of `managed.yml` takes E2E (managed) dispatched on its branch, and live takes it from a release tag. A release younger than three days waits (CONTRIBUTING.md). A major is the owner\'s call, and is never offered here.',
-    ...(failed.length ? ['', 'Could not be read this week:', '', ...failed.map((r) => `- \`${r.name}\` (${r.where}): ${r.error}`)] : []),
+    ...(failed.length ? ['', 'Could not be read this week:', '', ...failed.map(failedLineOf)] : []),
     ...(status.length ? ['', 'Also known, and no reason for this issue on its own:', '', ...status.map((s) => `- ${s}`)] : []),
     '',
     'This issue is kept by `.github/workflows/idp-pin-watch.yml`. It is updated while any is behind, and closed when none is.',

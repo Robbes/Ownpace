@@ -4,9 +4,10 @@
  * A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the
  * pinned identity provider still had (workplan 0135 T7 (b)).
  *
- * The identity provider is pinned in `managed.yml`, and Dependabot ignores it
- * by name, because an upgrade moves its schema one way and is the owner's call.
- * So nothing said when upstream moved on. v4.18.0 fixed GHSA-4hgj-wm6c-q7p2,
+ * The identity provider is pinned in `managed.yml`, and Dependabot does not
+ * move it: it reads no file in `deploy/compose`, and an upgrade moves its
+ * schema one way and is the owner's call (0119 §3 item 2). So nothing said
+ * when upstream moved on. v4.18.0 fixed GHSA-4hgj-wm6c-q7p2,
  * a rename of any account through login v1, on 2026-09-21, and a week later
  * this stack still ran v4.17.3. A person reading release notes found it.
  *
@@ -674,7 +675,36 @@ describe('the routine pins, in one summary issue', () => {
     expect(state['nginx in www.yml']).toBe('behind');
     expect(state['busybox in the scripts']).toBe('behind');
     expect(state['stalwartlabs/stalwart']).toBe('behind');
-    expect(rows.find((r) => r.name === 'stalwartlabs/stalwart')!.notes).toEqual(['the copies disagree']);
+    expect(rows.find((r) => r.name === 'stalwartlabs/stalwart')!.notes).toEqual(['the copies disagree', STALWART_RULE]);
+  });
+
+  /** AGENTS.md: "Never change the pinned Stalwart version". The issue says whose call it is. */
+  const STALWART_RULE = "the owner's call: it moves only by docs/stalwart-integration-fix.md and ADR-0022, every copy together (AGENTS.md)";
+
+  it('names the rule Stalwart moves by, in the summary issue, beside its line', async () => {
+    const { rows, status } = await routineRows(REAL, fakeNet(registry({ 'stalwartlabs/stalwart': 'v0.16.999' })));
+    const stalwart = rows.find((r) => r.name === 'stalwartlabs/stalwart')!;
+    expect(stalwart).toMatchObject({ state: 'behind', newest: 'v0.16.999', notes: [STALWART_RULE] });
+    const line = (summaryOf(rows, status).body ?? '').split('\n').find((l) => l.startsWith('- `stalwartlabs/stalwart`'));
+    expect(line).toContain(`newest **v0.16.999**; ${STALWART_RULE}`);
+    for (const doc of ['docs/stalwart-integration-fix.md', 'docs/adr/0022-imap-dependency-security-strategy.md']) {
+      expect(REAL.read(doc), `${doc} is gone`).not.toBeNull();
+    }
+  });
+
+  it('reads a pin ahead of every listed tag as a read it cannot trust: the issue is neither closed nor called current', async () => {
+    const gatus = readImages(MANAGED).find((i) => i.repo === 'ghcr.io/twin/gatus')!;
+    const base = registry();
+    const net = fakeNet({ ...base, json: [[/\/v2\/twin\/gatus\/tags\/list/, { tags: ['v5.1.0'] }], ...base.json!] });
+    const { rows, status } = await routineRows(REAL, net);
+    expect(rows.find((r) => r.name === 'ghcr.io/twin/gatus')).toMatchObject({ pin: gatus.tag, newest: 'v5.1.0', state: 'ahead' });
+    const summary = summaryOf(rows, status);
+    expect(summary.state).toBe('error');
+    expect(summary.error).toBe('1 could not be read');
+    expect(summary.body).toContain(`- \`ghcr.io/twin/gatus\` (deploy/compose/managed.yml): ${gatus.tag} is ahead of every listed tag (newest listed v5.1.0)`);
+    const { gh, calls } = fakeGh([OTHER, { number: 9, title: TITLES.routine, body: 'x', state: 'open' }]);
+    expect(keepIssue(summary, gh, TITLES.routine)).toBe('untouched');
+    expect(calls).toEqual([]);
   });
 
   it('never reads a registry it could not reach as current, and never closes the issue for it', async () => {

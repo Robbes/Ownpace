@@ -43,6 +43,12 @@ images it ignores by name.
 - **The identity provider's dump.** The issue's step 5 and `dump-idp.sh`, on a stack that is not
   live, say when the OTA dump can go: once main's first scheduled E2E (managed) on the new pin
   is green.
+- **Review, the same day.** On the probe's walk above the pin only a 404 is a missing tag; any
+  other answer (a 429, a 5xx, a timeout, the 403 an empty token gets) refuses, so a registry
+  that flakes halfway cannot lower the newest tag or close the Trigger.dev issue. A routine pin
+  ahead of every tag listed counts as a read that failed, so it cannot close the summary issue.
+  The summary issue says that Stalwart moves only by `docs/stalwart-integration-fix.md` and
+  ADR-0022, and ADR-0042's amendment log says its ignore by name is gone.
 - **Not in this:** the scan half (§3's Trivy image scan, report only), MinIO's replacement (T7),
   and moving any pin the watch reports. Each of those is its own pull request.
 
@@ -476,7 +482,7 @@ T7 and T8. T7 is one sentence from the owner, and is best given with T0.
 | T5 `ownpace-live` runs only a release tag | (a) ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), in 0132 T6's `deploy-live.sh`, not yet run on live: the release rule, `/api/version`'s version, one-way or reversible, and the guard's four cases. `--external-id` is deferred (open question 6) — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); 📋 **Proposed** (D2, D3, D4) | §3. **Alpha minimum.** 0132 T6's procedure and script, with the tag always a release whose name, version and commit agree. The deploy says before the hold lifts whether it can be undone. |
 | T6 The tasks run the Node the images run | ✅ **done** in #1231, merged 2026-09-27: (a), `runtime: 'node-24'` and Guard 1. Guard 2, the bundle-load check, not built (after the first invitation) — *was:* 📋 Proposed | §3. **Alpha minimum:** `runtime: 'node-24'` in `trigger.config.ts` (supported by the pinned CLI, read from its package) and the version guard extended. **After the first invitation:** a pull-request check that the bundle loads. |
 | T7 The object store: replace the frozen MinIO, or accept it for the alpha in writing | ⏳ **Owner** | §3. Recommended: accept it for the alpha, in writing, and replace it after the alpha in the next Trigger.dev drain window (0119 §3, item 5). |
-| T8 A watch on the pinned images Dependabot leaves alone | Watch half 🔨 **built** on branch `claude/ownpace-public-readiness-y7orc6-pin-watch`, not merged (2026-10-21): every pin Dependabot cannot see, one issue per owner's-call row and one summary issue, and `/deploy/compose` out of `dependabot.yml` (Status, 2026-10-21); scan half 📋 Proposed — *was:* 📋 **Proposed** | §3. Widened 2026-10-21: Dependabot read no file in `deploy/compose`, so the watch covers every image there, `packageManager`, the Trivy the scan runs and the TypeScript split as well as Trigger.dev, ClickHouse and the task base image. MinIO has no upstream to compare with and is left to the scan half. |
+| T8 A watch on the pinned images Dependabot leaves alone | Watch half 🔨 **built** on branch `claude/ownpace-public-readiness-y7orc6-pin-watch`, not merged (2026-10-21): every pin Dependabot cannot see, one issue per owner's-call row and one summary issue, and `/deploy/compose` out of `dependabot.yml` (Status, 2026-10-21); scan half 📋 Proposed — *was:* 📋 **Proposed** | §3. Widened 2026-10-21: Dependabot read no file in `deploy/compose`, so the watch covers every image line of its `managed.yml`, `dev.yml` and `www.yml` and the busybox and GoAccess copies in its scripts, `packageManager`, the Trivy the scan runs and the TypeScript split as well as Trigger.dev, ClickHouse and the task base image. MinIO has no upstream to compare with and is left to the scan half. |
 
 ## 1. What there is today
 

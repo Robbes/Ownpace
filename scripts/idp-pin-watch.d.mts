@@ -16,6 +16,7 @@ export declare const WINDOW_DAYS: number;
 export declare const TITLES: Record<'zitadel' | 'trigger' | 'clickhouse' | 'taskNode' | 'pnpm' | 'typescript' | 'routine', string>;
 export declare const COMPOSE_FILES: string[];
 export declare const COMPARED_ELSEWHERE: Record<string, string>;
+export declare const STALWART_RULE: string;
 export declare const STALWART_FILES: string[];
 export declare const TASK_OVERLAY: RegExp;
 

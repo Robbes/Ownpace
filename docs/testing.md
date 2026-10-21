@@ -427,11 +427,13 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   ClickHouse against the one Trigger.dev's own compose file pins; the tasks' Node against Node's
   newest security release; `packageManager` against the newest pnpm of its major; and the
   TypeScript split's exit. Each of those keeps one issue open while it is behind, says a newer
-  release in a comment, and closes the issue when the pin catches up. Every other image in
-  `deploy/compose` (Dependabot reads no file there), Stalwart's copies, GoAccess and the Trivy
-  the scan runs share one summary issue. It moves nothing: each issue gives the route, and the
-  move is the owner's call. A row that cannot read its upstream fails the run and touches no
-  issue.
+  release in a comment, and closes the issue when the pin catches up. Every other image line of
+  `managed.yml`, `dev.yml` and `www.yml` (Dependabot reads no file in `deploy/compose`), the
+  busybox copies in its scripts, Stalwart's copies, GoAccess and the Trivy the scan runs share one
+  summary issue; another image a script there runs is not compared (today only `db-roles.sh`'s
+  floating `postgres:18-alpine`). It moves nothing: each issue gives the route, and the
+  move is the owner's call. A row that cannot read its upstream, or finds its pin ahead of every
+  tag listed, fails the run and never closes an issue.
 - `images.yml` — the three application images: an amd64 build-only check on a pull request that
   touches a Dockerfile, `deploy/` or the workflow; a multi-arch build and publish on `main` and
   on `v*` tags.

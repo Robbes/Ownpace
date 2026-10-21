@@ -1,14 +1,14 @@
 # The identity provider's pin against its newest release (workplan 0135 T7 (b)),
 # and since 0146 T8 every pin Dependabot cannot see.
 #
-# Dependabot ignores the identity provider by name, because an upgrade moves
-# its schema one way and is the owner's call (0119 §3 item 2). So nothing said
-# when upstream moved on: v4.18.0 fixed GHSA-4hgj-wm6c-q7p2 on 2026-09-21, and a
-# week later a person reading release notes is what found it. Dependabot also
-# reads no file in deploy/compose (its compose fetcher wants names like
-# compose.yml), so the managed stacks' other images, Trigger.dev, the tasks'
-# Node, packageManager and the Trivy the scan runs had nothing watching them
-# either.
+# Dependabot does not move the identity provider: it reads no file in
+# deploy/compose (its compose fetcher wants names like compose.yml), and an
+# upgrade moves its schema one way and is the owner's call (0119 §3 item 2).
+# So nothing said when upstream moved on: v4.18.0 fixed GHSA-4hgj-wm6c-q7p2 on
+# 2026-09-21, and a week later a person reading release notes is what found
+# it. For the same reason the managed stacks' other images, Trigger.dev, the
+# tasks' Node, packageManager and the Trivy the scan runs had nothing watching
+# them either.
 #
 # Once a week, and on demand, scripts/idp-pin-watch.mjs reads each pin from the
 # checkout and compares it with its upstream, without a token: git ls-remote,

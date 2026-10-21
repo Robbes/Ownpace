@@ -8,8 +8,9 @@
 # below: an ignore applies to security updates too.
 #
 # WHAT THIS FILE DOES NOT SEE is scripts/idp-pin-watch.mjs's (workplan 0146 T8): every image
-# in deploy/compose, Trigger.dev, the tasks' Node, `packageManager`, the Trivy the scan runs,
-# and the TypeScript split. It runs on Mondays after this, and keeps an issue open per pin.
+# line of deploy/compose's managed.yml, dev.yml and www.yml, the busybox and GoAccess copies in
+# its scripts, Trigger.dev, the tasks' Node, `packageManager`, the Trivy the scan runs, and the
+# TypeScript split. It runs on Mondays after this, and keeps an issue open while one is behind.
 version: 2
 updates:
   # npm/pnpm workspace (root manifest + all packages/* and apps/* via the workspace).

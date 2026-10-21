@@ -23,7 +23,7 @@
  *
  * The images in `deploy/compose` are `scripts/idp-pin-watch.mjs`'s instead,
  * which reads those files itself; `a-pin-that-knows-it-is-behind` holds that
- * every image there is watched or listed with a reason. Renaming
+ * every image line of them is watched or listed with a reason. Renaming
  * `managed.yml` to fit the rule was weighed and rejected: over two hundred
  * files name it, and the Trigger.dev version script edits it in place.
  */

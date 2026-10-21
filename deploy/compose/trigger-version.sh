@@ -156,13 +156,23 @@ ghcr_token() { # ghcr_token <image> — fetched once per image per run
   printf '%s' "${!var}"
 }
 
+# PROBE_STRICT is set by `probe` once its start has answered: from then on a
+# tag is missing only when ghcr says 404. A 429, a 5xx, a timeout's 000 or the
+# 403 an empty token gets is a registry that did not answer, and read as "not
+# published" it would lower the newest tag the pin watch reports, or close its
+# issue. `list` and `pin` are read by a person, and keep the plain reading.
+PROBE_STRICT=''
 tag_exists() { # tag_exists <image> <tag>
   local image="$1" tag="$2" code
   code="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' \
     -H "Authorization: Bearer $(ghcr_token "$image")" \
     -H 'Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json' \
     "https://ghcr.io/v2/triggerdotdev/${image}/manifests/${tag}")"
-  [ "$code" = "200" ]
+  [ "$code" = "200" ] && return 0
+  if [ -n "$PROBE_STRICT" ] && [ "$code" != "404" ]; then
+    die "ghcr.io answered ${code:-nothing} for triggerdotdev/${image}:${tag}, which says neither that the tag is there nor that it is not. Nothing newer can be called current."
+  fi
+  return 1
 }
 
 # BOTH images or neither: the webapp and the supervisor run one tag by
@@ -248,12 +258,14 @@ cmd_list() {
 #
 # A FAILED REQUEST READS EXACTLY LIKE A MISSING TAG, so a registry the probe
 # could not reach would say "nothing newer", and the watch would close its
-# issue. The tag it starts from has to answer in both images first.
+# issue. The tag it starts from has to answer in both images first, and on the
+# walk upward only a 404 is a missing tag (PROBE_STRICT, at tag_exists).
 cmd_probe() {
   need curl; need jq
   local from="${1:-$(repo_tag)}"
   case "$from" in v[0-9]*.[0-9]*.[0-9]*) : ;; *) die "expected a tag like v4.5.12, got '${from}'" ;; esac
   tag_usable "$from" || die "${from} does not answer in both images: ghcr.io could not be read, or the tag is not published. Nothing newer can be called current."
+  PROBE_STRICT=1
   probe_upgrades "$from"
 }
 

@@ -1524,6 +1524,10 @@ reading a file drops off its entry by itself.
 
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 
+### `docs/adr/0022-imap-dependency-security-strategy.md`
+
+- [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+
 ### `docs/adr/0041-who-owns-the-oauth-client.md`
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
@@ -1691,6 +1695,7 @@ reading a file drops off its entry by itself.
 ### `docs/stalwart-integration-fix.md`
 
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
+- [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 
 ### `docs/status-page.md`
@@ -3910,6 +3915,8 @@ Reads:
 - `deploy/compose/trigger-version.sh`
 - `deploy/compose/www.yml`
 - `deploy/selfhost/setup-stalwart.sh`
+- `docs/adr/0022-imap-dependency-security-strategy.md`
+- `docs/stalwart-integration-fix.md`
 - `scripts/idp-pin-watch.mjs`
 - `scripts/toolchain-split.unit.test.ts`
 
