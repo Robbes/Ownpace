@@ -50,6 +50,7 @@ import {
   decideSharing,
   fetchSharing,
   rescanSharing,
+  type ShareRowRefused,
 } from '../services/operating-service.ts';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import { serverMessage } from '../services/api.ts';
@@ -76,6 +77,71 @@ const useGrantText = (): ((key: string) => string) => {
     const who = g.viaLink ? t('sharing.grant.link') : (g.grantee ?? '');
     return g.role ? `${who} (${g.role})` : who;
   };
+};
+
+/**
+ * A row a folder press did not share, in the reader's language: the Dutch the
+ * server wrote where it came (managed, workplan 0136 T3), the English as
+ * served otherwise, which a Dutch page marks as English.
+ */
+const notSharedSaid = (
+  r: ShareRowRefused,
+  locale: string,
+): { readonly text: string; readonly english: boolean } =>
+  locale === 'nl' && r.reasonNl
+    ? { text: r.reasonNl, english: false }
+    : { text: r.reason, english: locale === 'nl' };
+
+/**
+ * WHAT A FOLDER PRESS COULD NOT SHARE, AND WHY (workplan 0136 T3's row-level
+ * half). The press went ahead and answered 200, and these rows were not
+ * shared: the new system refused them, or a gate of ours did. They stay open,
+ * so they are said under the folder, whose lid covers them.
+ *
+ * ONE LINE PER PERSON AND REASON, not per row. A folder is items carrying the
+ * same grants, so a person the new system has no account for is refused on
+ * every item in it, in one sentence: two hundred files would be two hundred
+ * identical lines, the wall the fold removed (0123 T4). A line names the
+ * person, then the item, or how many.
+ */
+const NotShared: React.FC<{ refused: ReadonlyArray<ShareRowRefused> }> = ({ refused }) => {
+  const { t, locale } = useLocale();
+  const lines = new Map<
+    string,
+    { who?: string; items: string[]; text: string; english: boolean }
+  >();
+  for (const r of refused) {
+    const said = notSharedSaid(r, locale);
+    const key = `${r.grantee ?? ''}\u0000${said.text}`;
+    const line = lines.get(key);
+    if (line) line.items.push(r.on);
+    else lines.set(key, { ...(r.grantee ? { who: r.grantee } : {}), items: [r.on], ...said });
+  }
+  return (
+    <div className="p-2 rounded border border-amber-200 bg-amber-50">
+      <p className="text-xs font-medium text-amber-900">
+        {refused.length === 1
+          ? t('sharing.group.refused.one')
+          : t('sharing.group.refused.many', { count: String(refused.length) })}
+      </p>
+      <ul className="mt-1 space-y-1">
+        {[...lines].map(([key, line]) => {
+          const what =
+            line.items.length === 1
+              ? line.items[0]
+              : `${line.items.length} ${t('sharing.group.items')}`;
+          return (
+            <li key={key} className="text-xs text-amber-800">
+              <span className="font-medium">{line.who ? `${line.who} · ${what}` : what}</span>
+              <span className="block" lang={line.english ? 'en' : undefined}>
+                {line.text}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
 };
 
 const StateBadge: React.FC<{ row: ShareGrantRow }> = ({ row }) => {
@@ -285,14 +351,20 @@ const GroupCard: React.FC<{
   onApplyFolder: (group: ShareGroup, grantees: readonly string[]) => void;
   /** The server's own words when a folder press was refused. */
   refusal?: string;
+  /** The rows the last folder press here went ahead without (the 200's `refused`). */
+  notShared?: ReadonlyArray<ShareRowRefused>;
   children: React.ReactNode;
-}> = ({ group, rows, busy, onDecideMany, confirmed, onConfirm, onApplyFolder, refusal, children }) => {
+}> = ({ group, rows, busy, onDecideMany, confirmed, onConfirm, onApplyFolder, refusal, notShared, children }) => {
   const t = useT();
   const grantText = useGrantText();
   const [open, setOpen] = React.useState(false);
   const [asking, setAsking] = React.useState(false);
   const [drafts, setDrafts] = React.useState<Record<string, string>>({});
   const openRows = rows.filter((r) => r.state === 'open');
+  // Only rows still open: one settled since, by hand or by somebody else, no
+  // longer stays open, and the heading would say it does.
+  const stillOpen = new Set(openRows.map((r) => r.id));
+  const notSharedOpen = (notShared ?? []).filter((r) => stillOpen.has(r.id));
   const sharedWith = group.grants.map((g) => grantText(g)).join(', ');
 
   // EVERYONE ONE PRESS OVER THIS FOLDER WOULD INVITE. A link has no
@@ -453,6 +525,15 @@ const GroupCard: React.FC<{
           <Refused text={refusal} />
         </div>
       )}
+      {/* A live region that is there before the answer lands, so a screen
+          reader says what the press could not share when it is filled. */}
+      <div role="status">
+        {notSharedOpen.length > 0 && (
+          <div className="px-3 pb-3">
+            <NotShared refused={notSharedOpen} />
+          </div>
+        )}
+      </div>
       {open && <ul className="px-3 pb-3 space-y-2">{children}</ul>}
     </li>
   );
@@ -499,6 +580,12 @@ const Sharing: React.FC = () => {
   // A folder press is refused as a whole, so its reason belongs to the folder
   // and not to any row in it. Keyed by container, cleared before each press.
   const [folderRefusals, setFolderRefusals] = React.useState<Record<string, string>>({});
+  // A folder press that went ahead answers with the rows it did not share
+  // (workplan 0136 T3's row-level half). Kept raw, so the page follows a
+  // language switch; keyed by container, cleared before each press.
+  const [folderNotShared, setFolderNotShared] = React.useState<
+    Record<string, ReadonlyArray<ShareRowRefused>>
+  >({});
   const [busyFolder, setBusyFolder] = React.useState<string | null>(null);
   const [rescanning, setRescanning] = React.useState(false);
   // Both lists the rescan answered with, so the page follows a language switch
@@ -600,10 +687,16 @@ const Sharing: React.FC = () => {
    * gate and the screen are checking the same thing rather than the screen
    * vouching for itself. A refusal lands against the FOLDER, in the server's
    * own words: a press refused as a whole did not half-happen.
+   *
+   * A press that went ahead may still not have shared every row: the new
+   * system refuses one person, or every row at once (a sign-in it did not
+   * accept). Those rows stay open, and the answer's `refused` says each in
+   * the server's words; the folder says them, and so does each row.
    */
   const onApplyFolder = (group: ShareGroup, grantees: readonly string[]) => {
     setBusyFolder(group.parentKey);
     setFolderRefusals((r) => ({ ...r, [group.parentKey]: '' }));
+    setFolderNotShared((r) => ({ ...r, [group.parentKey]: [] }));
     // ONLY THIS FOLDER'S PEOPLE. The session may hold confirmations for
     // grantees in other folders; sending those would put addresses on the wire
     // that this press has no business with (§17, least disclosure) — and would
@@ -614,7 +707,10 @@ const Sharing: React.FC = () => {
       if (address) confirmed[grantee] = address;
     }
     applyShareFolder(mappingId, group.parentKey, confirmed)
-      .then(() => refresh())
+      .then((outcome) => {
+        setFolderNotShared((r) => ({ ...r, [group.parentKey]: outcome.refused }));
+        refresh();
+      })
       .catch((err: unknown) => {
         setFolderRefusals((r) => ({
           ...r,
@@ -662,13 +758,24 @@ const Sharing: React.FC = () => {
   const byId = new Map(grants.map((r) => [r.id, r]));
   const rowById = (id: string): ShareGrantRow | undefined => byId.get(id);
   const isRow = (r: ShareGrantRow | undefined): r is ShareGrantRow => r !== undefined;
+  // A row the last folder press did not share says why in its own card too,
+  // for as long as it stays open; a press of its own says its own answer.
+  const notSharedById = new Map(
+    Object.values(folderNotShared)
+      .flat()
+      .map((r) => [r.id, r] as const),
+  );
+  const notSharedText = (row: ShareGrantRow): string | undefined => {
+    const r = notSharedById.get(row.id);
+    return r && row.state === 'open' ? notSharedSaid(r, locale).text : undefined;
+  };
   const renderRow = (row: ShareGrantRow, note?: React.ReactNode) => (
     <Row
       key={row.id}
       row={row}
       busy={busyId === row.id}
       onDecide={onDecide}
-      refusal={refusals[row.id] || undefined}
+      refusal={refusals[row.id] || notSharedText(row)}
       confirmedGrantee={row.grantee ? confirmedPairs[row.grantee] : undefined}
       note={note}
     />
@@ -752,6 +859,7 @@ const Sharing: React.FC = () => {
               }
               onApplyFolder={onApplyFolder}
               refusal={folderRefusals[g.parentKey] || undefined}
+              notShared={folderNotShared[g.parentKey]}
             >
               {g.rowIds.map(rowById).filter(isRow).map((r) => renderRow(r))}
             </GroupCard>

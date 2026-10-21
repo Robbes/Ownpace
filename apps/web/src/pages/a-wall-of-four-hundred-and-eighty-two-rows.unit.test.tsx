@@ -38,7 +38,7 @@
  *     card, on the row it explains, once.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -73,6 +73,7 @@ vi.mock('../services/operating-service', () => ({
 }));
 
 import Sharing from './Sharing.tsx';
+import { LocaleProvider } from '../i18n/index.tsx';
 
 const row = (over: Partial<ShareGrantRow> & { id: string }): ShareGrantRow => ({
   grantHash: `hash-${over.id}`,
@@ -503,5 +504,266 @@ describe('one press over one folder', () => {
     expect(
       await screen.findByText(/Shares are applied at or after cutover/),
     ).toBeInTheDocument();
+  });
+});
+
+/**
+ * WHAT A FOLDER PRESS COULD NOT SHARE, AND WHY (workplan 0136 T3's row-level
+ * half). The press answers 200 with the rows the new system refused, each
+ * with our sentence in English and Dutch (`reason`, `reasonNl`), and they stay
+ * open. The page used to drop that answer and refresh, so a tester whose new
+ * Nextcloud refused (no such account, a 403, a sign-in it did not accept) saw
+ * the same open rows and nothing else: it read as nothing happening.
+ *
+ * Said under the folder, because the rows are under its lid, and once per
+ * person and reason: two hundred files refused for one person for one reason
+ * are one line, or the answer is the wall this file exists to remove.
+ */
+describe('what a folder press could not share, and why', () => {
+  const ANNA_EN = 'The new system refused this share (status 403). Reference 0136aa01.';
+  const ANNA_NL = 'Het nieuwe systeem weigerde dit delen (status 403). Referentie 0136aa01.';
+  const BOB_EN = 'The new system has no account with that address (status 404). Reference 0136aa01.';
+  const BOB_NL = 'Het nieuwe systeem heeft geen account met dat adres (status 404). Referentie 0136aa01.';
+  const OURS_EN = 'This target has no share API this tool speaks. Create the share by hand.';
+
+  /** A shared folder and one file in it, each shared with anna and bob. */
+  const folderForTwo = (): ShareGrantRow[] => [
+    row({ id: 'fa', itemKey: 'F', parentKey: 'root', isContainer: true, onLabel: 'Foto shoot Emma' }),
+    row({
+      id: 'fb',
+      itemKey: 'F',
+      parentKey: 'root',
+      isContainer: true,
+      onLabel: 'Foto shoot Emma',
+      grantee: 'bob@example.test',
+    }),
+    row({ id: 'ca', itemKey: 'c0', parentKey: 'F', onLabel: 'IMG_0.jpg' }),
+    row({ id: 'cb', itemKey: 'c0', parentKey: 'F', onLabel: 'IMG_0.jpg', grantee: 'bob@example.test' }),
+  ];
+
+  /** Anna's folder refused (403), and both of bob's rows (no such account). */
+  const twoRefusedFor = (nl: boolean) => ({
+    status: 'ok',
+    applied: [folderForTwo()[2]],
+    refused: [
+      {
+        id: 'fa',
+        on: 'Foto shoot Emma',
+        grantee: 'anna@example.test',
+        code: 'target_refused',
+        reason: ANNA_EN,
+        ...(nl ? { reasonNl: ANNA_NL } : {}),
+      },
+      ...(['fb', 'cb'] as const).map((id) => ({
+        id,
+        on: id === 'fb' ? 'Foto shoot Emma' : 'IMG_0.jpg',
+        grantee: 'bob@example.test',
+        code: 'target_refused',
+        reason: BOB_EN,
+        reasonNl: BOB_NL,
+      })),
+    ],
+    leftForChecklist: { links: 0, manual: 0 },
+    waitingForCutover: 0,
+  });
+
+  const allApplied = {
+    status: 'ok',
+    applied: folderForTwo(),
+    refused: [],
+    leftForChecklist: { links: 0, manual: 0 },
+    waitingForCutover: 0,
+  };
+
+  const WORDS = {
+    en: {
+      press: 'Share this folder on the new system',
+      confirm: 'Confirm',
+      armed: 'Press again to invite them all',
+    },
+    nl: {
+      press: 'Deze map delen op het nieuwe systeem',
+      confirm: 'Bevestigen',
+      armed: 'Bevestig nogmaals om iedereen uit te nodigen',
+    },
+  } as const;
+
+  function renderIn(locale: 'en' | 'nl') {
+    window.localStorage.setItem('ownpace.locale', locale);
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <LocaleProvider>
+        <QueryClientProvider client={qc}>
+          <MemoryRouter initialEntries={['/mappings/m1/sharing']}>
+            <Routes>
+              <Route path="/mappings/:mappingId/sharing" element={<Sharing />} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+  }
+
+  /** Confirm both addresses, then the two presses. */
+  async function pressFolder(locale: 'en' | 'nl') {
+    const w = WORDS[locale];
+    fireEvent.click(await screen.findByText(w.press));
+    while (screen.queryAllByText(w.confirm).length > 0) {
+      fireEvent.click(screen.getAllByText(w.confirm)[0]!);
+    }
+    fireEvent.click(screen.getByText(`${w.press} (2)`));
+    fireEvent.click(screen.getByText(w.armed));
+    await waitFor(() => expect(applyShareFolder).toHaveBeenCalled());
+  }
+
+  afterEach(() => window.localStorage.removeItem('ownpace.locale'));
+
+  it('says under the folder which shares were refused, and why, once per person and reason', async () => {
+    answerWith(folderForTwo());
+    applyShareFolder.mockResolvedValue(twoRefusedFor(true));
+    renderIn('en');
+    await pressFolder('en');
+
+    const heading = await screen.findByText(
+      'Sharing on the new system did not work for 3 shares in this folder. Their rows stay open.',
+    );
+    const region = heading.closest('[role="status"]');
+    expect(region).not.toBeNull();
+    // Bob's two rows say one thing; they are one line, with how many.
+    expect(screen.getAllByText(ANNA_EN)).toHaveLength(1);
+    expect(screen.getAllByText(BOB_EN)).toHaveLength(1);
+    expect(region!.textContent).toContain('anna@example.test · Foto shoot Emma');
+    expect(region!.textContent).toContain('bob@example.test · 2 items');
+    expect(region!.contains(screen.getByText(ANNA_EN))).toBe(true);
+    expect(region!.contains(screen.getByText(BOB_EN))).toBe(true);
+    // The folder is still shut, and the Dutch is not shown to an English reader.
+    expect(screen.queryByText('IMG_0.jpg')).toBeNull();
+    expect(screen.queryByText(ANNA_NL)).toBeNull();
+    expect(screen.queryByText(BOB_NL)).toBeNull();
+  });
+
+  it('counts the shares, not the lines', async () => {
+    answerWith(folderForTwo());
+    applyShareFolder.mockResolvedValue({
+      ...twoRefusedFor(true),
+      refused: twoRefusedFor(true).refused.slice(1),
+    });
+    renderIn('en');
+    await pressFolder('en');
+
+    // Bob's two rows, one line.
+    expect(
+      await screen.findByText(
+        'Sharing on the new system did not work for 2 shares in this folder. Their rows stay open.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(BOB_EN)).toHaveLength(1);
+  });
+
+  it('a Dutch reader reads the Dutch, and the English where no Dutch came, marked as English', async () => {
+    answerWith(folderForTwo());
+    applyShareFolder.mockResolvedValue({
+      ...twoRefusedFor(false),
+      refused: [
+        ...twoRefusedFor(false).refused.slice(1),
+        // A refusal of our own gates has no Dutch twin.
+        { id: 'fa', on: 'Foto shoot Emma', grantee: 'anna@example.test', code: 'no_share_api', reason: OURS_EN },
+      ],
+    });
+    renderIn('nl');
+    await pressFolder('nl');
+
+    expect(
+      await screen.findByText(
+        'Delen op het nieuwe systeem lukte niet voor 3 deelrechten in deze map. De regels blijven open.',
+      ),
+    ).toBeInTheDocument();
+    const dutch = screen.getByText(BOB_NL);
+    expect(dutch.closest('[lang="en"]')).toBeNull();
+    expect(screen.queryByText(BOB_EN)).toBeNull();
+    const english = screen.getByText(OURS_EN);
+    expect(english.closest('[lang="en"]')).not.toBeNull();
+  });
+
+  it('says nothing when every share in the folder went through', async () => {
+    answerWith(folderForTwo());
+    applyShareFolder.mockResolvedValue(allApplied);
+    renderIn('en');
+    await pressFolder('en');
+
+    await waitFor(() => expect(fetchSharing).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText(/did not work for/)).toBeNull();
+    expect(screen.queryByText(ANNA_EN)).toBeNull();
+    expect(screen.queryByText(BOB_EN)).toBeNull();
+  });
+
+  it('the next press clears what the last one said, even when it is refused as a whole', async () => {
+    answerWith(folderForTwo());
+    applyShareFolder.mockResolvedValueOnce(twoRefusedFor(true)).mockRejectedValueOnce(
+      new DecisionRefusedError(
+        { error: 'not_cut_over', reason: 'Shares are applied at or after cutover, not before.' },
+        409,
+      ),
+    );
+    renderIn('en');
+    await pressFolder('en');
+    expect(await screen.findByText(ANNA_EN)).toBeInTheDocument();
+
+    // The confirmations stand, so the press is offered again at once.
+    fireEvent.click(await screen.findByText(`${WORDS.en.press} (2)`));
+    fireEvent.click(screen.getByText(WORDS.en.armed));
+    expect(await screen.findByText(/Shares are applied at or after cutover/)).toBeInTheDocument();
+    expect(screen.queryByText(ANNA_EN)).toBeNull();
+    expect(screen.queryByText(BOB_EN)).toBeNull();
+    expect(screen.queryByText(/did not work for/)).toBeNull();
+  });
+
+  it('a row settled since is no longer said to stay open', async () => {
+    const after = folderForTwo().map((r) =>
+      r.grantee === 'bob@example.test'
+        ? { ...r, state: 'done_manual' as const, decidedBy: 'pat', decidedAt: '2026-09-18T13:00:00Z' }
+        : r,
+    );
+    fetchSharing
+      .mockResolvedValueOnce({
+        migrationStatus: 'done',
+        summary: { total: 4, open: 4, applied: 0, doneManual: 0, skipped: 0, openManual: 0 },
+        grants: folderForTwo(),
+      })
+      .mockResolvedValue({
+        migrationStatus: 'done',
+        summary: { total: 4, open: 2, applied: 0, doneManual: 2, skipped: 0, openManual: 0 },
+        grants: after,
+      });
+    applyShareFolder.mockResolvedValue(twoRefusedFor(true));
+    renderIn('en');
+    await pressFolder('en');
+
+    expect(
+      await screen.findByText(
+        'Sharing on the new system did not work for 1 share in this folder. Its row stays open.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(ANNA_EN)).toBeInTheDocument();
+    expect(screen.queryByText(BOB_EN)).toBeNull();
+    // Nor in bob's own rows, once the folder is opened: they are settled.
+    fireEvent.click(screen.getByRole('button', { name: /Foto shoot Emma/, expanded: false }));
+    expect(screen.getAllByText(ANNA_EN)).toHaveLength(2);
+    expect(screen.queryByText(BOB_EN)).toBeNull();
+  });
+
+  it('opening the folder shows each refused row its own reason', async () => {
+    answerWith(folderForTwo());
+    applyShareFolder.mockResolvedValue(twoRefusedFor(true));
+    renderIn('en');
+    await pressFolder('en');
+    await screen.findByText(BOB_EN);
+
+    fireEvent.click(screen.getByRole('button', { name: /Foto shoot Emma/, expanded: false }));
+    // The folder's line, and the line in each of bob's two rows.
+    expect(screen.getAllByText(BOB_EN)).toHaveLength(3);
+    expect(screen.getAllByText(ANNA_EN)).toHaveLength(2);
+    const rowCards = screen.getAllByText(BOB_EN).map((n) => n.closest('li'));
+    expect(rowCards.filter((li) => li?.textContent?.includes('Mark done'))).toHaveLength(2);
   });
 });
