@@ -346,7 +346,8 @@ paths:
         email and still carrying a `pending:` placeholder is bound to their
         subject — but only against an address the issuer says it VERIFIED,
         since otherwise whoever registers an address inherits what was granted
-        to it.
+        to it. The address is compared in any case and without the spaces
+        around it (managed migration 0059).
         While the deployment asks for acceptance (`OWNPACE_STAGE=alpha`, and
         no text still a draft; workplan 0139 T3) and an organisation is
         current, `acceptance` says which texts wait to be accepted, each with
@@ -427,7 +428,12 @@ paths:
         be an open invitation addressed to the address in `app.current_email`,
         which is set only when the issuer asserted `email_verified: true`, and
         what the row may BECOME is pinned too — so this cannot be turned into
-        "set somebody else's user id".
+        "set somebody else's user id". The address is compared in any case and
+        without the spaces around it (managed migration 0059).
+
+        Where an organisation holds more than one open invitation to the
+        address, the oldest is the one `GET /api/me` offers and the one taken
+        up here, with its role.
       responses:
         '200':
           description: Joined.
@@ -438,7 +444,8 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
           description: |
-            No open invitation for this caller there — or one they cannot see.
+            No open invitation for this caller there — or one they cannot see,
+            or one to an organisation they already belong to.
             The same answer on purpose: distinguishing them would tell anybody
             who asked whether an address has an invitation at an organisation.
           content:
@@ -959,7 +966,9 @@ paths:
       description: |
         A second invitation for an address that already has a live row is
         refused with `409` naming that row, rather than quietly creating a
-        duplicate whose role nobody can predict.
+        duplicate whose role nobody can predict. The address is kept without
+        the spaces around it, and compared in any case: the invitation binds
+        to the signed-in address that way (managed migration 0059).
 
         During the alpha the role is `owner` or `admin` (workplan 0137 T7);
         any other role, sent as a string in an otherwise valid body, answers
@@ -1817,6 +1826,12 @@ paths:
         not fail loudly — it would take the mailboxes and the whole migration
         ledger with it, and the next pass would re-copy everything as though it
         had never run.
+
+        A delete that goes through is recorded in the audit log as
+        `connection.deleted`, with the caller as actor and the connection's
+        id, side and kind, in the delete's own transaction (workplan 0137 T4).
+        A refusal records nothing. Nor does the second of two deletes that
+        overlap: it finds the row already gone and answers 404.
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
@@ -1832,7 +1847,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ConnectionDeleted' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { description: No such connection for this tenant. }
+        '404': { description: No such connection for this tenant, or another delete of it went first. }
         '409':
           description: Still in use; the reason names how many and which migrations. Nothing is revoked on a refusal — the connection stays, and must keep working.
           content:
@@ -1852,6 +1867,15 @@ paths:
         working connection into a broken one because somebody pasted the wrong
         value is worse than refusing. The stored config is deliberately not
         touched — rotation replaces a secret, not where a migration is rooted.
+
+        Every probed replacement is recorded in the audit log as
+        `connection.credentials_replaced`, with the caller as actor, the
+        connection's id, side and kind, and `accountStored`: true in the
+        update's own transaction when the new account is stored, false when
+        the probe refused it (workplan 0137 T4). No address, user name or
+        password goes in the record. A request refused before the probe
+        records nothing, and nor does one whose connection was deleted while
+        the new account was probed: nothing is stored, and it answers 404.
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       requestBody:
@@ -1889,7 +1913,7 @@ paths:
         '400': { description: A missing required field, or a value the schema refuses. }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '429': { $ref: '#/components/responses/TooManyTests' }
-        '404': { description: No such connection for this tenant. }
+        '404': { description: No such connection for this tenant, or it was deleted while the new account was probed and nothing was stored. }
         '409':
           description: |
             `archive_on_server` (workplan 0136 T5): a stored export archive whose
@@ -2507,6 +2531,12 @@ paths:
         Destroys config and ledger linkage. The UI arms this by making the
         operator type the migration's own name; the API itself does not
         second-guess a deliberate call.
+
+        The delete is recorded in the audit log as `mapping.deleted`, with the
+        caller as actor, the migration's id under `mappingId` and the status it
+        had, in the delete's own transaction (workplan 0137 T4). The record
+        outlives the migration, so the operator's log page still shows who
+        deleted it. A 404 records nothing.
       responses:
         '200':
           description: |
@@ -2969,6 +2999,15 @@ paths:
         T5): its own ledger (or the whole migration's, where it has none of
         its own yet), a final sync of that data type alone, and a gate over
         it alone. Only a data type the migration carries.
+
+        A 202 is recorded in the audit log as `cutover.preparation_requested`,
+        with the caller as actor, the migration's id, the run's id,
+        `revokesApproval` and the data type when one was named (workplan 0137
+        T4). `revokesApproval` is what this door read: whether the ledger then
+        held an approval the preparation revokes. The job re-reads the ledger
+        and remains the authority. It is written after the enqueue, so a record that cannot be
+        written leaves the 202 as it is and is logged as
+        `cutover.preparation_not_recorded`. A refusal records nothing.
       requestBody:
         required: false
         content:
@@ -3881,6 +3920,14 @@ paths:
         system no longer decides what exists (2026-10-05): the apply route
         refuses their deletions (`after_cutover`), so a screen offers none.
         Empty before cutover, and again after a rollback.
+
+        Each `acknowledged` row says what its decision did on the new system,
+        as `decided` (workplan 0159 §6 item 6): `kept` (the keep route below),
+        `applied` (deleted there too, by the apply route), or `relocated` (the
+        item moved, and the old copy was removed through the moves queue, by a
+        person or by the automatic removal of moved files' old copies; the
+        item is still on the new system under its new key). An open row has
+        none.
       responses:
         '200':
           description: The deletion queue.
@@ -4407,6 +4454,10 @@ paths:
         `afterCutover` lists the data types past their cutover (2026-10-05):
         the apply route refuses their moves (`after_cutover`), so a screen
         offers none. Empty before cutover, and again after a rollback.
+
+        Each `acknowledged` row says what its decision did on the new system,
+        as `decided` (workplan 0159 §6 item 6): `kept` (left where it is), or
+        `applied` (the old copy removed there). An open row has none.
       responses:
         '200':
           description: The move queue.
@@ -5303,10 +5354,16 @@ paths:
             schema: { type: object }
       responses:
         '200':
-          description: Resolved.
+          description: |
+            Resolved: the answered decision, with what answering it did. `effect`
+            says it in English and `effectNl` in Dutch, the same sentence
+            (`DECISION_EFFECTS` in `@openmig/shared`). The page says the half in
+            its reader's language. The migration acts on the answer only where
+            it changed something: a shared address's pattern, written back to
+            its group. Every other answer says it is only recorded.
           content:
             application/json:
-              schema: { type: object }
+              schema: { $ref: '#/components/schemas/DecisionClosed' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -5323,10 +5380,12 @@ paths:
         about what happened.
       responses:
         '200':
-          description: Dismissed.
+          description: |
+            Dismissed: the decision set aside, with what that did. `effect` says
+            it in English and `effectNl` in Dutch, the same sentence.
           content:
             application/json:
-              schema: { type: object }
+              schema: { $ref: '#/components/schemas/DecisionClosed' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
@@ -8322,6 +8381,8 @@ components:
             Open invitations addressed to this caller's VERIFIED address. Empty
             is the ordinary case — and is also what an issuer that will not
             assert `email_verified` gets, because email is not identity.
+            At most one per organisation, the oldest, and none to an
+            organisation the caller already belongs to.
           items: { $ref: '#/components/schemas/Invitation' }
         operator:
           type: boolean
@@ -8811,6 +8872,21 @@ components:
             when nothing matched, where it says so rather than reporting
             success over an empty set.
       required: [status, action, matched, match, effect]
+
+    DecisionClosed:
+      type: object
+      description: |
+        A drift decision just answered or set aside: its whole row, as
+        `GET /api/decisions` lists it (category, summary, detail, resolution,
+        resolvedAt, resolvedBy, …), with what that did in a sentence for the
+        person who pressed the button, in `effect` (English) and `effectNl`
+        (Dutch).
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [resolved, dismissed] }
+        effect: { type: string, description: "What answering or setting aside did, in English." }
+        effectNl: { type: string, description: "`effect` in Dutch (workplan 0159 §6 item 12)." }
+      required: [id, status, effect, effectNl]
 
     Usage:
       type: object

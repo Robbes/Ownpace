@@ -169,9 +169,11 @@ Rename one migrated file **in Drive**, same folder — `report.pdf` →
   later. **Remove the old copy** works the same; unattended apply leaves it for
   you.
 - **Also worth one deliberate minute:** rename another file and answer **keep**
-  this time. The row moves to *Already decided* and the remove button is gone —
-  and stays gone: `keep` is final by design, enforced on the server and in the
-  database, not by the missing button (that enforcement is what PR #408 added).
+  this time. The row moves to *Already decided*, saying *Left where it is on the
+  new system*, and the remove button is gone — and stays gone: `keep` is final
+  by design, enforced on the server and in the database, not by the missing
+  button (that enforcement is what PR #408 added). The row you removed above is
+  there too, saying *Old copy removed on the new system*.
 
 ### Drill C — a real move (expect: folder → folder, same buttons)
 
@@ -610,8 +612,11 @@ experimental verdict.
 ## Stage 9 — the same walk on two phones (workplan 0145 T10; `ownpace-live`, before the first invitation)
 
 Stage 8 again, on phones, in Dutch, and with a screen reader. It also produces the list of
-browsers that other apps open a link in. Nothing in the repository runs the app at phone width,
-in WebKit or under a screen reader (0145 §1), so this walk is the only check there is.
+browsers that other apps open a link in. Of the app, the repository opens only the grant and
+progress pages at phone width, and asks only that they do not scroll sideways
+(`test/ui/managed-ui.ui.test.ts`, 0141 T12 (b)); the public site's pages are held the same way
+(`test/ui/site.ui.test.ts`). Nothing runs the app in WebKit or under a screen reader (0145 §1).
+For everything else, this walk is the only check there is.
 
 **When.** After Stage 8, on `ownpace-live`, once live runs a release that carries 0145's
 minimum (0146 T5 is how live gets a release). On `main` on 2026-09-27 the minimum is only

@@ -13,7 +13,12 @@ Two kinds of words render; only the first belongs to this glossary:
   unified, listed here.
 - **Server vocabulary** — refusal and effect prose, error text. The
   server's own claims, rendered VERBATIM, never translated, never restyled
-  through StateChip.
+  through StateChip. Where the server writes a sentence in both languages,
+  the page shows the half in its reader's language and never translates it
+  itself: a refusal's `reason`/`reasonNl`, and the line under a decided
+  decision, `effect`/`effectNl` (`DECISION_EFFECTS` in `@openmig/shared`,
+  in this glossary's words: a dismissed decision is *terzijde gelegd*, never
+  *afgewezen*).
 - **Server tokens** — verification verdicts (`PASS`/`FAIL`/`WARN`…), issue
   severities and evidence words (`reported`/`trashed`/`inferred`). Until
   2026-10-18 the chips said the token, in English on a Dutch screen; the
@@ -65,6 +70,7 @@ Two kinds of words render; only the first belongs to this glossary:
 | The §11.2 detectors | detectors | **detectoren** | Not *wachters* (calque). |
 | The §20 gate (as a noun) | gate | **controlepunt** | Not *poort* (calque). |
 | Watching (deletions) | watching | **wordt in de gaten gehouden** | Not *onder observatie* (calque). |
+| What a row under *Already decided* says was decided (workplan 0159 §6 item 6) | Deletions: *Kept on the new system* · *Deleted on the new system too* · *Moved: the old copy was removed on the new system*; Moves: *Left where it is on the new system* · *Old copy removed on the new system* | Deletions: **Behouden op het nieuwe systeem** · **Ook verwijderd op het nieuwe systeem** · **Verplaatst: de oude kopie is verwijderd op het nieuwe systeem**; Moves: **Blijft staan op het nieuwe systeem** · **Oude kopie verwijderd op het nieuwe systeem** | One per row, where its buttons were, from the server's `decided`; the heading stays *Already decided* / *Al besloten*. Each echoes a button's words (*Keep our copy*, *Delete it here too*, *Leave it where it is*, *Remove the old copy*), though a removal can be one nobody pressed (the automatic removal of moved files' old copies). The old copy of an item that MOVED is never *deleted*: the item is still on the new system. Builder's words, for the owner to read. |
 | Electronic mail | mail | **mail** / **e-mail** | Never **post** — Dutch *post* is paper mail (owner correction, 2026-08-11: "dat verhuist niet mee met de post" read as letters). *Postvak* stays for mailbox — it is Microsoft's own NL term. |
 | ADR-0014's billed unit: one migration × one data kind | path | **pad** | The operator's usage panel counts *paden*; the raw lifecycle tokens beside the count are server vocabulary and stay verbatim. |
 | The capacity a path occupies | slot | **plek** | "Houdt nu een plek vast" — not *slot* (calque). A paused path keeps its *plek*, and the pricing wording says so. |

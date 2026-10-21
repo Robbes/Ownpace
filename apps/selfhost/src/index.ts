@@ -50,6 +50,7 @@ import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentia
 // data by accident.
 import {
   DECISION_EFFECTS,
+  decisionEffectFields,
   decisionResolvedEffect,
   MAPPING_LIFECYCLES,
   PASS_RUNNING_STATES,
@@ -2985,9 +2986,12 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             message: 'This decision does not exist or has already been answered.',
           });
         }
+        // The same pair as managed: English as `effect`, Dutch as `effectNl`.
         return sendJson(res, 200, {
           ...closed!,
-          effect: action === 'resolve' ? decisionResolvedEffect(changedSomething) : DECISION_EFFECTS.dismissed,
+          ...decisionEffectFields(
+            action === 'resolve' ? decisionResolvedEffect(changedSomething) : DECISION_EFFECTS.dismissed,
+          ),
         });
       }
       // The migration completion report (workplan 0047): the SAME shared

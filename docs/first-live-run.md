@@ -132,7 +132,7 @@ an hour.
 |---|---|
 | `/login` has no Sign in button | The web app was built before `VITE_OIDC_*` was set. Rebuild it. |
 | Sign-in returns, then everything 401s | `iss` mismatch — the issuer's discovery document declares a different name than `JWT_ISSUER`. Compare them character by character. |
-| Signed in, but "not part of an organisation yet" | The invitation did not bind. Either the address differs from the one granted, or the issuer did not assert `email_verified` — that claim is the hinge of the whole flow (0093 T6b) and it is the one thing here never tested against a real issuer. |
+| Signed in, but "not part of an organisation yet" | The invitation did not bind. Either the address differs from the one granted (capitals and the spaces around it do not count since managed 0059), or the issuer did not assert `email_verified` — that claim is the hinge of the whole flow (0093 T6b) and it is the one thing here never tested against a real issuer. |
 | The email never arrives | SPF/DKIM/DMARC, nine times out of ten. Check the headers before touching any code. |
 | The status page shows four red lights | It cannot reach `/api/ready` through the proxy. The page is right and the proxy is wrong. |
 | Everything works, then breaks after a restart | Something is reading a container's internal name where a browser address belongs. |

@@ -335,6 +335,85 @@ describe('the queue endpoints see the real rows', () => {
   });
 });
 
+/**
+ * An answered row says which answer it was (workplan 0159 §6 item 6).
+ *
+ * The ledger closes an entry the same way for a keep and for an apply, so the
+ * page could not say which, and a tester who pressed *Delete it here too*
+ * found the row under *Already decided* with no word on what happened. The
+ * queue now says it per row (`decided`), from the real writes: a keep, a
+ * removal, and the removal of a renamed item's old copy, which Deletions must
+ * not call deleted.
+ *
+ * Its own rows, removed again after, so the counts the digest tests below
+ * hold stay the eight rows seeded above.
+ */
+describe('an answered row says which answer it was', () => {
+  const hashOf = (key: string): string => createHash('sha256').update(key).digest('hex');
+  const KEYS = [
+    '<decided-kept@test>',
+    '<decided-deleted@test>',
+    '<decided-moved@test>',
+    '<decided-moved-new@test>',
+    '<decided-left@test>',
+  ];
+  const tenant = asTenantId(TENANT_ID);
+  const mapping = asMappingId(LEDGER_MAPPING_ID);
+
+  beforeAll(async () => {
+    const now = new Date().toISOString();
+    await seedItem({ key: '<decided-kept@test>', deletionReportedAt: now });
+    await seedItem({ key: '<decided-deleted@test>', deletionReportedAt: now });
+    // A renamed item, also reported gone under its old name: in both queues.
+    await seedItem({
+      key: '<decided-moved@test>',
+      deletionReportedAt: now,
+      movedToCollection: 'INBOX',
+      movedToNaturalKeyHash: hashOf('<decided-moved-new@test>'),
+    });
+    await seedItem({ key: '<decided-moved-new@test>' });
+    await pool.query(
+      `UPDATE item SET content_hash = 'same-bytes' WHERE tenant_id = $1 AND natural_key = ANY($2)`,
+      [TENANT_ID, ['<decided-moved@test>', '<decided-moved-new@test>']],
+    );
+    await seedItem({ key: '<decided-left@test>', movedToCollection: 'Archive' });
+
+    expect(await ledger.resolveDeletion(tenant, mapping, hashOf('<decided-kept@test>'), 'keep')).toBe(true);
+    expect(await ledger.applyDeletion(tenant, mapping, 'email', hashOf('<decided-deleted@test>'))).toBe(true);
+    expect(await ledger.applyRelocation(tenant, mapping, 'email', hashOf('<decided-moved@test>'))).toBe(true);
+    expect(await ledger.resolveMove(tenant, mapping, hashOf('<decided-left@test>'), 'keep')).toBe(true);
+  });
+
+  afterAll(async () => {
+    await pool.query(`DELETE FROM item WHERE tenant_id = $1 AND natural_key = ANY($2)`, [TENANT_ID, KEYS]);
+  });
+
+  /** The decided rows of one queue, as `decided` by their key. */
+  const decidedOn = async (path: string): Promise<Record<string, string | undefined>> => {
+    const rows = ((await getQueue(path))[MAPPING_ID]?.acknowledged ?? []) as {
+      naturalKeyHash: string;
+      decided?: string;
+    }[];
+    return Object.fromEntries(rows.map((r) => [r.naturalKeyHash, r.decided]));
+  };
+
+  it('Deletions says kept, applied, or relocated for a renamed item', async () => {
+    const decided = await decidedOn('/deletions');
+    expect(decided[hashOf('<decided-kept@test>')]).toBe('kept');
+    expect(decided[hashOf('<decided-deleted@test>')]).toBe('applied');
+    expect(decided[hashOf('<decided-moved@test>')]).toBe('relocated');
+    // The row seeded answered above, by hand: acknowledged, never removed.
+    expect(decided[hashOf('<deletion-answered@test>')]).toBe('kept');
+  });
+
+  it('Moves says kept, or applied when the old copy was removed', async () => {
+    const decided = await decidedOn('/moves');
+    expect(decided[hashOf('<decided-left@test>')]).toBe('kept');
+    expect(decided[hashOf('<decided-moved@test>')]).toBe('applied');
+    expect(decided[hashOf('<move-answered@test>')]).toBe('kept');
+  });
+});
+
 describe('the digest counts what the screens count', () => {
   /** The collector, wired the way the appliance wires it. */
   async function collect() {
@@ -425,7 +504,30 @@ describe('the decision queue', () => {
       body: JSON.stringify({ resolution: { action: 'accept_default' } }),
     });
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { effect: string }).effect).toBe(DECISION_EFFECTS.recorded);
+    // The same pair as managed (ADR-0026): English as `effect`, Dutch as
+    // `effectNl` (workplan 0159 §6 item 12).
+    expect(await res.json()).toMatchObject({
+      effect: DECISION_EFFECTS.recorded.en,
+      effectNl: DECISION_EFFECTS.recorded.nl,
+    });
+  });
+
+  it('says what setting a decision aside did, in English and in Dutch', async () => {
+    const { decision } = await decisions.raise({
+      tenantId: asTenantId(TENANT_ID),
+      category: 'new_mailbox',
+      subjectKey: 'terzijde@example.nl',
+      summary: 'terzijde@example.nl is on the old system, and no migration covers it.',
+      proposedDefault: 'Noted, I will handle it',
+    });
+
+    const res = await fetch(`${base}/decisions/${decision.id}/dismiss`, { method: 'POST' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      status: 'dismissed',
+      effect: DECISION_EFFECTS.dismissed.en,
+      effectNl: DECISION_EFFECTS.dismissed.nl,
+    });
   });
 
   /**
@@ -464,7 +566,10 @@ describe('the decision queue', () => {
     });
     expect(res.status).toBe(200);
     // The one answer the migration acts on, and the one effect that says so.
-    expect(((await res.json()) as { effect: string }).effect).toBe(DECISION_EFFECTS.resolved);
+    expect(await res.json()).toMatchObject({
+      effect: DECISION_EFFECTS.resolved.en,
+      effectNl: DECISION_EFFECTS.resolved.nl,
+    });
 
     const { rows } = await pool.query(
       `SELECT pattern FROM group_def WHERE tenant_id = $1 AND address = 'sales@example.nl'`,
@@ -508,7 +613,12 @@ describe('the decision queue', () => {
     });
     expect(res.status).toBe(200);
     // Nothing was written, so the answer does not claim the migration acts on it.
-    expect(((await res.json()) as { effect: string }).effect).toBe(DECISION_EFFECTS.recorded);
+    // The same pair as managed (ADR-0026): English as `effect`, Dutch as
+    // `effectNl` (workplan 0159 §6 item 12).
+    expect(await res.json()).toMatchObject({
+      effect: DECISION_EFFECTS.recorded.en,
+      effectNl: DECISION_EFFECTS.recorded.nl,
+    });
 
     // Recording a pattern nobody chose is worse than leaving it open.
     const { rows } = await pool.query(

@@ -161,9 +161,11 @@ function refusedOverRole(error: z.ZodError, body: unknown): boolean {
   );
 }
 
-// Schema validation
+// Schema validation. The address is kept without the spaces around it, as an
+// access request's is: an invitation binds to the signed-in address in any
+// case and without those spaces (managed 0059), and the mail names it as kept.
 const InviteMemberSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().email(),
   role: z.enum(ALPHA_ROLES),
 });
 
@@ -256,13 +258,22 @@ router.post(
         // silently created a second row — and which row's role wins on
         // acceptance was undefined. The refusal names the row that exists;
         // it renders verbatim through the screen's inviteError plumbing.
+        //
+        // IN ANY CASE (managed 0059): `Pat@Example.com` and `pat@example.com`
+        // are one person to the invitation, so they are one person here too,
+        // by the same `lower(btrim(...))` the policies use. The refusal names
+        // the address as the row holds it, which is how the Team list shows it.
         const existing = await db
-          .select({ status: schema.tenantMember.status, role: schema.tenantMember.role })
+          .select({
+            status: schema.tenantMember.status,
+            role: schema.tenantMember.role,
+            email: schema.tenantMember.email,
+          })
           .from(schema.tenantMember)
           .where(
             and(
               eq(schema.tenantMember.tenantId, tenantId),
-              eq(schema.tenantMember.email, body.email),
+              sql`lower(btrim(${schema.tenantMember.email})) = lower(btrim(${body.email}))`,
             ),
           );
         const live = existing.find((m) => m.status === 'active' || m.status === 'invited');
@@ -290,9 +301,9 @@ router.post(
           error: 'Conflict',
           message:
             result.duplicate.status === 'invited'
-              ? `${body.email} already has an open invitation (as ${result.duplicate.role}). ` +
+              ? `${result.duplicate.email} already has an open invitation (as ${result.duplicate.role}). ` +
                 'Use Send again on that row, or remove it first if you want a new one.'
-              : `${body.email} is already a member of this organization (as ${result.duplicate.role}).`,
+              : `${result.duplicate.email} is already a member of this organization (as ${result.duplicate.role}).`,
         });
         return;
       }

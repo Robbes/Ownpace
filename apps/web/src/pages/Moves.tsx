@@ -58,8 +58,20 @@ import {
   keepMove,
   DecisionRefusedError,
 } from '../services/operating-service.ts';
-import { useT, useFormatters } from '../i18n/index.tsx';
+import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
 import { serverMessage } from '../services/api.ts';
+
+/**
+ * What a decided move did on the new system (workplan 0159 §6 item 6), from
+ * the server's `decided`. The ledger closes a move the same way for *Leave it
+ * where it is* and for *Remove the old copy*, so the heading stays the
+ * owner's *Already decided* and each row says which; with the automatic
+ * removal of moved files' old copies on, a removal can be one nobody pressed.
+ */
+const DECIDED: Record<NonNullable<ItemMove['decided']>, StringKey> = {
+  kept: 'moves.decided.kept',
+  applied: 'moves.decided.applied',
+};
 
 /**
  * A move that changed the item's NAME without changing its folder.
@@ -136,6 +148,8 @@ const Row: React.FC<{
         <Refused text={outcome.text} />
       ) : outcome?.state === 'receipt' ? (
         <ReceiptStatus receipt={outcome.receipt} />
+      ) : mv.decided ? (
+        <Resolved effect={t(DECIDED[mv.decided])} />
       ) : (
         actions
       )}

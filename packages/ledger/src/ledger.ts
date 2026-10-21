@@ -1458,6 +1458,8 @@ export class PgLedger implements Ledger {
         movedToNaturalKeyHash: schemaPg.item.movedToNaturalKeyHash,
         movedRecordedAt: schemaPg.item.movedRecordedAt,
         moveAcknowledgedAt: schemaPg.item.moveAcknowledgedAt,
+        // What a decided move did on the new system (0159 §6 item 6).
+        deletionAppliedAt: schemaPg.item.deletionAppliedAt,
       })
       .from(schemaPg.item)
       .where(
@@ -1505,6 +1507,13 @@ export class PgLedger implements Ledger {
                 ? r.moveAcknowledgedAt.toISOString()
                 : String(r.moveAcknowledgedAt),
           }
+        : {}),
+      // Only a decided move says what was decided: the old copy is gone from
+      // the new system once a removal wrote `deletion_applied_at`, and is
+      // where it was otherwise. The ledger closes the entry the same way for
+      // both, which is why the screen could not tell them apart.
+      ...(r.moveAcknowledgedAt
+        ? { decided: r.deletionAppliedAt ? ('applied' as const) : ('kept' as const) }
         : {}),
     }));
   }
@@ -1707,6 +1716,15 @@ export class PgLedger implements Ledger {
         deletionReportedAt: schemaPg.item.deletionReportedAt,
         deletionTrashedAt: schemaPg.item.deletionTrashedAt,
         deletionAcknowledgedAt: schemaPg.item.deletionAcknowledgedAt,
+        // What a decided row did on the new system (0159 §6 item 6): set by
+        // the two writes that remove a copy, and by nothing else.
+        deletionAppliedAt: schemaPg.item.deletionAppliedAt,
+        // Whether the removal was `applyRelocation`'s. That write closes the
+        // MOVE in the same statement, from the same `now()`, so the two times
+        // are equal to the microsecond; `applyDeletion` leaves the move alone,
+        // and a move answered later carries a later time. Compared here, in
+        // SQL, because a JavaScript Date keeps milliseconds only.
+        removedByRelocation: sql<boolean>`(${schemaPg.item.movedToNaturalKeyHash} IS NOT NULL AND ${schemaPg.item.moveAcknowledgedAt} = ${schemaPg.item.deletionAppliedAt})`,
       })
       .from(schemaPg.item)
       .where(
@@ -1781,6 +1799,18 @@ export class PgLedger implements Ledger {
                 r.deletionAcknowledgedAt instanceof Date
                   ? r.deletionAcknowledgedAt.toISOString()
                   : String(r.deletionAcknowledgedAt),
+            }
+          : {}),
+        // Only a decided row says what was decided. Kept unless a copy was
+        // removed; and a removal that was a renamed item's old copy is never
+        // called deleted, because the item is still on the new system.
+        ...(r.deletionAcknowledgedAt
+          ? {
+              decided: !r.deletionAppliedAt
+                ? ('kept' as const)
+                : r.removedByRelocation === true
+                  ? ('relocated' as const)
+                  : ('applied' as const),
             }
           : {}),
       };

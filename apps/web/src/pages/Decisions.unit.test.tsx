@@ -58,7 +58,7 @@ vi.mock('../services/edition', () => ({
 }));
 
 import Decisions from './Decisions.tsx';
-import { LocaleProvider } from '../i18n/index.tsx';
+import { LocaleProvider, useLocale } from '../i18n/index.tsx';
 
 /** What the page says about PENDING, in each language (the owner's words, 2026-10-18). */
 const NEW_MAILBOX_EN =
@@ -885,5 +885,128 @@ describe('the question in the reader’s language', () => {
 
     expect(await screen.findByText(NEW_MAILBOX_EN)).not.toHaveAttribute('lang');
     expect(screen.getByRole('button', { name: 'Noted, I will handle it' })).not.toHaveAttribute('lang');
+  });
+});
+
+/**
+ * THE LINE UNDER A DECIDED DECISION, IN THE READER'S LANGUAGE (workplan 0159
+ * §6 item 12). After #1636 the question read in Dutch, and the line under the
+ * answer still read *Answer recorded. Nothing in your migrations changes
+ * because of it.*, in English, marked `lang="en"`. Both editions now serve
+ * the Dutch beside the English (`effectNl` beside `effect`, from
+ * `DECISION_EFFECTS` in `@openmig/shared`), and the page says the half in its
+ * reader's language. A server that sends no Dutch is shown as served, marked
+ * English, as before.
+ */
+describe('the line under a decided decision, in the reader’s language', () => {
+  const RECORDED = {
+    effect: 'Answer recorded. Nothing in your migrations changes because of it.',
+    effectNl: 'Antwoord vastgelegd. Er verandert daardoor niets aan uw migraties.',
+  };
+  const DISMISSED = {
+    effect: 'Closed without acting; the detector may raise it again if the situation persists.',
+    effectNl:
+      'Terzijde gelegd; er is niets mee gedaan. Blijft de situatie zo, dan kan de vraag terugkomen.',
+  };
+
+  /** A switch the test can press, as the language menu does. */
+  function SwitchToEnglish() {
+    const { setLocale } = useLocale();
+    return (
+      <button type="button" onClick={() => setLocale('en')}>
+        switch to English
+      </button>
+    );
+  }
+
+  function renderIn(locale: 'en' | 'nl') {
+    window.localStorage.setItem('ownpace.locale', locale);
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <LocaleProvider>
+        <QueryClientProvider client={qc}>
+          <MemoryRouter>
+            <SwitchToEnglish />
+            <Decisions />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+  }
+
+  /** The row is answered on the refetch, and the server's answer is `served`. */
+  function answersWith(mock: typeof resolveDecision, status: string, served: object) {
+    mock.mockImplementation(async () => {
+      fetchDecisions.mockResolvedValue({
+        decisions: [{ ...PENDING, status, resolvedAt: '2026-08-09T12:00:00Z' }],
+      });
+      return { ...PENDING, status, ...served };
+    });
+  }
+
+  afterEach(() => window.localStorage.removeItem('ownpace.locale'));
+
+  it('a Dutch reader who sets a decision aside reads the line in Dutch', async () => {
+    fetchDecisions.mockResolvedValue({ decisions: [PENDING] });
+    answersWith(dismissDecision, 'dismissed', DISMISSED);
+    renderIn('nl');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Terzijde leggen' }));
+
+    const line = await screen.findByText(DISMISSED.effectNl);
+    expect(line).not.toHaveAttribute('lang');
+    expect(screen.queryByText(DISMISSED.effect)).not.toBeInTheDocument();
+  });
+
+  it('a Dutch reader who answers reads the line in Dutch', async () => {
+    fetchDecisions.mockResolvedValue({ decisions: [PENDING] });
+    answersWith(resolveDecision, 'resolved', RECORDED);
+    renderIn('nl');
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Genoteerd, ik regel het zelf' }),
+    );
+
+    const line = await screen.findByText(RECORDED.effectNl);
+    expect(line).not.toHaveAttribute('lang');
+    expect(screen.queryByText(RECORDED.effect)).not.toBeInTheDocument();
+  });
+
+  it('keeps both halves, so the line follows the reader’s language', async () => {
+    fetchDecisions.mockResolvedValue({ decisions: [PENDING] });
+    answersWith(resolveDecision, 'resolved', RECORDED);
+    renderIn('nl');
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Genoteerd, ik regel het zelf' }),
+    );
+    expect(await screen.findByText(RECORDED.effectNl)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'switch to English' }));
+    const line = await screen.findByText(RECORDED.effect);
+    expect(line).not.toHaveAttribute('lang');
+    expect(screen.queryByText(RECORDED.effectNl)).not.toBeInTheDocument();
+  });
+
+  it('shows the English as served, marked English, when the server sent no Dutch', async () => {
+    // An appliance from before the twin answers with `effect` alone.
+    fetchDecisions.mockResolvedValue({ decisions: [PENDING] });
+    answersWith(dismissDecision, 'dismissed', { effect: DISMISSED.effect });
+    renderIn('nl');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Terzijde leggen' }));
+
+    expect(await screen.findByText(DISMISSED.effect)).toHaveAttribute('lang', 'en');
+  });
+
+  it('an English reader reads the English, not marked', async () => {
+    fetchDecisions.mockResolvedValue({ decisions: [PENDING] });
+    answersWith(dismissDecision, 'dismissed', DISMISSED);
+    renderIn('en');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
+
+    expect(await screen.findByText(DISMISSED.effect)).not.toHaveAttribute('lang');
+    expect(screen.queryByText(DISMISSED.effectNl)).not.toBeInTheDocument();
   });
 });
