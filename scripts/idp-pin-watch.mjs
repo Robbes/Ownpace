@@ -55,8 +55,9 @@
  *                      v0.16.x, GoAccess, and the Trivy the Security Scan runs.
  *                      cosign-installer's default is a status line only. Any
  *                      other image a script in deploy/compose runs is not
- *                      compared; today that is only db-roles.sh's floating
- *                      postgres:18-alpine, and the rest are in comments.
+ *                      compared; today there is none (db-roles.sh reads its
+ *                      client from managed.yml since 2026-10-22), and the
+ *                      rest are in comments.
  *
  * A tag is compared with the tags shaped like it (the same letters and
  * separators, numbers where the digits are) that keep its major, since a major
@@ -64,7 +65,9 @@
  * `latest`, `1.38` with `1.39` and never with `1.38.0-glibc`, and a floating
  * `18-alpine` is current within its line by construction. That is why
  * floating tags need no exclusion here, and why pinning them exactly (by
- * digest) makes them watched without a change to this file.
+ * digest) makes them watched without a change to this file, as the stores and
+ * the TLS front were on 2026-10-22. A digest is not compared: a rebuild under
+ * the same tag is the image scan's to report (`image-scan.mjs`).
  *
  * Each own-issue row keeps one issue open while it is behind: opened, brought
  * up to date (with a comment when its newest moved, since an edit notifies

@@ -81,7 +81,8 @@ describe("the web image's nginx writes critical errors only", () => {
     // The template goes where the image renders it into its http block, and
     // nothing replaces the image's main level or that block.
     const runtime = DOCKERFILE.slice(DOCKERFILE.search(/^FROM \S+ AS runtime$/m));
-    expect(runtime).toMatch(/^FROM nginx:[\w.-]+ AS runtime$/m);
+    // Tag and digest since 2026-10-22 (a-float-nothing-ever-pulled), which Dependabot moves together.
+    expect(runtime).toMatch(/^FROM nginx:[\w.-]+(?:@sha256:[0-9a-f]{64})? AS runtime$/m);
     expect(runtime).toMatch(/^COPY apps\/web\/nginx\.conf\.template \/etc\/nginx\/templates\/default\.conf\.template$/m);
     expect(runtime).not.toMatch(/\/etc\/nginx\/nginx\.conf/);
   });

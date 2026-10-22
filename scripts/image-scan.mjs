@@ -70,7 +70,7 @@
  * Code scanning, Tool status). Its issue, if it had one, the report job
  * closes itself.
  *
- * A floating tag (`redis:7-alpine`) is scanned as the registry serves it
+ * A floating tag (`busybox:1.38`) is scanned as the registry serves it
  * today, which need not be what the box pulled last. The summary says which.
  *
  * `.mjs` for the reason `idp-pin-watch.mjs` gives: a CI step on a bare

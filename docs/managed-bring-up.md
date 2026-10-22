@@ -4432,6 +4432,21 @@ journal of whatever ran it), 2 refused.
 > up -d` from the updated checkout. See *Which address a port answers on*, under
 > the ports table in *Before you start*.
 
+**The stores' and the fronts' images move with the checkout, never with a
+`docker pull`** (workplan 0119 §4, 2026-10-22). Both databases, Trigger.dev's
+Redis, the dashboard's TLS front, the demo's Nextcloud, the site's nginx and the
+web image's base are pinned by exact version and digest. Until then they
+floated within their lines, and nothing pulled them, so each stack ran whatever
+copy the machine had pulled first. A move is a pull request, proven by E2E
+(managed) on its branch; `up` pulls a digest the machine does not have and
+recreates the service whose image changed. So the OTA stack takes it at its next
+nightly gate (each database restarts once), live at the next `deploy-live.sh` of
+a tag that carries it, and the OTA site only when somebody runs `docker compose
+-f deploy/compose/www.yml up -d` in `~/ownpace-managed`, since nothing else
+recreates it. The pin watch's summary issue says when a newer tag is listed, and
+the weekly image scan counts the findings a rebuild under the same tag would
+fix.
+
 ### `ownpace-live`: a release tag, with `deploy-live.sh`
 
 **The first time is not this:** *Standing up ownpace-live*, above, with

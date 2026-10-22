@@ -137,7 +137,8 @@ const withFiles = (over: Record<string, string>): Repo => ({
 
 /**
  * A literal image in a script, the shape `image-scan.mjs` reads
- * (`DB_ROLES_CLIENT_IMAGE='postgres:18-alpine'`); a computed one is not.
+ * (`GOACCESS_IMAGE="allinurl/goaccess:1.12@sha256:…"`, and `db-roles.sh`'s
+ * client until 2026-10-22); a computed one is not.
  */
 const SCRIPT_LITERAL = /^\s*(?:readonly\s+|export\s+|local\s+)?(?:[A-Z][A-Z0-9_]*_)?IMAGE=(["'])([a-z0-9][^"'\s$]*)\1\s*(?:#.*)?$/m;
 
