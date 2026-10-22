@@ -1,5 +1,7 @@
 # Security scanning — Node/TS equivalent of OWASP Dependency-Check + CycloneDX.
 # Trivy (dependency/filesystem) -> SARIF, plus a CycloneDX SBOM; SBOM attached to release tags.
+# Weekly and on dispatch, also every container image the stacks run, report
+# only (the jobs after security-scan, workplan 0146 T8).
 #
 # The SBOM half runs on TAGS as well as main. It did not until 2026-08-04, and
 # the attach step was gated on a tag ref the workflow never saw — so the step
@@ -353,3 +355,198 @@ jobs:
             exit 1
           fi
           echo "::warning::This Security Scan uploaded no findings: ${problems}. Not fatal on a pull request — the scan on main is the record — but this branch has not been scanned."
+
+  # ---------- EVERY IMAGE THE STACKS RUN, SCANNED (workplan 0146 T8, the scan half) ----------
+  #
+  # The job above scans the repository's FILES (`scan-type: fs`). Until
+  # 2026-10-22 nothing looked inside a container image, so an operating system
+  # past its end of life, or a CVE in an image whose tag never moved, was
+  # reported by nothing: Trigger.dev's `redis:7-alpine` runs on Alpine 3.21,
+  # which leaves support on 2026-11-01, and somebody reading release pages
+  # found it. The pin watch (idp-pin-watch.yml) says when a newer tag exists;
+  # these three jobs say what is inside the one that runs.
+  #
+  # ONLY ON THE WEEKLY SCHEDULE AND ON DISPATCH, so a pull request, a push to
+  # main and a tag run exactly as before, and the required `security-scan`
+  # check is still the job above alone. ON GITHUB-HOSTED RUNNERS ONLY, never
+  # the Spark: a scan downloads every image's layers, and that box's disk and
+  # network belong to the stacks it runs.
+  #
+  # REPORT ONLY. Findings go to code scanning, one SARIF category per image
+  # (`trivy-image-<name>`), and fail nothing: a CVE published upstream on a
+  # Sunday cannot turn main red. What fails the run is a report that is
+  # missing, the shape `a-scan-that-skipped-itself` was written for: each scan
+  # asserts its own, and the report job checks that every listed image has one.
+  #
+  # THE END OF LIFE IS ONLY IN THE JSON. Trivy's SARIF carries findings and the
+  # image's name, never `.Metadata.OS.EOSL`. So each scan writes JSON, keeps
+  # it for the report job, converts it with `trivy convert` (the binary
+  # trivy-action put on the PATH) and uploads the SARIF. The report job warns,
+  # writes a summary line, and keeps one issue open per image past its end of
+  # life, closed when that ends.
+  #
+  # Step names differ from the job above on purpose: its guard finds them by
+  # `indexOf`, and reads the first `runs-on:` expression in this file as the
+  # runner condition, so these jobs name their runner plainly. Held by
+  # scripts/an-image-nobody-scanned.unit.test.ts.
+  image-list:
+    name: Images the stacks run
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      images: ${{ steps.list.outputs.images }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+      # The compose files' image lines, read with the pin watch's reader (a
+      # `${VAR:-default}` as its default, a digest kept), the images the
+      # scripts name, the tasks' base image as the pinned Trigger.dev CLI names
+      # it, and Ownpace's three at `:edge` and at the newest release tag, which
+      # is what live runs: it builds the tag it deploys. See image-scan.mjs.
+      - name: List every image the stacks run
+        id: list
+        run: node scripts/image-scan.mjs list >> "$GITHUB_OUTPUT"
+
+  image-scan:
+    name: Image scan (${{ matrix.name }})
+    needs: image-list
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      # One image that cannot be pulled says nothing about the others.
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.image-list.outputs.images) }}
+    env:
+      # The platform the stacks run on: the Spark is arm64, and the tasks' image
+      # is built for its host (deploy-tasks.sh). Read from the registry itself,
+      # never from a local daemon. Ownpace's images are public, so no login.
+      TRIVY_PLATFORM: linux/arm64
+      TRIVY_IMAGE_SRC: remote
+    steps:
+      - name: Scan the image with Trivy (JSON)
+        id: image_trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          # The Trivy the job above names: raise them together.
+          # a-gate-on-a-version-nothing-ships holds every Trivy step to one.
+          version: v0.76.0
+          scan-type: image
+          image-ref: ${{ matrix.ref }}
+          format: json
+          output: trivy-image-${{ matrix.name }}.json
+          severity: HIGH,CRITICAL
+          # Report only: findings exit 0. A pull or a database download that
+          # fails still fails this step, and the last step says which image.
+          exit-code: '0'
+          # trivy-action's own daily cache, off here and only here. The legs
+          # start together, so none would find the day's copy, each would try
+          # to save one, and every one but the first would end in a warning
+          # that buries the report's own. The database comes from
+          # mirror.gcr.io, Trivy's first source, in seconds, and nothing is
+          # cached a second time beside the scan above's.
+          cache: 'false'
+
+      # Before the SARIF, so an upload code scanning refuses still leaves the
+      # report job what it needs to say whether the image is past its end of life.
+      - name: Keep the image's report for the report job
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: trivy-image-${{ matrix.name }}
+          path: trivy-image-${{ matrix.name }}.json
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Turn the image report into SARIF
+        env:
+          NAME: ${{ matrix.name }}
+        run: trivy convert --format sarif --output "trivy-image-${NAME}.sarif" "trivy-image-${NAME}.json"
+
+      - name: Upload the image's SARIF to code scanning
+        id: image_upload
+        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          sarif_file: trivy-image-${{ matrix.name }}.sarif
+          # One category per image: without it every leg's upload would be one
+          # analysis, and each would replace the last.
+          category: trivy-image-${{ matrix.name }}
+
+      # This scan's own "a scan that skipped itself": the outcome, a non-empty
+      # JSON and SARIF, and the upload. Always fatal, because these jobs only
+      # run where the scan is the record.
+      - name: The image scan wrote its report, and code scanning took it
+        if: always()
+        env:
+          NAME: ${{ matrix.name }}
+          REF: ${{ matrix.ref }}
+          JSON: trivy-image-${{ matrix.name }}.json
+          SARIF: trivy-image-${{ matrix.name }}.sarif
+          TRIVY_OUTCOME: ${{ steps.image_trivy.outcome }}
+          UPLOAD_OUTCOME: ${{ steps.image_upload.outcome }}
+        run: |
+          set -uo pipefail
+          problems=""
+          [ "$TRIVY_OUTCOME" = "success" ] || problems="the Trivy step ended '$TRIVY_OUTCOME'"
+          if [ ! -s "$JSON" ]; then
+            problems="${problems:+$problems; }no $JSON was written (or it is empty)"
+          fi
+          if [ ! -s "$SARIF" ]; then
+            problems="${problems:+$problems; }no $SARIF was written (or it is empty)"
+          fi
+          if [ "$UPLOAD_OUTCOME" != "success" ]; then
+            problems="${problems:+$problems; }the SARIF upload ended '$UPLOAD_OUTCOME'"
+          fi
+          if [ -z "$problems" ]; then
+            echo "${NAME}: Trivy wrote $(wc -c < "$JSON") bytes of JSON, and code scanning took the SARIF."
+            exit 0
+          fi
+          echo "::error::The image scan of ${NAME} (${REF}) left no report: ${problems}. A scan that did not happen is not a week without findings."
+          exit 1
+
+  image-scan-report:
+    name: Image scan report
+    needs: [image-list, image-scan]
+    # Also when some scans failed: it says which images have no report, and
+    # still keeps the issues of those that have one.
+    if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && needs.image-list.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+      - name: Gather every image's report
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: trivy-image-*
+          path: image-reports
+          merge-multiple: true
+      # Every listed image against its report: a missing one is an ::error::
+      # and fails the run; one past its end of life is a ::warning::, a line
+      # in the summary and an issue; findings are counted and fail nothing.
+      - name: Every image has a report, and one issue per image past its end of life
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          IMAGES: ${{ needs.image-list.outputs.images }}
+        run: node scripts/image-scan.mjs report image-reports --issue

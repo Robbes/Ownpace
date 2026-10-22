@@ -101,6 +101,7 @@ export declare function stepsUsing(
 export declare function actionDefault(actionYml: string, input: string): string;
 export declare function fileInTgz(tgz: Buffer, path: string): string;
 export declare function baseImageOf(buildImageJs: string, runtime: string): string;
+export declare function cliBaseImage(net: Net, version: string, runtime: string): Promise<string>;
 export declare function securityFloor(index: unknown, major: number): { version: string; date: string };
 export declare function readTriggerPin(compose: string, workerManifest: string): string;
 export declare function triggerBody(result: Pick<PinResult, 'pin' | 'newest'>): string;
