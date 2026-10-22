@@ -4,6 +4,18 @@
 
 ## Status — 2026-10-22 (update this block at the end of every session)
 
+**2026-10-22, recorded: T8's scan half merged** as #1674 on 2026-10-22 (`51a0d267`), so both
+halves of T8 are in. Security Scan dispatched on the branch (run 4692, on `10725955`) listed 26
+images and scanned and reported every one, and it opened #1675: the GoAccess image
+`site-visits.sh` runs is on Alpine 3.20.10, past its end of life. #1675 is open. The pull
+request's required `Trivy` check was green on its last head (`2e418c92`), and Security Scan
+dispatched on main after the merge (run 4700, on `51a0d267`) was green. The watch half,
+dispatched once on main after its merge (`idp-pin-watch.yml` run 7, on `6bd020f6`), opened the
+four issues the 2026-10-21 entry expected: #1668 (Trigger.dev), #1669 (the tasks' Node), #1670
+(pnpm) and #1671 (the routine pins). Still owed from *Owed* below: a pull request opened or
+refreshed after run 4700, and its required `Trivy` check read; and, when an image leaves the
+stacks or is renamed, its configuration deleted by hand.
+
 **2026-10-22, build: T8's scan half, on branch
 `claude/ownpace-public-readiness-y7orc6-image-scan`, not merged.** The watch half below merged as
 #1663 (`087183b7`) on 2026-10-21. Nothing scanned a container image: Security Scan's Trivy reads
@@ -541,7 +553,7 @@ T7 and T8. T7 is one sentence from the owner, and is best given with T0.
 | T5 `ownpace-live` runs only a release tag | (a) ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), in 0132 T6's `deploy-live.sh`, not yet run on live: the release rule, `/api/version`'s version, one-way or reversible, and the guard's four cases. `--external-id` is deferred (open question 6) — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); 📋 **Proposed** (D2, D3, D4) | §3. **Alpha minimum.** 0132 T6's procedure and script, with the tag always a release whose name, version and commit agree. The deploy says before the hold lifts whether it can be undone. |
 | T6 The tasks run the Node the images run | ✅ **done** in #1231, merged 2026-09-27: (a), `runtime: 'node-24'` and Guard 1. Guard 2, the bundle-load check, not built (after the first invitation) — *was:* 📋 Proposed | §3. **Alpha minimum:** `runtime: 'node-24'` in `trigger.config.ts` (supported by the pinned CLI, read from its package) and the version guard extended. **After the first invitation:** a pull-request check that the bundle loads. |
 | T7 The object store: replace the frozen MinIO, or accept it for the alpha in writing | ⏳ **Owner** | §3. Recommended: accept it for the alpha, in writing, and replace it after the alpha in the next Trigger.dev drain window (0119 §3, item 5). |
-| T8 A watch on the pinned images Dependabot leaves alone | Watch half ✅ **done** in #1663, merged 2026-10-21 (`087183b7`): every pin Dependabot cannot see, one issue per owner's-call row and one summary issue, and `/deploy/compose` out of `dependabot.yml` (Status, 2026-10-21); scan half 🔨 **built** on branch `claude/ownpace-public-readiness-y7orc6-image-scan`, not merged (2026-10-22): a weekly, report-only Trivy scan of every image the stacks run, with one issue per image past its end of life (Status, 2026-10-22) — *was:* watch half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-pin-watch`, not merged (2026-10-21), scan half 📋 Proposed; 📋 **Proposed** | §3. Widened 2026-10-21: Dependabot read no file in `deploy/compose`, so the watch covers every image line of its `managed.yml`, `dev.yml` and `www.yml` and the busybox and GoAccess copies in its scripts, `packageManager`, the Trivy the scan runs and the TypeScript split as well as Trigger.dev, ClickHouse and the task base image. MinIO has no upstream to compare with and is left to the scan half. |
+| T8 A watch on the pinned images Dependabot leaves alone | Watch half ✅ **done** in #1663, merged 2026-10-21 (`087183b7`): every pin Dependabot cannot see, one issue per owner's-call row and one summary issue, and `/deploy/compose` out of `dependabot.yml` (Status, 2026-10-21); scan half ✅ **done** in #1674, merged 2026-10-22 (`51a0d267`): a weekly, report-only Trivy scan of every image the stacks run, with one issue per image past its end of life (Status, 2026-10-22) — *was:* scan half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-image-scan`, not merged (2026-10-22); watch half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-pin-watch`, not merged (2026-10-21), scan half 📋 Proposed; 📋 **Proposed** | §3. Widened 2026-10-21: Dependabot read no file in `deploy/compose`, so the watch covers every image line of its `managed.yml`, `dev.yml` and `www.yml` and the busybox and GoAccess copies in its scripts, `packageManager`, the Trivy the scan runs and the TypeScript split as well as Trigger.dev, ClickHouse and the task base image. MinIO has no upstream to compare with and is left to the scan half. |
 
 ## 1. What there is today
 

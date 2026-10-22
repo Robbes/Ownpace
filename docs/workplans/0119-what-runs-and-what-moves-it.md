@@ -2,7 +2,13 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-10-21 (update this block at the end of every session)
+## Status — 2026-10-22 (update this block at the end of every session)
+
+**2026-10-22, recorded: the entry below merged** as #1658 on 2026-10-22 (`5abadbe4`). What it
+owed before merge ran on its head `8ae7c733`, all green: the three images built on the pull
+request, E2E (managed) #272, E2E (self-hosted) #289 and the Windows payload workflow #16
+(win-x64). §2.1's *Moves by* cells for the `deploy/compose` images, and its dated note on why
+Dependabot never moved them, came with #1663, merged 2026-10-21 (`087183b7`; 0146 T8).
 
 **2026-10-21: Node 24.22.1 in the three images and the Windows payload, which now follows the
 self-host image; pnpm 11.28.6.** v24.22.1 is the October security release, HIGH for 24.x (DNS,

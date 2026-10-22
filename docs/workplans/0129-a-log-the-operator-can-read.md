@@ -2,7 +2,10 @@
 
 > **In one line:** A searchable operator Log page on both editions over `audit_log` and an `app_event` table of errors and warnings, 30-day retention for `app_event` and container output, and pseudonymised OpenTelemetry audit lines with a resumable `audit-export` download.
 
-## Status — 2026-10-21 (update this block at the end of every session)
+## Status — 2026-10-22 (update this block at the end of every session)
+
+**2026-10-22, recorded: the entry below merged** as #1661 on 2026-10-22 (`c8704026`), after the
+E2E (managed) run it still owed, #271 on its head `88391c26`, was green.
 
 **2026-10-21: the managed stacks' container output is capped by size** (lifecycle round,
 container-logs-capped). Every service of `deploy/compose/managed.yml` now writes `json-file`
@@ -184,7 +187,7 @@ holds every support view to its grant comes with the fix for the six.
 |---|---|---|
 | T1 The application's errors and warnings are recorded where the page can search them | ✅ **Built 2026-09-23** (D1, D3) | §3. A table of metadata only, written beside the log line, never instead of it. |
 | T2 The operator's log page | ✅ **Built 2026-09-23, both editions** (D1, D3, D5) | §3. The audit log and T1's table, one timeline, searchable: under Support on managed, **Log** on the appliance. |
-| T3 One month for application and container logs | ✅ **Built 2026-09-23** (D2); the managed half **withdrawn 2026-09-28** (ops-log-driver (a)): on a managed machine container output stays with its container, Docker's default, on branch `claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird` (2026-09-29), not merged; the appliance keeps its month | §3. T1's table is pruned at 30 days; container output is kept 30 days where it is collected on the appliance, and until its container is removed on a managed machine (privacy §9). |
+| T3 One month for application and container logs | ✅ **Built 2026-09-23** (D2); the managed half **withdrawn 2026-09-28** (ops-log-driver (a)): on a managed machine container output stays with its container, Docker's default, on branch `claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird` (2026-09-29), not merged; the appliance keeps its month; since #1661, merged 2026-10-22 (`c8704026`), the managed stacks' output is capped by size, five files of 20 MB a service, with the website's container left uncapped | §3. T1's table is pruned at 30 days; container output is kept 30 days where it is collected on the appliance, and until its container is removed on a managed machine (privacy §9). |
 | T4 The audit export: one JSON line per event, and a download that resumes | ✅ **Built 2026-09-24, both editions** (D4, D5; the owner the same day: "an operator-only route using your own session") | §3. OpenTelemetry field names, to stdout, pseudonyms by default. The download with a cursor: `GET /audit-export` on the appliance; on managed an operator-only route on the operator's own session, with **Audit export** on the Support log page. |
 
 ## 1. What there is today
