@@ -134,6 +134,77 @@ describe('pin refuses what it cannot pin', () => {
   });
 });
 
+describe('probe, which the pin watch runs, never reads an unread registry as "nothing newer"', () => {
+  /**
+   * `scripts/idp-pin-watch.mjs` asks `probe` for the tags above the pin
+   * (workplan 0146 T8). The probe asks one manifest at a time, and a request
+   * that fails reads exactly like a tag that does not exist. So a registry it
+   * could not reach would say "nothing newer", and the watch would close its
+   * issue. The tag it starts from has to answer first.
+   */
+  function offline(args: string[]) {
+    const bin = join(dir, 'bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, 'curl'), '#!/usr/bin/env bash\necho "curl: (6) Could not resolve host" >&2\nexit 6\n', { mode: 0o755 });
+    return run(args, { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}` });
+  }
+
+  it('refuses when the tag it starts from does not answer, and prints no tag', () => {
+    const r = offline(['probe', 'v4.7.2']);
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toBe('');
+    expect(r.stderr).toContain('v4.7.2 does not answer in both images');
+  });
+
+  it('refuses something that is not a version, before asking the registry', () => {
+    const r = offline(['probe', 'latest']);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('expected a tag like');
+    expect(r.stderr).not.toContain('Could not resolve host');
+  });
+
+  /**
+   * The start answering is not enough: ghcr can flake halfway up the walk. A
+   * tag above the pin that gets a 429, a 5xx, a timeout's 000 or the 403 an
+   * empty token gets would read as "not published", so the newest the watch
+   * reports could drop, or the issue close. Only a 404 is a missing tag.
+   */
+  function registry(v474: string) {
+    const bin = join(dir, 'bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(
+      join(bin, 'curl'),
+      [
+        '#!/usr/bin/env bash',
+        'url="${@: -1}"',
+        'case "$url" in',
+        `  *'/token?'*) echo '{"token":"t"}' ;;`,
+        '  */manifests/v4.7.2|*/manifests/v4.7.3) printf 200 ;;',
+        `  */manifests/v4.7.4) printf '%s' '${v474}' ;;`,
+        '  *) printf 404 ;;',
+        'esac',
+        '',
+      ].join('\n'),
+      { mode: 0o755 },
+    );
+    return run(['probe', 'v4.7.2'], { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}` });
+  }
+
+  it('reads a 404 above the pin as a tag that is not there, and prints what it found', () => {
+    const r = registry('404');
+    expect(r.stderr).toBe('');
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe('v4.7.3\n');
+  });
+
+  it.each(['503', '429', '000', '403'])('refuses when a tag above the pin gets %s, and prints no tag', (code) => {
+    const r = registry(code);
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toBe('');
+    expect(r.stderr).toContain(`ghcr.io answered ${code} for triggerdotdev/trigger.dev:v4.7.4`);
+  });
+});
+
 describe('pin moves every place the CI guard compares', () => {
   /**
    * `pin` moved apps/worker's SDK and left the root package.json (sdk AND

@@ -240,3 +240,10 @@ dump-idp: dump done, ${ENTRIES} entries read back. In ${DIR}:
 dump-idp: it is readable only with this stack's ZITADEL_MASTERKEY (${FINGERPRINT}).
 dump-idp: keep a copy of deploy/compose/.env off this machine, apart from the dump.
 EOF
+
+# When it can go, in the words of the pin watch's issue (workplan 0146 T8): a
+# dump holds the provider's accounts, and nothing said when it was done with.
+# On live the copy's own rules delete it, so there this says nothing.
+if ! stack_may_be_live "$ENV_FILE"; then
+  echo "dump-idp: delete this dump once main's first scheduled E2E (managed) on the new pin is green."
+fi

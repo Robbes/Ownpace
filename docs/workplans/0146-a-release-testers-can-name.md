@@ -2,7 +2,55 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-10-05 (update this block at the end of every session)
+## Status — 2026-10-21 (update this block at the end of every session)
+
+**2026-10-21, build: T8's watch half, on branch
+`claude/ownpace-public-readiness-y7orc6-pin-watch`, not merged.** The owner asked for *"Life
+cycle management on what needs it"*, and the survey of that day found that Dependabot had read
+no file in `deploy/compose` since 2026-09-06: its compose fetcher reads only names like
+`compose.yml`. So T8 is wider than §3 wrote it: every pin Dependabot cannot see, not only the
+images it ignores by name.
+
+- **The watch.** `scripts/idp-pin-watch.mjs` is a table of rows now, run by the same workflow
+  (`idp-pin-watch.yml`, its name, `'23 6 * * 1'` and `ubuntu-24.04` unchanged). One issue each,
+  kept open while the row is behind: the identity provider (its title unchanged, so #1643 is
+  the issue it keeps); Trigger.dev against the newest tag both ghcr images carry, by the probe
+  `trigger-version.sh list` runs, now also `trigger-version.sh probe`, which refuses when the
+  tag it starts from does not answer; ClickHouse against what Trigger.dev's own
+  `docker/docker-compose.yml` pins at that tag, with its line's row in ClickHouse's SECURITY.md
+  as text; the tasks' Node against Node's newest security release, until `trigger.config.ts`
+  copies the API image's Node; `packageManager` against the newest pnpm of its major; and the
+  TypeScript split's exit, as a cleanup notice. One summary issue for the routine pins: every
+  other image line of `managed.yml`, `dev.yml` and `www.yml` against its registry's tags of the
+  same major and scheme, the busybox copies in the scripts, `www.yml`'s nginx against
+  `apps/web/Dockerfile`'s, Stalwart's copies and its newest v0.16.x, GoAccess, and the Trivy the
+  Security Scan runs; cosign-installer's default is a status line. A row that cannot read its
+  upstream touches no issue and fails the run.
+- **Read on the branch, 2026-10-21** (`node scripts/idp-pin-watch.mjs`, no `--issue`): the
+  identity provider v4.19.4 against v4.19.5; Trigger.dev v4.7.2 against v4.7.6; ClickHouse
+  current with Trigger.dev's pin, 26.2 not supported by ClickHouse; the tasks' Node 24.18.0
+  against 24.22.1, and trigger.dev 4.7.6 still on 24.18.0; pnpm 11.22.0 against 11.28.6 (pnpm 12
+  is `latest`); the split not yet due (typescript-eslint 8.72.0, `<6.1.0`); behind in the
+  summary: pgbouncer v1.25.2-p0 (v1.26.1-p0), the registry 3.1.1 (3.1.2), gatus v5.36.0
+  (v5.37.0), mailpit v1.31.1 (v1.31.6), Stalwart v0.16.10 (v0.16.27) and Trivy v0.70.0
+  (v0.76.1). So its first scheduled run opens four issues and edits #1643.
+- **Dependabot.** `/deploy/compose` is no longer listed for `docker-compose`, with the nine
+  ignores that applied only there; the self-host `postgres` major ignore stays. The header says
+  security updates come from the repository setting and what they do not cover, and the
+  TypeScript ignore says it is inert. The guard
+  `scripts/a-dependabot-directory-with-nothing-to-read.unit.test.ts` (red on main: two cases)
+  holds every listed directory to a file the fetcher reads, and every ignore to an image there.
+- **The identity provider's dump.** The issue's step 5 and `dump-idp.sh`, on a stack that is not
+  live, say when the OTA dump can go: once main's first scheduled E2E (managed) on the new pin
+  is green.
+- **Review, the same day.** On the probe's walk above the pin only a 404 is a missing tag; any
+  other answer (a 429, a 5xx, a timeout, the 403 an empty token gets) refuses, so a registry
+  that flakes halfway cannot lower the newest tag or close the Trigger.dev issue. A routine pin
+  ahead of every tag listed counts as a read that failed, so it cannot close the summary issue.
+  The summary issue says that Stalwart moves only by `docs/stalwart-integration-fix.md` and
+  ADR-0022, and ADR-0042's amendment log says its ignore by name is gone.
+- **Not in this:** the scan half (§3's Trivy image scan, report only), MinIO's replacement (T7),
+  and moving any pin the watch reports. Each of those is its own pull request.
 
 **2026-10-05: two tags: `v0.2.0-alpha.1` to stand live up and rehearse, `v0.2.0-alpha.2` with
 the final texts before the first invitation.** Plans only; no tag is cut. Asked what
@@ -434,7 +482,7 @@ T7 and T8. T7 is one sentence from the owner, and is best given with T0.
 | T5 `ownpace-live` runs only a release tag | (a) ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), in 0132 T6's `deploy-live.sh`, not yet run on live: the release rule, `/api/version`'s version, one-way or reversible, and the guard's four cases. `--external-id` is deferred (open question 6) — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); 📋 **Proposed** (D2, D3, D4) | §3. **Alpha minimum.** 0132 T6's procedure and script, with the tag always a release whose name, version and commit agree. The deploy says before the hold lifts whether it can be undone. |
 | T6 The tasks run the Node the images run | ✅ **done** in #1231, merged 2026-09-27: (a), `runtime: 'node-24'` and Guard 1. Guard 2, the bundle-load check, not built (after the first invitation) — *was:* 📋 Proposed | §3. **Alpha minimum:** `runtime: 'node-24'` in `trigger.config.ts` (supported by the pinned CLI, read from its package) and the version guard extended. **After the first invitation:** a pull-request check that the bundle loads. |
 | T7 The object store: replace the frozen MinIO, or accept it for the alpha in writing | ⏳ **Owner** | §3. Recommended: accept it for the alpha, in writing, and replace it after the alpha in the next Trigger.dev drain window (0119 §3, item 5). |
-| T8 A watch on the pinned images Dependabot leaves alone | 📋 **Proposed** | §3. After the first invitation. Extends 0135 T7's job (the identity provider) to Trigger.dev, ClickHouse, MinIO and the task base image. |
+| T8 A watch on the pinned images Dependabot leaves alone | Watch half 🔨 **built** on branch `claude/ownpace-public-readiness-y7orc6-pin-watch`, not merged (2026-10-21): every pin Dependabot cannot see, one issue per owner's-call row and one summary issue, and `/deploy/compose` out of `dependabot.yml` (Status, 2026-10-21); scan half 📋 Proposed — *was:* 📋 **Proposed** | §3. Widened 2026-10-21: Dependabot read no file in `deploy/compose`, so the watch covers every image line of its `managed.yml`, `dev.yml` and `www.yml` and the busybox and GoAccess copies in its scripts, `packageManager`, the Trivy the scan runs and the TypeScript split as well as Trigger.dev, ClickHouse and the task base image. MinIO has no upstream to compare with and is left to the scan half. |
 
 ## 1. What there is today
 
@@ -1201,6 +1249,12 @@ not a promise.
 - ClickHouse and MinIO publish no port, and 0132 T3 binds Trigger.dev's two to loopback in both
   stacks. Once that has landed, a release for these three is read within a week and applied in the
   next drain window, by 0119 §3's route.
+
+*2026-10-21, built (Status, 2026-10-21): wider than written here. The watched set is every
+`image:` line of `deploy/compose/{managed,dev,www}.yml`, compared with its registry or named in
+`COMPARED_ELSEWHERE` with a reason, not "the images `dependabot.yml` ignores by name": those
+ignores applied to a directory Dependabot never read, and are gone. MinIO is named there, with
+no upstream to compare with. The scan below is still to build.*
 
 **Guard.** `scripts/a-pin-that-knows-it-is-behind.unit.test.ts` is the name 0135 T7 gives it, and
 this task extends it. It fails today, because no watch exists. Given stubbed tag lists and a
