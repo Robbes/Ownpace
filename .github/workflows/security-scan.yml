@@ -53,6 +53,16 @@ on:
 # are now safe on purpose, which matters because the tag path is the one that
 # attaches the release SBOM.
 #
+# THE WEEKLY RUN NOW HOLDS THE GROUP LONGER. Since 2026-10-22 the schedule and
+# a dispatch also scan every image the stacks run (the jobs after
+# security-scan): one leg per image, about 26, in two waves where a Free
+# public repository runs 20 jobs at once. A push to main in that time waits,
+# and a second push replaces the first one waiting, which then uploads no
+# SARIF: the hole in the record described above, more likely on a Monday
+# morning. Accepted, as one sweep a week; the way out, if it ever costs a
+# record that matters, is the image jobs in a workflow of their own with a
+# group of their own.
+#
 # `images.yml` has been written this way since it was created; ci.yml joined it
 # in #1056. This was the last workflow cancelling a build nothing would re-run.
 # Held for EVERY workflow, not just this one, by
@@ -385,6 +395,19 @@ jobs:
   # writes a summary line, and keeps one issue open per image past its end of
   # life, closed when that ends.
   #
+  # ONE CATEGORY PER IMAGE, AND WHAT THAT LEAVES BEHIND. Each upload is a
+  # Trivy configuration of its own, `trivy-image-<name>`, which no pull request
+  # uploads. So once main has them, a pull request's required `Trivy` check
+  # (code scanning's own, which compares the pull request with its base) can
+  # note configurations it did not find. That note is expected and is not a
+  # finding of the pull request; what it does to the check's conclusion is
+  # read after the first run on main (workplan 0146, Status). A name changes
+  # when its image leaves the stacks, or when its short name starts or stops
+  # occurring in both stacks (image-scan.mjs says how names are made); the
+  # old configuration then stays with its alerts open, and is deleted by hand
+  # on the code scanning tool status page (the Security tab, Code scanning,
+  # Tool status).
+  #
   # Step names differ from the job above on purpose: its guard finds them by
   # `indexOf`, and reads the first `runs-on:` expression in this file as the
   # runner condition, so these jobs name their runner plainly. Held by
@@ -441,13 +464,20 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           # The Trivy the job above names: raise them together.
-          # a-gate-on-a-version-nothing-ships holds every Trivy step to one.
+          # a-gate-on-a-version-nothing-ships holds each Trivy step to an
+          # exact release; an-image-nobody-scanned holds this one to the job
+          # above's.
           version: v0.76.0
           scan-type: image
           image-ref: ${{ matrix.ref }}
           format: json
           output: trivy-image-${{ matrix.name }}.json
           severity: HIGH,CRITICAL
+          # Vulnerabilities only. Trivy's default adds its secret scanner,
+          # which costs time on the big images and finds test keys inside
+          # node_modules; its hits would go to code scanning while the
+          # report job counts none of them.
+          scanners: vuln
           # Report only: findings exit 0. A pull or a database download that
           # fails still fails this step, and the last step says which image.
           exit-code: '0'

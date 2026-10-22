@@ -13,6 +13,7 @@ import type { Net, Repo, Row } from './idp-pin-watch.mjs';
 
 export declare const SCAN_FILES: string[];
 export declare const SCRIPT_DIRS: string[];
+export declare const STACKS: Record<string, string>;
 export declare const OWNPACE_REGISTRY: string;
 export declare const OWNPACE_IMAGES: string[];
 export declare const ISSUE_PREFIX: string;

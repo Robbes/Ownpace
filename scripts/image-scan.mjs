@@ -27,7 +27,7 @@
  *             - every image a script in deploy/compose or deploy/selfhost
  *               names in a literal `…IMAGE=` assignment (GoAccess, Stalwart
  *               for the demo, db-roles.sh's client), deduplicated against
- *               the compose files;
+ *               the compose files of its stack;
  *             - the base image the pinned Trigger.dev CLI names for the
  *               tasks' runtime, which no file here names (the pin watch's
  *               `cliBaseImage`);
@@ -48,12 +48,27 @@
  *           cannot turn main red. They go to code scanning as SARIF, one
  *           category per image.
  *
- * Names are stable, because a SARIF category that stops being uploaded leaves
- * its alerts open: an image is named after the last part of its repository
- * (`redis`, `clickhouse-server`), with the stack it comes from added only when
- * two different references share that name (`postgres-managed`,
- * `postgres-selfhost`). Ownpace's are `ownpace-<image>-edge` and
- * `ownpace-<image>-release`, whatever the release is called.
+ * Names are kept as steady as they can be, because a SARIF category that
+ * stops being uploaded leaves its alerts open in code scanning for good. An
+ * image is named after the last part of its repository (`redis`,
+ * `clickhouse-server`), with its stack added when that name occurs in both
+ * stacks (`postgres-managed`, `postgres-selfhost`), whether or not the two
+ * references are the same. A stack is the directory, `managed` for
+ * deploy/compose and `selfhost` for deploy/selfhost, and an image is listed
+ * once per stack it runs in: so moving a pin keeps the name, and two pins
+ * that converge on one reference, or part again, keep both. Ownpace's are
+ * `ownpace-<image>-edge` and `ownpace-<image>-release`, whatever the release
+ * is called.
+ *
+ * A name still changes when its image leaves the stacks, or when its short
+ * name starts or stops occurring in both; and while one stack runs two
+ * references of one image (a pin moved in one file and not yet in another),
+ * the second has its file's name added (`postgres-managed-dev`) and drops it
+ * when the two meet again. An old `trivy-image-<name>`
+ * configuration then stays in code scanning with its alerts open, and the
+ * owner deletes it on the code scanning tool status page (the Security tab,
+ * Code scanning, Tool status). Its issue, if it had one, the report job
+ * closes itself.
  *
  * A floating tag (`redis:7-alpine`) is scanned as the registry serves it
  * today, which need not be what the box pulled last. The summary says which.
@@ -96,10 +111,14 @@ const need = (repo, rel) => {
   return text;
 };
 
-/** The stack a file belongs to, for a name two references share: `managed`, `selfhost`, `site-visits`. */
+/** The stack each directory read here holds. */
+export const STACKS = { 'deploy/compose': 'managed', 'deploy/selfhost': 'selfhost' };
+
+/** The stack a file belongs to, by its directory: `managed` or `selfhost`. */
 export function stackOf(file) {
-  const name = basename(file).replace(/\.(ya?ml|sh)$/, '');
-  return name === 'compose' ? basename(dirname(file)) : name;
+  const stack = STACKS[dirname(file)];
+  if (!stack) throw new Error(`${file} is in no stack this scan reads (${Object.keys(STACKS).join(', ')})`);
+  return stack;
 }
 
 /** A tag that moves with its line: no digest, and fewer than three numbers (`7-alpine`, `1.38`, `34-apache`). */
@@ -139,12 +158,15 @@ function scriptImages(text) {
  */
 export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
   const ownpace = `${OWNPACE_REGISTRY}/ownpace-`;
-  const byRef = new Map();
+  // Once per stack and reference: one reference both stacks run is two scans,
+  // so neither name moves when two pins converge.
+  const byStackRef = new Map();
   const add = (image, where) => {
     if (image.repo.startsWith(ownpace)) return;
-    const ref = image.ref;
-    if (!byRef.has(ref)) byRef.set(ref, { ...image, where: [] });
-    if (!byRef.get(ref).where.includes(where)) byRef.get(ref).where.push(where);
+    const stack = stackOf(where);
+    const key = `${stack}\n${image.ref}`;
+    if (!byStackRef.has(key)) byStackRef.set(key, { ...image, stack, where: [] });
+    if (!byStackRef.get(key).where.includes(where)) byStackRef.get(key).where.push(where);
   };
   for (const file of SCAN_FILES) for (const image of readImages(need(repo, file))) add(image, file);
   for (const dir of SCRIPT_DIRS) {
@@ -153,17 +175,21 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
     }
   }
 
-  // Named after the repository's last part, with the stack only where two references share it.
-  const images = [...byRef.values()];
+  // Named after the repository's last part, with the stack where both stacks
+  // run that name. Where one stack runs two references of it (a pin moved in
+  // one file and not yet in another), the first read keeps the name and the
+  // other adds its file's (`postgres-managed-dev`), until they meet again.
+  const images = [...byStackRef.values()];
   const short = (image) => image.repo.split('/').at(-1);
-  const count = new Map();
-  for (const image of images) count.set(short(image), (count.get(short(image)) ?? 0) + 1);
-  const entries = images.map((image) => ({
-    name: count.get(short(image)) > 1 ? `${short(image)}-${stackOf(image.where[0])}` : short(image),
-    ref: image.ref,
-    where: image.where.join(', '),
-    floating: isFloating(image),
-  }));
+  const stacks = new Map();
+  for (const image of images) stacks.set(short(image), new Set([...(stacks.get(short(image)) ?? []), image.stack]));
+  const taken = new Set();
+  const entries = images.map((image) => {
+    const base = stacks.get(short(image)).size > 1 ? `${short(image)}-${image.stack}` : short(image);
+    const name = taken.has(base) ? `${base}-${basename(image.where[0]).replace(/\.(ya?ml|sh)$/, '')}` : base;
+    taken.add(base);
+    return { name, ref: image.ref, where: image.where.join(', '), floating: isFloating(image) };
+  });
 
   // The tasks' base image: the CLI names it, for the runtime trigger.config.ts asks for.
   const config = need(repo, 'apps/worker/trigger.config.ts');
@@ -181,11 +207,13 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
     entries.push({ name: `ownpace-${image}-release`, ref: `${ownpace}${image}:${release}`, where: `v${release}, the newest release tag (images.yml)`, floating: false });
   }
 
-  const seen = new Set();
-  for (const { name } of entries) {
+  // Two images of one name would share a category, and each upload would
+  // replace the other's.
+  const seen = new Map();
+  for (const { name, ref } of entries) {
     if (!/^[a-z0-9][a-z0-9._-]*$/.test(name)) throw new Error(`${name} cannot name a scan, a SARIF category and an artifact`);
-    if (seen.has(name)) throw new Error(`two images would both be named ${name}`);
-    seen.add(name);
+    if (seen.has(name)) throw new Error(`two images would both be named ${name}: ${seen.get(name)} and ${ref}`);
+    seen.set(name, ref);
   }
   return entries;
 }

@@ -21,7 +21,13 @@
  * report that is missing, because a scan that did not happen reads exactly
  * like a week with nothing found (`a-scan-that-skipped-itself`).
  *
- * Two facts that are easy to get wrong, each held below:
+ * Three facts that are easy to get wrong, each held below:
+ *
+ *  - A SARIF category that stops being uploaded leaves its alerts open. So
+ *    an image's name must not move when its pin does, nor when the two
+ *    stacks' pins of one image meet on one reference or part again; and
+ *    nothing here may read today's pins as literals, or the pull requests
+ *    that move them turn this guard red.
  *
  *  - SARIF never says an operating system is past its end of life. Trivy's
  *    SARIF writer emits findings and the image's name only; the end of life is
@@ -38,7 +44,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { gzipSync } from 'node:zlib';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -127,6 +135,28 @@ const withFiles = (over: Record<string, string>): Repo => ({
   list: (rel) => REAL.list(rel),
 });
 
+/**
+ * A literal image in a script, the shape `image-scan.mjs` reads
+ * (`DB_ROLES_CLIENT_IMAGE='postgres:18-alpine'`); a computed one is not.
+ */
+const SCRIPT_LITERAL = /^\s*(?:readonly\s+|export\s+|local\s+)?(?:[A-Z][A-Z0-9_]*_)?IMAGE=(["'])([a-z0-9][^"'\s$]*)\1\s*(?:#.*)?$/m;
+
+/**
+ * `text` with every `image:` line of `repo` pinned to `ref`, and the file's
+ * real lines read for it, never a literal of today's pin: the sibling pull
+ * requests that move these pins must not turn this guard red, or let a case
+ * pass on a replace that matched nothing.
+ */
+function repin(text: string, repo: string, ref: string): string {
+  const lines = text.split('\n');
+  const hits = readImages(text).filter((i) => i.repo === repo);
+  expect(hits.length, `no image line of ${repo} to move`).toBeGreaterThan(0);
+  for (const { line } of hits) lines[line - 1] = lines[line - 1]!.replace(/image:.*$/, `image: ${ref}`);
+  const moved = lines.join('\n');
+  expect(readImages(moved).filter((i) => i.repo === repo).map((i) => i.ref)).toEqual(hits.map(() => ref));
+  return moved;
+}
+
 /** A Trivy image report, as `trivy image --format json` writes one. */
 function trivyJson(os: Record<string, unknown> | null, vulns: Array<{ Severity: string; FixedVersion?: string }> = []) {
   return JSON.stringify({
@@ -174,7 +204,9 @@ describe('which images it scans', () => {
     // The reader's resolution and digests, on the real lines.
     const trigger = readImages(REAL.read('deploy/compose/managed.yml')!).find((i) => i.repo === 'ghcr.io/triggerdotdev/trigger.dev')!;
     expect(refs.has(`ghcr.io/triggerdotdev/trigger.dev:${trigger.tag}`)).toBe(true);
-    expect([...refs].filter((r) => r.startsWith('clickhouse/clickhouse-server:'))[0]).toMatch(/@sha256:[0-9a-f]{64}$/);
+    const pinned = SCAN_FILES.flatMap((file) => readImages(REAL.read(file)!)).filter((i) => i.digest);
+    expect(pinned.length, 'no image line is pinned by digest, so nothing here shows a digest is kept').toBeGreaterThan(0);
+    for (const image of pinned) expect(refs.has(`${image.repo}${image.tag ? `:${image.tag}` : ''}@${image.digest}`)).toBe(true);
   });
 
   it('the images the scripts name for themselves, and none twice', async () => {
@@ -183,12 +215,31 @@ describe('which images it scans', () => {
     const stalwart = /^IMAGE="([^"]+)"/m.exec(REAL.read('deploy/selfhost/setup-stalwart.sh')!)![1]!;
     expect(images.find((i) => i.ref === goaccess)?.name).toBe('goaccess');
     expect(images.find((i) => i.ref === stalwart)?.name).toBe('stalwart');
-    // db-roles.sh's client is the compose file's postgres: one scan, both places named.
-    const managedPostgres = images.find((i) => i.ref === 'postgres:18-alpine');
-    expect(managedPostgres?.where).toContain('deploy/compose/db-roles.sh');
-    expect(new Set(images.map((i) => i.ref)).size).toBe(images.length);
+    // db-roles.sh's client is the compose file's postgres: one scan, both
+    // places named, for as long as the script names it literally. Once it
+    // reads it from managed.yml, as stand-up-live.sh does, it is not listed
+    // on its own.
+    const managedPostgres = readImages(REAL.read('deploy/compose/managed.yml')!).find((i) => i.repo === 'postgres')!;
+    expect(images.find((i) => i.name === 'postgres-managed')?.ref).toBe(managedPostgres.ref);
+    const dbRoles = REAL.read('deploy/compose/db-roles.sh')!;
+    const client = SCRIPT_LITERAL.exec(dbRoles)?.[2];
+    if (client) {
+      expect(client, "db-roles.sh's client is not the postgres managed.yml runs").toBe(managedPostgres.ref);
+      expect(images.find((i) => i.name === 'postgres-managed')?.where).toContain('deploy/compose/db-roles.sh');
+    } else {
+      expect(images.some((i) => i.where.includes('db-roles.sh'))).toBe(false);
+    }
+    // One scan per reference in each stack, and each from one stack only.
+    const fromFiles = images.filter((i) => i.where.startsWith('deploy/'));
+    for (const image of fromFiles) expect(new Set(image.where.split(', ').map(stackOf)).size, image.where).toBe(1);
+    const key = (i: ScanImage) => `${stackOf(i.where.split(', ')[0]!)} ${i.ref}`;
+    expect(new Set(fromFiles.map(key)).size).toBe(fromFiles.length);
     // A script that computes its image is not read as one.
     expect(images.some((i) => i.ref.includes('$'))).toBe(false);
+    const computed = dbRoles.replace(SCRIPT_LITERAL, `DB_ROLES_CLIENT_IMAGE="$(sed -n 's/^ *image: *//p' managed.yml | head -n 1)"`);
+    const without = await imagesToScan(withFiles({ 'deploy/compose/db-roles.sh': computed }), fakeNet());
+    expect(without.some((i) => i.where.includes('db-roles.sh'))).toBe(false);
+    expect(without.find((i) => i.name === 'postgres-managed')?.ref).toBe(managedPostgres.ref);
   });
 
   it("the tasks' base image, as the pinned CLI names it for the runtime trigger.config.ts asks for", async () => {
@@ -232,18 +283,57 @@ describe('which images it scans', () => {
     expect(images.find((i) => i.ref === www.ref)?.where).toBe('deploy/compose/www.yml');
   });
 
-  it('names each image once, stably, with the stack only where two references share a name', async () => {
+  it('names each image once, with its stack only where both stacks run that name', async () => {
     const images = await imagesToScan(REAL, fakeNet());
     expect(new Set(images.map((i) => i.name)).size).toBe(images.length);
     for (const image of images) expect(image.name).toMatch(/^[a-z0-9][a-z0-9._-]*$/);
-    expect(images.find((i) => i.ref === 'redis:7-alpine')?.name).toBe('redis');
+    const redis = readImages(REAL.read('deploy/compose/managed.yml')!).find((i) => i.repo === 'redis')!;
+    expect(images.find((i) => i.ref === redis.ref)?.name).toBe('redis');
+    expect(images.filter((i) => i.name.startsWith('postgres')).map((i) => i.name).sort()).toEqual(['postgres-managed', 'postgres-selfhost']);
     expect(stackOf('deploy/compose/managed.yml')).toBe('managed');
+    expect(stackOf('deploy/compose/www.yml')).toBe('managed');
+    expect(stackOf('deploy/compose/site-visits.sh')).toBe('managed');
     expect(stackOf('deploy/selfhost/compose.yml')).toBe('selfhost');
-    expect(stackOf('deploy/compose/site-visits.sh')).toBe('site-visits');
-    // Moving a pin keeps the name, so its SARIF category and its issue stay the same.
-    const managed = REAL.read('deploy/compose/managed.yml')!.replace('edoburu/pgbouncer:v1.25.2-p0', 'edoburu/pgbouncer:v1.26.1-p0');
-    const moved = await imagesToScan(withFiles({ 'deploy/compose/managed.yml': managed }), fakeNet());
-    expect(moved.find((i) => i.ref.startsWith('edoburu/pgbouncer:'))?.name).toBe('pgbouncer');
+    expect(stackOf('deploy/selfhost/setup-stalwart.sh')).toBe('selfhost');
+    expect(() => stackOf('deploy/elsewhere/compose.yml')).toThrow(/no stack/);
+  });
+
+  it('keeps every name when a pin moves, so its SARIF category and its issue stay the same', async () => {
+    const managedYml = REAL.read('deploy/compose/managed.yml')!;
+    const pgbouncer = readImages(managedYml).find((i) => i.repo === 'edoburu/pgbouncer')!;
+    const to = `${pgbouncer.repo}:v99.0.0-p0`;
+    expect(to, 'the pin would not move, so this case would prove nothing').not.toBe(pgbouncer.ref);
+    const before = await imagesToScan(REAL, fakeNet());
+    const moved = await imagesToScan(withFiles({ 'deploy/compose/managed.yml': repin(managedYml, pgbouncer.repo, to) }), fakeNet());
+    expect(moved.find((i) => i.ref === to)?.name).toBe(before.find((i) => i.ref === pgbouncer.ref)?.name);
+    expect(moved.map((i) => i.name)).toEqual(before.map((i) => i.name));
+  });
+
+  it("keeps both stacks' names when their pins meet on one reference, and when they part again", async () => {
+    const selfhostYml = REAL.read('deploy/selfhost/compose.yml')!;
+    const selfhost = readImages(selfhostYml).find((i) => i.repo === 'postgres')!;
+    // The managed stack's postgres everywhere it is named, on the appliance's reference.
+    const meet = (ref: string) => {
+      const dbRoles = REAL.read('deploy/compose/db-roles.sh')!;
+      return {
+        'deploy/compose/managed.yml': repin(REAL.read('deploy/compose/managed.yml')!, 'postgres', ref),
+        'deploy/compose/dev.yml': repin(REAL.read('deploy/compose/dev.yml')!, 'postgres', ref),
+        'deploy/compose/db-roles.sh': dbRoles.replace(SCRIPT_LITERAL, (line, quote: string, old: string) => line.replace(old, ref)),
+      };
+    };
+    const postgres = (list: ScanImage[]) => list.filter((i) => i.name.startsWith('postgres')).map((i) => [i.name, i.ref]).sort();
+    const met = await imagesToScan(withFiles(meet(selfhost.ref)), fakeNet());
+    expect(postgres(met)).toEqual([['postgres-managed', selfhost.ref], ['postgres-selfhost', selfhost.ref]]);
+    const parted = await imagesToScan(withFiles({ ...meet(selfhost.ref), 'deploy/selfhost/compose.yml': repin(selfhostYml, 'postgres', 'postgres:99-alpine') }), fakeNet());
+    expect(postgres(parted)).toEqual([['postgres-managed', selfhost.ref], ['postgres-selfhost', 'postgres:99-alpine']]);
+    // One stack running two references of one name: the first read keeps the
+    // name, the other is named apart by its file, and neither shares a category.
+    const split = { 'deploy/compose/dev.yml': repin(REAL.read('deploy/compose/dev.yml')!, 'postgres', 'postgres:99-alpine') };
+    const apart = await imagesToScan(withFiles(split), fakeNet());
+    const managedPostgres = readImages(REAL.read('deploy/compose/managed.yml')!).find((i) => i.repo === 'postgres')!;
+    expect(postgres(apart)).toEqual(
+      [['postgres-managed', managedPostgres.ref], ['postgres-managed-dev', 'postgres:99-alpine'], ['postgres-selfhost', selfhost.ref]].sort(),
+    );
   });
 
   it('says which tags float, since those are scanned as the registry serves them today', () => {
@@ -304,6 +394,31 @@ describe('the report job', () => {
     expect(summary.missing.map((m) => m.image.name)).toEqual(['minio', 'caddy']);
     expect(summary.annotations.filter((a) => a.startsWith('::error::'))).toHaveLength(2);
     expect(summary.lines.join('\n')).toContain('2 without a report');
+  });
+
+  it('exits 1 from the command line when a report is missing, and 0 once every image has one', () => {
+    // The step's own exit code is what turns the run red when a leg passed
+    // but its report never reached this job (a download that failed, an
+    // artifact gone). No --issue, so no gh; no GITHUB_STEP_SUMMARY, so a CI
+    // run of this guard writes nothing into its own summary.
+    const dir = mkdtempSync(join(tmpdir(), 'image-scan-report-'));
+    try {
+      const run = () =>
+        spawnSync(process.execPath, [join(REPO_ROOT, 'scripts/image-scan.mjs'), 'report', dir], {
+          encoding: 'utf8',
+          env: { PATH: process.env.PATH, IMAGES: JSON.stringify(IMAGES) },
+        });
+      const none = run();
+      expect(none.status, none.stderr).toBe(1);
+      for (const image of IMAGES) expect(none.stdout).toMatch(new RegExp(`^::error::${image.name}: `, 'm'));
+      for (const image of IMAGES) writeFileSync(join(dir, `trivy-image-${image.name}.json`), trivyJson({ Family: 'alpine', Name: '3.23.3' }));
+      const all = run();
+      expect(all.status, all.stderr).toBe(0);
+      expect(all.stdout).not.toContain('::error::');
+      expect(all.stdout).toContain('3 listed, 3 scanned, 0 past their end of life, 0 without a report');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('warns, and says so in the summary, for an image past its end of life; findings alone warn nothing', () => {
@@ -445,6 +560,9 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
       format: 'json',
       output: 'trivy-image-${{ matrix.name }}.json',
       'exit-code': '0',
+      // Vulnerabilities only: Trivy's default adds its secret scanner, whose
+      // hits would reach code scanning while the report counts none of them.
+      scanners: 'vuln',
       // Off: the legs start together, so the action's daily cache would only
       // add a failed save, and a warning, to every leg but one.
       cache: 'false',

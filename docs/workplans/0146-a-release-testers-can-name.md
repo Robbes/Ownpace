@@ -18,28 +18,50 @@ in an image whose tag never moved, was reported by nothing.
   name (GoAccess, the demo's Stalwart, `db-roles.sh`'s client); the tasks' base image the pinned
   Trigger.dev CLI names (the pin watch's `cliBaseImage`, now exported); and
   `ownpace-{api,web,selfhost}` at `:edge` and at the newest `v*` tag, since live builds the tag it
-  deploys. 26 images on 2026-10-22. `image-scan` is one leg per image: trivy-action at the fs
-  scan's SHA and Trivy v0.76.0, `scan-type: image`, `format: json`, HIGH and CRITICAL,
-  `exit-code: 0`, linux/arm64 read from the registry; the JSON kept for the report job,
-  `trivy convert` to SARIF, uploaded under `trivy-image-<name>`, and a last step that fails the
-  leg unless the scan, a non-empty JSON and SARIF and the upload all happened.
+  deploys. 26 images on 2026-10-22, each listed once per stack (`managed` for `deploy/compose`,
+  `selfhost` for `deploy/selfhost`) and named after its repository's last part, with the stack
+  added where both stacks run that name: so a pin that moves, or two stacks' pins that meet on
+  one reference (the floating-images pull request puts both postgres on one digest), keep their
+  names. `image-scan` is one leg per image: trivy-action at the fs scan's SHA and Trivy v0.76.0,
+  `scan-type: image`, `scanners: vuln`, `format: json`, HIGH and CRITICAL, `exit-code: 0`,
+  linux/arm64 read from the registry; the JSON kept for the report job, `trivy convert` to
+  SARIF, uploaded under `trivy-image-<name>`, and a last step that fails the leg unless the scan,
+  a non-empty JSON and SARIF and the upload all happened.
   `image-scan-report` reads every report. A missing one is an `::error::` and fails the run. An
   operating system Trivy calls past its end of life (`.Metadata.OS.EOSL`, in the JSON only)
   gets a `::warning::`, a line in the summary and one issue per image, *An image's operating
   system is past its end of life: <name>*, closed when that ends. Findings fail nothing.
-- **Guards.** `scripts/an-image-nobody-scanned.unit.test.ts`, 30 cases: on main it does not load
+- **Guards.** `scripts/an-image-nobody-scanned.unit.test.ts`, 33 cases: on main it does not load
   (no `image-scan.mjs`), and with the script but before the workflow, 10 failed. Six mutations
   (fail-fast, a self-hosted runner, the end of life never read, strays closed while a report is
   missing, the scripts unread, release tags in text order) each fail it. `a-scan-that-skipped-itself`
   now reads its check step only to the end of its job: with the new jobs after it, the existing
   step's `::warning::` could be removed and the guard still passed (shown by mutation).
+- **Review, 2026-10-22.** The guard read today's pins as literals (`redis:7-alpine`,
+  `postgres:18-alpine`, PgBouncer's tag), so the compose-pins pull request (#1657) turned it red
+  (shown with its `managed.yml` and `site-visits.sh` in place: 1 failed). It now reads every pin
+  from the files, and is green with #1657's files and with the floating-images pull request's
+  postgres pins and computed `db-roles.sh` client in place. Names were per reference, so those
+  two postgres pins meeting on one digest would have renamed both scans: now per stack, held by
+  a case that moves them together and apart (red on the old naming). The report's exit code is
+  held from the command line (red with `failed` forced false). The image scan runs the
+  vulnerability scanner only, so code scanning and the report count the same findings.
 - **Read on the branch, 2026-10-22,** with Trivy v0.76.0 locally, linux/arm64: `redis:7-alpine`
   is Alpine 3.21.9, not past its end of life until 2026-11-01; the frozen MinIO image has 26
   critical and 259 high findings, 206 of them fixed in a newer package; `alpine:3.18` reads
   `EOSL: true` in the JSON and nothing of it in the SARIF.
 - **Not in this:** acting on any finding; a ghcr login (Ownpace's three images are public, so the
-  scan job has no `packages: read`); pinning the floating tags, which is its own pull request.
-  Owed before the merge: Security Scan dispatched on the branch.
+  scan job has no `packages: read`); pinning the floating tags, which is its own pull request;
+  the image jobs in a workflow of their own (the weekly run now holds the
+  `security-scan-refs/heads/main` group for the matrix, so a push to main in that time waits:
+  accepted, and said in the workflow's concurrency comment).
+- **Owed.** Before the merge: Security Scan dispatched on the branch; then this pull request's
+  own required `Trivy` check read again, and Security Scan re-run on the pull request if it
+  changed. After the first scheduled or dispatched run on main: a pull request opened or
+  refreshed, and its required `Trivy` check read, which must still conclude success or neutral
+  with main's `trivy-image-*` configurations that no pull request uploads. Whenever an image
+  leaves the stacks or is renamed: its old `trivy-image-<name>` configuration deleted on the code
+  scanning tool status page.
 
 **2026-10-21, build: T8's watch half, on branch
 `claude/ownpace-public-readiness-y7orc6-pin-watch`, not merged.** The owner asked for *"Life
@@ -1297,7 +1319,9 @@ no upstream to compare with. The scan below is still to build.*
 four images, and the task base image", Ownpace's own at `:edge` and at the newest release among
 them, scanned as linux/arm64. An issue is kept only for an image whose operating system is past
 its end of life; its high and critical findings go to code scanning, one category per image, so
-an open issue always names something to move.*
+an open issue always names something to move. A category outlives its image: one that leaves
+the stacks, or is renamed, leaves its configuration to be deleted by hand on the code scanning
+tool status page.*
 
 **Guard.** `scripts/a-pin-that-knows-it-is-behind.unit.test.ts` is the name 0135 T7 gives it, and
 this task extends it. It fails today, because no watch exists. Given stubbed tag lists and a

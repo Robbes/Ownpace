@@ -907,6 +907,7 @@ reading a file drops off its entry by itself.
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
+- [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
 ### `deploy/compose/dump-idp.sh`
 
@@ -5076,6 +5077,7 @@ Reads:
 - `apps/selfhost/Dockerfile`
 - `apps/worker/package.json`
 - `deploy/compose/db-roles.sh`
+- `deploy/compose/dev.yml`
 - `deploy/compose/managed.yml`
 - `deploy/compose/site-visits.sh`
 - `deploy/compose/www.yml`
