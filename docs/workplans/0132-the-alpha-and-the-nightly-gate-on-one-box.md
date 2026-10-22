@@ -10,15 +10,17 @@ T7 entry below, and 0142 T3. Live takes it with the first tag that carries it.
 **2026-10-21 to 2026-10-22: the NetBird front answered 502 for the OTA stack's identity
 provider, and two branch gates stopped on it.** From about 20:00 UTC on 2026-10-21, E2E
 (managed) #263 (on #1656's branch) and #264 (on #1662's, at 21:00) failed in *Bring the stack
-up*: `setup-zitadel.sh`'s token check went through the public issuer, and NetBird's reverse proxy
-answered HTTP 502 with its own *Connection Error* page on every try, before the provider was
-reached (#264 already carried #1662's first retry, and its retry lines show). No pull request
-caused it, and its cause is not known here. It was gone by the
-scheduled run #265 at 08:47 UTC on 2026-10-22, green on main (`91b49de9`), and the branches it
-had held up then merged on green runs: #1656 after #266, #1662 after #267, #1672 after #268.
+up* on a read `setup-zitadel.sh` makes through the public issuer: NetBird's reverse proxy
+answered HTTP 502 with its own *Connection Error* page, before the provider was reached. #263
+died on it in both attempts, the first on the token check and the second on a later read, after
+others had gone through. #264 already carried #1662's first retry, and its retry lines show the
+token check answered 502 on all four tries. No pull request caused it, and its cause is not known
+here. It was gone by the scheduled run #265 at 08:47 UTC on 2026-10-22, green on main
+(`91b49de9`), and the branches it had held up then merged on green runs: #1656 after #266, #1662
+after #267, #1672 after #268.
 Since #1662 (`d98f54f2`) and #1672 (`be6a857f`), `setup-zitadel.sh` and `smoke-managed.sh` ask a
 read of the provider again on a 502, 503 or 504, four asks with 14 seconds of waiting between
-them (`IDP_READ_ATTEMPTS`), and still send each write once. A short 502 from the front no longer
+them (`IDP_READ_ATTEMPTS`), and still send each write once. A short 502 on a read no longer
 fails the gate, but no retry rides out an outage like this one. The follow-up is the
 owner's: making sure the Spark's NetBird peer cannot expire (the owner's checklist of
 2026-10-21, T10, by 2026-10-27), since a peer whose login expires takes the tunnel down, and

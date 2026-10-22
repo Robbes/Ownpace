@@ -108,10 +108,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   the duties, no pass for 26 hours, free space below its floor, and a summary
   once a day.
 - **A weekly watch on every pin Dependabot cannot see** (workplan 0146 T8,
-  #1663): Dependabot had read none of the files in `deploy/compose`, so the
-  identity provider, Trigger.dev, ClickHouse, the tasks' Node, pnpm and the
-  other image pins there are compared with upstream every Monday, and an issue
-  stays open while one is behind.
+  #1663): Dependabot had read none of the files in `deploy/compose`, so every
+  pin it cannot see (the images in `deploy/compose`, the tasks' Node and pnpm)
+  is compared every Monday with what it should follow, and an issue stays open
+  while one is behind.
 - **The operator's log says who deleted a migration or a connection, replaced
   an account's sign-in or prepared a cutover** (workplan 0137 T4, #1648). No
   address, user name or password goes in the record.
