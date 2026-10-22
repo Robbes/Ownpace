@@ -4,6 +4,14 @@
 
 ## Status — 2026-10-22 (update this block at the end of every session)
 
+**2026-10-22, recorded: Dependabot alerts and security updates are on.** The owner turned on both
+repository settings that `.github/dependabot.yml`'s header leans on for security updates; the API
+read `dependabot_security_updates: enabled` the same evening, and alert email was already on. So a
+published advisory against a dependency now opens a pull request by itself, instead of turning up
+only when the audit gate turns an unrelated pull request red (2026-10-03, 10-07 and 10-21). What it
+does not cover stays as the header says: transitive pnpm fixes Dependabot cannot make, and the
+ignored names that still move by hand.
+
 **2026-10-22, recorded: T8's scan half merged** as #1674 on 2026-10-22 (`51a0d267`), so both
 halves of T8 are in. Security Scan dispatched on the branch (run 4692, on `10725955`) listed 26
 images and scanned and reported every one, and it opened #1675: the GoAccess image
