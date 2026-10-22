@@ -394,6 +394,13 @@ interface Provider {
   takes?: boolean;
   /** How many reads after a write still answer the old text, as a projection behind its events does. */
   lag?: number;
+  /**
+   * `{type}/{language}`s whose every read rides out a 502 from the front first:
+   * `api` says so on stderr, as `curl_read_retrying` does, and then answers.
+   */
+  blips?: string[];
+  /** `{type}/{language}`s whose read the front never gets through: `api` dies on a lasting 502. */
+  unreachable?: string[];
 }
 
 /**
@@ -424,11 +431,15 @@ function send(provider: Provider, supportSetting: string) {
       `LAG=${provider.lag ?? 0}`,
       `TAKES=${provider.takes === false ? 'false' : 'true'}`,
       `REFUSES=' ${(provider.refuses ?? []).join(' ')} '`,
+      `BLIPS=' ${(provider.blips ?? []).join(' ')} '`,
+      `UNREACHABLE=' ${(provider.unreachable ?? []).join(' ')} '`,
       'sleep() { :; }',
       'api() {',
       '  local key="${2#/admin/v1/text/message/}"',
       '  case "$1 $2" in',
       '    "GET /admin/v1/text/message/"*)',
+      '      case "$BLIPS$UNREACHABLE" in *" $key "*) echo "[setup-zitadel] GET $2: the front answered HTTP 502 without reaching the provider — attempt 1 of 4, retrying in 2s" >&2 ;; esac',
+      '      case "$UNREACHABLE" in *" $key "*) printf \'[setup-zitadel] FATAL: GET %s answered HTTP 502:\\n    <!DOCTYPE html><title>Connection Error</title>\\n\' "$2" >&2; exit 1 ;; esac',
       '      local left; left="$(cat "$LAG_FILE")"',
       '      if [ "$left" -gt 0 ]; then echo $(( left - 1 )) > "$LAG_FILE"; jq -c --arg k "$key" \'{customText: .[$k]}\' "$STATE.before"; return 0; fi',
       '      jq -c --arg k "$key" \'{customText: (.[$k] | with_entries(select(.value != "")))}\' "$STATE" ;;',
@@ -548,6 +559,31 @@ describe('the mails, at the provider', () => {
     expect(said).toContain('REFUSED');
     expect(said).toContain('Errors.Internal');
     expect(after['init/en']).toEqual(wanted('support@ownpace.eu')['init/en']);
+    expect(summary).toContain('NOT all set');
+    expect(summary).toContain('init/nl');
+  });
+
+  it('a read that rode out a 502 from the front is READ: the retry line goes to the log, not into the answer', () => {
+    // `sign_in_mail_read` wants die's words when the read fails, so it
+    // captured `api`'s stderr too — and with `2>&1` the retry line stood in
+    // front of the JSON, jq refused it, and a mail that WAS read was "left as
+    // it is". #263's 502 was ridden out everywhere else and not here.
+    const { code, said, writes, after, summary } = send({ held: upstream(), blips: ['init/nl'] }, '');
+    expect(code, said).toBe(0);
+    expect(said).not.toContain('could not read');
+    expect(said).toContain('GET /admin/v1/text/message/init/nl: the front answered HTTP 502');
+    expect(writes).toHaveLength(10);
+    expect(after).toEqual(wanted('support@ownpace.eu'));
+    expect(summary).toBe('nl, en; they name support@ownpace.eu');
+  });
+
+  it('a mail the front never reaches is said with die\'s words, the others are still written, and the run goes on', () => {
+    const { code, said, writes, summary } = send({ held: upstream(), unreachable: ['init/nl'] }, '');
+    expect(code, said).toBe(0);
+    expect(said).toMatch(
+      /could not read the init mail in nl, so it is left as it is:\n\[setup-zitadel\] {3}\[setup-zitadel\] FATAL: GET \/admin\/v1\/text\/message\/init\/nl answered HTTP 502:/,
+    );
+    expect(writes).toHaveLength(9);
     expect(summary).toContain('NOT all set');
     expect(summary).toContain('init/nl');
   });

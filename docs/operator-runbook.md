@@ -668,7 +668,10 @@ refuses a `--dir` naming another: the copy `deploy-live.sh` takes already holds 
 them it writes a note: the image that was running, a fingerprint of the master key the dump needs,
 and the commands that go back to it. It stops and changes nothing (workplan 0135 T7). On the same
 server, going back replaces the database only: its roles are still there, and restoring them would
-set the provider's database password back to the dumped one.
+set the provider's database password back to the dumped one. A dump holds the provider's accounts,
+so on the OTA stack delete it once main's first scheduled E2E (managed) on the new pin is green;
+the script says so when it is done, and so does the pin watch's issue (workplan 0146 T8). On live
+the copy's own rules delete it.
 
 Notes:
 - The ledger is a **rebuildable cache** (ADR-0020): even without a ledger backup, a reindex/adopt
@@ -2545,7 +2548,10 @@ steps for a tester's report. The items below are causes it points to.
   ClickHouse; without run-replication it renders empty. Cosmetic — ACCEPTED (0020 T7 decision,
   2026-08-01): the smoke and the DB rows are the operational truth, the Tasks tab still works,
   and enabling replication adds moving parts for a page nobody depends on. Revisit only if the
-  Runs page becomes someone's tool. Not an outage.
+  Runs page becomes someone's tool. Not an outage. ClickHouse holds run history even so: every
+  task process's metrics, each row with its run's id, for 60 days. The end of the Alpha empties
+  it with the task runner's database ([ending-the-alpha.md](./ending-the-alpha.md), *The switch*,
+  step 3).
 - **White screen / login loop on the dashboard:** two known causes, both env. (1) A missing
   `TRIGGER_TLS_HOST` in `.env` — Caddy falls back to `localhost`, your browser's `Host` header
   matches no site block, and the response is EMPTY (a white screen, not an error; confirmed
