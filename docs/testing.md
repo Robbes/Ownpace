@@ -392,7 +392,20 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
 - `ui-tests` (ci.yml job; real Chromium over the built bundle; every code-changing pull request
   and on main) — `pnpm test:ui`, after `lint`, running while `unit-tests` does.
 - `security-scan.yml` — pnpm audit + Trivy (SARIF) + CycloneDX SBOM; weekly + PR + push + manual;
-  SBOM attached to release tags.
+  SBOM attached to release tags. On the weekly run (Mondays 06:00 UTC) and on dispatch only, and on
+  GitHub-hosted runners, it also scans every container image the stacks run (workplan 0146 T8):
+  the `image:` lines of `managed.yml`, `dev.yml`, `www.yml` and the appliance's compose file, the
+  images the scripts name, the tasks' base image the pinned Trigger.dev CLI names, and Ownpace's
+  three images at `:edge` and at the newest release tag, all as linux/arm64
+  (`scripts/image-scan.mjs list`). Report only: each image's findings go to code scanning under
+  `trivy-image-<name>` and fail nothing; an image whose operating system Trivy calls past its end
+  of life gets a warning, a line in the run's summary and one issue, closed when that ends. A scan
+  that left no report fails the run. An image is named after its repository's last part, with
+  its stack (`managed` for `deploy/compose`, `selfhost` for `deploy/selfhost`) added where both
+  stacks run that name, so a pin that moves, or two stacks' pins that meet on one reference, keep
+  their names. An image that leaves the stacks, or is renamed, leaves its `trivy-image-<name>`
+  configuration behind in code scanning with its alerts open; delete it on the code scanning tool
+  status page (the Security tab, Code scanning, Tool status).
 - `e2e.yml` — nightly (23:30 UTC on the Postgres stack, 01:30 UTC on PGlite) and on dispatch, on
   `[self-hosted, linux, arm64]` (the Spark); brings up Stalwart via
   `deploy/selfhost/setup-stalwart.sh` (the two-phase recovery→normal bring-up — not a

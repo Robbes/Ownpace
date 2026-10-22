@@ -103,9 +103,12 @@ exists to avoid.
 
 What it costs, stated plainly: the payload goes from **28.8 MB to 117.3 MB**
 (`node.exe` win-x64 is 88.5 MB). It compresses well in an MSI, and it means a
-runtime we are now responsible for patching — `NODE_RUNTIME_VERSION` in
-`scripts/package-appliance.mjs` is pinned to `v24.19.0` so that bumping it is a
-visible edit somebody reviews, not a silent float.
+runtime we are now responsible for patching — so the version is pinned to the
+self-host image's Node: `scripts/package-appliance.mjs` reads the
+`FROM node:<x.y.z>-slim` line of `apps/selfhost/Dockerfile` and refuses one
+without an exact version. Dependabot's image PR moves both, so a bump is still
+a visible edit somebody reviews, not a silent float. (Until 2026-10-21 it was a
+constant of its own, `v24.19.0`, which nothing moved.)
 
 The download is **checksum-verified** against the release's own
 `SHASUMS256.txt`, and a mismatch stops the build. We would be shipping somebody
