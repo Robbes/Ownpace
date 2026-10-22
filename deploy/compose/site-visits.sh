@@ -13,9 +13,10 @@
 # came from, the kind of browser), as totals only, which identify nobody."
 # This script is what makes that true.
 #
-# GOACCESS IS NEVER GIVEN AN ADDRESS, NOR ANY TEXT A VISITOR OR A LINK CHOSE,
-# AND KEEPS NO DATABASE. GoAccess's own ways to keep totals and hide addresses
-# would have made the sentence false. Read in its source at the tag v1.12
+# GOACCESS IS NEVER GIVEN AN ADDRESS, NOR ANY TEXT A VISITOR OR A LINK CHOSE
+# BUT WHAT *What it cannot stop*, BELOW, NAMES, AND KEEPS NO DATABASE.
+# GoAccess's own ways to keep totals and hide addresses would have made the
+# sentence false. Read in its source at the tag v1.12
 # (github.com/allinurl/goaccess, ef3c4f3c): --persist writes, for every day, a
 # fingerprint per visitor, an unsalted 64-bit hash of the full address and the
 # browser string (util.c, visitor_fingerprint), and per panel which visitor
@@ -89,7 +90,11 @@
 #
 # What it cannot stop: a word a visitor writes into their own browser's
 # User-Agent, letters and digits joined to a browser's or a system's name,
-# reaches the browser or system panel as they wrote it.
+# reaches the browser or system panel as they wrote it. And the Referer is the
+# visitor's to set too: a host of letters, digits, dots and hyphens (and its
+# port) is handed on as it was sent, so a Referer of
+# https://jan.devries.example.nl/ reaches the referring sites panel as
+# `https://jan.devries.example.nl`.
 #
 # GOACCESS'S FLAGS, AND WHY EACH (GOACCESS_FLAGS below):
 #
@@ -137,10 +142,11 @@
 # first time, from Docker Hub, as it pulls any other. Its base is Alpine
 # 3.20.10, past its end of life (#1675), accepted for now because GoAccess runs
 # offline (--network none) on input the filter has cut to a few fields, only
-# musl lies on that input's path, and no release tag carries this script yet;
-# it moves with an upstream release on a supported base, or to an image of our
-# own if upstream's next release is still on 3.20 or the weekly scan reports a
-# HIGH or CRITICAL finding in musl.
+# musl lies on that input's path, and, on 2026-10-22, no release tag carries
+# this script yet; it moves with an upstream release on a supported base, or to
+# an image of our own if upstream's next release is still on 3.20 or the weekly
+# image scan (security-scan.yml, #1674) reports a HIGH or CRITICAL finding in
+# musl.
 #
 # WHEN IT RUNS. Once a day, as box-duties.sh's eighth duty, `visits`, and by
 # hand whenever the owner wants a fresh report, and right before a deploy.
@@ -312,9 +318,9 @@ trap 'exit 143' TERM
 #   4 referer   5 ` `   6 user agent   7 ` `   8 X-Forwarded-For   9 ``
 #
 # <user> is $remote_user: nginx fills it from any Basic Authorization header,
-# though the site asks for none, and escapes only quotes, backslashes and
-# control bytes, so a visitor can put spaces and brackets in it, a text or a
-# time of their own (#1675). So the time is nginx's $time_local where nginx
+# though the site asks for none, and escapes only quotes, backslashes and bytes
+# below 32 or above 126, so a visitor can put spaces and brackets in it, a text
+# or a time of their own (#1675). So the time is nginx's $time_local where nginx
 # writes it, at the END of piece 1, in its exact shape (dd/Mon/yyyy:hh:mm:ss
 # +zzzz, bracket expressions only, for mawk), and never the first bracketed
 # group, which a user can supply. The user itself is never handed on.

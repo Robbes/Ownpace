@@ -61,8 +61,9 @@
  *
  * AND THE TIME WAS THE VISITOR'S TO CHOOSE (2026-10-22, #1675). nginx writes
  * `$remote_user` from any Basic Authorization header, though the site asks for
- * none, escaping only quotes, backslashes and control bytes. The filter took
- * the time from the FIRST bracketed group of the line's first piece, so a user
+ * none, escaping only quotes, backslashes and bytes below 32 or above 126 (the
+ * default escaping, which `ownpace_site` uses). The filter took the time from
+ * the FIRST bracketed group of the line's first piece, so a user
  * `[jan.devries at example dot nl]` was the time GoAccess was given (typed text
  * in GoAccess's input), a user `[01/Jan/2020:00:00:00 +0000]` dated the visit
  * in 2020, and a user `[marie`, opened and never closed, made its bracket and
@@ -137,11 +138,14 @@
  * this script in place of `docker run`: as 65534:65534, under `setpriv
  * --no-new-privs`, on its own root file system mounted read-only, in a network
  * namespace with no interface. That run found the `-o` refusal above. With
- * the fix it took every flag, accepted every line this file's log becomes,
- * and wrote HTML in which none of this file's addresses or personal words
- * appears. Docker's own `--read-only`, `--network none` and `--cap-drop ALL`,
- * and the arm64 image, were not run. The first run on the machine is that
- * check (`docs/managed-bring-up.md`, *Counting its visits*).
+ * the fix it took every flag, accepted every line this file's log became as
+ * it was then, and wrote HTML in which none of this file's addresses or
+ * personal words appears. The three lines GoAccess is given for the Basic
+ * users added on 2026-10-22 were not run through it; they are of the same
+ * combined shape as the others, with nginx's own time. Docker's own
+ * `--read-only`, `--network none` and `--cap-drop ALL`, and the arm64 image,
+ * were not run. The first run on the machine is that check
+ * (`docs/managed-bring-up.md`, *Counting its visits*).
  *
  * Addresses here are documentation shapes: the placeholder `100.64.0.1` for
  * NetBird's on the mesh (`an-address-that-was-not-an-example`), RFC 5737's and
