@@ -5,13 +5,19 @@
  *
  * The packager is JavaScript on purpose — it is the thing that BUILDS the
  * TypeScript, so it cannot depend on the build having happened. Its unit test
- * imports two pure helpers out of it, and without this the import is an
+ * imports three pure helpers out of it, and without this the import is an
  * implicit `any` that silently stops checking the very assertions the test
  * exists to make.
  *
- * Only the two exports the test consumes are declared. The rest of the module
+ * Only the three exports the test consumes are declared. The rest of the module
  * is a script, not an API.
  */
+
+/**
+ * The Node version the Windows payload ships, as `v<x.y.z>`, read from a
+ * Dockerfile's `FROM node:<x.y.z>-…` line. Throws when there is no such line.
+ */
+export function nodeRuntimeVersion(dockerfileText: string): string;
 
 /** Look up a file's expected SHA-256 in a SHASUMS-format listing. */
 export function shaFor(shasumsText: string, remotePath: string): string | undefined;

@@ -139,17 +139,25 @@ are **not** product-named and keep their names; nothing above touches them.
   not a measurement.
 - The repository cloned, and `pnpm install --frozen-lockfile` done.
 - **Container output: Docker's default log driver, kept until the container
-  is removed** (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default,
-  as the text says"*). No compose file here sets `logging`, so every
-  container, the compose services and the task runs Trigger.dev starts alike,
-  writes with the daemon's driver. Leave it at Docker's default, `json-file`,
-  which keeps a container's output with the container, with no limit of age
-  or size, and removes it with the container. `local` will do too: it keeps
-  the output with the container in the same way, but rotates it by size
-  (about 100 MB per container by default, by Docker's documentation: five
-  files of 20 MB, compressed), so the oldest lines can go sooner, never
-  later. That is what the privacy policy says of server logs (§9): kept until
-  the part of the service that wrote them is replaced, with no fixed period.
+  is removed, and the stack's capped by size** (the owner, 2026-09-28,
+  ops-log-driver (a): *"Docker's default, as the text says"*). Docker's
+  default, `json-file`, keeps a container's output with the container, with
+  no limit of age or size, until the container is removed, and removes it
+  with the container. A service whose image and settings do not change keeps
+  its container for months, so every service in `managed.yml` sets `json-file`
+  itself, with a cap (2026-10-21): five files of 20 MB, at most 100 MB a
+  service and 1.8 GB a stack, the oldest lines going first. Two kinds of
+  container keep the daemon's driver: the website's (`www.yml` sets no cap,
+  because `site-visits.sh` counts visits from the whole of its log) and the
+  task runs Trigger.dev starts. Leave the daemon at Docker's default,
+  `json-file`. `local` will do too: it keeps the output with the container in
+  the same way, but rotates it by size (about 100 MB per container by
+  default, by Docker's documentation: five files of 20 MB, compressed), so the
+  oldest lines can go sooner, never later, as they do under the stack's cap.
+  That is what the privacy policy says of server logs (§9): kept until the
+  part of the service that wrote them is replaced, with no fixed period.
+  But on `local` the site's log is capped too, and the visit count then covers
+  only what is left of it, which is why `json-file` is the one to keep.
   The host's journal would keep them after the container is gone, for as long
   as the journal keeps anything, so do not hand them to it. Check the machine
   (`stand-up-live.sh` asks too, and refuses any other answer):
@@ -546,6 +554,16 @@ generates every missing secret — `JWT_SECRET`, `SECRET_ENCRYPTION_KEY`, the
 five Trigger.dev secrets, `PGBOUNCER_AUTH_PASSWORD` — and writes
 `pgbouncer/userlist.txt`. It is idempotent: a value you already set is never
 rotated. Then it pins `DEPLOY_IMAGE_PLATFORM` to this host's architecture.
+
+**The provisioning token's first date.** It also writes `ZITADEL_PAT_EXPIRY`,
+`ZITADEL_PAT_LIFETIME_DAYS` (7) days out, which `managed.yml` requires: the
+identity provider reads it once, at its first start, as the expiry of the token
+`setup-zitadel.sh` works with, and refuses to start on a date already past. A
+date still ahead is kept; an empty, past or unreadable one is replaced, and a
+replaced date is printed. Every later phase writes it the same way before its
+first compose command, so a `--from` run that skips this phase is covered too.
+After the first start, `setup-zitadel.sh` keeps the line on the live token's
+own date.
 
 **The five database passwords** (workplan 0132 T2): `POSTGRES_PASSWORD`,
 `APP_DB_PASSWORD`, `CLICKHOUSE_PASSWORD`, `MINIO_ROOT_PASSWORD` and
@@ -1590,7 +1608,8 @@ the same person always the same one), a URL keeps only its scheme and host,
 and a detail field nobody has classified is left out. Docker keeps each
 container's output with the container, not in the host's journal (`json-file`,
 *Before you start*), so a collector reads it from Docker: `docker compose logs`,
-or the file `json-file` writes for each container. A task run's container is
+or the file `json-file` writes for each container, which the stack's services
+rotate at 20 MB and keep five of. A task run's container is
 removed when its run ends, and its output goes with it, so a collector that is
 to forward the worker's lines reads them as they are written; what it missed is
 still in `audit_log` (below). The audit lines are the ones carrying

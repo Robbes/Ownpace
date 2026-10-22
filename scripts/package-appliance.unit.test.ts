@@ -30,7 +30,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createHash } from 'node:crypto';
-import { shaFor, verifySha256 } from './package-appliance.mjs';
+import { nodeRuntimeVersion, shaFor, verifySha256 } from './package-appliance.mjs';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import {
   existsSync,
@@ -577,10 +577,11 @@ describe('the payload says which build it is', () => {
 
 describe('importing the script does not run it', () => {
   /**
-   * This file imports `shaFor` and `verifySha256` from the packaging script.
-   * Until 2026-08-06 the script called `main()` at module scope, so that import
-   * STAGED A WHOLE PAYLOAD as a side effect — and in CI, where
-   * `apps/web/dist-selfhost` is not built, it threw before a single test ran.
+   * This file imports `shaFor`, `verifySha256` and `nodeRuntimeVersion` from
+   * the packaging script. Until 2026-08-06 the script called `main()` at
+   * module scope, so that import STAGED A WHOLE PAYLOAD as a side effect — and
+   * in CI, where `apps/web/dist-selfhost` is not built, it threw before a
+   * single test ran.
    *
    * It passed locally because a developer who has just built the UI cannot see
    * the difference. That is as close to the definition of "works on my machine"
@@ -740,6 +741,29 @@ describe('the shipped Windows payload carries its own Node', () => {
     const bytes = Buffer.from('the real thing');
     const sha = createHash('sha256').update(bytes).digest('hex');
     expect(() => verifySha256(bytes, sha, 'test')).not.toThrow();
+  });
+
+  it("ships the self-host image's Node, read from its FROM line", () => {
+    // Until 2026-10-21 the payload's version was a constant nobody moved: the
+    // images went from 24.20.0 to 24.22.0 through Dependabot while node.exe
+    // stayed on 24.19.0, so a Node security release would reach the containers
+    // and never the zip attached to every release. Now apps/selfhost/Dockerfile
+    // is the one place the version lives, and this proves the packager reads
+    // THAT line — without naming a version here, so Dependabot's next bump
+    // stays green.
+    const dockerfile = readFileSync(join(REPO, 'apps/selfhost/Dockerfile'), 'utf-8');
+    const version = nodeRuntimeVersion(dockerfile);
+    expect(version).toMatch(/^v\d+\.\d+\.\d+$/);
+    expect(dockerfile).toContain(`FROM node:${version.slice(1)}-slim@sha256:`);
+  });
+
+  it('refuses a Dockerfile that names no exact Node version, rather than guessing one', () => {
+    // A floating tag would let the payload's runtime change between two builds
+    // of the same commit; no FROM line at all means the file is not the one we
+    // think. Either way the --with-node build stops.
+    for (const text of ['FROM node:24-slim AS base\n', 'FROM debian:bookworm-slim\n', '']) {
+      expect(() => nodeRuntimeVersion(text)).toThrow(/FROM node:<x\.y\.z>/);
+    }
   });
 
   it('does NOT ship a runtime unless asked, so a dev build stays small', () => {

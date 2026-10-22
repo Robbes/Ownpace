@@ -26,13 +26,19 @@ ERROR: Cannot find module 'pnpm'
 
 **Solution:**
 ```bash
-# Install pnpm globally
-npm install -g pnpm
+# Install pnpm globally — 11, the major this repository pins; a bare
+# `npm install -g pnpm` now installs pnpm 12
+npm install -g pnpm@11
 
-# Or use corepack
-corepack enable
-corepack prepare pnpm@latest --activate
+# Or use corepack (bundled with Node 24): from the repository root, this
+# installs exactly the version package.json's "packageManager" names
+corepack enable pnpm
+corepack install
 ```
+
+Inside this repository a global pnpm 10 or 11 switches itself to the
+`packageManager` version on the first command, so `pnpm --version` there prints
+that version, not the global one.
 
 ### Issue: Environment variables not loaded
 

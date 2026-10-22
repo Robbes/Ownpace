@@ -210,15 +210,21 @@ managed gate filters the container logs it prints into its public job log throug
 as it replaces mesh addresses with `<mesh-ip>`.
 
 **How long they stay.** Every container writes with Docker's default log driver,
-`json-file`, which keeps its output, with no limit of age or size, until the
-container is removed: at each deploy for the app and the site, when its image or
-settings change for the sign-in service, and when its run ends for a task. That is
-privacy §9's *"until the part of the service that wrote them is replaced"*. `local`
-keeps it the same way and also rotates it by size, so lines can go sooner, never
-later. `docker info --format '{{.LoggingDriver}}'` prints `json-file` (or `local`)
-on a machine that keeps to it, and `stand-up-live.sh` refuses any other answer; the
-journal would keep every line past its container (managed-bring-up.md, *Before you
-start*, says how to undo that).
+`json-file`, which keeps its output until the container is removed: at each
+deploy for the app and the site, when its image or settings change for the
+sign-in service, and when its run ends for a task. That is privacy §9's *"until
+the part of the service that wrote them is replaced"*. The stack's own services
+(`managed.yml`, the app and the sign-in service among them) also rotate it by
+size, five files of 20 MB: one that writes a lot keeps only about its last
+100 MB, so its oldest lines go sooner, never later. The site's (`www.yml`) keeps
+all of it, with no limit of age or size, because the visit count reads the
+whole log; that holds while the daemon stays at `json-file`. `local` on the
+daemon would keep to §9 as well, but it rotates by size, the site's log
+included, so the visit count would then cover only the last 100 MB or so.
+`docker info --format '{{.LoggingDriver}}'` prints `json-file` (or `local`) on a
+machine that keeps to it, and `stand-up-live.sh` refuses any other answer; the
+journal would keep every line past its container (managed-bring-up.md, *Before
+you start*, says how to undo that).
 
 **Counting visits to the website** from the `www` log (privacy §4.5; the owner,
 2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip
@@ -842,9 +848,13 @@ What you do:
 1. Tell each tester, from the list of testers (0134 T4), with the alpha conditions' paragraph on
    backups (0134 T2).
 2. Bring live up again as 0132 T1b to T1e do, with the copy of live's `.env` if you have one.
-   Empty its `ZITADEL_PAT_EXPIRY` line first. A new identity provider reads that date once, at
-   first initialisation, and a date already past gives a provisioning token that is born expired;
-   `setup-zitadel.sh` seeds a fresh date only into an empty line. If the old machine could be in
+   A new identity provider reads its `ZITADEL_PAT_EXPIRY` date once, at its first start, and
+   refuses to start on a date already past. On a tag that carries `seed_pat_expiry`
+   (`deploy/compose/env-read.sh`), the line can stay as it is: the bring-up writes a fresh date
+   into it before that start when it is empty, past or not a date, and keeps one still ahead. On
+   an older tag (`v0.2.0-alpha.1` among them), write a date a week ahead into the line first,
+   `date -u -d '+7 day' +%Y-%m-%dT%H:%M:%SZ`: there the provider starts before anything writes
+   the line, an empty one gets 2026-12-31, and a past one is kept. If the old machine could be in
    someone else's hands, replace every value instead: nothing depends on the old ones any more,
    and the OAuth client secrets are replaced in each provider's console.
 3. Do Trigger.dev's one-time steps on live's plane (0132 T1c).

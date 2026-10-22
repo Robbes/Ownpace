@@ -407,6 +407,9 @@ main() {
   # it after the container is gone (the owner, 2026-09-28, ops-log-driver (a);
   # docs/managed-bring-up.md, "Before you start"). A container keeps the driver
   # it was created with, so this is asked before the bring-up creates any.
+  # managed.yml's services set json-file themselves, with a size cap
+  # (2026-10-21), so what the daemon's answer decides is the website's container
+  # (www.yml) and the task runs Trigger.dev starts.
   local driver
   driver="$(docker info --format '{{.LoggingDriver}}')" ||
     refuse "docker info could not say which log driver this machine's containers write with (above). A daemon that does not answer is not one on Docker's default."
