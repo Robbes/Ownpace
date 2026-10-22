@@ -2,7 +2,76 @@
 
 > **In one line:** Telling the operator when `ownpace-live` fails: an alert channel, Gatus alerts on the Ownpace status rows, a `managed-sync-tick` heartbeat, disk, queue and PgBouncer watches, an off-machine probe and `docs/incident-runbook.md`.
 
-## Status — 2026-10-04 (update this block at the end of every session)
+## Status — 2026-10-21 (update this block at the end of every session)
+
+**2026-10-21: T3 built** (asked for in the owner's lifecycle round of 2026-10-21), on
+branch `claude/ownpace-public-readiness-y7orc6-owner-told`, not merged. Live's duties and its disk
+reach the owner by mail, through T1's relay and addresses.
+
+- **`deploy/compose/tell-owner.sh`** sends one plain-text mail with curl's SMTP. It reads the
+  relay with the fallbacks `managed.yml` gives gatus (`ALERT_SMTP_*` → `SMTP_*`, `ALERT_FROM` →
+  `NOTIFY_FROM`, `ALERT_TO` → `NOTIFY_TO`). curl gets the login in a config on `--config
+  /dev/fd/3`, never on its command line or in its environment. STARTTLS is required on 587;
+  implicit TLS is used on 465, or with `SMTP_SECURE=true` on `SMTP_PORT`. The envelope sender is
+  the bare address. It refuses a `.env` that is not live's, a relay or address that is empty or
+  `managed.yml`'s `.invalid` placeholder, and a traced shell.
+- **A failed run** of the daily duties starts `ownpace-tell-owner@%n.service` through
+  `OnFailure=` in the `[Unit]` of `ownpace-box-duties.service`. That template runs
+  `tell-owner.sh --unit %i`, which mails *Daily duties failed* and names the failed duties.
+  `systemctl --user start ownpace-tell-owner@test.service` sends the test mail.
+- **The record.** So that the mail can name what failed, `box-duties.sh` now leaves
+  `~/.persistent/<project>/box-duties/last-run`, plus `last-pass` when all eight passed. A record
+  that cannot be written fails the run.
+- **`deploy/compose/box-checks.sh`** runs every ten minutes on `ownpace-box-checks.timer`, and its
+  service has no `OnFailure=`. It checks:
+  - free space on Docker's filesystem and on `~/.persistent/<project>`'s, against
+    `ALERT_DISK_FREE_GB` (default 15). It mails once on going below the floor, once on recovery,
+    and *Disk not read* when `df` or `docker info` cannot say two runs in a row (one run alone
+    is a Docker daemon restarting, and the journal's). Its state is in
+    `~/.persistent/<project>/box-checks/`, and a message that could not be sent is sent again by
+    the next run;
+  - *Daily duties late*, the dead man's switch, when the last pass is more than 26 hours old, or
+    none is recorded 26 hours after it started watching;
+  - *Daily summary*, at its first run from 07:00 UTC: free space, the duties' last run and pass,
+    their timer, `ZITADEL_PAT_EXPIRY`, each stack's databases (postgres and trigger-db, live and
+    OTA), the five largest volumes, and live's `run`, `run_event`, `item` and `app_event` rows
+    with the beat's age. It reads by `docker exec` into containers found by their compose labels,
+    psql over the container's socket, SELECTs only. The counts come only from a role that passes
+    row security. A summary that could not be sent is tried again an hour later, not at every
+    run.
+- **The units.** `stand-up-live.sh` copies all five. After a deploy that took, `deploy-live.sh`
+  names each unit the tag carries that is installed otherwise or not at all (`cmp -s`), with the
+  `cp` to run, and copies none. The first deploy that says so is the one after the deploy of a
+  tag that carries it.
+- **The docs.** `docs/managed-bring-up.md` has the five units word for word, the install steps
+  and *Who is told*. `docs/incident-runbook.md` has a row per message. *"Nobody is told when it
+  fails"* is gone from both places that said it.
+- **Proved:** `scripts/a-disk-that-says-it-is-filling.unit.test.ts`, 36 cases, with stubbed `df`,
+  `docker`, `systemctl`, `date` and `curl`. It includes the plan's four, and a sweep finds no
+  address, UUID or secret in anything sent or printed. Also extended:
+  - `a-duty-the-gate-used-to-do` (the record, the units, the old sentence gone);
+  - `a-runbook-for-every-alert` (every `MSG_` name has a row);
+  - `a-first-bring-up-of-live` (five units copied);
+  - `a-deploy-from-a-named-tag` (the units note).
+
+  Red first: 47 of 488 failed in those five files before the code; all pass after it.
+- **The review's findings, on the same branch.** Taken: the `crlf` line in curl's config is
+  asserted (without it the message goes with bare LF line ends, which a relay hardened against
+  SMTP smuggling refuses); each mail carries a `Message-ID` of its own on the sender's domain; a
+  `docker system df -v` whose volumes table or a size in it cannot be read is *not read* and a
+  failed exit, never *none*; *Disk not read* waits for a second run in a row, so a Docker daemon
+  restarting is not two mails; a summary that could not be sent is tried again an hour later;
+  the runbook's *Daily summary* row points at box-checks' journal, where its send errors are;
+  `docs/rls-guide.md` §2 lists `box-checks.sh`; the two-stacks guard's header names both of its
+  exemptions. Red first: 7 of 36 failed before the code; 5 mutations, 5 caught. Left: whether the
+  relay adds its own headers is still proved only by the owner's test mail.
+- **For the owner, after `deploy-live.sh` to a tag that carries this:** from `~/ownpace-live`, run
+  the cp of all five units in the bring-up guide's *Installing them*, then
+  `systemctl --user daemon-reload`, `systemctl --user enable --now ownpace-box-checks.timer` and
+  `systemctl --user start ownpace-tell-owner@test.service`. Write the test mail's date and outcome
+  here. Until then the weekly check by hand stands: `systemctl --user list-timers
+  ownpace-box-duties.timer`, the journal's `duties passed` lines, `ZITADEL_PAT_EXPIRY`, and `df -h`
+  with `docker system df`.
 
 **2026-10-04: §3 T6 step 6 gets a dated note.** The Alpha note is now the owner's welcome (0131
 D4's amendment) and no longer tells a tester to keep their old account. Both Alpha mails and the
@@ -210,7 +279,7 @@ watch's issue reaches the owner (0141, 0146).
 | T0 The alert channel, and what the alpha promises | ✅ the refusal without `ALERT_ENABLED=true` **done** in #1472, merged 2026-10-04 (`fb5a1336`) (the owner, *"Refuse to deploy"*; *was:* built on branch `claude/ownpace-public-readiness-y7orc6-a-stack-that-names-its-mode`, not merged): `stand-up-live.sh` and `deploy-live.sh` refuse a live `.env` without it; 📋 the channel **Decided 2026-09-27**: e-mail through 0133's relay (open question 1); ⏳ **Owner** for its settings and the test alert; the promise 📋 **Decided 2026-09-24** (D1, D2) | §3. **Alpha minimum.** One channel the owner reads, hosted in the EU: e-mail through 0133's relay, or a chat webhook. One test alert. A sentence for 0139's conditions: best effort, no promised response. |
 | T1 The status page tells the owner when an Ownpace row goes red | 🔨 **Built 2026-09-27**, merged as #1263: e-mail on every Ownpace row, off unless `ALERT_ENABLED`, through the product's relay — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** An `alerting` block in `gatus.yaml`, with an address and a switch, as the Website row already has. Alerts on the Ownpace rows only. The switch is on in live's `.env` and off on the OTA stack. |
 | T2 A tick that says it ran | 🔨 **(a) built 2026-09-27**, merged as #1244: the beat and `GET /api/ready/scheduler`; the Gatus row, on the public page (open question 3), built 2026-09-27, merged as #1252 — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** The tick rewrites one row each minute. `GET /api/ready/scheduler` reads it, and a status row with an alert reads that route. `/api/ready` stays as it is. |
-| T3 The disk, and what grows on it | 📋 **Proposed** | §3. After the first invitation; **the first to add** if the owner wants one more. A free-space floor every ten minutes and one summary a day. Also gives 0132 T7's daily duties a voice. What to do about the growth belongs to 0143. |
+| T3 The disk, and what grows on it | 🔨 **Built 2026-10-21** on branch `claude/ownpace-public-readiness-y7orc6-owner-told`, not merged: `tell-owner.sh`, `box-checks.sh` every ten minutes (the floor, the duties' dead man's switch, a summary a day), `OnFailure=` on the duties' unit; ⏳ **Owner** installs the units and sends the test mail after the deploy of a tag that carries it — *was:* 📋 **Proposed** | §3. After the first invitation; **the first to add** if the owner wants one more. A free-space floor every ten minutes and one summary a day. Also gives 0132 T7's daily duties a voice. What to do about the growth belongs to 0143. |
 | T4 What is waiting: queued runs, pooler waits, recorded failures | 📋 **Proposed** | §3. After the first invitation. Queue counts written with T2's heartbeat, `SHOW POOLS`, and a daily count of 0129's recorded failures. |
 | T5 Something off the machine that can say "down" | 📋 **Proposed**; the host is the owner's | §3. After the first invitation. A second copy of the same `gatus.yaml` on a small EU host, watching the public addresses. Until then, testers are the outside probe (§4). |
 | T6 What to do when an alert or a tester says something is wrong | 🔨 **Built 2026-09-27**, merged as #1252: the runbook with a row per status row, 0143 T2d's step and the hand-over to 0139 T8, linked from the operator runbook, and its guard — *was:* 📋 **Proposed** (D1, D2, D4, D5) | §3. **Alpha minimum.** `docs/incident-runbook.md`: a row for every alert, the steps when a tester reports trouble with their data (with 0143 T2d's step for stopping one organisation), and the hand-over to 0139 T8's breach procedure. |

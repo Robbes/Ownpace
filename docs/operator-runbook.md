@@ -210,15 +210,21 @@ managed gate filters the container logs it prints into its public job log throug
 as it replaces mesh addresses with `<mesh-ip>`.
 
 **How long they stay.** Every container writes with Docker's default log driver,
-`json-file`, which keeps its output, with no limit of age or size, until the
-container is removed: at each deploy for the app and the site, when its image or
-settings change for the sign-in service, and when its run ends for a task. That is
-privacy §9's *"until the part of the service that wrote them is replaced"*. `local`
-keeps it the same way and also rotates it by size, so lines can go sooner, never
-later. `docker info --format '{{.LoggingDriver}}'` prints `json-file` (or `local`)
-on a machine that keeps to it, and `stand-up-live.sh` refuses any other answer; the
-journal would keep every line past its container (managed-bring-up.md, *Before you
-start*, says how to undo that).
+`json-file`, which keeps its output until the container is removed: at each
+deploy for the app and the site, when its image or settings change for the
+sign-in service, and when its run ends for a task. That is privacy §9's *"until
+the part of the service that wrote them is replaced"*. The stack's own services
+(`managed.yml`, the app and the sign-in service among them) also rotate it by
+size, five files of 20 MB: one that writes a lot keeps only about its last
+100 MB, so its oldest lines go sooner, never later. The site's (`www.yml`) keeps
+all of it, with no limit of age or size, because the visit count reads the
+whole log; that holds while the daemon stays at `json-file`. `local` on the
+daemon would keep to §9 as well, but it rotates by size, the site's log
+included, so the visit count would then cover only the last 100 MB or so.
+`docker info --format '{{.LoggingDriver}}'` prints `json-file` (or `local`) on a
+machine that keeps to it, and `stand-up-live.sh` refuses any other answer; the
+journal would keep every line past its container (managed-bring-up.md, *Before
+you start*, says how to undo that).
 
 **Counting visits to the website** from the `www` log (privacy §4.5; the owner,
 2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip
@@ -668,7 +674,10 @@ refuses a `--dir` naming another: the copy `deploy-live.sh` takes already holds 
 them it writes a note: the image that was running, a fingerprint of the master key the dump needs,
 and the commands that go back to it. It stops and changes nothing (workplan 0135 T7). On the same
 server, going back replaces the database only: its roles are still there, and restoring them would
-set the provider's database password back to the dumped one.
+set the provider's database password back to the dumped one. A dump holds the provider's accounts,
+so on the OTA stack delete it once main's first scheduled E2E (managed) on the new pin is green;
+the script says so when it is done, and so does the pin watch's issue (workplan 0146 T8). On live
+the copy's own rules delete it.
 
 Notes:
 - The ledger is a **rebuildable cache** (ADR-0020): even without a ledger backup, a reindex/adopt
@@ -839,9 +848,13 @@ What you do:
 1. Tell each tester, from the list of testers (0134 T4), with the alpha conditions' paragraph on
    backups (0134 T2).
 2. Bring live up again as 0132 T1b to T1e do, with the copy of live's `.env` if you have one.
-   Empty its `ZITADEL_PAT_EXPIRY` line first. A new identity provider reads that date once, at
-   first initialisation, and a date already past gives a provisioning token that is born expired;
-   `setup-zitadel.sh` seeds a fresh date only into an empty line. If the old machine could be in
+   A new identity provider reads its `ZITADEL_PAT_EXPIRY` date once, at its first start, and
+   refuses to start on a date already past. On a tag that carries `seed_pat_expiry`
+   (`deploy/compose/env-read.sh`), the line can stay as it is: the bring-up writes a fresh date
+   into it before that start when it is empty, past or not a date, and keeps one still ahead. On
+   an older tag (`v0.2.0-alpha.1` among them), write a date a week ahead into the line first,
+   `date -u -d '+7 day' +%Y-%m-%dT%H:%M:%SZ`: there the provider starts before anything writes
+   the line, an empty one gets 2026-12-31, and a past one is kept. If the old machine could be in
    someone else's hands, replace every value instead: nothing depends on the old ones any more,
    and the OAuth client secrets are replaced in each provider's console.
 3. Do Trigger.dev's one-time steps on live's plane (0132 T1c).
@@ -2541,7 +2554,10 @@ steps for a tester's report. The items below are causes it points to.
   ClickHouse; without run-replication it renders empty. Cosmetic — ACCEPTED (0020 T7 decision,
   2026-08-01): the smoke and the DB rows are the operational truth, the Tasks tab still works,
   and enabling replication adds moving parts for a page nobody depends on. Revisit only if the
-  Runs page becomes someone's tool. Not an outage.
+  Runs page becomes someone's tool. Not an outage. ClickHouse holds run history even so: every
+  task process's metrics, each row with its run's id, for 60 days. The end of the Alpha empties
+  it with the task runner's database ([ending-the-alpha.md](./ending-the-alpha.md), *The switch*,
+  step 3).
 - **White screen / login loop on the dashboard:** two known causes, both env. (1) A missing
   `TRIGGER_TLS_HOST` in `.env` — Caddy falls back to `localhost`, your browser's `Host` header
   matches no site block, and the response is EMPTY (a white screen, not an error; confirmed

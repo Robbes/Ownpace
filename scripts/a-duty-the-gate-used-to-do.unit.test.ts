@@ -110,6 +110,20 @@
  *   whole run, as long as the service's `TimeoutStartSec` lets it last, ends
  *   before the next nightly firing.
  *
+ *   WHO IS TOLD (workplan 0142 T3). "Nobody is told when it fails" was true
+ *   until 0142 T3: the journal had it. Now a failed run starts, through
+ *   `OnFailure=` in the service's `[Unit]`, the template unit
+ *   `ownpace-tell-owner@.service`, which runs `tell-owner.sh --unit` and mails
+ *   the owner; and `box-duties.sh` leaves a record of each run in
+ *   `~/.persistent/<project>/box-duties/` (`last-run`, and `last-pass` when all
+ *   eight passed), which the mail names the failed duties from and which
+ *   `box-checks.sh`'s dead man's switch reads, because `OnFailure=` never fires
+ *   for a run that never happens. A record that cannot be written fails the
+ *   run. `box-checks.sh` runs every ten minutes from its own pair of units,
+ *   with no `OnFailure=` of its own, or a check that failed would mail every
+ *   ten minutes. Those three units are in the bring-up word for word too, and
+ *   the mail itself is `a-disk-that-says-it-is-filling`'s.
+ *
  * Addresses here are documentation shapes: `100.64.0.1` and RFC 5737's.
  */
 
@@ -144,6 +158,11 @@ const NIGHTLY_REL = '.github/workflows/e2e.yml';
 const DOC_REL = 'docs/managed-bring-up.md';
 const SERVICE_REL = 'deploy/compose/systemd/ownpace-box-duties.service';
 const TIMER_REL = 'deploy/compose/systemd/ownpace-box-duties.timer';
+/** 0142 T3: the mail when a unit fails, and the box checks every ten minutes. */
+const TELL_UNIT_REL = 'deploy/compose/systemd/ownpace-tell-owner@.service';
+const CHECKS_SERVICE_REL = 'deploy/compose/systemd/ownpace-box-checks.service';
+const CHECKS_TIMER_REL = 'deploy/compose/systemd/ownpace-box-checks.timer';
+const UNITS_REL = [SERVICE_REL, TIMER_REL, TELL_UNIT_REL, CHECKS_SERVICE_REL, CHECKS_TIMER_REL];
 
 const read = (rel: string): string => readFileSync(join(ROOT, rel), 'utf8');
 const readIfThere = (rel: string): string => (existsSync(join(ROOT, rel)) ? read(rel) : '');
@@ -612,6 +631,9 @@ describe('box-duties.sh runs every duty, and names every one that failed', () =>
         expect(out).toMatch(new RegExp(`interrupted \\(${signal}\\) during token; no later duty ran`));
         expect(out, 'what the stopped duty said was lost').toContain('[stub] token: reached <WEB_BIND> on the way');
         expect(out, 'what the stopped duty said on stderr was lost').toContain('[stub] token: and <STATUS_BIND>, said on stderr');
+        // The run's record says it was stopped, so the mail does not take an older run for it (0142 T3).
+        expect(record(s, 'last-run')?.[2]).toBe('interrupted');
+        expect(record(s, 'last-pass')).toBeNull();
       } finally {
         if (!gone) {
           try {
@@ -744,6 +766,64 @@ describe('box-duties.sh keeps to live, and to what it may print', () => {
     // Replaced, not dropped: the stdout line and the stderr line both arrive.
     expect(r.out, "the duty's stdout line did not arrive, filtered").toContain('<WEB_BIND>');
     expect(r.out, "the duty's stderr line did not arrive, filtered").toContain('<STATUS_BIND>');
+  });
+});
+
+// ===========================================================================
+// The record each run leaves, for the mail and the dead man's switch (0142 T3)
+// ===========================================================================
+
+/** A record box-duties.sh left in ~/.persistent/<project>/box-duties: its four fields, or null. */
+function record(s: Stage, file: 'last-run' | 'last-pass'): string[] | null {
+  const path = join(s.root, '.persistent', 'ownpace-live', 'box-duties', file);
+  return existsSync(path) ? readFileSync(path, 'utf8').trim().split(' ') : null;
+}
+
+describe('box-duties.sh leaves a record of each run, which the mail and box-checks.sh read (0142 T3)', () => {
+  it("all eight passing writes last-run and last-pass, the time as a number and in UTC, this account's alone", () => {
+    const s = stage();
+    const before = Math.floor(Date.now() / 1000);
+    const r = runDuties(s);
+    const after = Math.ceil(Date.now() / 1000);
+    expect(r.status, r.out).toBe(0);
+    const run = record(s, 'last-run');
+    const pass = record(s, 'last-pass');
+    expect(run).toEqual(pass);
+    const [epoch = '', iso = '', result = '', names = ''] = run ?? [];
+    expect(Number(epoch)).toBeGreaterThanOrEqual(before);
+    expect(Number(epoch)).toBeLessThanOrEqual(after);
+    expect(iso).toBe(new Date(Number(epoch) * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z'));
+    expect([result, names]).toEqual(['passed', '-']);
+    for (const f of ['last-run', 'last-pass']) {
+      expect(statSync(join(s.root, '.persistent', 'ownpace-live', 'box-duties', f)).mode & 0o077, f).toBe(0);
+    }
+  });
+
+  it('a failure writes last-run with the failed duties, and leaves the last pass as it was', () => {
+    const s = stage();
+    expect(runDuties(s).status).toBe(0);
+    const pass = record(s, 'last-pass');
+    const r = runDuties(s, { STUB_FAIL: 'token,strays' });
+    expect(r.status, r.out).toBe(1);
+    expect(record(s, 'last-run')?.slice(2)).toEqual(['failed', 'token,strays']);
+    expect(record(s, 'last-pass')).toEqual(pass);
+  });
+
+  it('a refused run writes nothing: it is not a run', () => {
+    const s = stage(OTA_ENV);
+    expect(runDuties(s).status).toBe(2);
+    expect(record(s, 'last-run')).toBeNull();
+  });
+
+  it("a record that cannot be written fails the run, saying the box checks will call the duties late", () => {
+    const s = stage();
+    mkdirSync(join(s.root, '.persistent', 'ownpace-live'), { recursive: true });
+    writeFileSync(join(s.root, '.persistent', 'ownpace-live', 'box-duties'), 'not a directory\n');
+    const r = runDuties(s);
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toMatch(/could not be recorded/);
+    expect(r.out).toMatch(/late/);
+    expect(r.out).not.toMatch(/^\[box-duties\] all 8 duties passed$/m);
   });
 });
 
@@ -1243,11 +1323,56 @@ describe('the timer: daily, from live, away from the appliance nightly', () => {
   const timer = readIfThere(TIMER_REL);
   const doc = read(DOC_REL);
 
-  it('both unit files exist, and the bring-up carries each word for word', () => {
-    expect(service, `${SERVICE_REL} is missing`).not.toBe('');
-    expect(timer, `${TIMER_REL} is missing`).not.toBe('');
-    expect(doc.includes(service.trimEnd()), `${DOC_REL} does not carry ${SERVICE_REL} as it is`).toBe(true);
-    expect(doc.includes(timer.trimEnd()), `${DOC_REL} does not carry ${TIMER_REL} as it is`).toBe(true);
+  it('every unit file exists, and the bring-up carries each word for word', () => {
+    for (const rel of UNITS_REL) {
+      const text = readIfThere(rel);
+      expect(text, `${rel} is missing`).not.toBe('');
+      expect(doc.includes(text.trimEnd()), `${DOC_REL} does not carry ${rel} as it is`).toBe(true);
+    }
+    // And no unit there that the bring-up does not know.
+    const there = readdirSync(join(COMPOSE_DIR, 'systemd')).map((f) => `deploy/compose/systemd/${f}`).sort();
+    expect(there).toEqual([...UNITS_REL].sort());
+  });
+
+  it("a failed run tells the owner: OnFailure= in the service's [Unit], to the template that runs tell-owner.sh (0142 T3)", () => {
+    const unit = service.split(/^\[Service\]$/m)[0] ?? '';
+    expect(unit).toMatch(/^\[Unit\]$/m);
+    expect(unit, 'OnFailure= belongs in [Unit]; in [Service] systemd ignores it').toMatch(
+      /^OnFailure=ownpace-tell-owner@%n\.service$/m,
+    );
+    expect(service.split(/^\[Service\]$/m)[1] ?? '').not.toMatch(/^OnFailure=/m);
+    const tell = readIfThere(TELL_UNIT_REL);
+    expect(tell).toMatch(/^Type=oneshot$/m);
+    expect(tell).toMatch(/^WorkingDirectory=%h\/ownpace-live$/m);
+    expect(tell).toMatch(/^ExecStart=%h\/ownpace-live\/deploy\/compose\/tell-owner\.sh --unit %i$/m);
+    expect(tell).toMatch(/^SyslogIdentifier=ownpace-tell-owner$/m);
+    expect(tell).toMatch(/^TimeoutStartSec=/m);
+    // Started by systemd for a failed unit, or by hand for the test; never enabled.
+    expect(tell).not.toMatch(/^\[Install\]$/m);
+    expect(tell, 'a mail that failed must not mail that it failed').not.toMatch(/^OnFailure=/m);
+    // And the sentence that was true until now is gone from where the owner reads it.
+    for (const [rel, text] of [
+      [DOC_REL, doc],
+      [DUTIES_REL, read(DUTIES_REL)],
+    ] as const) {
+      expect(text, `${rel} still says nobody is told`).not.toMatch(/Nobody is told when it fails/);
+    }
+  });
+
+  it('the box checks run every ten minutes from live, with no OnFailure= of their own', () => {
+    const checks = readIfThere(CHECKS_SERVICE_REL);
+    const every = readIfThere(CHECKS_TIMER_REL);
+    expect(checks).toMatch(/^Type=oneshot$/m);
+    expect(checks).toMatch(/^WorkingDirectory=%h\/ownpace-live$/m);
+    expect(checks).toMatch(/^ExecStart=%h\/ownpace-live\/deploy\/compose\/box-checks\.sh$/m);
+    expect(checks).toMatch(/^SyslogIdentifier=ownpace-box-checks$/m);
+    expect(checks, 'a check that fails every ten minutes would mail every ten minutes').not.toMatch(/^OnFailure=/m);
+    // A run ends before the next one starts.
+    const lasts = /^TimeoutStartSec=(.+)$/m.exec(checks)?.[1] ?? '';
+    expect(spanMinutes(lasts), `TimeoutStartSec=${lasts}`).toBeGreaterThan(0);
+    expect(spanMinutes(lasts), `TimeoutStartSec=${lasts}`).toBeLessThan(10);
+    expect(every).toMatch(/^OnCalendar=\*:0\/10$/m);
+    expect(every).toMatch(/^WantedBy=timers\.target$/m);
   });
 
   it("the service runs box-duties.sh from live's checkout, once, into the journal", () => {
@@ -1307,6 +1432,10 @@ describe('the timer: daily, from live, away from the appliance nightly', () => {
       'systemctl --user daemon-reload',
       'systemctl --user enable --now ownpace-box-duties.timer',
       'journalctl --user -u ownpace-box-duties',
+      // 0142 T3: the box checks' timer, and one test mail through the template.
+      'systemctl --user enable --now ownpace-box-checks.timer',
+      'systemctl --user start ownpace-tell-owner@test.service',
+      ...UNITS_REL.map((rel) => `~/ownpace-live/${rel}`),
     ]) {
       expect(doc.includes(step), `${DOC_REL} does not say \`${step}\``).toBe(true);
     }
