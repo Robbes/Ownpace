@@ -1992,7 +1992,8 @@ else has**, which is where this one goes wrong.
    **Leave `MICROSOFT_OAUTH_TENANT` empty** unless the registration is
    deliberately single-tenant; empty means `common`, which is what a
    deployment serving other organisations needs. Entra shows a client secret's
-   **Value** once — copy it then, not its Secret ID.
+   **Value** once — copy it then, not its Secret ID — and its **Expires**
+   beside it, which you write down (*The secret expires*, below).
 
    The last two commands are the same second place that bites for Google and
    Dropbox: a task container inherits nothing from compose, and a pair the
@@ -2007,6 +2008,69 @@ every door; and the pair is handed only to a `microsoft` row. `GET
 /api/provider-clients` answers `microsoft: deployment` once both halves are
 set, which is what the account form reads, on *Start a migration* and the
 Accounts page, before it offers the button.
+
+**The secret expires, and both stacks stop at once.** A client secret made in
+the portal lasts 24 months at most (the portal suggests 6), and Entra shows the
+date as **Expires** beside it under *Certificates & secrets*. Nothing reads
+that date for you, and when it passes every Microsoft connection on the
+deployment fails its next token refresh, while the nightly smoke, which builds
+the consent URL and never exchanges a token, stays green. So write the date
+down, never the value, and renew 30 days ahead. Set the repository variable
+`CLOCK_WATCH_ENTRA_EXPIRES` to it (`YYYY-MM-DD`; Settings, Secrets and
+variables, Actions, Variables), and the daily *Clock watch*
+(`.github/workflows/clock-watch.yml`) keeps an issue open from 30 days before.
+It is a date, never the secret: a variable is printed in the log of every run.
+A connection on this registration stores neither half of the pair, so its
+refresh token survives a renewal and nobody has to connect again.
+
+The OTA stack and live share one registration and one secret. Where the OTA's
+`MICROSOFT_OAUTH_CLIENT_ID` is still the gate's placeholder,
+`gate-microsoft-app-registration`, the OTA has no registration of its own, and
+step 2 is skipped. This prints it, an identifier and not a secret:
+
+```bash
+. ~/ownpace-managed/deploy/compose/env-read.sh && env_value ~/.persistent/ownpace-managed/.env MICROSOFT_OAUTH_CLIENT_ID
+```
+
+Renew while no E2E (managed) run is in progress: the gate copies the persisted
+`.env` in at its start and back out partway through, so an edit made in between
+is lost.
+
+1. In Entra, **New client secret**. 24 months is the longest the portal
+   allows, and the fewest renewals; Microsoft recommends under 12. Copy its
+   **Value**, and keep the old secret for now.
+2. The OTA stack, whose next nightly applies it: the gate reads the persisted
+   `.env`, which the second line writes. The first line says what this
+   checkout's own `deploy/compose/.env` is, which a hand-run compose call
+   reads:
+
+   ```bash
+   cd ~/ownpace-managed && { [ "$(readlink -f deploy/compose/.env)" = "$(readlink -f ~/.persistent/ownpace-managed/.env)" ] && echo 'a link' || echo 'a copy'; }
+   read -rs -p 'New Entra client secret (Value): ' t && printf 'MICROSOFT_OAUTH_CLIENT_SECRET=%s\n' "$t" | ./deploy/compose/env-upsert.sh --stdin ~/.persistent/ownpace-managed/.env; unset t; echo
+   ```
+
+   `a link` needs nothing more. `a copy` is a copy of its own, which *The OTA
+   stack: the nightly gate, or a pull* allows, and it still holds the old
+   secret: run the second line again with `deploy/compose/.env` in place of the
+   persisted path, or a hand-run compose call brings the old secret back. To
+   have it at once rather than after the night:
+   `./deploy/compose/bootstrap-managed.sh --only app && ./deploy/compose/set-task-env.sh`.
+3. Live, the same way. The second line must print `live .env`:
+
+   ```bash
+   cd ~/ownpace-live && unset COMPOSE_PROJECT_NAME COMPOSE_FILE COMPOSE_ENV_FILES
+   [ "$(readlink -f deploy/compose/.env)" = "$(readlink -f ~/.persistent/ownpace-live/.env)" ] && echo 'live .env' || echo STOP
+   read -rs -p 'New Entra client secret (Value): ' t && printf 'MICROSOFT_OAUTH_CLIENT_SECRET=%s\n' "$t" | ./deploy/compose/env-upsert.sh --stdin ~/.persistent/ownpace-live/.env; unset t; echo
+   docker compose -f deploy/compose/managed.yml up -d --no-deps --no-build api
+   ./deploy/compose/set-task-env.sh
+   ```
+
+4. On each stack, *Test* on a Microsoft connection that uses this registration
+   (it proves the API), and one Microsoft sync pass that succeeds, or *Sync
+   now* (it proves the worker's task environment). A green nightly proves
+   neither. Only then delete the old secret in Entra.
+5. Set `CLOCK_WATCH_ENTRA_EXPIRES` to the new date, and refresh any copy of the
+   two `.env` files kept off the machine.
 
 **What a customer sees when their tenant says no.** Two refusals are a tenant
 policy rather than anything you configured: `AADSTS65001` (an administrator
@@ -2756,7 +2820,12 @@ not move at all. Switch it on with the first tag whose texts are final.
    then leave it at `report`, its default: the name points at another host
    before the route, and the probe tries no port on an address of it that is
    not live's front (an address a production name or `EXPOSURE_PROBE_HOST`
-   resolves to), and does not ask 443 for it.
+   resolves to), and does not ask 443 for it. Set the repository variable
+   `CLOCK_WATCH_SITE` to `required` at the same time (Settings, Secrets and
+   variables, Actions, Variables), so that the daily *Clock watch*
+   (`.github/workflows/clock-watch.yml`) reads the name's certificate and its
+   `security.txt` `Expires` too; it leaves both alone until then, for the same
+   reason.
 
 `deploy-live.sh` runs the copy the checkout had before it moved, so the site
 step runs from the first deploy started from a checkout that already has it. If
@@ -5163,6 +5232,11 @@ ledger, tenants, mappings, items and invoices live in the application database
 (`postgres`), a different volume, and are untouched; the API and pooler keep
 serving throughout. You are then back at the one human step, and
 `trigger-credentials.sh` reads the new project's credentials.
+
+On `ownpace-live` these lines are also a step of the end of the Alpha, under its hold, with the
+volumes of ClickHouse, Redis and MinIO removed between the reset and the bring-up, because privacy
+§9 promises the background tasks an empty history then and those three keep some of it:
+[ending-the-alpha.md](./ending-the-alpha.md), *The switch*, step 3.
 
 **Turning the pooler off** is two values: `DB_HOST=postgres`, `DB_PORT=5432`,
 then `up -d`. Every service reads them, so nothing in `managed.yml` is edited.
