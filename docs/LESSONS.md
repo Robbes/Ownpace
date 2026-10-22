@@ -1262,6 +1262,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/setup-zitadel.sh`
 
 - [a-blip-that-failed-a-gate](../scripts/a-blip-that-failed-a-gate.unit.test.ts) — A read that never got an answer is asked again; a write never is.
+- [a-blip-the-smoke-would-have-failed-on](../scripts/a-blip-the-smoke-would-have-failed-on.unit.test.ts) — The smoke gate's reads of the identity provider ride out a gateway error from the front; its writes are still sent once.
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
 - [a-check-that-was-never-valid](../scripts/a-check-that-was-never-valid.unit.test.ts) — A password check that was valid for zero seconds, and the general rule that would have stopped it.
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
@@ -1312,6 +1313,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/smoke-managed.sh`
 
+- [a-blip-the-smoke-would-have-failed-on](../scripts/a-blip-the-smoke-would-have-failed-on.unit.test.ts) — The smoke gate's reads of the identity provider ride out a gateway error from the front; its writes are still sent once.
 - [a-count-the-gate-took-for-a-fourth-level](../scripts/a-count-the-gate-took-for-a-fourth-level.unit.test.ts) — A COUNT CALLED `items`, AND A GATE THAT TOOK IT FOR A FOURTH LEVEL.
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-fixture-smaller-than-a-chunk](../scripts/a-fixture-smaller-than-a-chunk.unit.test.ts) — Every fixture was smaller than a chunk, so the buffering was never tested.
@@ -2909,6 +2911,15 @@ A read that never got an answer is asked again; a write never is.
 Reads:
 
 - `deploy/compose/setup-zitadel.sh`
+
+### [a-blip-the-smoke-would-have-failed-on](../scripts/a-blip-the-smoke-would-have-failed-on.unit.test.ts)
+
+The smoke gate's reads of the identity provider ride out a gateway error from the front; its writes are still sent once.
+
+Reads:
+
+- `deploy/compose/setup-zitadel.sh`
+- `deploy/compose/smoke-managed.sh`
 
 ### [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts)
 
