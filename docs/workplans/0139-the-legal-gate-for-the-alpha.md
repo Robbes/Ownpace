@@ -4,6 +4,54 @@
 
 ## Status — 2026-10-21 (update this block at the end of every session)
 
+**2026-10-21: the end of the Alpha empties the task runner's history** (privacy-task-records
+(a)). Privacy §9 keeps the background tasks' records *"Until the end of the Alpha at the latest:
+then the background tasks start with an empty history"*, and the comments beside that row in
+`privacy.md` and `privacy.nl.md` said the step was *"not written yet"*. It is now step 3 of *The
+switch* in `docs/ending-the-alpha.md`, on live only, under the hold, after the drain and once the
+hold is `DEPLOY_LIVE_QUIET_MINUTES` old, before live's `.env` loses its stage and before the
+deploy: `reset-trigger.sh --yes`, then the containers and volumes of ClickHouse, Redis and MinIO
+removed, then what the reset prints (`ensure-env-secrets.sh`, `bootstrap-managed.sh --from
+trigger`, the one dashboard step, `--from account`, the CLI login it prints, `--from login`, which
+uploads the task environment and deploys the tasks). *Checks* step 6 proves it before the hold
+lifts: every one of those stores' volumes was made at step 3, and `triggerdb`'s oldest run and
+ClickHouse's oldest `metrics_v1` row are younger than the reset.
+
+- **Why every store, and not `triggerdb` alone.** The first version reset `triggerdb` only, on
+  the premise that runs reach ClickHouse only with `RUN_REPLICATION_ENABLED=1` (default `"0"`) or
+  `EVENT_REPOSITORY_DEFAULT_STORE` set to ClickHouse (default `postgres`), which `managed.yml`
+  sets neither of, and counted four ClickHouse tables to prove it. The review found the premise
+  false at Trigger.dev v4.7.2, and it is: every deployed task process exports its host and
+  Node.js metrics (`managed-run-worker.ts`: `hostMetrics: true`, `nodejsRuntimeMetrics: true`),
+  each row stamped with the run's id, task, attempt, worker and Trigger.dev's organisation,
+  project and environment ids (core's `TaskContextMetricExporter`), and the webapp writes them to
+  `trigger_dev.metrics_v1` whatever the event store says (`otlpExporter.server.ts`,
+  `#exportMetricRows`), kept 60 days (schema 019). Redis keeps a dead run's id in its queue's
+  concurrency set for good (`plane-tokens.sh`), and MinIO a payload of 512 KB or more or an
+  output of 128 KB or more. So the step removes the volume of every store `trigger-api` names as
+  a host, and the check reads those volumes' dates rather than a list of tables, the list being
+  how `metrics_v1` was missed. Redis goes by its volume and not `FLUSHALL`: with
+  `--appendonly yes` the old writes stay in the append-only file until it is rewritten.
+- **What else holds the old history:** a copy before an update whose tag moved the Trigger.dev
+  pin, for its own 7 days at most (T6). Live takes no daily dumps of `triggerdb` (T6's drill off
+  live), and nothing copies ClickHouse, Redis or MinIO.
+- **Guarded** by `scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts`: the promise
+  in both languages; the stores read from `trigger-api`'s environment, used by nothing else and
+  started again by the bring-up's trigger phase; the step and its order, `reset-trigger.sh`'s
+  *Next* line for line, then `--from login`; the quiet minutes in `deploy-live.sh`'s own words;
+  and the checks, with no password on a command line. Red on the first version (5 of its 11
+  cases), green after.
+- **No text changes:** the texts stay 1.0, words and pins. The two comments that still say *"not
+  written yet"*, and `site/legal/README.md`'s *Later* item, change with the next change to those
+  files.
+- **Follow-up:** `deploy/compose/rotate-db-passwords.sh` says `clickhouse-client` takes its
+  password no other way than as an argument. At the pinned 26.2.19.43 it also reads
+  `CLICKHOUSE_USER` and `CLICKHOUSE_PASSWORD` from its environment (`programs/client/Client.cpp`),
+  which check 6 relies on. The comment changes with the next change to that script.
+- **Still to do:** the owner runs it on the day the Alpha ends. A rehearsal on the OTA stack first
+  is optional; there, `SELECT count(), min(bucket_start), uniqExact(attributes.trigger.run_id)
+  FROM trigger_dev.metrics_v1` shows what step 3 removes.
+
 **2026-10-21: the texts testers accept stay 1.0.** On 2026-10-19 the owner approved new words for
 all three texts (workplan 0159 row 24): the deletion switches by the app's names, *aanmelden* and
 *afmelden* in Dutch, the count when you review your migration, and two-factor sign-in, passkeys

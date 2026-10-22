@@ -414,6 +414,15 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   request, so it blocks nothing.
 - `e2e-o365.yml` — dispatch only, on the Spark: the secret-gated real-tenant O365 e2e (workplan
   0008 T7); the tenant and its secrets are in `docs/test-tenant.md`.
+- `clock-watch.yml` — daily (06:41 UTC) and on dispatch, on a GitHub-hosted runner: the clocks
+  nothing else warns about. It reads the certificates `app.`, `id.` and `status.ownpace.eu`
+  serve; `www.ownpace.eu`'s and its `security.txt` `Expires` once the repository variable
+  `CLOCK_WATCH_SITE` is `required`; and the Entra client secret's date from
+  `CLOCK_WATCH_ENTRA_EXPIRES`. It keeps one issue open while a certificate has fewer than 14
+  days left or does not verify, while `security.txt` lacks exactly one `Expires`, or while
+  either of the others has fewer than 30, and closes it when none of that holds. The OTA names
+  are reported, never counted, and a clock it could not read fails the run and leaves an open
+  issue as it is. Its log names names and dates, never an address.
 - `exposure-probe.yml` — dispatch only, never scheduled, on a GitHub-hosted runner: the probe
   from outside (workplan 0132 T3). It tries every port the two stacks, the site and the demo
   publish, derived from the files, on the addresses the production and OTA names resolve to, and
@@ -421,10 +430,19 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   `app.`, `id.`, `status.` and `www.ownpace.eu` answers a visitor's first page itself, not
   NetBird's sign-in (workplan 0139, item 8). Its log names names and ports, never an address.
 - `idp-pin-watch.yml` — weekly (Mondays 06:23 UTC) and on dispatch, on a GitHub-hosted runner:
-  the identity provider's pin in `managed.yml` against upstream's newest release of the same
-  major (workplan 0135 T7 (b)). It keeps one issue open while the two differ, says a newer
-  release in a comment, and closes the issue when the pin catches up. It moves nothing:
-  Dependabot ignores the provider by name, and an upgrade is the owner's call.
+  every pin Dependabot cannot see, each against its upstream (workplan 0135 T7 (b), 0146 T8). The
+  identity provider's pin in `managed.yml` against upstream's newest release of the same major;
+  Trigger.dev against the newest tag both its images carry (`trigger-version.sh probe`);
+  ClickHouse against the one Trigger.dev's own compose file pins; the tasks' Node against Node's
+  newest security release; `packageManager` against the newest pnpm of its major; and the
+  TypeScript split's exit. Each of those keeps one issue open while it is behind, says a newer
+  release in a comment, and closes the issue when the pin catches up. Every other image line of
+  `managed.yml`, `dev.yml` and `www.yml` (Dependabot reads no file in `deploy/compose`), the
+  busybox copies in its scripts, Stalwart's copies, GoAccess and the Trivy the scan runs share one
+  summary issue; another image a script there runs is not compared (today only `db-roles.sh`'s
+  floating `postgres:18-alpine`). It moves nothing: each issue gives the route, and the
+  move is the owner's call. A row that cannot read its upstream, or finds its pin ahead of every
+  tag listed, fails the run and never closes an issue.
 - `images.yml` — the three application images: an amd64 build-only check on a pull request that
   touches a Dockerfile, `deploy/` or the workflow; a multi-arch build and publish on `main` and
   on `v*` tags.

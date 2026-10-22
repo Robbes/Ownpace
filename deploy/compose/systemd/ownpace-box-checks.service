@@ -1,0 +1,18 @@
+# ownpace-box-checks.service — live's machine watched for the owner (workplan
+# 0142 T3): the free space on Docker's filesystem and on live's persisted
+# directory, the age of the daily duties' last pass, and once a day a summary
+# of numbers, each sent by mail through tell-owner.sh. A user unit, started by
+# ownpace-box-checks.timer; the install steps are in docs/managed-bring-up.md,
+# "Live's daily duties". No OnFailure=: a check that failed every ten minutes
+# would mail every ten minutes. A morning without the summary says it stopped.
+[Unit]
+Description=ownpace-live: the disk, the duties' last pass, and a summary a day
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/ownpace-live
+ExecStart=%h/ownpace-live/deploy/compose/box-checks.sh
+SyslogIdentifier=ownpace-box-checks
+# Ends before the next run starts; the summary's docker system df -v is the
+# slowest part.
+TimeoutStartSec=9min

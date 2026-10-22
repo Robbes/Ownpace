@@ -34,7 +34,9 @@
  *
  *   - **generated** by `ensure-env-secrets.sh` — for secrets. That script fills
  *     a MISSING key and refuses to replace a live one, so running it on every
- *     pass is safe.
+ *     pass is safe. One required key that is not a secret is written there
+ *     too: `ZITADEL_PAT_EXPIRY`, the provisioning token's first date, by its
+ *     `seed_pat_expiry` call (2026-10-21; a date still ahead is kept).
  *   - **defaulted** in `managed.env.example` with a NON-EMPTY value — for
  *     configuration that is not secret.
  *
@@ -98,10 +100,17 @@ function requiredByCompose(): string[] {
   return [...new Set(found)].sort();
 }
 
-/** Secrets `ensure-env-secrets.sh` will generate into a `.env` that lacks them. */
+/**
+ * What `ensure-env-secrets.sh` will write into a `.env` that lacks it: the
+ * secrets its `ensure` lines generate, and the provisioning token's first date,
+ * which its `seed_pat_expiry` call writes (env-read.sh; not a secret, and so
+ * not an `ensure`).
+ */
 function generatedBySecretsScript(): Set<string> {
   const sh = read('ensure-env-secrets.sh');
-  return new Set([...sh.matchAll(/^ensure\s+([A-Z_]+)\s/gm)].map((m) => m[1]!));
+  const keys = new Set([...sh.matchAll(/^ensure\s+([A-Z_]+)\s/gm)].map((m) => m[1]!));
+  if (/^seed_pat_expiry "\$ENV_FILE"$/m.test(sh)) keys.add('ZITADEL_PAT_EXPIRY');
+  return keys;
 }
 
 /** Keys `managed.env.example` gives a NON-EMPTY value. An empty one is not a default. */

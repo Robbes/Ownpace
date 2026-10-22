@@ -20,7 +20,7 @@
 # changing a redirect URI or losing track of what is configured.
 #
 # THE PROVISIONING TOKEN IS DELIBERATELY SHORT-LIVED. The provider writes it to
-# a named volume on first init only, and this script sets its expiry to one day
+# a named volume on first init only, and the bring-up sets its expiry to 7 days
 # out by default. It exists to do the six steps above and then to become
 # useless — a long-lived machine credential with organisation-owner rights,
 # sitting in a volume, is the kind of thing that is fine until the day it is
@@ -261,7 +261,17 @@ fi
 # Four attempts, 2s + 4s + 8s ≈ 14 seconds of patience. Long enough to ride out
 # a front reloading a certificate or a container finishing its start; short
 # enough that a provider which is really gone still fails well inside the gate's
-# own timeout, with exactly the diagnosis it has always printed.
+# own timeout, with exactly the diagnosis it has always printed. A 502, 503 or
+# 504 from the front spends the same budget (#263; rule 1 on
+# `curl_read_retrying`).
+#
+# The fourteen seconds are the WAITS between asks, not the whole bound: each
+# ask also takes as long as its answer does, and `api` sets no `--max-time`. A
+# front answers 504 only once ITS OWN upstream timeout has run out, so four
+# 504s take four of those plus the waits. The transport retry had the same open
+# end before (curl's own connect timeout, on every ask). No cap is added here:
+# one would be a new way to fail a read that is slow and right, and nothing
+# measured says where it should sit.
 #
 # NOT applied to the CURL_ORIGIN probe further up, and that is deliberate: that
 # one asks "can this machine reach the issuer directly?", where a fast NO is the
@@ -285,28 +295,22 @@ PAT_ROTATE_BELOW_DAYS="$(read_env ZITADEL_PAT_ROTATE_BELOW_DAYS 3)"
   die "ZITADEL_PAT_ROTATE_BELOW_DAYS (${PAT_ROTATE_BELOW_DAYS}) must be smaller than
 ZITADEL_PAT_LIFETIME_DAYS (${PAT_LIFETIME_DAYS}), or every single run would rotate the token"
 
-future_iso() { # future_iso <days> — UTC, RFC3339; GNU date, then BSD
-  date -u -d "+${1} day" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null && return 0
-  date -u -v"+${1}d" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null && return 0
-  return 1
-}
-iso_to_epoch() { # tolerates the provider stamping fractional seconds
-  local iso="${1%%.*}"
-  iso="${iso%Z}Z"
-  date -u -d "$iso" +%s 2>/dev/null && return 0
-  date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$iso" +%s 2>/dev/null && return 0
-  return 1
-}
+# future_iso and iso_to_epoch, the two date functions the clock below uses,
+# are env-read.sh's (sourced above): the seed there reads and writes the same
+# date the same way.
 
-# The seed. --if-absent, because on an already-provisioned stack this value is
-# maintained by the rotation section against the LIVE token, and overwriting it
-# here would put a date in the file that no credential actually carries. It is
-# written before the container starts because first init is the one moment the
-# provider reads it. The two timer modes skip it: they never start the provider.
+# The seed. A date still ahead is kept, because on an already-provisioned stack
+# this value is maintained by the rotation section against the LIVE token, and
+# overwriting it here would put a date in the file that no credential actually
+# carries. An empty, past or unreadable one gets now + the lifetime above:
+# seed_pat_expiry in env-read.sh, the one rule ensure-env-secrets.sh (run just
+# above) and the bring-up apply too. It is written before the container starts
+# because first init is the one moment the provider reads it, and a past date
+# is a first start the provider refuses. The two timer modes skip it: they
+# never start the provider.
 if [ -z "$ONLY" ]; then
-  PAT_EXPIRY="$(future_iso "$PAT_LIFETIME_DAYS")" ||
-    die "could not compute a date ${PAT_LIFETIME_DAYS} days from now — neither GNU nor BSD \`date\` worked"
-  "$UPSERT" --if-absent "$ENV_FILE" "ZITADEL_PAT_EXPIRY=${PAT_EXPIRY}" >/dev/null
+  seed_pat_expiry "$ENV_FILE" ||
+    die "the provisioning token's first date could not be written into ${ENV_FILE} (above)"
 fi
 
 # ------------------------------------------------------------------- bring up --
@@ -458,12 +462,42 @@ ${#PAT} characters long, which is too short to be one:
 # A READ THAT NEVER GOT AN ANSWER IS RE-ASKED. Sets CURL_OUT, CURL_RC and
 # CURL_ATTEMPTS; the caller decides what a failure means.
 #
+# Every caller ends curl's output with the status (`-w '…%{http_code}'`), so the
+# last line of CURL_OUT is it: `api` writes the body and then the status on a
+# line of its own, and the successor-token probe writes the status alone.
+#
 # Three rules, and each is why this is not simply `curl --retry`:
 #
-#   1. ONLY A TRANSPORT FAILURE — a curl EXIT CODE, never an HTTP status. A 401,
-#      403 or 404 is the provider ANSWERING, and every one of those has a
+#   1. ONLY NO ANSWER FROM THE PROVIDER — a curl EXIT CODE, or a 502, 503 or 504.
+#      A 401, 403 or 404 is the provider ANSWERING, and every one of those has a
 #      diagnosis written out in `api` below. Retrying them would delay a correct
 #      message by fourteen seconds and change nothing about it.
+#
+#      A 502, 503 or 504 is NOT the provider answering. It is whatever stands in
+#      front of it saying it could not get an answer — a gateway error, the same
+#      thing a dropped handshake is one layer further in. E2E (managed) #263
+#      died of it on both attempts, 2026-10-21: the NetBird front answered 502
+#      with its own "Connection Error" page, once on `GET /auth/v1/users/me`
+#      right after the provider started and once on
+#      `GET /management/v1/projects/{id}/apps/{id}` after several reads had gone
+#      through the same front. `api` took it for the
+#      provider's answer and died. Runs through the same front that morning
+#      were green. A 503 or 504 can also come from the provider itself, when ITS
+#      upstream — the database — is not answering; that is still no answer to
+#      the question asked, and re-asking a read is just as safe.
+#
+#      The retry line names the status and NEVER the body: the front's page is
+#      a screen of HTML, and the last failure prints it anyway (rule 3).
+#
+#      TO STDERR. `api` runs inside `$( )` at every call site, so a line this
+#      writes on stdout becomes part of the answer the caller hands to jq — a
+#      read re-asked and then answered handed jq `[setup-zitadel] …` in front of
+#      the JSON. That was true of the transport retry from the day #174 added
+#      it: a blip it rode out would have killed the run one line later, on jq's
+#      parse error, with no FATAL line to say why. Stderr keeps the answer
+#      clean only where the caller leaves stderr alone, so a caller that also
+#      wants die's words keeps them APART from the answer, never `2>&1`:
+#      `sign_in_mail_read` is the one read that does, and says how.
 #
 #   2. ONLY READS. A `recv failure` can land after the server has already acted,
 #      so a re-sent WRITE can apply twice. This script MINTS PERSONAL ACCESS
@@ -481,6 +515,7 @@ ${#PAT} characters long, which is too short to be one:
 #      quieter about a provider that is really gone.
 curl_read_retrying() { # curl_read_retrying <label> <curl args…>
   local label="$1"; shift
+  local why code
   CURL_ATTEMPTS=1
   while : ; do
     # `A && B || C`, NOT `A; rc=$?`. `set -euo pipefail` is on (line 39), and a
@@ -490,8 +525,17 @@ curl_read_retrying() { # curl_read_retrying <label> <curl args…>
     # FATAL:` line at all. The careful diagnosis below has been unreachable
     # since it was written, and a retry written the same way would never loop.
     CURL_OUT="$(curl "$@")" && CURL_RC=0 || CURL_RC=$?
-    if [ "$CURL_RC" -eq 0 ] || [ "$CURL_ATTEMPTS" -ge "$IDP_READ_ATTEMPTS" ]; then return 0; fi
-    say "${label}: no answer at all (curl exited ${CURL_RC}) — attempt ${CURL_ATTEMPTS} of ${IDP_READ_ATTEMPTS}, retrying in $(( 2 ** CURL_ATTEMPTS ))s"
+    if [ "$CURL_RC" -ne 0 ]; then
+      why="no answer at all (curl exited ${CURL_RC})"
+    else
+      code="${CURL_OUT##*$'\n'}"
+      case "$code" in
+        502|503|504) why="the front answered HTTP ${code} without reaching the provider" ;;
+        *) return 0 ;;
+      esac
+    fi
+    [ "$CURL_ATTEMPTS" -lt "$IDP_READ_ATTEMPTS" ] || return 0
+    say "${label}: ${why} — attempt ${CURL_ATTEMPTS} of ${IDP_READ_ATTEMPTS}, retrying in $(( 2 ** CURL_ATTEMPTS ))s" >&2
     sleep "$(( 2 ** CURL_ATTEMPTS ))"
     CURL_ATTEMPTS=$(( CURL_ATTEMPTS + 1 ))
   done
@@ -569,7 +613,11 @@ cover nearly every case:
 
   IT EXPIRED. The token carries its own deadline. This script's note of it —
   ZITADEL_PAT_EXPIRY in ${ENV_FILE}, last written when a run last synced it —
-  says: $(read_env ZITADEL_PAT_EXPIRY unknown).
+  says: $(read_env ZITADEL_PAT_EXPIRY unknown). A note that had passed is
+  replaced with a fresh date by every bring-up and every full run of this
+  script, whether or not a first start follows (a seed_pat_expiry line above
+  names the date it replaced); a provider that was already running keeps the
+  token's old date, so the note can look fresh while the token has expired.
   Every run of this script rotates the token when fewer than
   ${PAT_ROTATE_BELOW_DAYS} days remain, so an expired one means the gate has
   not run since before that window closed. The way back in without destroying
@@ -717,7 +765,7 @@ fi
 #
 # THE TOKEN THIS SCRIPT RUNS ON EXPIRES, AND UNTIL NOW NOTHING RENEWED IT. Its
 # expiry is a FIRSTINSTANCE setting: the provider reads ZITADEL_PAT_EXPIRY from
-# .env exactly once, at init, and the --if-absent seed above means that value
+# .env exactly once, at init, and the seed, --if-absent then, meant that value
 # was the timestamp of whichever run FIRST executed this script, plus a
 # lifetime — it never moved again. E2E (managed) #66 MEASURED the note and the
 # truth already apart: the gate's .env said 2026-08-24 while the live token
@@ -726,7 +774,9 @@ fi
 # evaporate and no seed ever reached an init). On a host where
 # deploy/compose/.env is the real, durable file, the same drift arms the
 # opposite trap: a re-init reads a seed that has meanwhile slipped into the
-# past and mints a token BORN DEAD. And past any deadline no rotation is
+# past, and the provider refuses that first start outright
+# (Errors.AuthNKey.ExpireBeforeNow; the seed now replaces a past date, see
+# seed_pat_expiry in env-read.sh). And past any deadline no rotation is
 # possible at all, because minting a successor needs the very token that died.
 #
 # So the credential keeps its own clock. Every run asks the PROVIDER when the
@@ -740,7 +790,8 @@ fi
 # The .env note then moves to the successor's real expiry with a PLAIN upsert —
 # --if-absent here would keep the stale date forever, which is the exact bug
 # this section exists to end. That also un-poisons REPROVISIONING: a re-init
-# now reads a seed at most one lifetime old, never one from the first bring-up.
+# now reads a seed at most one lifetime old, never one from the first bring-up,
+# and one that has passed meanwhile is replaced before the provider starts.
 say "asking the provider when this provisioning token expires"
 pats="$(api POST "/management/v1/users/${SETUP_UID}/pats/_search" '{}')"
 NEAREST="$(jq -r '[.result[]?.expirationDate | select(. != null)] | min // empty' <<<"$pats")"
@@ -755,16 +806,17 @@ EXP_EPOCH="$(iso_to_epoch "$NEAREST")" ||
 LEFT_SECONDS=$(( EXP_EPOCH - $(date -u +%s) ))
 
 # THE POLICY OWNS BOTH ENDS. Too close to death is the obvious trigger; too
-# far past the lifetime is the other half, because a fresh init mints under
-# the compose default (months out) and without this branch that token would
-# sail outside the policy until three days before New Year. Either way the
-# successor lives exactly ZITADEL_PAT_LIFETIME_DAYS.
+# far past the lifetime is the other half, because a token minted by hand, or
+# by a first init under a longer lifetime than today's (until 2026-10-21 under
+# the compose default, months out), would sail outside the policy until three
+# days before it dies without this branch. Either way the successor lives
+# exactly ZITADEL_PAT_LIFETIME_DAYS.
 if [ "$LEFT_SECONDS" -lt $(( PAT_ROTATE_BELOW_DAYS * 86400 )) ] ||
    [ "$LEFT_SECONDS" -gt $(( PAT_LIFETIME_DAYS * 86400 )) ]; then
   if [ "$LEFT_SECONDS" -lt 0 ]; then
     say "the nearest token expiry is ${NEAREST} — already past. The token in use still works, so that one is a dead leftover; rotating and sweeping"
   elif [ "$LEFT_SECONDS" -gt $(( PAT_LIFETIME_DAYS * 86400 )) ]; then
-    say "it expires ${NEAREST} — $(( LEFT_SECONDS / 86400 )) days out, LONGER than the ${PAT_LIFETIME_DAYS}-day policy (a first-init default, or hand-minted). Rotating it under the policy"
+    say "it expires ${NEAREST} — $(( LEFT_SECONDS / 86400 )) days out, LONGER than the ${PAT_LIFETIME_DAYS}-day policy (a first init under a longer lifetime, or hand-minted). Rotating it under the policy"
   else
     say "it expires ${NEAREST} — $(( LEFT_SECONDS / 3600 ))h from now, inside the ${PAT_ROTATE_BELOW_DAYS}-day window. Rotating it"
   fi
@@ -788,7 +840,9 @@ if [ "$LEFT_SECONDS" -lt $(( PAT_ROTATE_BELOW_DAYS * 86400 )) ] ||
   # PROVE THE SUCCESSOR before the predecessor is touched: the same question
   # the old token just answered.
   # Through the same retry as every other read, and it cannot use `api` because
-  # it deliberately presents a DIFFERENT credential from $PAT.
+  # it deliberately presents a DIFFERENT credential from $PAT. Its `-w` writes
+  # the status and nothing else, which is the last line the retry reads, so a
+  # 502 from the front is re-asked here exactly as it is in `api`.
   curl_read_retrying "GET /auth/v1/users/me (proving the new token)" \
     -sS "${CURL_ORIGIN[@]}" -o /dev/null -w '%{http_code}' \
     -H "Authorization: Bearer ${NEW_TOKEN}" "${ISSUER}/auth/v1/users/me"
@@ -796,12 +850,14 @@ if [ "$LEFT_SECONDS" -lt $(( PAT_ROTATE_BELOW_DAYS * 86400 )) ] ||
   # into `|| echo 000` and then said "refused", which sends whoever reads it
   # looking at grants and expiry for what was a network that never carried the
   # question. Both still rotate nothing — the outcome was never in doubt; the
-  # sentence was wrong.
+  # sentence was wrong. A 502, 503 or 504 that outlasted the retry is the second
+  # kind too: the front never got the question to the provider (#263).
   [ "$CURL_RC" -eq 0 ] ||
     die "could not reach the provider to prove the freshly minted token (curl exited ${CURL_RC}, asked ${CURL_ATTEMPTS} time(s)) — keeping the old one, rotating nothing"
   new_code="$CURL_OUT"
   case "$new_code" in
     2*) : ;;
+    502|503|504) die "could not reach the provider to prove the freshly minted token: the front answered HTTP ${new_code} without reaching it, asked ${CURL_ATTEMPTS} time(s) — keeping the old one, rotating nothing" ;;
     *) die "the freshly minted token was refused (HTTP ${new_code}) — keeping the old one, rotating nothing" ;;
   esac
 
@@ -2616,8 +2672,20 @@ sign_in_mail_wanted() {   # <language> <type> <support address> — the seven fi
           or (.text | contains("{{.Code}}"))))' "$SIGN_IN_MAILS"
 }
 sign_in_mail_read() {   # <language> <type> — the seven fields the instance holds, or why it cannot say
-  local out
-  out="$( ( api GET "/admin/v1/text/message/${2}/${1}" ) 2>&1 )" || { printf '%s' "$out"; return 1; }
+  # `api`'s STDERR APART FROM ITS ANSWER, never `2>&1`. This read wants die's
+  # words when it fails, and merged, it also took the line a read that rode out
+  # a 502 or a dropped connection writes there (rule 1 on `curl_read_retrying`):
+  # that line stood in front of the JSON, jq refused it, and a mail that WAS
+  # read was said to be one that could not be. What came before the FATAL goes
+  # to the log, as it does at every other call site; the FATAL is the reason.
+  local out err
+  err="$(mktemp)"
+  out="$( ( api GET "/admin/v1/text/message/${2}/${1}" ) 2>"$err" )" || {
+    sed '/^\[setup-zitadel\] FATAL: /,$d' "$err" >&2
+    sed -n '/^\[setup-zitadel\] FATAL: /,$p' "$err"
+    rm -f "$err"; return 1
+  }
+  cat "$err" >&2; rm -f "$err"
   jq -ce '(.customText // {}) as $c
     | reduce ("title", "preHeader", "subject", "greeting", "text", "buttonText", "footerText") as $k
         ({}; . + {($k): ($c[$k] // "")})' <<<"$out" 2>/dev/null || { printf '%s' "$out"; return 1; }

@@ -9,6 +9,12 @@
 # per-install. Idempotent — values already set in .env are never touched, so
 # re-running it never rotates anything.
 #
+# One value it writes is not a secret: ZITADEL_PAT_EXPIRY, the date the identity
+# provider gives its first token, which managed.yml requires as it requires the
+# secrets. A date still ahead is kept; an empty, past or unreadable one is
+# replaced, because the provider refuses a first start on a date that has passed
+# (seed_pat_expiry in env-read.sh, below).
+#
 # The five database passwords (POSTGRES_PASSWORD, APP_DB_PASSWORD,
 # CLICKHOUSE_PASSWORD, MINIO_ROOT_PASSWORD, TRIGGER_DB_PASSWORD; workplan 0132
 # T2) only while each one's volume does not exist yet: see ensure_db_password
@@ -399,6 +405,18 @@ if grep -qE '^[0-9a-f]{32}$' <<<"$current_admin"; then
   echo "[ensure-env-secrets] password; change it in the console, because this file no longer holds it."
   PLACEHOLDERS_REPLACED=1
 fi
+
+# THE PROVISIONING TOKEN'S FIRST DATE (the lifecycle round, 2026-10-21). Not a
+# secret, and written here for the reason the secrets are: managed.yml requires
+# it (`${ZITADEL_PAT_EXPIRY:?…}`), so every compose command needs it, and this
+# is what the env phase, stand-up-live.sh --only env and the gate's Fill step
+# run before any of them. The provider reads it once, at its first start, and
+# refuses a date that has passed, which is why compose no longer has a fixed
+# one to fall back on. A date still ahead is kept: on a running stack it is the
+# live token's, which setup-zitadel.sh keeps there. See seed_pat_expiry in
+# env-read.sh for the whole rule; managed-env-contract.unit.test.ts counts this
+# line as what supplies the key.
+seed_pat_expiry "$ENV_FILE"
 
 # PgBouncer's own credential file (workplan 0082 T4).
 #

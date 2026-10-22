@@ -222,6 +222,19 @@ load_env() {
     echo "!!! any persisted copy the next run restores from, then run this again." >&2
     exit 1
   fi
+  # THE PROVISIONING TOKEN'S FIRST DATE, before the first compose call of every
+  # run that makes one (the lifecycle round, 2026-10-21). managed.yml requires
+  # ZITADEL_PAT_EXPIRY, and the provider reads it once, at its first start,
+  # and refuses a date that has passed. ensure-env-secrets.sh writes it in the
+  # env phase, but a `--from` run skips that phase (deploy-live.sh runs
+  # `--from data`), and live's stand-up can stop for the owner for longer than
+  # the token's lifetime between its env phase and its app phase. So here too,
+  # where every compose-using phase passes through, and BEFORE the file is
+  # sourced: `set -a` exports what it reads, and Compose prefers the shell's
+  # value to the file's, so a date written after it would not reach the
+  # provider. A date still ahead is kept (seed_pat_expiry, env-read.sh).
+  seed_pat_expiry "$ENV_FILE" ||
+    die "the provisioning token's first date could not be written into ${ENV_FILE} (above)."
   set -a
   # shellcheck disable=SC1090
   . "$ENV_FILE"

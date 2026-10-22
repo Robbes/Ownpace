@@ -911,9 +911,16 @@ services:
       # This is what lets setup-zitadel.sh provision the project and the client
       # without anybody clicking through a console — see that script's header
       # for why the token is deliberately short-lived.
+      #
+      # Its expiry is required, with no date of its own here: a fixed fallback
+      # (2026-12-31 until 2026-10-21) is a first start the provider refuses
+      # once the date has passed (Errors.AuthNKey.ExpireBeforeNow), and it
+      # restarts for ever. ensure-env-secrets.sh, every bring-up and
+      # setup-zitadel.sh write it before the provider first starts
+      # (seed_pat_expiry, env-read.sh), and keep a date still ahead.
       ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: ownpace-setup
       ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: Ownpace setup
-      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: ${ZITADEL_PAT_EXPIRY:-2026-12-31T23:59:59Z}
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: ${ZITADEL_PAT_EXPIRY:?run ./deploy/compose/ensure-env-secrets.sh first}
       ZITADEL_FIRSTINSTANCE_PATPATH: /machinekey/pat.txt
     volumes:
       # The provisioning token lands here for setup-zitadel.sh to read. A named

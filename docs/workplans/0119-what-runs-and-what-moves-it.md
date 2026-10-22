@@ -122,21 +122,21 @@ is who moves it after T1.
 | Image | Where | Pinned | Newest | Distance | Moves by | Decision |
 |---|---|---|---|---|---|---|
 | `node` (24-slim) | `apps/api`, `apps/web`, `apps/selfhost` Dockerfiles | digest `6f7b03f7…`, no tag | 24.20.0-slim (2026-08-27), digest `ba849c60…` | patches within 24 | Dependabot `docker` | **T2** — and T1 gives it its tag |
-| `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.27-alpine | 1.30.4-alpine stable, 1.31.5 mainline (2026-09-03) | 1.27 is a 2024 mainline, past its end | Dependabot `docker` + `docker-compose` | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows |
+| `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.27-alpine | 1.30.4-alpine stable, 1.31.5 mainline (2026-09-03) | 1.27 is a 2024 mainline, past its end | Dependabot `docker` for the Dockerfile; `www.yml` by hand after it, and the pin watch (0146 T8) says when the two differ | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows |
 | `postgres` (self-host) | `deploy/selfhost/compose.yml` | digest `9a8afca5…` = 18.4-alpine, no tag | 18.6-alpine (2026-08-15), digest `d3e1620b…` | two patch releases | Dependabot `docker-compose` | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
 | `postgres` (managed ×2, dev) | `managed.yml`, `dev.yml` | 18-alpine, floating | 18.6 | none, it floats within 18 | `docker compose pull` | stays floating; a major (`pg_upgrade`) is ignored in Dependabot and is the owner's |
-| `edoburu/pgbouncer` | `managed.yml` | v1.24.1-p1 | v1.25.2-p0 (2026-06-10) | one minor | Dependabot `docker-compose` | **T2** — stateless; the managed gate proves it |
+| `edoburu/pgbouncer` | `managed.yml` | v1.24.1-p1 | v1.25.2-p0 (2026-06-10) | one minor | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
 | `redis` | `managed.yml` | 7-alpine, floating (7.4.11) | 8.8.2-alpine | one major | owner | **§3** — the licence changed at 7.4, which is the line this floats on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
-| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, `apps/worker/package.json` | v4.5.12; v4.5.16 pinned in #827 | v4.5.16 | — once #827 is applied | `trigger-version.sh` only | **§3, pinned** — one way (three Prisma migrations, one ClickHouse); the gate run in the owner's window applies it, not the merge. Dependabot told to leave all four places alone |
-| `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | nobody | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`) |
-| `registry` | `managed.yml` | 3.1.1 (#825) | 3.1.1 (2026-06-23) | current | Dependabot `docker-compose` for patches and minors; a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
-| `tecnativa/docker-socket-proxy` | `managed.yml` | v0.5.0 | v0.5.0 | current | Dependabot `docker-compose` | — |
+| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, `apps/worker/package.json` | v4.5.12; v4.5.16 pinned in #827 | v4.5.16 | — once #827 is applied | `trigger-version.sh` only; the pin watch keeps an issue open while a newer tag is in both images (0146 T8) | **§3, pinned** — one way (three Prisma migrations, one ClickHouse); the gate run in the owner's window applies it, not the merge. Dependabot told to leave all four places alone |
+| `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8) | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`) |
+| `registry` | `managed.yml` | 3.1.1 (#825) | 3.1.1 (2026-06-23) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
+| `tecnativa/docker-socket-proxy` | `managed.yml` | v0.5.0 | v0.5.0 | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
 | `bitnamilegacy/minio` | `managed.yml` | 2025.5.24-debian-12-r5 by digest | none: `bitnamilegacy` stopped at 2025.7.23 (pushed 2025-08-19); `minio/minio` stopped at RELEASE.2025-09-07 | no upstream | owner | **§3** — the object store has no maintained free image; a replacement is a decision, and item 5 names a candidate |
 | `caddy` | `managed.yml` | 2-alpine, floating (2.11.4) | 2.11.4 | current | `docker compose pull` | stays floating; a major is ignored and is the owner's |
-| `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.19.2 (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.19.2 | current | owner; ignored by name; releases and advisories watched, and the pin compared with the newest release weekly (0135 T7) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
-| `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`; one test pins the printed command | 1.37 | 1.38 | one minor | Dependabot for the compose line; the scripts by hand, and the test says so | **T2** |
-| `ghcr.io/twin/gatus` | `managed.yml` | v5.36.0 | v5.36.0 | current | Dependabot `docker-compose` | — |
-| `axllent/mailpit` | `managed.yml` | v1.31.0 by digest | v1.31.1, digest `98b916bd…` | one patch | Dependabot `docker-compose` | **T2** — a mail catcher for the gate |
+| `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.19.2 (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.19.2 | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
+| `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`; one test pins the printed command | 1.37 | 1.38 | one minor | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
+| `ghcr.io/twin/gatus` | `managed.yml` | v5.36.0 | v5.36.0 | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
+| `axllent/mailpit` | `managed.yml` | v1.31.0 by digest | v1.31.1, digest `98b916bd…` | one patch | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
 | `nextcloud` | `managed.yml`, `dev.yml` | 34-apache, floating (34.0.3) | 34.0.3 (2026-09-02) | current | `docker compose pull` | stays floating; a fixture and a demo target; a major is ignored |
 | `ghcr.io/robbes/ownpace-selfhost` | `deploy/selfhost/compose.yml` | `edge` | ours | — | `images.yml` | — |
 
@@ -144,6 +144,14 @@ Ignored by name in the new Dependabot entries, so that a green tick cannot make 
 decisions: the two Trigger.dev images and Zitadel (one way), ClickHouse and the object
 store (deliberate pins), and the majors of `postgres`, `redis`, `registry`, `nextcloud`
 and `caddy`.
+
+*2026-10-21 (workplan 0146 T8): the `docker-compose` entry for `deploy/compose` never read a
+file. Dependabot's compose fetcher reads only names like `compose.yml`, and `managed.yml`,
+`www.yml` and `dev.yml` all miss, so no image there was ever moved by it and the ignores above
+for those images ignored nothing. The entry and those ignores are gone; the self-host compose
+keeps its `postgres` major ignore. `scripts/idp-pin-watch.mjs` compares the `deploy/compose`
+images with their registries every Monday instead and keeps an issue open while one is behind,
+which is what the "Moves by" cells above now say.*
 
 ### 2.2 npm (`pnpm outdated -r`, 23 packages)
 
