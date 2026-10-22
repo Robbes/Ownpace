@@ -95,6 +95,8 @@ import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(REPO_ROOT, 'deploy', 'compose');
+/** The user units live's checkout carries (deploy/compose/systemd/), every one of which the stand-up copies. */
+const UNITS = readdirSync(join(COMPOSE_DIR, 'systemd')).sort();
 const SCRIPT = 'stand-up-live.sh';
 const RELEASE_SENTENCE = 'live runs releases: name a release tag';
 const TAG = 'v0.2.0-alpha.1';
@@ -564,7 +566,7 @@ function stage(opts: StageOptions = {}): Stage {
   const managed = readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8');
   writeFileSync(join(compose, 'managed.yml'), opts.managedYml ? opts.managedYml(managed) : managed);
   copyFileSync(join(COMPOSE_DIR, 'www.yml'), join(compose, 'www.yml'));
-  for (const unit of ['ownpace-box-duties.service', 'ownpace-box-duties.timer']) {
+  for (const unit of UNITS) {
     copyFileSync(join(COMPOSE_DIR, 'systemd', unit), join(compose, 'systemd', unit));
   }
   writeExec(join(compose, 'bootstrap-managed.sh'), BOOTSTRAP_STUB);
@@ -1807,8 +1809,16 @@ describe('the first bring-up: the stops, the resume, the checks and the first lo
       expect(fields[0]).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
       expect(fields.slice(1)).toEqual([TAG, s.commit, 'took', 'one-way']);
 
-      // The timer's units, copied, and systemd told; linger is the owner's.
-      for (const unit of ['ownpace-box-duties.service', 'ownpace-box-duties.timer']) {
+      // The units, all five, copied, and systemd told; linger is the owner's
+      // (the duties' pair, and 0142 T3's mail on a failed run and box checks).
+      expect(UNITS).toEqual([
+        'ownpace-box-checks.service',
+        'ownpace-box-checks.timer',
+        'ownpace-box-duties.service',
+        'ownpace-box-duties.timer',
+        'ownpace-tell-owner@.service',
+      ]);
+      for (const unit of UNITS) {
         expect(readFileSync(join(s.root, '.config', 'systemd', 'user', unit), 'utf8')).toBe(
           readFileSync(join(COMPOSE_DIR, 'systemd', unit), 'utf8'),
         );
@@ -1821,6 +1831,9 @@ describe('the first bring-up: the stops, the resume, the checks and the first lo
         'operator.sh add',
         'sudo loginctl enable-linger',
         'systemctl --user enable --now ownpace-box-duties.timer',
+        // 0142 T3: the box checks, and one test mail through the template unit.
+        'systemctl --user enable --now ownpace-box-checks.timer',
+        'systemctl --user start ownpace-tell-owner@test.service',
         `./deploy/compose/deploy-live.sh --dry-run ${TAG}`,
         'EXPOSURE_PROBE_LIVE_PORTS',
         // Before the first invitation, the owner's (workplan 0139, item 8;

@@ -37,6 +37,7 @@
 #   trigger-version.sh drill                dump, restore into a throwaway, compare
 #   trigger-version.sh restore <file|--latest> --yes    DESTRUCTIVE, see below
 #   trigger-version.sh pin <version|--latest>           move every place
+#   trigger-version.sh probe [version]      the usable tags above it, newest first
 #
 # The order for an actual upgrade is in docs/managed-bring-up.md, and it is not
 # optional: upgrading with runs in flight left the reference deployment looping
@@ -155,13 +156,23 @@ ghcr_token() { # ghcr_token <image> — fetched once per image per run
   printf '%s' "${!var}"
 }
 
+# PROBE_STRICT is set by `probe` once its start has answered: from then on a
+# tag is missing only when ghcr says 404. A 429, a 5xx, a timeout's 000 or the
+# 403 an empty token gets is a registry that did not answer, and read as "not
+# published" it would lower the newest tag the pin watch reports, or close its
+# issue. `list` and `pin` are read by a person, and keep the plain reading.
+PROBE_STRICT=''
 tag_exists() { # tag_exists <image> <tag>
   local image="$1" tag="$2" code
   code="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' \
     -H "Authorization: Bearer $(ghcr_token "$image")" \
     -H 'Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json' \
     "https://ghcr.io/v2/triggerdotdev/${image}/manifests/${tag}")"
-  [ "$code" = "200" ]
+  [ "$code" = "200" ] && return 0
+  if [ -n "$PROBE_STRICT" ] && [ "$code" != "404" ]; then
+    die "ghcr.io answered ${code:-nothing} for triggerdotdev/${image}:${tag}, which says neither that the tag is there nor that it is not. Nothing newer can be called current."
+  fi
+  return 1
 }
 
 # BOTH images or neither: the webapp and the supervisor run one tag by
@@ -238,6 +249,24 @@ cmd_list() {
   echo
   echo "  next:     $0 pin ${latest}      (or: $0 pin --latest)"
   echo "            $0 backup before-${latest}"
+}
+
+# THE SAME PROBE, FOR THE PIN WATCH (workplan 0146 T8). scripts/idp-pin-watch.mjs
+# runs this once a week on a GitHub-hosted runner, so the watch and `list` ask
+# the registry the same question. It prints the tags only, newest first, one
+# per line, and nothing when nothing newer is published.
+#
+# A FAILED REQUEST READS EXACTLY LIKE A MISSING TAG, so a registry the probe
+# could not reach would say "nothing newer", and the watch would close its
+# issue. The tag it starts from has to answer in both images first, and on the
+# walk upward only a 404 is a missing tag (PROBE_STRICT, at tag_exists).
+cmd_probe() {
+  need curl; need jq
+  local from="${1:-$(repo_tag)}"
+  case "$from" in v[0-9]*.[0-9]*.[0-9]*) : ;; *) die "expected a tag like v4.5.12, got '${from}'" ;; esac
+  tag_usable "$from" || die "${from} does not answer in both images: ghcr.io could not be read, or the tag is not published. Nothing newer can be called current."
+  PROBE_STRICT=1
+  probe_upgrades "$from"
 }
 
 # ---------------------------------------------------------------- backup --
@@ -488,5 +517,6 @@ case "${1:-}" in
   drill)   shift; cmd_drill "$@" ;;
   restore) shift; cmd_restore "$@" ;;
   pin)     shift; cmd_pin "$@" ;;
+  probe)   shift; cmd_probe "$@" ;;
   *) sed -n '/^# Usage:/,/^#$/p' "$0" | sed 's/^# \?//' >&2; exit 1 ;;
 esac
