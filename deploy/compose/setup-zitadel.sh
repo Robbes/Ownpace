@@ -20,7 +20,7 @@
 # changing a redirect URI or losing track of what is configured.
 #
 # THE PROVISIONING TOKEN IS DELIBERATELY SHORT-LIVED. The provider writes it to
-# a named volume on first init only, and this script sets its expiry to one day
+# a named volume on first init only, and the bring-up sets its expiry to 7 days
 # out by default. It exists to do the six steps above and then to become
 # useless — a long-lived machine credential with organisation-owner rights,
 # sitting in a volume, is the kind of thing that is fine until the day it is
@@ -295,28 +295,22 @@ PAT_ROTATE_BELOW_DAYS="$(read_env ZITADEL_PAT_ROTATE_BELOW_DAYS 3)"
   die "ZITADEL_PAT_ROTATE_BELOW_DAYS (${PAT_ROTATE_BELOW_DAYS}) must be smaller than
 ZITADEL_PAT_LIFETIME_DAYS (${PAT_LIFETIME_DAYS}), or every single run would rotate the token"
 
-future_iso() { # future_iso <days> — UTC, RFC3339; GNU date, then BSD
-  date -u -d "+${1} day" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null && return 0
-  date -u -v"+${1}d" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null && return 0
-  return 1
-}
-iso_to_epoch() { # tolerates the provider stamping fractional seconds
-  local iso="${1%%.*}"
-  iso="${iso%Z}Z"
-  date -u -d "$iso" +%s 2>/dev/null && return 0
-  date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$iso" +%s 2>/dev/null && return 0
-  return 1
-}
+# future_iso and iso_to_epoch, the two date functions the clock below uses,
+# are env-read.sh's (sourced above): the seed there reads and writes the same
+# date the same way.
 
-# The seed. --if-absent, because on an already-provisioned stack this value is
-# maintained by the rotation section against the LIVE token, and overwriting it
-# here would put a date in the file that no credential actually carries. It is
-# written before the container starts because first init is the one moment the
-# provider reads it. The two timer modes skip it: they never start the provider.
+# The seed. A date still ahead is kept, because on an already-provisioned stack
+# this value is maintained by the rotation section against the LIVE token, and
+# overwriting it here would put a date in the file that no credential actually
+# carries. An empty, past or unreadable one gets now + the lifetime above:
+# seed_pat_expiry in env-read.sh, the one rule ensure-env-secrets.sh (run just
+# above) and the bring-up apply too. It is written before the container starts
+# because first init is the one moment the provider reads it, and a past date
+# is a first start the provider refuses. The two timer modes skip it: they
+# never start the provider.
 if [ -z "$ONLY" ]; then
-  PAT_EXPIRY="$(future_iso "$PAT_LIFETIME_DAYS")" ||
-    die "could not compute a date ${PAT_LIFETIME_DAYS} days from now — neither GNU nor BSD \`date\` worked"
-  "$UPSERT" --if-absent "$ENV_FILE" "ZITADEL_PAT_EXPIRY=${PAT_EXPIRY}" >/dev/null
+  seed_pat_expiry "$ENV_FILE" ||
+    die "the provisioning token's first date could not be written into ${ENV_FILE} (above)"
 fi
 
 # ------------------------------------------------------------------- bring up --
@@ -619,7 +613,11 @@ cover nearly every case:
 
   IT EXPIRED. The token carries its own deadline. This script's note of it —
   ZITADEL_PAT_EXPIRY in ${ENV_FILE}, last written when a run last synced it —
-  says: $(read_env ZITADEL_PAT_EXPIRY unknown).
+  says: $(read_env ZITADEL_PAT_EXPIRY unknown). A note that had passed is
+  replaced with a fresh date by every bring-up and every full run of this
+  script, whether or not a first start follows (a seed_pat_expiry line above
+  names the date it replaced); a provider that was already running keeps the
+  token's old date, so the note can look fresh while the token has expired.
   Every run of this script rotates the token when fewer than
   ${PAT_ROTATE_BELOW_DAYS} days remain, so an expired one means the gate has
   not run since before that window closed. The way back in without destroying
@@ -767,7 +765,7 @@ fi
 #
 # THE TOKEN THIS SCRIPT RUNS ON EXPIRES, AND UNTIL NOW NOTHING RENEWED IT. Its
 # expiry is a FIRSTINSTANCE setting: the provider reads ZITADEL_PAT_EXPIRY from
-# .env exactly once, at init, and the --if-absent seed above means that value
+# .env exactly once, at init, and the seed, --if-absent then, meant that value
 # was the timestamp of whichever run FIRST executed this script, plus a
 # lifetime — it never moved again. E2E (managed) #66 MEASURED the note and the
 # truth already apart: the gate's .env said 2026-08-24 while the live token
@@ -776,7 +774,9 @@ fi
 # evaporate and no seed ever reached an init). On a host where
 # deploy/compose/.env is the real, durable file, the same drift arms the
 # opposite trap: a re-init reads a seed that has meanwhile slipped into the
-# past and mints a token BORN DEAD. And past any deadline no rotation is
+# past, and the provider refuses that first start outright
+# (Errors.AuthNKey.ExpireBeforeNow; the seed now replaces a past date, see
+# seed_pat_expiry in env-read.sh). And past any deadline no rotation is
 # possible at all, because minting a successor needs the very token that died.
 #
 # So the credential keeps its own clock. Every run asks the PROVIDER when the
@@ -790,7 +790,8 @@ fi
 # The .env note then moves to the successor's real expiry with a PLAIN upsert —
 # --if-absent here would keep the stale date forever, which is the exact bug
 # this section exists to end. That also un-poisons REPROVISIONING: a re-init
-# now reads a seed at most one lifetime old, never one from the first bring-up.
+# now reads a seed at most one lifetime old, never one from the first bring-up,
+# and one that has passed meanwhile is replaced before the provider starts.
 say "asking the provider when this provisioning token expires"
 pats="$(api POST "/management/v1/users/${SETUP_UID}/pats/_search" '{}')"
 NEAREST="$(jq -r '[.result[]?.expirationDate | select(. != null)] | min // empty' <<<"$pats")"
@@ -805,16 +806,17 @@ EXP_EPOCH="$(iso_to_epoch "$NEAREST")" ||
 LEFT_SECONDS=$(( EXP_EPOCH - $(date -u +%s) ))
 
 # THE POLICY OWNS BOTH ENDS. Too close to death is the obvious trigger; too
-# far past the lifetime is the other half, because a fresh init mints under
-# the compose default (months out) and without this branch that token would
-# sail outside the policy until three days before New Year. Either way the
-# successor lives exactly ZITADEL_PAT_LIFETIME_DAYS.
+# far past the lifetime is the other half, because a token minted by hand, or
+# by a first init under a longer lifetime than today's (until 2026-10-21 under
+# the compose default, months out), would sail outside the policy until three
+# days before it dies without this branch. Either way the successor lives
+# exactly ZITADEL_PAT_LIFETIME_DAYS.
 if [ "$LEFT_SECONDS" -lt $(( PAT_ROTATE_BELOW_DAYS * 86400 )) ] ||
    [ "$LEFT_SECONDS" -gt $(( PAT_LIFETIME_DAYS * 86400 )) ]; then
   if [ "$LEFT_SECONDS" -lt 0 ]; then
     say "the nearest token expiry is ${NEAREST} — already past. The token in use still works, so that one is a dead leftover; rotating and sweeping"
   elif [ "$LEFT_SECONDS" -gt $(( PAT_LIFETIME_DAYS * 86400 )) ]; then
-    say "it expires ${NEAREST} — $(( LEFT_SECONDS / 86400 )) days out, LONGER than the ${PAT_LIFETIME_DAYS}-day policy (a first-init default, or hand-minted). Rotating it under the policy"
+    say "it expires ${NEAREST} — $(( LEFT_SECONDS / 86400 )) days out, LONGER than the ${PAT_LIFETIME_DAYS}-day policy (a first init under a longer lifetime, or hand-minted). Rotating it under the policy"
   else
     say "it expires ${NEAREST} — $(( LEFT_SECONDS / 3600 ))h from now, inside the ${PAT_ROTATE_BELOW_DAYS}-day window. Rotating it"
   fi
