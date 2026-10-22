@@ -321,8 +321,10 @@ async function startNextcloud(): Promise<{
 }> {
   console.log('[NextcloudSetup] Starting Nextcloud container...');
 
-  // Start container WITHOUT HTTP wait strategy - we'll use internal readiness check instead
-  const nextcloudContainer = await new GenericContainer('nextcloud:34-apache')
+  // Start container WITHOUT HTTP wait strategy - we'll use internal readiness check instead.
+  // The dev stack's image, tag and digest: the pin watch reads dev.yml, not this file, and
+  // scripts/a-float-nothing-ever-pulled.unit.test.ts holds the two equal.
+  const nextcloudContainer = await new GenericContainer('nextcloud:34.0.5-apache@sha256:9dbdc711cef21e1767a6e45a97e318e654d9e2ab2c1f1c570bb9cafc94529a18')
     .withEnvironment({
       SQLITE_DATABASE: 'nextcloud',
       NEXTCLOUD_ADMIN_USER: 'testadmin',
@@ -898,7 +900,8 @@ export async function startTestEnvironment(skipStalwart: boolean = false, skipNe
 
   // Start Postgres container
   console.log('[Testcontainers] Starting Postgres container...');
-  const postgresContainer = await new GenericContainer('postgres:18-alpine')
+  // dev.yml's, tag and digest (scripts/a-float-nothing-ever-pulled.unit.test.ts).
+  const postgresContainer = await new GenericContainer('postgres:18.6-alpine@sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5')
     .withExposedPorts(5432)
     .withEnvironment({
       POSTGRES_DB: 'ownpace',

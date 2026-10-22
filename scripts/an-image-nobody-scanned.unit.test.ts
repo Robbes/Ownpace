@@ -137,7 +137,8 @@ const withFiles = (over: Record<string, string>): Repo => ({
 
 /**
  * A literal image in a script, the shape `image-scan.mjs` reads
- * (`DB_ROLES_CLIENT_IMAGE='postgres:18-alpine'`); a computed one is not.
+ * (`GOACCESS_IMAGE="allinurl/goaccess:1.12@sha256:…"`, and `db-roles.sh`'s
+ * client until 2026-10-22); a computed one is not.
  */
 const SCRIPT_LITERAL = /^\s*(?:readonly\s+|export\s+|local\s+)?(?:[A-Z][A-Z0-9_]*_)?IMAGE=(["'])([a-z0-9][^"'\s$]*)\1\s*(?:#.*)?$/m;
 
@@ -215,31 +216,34 @@ describe('which images it scans', () => {
     const stalwart = /^IMAGE="([^"]+)"/m.exec(REAL.read('deploy/selfhost/setup-stalwart.sh')!)![1]!;
     expect(images.find((i) => i.ref === goaccess)?.name).toBe('goaccess');
     expect(images.find((i) => i.ref === stalwart)?.name).toBe('stalwart');
-    // db-roles.sh's client is the compose file's postgres: one scan, both
-    // places named, for as long as the script names it literally. Once it
-    // reads it from managed.yml, as stand-up-live.sh does, it is not listed
-    // on its own.
+    // db-roles.sh's client is the compose file's postgres. Since 2026-10-22
+    // the script reads it from managed.yml's first postgres line, as
+    // stand-up-live.sh does, so it names no literal and is not listed on its
+    // own: the one scan of managed.yml's postgres covers it.
     const managedPostgres = readImages(REAL.read('deploy/compose/managed.yml')!).find((i) => i.repo === 'postgres')!;
     expect(images.find((i) => i.name === 'postgres-managed')?.ref).toBe(managedPostgres.ref);
     const dbRoles = REAL.read('deploy/compose/db-roles.sh')!;
-    const client = SCRIPT_LITERAL.exec(dbRoles)?.[2];
-    if (client) {
-      expect(client, "db-roles.sh's client is not the postgres managed.yml runs").toBe(managedPostgres.ref);
-      expect(images.find((i) => i.name === 'postgres-managed')?.where).toContain('deploy/compose/db-roles.sh');
-    } else {
-      expect(images.some((i) => i.where.includes('db-roles.sh'))).toBe(false);
-    }
+    expect(
+      SCRIPT_LITERAL.exec(dbRoles)?.[2],
+      "db-roles.sh names its client as a literal again, which every postgres pin would then have to move by hand",
+    ).toBeUndefined();
+    expect(images.some((i) => i.where.includes('db-roles.sh'))).toBe(false);
     // One scan per reference in each stack, and each from one stack only.
     const fromFiles = images.filter((i) => i.where.startsWith('deploy/'));
     for (const image of fromFiles) expect(new Set(image.where.split(', ').map(stackOf)).size, image.where).toBe(1);
     const key = (i: ScanImage) => `${stackOf(i.where.split(', ')[0]!)} ${i.ref}`;
     expect(new Set(fromFiles.map(key)).size).toBe(fromFiles.length);
-    // A script that computes its image is not read as one.
+    // A script that computes its image is not read as one (db-roles.sh, as it
+    // is); the same script with the literal it had until 2026-10-22 is, and
+    // shares the compose file's scan rather than getting one of its own.
     expect(images.some((i) => i.ref.includes('$'))).toBe(false);
-    const computed = dbRoles.replace(SCRIPT_LITERAL, `DB_ROLES_CLIENT_IMAGE="$(sed -n 's/^ *image: *//p' managed.yml | head -n 1)"`);
-    const without = await imagesToScan(withFiles({ 'deploy/compose/db-roles.sh': computed }), fakeNet());
-    expect(without.some((i) => i.where.includes('db-roles.sh'))).toBe(false);
-    expect(without.find((i) => i.name === 'postgres-managed')?.ref).toBe(managedPostgres.ref);
+    const COMPUTED = /^DB_ROLES_CLIENT_IMAGE="\$\(.*\|\|\n\s*DB_ROLES_CLIENT_IMAGE=''$/m;
+    const literal = dbRoles.replace(COMPUTED, `DB_ROLES_CLIENT_IMAGE='${managedPostgres.ref}'`);
+    expect(literal, "db-roles.sh's computed client line was not found, so this case would prove nothing").not.toBe(dbRoles);
+    const named = await imagesToScan(withFiles({ 'deploy/compose/db-roles.sh': literal }), fakeNet());
+    expect(named.find((i) => i.name === 'postgres-managed')?.ref).toBe(managedPostgres.ref);
+    expect(named.find((i) => i.name === 'postgres-managed')?.where).toContain('deploy/compose/db-roles.sh');
+    expect(named.map((i) => i.name)).toEqual(images.map((i) => i.name));
   });
 
   it("the tasks' base image, as the pinned CLI names it for the runtime trigger.config.ts asks for", async () => {
@@ -312,15 +316,12 @@ describe('which images it scans', () => {
   it("keeps both stacks' names when their pins meet on one reference, and when they part again", async () => {
     const selfhostYml = REAL.read('deploy/selfhost/compose.yml')!;
     const selfhost = readImages(selfhostYml).find((i) => i.repo === 'postgres')!;
-    // The managed stack's postgres everywhere it is named, on the appliance's reference.
-    const meet = (ref: string) => {
-      const dbRoles = REAL.read('deploy/compose/db-roles.sh')!;
-      return {
-        'deploy/compose/managed.yml': repin(REAL.read('deploy/compose/managed.yml')!, 'postgres', ref),
-        'deploy/compose/dev.yml': repin(REAL.read('deploy/compose/dev.yml')!, 'postgres', ref),
-        'deploy/compose/db-roles.sh': dbRoles.replace(SCRIPT_LITERAL, (line, quote: string, old: string) => line.replace(old, ref)),
-      };
-    };
+    // The managed stack's postgres everywhere it is named, on the appliance's
+    // reference: db-roles.sh's client follows managed.yml by itself.
+    const meet = (ref: string) => ({
+      'deploy/compose/managed.yml': repin(REAL.read('deploy/compose/managed.yml')!, 'postgres', ref),
+      'deploy/compose/dev.yml': repin(REAL.read('deploy/compose/dev.yml')!, 'postgres', ref),
+    });
     const postgres = (list: ScanImage[]) => list.filter((i) => i.name.startsWith('postgres')).map((i) => [i.name, i.ref]).sort();
     const met = await imagesToScan(withFiles(meet(selfhost.ref)), fakeNet());
     expect(postgres(met)).toEqual([['postgres-managed', selfhost.ref], ['postgres-selfhost', selfhost.ref]]);

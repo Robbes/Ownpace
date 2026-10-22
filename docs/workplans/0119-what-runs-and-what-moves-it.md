@@ -4,6 +4,56 @@
 
 ## Status — 2026-10-22 (update this block at the end of every session)
 
+**2026-10-22: the floating tags pinned, by exact version and digest (§4).** `postgres:18-alpine`
+(both databases, `dev.yml`, the Testcontainers setup), `redis:7.4-bookworm`, `caddy:2-alpine`,
+`nextcloud:34-apache` (`managed.yml`, `dev.yml`, Testcontainers) and `nginx:1.31-alpine`
+(`www.yml` and the web image's runtime) floated, and nothing ever pulled them, so both stacks
+ran whatever copy the machine pulled first; §4 said the bring-up records what it pulled, and
+nothing did. Pinned at postgres 18.6-alpine `898c60cb…`, redis 7.4.11-bookworm `44960b31…`,
+caddy 2.11.7-alpine `eb4d35b7…`, nextcloud 34.0.5-apache `9dbdc711…` and nginx 1.31.7-alpine
+`892bb215…`: the index digest Docker Hub served for each tag on the day, its tag list and the
+registry agreeing, every index with linux/arm64 and amd64. Three are that day's rebuilds, not
+the digests read on 2026-10-21: postgres (13:08 UTC; the self-host line's `77f58511…` is the
+tag's earlier build, which Dependabot moves there), nextcloud (07:51) and caddy (17:52). Not
+nginx 1.31.8, whose image was pushed at 16:51 UTC the same day: four bug fixes and one change,
+no security fix, where 1.31.7 (2026-10-14) fixed five CVEs; Dependabot offers it to the web
+image, and the pin watch then lists `www.yml`.
+`db-roles.sh` reads its client from `managed.yml`'s first postgres line, as `stand-up-live.sh`
+does, up to the first space or `#`, and `db_roles_init` refuses a file without one. Guards:
+`a-float-nothing-ever-pulled`, new (no float in the three compose files but busybox, named with
+its reason; every outside `FROM` by digest; the Testcontainers images equal to `dev.yml`'s;
+`managed.yml`'s postgres lines end at the reference, which `stand-up-live.sh` reads to the end
+of the line); `rotate-db-passwords` (the client follows a moved pin, a comment after it is not
+part of it, and none is refused); the caddy and Nextcloud rows of
+`a-service-that-phones-home` compare repository and major line, the line their facts were read
+for; `zitadel-image-matches-postgres` and `an-error-log-that-kept-the-link` read a digest.
+Proved here: the `scripts` unit project, 254 files and 5 717 tests, with the new cases red on
+`main` first and five mutations caught. Not run here: integration (no Docker daemon). Owed
+before merge: E2E (managed) and E2E (self-hosted) on the branch, and integration in CI. After
+merge the OTA stack recreates postgres, trigger-db, trigger-redis, trigger-tls and nextcloud at
+its next nightly gate and builds web on the pinned base; live takes them at its next
+`deploy-live.sh`; the OTA site when somebody runs `docker compose -f deploy/compose/www.yml up
+-d` in its checkout.
+
+**Before E2E (managed) runs on that branch (the review, 2026-10-22).** The run recreates the
+OTA stack's demo Nextcloud from 34.0.5, and the image upgrades the `nextcloud_data` volume to
+it. Every nightly of `main` after it, and every other branch's E2E, would start Nextcloud from
+the machine's `nextcloud:34-apache` again, which §2.1 recorded as 34.0.3 and nothing has pulled
+since, and Nextcloud refuses data newer than its image ("downgrading is not supported"): red at
+`up_wait nextcloud` until this merges, and again after a revert. The databases would go from
+18.6 back to an older 18.x the same way, which a minor tolerates. So one of two, first: on the
+machine, the floating tags `main` still names are pointed at the pinned images by digest
+(`docker pull <repo>@<digest>`, then `docker tag` onto the float; never a plain `docker pull`
+of the float, which can land past the pin and make the branch the downgrade), so that `main`
+and the branch run the same bytes, live takes them at its next deploy, and a revert stays
+possible; or the branch E2E is dispatched only when the branch is ready to merge, and it merges
+before the next 03:30 UTC nightly. Either way not before 2026-10-25 18:00 UTC: the three
+rebuilds, and redis 7.4.11's build of 2026-10-21 06:05 UTC, are then older than the three days
+`minimumReleaseAge` asks of a package (there is no written rule for images). They were taken
+over the older builds because a rebuild under the same tag carries its base's newer packages,
+and the merge waits for launch, past that age anyway. After this one, every Nextcloud pin moves
+one way: `managed-bring-up.md`, *Updating a running deployment*.
+
 **2026-10-22, recorded: the entry below merged** as #1658 on 2026-10-22 (`5abadbe4`). What it
 owed before merge ran on its head `8ae7c733`, all green: the three images built on the pull
 request, E2E (managed) #272, E2E (self-hosted) #289 and the Windows payload workflow #16
@@ -169,22 +219,22 @@ is who moves it after T1.
 | Image | Where | Pinned | Newest | Distance | Moves by | Decision |
 |---|---|---|---|---|---|---|
 | `node` (24-slim) | `apps/api`, `apps/web`, `apps/selfhost` Dockerfiles; the Windows payload's node.exe follows `apps/selfhost` | 24.22.1-slim by digest (2026-10-21, the October security release; digest `6f7b03f7…` with no tag at the audit, 24.20.0-slim from T2) | 24.22.1-slim (Node released 2026-10-20); the tag's digest moves as more architectures land (ppc64le at 17:39 UTC on 2026-10-21) and Dependabot offers each move | current: the pin's amd64 and arm64 images are the tag's | Dependabot `docker`, which moves the payload with it since 2026-10-21 | **T2** — and T1 gives it its tag |
-| `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.27-alpine | 1.30.4-alpine stable, 1.31.5 mainline (2026-09-03) | 1.27 is a 2024 mainline, past its end | Dependabot `docker` for the Dockerfile; `www.yml` by hand after it, and the pin watch (0146 T8) says when the two differ | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows |
-| `postgres` (self-host) | `deploy/selfhost/compose.yml` | digest `9a8afca5…` = 18.4-alpine, no tag | 18.6-alpine (2026-08-15), digest `d3e1620b…` | two patch releases | Dependabot `docker-compose` | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
-| `postgres` (managed ×2, dev) | `managed.yml`, `dev.yml` | 18-alpine, floating | 18.6 | none, it floats within 18 | `docker compose pull` | stays floating; a major (`pg_upgrade`) is ignored in Dependabot and is the owner's |
+| `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.31.7-alpine by digest `892bb215…` (2026-10-22; 1.27-alpine at the audit, 1.30-alpine from T2, `1.31-alpine` floating from #813, which no build or `up` ever pulled again) | 1.31.8-alpine, pushed 2026-10-22 16:51 UTC: four bug fixes and one change (changes.xml, 2026-10-21), where 1.31.7 (2026-10-14) fixed five: CVE-2026-15176, CVE-2026-93479, CVE-2026-95101, CVE-2026-97629 and CVE-2026-97205 | one patch, no security fix in it | Dependabot `docker` for the Dockerfile; `www.yml` by hand after it, and the pin watch (0146 T8) says when the two differ | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows |
+| `postgres` (self-host) | `deploy/selfhost/compose.yml` | 18.6-alpine by digest `77f58511…` (Dependabot's move of 2026-09-24 to a rebuild of the tag; `d3e1620b…` from T2, digest `9a8afca5…` = 18.4-alpine with no tag at the audit) | 18.6-alpine, rebuilt 2026-10-22 as `898c60cb…`, which the managed stacks pin | the same release; Dependabot offers the rebuild | Dependabot `docker-compose` | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
+| `postgres` (managed ×2, dev) | `managed.yml`, `dev.yml`, the Testcontainers setup; `db-roles.sh` reads `managed.yml`'s | 18.6-alpine by digest `898c60cb…` (2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13); 18.7 is due 2026-11-12 | current | by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8) | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
 | `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
-| `redis` | `managed.yml` | 7.4-bookworm, floating (7.4.11 on Debian 12; 7-alpine, on Alpine 3.21, until 2026-10-21) | 8.8.2-alpine | one major | owner | **§3** — the licence changed at 7.4, which is the line this floats on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
+| `redis` | `managed.yml` | 7.4.11-bookworm by digest `44960b31…` (2026-10-22; `7.4-bookworm` floating from 2026-10-21, `7-alpine` on Alpine 3.21 before) | 8.8.2-alpine | one major | owner for a major; a 7.4 patch by hand when the pin watch lists it | **§3** — the licence changed at 7.4, which is the line this is pinned on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
 | `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, `apps/worker/package.json` | v4.5.12; v4.5.16 pinned in #827 | v4.5.16 | — once #827 is applied | `trigger-version.sh` only; the pin watch keeps an issue open while a newer tag is in both images (0146 T8) | **§3, pinned** — one way (three Prisma migrations, one ClickHouse); the gate run in the owner's window applies it, not the merge. Dependabot told to leave all four places alone |
 | `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8) | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`) |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
 | `tecnativa/docker-socket-proxy` | `managed.yml` | v0.5.0 | v0.5.0 | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
 | `bitnamilegacy/minio` | `managed.yml` | 2025.5.24-debian-12-r5 by digest | none: `bitnamilegacy` stopped at 2025.7.23 (pushed 2025-08-19); `minio/minio` stopped at RELEASE.2025-09-07 | no upstream | owner | **§3** — the object store has no maintained free image; a replacement is a decision, and item 5 names a candidate |
-| `caddy` | `managed.yml` | 2-alpine, floating (2.11.4) | 2.11.4 | current | `docker compose pull` | stays floating; a major is ignored and is the owner's |
+| `caddy` | `managed.yml` | 2.11.7-alpine by digest `eb4d35b7…` (2026-10-22; `2-alpine` floating before, never pulled, 2.11.4 when recorded) | 2.11.7 | current | by hand, in its own PR, when the pin watch lists a newer 2.x or the image scan counts fixable findings | **pinned 2026-10-22** (§4); a major is the owner's. The move from 2.11.4 crosses the breaking changes 2.11.6 lists (in the code since 2.11.5): request headers capped at 16 KiB (431 above it), one-minute idle read and write timeouts, header names with a `.` dropped. Checked against `trigger-tls.Caddyfile` (`default_sni`, `tls internal`, `reverse_proxy trigger-api:3000` over HTTP), which sets none of them; the path to watch after the nightly is the dashboard over the mesh |
 | `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.19.2 (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.19.2 | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
-| `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`; one test pins the printed command | 1.37 | 1.38 | one minor | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
+| `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason | 1.38 (1.38.0) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.37.0 (2026-10-21) | v5.37.0 (2026-09-24) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
 | `axllent/mailpit` | `managed.yml` | v1.31.6 by digest (2026-10-21; v1.31.1 from T2) | v1.31.6 (2026-10-15), digest `23fe39e8…` | current | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
-| `nextcloud` | `managed.yml`, `dev.yml` | 34-apache, floating (34.0.3) | 34.0.3 (2026-09-02) | current | `docker compose pull` | stays floating; a fixture and a demo target; a major is ignored |
+| `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 34.0.5-apache by digest `9dbdc711…` (2026-10-22; `34-apache` floating before, never pulled) | 34.0.5 (2026-10-15) | current | by hand, in its own PR, when the pin watch lists a newer 34.x or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and refuses an older image on it, so a bad move is fixed forward (`managed-bring-up.md`, *Updating a running deployment*) |
 | `ghcr.io/robbes/ownpace-selfhost` | `deploy/selfhost/compose.yml` | `edge` | ours | — | `images.yml` | — |
 
 Ignored by name in the new Dependabot entries, so that a green tick cannot make these
@@ -383,14 +433,19 @@ is beside each; none is urgent tonight.
 
 ## 4. Not done, honestly
 
-- **The floating tags stay floating.** `postgres:18-alpine`, `redis:7.4-bookworm` (`redis:7-alpine`
-  until 2026-10-21, §3 item 3), `caddy:2-alpine`,
-  `nextcloud:34-apache` move on every `docker compose pull`, within their major (redis within
-  7.4), with no PR.
-  That is the intended behaviour for a fixture and for stores that upgrade in place, and the
-  majors are what the owner decides — so Dependabot is told to ignore their majors rather
-  than pin them. A reader who wants reproducibility on the managed stack should know that
-  the bring-up records what it pulled; that is where the exact version lives.
+- **The floating tags are pinned, 2026-10-22.** `postgres:18-alpine`, `redis:7.4-bookworm`
+  (`redis:7-alpine` until 2026-10-21, §3 item 3), `caddy:2-alpine`, `nextcloud:34-apache` and
+  `nginx:1.31-alpine` were to move on every `docker compose pull`, within their line, and
+  nothing ever ran one: Compose pulls only an image the machine does not have, and the web
+  image was built with `up --build` and no `--pull`. So both stacks, both sites and the web
+  image ran whatever copy the machine pulled first. This bullet said the bring-up records what
+  it pulled; nothing did. Each is pinned now by its exact version and index digest, in
+  `managed.yml`, `dev.yml`, `www.yml`, `apps/web/Dockerfile` and the Testcontainers setup,
+  moves by a pull request that E2E (managed) proves on its branch, and reaches live in a
+  release tag. The pin watch lists a newer tag, the weekly image scan counts what a rebuild
+  under the same tag would fix, and Dependabot moves the web image's FROM, which `www.yml`
+  follows. The majors stay the owner's. `busybox:1.38` is the one float left, named with its
+  reason in `scripts/a-float-nothing-ever-pulled.unit.test.ts`, which refuses a new one.
 - **ClickHouse** is not checked against anything but Trigger.dev's own compose, and that
   is by design; the version that rejected a migration is the reason it is pinned at all.
 - **Whether Dependabot reads `${TRIGGER_IMAGE_TAG:-v4.5.12}`** correctly is not tested here;

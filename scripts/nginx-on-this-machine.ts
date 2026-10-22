@@ -16,7 +16,7 @@
  * served from the container's paths.
  *
  * THE IMAGE'S OWN LEVELS (added with the second guard). The web image is
- * `nginx:1.31-alpine`, which installs nginx.org's package and its
+ * nginx 1.31 on Alpine (`apps/web/Dockerfile`), which installs nginx.org's package and its
  * `/etc/nginx/nginx.conf` (nginx/pkg-oss, `rpm/SOURCES/nginx.conf`; the
  * alpine package is built from the same repository). Its main level says
  * `error_log /var/log/nginx/error.log notice;`, and its http block a `main`
