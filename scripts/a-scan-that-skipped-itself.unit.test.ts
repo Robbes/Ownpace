@@ -69,11 +69,18 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const WORKFLOW = '.github/workflows/security-scan.yml';
 const wf = readFileSync(join(REPO_ROOT, WORKFLOW), 'utf8');
 
-/** The assertion step's body — everything from its name to the end of file. */
+/**
+ * The assertion step's body — everything from its name to the end of its job.
+ * The end of the file until 2026-10-22, when the weekly image scan's jobs
+ * (0146 T8) came after this one: their own `::error::`, `::warning::` and
+ * `exit 1` would have satisfied every case below with this step's gone.
+ */
 const check = (() => {
   const at = wf.indexOf('- name: The scan produced a report, and it was uploaded');
   expect(at, `${WORKFLOW} has no step asserting the scan produced anything`).toBeGreaterThan(-1);
-  return wf.slice(at);
+  const rest = wf.slice(at);
+  const nextJob = rest.search(/^ {2}[A-Za-z0-9_-]+:\s*$/m);
+  return nextJob < 0 ? rest : rest.slice(0, nextJob);
 })();
 
 describe('a scan that uploaded nothing cannot report green', () => {

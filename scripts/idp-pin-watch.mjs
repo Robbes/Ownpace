@@ -426,7 +426,8 @@ export function baseImageOf(buildImageJs, runtime) {
   return m[1];
 }
 
-async function cliBaseImage(net, version, runtime) {
+/** The base image the CLI at `version` names for `runtime`. Also what the image scan scans for the tasks. */
+export async function cliBaseImage(net, version, runtime) {
   const tgz = await net.bytes(`https://registry.npmjs.org/trigger.dev/-/trigger.dev-${version}.tgz`);
   return baseImageOf(fileInTgz(tgz, 'package/dist/esm/deploy/buildImage.js'), runtime);
 }
