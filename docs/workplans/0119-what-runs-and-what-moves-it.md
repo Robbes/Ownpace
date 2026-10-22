@@ -8,13 +8,13 @@
 `main` merged in): postgres, redis, caddy, nextcloud and nginx by exact tag and digest. Its
 entry stays on its branch until it merges. No E2E on the branch before 2026-10-25 18:00 UTC,
 when the three same-tag rebuilds of 2026-10-22 it pins are three days old. Nextcloud's data
-never goes back a version, so either the machine's floating tags are first pointed at the
-pinned digests, or the branch E2E runs only when it is ready to merge and it merges before the
-next nightly. The plan is to merge it after the Alpha launch and before PostgreSQL 18.7
-(2026-11-12).
+never goes back a version, so either the floating tags `main`'s nightly uses are first pointed
+at the pinned digests, or the branch E2E runs only when it is ready to merge and it merges
+before the next nightly. The plan is to merge it after the Alpha launch and before PostgreSQL
+18.7 (2026-11-12).
 
-**2026-10-22, recorded: the four pins merged** as #1657 on 2026-10-22 (`cead33f6`): the
-2026-10-21 entry on PgBouncer, Mailpit, Gatus, the registry and Redis, below. E2E (managed)
+**2026-10-22, recorded: the four pins and Redis merged** as #1657 on 2026-10-22 (`cead33f6`):
+the 2026-10-21 entry on PgBouncer, Mailpit, Gatus, the registry and Redis, below. E2E (managed)
 #273 ran on its head `a7180578` before the merge, green. `main`'s first scheduled nightly with
 them is 2026-10-23's.
 

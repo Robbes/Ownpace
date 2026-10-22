@@ -5,10 +5,11 @@
 ## Status — 2026-10-22 (update this block at the end of every session)
 
 **2026-10-21: the pin moves to v4.19.5, from the watch's issue #1643 (2026-10-19)**, merged as
-#1651 on 2026-10-22 at 22:39 UTC (`721c6ea8`); #1643 closes at the pin watch's next run
-(scheduled for Monday 2026-10-26), now that `main` carries the pin. Three of its fixes are
-security fixes, so T7's seven days apply (2026-10-19 to 2026-10-26; `main` has it inside them)
-and count until live runs it, from the next release tag. Read commit by commit
+#1651 on 2026-10-22 at 22:39 UTC (`721c6ea8`). #1643 stays open: upstream tagged v4.20.0 on
+2026-10-22, so the pin watch's next run (Monday 2026-10-26) moves the issue on to v4.20.0
+rather than closing it. Three of its fixes are security fixes, so T7's seven days apply
+(2026-10-19 to 2026-10-26; `main` has it inside them) and count until live runs it, from the
+next release tag. Read commit by commit
 (`git log v4.19.4..v4.19.5`, eleven commits; four are docs (6a8e5db, 7c87eb4, a224988,
 c51dae6), one bumps the console's, login v2's and the docs' npm packages):
 - **Device authorizations need consent and a permission (a618740).** Login v2 approved one as soon
