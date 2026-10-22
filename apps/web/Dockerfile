@@ -9,8 +9,8 @@
 # nginx master runs as root, its workers as the image's nginx user — the
 # official image's standard split.
 
-# Same node:24.21.0-slim digest the selfhost image pins (apps/selfhost/Dockerfile).
-FROM node:24.22.0-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5 AS build
+# The same node tag and digest the selfhost image pins (apps/selfhost/Dockerfile).
+FROM node:24.22.1-slim@sha256:1681862882da07ee5476fee047bcf34138833f1df42633bb25bcb0f438d5bf3d AS build
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable

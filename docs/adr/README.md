@@ -58,7 +58,7 @@ first.
 | [0024](./0024-explicit-owner-deletion-apply.md) | `apply` — an explicit, gated exception to non-destructiveness | Accepted |
 | [0025](./0025-proton-drive-target-deferred.md) | Proton Drive as a files target — deferred on authentication, not on effort | Accepted (deferred) — extended 2026-08-02 to the whole Proton destination |
 | [0026](./0026-one-operating-ui-one-contract.md) | One operating UI, one contract, both editions | Accepted |
-| [0027](./0027-windows-packaging-shell.md) | The Windows appliance ships as a service with a shortcut, not a native shell | Accepted — amended thrice: a **scheduled task**, not a Service, with bundled Node, premises measured 2026-08-09; **consolidated 2026-10-03** |
+| [0027](./0027-windows-packaging-shell.md) | The Windows appliance ships as a service with a shortcut, not a native shell | Accepted — amended thrice: a **scheduled task**, not a Service, with bundled Node, premises measured 2026-08-09; **consolidated 2026-10-03**; its Node follows the self-host image since 2026-10-21 |
 | [0028](./0028-pglite-appliance-persistence.md) | PGlite as the appliance's embedded persistence (amends ADR-0023) | Accepted |
 | [0029](./0029-public-site-is-server-rendered-and-legible.md) | The public site is server-rendered, and legible to assistants | Accepted |
 | [0030](./0030-relocation-is-positive-evidence.md) | A correlated relocation is positive evidence, and may be applied | Accepted 2026-08-15 — gates hardened the same day; pairing by Drive id (2026-09-23) and Dropbox id (2026-09-28); **consolidated 2026-10-03** |
