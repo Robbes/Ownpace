@@ -24,7 +24,9 @@ them (`IDP_READ_ATTEMPTS`), and still send each write once. A short 502 on a rea
 fails the gate, but no retry rides out an outage like this one. The follow-up is the
 owner's: making sure the Spark's NetBird peer cannot expire (the owner's checklist of
 2026-10-21, T10, by 2026-10-27), since a peer whose login expires takes the tunnel down, and
-every public name with it.
+every public name with it. The owner's call on T10, 2026-10-22: not now. When every public
+name stops answering at once, the first thing to check is the Spark peer's login (`netbird
+status` on the Spark).
 
 **2026-10-21, T7: the daily duties have a voice** (0142 T3), on branch
 `claude/ownpace-public-readiness-y7orc6-owner-told`, not merged. `ownpace-box-duties.service` has

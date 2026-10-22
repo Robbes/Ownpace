@@ -6,6 +6,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The identity provider is Zitadel v4.19.5, which carries three security
+  fixes** (workplan 0135 T7, #1651): device authorizations need the user's
+  consent, login v2 signs its proofs with a server secret, and an invalid
+  public host header is refused instead of ignored. None of them reaches a
+  flow this stack uses, and the upgrade runs no setup step. Live takes it from
+  the next release tag.
+- **PgBouncer 1.26.1 closes three holes this stack's settings left open, and
+  Trigger.dev's Redis leaves Alpine 3.21** (workplan 0119, #1657): each hole
+  was open to a client that had not logged in (CVE-2026-19888, CVE-2026-6668
+  and CVE-2026-107349), and a fourth, CVE-2026-107350, was probably closed by
+  the settings already. 1.26.0 is skipped, because it ignored this stack's
+  `ignore_startup_parameters = search_path`. Redis stays on 7.4 and runs on
+  Debian 12, since Alpine 3.21's security support ends on 2026-11-01. Mailpit
+  v1.31.6, Gatus v5.37.0 and registry 3.1.2 are current.
 - **The API, web and appliance images build on Node 24.22.1, the October
   security release, and the Windows appliance ships the same Node** (workplan
   0119, #1658): the packager reads the version from the appliance image's
