@@ -2948,7 +2948,9 @@ report, from `~/ownpace-live`:
   GoAccess counts them, one address and one browser per day. No address, no
   place, no campaign, and no whole address of the page a visitor came from.
   What it cannot stop: a word a visitor writes into their own browser's
-  User-Agent, joined to a browser's or a system's name, shows as they wrote it.
+  User-Agent, joined to a browser's or a system's name, shows as they wrote it;
+  and a Referer's host, which the visitor sets too, shows as it was sent when it
+  is letters, digits, dots and hyphens (`https://jan.devries.example.nl`).
 - **While `WWW_LIVE` is not true** it reads nothing, says so, and exits 0.
 
 **Reading the report,** from the mesh only: it is a file on the machine, and
@@ -3086,6 +3088,25 @@ network is its lookup of hosts' names (`src/gdns.c`, for the hosts panel, which
 `--real-time-html`, which it never passes). It runs with `--network none` all
 the same, so nothing could leave if a later version added a report. Docker pulls
 the image from Docker Hub the first time, as it pulls any other.
+
+**The image's base is past its end of life**
+([#1675](https://github.com/Robbes/Ownpace/issues/1675)).
+`allinurl/goaccess:1.12`, and `latest` with it, is built on Alpine 3.20.10,
+which Alpine no longer supports: a flaw found in its packages from now on stays
+open in this image. It stays pinned for now (2026-10-22, workplan 0152).
+GoAccess runs offline (`--network none`), read-only, as 65534, on input
+`site-visits.sh`'s filter has already cut to a few fields of a small character
+set, and of the image's packages only musl lies on that input's path. The one
+musl fix Alpine 3.20 released after the image was built (`r4`, in `regcomp`)
+cannot be reached from a log line. And no release tag carries `site-visits.sh`
+yet, so live, which runs from a tag, does not run it yet. The image moves,
+through a pull request like any pin, to an upstream release built on a
+supported Alpine; the pin watch (`scripts/idp-pin-watch.mjs`) says when a newer
+tag exists. It moves to an image of our own instead, GoAccess built on a
+supported base, if upstream's next release is still on 3.20, or if the weekly
+image scan (the image jobs of `.github/workflows/security-scan.yml`,
+[#1674](https://github.com/Robbes/Ownpace/pull/1674)) reports a HIGH or
+CRITICAL finding in musl.
 
 The deploy CLI, which runs on the host, was read only this far: at 4.5.16 its
 `src/telemetry/tracing.ts` is gone, and no exporter of its own was found. The

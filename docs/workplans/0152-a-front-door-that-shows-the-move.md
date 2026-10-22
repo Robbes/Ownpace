@@ -2,7 +2,95 @@
 
 > **In one line:** The public site explains a move at a glance: old account and new home in one picture, the destinations named, the alpha said, a shorter menu, a calculator that ends in a button, monthly and yearly prices (a year costs six months), and a page per provider a person leaves.
 
-## Status — 2026-10-16 (update this block at the end of every session)
+## Status — 2026-10-22 (update this block at the end of every session)
+
+**2026-10-22: GoAccess stays on 1.12 for now, and the visit count takes nginx's own time, never a
+visitor's** ([#1675](https://github.com/Robbes/Ownpace/issues/1675)). The weekly image scan
+(#1674), dispatched on that PR's branch, found the pinned `allinurl/goaccess:1.12` on an operating
+system past its end of life. A read-only investigation that day checked the way out, and found a
+gap in the filter on the way.
+- **The checked facts:**
+  - `1.12` and `latest` are both built on Alpine 3.20.10, past its end of life.
+  - Upstream's `master` Dockerfile is still `FROM alpine:3.20`, in both of its stages (read again
+    for this entry), and `latest` is a build of `master`. So no upstream image on a supported base
+    exists yet.
+  - Alpine 3.20 released one musl fix after the image was built (`r4`, in `regcomp`). It cannot be
+    reached from a log line.
+  - No release tag carries `site-visits.sh` yet. It came with #1557 (`94c23dbf`, 2026-10-11), and
+    neither `v0.1.0-rc.1` nor `v0.2.0-alpha.1` contains that commit, so live does not run it.
+- **Decided: stay on 1.12.** `GOACCESS_IMAGE` is unchanged. GoAccess runs offline
+  (`--network none`), read-only, as 65534, on input the filter has cut to a few fields of a small
+  character set, and only musl lies on that input's path.
+- **What moves it:**
+  - An upstream release built on a supported Alpine, taken through a pull request like any pin. The
+    pin watch says when a newer tag exists.
+  - Or an image of our own, GoAccess built on a supported base. That happens if upstream's next
+    release is still on 3.20, or if the weekly image scan reports a HIGH or CRITICAL finding in
+    musl. That scan is the image jobs of `security-scan.yml`, which #1674 brought to `main` the
+    same day (`51a0d267`), after this branch was cut.
+
+  The script's header (*THE IMAGE*) and `docs/managed-bring-up.md` (*Nothing phones home*) say the
+  same.
+- **The gap: the time GoAccess was given could be a visitor's text.** nginx fills `$remote_user`
+  from any Basic Authorization header, though the site has no `auth_basic`, and escapes only
+  quotes, backslashes and bytes below 32 or above 126 (its default escaping, which `ownpace_site`
+  uses). The filter's first-piece check accepted any user, and it took the time from the FIRST
+  bracketed group. So a Basic user `[jan.devries at example dot nl]` became the time GoAccess
+  received. That put typed text into GoAccess's input, which the script promised it never gets. A
+  user `[01/Jan/2020:00:00:00 +0000]` backdated the hit. And if the first 10 forwarded requests to
+  a fresh container were crafted that way, GoAccess (whose parser tests the first 10 lines) would
+  give up on every daily run of that container until the next deploy.
+  The investigation reproduced this in mawk 1.3.4 20240123 with main's filter.
+- **The fix, in the filter of `deploy/compose/site-visits.sh`:**
+  - The first piece must END in nginx's `$time_local`, in its exact shape
+    (`[dd/Mon/yyyy:hh:mm:ss +zzzz]`, bracket expressions only, so mawk reads it). A line that does
+    not end that way counts as `other`.
+  - The time is taken from that same anchored match, the group nginx wrote last.
+  - The user is never handed on. GoAccess always gets `-`, and the filter's comment and the
+    header's item 2 now say so.
+
+  Normal lines are byte-identical. main's filter and this one gave the same output and counts, in
+  mawk, on the existing guard's request lines and on zones `-0130` and `+1400`.
+- **Guard: `scripts/a-visit-count-that-kept-the-visitor.unit.test.ts`, extended first.**
+  - The log gains:
+    - a Basic user with spaces and an at-style address;
+    - a backdating user;
+    - a user that opens a bracket and never closes it (`[marie`). This one was not in the
+      investigation's list. With nginx's time it makes one bracketed group, so a fix taking "the
+      last bracketed group" in any shape would still have handed the user on;
+    - a first piece that does not end in a time, which counts as `other`.
+  - `PERSONAL` gains those users' words.
+  - The counts are now 17 requests and 2 lines that are not requests (a new assertion), and 17
+    quoted lines.
+  - Every existing expected line is unchanged.
+
+  Red against main's filter: 5 of 53. GoAccess was given 18 lines for 17, `jan.devries` was in what
+  it was given, and 18 lines were quoted for 17. Green: 53 of 53.
+- **Mutations, each caught (failing tests of 53):**
+  - the anchor reverted to main's check and first-group match (5);
+  - the check anchored but the time from the first bracketed group (4);
+  - the time from the last bracketed group of any shape (4);
+  - the check reverted with the time match anchored (3).
+
+  The file was restored and `cmp`-identical after each.
+- **The branch's review, applied the same day.** No code changed; the guard stays 53 of 53.
+  - nginx's escaping was said to be "only quotes, backslashes and control bytes". Its default
+    escaping also writes every byte above 126 as `\xXX`. The filter's comment, the guard's header
+    and this entry now say "bytes below 32 or above 126". Spaces and brackets still pass, so the
+    gap stands as described.
+  - Two more fields still carry what a visitor chose, as on `main` before this branch: words of
+    the User-Agent, which *What it cannot stop* already named, and the Referer's host
+    (`https://jan.devries.example.nl/` is handed on as `https://jan.devries.example.nl`). The
+    header's *What it cannot stop* and `docs/managed-bring-up.md` (*Counting its visits*) now name
+    the Referer's host too, and the header's opening promise points at that paragraph. Tightening
+    the referring site is not part of this fix.
+  - The header's *THE IMAGE* dates its claim that no release tag carries the script
+    (2026-10-22). It and `docs/managed-bring-up.md` name the weekly image scan by its workflow and
+    PR (#1674, merged after this branch was cut), and the docs paragraph is rewrapped to its
+    width.
+  - The guard's *WHAT THIS CANNOT SEE* now says the GoAccess 1.12 run of 2026-10-06 saw the log as
+    it was then. The three lines added for the Basic users were not run through it; they are of the
+    same combined shape, with nginx's own time.
 
 **2026-10-16: T8 (c) is built: the company in the footer.** The owner, asked whether the footer
 may say *Archico B.V.*, its KvK and VAT numbers and the contact address, with no postal address
