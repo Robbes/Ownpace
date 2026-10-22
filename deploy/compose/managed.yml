@@ -795,7 +795,33 @@ services:
     # above, the service ping's default and the privacy policy's fields hold
     # at v4.19.4. The OTA instance's `zitadel` database was dumped first by the
     # owner, with deploy/compose/dump-idp.sh.
-    image: ghcr.io/zitadel/zitadel:v4.19.4
+    #
+    # v4.19.5 (2026-10-15), from the weekly pin watch's issue #1643. Eleven
+    # commits after v4.19.4, four of them docs and one npm bump. Three
+    # security fixes, so T7's seven days apply. Two are in what this stack
+    # does not switch on: device authorizations (login v2's consent, and a
+    # permission check on approving one through the API; no client here has
+    # the device-code grant, and login v1's device page behaves as before),
+    # and login v2's verification and IdP-link proofs, now signed with a
+    # server secret (login v2 does not run here, so no new secret). The third
+    # is in the host handling every request passes: an invalid
+    # `x-zitadel-public-host` header is now kept, so the trusted-domain check
+    # refuses it, where it was ignored.
+    # Nothing here sends that header: the API, setup-zitadel.sh and the smoke
+    # present the public name as Host, the readiness checks ask /debug/ready,
+    # and an invalid Host or X-Forwarded-Host is still ignored, as before.
+    # Two more enforce list limits: a v2 list without one returns 100, a v1
+    # list 1000, and a limit above 1000 is refused; with them the console
+    # stops loading every project at startup (95dae90). idp-strays.sh asks for
+    # at most 1000 and pages accounts by 100; the smoke's leftover sweep asks
+    # /v2/users without a limit and now sees at most 100, against four per
+    # dead run; the other lists here hold a handful. No setup step.
+    # cmd/defaults.yaml loses only the two unused SearchLimit keys and
+    # rewords the query-limit comments, so the three facts above,
+    # the service ping's default and the privacy policy's fields hold at
+    # v4.19.5. The OTA instance's `zitadel` database was dumped first by the
+    # owner, with deploy/compose/dump-idp.sh; E2E (managed) #274 applied it.
+    image: ghcr.io/zitadel/zitadel:v4.19.5
     container_name: ${COMPOSE_PROJECT_NAME}-idp
     restart: unless-stopped
     logging: *logging
