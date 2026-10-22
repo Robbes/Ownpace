@@ -21,10 +21,12 @@ after #267, #1672 after #268.
 Since #1662 (`d98f54f2`) and #1672 (`be6a857f`), `setup-zitadel.sh` and `smoke-managed.sh` ask a
 read of the provider again on a 502, 503 or 504, four asks with 14 seconds of waiting between
 them (`IDP_READ_ATTEMPTS`), and still send each write once. A short 502 on a read no longer
-fails the gate, but no retry rides out an outage like this one. The follow-up is the
+fails the gate, but no retry rides out an outage like this one. The follow-up was the
 owner's: making sure the Spark's NetBird peer cannot expire (the owner's checklist of
 2026-10-21, T10, by 2026-10-27), since a peer whose login expires takes the tunnel down, and
-every public name with it.
+every public name with it. The owner's call on T10, 2026-10-22: not now. When every public
+name stops answering at once, the first thing to check is the Spark peer's login (`netbird
+status` on the Spark).
 
 **2026-10-21, T7: the daily duties have a voice** (0142 T3), on branch
 `claude/ownpace-public-readiness-y7orc6-owner-told`, not merged. `ownpace-box-duties.service` has
