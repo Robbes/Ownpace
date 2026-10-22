@@ -44,11 +44,16 @@
  *   filters by a name built from the project: the daemon holds both stacks,
  *   and the task runs' `runner-` names carry no project, so the smoke's
  *   runner-log watcher would have copied live's task-run logs into the OTA
- *   gate's public evidence. Every script that runs Compose asks the reader
- *   (`compose_project`) before its first Compose command, because Compose
- *   follows a name exported in the shell and the reader refuses one that
- *   disagrees with the checkout. The reader of shell text that tells a command
- *   from a printed recipe is checked to reach the end of every script.
+ *   gate's public evidence. Two scripts are named exemptions, each checked to
+ *   exist: `exposure-check.sh` asks the whole daemon (it covers both stacks
+ *   and prints names and ports only), and `box-checks.sh` reads both stacks'
+ *   database sizes on live (0142 T3), held to a rule of its own: every listing
+ *   it makes is narrowed by one project's compose label. Every script that
+ *   runs Compose asks the reader (`compose_project`) before its first Compose
+ *   command, because Compose follows a name exported in the shell and the
+ *   reader refuses one that disagrees with the checkout. The reader of shell
+ *   text that tells a command from a printed recipe is checked to reach the
+ *   end of every script.
  *
  *   The second half renders `managed.yml` the way Compose does, under two
  *   project names and two sets of port values. The two stacks may share no
@@ -362,9 +367,28 @@ describe('the first half: nothing names a stack that the project does not', () =
       sources.filter((s) => wholeDaemon.has(s.file)).map((s) => s.file),
       'an exemption for a script that is not there exempts nothing, and hides the next one',
     ).toEqual([...wholeDaemon]);
+    // AND ONE READS BOTH STACKS ON PURPOSE, each by its own project: the box
+    // checks (0142 T3) report every database's size in each stack's postgres
+    // and trigger-db, live's and the OTA stack's, because both fill one disk.
+    // It runs on live only (stack_is_live), takes the OTA stack's name from
+    // managed.yml's `name:` rather than writing it, and sends numbers, never a
+    // log, an environment or an address (`a-disk-that-says-it-is-filling`
+    // sweeps what it sends). So it is held to a rule of its own: every listing
+    // it makes is narrowed by one project's compose label.
+    const bothStacks = new Set(['deploy/compose/box-checks.sh']);
+    expect(
+      sources.filter((s) => bothStacks.has(s.file)).map((s) => s.file),
+      'an exemption for a script that is not there exempts nothing, and hides the next one',
+    ).toEqual([...bothStacks]);
+    const unlabelled = sources
+      .filter((s) => bothStacks.has(s.file))
+      .flatMap(linesOf)
+      .filter((l) => !/^\s*#/.test(l.line) && /\bdocker\s+(?:container\s+)?(?:ps|ls|list)\b/.test(l.line))
+      .filter((l) => !/--filter "label=com\.docker\.compose\.project=\$\{?\w+\}?"/.test(l.line));
+    expect(where(unlabelled), "a listing in the box checks that no project's compose label narrows").toEqual([]);
     const hits: Line[] = [];
     let listings = 0;
-    for (const s of sources.filter((x) => x.file !== MANAGED && !wholeDaemon.has(x.file))) {
+    for (const s of sources.filter((x) => x.file !== MANAGED && !wholeDaemon.has(x.file) && !bothStacks.has(x.file))) {
       const derived = new Set(['COMPOSE_PROJECT', 'COMPOSE_PROJECT_NAME']);
       for (let grew = true; grew; ) {
         grew = false;

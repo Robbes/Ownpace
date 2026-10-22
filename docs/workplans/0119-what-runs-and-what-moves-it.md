@@ -2,7 +2,32 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-10-21 (update this block at the end of every session)
+## Status — 2026-10-22 (update this block at the end of every session)
+
+**2026-10-22, recorded: the entry below merged** as #1658 on 2026-10-22 (`5abadbe4`). What it
+owed before merge ran on its head `8ae7c733`, all green: the three images built on the pull
+request, E2E (managed) #272, E2E (self-hosted) #289 and the Windows payload workflow #16
+(win-x64). §2.1's *Moves by* cells for the `deploy/compose` images, and its dated note on why
+Dependabot never moved them, came with #1663, merged 2026-10-21 (`087183b7`; 0146 T8).
+
+**2026-10-21: Node 24.22.1 in the three images and the Windows payload, which now follows the
+self-host image; pnpm 11.28.6.** v24.22.1 is the October security release, HIGH for 24.x (DNS,
+TLS hostname checks and the Brotli decoder among its fixes; OpenSSL 3.5.9). Dependabot would
+have moved the images on 2026-10-26 and never the payload: `package-appliance.mjs` pinned
+node.exe to v24.19.0 in a constant nothing moved, while the images went to 24.22.0, and the
+v0.2.0-alpha.1 zip ships it. The packager now reads the exact `x.y.z` from
+`apps/selfhost/Dockerfile`'s `FROM` line and refuses a line without one, so each image bump
+moves the zip too. The digest is the tag's second push (amd64 and arm64); its first was an
+index listing no image at all, which no build can pull; a third that evening only added
+ppc64le around the same two images, a digest-only move Dependabot will offer. pnpm 11.22.0 →
+11.28.6, `latest-11` and six days old — the three-day rule is kept by hand here, since
+corepack and `pnpm/action-setup` fetch pnpm itself past it — with the lockfile
+byte-identical; pnpm 11 is supported until 2027-04-30 (pnpm's `SECURITY.md`). Proved here:
+unit, with the two new cases red first and three mutations caught; a `--with-node win-x64`
+staging whose node.exe hashes to the published `d702daa8…` and reports 24.22.1. Owed before
+merge: the images built on the PR, E2E (self-hosted) and E2E (managed) on the branch, and the
+Windows payload workflow (win-x64) on the branch, the first run of the 24.22.1 download
+outside this machine.
 
 **2026-10-21: four pins moved by hand, and Redis off Alpine 3.21.** PgBouncer v1.26.1-p0
 closes three holes this stack's `pgbouncer.ini` leaves open in v1.25.2, each to a client
@@ -143,22 +168,22 @@ is who moves it after T1.
 
 | Image | Where | Pinned | Newest | Distance | Moves by | Decision |
 |---|---|---|---|---|---|---|
-| `node` (24-slim) | `apps/api`, `apps/web`, `apps/selfhost` Dockerfiles | digest `6f7b03f7…`, no tag | 24.20.0-slim (2026-08-27), digest `ba849c60…` | patches within 24 | Dependabot `docker` | **T2** — and T1 gives it its tag |
-| `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.27-alpine | 1.30.4-alpine stable, 1.31.5 mainline (2026-09-03) | 1.27 is a 2024 mainline, past its end | Dependabot `docker` + `docker-compose` | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows |
+| `node` (24-slim) | `apps/api`, `apps/web`, `apps/selfhost` Dockerfiles; the Windows payload's node.exe follows `apps/selfhost` | 24.22.1-slim by digest (2026-10-21, the October security release; digest `6f7b03f7…` with no tag at the audit, 24.20.0-slim from T2) | 24.22.1-slim (Node released 2026-10-20); the tag's digest moves as more architectures land (ppc64le at 17:39 UTC on 2026-10-21) and Dependabot offers each move | current: the pin's amd64 and arm64 images are the tag's | Dependabot `docker`, which moves the payload with it since 2026-10-21 | **T2** — and T1 gives it its tag |
+| `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.27-alpine | 1.30.4-alpine stable, 1.31.5 mainline (2026-09-03) | 1.27 is a 2024 mainline, past its end | Dependabot `docker` for the Dockerfile; `www.yml` by hand after it, and the pin watch (0146 T8) says when the two differ | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows |
 | `postgres` (self-host) | `deploy/selfhost/compose.yml` | digest `9a8afca5…` = 18.4-alpine, no tag | 18.6-alpine (2026-08-15), digest `d3e1620b…` | two patch releases | Dependabot `docker-compose` | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
 | `postgres` (managed ×2, dev) | `managed.yml`, `dev.yml` | 18-alpine, floating | 18.6 | none, it floats within 18 | `docker compose pull` | stays floating; a major (`pg_upgrade`) is ignored in Dependabot and is the owner's |
-| `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | Dependabot `docker-compose` | **T2** — stateless; the managed gate proves it |
+| `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
 | `redis` | `managed.yml` | 7.4-bookworm, floating (7.4.11 on Debian 12; 7-alpine, on Alpine 3.21, until 2026-10-21) | 8.8.2-alpine | one major | owner | **§3** — the licence changed at 7.4, which is the line this floats on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
-| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, `apps/worker/package.json` | v4.5.12; v4.5.16 pinned in #827 | v4.5.16 | — once #827 is applied | `trigger-version.sh` only | **§3, pinned** — one way (three Prisma migrations, one ClickHouse); the gate run in the owner's window applies it, not the merge. Dependabot told to leave all four places alone |
-| `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | nobody | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`) |
-| `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | Dependabot `docker-compose` for patches and minors; a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
-| `tecnativa/docker-socket-proxy` | `managed.yml` | v0.5.0 | v0.5.0 | current | Dependabot `docker-compose` | — |
+| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, `apps/worker/package.json` | v4.5.12; v4.5.16 pinned in #827 | v4.5.16 | — once #827 is applied | `trigger-version.sh` only; the pin watch keeps an issue open while a newer tag is in both images (0146 T8) | **§3, pinned** — one way (three Prisma migrations, one ClickHouse); the gate run in the owner's window applies it, not the merge. Dependabot told to leave all four places alone |
+| `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8) | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`) |
+| `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
+| `tecnativa/docker-socket-proxy` | `managed.yml` | v0.5.0 | v0.5.0 | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
 | `bitnamilegacy/minio` | `managed.yml` | 2025.5.24-debian-12-r5 by digest | none: `bitnamilegacy` stopped at 2025.7.23 (pushed 2025-08-19); `minio/minio` stopped at RELEASE.2025-09-07 | no upstream | owner | **§3** — the object store has no maintained free image; a replacement is a decision, and item 5 names a candidate |
 | `caddy` | `managed.yml` | 2-alpine, floating (2.11.4) | 2.11.4 | current | `docker compose pull` | stays floating; a major is ignored and is the owner's |
-| `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.19.2 (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.19.2 | current | owner; ignored by name; releases and advisories watched, and the pin compared with the newest release weekly (0135 T7) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
-| `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`; one test pins the printed command | 1.37 | 1.38 | one minor | Dependabot for the compose line; the scripts by hand, and the test says so | **T2** |
-| `ghcr.io/twin/gatus` | `managed.yml` | v5.37.0 (2026-10-21) | v5.37.0 (2026-09-24) | current | Dependabot `docker-compose` | — |
-| `axllent/mailpit` | `managed.yml` | v1.31.6 by digest (2026-10-21; v1.31.1 from T2) | v1.31.6 (2026-10-15), digest `23fe39e8…` | current | Dependabot `docker-compose` | **T2** — a mail catcher for the gate |
+| `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.19.2 (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.19.2 | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
+| `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`; one test pins the printed command | 1.37 | 1.38 | one minor | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
+| `ghcr.io/twin/gatus` | `managed.yml` | v5.37.0 (2026-10-21) | v5.37.0 (2026-09-24) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
+| `axllent/mailpit` | `managed.yml` | v1.31.6 by digest (2026-10-21; v1.31.1 from T2) | v1.31.6 (2026-10-15), digest `23fe39e8…` | current | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
 | `nextcloud` | `managed.yml`, `dev.yml` | 34-apache, floating (34.0.3) | 34.0.3 (2026-09-02) | current | `docker compose pull` | stays floating; a fixture and a demo target; a major is ignored |
 | `ghcr.io/robbes/ownpace-selfhost` | `deploy/selfhost/compose.yml` | `edge` | ours | — | `images.yml` | — |
 
@@ -166,6 +191,14 @@ Ignored by name in the new Dependabot entries, so that a green tick cannot make 
 decisions: the two Trigger.dev images and Zitadel (one way), ClickHouse and the object
 store (deliberate pins), and the majors of `postgres`, `redis`, `registry`, `nextcloud`
 and `caddy`.
+
+*2026-10-21 (workplan 0146 T8): the `docker-compose` entry for `deploy/compose` never read a
+file. Dependabot's compose fetcher reads only names like `compose.yml`, and `managed.yml`,
+`www.yml` and `dev.yml` all miss, so no image there was ever moved by it and the ignores above
+for those images ignored nothing. The entry and those ignores are gone; the self-host compose
+keeps its `postgres` major ignore. `scripts/idp-pin-watch.mjs` compares the `deploy/compose`
+images with their registries every Monday instead and keeps an issue open while one is behind,
+which is what the "Moves by" cells above now say.*
 
 ### 2.2 npm (`pnpm outdated -r`, 23 packages)
 
@@ -194,7 +227,10 @@ which for a current SHA is never. T2 sets the three labels to the truth.
 ### 2.4 Runtimes
 
 Node 24 everywhere it matters: `engines` says `>=24`, CI installs `24`, the images run
-24.20.0. pnpm 11.22.0. PostgreSQL 18 on both stacks; PGlite (npm) current. Prisma current.
+24.22.1 (24.20.0 at the audit), and the Windows payload ships the self-host image's version.
+pnpm 11.28.6 (11.22.0 at the audit), moved by hand: Dependabot never touches `packageManager`,
+so a bump is `latest-11` once it is three days old, then `pnpm install` to show the lockfile
+unchanged. PostgreSQL 18 on both stacks; PGlite (npm) current. Prisma current.
 
 ## 3. The owner's decisions
 

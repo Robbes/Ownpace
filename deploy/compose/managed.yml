@@ -71,12 +71,34 @@
 # `net.ipv4.ip_nonlocal_bind=1` or Docker ordered after the mesh, and the check after a reboot are
 # in docs/managed-bring-up.md, "Which address a port answers on".
 name: ownpace-managed
+#
+# CONTAINER OUTPUT, CAPPED BY SIZE (2026-10-21). Docker's default driver,
+# json-file, keeps everything a container writes, with no limit of age or size,
+# until the container is removed, and a service whose image and settings do not
+# change keeps its container for months: the databases, the Trigger.dev plane
+# and the identity provider are recreated only when a deploy changes them. So
+# every service below writes json-file with the appliance's cap
+# (deploy/selfhost/compose.yml): five files of 20 MB, at most 100 MB a service
+# and 1.8 GB a stack. The output still goes with the container, so privacy
+# §9's "until the part of the service that wrote them is replaced" holds; the
+# oldest lines can go sooner, never later. deploy/compose/www.yml sets no cap
+# on purpose: site-visits.sh counts the site's visits from the whole of its log
+# on every run. A task run's container is Trigger.dev's, not a service here, and
+# writes with the daemon's driver until its run ends.
+# scripts/a-month-of-container-output.unit.test.ts holds every service to it.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
 services:
   # PostgreSQL Database
   postgres:
     image: postgres:18-alpine
     container_name: ${COMPOSE_PROJECT_NAME}-db
     restart: unless-stopped
+    logging: *logging
     # QUERY STATISTICS (workplan 0143 T8). pg_stat_statements must be loaded
     # at start-up; bootstrap-managed.sh's data phase creates the extension
     # that reads it. Utility statements are not tracked, so an `ALTER ROLE …
@@ -162,6 +184,7 @@ services:
     image: edoburu/pgbouncer:v1.26.1-p0
     container_name: ${COMPOSE_PROJECT_NAME}-pgbouncer
     restart: unless-stopped
+    logging: *logging
     depends_on:
       postgres:
         condition: service_healthy
@@ -188,6 +211,7 @@ services:
     image: postgres:18-alpine
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-db
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_USER: trigger
       # From .env (workplan 0132 T2), and only at this volume's first
@@ -232,6 +256,7 @@ services:
     image: redis:7.4-bookworm
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-redis
     restart: unless-stopped
+    logging: *logging
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -253,6 +278,7 @@ services:
     image: ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.7.2}
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-api
     restart: unless-stopped
+    logging: *logging
     user: root
     command: sh -c "chown -R node:node /home/node/shared && exec ./scripts/entrypoint.sh"
     environment:
@@ -426,6 +452,7 @@ services:
     image: clickhouse/clickhouse-server:26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-clickhouse
     restart: unless-stopped
+    logging: *logging
     # Upstream's, and not decoration: ClickHouse opens a lot of files and the
     # default soft limit is where that shows up as corruption-looking errors.
     ulimits:
@@ -496,6 +523,7 @@ services:
     image: registry:3.1.2
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-registry
     restart: unless-stopped
+    logging: *logging
     ports:
       - "127.0.0.1:${REGISTRY_PORT:-5000}:5000"
     volumes:
@@ -511,6 +539,7 @@ services:
     image: tecnativa/docker-socket-proxy:v0.5.0
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-docker-proxy
     restart: unless-stopped
+    logging: *logging
     environment:
       CONTAINERS: 1
       IMAGES: 1
@@ -532,6 +561,7 @@ services:
     image: ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.7.2}
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-supervisor
     restart: unless-stopped
+    logging: *logging
     environment:
       TRIGGER_API_URL: http://trigger-api:3000
       OTEL_EXPORTER_OTLP_ENDPOINT: http://trigger-api:3000/otel
@@ -603,6 +633,7 @@ services:
     image: bitnamilegacy/minio:2025.5.24-debian-12-r5@sha256:451fe6858cb770cc9d0e77ba811ce287420f781c7c1b806a386f6896471a349c
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio
     restart: unless-stopped
+    logging: *logging
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-very-safe-password}
@@ -638,6 +669,7 @@ services:
     image: caddy:2-alpine
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls
     restart: unless-stopped
+    logging: *logging
     environment:
       TRIGGER_TLS_HOST: ${TRIGGER_TLS_HOST:-localhost}
     ports:
@@ -766,6 +798,7 @@ services:
     image: ghcr.io/zitadel/zitadel:v4.19.4
     container_name: ${COMPOSE_PROJECT_NAME}-idp
     restart: unless-stopped
+    logging: *logging
     # `start-from-init` is init-then-start in one command and is idempotent: on
     # a database it has already initialised it skips straight to serving. Two
     # commands would mean a first bring-up that differs from every later one,
@@ -915,9 +948,16 @@ services:
       # This is what lets setup-zitadel.sh provision the project and the client
       # without anybody clicking through a console — see that script's header
       # for why the token is deliberately short-lived.
+      #
+      # Its expiry is required, with no date of its own here: a fixed fallback
+      # (2026-12-31 until 2026-10-21) is a first start the provider refuses
+      # once the date has passed (Errors.AuthNKey.ExpireBeforeNow), and it
+      # restarts for ever. ensure-env-secrets.sh, every bring-up and
+      # setup-zitadel.sh write it before the provider first starts
+      # (seed_pat_expiry, env-read.sh), and keep a date still ahead.
       ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: ownpace-setup
       ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: Ownpace setup
-      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: ${ZITADEL_PAT_EXPIRY:-2026-12-31T23:59:59Z}
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: ${ZITADEL_PAT_EXPIRY:?run ./deploy/compose/ensure-env-secrets.sh first}
       ZITADEL_FIRSTINSTANCE_PATPATH: /machinekey/pat.txt
     volumes:
       # The provisioning token lands here for setup-zitadel.sh to read. A named
@@ -1046,6 +1086,7 @@ services:
   zitadel-machinekey:
     image: busybox:1.38
     profiles: ["init"]
+    logging: *logging
     command:
       - sh
       - -c
@@ -1073,6 +1114,7 @@ services:
         GIT_SHA: ${GIT_SHA:-unknown}
     container_name: ${COMPOSE_PROJECT_NAME}-api
     restart: unless-stopped
+    logging: *logging
     environment:
       # NO DEFAULT, on purpose (workplan 0132 T4; the owner, 2026-10-04). The
       # default was `development`, and it won over the image's own
@@ -1366,6 +1408,7 @@ services:
         VITE_SUPPORT_EMAIL: ${VITE_SUPPORT_EMAIL:-}
     container_name: ${COMPOSE_PROJECT_NAME}-web
     restart: unless-stopped
+    logging: *logging
     ports:
       # A ROUTED PORT: the app's public name (`app.…`) leads here through the
       # front. WEB_BIND is set to the front's address in this stack's `.env`,
@@ -1388,6 +1431,7 @@ services:
     image: ghcr.io/twin/gatus:v5.37.0
     container_name: ${COMPOSE_PROJECT_NAME}-status
     restart: unless-stopped
+    logging: *logging
     environment:
       # The address a BROWSER uses, not an internal service name: probing
       # http://api:3001 would prove the container talks to itself and say
@@ -1551,6 +1595,7 @@ services:
     image: axllent/mailpit:v1.31.6@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387
     container_name: ${COMPOSE_PROJECT_NAME}-mailpit
     restart: unless-stopped
+    logging: *logging
     environment:
       # A catcher accepts whatever it is handed. Refusing on auth or TLS would
       # turn a configuration question into a delivery failure that reads like
@@ -1645,6 +1690,7 @@ services:
     image: nextcloud:34-apache
     container_name: ${COMPOSE_PROJECT_NAME}-nextcloud
     restart: unless-stopped
+    logging: *logging
     # ITS DATABASE IS THE STACK'S POSTGRES (2026-10-03; workplan 0150). It was
     # SQLite, which takes one writer at a time, while the owner's migrations and
     # the nightly gate write into this one Nextcloud: on 2026-09-29 the gate's

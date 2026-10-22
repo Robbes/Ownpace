@@ -440,18 +440,144 @@ idp_pat() {
     busybox:1.38 cat /machinekey/pat.txt 2>/dev/null | tr -d '\r\n'
 }
 
+# ---------------- a read of the issuer that got no answer ---------------------
+#
+# HOW MANY TIMES IT IS ASKED. THE SAME NAME AS setup-zitadel.sh's, ON PURPOSE:
+# one setting covers both scripts, and the gate runs them one after the other
+# against the same front. Four asks, 2s + 4s + 8s ≈ 14 seconds of patience.
+# The wait doubles with no ceiling, as setup-zitadel.sh's does: the knob is for
+# a blip, not an outage.
+#
+# THOSE 14 SECONDS ARE THE WAITS ONLY. Each ask keeps its own time limit, the
+# `-m 15` of the requests that had one. `idp_api` has none, as before, so a front
+# that never completes a handshake costs curl's own connect timeout (300 s) on
+# each of the four asks, where it cost it once before. A front that ANSWERS — a
+# 502, a refused connection — costs only the waits.
+#
+# WHY THIS EXISTS. E2E (managed) #263 and #264 stopped in setup-zitadel.sh on
+# 2026-10-21: its token check went through the public issuer, and the NetBird
+# reverse proxy in front of it answered HTTP 502 with its own "Connection
+# Error" page before the provider was reached. #1662 teaches that script to
+# ask a read again. THIS script asks the same issuer through the same front on
+# a fronted stack — IDP_RESOLVE is empty there, so curl goes to the public
+# name — and asked every question once, with no retry at all, not even for a
+# dropped handshake. One blip of the front was a red nightly gate on a healthy
+# stack, blamed on whichever section happened to be asking.
+IDP_READ_ATTEMPTS="${IDP_READ_ATTEMPTS:-4}"
+
+# read_retrying curl <args…> — sets CURL_OUT, CURL_RC and CURL_ATTEMPTS; the
+# caller decides what a failure means. The curl is spelled out at the call site,
+# so the line still reads as the request it is.
+#
+# Every caller ends curl's output with the status (`-w '…%{http_code}'`), so the
+# last line of CURL_OUT is it.
+#
+# The same three rules as setup-zitadel.sh's `curl_read_retrying` (#1662):
+#
+#   1. ONLY NO ANSWER — a curl EXIT CODE, or a 502, 503 or 504. A 401, 403, 404
+#      or 500 is the provider ANSWERING, and asking again changes nothing about
+#      it. A 502, 503 or 504 is whatever stands in front of the provider saying
+#      it got no answer (#263, #264): the same thing a dropped handshake is, one
+#      layer further in.
+#
+#   2. ONLY READS. The caller decides, with `is_read` below. A write is never
+#      handed to this function.
+#
+#   3. THE LAST FAILURE STILL FAILS, in the caller, with the message it always
+#      had. This rides out a blip; it must not hide a front that stays down.
+#
+# THE RETRY LINE GOES TO STDERR. idp_api's reads and sign_in_as run inside
+# `$( )` at every call site, so a line on stdout would become part of the
+# answer jq is handed. That is the second fault #1662 found in
+# setup-zitadel.sh, and the reason its retry line moved.
+#
+# AND IT NAMES THE METHOD AND THE PATH, READ OFF THE REQUEST, NEVER THE QUERY,
+# THE HEADERS OR THE BODY. An authorization request's query carries the client
+# and the PKCE challenge, the login page's its auth request, a header the
+# provisioning token, and the front's body is a screen of HTML the last failure
+# prints anyway. Read off the arguments rather than passed beside them, so no
+# call site can hand it something to print.
+#
+# CURL'S OWN STDERR IS DISCARDED HERE, as the issuer curls in this script
+# already discarded it (the discovery fetch folded it into a value it then
+# emptied on any failure): a `2>/dev/null` at the call site would swallow the
+# retry line with it. The retry line names curl's exit code instead.
+read_retrying() {
+  local a prev="" method=GET path="" why code
+  for a in "$@"; do
+    [ "$prev" = -X ] && method="$a"
+    case "$a" in http://*|https://*) path="/${a#*://*/}"; path="${path%%\?*}" ;; esac
+    prev="$a"
+  done
+  CURL_ATTEMPTS=1
+  while : ; do
+    CURL_OUT="$("$@" 2>/dev/null)" && CURL_RC=0 || CURL_RC=$?
+    if [ "$CURL_RC" -ne 0 ]; then
+      why="no answer at all (curl exited ${CURL_RC})"
+    else
+      code="${CURL_OUT##*$'\n'}"
+      case "$code" in
+        502|503|504) why="the front answered HTTP ${code} without reaching the provider" ;;
+        *) return 0 ;;
+      esac
+    fi
+    [ "$CURL_ATTEMPTS" -lt "$IDP_READ_ATTEMPTS" ] || return 0
+    echo "${method} ${path}: ${why} — attempt ${CURL_ATTEMPTS} of ${IDP_READ_ATTEMPTS}, retrying in $(( 2 ** CURL_ATTEMPTS ))s" >&2
+    sleep "$(( 2 ** CURL_ATTEMPTS ))"
+    CURL_ATTEMPTS=$(( CURL_ATTEMPTS + 1 ))
+  done
+}
+
+# IS THIS CALL A READ — whatever verb it travels under? setup-zitadel.sh's
+# predicate (GET, or a POST on a path ENDING in `_search`, which is how Zitadel
+# spells a list whose filters do not fit in a URL), plus HEAD, plus the one list
+# Zitadel v2 spells as a bare POST.
+#
+# `POST /v2/users` IS ListUsers, MATCHED AS THE WHOLE PATH. Zitadel's own
+# definition says so (proto/zitadel/user/v2/user_service.proto, v4.19.4): its
+# CreateUser lives at `/v2/users/new` only "to avoid a conflict with the
+# ListUsers endpoint, which already handles POST /v2/users". That listing is
+# idp_sweep_leftovers, the FIRST question the managed section asks the issuer,
+# behind `|| fail_at`: outside this rule, one 502 from the front there — what
+# #263 and #264 got — was still a red gate. NEVER `/v2/users*`:
+# `POST /v2/users/human` and `/v2/users/new` CREATE A PERSON, and are sent once.
+#
+# NARROW ON PURPOSE. A WRITE asked twice can apply twice, because a dropped
+# connection or a 502 can come after the provider has already acted. This
+# script CREATES PEOPLE, PROVES SESSIONS, FINALISES AUTH REQUESTS and SENDS
+# MAIL (`/admin/v1/smtp/{id}/_test`, an underscore that is not `_search`), and
+# none of those is ever sent twice. The token exchange is not even routed here:
+# its authorization code is ONE-TIME. A provider refuses a code used twice, and
+# RFC 6749 §4.1.2 says it SHOULD then revoke every token already issued on it.
+is_read() { # is_read <method> <path> — true when re-asking is safe
+  case "$1" in GET|HEAD) return 0 ;; esac
+  case "$1:$2" in
+    POST:*/_search) return 0 ;;
+    POST:/v2/users) return 0 ;;
+  esac
+  return 1
+}
+
 # The origin is a compose network alias: the API container has the name, this
 # host has the published port. `curl --resolve` presents the one while
 # connecting to the other — the same thing setup-zitadel.sh does, and for the
 # same reason.
 IDP_RESOLVE=()
 idp_api() { # idp_api <method> <path> [json] — body on stdout, "" and rc 1 on refusal
-  local out status
+  local out status rc
   local args=(-sS "${IDP_RESOLVE[@]}" -X "$1" "${STACK_ISSUER%/}$2"
     -H "Authorization: Bearer ${IDP_PAT}" -H "Content-Type: application/json"
     -w '\n%{http_code}')
   [ -n "${3:-}" ] && args+=(-d "$3")
-  out="$(curl "${args[@]}" 2>/dev/null)" || { echo "could not reach the provider at $2" >&2; return 1; }
+  # Reads are asked again on no answer, writes are sent once — `is_read` decides
+  # which this is, by the verb AND the path, not by the verb alone (#263, #264).
+  if is_read "$1" "$2"; then
+    read_retrying curl "${args[@]}"
+    out="$CURL_OUT"; rc="$CURL_RC"
+  else
+    out="$(curl "${args[@]}" 2>/dev/null)" && rc=0 || rc=$?
+  fi
+  [ "$rc" -eq 0 ] || { echo "could not reach the provider at $2" >&2; return 1; }
   status="${out##*$'\n'}"; out="${out%$'\n'*}"
   case "$status" in
     2*) printf '%s' "$out"; return 0 ;;
@@ -481,9 +607,14 @@ sign_in_as() {
 
   verifier="$(openssl rand -hex 32)"
   challenge="$(printf '%s' "$verifier" | openssl dgst -binary -sha256 | openssl base64 | tr '+/' '-_' | tr -d '=\n')"
-  loc="$(curl -sS "${IDP_RESOLVE[@]}" -m 15 -o /dev/null -D - \
-    "${STACK_ISSUER%/}/oauth/v2/authorize?client_id=${IDP_SIGNIN_CLIENT}&redirect_uri=${IDP_REDIRECT}&response_type=code&scope=openid%20email%20profile&code_challenge=${challenge}&code_challenge_method=S256" \
-    2>/dev/null | tr -d '\r' | sed -n 's/^[Ll]ocation: //p' | awk 'NR==1')"
+  # A READ, AND ASKED AGAIN ON NO ANSWER (#263, #264). Asking starts an
+  # authorization request at the provider, so a second ask leaves the first
+  # one unused, and an unused one expires on its own. The Location is read
+  # from CURL_OUT, which holds the FINAL answer only: the request finalised
+  # below is the one that answer started.
+  read_retrying curl -sS "${IDP_RESOLVE[@]}" -m 15 -o /dev/null -D - -w '\n%{http_code}' \
+    "${STACK_ISSUER%/}/oauth/v2/authorize?client_id=${IDP_SIGNIN_CLIENT}&redirect_uri=${IDP_REDIRECT}&response_type=code&scope=openid%20email%20profile&code_challenge=${challenge}&code_challenge_method=S256"
+  loc="$(tr -d '\r' <<<"${CURL_OUT%$'\n'*}" | sed -n 's/^[Ll]ocation: //p' | awk 'NR==1')"
   ar="$(sed -n 's/.*[?&]authRequest=\([^&]*\).*/\1/p' <<<"$loc")"
   if [ -z "$ar" ]; then
     # THE TWO FAILURES LOOK THE SAME AND ARE NOT. A login v1 redirect carries
@@ -514,6 +645,11 @@ sign_in_as() {
   code="$(jq -r '.callbackUrl // empty' <<<"$cb" | sed -n 's/.*[?&]code=\([^&]*\).*/\1/p')"
   [ -n "$code" ] || { echo "the provider returned no authorization code for $email" >&2; return 1; }
 
+  # SENT ONCE, WHATEVER ANSWERS — NOT through `read_retrying`. The code is
+  # one-time: a 502 can come after the provider has spent it, and a provider
+  # handed the same code twice refuses it and SHOULD revoke what it issued on
+  # it (RFC 6749 §4.1.2). The user create, the session and the callback above
+  # are writes too, and `idp_api` sends each of them once.
   tok="$(curl -sS "${IDP_RESOLVE[@]}" -m 15 -X POST "${STACK_ISSUER%/}/oauth/v2/token" \
     --data-urlencode grant_type=authorization_code --data-urlencode "code=${code}" \
     --data-urlencode "redirect_uri=${IDP_REDIRECT}" --data-urlencode "client_id=${IDP_SIGNIN_CLIENT}" \
@@ -589,6 +725,8 @@ idp_take_back() {
 # shrug.
 idp_sweep_leftovers() {
   local listing
+  # ListUsers: a READ, though it travels as a POST, and asked again on no answer
+  # like the others — see is_read.
   listing="$(idp_api POST /v2/users \
     '{"queries":[{"emailQuery":{"emailAddress":"@smoke.local","method":"TEXT_QUERY_METHOD_ENDS_WITH"}}]}')" ||
     { echo "could not ask the provider for leftover smoke people" >&2; return 1; }
@@ -1139,9 +1277,16 @@ else
   # THE WHOLE HEAD, KEPT. Two questions are answered from this one response —
   # where a browser is sent, and what cookie it is sent with — and asking twice
   # would be two authorization requests with two different answers.
-  login_head="$(curl -sS "${IDP_RESOLVE[@]}" -m 15 -o /dev/null -D - -c "$login_jar" \
-    "${STACK_ISSUER%/}/oauth/v2/authorize?client_id=${IDP_CLIENT_ID}&redirect_uri=${IDP_REDIRECT}&response_type=code&scope=openid%20email&code_challenge=${login_challenge}&code_challenge_method=S256" \
-    2>/dev/null | tr -d '\r')"
+  #
+  # ASKED AGAIN ON NO ANSWER, AND THAT CANNOT CORRUPT THE JAR (#263, #264). This
+  # ask writes the jar with `-c` and reads none, so each ask starts with no
+  # cookies and curl rewrites the WHOLE jar from that ask's answer. The jar
+  # therefore holds the cookie of the final answer, the one its Location's
+  # authorization request is bound to — even when an earlier ask got as far as
+  # the provider's cookie before the connection dropped.
+  read_retrying curl -sS "${IDP_RESOLVE[@]}" -m 15 -o /dev/null -D - -c "$login_jar" -w '\n%{http_code}' \
+    "${STACK_ISSUER%/}/oauth/v2/authorize?client_id=${IDP_CLIENT_ID}&redirect_uri=${IDP_REDIRECT}&response_type=code&scope=openid%20email&code_challenge=${login_challenge}&code_challenge_method=S256"
+  login_head="$(tr -d '\r' <<<"${CURL_OUT%$'\n'*}")"
   login_loc="$(sed -n 's/^[Ll]ocation: //p' <<<"$login_head" | awk 'NR==1')"
 
   # ---- the Host header the thing in front of us forwarded ----
@@ -1196,8 +1341,15 @@ else
     *)
       login_url="$login_loc"
       case "$login_url" in http*) ;; *) login_url="${STACK_ISSUER%/}${login_loc}" ;; esac
-      login_page="$(curl -sS "${IDP_RESOLVE[@]}" -m 15 -b "$login_jar" -c "$login_jar" \
-        -w '\n%{http_code}' "$login_url" 2>/dev/null)"
+      # ASKED AGAIN ON NO ANSWER, AND SAFE TO (#263, #264). Asking for the page
+      # again is a reload of it: the auth request in the address is still open
+      # and nothing one-time is spent. The jar is read and written (`-b`/`-c`),
+      # and a 502 from the front never reached the provider, so at most it adds
+      # a cookie of the front's own; the provider's stays. The jar is removed
+      # at the end of this block and nothing else reads it.
+      read_retrying curl -sS "${IDP_RESOLVE[@]}" -m 15 -b "$login_jar" -c "$login_jar" \
+        -w '\n%{http_code}' "$login_url"
+      login_page="$CURL_OUT"
       login_code="${login_page##*$'\n'}"
       login_page="${login_page%$'\n'*}"
       # WHAT THE PAGE SAYS, not the first 200 characters of its `<head>`.
@@ -1261,8 +1413,12 @@ else
   # verified, which is what Ownpace binds a grant to. setup-zitadel.sh closes it
   # and reads the setting back; this asks the page itself, which answers 404 once
   # the restriction holds.
-  org_form_code="$(curl -sS "${IDP_RESOLVE[@]}" -m 15 -o /dev/null -w '%{http_code}' \
-    "${STACK_ISSUER%/}/ui/login/register/org" 2>/dev/null || true)"
+  #
+  # A 502 from the front is not that 404, nor the page: it is asked again
+  # (#263, #264). No answer at all reads `000`, as it always did.
+  read_retrying curl -sS "${IDP_RESOLVE[@]}" -m 15 -o /dev/null -w '%{http_code}' \
+    "${STACK_ISSUER%/}/ui/login/register/org"
+  org_form_code="$CURL_OUT"
   if [ "$org_form_code" = "404" ]; then
     echo "the form that founds an organisation is not served (404)"
   else
@@ -2638,7 +2794,13 @@ else
     # The browser's half. `IDP_RESOLVE` is empty unless the issuer names a port,
     # in which case it pins that name to loopback — the same array `sign_in_as`
     # uses, so this takes exactly the route the gate's own sign-ins take.
-    HOST_DISC="$(curl -sS "${IDP_RESOLVE[@]}" -m 15 "${ISSUER%/}/.well-known/openid-configuration" 2>&1)" || HOST_DISC=""
+    #
+    # Asked again on no answer (#263, #264), so it now asks curl for the status
+    # it needs to tell a 502 from the document, and takes it off again. No
+    # answer at all is an empty document, as it always was.
+    read_retrying curl -sS "${IDP_RESOLVE[@]}" -m 15 -w '\n%{http_code}' "${ISSUER%/}/.well-known/openid-configuration"
+    HOST_DISC=""
+    [ "$CURL_RC" -ne 0 ] || HOST_DISC="${CURL_OUT%$'\n'*}"
     HOST_DECLARED="$(jq -r '.issuer // empty' <<<"$HOST_DISC" 2>/dev/null || true)"
     if [ -z "$HOST_DECLARED" ]; then
       echo "the issuer serves no discovery document at ${ISSUER} from outside the stack:"

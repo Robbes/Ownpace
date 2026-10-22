@@ -528,6 +528,8 @@ interface Release {
   noSite?: boolean;
   /** Put the real site/ at this commit, in place of the stand-in. */
   realSite?: boolean;
+  /** User units this commit carries in deploy/compose/systemd/, by file name. */
+  units?: Record<string, string>;
 }
 
 interface Stage {
@@ -691,6 +693,10 @@ function stage(opts: StageOptions = {}): Stage {
       rmSync(join(siteDir, 'check-refuses'), { force: true });
       if (r.siteCheckRefuses) writeFileSync(join(siteDir, 'check-refuses'), `${r.siteCheckRefuses}\n`);
       if (r.noSite) rmSync(join(siteDir, 'build.mjs'));
+    }
+    for (const [unit, text] of Object.entries(r.units ?? {})) {
+      mkdirSync(join(compose, 'systemd'), { recursive: true });
+      writeFileSync(join(compose, 'systemd', unit), text);
     }
     // A release always changes something, so that it is a commit of its own.
     writeFileSync(join(work, 'RELEASE'), `${r.tag}\n`);
@@ -1363,6 +1369,51 @@ describe('a deploy that took', () => {
         `${NEXT.tag} ${s.commit[NEXT.tag]} took`,
         `${NEXT3.tag} ${s.commit[NEXT3.tag]} took`,
       ]);
+    },
+    CASE_MS,
+  );
+});
+
+describe("the units live's checkout carries are copied, not linked: a deploy says which the tag changed (0142 T3)", () => {
+  const UNITS = {
+    'ownpace-box-duties.service': '[Service]\nExecStart=%h/ownpace-live/deploy/compose/box-duties.sh\n',
+    'ownpace-box-duties.timer': '[Timer]\nOnCalendar=*-*-* 13:17:00 UTC\n',
+    'ownpace-box-checks.timer': '[Timer]\nOnCalendar=*:0/10\n',
+  };
+  const installed = (s: Stage): string => join(s.root, '.config', 'systemd', 'user');
+
+  it(
+    'names each unit installed otherwise than the tag has it, or not installed, says how to copy them, and copies none',
+    () => {
+      const s = stage({ releases: [{ ...NEXT, units: UNITS }] });
+      mkdirSync(installed(s), { recursive: true });
+      writeFileSync(join(installed(s), 'ownpace-box-duties.service'), '[Service]\nTimeoutStartSec=150min\n');
+      writeFileSync(join(installed(s), 'ownpace-box-duties.timer'), UNITS['ownpace-box-duties.timer']);
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      const note = r.out.slice(r.out.indexOf('the deploy took'));
+      expect(note).toMatch(/NOTE: [^\n]*not the tag's/);
+      expect(note).toContain(
+        'cp deploy/compose/systemd/ownpace-box-duties.service deploy/compose/systemd/ownpace-box-checks.timer ~/.config/systemd/user/',
+      );
+      expect(note).toContain('systemctl --user daemon-reload');
+      expect(note).toContain('enable --now');
+      // Told, not done: the owner copies them.
+      expect(readFileSync(join(installed(s), 'ownpace-box-duties.service'), 'utf8')).toBe('[Service]\nTimeoutStartSec=150min\n');
+      expect(existsSync(join(installed(s), 'ownpace-box-checks.timer'))).toBe(false);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'says nothing of the units when every one is installed as the tag has it',
+    () => {
+      const s = stage({ releases: [{ ...NEXT, units: UNITS }] });
+      mkdirSync(installed(s), { recursive: true });
+      for (const [unit, text] of Object.entries(UNITS)) writeFileSync(join(installed(s), unit), text);
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).not.toMatch(/not the tag's/);
     },
     CASE_MS,
   );

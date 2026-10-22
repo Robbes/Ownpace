@@ -392,7 +392,20 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
 - `ui-tests` (ci.yml job; real Chromium over the built bundle; every code-changing pull request
   and on main) — `pnpm test:ui`, after `lint`, running while `unit-tests` does.
 - `security-scan.yml` — pnpm audit + Trivy (SARIF) + CycloneDX SBOM; weekly + PR + push + manual;
-  SBOM attached to release tags.
+  SBOM attached to release tags. On the weekly run (Mondays 06:00 UTC) and on dispatch only, and on
+  GitHub-hosted runners, it also scans every container image the stacks run (workplan 0146 T8):
+  the `image:` lines of `managed.yml`, `dev.yml`, `www.yml` and the appliance's compose file, the
+  images the scripts name, the tasks' base image the pinned Trigger.dev CLI names, and Ownpace's
+  three images at `:edge` and at the newest release tag, all as linux/arm64
+  (`scripts/image-scan.mjs list`). Report only: each image's findings go to code scanning under
+  `trivy-image-<name>` and fail nothing; an image whose operating system Trivy calls past its end
+  of life gets a warning, a line in the run's summary and one issue, closed when that ends. A scan
+  that left no report fails the run. An image is named after its repository's last part, with
+  its stack (`managed` for `deploy/compose`, `selfhost` for `deploy/selfhost`) added where both
+  stacks run that name, so a pin that moves, or two stacks' pins that meet on one reference, keep
+  their names. An image that leaves the stacks, or is renamed, leaves its `trivy-image-<name>`
+  configuration behind in code scanning with its alerts open; delete it on the code scanning tool
+  status page (the Security tab, Code scanning, Tool status).
 - `e2e.yml` — nightly (23:30 UTC on the Postgres stack, 01:30 UTC on PGlite) and on dispatch, on
   `[self-hosted, linux, arm64]` (the Spark); brings up Stalwart via
   `deploy/selfhost/setup-stalwart.sh` (the two-phase recovery→normal bring-up — not a
@@ -414,6 +427,15 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   request, so it blocks nothing.
 - `e2e-o365.yml` — dispatch only, on the Spark: the secret-gated real-tenant O365 e2e (workplan
   0008 T7); the tenant and its secrets are in `docs/test-tenant.md`.
+- `clock-watch.yml` — daily (06:41 UTC) and on dispatch, on a GitHub-hosted runner: the clocks
+  nothing else warns about. It reads the certificates `app.`, `id.` and `status.ownpace.eu`
+  serve; `www.ownpace.eu`'s and its `security.txt` `Expires` once the repository variable
+  `CLOCK_WATCH_SITE` is `required`; and the Entra client secret's date from
+  `CLOCK_WATCH_ENTRA_EXPIRES`. It keeps one issue open while a certificate has fewer than 14
+  days left or does not verify, while `security.txt` lacks exactly one `Expires`, or while
+  either of the others has fewer than 30, and closes it when none of that holds. The OTA names
+  are reported, never counted, and a clock it could not read fails the run and leaves an open
+  issue as it is. Its log names names and dates, never an address.
 - `exposure-probe.yml` — dispatch only, never scheduled, on a GitHub-hosted runner: the probe
   from outside (workplan 0132 T3). It tries every port the two stacks, the site and the demo
   publish, derived from the files, on the addresses the production and OTA names resolve to, and
@@ -421,10 +443,19 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   `app.`, `id.`, `status.` and `www.ownpace.eu` answers a visitor's first page itself, not
   NetBird's sign-in (workplan 0139, item 8). Its log names names and ports, never an address.
 - `idp-pin-watch.yml` — weekly (Mondays 06:23 UTC) and on dispatch, on a GitHub-hosted runner:
-  the identity provider's pin in `managed.yml` against upstream's newest release of the same
-  major (workplan 0135 T7 (b)). It keeps one issue open while the two differ, says a newer
-  release in a comment, and closes the issue when the pin catches up. It moves nothing:
-  Dependabot ignores the provider by name, and an upgrade is the owner's call.
+  every pin Dependabot cannot see, each against its upstream (workplan 0135 T7 (b), 0146 T8). The
+  identity provider's pin in `managed.yml` against upstream's newest release of the same major;
+  Trigger.dev against the newest tag both its images carry (`trigger-version.sh probe`);
+  ClickHouse against the one Trigger.dev's own compose file pins; the tasks' Node against Node's
+  newest security release; `packageManager` against the newest pnpm of its major; and the
+  TypeScript split's exit. Each of those keeps one issue open while it is behind, says a newer
+  release in a comment, and closes the issue when the pin catches up. Every other image line of
+  `managed.yml`, `dev.yml` and `www.yml` (Dependabot reads no file in `deploy/compose`), the
+  busybox copies in its scripts, Stalwart's copies, GoAccess and the Trivy the scan runs share one
+  summary issue; another image a script there runs is not compared (today only `db-roles.sh`'s
+  floating `postgres:18-alpine`). It moves nothing: each issue gives the route, and the
+  move is the owner's call. A row that cannot read its upstream, or finds its pin ahead of every
+  tag listed, fails the run and never closes an issue.
 - `images.yml` — the three application images: an amd64 build-only check on a pull request that
   touches a Dockerfile, `deploy/` or the workflow; a multi-arch build and publish on `main` and
   on `v*` tags.

@@ -2,7 +2,38 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-10-07 (update this block at the end of every session)
+## Status — 2026-10-22 (update this block at the end of every session)
+
+**2026-10-22, recorded: T7's voice merged** as #1664 on 2026-10-21 (`6bd020f6`): the 2026-10-21
+T7 entry below, and 0142 T3. Live takes it with the first tag that carries it.
+
+**2026-10-21 to 2026-10-22: the NetBird front answered 502 for the OTA stack's identity
+provider, and two branch gates stopped on it.** From about 20:00 UTC on 2026-10-21, E2E
+(managed) #263 (on #1656's branch) and #264 (on #1662's, at 21:00) failed in *Bring the stack
+up* on a read `setup-zitadel.sh` makes through the public issuer: NetBird's reverse proxy
+answered HTTP 502 with its own *Connection Error* page, before the provider was reached. #263
+died on it in both attempts, the first on the token check and the second on a later read, after
+others had gone through. #264 already carried #1662's first retry, and its retry lines show the
+token check answered 502 on all four tries. No pull request caused it, and its cause is not known
+here. It was gone by the scheduled run #265 at 08:47 UTC on 2026-10-22, green on main
+(`91b49de9`), and the branches it had held up then merged on green runs: #1656 after #266, #1662
+after #267, #1672 after #268.
+Since #1662 (`d98f54f2`) and #1672 (`be6a857f`), `setup-zitadel.sh` and `smoke-managed.sh` ask a
+read of the provider again on a 502, 503 or 504, four asks with 14 seconds of waiting between
+them (`IDP_READ_ATTEMPTS`), and still send each write once. A short 502 on a read no longer
+fails the gate, but no retry rides out an outage like this one. The follow-up is the
+owner's: making sure the Spark's NetBird peer cannot expire (the owner's checklist of
+2026-10-21, T10, by 2026-10-27), since a peer whose login expires takes the tunnel down, and
+every public name with it.
+
+**2026-10-21, T7: the daily duties have a voice** (0142 T3), on branch
+`claude/ownpace-public-readiness-y7orc6-owner-told`, not merged. `ownpace-box-duties.service` has
+`OnFailure=ownpace-tell-owner@%n.service`, so a failed run mails the owner the duties that failed.
+`box-duties.sh` leaves a record of each run in `~/.persistent/<project>/box-duties/`, and
+0142's `box-checks.sh` reads it to mail *Daily duties late* after 26 hours with no pass, which
+`OnFailure=` cannot. `stand-up-live.sh` copies five units now, and `deploy-live.sh` names those the
+tag changed. 0142's Status block has the rest. The owner copies the units after the next tag's
+deploy (the bring-up guide, *Installing them*).
 
 **2026-10-07, T1b (live bring-up): a missing `zitadel` role is a first bring-up, not a refused
 password**, on branch `fix/zitadel-role-first-run-not-refused`, PR open. The owner ran
@@ -2188,7 +2219,7 @@ conflicted: both new entries kept. Nothing has run on the machine, and live does
 | T4b An issuer without an audience does not start (added 2026-10-04; no workplan owned it) | ✅ **done** in #1472, merged 2026-10-04 (`fb5a1336`), with T4; stated in the plan, no owner decision needed — *was:* 🔨 **Built** on branch `claude/ownpace-public-readiness-y7orc6-a-stack-that-names-its-mode`, not merged (2026-10-04) | §3. The API refuses to start when `JWT_ISSUER` is set and `JWT_AUDIENCE` is empty, on every stack and whatever `NODE_ENV` says, and its verifier never passes an empty audience. Both stacks get `JWT_AUDIENCE` from `setup-zitadel.sh`, so nothing changes there. |
 | T5 No demo in the alpha, and the values that left the machine replaced | ✅ **Closed for live 2026-09-24** (D7), and the refusal of `--with-demo` on live ✅ **done** in #1309, merged 2026-09-28 (`4991094a`) (*was:* 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live`, not merged); 🅿️ **Parked for the OTA stack (trigger: 0026 row 24's own, the OTA stack stops being a demo)** — *was:* the refusal 📋 **Proposed** | §3 and §4. Live never had the demo or its values, so there is nothing to replace. `bootstrap-managed.sh` refuses `--with-demo` on a `.env` that is, or could be, live's (`stack_may_be_live`). Routes (a) and (b) are kept for the OTA stack. |
 | T6 One way to deploy live, from a tag | Step 4, the copy before the update, ✅ **done** in #1361, merged 2026-09-29 (`b65da810`): `deploy-live.sh` takes it with `copy-before-update.sh` (0139, rec-copies (a)), with the review's fixes of 2026-09-29 (a tag without the scripts live is kept by refused, the rollback's `since`); (a) `deploy-live.sh` ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), with 0146 T5 (a), not yet run on live; (b) ✅ **done** in #1232, merged 2026-09-27: every enqueue in the API goes through one function that answers 409 with the hold's sentence; the three web gaps (b) left ✅ **done** in #1284, merged 2026-09-28 (`f7a7a270`). The procedure's steps on the machine are the owner's, once live stands (T1b) and 0146 has cut a release tag — *was:* step 4 🔨 built 2026-09-28 on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, not merged; (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); (b) ✅ **done** in #1232, merged 2026-09-27; the procedure and (a), `deploy-live.sh`, 📋 **Proposed** (D1, D5, D7) | §3. Hold, drain, a tag, bring-up without the demo, checks, lift. Replaces three procedures that disagree. With 0146. (a) is the deploy script, (b) the hold at every door. The Status block (2026-09-28) says how (a) was built. |
-| T7 What the gate does for the OTA stack, done for live | The drill off live, its duty replaced by the copy's backstop `copies`, ✅ **done** in #1361, merged 2026-09-29 (`b65da810`) (0139, rec-drill (a)), with the review's fixes of 2026-09-29 (6 days less an hour, each file by its own age); ✅ **done** in #1276, merged 2026-09-28 (`b2e63ab0`): `box-duties.sh`, `setup-zitadel.sh --token-only` and `--count-organisations`, and a user timer in the bring-up; waits for live to stand (T1b to T1e, from 0146 T0's tag) and for the owner to install the timer — *was:* the drill off live 🔨 built 2026-09-28 on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, not merged; 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-duty-the-gate-used-to-do`, not merged (2026-09-28); 📋 **Proposed**, with T1b | §3. The identity provider's provisioning token, the Trigger.dev database drill (until 2026-09-28; since then the copy's backstop, 0139), T3's check and 0135's organisation count, on a timer on the machine, for live. |
+| T7 What the gate does for the OTA stack, done for live | The drill off live, its duty replaced by the copy's backstop `copies`, ✅ **done** in #1361, merged 2026-09-29 (`b65da810`) (0139, rec-drill (a)), with the review's fixes of 2026-09-29 (6 days less an hour, each file by its own age); ✅ **done** in #1276, merged 2026-09-28 (`b2e63ab0`): `box-duties.sh`, `setup-zitadel.sh --token-only` and `--count-organisations`, and a user timer in the bring-up; waits for live to stand (T1b to T1e, from 0146 T0's tag) and for the owner to install the timer; ✅ **done** in #1664, merged 2026-10-21 (`6bd020f6`): a failed run mails the owner (`OnFailure=`, 0142 T3), and each run leaves a record the box checks read; live takes it with its next tag — *was:* a failed run's mail 🔨 built 2026-10-21 on branch `claude/ownpace-public-readiness-y7orc6-owner-told`, not merged; the drill off live 🔨 built 2026-09-28 on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, not merged; 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-duty-the-gate-used-to-do`, not merged (2026-09-28); 📋 **Proposed**, with T1b | §3. The identity provider's provisioning token, the Trigger.dev database drill (until 2026-09-28; since then the copy's backstop, 0139), T3's check and 0135's organisation count, on a timer on the machine, for live. |
 | T8 The gate gets a stack of its own on the same machine | ⛔ **Superseded 2026-09-24** by D7 | §3. The second stack is live, not the gate's. Its parts moved to T1, T1b and 0143. |
 
 ## 1. What there is today
@@ -3599,7 +3630,10 @@ steps go in the bring-up. It does four things:
   from where, is 0135's to say.
 
 The script exits non-zero and names the duty that failed, and it writes to the journal. Nobody is
-told when it fails; 0142 is where that changes.
+told when it fails; 0142 is where that changes. *2026-10-21: a failed run mails the owner
+(`OnFailure=` and `tell-owner.sh`), and a run that never came mails "Daily duties late" (0142
+T3, `box-checks.sh`); on branch `claude/ownpace-public-readiness-y7orc6-owner-told`, merged
+2026-10-21 as #1664 (`6bd020f6`).*
 
 The guard, `scripts/a-duty-the-gate-used-to-do.unit.test.ts`, checks that every step of
 `e2e-managed.yml` that maintains the stack rather than testing it is also in `box-duties.sh`.

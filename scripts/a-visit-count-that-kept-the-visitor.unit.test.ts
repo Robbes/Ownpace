@@ -59,6 +59,18 @@
  * `%`) left out whole; and `(an address)` for a referring site that is one. Privacy §4.5's comment on
  * the branch of 0139's privacy 1.2 lists the same, as the run's contract.
  *
+ * AND THE TIME WAS THE VISITOR'S TO CHOOSE (2026-10-22, #1675). nginx writes
+ * `$remote_user` from any Basic Authorization header, though the site asks for
+ * none, escaping only quotes, backslashes and bytes below 32 or above 126 (the
+ * default escaping, which `ownpace_site` uses). The filter took the time from
+ * the FIRST bracketed group of the line's first piece, so a user
+ * `[jan.devries at example dot nl]` was the time GoAccess was given (typed text
+ * in GoAccess's input), a user `[01/Jan/2020:00:00:00 +0000]` dated the visit
+ * in 2020, and a user `[marie`, opened and never closed, made its bracket and
+ * nginx's time one group. Now the first piece must END in nginx's own
+ * `$time_local`, in its exact shape, the time is taken from there, and a line
+ * that does not end so is not an access line. The user is never handed on.
+ *
  * AND IT COUNTS ONLY WHAT THE POLICY SAYS. The script reads the checkout's
  * own `site/legal/privacy.md` and `privacy.nl.md`, the texts the site
  * publishes, and refuses (exit 2, nothing read) while either lacks §4.5's
@@ -72,9 +84,11 @@
  *
  *   - GoAccess is given exactly the requests that came through the public
  *     name, each in the combined format with a number for a host; the same
- *     visitor gets the same number; no address, no first field, no query
- *     string, no path of a request that found no page of ours, a referrer
- *     cut to its site (or `(an address)`), a User-Agent cut to its versions.
+ *     visitor gets the same number; no address, no first field, no user, no
+ *     query string, no path of a request that found no page of ours, a
+ *     referrer cut to its site (or `(an address)`), a User-Agent cut to its
+ *     versions, and nginx's own time, never a bracketed text a user put before
+ *     it; a line whose first piece does not end in that time is not a request.
  *     Not the status page's Website row, which asks through the public name
  *     every 60 seconds as `Gatus/1.0` (`gatus.yaml`; Gatus's own User-Agent at
  *     v5.37.0): it is ours, not a visit.
@@ -124,11 +138,14 @@
  * this script in place of `docker run`: as 65534:65534, under `setpriv
  * --no-new-privs`, on its own root file system mounted read-only, in a network
  * namespace with no interface. That run found the `-o` refusal above. With
- * the fix it took every flag, accepted every line this file's log becomes,
- * and wrote HTML in which none of this file's addresses or personal words
- * appears. Docker's own `--read-only`, `--network none` and `--cap-drop ALL`,
- * and the arm64 image, were not run. The first run on the machine is that
- * check (`docs/managed-bring-up.md`, *Counting its visits*).
+ * the fix it took every flag, accepted every line this file's log became as
+ * it was then, and wrote HTML in which none of this file's addresses or
+ * personal words appears. The three lines GoAccess is given for the Basic
+ * users added on 2026-10-22 were not run through it; they are of the same
+ * combined shape as the others, with nginx's own time. Docker's own
+ * `--read-only`, `--network none` and `--cap-drop ALL`, and the arm64 image,
+ * were not run. The first run on the machine is that check
+ * (`docs/managed-bring-up.md`, *Counting its visits*).
  *
  * Addresses here are documentation shapes: the placeholder `100.64.0.1` for
  * NetBird's on the mesh (`an-address-that-was-not-an-example`), RFC 5737's and
@@ -196,9 +213,9 @@ const ADDRESSES = [
   '127.0.0.1',
 ];
 /**
- * What a link, a path, a Referer or a browser string in the recorded log says
- * about a person, or a query string at all: none of it may reach GoAccess, its
- * report, or anything the script prints.
+ * What a link, a path, a Referer, a browser string or a Basic user in the
+ * recorded log says about a person, or a query string at all: none of it may
+ * reach GoAccess, its report, or anything the script prints.
  */
 const PERSONAL = [
   'jan.devries',
@@ -215,6 +232,10 @@ const PERSONAL = [
   'utm_',
   '?',
   'contact',
+  // Basic users' words, and a bracketed text where nginx's time should end the piece.
+  'at example dot nl',
+  '01/Jan/2020',
+  'typed by a visitor',
 ];
 
 const FIREFOX = 'Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0';
@@ -262,6 +283,15 @@ const LOG = [
   // A method the site does not answer, and a request line that is not one.
   `${NETBIRD} - - [08/Oct/2026:10:00:00 +0000] "POST /contact?name=marie HTTP/1.1" 405 157 "-" "${FIREFOX}" "${VISITOR_F}"`,
   `${NETBIRD} - - [08/Oct/2026:10:01:00 +0000] "GET /hello marie HTTP/1.1" 400 157 "-" "-" "${VISITOR_F}"`,
+  // A Basic Authorization header the site never asked for: nginx writes its user as $remote_user,
+  // spaces and brackets and all, before its own time.
+  `${NETBIRD} - [jan.devries at example dot nl] [08/Oct/2026:10:02:00 +0000] "GET / HTTP/1.1" 200 5120 "-" "${FIREFOX}" "${VISITOR_F}"`,
+  // A user that is a time: as the first bracketed group, it would date the visit in 2020.
+  `${NETBIRD} - [01/Jan/2020:00:00:00 +0000] [08/Oct/2026:10:03:00 +0000] "GET /prices.html HTTP/1.1" 200 4096 "-" "${FIREFOX}" "${VISITOR_F}"`,
+  // A user that opens a bracket and never closes it: with nginx's time it makes one bracketed group.
+  `${NETBIRD} - [marie [08/Oct/2026:10:04:00 +0000] "GET /estimate.html HTTP/1.1" 200 4096 "-" "${FIREFOX}" "${VISITOR_F}"`,
+  // A first piece that does not end in nginx's time: not an access line of ownpace_site.
+  `${NETBIRD} - - [typed by a visitor] "GET / HTTP/1.1" 200 5120 "-" "${FIREFOX}" "${VISITOR_F}"`,
   '',
 ].join('\n');
 
@@ -281,6 +311,10 @@ const GIVEN = [
   `v5 - - [08/Oct/2026:09:03:00 +0000] "GET / HTTP/1.1" 200 5120 "-" "${FIREFOX_WITH_ADDRESS_GIVEN}"`,
   `v6 - - [08/Oct/2026:10:00:00 +0000] "POST /(not shown) HTTP/1.1" 405 157 "-" "${FIREFOX}"`,
   `v6 - - [08/Oct/2026:10:01:00 +0000] "/(not shown)" 400 157 "-" "-"`,
+  // nginx's own time, and no user: not the Basic user's words, not 2020, not the opened bracket.
+  `v6 - - [08/Oct/2026:10:02:00 +0000] "GET / HTTP/1.1" 200 5120 "-" "${FIREFOX}"`,
+  `v6 - - [08/Oct/2026:10:03:00 +0000] "GET /prices.html HTTP/1.1" 200 4096 "-" "${FIREFOX}"`,
+  `v6 - - [08/Oct/2026:10:04:00 +0000] "GET /estimate.html HTTP/1.1" 200 4096 "-" "${FIREFOX}"`,
 ];
 
 const ID_FIRST = '3f1c2b9a8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a';
@@ -505,9 +539,12 @@ describe('site-visits.sh gives GoAccess the visits, and nobody', () => {
     const r = run(s);
     expect(r.status, r.out).toBe(0);
     expect(r.given?.split('\n').filter(Boolean)).toEqual(GIVEN);
-    expect(r.out).toMatch(/14 request\(s\) came through the public name, from 6 address\(es\)/);
+    expect(r.out).toMatch(/17 request\(s\) came through the public name, from 6 address\(es\)/);
     expect(r.out).toMatch(/2 did not \(the healthcheck, the deploy's own checks\)/);
     expect(r.out, "the status page's probe is ours, not a visit").toMatch(/2 were the status page's probe/);
+    expect(r.out, "the image's start-up line, and a line that does not end its first piece in nginx's time").toMatch(
+      /and 2 line\(s\) were not requests/,
+    );
     expectNobody(s, r);
   });
 
@@ -534,7 +571,7 @@ describe('site-visits.sh gives GoAccess the visits, and nobody', () => {
     expect(r.out, "GoAccess's own words are shown").toContain('Format Errors - Verify your log/date/time format');
     expect(r.out, 'a line GoAccess quoted is shown').not.toContain("Token '");
     expect(r.out, 'a request GoAccess quoted is shown').not.toMatch(/HTTP\/1\.1/);
-    expect(r.out).toMatch(/14 of GoAccess's lines quote the log, and are not shown/);
+    expect(r.out).toMatch(/17 of GoAccess's lines quote the log, and are not shown/);
   });
 
   it("shows docker's own words when docker could not run GoAccess at all (exit 125)", () => {
