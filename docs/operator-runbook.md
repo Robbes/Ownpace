@@ -210,15 +210,21 @@ managed gate filters the container logs it prints into its public job log throug
 as it replaces mesh addresses with `<mesh-ip>`.
 
 **How long they stay.** Every container writes with Docker's default log driver,
-`json-file`, which keeps its output, with no limit of age or size, until the
-container is removed: at each deploy for the app and the site, when its image or
-settings change for the sign-in service, and when its run ends for a task. That is
-privacy §9's *"until the part of the service that wrote them is replaced"*. `local`
-keeps it the same way and also rotates it by size, so lines can go sooner, never
-later. `docker info --format '{{.LoggingDriver}}'` prints `json-file` (or `local`)
-on a machine that keeps to it, and `stand-up-live.sh` refuses any other answer; the
-journal would keep every line past its container (managed-bring-up.md, *Before you
-start*, says how to undo that).
+`json-file`, which keeps its output until the container is removed: at each
+deploy for the app and the site, when its image or settings change for the
+sign-in service, and when its run ends for a task. That is privacy §9's *"until
+the part of the service that wrote them is replaced"*. The stack's own services
+(`managed.yml`, the app and the sign-in service among them) also rotate it by
+size, five files of 20 MB: one that writes a lot keeps only about its last
+100 MB, so its oldest lines go sooner, never later. The site's (`www.yml`) keeps
+all of it, with no limit of age or size, because the visit count reads the
+whole log; that holds while the daemon stays at `json-file`. `local` on the
+daemon would keep to §9 as well, but it rotates by size, the site's log
+included, so the visit count would then cover only the last 100 MB or so.
+`docker info --format '{{.LoggingDriver}}'` prints `json-file` (or `local`) on a
+machine that keeps to it, and `stand-up-live.sh` refuses any other answer; the
+journal would keep every line past its container (managed-bring-up.md, *Before
+you start*, says how to undo that).
 
 **Counting visits to the website** from the `www` log (privacy §4.5; the owner,
 2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip

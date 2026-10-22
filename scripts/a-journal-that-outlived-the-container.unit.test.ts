@@ -48,6 +48,16 @@
  * 2 and the bring-up's audit section still read container output from the
  * journal, which with Docker's default holds none of it, so a responder
  * following step 2 copied nothing and lost the evidence at the next deploy.
+ *
+ * CAPPED BY SIZE, 2026-10-21. `deploy/compose/managed.yml` now sets
+ * `json-file` on every service itself, with a cap of five files of 20 MB
+ * (`a-month-of-container-output` holds it), because a service whose image and
+ * settings do not change kept its container, and all of its output, for
+ * months. That is the driver this guard allows, and like `local` it can keep
+ * less, never longer, so privacy §9's row stands. For those services the
+ * daemon's driver no longer decides; the check below still matters for the
+ * two kinds of container that keep it, the website's (`www.yml`, uncapped, so
+ * the visit count reads its whole log) and the task runs Trigger.dev starts.
  */
 
 import { describe, it, expect } from 'vitest';

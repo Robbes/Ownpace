@@ -2,7 +2,20 @@
 
 > **In one line:** A searchable operator Log page on both editions over `audit_log` and an `app_event` table of errors and warnings, 30-day retention for `app_event` and container output, and pseudonymised OpenTelemetry audit lines with a resumable `audit-export` download.
 
-## Status — 2026-09-29 (update this block at the end of every session)
+## Status — 2026-10-21 (update this block at the end of every session)
+
+**2026-10-21: the managed stacks' container output is capped by size** (lifecycle round,
+container-logs-capped). Every service of `deploy/compose/managed.yml` now writes `json-file`
+with T3's appliance cap, five files of 20 MB (`x-logging`), the one-off `zitadel-machinekey`
+included: Docker's default kept all of it, and a service whose image and settings do not change
+keeps its container for months. The output still goes with the container, so the withdrawal
+below stands and privacy §9's row stays true (lines go sooner, never later); the texts are not
+touched. `deploy/compose/www.yml` stays uncapped, because `site-visits.sh` counts visits from
+the whole of its log. `a-month-of-container-output` now holds both (all 18 services capped, no
+`logging` on `www`), shown failing on main first (18 of 28) and with four mutations. The
+bring-up's *Before you start*, the operator runbook's *How long they stay* and breach-procedure
+step 2 say so. The first deploy with it recreates every service, the databases and the
+Trigger.dev plane included. Still to prove: E2E (managed) on the branch.
 
 **2026-09-29: the web app's own failures join the log** (workplan 0145, the owner's "Log it").
 A page that could not read one of its server's answers shows its reader a reference and sends
