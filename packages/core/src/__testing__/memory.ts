@@ -963,6 +963,10 @@ export class MemoryLedger implements Ledger {
         ...(r.movedToNaturalKeyHash ? { toNaturalKeyHash: r.movedToNaturalKeyHash } : {}),
         ...(r.movedRecordedAt ? { recordedAt: r.movedRecordedAt } : {}),
         ...(r.moveAcknowledgedAt ? { acknowledgedAt: r.moveAcknowledgedAt } : {}),
+        // What a decided move did on the new system, as PgLedger says it.
+        ...(r.moveAcknowledgedAt
+          ? { decided: r.deletionAppliedAt !== undefined ? ('applied' as const) : ('kept' as const) }
+          : {}),
       });
     }
     // Open first, then by natural key — matching PgLedger's ORDER BY exactly,
@@ -1198,6 +1202,21 @@ export class MemoryLedger implements Ledger {
         ...(r.deletionReportedAt ? { reportedAt: r.deletionReportedAt } : {}),
         ...(r.deletionTrashedAt ? { trashedAt: r.deletionTrashedAt } : {}),
         ...(r.deletionAcknowledgedAt ? { acknowledgedAt: r.deletionAcknowledgedAt } : {}),
+        // What a decided row did on the new system, as PgLedger says it: a
+        // removal whose move closed in the same write, at the same time, was
+        // `applyRelocation`'s. This fake keeps milliseconds, so a move
+        // answered within the same millisecond as a removal reads as one;
+        // the database's microseconds do not (the integration twin pins it).
+        ...(r.deletionAcknowledgedAt
+          ? {
+              decided:
+                r.deletionAppliedAt === undefined
+                  ? ('kept' as const)
+                  : r.movedToNaturalKeyHash !== undefined && r.moveAcknowledgedAt === r.deletionAppliedAt
+                    ? ('relocated' as const)
+                    : ('applied' as const),
+            }
+          : {}),
       });
     }
     // Open first, then reported, then trashed, then missing longest, then by key
@@ -1372,19 +1391,22 @@ export class MemoryLedger implements Ledger {
         r.movedByIdentity === true && !!arrival.sourceRef && arrival.sourceRef === r.sourceRef;
       if (!sameBytes && !sameDocument) continue;
 
+      // One time for the whole write, as Postgres's `now()` is: the equal
+      // removal and move times are what say this removal was a relocation.
+      const now = new Date().toISOString();
       this.rows.set(k, {
         ...r,
         status: 'tombstoned',
-        deletionAppliedAt: new Date().toISOString(),
+        deletionAppliedAt: now,
         // Closes the MOVE entry, and any DELETION entry the row also had: a
         // confirmed deletion left open on a tombstoned row never leaves the
         // queue, and it goes on counting towards the mass-deletion breaker —
         // which would eventually refuse every apply in the domain.
-        moveAcknowledgedAt: new Date().toISOString(),
+        moveAcknowledgedAt: now,
         ...(r.deletionReportedAt !== undefined ||
         r.deletionTrashedAt !== undefined ||
         r.absentPasses
-          ? { deletionAcknowledgedAt: new Date().toISOString() }
+          ? { deletionAcknowledgedAt: now }
           : {}),
       });
       return Promise.resolve(true);

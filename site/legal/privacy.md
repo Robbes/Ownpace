@@ -3,9 +3,12 @@
   NUMBERING RESTARTED AT 1.0 (the owner, 2026-10-14: "go on the 1.0 reset"). No tester had
   accepted any number yet, so the first version testers accept is 1.0, with these words.
   The numbers below (1.2 to 1.6) are the drafts' history, kept for the record; git holds the
-  texts. From here every change of words takes a new number again: 1.1, 1.2, and so on.
+  texts. A change of words after the first tester accepts takes a new number again: 1.1, 1.2,
+  and so on. Until then the words are edited in place under 1.0 (the owner, 2026-10-21: "no-one
+  accepted the terms so far, so keep them on version 1.0").
 
-  v1.1, 2026-10-19, on the owner's approval, in both languages:
+  Still 1.0, edited in place on 2026-10-19, on the owner's approval, in both languages (#1639
+  numbered these words 1.1; the owner put them back under 1.0 on 2026-10-21, below):
   - §4.3, and the rows of §5 and §9 that name it: the preflight is called by the name the site
     gives the same count since the owner's answer to workplan 0159 §5 item 26 (2026-10-18),
     "the count when you review your migration" / "de telling bij het controleren van uw
@@ -34,7 +37,7 @@
     HumanPasswordlessCheckFailedEvent). At sign-in each carries AuthRequestInfo, which login v1
     fills with the browser, its language and the IP address; a wrong current password typed
     while changing the password carries none (checkCurrentPassword passes nil), so §4.4 says
-    "the time" for it. §4.4 says "the browser", as the 1.0 sentence on sessions does for the
+    "the time" for it. §4.4 says "the browser", as its earlier sentence on sessions does for the
     same AuthRequestInfo. Failed password checks were recorded before #1612 too. All are
     events, so the history keeps them as it keeps every other change (§9's row, checked
     2026-10-15).
@@ -51,12 +54,16 @@
     that is the provider's own sign-in, which the grant page calls "Log in als". The English
     "sign in" / "sign out" are the app's words already. Lands with or after the app's
     Aanmelden/Afmelden build.
-  - §13: 1.1 names processing that 1.0 did not (a second step or passkey, every failed attempt
-    with its browser and IP address, and the lock), so it is a material change. Nobody besides
-    the owner had accepted 1.0 when 1.1 merged (the owner, 2026-10-19: "Nobody yet"), so no
-    notice was owed and 1.1 applies from publication; the app asks every member to accept 1.1.
-  1.0 was final and pinned, so the words take 1.1, in both languages, LEGAL_VERSIONS and
-  ACCEPTED_WORDS.
+  - §13: these words name processing that the earlier words did not (a second step or passkey,
+    every failed attempt with its browser and IP address, and the lock), so it is a material
+    change. Nobody besides the owner had accepted 1.0 when they merged (the owner, 2026-10-19:
+    "Nobody yet"), so no notice was owed and they apply from publication.
+  #1639 numbered these words 1.1, because 1.0 was final and pinned. On 2026-10-21 the owner put
+  them back under 1.0: "no-one accepted the terms so far, so keep them on version 1.0". No tester
+  had accepted any version, so the text stays 1.0 until the first tester accepts it, as on the
+  1.0 reset of 2026-10-14, in both languages, LEGAL_VERSIONS and ACCEPTED_WORDS, which pins these
+  words under 1.0. The app asks for 1.0: an acceptance of 1.1 is asked again, and one of 1.0
+  recorded before these words were deployed counts (the owner's own and test accounts at most).
 -->
 <!--
   FINAL — v1.2, 2026-10-05 (the date on the Last updated line moves to the
@@ -408,7 +415,7 @@
      reading of Art. 14(3)(b): the information is due at the first
      communication at the latest. Correspondents in a mailbox stay open.
   3. Mollie as independent controller; 5. the basis of the count when you
-     review your migration (§4.3; "the preflight" until 1.1) for someone with
+     review your migration (§4.3; "the preflight" until 2026-10-19) for someone with
      no contract yet; 7. invoices kept 7 years (since 1.5 in the
      bookkeeping system, our copy deleted on erasure and its number kept).
      privacy-after-alpha-questions (a): for the lawyer's pass before the first
@@ -532,7 +539,7 @@
       page, the site it came from, its browser and its system. Does such a
       report single somebody out (Recital 26) for someone who knows to whom a
       link was sent?
-  22. Sign-in security (§4.4, §5, §9, §10; v1.1). The sign-in service records
+  22. Sign-in security (§4.4, §5, §9, §10; 2026-10-19). The sign-in service records
       each failed attempt (a wrong password, authenticator code, security key
       or passkey) with the time and, at sign-in, the browser, its language and
       the IP address, and locks a sign-in account after 10 wrong passwords in
@@ -641,12 +648,12 @@
   - Proton: where its agreement says it processes (question 11).
   - The operator runbook: how to export one person's events from the sign-in service's
     history, failed attempts included, for an access request (§10; question 22 (d)).
-  - Live, for 1.1 (§4.4, §9): setup-zitadel.sh from a main that carries #1612 has run on live
-    and logged the lock after 10 wrong passwords and the allowed second factors (OTP, U2F),
-    and the login policy reads passwordlessType PASSWORDLESS_TYPE_ALLOWED; if passkeys are
-    not allowed, every passkey in §4.4 and §9 comes out before 1.1 merges. Best run in the
-    deploy that publishes 1.1, so the lock and the second step do not run under a policy
-    that does not name them (the owner's call).
+  - Live, for the words of 2026-10-19 (§4.4, §9): setup-zitadel.sh from a main that carries
+    #1612 has run on live and logged the lock after 10 wrong passwords and the allowed second
+    factors (OTP, U2F), and the login policy reads passwordlessType PASSWORDLESS_TYPE_ALLOWED;
+    if passkeys are not allowed, every passkey in §4.4 and §9 comes out before the first tester
+    accepts. Best run in the deploy that publishes these words, so the lock and the second step
+    do not run under a policy that does not name them (the owner's call).
   - The visit totals (§4.5, §9; the owner, 2026-10-05: "go with GoAccess on
     the logs and the sentence"): the run that counts them, on live's copy of
     the site, with what the comment beside §4.5 lists: no --persist or
@@ -662,7 +669,7 @@
 # Privacy policy
 
 **Applies to:** the Ownpace **managed service** at `ownpace.eu`, and this website.
-**Version:** 1.1
+**Version:** 1.0
 **Last updated:** 2026-10-19
 
 > **If you run Ownpace yourself**, this policy does not apply to you and there is nothing for

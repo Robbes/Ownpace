@@ -139,9 +139,11 @@
 #      exposure-check.sh passes. Any failure exits 3 and logs nothing.
 #   8. The first line of the deploy log, in deploy-live.sh's format:
 #      <UTC date> <tag> <commit> took one-way, in live's persisted directory.
-#   9. The timer's two units copied to ~/.config/systemd/user and systemd told
-#      (daemon-reload). Enabling it, and `loginctl enable-linger`, which needs
-#      sudo, are the owner's.
+#   9. The units in deploy/compose/systemd/ copied to ~/.config/systemd/user
+#      and systemd told (daemon-reload): the daily duties' pair, the box
+#      checks' pair and the mail on a failed run (workplan 0142 T3). Enabling
+#      the two timers, and `loginctl enable-linger`, which needs sudo, are the
+#      owner's.
 #  10. What is left, and only the owner can do: sign up, become the operator,
 #      the timer, the hold and deploy-live.sh --dry-run rehearsal, the outside
 #      probe's variable and NetBird's sign-in off (0139, item 8), the logs
@@ -405,6 +407,9 @@ main() {
   # it after the container is gone (the owner, 2026-09-28, ops-log-driver (a);
   # docs/managed-bring-up.md, "Before you start"). A container keeps the driver
   # it was created with, so this is asked before the bring-up creates any.
+  # managed.yml's services set json-file themselves, with a size cap
+  # (2026-10-21), so what the daemon's answer decides is the website's container
+  # (www.yml) and the task runs Trigger.dev starts.
   local driver
   driver="$(docker info --format '{{.LoggingDriver}}')" ||
     refuse "docker info could not say which log driver this machine's containers write with (above). A daemon that does not answer is not one on Docker's default."
@@ -1262,21 +1267,25 @@ run_checks() {
   [ "${#_f[@]}" -gt 0 ] || say "  every check passed"
 }
 
-# The timer's two units, copied (not linked: a checkout of another tag must
-# not change them), and systemd told. Prints one line for owner_steps.
+# The units in deploy/compose/systemd/, every one (the daily duties' pair, the
+# box checks' pair and the mail on a failed run, 0142 T3), copied (not linked:
+# a checkout of another tag must not change them), and systemd told. Prints
+# one line for owner_steps.
 install_timer_units() {
-  local dir="${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user" unit
+  local dir="${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user" f n=0
   if ! mkdir -p "$dir" 2>/dev/null; then
-    printf 'copy the two units yourself (%s could not be made), then systemctl --user daemon-reload' "$dir"
+    printf 'copy the units in deploy/compose/systemd/ yourself (%s could not be made), then systemctl --user daemon-reload' "$dir"
     return 0
   fi
-  for unit in ownpace-box-duties.service ownpace-box-duties.timer; do
-    cmp -s "${SCRIPT_DIR}/systemd/${unit}" "${dir}/${unit}" || cp "${SCRIPT_DIR}/systemd/${unit}" "${dir}/${unit}"
+  for f in "${SCRIPT_DIR}"/systemd/*.service "${SCRIPT_DIR}"/systemd/*.timer; do
+    [ -f "$f" ] || continue
+    cmp -s "$f" "${dir}/$(basename "$f")" || cp "$f" "${dir}/$(basename "$f")"
+    n=$((n + 1))
   done
   if command -v systemctl >/dev/null 2>&1 && systemctl --user daemon-reload >/dev/null 2>&1; then
-    printf 'the two units are in %s, and systemd has read them' "$dir"
+    printf 'the %s units are in %s, and systemd has read them' "$n" "$dir"
   else
-    printf 'the two units are in %s; run systemctl --user daemon-reload once this account has a user manager (after enable-linger)' "$dir"
+    printf 'the %s units are in %s; run systemctl --user daemon-reload once this account has a user manager (after enable-linger)' "$n" "$dir"
   fi
 }
 
@@ -1341,13 +1350,15 @@ owner_steps() {
      (the bring-up guide, 8c); then, from ~/${LIVE_PROJECT}:
        ./deploy/compose/operator.sh add <userId> <your email> "owner"
        ./deploy/compose/operator.sh list        (you, and nobody else)
-  3. The daily duties (workplan 0132 T7): $2.
+  3. The daily duties (workplan 0132 T7) and the box checks (0142 T3): $2.
      Then, once (the first line needs sudo: this account's timers run when
      nobody is signed in):
        sudo loginctl enable-linger "\$USER"
        systemctl --user enable --now ownpace-box-duties.timer
        systemctl --user start ownpace-box-duties.service
        journalctl --user -u ownpace-box-duties -n 200 --no-pager   (every duty passes)
+       systemctl --user enable --now ownpace-box-checks.timer
+       systemctl --user start ownpace-tell-owner@test.service      (one test mail to ALERT_TO)
      Start it in daytime: while the appliance nightly runs, its dev Nextcloud
      fails the exposure duty.
   4. Rehearse the next deploy. Open a hold on the support screen with a Dutch

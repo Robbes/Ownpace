@@ -58,7 +58,7 @@
  *    (`cmd/server-main.go`, `cmd/update.go` at `RELEASE.2025-05-24T17-08-30Z`),
  *    unless `MINIO_UPDATE` is `off`. Its call-home to SUBNET ships `off`
  *    (`internal/config/callhome/callhome.go`) and is written out here too.
- *  - MAILPIT (v1.31.1, the test stack's catcher; live has none) asks GitHub for
+ *  - MAILPIT (v1.31.6, the test stack's catcher; live has none) asks GitHub for
  *    its newest release whenever its web page asks for the server's info,
  *    unless `MP_DISABLE_VERSION_CHECK` says true (`internal/stats/stats.go`).
  *  - NEXTCLOUD (34, the demo's DAV target on the OTA stack every night, and the
@@ -500,7 +500,7 @@ const CLICKHOUSE =
 const MINIO =
   'bitnamilegacy/minio:2025.5.24-debian-12-r5@sha256:451fe6858cb770cc9d0e77ba811ce287420f781c7c1b806a386f6896471a349c';
 const MAILPIT =
-  'axllent/mailpit:v1.31.1@sha256:98b916bd3c8d61f7633a52d3ea2f58d00620cb01ca57ab59edde68c347a95365';
+  'axllent/mailpit:v1.31.6@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387';
 const NEXTCLOUD = 'nextcloud:34-apache';
 /** The demo's Stalwart, outside every compose file; its fetches were read at this tag. */
 const STALWART = 'stalwartlabs/stalwart:v0.16.10';
@@ -555,7 +555,7 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
   },
   'deploy/compose/managed.yml:mailpit': {
     readAt: MAILPIT,
-    why: "a release check to GitHub when its web page asks for the server's info (internal/stats/stats.go at v1.31.1)",
+    why: "a release check to GitHub when its web page asks for the server's info (internal/stats/stats.go at v1.31.6)",
     holds: (svc) => exactly(environmentOf(svc), 'MP_DISABLE_VERSION_CHECK', 'true'),
   },
   'deploy/compose/managed.yml:trigger-tls': {
@@ -583,7 +583,7 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
   'deploy/compose/managed.yml:trigger-registry': {
     readAt: 'registry',
     why:
-      "distribution v3.1.1 builds OpenTelemetry's exporter from OTEL_* variables (tracing/tracing.go); with none set " +
+      "distribution v3.1.2 builds OpenTelemetry's exporter from OTEL_* variables (tracing/tracing.go); with none set " +
       'its default is OTLP to localhost inside its own container, so nothing leaves',
     holds: (svc) => Object.keys(environmentOf(svc)).filter((k) => k.startsWith('OTEL_')).map((k) => `${k} is set, which could send its traces somewhere`),
   },
@@ -609,7 +609,7 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
   'deploy/compose/managed.yml:gatus': {
     readAt: 'ghcr.io/twin/gatus',
     why:
-      "no telemetry at v5.36.0, and its page loads nothing from another host; its requests are gatus.yaml's probes, which " +
+      "no telemetry at v5.37.0, and its page loads nothing from another host; its requests are gatus.yaml's probes, which " +
       'ask our own services and public pages of the providers it watches, and carry nothing about anyone',
   },
   'deploy/compose/www.yml:www': { readAt: 'nginx', why: NONE('nginx') },

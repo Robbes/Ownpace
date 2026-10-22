@@ -13,9 +13,10 @@
 # came from, the kind of browser), as totals only, which identify nobody."
 # This script is what makes that true.
 #
-# GOACCESS IS NEVER GIVEN AN ADDRESS, NOR ANY TEXT A VISITOR OR A LINK CHOSE,
-# AND KEEPS NO DATABASE. GoAccess's own ways to keep totals and hide addresses
-# would have made the sentence false. Read in its source at the tag v1.12
+# GOACCESS IS NEVER GIVEN AN ADDRESS, NOR ANY TEXT A VISITOR OR A LINK CHOSE
+# BUT WHAT *What it cannot stop*, BELOW, NAMES, AND KEEPS NO DATABASE.
+# GoAccess's own ways to keep totals and hide addresses would have made the
+# sentence false. Read in its source at the tag v1.12
 # (github.com/allinurl/goaccess, ef3c4f3c): --persist writes, for every day, a
 # fingerprint per visitor, an unsalted 64-bit hash of the full address and the
 # browser string (util.c, visitor_fingerprint), and per panel which visitor
@@ -40,9 +41,13 @@
 #      have none, and are not visits. Nor is the status page's Website row
 #      (gatus.yaml), which asks through the public name every 60 seconds once
 #      STATUS_SITE_ENABLED is true, as Gatus/1.0 (Gatus's own User-Agent at
-#      v5.36.0, client/client.go): it is left out by that name, and counted
-#      apart. Of each request it hands on:
-#        - the time, the status and the size, which nginx writes;
+#      v5.37.0, config/endpoint/endpoint.go): it is left out by that name, and
+#      counted apart. Of each request it hands on:
+#        - the time, the status and the size, which nginx writes. The time is
+#          the one nginx writes last before the request, in $time_local's
+#          exact shape, never a bracketed text before it (a Basic user's: see
+#          the filter); a line that does not end its first piece in that time
+#          is not counted as a request;
 #        - the method, the path and the protocol, and never the query string.
 #          The path only of a request answered 2xx or 3xx, and only when it is
 #          a plain path (letters, digits, . _ - /, no `..`, no `//`): with
@@ -56,10 +61,12 @@
 #          `Firefox/128.0-` and an email address is `Firefox/128.0`; and a
 #          word that still holds a character no browser's own string holds
 #          (an @, a %, a quote, a backslash) left out whole.
-#      Not the first field, NetBird's address on the mesh; not the visitor's
-#      address, which becomes a number that exists only while the run lasts
-#      (v1, v2: the same address, the same number, so GoAccess still tells
-#      visitors apart).
+#      Not the first field, NetBird's address on the mesh; not the user field
+#      ($remote_user, which nginx fills from any Basic Authorization header
+#      though the site asks for none: GoAccess always gets `-`); not the
+#      visitor's address, which becomes a number that exists only while the
+#      run lasts (v1, v2: the same address, the same number, so GoAccess still
+#      tells visitors apart).
 #   3. The filter streams into GoAccess: no copy of the log is ever written,
 #      so a run that is killed outright leaves none behind. GoAccess runs in a
 #      container with no network, no port and nothing of ours mounted, on a
@@ -83,7 +90,11 @@
 #
 # What it cannot stop: a word a visitor writes into their own browser's
 # User-Agent, letters and digits joined to a browser's or a system's name,
-# reaches the browser or system panel as they wrote it.
+# reaches the browser or system panel as they wrote it. And the Referer is the
+# visitor's to set too: a host of letters, digits, dots and hyphens (and its
+# port) is handed on as it was sent, so a Referer of
+# https://jan.devries.example.nl/ reaches the referring sites panel as
+# `https://jan.devries.example.nl`.
 #
 # GOACCESS'S FLAGS, AND WHY EACH (GOACCESS_FLAGS below):
 #
@@ -128,7 +139,14 @@
 # (gdns.c) and its WebSocket server (websocket.c, only with --real-time-html).
 # It runs with --network none all the same
 # (scripts/a-service-that-phones-home.unit.test.ts). Docker pulls the image the
-# first time, from Docker Hub, as it pulls any other.
+# first time, from Docker Hub, as it pulls any other. Its base is Alpine
+# 3.20.10, past its end of life (#1675), accepted for now because GoAccess runs
+# offline (--network none) on input the filter has cut to a few fields, only
+# musl lies on that input's path, and, on 2026-10-22, no release tag carries
+# this script yet; it moves with an upstream release on a supported base, or to
+# an image of our own if upstream's next release is still on 3.20 or the weekly
+# image scan (security-scan.yml, #1674) reports a HIGH or CRITICAL finding in
+# musl.
 #
 # WHEN IT RUNS. Once a day, as box-duties.sh's eighth duty, `visits`, and by
 # hand whenever the owner wants a fresh report, and right before a deploy.
@@ -299,8 +317,16 @@ trap 'exit 143' TERM
 #   1 `<addr> - <user> [<time>] `   2 request   3 ` <status> <bytes> `
 #   4 referer   5 ` `   6 user agent   7 ` `   8 X-Forwarded-For   9 ``
 #
-# A line of any other shape (the image's start-up lines) is not an access line.
-# What it hands on is the combined format, a number for a host:
+# <user> is $remote_user: nginx fills it from any Basic Authorization header,
+# though the site asks for none, and escapes only quotes, backslashes and bytes
+# below 32 or above 126, so a visitor can put spaces and brackets in it, a text
+# or a time of their own (#1675). So the time is nginx's $time_local where nginx
+# writes it, at the END of piece 1, in its exact shape (dd/Mon/yyyy:hh:mm:ss
+# +zzzz, bracket expressions only, for mawk), and never the first bracketed
+# group, which a user can supply. The user itself is never handed on.
+# A line of any other shape (the image's start-up lines, a piece 1 that does
+# not end in that time) is not an access line.
+# What it hands on is the combined format, a number for a host and no user:
 #
 #   v1 - - [<time>] "<method> <path> <protocol>" <status> <bytes> "<site>" "<user agent>"
 #
@@ -359,13 +385,16 @@ function agent(ua,    i, n, c, out, w) {
 BEGIN { FS = "\""; counted = 0; direct = 0; probe = 0; other = 0; n = 0 }
 {
   if (NF != 9 || $5 != " " || $7 != " " || $9 != "" ||
-      $3 !~ /^ [0-9][0-9][0-9] [0-9]+ $/ || $1 !~ /^[^ ]+ - .* \[[^]]+\] $/) { other++; next }
+      $3 !~ /^ [0-9][0-9][0-9] [0-9]+ $/ ||
+      $1 !~ /^[^ ]+ - .* \[[0-9][0-9]\/[A-Z][a-z][a-z]\/[0-9][0-9][0-9][0-9]:[0-9][0-9]:[0-9][0-9]:[0-9][0-9] [+-][0-9][0-9][0-9][0-9]\] $/) { other++; next }
   xff = $8
   if (xff == "" || xff == "-") { direct++; next }
   if ($6 ~ /^Gatus\//) { probe++; next }
   if (!(xff in seen)) seen[xff] = ++n
-  match($1, /\[[^]]+\]/)
-  when = substr($1, RSTART, RLENGTH)
+  # The same time, anchored at the end: the bracketed group nginx wrote last,
+  # without the space after it.
+  match($1, /\[[0-9][0-9]\/[A-Z][a-z][a-z]\/[0-9][0-9][0-9][0-9]:[0-9][0-9]:[0-9][0-9]:[0-9][0-9] [+-][0-9][0-9][0-9][0-9]\] $/)
+  when = substr($1, RSTART, RLENGTH - 1)
   split($3, sb, " ")
   printf "v%d - - %s \"%s\" %s %s \"%s\" \"%s\"\n", seen[xff], when, request($2, sb[1]), sb[1], sb[2], site($4), agent($6)
   counted++

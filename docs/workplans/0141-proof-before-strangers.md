@@ -2,7 +2,46 @@
 
 > **In one line:** Live-account proofs lifting the experimental tag via a Live proofs table (Microsoft 365, Dropbox, Apple, Google Tasks, Soverin), the organiser canary, shared mailboxes, Microsoft-aware detectors, a managed browser walk, the O365 lane, nightly-gate readiness.
 
-## Status — 2026-09-27 (update this block at the end of every session)
+## Status — 2026-10-21 (update this block at the end of every session)
+
+**2026-10-21, build: T12 (b), the fixture cases (§4 step 1, *"T12(b) can follow at any time"*)**,
+merged as #1646 on 2026-10-21 (`fb7962c5`). The UI smoke (`test/ui/managed-ui.ui.test.ts`) now
+answers four links the way the API does: a migration's grant link and progress link, and a
+person's. Before this, the shipped bundle had only drawn these pages' refusal: the smoke opened
+them on a link no fixture knew, and the unit tests mock their services.
+
+- **What a tester's stranger sees, held in a real browser.** Each link is opened signed out, in
+  English and in Dutch, and read as its reader sees it (`innerText`: not what CSS hides or a
+  closed fold holds).
+  - A grant page must say who asks, who asked, the account it reads and where it goes, and the
+    permission in words. It must show the Google button, the line about a chat app's own browser,
+    and the privacy policy and terms in the reader's language.
+  - A progress page must show each data type's stage and count, its state sentence and its
+    read-only line. Its only controls are its withdrawal and *Report this link*: no field, and no
+    link into the app.
+  - Each page asks the API only for its own link, that link's `/report` and the build stamp, and
+    raises no error and no policy violation.
+  - These cases open the bundle CI and OTA build, without the Alpha. The Alpha's
+    `AlphaGoogleLine` (a line and a tester-guide link above the Google button) is held by its own
+    unit tests, not here.
+- **On a phone.** Each link is also opened in Dutch at 390 × 844 (mobile, touch), with every fold
+  open, and must be no wider than the phone. A phone zooms out to fit a page that is too wide, so
+  the window's width is held to 390 as well; the page's width alone is not enough. That is 0145
+  T8 (a) for these two pages.
+- **Twelve cases**: four links in two languages, and four on a phone. **Proved by breaking.**
+  - Removing the grant route fails the six grant cases.
+  - Blanking the progress page fails the six progress cases.
+  - A page 480 px wide fails the grant phone cases, and so does an unbroken scope inside the
+    Technical details fold.
+  - English-only legal links fail the Dutch grant cases.
+  - A read-only line hidden by CSS fails its page's language cases.
+  - An inline style fails every grant case on the policy.
+  - §3's third case, the wizard to its confirm step, was already one (0153 T4's walk).
+- **Docs.** The owner test runbook's Stage 9 now says that, of the app, the repository opens only
+  these two pages at phone width, and only for sideways scrolling. The public site's pages are
+  held the same way (`test/ui/site.ui.test.ts`).
+- **Still open.** (c), the journey against the real API, comes **after**, in the gate on the OTA
+  stack. The walk (a) stays the owner's.
 
 **2026-09-27, late: T14 read, and written where the gate is described (0131 §6, group M6,
 step 2)**, on branch `claude/mailbox-sync-errors-c2xsw2-a-count-of-green-nights`, not merged.
@@ -378,7 +417,7 @@ for the card says so.
 | T9 The organiser canary (0103 T3) | ⏳ **Owner**; the gate's fixture 📋 **Proposed** | §3. **Before the first invitation**, because nearly every tester moves a calendar. |
 | T10 Shared mailboxes: Partial until one is copied | ✅ **(a), the move, done** in #1187, merged 2026-09-26 (`d7c4ebde`, `6402cd93`; decided 2026-09-25 by the owner); ⏳ **Owner** (0027 T0's consent run, after) — *was:* 🔨 **Decided 2026-09-25 (owner) and built on branch `claude/ownpace-public-readiness-y7orc6-shared-mailboxes-partial`, not merged** (the move, (a)) | §3. **Before a tester on a Microsoft card.** |
 | T11 The detectors and the permission report tell a Connect-with-Microsoft tester the truth | 📋 **Proposed**; the minimum 🔨 built 2026-09-27, merged as #1246; the credential model (open question 7) parked 2026-09-27 | §3. The finding was checked again on 2026-09-24. The true sentence goes in **before the first Microsoft 365 tester**. Per-tenant credentials come **after**, with an ADR. |
-| T12 The managed journey in a browser | ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) — *was:* ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) | §3. The two-stranger walk happens on `ownpace-live` **before the first invitation**. The real-API journey comes **after**, in the gate on the OTA stack; it was parked on 0132 T8, which 0132 D7 superseded. |
+| T12 The managed journey in a browser | ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ✅ **done** in #1646, merged 2026-10-21 (the fixture cases, (b)); ⏳ **Owner** (the walk); 📋 **Proposed** (the real-API journey, (c), after) — *was:* ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) | §3. The two-stranger walk happens on `ownpace-live` **before the first invitation**. The real-API journey comes **after**, in the gate on the OTA stack; it was parked on 0132 T8, which 0132 D7 superseded. |
 | T13 The O365 lane and the live-target lane | ⏳ **Owner** (runner label, secrets); 📋 **Proposed** (code) | §3. **After.** A green run counts only when it ran the product's code against a real account. |
 | T14 The nightly managed gate's readiness rule | 📋 **Decided 2026-09-27**: two nights, scheduled runs only; **read 2026-09-27: 0 of 2** (the managed gate's #199 and #200 red, the appliance's last four green), and stated in `docs/testing.md` — *was:* ⏳ **Owner** (names N); 📋 **Proposed** (the rule) | §3. Worked out with 0132 T6 step 1. It is read **before the first invitation**, before live's first bring-up from a tag, and again before each later deploy to live. |
 

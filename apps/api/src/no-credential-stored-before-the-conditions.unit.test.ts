@@ -537,7 +537,7 @@ describe('with the switch on while a text is still a draft, nobody is asked', ()
     expect(acceptanceAtStart({ OWNPACE_STAGE: 'alpha' }, { alpha: false, privacy: true, terms: true })).toMatch(
       /privacy.*terms.*draft.*nobody/is,
     );
-    // The number the log names is the constant's (alpha 1.1 since 2026-10-19), not one written here.
+    // The number the log names is the constant's, not one written here.
     expect(acceptanceAtStart({ OWNPACE_STAGE: 'alpha' }, { alpha: false, privacy: false, terms: false })).toContain(
       `alpha ${LEGAL_VERSIONS.alpha}, privacy ${LEGAL_VERSIONS.privacy}, terms ${LEGAL_VERSIONS.terms}`,
     );

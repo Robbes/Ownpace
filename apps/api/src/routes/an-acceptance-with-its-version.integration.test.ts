@@ -210,8 +210,8 @@ describe('an acceptance with its version', () => {
 
     it('an old version answers 409 version_not_current, and writes nothing', async () => {
       const res = await as('post', '/api/me/acceptance').send({
-        // 1.0: an earlier number than the current one since 1.1 (2026-10-19), so it stays stale.
-        versions: { ...CURRENT, privacy: '1.0' },
+        // 0.9: below any current number (all three are 1.0 again since 2026-10-21), so it stays stale.
+        versions: { ...CURRENT, privacy: '0.9' },
         language: 'nl',
       });
 

@@ -62,6 +62,18 @@ const NOT_REQUIRABLE = new Map([
     'images.yml carries a `paths:` filter on its pull_request trigger, so on a PR ' +
       'touching none of those paths the workflow never runs and the context is never reported.',
   ],
+  // security-scan.yml's image jobs (0146 T8, scan half). Their `if:` runs them on
+  // schedule and workflow_dispatch only, so a pull request reports them skipped,
+  // the matrix job under its unexpanded name. The scan is report-only by design:
+  // a finding never blocks a merge, and the weekly run is where a missing report
+  // fails.
+  ...['Images the stacks run', 'Image scan (${{ matrix.name }})', 'Image scan report'].map(
+    (name): [string, string] => [
+      name,
+      'runs on schedule and workflow_dispatch only (its `if:`), so a pull request reports it ' +
+        'skipped; the image scan is report-only and never gates a merge (0146 T8).',
+    ],
+  ),
 ]);
 
 interface Job {

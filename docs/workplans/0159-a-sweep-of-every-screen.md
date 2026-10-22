@@ -2,16 +2,52 @@
 
 > **In one line:** Every screen of the managed app and the public site, in English and Dutch, on a phone and a desktop, looked at as a tester meets it: what reads wrong, does not fit or a screen reader cannot follow is fixed where the words are ours, and put to the owner where they are the owner's.
 
-## Status — 2026-10-19 (update this block at the end of every session)
+## Status — 2026-10-21 (update this block at the end of every session)
+
+**2026-10-21: follow-ups 6 and 12 built and merged.** Each was built from main, a second reviewer
+tried to break it, and it merged on its own after `ci-complete` was green. Their new words, in
+both cases, are the builder's and wait for the owner's reading (open question 8).
+
+- **Follow-up 12, the line under a decided decision in Dutch** (#1649, merged 2026-10-21,
+  `8380b2c7`). `DECISION_EFFECTS` holds each of its three lines in English and in Dutch. Both
+  editions serve the Dutch as `effectNl` beside the English `effect`, and *Wacht op u* shows the
+  half in its reader's language, also after a language switch. An answer from a server that sent
+  no Dutch still shows the English, marked `lang="en"`. Fourteen unit tests were red before the
+  fix and are green: thirteen on main, and one OpenAPI schema guard added in review, after the
+  new `DecisionClosed` schema's `effect` description had parsed as a stray key. The two editions'
+  decision suites passed against a real Postgres from `scripts/local-pg.sh` (28 tests). The item
+  queues' own effect lines are not paired yet (follow-up 18).
+- **Follow-up 6, a decided row says what was decided** (#1652, merged 2026-10-21, `bbe1d043`).
+  A row under *Already decided* on Deletions and Moves now says it. It reads a `decided` field
+  that both ledgers set from what they already record (`deletion_applied_at`), and both editions'
+  queues carry it unchanged. On Deletions, the old copy of a renamed item removed through Moves,
+  by a person or by the automatic removal of moved files' old copies, says *Moved*, never
+  *Deleted*: that removal closes the move at the same time, compared in SQL. The heading stays the
+  owner's *Already decided* / *Al besloten*. 29 guards were red on main and are green. The SQL
+  half is pinned three ways: on Postgres in the integration job (also run on a throwaway
+  Postgres, `scripts/local-pg.sh`), on PGlite in the unit gate, and in the appliance's e2e apply
+  runs, which now check that an applied row says so (first run: the scheduled E2E after the
+  merge, not yet run).
+
+**2026-10-21: the legal texts stay version 1.0.** The owner: *"no-one accepted the terms so far,
+so keep them on version 1.0."* The Alpha conditions, the terms and the privacy statement keep the
+words the owner approved on 2026-10-19, word for word, and their number goes back from 1.1 to
+1.0, edited in place, as the Alpha conditions' own rule says until the first tester accepts
+(alpha-version-number (a)). Their *Last updated* line stays 2026-10-19, the day the words last
+changed. `LEGAL_VERSIONS` says 1.0 for all three, `ACCEPTED_WORDS` pins these words under 1.0
+and drops the 1.1 pins, and the legal README, the briefings and the CHANGELOG say so. From the
+first tester's acceptance on, a change of words takes a new number again.
 
 **2026-10-19: round 2 answered and built; all 31 items done.** The owner answered rows 19 and 24
 on 2026-10-19: *Yes* to the tiles drawn once on a phone, and *Yes* to all four cards of version
 1.1 of the legal texts. Asked whether anyone besides the owner had accepted version 1.0, the
 owner answered *nobody yet*, so privacy §13's 30 days' notice by email was owed to nobody and 1.1
-applies from publication. #1638 draws the tiles once, under the migration's name, on a phone only.
+(1.0 since 2026-10-21) applies from publication. #1638 draws the tiles once, under the migration's name, on a phone only.
 #1639 is version 1.1 of the Alpha conditions, the terms and the privacy statement, applied word
-for word from the draft the owner approved, with its version pins. Each was built from main, a
-second reviewer tried to break it, and it merged on its own after `ci-complete` was green.
+for word from the draft the owner approved, with its version pins (renumbered 1.0 on 2026-10-21,
+on the owner's word, edited in place before any tester accepted them: the entry above). Each was
+built from main, a second reviewer tried to break it, and it merged on its own after
+`ci-complete` was green.
 
 **2026-10-18: the owner's answers, built and merged; two asked again.** The owner answered the 31
 questions of §5 on a page that offered *Yes*, *Keep* or their own words for each item. 29 were
@@ -261,7 +297,7 @@ later PR builds the answers.
 | 21 | During the Alpha, Billing shows *Data verplaatst, in totaal: 0 GB* under *Alle gegevens: 214 GB* | **Yes** — #1632 |
 | 22 | Other words from the owner's review of 2026-10-10 that drift from the glossary | **Yes** — #1632, with `access.noteHint` in #1633 and `finish.ending.phase.cutover` in #1635 |
 | 23 | Dutch says *provider* where the rest of the app says *aanbieder*, the grant and progress pages included | **Yes** — #1633 |
-| 24 | The Alpha conditions and the terms still use the old names of the two deletion switches | **Yes** (round 2, 2026-10-19), with the rest of version 1.1 of the legal texts — #1639 |
+| 24 | The Alpha conditions and the terms still use the old names of the two deletion switches | **Yes** (round 2, 2026-10-19), with the rest of version 1.1 of the legal texts — #1639; renumbered 1.0 on 2026-10-21, on the owner's word, edited in place before any tester accepted them |
 | 25 | The site's hero paragraph (0144 P5a): *Geen big bang* / *No big-bang cutover* | **Yes** — #1631 |
 | 26 | The site promises a *free preflight* the app never names (privacy §4.3 says preflight) | **Yes** — #1630 |
 | 27 | The Dutch home page says in two ways that nothing is deleted at the source | **Yes** — #1631 |
@@ -314,8 +350,9 @@ phone, `MigrationTiles` draws the two tiles once under the migration's name on t
 and a person's page, and each line keeps its data type, chip and sentence; from `sm` up nothing
 changed, and the site's picture of a person's page was taken again. #1639 built row 24 as version
 1.1 of the three texts, dated 2026-10-19: `LEGAL_VERSIONS`, the hashes a tester accepts and the
-legal README's table say 1.1, and the privacy briefing records that no notice was owed.
-Both wait for the owner.
+legal README's table say 1.1, and the privacy briefing records that no notice was owed. On
+2026-10-21 the owner kept the same words on version 1.0, edited in place, since no tester had
+accepted any version (the Status block).
 
 **Deviations worth recording.**
 
@@ -368,11 +405,28 @@ Both wait for the owner.
    the guide (the glossary's word), *Gmail-postvak* on the Accounts card's hint and
    *Gmail-postbus* in the owner's site copy. T15 changed the site's to *Gmail-mailbox*, so two
    remain. Which one is the owner's call.
-6. **The decided sections of Deletions and Moves still say *Already decided*.** A title that says
-   what was decided was built and reverted in review: the ledger closes a row the same way for
-   *keep* and for *apply*, so it would have named the opposite of what happened after *Delete it
-   here too*. It needs the server to say per row which it was, for example from
-   `item.deletion_applied_at`.
+6. ~~**The decided sections of Deletions and Moves still say *Already decided*.** A title that
+   says what was decided was built and reverted in review: the ledger closes a row the same way
+   for *keep* and for *apply*, so it would have named the opposite of what happened after *Delete
+   it here too*. It needs the server to say per row which it was, for example from
+   `item.deletion_applied_at`.~~ **Resolved in #1652.** The heading stays *Already decided*. Each
+   decided row says what was decided, from `decided` on the ledger's row: *kept*, *applied*
+   (`deletion_applied_at` set) or, on Deletions, *relocated* (removed by `applyRelocation`, whose
+   move closes at the same time). Five labels say it, and a kept earlier export says kept too:
+   - Deletions: *Kept on the new system* / *Behouden op het nieuwe systeem*; *Deleted on the new
+     system too* / *Ook verwijderd op het nieuwe systeem*; *Moved: the old copy was removed on the
+     new system* / *Verplaatst: de oude kopie is verwijderd op het nieuwe systeem*.
+   - Moves: *Left where it is on the new system* / *Blijft staan op het nieuwe systeem*; *Old copy
+     removed on the new system* / *Oude kopie verwijderd op het nieuwe systeem*.
+
+   The builder wrote them, for the owner to read (open question 8). Two limits remain, both
+   because *Delete it here too* leaves a moved row's move open. First, on a renamed file, that
+   move stays on Moves with a *Remove the old copy* the server refuses (unchanged from before).
+   Second, a mail message or event moved to another folder, deleted through Deletions, then
+   answered *Leave it where it is* on Moves reads *Old copy removed on the new system*, though it
+   had no other copy (`ItemMove.decided` in `ports.ts` names it). Either closing the move inside
+   `applyDeletion`, or a Moves value of its own for a removal made through Deletions (new words
+   for the owner), would settle both: a candidate follow-up.
 7. **Old words in docs no screen draws.** `docs/o365-setup.md` and
    `docs/o365-application-access.md` quote the old *Through our own app, with …* labels; they and
    `docs/google-workspace-setup.md` say *this product*. `docs/owner-test-runbook.md`,
@@ -392,16 +446,19 @@ Both wait for the owner.
     longer says which row each belongs to. 0148 now says so.
 11. **A person's error and not-found states** show *← Migrations* just above the h1
     *Migrations* (T16). The same word twice, one above the other.
-12. **A decision's effect line is English under a Dutch page** (#1636). `DECISION_EFFECTS` in
-    `operating-contract.ts` has no Dutch twin, so the line under an answered decision stays
-    English, marked `lang="en"`. It needs a Dutch twin beside the English in `@openmig/shared`
-    (class 4 of `docs/i18n-prose-boundary.md`).
+12. ~~**A decision's effect line is English under a Dutch page** (#1636).~~ **Resolved in
+    #1649.** `DECISION_EFFECTS` in `operating-contract.ts` holds each line in English and in
+    Dutch. Both editions serve the Dutch as `effectNl` beside `effect` (`decisionEffectFields`),
+    and the page shows the reader's half (`decisionEffectText`). From a server that sent no Dutch
+    it shows the English, marked `lang="en"`. The builder wrote the Dutch, for the owner to read
+    (open question 8); the owner's *Yes* was to row 4 (#1636), not to these words.
 13. **Verify's sentences have no singular** (#1635). With one item they read *1 email items are
     on the old system…* / *1 items (e-mail) staan…* and *1 sampled … items differ*. They are the
     owner's approved words, so a singular form is the owner's call.
 14. ~~**The privacy statement keeps *preflight*** (§4.3, §5 and §9, in both languages) until its
-    version 1.1, where #1630 left it.~~ **Resolved in #1639**: version 1.1 names it *the count when
-    you review your migration* / *de telling bij het controleren van uw migratie*.
+    version 1.1, where #1630 left it.~~ **Resolved in #1639**: the words of 2026-10-19 (version
+    1.1 there, 1.0 since 2026-10-21) name it *the count when you review your migration* / *de
+    telling bij het controleren van uw migratie*.
 15. **With *Technical details* open, an unknown finding's text shows twice** (#1635): in the list,
     since no sentence of ours covers it, and again in the fold beside its id.
 16. **Words #1632 left for a later round**, as the owner did not name them: Review and start's
@@ -417,6 +474,12 @@ Both wait for the owner.
     *permission list* / *rechtenlijst*, the checklist's hover lines *This access …* / *Dit recht
     …*, and *Nog geen gedeelde rechten*. The glossary's share row lists them; they wait for the
     owner.
+18. **The item queues' effect lines are still English** (found building #1649). The line under a
+    decision just made on Deletions, Moves and Failures is the server's `effect`, shown by
+    `Resolved` in `apps/web/src/components/queues/primitives.tsx`. It has no Dutch twin and is
+    not marked `lang="en"` under a Dutch page. The fix follows #1649: a Dutch twin in
+    `@openmig/shared`, served as `effectNl`. A row under *Already decided* is not affected: since
+    #1652 it says what was decided in the page's own words.
 
 ## Open questions
 
@@ -435,3 +498,11 @@ Both wait for the owner.
 6. **The Leaving pages' words** (T15) are proposals until the owner has read 0152's.
 7. **Follow-up 10.** Is one list of guide links per column right, or should each link name its
    row?
+8. **For the owner to read**, built on 2026-10-21 in words the builder wrote:
+   - the Dutch of the three lines under a decided decision (#1649, follow-up 12): *Antwoord
+     vastgelegd. De migratie handelt er vanaf nu naar.* (the answer changed something),
+     *Antwoord vastgelegd. Er verandert daardoor niets aan uw migraties.* (only recorded), and
+     *Terzijde gelegd; er is niets mee gedaan. Blijft de situatie zo, dan kan de vraag
+     terugkomen.* (set aside). The English is unchanged;
+   - the five labels on a decided row of Deletions and Moves (#1652, follow-up 6), in English and
+     in Dutch, as follow-up 6 lists them.

@@ -2,7 +2,50 @@
 
 > **In one line:** SSRF defence on managed: connections refuse internal and Docker-network addresses after DNS and on redirects, a demo-host allowlist, probe answers without the remote's body, no archive disk path, the socket proxy off tenant networks.
 
-## Status — 2026-10-16 (update this block at the end of every session)
+## Status — 2026-10-21 (update this block at the end of every session)
+
+**2026-10-21: the folder press's refused rows on the Sharing page** (the row-level half the
+2026-10-16 note left waiting), in #1645, merged 2026-10-21 (`f04ec785`). After *Share this folder
+on the new system*, the page says which rows were not shared, and why. Before, it dropped the
+200's `refused` list and refreshed, so a tester whose new system refused some invitations saw the
+same open rows and nothing else.
+
+- **What the page does.**
+  - `applyShareFolder` types the 200 as `ShareFolderApplied` and `ShareRowRefused` (in
+    `apps/web/src/services/operating-service.ts`) in place of `unknown[]`.
+  - `onApplyFolder` keeps the `refused` rows per folder, cleared before each press, including a
+    press refused as a whole. A 200 without the lists counts as empty.
+  - Under the folder, in a `role="status"` region: a heading with the count
+    (`sharing.group.refused.one`, `.many`), then one line per person and reason (the person, the
+    item or how many, the sentence).
+  - Each refused row's card says its reason when the folder is opened. Only rows still open are
+    said.
+  - A Dutch reader reads `reasonNl` where it came. Otherwise `reason` is shown, marked
+    `lang="en"` under the folder and in the row's card (our gates' refusals, and the appliance's
+    target words).
+  - The text is chosen when the page draws, so it follows a language switch.
+  - The 200 replaces what a row's own earlier press was told, for every row it shared or refused.
+    A press refused as a whole, and rows it did not reach, keep their own answers. A row's own
+    later press says its own answer.
+- **Why per person and reason.** A folder is items with the same grants, so a person refused once
+  is refused on every item in it, in one sentence. One line per row would be the wall 0123 T4
+  removed.
+- **Not changed:** `apply-all`, which has no caller on the page; the API, core and the appliance.
+  A row's own press still shows our gates' English unmarked, as before.
+- **Docs.** `docs/i18n-prose-boundary.md`, class 4, says where the page shows these and where the
+  English is marked.
+- **Proved.** `apps/web/src/pages/a-wall-of-four-hundred-and-eighty-two-rows.unit.test.tsx` gains
+  13 cases. On main, 10 failed and the 3 controls passed: an all-applied answer, a whole refusal,
+  and an answer without lists all say nothing. `one-name-for-a-share` covers the two new keys.
+- **Mutations:** 20, all killed.
+  - 11 on the first build: the answer ignored, `reasonNl` ignored, the list not cleared before a
+    press, one line per row, no `lang="en"`, settled rows still said, no reason in the row's
+    card, a settled row's card keeping it, no status region, and the heading counting lines (its
+    form and its number).
+  - 9 in review: the row card's `lang` and its Dutch, lines grouped by person only, the text fixed
+    at press time, a row's older refusal kept (refused or applied), every folder row cleared on a
+    whole refusal, no fallback for a missing list, and the folder line beating a row's newer
+    press.
 
 **2026-10-16: T3's last part built, a share's refusal on apply** (the *not yet* of 2026-10-05), on
 branch `claude/ownpace-public-readiness-y7orc6-a-share-refused-in-our-words`, not merged. On
@@ -633,10 +676,10 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 |---|---|---|
 | T1 Refuse internal addresses after DNS, on every connection and every redirect | ✅ **done**, merged 2026-09-27: (a)'s three slices (the rule, #1216; every client of a tenant's host going through it, #1223; the rule switched on in the managed API and tasks, #1230) and (b) (the bring-up's network check, #1224); the refusal's Dutch came with T3's screens, merged as #1234; advised before the first invitation (D1) — *was:* 🔨 **Built 2026-09-27**, the third slice not merged | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
 | T2 An operator allowlist for the demo targets | ✅ **done** in #1230, merged 2026-09-27 (`55ee81c8`), with T1 (a)'s third slice — *was:* 🔨 **Built 2026-09-27** with T1 (a)'s third slice, not merged; 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
-| T3 A probe answer that says what happened, not what the remote said | ✅ **done**: the answer merged as #1227, the limit as #1228, the screens' half as #1234; the second step (the failures a pass records in our words on the failures queue and the routes beside it, the Check page's report and the apply receipts among them) in #1499, merged 2026-10-05 (`59f04be1`); a share's refusal on apply, in our words in English and Dutch, in #1606, merged 2026-10-16 (`1fc3c0bd`) — *was:* the share's refusal on apply not yet (Status, 2026-10-05); the second step 🔨 built 2026-10-05, not merged; the failures route to come; 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
+| T3 A probe answer that says what happened, not what the remote said | ✅ **done**: the answer merged as #1227, the limit as #1228, the screens' half as #1234; the second step (the failures a pass records in our words on the failures queue and the routes beside it, the Check page's report and the apply receipts among them) in #1499, merged 2026-10-05 (`59f04be1`); a share's refusal on apply, in our words in English and Dutch, in #1606, merged 2026-10-16 (`1fc3c0bd`); the Sharing page says a folder press's refused rows, under the folder and in each row, in #1645, merged 2026-10-21 (`f04ec785`) — *was:* the share's refusal on apply not yet (Status, 2026-10-05); the second step 🔨 built 2026-10-05, not merged; the failures route to come; 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
 | T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
 | T5 No archive "disk" path on the managed edition | ✅ **done** in #1175, merged 2026-09-25; before the first invitation — *was:* 📋 Decided 2026-09-24 (0148 D10) | §3. Five doors refuse it before anything opens the path (add, test-connection, create including a reuse, the stored-row Test, rotation), with a sentence that names the folder in the destination's files (0148 D11). The gate's archive fixture step breaks with it and returns with 0148 T9, which is stacked on this task. The owner first chose to hide the managed archive card (0148 D3), then to label it (0148 D10). |
-| T6 Guard tests for each | ✅ **(a) with each task** (0131 §6, M2 step 5): every pull request of T1, T2 and T3 carries its guard, and the Status block its mutation count; T1 (a)'s third slice with T2 merged as #1230, T3's screens merged as #1234; T3's second step with its guard and 38 mutations merged as #1499 (2026-10-05); T3's share refusal with `a-share-refused-in-our-words` and 15 mutations merged as #1606 (2026-10-16) — *was:* T3's second step and share refusal not merged; #1230 not merged; 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |
+| T6 Guard tests for each | ✅ **(a) with each task** (0131 §6, M2 step 5): every pull request of T1, T2 and T3 carries its guard, and the Status block its mutation count; T1 (a)'s third slice with T2 merged as #1230, T3's screens merged as #1234; T3's second step with its guard and 38 mutations merged as #1499 (2026-10-05); T3's share refusal with `a-share-refused-in-our-words` and 15 mutations merged as #1606 (2026-10-16); the folder press's refused rows with 13 cases and 20 mutations merged as #1645 (2026-10-21) — *was:* T3's second step and share refusal not merged; #1230 not merged; 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |
 | T7 The threat model says what is true | ✅ **done** in #1499, merged 2026-10-05 (`59f04be1`), with T3's second step: `solution-architecture.md` v1.14 and `SECURITY.md` (Status block) — *was:* 🔨 **Built 2026-10-05** on T3's second step's branch, not merged; 📋 **Proposed** | §3. §17.1 gets rows for SSRF, exposure (two stacks on one daemon included) and the worker plane. "Egress controls" goes until it exists. |
 
 ## 1. What there is today

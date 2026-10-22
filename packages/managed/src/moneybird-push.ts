@@ -8,7 +8,8 @@
  * Each step is idempotent, so the whole is: run it twice and the second run
  * finds the contact, finds the invoice by its reference, sees it is no longer
  * a draft, sends nothing, and reads it back. The task that calls it (slice 5)
- * retries by running it again, never by retrying a step.
+ * retries by running it again, never by retrying a step; so does the
+ * nightly's sandbox invoice, once within the night (`moneybird-nightly.ts`).
  *
  * **The draft is checked before it is sent.** A draft has no number and can be
  * thrown away; a sent invoice is a legal document that only a credit note

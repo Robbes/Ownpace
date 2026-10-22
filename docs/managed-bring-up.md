@@ -139,17 +139,25 @@ are **not** product-named and keep their names; nothing above touches them.
   not a measurement.
 - The repository cloned, and `pnpm install --frozen-lockfile` done.
 - **Container output: Docker's default log driver, kept until the container
-  is removed** (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default,
-  as the text says"*). No compose file here sets `logging`, so every
-  container, the compose services and the task runs Trigger.dev starts alike,
-  writes with the daemon's driver. Leave it at Docker's default, `json-file`,
-  which keeps a container's output with the container, with no limit of age
-  or size, and removes it with the container. `local` will do too: it keeps
-  the output with the container in the same way, but rotates it by size
-  (about 100 MB per container by default, by Docker's documentation: five
-  files of 20 MB, compressed), so the oldest lines can go sooner, never
-  later. That is what the privacy policy says of server logs (§9): kept until
-  the part of the service that wrote them is replaced, with no fixed period.
+  is removed, and the stack's capped by size** (the owner, 2026-09-28,
+  ops-log-driver (a): *"Docker's default, as the text says"*). Docker's
+  default, `json-file`, keeps a container's output with the container, with
+  no limit of age or size, until the container is removed, and removes it
+  with the container. A service whose image and settings do not change keeps
+  its container for months, so every service in `managed.yml` sets `json-file`
+  itself, with a cap (2026-10-21): five files of 20 MB, at most 100 MB a
+  service and 1.8 GB a stack, the oldest lines going first. Two kinds of
+  container keep the daemon's driver: the website's (`www.yml` sets no cap,
+  because `site-visits.sh` counts visits from the whole of its log) and the
+  task runs Trigger.dev starts. Leave the daemon at Docker's default,
+  `json-file`. `local` will do too: it keeps the output with the container in
+  the same way, but rotates it by size (about 100 MB per container by
+  default, by Docker's documentation: five files of 20 MB, compressed), so the
+  oldest lines can go sooner, never later, as they do under the stack's cap.
+  That is what the privacy policy says of server logs (§9): kept until the
+  part of the service that wrote them is replaced, with no fixed period.
+  But on `local` the site's log is capped too, and the visit count then covers
+  only what is left of it, which is why `json-file` is the one to keep.
   The host's journal would keep them after the container is gone, for as long
   as the journal keeps anything, so do not hand them to it. Check the machine
   (`stand-up-live.sh` asks too, and refuses any other answer):
@@ -546,6 +554,16 @@ generates every missing secret — `JWT_SECRET`, `SECRET_ENCRYPTION_KEY`, the
 five Trigger.dev secrets, `PGBOUNCER_AUTH_PASSWORD` — and writes
 `pgbouncer/userlist.txt`. It is idempotent: a value you already set is never
 rotated. Then it pins `DEPLOY_IMAGE_PLATFORM` to this host's architecture.
+
+**The provisioning token's first date.** It also writes `ZITADEL_PAT_EXPIRY`,
+`ZITADEL_PAT_LIFETIME_DAYS` (7) days out, which `managed.yml` requires: the
+identity provider reads it once, at its first start, as the expiry of the token
+`setup-zitadel.sh` works with, and refuses to start on a date already past. A
+date still ahead is kept; an empty, past or unreadable one is replaced, and a
+replaced date is printed. Every later phase writes it the same way before its
+first compose command, so a `--from` run that skips this phase is covered too.
+After the first start, `setup-zitadel.sh` keeps the line on the live token's
+own date.
 
 **The five database passwords** (workplan 0132 T2): `POSTGRES_PASSWORD`,
 `APP_DB_PASSWORD`, `CLICKHOUSE_PASSWORD`, `MINIO_ROOT_PASSWORD` and
@@ -1590,7 +1608,8 @@ the same person always the same one), a URL keeps only its scheme and host,
 and a detail field nobody has classified is left out. Docker keeps each
 container's output with the container, not in the host's journal (`json-file`,
 *Before you start*), so a collector reads it from Docker: `docker compose logs`,
-or the file `json-file` writes for each container. A task run's container is
+or the file `json-file` writes for each container, which the stack's services
+rotate at 20 MB and keep five of. A task run's container is
 removed when its run ends, and its output goes with it, so a collector that is
 to forward the worker's lines reads them as they are written; what it missed is
 still in `audit_log` (below). The audit lines are the ones carrying
@@ -1992,7 +2011,8 @@ else has**, which is where this one goes wrong.
    **Leave `MICROSOFT_OAUTH_TENANT` empty** unless the registration is
    deliberately single-tenant; empty means `common`, which is what a
    deployment serving other organisations needs. Entra shows a client secret's
-   **Value** once — copy it then, not its Secret ID.
+   **Value** once — copy it then, not its Secret ID — and its **Expires**
+   beside it, which you write down (*The secret expires*, below).
 
    The last two commands are the same second place that bites for Google and
    Dropbox: a task container inherits nothing from compose, and a pair the
@@ -2007,6 +2027,69 @@ every door; and the pair is handed only to a `microsoft` row. `GET
 /api/provider-clients` answers `microsoft: deployment` once both halves are
 set, which is what the account form reads, on *Start a migration* and the
 Accounts page, before it offers the button.
+
+**The secret expires, and both stacks stop at once.** A client secret made in
+the portal lasts 24 months at most (the portal suggests 6), and Entra shows the
+date as **Expires** beside it under *Certificates & secrets*. Nothing reads
+that date for you, and when it passes every Microsoft connection on the
+deployment fails its next token refresh, while the nightly smoke, which builds
+the consent URL and never exchanges a token, stays green. So write the date
+down, never the value, and renew 30 days ahead. Set the repository variable
+`CLOCK_WATCH_ENTRA_EXPIRES` to it (`YYYY-MM-DD`; Settings, Secrets and
+variables, Actions, Variables), and the daily *Clock watch*
+(`.github/workflows/clock-watch.yml`) keeps an issue open from 30 days before.
+It is a date, never the secret: a variable is printed in the log of every run.
+A connection on this registration stores neither half of the pair, so its
+refresh token survives a renewal and nobody has to connect again.
+
+The OTA stack and live share one registration and one secret. Where the OTA's
+`MICROSOFT_OAUTH_CLIENT_ID` is still the gate's placeholder,
+`gate-microsoft-app-registration`, the OTA has no registration of its own, and
+step 2 is skipped. This prints it, an identifier and not a secret:
+
+```bash
+. ~/ownpace-managed/deploy/compose/env-read.sh && env_value ~/.persistent/ownpace-managed/.env MICROSOFT_OAUTH_CLIENT_ID
+```
+
+Renew while no E2E (managed) run is in progress: the gate copies the persisted
+`.env` in at its start and back out partway through, so an edit made in between
+is lost.
+
+1. In Entra, **New client secret**. 24 months is the longest the portal
+   allows, and the fewest renewals; Microsoft recommends under 12. Copy its
+   **Value**, and keep the old secret for now.
+2. The OTA stack, whose next nightly applies it: the gate reads the persisted
+   `.env`, which the second line writes. The first line says what this
+   checkout's own `deploy/compose/.env` is, which a hand-run compose call
+   reads:
+
+   ```bash
+   cd ~/ownpace-managed && { [ "$(readlink -f deploy/compose/.env)" = "$(readlink -f ~/.persistent/ownpace-managed/.env)" ] && echo 'a link' || echo 'a copy'; }
+   read -rs -p 'New Entra client secret (Value): ' t && printf 'MICROSOFT_OAUTH_CLIENT_SECRET=%s\n' "$t" | ./deploy/compose/env-upsert.sh --stdin ~/.persistent/ownpace-managed/.env; unset t; echo
+   ```
+
+   `a link` needs nothing more. `a copy` is a copy of its own, which *The OTA
+   stack: the nightly gate, or a pull* allows, and it still holds the old
+   secret: run the second line again with `deploy/compose/.env` in place of the
+   persisted path, or a hand-run compose call brings the old secret back. To
+   have it at once rather than after the night:
+   `./deploy/compose/bootstrap-managed.sh --only app && ./deploy/compose/set-task-env.sh`.
+3. Live, the same way. The second line must print `live .env`:
+
+   ```bash
+   cd ~/ownpace-live && unset COMPOSE_PROJECT_NAME COMPOSE_FILE COMPOSE_ENV_FILES
+   [ "$(readlink -f deploy/compose/.env)" = "$(readlink -f ~/.persistent/ownpace-live/.env)" ] && echo 'live .env' || echo STOP
+   read -rs -p 'New Entra client secret (Value): ' t && printf 'MICROSOFT_OAUTH_CLIENT_SECRET=%s\n' "$t" | ./deploy/compose/env-upsert.sh --stdin ~/.persistent/ownpace-live/.env; unset t; echo
+   docker compose -f deploy/compose/managed.yml up -d --no-deps --no-build api
+   ./deploy/compose/set-task-env.sh
+   ```
+
+4. On each stack, *Test* on a Microsoft connection that uses this registration
+   (it proves the API), and one Microsoft sync pass that succeeds, or *Sync
+   now* (it proves the worker's task environment). A green nightly proves
+   neither. Only then delete the old secret in Entra.
+5. Set `CLOCK_WATCH_ENTRA_EXPIRES` to the new date, and refresh any copy of the
+   two `.env` files kept off the machine.
 
 **What a customer sees when their tenant says no.** Two refusals are a tenant
 policy rather than anything you configured: `AADSTS65001` (an administrator
@@ -2424,7 +2507,14 @@ The managed nightly gate proves the books every night with the same keys:
 `smoke-managed.sh` runs `./deploy/compose/operator.sh moneybird nightly`, which
 makes the night's invoice (`ownpace-nightly-{YYYY-MM-DD}`), sends it by hand,
 registers a payment for it and reads it back as paid. It counts the month's
-invoices first and, from 40 of the sandbox's 50, makes none and says so. With no
+invoices first and, from 40 of the sandbox's 50, makes none and says so. When
+Moneybird answers *try later* (no answer, an unexpected status such as a 404 or
+a 5xx, or a 429), the night asks once more, after 30 seconds, or after the 429's
+`Retry-After` when it is two minutes or less; a 429 that asks for longer fails
+the night at once rather than asking early. Making the invoice again finds it
+by its reference and sends nothing twice, and a payment whose answer did not
+come is read, never posted again. A second *try later* fails the night, with
+both answers in its lines. With no
 `MONEYBIRD_*` key in the nightly stack's `.env` it makes nothing, and the verdict
 lists the books as not proven; give that stack the sandbox's keys, with
 `MONEYBIRD_DELIVERY=manual`, for the gate to prove them.
@@ -2749,7 +2839,12 @@ not move at all. Switch it on with the first tag whose texts are final.
    then leave it at `report`, its default: the name points at another host
    before the route, and the probe tries no port on an address of it that is
    not live's front (an address a production name or `EXPOSURE_PROBE_HOST`
-   resolves to), and does not ask 443 for it.
+   resolves to), and does not ask 443 for it. Set the repository variable
+   `CLOCK_WATCH_SITE` to `required` at the same time (Settings, Secrets and
+   variables, Actions, Variables), so that the daily *Clock watch*
+   (`.github/workflows/clock-watch.yml`) reads the name's certificate and its
+   `security.txt` `Expires` too; it leaves both alone until then, for the same
+   reason.
 
 `deploy-live.sh` runs the copy the checkout had before it moved, so the site
 step runs from the first deploy started from a checkout that already has it. If
@@ -2853,7 +2948,9 @@ report, from `~/ownpace-live`:
   GoAccess counts them, one address and one browser per day. No address, no
   place, no campaign, and no whole address of the page a visitor came from.
   What it cannot stop: a word a visitor writes into their own browser's
-  User-Agent, joined to a browser's or a system's name, shows as they wrote it.
+  User-Agent, joined to a browser's or a system's name, shows as they wrote it;
+  and a Referer's host, which the visitor sets too, shows as it was sent when it
+  is letters, digits, dots and hyphens (`https://jan.devries.example.nl`).
 - **While `WWW_LIVE` is not true** it reads nothing, says so, and exits 0.
 
 **Reading the report,** from the mesh only: it is a file on the machine, and
@@ -2921,7 +3018,7 @@ refuses a `COMPOSE_FILE` in the shell.
 | `zitadel` | A "service ping" once a day to `zitadel.com`: the version, each instance's id, creation date and domains, and its count of users, organisations and projects | `ZITADEL_SERVICEPING_ENABLED: "false"`; `ZITADEL_TELEMETRY_ENABLED: "false"` too, which ships off | `cmd/defaults.yaml` at v4.19.2 (*"It's enabled by default"*) |
 | `clickhouse` | A report on every crash and logical error to `crash.clickhouse.com` | `clickhouse-no-crash-reports.xml`, mounted into `config.d`, sets both off; the `config.xml` the image ships sets them on. It is the only file ClickHouse merges that speaks of crash reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d` and `conf.d`, in sorted order, so a later one would win | `programs/server/config.xml`, `src/Daemon/CrashWriter.cpp`, `src/Common/Config/ConfigProcessor.cpp` at `v26.2.19.43-stable` |
 | `minio` | A release check to `dl.min.io` at every start, its User-Agent carrying the OS, architecture, version and CPU | `MINIO_UPDATE: "off"`; `MINIO_CALLHOME_ENABLE: "off"` too, which ships off | `cmd/server-main.go`, `cmd/update.go`, `internal/config/callhome/callhome.go` at `RELEASE.2025-05-24T17-08-30Z` |
-| `mailpit` (the test stack's catcher; live runs none) | A release check to GitHub whenever its page asks for the server's info | `MP_DISABLE_VERSION_CHECK: "true"` | `internal/stats/stats.go`, `cmd/root.go` at v1.31.1 |
+| `mailpit` (the test stack's catcher; live runs none) | A release check to GitHub whenever its page asks for the server's info | `MP_DISABLE_VERSION_CHECK: "true"` | `internal/stats/stats.go`, `cmd/root.go` at v1.31.6 |
 | `nextcloud` (the demo's DAV target, on the OTA stack every night; and `dev.yml`'s) | Its version, PHP version and install time to `updates.nextcloud.com`, the app store at `apps.nextcloud.com`, the announcements feed at `pushfeed.nextcloud.com`, and a connectivity check to four public sites | **None yet.** `updatechecker`, `appstoreenabled` and `has_internet_connection` stay on, Nextcloud's defaults; see *What is left on, and where*, below | `config/config.sample.php` and `apps/settings/lib/SetupChecks/InternetConnectivity.php` at `stable34`; `lib/Cron/Crawler.php` in nextcloud_announcements at `stable34` |
 
 The entrypoint's other children do not call out: pnpm 10.33.2 checks for its
@@ -2991,6 +3088,25 @@ network is its lookup of hosts' names (`src/gdns.c`, for the hosts panel, which
 `--real-time-html`, which it never passes). It runs with `--network none` all
 the same, so nothing could leave if a later version added a report. Docker pulls
 the image from Docker Hub the first time, as it pulls any other.
+
+**The image's base is past its end of life**
+([#1675](https://github.com/Robbes/Ownpace/issues/1675)).
+`allinurl/goaccess:1.12`, and `latest` with it, is built on Alpine 3.20.10,
+which Alpine no longer supports: a flaw found in its packages from now on stays
+open in this image. It stays pinned for now (2026-10-22, workplan 0152).
+GoAccess runs offline (`--network none`), read-only, as 65534, on input
+`site-visits.sh`'s filter has already cut to a few fields of a small character
+set, and of the image's packages only musl lies on that input's path. The one
+musl fix Alpine 3.20 released after the image was built (`r4`, in `regcomp`)
+cannot be reached from a log line. And no release tag carries `site-visits.sh`
+yet, so live, which runs from a tag, does not run it yet. The image moves,
+through a pull request like any pin, to an upstream release built on a
+supported Alpine; the pin watch (`scripts/idp-pin-watch.mjs`) says when a newer
+tag exists. It moves to an image of our own instead, GoAccess built on a
+supported base, if upstream's next release is still on 3.20, or if the weekly
+image scan (the image jobs of `.github/workflows/security-scan.yml`,
+[#1674](https://github.com/Robbes/Ownpace/pull/1674)) reports a HIGH or
+CRITICAL finding in musl.
 
 The deploy CLI, which runs on the host, was read only this far: at 4.5.16 its
 `src/telemetry/tracing.ts` is gone, and no exporter of its own was found. The
@@ -3858,8 +3974,9 @@ port, because its fix lists it), and a production name that does not resolve.
    runs.
 8. Appends the first line of `~/.persistent/ownpace-live/deploys.log`, in
    `deploy-live.sh`'s format: the date, the tag, the commit, `took`, `one-way`.
-9. Copies the two units of *Live's daily duties* to `~/.config/systemd/user`
-   and runs `systemctl --user daemon-reload`.
+9. Copies the five units of *Live's daily duties* to `~/.config/systemd/user`
+   (the duties' pair, the box checks' pair and the mail on a failed run,
+   workplan 0142 T3) and runs `systemctl --user daemon-reload`.
 10. Prints what is left, below.
 
 It exits 0 when live stands, 1 when it refused (nothing changed), 2 at a stop
@@ -3879,7 +3996,10 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    so `sudo loginctl enable-linger "$USER"`, then
    `systemctl --user enable --now ownpace-box-duties.timer`, one
    `systemctl --user start ownpace-box-duties.service`, and the journal: all
-   eight duties pass.
+   eight duties pass. Then the box checks and the test mail (*Who is told*,
+   below): `systemctl --user enable --now ownpace-box-checks.timer` and
+   `systemctl --user start ownpace-tell-owner@test.service`, which mails one
+   *Test mail* to `ALERT_TO`.
 4. **Rehearse the next deploy.** Open a hold on the support screen with a Dutch
    sentence, wait five minutes, then `./deploy/compose/deploy-live.sh --dry-run <tag>`:
    every refusal passes, it says reversible (the same tag), and nothing moves.
@@ -4001,16 +4121,19 @@ past 20 minutes (`BOX_DUTY_TIMEOUT`, in seconds) is a failed duty. Ctrl-C in a
 run by hand, or a SIGTERM, stops the running duty, says which, starts no other
 and exits 130 or 143. It prints no value from the `.env`, and this machine's
 addresses in a duty's output, stdout and stderr alike, are replaced by the key
-that holds them. Nobody is told when it fails (0142 is where that changes):
-read the journal.
+that holds them. When a run fails, systemd mails you, and when no run
+happens, the box checks do (*Who is told*, below, workplan 0142 T3); the
+journal has what each duty said.
 
 **Until the timer is installed,** run `./deploy/compose/setup-zitadel.sh
 --token-only` from `~/ownpace-live` at least every three days. It replaces the
 token only when fewer than three of its seven days remain, so a gap of four
 days can miss that window.
 
-**The units.** A user unit pair, run as the account that owns live's checkout
-and reaches Docker. Both are in
+**The units.** Five user units, run as the account that owns live's checkout
+and reaches Docker: the duties' service and timer, the box checks' service
+and timer, and the template unit that mails you when a run fails (*Who is
+told*, below). All five are in
 [`deploy/compose/systemd/`](../deploy/compose/systemd/):
 
 ```ini
@@ -4020,9 +4143,12 @@ and reaches Docker. Both are in
 # the accounts nobody let in (0135 T8), the support screens' searches kept
 # a year (0139 T6) and the site's visits, counted as totals (privacy §4.5). A
 # user unit, started by ownpace-box-duties.timer; the install steps are in
-# docs/managed-bring-up.md, "Live's daily duties".
+# docs/managed-bring-up.md, "Live's daily duties". A run that fails, by its
+# exit or by TimeoutStartSec, starts ownpace-tell-owner@ for this unit, which
+# mails the owner (workplan 0142 T3). OnFailure= belongs here, in [Unit].
 [Unit]
 Description=ownpace-live: the duties the nightly gate does for the OTA stack
+OnFailure=ownpace-tell-owner@%n.service
 
 [Service]
 Type=oneshot
@@ -4050,6 +4176,59 @@ Persistent=true
 WantedBy=timers.target
 ```
 
+```ini
+# ownpace-tell-owner@.service — one mail to the owner when a unit fails
+# (workplan 0142 T3). Started by systemd for the unit whose OnFailure= names
+# it, ownpace-box-duties.service, with that unit's name as the instance; and
+# by hand as ownpace-tell-owner@test.service, which sends the test mail.
+# tell-owner.sh sends it through live's alert relay. Never enabled, and with
+# no OnFailure= of its own: a mail that failed cannot mail that it failed,
+# and the journal has why (journalctl --user -u 'ownpace-tell-owner@*').
+[Unit]
+Description=ownpace-live: tell the owner that %i failed
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/ownpace-live
+ExecStart=%h/ownpace-live/deploy/compose/tell-owner.sh --unit %i
+SyslogIdentifier=ownpace-tell-owner
+TimeoutStartSec=3min
+```
+
+```ini
+# ownpace-box-checks.service — live's machine watched for the owner (workplan
+# 0142 T3): the free space on Docker's filesystem and on live's persisted
+# directory, the age of the daily duties' last pass, and once a day a summary
+# of numbers, each sent by mail through tell-owner.sh. A user unit, started by
+# ownpace-box-checks.timer; the install steps are in docs/managed-bring-up.md,
+# "Live's daily duties". No OnFailure=: a check that failed every ten minutes
+# would mail every ten minutes. A morning without the summary says it stopped.
+[Unit]
+Description=ownpace-live: the disk, the duties' last pass, and a summary a day
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/ownpace-live
+ExecStart=%h/ownpace-live/deploy/compose/box-checks.sh
+SyslogIdentifier=ownpace-box-checks
+# Ends before the next run starts; the summary's docker system df -v is the
+# slowest part.
+TimeoutStartSec=9min
+```
+
+```ini
+# ownpace-box-checks.timer — every ten minutes, on the minute that ends in 0.
+# A run missed while the machine was off is not made up: the next one looks.
+[Unit]
+Description=ownpace-live: the box checks, every ten minutes
+
+[Timer]
+OnCalendar=*:0/10
+
+[Install]
+WantedBy=timers.target
+```
+
 **Installing them,** once live stands (T1b to T1e), on the machine, as that
 account:
 
@@ -4061,14 +4240,22 @@ sudo loginctl enable-linger "$USER"
 mkdir -p ~/.config/systemd/user
 cp ~/ownpace-live/deploy/compose/systemd/ownpace-box-duties.service \
    ~/ownpace-live/deploy/compose/systemd/ownpace-box-duties.timer \
+   ~/ownpace-live/deploy/compose/systemd/ownpace-tell-owner@.service \
+   ~/ownpace-live/deploy/compose/systemd/ownpace-box-checks.service \
+   ~/ownpace-live/deploy/compose/systemd/ownpace-box-checks.timer \
    ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now ownpace-box-duties.timer
+systemctl --user enable --now ownpace-box-checks.timer
 
 # When it fires next, then one run now, and what it said.
 systemctl --user list-timers ownpace-box-duties.timer
 systemctl --user start ownpace-box-duties.service
 journalctl --user -u ownpace-box-duties -n 200 --no-pager
+
+# One test mail to ALERT_TO, through the unit a failed run starts (0142 T3).
+systemctl --user start ownpace-tell-owner@test.service
+journalctl --user -u 'ownpace-tell-owner@*' -n 20 --no-pager
 ```
 
 - **The journal.** A failure line is logged at the error priority, so
@@ -4078,12 +4265,21 @@ journalctl --user -u ownpace-box-duties -n 200 --no-pager
 - **What it runs with.** The user manager's `PATH`, which holds `/usr/bin`:
   `docker`, `curl` and `jq` must be there, and the account must reach Docker
   (the `docker` group). `systemctl --user edit ownpace-box-duties.service`
-  adds an `Environment=` line if not.
+  adds an `Environment=` line if not. The mail needs a `curl` that speaks
+  SMTP: `curl --version` lists `smtp` and `smtps` among its protocols.
 - **After a deploy that changed the units,** copy them again and run
   `systemctl --user daemon-reload`. The first tag with the duty `visits`
   does: `TimeoutStartSec` goes from 150 to 170 minutes, eight duties of 20.
   A unit copied before it still runs all eight, and cuts a run short only
-  when nearly every duty runs to its 20 minutes.
+  when nearly every duty runs to its 20 minutes. The first tag with the box
+  checks (workplan 0142 T3) does too: `ownpace-box-duties.service` gains its
+  `OnFailure=` line, and three units are new, so copy all five, then
+  `systemctl --user enable --now ownpace-box-checks.timer` and the test mail.
+  `deploy-live.sh` names, after a deploy that took, each unit the tag carries
+  that is installed otherwise or not at all, with the `cp` to run; it copies
+  nothing. That note is in the script that starts the deploy, from before the
+  checkout moves, so it first appears on the deploy after the one to a tag
+  that carries it.
 - **A run after a stop.** `Persistent=true` runs a missed day at the next
   start, which may fall inside the appliance nightly's hours; its dev
   Nextcloud then fails `exposure`, by name.
@@ -4099,7 +4295,68 @@ journalctl --user -u ownpace-box-duties -n 200 --no-pager
   Then nothing deletes the copy before an update, so `copy-before-update.sh
   take` refuses and no deploy moves live until the timer is active again. A
   copy already there stays until you delete it or the timer runs again:
-  delete it by its seventh day yourself (workplan 0134 T0).
+  delete it by its seventh day yourself (workplan 0134 T0). The box checks
+  mail *Daily duties late* 26 hours after the last pass, which is the
+  reminder to turn it on again.
+
+### Who is told: a failed run, a run that never came, and the disk
+
+Workplan 0142 T3. Four things reach you by mail, through the relay and the
+addresses the status page's alerts use (*8d*: `ALERT_SMTP_*`, `ALERT_FROM` and
+`ALERT_TO`, falling back to `SMTP_*`, `NOTIFY_FROM` and `NOTIFY_TO`), sent by
+[`tell-owner.sh`](../deploy/compose/tell-owner.sh). It passes curl the relay
+and the login in a config on a file descriptor, never on a command line, uses
+STARTTLS, required, on 587 and implicit TLS on 465 (or with `SMTP_SECURE=true`
+on `SMTP_PORT`), and refuses a `.env` that is not live's. A body holds
+numbers, the names of duties, databases and volumes, mount points and dates:
+no address, and no value from the `.env` but the floor and
+`ZITADEL_PAT_EXPIRY`'s date.
+Each message has a row under its name in the
+[incident runbook](./incident-runbook.md#one-row-per-alert).
+
+- **A failed run.** `OnFailure=` in `ownpace-box-duties.service` starts
+  `ownpace-tell-owner@ownpace-box-duties.service.service` when a run exits
+  non-zero or is cut short by `TimeoutStartSec`. It mails *Daily duties
+  failed*, naming the duties that failed from the record the run left in
+  `~/.persistent/ownpace-live/box-duties/last-run` (or saying the run left
+  none: refused, stopped, timed out), with the token's date.
+- **A run that never came.** `OnFailure=` never fires for a run that does not
+  happen: a timer disabled or never enabled, removed unit copies, a machine
+  that was off. [`box-checks.sh`](../deploy/compose/box-checks.sh), every ten
+  minutes on `ownpace-box-checks.timer`, reads the last pass
+  (`.../box-duties/last-pass`, written only when all eight passed) and mails
+  *Daily duties late* once it is more than 26 hours old, or when none is
+  recorded 26 hours after it started watching. A pass leaves the token more
+  than three days, so that mail still leaves more than 46 hours to run
+  `./deploy/compose/setup-zitadel.sh --token-only` by hand.
+- **The disk.** The same run checks the free space on the filesystem of
+  Docker's data root and on that of `~/.persistent/ownpace-live`: one
+  filesystem holding both is one check. Under `ALERT_DISK_FREE_GB` (live's
+  `.env`, 15 without it, the figure the preflight warns at) it mails *Disk
+  below the floor* once, *Disk recovered* once it is back, and *Disk not read*
+  when `df` or `docker info` cannot say two runs in a row (one run alone is a
+  Docker daemon restarting, and only in the journal). Never one every ten
+  minutes: it remembers each state in `~/.persistent/ownpace-live/box-checks/`,
+  and a message that could not be sent is sent again by the next run.
+- **One summary a day,** at its first run from 07:00 UTC: *Daily summary*,
+  numbers only. Free space; the duties' last run and pass, their timer and
+  the token's date; every database of each stack's `postgres` and
+  `trigger-db`, live's and the OTA stack's, by size; the five largest volumes
+  of the two stacks; live's rows of `run`, `run_event`, `item` and
+  `app_event`, and the age of the sync tick's beat. It reads each database
+  with `docker exec` into the container its compose labels name, psql over
+  the container's own socket, SELECTs only. A morning without it means the
+  machine, the box checks' timer or the relay is broken. One that could not be
+  sent is tried again an hour later, not at every run, and its send error is
+  in `journalctl --user -u ownpace-box-checks`.
+  `./deploy/compose/box-checks.sh --summary` sends one now.
+
+`box-checks.sh` exits 0 when everything was checked and every message due was
+sent, 1 when something could not be checked or sent (each named in the journal,
+`journalctl --user -u ownpace-box-checks`), and 2 when it refused. Its service
+has no `OnFailure=`, or a check that failed every ten minutes would mail every
+ten minutes. `tell-owner.sh` exits 0 sent, 1 not sent (curl's words in the
+journal of whatever ran it), 2 refused.
 
 ## When it goes wrong
 
@@ -4685,6 +4942,16 @@ exist. Asking whether a specific tag exists is the question it answers
 reliably, so that is the question asked, upward from the version already
 pinned.
 
+`trigger-version.sh probe [version]` prints that probe's answer alone, the
+tags above the pin newest first, and nothing when nothing newer is published.
+The weekly pin watch (`.github/workflows/idp-pin-watch.yml`, workplan 0146 T8)
+runs it and keeps an issue open while a newer tag is in both images, with this
+section's route in it. A request that fails reads exactly like a tag that does
+not exist, so `probe` first asks for the tag it starts from and refuses when
+that does not answer, and on the walk upward takes only a 404 as a missing tag:
+any other answer (a 429, a 5xx, a timeout) refuses too. An unread registry
+never reads as "nothing newer", nor as an older newest.
+
 > **Back the database up first, because the upgrade is one way.** The webapp
 > applies its own schema migrations on boot and Prisma has no down-migrations,
 > so putting the old tag back restores the IMAGES and not the schema they
@@ -5005,6 +5272,11 @@ ledger, tenants, mappings, items and invoices live in the application database
 (`postgres`), a different volume, and are untouched; the API and pooler keep
 serving throughout. You are then back at the one human step, and
 `trigger-credentials.sh` reads the new project's credentials.
+
+On `ownpace-live` these lines are also a step of the end of the Alpha, under its hold, with the
+volumes of ClickHouse, Redis and MinIO removed between the reset and the bring-up, because privacy
+§9 promises the background tasks an empty history then and those three keep some of it:
+[ending-the-alpha.md](./ending-the-alpha.md), *The switch*, step 3.
 
 **Turning the pooler off** is two values: `DB_HOST=postgres`, `DB_PORT=5432`,
 then `up -d`. Every service reads them, so nothing in `managed.yml` is edited.

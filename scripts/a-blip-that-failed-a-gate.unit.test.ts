@@ -18,8 +18,9 @@
  * ## Why the boundary is where it is, and why that is the interesting part
  *
  * A retry that covers too much is worse than none. Three rules hold it in:
- * only a transport failure (never an HTTP status, which is the provider
- * ANSWERING and already has a diagnosis attached); only reads (a `recv
+ * only no answer from the provider (a transport failure, or a 502, 503 or 504
+ * from whatever is in front of it — never a status the provider gave, which is
+ * it ANSWERING and already has a diagnosis attached); only reads (a `recv
  * failure` can land after the server has acted, and this script MINTS ACCESS
  * TOKENS — a duplicated mint leaves a live credential nothing tracks); and the
  * last failure is still fatal with the message it always had.
@@ -28,11 +29,28 @@
  * because a rule about how many times something is attempted is not something
  * source-reading can check. The third is read out of the source, where it is a
  * sentence rather than a behaviour.
+ *
+ * ## And then the front answered for the provider (E2E (managed) #263)
+ *
+ * On 2026-10-21 both attempts of #263 died in `api` on an HTTP 502: the NetBird
+ * front in front of the issuer answered with its own "Connection Error" page,
+ * once on the first read after the provider started and once on a read in the
+ * middle of others that had gone through it. Runs through the same front that
+ * morning were green. A 502 is not the provider saying no — it is the front
+ * saying it got no answer — so reads now ride it out on the same budget, and a
+ * write answered 502 is still asked exactly once.
+ *
+ * Those cases run the REAL `api`, captured the way the script captures it
+ * (`x="$(api …)"`), and that is how they found a second fault the helper-only
+ * harness above could not: the retry line went to stdout, inside the caller's
+ * `$( )`, so a read that was re-asked and then answered handed jq a log line
+ * in front of the JSON. True of the transport retry since #174 added it.
  */
 
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -164,6 +182,271 @@ describe('and it is bounded', () => {
 });
 
 /**
+ * A function of the script, lifted verbatim: a one-liner (`say`, `die`) by its
+ * line, anything longer up to its closing brace.
+ */
+function lift(name: string): string {
+  const at = source.indexOf(`\n${name}() {`);
+  expect(at, `setup-zitadel.sh no longer defines ${name}`).toBeGreaterThan(-1);
+  const lineEnd = source.indexOf('\n', at + 1);
+  const first = source.slice(at + 1, lineEnd);
+  if (first.trimEnd().endsWith('}')) return `${first}\n`;
+  const end = source.indexOf('\n}\n', at + 1);
+  expect(end).toBeGreaterThan(at);
+  return source.slice(at + 1, end + 3);
+}
+
+/**
+ * The block that proves a freshly minted token: the one read in the script that
+ * cannot go through `api`, because it presents a different credential. From its
+ * `curl_read_retrying` to the end of the `case` that judges the answer.
+ */
+function probeBlock(): string {
+  const at = source.indexOf('  curl_read_retrying "GET /auth/v1/users/me (proving the new token)"');
+  expect(at, 'the successor-token probe is gone or renamed').toBeGreaterThan(-1);
+  const judged = source.indexOf('case "$new_code" in', at);
+  expect(judged).toBeGreaterThan(at);
+  const end = source.indexOf('\n  esac\n', judged);
+  expect(end).toBeGreaterThan(judged);
+  return source.slice(at, end + '\n  esac\n'.length);
+}
+
+/**
+ * What NetBird's front sent on 2026-10-21 in place of the provider's answer: its
+ * own HTML page, several lines long. A stand-in with the same shape — the words
+ * a reader would grep for, and no address.
+ */
+const FRONT_PAGE = [
+  '<!DOCTYPE html>',
+  '<html><head><title>Connection Error</title></head>',
+  '<body><h1>Connection Error</h1><p>NetBird Service</p>',
+  '<script>window.__NB__={"proxy":true}</script></body></html>',
+].join('\n');
+
+interface Asked {
+  /** How the harness ended: 0, or `die`'s 1 — exactly as the script would. */
+  rc: number;
+  /** What the CALLER captured. `api` runs inside `$( )` at every call site. */
+  answer: string;
+  stderr: string;
+  /** One `<METHOD> <url>` per time curl was really called. */
+  calls: string[];
+  slept: number[];
+}
+
+/**
+ * Runs the REAL `api` — with the real `is_read`, `curl_read_retrying`, `say`
+ * and `die` — against a `curl` that answers from a list, one entry per ask: an
+ * HTTP status, or `x<n>` for curl exiting `n` with no answer at all. The last
+ * entry repeats.
+ *
+ * `call` is the line the harness runs, written the way the script writes it:
+ * `x="$(api …)"`. That matters. A line `say` writes inside `$( )` lands in the
+ * caller's variable, not in the log, and only a harness that captures the way
+ * the script captures can see it.
+ */
+function ask(answers: readonly string[], call: string, attempts = 4): Asked {
+  const dir = mkdtempSync(join(tmpdir(), 'blip-'));
+  try {
+    writeFileSync(join(dir, 'answers'), `${answers.join('\n')}\n`);
+    writeFileSync(join(dir, 'page'), FRONT_PAGE);
+    const script = `
+set -euo pipefail
+D="$BLIP_DIR"
+${lift('say')}${lift('die')}
+sleep() { printf '%s\\n' "$1" >> "$D/slept"; }
+read_env() { printf '%s' "\${2:-}"; }
+IDP_READ_ATTEMPTS=${attempts}
+ISSUER=https://id.example.invalid
+IDP_DOMAIN=id.example.invalid
+IDP_PORT=443
+CURL_ORIGIN=()
+PAT=pat-0123456789abcdefghij
+NEW_TOKEN=new-0123456789abcdefghij
+SCRIPT_DIR=/srv/ownpace/deploy/compose
+ENV_FILE="$SCRIPT_DIR/.env"
+COMPOSE_PROJECT=ownpace-managed
+PAT_ROTATE_BELOW_DAYS=3
+curl() {
+  local n m=GET url="" probe=0 prev="" a s body
+  n=$(( $(cat "$D/count" 2>/dev/null || echo 0) + 1 ))
+  printf '%s' "$n" > "$D/count"
+  for a in "$@"; do
+    case "$prev" in
+      -X) m="$a" ;;
+      -o) [ "$a" != /dev/null ] || probe=1 ;;
+    esac
+    case "$a" in http*) url="$a" ;; esac
+    prev="$a"
+  done
+  printf '%s %s\\n' "$m" "$url" >> "$D/calls"
+  s="$(sed -n "\${n}p" "$D/answers")"
+  [ -n "$s" ] || s="$(tail -n 1 "$D/answers")"
+  case "$s" in x*) return "\${s#x}" ;; esac
+  case "$s" in
+    2*)      body='{"user":{"id":"u-1"}}' ;;
+    50[234]) body="$(cat "$D/page")" ;;
+    *)       body='{"code":5,"message":"an answer this test chose"}' ;;
+  esac
+  if [ "$probe" = 1 ]; then printf '%s' "$s"; else printf '%s\\n%s' "$body" "$s"; fi
+}
+${lift('curl_read_retrying')}
+${lift('is_read')}
+${lift('api')}
+${call}
+`;
+    const r = spawnSync('bash', ['-c', script], {
+      encoding: 'utf8',
+      env: { ...process.env, BLIP_DIR: dir },
+    });
+    const read = (f: string): string => {
+      try {
+        return readFileSync(join(dir, f), 'utf8');
+      } catch {
+        return '';
+      }
+    };
+    return {
+      rc: r.status ?? -1,
+      answer: read('answer'),
+      stderr: r.stderr,
+      calls: read('calls').split('\n').filter(Boolean),
+      slept: read('slept').split('\n').filter(Boolean).map(Number),
+    };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const READ_ME = `me="$(api GET /auth/v1/users/me)"\nprintf '%s' "$me" > "$D/answer"`;
+const MINT = `minted="$(api POST /management/v1/users/u-1/pats '{"expirationDate":"2026-10-28T00:00:00Z"}')"\nprintf '%s' "$minted" > "$D/answer"`;
+const PROVE = (): string => `${probeBlock()}\nprintf 'proved' > "$D/answer"`;
+const ANSWER = '{"user":{"id":"u-1"}}';
+
+/**
+ * E2E (managed) #263, 2026-10-21, both attempts: the front answered 502 with
+ * its own page — once right after the provider started, once in the middle of
+ * reads that were succeeding through it — and `api` died on it as if the
+ * provider had said no. A 502, 503 or 504 is the FRONT saying it could not get
+ * an answer; for a read that is a question nobody answered, and it is asked
+ * again exactly as a dropped handshake is.
+ */
+describe('a gateway error from the front is not the provider answering (#263)', () => {
+  it.each(['502', '503', '504'])('a read answered %s and then 200 succeeds after one retry', (code) => {
+    const r = ask([code, '200'], READ_ME);
+    expect(r.stderr).not.toMatch(/FATAL/);
+    expect(r.rc).toBe(0);
+    expect(r.calls).toHaveLength(2);
+    expect(r.slept).toEqual([2]);
+    // EXACTLY the provider's answer: nothing the retry said may reach the
+    // caller's variable, which goes straight to jq.
+    expect(r.answer).toBe(ANSWER);
+    expect(r.stderr).toMatch(
+      new RegExp(`GET /auth/v1/users/me: the front answered HTTP ${code} without reaching the provider — attempt 1 of 4, retrying in 2s`),
+    );
+  });
+
+  it('never prints the front\'s page on a retry line', () => {
+    const r = ask(['502', '502', '200'], READ_ME);
+    expect(r.rc).toBe(0);
+    expect(r.stderr).not.toMatch(/Connection Error|NetBird|proxy/);
+  });
+
+  it('a read answered 502 every time fails after IDP_READ_ATTEMPTS asks, with today\'s message and the page', () => {
+    const r = ask(['502'], READ_ME);
+    expect(r.rc).toBe(1);
+    expect(r.calls).toHaveLength(4);
+    expect(r.slept).toEqual([2, 4, 8]);
+    expect(r.stderr).toMatch(/FATAL: GET \/auth\/v1\/users\/me answered HTTP 502:\n\s+<!DOCTYPE html>/);
+    expect(r.stderr).toMatch(/Connection Error/);
+  });
+
+  it('honours the budget for a gateway error too', () => {
+    expect(ask(['503'], READ_ME, 2).calls).toHaveLength(2);
+  });
+
+  it('a `_search` is a read here as well', () => {
+    // The second attempt of #263 died on a GET; the 2026-09-15 bring-up on a
+    // `_search`. Both are reads and both ride it out.
+    const r = ask(['504', '200'], `x="$(api POST /management/v1/projects/PID/apps/_search '{}')"\nprintf '%s' "$x" > "$D/answer"`);
+    expect(r.rc).toBe(0);
+    expect(r.calls).toEqual([
+      'POST https://id.example.invalid/management/v1/projects/PID/apps/_search',
+      'POST https://id.example.invalid/management/v1/projects/PID/apps/_search',
+    ]);
+  });
+
+  it('a dropped handshake then 200 hands the caller the answer and nothing else', () => {
+    // The transport retry #174 added, run the way the script runs it. Its
+    // retry line went to STDOUT, inside `me="$(api …)"`, so a read that was
+    // re-asked and then answered handed jq a log line in front of the JSON.
+    const r = ask(['x35', '200'], READ_ME);
+    expect(r.rc).toBe(0);
+    expect(r.answer).toBe(ANSWER);
+    expect(r.stderr).toMatch(/no answer at all \(curl exited 35\) — attempt 1 of 4/);
+  });
+});
+
+describe('a WRITE is still asked exactly once, whatever answers', () => {
+  it.each(['502', '503', '504'])('the mint answered %s is never re-sent', (code) => {
+    const r = ask([code, '200'], MINT);
+    expect(r.calls, 'a re-sent mint leaves a second live credential nothing tracks').toEqual([
+      'POST https://id.example.invalid/management/v1/users/u-1/pats',
+    ]);
+    expect(r.slept).toEqual([]);
+    expect(r.rc).toBe(1);
+    expect(r.stderr).toMatch(new RegExp(`FATAL: POST /management/v1/users/u-1/pats answered HTTP ${code}:`));
+    expect(r.stderr).not.toMatch(/retrying/);
+  });
+
+  it.each([
+    ['/admin/v1/email/ID/_activate'],
+    ['/admin/v1/smtp/ID/_test'],
+    ['/management/v1/projects'],
+  ])('%s answered 502 is asked once', (path) => {
+    const r = ask(['502', '200'], `x="$(api POST ${path} '{}')"`);
+    expect(r.calls).toHaveLength(1);
+    expect(r.rc).toBe(1);
+  });
+});
+
+describe('a status the provider gave is still not re-asked', () => {
+  it.each(['400', '401', '403', '404', '500'])('a read answered %s is asked once and dies with its own diagnosis', (code) => {
+    const r = ask([code, '200'], READ_ME);
+    expect(r.calls).toHaveLength(1);
+    expect(r.slept).toEqual([]);
+    expect(r.rc).toBe(1);
+    expect(r.stderr).toMatch(new RegExp(`GET /auth/v1/users/me answered HTTP ${code}`));
+  });
+});
+
+describe('the freshly minted token is proved through the same rule', () => {
+  it('rides out a 502 and proves the token', () => {
+    const r = ask(['502', '200'], PROVE());
+    expect(r.stderr).not.toMatch(/FATAL/);
+    expect(r.rc).toBe(0);
+    expect(r.answer).toBe('proved');
+    expect(r.calls).toHaveLength(2);
+    expect(r.stderr).toMatch(/proving the new token\): the front answered HTTP 502 without reaching the provider/);
+  });
+
+  it('calls a front that never got through what it is, not a refusal', () => {
+    const r = ask(['502'], PROVE());
+    expect(r.rc).toBe(1);
+    expect(r.calls).toHaveLength(4);
+    expect(r.stderr).toMatch(/FATAL: .*the front answered HTTP 502.*rotating nothing/s);
+    expect(r.stderr).not.toMatch(/was refused/);
+  });
+
+  it('still calls a 401 a refusal, asked once', () => {
+    const r = ask(['401', '200'], PROVE());
+    expect(r.rc).toBe(1);
+    expect(r.calls).toHaveLength(1);
+    expect(r.stderr).toMatch(/FATAL: the freshly minted token was refused \(HTTP 401\)/);
+  });
+});
+
+/**
  * Comments stripped: the paragraphs above and in the script quote these very
  * shapes, and a rule that read prose would be satisfied by its own
  * explanation.
@@ -246,14 +529,18 @@ describe('the boundary the retry must not cross', () => {
     expect(wrong, `misclassified: ${JSON.stringify(wrong)}`).toEqual([]);
   });
 
-  it('never re-asks an HTTP status', () => {
+  it('re-asks no status but the three a front sends when it got no answer', () => {
     // A 401/403/404 is the provider ANSWERING and every one has a diagnosis
     // attached below it. Retrying those delays a correct message and changes
-    // nothing about it.
-    expect(
-      /curl_read_retrying[^\n]*\$\{?status/.test(code),
-      'something is retrying on an HTTP status rather than a transport failure',
-    ).toBe(false);
+    // nothing about it. A 502/503/504 is the front saying it got no answer
+    // (#263). The behaviour is run above; this pins the list, so a status
+    // added to it is a decision somebody makes here and not a drive-by.
+    const helper = helperSource()
+      .split('\n')
+      .filter((l) => !/^\s*#/.test(l))
+      .join('\n');
+    const arms = [...helper.matchAll(/^\s*([0-9|]+)\)/gm)].map((m) => m[1]);
+    expect(arms, 'the statuses curl_read_retrying re-asks').toEqual(['502|503|504']);
     expect(code).toMatch(/CURL_RC" -eq 0 \]/);
   });
 

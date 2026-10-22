@@ -12,10 +12,20 @@
  * nothing and pays nothing twice; a payment Moneybird refuses, or an invoice
  * that does not read back as paid, fails the night; and no line carries the
  * token.
+ *
+ * And when Moneybird says try later (E2E (managed) #260, 2026-10-20: the
+ * sandbox answered 404 to reading the invoice it had just numbered): the
+ * night asks once more, after 30 s or a 429's Retry-After of two minutes or
+ * less (a longer one fails the night rather than asking early), and makes,
+ * sends and pays nothing twice; a payment whose answer did not come is read,
+ * never posted again, and a re-read that shows it paid is the read back; the
+ * month is not counted again when a later step asks again; one ask-again a
+ * night, with both answers in the lines; a refusal or a wrong state fails at
+ * once.
  */
 
-import { describe, it, expect } from 'vitest';
-import { nightlyMoneybird, nightlyReference, NIGHTLY_MONTH_LIMIT } from './moneybird-nightly.ts';
+import { describe, it, expect, vi } from 'vitest';
+import { nightlyMoneybird, nightlyReference, NIGHTLY_MONTH_LIMIT, type NightlyOptions } from './moneybird-nightly.ts';
 import { countSalesInvoicesThisMonth } from './moneybird-sales-invoices.ts';
 
 const TOKEN = 'not-a-real-token-and-never-printed';
@@ -42,15 +52,36 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 /**
+ * A request the sandbox answers wrongly for a while, as Moneybird's did on
+ * 2026-10-20: `GET /sales_invoices/700.json` answering 404 just after the send.
+ */
+interface Fault {
+  /** The method and the path after the administration: `GET /sales_invoices/700.json`. */
+  readonly request: string;
+  readonly status: number;
+  /** How many of those requests answer so; one when not said. */
+  readonly times?: number;
+  /** How many of those requests are answered as they should be first; none when not said. */
+  readonly after?: number;
+  /** A 429's `Retry-After`. */
+  readonly retryAfter?: string;
+  /** The sandbox does the work and only its answer goes wrong: a payment Moneybird did register. */
+  readonly afterTheWork?: boolean;
+}
+
+/**
  * A sandbox holding `alreadyThisMonth` invoices from earlier, plus whatever
  * the night makes; a payment marks an invoice paid unless `payment` says
- * otherwise.
+ * otherwise; each of `faults` answers wrongly while it lasts.
  */
-function sandbox(options: { alreadyThisMonth?: number; payment?: 'refused' | 'ignored' } = {}) {
+function sandbox(
+  options: { alreadyThisMonth?: number; payment?: 'refused' | 'ignored'; faults?: readonly Fault[] } = {},
+) {
   const earlier = Array.from({ length: options.alreadyThisMonth ?? 3 }, (_, i) => ({ id: `e${i}`, state: 'paid' }));
   const invoices = new Map<string, Record<string, unknown>>();
   const contacts: Record<string, unknown>[] = [];
   const calls: Array<{ method: string; path: string; query: string; body: unknown }> = [];
+  const seen = new Map<string, number>();
   const impl = (async (url: unknown, init?: RequestInit) => {
     const parsed = new URL(String(url));
     const method = init?.method ?? 'GET';
@@ -58,6 +89,24 @@ function sandbox(options: { alreadyThisMonth?: number; payment?: 'refused' | 'ig
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
     calls.push({ method, path, query: parsed.search, body });
 
+    const request = `${method} ${path}`;
+    const nth = seen.get(request) ?? 0;
+    seen.set(request, nth + 1);
+    const fault = options.faults?.find(
+      (f) => f.request === request && nth >= (f.after ?? 0) && nth < (f.after ?? 0) + (f.times ?? 1),
+    );
+    if (!fault) return answer(method, path, parsed, body);
+    if (fault.afterTheWork) await answer(method, path, parsed, body);
+    return new Response(JSON.stringify({ error: 'try again later' }), {
+      status: fault.status,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(fault.retryAfter === undefined ? {} : { 'Retry-After': fault.retryAfter }),
+      },
+    });
+  }) as typeof fetch;
+
+  async function answer(method: string, path: string, parsed: URL, body: unknown): Promise<Response> {
     if (path === '/tax_rates.json') return json(RATES);
     if (path === '/contacts.json' && method === 'GET') return json(contacts);
     if (path === '/contacts.json' && method === 'POST') {
@@ -104,13 +153,34 @@ function sandbox(options: { alreadyThisMonth?: number; payment?: 'refused' | 'ig
     }
     if (path === '/sales_invoices/700.json') return json(invoices.get('700'));
     return json({ error: `unexpected ${method} ${path}` }, 500);
-  }) as typeof fetch;
-  return { impl, calls, invoices };
+  }
+  /** What the night wrote, in order: each POST and PATCH. */
+  const writes = () => calls.filter((c) => c.method !== 'GET').map((c) => `${c.method} ${c.path}`);
+  return { impl, calls, invoices, writes };
 }
 
 function noToken(lines: readonly string[]): void {
   for (const line of lines) expect(line).not.toContain(TOKEN);
 }
+
+/** A clock that waits no time and keeps how long the night asked to wait. */
+function instant(): NightlyOptions & { waits: number[] } {
+  const waits: number[] = [];
+  return {
+    waits,
+    wait: async (ms: number) => {
+      waits.push(ms);
+    },
+  };
+}
+
+/** Everything a night that makes, sends and pays its invoice once writes. */
+const MADE_SENT_PAID_ONCE = [
+  'POST /contacts.json',
+  'POST /sales_invoices.json',
+  'PATCH /sales_invoices/700/send_invoice.json',
+  'POST /sales_invoices/700/payments.json',
+];
 
 describe('before anything is made', () => {
   it.each([
@@ -220,5 +290,343 @@ describe("the night's invoice", () => {
 
     expect(night.ok).toBe(false);
     expect(night.lines.at(-1)).toBe('It reads back as open, not paid.');
+  });
+});
+
+describe('when Moneybird says try later', () => {
+  const NOT_READ = 'Moneybird answered HTTP 404 to reading invoice 700';
+
+  it('asks once more when the invoice it just sent does not read yet, and makes, sends and pays it once (#260)', async () => {
+    const books = sandbox({ faults: [{ request: 'GET /sales_invoices/700.json', status: 404 }] });
+    const clock = instant();
+    const night = await nightlyMoneybird(NIGHTLY, TONIGHT, books.impl, clock);
+
+    expect(night).toEqual({
+      ok: true,
+      skipped: false,
+      lines: [
+        `The night's invoice did not go through (unavailable): ${NOT_READ}; asked again after 30 s.`,
+        "Found tonight's invoice 2026-0004 (ownpace-nightly-2026-10-10), made before the night asked again.",
+        'Registered a payment of €1.00 on 2026-10-10.',
+        'Read back as paid.',
+      ],
+    });
+    expect(clock.waits).toEqual([30_000]);
+    expect(books.writes()).toEqual(MADE_SENT_PAID_ONCE);
+    noToken(night.lines);
+  });
+
+  it('fails the night with both answers when the second ask does not read it either, having paid nothing', async () => {
+    const books = sandbox({ faults: [{ request: 'GET /sales_invoices/700.json', status: 404, times: 2 }] });
+    const clock = instant();
+    const night = await nightlyMoneybird(NIGHTLY, TONIGHT, books.impl, clock);
+
+    expect(night).toEqual({
+      ok: false,
+      skipped: false,
+      lines: [
+        `The night's invoice did not go through (unavailable): ${NOT_READ}; asked again after 30 s.`,
+        `The night's invoice did not go through (unavailable): ${NOT_READ}.`,
+      ],
+    });
+    expect(clock.waits).toEqual([30_000]);
+    expect(books.writes()).toEqual(MADE_SENT_PAID_ONCE.slice(0, 3));
+    noToken(night.lines);
+  });
+
+  it('reads the invoice once more when it does not read back after the payment, and pays once', async () => {
+    const books = sandbox({ faults: [{ request: 'GET /sales_invoices/700.json', status: 404, after: 1 }] });
+    const clock = instant();
+    const night = await nightlyMoneybird(NIGHTLY, TONIGHT, books.impl, clock);
+
+    expect(night).toEqual({
+      ok: true,
+      skipped: false,
+      lines: [
+        'Made invoice 2026-0004 (ownpace-nightly-2026-10-10), dated 2026-10-10, sent by hand.',
+        'Registered a payment of €1.00 on 2026-10-10.',
+        `It could not be read back (unavailable): ${NOT_READ}; asked again after 30 s.`,
+        'Read back as paid.',
+      ],
+    });
+    expect(clock.waits).toEqual([30_000]);
+    expect(books.writes()).toEqual(MADE_SENT_PAID_ONCE);
+  });
+
+  it('never posts a payment twice: one Moneybird did register, though it answered 500, reads as paid', async () => {
+    const books = sandbox({
+      faults: [{ request: 'POST /sales_invoices/700/payments.json', status: 500, afterTheWork: true }],
+    });
+    const clock = instant();
+    const night = await nightlyMoneybird(NIGHTLY, TONIGHT, books.impl, clock);
+
+    expect(night).toEqual({
+      ok: true,
+      skipped: false,
+      lines: [
+        'Made invoice 2026-0004 (ownpace-nightly-2026-10-10), dated 2026-10-10, sent by hand.',
+        'The payment was not confirmed (unavailable): Moneybird answered HTTP 500 to the payment; ' +
+          'read the invoice again after 30 s instead of paying again.',
+        'It reads as paid: Moneybird registered the payment after all, so none was posted again.',
+        'Read back as paid.',
+      ],
+    });
+    expect(clock.waits).toEqual([30_000]);
+    expect(books.writes()).toEqual(MADE_SENT_PAID_ONCE);
+    noToken(night.lines);
+  });
+
+  it('never posts a payment twice: one Moneybird did not register fails the night, still to pay', async () => {
+    const books = sandbox({ faults: [{ request: 'POST /sales_invoices/700/payments.json', status: 503 }] });
+    const clock = instant();
+    const night = await nightlyMoneybird(NIGHTLY, TONIGHT, books.impl, clock);
+
+    expect(night.ok).toBe(false);
+    expect(night.lines.slice(1)).toEqual([
+      'The payment was not confirmed (unavailable): Moneybird answered HTTP 503 to the payment; ' +
+        'read the invoice again after 30 s instead of paying again.',
+      'It reads as open, with €1.00 still to pay. The payment is not posted again: nothing is paid twice.',
+    ]);
+    expect(clock.waits).toEqual([30_000]);
+    expect(books.writes()).toEqual(MADE_SENT_PAID_ONCE);
+    expect(books.invoices.get('700')!.state).toBe('open');
+  });
+
+  it.each([
+    ['its Retry-After', '45', 45_000, '45 s'],
+    ['its Retry-After of exactly two minutes', '120', 120_000, '120 s'],
+    ['30 s when it gives none', undefined, 30_000, '30 s'],
+  ])('waits, after a 429, %s', async (_case, retryAfter, ms, said) => {
+    const books = sandbox({
+      faults: [{ request: 'GET /sales_invoices.json', status: 429, ...(retryAfter ? { retryAfter } : {}) }],
+    });
+    const clock = instant();
+    const night = await nightlyMoneybird(NIGHTLY, TONIGHT, books.impl, clock);
+
+    expect(night.ok).toBe(true);
+    expect(night.lines[0]).toMatch(/^The month's invoices could not be counted \(slow_down\): Moneybird asks us to slow down/);
+    expect(night.lines[0]).toMatch(new RegExp(`; asked again after ${said}\\.$`));
+    expect(night.lines.slice(1)).toEqual([
+      'Made invoice 2026-0004 (ownpace-nightly-2026-10-10), dated 2026-10-10, sent by hand.',
+      'Registered a payment of €1.00 on 2026-10-10.',
+      'Read back as paid.',
+    ]);
+    expect(clock.waits).toEqual([ms]);
+    expect(books.writes()).toEqual(MADE_SENT_PAID_ONCE);
+  });
+
+  it('does not ask early when a 429 asks for more than two minutes: the night fails at once, asked once', async () => {
+    const books = sandbox({ faults: [{ request: 'GET /sales_invoices.json', status: 429, retryAfter: '600' }] });
+    const clock = instant();
+    const night = await nightlyMoneybird(NIGHTLY, TONIGHT, books.impl, clock);
+
+    expect(night).toEqual({
+      ok: false,
+      skipped: false,
+      lines: [
+        "The month's invoices could not be counted (slow_down): Moneybird asks us to slow down " +
+          '(HTTP 429; at most 150 requests per 5 minutes per administration) — ask again in 600 s.',
+      ],
+    });
+    expect(clock.waits).toEqual([]);
+    expect(books.calls.map((c) => `${c.method} ${c.path}`)).toEqual(['GET /sales_invoices.json']);
+  });
+
+  it('never posts a payment twice: one answered with a 429 is read after its Retry-After, not posted again', async () => {
+    const books = sandbox({
+      faults: [{ request: 'POST /sales_invoices/700/payments.json', status: 429, retryAfter: '45' }],
+    });
+    const clock = instant();
+    const night = await nightlyMoneybird(NIGHTLY, TONIGHT, books.impl, clock);
+
+    expect(night.ok).toBe(false);
+    expect(night.lines.slice(1)).toEqual([
+      'The payment was not confirmed (slow_down): Moneybird asks us to slow down ' +
+        '(HTTP 429; at most 150 requests per 5 minutes per administration) — ask again in 45 s; ' +
+        'read the invoice again after 45 s instead of paying again.',
+      'It reads as open, with €1.00 still to pay. The payment is not posted again: nothing is paid twice.',
+    ]);
+    expect(clock.waits).toEqual([45_000]);
+    expect(books.writes()).toEqual(MADE_SENT_PAID_ONCE);
+    expect(books.invoices.get('700')!.state).toBe('open');
+  });
+
+  it('never posts a payment twice: one Moneybird did register, though it answered 429, reads as paid', async () => {
+    const books = sandbox({
+      faults: [{ request: 'POST /sales_invoices/700/payments.json', status: 429, retryAfter: '45', afterTheWork: true }],
+    });
+    const clock = instant();
+    const night = await nightlyMoneybird(NIGHTLY, TONIGHT, books.impl, clock);
+
+    expect(night.ok).toBe(true);
+    expect(night.lines.slice(-2)).toEqual([
+      'It reads as paid: Moneybird registered the payment after all, so none was posted again.',
+      'Read back as paid.',
+    ]);
+    expect(clock.waits).toEqual([45_000]);
+    expect(books.writes()).toEqual(MADE_SENT_PAID_ONCE);
+  });
+
+  it("takes a re-read that shows the payment after all as the read back: a lag after it cannot paint the night red", async () => {
+    // The third read of the invoice, after the push's and the re-read, would answer 404.
+    const books = sandbox({
+      faults: [
+        { request: 'POST /sales_invoices/700/payments.json', status: 500, afterTheWork: true },
+        { request: 'GET /sales_invoices/700.json', status: 404, after: 2 },
+      ],
+    });
+    const clock = instant();
+    const night = await nightlyMoneybird(NIGHTLY, TONIGHT, books.impl, clock);
+
+    expect(night).toEqual({
+      ok: true,
+      skipped: false,
+      lines: [
+        'Made invoice 2026-0004 (ownpace-nightly-2026-10-10), dated 2026-10-10, sent by hand.',
+        'The payment was not confirmed (unavailable): Moneybird answered HTTP 500 to the payment; ' +
+          'read the invoice again after 30 s instead of paying again.',
+        'It reads as paid: Moneybird registered the payment after all, so none was posted again.',
+        'Read back as paid.',
+      ],
+    });
+    expect(clock.waits).toEqual([30_000]);
+    expect(books.writes()).toEqual(MADE_SENT_PAID_ONCE);
+    expect(books.calls.filter((c) => c.method === 'GET' && c.path === '/sales_invoices/700.json')).toHaveLength(2);
+  });
+
+  it('fails the night when the re-read after a payment without an answer does not answer either', async () => {
+    const books = sandbox({
+      faults: [
+        { request: 'POST /sales_invoices/700/payments.json', status: 500, afterTheWork: true },
+        { request: 'GET /sales_invoices/700.json', status: 404, after: 1 },
+      ],
+    });
+    const clock = instant();
+    const night = await nightlyMoneybird(NIGHTLY, TONIGHT, books.impl, clock);
+
+    expect(night.ok).toBe(false);
+    expect(night.lines.slice(1)).toEqual([
+      'The payment was not confirmed (unavailable): Moneybird answered HTTP 500 to the payment; ' +
+        'read the invoice again after 30 s instead of paying again.',
+      `It could not be read again (unavailable): ${NOT_READ}.`,
+    ]);
+    expect(clock.waits).toEqual([30_000]);
+    expect(books.writes()).toEqual(MADE_SENT_PAID_ONCE);
+  });
+
+  it(`does not count the month again when a later step asks again: the ${NIGHTLY_MONTH_LIMIT}th invoice is still paid`, async () => {
+    // Counted 39, made the 40th, then its read back lagged: a second count
+    // would read 40 and skip, leaving tonight's invoice made but never paid.
+    const books = sandbox({
+      alreadyThisMonth: NIGHTLY_MONTH_LIMIT - 1,
+      faults: [{ request: 'GET /sales_invoices/700.json', status: 404 }],
+    });
+    const clock = instant();
+    const night = await nightlyMoneybird(NIGHTLY, TONIGHT, books.impl, clock);
+
+    expect(night).toMatchObject({ ok: true, skipped: false });
+    expect(night.lines.at(-1)).toBe('Read back as paid.');
+    expect(clock.waits).toEqual([30_000]);
+    expect(books.writes()).toEqual(MADE_SENT_PAID_ONCE);
+    expect(books.calls.filter((c) => c.method === 'GET' && c.path === '/sales_invoices.json')).toHaveLength(1);
+  });
+
+  it('asks again once a night at most: a payment whose answer did not come after that fails, posted once', async () => {
+    const books = sandbox({
+      faults: [
+        { request: 'GET /sales_invoices/700.json', status: 404 },
+        { request: 'POST /sales_invoices/700/payments.json', status: 500, afterTheWork: true },
+      ],
+    });
+    const clock = instant();
+    const night = await nightlyMoneybird(NIGHTLY, TONIGHT, books.impl, clock);
+
+    expect(night).toEqual({
+      ok: false,
+      skipped: false,
+      lines: [
+        `The night's invoice did not go through (unavailable): ${NOT_READ}; asked again after 30 s.`,
+        "Found tonight's invoice 2026-0004 (ownpace-nightly-2026-10-10), made before the night asked again.",
+        'The payment was not confirmed (unavailable): Moneybird answered HTTP 500 to the payment.',
+      ],
+    });
+    expect(clock.waits).toEqual([30_000]);
+    expect(books.writes()).toEqual(MADE_SENT_PAID_ONCE);
+  });
+
+  it('asks again once a night at most: a read back after that fails with both answers', async () => {
+    const books = sandbox({
+      faults: [
+        { request: 'GET /sales_invoices.json', status: 503 },
+        { request: 'GET /sales_invoices/700.json', status: 404, after: 1 },
+      ],
+    });
+    const clock = instant();
+    const night = await nightlyMoneybird(NIGHTLY, TONIGHT, books.impl, clock);
+
+    expect(night.ok).toBe(false);
+    expect(night.lines[0]).toBe(
+      "The month's invoices could not be counted (unavailable): Moneybird answered HTTP 503; asked again after 30 s.",
+    );
+    expect(night.lines.at(-1)).toBe(`It could not be read back (unavailable): ${NOT_READ}.`);
+    expect(clock.waits).toEqual([30_000]);
+    expect(books.writes()).toEqual(MADE_SENT_PAID_ONCE);
+  });
+
+  it.each([
+    ['a refused payment', { payment: 'refused' as const }, /^The payment was not registered \(refused\)/, 1],
+    ['an invoice that does not read back as paid', { payment: 'ignored' as const }, /^It reads back as open, not paid\.$/, 1],
+    [
+      'an invoice Moneybird refuses to make',
+      { faults: [{ request: 'POST /sales_invoices.json', status: 422 }] },
+      /^The night's invoice did not go through \(refused\): Moneybird refused the invoice as invalid/,
+      0,
+    ],
+  ])('fails at once, without asking again, on %s', async (_case, options, said, payments) => {
+    const books = sandbox(options);
+    const clock = instant();
+    const night = await nightlyMoneybird(NIGHTLY, TONIGHT, books.impl, clock);
+
+    expect(night.ok).toBe(false);
+    expect(night.lines.at(-1)).toMatch(said);
+    expect(clock.waits).toEqual([]);
+    expect(books.writes().filter((w) => w.endsWith('/payments.json'))).toHaveLength(payments);
+    expect(night.lines.join('\n')).not.toMatch(/asked again|read the invoice again/);
+    noToken(night.lines);
+  });
+
+  it('refuses a half-configured stack at once: no request, no wait', async () => {
+    const books = sandbox();
+    const clock = instant();
+    const { MONEYBIRD_WORKFLOW_ID: _left, ...half } = NIGHTLY;
+    const night = await nightlyMoneybird(half, TONIGHT, books.impl, clock);
+
+    expect(night.ok).toBe(false);
+    expect(night.lines).toEqual([expect.stringMatching(/^No nightly invoice\. Moneybird is half configured: MONEYBIRD_WORKFLOW_ID is not set/)]);
+    expect(books.calls).toEqual([]);
+    expect(clock.waits).toEqual([]);
+    noToken(night.lines);
+  });
+
+  it('waits on a timer when no clock is given: 30 s, and not a moment less', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    try {
+      const books = sandbox({ faults: [{ request: 'GET /sales_invoices/700.json', status: 404 }] });
+      let done = false;
+      const running = nightlyMoneybird(NIGHTLY, TONIGHT, books.impl).then((night) => {
+        done = true;
+        return night;
+      });
+      for (let turn = 0; turn < 1000 && vi.getTimerCount() === 0; turn += 1) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      expect(vi.getTimerCount()).toBe(1);
+      await vi.advanceTimersByTimeAsync(29_999);
+      expect(done).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect((await running).lines.at(-1)).toBe('Read back as paid.');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

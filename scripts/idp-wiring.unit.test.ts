@@ -24,7 +24,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync, copyFileSync, mkdtempSync, rmSync, chmodSync } from 'node:fs';
+import { readFileSync, writeFileSync, copyFileSync, mkdtempSync, mkdirSync, rmSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,6 +38,8 @@ const SETUP = read('deploy/compose/setup-zitadel.sh');
 const SECRETS = read('deploy/compose/ensure-env-secrets.sh');
 const EXAMPLE = read('deploy/compose/managed.env.example');
 const AUTH = read('apps/api/src/middleware/auth.ts');
+const ENV_READ = read('deploy/compose/env-read.sh');
+const BOOTSTRAP = read('deploy/compose/bootstrap-managed.sh');
 
 describe('the masterkey is generated at the length the provider demands', () => {
   it('asks for 16 bytes, because hex doubles it to the 32 CHARACTERS required', () => {
@@ -734,7 +736,7 @@ describe('a sign-in that can actually complete', () => {
 describe('the provisioning token rotates before it dies', () => {
   /**
    * The expiry is a FIRSTINSTANCE setting: the provider reads
-   * ZITADEL_PAT_EXPIRY once, at init, and the seed is written --if-absent — so
+   * ZITADEL_PAT_EXPIRY once, at init, and the seed was written --if-absent — so
    * without rotation the whole gate ran on a credential whose deadline was
    * frozen by whichever run FIRST executed the script. The Spark's instance
    * was re-initialised during the E2E (managed) #50-#52 clear-downs and
@@ -773,9 +775,11 @@ describe('the provisioning token rotates before it dies', () => {
   });
 
   it('the policy owns both ends: too close to death AND longer than the lifetime', () => {
-    // A fresh init mints under the compose default — months out — and with
-    // only the lower bound that token would sail outside the policy until
-    // three days before it dies. Both bounds, or the lifetime knob is a wish.
+    // A token minted by hand, or under a longer lifetime than today's, lives
+    // past the policy — and until 2026-10-21 every fresh init minted under
+    // compose's fixed default, months out. With only the lower bound such a
+    // token would sail outside the policy until three days before it dies.
+    // Both bounds, or the lifetime knob is a wish.
     // The CONDITION lines themselves — a bare '-gt …' would also match the
     // say-branch and stay green with the upper bound gone (first version did).
     expect(ROTATION).toContain('-lt $(( PAT_ROTATE_BELOW_DAYS * 86400 )) ] ||');
@@ -791,10 +795,21 @@ describe('the provisioning token rotates before it dies', () => {
 
   it('the first-init seed and the rotation share one lifetime knob', () => {
     // A literal '+1 day' here and a knob there is two clocks; the seed must be
-    // derived from the same ZITADEL_PAT_LIFETIME_DAYS the successors get.
+    // derived from the same ZITADEL_PAT_LIFETIME_DAYS the successors get, with
+    // the same default, through the same date function.
     expect(SETUP).not.toContain("'+1 day'");
-    expect(SETUP).toContain('PAT_EXPIRY="$(future_iso "$PAT_LIFETIME_DAYS")"');
-    expect(SETUP).toContain('"$UPSERT" --if-absent "$ENV_FILE" "ZITADEL_PAT_EXPIRY=');
+    const seedFn = /^seed_pat_expiry\(\) \{[\s\S]*?\n\}/m.exec(ENV_READ)?.[0] ?? '';
+    expect(seedFn, 'no seed_pat_expiry in env-read.sh').not.toBe('');
+    expect(seedFn).toContain('ZITADEL_PAT_LIFETIME_DAYS 7)');
+    expect(seedFn).toContain('future_iso "$days"');
+    expect(SETUP).toContain('PAT_LIFETIME_DAYS="$(read_env ZITADEL_PAT_LIFETIME_DAYS 7)"');
+    expect(SETUP).toContain('NEW_EXPIRY="$(future_iso "$PAT_LIFETIME_DAYS")"');
+    expect(SETUP).toContain('seed_pat_expiry "$ENV_FILE"');
+    // One definition of each date function, where every script can reach it.
+    expect(SETUP).not.toMatch(/^future_iso\(\)/m);
+    expect(SETUP).not.toMatch(/^iso_to_epoch\(\)/m);
+    expect(ENV_READ).toMatch(/^future_iso\(\)/m);
+    expect(ENV_READ).toMatch(/^iso_to_epoch\(\)/m);
   });
 
   it('a 401 names expiry as a cause, next to the instance-mismatch one', () => {
@@ -804,11 +819,252 @@ describe('the provisioning token rotates before it dies', () => {
   });
 
   it('tolerates the provider stamping fractional seconds on the expiry', () => {
-    expect(SETUP).toContain('local iso="${1%%.*}"');
+    // iso_to_epoch, which the rotation and the seed both read a date with.
+    expect(ENV_READ).toContain('local iso="${1%%.*}"');
   });
 
   it('documents the knobs where every other knob is', () => {
     expect(EXAMPLE).toContain('ZITADEL_PAT_LIFETIME_DAYS=');
     expect(EXAMPLE).toContain('ZITADEL_PAT_ROTATE_BELOW_DAYS=');
+  });
+});
+
+/**
+ * THE FIRST DATE IS WRITTEN BEFORE THE FIRST START (the lifecycle round,
+ * 2026-10-21).
+ *
+ * managed.yml handed the provider `${ZITADEL_PAT_EXPIRY:-2026-12-31T23:59:59Z}`,
+ * and the bring-up started the provider (bootstrap-managed.sh, phase_app)
+ * BEFORE setup-zitadel.sh wrote the only seed there was. So every first start
+ * with an empty line minted its token under that fixed date: a .env copied
+ * from the example, a contributor's first bring-up, a new runner, and the
+ * operator runbook's recovery of live, which emptied the line on purpose.
+ * Harmless only until the date passes. From 2027-01-01 the provider refuses
+ * that first start outright, `Errors.AuthNKey.ExpireBeforeNow` (Zitadel's
+ * internal/domain/expiration.go, reached from prepareAddPersonalAccessToken
+ * in 03_default_instance), and the container restarts for ever.
+ *
+ * So one function writes the date, seed_pat_expiry in env-read.sh, from every
+ * place that can come before that start: ensure-env-secrets.sh (the env
+ * phase, stand-up-live.sh --only env, the gate's Fill step),
+ * bootstrap-managed.sh's load_env (before its first compose call, and before
+ * it exports the file, whose values Compose then prefers) and setup-zitadel.sh.
+ * It writes now + ZITADEL_PAT_LIFETIME_DAYS into a line that is empty, past,
+ * due within the hour, or not a date, and keeps a date still ahead: on a
+ * running stack that date is the live token's, which the rotation above keeps.
+ * And compose has no date of its own any more. It requires the line.
+ */
+describe("the provisioning token's first date is written before the provider first starts", () => {
+  const ENV_READ_PATH = join(REPO, 'deploy/compose/env-read.sh');
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'pat-seed-'));
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  const DAY_MS = 86_400_000;
+  /** UTC, to the second, `days` from now: the shape setup-zitadel.sh writes. */
+  const isoIn = (days: number) => new Date(Date.now() + days * DAY_MS).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const daysOut = (iso: string) => (Date.parse(iso) - Date.now()) / DAY_MS;
+  const notes = (text: string) => [...text.matchAll(/^ZITADEL_PAT_EXPIRY=(.*)$/gm)].map((m) => m[1]!);
+
+  /** seed_pat_expiry, sourced from the real env-read.sh, on a .env holding `text`. */
+  function seed(text: string) {
+    const file = join(dir, '.env');
+    writeFileSync(file, text);
+    const r = spawnSync(
+      'bash',
+      ['--noprofile', '--norc', '-c', 'set -euo pipefail; . "$1"; seed_pat_expiry "$2"', 'seed', ENV_READ_PATH, file],
+      { encoding: 'utf8' },
+    );
+    return { status: r.status, stdout: r.stdout, stderr: r.stderr, text: readFileSync(file, 'utf8') };
+  }
+
+  it('compose has no date of its own: the line is required, as the secrets are', () => {
+    const line = /ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE:[ \t]*(.*)$/m.exec(COMPOSE)?.[1]?.trim() ?? '';
+    expect(line, 'managed.yml no longer sets the first token’s expiry').not.toBe('');
+    expect(line, 'a fixed date in compose is a first start that stops working the day it passes').not.toMatch(
+      /\d{4}-\d{2}-\d{2}T/,
+    );
+    expect(line).toMatch(/^\$\{ZITADEL_PAT_EXPIRY:\?[^}]+\}$/);
+  });
+
+  it('an empty line, or none, gets now + the lifetime, where the line already is', () => {
+    const empty = seed('A=1\n# the note above it\nZITADEL_PAT_EXPIRY=\nB=2\n');
+    expect(empty.status, empty.stderr).toBe(0);
+    const [written] = notes(empty.text);
+    expect(daysOut(written!)).toBeGreaterThan(6.99);
+    expect(daysOut(written!)).toBeLessThan(7.01);
+    expect(written).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+    expect(empty.text, 'the line moved, or a neighbour changed').toBe(
+      `A=1\n# the note above it\nZITADEL_PAT_EXPIRY=${written}\nB=2\n`,
+    );
+    expect(empty.stdout).toContain(`ZITADEL_PAT_EXPIRY=${written}`);
+
+    const absent = seed('A=1\n');
+    expect(absent.status, absent.stderr).toBe(0);
+    expect(notes(absent.text)).toHaveLength(1);
+    expect(daysOut(notes(absent.text)[0]!)).toBeGreaterThan(6.99);
+  });
+
+  it('a past date, one due within the hour, or something that is not a date is replaced, and it says so', () => {
+    for (const [label, old, printed] of [
+      ['past', '2026-10-01T00:00:00Z', true],
+      ['due within the hour', isoIn(0.01), true],
+      ['not a date', 'next-tuesday', false],
+      ['a day with no time', '2027-06-01', false],
+      ['double-quoted, which Compose reads and env_value does not', `"${isoIn(5)}"`, false],
+    ] as const) {
+      const r = seed(`ZITADEL_PAT_EXPIRY=${old}\n`);
+      expect(r.status, `${label}: ${r.stderr}`).toBe(0);
+      const [written] = notes(r.text);
+      expect(written, label).not.toBe(old);
+      expect(daysOut(written!), label).toBeGreaterThan(6.99);
+      // On stderr, so it survives a caller that silences stdout
+      // (setup-zitadel.sh runs ensure-env-secrets.sh >/dev/null).
+      expect(r.stderr, `${label}: replaced in silence`).toContain('ZITADEL_PAT_EXPIRY');
+      if (printed) expect(r.stderr, `${label}: the date it replaced is not said`).toContain(old);
+      else expect(r.stderr, `${label}: a value that is not a date is printed`).not.toContain(old);
+    }
+  });
+
+  it('a date still ahead is kept, byte for byte, and nothing is said', () => {
+    for (const ahead of [isoIn(5), isoIn(2).replace(/Z$/, '.123456Z'), `'${isoIn(4)}'`, isoIn(400)]) {
+      const text = `A=1\nZITADEL_PAT_EXPIRY=${ahead}\n`;
+      const r = seed(text);
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.text, `${ahead} was rewritten`).toBe(text);
+      expect(`${r.stdout}${r.stderr}`, ahead).toBe('');
+    }
+  });
+
+  it('the lifetime knob decides how far out, and one that is not whole days is refused with nothing written', () => {
+    const ten = seed('ZITADEL_PAT_LIFETIME_DAYS=10\nZITADEL_PAT_EXPIRY=\n');
+    expect(ten.status, ten.stderr).toBe(0);
+    expect(daysOut(notes(ten.text)[0]!)).toBeGreaterThan(9.99);
+    expect(daysOut(notes(ten.text)[0]!)).toBeLessThan(10.01);
+    for (const bad of ['0', 'x', '7.5', '-3']) {
+      const text = `ZITADEL_PAT_LIFETIME_DAYS=${bad}\nZITADEL_PAT_EXPIRY=\n`;
+      const r = seed(text);
+      expect(r.status, `lifetime ${bad} was taken`).not.toBe(0);
+      expect(r.text, `lifetime ${bad}: something was written`).toBe(text);
+      expect(r.stderr).toContain('ZITADEL_PAT_LIFETIME_DAYS');
+    }
+  });
+
+  it('ensure-env-secrets.sh writes it, so the env phase and the gate’s Fill step leave no first start without one', () => {
+    expect(SECRETS).toMatch(/^seed_pat_expiry "\$ENV_FILE"$/m);
+    const work = join(dir, 'checkout');
+    const bin = join(dir, 'bin');
+    mkdirSync(work);
+    mkdirSync(bin);
+    for (const f of ['ensure-env-secrets.sh', 'env-upsert.sh', 'env-read.sh', 'shipped-passwords.sh', 'stack-kind.sh']) {
+      copyFileSync(join(REPO, 'deploy/compose', f), join(work, f));
+      chmodSync(join(work, f), 0o755);
+    }
+    // A daemon with no volumes: a new stack.
+    writeFileSync(join(bin, 'docker'), '#!/usr/bin/env bash\nexit 0\n', { mode: 0o755 });
+    const run = (text: string) => {
+      writeFileSync(join(work, '.env'), text);
+      const r = spawnSync('bash', [join(work, 'ensure-env-secrets.sh')], {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}` },
+      });
+      return { status: r.status, out: `${r.stdout}${r.stderr}`, text: readFileSync(join(work, '.env'), 'utf8') };
+    };
+    const fresh = run('ZITADEL_PAT_EXPIRY=\n');
+    expect(fresh.status, fresh.out).toBe(0);
+    expect(daysOut(notes(fresh.text)[0]!)).toBeGreaterThan(6.99);
+    const kept = isoIn(5);
+    const running = run(`ZITADEL_PAT_EXPIRY=${kept}\n`);
+    expect(running.status, running.out).toBe(0);
+    expect(notes(running.text), 'a running stack’s date was rewritten').toEqual([kept]);
+  });
+
+  it('the bring-up writes it in load_env, before it sources the file or asks Compose anything, so Compose is handed the new date', () => {
+    const at = BOOTSTRAP.indexOf('\nload_env() {');
+    expect(at, 'no load_env in bootstrap-managed.sh').toBeGreaterThan(-1);
+    const loadEnv = BOOTSTRAP.slice(at + 1, BOOTSTRAP.indexOf('\n}\n', at) + 3);
+    const seedAt = loadEnv.indexOf('seed_pat_expiry "$ENV_FILE"');
+    expect(seedAt, 'load_env does not write the date').toBeGreaterThan(-1);
+    expect(seedAt, 'after the source, the shell exports the old date, and Compose prefers it').toBeLessThan(
+      loadEnv.indexOf('. "$ENV_FILE"'),
+    );
+    expect(seedAt).toBeLessThan(loadEnv.indexOf('config -q'));
+
+    // Run it. Every check load_env makes of its own is stubbed (they have
+    // guards of their own); the seed is the real one, from env-read.sh, and the
+    // docker stub writes down what Compose would interpolate at `config`.
+    const defined = new Set([...BOOTSTRAP.matchAll(/^([a-z_][a-z0-9_]*)\(\) \{/gm)].map((m) => m[1]!));
+    const own = [...new Set([...loadEnv.matchAll(/^\s+([a-z_][a-z0-9_]*)\b/gm)].map((m) => m[1]!))].filter(
+      (f) => defined.has(f) && f !== 'load_env' && f !== 'die',
+    );
+    expect(own, 'stubbed nothing: the reading of load_env broke').toContain('refuse_shipped_passwords');
+    const bin = join(dir, 'bin');
+    mkdirSync(bin);
+    const log = join(dir, 'compose.log');
+    const envFile = join(dir, '.env');
+    writeFileSync(
+      join(bin, 'docker'),
+      [
+        '#!/usr/bin/env bash',
+        'case " $* " in',
+        `  *" config "*) printf '%s|%s\\n' "\${ZITADEL_PAT_EXPIRY-unset}" "$(grep '^ZITADEL_PAT_EXPIRY=' "$STUB_ENV" | tail -1 | cut -d= -f2-)" >>"$STUB_LOG" ;;`,
+        'esac',
+        'exit 0',
+        '',
+      ].join('\n'),
+      { mode: 0o755 },
+    );
+    const script = [
+      'set -euo pipefail',
+      `. "${ENV_READ_PATH}"`,
+      'die() { echo "!!! $*" >&2; exit 1; }',
+      ...own.map((f) => `${f}() { :; }`),
+      `ENV_FILE="${envFile}"`,
+      'COMPOSE=(docker compose -f managed.yml)',
+      loadEnv,
+      'load_env',
+    ].join('\n');
+    for (const before of ['', '2026-10-01T00:00:00Z']) {
+      writeFileSync(log, '');
+      writeFileSync(envFile, `ZITADEL_PAT_EXPIRY=${before}\n`);
+      const r = spawnSync('bash', ['--noprofile', '--norc', '-c', script], {
+        encoding: 'utf8',
+        env: {
+          PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`,
+          HOME: dir,
+          STUB_LOG: log,
+          STUB_ENV: envFile,
+          // What a shell that sourced the old .env, or deploy-live.sh's own
+          // environment, would hand down: Compose prefers it over the file.
+          ZITADEL_PAT_EXPIRY: before,
+        },
+        timeout: 30_000,
+      });
+      expect(r.status, `${before || 'empty'}: ${r.stderr}`).toBe(0);
+      const lines = readFileSync(log, 'utf8').split('\n').filter(Boolean);
+      expect(lines, `${before || 'empty'}: Compose was not asked, or asked twice`).toHaveLength(1);
+      const [seen, inFile] = lines[0]!.split('|');
+      expect(seen, `${before || 'empty'}: Compose would be handed the old date`).toBe(inFile);
+      expect(daysOut(seen!), before || 'empty').toBeGreaterThan(6.99);
+    }
+  });
+
+  it('phase_app passes through load_env before it starts the provider', () => {
+    const at = BOOTSTRAP.indexOf('\nphase_app() {');
+    const body = BOOTSTRAP.slice(at, BOOTSTRAP.indexOf('\n}\n', at));
+    const loaded = body.indexOf('\n  load_env\n');
+    expect(loaded, 'phase_app no longer calls load_env').toBeGreaterThan(-1);
+    expect(loaded).toBeLessThan(body.indexOf('"${COMPOSE[@]}" up -d zitadel'));
+  });
+
+  it('setup-zitadel.sh writes it before it starts the provider, and its timer modes do not', () => {
+    const seedAt = SETUP.indexOf('seed_pat_expiry "$ENV_FILE"');
+    expect(seedAt, 'setup-zitadel.sh does not write the date').toBeGreaterThan(-1);
+    expect(seedAt).toBeLessThan(SETUP.indexOf('"${COMPOSE[@]}" up -d zitadel'));
+    expect(SETUP).toMatch(/if \[ -z "\$ONLY" \]; then\n\s+seed_pat_expiry "\$ENV_FILE"/);
+    // The old form kept a date that had already passed.
+    expect(SETUP).not.toMatch(/--if-absent[^\n]*ZITADEL_PAT_EXPIRY/);
   });
 });

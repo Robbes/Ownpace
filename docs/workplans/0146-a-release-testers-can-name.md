@@ -2,7 +2,126 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-10-05 (update this block at the end of every session)
+## Status — 2026-10-22 (update this block at the end of every session)
+
+**2026-10-22, recorded: T8's scan half merged** as #1674 on 2026-10-22 (`51a0d267`), so both
+halves of T8 are in. Security Scan dispatched on the branch (run 4692, on `10725955`) listed 26
+images and scanned and reported every one, and it opened #1675: the GoAccess image
+`site-visits.sh` runs is on Alpine 3.20.10, past its end of life. #1675 is open. The pull
+request's required `Trivy` check was green on its last head (`2e418c92`), and Security Scan
+dispatched on main after the merge (run 4700, on `51a0d267`) was green. The watch half,
+dispatched once on main after its merge (`idp-pin-watch.yml` run 7, on `6bd020f6`), opened the
+four issues the 2026-10-21 entry expected: #1668 (Trigger.dev), #1669 (the tasks' Node), #1670
+(pnpm) and #1671 (the routine pins). Still owed from *Owed* below: a pull request opened or
+refreshed after run 4700, and its required `Trivy` check read; and, when an image leaves the
+stacks or is renamed, its configuration deleted by hand.
+
+**2026-10-22, build: T8's scan half, on branch
+`claude/ownpace-public-readiness-y7orc6-image-scan`, not merged.** The watch half below merged as
+#1663 (`087183b7`) on 2026-10-21. Nothing scanned a container image: Security Scan's Trivy reads
+the repository's files (`scan-type: fs`), so an operating system past its end of life, or a CVE
+in an image whose tag never moved, was reported by nothing.
+
+- **The scan.** Three jobs after `security-scan` in `security-scan.yml`, on the weekly schedule
+  and on dispatch only, on `ubuntu-24.04`; the `security-scan` job and its step names are as they
+  were. `image-list` runs `scripts/image-scan.mjs list`, which reads with the pin watch's reader
+  (`readImages`: a `${VAR:-default}` as its default, a digest kept) every `image:` line of
+  `managed.yml`, `dev.yml`, `www.yml` and `deploy/selfhost/compose.yml`; the images the scripts
+  name (GoAccess, the demo's Stalwart, `db-roles.sh`'s client); the tasks' base image the pinned
+  Trigger.dev CLI names (the pin watch's `cliBaseImage`, now exported); and
+  `ownpace-{api,web,selfhost}` at `:edge` and at the newest `v*` tag, since live builds the tag it
+  deploys. 26 images on 2026-10-22, each listed once per stack (`managed` for `deploy/compose`,
+  `selfhost` for `deploy/selfhost`) and named after its repository's last part, with the stack
+  added where both stacks run that name: so a pin that moves, or two stacks' pins that meet on
+  one reference (the floating-images pull request puts both postgres on one digest), keep their
+  names. `image-scan` is one leg per image: trivy-action at the fs scan's SHA and Trivy v0.76.0,
+  `scan-type: image`, `scanners: vuln`, `format: json`, HIGH and CRITICAL, `exit-code: 0`,
+  linux/arm64 read from the registry; the JSON kept for the report job, `trivy convert` to
+  SARIF, uploaded under `trivy-image-<name>`, and a last step that fails the leg unless the scan,
+  a non-empty JSON and SARIF and the upload all happened.
+  `image-scan-report` reads every report. A missing one is an `::error::` and fails the run. An
+  operating system Trivy calls past its end of life (`.Metadata.OS.EOSL`, in the JSON only)
+  gets a `::warning::`, a line in the summary and one issue per image, *An image's operating
+  system is past its end of life: <name>*, closed when that ends. Findings fail nothing.
+- **Guards.** `scripts/an-image-nobody-scanned.unit.test.ts`, 33 cases: on main it does not load
+  (no `image-scan.mjs`), and with the script but before the workflow, 10 failed. Six mutations
+  (fail-fast, a self-hosted runner, the end of life never read, strays closed while a report is
+  missing, the scripts unread, release tags in text order) each fail it. `a-scan-that-skipped-itself`
+  now reads its check step only to the end of its job: with the new jobs after it, the existing
+  step's `::warning::` could be removed and the guard still passed (shown by mutation).
+- **Review, 2026-10-22.** The guard read today's pins as literals (`redis:7-alpine`,
+  `postgres:18-alpine`, PgBouncer's tag), so the compose-pins pull request (#1657) turned it red
+  (shown with its `managed.yml` and `site-visits.sh` in place: 1 failed). It now reads every pin
+  from the files, and is green with #1657's files and with the floating-images pull request's
+  postgres pins and computed `db-roles.sh` client in place. Names were per reference, so those
+  two postgres pins meeting on one digest would have renamed both scans: now per stack, held by
+  a case that moves them together and apart (red on the old naming). The report's exit code is
+  held from the command line (red with `failed` forced false). The image scan runs the
+  vulnerability scanner only, so code scanning and the report count the same findings.
+- **Read on the branch, 2026-10-22,** with Trivy v0.76.0 locally, linux/arm64: `redis:7-alpine`
+  is Alpine 3.21.9, not past its end of life until 2026-11-01; the frozen MinIO image has 26
+  critical and 259 high findings, 206 of them fixed in a newer package; `alpine:3.18` reads
+  `EOSL: true` in the JSON and nothing of it in the SARIF.
+- **Not in this:** acting on any finding; a ghcr login (Ownpace's three images are public, so the
+  scan job has no `packages: read`); pinning the floating tags, which is its own pull request;
+  the image jobs in a workflow of their own (the weekly run now holds the
+  `security-scan-refs/heads/main` group for the matrix, so a push to main in that time waits:
+  accepted, and said in the workflow's concurrency comment).
+- **Owed.** Before the merge: Security Scan dispatched on the branch; then this pull request's
+  own required `Trivy` check read again, and Security Scan re-run on the pull request if it
+  changed. After the first scheduled or dispatched run on main: a pull request opened or
+  refreshed, and its required `Trivy` check read, which must still conclude success or neutral
+  with main's `trivy-image-*` configurations that no pull request uploads. Whenever an image
+  leaves the stacks or is renamed: its old `trivy-image-<name>` configuration deleted on the code
+  scanning tool status page.
+
+**2026-10-21, build: T8's watch half, on branch
+`claude/ownpace-public-readiness-y7orc6-pin-watch`, not merged.** The owner asked for *"Life
+cycle management on what needs it"*, and the survey of that day found that Dependabot had read
+no file in `deploy/compose` since 2026-09-06: its compose fetcher reads only names like
+`compose.yml`. So T8 is wider than §3 wrote it: every pin Dependabot cannot see, not only the
+images it ignores by name.
+
+- **The watch.** `scripts/idp-pin-watch.mjs` is a table of rows now, run by the same workflow
+  (`idp-pin-watch.yml`, its name, `'23 6 * * 1'` and `ubuntu-24.04` unchanged). One issue each,
+  kept open while the row is behind: the identity provider (its title unchanged, so #1643 is
+  the issue it keeps); Trigger.dev against the newest tag both ghcr images carry, by the probe
+  `trigger-version.sh list` runs, now also `trigger-version.sh probe`, which refuses when the
+  tag it starts from does not answer; ClickHouse against what Trigger.dev's own
+  `docker/docker-compose.yml` pins at that tag, with its line's row in ClickHouse's SECURITY.md
+  as text; the tasks' Node against Node's newest security release, until `trigger.config.ts`
+  copies the API image's Node; `packageManager` against the newest pnpm of its major; and the
+  TypeScript split's exit, as a cleanup notice. One summary issue for the routine pins: every
+  other image line of `managed.yml`, `dev.yml` and `www.yml` against its registry's tags of the
+  same major and scheme, the busybox copies in the scripts, `www.yml`'s nginx against
+  `apps/web/Dockerfile`'s, Stalwart's copies and its newest v0.16.x, GoAccess, and the Trivy the
+  Security Scan runs; cosign-installer's default is a status line. A row that cannot read its
+  upstream touches no issue and fails the run.
+- **Read on the branch, 2026-10-21** (`node scripts/idp-pin-watch.mjs`, no `--issue`): the
+  identity provider v4.19.4 against v4.19.5; Trigger.dev v4.7.2 against v4.7.6; ClickHouse
+  current with Trigger.dev's pin, 26.2 not supported by ClickHouse; the tasks' Node 24.18.0
+  against 24.22.1, and trigger.dev 4.7.6 still on 24.18.0; pnpm 11.22.0 against 11.28.6 (pnpm 12
+  is `latest`); the split not yet due (typescript-eslint 8.72.0, `<6.1.0`); behind in the
+  summary: pgbouncer v1.25.2-p0 (v1.26.1-p0), the registry 3.1.1 (3.1.2), gatus v5.36.0
+  (v5.37.0), mailpit v1.31.1 (v1.31.6), Stalwart v0.16.10 (v0.16.27) and Trivy v0.70.0
+  (v0.76.1). So its first scheduled run opens four issues and edits #1643.
+- **Dependabot.** `/deploy/compose` is no longer listed for `docker-compose`, with the nine
+  ignores that applied only there; the self-host `postgres` major ignore stays. The header says
+  security updates come from the repository setting and what they do not cover, and the
+  TypeScript ignore says it is inert. The guard
+  `scripts/a-dependabot-directory-with-nothing-to-read.unit.test.ts` (red on main: two cases)
+  holds every listed directory to a file the fetcher reads, and every ignore to an image there.
+- **The identity provider's dump.** The issue's step 5 and `dump-idp.sh`, on a stack that is not
+  live, say when the OTA dump can go: once main's first scheduled E2E (managed) on the new pin
+  is green.
+- **Review, the same day.** On the probe's walk above the pin only a 404 is a missing tag; any
+  other answer (a 429, a 5xx, a timeout, the 403 an empty token gets) refuses, so a registry
+  that flakes halfway cannot lower the newest tag or close the Trigger.dev issue. A routine pin
+  ahead of every tag listed counts as a read that failed, so it cannot close the summary issue.
+  The summary issue says that Stalwart moves only by `docs/stalwart-integration-fix.md` and
+  ADR-0022, and ADR-0042's amendment log says its ignore by name is gone.
+- **Not in this:** the scan half (§3's Trivy image scan, report only), MinIO's replacement (T7),
+  and moving any pin the watch reports. Each of those is its own pull request.
 
 **2026-10-05: two tags: `v0.2.0-alpha.1` to stand live up and rehearse, `v0.2.0-alpha.2` with
 the final texts before the first invitation.** Plans only; no tag is cut. Asked what
@@ -434,7 +553,7 @@ T7 and T8. T7 is one sentence from the owner, and is best given with T0.
 | T5 `ownpace-live` runs only a release tag | (a) ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), in 0132 T6's `deploy-live.sh`, not yet run on live: the release rule, `/api/version`'s version, one-way or reversible, and the guard's four cases. `--external-id` is deferred (open question 6) — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); 📋 **Proposed** (D2, D3, D4) | §3. **Alpha minimum.** 0132 T6's procedure and script, with the tag always a release whose name, version and commit agree. The deploy says before the hold lifts whether it can be undone. |
 | T6 The tasks run the Node the images run | ✅ **done** in #1231, merged 2026-09-27: (a), `runtime: 'node-24'` and Guard 1. Guard 2, the bundle-load check, not built (after the first invitation) — *was:* 📋 Proposed | §3. **Alpha minimum:** `runtime: 'node-24'` in `trigger.config.ts` (supported by the pinned CLI, read from its package) and the version guard extended. **After the first invitation:** a pull-request check that the bundle loads. |
 | T7 The object store: replace the frozen MinIO, or accept it for the alpha in writing | ⏳ **Owner** | §3. Recommended: accept it for the alpha, in writing, and replace it after the alpha in the next Trigger.dev drain window (0119 §3, item 5). |
-| T8 A watch on the pinned images Dependabot leaves alone | 📋 **Proposed** | §3. After the first invitation. Extends 0135 T7's job (the identity provider) to Trigger.dev, ClickHouse, MinIO and the task base image. |
+| T8 A watch on the pinned images Dependabot leaves alone | Watch half ✅ **done** in #1663, merged 2026-10-21 (`087183b7`): every pin Dependabot cannot see, one issue per owner's-call row and one summary issue, and `/deploy/compose` out of `dependabot.yml` (Status, 2026-10-21); scan half ✅ **done** in #1674, merged 2026-10-22 (`51a0d267`): a weekly, report-only Trivy scan of every image the stacks run, with one issue per image past its end of life (Status, 2026-10-22) — *was:* scan half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-image-scan`, not merged (2026-10-22); watch half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-pin-watch`, not merged (2026-10-21), scan half 📋 Proposed; 📋 **Proposed** | §3. Widened 2026-10-21: Dependabot read no file in `deploy/compose`, so the watch covers every image line of its `managed.yml`, `dev.yml` and `www.yml` and the busybox and GoAccess copies in its scripts, `packageManager`, the Trivy the scan runs and the TypeScript split as well as Trigger.dev, ClickHouse and the task base image. MinIO has no upstream to compare with and is left to the scan half. |
 
 ## 1. What there is today
 
@@ -1201,6 +1320,20 @@ not a promise.
 - ClickHouse and MinIO publish no port, and 0132 T3 binds Trigger.dev's two to loopback in both
   stacks. Once that has landed, a release for these three is read within a week and applied in the
   next drain window, by 0119 §3's route.
+
+*2026-10-21, built (Status, 2026-10-21): wider than written here. The watched set is every
+`image:` line of `deploy/compose/{managed,dev,www}.yml`, compared with its registry or named in
+`COMPARED_ELSEWHERE` with a reason, not "the images `dependabot.yml` ignores by name": those
+ignores applied to a directory Dependabot never read, and are gone. MinIO is named there, with
+no upstream to compare with. The scan below is still to build.*
+
+*2026-10-22, the scan half built (Status, 2026-10-22): every image the stacks run, not only "the
+four images, and the task base image", Ownpace's own at `:edge` and at the newest release among
+them, scanned as linux/arm64. An issue is kept only for an image whose operating system is past
+its end of life; its high and critical findings go to code scanning, one category per image, so
+an open issue always names something to move. A category outlives its image: one that leaves
+the stacks, or is renamed, leaves its configuration to be deleted by hand on the code scanning
+tool status page.*
 
 **Guard.** `scripts/a-pin-that-knows-it-is-behind.unit.test.ts` is the name 0135 T7 gives it, and
 this task extends it. It fails today, because no watch exists. Given stubbed tag lists and a

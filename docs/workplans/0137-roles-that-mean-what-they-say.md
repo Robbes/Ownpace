@@ -2,7 +2,61 @@
 
 > **In one line:** Role enforcement in the managed API: a role matrix amending ADR-0035, `requireRole` on write routes with a route-table guard, owner-role guards, audit rows for deletes, credential swaps and cutover preparation, viewer-aware web buttons.
 
-## Status — 2026-10-04 (update this block at the end of every session)
+## Status — 2026-10-21 (update this block at the end of every session)
+
+**2026-10-21: T4 built, without the membership rows, in #1648, merged 2026-10-21 (`efcaeef8`).**
+Four acts now leave one `audit_log` row with the caller as actor, so the operator's log page says
+who did them without a database query. Open question 4 (`member.invited`,
+`member.role_changed`) stays the owner's, and those rows are not built.
+
+- **`mapping.deleted`** `{ mappingId, statusBefore }`, in the delete's own transaction, after the
+  sharing list, and only when the delete gave back a row. A 404 writes none. The row outlives the
+  cascade. `support_log` shows the migration's id, without a name, and the member's address.
+  Narrowing by that id finds only the audit rows, because the migration's errors and warnings
+  lose it (`app_event.mapping_id` is set to null).
+- **`connection.deleted`** `{ connectionId, side, kind }`, in the delete's own transaction. A 409
+  or 404 writes none. The delete gives back the row it removed. The second of two overlapping
+  deletes removes none, so it answers 404, records nothing and does not revoke again.
+- **`connection.credentials_replaced`** `{ connectionId, side, kind, accountStored }`:
+  - `true` in the update's own transaction, only when the update changed the row. A connection
+    deleted while the new account was probed stores nothing and answers 404.
+  - `false` in a transaction of its own when the probe refuses the new account: somebody tried.
+  - A request refused before the probe writes none.
+- **`cutover.preparation_requested`** `{ mappingId, runId, revokesApproval }`, and `domain` when
+  one data type was named.
+  - `revokesApproval` is the door's reading of the ledger. The job re-reads it and remains the
+    authority.
+  - Written after the enqueue, because the run id exists only then and the enqueue is in no
+    transaction. A refusal writes none.
+  - A record that cannot be written keeps the 202, because the preparation is under way (hard
+    rule 10). It is logged, and recorded as `cutover.preparation_not_recorded` on the log page.
+- **One transaction.** For the two deletes and a stored replacement, a record that cannot be
+  written keeps the migration, the connection or the old account (500).
+- **No address, user name, password or name goes in a record.** The new keys are `keep` in
+  `AUDIT_DETAIL_FIELDS`, so the audit export carries them.
+- **The appliance has none of the four acts.** A migration there is its config file, and it has
+  no connection, credential or cutover-preparation route. So T4 changes nothing there.
+- **§1's bullets now describe `main` before T4:** *"Nothing records who deleted it"* and *"The
+  only audit row is `connection.qualified`"*.
+- **Docs.** `docs/managed-bring-up.md` (*The log*: "Who deleted it") and the OpenAPI entries say
+  the same. The page does not show a row's detail.
+- **Proved** against a local Postgres (`scripts/local-pg.sh`):
+  - On `main`'s routes, with this branch's tests: 15 failed and 30 passed of 45, in
+    `migrations.integration.test.ts`, `connection-delete-revokes.integration.test.ts` and the new
+    `an-account-replaced-is-recorded.integration.test.ts`. After: 45 of 45. The 7 suites that
+    drive these routes: 84 of 84.
+  - Two overlapping deletes are lined up by an advisory lock, not by timing.
+  - `every-audit-field-is-classified` failed without the classification.
+  - Thirteen changes were each made for one run and then undone, and each failed one case:
+    - a delete's record outside its transaction (migration, connection);
+    - a stored replacement's record outside the update;
+    - the organisation as actor;
+    - a refused replacement said stored, or not recorded;
+    - `revokesApproval` always false;
+    - a failed preparation record answering 500;
+    - `side` fixed to `target` (delete, replacement);
+    - `domain` dropped;
+    - a record for a delete or an update that changed no row.
 
 **2026-10-04: T3 (b) and (c), decided and built on branch
 `claude/ownpace-public-readiness-y7orc6-the-owner-guarded-on-every-door`, not merged.** The owner was asked
@@ -227,7 +281,7 @@ links, and until T2 lands the product offers owner and admin only.
 | T1 The role matrix, written down | 📋 **Proposed** (D1, D2) | §3. An amendment to ADR-0035: which acts are owner only, owner and admin, or open to every role, and what a member may do that a viewer may not. |
 | T2 Every write route names its roles, and a guard fails when one does not | 📋 **Proposed** (D2) | §3. Named role constants on 34 of the 36 ungated writes, and an allowlist with reasons for the other two; a route-table guard in `scripts/` that fails today. |
 | T3 The owner role is guarded on every door | ✅ **done**: (b) and (c), decided 2026-10-04, in #1484, merged 2026-10-04 (`7126b8e3`); (a) the invite half in #1137, merged 2026-09-24 — *was:* 🔨 **(b) and (c) built on branch `claude/ownpace-public-readiness-y7orc6-the-owner-guarded-on-every-door`, not merged** | §3. An admin cannot invite as owner (done). The last-owner guard counts active owners only, in one locked transaction. Only an owner can demote or remove an owner; an admin gets 403. The owner's answer: *"(b) and (c) together (Recommended)"*, not *"(b) only"*. |
-| T4 Who deleted it, who replaced the password, who prepared the cutover | 📋 **Proposed** | §3. An `audit_log` row with the actor for deleting a migration or a connection, replacing credentials, and preparing a cutover. |
+| T4 Who deleted it, who replaced the password, who prepared the cutover | ✅ **done** without the membership rows, in #1648, merged 2026-10-21 (`efcaeef8`); `member.invited` and `member.role_changed` wait on open question 4 — *was:* 📋 **Proposed** | §3. An `audit_log` row with the actor for deleting a migration or a connection, replacing credentials, and preparing a cutover. |
 | T5 The web app shows a viewer no button it cannot press | 📋 **Proposed**, after T2 | §3. One table in the web app that mirrors T1, checked against the API's. |
 | T6 A viewer and a member are refused, and a test says so | 📋 **Proposed**, with T2 | §3. 403 cases for every gated write, driven by T2's table; the migrations suite stops asserting that a member may delete. |
 | T7 Until T2 lands: nobody is invited or moved below admin | ✅ **done** in #1294, merged 2026-09-28 (`a1625f08`); the check not yet run on `ownpace-live` — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-an-owner-or-an-admin-for-the-alpha`, not merged** (2026-09-28) | §3 and the Status block. The invite and role-change routes answer 400 `owner_or_admin_only` for any role but owner and admin; the Team page offers those two, defaults to admin and says what an admin can do; `operator.sh check role-below-admin` lists the rows below admin and exits 1 while there is one. T2's PR undoes it. |
@@ -732,6 +786,8 @@ last, because it mirrors T2's table.
    with T3 (c).
 4. **Membership changes in the audit log (T4)?** Invitations, role changes and removals are not
    recorded today. *Recommended:* yes, in the same PR as T4.
+   T4 merged without them on 2026-10-21 (#1648), so a yes is now a pull request of its own.
+   Removals are recorded as `member.removed` since 2026-09-29 (0135 T8, §3 T4).
 5. **May an admin withdraw an invitation as owner (T3 (c))?** ✅ **Answered 2026-10-04: (a).**
    The owner: *"0137, open question 5: no"*. Asked after the build, because the owner's answer
    on T3 said an owner can still withdraw one, and not whether an admin may.
