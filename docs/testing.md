@@ -453,8 +453,10 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   `managed.yml`, `dev.yml` and `www.yml` (Dependabot reads no file in `deploy/compose`), the
   busybox copies in its scripts, Stalwart's copies, GoAccess and the Trivy the scan runs share one
   summary issue; another image a script there runs is not compared (none today: `db-roles.sh`
-  reads its client from `managed.yml`). A tag is compared, never a digest: a rebuild under the
-  same tag is the image scan's to report. It moves nothing: each issue gives the route, and the
+  reads its client from `managed.yml`). Against a registry a tag is compared, never a digest: a
+  rebuild under the same tag is the image scan's to report. The exception is `www.yml`'s nginx,
+  which is compared with `apps/web/Dockerfile`'s FROM by tag and digest, so a digest-only move of
+  the web image's base lists `www.yml` too. It moves nothing: each issue gives the route, and the
   move is the owner's call. A row that cannot read its upstream, or finds its pin ahead of every
   tag listed, fails the run and never closes an issue.
 - `images.yml` — the three application images: an amd64 build-only check on a pull request that

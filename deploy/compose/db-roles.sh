@@ -130,10 +130,12 @@
 # asking pulls nothing. Read from managed.yml beside this file, its first
 # postgres image line, as compose_project reads its `name:` and stand-up-live.sh
 # its check image: a literal here had to be moved by hand with every pin, and
-# the pins move by pull request since 2026-10-22, tag and digest. Empty when
-# the file names none, and db_roles_init refuses then.
+# the pins move by pull request since 2026-10-22, tag and digest. The reference
+# ends at the first space or `#`, as dump-idp.sh reads its pin, so a comment
+# after it (dev.yml writes its image lines that way) never reaches `docker run`.
+# Empty when the file names none, and db_roles_init refuses then.
 # scripts/rotate-db-passwords.unit.test.ts holds it to managed.yml.
-DB_ROLES_CLIENT_IMAGE="$(sed -n '/^[[:space:]]*image:[[:space:]]*postgres:/{s/^[[:space:]]*image:[[:space:]]*//p;q}' "${SCRIPT_DIR}/managed.yml" 2>/dev/null)" ||
+DB_ROLES_CLIENT_IMAGE="$(sed -n '/^[[:space:]]*image:[[:space:]]*postgres:/{s/^[[:space:]]*image:[[:space:]]*\([^[:space:]#]*\).*/\1/p;q;}' "${SCRIPT_DIR}/managed.yml" 2>/dev/null)" ||
   DB_ROLES_CLIENT_IMAGE=''
 
 # env_value and compose_project, and own_address_redact for db_roles_masked.

@@ -66,8 +66,11 @@
  * `18-alpine` is current within its line by construction. That is why
  * floating tags need no exclusion here, and why pinning them exactly (by
  * digest) makes them watched without a change to this file, as the stores and
- * the TLS front were on 2026-10-22. A digest is not compared: a rebuild under
- * the same tag is the image scan's to report (`image-scan.mjs`).
+ * the TLS front were on 2026-10-22. A digest is not compared against a
+ * registry: a rebuild under the same tag is the image scan's to report
+ * (`image-scan.mjs`). The one row that compares a digest is www.yml's nginx,
+ * held to apps/web/Dockerfile's FROM by tag and digest, so a digest-only move
+ * of the web image's base by Dependabot lists www.yml too.
  *
  * Each own-issue row keeps one issue open while it is behind: opened, brought
  * up to date (with a comment when its newest moved, since an edit notifies

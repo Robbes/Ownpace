@@ -1396,6 +1396,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/stand-up-live.sh`
 
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
+- [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts) — A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
@@ -3603,6 +3604,7 @@ Reads:
 - `deploy/compose/deploy-live.sh`
 - `deploy/compose/dev.yml`
 - `deploy/compose/managed.yml`
+- `deploy/compose/stand-up-live.sh`
 - `deploy/compose/www.yml`
 - `packages/testing/src/testcontainers-setup.ts`
 - `scripts/bootstrap-managed.unit.test.ts`

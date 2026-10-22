@@ -13,7 +13,7 @@
  * or the gates ran `docker compose pull`, and the web image is built with
  * `up --build` and no `--pull`. Both stacks, both sites and the runner share
  * one Docker daemon, so all of them ran whatever copy was pulled first, and
- * nothing recorded which: PostgreSQL 18.6's 28 security fixes (2026-08-13)
+ * nothing recorded which: the security fixes in PostgreSQL 18.6 (2026-08-13)
  * could be missing from the databases that hold testers' data, and 0119 §4's
  * "the bring-up records what it pulled" was not true either.
  *
@@ -25,7 +25,7 @@
  * weekly image scan (`scripts/image-scan.mjs`) counts the findings a newer
  * package fixes, which is when a rebuild under the same tag is worth its new
  * digest. Dependabot moves the FROM lines of `apps/web/Dockerfile`, tag and
- * digest. This holds three things:
+ * digest. This holds four things:
  *
  *  - no image line of `deploy/compose/managed.yml`, `deploy/compose/dev.yml`
  *    or `deploy/compose/www.yml` floats within its line, by the image scan's
@@ -37,7 +37,13 @@
  *  - the integration tests' Postgres and Nextcloud
  *    (`packages/testing/src/testcontainers-setup.ts`) are the dev stack's.
  *    The pin watch reads `dev.yml` and not that file, so a copy there that
- *    drifted would freeze unseen.
+ *    drifted would freeze unseen;
+ *  - `managed.yml`'s postgres lines end at the reference. `stand-up-live.sh`
+ *    takes everything after `image:` on the first of them as the image it asks
+ *    live's database with, so a `# comment` there, the way `dev.yml` writes
+ *    its lines, would reach `docker run` as part of the reference, and every
+ *    check of live's passwords would fail. (`db-roles.sh` stops at the
+ *    reference since 2026-10-22.)
  *
  * `deploy/compose/db-roles.sh` asks with the postgres image `managed.yml`
  * runs, read from that file; `rotate-db-passwords.unit.test.ts` holds it there.
@@ -87,6 +93,18 @@ describe('no image line of the deploy/compose stacks floats within its line', ()
         'nothing pulls it again. Pin it by its exact version and index digest, or name it in NAMED_FLOATS with its reason.',
     ).toEqual(Object.keys(NAMED_FLOATS).sort());
     for (const [repo, reason] of Object.entries(NAMED_FLOATS)) expect(reason.length, `${repo} gives no reason`).toBeGreaterThan(60);
+  });
+
+  it("managed.yml's postgres lines end at the reference, which stand-up-live.sh reads to the end of the line", () => {
+    const postgres = read('deploy/compose/managed.yml')
+      .split('\n')
+      .map((text, i) => ({ text, line: i + 1 }))
+      .filter((l) => /^\s*image:\s*postgres:/.test(l.text));
+    expect(postgres.length, 'managed.yml names no postgres image').toBeGreaterThan(0);
+    for (const { text, line } of postgres) {
+      expect(text, `managed.yml:${line} carries more than the reference after image:`).toMatch(/^\s*image:\s*\S+\s*$/);
+      expect(text, `managed.yml:${line} carries a comment after the reference`).not.toContain('#');
+    }
   });
 
   it('the stores and fronts carry their exact version and their index digest', () => {

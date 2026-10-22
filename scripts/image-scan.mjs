@@ -26,8 +26,8 @@
  *               deploy/selfhost/compose.yml;
  *             - every image a script in deploy/compose or deploy/selfhost
  *               names in a literal `…IMAGE=` assignment (GoAccess, Stalwart
- *               for the demo, db-roles.sh's client), deduplicated against
- *               the compose files of its stack;
+ *               for the demo), deduplicated against the compose files of its
+ *               stack;
  *             - the base image the pinned Trigger.dev CLI names for the
  *               tasks' runtime, which no file here names (the pin watch's
  *               `cliBaseImage`);

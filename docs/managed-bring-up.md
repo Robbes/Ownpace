@@ -4447,6 +4447,18 @@ recreates it. The pin watch's summary issue says when a newer tag is listed, and
 the weekly image scan counts the findings a rebuild under the same tag would
 fix.
 
+> **Nextcloud's pin moves one way on the OTA stack.** Its image upgrades the
+> demo's `nextcloud_data` volume on start (`occ upgrade`), and refuses to start
+> on a volume newer than itself: "Can't start Nextcloud because the version of
+> the data (…) is higher than the docker image version (…) and downgrading is
+> not supported". E2E (managed) on a branch runs against this same project, so
+> a branch that moves Nextcloud forward leaves every nightly of `main`, and
+> every other branch's E2E, red at `up_wait nextcloud` until it merges. So such
+> a branch's E2E is dispatched when it is ready to merge, and it merges before
+> the next 03:30 UTC nightly; a bad move is fixed forward, never reverted. The
+> PostgreSQL databases take a minor back and forth (a minor never changes the
+> storage format), but the same order keeps them from having to.
+
 ### `ownpace-live`: a release tag, with `deploy-live.sh`
 
 **The first time is not this:** *Standing up ownpace-live*, above, with
@@ -5046,8 +5058,10 @@ never reads as "nothing newer", nor as an older newest.
 > `bitnamilegacy/minio:2025.5.24-debian-12-r5` by digest. That changes the name
 > of what runs and not the bytes, on a service holding Trigger.dev's packets and
 > run artifacts, so it needs no volume move and no bring-up ceremony. Nothing in
-> `managed.yml` floats any more, and `bootstrap-managed.unit.test.ts` refuses a
-> new one.
+> `managed.yml` runs `latest` any more, and `bootstrap-managed.unit.test.ts`
+> refuses a new one. A tag that floats within its line is refused since
+> 2026-10-22 by `scripts/a-float-nothing-ever-pulled.unit.test.ts`, which names
+> busybox's as the one left, with its reason.
 >
 > **Moving to upstream's `minio/minio` is a separate job**, and it is not a tag
 > swap. Whoever does it needs all four of these:

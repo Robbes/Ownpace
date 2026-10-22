@@ -1042,12 +1042,14 @@ describe('every question about a password is asked the way the stack asks it', (
     () => {
       // db-roles.sh named the client as a literal that had to be moved by hand
       // with every postgres pin. It reads managed.yml's first postgres line now,
-      // as compose_project reads its `name:` and stand-up-live.sh its check image.
+      // as compose_project reads its `name:` and stand-up-live.sh its check image,
+      // and stops at the reference: a comment after it, the way dev.yml writes
+      // its image lines, is not part of what `docker run` is given.
       const fx = fixture();
       const yml = join(fx.compose, 'managed.yml');
       const text = readFileSync(yml, 'utf8');
       const moved = `postgres:18.99-alpine@sha256:${'e'.repeat(64)}`;
-      const repinned = text.replace(/^(\s*image:\s*)postgres:\S+/gm, `$1${moved}`);
+      const repinned = text.replace(/^(\s*image:\s*)postgres:\S+/gm, `$1${moved} # multi-arch (arm64)`);
       expect(repinned, 'no postgres image line to move').not.toBe(text);
       writeFileSync(yml, repinned);
       const r = run(fx, ['--check']);
