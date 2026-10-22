@@ -156,8 +156,32 @@ services:
   # ROLLBACK, if this misbehaves: set DB_HOST=postgres and DB_PORT=5432 in .env
   # and `compose up -d`. Every service reads those, so that one change puts the
   # whole stack back on direct connections without touching this file.
+  #
+  # v1.26.1-p0, AND NOT 1.26.0 (2026-10-21). From 1.25.2 this closes three
+  # holes that pgbouncer.ini's own settings leave open, each to a client that
+  # has not logged in (NEWS.md, 1.26.0 and 1.26.1): CVE-2026-19888, a SCRAM
+  # client-final-message without a nonce crashes the pooler (auth_type is
+  # scram-sha-256); CVE-2026-6668, a hang, because max_packet_size is left at
+  # its default; and CVE-2026-107349, a spin that stops the pooler for
+  # everybody, because ignore_startup_parameters is set and does not name
+  # `options`. A fourth, CVE-2026-107350, lets whoever knows the password of a
+  # user in auth_file (here the lookup role) log in as any other SCRAM user,
+  # admins included, but only through a database PgBouncer does not know, and
+  # the `*` line in [databases] should leave none; 1.26.1 closes it anyway.
+  # 1.26.0 is the wrong stop on the way: it tracks search_path by default and
+  # so ignored `ignore_startup_parameters = search_path` for the startup
+  # packet, which 1.26.1 restores (see pgbouncer.ini). 1.26 also removed online
+  # restart (-R), which nothing here uses, and left SHOW POOLS' columns as they
+  # were.
+  #
+  # The image tag has no git tag behind it: edoburu/docker-pgbouncer's tags
+  # stop at v1.26.0-p0, this image is its master ("Bump pgbouncer to v1.26.1
+  # (#137)"), and its images are pushed by hand, so a tag can be pushed again.
+  # Its index digest, read on 2026-10-21 (pushed 2026-10-19T14:11Z), so that a
+  # re-push can be noticed:
+  #   sha256:488422e38cff912895d0d65d8963fcd306e6ac589a724398b6eb8e294e94d624
   pgbouncer:
-    image: edoburu/pgbouncer:v1.25.2-p0
+    image: edoburu/pgbouncer:v1.26.1-p0
     container_name: ${COMPOSE_PROJECT_NAME}-pgbouncer
     restart: unless-stopped
     logging: *logging
@@ -218,8 +242,18 @@ services:
     networks:
       - ownpace-network
 
+  # Trigger.dev's queues and locks, on Redis 7.4, the line the owner chose
+  # (workplan 0119 §3 item 3). On Debian 12 since 2026-10-21, not Alpine: the
+  # 7.4 Alpine images are built on Alpine 3.21, whose security support ends on
+  # 2026-11-01, and Debian 12's LTS runs to 2028-06-30. The tag floats within
+  # 7.4 so that a `docker compose pull trigger-redis` takes upstream's rebuilds
+  # of it as Debian ships fixes; nothing pulls it on its own, so that pull is a
+  # person's (0119 §4). Both images run Redis as uid 999 and the append-only
+  # file is that user's alone, so redis_data carries over in either direction.
+  # It holds the run queues: on live it changes only at a deploy, and
+  # deploy-live.sh refuses one without the hold or with a pass still in flight.
   trigger-redis:
-    image: redis:7-alpine
+    image: redis:7.4-bookworm
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-redis
     restart: unless-stopped
     logging: *logging
@@ -482,8 +516,11 @@ services:
   # to it and the supervisor's daemon pulls them — neither cares which line
   # answers. Upstream's own compose still says `registry:2`; the managed gate
   # (deploy-tasks.sh pushes, the smoke runs a task) is the proof for this one.
+  # 3.1.2 (2026-10-21) changes none of that: config-dev.yml, the filesystem
+  # driver and tracing/ are as they were at v3.1.1, and its security fix is in
+  # the registry's client, which only a pull-through cache uses.
   trigger-registry:
-    image: registry:3.1.1
+    image: registry:3.1.2
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-registry
     restart: unless-stopped
     logging: *logging
@@ -1391,7 +1428,7 @@ services:
   # in git and reviewed — read the header of that file for what this page can and
   # cannot tell you, and why it lives here rather than on its own machine.
   gatus:
-    image: ghcr.io/twin/gatus:v5.36.0
+    image: ghcr.io/twin/gatus:v5.37.0
     container_name: ${COMPOSE_PROJECT_NAME}-status
     restart: unless-stopped
     logging: *logging
@@ -1514,7 +1551,7 @@ services:
     # no curl, no shell, so `CMD-SHELL` is out too, and `main.go` parses no
     # arguments at all, so there is no `gatus healthcheck` subcommand the way
     # mailpit has `/mailpit readyz`. Verified against the upstream Dockerfile
-    # and main.go at v5.36.0 rather than assumed.
+    # and main.go at v5.37.0 rather than assumed.
     #
     # WRITTEN IN #498 AND NEVER ONCE RUN, because nothing started this service
     # until #547 put it in the bring-up's list. Its first real execution was
@@ -1555,7 +1592,7 @@ services:
   # SMTP stays on the compose network: 1025 is not published, because the only
   # things that should reach it are services in this stack. The web UI is.
   mailpit:
-    image: axllent/mailpit:v1.31.1@sha256:98b916bd3c8d61f7633a52d3ea2f58d00620cb01ca57ab59edde68c347a95365
+    image: axllent/mailpit:v1.31.6@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387
     container_name: ${COMPOSE_PROJECT_NAME}-mailpit
     restart: unless-stopped
     logging: *logging
@@ -1592,7 +1629,7 @@ services:
       # which is the boundary that was argued out there and still holds.
       MP_DATABASE: /data/mailpit.db
       # NO RELEASE CHECK (workplan 0139, 2026-09-28). Whenever its page asks
-      # for the server's info, Mailpit (v1.31.1, internal/stats/stats.go) asks
+      # for the server's info, Mailpit (v1.31.6, internal/stats/stats.go) asks
       # GitHub for its newest release. Live runs no catcher; this is the test
       # stack's. `scripts/a-service-that-phones-home.unit.test.ts`.
       MP_DISABLE_VERSION_CHECK: "true"

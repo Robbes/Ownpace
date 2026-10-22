@@ -41,8 +41,8 @@
 #      have none, and are not visits. Nor is the status page's Website row
 #      (gatus.yaml), which asks through the public name every 60 seconds once
 #      STATUS_SITE_ENABLED is true, as Gatus/1.0 (Gatus's own User-Agent at
-#      v5.36.0, client/client.go): it is left out by that name, and counted
-#      apart. Of each request it hands on:
+#      v5.37.0, config/endpoint/endpoint.go): it is left out by that name, and
+#      counted apart. Of each request it hands on:
 #        - the time, the status and the size, which nginx writes. The time is
 #          the one nginx writes last before the request, in $time_local's
 #          exact shape, never a bracketed text before it (a Basic user's: see

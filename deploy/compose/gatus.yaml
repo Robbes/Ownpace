@@ -81,7 +81,7 @@ client:
 # off, because the nightly gate recreates its web app and API on schedule and
 # the one person an alert would reach already knows.
 #
-# THREE THINGS GATUS DOES, read in its source at v5.36.0 rather than assumed:
+# THREE THINGS GATUS DOES, read in its source at v5.37.0 rather than assumed:
 #
 #   - an alert with no enabled value counts as ON (alert.go, IsEnabled), which
 #     is why the switch has a default and every alert names it;
