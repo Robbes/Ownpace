@@ -819,8 +819,8 @@ services:
     # cmd/defaults.yaml loses only the two unused SearchLimit keys and
     # rewords the query-limit comments, so the three facts above,
     # the service ping's default and the privacy policy's fields hold at
-    # v4.19.5. The owner dumps the OTA instance's `zitadel` database with
-    # deploy/compose/dump-idp.sh before E2E (managed) on the branch applies it.
+    # v4.19.5. The OTA instance's `zitadel` database was dumped first by the
+    # owner, with deploy/compose/dump-idp.sh; E2E (managed) #274 applied it.
     image: ghcr.io/zitadel/zitadel:v4.19.5
     container_name: ${COMPOSE_PROJECT_NAME}-idp
     restart: unless-stopped
