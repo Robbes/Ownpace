@@ -21,8 +21,11 @@ with setup-trivy's `install.sh`, which checks the archive against the release's 
   routine-pin cases, which read the lower pin as behind. With both moved, the three guards pass
   (102 tests). `node scripts/idp-pin-watch.mjs` on the branch reads *"Trivy v0.76.1 v0.76.1
   current"*.
-- **Owed.** The release is three days old, CONTRIBUTING.md's age, on 2026-10-24 at 10:20 UTC;
-  the merge waits for that. The pull request's `Trivy` check is the first run of v0.76.1 (the
+- **Owed.** The release is three days old, CONTRIBUTING.md's age, on 2026-10-24 at 11:18 UTC,
+  when its assets came out: `trivy_0.76.1_checksums.txt` was uploaded at 11:18:28 UTC
+  (its `Last-Modified`), the Linux archive at 11:18:17 and Docker Hub's `aquasec/trivy:0.76.1`
+  at 11:16:41. The tag's commit, e713f67f, is from 10:20 UTC, the tag's own time only. The
+  merge waits for 11:18 UTC. The pull request's `Trivy` check is the first run of v0.76.1 (the
   filesystem scan, on a GitHub-hosted runner); the image legs run it first on a dispatch of
   Security Scan or on Monday's schedule. #1671 stays open for its other rows, and the watch's
   next run drops the Trivy row.

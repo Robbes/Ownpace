@@ -223,8 +223,9 @@ jobs:
           # (2026-10-14) with three dependency groups backported (the AWS SDK,
           # Docker's and moby's modules, a common group), and Trivy's own code
           # unchanged. It is three days old, the age CONTRIBUTING.md asks of a
-          # dependency, on 2026-10-24. scripts/idp-pin-watch.mjs reads this
-          # line and keeps an issue open while a newer Trivy exists.
+          # dependency, on 2026-10-24. scripts/idp-pin-watch.mjs reads every
+          # Trivy step's version: and keeps an issue open while a newer Trivy
+          # exists.
           # Raise when Dependabot takes trivy-action > v0.36.0. Every Trivy step
           # must name one: held by a-gate-on-a-version-nothing-ships.
           version: v0.76.1
