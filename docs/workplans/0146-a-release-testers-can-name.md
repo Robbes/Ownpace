@@ -22,13 +22,14 @@ reaches the self-hosted machine or live.
   and `windows-payload.yml` attached the zip to a release it created bodiless.
   §4's go/no-go ("published with its images and SBOM") does not hold for
   alpha.1. Decision 12, as the owner answered it on 2026-10-23: a session may
-  not edit releases, so the owner pastes the standard text (what Security
-  Scan's *Compose release body* writes) and a note on the failed tag-time scan
-  into alpha.1's release page by hand. Its `bom.json` stays missing: nothing
-  regenerates it, and a re-run of the tag's scan fails the same way on the
-  tag's lockfile. `CHANGELOG.md`'s alpha.1 section says so, and `mode=verify`
-  on the tag refuses for the missing `bom.json` (and for the body, until the
-  paste).
+  not edit releases, so the owner pastes into alpha.1's release page by hand
+  the standard text (what Security Scan's *Compose release body* writes,
+  without its last sentence, which says an attached `bom.json` is the SBOM)
+  and a note on the failed tag-time scan, which says `bom.json` is missing.
+  Its `bom.json` stays missing: nothing regenerates it, and a re-run of the
+  tag's scan fails the same way on the tag's lockfile. `CHANGELOG.md`'s
+  alpha.1 section says so, and `mode=verify` on the tag refuses for the
+  missing `bom.json` (and for the body, until the paste).
 - **The order.** preflight (read only), approve (the `release` environment:
   the owner's recorded say-so, a guard against accidents and not a boundary),
   a gate scan of exactly C on a branch `release-gate/<tag>`, the tag (nights
@@ -1236,8 +1237,9 @@ in the same file.
 - **No migration a release shipped may change.** Every file of either chain at the alpha tag, or
   at any later release tag, must be byte-identical at HEAD. That covers squashing, editing in place
   (what ADR-0036 did to rc.1's baseline) and deleting, and it covers the managed chain, which no
-  gate compares with a release today. rc.1 stays outside the rule: its `0001_baseline.sql`
-  differs from HEAD's today (checked on 2026-09-24), under the allow-list §1 names.
+  gate compares byte for byte with a release today (T4's upgrade proof, below, compares it with
+  its comments removed). rc.1 stays outside the rule: its `0001_baseline.sql` differs from HEAD's
+  today (checked on 2026-09-24), under the allow-list §1 names.
 - **Comment-only edits: T3 decides, it does not inherit.** The managed chain's upgrade proof
   (T4, `packages/managed/src/migrate-upgrade.unit.test.ts`, 2026-10-23) is looser than the rule
   above. It compares an applied file with its comments removed, and accepts an edit to comments

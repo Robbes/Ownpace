@@ -259,20 +259,21 @@ source and target by target, is in the [feature matrix](docs/feature-matrix.md).
 Grouped by what an operator would notice, not by workplan; the workplan status
 blocks in `docs/workplans/` remain the detailed record.
 
-**Its release page has no generated body and no `bom.json`** (recorded
-2026-10-23, workplan 0146). The tag's Security Scan, run 37523297841 on
-2026-10-06, failed at its advisory gate, though the same commit's scan on
-`main` had been green about nineteen hours before: seroval (critical,
-GHSA-p6vx-979v-rg4c; high, GHSA-jp82-f5mq-hwhp), proxy-addr (critical,
-GHSA-jqcg-44mw-7w3h) and source-map-js (high, development only,
+**Its release page has no generated body (the standard text is pasted by hand)
+and no `bom.json`** (recorded 2026-10-23, workplan 0146). The tag's Security
+Scan, run 37523297841 on 2026-10-06, failed at its advisory gate, though the
+same commit's scan on `main` had been green about nineteen hours before:
+seroval (critical, GHSA-p6vx-979v-rg4c; high, GHSA-jp82-f5mq-hwhp), proxy-addr
+(critical, GHSA-jqcg-44mw-7w3h) and source-map-js (high, development only,
 GHSA-68fv-2mgg-jv7q). The steps after it, the SBOM, the release body and the
-SBOM's attachment, did not run. The images had already been pushed and
-signed, and the Windows zip was attached to a release `windows-payload.yml`
-created without a body. The standard release text, and a note on this failed
-scan, are added to the release page by hand. The `bom.json` stays missing:
-nothing regenerates it, and a re-run of that scan would fail the same way on
-the tag's lockfile. The Release workflow's `mode=verify` refuses the tag for
-it.
+SBOM's attachment, did not run. The images had already been pushed and signed,
+and the Windows zip was attached to a release `windows-payload.yml` created
+without a body. The standard release text, without its sentence about an
+attached `bom.json`, and a note on this failed scan, which says the `bom.json`
+is missing, are added to the release page by hand. The `bom.json` stays
+missing: nothing regenerates it, and a re-run of that scan would fail the same
+way on the tag's lockfile. The Release workflow's `mode=verify` refuses the
+tag for it.
 
 ### Added
 

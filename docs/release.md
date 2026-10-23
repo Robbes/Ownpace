@@ -252,9 +252,13 @@ is a new version: the tag's lockfile will fail the same way every time.
 scan failed before the SBOM step, so it has no `bom.json`, and nothing
 regenerates one (a re-run fails the same way on the tag's lockfile). Its
 body is the standard text (what *Compose release body* in
-`security-scan.yml` writes) and a note on that failed scan, pasted in by the
-owner by hand: a session does not edit releases (the owner's answer of
-2026-10-23). Until the paste, verify refuses the body as well.
+`security-scan.yml` writes) without its last sentence, which says the
+attached `bom.json` is the build's SBOM, and a note on that failed scan that
+says `bom.json` is missing, pasted in by the owner by hand: a session does not
+edit releases (the owner's answer of 2026-10-23). Leaving that sentence out
+does not change what verify says about the body: it finds the block by its
+`cosign verify` line and checks the changelog link. Until the paste, verify
+refuses the body as well.
 `v0.1.0-rc.1` refuses: no generated body and no Windows zip.
 
 ## 4. After
