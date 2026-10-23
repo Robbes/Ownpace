@@ -4,6 +4,23 @@
 
 ## Status — 2026-10-23 (update this block at the end of every session)
 
+**2026-10-23, build: the preflight's code-scanning note, grouped, on branch
+`claude/ownpace-public-readiness-y7orc6-scan-alerts-breakdown`, not merged.**
+Release's first preflight on `main` printed one line, *"67 critical and 100
+high code-scanning alert(s) open on main: reported, not refused"*, and the 100
+was the page size: it read one page of each severity. Now
+`scripts/release-preflight.mjs` reads every page (`getAll` in
+`release-github.mjs`, which errors past its cap rather than count short),
+keeps an alert only as far as the new whitelist `slimAlert` does (the API's
+alert names the accounts that dismissed it or were assigned it), and prints
+the total and then one note per tool and analysis category (the repository's
+filesystem scan; each `trivy-image-<name>` category, naming the image) with
+its counts and its five most alerted rule ids, critical first. Still a note,
+never a refusal (decision 11), and a list that cannot be read is a note that
+says why. Proven by the preflight's guard on a fixture written by hand in the
+API's shape and kept through `slimAlert`, since this session's token gets 403
+from code scanning; the real breakdown is the next preflight dispatch's log.
+
 **2026-10-23, build: the Release workflow, on branch
 `claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged.** T2's
 steps 4 to 6 (the gates, the commit, the tag) and §3's checks become one

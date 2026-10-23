@@ -22,7 +22,8 @@
  *   check     the tag free (or Release's own at C), no branch named like it,
  *             the API contract's version, the changelog folded, CI's and
  *             Security Scan's push runs on C, the nights; and notes: the
- *             approval, main after C, the release before, what this does not
+ *             approval, the open code-scanning alerts on main by tool and
+ *             category, main after C, the release before, what this does not
  *             check
  *   callees   after the install: the workflows Release dispatches, read with
  *             the candidate's own YAML parser, take the inputs it passes
@@ -43,7 +44,7 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { github, pass, refuse, note, report, output, short } from './release-github.mjs';
+import { github, pass, refuse, note, report, output, short, getAll, slimAlert } from './release-github.mjs';
 import { parseSemVer, compareSemVer } from './release-names-agree.mjs';
 import { readNights } from './release-nights.mjs';
 import { tagDecision, peelTag } from './release-cut-tag.mjs';
@@ -266,16 +267,110 @@ export function approvalNote(environment, readable = true) {
  * Open code-scanning alerts on main, reported and never refused (the owner's
  * decision 11 of 2026-10-23): the pull request's `Trivy` check blocks new
  * ones, and the advisory gate is what refuses a tag.
+ *
+ * Read whole, a page of 100 at a time (the first run's "100 high" was one
+ * page), and printed as a total and then one note per tool and analysis
+ * category: the repository's filesystem scan, and each image of the weekly
+ * image scan, which uploads one category per image, `trivy-image-<name>`
+ * (`scripts/image-scan.mjs` says how the names are made). Each note names the
+ * group's most alerted rule ids, critical first. Only the fields
+ * `slimAlert` keeps are read, and every string from the API is printed as
+ * one line with no `@`.
  */
-export function alertsNote(counts) {
-  if (!counts) return note('code-scanning', 'the open code-scanning alerts could not be read with this token');
-  const { critical, high } = counts;
+export const ALERT_SEVERITIES = ['critical', 'high'];
+/** How many rule ids one group's note names. */
+export const TOP_RULES = 5;
+/** The category of security-scan.yml's repository scan, whose upload names none of its own. */
+export const REPOSITORY_SCAN_CATEGORY = '.github/workflows/security-scan.yml:security-scan';
+const IMAGE_CATEGORY = /^trivy-image-(.+)$/;
+
+/** A string from the API as a note prints it: one line, no `@`, and short. */
+function printable(value, max) {
+  const text = String(value ?? '')
+    .replace(/[^\w .,:;/?&=+()'#-]/g, '?')
+    .trim();
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+const order = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+const rank = (severity) => ALERT_SEVERITIES.indexOf(severity);
+
+/** The open critical and high alerts on main, every page, as the whitelist keeps them. */
+export async function readOpenAlerts(client) {
+  const byNumber = new Map();
+  for (const severity of ALERT_SEVERITIES) {
+    for (const answered of await getAll(client, `code-scanning/alerts?state=open&ref=refs/heads/main&severity=${severity}`)) {
+      const alert = slimAlert(answered);
+      alert.rule = { ...alert.rule, security_severity_level: alert.rule?.security_severity_level ?? severity };
+      byNumber.set(alert.number ?? `${severity} ${byNumber.size}`, alert);
+    }
+  }
+  return [...byNumber.values()];
+}
+
+/** The alerts by tool and category, each with its rules: the most critical group first. */
+export function alertGroups(alerts) {
+  const groups = new Map();
+  for (const alert of alerts) {
+    const severity = alert.rule?.security_severity_level;
+    if (!ALERT_SEVERITIES.includes(severity)) continue;
+    const tool = alert.tool?.name ?? '';
+    // The upload ends a category it was given with a slash; the name is without it.
+    const category = (alert.most_recent_instance?.category ?? '').replace(/\/+$/, '');
+    const key = JSON.stringify([tool, category]);
+    if (!groups.has(key)) groups.set(key, { tool, category, image: IMAGE_CATEGORY.exec(category)?.[1] ?? null, critical: 0, high: 0, rules: new Map() });
+    const group = groups.get(key);
+    group[severity] += 1;
+    const id = alert.rule?.id ?? '';
+    const rule = group.rules.get(id) ?? { id, severity, alerts: 0 };
+    if (rank(severity) < rank(rule.severity)) rule.severity = severity;
+    rule.alerts += 1;
+    group.rules.set(id, rule);
+  }
+  return [...groups.values()]
+    .map((g) => ({ ...g, rules: [...g.rules.values()].sort((a, b) => rank(a.severity) - rank(b.severity) || b.alerts - a.alerts || order(a.id, b.id)) }))
+    .sort((a, b) => b.critical - a.critical || b.critical + b.high - (a.critical + a.high) || order(a.tool, b.tool) || order(a.category, b.category));
+}
+
+/** The total line. `reason` says why the alerts could not be read, when they could not. */
+export function alertsNote(counts, reason) {
+  if (!counts) {
+    return note('code-scanning', `the open code-scanning alerts could not be read${reason ? `: ${printable(reason, 240)}` : ' with this token'}`);
+  }
+  const { critical, high, groups } = counts;
   return note(
     'code-scanning',
     critical + high === 0
       ? 'no open critical or high code-scanning alert on main'
-      : `${critical} critical and ${high} high code-scanning alert(s) open on main: reported, not refused`,
+      : `${critical} critical and ${high} high code-scanning alert(s) open on main${groups ? `, in ${groups} group(s) by tool and category below` : ''}: reported, not refused`,
   );
+}
+
+/** One group's line: its tool, its category (and image), its counts, its most alerted rules. */
+function groupNote(group) {
+  const category = printable(group.category, 100);
+  const where =
+    group.image !== null
+      ? `image ${printable(group.image, 80)} (category ${category})`
+      : group.category === REPOSITORY_SCAN_CATEGORY
+        ? `the repository’s filesystem scan (category ${category})`
+        : group.category
+          ? `category ${category}`
+          : 'no category';
+  const top = group.rules.slice(0, TOP_RULES).map((r) => `${printable(r.id, 60) || 'no rule id'} (${r.severity}, ${r.alerts})`);
+  const more = group.rules.length - top.length;
+  return note(
+    'code-scanning',
+    `${printable(group.tool, 40) || 'no tool name'}, ${where}: ${group.critical} critical and ${group.high} high in ${group.rules.length} rule(s); most: ${top.join(', ')}${more > 0 ? `, and ${more} more` : ''}`,
+  );
+}
+
+/** The total, then a line per tool and category; or why the alerts could not be read. */
+export function alertsNotes(alerts, reason) {
+  if (!alerts) return [alertsNote(null, reason)];
+  const groups = alertGroups(alerts);
+  const count = (severity) => groups.reduce((n, g) => n + g[severity], 0);
+  return [alertsNote({ critical: count('critical'), high: count('high'), groups: groups.length }), ...groups.map(groupNote)];
 }
 
 /** The environment a candidate's own code runs with: no token of any kind. */
@@ -418,13 +513,13 @@ async function checkStep(client, env, candidate) {
       lines.push(approvalNote(null, false));
     }
   }
+  let alerts;
   try {
-    const open = async (severity) =>
-      ((await client.get(`code-scanning/alerts?state=open&ref=refs/heads/main&severity=${severity}&per_page=100`)) ?? []).length;
-    lines.push(alertsNote({ critical: await open('critical'), high: await open('high') }));
-  } catch {
-    lines.push(alertsNote(null));
+    alerts = await readOpenAlerts(client);
+  } catch (err) {
+    lines.push(...alertsNotes(null, err instanceof Error ? err.message : String(err)));
   }
+  if (alerts) lines.push(...alertsNotes(alerts));
   try {
     const after = git(['rev-list', '--count', `${commit}..origin/main`]).trim();
     lines.push(note('main-after-candidate', `${after} commit(s) on main after C${after === '0' ? '' : ': the freeze (0141 T14) did not hold, or has not started'}`));

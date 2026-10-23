@@ -5,11 +5,11 @@
  * repository's own files and recorded runs.
  */
 
-import type { Line } from './release-github.mjs';
+import type { Alert, Client, Line } from './release-github.mjs';
 import type { Run } from './release-nights.mjs';
 import type { Decision } from './release-cut-tag.mjs';
 
-export type { Line } from './release-github.mjs';
+export type { Alert, Line } from './release-github.mjs';
 
 export declare const MODES: string[];
 export declare const REQUIRED_CI_JOBS: string[];
@@ -39,7 +39,23 @@ export declare function refUnambiguous(options: {
 }): Line[];
 export declare function calleesDispatchable(workflows: Record<string, unknown>): Line[];
 export declare function approvalNote(environment: unknown, readable?: boolean): Line;
-export declare function alertsNote(counts: { critical: number; high: number } | null): Line;
+export declare const ALERT_SEVERITIES: string[];
+export declare const TOP_RULES: number;
+export declare const REPOSITORY_SCAN_CATEGORY: string;
+/** One tool's alerts in one analysis category, with its rules, critical first. */
+export interface AlertGroup {
+  tool: string;
+  category: string;
+  /** The image, for a `trivy-image-<name>` category of the weekly image scan; else null. */
+  image: string | null;
+  critical: number;
+  high: number;
+  rules: Array<{ id: string; severity: string; alerts: number }>;
+}
+export declare function readOpenAlerts(client: Pick<Client, 'get'>): Promise<Alert[]>;
+export declare function alertGroups(alerts: Alert[]): AlertGroup[];
+export declare function alertsNote(counts: { critical: number; high: number; groups?: number } | null, reason?: string): Line;
+export declare function alertsNotes(alerts: Alert[] | null, reason?: string): Line[];
 export declare function candidateEnv(env: Record<string, string | undefined>): Record<string, string | undefined>;
 export declare function notChecked(): Line[];
 export declare function namesStep(candidate: string, version: string, env?: Record<string, string | undefined>): Line;

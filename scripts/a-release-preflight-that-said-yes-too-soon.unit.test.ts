@@ -46,6 +46,26 @@
  * as they are. And in rehearse mode it carries the record's refusals to the
  * end of the run, but never one that says which commit this is: a commit
  * that is not on `main` never reaches the gate scan.
+ *
+ * ## The open code-scanning alerts, read whole and grouped (2026-10-23)
+ *
+ * The preflight's first run printed one count, *"67 critical and 100 high
+ * code-scanning alert(s) open on main"*, and the 100 was the page size: it
+ * read one page of each severity. A count is no triage either: nobody can
+ * tell from it whether the repository's own lockfile or one of the 26 images
+ * of the weekly scan holds them. So the alerts are read page by page
+ * (`getAll` in `scripts/release-github.mjs`, a cap that refuses to stop
+ * silently), kept only as far as the whitelist `slimAlert` keeps them (the
+ * API's alert names the accounts that dismissed it or were assigned it), and
+ * printed as one note per tool and analysis category, with each group's most
+ * alerted rule ids and, for an image scan's category, the image. Still a
+ * note, never a refusal (the owner's decision 11). The alerts it is held
+ * against, `scripts/fixtures/release/code-scanning-alerts-hand-made.json`,
+ * are written by hand in the API's shape and passed through `slimAlert`: the
+ * session that wrote them had a token code scanning answers 403 ("Resource
+ * not accessible by integration"). The categories are the real ones (the
+ * repository scan's, and `trivy-image-<name>` for images the weekly scan
+ * lists); the rule ids and their counts are illustrative.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -69,11 +89,18 @@ import {
   calleesDispatchable,
   approvalNote,
   alertsNote,
+  alertsNotes,
+  alertGroups,
+  readOpenAlerts,
+  REPOSITORY_SCAN_CATEGORY,
+  TOP_RULES,
   candidateEnv,
   verdict,
 } from './release-preflight.mjs';
-import type { Line } from './release-preflight.mjs';
+import type { Line, Alert } from './release-preflight.mjs';
 import { tagDecision } from './release-cut-tag.mjs';
+import { ALERT_FIELDS, ALERT_INSTANCE_FIELDS, ALERT_RULE_FIELDS, ALERT_TOOL_FIELDS, getAll, slimAlert } from './release-github.mjs';
+import type { Client } from './release-github.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (path: string) => readFileSync(join(ROOT, path), 'utf8');
@@ -273,6 +300,171 @@ describe('the approval and the token', () => {
   it('spawns the candidate’s own scripts with no token in their environment', () => {
     const env = candidateEnv({ PATH: '/usr/bin', GH_TOKEN: 'x', GITHUB_TOKEN: 'y', ACTIONS_RUNTIME_TOKEN: 'z', HOME: '/h' });
     expect(env).toEqual({ PATH: '/usr/bin', HOME: '/h' });
+  });
+});
+
+describe('the open code-scanning alerts, read whole and grouped (report only)', () => {
+  const ALERTS = fixture<Alert[]>('code-scanning-alerts-hand-made.json');
+  const sentences = (lines: Line[]) => lines.map((l) => l.sentence);
+  const groupLine = (lines: Line[], what: string) => lines.find((l) => l.sentence.includes(what))?.sentence ?? '';
+
+  /** The API's whole alert, as `GET code-scanning/alerts` answers it, around a slim one. */
+  const raw = (alert: Alert) => ({
+    ...alert,
+    created_at: '2026-10-19T12:40:00Z',
+    updated_at: '2026-10-22T16:10:00Z',
+    url: `https://api.github.com/repos/Robbes/Ownpace/code-scanning/alerts/${alert.number}`,
+    html_url: `https://github.com/Robbes/Ownpace/security/code-scanning/${alert.number}`,
+    instances_url: `https://api.github.com/repos/Robbes/Ownpace/code-scanning/alerts/${alert.number}/instances`,
+    fixed_at: null,
+    dismissed_by: { login: 'somebody', id: 1, type: 'User' },
+    dismissed_at: null,
+    dismissed_reason: null,
+    dismissed_comment: null,
+    dismissal_approved_by: { login: 'somebody-else', id: 2, type: 'User' },
+    assignees: [{ login: 'a-third', id: 3, type: 'User' }],
+    rule: { ...alert.rule, name: 'OsPackageVulnerability', description: 'a description', tags: ['vulnerability', 'security'], help: 'help text' },
+    tool: { ...alert.tool, guid: null, version: '0.67.2' },
+    most_recent_instance: {
+      ...alert.most_recent_instance,
+      analysis_key: '.github/workflows/security-scan.yml:image-scan',
+      environment: '{}',
+      state: 'open',
+      commit_sha: 'c'.repeat(40),
+      message: { text: 'Package: openssl\nInstalled Version: 3.0.15\nVulnerability ...' },
+      location: { path: 'library/redis', start_line: 1, end_line: 1 },
+      classifications: [],
+    },
+  });
+
+  it('the fixture is what the whitelist keeps of an alert: no account, link or message', () => {
+    expect(ALERTS.length).toBeGreaterThan(TOP_RULES * 4);
+    for (const alert of ALERTS) {
+      expect(slimAlert(alert)).toEqual(alert);
+      for (const key of Object.keys(alert)) expect([...ALERT_FIELDS, 'rule', 'tool', 'most_recent_instance']).toContain(key);
+      for (const key of Object.keys(alert.rule ?? {})) expect(ALERT_RULE_FIELDS).toContain(key);
+      for (const key of Object.keys(alert.tool ?? {})) expect(ALERT_TOOL_FIELDS).toContain(key);
+      for (const key of Object.keys(alert.most_recent_instance ?? {})) expect(ALERT_INSTANCE_FIELDS).toContain(key);
+    }
+    const whole = raw(ALERTS[0]!);
+    const slim = slimAlert(whole);
+    expect(slim).toEqual(ALERTS[0]);
+    expect(JSON.stringify(slim)).not.toMatch(/somebody|a-third|dismiss|assignee|html_url|message|location/);
+  });
+
+  it('reads every page of both severities, per_page=100, and keeps only the whitelist', async () => {
+    // 67 critical on one page; 237 high over three: the first run's "100 high" was the page size.
+    const made = (severity: string, n: number, from: number) =>
+      Array.from({ length: n }, (_, i) =>
+        raw({
+          number: from + i,
+          state: 'open',
+          rule: { id: `CVE-2026-${10000 + ((from + i) % 40)}`, severity: 'error', security_severity_level: severity },
+          tool: { name: 'Trivy' },
+          most_recent_instance: { ref: 'refs/heads/main', category: i % 2 ? 'trivy-image-nextcloud' : REPOSITORY_SCAN_CATEGORY },
+        }),
+      );
+    const pages: Record<string, unknown[][]> = {
+      critical: [made('critical', 67, 1)],
+      high: [made('high', 100, 1000), made('high', 100, 1100), made('high', 37, 1200)],
+    };
+    const asked: string[] = [];
+    const client: Client = {
+      async get(path: string) {
+        asked.push(path);
+        const url = new URL(path, 'https://api.example/');
+        const severity = url.searchParams.get('severity') ?? '';
+        const page = Number(url.searchParams.get('page'));
+        return pages[severity]?.[page - 1] ?? [];
+      },
+      async send() {
+        throw new Error('the preflight writes nothing');
+      },
+    };
+    const alerts = await readOpenAlerts(client);
+    expect(alerts).toHaveLength(67 + 237);
+    expect(asked).toHaveLength(4);
+    for (const path of asked) {
+      expect(path).toMatch(/^code-scanning\/alerts\?state=open&ref=refs\/heads\/main&severity=(critical|high)&per_page=100&page=\d$/);
+    }
+    expect(JSON.stringify(alerts)).not.toMatch(/somebody|dismiss|assignee|message/);
+    const lines = alertsNotes(alerts);
+    expect(lines[0]!.sentence).toMatch(/^67 critical and 237 high code-scanning alert\(s\) open on main, in 2 group\(s\)/);
+  });
+
+  it('a list longer than the cap is an error, never a short count; an answer that is not a list is one too', async () => {
+    const full: Client = { get: async () => Array.from({ length: 100 }, (_, i) => ({ number: i })), send: async () => ({ status: 0, json: null }) };
+    await expect(getAll(full, 'code-scanning/alerts?state=open', { maxPages: 3 })).rejects.toThrow(/more than 3 pages/);
+    const odd: Client = { get: async () => ({ message: 'not a list' }), send: async () => ({ status: 0, json: null }) };
+    await expect(getAll(odd, 'code-scanning/alerts?state=open')).rejects.toThrow(/not a list|something other than a list/);
+  });
+
+  it('prints the total, then one note per tool and category, the most critical first', () => {
+    const lines = alertsNotes(ALERTS);
+    expect(lines.every((l) => l.kind === 'note' && l.check === 'code-scanning')).toBe(true);
+    const groups = alertGroups(ALERTS);
+    expect(lines).toHaveLength(groups.length + 1);
+    const critical = ALERTS.filter((a) => a.rule?.security_severity_level === 'critical').length;
+    const high = ALERTS.filter((a) => a.rule?.security_severity_level === 'high').length;
+    expect(lines[0]!.sentence).toBe(
+      `${critical} critical and ${high} high code-scanning alert(s) open on main, in ${groups.length} group(s) by tool and category below: reported, not refused`,
+    );
+    const order = groups.map((g) => [g.critical, g.critical + g.high]);
+    expect(order).toEqual([...order].sort((a, b) => b[0]! - a[0]! || b[1]! - a[1]!));
+    expect(groups.reduce((n, g) => n + g.critical + g.high, 0)).toBe(ALERTS.length);
+  });
+
+  it('names the image of an image scan’s category, and the repository scan by its own', () => {
+    const lines = alertsNotes(ALERTS);
+    const nextcloud = groupLine(lines, 'trivy-image-nextcloud');
+    expect(nextcloud).toMatch(/^Trivy, image nextcloud \(category trivy-image-nextcloud\): \d+ critical and \d+ high in \d+ rule\(s\); most: /);
+    expect(groupLine(lines, 'trivy-image-redis')).toMatch(/^Trivy, image redis \(/);
+    expect(groupLine(lines, REPOSITORY_SCAN_CATEGORY)).toMatch(/^Trivy, the repository’s filesystem scan \(category \.github\/workflows\/security-scan\.yml:security-scan\): /);
+    // A category's trailing slash, as the upload writes it, is not part of its name.
+    const slashed = alertsNotes([{ ...ALERTS[0]!, most_recent_instance: { ref: 'refs/heads/main', category: 'trivy-image-gatus/' } }]);
+    expect(slashed[1]!.sentence).toMatch(/^Trivy, image gatus \(category trivy-image-gatus\)/);
+  });
+
+  it('lists a group’s most alerted rule ids, critical first, with their counts, and says how many more', () => {
+    const lines = alertsNotes(ALERTS);
+    const nextcloud = alertGroups(ALERTS).find((g) => g.category === 'trivy-image-nextcloud')!;
+    expect(nextcloud.rules.length).toBeGreaterThan(TOP_RULES);
+    const most = nextcloud.rules.slice(0, TOP_RULES);
+    const sentence = groupLine(lines, 'trivy-image-nextcloud');
+    expect(sentence).toContain(`most: ${most.map((r) => `${r.id} (${r.severity}, ${r.alerts})`).join(', ')}, and ${nextcloud.rules.length - TOP_RULES} more`);
+    const ranks = nextcloud.rules.map((r) => (r.severity === 'critical' ? 0 : 1));
+    expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
+    expect(most.some((r) => r.alerts > 1)).toBe(true);
+    for (const rule of nextcloud.rules) expect(rule.id).toMatch(/^(CVE-\d{4}-\d{4,}|GHSA(-[23456789cfghjmpqrvwx]{4}){3})$/);
+  });
+
+  it('keeps tools apart: one category under two tools is two groups', () => {
+    const codeql = { ...ALERTS[0]!, number: 99999, tool: { name: 'CodeQL' } };
+    const lines = alertsNotes([ALERTS[0]!, codeql]);
+    expect(lines).toHaveLength(3);
+    expect(sentences(lines).filter((s) => s.startsWith('CodeQL, '))).toHaveLength(1);
+  });
+
+  it('prints nothing a log could be made to carry: one line each, no "@", ids cut short', () => {
+    const at = String.fromCharCode(64);
+    const odd = {
+      ...ALERTS[0]!,
+      rule: { id: `CVE-2026-1\n::error::forged someone${at}example.invalid`, security_severity_level: 'critical' },
+      tool: { name: 'Trivy\r\nnote x' },
+      most_recent_instance: { ref: 'refs/heads/main', category: `trivy-image-${'x'.repeat(300)}` },
+    };
+    for (const line of alertsNotes([odd])) {
+      expect(line.sentence).not.toMatch(/[\r\n@]/);
+      expect(line.sentence.length).toBeLessThan(400);
+    }
+    for (const line of alertsNotes(ALERTS)) expect(line.sentence).not.toMatch(/[\r\n@]/);
+  });
+
+  it('a list that could not be read is a note that says why, never a refusal; none open says so', () => {
+    expect(alertsNotes(null, 'GET code-scanning/alerts answered 403: Resource not accessible by integration')).toEqual([
+      { kind: 'note', check: 'code-scanning', sentence: 'the open code-scanning alerts could not be read: GET code-scanning/alerts answered 403: Resource not accessible by integration' },
+    ]);
+    expect(alertsNotes([])).toEqual([{ kind: 'note', check: 'code-scanning', sentence: 'no open critical or high code-scanning alert on main' }]);
   });
 });
 
