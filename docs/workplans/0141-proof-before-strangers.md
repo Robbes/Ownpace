@@ -2,7 +2,18 @@
 
 > **In one line:** Live-account proofs lifting the experimental tag via a Live proofs table (Microsoft 365, Dropbox, Apple, Google Tasks, Soverin), the organiser canary, shared mailboxes, Microsoft-aware detectors, a managed browser walk, the O365 lane, nightly-gate readiness.
 
-## Status — 2026-10-21 (update this block at the end of every session)
+## Status — 2026-10-23 (update this block at the end of every session)
+
+**2026-10-23, build: T14 read by code, on branch
+`claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged.** T14
+said "No code, so there is no guard". The Release workflow now reads the rule
+(`scripts/release-nights.mjs`), and the owner's answers to the Release design
+of 2026-10-23 settle three readings T14 left open: both counted nights on C,
+a run with any failed attempt does not count, and what the freeze is. They are
+written once, in T14 below, and the other texts point there. Read on
+2026-10-23 against the live record: E2E (managed) #265 ran `91b49de9` and #262
+ran `29693244`, so no commit qualifies under the rule until two nights run one
+commit.
 
 **2026-10-21, build: T12 (b), the fixture cases (§4 step 1, *"T12(b) can follow at any time"*)**,
 merged as #1646 on 2026-10-21 (`fb7962c5`). The UI smoke (`test/ui/managed-ui.ui.test.ts`) now
@@ -419,7 +430,7 @@ for the card says so.
 | T11 The detectors and the permission report tell a Connect-with-Microsoft tester the truth | 📋 **Proposed**; the minimum 🔨 built 2026-09-27, merged as #1246; the credential model (open question 7) parked 2026-09-27 | §3. The finding was checked again on 2026-09-24. The true sentence goes in **before the first Microsoft 365 tester**. Per-tenant credentials come **after**, with an ADR. |
 | T12 The managed journey in a browser | ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ✅ **done** in #1646, merged 2026-10-21 (the fixture cases, (b)); ⏳ **Owner** (the walk); 📋 **Proposed** (the real-API journey, (c), after) — *was:* ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) | §3. The two-stranger walk happens on `ownpace-live` **before the first invitation**. The real-API journey comes **after**, in the gate on the OTA stack; it was parked on 0132 T8, which 0132 D7 superseded. |
 | T13 The O365 lane and the live-target lane | ⏳ **Owner** (runner label, secrets); 📋 **Proposed** (code) | §3. **After.** A green run counts only when it ran the product's code against a real account. |
-| T14 The nightly managed gate's readiness rule | 📋 **Decided 2026-09-27**: two nights, scheduled runs only; **read 2026-09-27: 0 of 2** (the managed gate's #199 and #200 red, the appliance's last four green), and stated in `docs/testing.md` — *was:* ⏳ **Owner** (names N); 📋 **Proposed** (the rule) | §3. Worked out with 0132 T6 step 1. It is read **before the first invitation**, before live's first bring-up from a tag, and again before each later deploy to live. |
+| T14 The nightly managed gate's readiness rule | 🔨 **Read by code** on branch `claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged (2026-10-23): `scripts/release-nights.mjs`, which the Release workflow runs; both nights on C, every attempt green, and the freeze, the owner's of 2026-10-23, written in §3; 📋 **Decided 2026-09-27**: two nights, scheduled runs only; **read 2026-09-27: 0 of 2** (the managed gate's #199 and #200 red, the appliance's last four green), and stated in `docs/testing.md` — *was:* ⏳ **Owner** (names N); 📋 **Proposed** (the rule) | §3. Worked out with 0132 T6 step 1. It is read **before the first invitation**, before live's first bring-up from a tag, and again before each later deploy to live. |
 
 ## 1. What there is today
 
@@ -1139,16 +1150,57 @@ of the gate first, for Node 24. That run is a precondition, not part of the coun
 **During the alpha,** each later deploy to live meets the same rule for its tag, or the owner
 accepts fewer in writing. Either way it is written in 0132's deploy log (0132 T6 step 9).
 
-**Reading it:**
+**The rule as Release reads it (the owner, 2026-10-23).** This is the one
+statement of it; `docs/release.md`, `docs/testing.md`, 0132 T6 step 1 and 0146
+point here. The Release workflow (`.github/workflows/release.yml`) reads it
+with `scripts/release-nights.mjs`, in its preflight and again just before it
+cuts the tag (a re-run that finds its own tag already made does not read them
+again), and refuses a commit it does not hold for:
+
+- **Both nights on C.** The newest two completed scheduled runs of
+  `e2e-managed.yml` on `main` both ran C, not only the newer one (decision 2 of
+  the Release design: the owner's own wording, `docs/release.md` §5 and 0132
+  T6 step 1). A run still queued or running at the top is named and passed
+  over until it finishes.
+- **Every attempt green.** A scheduled run with any failed attempt does not
+  count, though the run list shows only the last attempt: #255 of 2026-10-15
+  is listed green, and its first attempt failed (decision 3).
+- **No night missing.** The newer counted run is at most 30 hours old, and at
+  most 30 hours lie between the two: GitHub starts these schedules hours late
+  and sometimes drops one.
+- **The appliance nightly's four.** The newest four completed scheduled runs
+  of `e2e.yml` created after C reached `main` (or after the managed run before
+  the two counted ones, when that is later) and before the newer counted
+  managed run: each ran C, each green on every attempt. Not assigned night by
+  night, since an early managed run or a late appliance run would move a run
+  across a boundary. A failed scheduled appliance run on C after them resets
+  the count.
+- Dispatched runs never count; the live-target lane joins when T13 arms it.
+
+**The freeze** (decision 4), the word 0146, 0139 and the legal README use:
+from the merge of the CHANGELOG fold (which is C) until Release has tagged,
+nothing merges to `main`, docs and Dependabot included, and nobody dispatches
+E2E (managed) on any branch or E2E (self-hosted) on `main`, either of which
+can cancel a pending scheduled run, which resets the count. The fold merges
+before 23:30 UTC on the eve of the first night, so all four appliance runs
+are on C. Release does not enforce the freeze; it shows its result: with both
+nights on C nothing merged between them, and its summary counts the commits
+on `main` after C.
+
+Accepting fewer nights is not an input of Release (decision 9): the
+break-glass is a tag pushed by hand, with the acceptance written in 0132's
+deploy log (`docs/release.md` §2).
+
+**Reading it** without Release:
 
 ```bash
-gh run list --workflow e2e-managed.yml --event schedule --branch main --limit 2 \
-  --json number,conclusion,headSha,createdAt
-gh run list --workflow e2e.yml --event schedule --branch main --limit 4 \
-  --json number,conclusion,headSha,createdAt
+node scripts/release-nights.mjs --pick          # the commit, when the rule holds
+node scripts/release-nights.mjs --commit <sha>  # the rule for one commit
 ```
 
-The numbers and C are written in this block. No code, so there is no guard.
+Held by `scripts/two-nights-read-from-the-record.unit.test.ts`, on runs
+recorded from the API: today's record refuses, `a6be6129`'s nights of 09-30
+and 10-01 pass, and #255's failed first attempt refuses.
 
 ## 4. Order
 

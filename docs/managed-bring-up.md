@@ -4442,8 +4442,11 @@ report's build line, the deploy log and the GitHub release all name the same
 thing. One script moves it:
 
 1. **Name the tag.** An annotated `v*` tag on origin, cut as
-   [release.md](./release.md) §2 says, whose commit the nightly gate ran green
-   on the OTA stack. Record the tag and its commit.
+   [release.md](./release.md) §2 says: by the Release workflow, which refuses a
+   commit the nightly gate has not run green on the OTA stack as workplan 0141
+   T14 reads it, and checks what the tag published. Record the tag, its
+   commit, and the Release run its message names. A tag pushed by hand is the
+   break-glass path, and the deploy log says why.
 2. **Start the hold**, with a sentence in Dutch, and **wait for the drain**:
    *Draining first, and telling customers why*, below. The tick's log says
    `0 pass(es) still in flight` when it is done.

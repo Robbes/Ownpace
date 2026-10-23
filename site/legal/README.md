@@ -49,9 +49,9 @@ settle the texts, verbatim:
 - The language: *"English governs, with the exception"*. Terms §13 is unchanged, and the note
   above the Dutch privacy and terms pages now carries its exception.
 - *"Two tags"*: v0.2.0-alpha.1 as soon as the pull requests in flight merge, to stand up live and
-  rehearse, with these texts still drafts; the final texts come in alpha.2, with its own freeze,
-  two nights and a deploy, before the first invitation. So this pull request merges only after
-  alpha.1 is tagged, and after the owner has read it.
+  rehearse, with these texts still drafts; the final texts come in alpha.2, with its own freeze
+  (0141 T14 says what a freeze is), two nights and a deploy, before the first invitation. So this
+  pull request merges only after alpha.1 is tagged, and after the owner has read it.
 
 Changed in the same pull request, under the numbers above: the closing sentence in all three, in
 both languages, and the Alpha conditions §8, which now say that an admin cannot *"change or
@@ -389,9 +389,10 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   T3): **built 2026-10-05** in the owner's final-text pull request, which drops the draft words
   from privacy 1.2 and terms 1.3, sets `LEGAL_DRAFTS` to match, and pins their words in
   `ACCEPTED_WORDS` (*What a final Version line looks like*, above). **Still to do:** merged after
-  v0.2.0-alpha.1 is tagged and the owner has read it, then alpha.2, with its own freeze, two
-  nights and a deploy (the owner, 2026-10-05: *"Two tags"*). Until that release is on live, live
-  asks nobody, so the first invitation waits for it. The API's start log says which.
+  v0.2.0-alpha.1 is tagged and the owner has read it, then alpha.2, with its own freeze (0141 T14
+  says what a freeze is), two nights and a deploy (the owner, 2026-10-05: *"Two tags"*). Until
+  that release is on live, live asks nobody, so the first invitation waits for it. The API's
+  start log says which.
 - *The language on the record* (privacy §4.4; review of 2026-09-29): the record keeps the
   language each text was accepted in, and the draft of §4.4 now says so in both languages
   (*"in which language"* / *"in welke taal"*), as does the screen. **Kept** in the final text

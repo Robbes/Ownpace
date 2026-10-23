@@ -3544,7 +3544,9 @@ document is changed to mark staged rollout and a backup before migrating as not 
 `docs/deployment.md` has done since #1137 (merged 2026-09-24).
 
 1. Name the tag: a tag on `main` (0146) whose commit the nightly gate ran green on the OTA stack.
-   0131 T5 asks for N green scheduled runs of the deployed commit. Record the tag and its hash.
+   0131 T5 asks for N green scheduled runs of the deployed commit; 0141 T14 is the one statement
+   of the rule, and the Release workflow refuses to tag a commit it does not hold for
+   (`docs/release.md` §2). Record the tag, its hash and the Release run its message names.
 2. Start the hold on live, with a sentence in Dutch (D6). Testers read it word for word on the
    banner, and as the answer to every button that would start work, which the hold now refuses
    (T6 (b)). The count the wizard's confirm screen starts by itself shows the sentence too, and
