@@ -803,6 +803,11 @@ if the instance genuinely has no project does it stop, and then:
    Open it **in the same browser**. Links are single-use and short-lived; if
    one is spent, ask the dashboard for another and run the command again — it
    always prints the newest. `--all` prints every link still in the log buffer.
+   Ask for it **on `TRIGGER_LOGIN_ORIGIN`** too: since Trigger.dev v4.7.4 the
+   link always points there and signs in only the browser session that asked
+   for it, so a link asked for through another address (a tunnel to the http
+   port, `localhost` where the origin is another host) opens without that
+   session and is refused.
 
    *If it finds nothing*, you have almost certainly not done step 2 yet: the
    link is only written when one is requested. That is not a broken stack.
@@ -4663,9 +4668,18 @@ worker bundles** — in practice `packages/connectors`, `packages/engines`,
 purely web. When in doubt, run it: it is idempotent and costs a minute.
 And when it moved `apps/api/Dockerfile`'s `FROM` line, which Dependabot does
 most weeks: the task image takes its Node from that image
-(`apps/worker/trigger.config.ts`, since 2026-10-23), and a task deploy is what
+(`apps/worker/trigger.config.ts`, issue #1669), and a task deploy is what
 carries the new one to the tasks. The managed gate and `deploy-live.sh` run the
-bring-up from `data`, whose `tasks` phase deploys them.
+bring-up from `data`, whose `tasks` phase deploys them. That first deploy after
+the `FROM` line moves (or after a Trigger.dev move changes the CLI's own base
+image) is the slow one: the same layer upgrades the base image's
+Debian packages, and with a layer of its own the CLI builds its build stage on
+that image and installs python3, make and g++ there, so apt runs in both
+stages and needs the Debian archive reachable from this machine (the build
+runs with `--network host`). The builder caches both, so the deploys after it,
+until the next move, take their usual minute; it is also when the base image's
+packages are refreshed, not at every deploy. A deploy that slows down or stops
+on `apt-get` points here.
 
 **`deploy-tasks.sh` installs this checkout's packages first**
 (`pnpm install --frozen-lockfile`, since 2026-09-28). The images install their

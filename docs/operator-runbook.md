@@ -342,7 +342,9 @@ workplan 0018.
 **One-time setup (per fresh trigger-db volume):**
 
 1. Open the dashboard — `https://$TRIGGER_TLS_HOST:$TRIGGER_TLS_PORT` — and enter an email.
-   There is no SMTP: fetch the magic link from the logs and open it in the same browser:
+   There is no SMTP: fetch the magic link from the logs and open it in the same browser. Ask
+   for it on that address (`TRIGGER_LOGIN_ORIGIN`): since Trigger.dev v4.7.4 the link points
+   there and signs in only the browser session that asked for it:
    ```bash
    ./deploy/compose/trigger-magic-link.sh
    ```

@@ -30,11 +30,19 @@ import { defineConfig } from '@trigger.dev/sdk';
  * to 4.7.6, two security releases behind, and nothing here moved it. So a
  * deploy adds one layer to the task image: the Node binary out of the image
  * `apps/api/Dockerfile` builds FROM, copied over the base image's, and the base
- * image's Debian packages brought up to date. Dependabot moves that FROM line,
- * so the tasks move with the API. The CLI puts a layer's instructions in the
- * image's first stage, as root, which its build, indexer and final stages all
- * start from. An official Node binary needs only glibc 2.28, so one taken from
- * a trixie image runs on the base image's bookworm.
+ * image's Debian packages upgraded. Dependabot moves that FROM line, so the
+ * tasks move with the API. The CLI puts a layer's instructions in the image's
+ * first stage, as root, which its build, indexer and final stages all start
+ * from. An official Node binary needs only glibc 2.28, so one taken from a
+ * trixie image runs on the base image's bookworm.
+ *
+ * The upgrade's text never changes, so the CLI's persistent `trigger` builder
+ * serves it from its cache: the packages are refreshed when the API's Node
+ * image moves (the COPY above it invalidates the cache) or when the builder's
+ * cache is gone, not at every deploy. Since CLI 4.7.6 the image also sets
+ * `NODE_OPTIONS=--use-openssl-ca`, so the tasks verify TLS against Debian's
+ * `ca-certificates`, which that upgrade moves, and no longer against the list
+ * built into Node.
  *
  * The Dockerfile is read on the DEPLOYING machine, at the start of the build:
  * a throw in `onBuildStart` stops the deploy, where one in `onBuildComplete`
@@ -42,11 +50,13 @@ import { defineConfig } from '@trigger.dev/sdk';
  * no image, so it gets nothing. The indexer container imports this file again,
  * and neither hook runs there.
  *
- * Instructions in the first stage cost a little at every deploy: the CLI then
- * builds its build stage on that stage instead of its prebuilt `-build` image,
- * installing python3, make and g++ itself, and both stages need the Debian
- * archive. `scripts/a-gate-on-a-version-nothing-ships.unit.test.ts` holds the
- * layer to the Dockerfile's FROM line. A change here takes a task re-deploy.
+ * Instructions in the first stage have a cost: the CLI then builds its build
+ * stage on that stage instead of its prebuilt `-build` image, installing
+ * python3, make and g++ itself, so a deploy that misses the cache (the first
+ * after the Node image moves) runs apt in both stages, takes longer and needs
+ * the Debian archive. `scripts/a-gate-on-a-version-nothing-ships.unit.test.ts`
+ * holds the layer to the Dockerfile's FROM line. A change here takes a task
+ * re-deploy.
  */
 const TASK_NODE = 'task-node';
 let apiNodeImage: string | undefined;
