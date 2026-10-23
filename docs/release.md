@@ -48,17 +48,24 @@ one line per check, `pass` or `refuse`, every reason at once):
   nights ran C and are green on every attempt.
 - **Upgrade gates against the PREVIOUS release**, read rather than eyeballed
   (`scripts/release-upgrade-gates.mjs`): each chain's upgrade test runs with
-  `UPGRADE_FROM_REF` set to the release before, and every case must have run
-  and passed; a skip is a hole, not a pass. The ledger chain's is
-  `packages/ledger/src/migrate-upgrade.unit.test.ts`; the managed chain's is
-  `packages/managed/src/migrate-upgrade.unit.test.ts`, and while that file does
-  not exist at C the managed chain is "not exercised" and the preflight
-  refuses. `two-chains.unit.test.ts` is not an upgrade proof (it adopts a
-  database from before the chains split) and is not counted. By hand:
-  `git fetch origin tag <previous-tag>` and
-  `UPGRADE_FROM_REF=<previous-tag> pnpm vitest run --project unit packages/ledger/src/migrate-upgrade.unit.test.ts`,
-  and confirm the six `skipIf(!HAVE_REF)` tests **executed**, including the
-  downgrade refusal.
+  `UPGRADE_FROM_REF` set to the release before (without it each starts from
+  its own default, which is not the previous release), and every case must
+  have run and passed; a skip is a hole, not a pass. A chain whose test does
+  not exist at C is "not exercised", and the preflight refuses. The line for
+  each chain gives its migration count at the release before and at C.
+  `two-chains.unit.test.ts` is not an upgrade proof and is not counted: it
+  adopts a database that predates the managed chain. By hand, after
+  `git fetch origin tag <previous-tag>`:
+  - **the shared chain's gate:**
+    `UPGRADE_FROM_REF=<previous-tag> pnpm vitest run --project unit packages/ledger/src/migrate-upgrade.unit.test.ts`,
+    and confirm the six `skipIf(!HAVE_REF)` tests **executed**, including the
+    downgrade refusal;
+  - **the managed chain's upgrade proof:** the same with
+    `packages/managed/src/migrate-upgrade.unit.test.ts`, and confirm the seven
+    `skipIf(!HAVE_REF)` tests **executed**. It applies both chains as the
+    previous release did, with that release's own migrators, then this
+    build's, and compares the result with a fresh install. A release before
+    the managed chain (rc.1) is refused by name.
 - The workflows Release dispatches, as C has them, take the inputs it passes.
 - And it says, without refusing: whether the `release` environment asks a
   reviewer, the open critical and high code-scanning alerts on `main` (the
@@ -82,6 +89,18 @@ one line per check, `pass` or `refuse`, every reason at once):
       further restart. The drill says when it is vacuous (tag == HEAD, or the
       chain has no new migration) — a vacuous pass does not count, and the
       drill compares the ledger chain only. Release lists it as not checked.
+      **Not applicable for `v0.2.0-alpha.2`** (workplan 0146, 2026-10-23).
+      The drill upgrades the appliance, which applies the shared chain only,
+      and that chain is the same 65 files, byte for byte, in
+      `v0.2.0-alpha.1` and on `main`: from alpha.1 the drill, and the shared
+      chain's unit gate, would exercise no migration, and each says so. The
+      alpha is managed-only, so no tester runs an appliance. What moved is the
+      managed chain (46 files in alpha.1, 59 on `main`), and its proof is the
+      managed chain's upgrade test above, which the preflight runs. If a
+      shared migration lands before the tag, the drill applies again. What it
+      alone would still show is an appliance opening a PGlite directory
+      alpha.1's image wrote, across PGlite 0.5.8 to 0.5.10: the appliance's
+      question, for the first release an appliance tester runs.
 - [ ] **Before the first non-demo tenant beyond the alpha** (not per release,
       but check it here because this list is what gets read): CI and the live
       managed stack are not on the same machine — see the operator runbook,

@@ -48,13 +48,14 @@ reaches the self-hosted machine or live.
   and `packages/managed/src/migrate-upgrade.unit.test.ts` with
   `UPGRADE_FROM_REF` set to the release before, reads vitest's report, and
   refuses unless every case ran and passed; a chain whose file does not exist
-  at C is "not exercised" and refuses. That file is the other pull request of
-  this round; until it merges, every preflight refuses `upgrade-managed`.
-  `two-chains.unit.test.ts` is not counted: it adopts a pre-split database.
-  Run from alpha.1, the ledger gate failed one case ("still finds every
-  leftover it declares"): its pre-split leftovers are rc.1's. The case now
-  expects a leftover only from a release whose migrations created it, and the
-  gate passes from rc.1 and from alpha.1 (8 of 8 each, 2026-10-23).
+  at C is "not exercised" and refuses. The managed file is #1681's, merged
+  2026-10-23 (`b357add8`; its entry below), and `main` is merged into this
+  branch. `two-chains.unit.test.ts` is not counted: it adopts a pre-split
+  database. Run from alpha.1, the ledger gate failed one case ("still finds
+  every leftover it declares"): its pre-split leftovers are rc.1's. Both pull
+  requests fixed that case, each in its own way; the merge keeps #1681's
+  (merged, and green in CI), the allow-list held to releases with no
+  `packages/managed/migrations`, and drops this branch's.
 - **Proven so far, in this session:** the guards, written first and shown red
   (eight files, seven on missing modules); the preflight run by hand against
   the live record on `main`'s head `a5ae29d1`, which refused, as it should, on
@@ -86,6 +87,95 @@ reaches the self-hosted machine or live.
   token; the gate scan passes only when every image job skipped; the
   `openapi.yaml` guard derives the next version instead of naming alpha.3;
   and 0139 and `site/legal/README.md` point at 0141 T14 for the freeze.
+- **Merged with `main` after #1681, 2026-10-23.** The ledger gate is #1681's,
+  and `scripts/an-upgrade-gate-that-skipped-itself.unit.test.ts` says so; its
+  ledger reports are recorded again from that file (from alpha.1, from rc.1,
+  and with the tag missing: only the case's new title differs), and the
+  managed gate's own report from alpha.1 takes the place of the ledger's
+  copied under its name. `docs/release.md` keeps §1's Release-centred list
+  with #1681's facts in it: both gates' commands with
+  `UPGRADE_FROM_REF=<previous-tag>`, the managed gate as the managed chain's
+  proof with its count, seven, and the drill not applicable for alpha.2 and
+  why. **The upgrade gates, run for real** on the merge, with `v0.2.0-alpha.1` fetched
+  (`node scripts/release-upgrade-gates.mjs --candidate . --from
+  v0.2.0-alpha.1`): *"pass upgrade-ledger: all 8 cases ran and passed, 7 of
+  them upgrading from v0.2.0-alpha.1; 65 → 65 migrations: nothing to upgrade
+  on this chain, so the gate ran its mechanics and no migration"* and *"pass
+  upgrade-managed: all 12 cases ran and passed, 8 of them upgrading from
+  v0.2.0-alpha.1; 46 → 59 migrations"*.
+
+**2026-10-23, build: the managed chain's upgrade proof, merged as #1681 (`b357add8`)** from
+branch `claude/ownpace-public-readiness-y7orc6-managed-upgrade-test`. Part of T4, and what the
+release workflow's preflight needs to prove `v0.2.0-alpha.1` to the next tag.
+
+- **Why the drill is not applicable for `alpha.2`.** `v0.2.0-alpha.1` carries 46 managed
+  migrations and `main` 59; the shared chain is 65 files in both, byte for byte
+  (`git diff v0.2.0-alpha.1 -- packages/ledger/migrations` is empty). The container drill
+  (`upgrade-drill.sh`) upgrades the appliance, which applies the shared chain only, so from
+  alpha.1 it would exercise no migration and say so itself (*"both carry 65 migrations"*); the
+  shared chain's unit gate likewise. The alpha is managed-only (open question 3), so no tester
+  runs an appliance. What the drill alone would still show is an appliance opening a PGlite
+  directory alpha.1's image wrote, across PGlite 0.5.8 to 0.5.10: the appliance's question, for
+  the first release an appliance tester runs. If a shared migration lands before the tag, the
+  drill applies again. `release.md` §1 says the same.
+- **The test.** `packages/managed/src/migrate-upgrade.unit.test.ts`, in the unit project on
+  PGlite like the shared gate, from `UPGRADE_FROM_REF` or `v0.2.0-alpha.1`; it throws under `CI`
+  when the ref is missing, and refuses a ref with no managed chain (rc.1) by name. It writes both
+  chains AND both migrators (`migrate.ts`, `migrate-managed.ts`) at the ref into a temp tree laid
+  out like the repository, and applies the ref's chains with the ref's own migrators, shared
+  first, as the API at the ref did; then this build's two chains with this build's migrators.
+  Seven `skipIf(!HAVE_REF)` cases: nothing lost and every new file after the ref's last; only
+  the added files apply (names, count, order) and the ref's bookkeeping rows are untouched;
+  every file the ref applied is still its SQL (the migrator records names, never content, so an
+  edit reaches fresh installs only; comments are compared away, and 0006 and 0008's notes from
+  #1650 are reported); the upgraded catalogue equals a fresh install's (relations with their row
+  security and grants, columns with their collation, column order, column grants, indexes,
+  constraints, policies, triggers, functions, views, types, default privileges, roles, extensions
+  and comments), with no allow-list; a further
+  run applies nothing; and the ref's own migrators refuse the upgraded database on each chain
+  that moved. Four more cases hold the comment-stripping comparison.
+- **Read on the branch, 2026-10-23,** from alpha.1: shared 65 -> 65 (0 added), managed 46 -> 59
+  (13 added); compared 75 relations, 704 columns, 106 column grants, 158 indexes, 696
+  constraints, 191 policies, 7 triggers, 7 functions, 12 views, 2 default privileges, 3 roles and
+  2 extensions; 12 of 12 passed. **Mutations**, each restored: a column added to applied 0044
+  (2 cases red: the SQL, the columns); a new 0060 dropping the column 0044 was edited to lack
+  (red: the SQL), and the same without `IF EXISTS` (red: the SQL, the fresh install fails); a
+  data-only edit to applied 0040 (red: the SQL, which no catalogue sees); a statement appended
+  to an applied shared file (red); a new file numbered `0045a_` (red: order, applied); an applied
+  file renumbered as new (red: lost, schema); this build's managed bookkeeping table renamed
+  (4 red: what proves the ref's migrators, not this build's, applied the ref). Green: a
+  comment-only edit, a new 0060 dropping a column, and a new shared `0068_` (both chains move,
+  and the ref's shared migrator refuses too).
+- **The shared gate from alpha.1 was red.** With `UPGRADE_FROM_REF=v0.2.0-alpha.1`, `main`'s
+  `packages/ledger/src/migrate-upgrade.unit.test.ts` failed one case: `MOVED_TO_MANAGED_CHAIN`'s
+  four tables are rc.1's leftovers, and alpha.1's shared chain never made them. The allow-list
+  now holds only from a release with no `packages/managed/migrations`; from a later one the stale
+  check asserts the four are absent. Green from rc.1 and from alpha.1 (8 of 8 each); with the
+  condition forced false, rc.1 turns 2 cases red.
+- **`release.md` §1.** Both gates' commands carry `UPGRADE_FROM_REF=<previous-tag>` (the shared
+  one ran without it, so from rc.1); the managed gate is listed with its count, seven, and
+  `two-chains.unit.test.ts` is named as not an upgrade proof. `a-release-that-names-itself` now
+  checks the count written after each gate's path against that file (red on `main`'s
+  `release.md`, and with the managed count written as six).
+- **Unlike T4 as written:** the alpha leg is a file of its own rather than cases in the shared
+  gate and `two-chains.unit.test.ts`, and it starts from `UPGRADE_FROM_REF` (the release
+  workflow sets it) rather than a `release-line.json`.
+- **Not in this:** wiring it into the release workflow's preflight, which is that pull request's;
+  the Postgres leg (T4); `two-chains.unit.test.ts`, which still reads `UPGRADE_FROM_REF` for a
+  case that means something only from a release before the split.
+- **Review, 2026-10-23.** Three minor findings, all taken. The header said an import in the
+  release's migrator resolves as in the repository; an `@openmig/*` one does not, vitest's aliases
+  send it to this build's source (`@openmig/shared`, for `log`, which a migrator given a logger
+  never calls), and the header says so. The catalogue left out column order, collation and
+  `COMMENT ON`; it now has a `column order` line per table (live columns, so a dropped column's
+  gap does not count), `collate=` on each column, and a digest per comment (106, with a floor of
+  50 so a filter that reads none is red). Each was shown on applied 0044: two columns swapped,
+  `COLLATE "C"` on one, a comment's text changed. The catalogue went red on `column order`,
+  `columns` and `comments` respectively, besides the SQL case; as first pushed, only the SQL case
+  saw any of them. 12 of 12 green from alpha.1. Third, the comparison that accepts comment-only
+  edits is looser than T3's *"no migration a release shipped may change"*; T3 now names that as
+  its own decision (byte equality with 0006 and 0008 put back, proposed, or comments allowed)
+  rather than inheriting it.
 
 **2026-10-22, recorded: Dependabot alerts and security updates are on.** The owner turned on both
 repository settings that `.github/dependabot.yml`'s header leans on for security updates; the API
@@ -638,9 +728,9 @@ T7 and T8. T7 is one sentence from the owner, and is best given with T0.
 |---|---|---|
 | T0 The alpha's version name, and whether any rename comes first | ✅ **Answered 2026-09-28**: *"The version name (0146 T0): ok, what do I do?"*, read as accepting the whole recommendation: `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy; no rename; no last squash. The owner named no item, and has not objected since (Status, 2026-09-28) — *was:* ⏳ **Owner** | §3. **Alpha minimum.** Recommended: `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy; no renames, as ADR-0040 already decided. Two other names each have a trap (§1). |
 | T1 A changelog section a reader can use | 📋 **Proposed** (D1, D6) | §3. After the first invitation, unless it is ready before the tag. Grouped by what a tester notices, with the experimental sources marked, and the stale lines corrected. |
-| T2 The version bumped, the tag cut, and the build named where it is needed | 🔨 Steps 4 to 6 **through the Release workflow** on branch `claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged (2026-10-23): the preflight reads the fold, CI and the scan on C, the nights and both chains' upgrade gates; the tag and the publishing are the workflow's after the owner's approval (Status, 2026-10-23); Step 1 ✅ **done** in #1305, merged 2026-09-28 (`0c1a8d8c`): the root version `0.2.0-alpha.1`, `CHANGELOG.md`'s `[0.2.0-alpha.1] - 2026-09-29` with T2's floor, the issue template's Build example, `release.md`'s count of six, and (reviews, 2026-09-28) `openapi.yaml`'s `info.version` held to the root version by guard block (d) and named in `release.md`, the Build field sending managed and Docker testers to the sidebar and Windows testers to the log line, and the stamp held at the bottom of the sidebar in both editions. Steps 2 and 3 ✅ **done** in #1274, merged 2026-09-28 (`1353f062`): the build line in the problem report, `scripts/release-names-agree.mjs` in the three publishing workflows, and both guards. Steps 4 to 6 📋 the owner's: the drill from rc.1, the commit by the two-green-scheduled-nights rule (0141 T14), and the tag and its push; `v0.2.0-alpha.1` is tagged, 2026-10-06 (on `90a23e9b`), and `v0.2.0-alpha.2` is the version since #1558 (merged 2026-10-11) but not yet tagged (both read from the remote 2026-10-16); 📋 **Decided 2026-10-05**, *"Two tags"*: `v0.2.0-alpha.1` once the pull requests in flight merge, to stand live up and rehearse, then `v0.2.0-alpha.2` with the final texts, its own freeze, two nights and deploy, before the first invitation (Status, 2026-10-05) — *was:* step 1 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-named-v0-2-0-alpha-1`, not merged (2026-09-28); steps 1 and 4 to 6 📋 waiting for T0 (the name) and the owner (2026-09-28); 🔨 steps 2 and 3 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-that-names-itself`, not merged (2026-09-28); 📋 **Proposed** (D1, D5) | §3. **Alpha minimum.** `docs/release.md`'s procedure, a check that the tag, `package.json` and the changelog agree before anything publishes, and a build line in every problem report. |
+| T2 The version bumped, the tag cut, and the build named where it is needed | 🔨 Steps 4 to 6 **through the Release workflow** on branch `claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged (2026-10-23): the preflight reads the fold, CI and the scan on C, the nights and both chains' upgrade gates (the managed chain's is T4's, #1681); the tag and the publishing are the workflow's after the owner's approval (Status, 2026-10-23); Step 1 ✅ **done** in #1305, merged 2026-09-28 (`0c1a8d8c`): the root version `0.2.0-alpha.1`, `CHANGELOG.md`'s `[0.2.0-alpha.1] - 2026-09-29` with T2's floor, the issue template's Build example, `release.md`'s count of six, and (reviews, 2026-09-28) `openapi.yaml`'s `info.version` held to the root version by guard block (d) and named in `release.md`, the Build field sending managed and Docker testers to the sidebar and Windows testers to the log line, and the stamp held at the bottom of the sidebar in both editions. Steps 2 and 3 ✅ **done** in #1274, merged 2026-09-28 (`1353f062`): the build line in the problem report, `scripts/release-names-agree.mjs` in the three publishing workflows, and both guards. Steps 4 to 6 📋 the owner's: the drill from rc.1, the commit by the two-green-scheduled-nights rule (0141 T14), and the tag and its push; `v0.2.0-alpha.1` is tagged, 2026-10-06 (on `90a23e9b`), and `v0.2.0-alpha.2` is the version since #1558 (merged 2026-10-11) but not yet tagged (both read from the remote 2026-10-16); 📋 **Decided 2026-10-05**, *"Two tags"*: `v0.2.0-alpha.1` once the pull requests in flight merge, to stand live up and rehearse, then `v0.2.0-alpha.2` with the final texts, its own freeze, two nights and deploy, before the first invitation (Status, 2026-10-05) — *was:* step 1 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-named-v0-2-0-alpha-1`, not merged (2026-09-28); steps 1 and 4 to 6 📋 waiting for T0 (the name) and the owner (2026-09-28); 🔨 steps 2 and 3 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-that-names-itself`, not merged (2026-09-28); 📋 **Proposed** (D1, D5) | §3. **Alpha minimum.** `docs/release.md`'s procedure, a check that the tag, `package.json` and the changelog agree before anything publishes, and a build line in every problem report. |
 | T3 Pre-release ends at the alpha tag, and the repository holds to it | 📋 **Proposed** (D3) | §3. After the tag exists. The squash script refuses; no migration a release shipped may change; ADR-0045, the runner's message and the README say so. |
-| T4 Upgrades rehearsed from rc.1 and from the alpha tag, on both chains | 📋 **Proposed** (D3) | §3. The container drill from rc.1 runs in T2. The rest follows the tag: both unit gates start from both tags, the managed chain included, on Postgres as well as PGlite. |
+| T4 Upgrades rehearsed from rc.1 and from the alpha tag, on both chains | The managed chain's upgrade proof from the alpha tag ✅ **done** in #1681, merged 2026-10-23 (`b357add8`): `packages/managed/src/migrate-upgrade.unit.test.ts`, from `UPGRADE_FROM_REF` or `v0.2.0-alpha.1`, both chains, with the shared gate's allow-list held to releases before the split (Status, 2026-10-23); the rest 📋 **Proposed** (D3) — *was:* 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-managed-upgrade-test`, not merged (2026-10-23) | §3. The container drill from rc.1 runs in T2. The rest follows the tag: both unit gates start from both tags, the managed chain included, on Postgres as well as PGlite. |
 | T5 `ownpace-live` runs only a release tag | (a) ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), in 0132 T6's `deploy-live.sh`, not yet run on live: the release rule, `/api/version`'s version, one-way or reversible, and the guard's four cases. `--external-id` is deferred (open question 6) — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); 📋 **Proposed** (D2, D3, D4) | §3. **Alpha minimum.** 0132 T6's procedure and script, with the tag always a release whose name, version and commit agree. The deploy says before the hold lifts whether it can be undone. |
 | T6 The tasks run the Node the images run | ✅ **done** in #1231, merged 2026-09-27: (a), `runtime: 'node-24'` and Guard 1. Guard 2, the bundle-load check, not built (after the first invitation) — *was:* 📋 Proposed | §3. **Alpha minimum:** `runtime: 'node-24'` in `trigger.config.ts` (supported by the pinned CLI, read from its package) and the version guard extended. **After the first invitation:** a pull-request check that the bundle loads. |
 | T7 The object store: replace the frozen MinIO, or accept it for the alpha in writing | ⏳ **Owner** | §3. Recommended: accept it for the alpha, in writing, and replace it after the alpha in the next Trigger.dev drain window (0119 §3, item 5). |
@@ -1137,6 +1227,22 @@ in the same file.
   (what ADR-0036 did to rc.1's baseline) and deleting, and it covers the managed chain, which no
   gate compares with a release today. rc.1 stays outside the rule: its `0001_baseline.sql`
   differs from HEAD's today (checked on 2026-09-24), under the allow-list §1 names.
+- **Comment-only edits: T3 decides, it does not inherit.** The managed chain's upgrade proof
+  (T4, `packages/managed/src/migrate-upgrade.unit.test.ts`, 2026-10-23) is looser than the rule
+  above. It compares an applied file with its comments removed, and accepts an edit to comments
+  alone, saying which files had one. It has to, today: `main` already carries #1650's notes in
+  managed 0006 and 0008, added after alpha.1 and pointing at 0059. So the rule as written fails on
+  `main` the day T3 lands. T3's build chooses one of two:
+  - **(a) byte equality, as written.** The same pull request puts 0006 and 0008 back to alpha.1's
+    bytes (0059's header already names both, so the notes lose nothing), and the upgrade proof's
+    comparison is tightened to bytes to match. **Proposed**: a note the database never reads costs
+    nothing to keep in a new file, and a byte comparison does not depend on an SQL reader being
+    right.
+  - **(b) comments may change.** The rule says *"no statement of a migration a release shipped may
+    change"*, ADR-0045's amendment says the same, and T3's guard compares as the upgrade proof does.
+
+  Until T3 lands, the upgrade proof's comparison is the only check that a managed file a release
+  shipped is unchanged, and it reports every comment-only edit it accepts.
 - **The runner's message stops advising a drop.** `migrate.ts`'s downgrade message drops the squash
   explanation and the *"nothing irreplaceable lives here"* sentence. It names the two causes that
   remain: a build older than the database (deploy the newer release), and a chain edited after a

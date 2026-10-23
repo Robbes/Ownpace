@@ -2127,6 +2127,11 @@ reading a file drops off its entry by itself.
 
 - [a-version-the-tester-accepted](../scripts/a-version-the-tester-accepted.unit.test.ts) — A VERSION THE TESTER ACCEPTED (workplan 0139 T3).
 
+### `packages/managed/src/migrate-upgrade.unit.test.ts`
+
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
+- [an-upgrade-gate-that-skipped-itself](../scripts/an-upgrade-gate-that-skipped-itself.unit.test.ts) — AN UPGRADE GATE THAT SKIPPED ITSELF: `docs/release.md` asked a person to confirm by eye that the upgrade gate's `skipIf(!HAVE_REF)` cases ran against the previous release, because without the tag they skip and the file still reports gree…
+
 ### `packages/managed/src/mollie-refunds.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
@@ -2672,6 +2677,10 @@ reading a file drops off its entry by itself.
 - [an-upgrade-gate-that-skipped-itself](../scripts/an-upgrade-gate-that-skipped-itself.unit.test.ts) — AN UPGRADE GATE THAT SKIPPED ITSELF: `docs/release.md` asked a person to confirm by eye that the upgrade gate's `skipIf(!HAVE_REF)` cases ran against the previous release, because without the tag they skip and the file still reports gree…
 
 ### `scripts/fixtures/release/vitest-ledger-ref-missing.json`
+
+- [an-upgrade-gate-that-skipped-itself](../scripts/an-upgrade-gate-that-skipped-itself.unit.test.ts) — AN UPGRADE GATE THAT SKIPPED ITSELF: `docs/release.md` asked a person to confirm by eye that the upgrade gate's `skipIf(!HAVE_REF)` cases ran against the previous release, because without the tag they skip and the file still reports gree…
+
+### `scripts/fixtures/release/vitest-managed-from-alpha.1.json`
 
 - [an-upgrade-gate-that-skipped-itself](../scripts/an-upgrade-gate-that-skipped-itself.unit.test.ts) — AN UPGRADE GATE THAT SKIPPED ITSELF: `docs/release.md` asked a person to confirm by eye that the upgrade gate's `skipIf(!HAVE_REF)` cases ran against the previous release, because without the tag they skip and the file still reports gree…
 
@@ -4501,6 +4510,7 @@ Reads:
 - `apps/web/vite.config.ts`
 - `docs/release.md`
 - `packages/ledger/src/migrate-upgrade.unit.test.ts`
+- `packages/managed/src/migrate-upgrade.unit.test.ts`
 - `scripts/package-appliance.mjs`
 - `scripts/package-appliance.unit.test.ts`
 - `scripts/release-names-agree.mjs`
@@ -5335,11 +5345,13 @@ Reads:
 
 - `docs/release.md`
 - `packages/ledger/src/migrate-upgrade.unit.test.ts`
+- `packages/managed/src/migrate-upgrade.unit.test.ts`
 - `packages/managed/src/two-chains.unit.test.ts`
 - `scripts/fixtures/release/vitest-ledger-from-alpha.1-stale-exception.json`
 - `scripts/fixtures/release/vitest-ledger-from-alpha.1.json`
 - `scripts/fixtures/release/vitest-ledger-from-rc.1.json`
 - `scripts/fixtures/release/vitest-ledger-ref-missing.json`
+- `scripts/fixtures/release/vitest-managed-from-alpha.1.json`
 - `scripts/release-upgrade-gates.mjs`
 
 ### [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts)

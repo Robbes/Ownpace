@@ -225,6 +225,14 @@ async function indexFingerprint(driver: LedgerDriver): Promise<string> {
  * THE EXCEPTION IS ONE-DIRECTIONAL AND NAMED. An upgraded database may carry
  * these and nothing else; it may never LACK anything a fresh install has. That
  * second half is the bug this file was written for and it stays absolute.
+ *
+ * AND IT HOLDS ONLY FROM A RELEASE THAT PREDATES THE SPLIT. From
+ * `v0.2.0-alpha.1` on, a release carries `packages/managed/migrations`, and
+ * its shared chain never created these tables. Upgrading from one, there is
+ * nothing to forgive: the upgraded schema must equal a fresh one exactly, and
+ * the stale check below asserts the four tables are ABSENT instead. The
+ * release workflow runs this file with the previous tag as UPGRADE_FROM_REF
+ * (workplan 0146), so both kinds of release pass through here.
  */
 const MOVED_TO_MANAGED_CHAIN: Readonly<Record<string, string>> = {
   invoice: 'ADR-0036 — managed chain. Tax retention; never dropped by a migration.',
@@ -235,6 +243,7 @@ const MOVED_TO_MANAGED_CHAIN: Readonly<Record<string, string>> = {
 
 /** Does this fingerprint line belong to a table the break left behind? */
 function isDeclaredLeftover(line: string): boolean {
+  if (!RELEASE_PREDATES_SPLIT) return false;
   const table = line.split('.')[0]!;
   if (table in MOVED_TO_MANAGED_CHAIN) return true;
   // Index lines are `indexname:indexdef`; the definition names its table.
@@ -244,6 +253,13 @@ function isDeclaredLeftover(line: string): boolean {
 }
 
 const HAVE_REF = refExists(FROM_REF);
+
+/**
+ * Does the release predate the managed chain (ADR-0036)? It does when it has
+ * no `packages/managed/migrations`, which is what the split created.
+ */
+const RELEASE_PREDATES_SPLIT =
+  HAVE_REF && git('ls-tree', '--name-only', FROM_REF, 'packages/managed/migrations/').trim() === '';
 let releasedDir: string;
 let upgraded: LedgerDriver;
 let fresh: LedgerDriver;
@@ -364,40 +380,31 @@ describe(`upgrading from ${FROM_REF} (§22.1 N-1 -> N gate)`, () => {
   );
 
   it.skipIf(!HAVE_REF)(
-    'still finds every leftover it declares, so the exception cannot go stale',
+    'still finds every leftover it declares, and only from a release that left them',
     { timeout: 60_000 },
     async () => {
       // An allow-list that has stopped covering anything reads to the next
       // person as a rule that still applies — and quietly widens what the
       // check above will forgive. The moment `v0.1.0-rc.1` stops being the
       // reference, every one of these should disappear with it.
-      //
-      // LEFT BEHIND BY THE RELEASE THAT CREATED IT, AND BY NO OTHER. Only a
-      // release whose shared chain still created these tables (rc.1, before
-      // ADR-0036 split the chains) leaves them in an upgraded database. The
-      // Release workflow runs this file from the release before the one it
-      // tags, and from `v0.2.0-alpha.1`, whose baseline creates none of them,
-      // this case failed on `invoice` (2026-10-23): it asked for leftovers a
-      // database upgraded from alpha.1 never had. From such a release each
-      // must be ABSENT, which is the same exception, read for the release
-      // actually upgraded from.
       const up = (await schemaFingerprint(upgraded)).split('\n');
-      const released = releasedFilenames()
-        .map((name) => git('show', `${FROM_REF}:${MIGRATIONS_PATH}/${name}`))
-        .join('\n');
       for (const table of Object.keys(MOVED_TO_MANAGED_CHAIN)) {
-        const createdByRelease = new RegExp(
-          `CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(?:public\\.)?"?${table}"?\\s*\\(`,
-          'i',
-        ).test(released);
-        expect(
-          up.some((line) => line.startsWith(`${table}.`)),
-          createdByRelease
-            ? `${table}: declared as left behind by ${FROM_REF}, but an upgraded ` +
-                'database does not have it — remove the MOVED_TO_MANAGED_CHAIN entry'
-            : `${table}: ${FROM_REF}'s migrations never created it, and yet a database ` +
-                'upgraded from it has it',
-        ).toBe(createdByRelease);
+        const present = up.some((line) => line.startsWith(`${table}.`));
+        if (RELEASE_PREDATES_SPLIT) {
+          expect(
+            present,
+            `${table}: declared as left behind by ${FROM_REF}, but an upgraded ` +
+              'database does not have it — remove the MOVED_TO_MANAGED_CHAIN entry',
+          ).toBe(true);
+        } else {
+          // A release with a managed chain never put these on the shared
+          // chain, so an appliance upgraded from it has none of them.
+          expect(
+            present,
+            `${table}: ${FROM_REF} has a managed chain, so its shared chain never ` +
+              'created this table, and yet an upgraded appliance has it',
+          ).toBe(false);
+        }
       }
     },
   );

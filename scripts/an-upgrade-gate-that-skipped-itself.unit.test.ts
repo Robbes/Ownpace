@@ -36,20 +36,27 @@
  * Run from `v0.2.0-alpha.1` on 2026-10-23, the ledger gate failed one case:
  * "still finds every leftover it declares". Its list of tables a pre-split
  * release left behind is true of rc.1, whose baseline created them, and of
- * no later release. The case now expects each leftover only from a release
- * whose migrations created that table.
+ * no later release. Two pull requests fixed it the same day, each its own
+ * way; the one that merged first (#1681, with the managed chain's test) is
+ * the fix: the list holds only from a release with no
+ * `packages/managed/migrations`, and from a later one the case asserts the
+ * four tables are absent. It is now "still finds every leftover it declares,
+ * and only from a release that left them".
  *
  * ## What this test holds
  *
- * The verdict against real vitest reports of the ledger gate
- * (`scripts/fixtures/release/vitest-*.json`): with its tag missing (six cases
- * skipped), from alpha.1 before that fix (one failed), from alpha.1 after it,
- * and from rc.1 when alpha.1 was asked for; the missing managed file; and the
- * shape both files must keep for the verdict to mean anything.
+ * The verdict against real vitest reports (`scripts/fixtures/release/
+ * vitest-*.json`, cut to the fields the verdict reads, each file's path
+ * written as the preflight's `candidate` checkout has it). The ledger gate:
+ * with its tag missing (six cases skipped), from alpha.1 before that fix (one
+ * failed), from alpha.1 after it, and from rc.1 when alpha.1 was asked for.
+ * The managed gate from alpha.1 (12 cases, the 8 of its `describe` naming the
+ * ref). And the missing managed file, and the shape both files must keep for
+ * the verdict to mean anything.
  */
 
 import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { UPGRADE_GATES, NOT_AN_UPGRADE_PROOF, judgeUpgradeGates } from './release-upgrade-gates.mjs';
@@ -134,11 +141,20 @@ describe('the managed chain', () => {
     expect(byCheck(lines, 'upgrade-managed')[0]!.sentence).toMatch(/not exercised: the run reported nothing/);
   });
 
-  it('passes when every case of its file ran from the release asked for', () => {
-    const withManaged = { ...passing, testResults: [...passing.testResults, asFile(passing, MANAGED)] };
-    const lines = judgeUpgradeGates({ report: withManaged, present: both, from: 'v0.2.0-alpha.1', counts: { managed: { from: 46, to: 59 } } });
+  it('passes its real report from alpha.1: every case ran, and the ones that upgrade name the ref', () => {
+    const managed = report('vitest-managed-from-alpha.1.json');
+    const withManaged = { ...passing, testResults: [...passing.testResults, ...managed.testResults] };
+    const lines = judgeUpgradeGates({
+      report: withManaged,
+      present: both,
+      from: 'v0.2.0-alpha.1',
+      counts: { ledger: { from: 65, to: 65 }, managed: { from: 46, to: 59 } },
+    });
     expect(byCheck(lines, 'upgrade-managed').map((l) => l.kind)).toEqual(['pass']);
-    expect(byCheck(lines, 'upgrade-managed')[0]!.sentence).toMatch(/46 → 59 migrations/);
+    expect(byCheck(lines, 'upgrade-managed')[0]!.sentence).toMatch(
+      /all 12 cases ran and passed, 8 of them upgrading from v0\.2\.0-alpha\.1; 46 → 59 migrations$/,
+    );
+    expect(byCheck(lines, 'upgrade-ledger').map((l) => l.kind)).toEqual(['pass']);
   });
 
   it('never counts two-chains, even passing, and says why', () => {
@@ -169,12 +185,7 @@ describe('the shape the verdict relies on (the shared contract with the managed 
     shape(LEDGER);
   });
 
-  it('the managed gate keeps it when it exists, and is reported not exercised until it does', () => {
-    if (existsSync(join(ROOT, MANAGED))) {
-      shape(MANAGED);
-    } else {
-      const lines = judgeUpgradeGates({ report: report('vitest-ledger-from-alpha.1.json'), present: ledgerOnly, from: 'v0.2.0-alpha.1' });
-      expect(byCheck(lines, 'upgrade-managed')[0]!.sentence).toMatch(/not exercised/);
-    }
+  it('the managed gate keeps it', () => {
+    shape(MANAGED);
   });
 });

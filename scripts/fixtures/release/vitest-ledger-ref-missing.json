@@ -46,8 +46,8 @@
           "ancestorTitles": [
             "upgrading from v9.9.9 (\u00a722.1 N-1 -> N gate)"
           ],
-          "title": "still finds every leftover it declares, so the exception cannot go stale",
-          "fullName": "upgrading from v9.9.9 (\u00a722.1 N-1 -> N gate) still finds every leftover it declares, so the exception cannot go stale",
+          "title": "still finds every leftover it declares, and only from a release that left them",
+          "fullName": "upgrading from v9.9.9 (\u00a722.1 N-1 -> N gate) still finds every leftover it declares, and only from a release that left them",
           "status": "skipped"
         },
         {
