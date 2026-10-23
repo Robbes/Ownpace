@@ -17,11 +17,13 @@ below owed after the merge.
   2026-10-11), `ci-green` (CI #4704 was still queued), `scan-green-on-main`
   (Security Scan #4720 was still running), and three `nights` lines (E2E
   (managed) #265 ran `91b49de9` and #262 ran `29693244`, and `54e4c3d2`
-  reached `main` after #265, so no counted night has run it). It passed `names-agree`,
-  `tag-free`, `openapi-agrees`, `callees`, `upgrade-ledger` (65 → 65) and
-  `upgrade-managed` (46 → 59). It noted that the `release` environment asks
-  for a reviewer, so the owner's one setting (`docs/release.md`, *Settings the
-  owner makes once*) is in place.
+  reached `main` after #265, so no counted night has run it). It passed
+  `names-agree`, `tag-free`, `openapi-agrees`, `callees`, `upgrade-ledger`
+  (65 → 65) and `upgrade-managed` (46 → 59). It noted that the `release`
+  environment asks for a reviewer, the core of the owner's one setting
+  (`docs/release.md`, *Settings the owner makes once*). That is all the
+  preflight reads of it: the setting's `main`-only deployment branches,
+  *Prevent self-reviews* off and no wait timer were not read.
 - **Run 2, `rehearse` with `commit=54e4c3d2`.** The gate scan ran Security
   Scan #4721 on `release-gate/v0.2.0-alpha.2` at C, green with its three image
   jobs skipped, and deleted the branch. The run ended red on its last step
@@ -35,10 +37,11 @@ below owed after the merge.
 - **Runs 4, 5 and 6, `verify` on `v0.2.0-alpha.1`.** Each passed every image
   (both architectures), the revision label, the `sha-` tag, `latest`
   withheld, cosign with the exact identity and with the documented regexp,
-  the zip's `SHA256SUMS.txt` for all 389 files, and `/version`. Run 4 (03:12
-  UTC) refused the body, which held no generated block; run 5 (05:33 UTC)
-  found a block that did not link `CHANGELOG.md` at the tag; run 6 (05:44
-  UTC), after the owner's paste as it stands now, refused only `bom.json`.
+  the zip's `SHA256SUMS.txt` for all 389 files, and `/version`. Runs 4 and 5
+  refused `bom.json` and the body: run 4's (03:12 UTC) held no generated
+  block, and run 5's (05:33 UTC) had a block that did not link
+  `CHANGELOG.md` at the tag. Run 6 (05:44 UTC), after the owner's paste as it
+  stands now, refused only `bom.json`.
 - **alpha.1's release text, pasted by the owner on 2026-10-23** (decision
   12): the standard text without its `bom.json` sentence, and a note on the
   failed tag-time scan that says what the four advisories mean for anyone
@@ -47,7 +50,8 @@ below owed after the merge.
   red on that one line. The note says proxy-addr's affected code runs only
   when `TRUST_PROXY` names an address or a subnet; the owner confirmed that
   live's is a hop count, 2, as `docs/managed-bring-up.md` asks, so that path
-  was never used on live.
+  was never used on live. `docs/release.md` (*`mode=verify` on an existing
+  tag*) and alpha.1's section of `CHANGELOG.md` now say the paste is done.
 - **Still owed for `v0.2.0-alpha.2`:** the fold, which is C and starts the
   freeze (0141 T14); the two nights on it; and then `mode=release`, with the
   owner's approval.
