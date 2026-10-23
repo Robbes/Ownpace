@@ -885,7 +885,10 @@ remedy.
   `./deploy/compose/deploy-live.sh <tag>` from `~/ownpace-live`: the hold, the drain, the tag, the
   bring-up without the demo, the checks, and then you lift the hold. The steps are in
   `docs/managed-bring-up.md`, *Updating a running deployment*, and `docs/release.md` §5. Never
-  `git pull` there.
+  `git pull` there. The tag is cut by the Release workflow (`docs/release.md` §2), dispatched
+  from the Actions tab: it reads the nights and the gates, waits for your approval, tags, publishes
+  in order and verifies, all on GitHub's runners and never on this box. Its message names the run
+  that proved it, for the deploy log. Pushing a tag by hand is the break-glass path.
 - **The OTA stack** (`~/ownpace-managed`) is deployed by the nightly gate, from `main`. By hand, the
   pull sequence in the same section of the bring-up.
 

@@ -1,0 +1,54 @@
+{
+  "jobs": [
+    {
+      "name": "docs-hygiene",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "detect-changes",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fixture-uuid-check",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "commit-convention",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "lint",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "unit-tests (all)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "migration-lint",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "integration-tests (self-hosted)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "ui-tests",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "ci-complete",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ]
+}

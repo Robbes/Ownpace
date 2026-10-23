@@ -2,7 +2,72 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-10-22 (update this block at the end of every session)
+## Status — 2026-10-23 (update this block at the end of every session)
+
+**2026-10-23, build: the Release workflow, on branch
+`claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged.** T2's
+steps 4 to 6 (the gates, the commit, the tag) and §3's checks become one
+dispatchable workflow, `.github/workflows/release.yml`, with the procedure in
+`docs/release.md`. It runs from `main` on GitHub-hosted runners only and never
+reaches the self-hosted machine or live.
+
+- **Why: alpha.1 shipped on a red scan, recorded here for the first time.**
+  `v0.2.0-alpha.1` was pushed by hand on 2026-10-06 (`90a23e9b`). Its tag's
+  Security Scan, run 37523297841, failed at the advisory gate (seroval
+  GHSA-p6vx-979v-rg4c critical and GHSA-jp82-f5mq-hwhp high, proxy-addr
+  GHSA-jqcg-44mw-7w3h critical, source-map-js GHSA-68fv-2mgg-jv7q high, dev
+  only), though the same commit's scan on `main` (run 37396505448) had been
+  green that morning. Every step after the gate was skipped: its release has no
+  generated body and no `bom.json`, while the images were pushed and signed
+  and `windows-payload.yml` attached the zip to a release it created bodiless.
+  §4's go/no-go ("published with its images and SBOM") does not hold for
+  alpha.1. The release is not edited (the owner's decision 12); `CHANGELOG.md`'s
+  alpha.1 section says so, and `mode=verify` on the tag names both gaps.
+- **The order.** preflight (read only), approve (the `release` environment:
+  the owner's recorded say-so, a guard against accidents and not a boundary),
+  a gate scan of exactly C on a branch `release-gate/<tag>`, the tag (nights
+  and tag read again just before `POST git/tags`, then `POST git/refs` with the
+  workflow's token), Security Scan on the tag first, `images.yml` and
+  `windows-payload.yml` after it, and verify. A token-made tag starts no push
+  workflow, so each publisher is dispatched on the tag ref and waited for; a
+  failed publisher run is re-run (`rerun-failed-jobs`), never re-dispatched,
+  and a dispatch is never sent twice.
+- **The owner's decisions taken (2026-10-23), the design's recommendations:**
+  the workflow's own token and dispatches on the tag ref (1); both nights on C
+  and the four appliance runs of those nights (2), a failed attempt does not
+  count (3), and the freeze (4), all written once in 0141 T14; the approval
+  environment (5); no CI on a Release-made tag, C's own push run must have run
+  lint, unit, UI and integration (6); the changelog section dated within the
+  week before the run (8); no override input (9); the tag ruleset as an owner
+  step (10); open code-scanning alerts reported, not refused (11); immutable
+  releases off (13); hand-pushed tags unchanged, as break-glass (14).
+  `[Unreleased]` must be empty: the preflight refuses otherwise, so the hand
+  path's names check is unchanged.
+- **Decision 7, the upgrade proof, is shared with the managed chain's own
+  test.** The preflight runs `packages/ledger/src/migrate-upgrade.unit.test.ts`
+  and `packages/managed/src/migrate-upgrade.unit.test.ts` with
+  `UPGRADE_FROM_REF` set to the release before, reads vitest's report, and
+  refuses unless every case ran and passed; a chain whose file does not exist
+  at C is "not exercised" and refuses. That file is the other pull request of
+  this round; until it merges, every preflight refuses `upgrade-managed`.
+  `two-chains.unit.test.ts` is not counted: it adopts a pre-split database.
+  Run from alpha.1, the ledger gate failed one case ("still finds every
+  leftover it declares"): its pre-split leftovers are rc.1's. The case now
+  expects a leftover only from a release whose migrations created it, and the
+  gate passes from rc.1 and from alpha.1 (8 of 8 each, 2026-10-23).
+- **Proven so far, in this session:** the guards, written first and shown red
+  (eight files, seven on missing modules); the preflight run by hand against
+  the live record on `main`'s head `a5ae29d1`, which refused, as it should, on
+  the changelog (161 lines under `[Unreleased]`, the section dated 2026-10-11),
+  the nights (#265 and #262 on two other commits), the missing `image_scans`
+  input, the ledger case above and the missing managed test, and passed CI run
+  #4697 and Security Scan run #4713; and verify run by hand against alpha.1:
+  no generated body, no `bom.json`, `SHA256SUMS.txt` holding for all 389 files
+  of its zip, both architectures and the `sha-` tag for all three images,
+  `latest` withheld. Owed on `main` after the merge: four proof dispatches
+  (preflight; rehearse with an explicit commit; rehearse-tag; verify on
+  alpha.1), and from the owner, the `release` environment and the tag ruleset
+  (`docs/release.md`, *Settings the owner makes once*).
 
 **2026-10-22, recorded: Dependabot alerts and security updates are on.** The owner turned on both
 repository settings that `.github/dependabot.yml`'s header leans on for security updates; the API
@@ -141,7 +206,7 @@ the final texts before the first invitation.** Plans only; no tag is cut. Asked 
   (#1529, open); and this tag's `CHANGELOG.md` entry. Live is stood up from it (0132 T0 step 3,
   T1b), and the rehearsal runs on it. No tester is invited on it.
 - **`v0.2.0-alpha.2`** carries the final legal texts (0139: the owner's approval, D1's amendment
-  of the same day). It has its own freeze, its own two green scheduled nights (0141 T14, T2 step
+  of the same day). It has its own freeze (0141 T14 says what a freeze is), its own two green scheduled nights (0141 T14, T2 step
   5) and its own deploy to live (T5), all before the first invitation.
 - So the tag the first invitation waits for, in §4 and in 0131 T5's row for this plan, is
   `alpha.2`. T0's rule holds: `alpha.1` for the first deploy to live, `alpha.2` for the second.
@@ -555,7 +620,7 @@ T7 and T8. T7 is one sentence from the owner, and is best given with T0.
 |---|---|---|
 | T0 The alpha's version name, and whether any rename comes first | ✅ **Answered 2026-09-28**: *"The version name (0146 T0): ok, what do I do?"*, read as accepting the whole recommendation: `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy; no rename; no last squash. The owner named no item, and has not objected since (Status, 2026-09-28) — *was:* ⏳ **Owner** | §3. **Alpha minimum.** Recommended: `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy; no renames, as ADR-0040 already decided. Two other names each have a trap (§1). |
 | T1 A changelog section a reader can use | 📋 **Proposed** (D1, D6) | §3. After the first invitation, unless it is ready before the tag. Grouped by what a tester notices, with the experimental sources marked, and the stale lines corrected. |
-| T2 The version bumped, the tag cut, and the build named where it is needed | Step 1 ✅ **done** in #1305, merged 2026-09-28 (`0c1a8d8c`): the root version `0.2.0-alpha.1`, `CHANGELOG.md`'s `[0.2.0-alpha.1] - 2026-09-29` with T2's floor, the issue template's Build example, `release.md`'s count of six, and (reviews, 2026-09-28) `openapi.yaml`'s `info.version` held to the root version by guard block (d) and named in `release.md`, the Build field sending managed and Docker testers to the sidebar and Windows testers to the log line, and the stamp held at the bottom of the sidebar in both editions. Steps 2 and 3 ✅ **done** in #1274, merged 2026-09-28 (`1353f062`): the build line in the problem report, `scripts/release-names-agree.mjs` in the three publishing workflows, and both guards. Steps 4 to 6 📋 the owner's: the drill from rc.1, the commit by the two-green-scheduled-nights rule (0141 T14), and the tag and its push; `v0.2.0-alpha.1` is tagged, 2026-10-06 (on `90a23e9b`), and `v0.2.0-alpha.2` is the version since #1558 (merged 2026-10-11) but not yet tagged (both read from the remote 2026-10-16); 📋 **Decided 2026-10-05**, *"Two tags"*: `v0.2.0-alpha.1` once the pull requests in flight merge, to stand live up and rehearse, then `v0.2.0-alpha.2` with the final texts, its own freeze, two nights and deploy, before the first invitation (Status, 2026-10-05) — *was:* step 1 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-named-v0-2-0-alpha-1`, not merged (2026-09-28); steps 1 and 4 to 6 📋 waiting for T0 (the name) and the owner (2026-09-28); 🔨 steps 2 and 3 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-that-names-itself`, not merged (2026-09-28); 📋 **Proposed** (D1, D5) | §3. **Alpha minimum.** `docs/release.md`'s procedure, a check that the tag, `package.json` and the changelog agree before anything publishes, and a build line in every problem report. |
+| T2 The version bumped, the tag cut, and the build named where it is needed | 🔨 Steps 4 to 6 **through the Release workflow** on branch `claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged (2026-10-23): the preflight reads the fold, CI and the scan on C, the nights and both chains' upgrade gates; the tag and the publishing are the workflow's after the owner's approval (Status, 2026-10-23); Step 1 ✅ **done** in #1305, merged 2026-09-28 (`0c1a8d8c`): the root version `0.2.0-alpha.1`, `CHANGELOG.md`'s `[0.2.0-alpha.1] - 2026-09-29` with T2's floor, the issue template's Build example, `release.md`'s count of six, and (reviews, 2026-09-28) `openapi.yaml`'s `info.version` held to the root version by guard block (d) and named in `release.md`, the Build field sending managed and Docker testers to the sidebar and Windows testers to the log line, and the stamp held at the bottom of the sidebar in both editions. Steps 2 and 3 ✅ **done** in #1274, merged 2026-09-28 (`1353f062`): the build line in the problem report, `scripts/release-names-agree.mjs` in the three publishing workflows, and both guards. Steps 4 to 6 📋 the owner's: the drill from rc.1, the commit by the two-green-scheduled-nights rule (0141 T14), and the tag and its push; `v0.2.0-alpha.1` is tagged, 2026-10-06 (on `90a23e9b`), and `v0.2.0-alpha.2` is the version since #1558 (merged 2026-10-11) but not yet tagged (both read from the remote 2026-10-16); 📋 **Decided 2026-10-05**, *"Two tags"*: `v0.2.0-alpha.1` once the pull requests in flight merge, to stand live up and rehearse, then `v0.2.0-alpha.2` with the final texts, its own freeze, two nights and deploy, before the first invitation (Status, 2026-10-05) — *was:* step 1 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-named-v0-2-0-alpha-1`, not merged (2026-09-28); steps 1 and 4 to 6 📋 waiting for T0 (the name) and the owner (2026-09-28); 🔨 steps 2 and 3 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-that-names-itself`, not merged (2026-09-28); 📋 **Proposed** (D1, D5) | §3. **Alpha minimum.** `docs/release.md`'s procedure, a check that the tag, `package.json` and the changelog agree before anything publishes, and a build line in every problem report. |
 | T3 Pre-release ends at the alpha tag, and the repository holds to it | 📋 **Proposed** (D3) | §3. After the tag exists. The squash script refuses; no migration a release shipped may change; ADR-0045, the runner's message and the README say so. |
 | T4 Upgrades rehearsed from rc.1 and from the alpha tag, on both chains | 📋 **Proposed** (D3) | §3. The container drill from rc.1 runs in T2. The rest follows the tag: both unit gates start from both tags, the managed chain included, on Postgres as well as PGlite. |
 | T5 `ownpace-live` runs only a release tag | (a) ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), in 0132 T6's `deploy-live.sh`, not yet run on live: the release rule, `/api/version`'s version, one-way or reversible, and the guard's four cases. `--external-id` is deferred (open question 6) — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); 📋 **Proposed** (D2, D3, D4) | §3. **Alpha minimum.** 0132 T6's procedure and script, with the tag always a release whose name, version and commit agree. The deploy says before the hold lifts whether it can be undone. |

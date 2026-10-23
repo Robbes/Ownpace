@@ -371,13 +371,33 @@ describe(`upgrading from ${FROM_REF} (§22.1 N-1 -> N gate)`, () => {
       // person as a rule that still applies — and quietly widens what the
       // check above will forgive. The moment `v0.1.0-rc.1` stops being the
       // reference, every one of these should disappear with it.
+      //
+      // LEFT BEHIND BY THE RELEASE THAT CREATED IT, AND BY NO OTHER. Only a
+      // release whose shared chain still created these tables (rc.1, before
+      // ADR-0036 split the chains) leaves them in an upgraded database. The
+      // Release workflow runs this file from the release before the one it
+      // tags, and from `v0.2.0-alpha.1`, whose baseline creates none of them,
+      // this case failed on `invoice` (2026-10-23): it asked for leftovers a
+      // database upgraded from alpha.1 never had. From such a release each
+      // must be ABSENT, which is the same exception, read for the release
+      // actually upgraded from.
       const up = (await schemaFingerprint(upgraded)).split('\n');
+      const released = releasedFilenames()
+        .map((name) => git('show', `${FROM_REF}:${MIGRATIONS_PATH}/${name}`))
+        .join('\n');
       for (const table of Object.keys(MOVED_TO_MANAGED_CHAIN)) {
+        const createdByRelease = new RegExp(
+          `CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(?:public\\.)?"?${table}"?\\s*\\(`,
+          'i',
+        ).test(released);
         expect(
           up.some((line) => line.startsWith(`${table}.`)),
-          `${table}: declared as left behind by ${FROM_REF}, but an upgraded ` +
-            'database does not have it — remove the MOVED_TO_MANAGED_CHAIN entry',
-        ).toBe(true);
+          createdByRelease
+            ? `${table}: declared as left behind by ${FROM_REF}, but an upgraded ` +
+                'database does not have it — remove the MOVED_TO_MANAGED_CHAIN entry'
+            : `${table}: ${FROM_REF}'s migrations never created it, and yet a database ` +
+                'upgraded from it has it',
+        ).toBe(createdByRelease);
       }
     },
   );

@@ -1,0 +1,80 @@
+{
+  "numTotalTests": 8,
+  "numPassedTests": 2,
+  "numFailedTests": 0,
+  "numPendingTests": 6,
+  "numTodoTests": 0,
+  "success": true,
+  "testResults": [
+    {
+      "name": "/home/runner/work/Ownpace/Ownpace/candidate/packages/ledger/src/migrate-upgrade.unit.test.ts",
+      "status": "passed",
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "upgrading from v9.9.9 (\u00a722.1 N-1 -> N gate)"
+          ],
+          "title": "can actually reach the release it upgrades from",
+          "fullName": "upgrading from v9.9.9 (\u00a722.1 N-1 -> N gate) can actually reach the release it upgrades from",
+          "status": "passed"
+        },
+        {
+          "ancestorTitles": [
+            "upgrading from v9.9.9 (\u00a722.1 N-1 -> N gate)"
+          ],
+          "title": "knows whether there is an upgrade to test at all",
+          "fullName": "upgrading from v9.9.9 (\u00a722.1 N-1 -> N gate) knows whether there is an upgrade to test at all",
+          "status": "skipped"
+        },
+        {
+          "ancestorTitles": [
+            "upgrading from v9.9.9 (\u00a722.1 N-1 -> N gate)"
+          ],
+          "title": "applies the RELEASED schema, then every migration added since",
+          "fullName": "upgrading from v9.9.9 (\u00a722.1 N-1 -> N gate) applies the RELEASED schema, then every migration added since",
+          "status": "skipped"
+        },
+        {
+          "ancestorTitles": [
+            "upgrading from v9.9.9 (\u00a722.1 N-1 -> N gate)"
+          ],
+          "title": "lands on a schema a fresh install at HEAD can account for",
+          "fullName": "upgrading from v9.9.9 (\u00a722.1 N-1 -> N gate) lands on a schema a fresh install at HEAD can account for",
+          "status": "skipped"
+        },
+        {
+          "ancestorTitles": [
+            "upgrading from v9.9.9 (\u00a722.1 N-1 -> N gate)"
+          ],
+          "title": "still finds every leftover it declares, so the exception cannot go stale",
+          "fullName": "upgrading from v9.9.9 (\u00a722.1 N-1 -> N gate) still finds every leftover it declares, so the exception cannot go stale",
+          "status": "skipped"
+        },
+        {
+          "ancestorTitles": [
+            "upgrading from v9.9.9 (\u00a722.1 N-1 -> N gate)"
+          ],
+          "title": "is idempotent after the upgrade",
+          "fullName": "upgrading from v9.9.9 (\u00a722.1 N-1 -> N gate) is idempotent after the upgrade",
+          "status": "skipped"
+        },
+        {
+          "ancestorTitles": [
+            "upgrading from v9.9.9 (\u00a722.1 N-1 -> N gate)"
+          ],
+          "title": "REFUSES to let the released build start against the upgraded database",
+          "fullName": "upgrading from v9.9.9 (\u00a722.1 N-1 -> N gate) REFUSES to let the released build start against the upgraded database",
+          "status": "skipped"
+        },
+        {
+          "ancestorTitles": [
+            "the downgrade refusal never advises a drop (workplan 0134 T3)"
+          ],
+          "title": "names the backup, and never \"nothing irreplaceable\", on every checkout",
+          "fullName": "the downgrade refusal never advises a drop (workplan 0134 T3) names the backup, and never \"nothing irreplaceable\", on every checkout",
+          "status": "passed"
+        }
+      ]
+    }
+  ]
+}
