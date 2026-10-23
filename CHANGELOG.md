@@ -268,9 +268,11 @@ GHSA-jqcg-44mw-7w3h) and source-map-js (high, development only,
 GHSA-68fv-2mgg-jv7q). The steps after it, the SBOM, the release body and the
 SBOM's attachment, did not run. The images had already been pushed and
 signed, and the Windows zip was attached to a release `windows-payload.yml`
-created without a body. The release is left as it is: a re-run of that scan
-would fail the same way on the tag's lockfile, and the Release workflow's
-`mode=verify` names both gaps.
+created without a body. The standard release text, and a note on this failed
+scan, are added to the release page by hand. The `bom.json` stays missing:
+nothing regenerates it, and a re-run of that scan would fail the same way on
+the tag's lockfile. The Release workflow's `mode=verify` refuses the tag for
+it.
 
 ### Added
 

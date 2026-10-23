@@ -248,9 +248,14 @@ second time, and says so; verify then refuses two generated blocks until you
 delete one from the release body by hand. When it was an advisory, the way out
 is a new version: the tag's lockfile will fail the same way every time.
 
-**`mode=verify` on an existing tag.** `v0.2.0-alpha.1` refuses: no generated
-body and no `bom.json` (its tag's scan failed). `v0.1.0-rc.1` refuses: no
-generated body and no Windows zip.
+**`mode=verify` on an existing tag.** `v0.2.0-alpha.1` refuses: its tag's
+scan failed before the SBOM step, so it has no `bom.json`, and nothing
+regenerates one (a re-run fails the same way on the tag's lockfile). Its
+body is the standard text (what *Compose release body* in
+`security-scan.yml` writes) and a note on that failed scan, pasted in by the
+owner by hand: a session does not edit releases (the owner's answer of
+2026-10-23). Until the paste, verify refuses the body as well.
+`v0.1.0-rc.1` refuses: no generated body and no Windows zip.
 
 ## 4. After
 
@@ -311,11 +316,19 @@ GitHub-hosted runners only.
   (you dispatch and approve); deployment branches and tags: selected, `main`
   only; no wait timer. Until it exists, the approve job creates it unprotected
   and passes without a click; the preflight says which it is.
-- **A tag ruleset** on `refs/tags/v*`: *Restrict updates* and *Restrict
-  deletions*, with you as the bypass actor, so a published tag, which
-  `deploy-live.sh` trusts, cannot be moved or deleted. **Not** *Restrict
-  creations*: the workflow's token cannot be a bypass actor, and it would
-  refuse Release's own tag.
+
+That is the only one. Two notes beside it:
+
+- **Optional, and not now: a tag ruleset** (the owner's answer of
+  2026-10-23). Release does not need one. It would be a ruleset on
+  `refs/tags/v*` with *Restrict updates* and *Restrict deletions*, you as the
+  bypass actor, so that a published tag, which `deploy-live.sh` trusts,
+  cannot be moved or deleted. Without it, anyone with write access can move
+  or delete a tag (Release never does), and `deploy-live.sh` still refuses a
+  tag that is not annotated, not on origin, or not the version its
+  `package.json` names (§5). If it is ever added: not
+  *Restrict creations*, because the workflow's token cannot be a bypass
+  actor, and it would refuse Release's own tag.
 - **Immutable releases stay off.** Security Scan and `windows-payload.yml`
   attach to the release separately, after it is published; with immutability
   on, the second attach would fail.

@@ -21,8 +21,14 @@ reaches the self-hosted machine or live.
   generated body and no `bom.json`, while the images were pushed and signed
   and `windows-payload.yml` attached the zip to a release it created bodiless.
   §4's go/no-go ("published with its images and SBOM") does not hold for
-  alpha.1. The release is not edited (the owner's decision 12); `CHANGELOG.md`'s
-  alpha.1 section says so, and `mode=verify` on the tag names both gaps.
+  alpha.1. Decision 12, as the owner answered it on 2026-10-23: a session may
+  not edit releases, so the owner pastes the standard text (what Security
+  Scan's *Compose release body* writes) and a note on the failed tag-time scan
+  into alpha.1's release page by hand. Its `bom.json` stays missing: nothing
+  regenerates it, and a re-run of the tag's scan fails the same way on the
+  tag's lockfile. `CHANGELOG.md`'s alpha.1 section says so, and `mode=verify`
+  on the tag refuses for the missing `bom.json` (and for the body, until the
+  paste).
 - **The order.** preflight (read only), approve (the `release` environment:
   the owner's recorded say-so, a guard against accidents and not a boundary),
   a gate scan of exactly C on a branch `release-gate/<tag>`, the tag (nights
@@ -38,9 +44,13 @@ reaches the self-hosted machine or live.
   count (3), and the freeze (4), all written once in 0141 T14; the approval
   environment (5); no CI on a Release-made tag, C's own push run must have run
   lint, unit, UI and integration (6); the changelog section dated within the
-  week before the run (8); no override input (9); the tag ruleset as an owner
-  step (10); open code-scanning alerts reported, not refused (11); immutable
-  releases off (13); hand-pushed tags unchanged, as break-glass (14).
+  week before the run (8); no override input (9); open code-scanning alerts
+  reported, not refused (11); immutable releases off (13); hand-pushed tags
+  unchanged, as break-glass (14). The tag ruleset (10) is optional, and the
+  owner's answer of 2026-10-23 is "not now": `docs/release.md`'s *Settings the
+  owner makes once* lists only the `release` environment (required reviewer:
+  the owner; deployment branches: `main`), and the ruleset is an optional note
+  beside it.
   `[Unreleased]` must be empty: the preflight refuses otherwise, so the hand
   path's names check is unchanged.
 - **Decision 7, the upgrade proof, is shared with the managed chain's own
@@ -67,8 +77,8 @@ reaches the self-hosted machine or live.
   of its zip, both architectures and the `sha-` tag for all three images,
   `latest` withheld. Owed on `main` after the merge: four proof dispatches
   (preflight; rehearse with an explicit commit; rehearse-tag; verify on
-  alpha.1), and from the owner, the `release` environment and the tag ruleset
-  (`docs/release.md`, *Settings the owner makes once*).
+  alpha.1), and from the owner, the `release` environment (`docs/release.md`,
+  *Settings the owner makes once*) and alpha.1's release text, pasted by hand.
 - **The review of the build (2026-10-23), applied on the same branch.** Two
   blocking: a rehearsal carried every refusal, so a commit that is not on
   `main` still reached the gate scan, which makes a branch at it and runs that
@@ -96,7 +106,8 @@ reaches the self-hosted machine or live.
   with #1681's facts in it: both gates' commands with
   `UPGRADE_FROM_REF=<previous-tag>`, the managed gate as the managed chain's
   proof with its count, seven, and the drill not applicable for alpha.2 and
-  why. **The upgrade gates, run for real** on the merge, with `v0.2.0-alpha.1` fetched
+  why. Decisions 10 and 12 follow the owner's answers (above). **The upgrade
+  gates, run for real** on the merge, with `v0.2.0-alpha.1` fetched
   (`node scripts/release-upgrade-gates.mjs --candidate . --from
   v0.2.0-alpha.1`): *"pass upgrade-ledger: all 8 cases ran and passed, 7 of
   them upgrading from v0.2.0-alpha.1; 65 → 65 migrations: nothing to upgrade
