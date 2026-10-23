@@ -10,14 +10,17 @@
 (`www.yml` and the web image's runtime) floated, and nothing ever pulled them, so both stacks
 ran whatever copy the machine pulled first; §4 said the bring-up records what it pulled, and
 nothing did. Pinned at postgres 18.6-alpine `898c60cb…`, redis 7.4.11-bookworm `44960b31…`,
-caddy 2.11.7-alpine `eb4d35b7…`, nextcloud 34.0.5-apache `9dbdc711…` and nginx 1.31.7-alpine
-`892bb215…`: the index digest Docker Hub served for each tag on the day, its tag list and the
+caddy 2.11.7-alpine `eb4d35b7…`, nextcloud 34.0.5-apache `9dbdc711…` and nginx 1.31.8-alpine
+`1ef7ca94…`: the index digest Docker Hub served for each tag on the day, its tag list and the
 registry agreeing, every index with linux/arm64 and amd64. Three are that day's rebuilds, not
 the digests read on 2026-10-21: postgres (13:08 UTC; the self-host line's `77f58511…` is the
-tag's earlier build, which Dependabot moves there), nextcloud (07:51) and caddy (17:52). Not
-nginx 1.31.8, whose image was pushed at 16:51 UTC the same day: four bug fixes and one change,
-no security fix, where 1.31.7 (2026-10-14) fixed five CVEs; Dependabot offers it to the web
-image, and the pin watch then lists `www.yml`.
+tag's earlier build, which Dependabot moves there), nextcloud (07:51) and caddy (17:52). nginx
+was first pinned at 1.31.7-alpine `892bb215…` and moved to 1.31.8 on 2026-10-23, its digest
+read that day: 1.31.8 itself (pushed 16:51 UTC on 2026-10-22) is four bug fixes and one change,
+no security fix, where 1.31.7 (2026-10-14) fixed five CVEs, but its image is built on Alpine
+3.24.3 and 1.31.7's on 3.24.2, which Trivy 0.76.0 finds two high CVEs in that 3.24.3 fixes
+(libexpat CVE-2026-77214, libx11 CVE-2026-88806). Pinned at 1.31.7, the web image would have
+gone from no high finding (`ownpace-web:edge`, Alpine 3.24.3) to two.
 `db-roles.sh` reads its client from `managed.yml`'s first postgres line, as `stand-up-live.sh`
 does, up to the first space or `#`, and `db_roles_init` refuses a file without one. Guards:
 `a-float-nothing-ever-pulled`, new (no float in the three compose files but busybox, named with
@@ -219,7 +222,7 @@ is who moves it after T1.
 | Image | Where | Pinned | Newest | Distance | Moves by | Decision |
 |---|---|---|---|---|---|---|
 | `node` (24-slim) | `apps/api`, `apps/web`, `apps/selfhost` Dockerfiles; the Windows payload's node.exe follows `apps/selfhost` | 24.22.1-slim by digest (2026-10-21, the October security release; digest `6f7b03f7…` with no tag at the audit, 24.20.0-slim from T2) | 24.22.1-slim (Node released 2026-10-20); the tag's digest moves as more architectures land (ppc64le at 17:39 UTC on 2026-10-21) and Dependabot offers each move | current: the pin's amd64 and arm64 images are the tag's | Dependabot `docker`, which moves the payload with it since 2026-10-21 | **T2** — and T1 gives it its tag |
-| `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.31.7-alpine by digest `892bb215…` (2026-10-22; 1.27-alpine at the audit, 1.30-alpine from T2, `1.31-alpine` floating from #813, which no build or `up` ever pulled again) | 1.31.8-alpine, pushed 2026-10-22 16:51 UTC: four bug fixes and one change (changes.xml, 2026-10-21), where 1.31.7 (2026-10-14) fixed five: CVE-2026-15176, CVE-2026-93479, CVE-2026-95101, CVE-2026-97629 and CVE-2026-97205 | one patch, no security fix in it | Dependabot `docker` for the Dockerfile; `www.yml` by hand after it, and the pin watch (0146 T8) says when the two differ | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows |
+| `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.31.8-alpine by digest `1ef7ca94…` (2026-10-23; 1.31.7-alpine `892bb215…` the day before, 1.27-alpine at the audit, 1.30-alpine from T2, `1.31-alpine` floating from #813, which no build or `up` ever pulled again) | 1.31.8-alpine, pushed 2026-10-22 16:51 UTC: four bug fixes and one change (changes.xml, 2026-10-21) on Alpine 3.24.3, which fixes the two high CVEs 1.31.7's image carries on 3.24.2 (libexpat CVE-2026-77214, libx11 CVE-2026-88806); 1.31.7 (2026-10-14) fixed five: CVE-2026-15176, CVE-2026-93479, CVE-2026-95101, CVE-2026-97629 and CVE-2026-97205 | current | Dependabot `docker` for the Dockerfile; `www.yml` by hand after it, and the pin watch (0146 T8) says when the two differ | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows |
 | `postgres` (self-host) | `deploy/selfhost/compose.yml` | 18.6-alpine by digest `77f58511…` (Dependabot's move of 2026-09-24 to a rebuild of the tag; `d3e1620b…` from T2, digest `9a8afca5…` = 18.4-alpine with no tag at the audit) | 18.6-alpine, rebuilt 2026-10-22 as `898c60cb…`, which the managed stacks pin | the same release; Dependabot offers the rebuild | Dependabot `docker-compose` | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
 | `postgres` (managed ×2, dev) | `managed.yml`, `dev.yml`, the Testcontainers setup; `db-roles.sh` reads `managed.yml`'s | 18.6-alpine by digest `898c60cb…` (2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13); 18.7 is due 2026-11-12 | current | by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8) | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
 | `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
