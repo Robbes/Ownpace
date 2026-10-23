@@ -2,7 +2,53 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-10-22 (update this block at the end of every session)
+## Status — 2026-10-23 (update this block at the end of every session)
+
+**2026-10-23: Trigger.dev v4.7.6, the tasks on the API image's Node, and ClickHouse 26.2
+accepted for the Alpha**, on the branch `claude/ownpace-public-readiness-y7orc6-trigger-4-7-6`
+(issues #1668 and #1669 are the pin watch's records of the first two). The owner chose both
+moves now, in alpha.2, and option (a) for ClickHouse, the plan's recommendation (2026-10-23).
+- **v4.7.2 → v4.7.6** with `trigger-version.sh pin v4.7.6` in every place; the lockfile moves
+  `@trigger.dev/core` and `@trigger.dev/sdk` only, whose dependency ranges did not change.
+  The notes between the tags, read from each release commit's `.server-changes` files and
+  the CLI's changelog: the run trace API stops returning internal debug events (v4.7.5); the
+  webapp image and the deploy images distrust the roots behind the compromised eMudhra
+  intermediates and the Sectigo AAA cross-sign (v4.7.6); a magic link signs in only in the
+  browser that asked for it (v4.7.4, on by default), which the runbook already asks for; a
+  revoked personal access token stays revoked (v4.7.4); `POST /api/v1/sessions` needs two
+  permissions (v4.7.3; nothing here calls it); `deploy` refuses an `--env` that differs from
+  the environment of an environment key in `TRIGGER_ACCESS_TOKEN` (v4.7.5; this stack's is a
+  personal token, `deploy-tasks.sh` says so). Six ClickHouse migrations (049 to 054) and the
+  Prisma ones ride on it: one way, applied by E2E (managed) on the branch.
+- **The telemetry, re-read at v4.7.6** (the webapp's `env.server.ts`, `telemetry.server.ts`,
+  `postAuth.server.ts`, `usePostHog.ts` and `docker/scripts/entrypoint.sh`, the supervisor's
+  `env.ts`, the CLI's `common.ts`): nothing new is on by default. Cloudflare Turnstile and AWS
+  KMS joined the guard's list of keys that switch a third party on.
+- **v4.7.7 exists** (2026-10-22) and is a security release: deploy images on Node 24.22.1, and
+  the supervisor distrusting the same roots. Not taken: it passes the three-day floor only at
+  2026-10-25 08:45 UTC. Its task half is what the overlay below gives; the supervisor makes no
+  TLS connection on these stacks (the webapp, the socket proxy and the registry are plain HTTP
+  on the compose network or loopback). #1668 will name v4.7.7 at the next weekly watch; take
+  it after the launch, by the same route.
+- **The tasks' Node.** Every CLI from 4.7.2 to 4.7.6 builds the task image on
+  `triggerdotdev/node:24-bookworm@sha256:d2d0c018…`, Node 24.18.0 on a Debian snapshot of
+  2026-07-13. `apps/worker/trigger.config.ts` now adds one layer for every target but
+  `trigger dev`: Node copied from the image `apps/api/Dockerfile` builds FROM (24.22.1 by
+  digest), and the base image's packages upgraded. Dependabot moves that line, and the tasks
+  move with it at their next deploy. The Dockerfile is read in `onBuildStart`, where a throw
+  stops the deploy (one in `onBuildComplete` is only logged). The guard holds the layer to the
+  FROM line and the pin watch's `TASK_OVERLAY` to the config's text, which closes #1669.
+- **ClickHouse**: item 9 of §3, with the exposure and the revisit triggers.
+- **The lockfile and the three-day floor.** pnpm dates the two 4.7.6 packages 2026-10-20 at
+  18:30 UTC, so every frozen install refuses this branch's lockfile until 2026-10-23 at about
+  18:31 UTC, and accepts it after with nothing changed. No exclude entry was added.
+- Proved here: the unit guards that read these files, red first, four mutations of the
+  overlay caught. Owed before merge: checklist T15 on the OTA stack (hold, nothing
+  `EXECUTING`, `trigger-version.sh backup before-v4.7.6`, `TRIGGER_IMAGE_TAG=v4.7.6` in its
+  `.env`), then E2E (managed) on the branch, whose task deploy should log the `COPY --from`
+  line and whose smoke runs should end `COMPLETED_SUCCESSFULLY`, merged within the hour. Live
+  takes it from the alpha.2 tag, after `TRIGGER_IMAGE_TAG=v4.7.6` in its `.env`;
+  `deploy-live.sh` takes the task runner's dump into the copy by itself.
 
 **2026-10-22: the floating tags' pull request opened as a draft**, #1678 (head `b900ccf3`, with
 `main` merged in): postgres, redis, caddy, nextcloud and nginx by exact tag and digest. Its
@@ -188,8 +234,8 @@ is who moves it after T1.
 | `postgres` (managed ×2, dev) | `managed.yml`, `dev.yml` | 18-alpine, floating | 18.6 | none, it floats within 18 | `docker compose pull` | stays floating; a major (`pg_upgrade`) is ignored in Dependabot and is the owner's |
 | `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
 | `redis` | `managed.yml` | 7.4-bookworm, floating (7.4.11 on Debian 12; 7-alpine, on Alpine 3.21, until 2026-10-21) | 8.8.2-alpine | one major | owner | **§3** — the licence changed at 7.4, which is the line this floats on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
-| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, `apps/worker/package.json` | v4.5.12; v4.5.16 pinned in #827 | v4.5.16 | — once #827 is applied | `trigger-version.sh` only; the pin watch keeps an issue open while a newer tag is in both images (0146 T8) | **§3, pinned** — one way (three Prisma migrations, one ClickHouse); the gate run in the owner's window applies it, not the merge. Dependabot told to leave all four places alone |
-| `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8) | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`) |
+| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, `apps/worker/package.json` | v4.7.6 (2026-10-23; v4.7.2 before it, v4.5.12 at the audit) | v4.7.7 (2026-10-22), past the three-day floor on 2026-10-25 | one patch release | `trigger-version.sh` only; the pin watch keeps an issue open while a newer tag is in both images (0146 T8) | **§3, pinned** — one way (three Prisma migrations, one ClickHouse); the gate run in the owner's window applies it, not the merge. Dependabot told to leave all four places alone |
+| `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8) | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`); 26.2 is out of ClickHouse's support, **accepted for the Alpha** (§3 item 9) |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
 | `tecnativa/docker-socket-proxy` | `managed.yml` | v0.5.0 | v0.5.0 | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
 | `bitnamilegacy/minio` | `managed.yml` | 2025.5.24-debian-12-r5 by digest | none: `bitnamilegacy` stopped at 2025.7.23 (pushed 2025-08-19); `minio/minio` stopped at RELEASE.2025-09-07 | no upstream | owner | **§3** — the object store has no maintained free image; a replacement is a decision, and item 5 names a candidate |
@@ -394,6 +440,38 @@ is beside each; none is urgent tonight.
    `scripts/a-gate-that-was-never-switched-on.unit.test.ts` now fails when one does not, and
    also when the list exists without the setting, when the value is under a day, and when an
    entry is a bare package name — which pnpm treats as "exempt this package for ever".
+9. **ClickHouse 26.2, out of support since 2026-05-21 — ACCEPTED FOR THE ALPHA, 2026-10-23.**
+   ClickHouse's `SECURITY.md` (read 2026-10-23) supports 26.9, 26.8, 26.7 and 26.3, and not
+   26.2; 26.2.19.43 (2026-05-21) is that line's last patch. Trigger.dev pins exactly that, by
+   the same digest, in `docker/docker-compose.yml` at v4.7.2, v4.7.6 and v4.7.7 (`26.2` in
+   `hosting/docker/webapp/docker-compose.yml`; its Helm values state a floor, "requires
+   ClickHouse >= 25.8", and its test containers run 26.2.19.43). This stack follows that pin
+   because the one ClickHouse it ran that upstream had not tested crash-looped the v4.5.12
+   upgrade (`managed-bring-up.md`, *Upgrading Trigger.dev*). The choices were (a) keep 26.2
+   for the Alpha, recommended, and (b) 26.8.32.14 LTS now, one way. **The owner took (a).**
+
+   **Exposure.** Reachable on the compose network only: no published port, one client
+   (`trigger-api`), a password `ensure-env-secrets.sh` mints and `shipped-passwords.sh`
+   refuses at its shipped value. What it holds is the task runner's event store and metrics,
+   derived from the runs; the fallback for a broken store is a new, empty volume
+   (`managed.yml`'s comment on `clickhouse_data_v2`).
+
+   **What is not known.** CVE-2026-51992 (published 2026-07-29: SQL injection through the
+   source parameters of `CREATE DICTIONARY`, rated critical by third-party trackers, which list
+   ClickHouse "up to 26.3.9.8"). ClickHouse's own advisory was not found, so whether
+   26.2.19.43 carries the fix is not established. Its changelog does backport one fix for SQL
+   injection through dictionary sources (string keys of PostgreSQL, Cassandra and XDBC
+   sources, ClickHouse#104009), which may or may not be this CVE. Either way it needs a SQL
+   session allowed to create a dictionary, which here means the password above. Also not in
+   26.2: 26.3.10's lower limits on HTTP headers before authentication.
+
+   **Revisit**, whichever comes first: Trigger.dev's `docker/docker-compose.yml` moves off 26.2
+   (the pin watch's ClickHouse row says so every Monday, 0146 T8, and *Upgrading Trigger.dev*
+   compares the line at every move); a ClickHouse advisory dated after 2026-05-21 that affects
+   authenticated SQL or the HTTP interface, CVE-2026-51992 included once its fixed versions are
+   known; and 2027-03 at the latest. Moving is then (b) or whatever upstream pins, one way, and
+   it also moves `scripts/a-service-that-phones-home.unit.test.ts`'s ClickHouse row and the
+   reading behind `clickhouse-no-crash-reports.xml`.
 
 ## 4. Not done, honestly
 
@@ -406,7 +484,9 @@ is beside each; none is urgent tonight.
   than pin them. A reader who wants reproducibility on the managed stack should know that
   the bring-up records what it pulled; that is where the exact version lives.
 - **ClickHouse** is not checked against anything but Trigger.dev's own compose, and that
-  is by design; the version that rejected a migration is the reason it is pinned at all.
+  is by design; the version that rejected a migration is the reason it is pinned at all. That
+  pin, 26.2, has been out of ClickHouse's support since 2026-05-21: accepted for the Alpha, with
+  its revisit triggers (§3 item 9).
 - **Whether Dependabot reads `${TRIGGER_IMAGE_TAG:-v4.5.12}`** correctly is not tested here;
   those two lines are ignored by name, so the answer does not matter for them.
 - **The three actions behind by a patch or a minor** are left to Monday's group rather than

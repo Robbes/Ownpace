@@ -5035,6 +5035,18 @@ never reads as "nothing newer", nor as an older newest.
 > `bootstrap-managed.unit.test.ts` refuses any `latest` in `managed.yml` from
 > here on, so this cannot happen quietly a second time.
 >
+> **So every Trigger.dev move compares the ClickHouse line too.** Read the
+> `clickhouse` image in upstream's `docker/docker-compose.yml` at the new tag
+> (`https://raw.githubusercontent.com/triggerdotdev/trigger.dev/<tag>/docker/docker-compose.yml`)
+> against the `clickhouse` service's `image:` in `managed.yml`. When upstream
+> moved, move with it, tag and digest, in the same pull request, proven by
+> E2E (managed) on its branch; ClickHouse's data moves forward only. The weekly
+> pin watch says the same while the two differ (its ClickHouse issue, workplan
+> 0146 T8). At v4.7.6 and v4.7.7 both say `26.2.19.43@sha256:c2f26055…`.
+> ClickHouse's `SECURITY.md` has not supported 26.2 since its last patch
+> (2026-05-21); the owner accepted that for the Alpha on 2026-10-23, with the
+> exposure and the revisit triggers in workplan 0119 §3 item 9.
+>
 > **The first bring-up after that change starts ClickHouse EMPTY, on purpose.**
 > Bitnami kept its data under `/bitnami/clickhouse` and the official image reads
 > `/var/lib/clickhouse`; handing one vendor's directory layout to the other is
