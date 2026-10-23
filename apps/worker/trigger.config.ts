@@ -19,7 +19,49 @@
  * apps/selfhost may know this exists.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { defineConfig } from '@trigger.dev/sdk';
+
+/**
+ * THE TASKS RUN THE API IMAGE'S NODE (lifecycle round 2026-10-21; issue #1669).
+ *
+ * The base image the CLI names for `node-24` was Node 24.18.0 in every CLI up
+ * to 4.7.6, two security releases behind, and nothing here moved it. So a
+ * deploy adds one layer to the task image: the Node binary out of the image
+ * `apps/api/Dockerfile` builds FROM, copied over the base image's, and the base
+ * image's Debian packages brought up to date. Dependabot moves that FROM line,
+ * so the tasks move with the API. The CLI puts a layer's instructions in the
+ * image's first stage, as root, which its build, indexer and final stages all
+ * start from. An official Node binary needs only glibc 2.28, so one taken from
+ * a trixie image runs on the base image's bookworm.
+ *
+ * The Dockerfile is read on the DEPLOYING machine, at the start of the build:
+ * a throw in `onBuildStart` stops the deploy, where one in `onBuildComplete`
+ * is only logged and the deploy goes on without the layer. `trigger dev` builds
+ * no image, so it gets nothing. The indexer container imports this file again,
+ * and neither hook runs there.
+ *
+ * Instructions in the first stage cost a little at every deploy: the CLI then
+ * builds its build stage on that stage instead of its prebuilt `-build` image,
+ * installing python3, make and g++ itself, and both stages need the Debian
+ * archive. `scripts/a-gate-on-a-version-nothing-ships.unit.test.ts` holds the
+ * layer to the Dockerfile's FROM line. A change here takes a task re-deploy.
+ */
+const TASK_NODE = 'task-node';
+let apiNodeImage: string | undefined;
+
+/** The image `apps/api/Dockerfile` builds FROM, by tag and digest, or a refusal. */
+function readApiNodeImage(workingDir: string): string {
+  const dockerfile = join(workingDir, '..', 'api', 'Dockerfile');
+  const image = /^FROM\s+(node:\S+@sha256:[0-9a-f]{64})(?:\s|$)/m.exec(readFileSync(dockerfile, 'utf8'))?.[1];
+  if (!image) {
+    throw new Error(
+      `${dockerfile} has no FROM node:<tag>@sha256:<digest> line, so the tasks cannot take the API image's Node; the deploy stops here`,
+    );
+  }
+  return image;
+}
 
 export default defineConfig({
   // Resolved on the DEPLOYING machine, where deploy-tasks.sh guards that the
@@ -77,5 +119,28 @@ export default defineConfig({
     // are npm-installable inside the task image instead. First cut; T5's
     // live deploy on the Spark is what proves the list.
     external: ['@electric-sql/pglite', 'pg'],
+    // The tasks' Node is the API image's (the comment above `defineConfig`).
+    extensions: [
+      {
+        name: TASK_NODE,
+        onBuildStart(context) {
+          if (context.target === 'dev') return;
+          apiNodeImage = readApiNodeImage(context.workingDir);
+        },
+        onBuildComplete(context) {
+          if (context.target === 'dev') return;
+          apiNodeImage ??= readApiNodeImage(context.workingDir);
+          context.addLayer({
+            id: TASK_NODE,
+            image: {
+              instructions: [
+                `COPY --from=${apiNodeImage} /usr/local/bin/node /usr/local/bin/node`,
+                'RUN apt-get update && apt-get -y upgrade && apt-get clean && rm -rf /var/lib/apt/lists/*',
+              ],
+            },
+          });
+        },
+      },
+    ],
   },
 });

@@ -4661,6 +4661,11 @@ Re-deploy the tasks when the pull touched `apps/worker` **or anything the
 worker bundles** — in practice `packages/connectors`, `packages/engines`,
 `packages/orchestration`, `packages/shared`, which is most changes that are not
 purely web. When in doubt, run it: it is idempotent and costs a minute.
+And when it moved `apps/api/Dockerfile`'s `FROM` line, which Dependabot does
+most weeks: the task image takes its Node from that image
+(`apps/worker/trigger.config.ts`, since 2026-10-23), and a task deploy is what
+carries the new one to the tasks. The managed gate and `deploy-live.sh` run the
+bring-up from `data`, whose `tasks` phase deploys them.
 
 **`deploy-tasks.sh` installs this checkout's packages first**
 (`pnpm install --frozen-lockfile`, since 2026-09-28). The images install their
