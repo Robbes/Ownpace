@@ -112,15 +112,23 @@ one line per check, `pass` or `refuse`, every reason at once):
    - **gate scan:** a branch `release-gate/<tag>` at exactly C, Security Scan
      dispatched on it (`image_scans: false`) and waited for, the branch
      deleted. Advisories are read live, so this scan, minutes before the tag,
-     is the one that counts.
-   - **tag:** reads the nights and the tag again (the approval may have waited
-     days), checks C is still on `main`, and makes the annotated tag with the
+     is the one that counts. The branch is made only when C is on `main`
+     (a dispatch on it runs C's own workflow file, with a write token), and
+     the gate passes only when every image job of that run was skipped.
+   - **tag:** peels the tag first: when it is already Release's at C (a
+     re-run), it carries on and reads nothing else. Otherwise it reads the
+     nights again (the approval may have waited days), checks C is still on
+     `main`, peels the tag again, and makes the annotated tag with the
      workflow's own token (`POST git/tags`, `POST git/refs`). Its message names
      the Release run and every run that proved it: cite it in the deploy log.
-     A tag is never moved.
+     A tag counts as Release's only when that run is a release-mode dispatch
+     of `release.yml` on `main` and its `tag` job ran: a message can be typed
+     by hand. A tag is never moved.
    - **publish:** Security Scan on the tag, then `images.yml` and
      `windows-payload.yml` (`platform=win-x64`) on the tag, each dispatched
-     and waited for.
+     and waited for. Before each, the tag must still be Release's at C and no
+     branch may share its name: a dispatch names the tag by its short name,
+     which a branch of that name would answer to.
    - **verify** (§3).
 
 A tag made with the workflow's own token starts no `push` workflow, which is
@@ -128,20 +136,29 @@ why Release dispatches each publisher on the tag itself: each sees
 `github.ref` = `refs/tags/<tag>` and `github.sha` = C, exactly as on a pushed
 tag, so their tag conditions and the names check hold as they are.
 
-**When something fails.** Re-run the failed job, or dispatch `mode=release`
-again: the tag is reused when it is Release's at C; a publisher run that
-already passed on the tag is reused, one still running is waited for, and a
-failed one has its failed jobs re-run, once, never a fresh dispatch (that
-would rebuild and re-push every image). A dispatch is never sent twice: after
-an error it looks for the run, and when it finds none it stops and says so.
-A release re-run days later is refused if newer nights ran another commit;
-use `mode=verify` then, and dispatch a single publisher on the tag by hand
-from the Actions tab if one is missing.
+**When something fails.** Re-run the run's failed jobs, or dispatch
+`mode=release` again: the tag is reused when it is Release's at C; a
+publisher run that already passed on the tag is reused, one still running is
+waited for, and a failed one has its failed jobs re-run, once, never a fresh
+dispatch (that would rebuild and re-push every image). A dispatch is never
+sent twice: after an error it looks for the run, and when it finds none it
+stops and says so. Re-running the failed jobs is the way back when the tag
+job failed after it made the tag: the tag job then finds its own tag and
+carries on without reading the nights, while a fresh dispatch refuses that
+tag (its run's tag job did not succeed). A fresh dispatch days later is
+refused at the preflight if newer nights ran another commit; use
+`mode=verify` then, and dispatch a single publisher on the tag by hand from
+the Actions tab if one is missing. A run you cancel stops: only the gate
+branch and the rehearsal tag are cleaned up after it.
 
 **The other modes:** `rehearse` is the preflight plus the gate scan, and no
-tag; while the nights pick no commit it needs `commit` set (to `main`'s head,
-for instance), and it ends red with the preflight's count when the real run
-would have stopped there. `rehearse-tag` makes a throwaway annotated tag
+tag; while the nights pick no commit it needs `commit` set to a commit on
+`main`'s first-parent line (`main`'s head, for instance). A commit that is not
+on that line ends the run red at the preflight, before any gate branch is
+made: the record's refusals are carried to the end of the run, the ones that
+say which commit it is are not. It ends red with the preflight's count when
+the real run would have stopped there, and its gate scan shows the three
+image jobs skipped. `rehearse-tag` makes a throwaway annotated tag
 `rehearsal-<run number>` at `main`'s head, dispatches Security Scan on it,
 expects the names check to refuse it ("not a release name") before anything
 installs and with no release made, and deletes it. `verify` checks what an

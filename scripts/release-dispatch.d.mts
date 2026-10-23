@@ -14,6 +14,7 @@ export type { Run } from './release-nights.mjs';
 export declare const GATE_PREFIX: string;
 export declare const REHEARSAL_PREFIX: string;
 export declare const NAMES_STEP: string;
+export declare const SCAN_JOB: string;
 
 export declare function gateBranch(version: string): string;
 export declare function assertNotARelease(name: string): void;
@@ -42,6 +43,7 @@ export declare function waitForRun(
   client: Client,
   options: { id: number; minAttempt?: number; sleep?: Sleep; pollMs?: number; timeoutMs?: number },
 ): Promise<Run>;
+export declare function tagStillOurs(client: Client, options: { version: string; sha: string; currentRunId: number | null }): Promise<Line>;
 export declare function publish(
   client: Client,
   options: {
@@ -53,6 +55,7 @@ export declare function publish(
     pollMs?: number;
     timeoutMs?: number;
     now?: () => Date;
+    currentRunId?: number | null;
   },
 ): Promise<Line[]>;
 export declare function openGate(client: Client, options: { version: string; sha: string }): Promise<Line>;
@@ -70,6 +73,7 @@ export interface Job {
   steps?: Array<{ number: number; name: string; status: string; conclusion: string | null }>;
 }
 
+export declare function imageJobsSkipped(jobs: Job[] | null | undefined, check: string): Line[];
 export declare function judgeRehearsal(options: { run: Run | null; jobs: Job[]; release: unknown; tag: string }): Line[];
 export declare function rehearseTag(
   client: Client,

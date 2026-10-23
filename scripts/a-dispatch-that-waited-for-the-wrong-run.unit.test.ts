@@ -24,9 +24,20 @@
  * - **Green means success.** `cancelled` and `skipped` are not green. A
  *   run's answer is read again until its attempt is the one asked for, so the
  *   red of the attempt being re-run is not read as its outcome.
+ * - **The tag, checked before each publisher** (the review of 2026-10-23).
+ *   A dispatch names the tag by its short name, which a branch of the same
+ *   name would answer to as well, and the run's `head_branch` could not tell
+ *   them apart. So before anything is dispatched on the tag, the tag must
+ *   still be Release's annotated tag at the commit, and no branch may share
+ *   its name.
  * - **The gate branch** (`release-gate/<version>`), which lets Security Scan
- *   be dispatched on exactly the commit, is deleted only while it still
- *   points at that commit.
+ *   be dispatched on exactly the commit, is made only at a commit on `main`
+ *   (`compare`, ahead or identical: a dispatch on it runs that commit's own
+ *   workflow file with a write token), and deleted only while it still
+ *   points at that commit. The gate scan passes only when it was the
+ *   repository scan alone: every image job skipped, as `image_scans=false`
+ *   asks, so a scan on the tag cannot go red on an image after the release
+ *   body is attached.
  * - **The rehearsal tag** (`rehearsal-<run number>`) cannot be named like a
  *   release, and the rehearsal passes only when Security Scan on it failed
  *   at the names check, before anything installed, with no release made.
@@ -51,12 +62,15 @@ import {
   openGate,
   closeGate,
   gateBranch,
+  gateScan,
+  tagStillOurs,
   rehearsalTagName,
   assertNotARelease,
   judgeRehearsal,
 } from './release-dispatch.mjs';
 import type { Run, Client } from './release-dispatch.mjs';
 import { ApiError } from './release-github.mjs';
+import { tagMessage } from './release-cut-tag.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const fixture = <T>(name: string): T =>
@@ -107,6 +121,38 @@ const run = (over: Partial<Run> = {}): Run => ({
 });
 
 const posts = (calls: Call[], suffix: string) => calls.filter((c) => c.method === 'POST' && c.path.endsWith(suffix));
+
+// The tag as Release made it: annotated, at C, its message naming Release run
+// 4242, whose tag job ran; and no branch named like it.
+const RELEASE_RUN = 4242;
+const TAG_OBJECT = 'a'.repeat(40);
+type Over = (call: Call) => Answer | undefined;
+function tagged(over: Over = () => undefined): Over {
+  return (call) => {
+    const special = over(call);
+    if (special) return special;
+    if (call.method !== 'GET') return undefined;
+    if (call.path === `git/ref/tags/${V}`) return { status: 200, json: { ref: `refs/tags/${V}`, object: { type: 'tag', sha: TAG_OBJECT } } };
+    if (call.path === `git/tags/${TAG_OBJECT}`) {
+      const message = tagMessage({ version: V, runUrl: `https://github.com/Robbes/Ownpace/actions/runs/${RELEASE_RUN}`, proof: 'p' });
+      return { status: 200, json: { sha: TAG_OBJECT, tag: V, message, object: { type: 'commit', sha: C } } };
+    }
+    if (call.path === `actions/runs/${RELEASE_RUN}`) {
+      return {
+        status: 200,
+        json: { id: RELEASE_RUN, path: '.github/workflows/release.yml', head_branch: 'main', event: 'workflow_dispatch', display_title: `Release ${V} (release)` },
+      };
+    }
+    if (call.path === `actions/runs/${RELEASE_RUN}/jobs?filter=all&per_page=100`) {
+      return { status: 200, json: { jobs: [{ name: 'tag', status: 'completed', conclusion: 'success' }] } };
+    }
+    if (call.path === `git/ref/heads/${V}`) return { status: 404 };
+    return undefined;
+  };
+}
+/** `fake`, with the tag answered as Release made it before `handle` is asked. */
+const onTag = (handle: (call: Call, calls: Call[]) => Answer, over: Over = () => undefined) =>
+  fake((call, calls) => tagged(over)(call) ?? handle(call, calls));
 
 describe('choosing what to do about a publisher on a tag', () => {
   it('dispatches when nothing ran the commit, and ignores runs of other commits', () => {
@@ -194,7 +240,7 @@ describe('publishing on the tag', () => {
 
   it('re-runs a failed run’s failed jobs, once, and never dispatches a second run', async () => {
     let attempt = 1;
-    const api = fake((call) => {
+    const api = onTag((call) => {
       if (call.method === 'POST' && call.path === 'actions/runs/100/rerun-failed-jobs') {
         attempt = 2;
         return { status: 201 };
@@ -215,7 +261,7 @@ describe('publishing on the tag', () => {
 
   it('refuses when the re-run fails too, without a third try', async () => {
     let attempt = 1;
-    const api = fake((call) => {
+    const api = onTag((call) => {
       if (call.method === 'POST') {
         attempt = 2;
         return { status: 201 };
@@ -230,18 +276,59 @@ describe('publishing on the tag', () => {
   });
 
   it('reuses a run that already passed, and dispatches nothing', async () => {
-    const api = fake((call) =>
+    const api = onTag((call) =>
       call.path.startsWith('actions/workflows/') ? { status: 200, json: { workflow_runs: [run()] } } : { status: 404 },
     );
     const lines = await publish(api, opts);
-    expect(lines.map((l) => l.kind)).toEqual(['pass']);
+    expect(lines.map((l) => `${l.kind} ${l.check}`)).toEqual(['pass tag-ref', 'pass publish-images']);
     expect(api.calls.filter((c) => c.method !== 'GET')).toEqual([]);
+  });
+
+  it('dispatches once on the tag when nothing ran it yet, after checking the tag', async () => {
+    const api = onTag((call) => {
+      if (call.method === 'POST') return { status: 200, json: { workflow_run_id: 101 } };
+      if (call.path.startsWith('actions/workflows/')) return { status: 200, json: { workflow_runs: [] } };
+      if (call.path === 'actions/runs/101') return { status: 200, json: run({ id: 101 }) };
+      return { status: 404 };
+    });
+    const lines = await publish(api, opts);
+    expect(lines.map((l) => l.kind)).not.toContain('refuse');
+    expect(posts(api.calls, '/dispatches')).toHaveLength(1);
+    const paths = api.calls.map((c) => `${c.method} ${c.path}`);
+    expect(paths.indexOf(`GET git/ref/heads/${V}`)).toBeLessThan(paths.indexOf('POST actions/workflows/images.yml/dispatches'));
+  });
+
+  // The review of 2026-10-23: a dispatch on the short name runs a branch of
+  // that name as readily as the tag, and a moved tag publishes the other
+  // commit before the run's commit is ever compared.
+  it('dispatches nothing when a branch shares the tag’s name, the tag moved, or it is gone', async () => {
+    const nothingRan = (call: Call): Answer =>
+      call.path.startsWith('actions/workflows/') ? { status: 200, json: { workflow_runs: [] } } : { status: 404 };
+    const cases: Array<[string, Over]> = [
+      ['a branch named like the tag', (call) => (call.path === `git/ref/heads/${V}` ? { status: 200, json: { object: { sha: C } } } : undefined)],
+      [
+        'the tag at another commit',
+        (call) =>
+          call.path === `git/tags/${TAG_OBJECT}`
+            ? { status: 200, json: { sha: TAG_OBJECT, message: `Release run: https://github.com/Robbes/Ownpace/actions/runs/${RELEASE_RUN}`, object: { type: 'commit', sha: OTHER } } }
+            : undefined,
+      ],
+      ['no tag', (call) => (call.path === `git/ref/tags/${V}` ? { status: 404 } : undefined)],
+    ];
+    for (const [what, over] of cases) {
+      const api = onTag(nothingRan, over);
+      const lines = await publish(api, opts);
+      expect(lines.map((l) => l.kind), what).toContain('refuse');
+      expect(api.calls.filter((c) => c.method !== 'GET'), what).toEqual([]);
+    }
+    const ok = await tagStillOurs(onTag(nothingRan), { version: V, sha: C, currentRunId: 0 });
+    expect(ok.kind).toBe('pass');
   });
 
   it('says so before re-running a scan whose release already has its generated body', async () => {
     let attempt = 1;
     const body = 'cosign verify ghcr.io/robbes/ownpace-selfhost:0.2.0-alpha.2 \\';
-    const api = fake((call) => {
+    const api = onTag((call) => {
       if (call.method === 'POST') {
         attempt = 2;
         return { status: 201 };
@@ -263,14 +350,55 @@ describe('publishing on the tag', () => {
 });
 
 describe('the gate branch', () => {
+  const onMain = (status = 'ahead') => (call: Call): Answer | undefined =>
+    call.method === 'GET' && call.path === `compare/${C}...main` ? { status: 200, json: { status } } : undefined;
+  const gate = (handle: (call: Call) => Answer, status = 'ahead') => fake((call) => onMain(status)(call) ?? handle(call));
+
   it('is named after the version, and reused only when it points at the commit', async () => {
     expect(gateBranch(V)).toBe(`release-gate/${V}`);
-    const made = fake(() => ({ status: 201, json: {} }));
+    const made = gate(() => ({ status: 201, json: {} }));
     expect((await openGate(made, { version: V, sha: C })).kind).toBe('pass');
-    const ours = fake((call) => (call.method === 'POST' ? { status: 422 } : { status: 200, json: { object: { sha: C } } }));
+    const ours = gate((call) => (call.method === 'POST' ? { status: 422 } : { status: 200, json: { object: { sha: C } } }));
     expect((await openGate(ours, { version: V, sha: C })).kind).toBe('pass');
-    const theirs = fake((call) => (call.method === 'POST' ? { status: 422 } : { status: 200, json: { object: { sha: OTHER } } }));
+    const theirs = gate((call) => (call.method === 'POST' ? { status: 422 } : { status: 200, json: { object: { sha: OTHER } } }));
     expect((await openGate(theirs, { version: V, sha: C })).kind).toBe('refuse');
+    expect((await openGate(gate(() => ({ status: 201, json: {} }), 'identical'), { version: V, sha: C })).kind).toBe('pass');
+  });
+
+  // The review of 2026-10-23: a branch at a commit that is not on main runs
+  // that commit's own security-scan.yml, write token and runner included.
+  it('is made only at a commit on main, and nothing is written otherwise', async () => {
+    for (const status of ['diverged', 'behind']) {
+      const api = gate(() => ({ status: 201, json: {} }), status);
+      expect((await openGate(api, { version: V, sha: C })).kind, status).toBe('refuse');
+      expect(api.calls.filter((c) => c.method !== 'GET'), status).toEqual([]);
+    }
+    const unknown = fake(() => ({ status: 404 }));
+    expect((await openGate(unknown, { version: V, sha: C })).kind).toBe('refuse');
+    expect(unknown.calls.filter((c) => c.method !== 'GET')).toEqual([]);
+  });
+
+  it('passes the gate scan only when it was the repository scan alone, every image job skipped', async () => {
+    const jobs = (image: string) => [
+      { name: 'security-scan', status: 'completed', conclusion: 'success' },
+      { name: 'Images the stacks run', status: 'completed', conclusion: image },
+      { name: 'Image scan (${{ matrix.name }})', status: 'completed', conclusion: image },
+      { name: 'Image scan report', status: 'completed', conclusion: image },
+    ];
+    const scanned = (image: string) =>
+      gate((call) => {
+        if (call.method === 'POST' && call.path === 'git/refs') return { status: 201, json: {} };
+        if (call.method === 'POST') return { status: 200, json: { workflow_run_id: 300 } };
+        if (call.path === 'actions/runs/300') {
+          return { status: 200, json: run({ id: 300, path: '.github/workflows/security-scan.yml', head_branch: gateBranch(V) }) };
+        }
+        if (call.path === 'actions/runs/300/jobs?filter=latest&per_page=100') return { status: 200, json: { jobs: jobs(image) } };
+        return { status: 404 };
+      });
+    const quiet = await gateScan(scanned('skipped'), { version: V, sha: C, sleep: noSleep, pollMs: 1 });
+    expect(quiet.lines.map((l) => l.kind)).not.toContain('refuse');
+    const loud = await gateScan(scanned('success'), { version: V, sha: C, sleep: noSleep, pollMs: 1 });
+    expect(loud.lines.filter((l) => l.kind === 'refuse').map((l) => l.sentence).join('\n')).toMatch(/image_scans=false/);
   });
 
   it('is deleted only while it still points at the commit', async () => {

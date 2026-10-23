@@ -6,17 +6,23 @@
  * `tag` job of `.github/workflows/release.yml`; `docs/release.md` §2).
  *
  * Right before it writes, it reads again what the preflight read and the
- * approval may have waited days on:
+ * approval may have waited days on, in this order:
  *
- * 1. the nights (`release-nights.mjs`), for this commit: a night that went
- *    red since, or a newer night on another commit, stops it;
- * 2. the tag: absent, it is created; annotated at the commit and made by a
- *    Release run, this is a re-run and nothing is written; anything else
- *    refuses. A tag counts as Release's only when the run its message names
- *    is, by the API's own account, a `workflow_dispatch` of
- *    `.github/workflows/release.yml` on `main` in release mode for this
- *    version: the words "Release run:" alone can be typed into `git tag -a`;
- * 3. the commit is still on `main` (`compare`: ahead or identical).
+ * 1. the tag: annotated at the commit and made by a Release run, this is a
+ *    re-run, nothing is written and nothing else is read (a tag job re-run
+ *    after its tag was made carries on, whatever nights ran since); absent,
+ *    it goes on to be made; anything else refuses. A tag counts as Release's
+ *    only when the run its message names is, by the API's own account, a
+ *    `workflow_dispatch` of `.github/workflows/release.yml` on `main` in
+ *    release mode for this version, and that run's `tag` job ran to success
+ *    (or is running, in this very run): the words "Release run:" alone can
+ *    be typed into `git tag -a`, and can name a run that stopped at its
+ *    preflight;
+ * 2. the nights (`release-nights.mjs`), for this commit, only when the tag
+ *    is to be made: a night that went red since, or a newer night on another
+ *    commit, stops it;
+ * 3. the commit is still on `main` (`compare`: ahead or identical);
+ * 4. the tag, peeled again, right before the write.
  *
  * Then two calls: `POST git/tags` (an annotated tag object, `type: commit`,
  * its message naming the run and what proved it) and `POST git/refs`
@@ -29,6 +35,8 @@
  * Environment: GH_TOKEN (contents: write, actions: read), VERSION, COMMIT,
  * PROOF (the preflight's runs), GATE_RUN (the gate scan's run id),
  * GITHUB_RUN_ID. Exit 0 when the tag is there and is this release's.
+ * (The review of 2026-10-23 put the peel before the nights, and added the
+ * tag job to what makes a tag Release's.)
  */
 
 import { pathToFileURL } from 'node:url';
@@ -36,6 +44,8 @@ import { github, pass, refuse, note, report, output, runUrl as urlOfRun, short }
 import { readNights } from './release-nights.mjs';
 
 export const RELEASE_WORKFLOW = '.github/workflows/release.yml';
+/** The job of release.yml that writes the tag, by its name. */
+export const TAG_JOB = 'tag';
 
 /** The run id a tag's message names, or null. */
 export function releaseRunId(message) {
@@ -60,10 +70,22 @@ export function isReleaseRun(run, version) {
 }
 
 /**
- * Create, reuse or refuse, from the tag ref (null when absent), its tag
- * object (for an annotated tag) and the run its message names.
+ * Whether the named run's `tag` job made the tag: it succeeded in some
+ * attempt of that run, or this is that run and its tag job is running now
+ * (the tag job reading back the tag it just made).
  */
-export function tagDecision({ ref, tagObject, commit, releaseRun, version }) {
+export function madeByItsTagJob(jobs, { id, currentRunId }) {
+  const tagJobs = (jobs ?? []).filter((j) => j.name === TAG_JOB);
+  if (tagJobs.some((j) => j.conclusion === 'success')) return true;
+  return id === currentRunId && tagJobs.some((j) => j.status === 'in_progress');
+}
+
+/**
+ * Create, reuse or refuse, from the tag ref (null when absent), its tag
+ * object (for an annotated tag), the run its message names, that run's jobs
+ * in every attempt, and this run's id.
+ */
+export function tagDecision({ ref, tagObject, commit, releaseRun, releaseJobs = null, currentRunId = null, version }) {
   if (!ref) return { action: 'create', why: `${version} is free` };
   if (ref.object?.type !== 'tag') {
     return { action: 'refuse', why: `${version} exists as a lightweight tag at ${short(ref.object?.sha)}: a release tag is annotated` };
@@ -84,17 +106,29 @@ export function tagDecision({ ref, tagObject, commit, releaseRun, version }) {
         `${RELEASE_WORKFLOW} on main for it`,
     };
   }
+  if (!madeByItsTagJob(releaseJobs, { id, currentRunId })) {
+    return {
+      action: 'refuse',
+      why:
+        `${version} exists at C, and Release run ${id}, which its message names, never ran its ${TAG_JOB} job to success: ` +
+        'a tag pushed by hand can name a Release run. If that run’s tag job failed after it made the tag, re-run that run’s failed jobs',
+    };
+  }
   return { action: 'reuse', why: `${version} exists at C, made by Release run ${id}: a re-run carries on`, runId: id };
 }
 
-/** The tag as the API has it: its ref, its tag object, and the run its message names. */
-export async function peelTag(client, version) {
+/**
+ * The tag as the API has it: its ref, its tag object, the run its message
+ * names, and that run's jobs in every attempt (`filter=all`).
+ */
+export async function peelTag(client, version, { currentRunId = Number(process.env.GITHUB_RUN_ID) || null } = {}) {
   const ref = await client.get(`git/ref/tags/${version}`, { allow404: true });
-  if (!ref || ref.object?.type !== 'tag') return { ref, tagObject: null, releaseRun: null };
+  if (!ref || ref.object?.type !== 'tag') return { ref, tagObject: null, releaseRun: null, releaseJobs: null, currentRunId };
   const tagObject = await client.get(`git/tags/${ref.object.sha}`);
   const id = releaseRunId(tagObject?.message);
   const releaseRun = id === null ? null : await client.get(`actions/runs/${id}`, { allow404: true });
-  return { ref, tagObject, releaseRun };
+  const releaseJobs = releaseRun ? ((await client.get(`actions/runs/${id}/jobs?filter=all&per_page=100`, { allow404: true }))?.jobs ?? []) : null;
+  return { ref, tagObject, releaseRun, releaseJobs, currentRunId };
 }
 
 /**
@@ -103,6 +137,12 @@ export async function peelTag(client, version) {
  */
 export async function cutTag(client, { version, commit, runId, runUrl, proof, readNights: nights }) {
   const lines = [];
+  const decide = async () => tagDecision({ commit, version, ...(await peelTag(client, version, { currentRunId: runId })) });
+  // Peeled first: a re-run over Release's own tag carries on, whatever ran since.
+  const first = await decide();
+  if (first.action === 'refuse') return [refuse('tag', `${first.why}. Nothing was written.`)];
+  if (first.action === 'reuse') return [pass('tag', first.why)];
+
   const fresh = await nights();
   if (fresh.verdict !== 'pass') {
     lines.push(...fresh.lines.filter((l) => l.kind === 'refuse'));
@@ -111,14 +151,15 @@ export async function cutTag(client, { version, commit, runId, runUrl, proof, re
   }
   lines.push(pass('nights-again', `read again before the tag: ${fresh.proof}`));
 
-  const before = tagDecision({ commit, version, ...(await peelTag(client, version)) });
-  if (before.action === 'refuse') return [...lines, refuse('tag', `${before.why}. Nothing was written.`)];
-  if (before.action === 'reuse') return [...lines, pass('tag', before.why)];
-
   const compared = await client.get(`compare/${commit}...main`, { allow404: true });
   if (!['ahead', 'identical'].includes(compared?.status)) {
     return [...lines, refuse('tag', `C ${short(commit)} is ${compared?.status ?? 'unknown'} against main, not on it: nothing was written`)];
   }
+
+  // Peeled again, right before the write.
+  const before = await decide();
+  if (before.action === 'refuse') return [...lines, refuse('tag', `${before.why}. Nothing was written.`)];
+  if (before.action === 'reuse') return [...lines, pass('tag', before.why)];
 
   const message = tagMessage({ version, runUrl, proof: [proof, fresh.proof].filter(Boolean).join('; ') });
   const object = await client.send('POST', 'git/tags', { tag: version, message, object: commit, type: 'commit' });
@@ -138,7 +179,7 @@ export async function cutTag(client, { version, commit, runId, runUrl, proof, re
     ];
   }
 
-  const after = tagDecision({ commit, version, ...(await peelTag(client, version)) });
+  const after = await decide();
   if (after.action !== 'reuse') {
     return [...lines, refuse('tag', `read back, ${after.why}`)];
   }

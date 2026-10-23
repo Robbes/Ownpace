@@ -25,11 +25,22 @@
  *   succeeded had already signed.
  * - **Only success is green.** `cancelled` and `skipped` are not, and a run
  *   is read again until it reports the attempt asked for.
+ * - **The tag, checked before each publisher.** A dispatch names the tag by
+ *   its short name, which a branch of that name answers to as well, and the
+ *   run's `head_branch` is the same short name either way. So before a
+ *   publisher is reused, waited for, re-run or dispatched, the tag must still
+ *   be Release's annotated tag at C (`peelTag`, `tagDecision`) and
+ *   `git/ref/heads/<version>` must answer 404 (the review of 2026-10-23).
  * - **The gate.** A dispatch takes a branch or a tag and never a commit. To
  *   scan exactly C minutes before the tag, a branch `release-gate/<version>`
  *   is made at C, Security Scan is dispatched on it with
  *   `image_scans=false`, and the branch is deleted afterwards while it still
- *   points at C.
+ *   points at C. The branch is made only when `compare` says C is on `main`
+ *   (ahead or identical): a dispatch runs the workflow file of the commit it
+ *   names, with this job's write token, so a commit that is not on `main`
+ *   never gets one. And the gate passes only when every image job of that
+ *   run was skipped, as `image_scans=false` asks: an image leg that ran
+ *   could fail the scan on the tag after it had attached the release body.
  * - **The tag rehearsal** makes an annotated tag `rehearsal-<run number>` at
  *   `main`'s head with the same token and calls, dispatches Security Scan on
  *   it, expects the names check to refuse it ("not a release name") before
@@ -49,6 +60,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 import { github, pass, refuse, note, report, output, runUrl, short } from './release-github.mjs';
 import { generatedBlocks } from './release-verify.mjs';
+import { peelTag, tagDecision } from './release-cut-tag.mjs';
 
 const time = (t) => new Date(t).getTime();
 const newestFirst = (runs) => [...runs].sort((a, b) => time(b.created_at) - time(a.created_at));
@@ -57,6 +69,8 @@ const enc = encodeURIComponent;
 export const GATE_PREFIX = 'release-gate/';
 export const REHEARSAL_PREFIX = 'rehearsal-';
 export const NAMES_STEP = 'The tag, package.json and the changelog name one release';
+/** Security Scan's own job; every other job in it scans images. */
+export const SCAN_JOB = 'security-scan';
 
 /** The branch the gate scan runs on. */
 export const gateBranch = (version) => `${GATE_PREFIX}${version}`;
@@ -151,19 +165,41 @@ export async function waitForRun(client, { id, minAttempt = 1, sleep = (ms) => d
 }
 
 /**
- * One publisher on the tag: reuse, wait for, re-run or dispatch it, then
- * judge the run.
+ * The tag is still Release's annotated tag at C, and no branch shares its
+ * name: what a dispatch on the short name needs to run the tag and only it.
  */
-export async function publish(client, { workflow, ref, sha, inputs = {}, sleep = (ms) => delay(ms), pollMs = 30_000, timeoutMs, now = () => new Date() }) {
+export async function tagStillOurs(client, { version, sha, currentRunId }) {
+  const decision = tagDecision({ commit: sha, version, ...(await peelTag(client, version, { currentRunId })) });
+  if (decision.action !== 'reuse') {
+    const why = decision.action === 'create' ? `${version} does not exist` : decision.why;
+    return refuse('tag-ref', `${why}: nothing is dispatched on it`);
+  }
+  const branch = await client.get(`git/ref/heads/${version}`, { allow404: true });
+  if (branch) {
+    return refuse('tag-ref', `a branch named ${version} exists: a dispatch on ${version} could run it instead of the tag, so nothing is dispatched`);
+  }
+  return pass('tag-ref', `${version} is Release’s annotated tag at ${short(sha)}, and no branch shares its name`);
+}
+
+/**
+ * One publisher on the tag: check the tag, then reuse, wait for, re-run or
+ * dispatch it, and judge the run.
+ */
+export async function publish(
+  client,
+  { workflow, ref, sha, inputs = {}, sleep = (ms) => delay(ms), pollMs = 30_000, timeoutMs, now = () => new Date(), currentRunId = Number(process.env.GITHUB_RUN_ID) || null },
+) {
   const check = `publish-${workflow.replace(/\.ya?ml$/, '')}`;
   const want = { sha, workflow, ref, check };
   const wait = (id, minAttempt) => waitForRun(client, { id, minAttempt, sleep, pollMs, timeoutMs });
-  const lines = [];
+  const tag = await tagStillOurs(client, { version: ref, sha, currentRunId });
+  if (tag.kind === 'refuse') return [tag];
+  const lines = [tag];
   const listed = await client.get(`actions/workflows/${workflow}/runs?event=workflow_dispatch&branch=${enc(ref)}&head_sha=${sha}&per_page=20`);
   const choice = chooseRun(listed?.workflow_runs ?? [], sha);
   let run;
   if (choice.action === 'reuse') {
-    return [judgeRun(choice.run, want)];
+    return [...lines, judgeRun(choice.run, want)];
   } else if (choice.action === 'wait') {
     lines.push(note(check, `run ${choice.run.run_number} of ${workflow} is already ${choice.run.status} on ${ref}: waiting for it, not dispatching another`));
     run = await wait(choice.run.id, 1);
@@ -200,9 +236,16 @@ export async function publish(client, { workflow, ref, sha, inputs = {}, sleep =
   return lines;
 }
 
-/** Make the gate branch at C, or accept one already there at C. */
+/** Make the gate branch at C, only when C is on main, or accept one already there at C. */
 export async function openGate(client, { version, sha }) {
   const branch = gateBranch(version);
+  const compared = await client.get(`compare/${sha}...main`, { allow404: true });
+  if (!['ahead', 'identical'].includes(compared?.status)) {
+    return refuse(
+      'gate-branch',
+      `C ${short(sha)} is ${compared?.status ?? 'unknown'} against main, not on it: no ${branch} is made, and nothing is dispatched on it`,
+    );
+  }
   const made = await client.send('POST', 'git/refs', { ref: `refs/heads/${branch}`, sha });
   if (made.status === 201) return pass('gate-branch', `${branch} made at C ${short(sha)}`);
   if (made.status === 422) {
@@ -223,7 +266,14 @@ export async function closeGate(client, { version, sha }) {
   return gone.status === 204 ? pass('gate-branch', `${branch} deleted`) : refuse('gate-branch', `deleting ${branch} answered ${gone.status}`);
 }
 
-/** The gate: Security Scan on exactly C, minutes before the tag. */
+/** Every job of a Security Scan run but the repository scan was skipped, as `image_scans=false` asks. */
+export function imageJobsSkipped(jobs, check) {
+  return (jobs ?? [])
+    .filter((j) => j.name !== SCAN_JOB && j.conclusion !== 'skipped')
+    .map((j) => refuse(check, `the job "${j.name}" ended ${j.conclusion}: image_scans=false should have skipped it`));
+}
+
+/** The gate: Security Scan on exactly C, minutes before the tag, the repository scan alone. */
 export async function gateScan(client, { version, sha, sleep, pollMs, now = () => new Date() }) {
   const opened = await openGate(client, { version, sha });
   if (opened.kind === 'refuse') return { lines: [opened], id: null };
@@ -231,7 +281,8 @@ export async function gateScan(client, { version, sha, sleep, pollMs, now = () =
   const since = new Date(now().getTime() - 60_000).toISOString();
   const id = await dispatchRun(client, { workflow: 'security-scan.yml', ref, sha, inputs: { image_scans: 'false' }, since, sleep });
   const run = await waitForRun(client, { id, sleep, pollMs, timeoutMs: 80 * 60_000 });
-  return { lines: [opened, judgeRun(run, { sha, workflow: 'security-scan.yml', ref, check: 'gate-scan' })], id };
+  const jobs = (await client.get(`actions/runs/${id}/jobs?filter=latest&per_page=100`))?.jobs ?? [];
+  return { lines: [opened, judgeRun(run, { sha, workflow: 'security-scan.yml', ref, check: 'gate-scan' }), ...imageJobsSkipped(jobs, 'gate-scan')], id };
 }
 
 /** Whether Security Scan on a rehearsal tag refused it at the names check and nowhere later. */
@@ -244,7 +295,7 @@ export function judgeRehearsal({ run, jobs, release, tag }) {
   if (run.conclusion !== 'failure') {
     lines.push(refuse(check, `Security Scan on ${tag} ended ${run.conclusion}: a tag that is not a release name must be refused`));
   }
-  const scan = (jobs ?? []).find((j) => j.name === 'security-scan');
+  const scan = (jobs ?? []).find((j) => j.name === SCAN_JOB);
   const steps = scan?.steps ?? [];
   const names = steps.find((s) => s.name === NAMES_STEP);
   if (!names) {
@@ -255,9 +306,7 @@ export function judgeRehearsal({ run, jobs, release, tag }) {
   for (const s of steps.filter((x) => /pnpm install|pnpm audit|Attach SBOM/.test(x.name))) {
     if (s.conclusion !== 'skipped') lines.push(refuse(check, `"${s.name}" ended ${s.conclusion}: something ran after the names check refused`));
   }
-  for (const j of (jobs ?? []).filter((x) => x.name !== 'security-scan')) {
-    if (j.conclusion !== 'skipped') lines.push(refuse(check, `the job "${j.name}" ended ${j.conclusion}: image_scans=false should have skipped it`));
-  }
+  lines.push(...imageJobsSkipped(jobs, check));
   if (release) lines.push(refuse(check, `a release exists for ${tag}: nothing may be published under a tag that is not a release name`));
   if (lines.length === 0) {
     lines.push(
@@ -336,7 +385,8 @@ async function main(argv) {
     case 'publish': {
       const at = argv.indexOf('--workflow');
       const workflow = argv[at + 1];
-      return done(await publish(client, { workflow, ref: version, sha, inputs: inputsFrom(argv), timeoutMs: 140 * 60_000 }));
+      const currentRunId = Number(process.env.GITHUB_RUN_ID) || null;
+      return done(await publish(client, { workflow, ref: version, sha, inputs: inputsFrom(argv), timeoutMs: 140 * 60_000, currentRunId }));
     }
     case 'rehearse-tag': {
       if (process.env.GITHUB_REF !== 'refs/heads/main') {

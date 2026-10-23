@@ -20,26 +20,32 @@
  *    before it; and whether the commit is on `main`'s first-parent line, by
  *    `git merge-base` BEFORE a worktree is made, so a commit that is not on
  *    `main` is a refusal and not a git error.
- * 2. `check`, with the candidate checked out beside `main`: the tag is free
- *    (or Release's own, at the commit), no branch is named like it, the
- *    candidate's own `release-names-agree.mjs` (spawned with no token in its
- *    environment), the API contract's version, the changelog folded, CI's
- *    push run on the commit with lint, unit, UI and integration actually run,
- *    Security Scan's push run on it, and the nights.
- * 3. The install, with no token in the step.
- * 4. `callees`: the workflows Release will dispatch, read from the
+ * 2. `names`, a step of its own with no token in it: the candidate's own
+ *    `release-names-agree.mjs`. A process can read its parent's environment,
+ *    so the token is kept out of the step, not only out of the spawn (the
+ *    review of 2026-10-23).
+ * 3. `check`, with the candidate checked out beside `main`: the tag is free
+ *    (or Release's own, at the commit), no branch is named like it, the API
+ *    contract's version, the changelog folded, CI's push run on the commit
+ *    with lint, unit, UI and integration actually run, Security Scan's push
+ *    run on it, and the nights.
+ * 4. The install, with no token in the step.
+ * 5. `callees`: the workflows Release will dispatch, read from the
  *    candidate with the candidate's own YAML parser (`createRequire`), offer
  *    the inputs Release passes.
- * 5. The upgrade gates (`release-upgrade-gates.mjs`).
- * 6. `verdict`: counts, and refuses any check that should have run and did
+ * 6. The upgrade gates (`release-upgrade-gates.mjs`).
+ * 7. `verdict`: counts, and refuses any check that should have run and did
  *    not, and any step that ended in an error rather than a line.
  *
  * ## What this test holds
  *
  * Each check refuses the shape that would have let a bad tag through, on
- * real inputs where there are any: `main`'s own `CHANGELOG.md` (entries
- * under `[Unreleased]`, a section twelve days old), `main`'s
- * `openapi.yaml`, CI's jobs of run 39866562875, the workflows as they are.
+ * real inputs where there are any: `main`'s `CHANGELOG.md` as it stood on
+ * 2026-10-23, frozen (entries under `[Unreleased]`, a section twelve days
+ * old), `main`'s `openapi.yaml`, CI's jobs of run 39866562875, the workflows
+ * as they are. And in rehearse mode it carries the record's refusals to the
+ * end of the run, but never one that says which commit this is: a commit
+ * that is not on `main` never reaches the gate scan.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -134,11 +140,21 @@ describe('the commit', () => {
 });
 
 describe('the changelog is folded (the owner’s rule: [Unreleased] empty, the section dated the day of the fold)', () => {
-  it('refuses main’s CHANGELOG.md as it stands: entries under [Unreleased], and a section twelve days old', () => {
-    const lines = changelogFolded(read('CHANGELOG.md'), V, '2026-10-23');
+  // main's CHANGELOG.md as it stood on 2026-10-23 (`a5ae29d1`), through the
+  // alpha.2 heading, frozen: the fold this file asks for changes the live
+  // one, and a guard that read it would go red on the fold's own pull request.
+  it('refuses main’s CHANGELOG.md as it stood on 2026-10-23: entries under [Unreleased], and a section twelve days old', () => {
+    const lines = changelogFolded(read('scripts/fixtures/release/changelog-2026-10-23.md'), V, '2026-10-23');
     const said = refused(lines).map((l) => l.sentence).join('\n');
     expect(said).toMatch(/\[Unreleased\] still holds \d+ lines/);
     expect(said).toMatch(/dated 2026-10-11, 12 days before/);
+  });
+
+  it('answers for the live CHANGELOG.md at every stage, before the fold and after it', () => {
+    const root = (JSON.parse(read('package.json')) as { version: string }).version;
+    const lines = changelogFolded(read('CHANGELOG.md'), `v${root}`, new Date());
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.every((l) => l.check === 'changelog-folded')).toBe(true);
   });
 
   const folded = (date: string, unreleased = '') =>
@@ -163,11 +179,14 @@ describe('the changelog is folded (the owner’s rule: [Unreleased] empty, the s
 });
 
 describe('the API contract names the version', () => {
-  it('passes main’s openapi.yaml for the root version, and refuses one a version behind', () => {
+  it('passes main’s openapi.yaml for the root version, and refuses the version after it', () => {
     const openapi = read('apps/api/docs/openapi.yaml');
     const root = (JSON.parse(read('package.json')) as { version: string }).version;
+    // The next one, derived, so the bump to it does not turn this red.
+    const next = root.replace(/(\d+)$/, (n) => String(Number(n) + 1));
+    expect(next).not.toBe(root);
     expect(openapiAgrees(openapi, `v${root}`).kind).toBe('pass');
-    expect(openapiAgrees(openapi, 'v0.2.0-alpha.3').kind).toBe('refuse');
+    expect(openapiAgrees(openapi, `v${next}`).kind).toBe('refuse');
   });
 });
 
@@ -296,7 +315,28 @@ describe('the verdict', () => {
 
   it('carries refusals through a rehearsal, and is red in preflight mode', () => {
     const one = [...all('rehearse'), { kind: 'refuse', check: 'nights', sentence: 'no' }];
-    expect(verdict({ lines: one, mode: 'rehearse', outcomes })).toMatchObject({ exitCode: 0, refused: 1 });
-    expect(verdict({ lines: one, mode: 'preflight', outcomes })).toMatchObject({ exitCode: 1, refused: 1 });
+    expect(verdict({ lines: one, mode: 'rehearse', outcomes, commit: C })).toMatchObject({ exitCode: 0, refused: 1 });
+    expect(verdict({ lines: one, mode: 'preflight', outcomes, commit: C })).toMatchObject({ exitCode: 1, refused: 1 });
+  });
+
+  // The review of 2026-10-23: rehearse carried every refusal, so a commit that
+  // is not on main still reached the gate scan, which makes a branch at it and
+  // runs ITS security-scan.yml with a write token. What the rehearsal carries
+  // is the record's refusals, never the ones that say which commit it is.
+  it('stops a rehearsal on a commit that is not on main’s first-parent line, or on none', () => {
+    const offMain = all('rehearse').map((l) => (l.check === 'candidate-on-main' ? { ...l, kind: 'refuse' } : l));
+    expect(verdict({ lines: offMain, mode: 'rehearse', outcomes, commit: C })).toMatchObject({ exitCode: 1, refused: 1 });
+    for (const check of ['inputs', 'dispatched-from-main', 'commit', 'previous-release']) {
+      const lines = [...all('rehearse'), { kind: 'refuse', check, sentence: 'no' }];
+      expect(verdict({ lines, mode: 'rehearse', outcomes, commit: C }).exitCode, check).toBe(1);
+    }
+    // The resolve step stopped before candidate-on-main: it "did not run".
+    const stopped = [
+      { kind: 'pass', check: 'inputs', sentence: 'ok' },
+      { kind: 'pass', check: 'dispatched-from-main', sentence: 'ok' },
+      { kind: 'refuse', check: 'commit', sentence: 'the nights pick no commit' },
+    ];
+    expect(verdict({ lines: stopped, mode: 'rehearse', outcomes: {}, commit: '' }).exitCode).toBe(1);
+    expect(verdict({ lines: all('rehearse'), mode: 'rehearse', outcomes: { ...outcomes, worktree: 'failure' }, commit: C }).exitCode).toBe(1);
   });
 });

@@ -110,6 +110,7 @@ reading a file drops off its entry by itself.
 
 ### `.github/workflows/release.yml`
 
+- [a-dispatch-that-waited-for-the-wrong-run](../scripts/a-dispatch-that-waited-for-the-wrong-run.unit.test.ts) — A DISPATCH THAT WAITED FOR THE WRONG RUN: a workflow dispatch takes a branch or a tag and never a commit, answers without saying which run it started unless asked, and a dispatch sent twice starts two publishers on one tag (the design re…
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
 - [a-tag-that-already-pointed-elsewhere](../scripts/a-tag-that-already-pointed-elsewhere.unit.test.ts) — A TAG THAT ALREADY POINTED ELSEWHERE: a release tag is what `deploy-live.sh` trusts, and the workflow that cuts it has to know, at the moment it cuts it, that the name is free or already its own at the same commit, and that what it prove…
 
@@ -2622,6 +2623,10 @@ reading a file drops off its entry by itself.
 
 - [a-probe-that-knows-every-port](../scripts/a-probe-that-knows-every-port.unit.test.ts) — A PROBE THAT KNOWS EVERY PORT (workplan 0132 T3 (c)).
 
+### `scripts/fixtures/release/changelog-2026-10-23.md`
+
+- [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
+
 ### `scripts/fixtures/release/ci-jobs-39866562875.json`
 
 - [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
@@ -3472,6 +3477,7 @@ A DISPATCH THAT WAITED FOR THE WRONG RUN: a workflow dispatch takes a branch or 
 Reads:
 
 - `.github/workflows/images.yml`
+- `.github/workflows/release.yml`
 - `.github/workflows/security-scan.yml`
 - `scripts/fixtures/release/security-scan-jobs-37523297841.json`
 - `scripts/release-dispatch.mjs`
@@ -4469,6 +4475,7 @@ Reads:
 - `.github/workflows/windows-payload.yml`
 - `CHANGELOG.md`
 - `apps/api/docs/openapi.yaml`
+- `scripts/fixtures/release/changelog-2026-10-23.md`
 - `scripts/fixtures/release/ci-jobs-39866562875.json`
 - `scripts/release-names-agree.mjs`
 - `scripts/release-preflight.mjs`

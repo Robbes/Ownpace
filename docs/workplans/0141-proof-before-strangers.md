@@ -1154,7 +1154,8 @@ accepts fewer in writing. Either way it is written in 0132's deploy log (0132 T6
 statement of it; `docs/release.md`, `docs/testing.md`, 0132 T6 step 1 and 0146
 point here. The Release workflow (`.github/workflows/release.yml`) reads it
 with `scripts/release-nights.mjs`, in its preflight and again just before it
-cuts the tag, and refuses a commit it does not hold for:
+cuts the tag (a re-run that finds its own tag already made does not read them
+again), and refuses a commit it does not hold for:
 
 - **Both nights on C.** The newest two completed scheduled runs of
   `e2e-managed.yml` on `main` both ran C, not only the newer one (decision 2 of

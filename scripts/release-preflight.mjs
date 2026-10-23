@@ -14,20 +14,28 @@
  *             the one the nights pick, or the tag's in verify mode); the
  *             release before; and C on main's first-parent line, by
  *             `git merge-base`, before any worktree is made
- *   check     with C checked out in `candidate/`: the tag free (or Release's
- *             own at C), no branch named like it, the candidate's own names
- *             check (spawned with no token), the API contract's version, the
- *             changelog folded, CI's and Security Scan's push runs on C, the
- *             nights; and notes: the approval, main after C, the release
- *             before, what this does not check
+ *   names     with C checked out in `candidate/`, in a step of its own with
+ *             no token in it: the candidate's own names check. Its parent
+ *             process is this script, and a process can read its parent's
+ *             environment, so the token is kept out of the step and not only
+ *             out of the spawn (the review of 2026-10-23)
+ *   check     the tag free (or Release's own at C), no branch named like it,
+ *             the API contract's version, the changelog folded, CI's and
+ *             Security Scan's push runs on C, the nights; and notes: the
+ *             approval, main after C, the release before, what this does not
+ *             check
  *   callees   after the install: the workflows Release dispatches, read with
  *             the candidate's own YAML parser, take the inputs it passes
  *   verdict   counts; refuses a check that never ran and a step that ended
  *             in an error; writes the step summary
  *
  * In release and preflight mode any refusal makes the run red. In rehearse
- * mode the count is carried to the end of the run (`rehearsal-verdict`),
- * which then says the real run would have stopped here.
+ * mode the record's refusals are carried to the end of the run
+ * (`rehearsal-verdict`), which then says the real run would have stopped
+ * here; a refusal of the resolve step is not carried, it ends the run there.
+ * The gate scan makes a branch at C and runs C's own security-scan.yml with a
+ * write token, so it runs only on a commit the resolve step found on main's
+ * first-parent line (the review of 2026-10-23).
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -64,6 +72,13 @@ export const EXPECTED_CHECKS = {
   ],
   verify: ['inputs', 'dispatched-from-main', 'tag-exists'],
 };
+/**
+ * The resolve step's checks, and the two steps that must work for C to be
+ * checked out: they say which commit this is, and whether there is one. A
+ * rehearsal carries every other refusal to its end; one of these ends it at
+ * the preflight, before the gate scan makes a branch at the commit.
+ */
+export const RESOLVE_CHECKS = ['inputs', 'dispatched-from-main', 'commit', 'previous-release', 'candidate-on-main', 'step-resolve', 'step-worktree'];
 /** The changelog section's date: the day the fold merged, in the owner's zone. */
 export const FOLD_WINDOW = { daysBefore: 7, daysAfter: 1 };
 
@@ -289,10 +304,10 @@ export function verdict({ lines, mode, outcomes = {}, commit }) {
   const all = [...lines, ...extra];
   const refused = all.filter((l) => l.kind === 'refuse').length;
   let exitCode = refused > 0 ? 1 : 0;
-  if (mode === 'rehearse') exitCode = commit === '' ? 1 : 0;
+  if (mode === 'rehearse') exitCode = all.some((l) => l.kind === 'refuse' && RESOLVE_CHECKS.includes(l.check)) ? 1 : 0;
   const row = (l) => `- **${l.kind}** ${l.check}: ${l.sentence}`;
   const summary = [
-    `### Release preflight (${mode}): ${refused === 0 ? 'nothing refused' : `${refused} refused`}`,
+    `### Release preflight (${mode})${commit ? ` on ${short(commit)}` : ''}: ${refused === 0 ? 'nothing refused' : `${refused} refused`}`,
     '',
     ...all.filter((l) => l.kind === 'refuse').map(row),
     ...all.filter((l) => l.kind !== 'refuse').map(row),
@@ -337,7 +352,9 @@ async function resolveStep(client, env) {
       const why = nights.lines.find((l) => l.kind === 'refuse')?.sentence;
       lines.push(note('commit', `the nights pick no commit${why ? ` (${why})` : ''}, so the other checks read main’s head ${short(commit)}`));
     } else if (mode === 'rehearse') {
-      lines.push(refuse('commit', 'the nights pick no commit, so a rehearsal needs one: dispatch it again with commit set to main’s head'));
+      lines.push(
+        refuse('commit', 'the nights pick no commit, so a rehearsal needs one: dispatch it again with commit set to a commit on main’s first-parent line, such as its head'),
+      );
     } else {
       lines.push(refuse('commit', 'the nights pick no commit, and a release is cut only on a commit the nights passed'));
     }
@@ -377,18 +394,6 @@ async function checkStep(client, env, candidate) {
       branch: await client.get(`git/ref/heads/${version}`, { allow404: true }),
       gate: await client.get(`git/ref/heads/${gateBranch(version)}`, { allow404: true }),
     }),
-  );
-
-  const names = spawnSync('node', [join(candidate, 'scripts', 'release-names-agree.mjs'), version], {
-    cwd: candidate,
-    env: { ...candidateEnv(env), GITHUB_ACTIONS: 'false' },
-    encoding: 'utf8',
-  });
-  const said = `${names.stdout ?? ''}`.trim().split('\n').filter(Boolean);
-  lines.push(
-    names.status === 0
-      ? pass('names-agree', `the candidate’s own check: ${said.at(-1) ?? 'agreed'}`)
-      : refuse('names-agree', `the candidate’s own check refused: ${said.filter((l) => l.startsWith('refused:')).map((l) => l.slice(9)).join(' ') || said.join(' ')}`),
   );
 
   const readCandidate = (file) => (existsSync(join(candidate, file)) ? readFileSync(join(candidate, file), 'utf8') : '');
@@ -436,6 +441,23 @@ async function checkStep(client, env, candidate) {
   return { lines, proof };
 }
 
+/**
+ * The candidate's own `release-names-agree.mjs`. The workflow runs this in a
+ * step with no token in its environment; the spawn strips tokens as well, for
+ * a run by hand.
+ */
+export function namesStep(candidate, version, env = process.env) {
+  const names = spawnSync('node', [join(candidate, 'scripts', 'release-names-agree.mjs'), version], {
+    cwd: candidate,
+    env: { ...candidateEnv(env), GITHUB_ACTIONS: 'false' },
+    encoding: 'utf8',
+  });
+  const said = `${names.stdout ?? ''}`.trim().split('\n').filter(Boolean);
+  return names.status === 0
+    ? pass('names-agree', `the candidate’s own check: ${said.at(-1) ?? 'agreed'}`)
+    : refuse('names-agree', `the candidate’s own check refused: ${said.filter((l) => l.startsWith('refused:')).map((l) => l.slice(9)).join(' ') || said.join(' ')}`);
+}
+
 function calleesStep(candidate) {
   const req = createRequire(join(candidate, 'package.json'));
   const { parse } = req('yaml');
@@ -460,6 +482,11 @@ async function main(argv) {
   const env = process.env;
   const at = argv.indexOf('--candidate');
   const candidate = resolve(at >= 0 ? argv[at + 1] : 'candidate');
+  if (command === 'names') {
+    // No client here: this step has no token, and needs none.
+    report([namesStep(candidate, env.VERSION, env)]);
+    return 0;
+  }
   const client = github();
   switch (command) {
     case 'resolve': {
@@ -501,7 +528,9 @@ async function main(argv) {
       return 1;
     }
     default:
-      console.error('usage: node scripts/release-preflight.mjs resolve | check --candidate <dir> | callees --candidate <dir> | verdict | rehearsal-verdict');
+      console.error(
+        'usage: node scripts/release-preflight.mjs resolve | names --candidate <dir> | check --candidate <dir> | callees --candidate <dir> | verdict | rehearsal-verdict',
+      );
       return 2;
   }
 }

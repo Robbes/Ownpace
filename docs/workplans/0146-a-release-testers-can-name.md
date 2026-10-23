@@ -68,6 +68,24 @@ reaches the self-hosted machine or live.
   (preflight; rehearse with an explicit commit; rehearse-tag; verify on
   alpha.1), and from the owner, the `release` environment and the tag ruleset
   (`docs/release.md`, *Settings the owner makes once*).
+- **The review of the build (2026-10-23), applied on the same branch.** Two
+  blocking: a rehearsal carried every refusal, so a commit that is not on
+  `main` still reached the gate scan, which makes a branch at it and runs that
+  commit's own `security-scan.yml` with a write token; now a refusal of which
+  commit it is ends a rehearsal at the preflight, the gate scan starts only on
+  the preflight's `candidate`, and the gate branch is made only when `compare`
+  puts C on `main`. And the changelog guard read the live `CHANGELOG.md`, so
+  the fold `docs/release.md` asks for would have turned it red on the fold's
+  own pull request; it reads a frozen copy of 2026-10-23 now. The minor ones:
+  before each publisher, the tag is checked to be Release's at C with no
+  branch of its name (a dispatch names the tag by its short name); a cancelled
+  run stops (`!cancelled()`; `always()` only on the two clean-ups); the tag
+  job peels first, so a re-run over its own tag carries on without reading
+  the nights; a tag counts as Release's only when the run it names ran its
+  `tag` job; the candidate's names check runs in a step of its own with no
+  token; the gate scan passes only when every image job skipped; the
+  `openapi.yaml` guard derives the next version instead of naming alpha.3;
+  and 0139 and `site/legal/README.md` point at 0141 T14 for the freeze.
 
 **2026-10-22, recorded: Dependabot alerts and security updates are on.** The owner turned on both
 repository settings that `.github/dependabot.yml`'s header leans on for security updates; the API

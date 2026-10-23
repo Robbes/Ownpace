@@ -14,6 +14,8 @@ export type { Line } from './release-github.mjs';
 export declare const MODES: string[];
 export declare const REQUIRED_CI_JOBS: string[];
 export declare const EXPECTED_CHECKS: { full: string[]; verify: string[] };
+/** The resolve step's checks: a refusal of one ends a rehearsal at the preflight. */
+export declare const RESOLVE_CHECKS: string[];
 export declare const FOLD_WINDOW: { daysBefore: number; daysAfter: number };
 
 export declare function validateInputs(inputs: { version: string; commit: string; mode: string }): Line[];
@@ -40,6 +42,7 @@ export declare function approvalNote(environment: unknown, readable?: boolean): 
 export declare function alertsNote(counts: { critical: number; high: number } | null): Line;
 export declare function candidateEnv(env: Record<string, string | undefined>): Record<string, string | undefined>;
 export declare function notChecked(): Line[];
+export declare function namesStep(candidate: string, version: string, env?: Record<string, string | undefined>): Line;
 export declare function verdict(options: {
   lines: Line[];
   mode: string;

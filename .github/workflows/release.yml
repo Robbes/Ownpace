@@ -15,9 +15,12 @@
 #
 #   preflight     reads the record and the candidate commit C; writes nothing
 #   approve       the owner's recorded say-so: the `release` environment
-#   gate-scan     Security Scan on exactly C, minutes before the tag
-#   tag           reads the nights and the tag again, then makes the
-#                 annotated tag with this workflow's token
+#   gate-scan     Security Scan on exactly C, minutes before the tag, and
+#                 only on a C the preflight found on main's first-parent
+#                 line, rehearsal included
+#   tag           peels the tag (Release's own at C: a re-run carries on);
+#                 otherwise reads the nights and the tag again, then makes
+#                 the annotated tag with this workflow's token
 #   publish-scan  Security Scan on the tag: it makes the release, its body
 #                 and bom.json, before anything else ships
 #   publish-images, publish-payload
@@ -37,7 +40,9 @@
 # MODES (input `mode`):
 #   preflight     the default; read-only, red with the list of refusals
 #   rehearse      the preflight, then the gate scan, and no tag; it needs an
-#                 explicit commit while the nights pick none
+#                 explicit commit on main's first-parent line while the
+#                 nights pick none. It carries the record's refusals to the
+#                 end; a refusal of which commit this is ends it at once
 #   rehearse-tag  a throwaway annotated tag `rehearsal-<run number>` at main's
 #                 head, Security Scan dispatched on it and expected to refuse
 #                 it at the names check, then the tag deleted: proves the tag
@@ -54,6 +59,9 @@
 #
 # ONE GROUP, NEVER CANCELLED. GitHub keeps one run waiting per group, and a
 # newer one replaces it: reject or cancel an approval left waiting to free it.
+# A run you cancel stops: the jobs that would otherwise run after a failure
+# say `!cancelled()`, and only the two clean-ups (the gate branch, the
+# rehearsal tag) say `always()`.
 #
 # Every input reaches a shell through `env:` only, every checkout leaves no
 # token on disk, and each job holds only the permissions it uses. Held by
@@ -98,6 +106,9 @@ jobs:
       security-events: read
     outputs:
       commit: ${{ steps.resolve.outputs.commit }}
+      # 'true' only when the resolve step refused nothing: C is on main's
+      # first-parent line. The gate scan asks for it in every mode.
+      candidate: ${{ steps.resolve.outputs.candidate }}
       previous: ${{ steps.resolve.outputs.previous }}
       refused: ${{ steps.verdict.outputs.refused }}
       proof: ${{ steps.check.outputs.proof }}
@@ -135,9 +146,16 @@ jobs:
           COMMIT: ${{ steps.resolve.outputs.commit }}
         run: git worktree add --detach candidate "$COMMIT"
 
-      # The candidate's own names check (spawned with no token), the API
-      # contract's version, the changelog folded, CI and the scan on main for
-      # C, the nights, and the notes.
+      # The candidate's own code: no token in this step. Its parent process
+      # is main's script, and a process can read its parent's environment,
+      # so the token stays out of the step, as in the install below.
+      - name: The candidate's own names check
+        id: names
+        if: steps.resolve.outputs.candidate == 'true' && inputs.mode != 'verify'
+        run: node scripts/release-preflight.mjs names --candidate candidate
+
+      # The tag, the API contract's version, the changelog folded, CI and the
+      # scan on main for C, the nights, and the notes.
       - name: What the candidate says, and what the record says about it
         id: check
         if: steps.resolve.outputs.candidate == 'true' && inputs.mode != 'verify'
@@ -176,12 +194,13 @@ jobs:
 
       - name: Verdict
         id: verdict
-        if: always()
+        if: '!cancelled()'
         env:
           COMMIT: ${{ steps.resolve.outputs.commit }}
           OUTCOMES: >-
             resolve=${{ steps.resolve.outcome }}
             worktree=${{ steps.worktree.outcome }}
+            names=${{ steps.names.outcome }}
             check=${{ steps.check.outcome }}
             install=${{ steps.install.outcome }}
             callees=${{ steps.callees.outcome }}
@@ -207,7 +226,9 @@ jobs:
   gate-scan:
     name: gate scan (Security Scan on exactly C)
     needs: [preflight, approve]
-    if: always() && needs.preflight.result == 'success' && (inputs.mode == 'rehearse' || (inputs.mode == 'release' && needs.approve.result == 'success'))
+    # It makes a branch at C and dispatches C's own security-scan.yml with a
+    # write token: only on a C the preflight found on main, in every mode.
+    if: "!cancelled() && needs.preflight.result == 'success' && needs.preflight.outputs.candidate == 'true' && (inputs.mode == 'rehearse' || (inputs.mode == 'release' && needs.approve.result == 'success'))"
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
@@ -237,7 +258,7 @@ jobs:
         if: always()
         run: node scripts/release-dispatch.mjs drop-gate
       - name: Say what the real run would have done
-        if: always() && inputs.mode == 'rehearse'
+        if: "!cancelled() && inputs.mode == 'rehearse'"
         env:
           REFUSED: ${{ needs.preflight.outputs.refused }}
         run: node scripts/release-preflight.mjs rehearsal-verdict
@@ -265,7 +286,7 @@ jobs:
         with:
           node-version: '24'
           check-latest: true # the newest 24.x, not the first one in the runner's tool cache
-      - name: Read the nights and the tag again, then cut the annotated tag on C
+      - name: Peel the tag, or read the nights and the tag again and cut it on C
         run: node scripts/release-cut-tag.mjs
 
   publish-scan:
@@ -347,7 +368,7 @@ jobs:
   verify:
     name: verify
     needs: [preflight, tag, publish-scan, publish-images, publish-payload]
-    if: always() && needs.preflight.result == 'success' && (inputs.mode == 'verify' || (inputs.mode == 'release' && needs.tag.result == 'success'))
+    if: "!cancelled() && needs.preflight.result == 'success' && (inputs.mode == 'verify' || (inputs.mode == 'release' && needs.tag.result == 'success'))"
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:

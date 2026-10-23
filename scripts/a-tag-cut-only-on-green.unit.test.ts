@@ -34,6 +34,11 @@
  *   none ever `packages` or `id-token`: Release never builds, pushes or signs.
  * - The order: the tag needs the preflight, the approval and the gate scan;
  *   the images and the zip need the scan on the tag; the verify needs them.
+ *   The gate scan starts only on a commit the preflight found on `main`,
+ *   rehearsal included, and nothing but the two clean-ups runs after a
+ *   cancel (`!cancelled()`, never `always()`, on a job).
+ * - The candidate's own code (its names check and its install) runs in steps
+ *   with no token in them.
  * - The environment on the approval job only; every runner GitHub-hosted;
  *   every checkout without a persisted token; no `${{ }}` inside a `run:`,
  *   so an input reaches a shell only as an environment variable.
@@ -64,6 +69,8 @@ type Step = { name?: string; id?: string; uses?: string; run?: string; if?: stri
 type Job = {
   name?: string;
   if?: string;
+  env?: Record<string, string>;
+  outputs?: Record<string, string>;
   needs?: string | string[];
   'runs-on'?: string;
   environment?: unknown;
@@ -169,6 +176,29 @@ describe(`${RELEASE_FILE}: the order, which is the point`, () => {
     expect(jobs['gate-scan']!.if).toContain("needs.approve.result == 'success'");
   });
 
+  // The review of 2026-10-23: the gate scan makes a branch at the commit and
+  // runs that commit's own security-scan.yml with a write token, so it starts
+  // only on a commit the resolve step found on main's first-parent line, in
+  // every mode, rehearse included.
+  it('scans only a commit the preflight found on main, rehearsal or release', () => {
+    const outputs = jobs.preflight!.outputs ?? {};
+    expect(outputs.candidate).toBe('${{ steps.resolve.outputs.candidate }}');
+    expect(jobs['gate-scan']!.if).toContain("needs.preflight.outputs.candidate == 'true'");
+  });
+
+  it('stops when the run is cancelled: only the two clean-ups run whatever happened', () => {
+    for (const [name, job] of Object.entries(jobs)) expect(job.if ?? '', name).not.toContain('always()');
+    expect(jobs['gate-scan']!.if).toMatch(/^!cancelled\(\) && /);
+    expect(jobs.verify!.if).toMatch(/^!cancelled\(\) && /);
+    const always = Object.entries(jobs).flatMap(([name, job]) =>
+      (job.steps ?? []).filter((s) => (s.if ?? '').includes('always()')).map((s) => `${name}: ${s.run ?? s.name}`),
+    );
+    expect(always).toEqual([
+      'gate-scan: node scripts/release-dispatch.mjs drop-gate',
+      'tag-rehearsal: node scripts/release-dispatch.mjs drop-rehearsal-tag',
+    ]);
+  });
+
   it('dispatches the scan on the tag first, and the images and the zip only after it', () => {
     expect(needs('publish-scan').sort()).toEqual(['preflight', 'tag']);
     expect(needs('publish-images').sort()).toEqual(['preflight', 'publish-scan']);
@@ -179,6 +209,7 @@ describe(`${RELEASE_FILE}: the order, which is the point`, () => {
   it('runs each script where the design puts it', () => {
     const runs = (job: string) => (jobs[job]!.steps ?? []).map((s) => s.run ?? '').join('\n');
     expect(runs('preflight')).toContain('node scripts/release-preflight.mjs resolve');
+    expect(runs('preflight')).toContain('node scripts/release-preflight.mjs names --candidate candidate');
     expect(runs('preflight')).toContain('node scripts/release-preflight.mjs check --candidate candidate');
     expect(runs('preflight')).toContain('node scripts/release-preflight.mjs callees --candidate candidate');
     expect(runs('preflight')).toContain('node scripts/release-upgrade-gates.mjs');
@@ -211,15 +242,24 @@ describe(`${RELEASE_FILE}: the order, which is the point`, () => {
     expect(text).not.toMatch(/cosign (sign|attest)|docker push|build-push-action|action-gh-release|gh release (create|upload|edit)/);
   });
 
-  it('runs the install with no token in reach, and the preflight reads before anything writes', () => {
+  it('runs the candidate’s own code, its names check and its install, in steps with no token in reach', () => {
     const steps = jobs.preflight!.steps ?? [];
-    const install = steps.find((s) => (s.run ?? '').includes('install --frozen-lockfile'));
-    expect(install, 'the preflight installs the candidate').toBeDefined();
-    expect(JSON.stringify(install!.env ?? {})).not.toMatch(/TOKEN/);
-    const order = steps.map((s) => s.run ?? s.uses ?? '');
+    const env = jobs.preflight!.env ?? {};
+    expect(JSON.stringify(env), 'the preflight job’s own env').not.toMatch(/TOKEN|secrets\./);
+    for (const needle of ['preflight.mjs names', 'install --frozen-lockfile']) {
+      const step = steps.find((s) => (s.run ?? '').includes(needle));
+      expect(step, needle).toBeDefined();
+      expect(JSON.stringify(step!.env ?? {}), needle).not.toMatch(/TOKEN|secrets\./);
+    }
+  });
+
+  it('reads before anything writes, in the order the design gives', () => {
+    const order = (jobs.preflight!.steps ?? []).map((s) => s.run ?? s.uses ?? '');
     const at = (needle: string) => order.findIndex((s) => s.includes(needle));
     expect(at('preflight.mjs resolve')).toBeLessThan(at('git worktree add'));
-    expect(at('git worktree add')).toBeLessThan(at('preflight.mjs check'));
+    expect(at('git worktree add')).toBeLessThan(at('preflight.mjs names'));
+    expect(at('preflight.mjs names')).toBeLessThan(at('preflight.mjs check'));
+    expect(at('preflight.mjs check')).toBeLessThan(at('install --frozen-lockfile'));
     expect(at('install --frozen-lockfile')).toBeLessThan(at('preflight.mjs callees'));
   });
 });
