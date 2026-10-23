@@ -29,8 +29,9 @@ what the release workflow's preflight needs to prove `v0.2.0-alpha.1` to the nex
   every file the ref applied is still its SQL (the migrator records names, never content, so an
   edit reaches fresh installs only; comments are compared away, and 0006 and 0008's notes from
   #1650 are reported); the upgraded catalogue equals a fresh install's (relations with their row
-  security and grants, columns, column grants, indexes, constraints, policies, triggers,
-  functions, views, types, default privileges, roles, extensions), with no allow-list; a further
+  security and grants, columns with their collation, column order, column grants, indexes,
+  constraints, policies, triggers, functions, views, types, default privileges, roles, extensions
+  and comments), with no allow-list; a further
   run applies nothing; and the ref's own migrators refuse the upgraded database on each chain
   that moved. Four more cases hold the comment-stripping comparison.
 - **Read on the branch, 2026-10-23,** from alpha.1: shared 65 -> 65 (0 added), managed 46 -> 59
@@ -62,6 +63,19 @@ what the release workflow's preflight needs to prove `v0.2.0-alpha.1` to the nex
 - **Not in this:** wiring it into the release workflow's preflight, which is that pull request's;
   the Postgres leg (T4); `two-chains.unit.test.ts`, which still reads `UPGRADE_FROM_REF` for a
   case that means something only from a release before the split.
+- **Review, 2026-10-23.** Three minor findings, all taken. The header said an import in the
+  release's migrator resolves as in the repository; an `@openmig/*` one does not, vitest's aliases
+  send it to this build's source (`@openmig/shared`, for `log`, which a migrator given a logger
+  never calls), and the header says so. The catalogue left out column order, collation and
+  `COMMENT ON`; it now has a `column order` line per table (live columns, so a dropped column's
+  gap does not count), `collate=` on each column, and a digest per comment (106, with a floor of
+  50 so a filter that reads none is red). Each was shown on applied 0044: two columns swapped,
+  `COLLATE "C"` on one, a comment's text changed. The catalogue went red on `column order`,
+  `columns` and `comments` respectively, besides the SQL case; as first pushed, only the SQL case
+  saw any of them. 12 of 12 green from alpha.1. Third, the comparison that accepts comment-only
+  edits is looser than T3's *"no migration a release shipped may change"*; T3 now names that as
+  its own decision (byte equality with 0006 and 0008 put back, proposed, or comments allowed)
+  rather than inheriting it.
 
 **2026-10-22, recorded: Dependabot alerts and security updates are on.** The owner turned on both
 repository settings that `.github/dependabot.yml`'s header leans on for security updates; the API
@@ -1113,6 +1127,22 @@ in the same file.
   (what ADR-0036 did to rc.1's baseline) and deleting, and it covers the managed chain, which no
   gate compares with a release today. rc.1 stays outside the rule: its `0001_baseline.sql`
   differs from HEAD's today (checked on 2026-09-24), under the allow-list §1 names.
+- **Comment-only edits: T3 decides, it does not inherit.** The managed chain's upgrade proof
+  (T4, `packages/managed/src/migrate-upgrade.unit.test.ts`, 2026-10-23) is looser than the rule
+  above. It compares an applied file with its comments removed, and accepts an edit to comments
+  alone, saying which files had one. It has to, today: `main` already carries #1650's notes in
+  managed 0006 and 0008, added after alpha.1 and pointing at 0059. So the rule as written fails on
+  `main` the day T3 lands. T3's build chooses one of two:
+  - **(a) byte equality, as written.** The same pull request puts 0006 and 0008 back to alpha.1's
+    bytes (0059's header already names both, so the notes lose nothing), and the upgrade proof's
+    comparison is tightened to bytes to match. **Proposed**: a note the database never reads costs
+    nothing to keep in a new file, and a byte comparison does not depend on an SQL reader being
+    right.
+  - **(b) comments may change.** The rule says *"no statement of a migration a release shipped may
+    change"*, ADR-0045's amendment says the same, and T3's guard compares as the upgrade proof does.
+
+  Until T3 lands, the upgrade proof's comparison is the only check that a managed file a release
+  shipped is unchanged, and it reports every comment-only edit it accepts.
 - **The runner's message stops advising a drop.** `migrate.ts`'s downgrade message drops the squash
   explanation and the *"nothing irreplaceable lives here"* sentence. It names the two causes that
   remain: a build older than the database (deploy the newer release), and a chain edited after a

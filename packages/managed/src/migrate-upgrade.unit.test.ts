@@ -31,8 +31,9 @@
  *      and nothing the release applied is applied again or re-recorded;
  *   3. every file the release applied is still the SQL this build ships;
  *   4. the upgraded database is INDISTINGUISHABLE from a fresh install at this
- *      build: tables, columns, indexes, constraints, row security and its
- *      policies, triggers, functions, views, grants and roles;
+ *      build: tables, columns (their order and collation too), indexes,
+ *      constraints, row security and its policies, triggers, functions, views,
+ *      grants, roles and comments;
  *   5. a further run of either chain applies nothing;
  *   6. the release's own migrators refuse the upgraded database wherever a
  *      chain moved on.
@@ -46,7 +47,9 @@
  * harmless for the same reason the edit is dangerous (the file is never read
  * again), and there were two after alpha.1: managed 0006 and 0008 gained a
  * note pointing at 0059 (#1650). Files are compared with comments removed, and
- * a file whose comments alone changed is reported.
+ * a file whose comments alone changed is reported. That is looser than the
+ * byte equality 0146 T3 plans for every file a release shipped; T3 decides
+ * which rule holds, and this comparison follows it.
  *
  * **THERE IS NO ALLOW-LIST.** The shared gate carries one, for the tables a
  * pre-release break left behind on rc.1 (`MOVED_TO_MANAGED_CHAIN`). A release
@@ -68,8 +71,12 @@
  * - any other relative import is this build's file at the same path. That is
  *   `db.ts`, for `pgDriver`, which a migrator uses only when it is given a
  *   connection string; every call here passes a driver;
- * - a bare specifier resolves through the packages' own `node_modules`,
- *   linked into the temp tree, exactly as it does in the repository.
+ * - a bare third-party specifier (`pg`) resolves through the packages' own
+ *   `node_modules`, linked into the temp tree, as it does in the repository;
+ * - any other `@openmig/*` specifier does NOT reach the release: vitest's
+ *   aliases (`vitest.aliases.ts`) catch it first and resolve it to THIS
+ *   build's source. That is `@openmig/shared`, for `log`, which a migrator
+ *   uses only when it is given no logger; every call here passes one.
  *
  * The temp tree's `node_modules` are symbolic links into the checkout, and
  * the removal below unlinks them without following them.
@@ -418,8 +425,22 @@ const sha256 = (bytes: Buffer): string => createHash('sha256').update(bytes).dig
  * `public` and to objects no extension owns, so PGlite's internals and an
  * extension's own functions stay out of it (extensions are compared by name
  * and version). Lists inside a line (grants, roles) are sorted, so two routes
- * that granted the same things in another order compare equal. OIDs and
- * column positions are left out: they record the route, not the schema.
+ * that granted the same things in another order compare equal. OIDs are left
+ * out: they record the route, not the schema.
+ *
+ * Column ORDER is in, as one line per table, so a difference reads as the
+ * table it is in rather than as every column after it. It is the order
+ * `SELECT *` and an `INSERT` without a column list see, and both routes apply
+ * the same files in the same order within a chain, so they must agree. Where
+ * they could part is across the chains: a shared file added after the release
+ * runs after the release's managed files on an upgrade and before them on a
+ * fresh install, so a column it adds to a table the managed chain also
+ * extended would sit elsewhere. That is a real difference between the two
+ * databases, and this is where it shows. Positions are counted over the live
+ * columns only: a dropped column's gap in `attnum` is invisible to SQL.
+ *
+ * Comments (`COMMENT ON`) are in too, as a digest per object: the migrations
+ * carry over a hundred, and an operator reads them in `\d+`.
  */
 const CATALOGUE: Readonly<Record<string, string>> = {
   relations: `
@@ -433,8 +454,13 @@ const CATALOGUE: Readonly<Record<string, string>> = {
            is_nullable || ':' || coalesce(column_default, '-') || ':' ||
            coalesce(character_maximum_length::text, '-') || ':' ||
            coalesce(numeric_precision::text, '-') || ',' || coalesce(numeric_scale::text, '-') ||
-           ':' || is_identity || ':' || is_generated || ':' || coalesce(generation_expression, '-')
+           ':' || is_identity || ':' || is_generated || ':' || coalesce(generation_expression, '-') ||
+           ':collate=' || coalesce(collation_name, '-')
       FROM information_schema.columns WHERE table_schema = 'public'`,
+  'column order': `
+    SELECT table_name || ':' || string_agg(column_name, ',' ORDER BY ordinal_position)
+      FROM information_schema.columns WHERE table_schema = 'public'
+     GROUP BY table_name`,
   'column grants': `
     SELECT a.attrelid::regclass::text || '.' || a.attname || ':' ||
            (SELECT string_agg(x::text, ',' ORDER BY x::text) FROM unnest(a.attacl) x)
@@ -487,6 +513,11 @@ const CATALOGUE: Readonly<Record<string, string>> = {
                                 WHERE m.member = r.oid), '-')
       FROM pg_roles r WHERE rolname NOT LIKE 'pg\\_%'`,
   extensions: `SELECT extname || ':' || extversion FROM pg_extension`,
+  comments: `
+    SELECT o.type || ' ' || o.identity || ':' || md5(d.description)
+      FROM pg_description d
+      CROSS JOIN LATERAL pg_identify_object(d.classoid, d.objoid, d.objsubid) o
+     WHERE o.schema = 'public' OR d.classoid = 'pg_extension'::regclass`,
 };
 
 async function catalogue(driver: LedgerDriver): Promise<Record<string, string[]>> {
@@ -695,6 +726,7 @@ describe(`upgrading a managed database from ${FROM_REF}, both chains (0146 T4)`,
       const at = await catalogue(fresh);
       expect(at.relations!.length, 'the fresh install has no tables: the catalogue read nothing').toBeGreaterThan(40);
       expect(at.policies!.length, 'the fresh install has no policies: the catalogue read nothing').toBeGreaterThan(40);
+      expect(at.comments!.length, 'the fresh install has no comments: the catalogue read nothing').toBeGreaterThan(50);
       console.info(
         `[managed-upgrade] compared with a fresh install: ` +
           Object.keys(CATALOGUE)
