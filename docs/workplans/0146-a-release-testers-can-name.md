@@ -39,7 +39,7 @@ had fixed: pgbouncer's, gatus's, mailpit's and most of the registry's.
   | `ownpace-selfhost-release` 4/61 | no: not on live; `SELFHOST_BIND`, loopback unset | alpha.2's image; `:edge` reads 1/60 | the Node base's, 3 with a fix |
   | `stalwart` 3/114 | no: the test fixture (`setup-stalwart.sh`) | nothing | T11 (b), the owner's |
   | `redis` 1/57 | no | nothing | none has a fix; stays on `7.4-bookworm` (0119) |
-  | `postgres-managed` 1/25 | no: loopback or `POSTGRES_BIND` | nothing | 26 have a fix, none in the tag's build |
+  | `postgres-managed` 1/25 | no: loopback or `POSTGRES_BIND` | nothing | all 26 are in `gosu`'s Go and have a fix upstream; today's build of the tag carries none of them |
   | `zitadel` 0/14 | yes | v4.20.0 (#1680): 0/0 | — |
   | `gatus` 0/11 | yes | nothing | stays: v5.37.0 is the newest release |
   | `docker-socket-proxy` 0/6 | no | nothing | stays: v0.5.0 is the newest release |
@@ -70,21 +70,31 @@ had fixed: pgbouncer's, gatus's, mailpit's and most of the registry's.
   `CMD` is `node apps/api/src/index.ts`. T9.
 - **The other internet-facing images.** Zitadel v4.20.0 read 0/0 on #1680's
   branch (Security Scan run 39927406125; v4.19.5: 0/14). The web image and
-  www float `nginx:1.31-alpine`, which Docker Hub served as 1.31.8 (Alpine
-  3.24.3) and which read 0/0; 1.31.7-alpine (`892bb215…`, Alpine 3.24.2) has
-  two high, libexpat CVE-2026-77214 and libx11 CVE-2026-88806, two of
-  alpha.1's web image's five. Draft #1678 now pins 1.31.8 (`1ef7ca94…`, commit
-  `93364f90`), and 0119's nginx row says so on that branch.
+  www float `nginx:1.31-alpine`, which read 0/0 as Docker Hub serves it today,
+  1.31.8 (Alpine 3.24.3). That need not be the copy live runs: nothing
+  re-pulls a floating tag, which is #1678's premise, so www runs whatever the
+  box pulled last, and the web image takes what the tag serves when its build
+  runs. 1.31.7-alpine (`892bb215…`, Alpine 3.24.2) has two high, libexpat
+  CVE-2026-77214 and libx11 CVE-2026-88806, two of alpha.1's web image's five.
+  Draft #1678 now pins 1.31.8 (`1ef7ca94…`, commit `93364f90`) and merges
+  after the launch, as its body says, so alpha.2 does not carry the pin; 0119's
+  nginx row says so on that branch.
 - **Trigger.dev v4.7.6, read on its branch** (Security Scan run 39927368805):
   the webapp 9/245, 189 with a fix (v4.7.2: 13/286, 234), and the supervisor
   3/56, 55 (3/58, 57). Its repository-scan job was red only because pnpm's
   three-day floor (`minimumReleaseAge: 4320`) refuses `@trigger.dev/core` and
-  `@trigger.dev/sdk` 4.7.6 until 2026-10-23 18:31 UTC. The branch overlays the
-  tasks' image with `apt-get -y upgrade` at build, which fixes the fixable
-  Debian findings (13 of `trigger-task-base`'s 14 criticals are Perl, fixed in
-  5.36.0-7+deb12u4), but `scripts/image-scan.mjs` scans the CLI's base image
-  (`triggerdotdev/node:24-bookworm` by digest), not the task image built from
-  it, so those alerts stay open after it merges. T10.
+  `@trigger.dev/sdk` 4.7.6 until about 18:25 UTC on 2026-10-23 by the publish
+  times pnpm itself prints (npm's full metadata says 18:30), so by 18:31 UTC
+  at the latest. The branch overlays the tasks' image with `apt-get -y
+  upgrade` at build, which fixes the 42 Debian findings that have a fix: 30
+  high and 12 of `trigger-task-base`'s 14 criticals, all Perl, fixed in
+  5.36.0-7+deb12u4. The other two criticals are zlib1g's CVE-2023-45853, which
+  has no fix, and npm's bundled tar 7.5.15 (CVE-2026-59873, fixed in 7.5.19),
+  which the upgrade does not touch, since the overlay copies only
+  `/usr/local/bin/node`. Whatever the build fixes, `scripts/image-scan.mjs`
+  scans the CLI's base image (`triggerdotdev/node:24-bookworm` by digest), not
+  the task image built from it, so those alerts stay open after it merges.
+  T10.
 - **Read locally, the session's own Trivy 0.76.0, linux/amd64:** Mailpit
   v1.32.0 0/0 (v1.31.6: CVE-2026-111943, Go's `crypto/x509`); Stalwart
   v0.16.27 (Debian 13.7) 0/47, none with a fix (v0.16.10: 3/114);
@@ -99,10 +109,11 @@ had fixed: pgbouncer's, gatus's, mailpit's and most of the registry's.
   `claude/ownpace-public-readiness-y7orc6-api-image-prod-deps`), T10 (the image
   scan reads the tasks' image as it is built) and T11 (Mailpit v1.32.0;
   Stalwart v0.16.27, the owner's call; ClickHouse 26.3, after the Alpha).
-- **T7 is still the owner's.** MinIO is the largest group, 26/259 open, and
-  its own scan reads 26 critical and 259 high, 206 of them fixed in a newer
-  package: the same as on 2026-10-22, since a frozen image does not move. It
-  publishes no port. T7's row and 0119 §3 item 5 are not changed here.
+- **T7 is still the owner's.** MinIO has the most criticals of any group,
+  26/259 open, and its own scan reads 26 critical and 259 high, 206 of them
+  fixed in a newer package: the same as on 2026-10-22, since a frozen image
+  does not move. It publishes no port. T7's row and 0119 §3 item 5 are not
+  changed here.
 
 **2026-10-23, recorded: the Release workflow merged and proven on `main`, and
 alpha.1's release text pasted by the owner.** #1681 merged at 02:14 UTC
@@ -908,7 +919,8 @@ lane run Node 24 (`ceb516c`); the version guard's header says what the worker ru
 
 **After the first invitation:** T1, T3, T4 (apart from the drill from rc.1, which T2 runs because
 `docs/release.md` requires it before a tag), T6's pull-request check that the task bundle loads,
-T7 and T8. T7 is one sentence from the owner, and is best given with T0.
+T7, T8, T9, T10 and T11 (its (c) after the Alpha). T7 is one sentence from the owner, and is
+best given with T0.
 
 | Task | Status | Notes |
 |---|---|---|
@@ -922,8 +934,8 @@ T7 and T8. T7 is one sentence from the owner, and is best given with T0.
 | T7 The object store: replace the frozen MinIO, or accept it for the alpha in writing | ⏳ **Owner** | §3. Recommended: accept it for the alpha, in writing, and replace it after the alpha in the next Trigger.dev drain window (0119 §3, item 5). |
 | T8 A watch on the pinned images Dependabot leaves alone | Watch half ✅ **done** in #1663, merged 2026-10-21 (`087183b7`): every pin Dependabot cannot see, one issue per owner's-call row and one summary issue, and `/deploy/compose` out of `dependabot.yml` (Status, 2026-10-21); scan half ✅ **done** in #1674, merged 2026-10-22 (`51a0d267`): a weekly, report-only Trivy scan of every image the stacks run, with one issue per image past its end of life (Status, 2026-10-22) — *was:* scan half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-image-scan`, not merged (2026-10-22); watch half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-pin-watch`, not merged (2026-10-21), scan half 📋 Proposed; 📋 **Proposed** | §3. Widened 2026-10-21: Dependabot read no file in `deploy/compose`, so the watch covers every image line of its `managed.yml`, `dev.yml` and `www.yml` and the busybox and GoAccess copies in its scripts, `packageManager`, the Trivy the scan runs and the TypeScript split as well as Trigger.dev, ClickHouse and the task base image. MinIO has no upstream to compare with and is left to the scan half. |
 | T9 The API image runs without the dev tools | 🔨 **Being built** as a draft on branch `claude/ownpace-public-readiness-y7orc6-api-image-prod-deps`, for after the first invitation (2026-10-23) | Status, 2026-10-23 (the scan triage). `apps/api/Dockerfile`'s runtime stage copies the build stage's whole `/app`, where `pnpm install --filter @openmig/api...` installed the devDependencies too, the root's included, and `CMD` (`node apps/api/src/index.ts`) needs none of them. Their Go binaries are 2 critical and 65 high of the image's 3/125 on 2026-10-23: esbuild 0.25.12 (Go 1.23.12; drizzle-kit's and `@esbuild-kit/esm-loader`'s), counted twice, and TypeScript 7's native compiler (Go 1.26.4). The lockfile itself, dev dependencies included, reads 0/0. Done when the runtime image holds production dependencies only, a dependency it still needs and lacks fails at start, which the managed gate's first `curl $API/health` catches, and the image scan finds the Node base's findings alone. |
-| T10 The image scan reads the tasks' image as it is built | 📋 **Proposed** (2026-10-23) | Status, 2026-10-23 (the scan triage). `scripts/image-scan.mjs` scans the base image the pinned CLI names (`triggerdotdev/node:24-bookworm` by digest, category `trigger-task-base`, 14/117 on 2026-10-23), not the tasks' image that `deploy-tasks.sh` builds from it. The Trigger.dev v4.7.6 branch upgrades that image's Debian packages at build (`apt-get -y upgrade`), which fixes 13 of the 14 criticals (Perl, 5.36.0-7+deb12u4) and the other fixable findings, and the scan cannot see it, so the category's alerts stay open for an image that no longer has them. The scan runs on a GitHub-hosted runner, which cannot read the stack's own registry, so the proposal is to build the image in the scan job as the deploy builds it. The old category, if renamed, has its configuration deleted by hand (T8). |
-| T11 The patch and minor moves that clear findings | (a) 📋 **Proposed**; (b) ⏳ **Owner**; (c) 📋 **Proposed**, after the Alpha (2026-10-23) | Status, 2026-10-23 (the scan triage), read with Trivy 0.76.0 on linux/amd64. (a) **Mailpit v1.32.0**: 0/0, where v1.31.6 has CVE-2026-111943 (Go's `crypto/x509`); after the first invitation, by hand in `managed.yml`. (b) **Stalwart v0.16.27** (Debian 13.7): 0 critical and 47 high, none with a fix, where v0.16.10 has 3/114. The owner's call: `docs/stalwart-integration-fix.md` pins v0.16.10 and says not to change it, its decisions in ADR-0022, and every copy moves together: `setup-stalwart.sh`, the fixture's Dockerfile, the Testcontainers setup, the fix doc and the guards that name it. (c) **ClickHouse 26.3** (26.3.59, Ubuntu 22.04): 0/0, where 26.2.19.43 has CVE-2026-45447 and CVE-2026-84782 in openssl. After the Alpha: the owner accepted 26.2 for it on 2026-10-23 (0119 §3 item 9 on the Trigger.dev v4.7.6 branch), and 26.3 is ahead of the 26.2 Trigger.dev's own compose pins, which the pin watch compares with (T8). |
+| T10 The image scan reads the tasks' image as it is built | 📋 **Proposed** (2026-10-23) | Status, 2026-10-23 (the scan triage). `scripts/image-scan.mjs` scans the base image the pinned CLI names (`triggerdotdev/node:24-bookworm` by digest, category `trigger-task-base`, 14/117 on 2026-10-23), not the tasks' image that `deploy-tasks.sh` builds from it. The Trigger.dev v4.7.6 branch upgrades that image's Debian packages at build (`apt-get -y upgrade`), which fixes the 42 Debian findings that have a fix (12 critical, all Perl, fixed in 5.36.0-7+deb12u4, and 30 high). It leaves npm's bundled packages under `/usr/local/lib/node_modules/npm`, since the overlay copies only `/usr/local/bin/node` (tar 7.5.15's CVE-2026-59873, critical, fixed in 7.5.19, and 12 high, 11 of them with a fix), and the 76 Debian findings without a fix, zlib1g's CVE-2023-45853 among them: the built image would still carry 2 critical and 87 high of the 131 (read with Trivy 0.76.0, 2026-10-23). The scan cannot see the upgrade, so the category keeps alerts for 42 findings the built image no longer has. The scan runs on a GitHub-hosted runner, which cannot read the stack's own registry, so the proposal is to build the image in the scan job as the deploy builds it. The old category, if renamed, has its configuration deleted by hand (T8). |
+| T11 The patch and minor moves that clear findings | (a) 📋 **Proposed**; (b) ⏳ **Owner**; (c) 📋 **Proposed**, after the Alpha (2026-10-23) | Status, 2026-10-23 (the scan triage), read with Trivy 0.76.0 on linux/amd64. (a) **Mailpit v1.32.0**: 0/0, where v1.31.6 has CVE-2026-111943 (Go's `crypto/x509`); after the first invitation, by hand in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts`, which pins the reference by tag and digest and records Mailpit's release check as read at v1.31.6, so that fact is read again at v1.32.0 in the same change. (b) **Stalwart v0.16.27** (Debian 13.7): 0 critical and 47 high, none with a fix, where v0.16.10 has 3/114. The owner's call: `docs/stalwart-integration-fix.md` pins v0.16.10 and says *"DO NOT change the pinned version"* (AGENTS.md puts its decisions in ADR-0022), and every copy moves together: `setup-stalwart.sh`, the fixture's Dockerfile, the Testcontainers setup, the fix doc and the guards that name it. (c) **ClickHouse 26.3** (26.3.59, Ubuntu 22.04): 0/0, where 26.2.19.43 has CVE-2026-45447 and CVE-2026-84782 in openssl. After the Alpha: the owner accepted 26.2 for it on 2026-10-23 (0119 §3 item 9 on the Trigger.dev v4.7.6 branch), and 26.3 is ahead of the 26.2 Trigger.dev's own compose pins, which the pin watch compares with (T8). It moves in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts` together: the guard pins the reference by tag and digest and records the crash-report default as read at `v26.2.19.43-stable`, as `clickhouse-no-crash-reports.xml`'s comment does, so both are read again at 26.3. |
 
 ## 1. What there is today
 
