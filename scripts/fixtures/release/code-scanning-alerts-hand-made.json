@@ -1,0 +1,658 @@
+[
+  {
+    "number": 1399,
+    "state": "open",
+    "rule": {
+      "id": "GHSA-p6vx-979v-rg4c",
+      "severity": "error",
+      "security_severity_level": "critical"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": ".github/workflows/security-scan.yml:security-scan"
+    }
+  },
+  {
+    "number": 1398,
+    "state": "open",
+    "rule": {
+      "id": "GHSA-jp82-f5mq-hwhp",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": ".github/workflows/security-scan.yml:security-scan"
+    }
+  },
+  {
+    "number": 1397,
+    "state": "open",
+    "rule": {
+      "id": "GHSA-68fv-2mgg-jv7q",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": ".github/workflows/security-scan.yml:security-scan"
+    }
+  },
+  {
+    "number": 1396,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-49794",
+      "severity": "error",
+      "security_severity_level": "critical"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-nextcloud"
+    }
+  },
+  {
+    "number": 1395,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-49794",
+      "severity": "error",
+      "security_severity_level": "critical"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-nextcloud"
+    }
+  },
+  {
+    "number": 1394,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-49796",
+      "severity": "error",
+      "security_severity_level": "critical"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-nextcloud"
+    }
+  },
+  {
+    "number": 1393,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-49796",
+      "severity": "error",
+      "security_severity_level": "critical"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-nextcloud"
+    }
+  },
+  {
+    "number": 1392,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2023-45853",
+      "severity": "error",
+      "security_severity_level": "critical"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-nextcloud"
+    }
+  },
+  {
+    "number": 1391,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-6020",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-nextcloud"
+    }
+  },
+  {
+    "number": 1390,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-6020",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-nextcloud"
+    }
+  },
+  {
+    "number": 1389,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-6020",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-nextcloud"
+    }
+  },
+  {
+    "number": 1388,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-4802",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-nextcloud"
+    }
+  },
+  {
+    "number": 1387,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-4802",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-nextcloud"
+    }
+  },
+  {
+    "number": 1386,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2024-56171",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-nextcloud"
+    }
+  },
+  {
+    "number": 1385,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2024-56171",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-nextcloud"
+    }
+  },
+  {
+    "number": 1384,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-32988",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-nextcloud"
+    }
+  },
+  {
+    "number": 1383,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-32990",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-nextcloud"
+    }
+  },
+  {
+    "number": 1382,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-48384",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-nextcloud"
+    }
+  },
+  {
+    "number": 1381,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-9230",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-nextcloud"
+    }
+  },
+  {
+    "number": 1380,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2024-45337",
+      "severity": "error",
+      "security_severity_level": "critical"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-trigger.dev"
+    }
+  },
+  {
+    "number": 1379,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2024-45337",
+      "severity": "error",
+      "security_severity_level": "critical"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-trigger.dev"
+    }
+  },
+  {
+    "number": 1378,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-22871",
+      "severity": "error",
+      "security_severity_level": "critical"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-trigger.dev"
+    }
+  },
+  {
+    "number": 1377,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-22869",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-trigger.dev"
+    }
+  },
+  {
+    "number": 1376,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-22869",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-trigger.dev"
+    }
+  },
+  {
+    "number": 1375,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-47907",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-trigger.dev"
+    }
+  },
+  {
+    "number": 1374,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-47907",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-trigger.dev"
+    }
+  },
+  {
+    "number": 1373,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-58183",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-trigger.dev"
+    }
+  },
+  {
+    "number": 1372,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-22871",
+      "severity": "error",
+      "security_severity_level": "critical"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-minio"
+    }
+  },
+  {
+    "number": 1371,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2024-45337",
+      "severity": "error",
+      "security_severity_level": "critical"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-minio"
+    }
+  },
+  {
+    "number": 1370,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-47907",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-minio"
+    }
+  },
+  {
+    "number": 1369,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-47907",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-minio"
+    }
+  },
+  {
+    "number": 1368,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-47907",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-minio"
+    }
+  },
+  {
+    "number": 1367,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-58183",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-minio"
+    }
+  },
+  {
+    "number": 1366,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-6965",
+      "severity": "error",
+      "security_severity_level": "critical"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-goaccess"
+    }
+  },
+  {
+    "number": 1365,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-29087",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-goaccess"
+    }
+  },
+  {
+    "number": 1364,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-9230",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-goaccess"
+    }
+  },
+  {
+    "number": 1363,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-49844",
+      "severity": "error",
+      "security_severity_level": "critical"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-redis"
+    }
+  },
+  {
+    "number": 1362,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-46817",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-redis"
+    }
+  },
+  {
+    "number": 1361,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-46819",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-redis"
+    }
+  },
+  {
+    "number": 1360,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-9230",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-ownpace-api-edge"
+    }
+  },
+  {
+    "number": 1359,
+    "state": "open",
+    "rule": {
+      "id": "CVE-2025-6020",
+      "severity": "error",
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "Trivy"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "category": "trivy-image-ownpace-api-edge"
+    }
+  }
+]

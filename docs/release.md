@@ -71,7 +71,12 @@ one line per check, `pass` or `refuse`, every reason at once):
   reviewer, the open critical and high code-scanning alerts on `main` (the
   pull request's `Trivy` check blocks new ones, and the advisory gate is what
   refuses), the commits on `main` after C, what the release before is
-  missing, and what it does not check.
+  missing, and what it does not check. The alerts are read whole, every page,
+  and printed as a total and then one `note code-scanning` line per tool and
+  category: the repository's filesystem scan, and each image of the weekly
+  image scan (`trivy-image-<name>`, which names the image), with the
+  category's counts and its five most alerted rule ids, critical first. That
+  is where to start a triage before the fold.
 
 **You do these:**
 

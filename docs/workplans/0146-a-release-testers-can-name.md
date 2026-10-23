@@ -56,6 +56,28 @@ below owed after the merge.
   freeze (0141 T14); the two nights on it; and then `mode=release`, with the
   owner's approval.
 
+**2026-10-23, build: the preflight's code-scanning note, grouped, merged as #1683
+(`47bf5c13`)** from branch
+`claude/ownpace-public-readiness-y7orc6-scan-alerts-breakdown`. Release's first preflight on `main` printed one line, *"67 critical and 100
+high code-scanning alert(s) open on main: reported, not refused"*, and the 100
+was the page size: it read one page of each severity. Now
+`scripts/release-preflight.mjs` reads every page (`getAll` in
+`release-github.mjs`, which errors past its cap rather than count short),
+keeps an alert only as far as the new whitelist `slimAlert` does (the API's
+alert names the accounts that dismissed it or were assigned it), and prints
+the total and then one note per tool and analysis category (the repository's
+filesystem scan; each `trivy-image-<name>` category, naming the image) with
+its counts and its five most alerted rule ids, critical first. Still a note,
+never a refusal (decision 11), and a list that cannot be read is a note that
+says why. Proven by the preflight's guard on a fixture written by hand in the
+API's shape and kept through `slimAlert`, since this session's token gets 403
+from code scanning; the real breakdown is the next preflight dispatch's log.
+The review's mutations (the rules unsorted, alerts keyed by place and not by
+number, the API's reason dropped) each turn the guard red: it pins one
+group's sentence whole, prints the same notes for the fixture reversed and
+shuffled, counts an alert answered twice once, and reads the check step's
+notes through `openAlertsNotes` with a client that is refused.
+
 **2026-10-23, build: the Release workflow, merged as #1682 (`54e4c3d2`)** from
 branch `claude/ownpace-public-readiness-y7orc6-release-workflow`. T2's
 steps 4 to 6 (the gates, the commit, the tag) and §3's checks become one
