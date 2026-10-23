@@ -102,7 +102,8 @@ jobs:
     permissions:
       contents: read
       actions: read
-      # Read only, to count the open code-scanning alerts it reports.
+      # Read only, to read the open code-scanning alerts it reports, grouped
+      # by tool and category (scripts/release-preflight.mjs).
       security-events: read
     outputs:
       commit: ${{ steps.resolve.outputs.commit }}

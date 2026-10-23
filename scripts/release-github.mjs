@@ -28,9 +28,16 @@
  * THE FIELDS KEPT. A workflow run as the API answers it carries the commit's
  * whole message (`head_commit`), which on this repository ends in
  * co-author trailers with addresses in them, and the accounts that started
- * it (`actor`, `triggering_actor`); a job carries the runner's name. None of
- * that is read by any check, and the test fixtures are recorded through these
- * same lists, so none of it can reach the repository either.
+ * it (`actor`, `triggering_actor`); a job carries the runner's name. A
+ * code-scanning alert carries the accounts that dismissed it, approved the
+ * dismissal and were assigned it (`dismissed_by`, `dismissal_approved_by`,
+ * `assignees`). None of that is read by any check, and the test fixtures are
+ * recorded through these same lists, so none of it can reach the repository
+ * either.
+ *
+ * PAGES. A list the API pages is read whole (`getAll`), or not at all: the
+ * preflight's first run said "100 high" code-scanning alerts because it read
+ * one page of 100, and a page cap that is reached is an error, never a count.
  */
 
 import { appendFileSync } from 'node:fs';
@@ -63,8 +70,18 @@ export const STEP_FIELDS = ['number', 'name', 'status', 'conclusion'];
 export const RELEASE_FIELDS = ['tag_name', 'name', 'draft', 'prerelease', 'immutable', 'body'];
 export const ASSET_FIELDS = ['name', 'size', 'state', 'browser_download_url'];
 
+/**
+ * The fields of a code-scanning alert, of its rule, of its tool and of its
+ * most recent instance, that the preflight's note reads: no link, no
+ * message, no location, and no account.
+ */
+export const ALERT_FIELDS = ['number', 'state'];
+export const ALERT_RULE_FIELDS = ['id', 'severity', 'security_severity_level'];
+export const ALERT_TOOL_FIELDS = ['name'];
+export const ALERT_INSTANCE_FIELDS = ['ref', 'category'];
+
 /** Keys that never belong in anything recorded from the API. */
-export const NEVER_RECORDED = ['head_commit', 'actor', 'triggering_actor', 'runner_name'];
+export const NEVER_RECORDED = ['head_commit', 'actor', 'triggering_actor', 'runner_name', 'dismissed_by', 'dismissal_approved_by', 'assignees'];
 
 const pick = (object, fields) =>
   Object.fromEntries(fields.filter((f) => object && f in object).map((f) => [f, object[f]]));
@@ -85,6 +102,15 @@ export function slimJob(job) {
 export function slimRelease(release) {
   const slim = pick(release, RELEASE_FIELDS);
   slim.assets = (release?.assets ?? []).map((a) => pick(a, ASSET_FIELDS));
+  return slim;
+}
+
+/** A code-scanning alert with only what the preflight's note reads. */
+export function slimAlert(alert) {
+  const slim = pick(alert, ALERT_FIELDS);
+  if (alert?.rule) slim.rule = pick(alert.rule, ALERT_RULE_FIELDS);
+  if (alert?.tool) slim.tool = pick(alert.tool, ALERT_TOOL_FIELDS);
+  if (alert?.most_recent_instance) slim.most_recent_instance = pick(alert.most_recent_instance, ALERT_INSTANCE_FIELDS);
   return slim;
 }
 
@@ -205,6 +231,24 @@ export function github({
   }
 
   return { get, send, url };
+}
+
+/**
+ * Every item of a list the API pages, read with `client.get` a page at a
+ * time: `per_page` and `page` are added to `path`, and a page shorter than
+ * `perPage` is the last. More than `maxPages` pages is an error and not a
+ * shorter list, and so is an answer that is not a list.
+ */
+export async function getAll(client, path, { perPage = 100, maxPages = 50 } = {}) {
+  const items = [];
+  const join = path.includes('?') ? '&' : '?';
+  for (let page = 1; page <= maxPages; page += 1) {
+    const answer = await client.get(`${path}${join}per_page=${perPage}&page=${page}`);
+    if (!Array.isArray(answer)) throw new Error(`GET ${path} page ${page} answered something other than a list`);
+    items.push(...answer);
+    if (answer.length < perPage) return items;
+  }
+  throw new Error(`GET ${path} has more than ${maxPages} pages of ${perPage}: it was not read whole`);
 }
 
 /** The run's address, as a person opens it. */

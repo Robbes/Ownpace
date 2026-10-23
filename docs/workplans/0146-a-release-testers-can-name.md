@@ -4,8 +4,193 @@
 
 ## Status — 2026-10-23 (update this block at the end of every session)
 
-**2026-10-23, build: the Release workflow, on branch
-`claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged.** T2's
+**2026-10-23, recorded: the open code-scanning alerts read and triaged before the
+fold, and their follow-ups made T9 to T11.** Release run 7 (Actions run
+39928937434), `preflight` for `v0.2.0-alpha.2` on `main` at `47bf5c13` at 09:02
+UTC, was the first to print #1683's grouped note: *"69 critical and 1330 high
+code-scanning alert(s) open on main, in 18 group(s) by tool and category below:
+reported, not refused"*. Every group is one image's `trivy-image-<name>`
+category. The repository's own filesystem scan has none open, and `trivy fs
+--include-dev-deps` over `pnpm-lock.yaml` read 0 critical and 0 high the same
+day. A group counts each alert once, under the category of its most recent
+instance, so an alert several images share sits in one of them and the groups
+do not add up image by image: the edge images have no group, and the
+supervisor's 0/6 is less than its own scan's 3/58. Security Scan #4726 (run
+39927323151, dispatched on `main` at `54e4c3d2` at 08:48 UTC with image scans)
+gave each image's own count, linux/arm64, and closed the alerts #1657's pins
+had fixed: pgbouncer's, gatus's, mailpit's and most of the registry's.
+
+- **Each group, by exposure and by what alpha.2 changes.** Exposure is
+  `managed.yml`, `www.yml` and `deploy/selfhost/compose.yml` as they stand,
+  every port on `127.0.0.1` or a `*_BIND` variable, and live as it runs: the
+  web app (whose nginx proxies the API), Zitadel, Gatus and www are reached
+  from the internet through the host's reverse proxy, and nothing else is.
+  "alpha.2" assumes #1680 (Zitadel v4.20.0) and the Trigger.dev v4.7.6 branch
+  (`claude/ownpace-public-readiness-y7orc6-trigger-4-7-6`) merge before the
+  fold, as planned; neither has yet. Counts are critical/high.
+
+  | Group, open on `main` | From the internet | What alpha.2 changes | Then |
+  |---|---|---|---|
+  | `minio` 26/259 | no: publishes no port | nothing | T7, the owner's |
+  | `trigger-task-base` 13/105 | no: the tasks' runtime | v4.7.6 upgrades the built image, but the scan reads the base: open | T10 |
+  | `trigger.dev` 10/278 | no: dashboard behind `trigger-tls`, loopback or the mesh | v4.7.6: 13/286 → 9/245 by image | the next Trigger.dev move (T8) |
+  | `ownpace-api-release` 7/136 | yes, through the web app's nginx | the scan reads alpha.2's image; `:edge` reads 3/125 | T9, for 2/65 of it |
+  | `nextcloud` 4/237 | no: the demo and test target | nothing | none has a fix |
+  | `ownpace-selfhost-release` 4/61 | no: not on live; `SELFHOST_BIND`, loopback unset | alpha.2's image; `:edge` reads 1/60 | the Node base's, 3 with a fix |
+  | `stalwart` 3/114 | no: the test fixture (`setup-stalwart.sh`) | nothing | T11 (b), the owner's |
+  | `redis` 1/57 | no | nothing | none has a fix; stays on `7.4-bookworm` (0119) |
+  | `postgres-managed` 1/25 | no: loopback or `POSTGRES_BIND` | nothing | all 26 are in `gosu`'s Go and have a fix upstream; today's build of the tag carries none of them |
+  | `zitadel` 0/14 | yes | v4.20.0 (#1680): 0/0 | — |
+  | `gatus` 0/11 | yes | nothing | stays: v5.37.0 is the newest release |
+  | `docker-socket-proxy` 0/6 | no | nothing | stays: v0.5.0 is the newest release |
+  | `registry` 0/6 | no: loopback | nothing | stays: 3.1.2 is the newest |
+  | `supervisor` 0/6 | no | v4.7.6: 3/58 → 3/56 by image | with Trigger.dev |
+  | `caddy` 0/5 | no: `trigger-tls`, loopback or the mesh | nothing | stays: 2.11.7 is the newest |
+  | `ownpace-web-release` 0/5 | yes | alpha.2's image; `:edge` reads 0/0 | — |
+  | `clickhouse-server` 0/4 | no | nothing: 26.2 is accepted for the Alpha | T11 (c), after the Alpha |
+  | `mailpit` 0/1 | no: the mail catcher | nothing | T11 (a) |
+
+- **None of it blocks the tag.** Under decision 11 open alerts are reported and
+  never refused, because the pull request's `Trivy` check already blocks a new
+  one and the advisory gate is what refuses a tag.
+- **Two exposed findings outside the Node base remain after alpha.2.** Gatus:
+  11 high, each with a fixed version upstream, and v5.37.0 is the newest
+  release, so there is nothing to move to. And the API image's dev tools: if
+  alpha.2's image reads like `:edge`'s 3/125, then 1/60 is the base's
+  (`node:24.22.1-slim`, Debian 12.15: 3 with a fix, and the critical, zlib's
+  CVE-2023-45853, is in minizip, which `zlib1g` does not ship) and 2/65 are Go
+  binaries in `node_modules` that the image carries and never executes:
+  esbuild 0.25.12 (built with Go 1.23.12; drizzle-kit 0.31.11's own `^0.25.4`
+  and `@esbuild-kit/esm-loader`'s), 1 critical (CVE-2025-68121) and 25 high,
+  each counted twice (`esbuild/bin` and `@esbuild/linux-*`); and TypeScript
+  7.0.2's native compiler (`@typescript/typescript-linux-*`, Go 1.26.4), 13 high
+  in the standard library and 2 in `golang.org/x/text`. They are there because
+  `apps/api/Dockerfile`'s runtime stage copies the build stage's whole `/app`,
+  where `pnpm install --filter @openmig/api...` installed devDependencies too;
+  `CMD` is `node apps/api/src/index.ts`. T9.
+- **The other internet-facing images.** Zitadel v4.20.0 read 0/0 on #1680's
+  branch (Security Scan run 39927406125; v4.19.5: 0/14). The web image and
+  www float `nginx:1.31-alpine`, which read 0/0 as Docker Hub serves it today,
+  1.31.8 (Alpine 3.24.3). That need not be the copy live runs: nothing
+  re-pulls a floating tag, which is #1678's premise, so www runs whatever the
+  box pulled last, and the web image takes what the tag serves when its build
+  runs. 1.31.7-alpine (`892bb215…`, Alpine 3.24.2) has two high, libexpat
+  CVE-2026-77214 and libx11 CVE-2026-88806, two of alpha.1's web image's five.
+  Draft #1678 now pins 1.31.8 (`1ef7ca94…`, commit `93364f90`) and merges
+  after the launch, as its body says, so alpha.2 does not carry the pin; 0119's
+  nginx row says so on that branch.
+- **Trigger.dev v4.7.6, read on its branch** (Security Scan run 39927368805):
+  the webapp 9/245, 189 with a fix (v4.7.2: 13/286, 234), and the supervisor
+  3/56, 55 (3/58, 57). Its repository-scan job was red only because pnpm's
+  three-day floor (`minimumReleaseAge: 4320`) refuses `@trigger.dev/core` and
+  `@trigger.dev/sdk` 4.7.6 until about 18:25 UTC on 2026-10-23 by the publish
+  times pnpm itself prints (npm's full metadata says 18:30), so by 18:31 UTC
+  at the latest. The branch overlays the tasks' image with `apt-get -y
+  upgrade` at build, which fixes the 42 Debian findings that have a fix: 30
+  high and 12 of `trigger-task-base`'s 14 criticals, all Perl, fixed in
+  5.36.0-7+deb12u4. The other two criticals are zlib1g's CVE-2023-45853, which
+  has no fix, and npm's bundled tar 7.5.15 (CVE-2026-59873, fixed in 7.5.19),
+  which the upgrade does not touch, since the overlay copies only
+  `/usr/local/bin/node`. Whatever the build fixes, `scripts/image-scan.mjs`
+  scans the CLI's base image (`triggerdotdev/node:24-bookworm` by digest), not
+  the task image built from it, so those alerts stay open after it merges.
+  T10.
+- **Read locally, the session's own Trivy 0.76.0, linux/amd64:** Mailpit
+  v1.32.0 0/0 (v1.31.6: CVE-2026-111943, Go's `crypto/x509`); Stalwart
+  v0.16.27 (Debian 13.7) 0/47, none with a fix (v0.16.10: 3/114);
+  clickhouse-server 26.3.59 (Ubuntu 22.04) 0/0 (26.2.19.43: CVE-2026-45447 and
+  CVE-2026-84782 in openssl); `node:24.22.1-slim` 1/60, as above. Upstream,
+  read the same day: Caddy's newest is 2.11.7 (a Go 1.26.8 build), the
+  registry's 3.1.2 (the same Go), Gatus's v5.37.0 and docker-socket-proxy's
+  newest release v0.5.0, so none has a newer build to move to; Redis stays on
+  `7.4-bookworm` because the 7.4 Alpine images are on Alpine 3.21 (0119).
+- **The follow-ups, after the first invitation, are task rows now:** T9 (the
+  API image without devDependencies, a draft being built on branch
+  `claude/ownpace-public-readiness-y7orc6-api-image-prod-deps`), T10 (the image
+  scan reads the tasks' image as it is built) and T11 (Mailpit v1.32.0;
+  Stalwart v0.16.27, the owner's call; ClickHouse 26.3, after the Alpha).
+- **T7 is still the owner's.** MinIO has the most criticals of any group,
+  26/259 open, and its own scan reads 26 critical and 259 high, 206 of them
+  fixed in a newer package: the same as on 2026-10-22, since a frozen image
+  does not move. It publishes no port. T7's row and 0119 §3 item 5 are not
+  changed here.
+
+**2026-10-23, recorded: the Release workflow merged and proven on `main`, and
+alpha.1's release text pasted by the owner.** #1681 merged at 02:14 UTC
+(`b357add8`) and #1682 at 03:05 UTC (`54e4c3d2`). `54e4c3d2`'s own push runs
+on `main` were green: CI #4704 and Security Scan #4720. Six dispatches of
+`release.yml` from `main` at `54e4c3d2` (C in runs 1 and 2) gave what the entry
+below owed after the merge.
+
+- **Run 1, `preflight` for `v0.2.0-alpha.2`.** It refused seven lines, each a
+  thing not done yet rather than a fault: `changelog-folded` twice
+  (`[Unreleased]` held 171 lines, and the alpha.2 section is dated
+  2026-10-11), `ci-green` (CI #4704 was still queued), `scan-green-on-main`
+  (Security Scan #4720 was still running), and three `nights` lines (E2E
+  (managed) #265 ran `91b49de9` and #262 ran `29693244`, and `54e4c3d2`
+  reached `main` after #265, so no counted night has run it). It passed
+  `names-agree`, `tag-free`, `openapi-agrees`, `callees`, `upgrade-ledger`
+  (65 → 65) and `upgrade-managed` (46 → 59). It noted that the `release`
+  environment asks for a reviewer, the core of the owner's one setting
+  (`docs/release.md`, *Settings the owner makes once*). That is all the
+  preflight reads of it: the setting's `main`-only deployment branches,
+  *Prevent self-reviews* off and no wait timer were not read.
+- **Run 2, `rehearse` with `commit=54e4c3d2`.** The gate scan ran Security
+  Scan #4721 on `release-gate/v0.2.0-alpha.2` at C, green with its three image
+  jobs skipped, and deleted the branch. The run ended red on its last step
+  only, as a rehearsal of a commit the preflight refuses must: *"the real run
+  would have stopped at the preflight: 6 refused"* (run 1's seven, less the
+  scan on `main`, green by then).
+- **Run 3, `rehearse-tag`.** The workflow's token made the annotated tag
+  `rehearsal-3` at `main`'s head. Security Scan, dispatched on it as #4722,
+  ran on the tag and refused at its names check (*"not a release name"*), so
+  no release was made, and the tag was deleted.
+- **Runs 4, 5 and 6, `verify` on `v0.2.0-alpha.1`.** Each passed every image
+  (both architectures), the revision label, the `sha-` tag, `latest`
+  withheld, cosign with the exact identity and with the documented regexp,
+  the zip's `SHA256SUMS.txt` for all 389 files, and `/version`. Runs 4 and 5
+  refused `bom.json` and the body: run 4's (03:12 UTC) held no generated
+  block, and run 5's (05:33 UTC) had a block that did not link
+  `CHANGELOG.md` at the tag. Run 6 (05:44 UTC), after the owner's paste as it
+  stands now, refused only `bom.json`.
+- **alpha.1's release text, pasted by the owner on 2026-10-23** (decision
+  12): the standard text without its `bom.json` sentence, and a note on the
+  failed tag-time scan that says what the four advisories mean for anyone
+  running alpha.1. It is still a pre-release, with its zip as its one asset.
+  Its `bom.json` stays missing by choice, so `mode=verify` on alpha.1 stays
+  red on that one line. The note says proxy-addr's affected code runs only
+  when `TRUST_PROXY` names an address or a subnet; the owner confirmed that
+  live's is a hop count, 2, as `docs/managed-bring-up.md` asks, so that path
+  was never used on live. `docs/release.md` (*`mode=verify` on an existing
+  tag*) and alpha.1's section of `CHANGELOG.md` now say the paste is done.
+- **Still owed for `v0.2.0-alpha.2`:** the fold, which is C and starts the
+  freeze (0141 T14); the two nights on it; and then `mode=release`, with the
+  owner's approval.
+
+**2026-10-23, build: the preflight's code-scanning note, grouped, merged as #1683
+(`47bf5c13`)** from branch
+`claude/ownpace-public-readiness-y7orc6-scan-alerts-breakdown`. Release's first preflight on `main` printed one line, *"67 critical and 100
+high code-scanning alert(s) open on main: reported, not refused"*, and the 100
+was the page size: it read one page of each severity. Now
+`scripts/release-preflight.mjs` reads every page (`getAll` in
+`release-github.mjs`, which errors past its cap rather than count short),
+keeps an alert only as far as the new whitelist `slimAlert` does (the API's
+alert names the accounts that dismissed it or were assigned it), and prints
+the total and then one note per tool and analysis category (the repository's
+filesystem scan; each `trivy-image-<name>` category, naming the image) with
+its counts and its five most alerted rule ids, critical first. Still a note,
+never a refusal (decision 11), and a list that cannot be read is a note that
+says why. Proven by the preflight's guard on a fixture written by hand in the
+API's shape and kept through `slimAlert`, since this session's token gets 403
+from code scanning; the real breakdown is the next preflight dispatch's log.
+The review's mutations (the rules unsorted, alerts keyed by place and not by
+number, the API's reason dropped) each turn the guard red: it pins one
+group's sentence whole, prints the same notes for the fixture reversed and
+shuffled, counts an alert answered twice once, and reads the check step's
+notes through `openAlertsNotes` with a client that is refused.
+
+**2026-10-23, build: the Release workflow, merged as #1682 (`54e4c3d2`)** from
+branch `claude/ownpace-public-readiness-y7orc6-release-workflow`. T2's
 steps 4 to 6 (the gates, the commit, the tag) and §3's checks become one
 dispatchable workflow, `.github/workflows/release.yml`, with the procedure in
 `docs/release.md`. It runs from `main` on GitHub-hosted runners only and never
@@ -734,19 +919,23 @@ lane run Node 24 (`ceb516c`); the version guard's header says what the worker ru
 
 **After the first invitation:** T1, T3, T4 (apart from the drill from rc.1, which T2 runs because
 `docs/release.md` requires it before a tag), T6's pull-request check that the task bundle loads,
-T7 and T8. T7 is one sentence from the owner, and is best given with T0.
+T7, T8, T9, T10 and T11 (its (c) after the Alpha). T7 is one sentence from the owner, and is
+best given with T0.
 
 | Task | Status | Notes |
 |---|---|---|
 | T0 The alpha's version name, and whether any rename comes first | ✅ **Answered 2026-09-28**: *"The version name (0146 T0): ok, what do I do?"*, read as accepting the whole recommendation: `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy; no rename; no last squash. The owner named no item, and has not objected since (Status, 2026-09-28) — *was:* ⏳ **Owner** | §3. **Alpha minimum.** Recommended: `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy; no renames, as ADR-0040 already decided. Two other names each have a trap (§1). |
 | T1 A changelog section a reader can use | 📋 **Proposed** (D1, D6) | §3. After the first invitation, unless it is ready before the tag. Grouped by what a tester notices, with the experimental sources marked, and the stale lines corrected. |
-| T2 The version bumped, the tag cut, and the build named where it is needed | 🔨 Steps 4 to 6 **through the Release workflow** on branch `claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged (2026-10-23): the preflight reads the fold, CI and the scan on C, the nights and both chains' upgrade gates (the managed chain's is T4's, #1681); the tag and the publishing are the workflow's after the owner's approval (Status, 2026-10-23); Step 1 ✅ **done** in #1305, merged 2026-09-28 (`0c1a8d8c`): the root version `0.2.0-alpha.1`, `CHANGELOG.md`'s `[0.2.0-alpha.1] - 2026-09-29` with T2's floor, the issue template's Build example, `release.md`'s count of six, and (reviews, 2026-09-28) `openapi.yaml`'s `info.version` held to the root version by guard block (d) and named in `release.md`, the Build field sending managed and Docker testers to the sidebar and Windows testers to the log line, and the stamp held at the bottom of the sidebar in both editions. Steps 2 and 3 ✅ **done** in #1274, merged 2026-09-28 (`1353f062`): the build line in the problem report, `scripts/release-names-agree.mjs` in the three publishing workflows, and both guards. Steps 4 to 6 📋 the owner's: the drill from rc.1, the commit by the two-green-scheduled-nights rule (0141 T14), and the tag and its push; `v0.2.0-alpha.1` is tagged, 2026-10-06 (on `90a23e9b`), and `v0.2.0-alpha.2` is the version since #1558 (merged 2026-10-11) but not yet tagged (both read from the remote 2026-10-16); 📋 **Decided 2026-10-05**, *"Two tags"*: `v0.2.0-alpha.1` once the pull requests in flight merge, to stand live up and rehearse, then `v0.2.0-alpha.2` with the final texts, its own freeze, two nights and deploy, before the first invitation (Status, 2026-10-05) — *was:* step 1 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-named-v0-2-0-alpha-1`, not merged (2026-09-28); steps 1 and 4 to 6 📋 waiting for T0 (the name) and the owner (2026-09-28); 🔨 steps 2 and 3 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-that-names-itself`, not merged (2026-09-28); 📋 **Proposed** (D1, D5) | §3. **Alpha minimum.** `docs/release.md`'s procedure, a check that the tag, `package.json` and the changelog agree before anything publishes, and a build line in every problem report. |
+| T2 The version bumped, the tag cut, and the build named where it is needed | ✅ Steps 4 to 6's **Release workflow done** in #1682, merged 2026-10-23 (`54e4c3d2`), and proven on `main` the same day by Release runs 1 to 6 (Status, 2026-10-23); `v0.2.0-alpha.2`'s tag 📋 waits for the fold and its two nights. The preflight reads the fold, CI and the scan on C, the nights and both chains' upgrade gates (the managed chain's is T4's, #1681); the tag and the publishing are the workflow's after the owner's approval (Status, 2026-10-23); Step 1 ✅ **done** in #1305, merged 2026-09-28 (`0c1a8d8c`): the root version `0.2.0-alpha.1`, `CHANGELOG.md`'s `[0.2.0-alpha.1] - 2026-09-29` with T2's floor, the issue template's Build example, `release.md`'s count of six, and (reviews, 2026-09-28) `openapi.yaml`'s `info.version` held to the root version by guard block (d) and named in `release.md`, the Build field sending managed and Docker testers to the sidebar and Windows testers to the log line, and the stamp held at the bottom of the sidebar in both editions. Steps 2 and 3 ✅ **done** in #1274, merged 2026-09-28 (`1353f062`): the build line in the problem report, `scripts/release-names-agree.mjs` in the three publishing workflows, and both guards. Steps 4 to 6 📋 the owner's: the drill from rc.1, the commit by the two-green-scheduled-nights rule (0141 T14), and the tag and its push; `v0.2.0-alpha.1` is tagged, 2026-10-06 (on `90a23e9b`), and `v0.2.0-alpha.2` is the version since #1558 (merged 2026-10-11) but not yet tagged (both read from the remote 2026-10-16); 📋 **Decided 2026-10-05**, *"Two tags"*: `v0.2.0-alpha.1` once the pull requests in flight merge, to stand live up and rehearse, then `v0.2.0-alpha.2` with the final texts, its own freeze, two nights and deploy, before the first invitation (Status, 2026-10-05) — *was:* steps 4 to 6 🔨 through the Release workflow on branch `claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged (2026-10-23); step 1 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-named-v0-2-0-alpha-1`, not merged (2026-09-28); steps 1 and 4 to 6 📋 waiting for T0 (the name) and the owner (2026-09-28); 🔨 steps 2 and 3 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-that-names-itself`, not merged (2026-09-28); 📋 **Proposed** (D1, D5) | §3. **Alpha minimum.** `docs/release.md`'s procedure, a check that the tag, `package.json` and the changelog agree before anything publishes, and a build line in every problem report. |
 | T3 Pre-release ends at the alpha tag, and the repository holds to it | 📋 **Proposed** (D3) | §3. After the tag exists. The squash script refuses; no migration a release shipped may change; ADR-0045, the runner's message and the README say so. |
 | T4 Upgrades rehearsed from rc.1 and from the alpha tag, on both chains | The managed chain's upgrade proof from the alpha tag ✅ **done** in #1681, merged 2026-10-23 (`b357add8`): `packages/managed/src/migrate-upgrade.unit.test.ts`, from `UPGRADE_FROM_REF` or `v0.2.0-alpha.1`, both chains, with the shared gate's allow-list held to releases before the split (Status, 2026-10-23); the rest 📋 **Proposed** (D3) — *was:* 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-managed-upgrade-test`, not merged (2026-10-23) | §3. The container drill from rc.1 runs in T2. The rest follows the tag: both unit gates start from both tags, the managed chain included, on Postgres as well as PGlite. |
 | T5 `ownpace-live` runs only a release tag | (a) ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), in 0132 T6's `deploy-live.sh`, not yet run on live: the release rule, `/api/version`'s version, one-way or reversible, and the guard's four cases. `--external-id` is deferred (open question 6) — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); 📋 **Proposed** (D2, D3, D4) | §3. **Alpha minimum.** 0132 T6's procedure and script, with the tag always a release whose name, version and commit agree. The deploy says before the hold lifts whether it can be undone. |
 | T6 The tasks run the Node the images run | ✅ **done** in #1231, merged 2026-09-27: (a), `runtime: 'node-24'` and Guard 1. Guard 2, the bundle-load check, not built (after the first invitation) — *was:* 📋 Proposed | §3. **Alpha minimum:** `runtime: 'node-24'` in `trigger.config.ts` (supported by the pinned CLI, read from its package) and the version guard extended. **After the first invitation:** a pull-request check that the bundle loads. |
-| T7 The object store: replace the frozen MinIO, or accept it for the alpha in writing | ⏳ **Owner** | §3. Recommended: accept it for the alpha, in writing, and replace it after the alpha in the next Trigger.dev drain window (0119 §3, item 5). |
+| T7 The object store: replace the frozen MinIO, or accept it for the alpha in writing | ⏳ **Owner** | §3. Recommended: accept it for the alpha, in writing, and replace it at the end of the alpha with Chainguard's maintained MinIO build, with versitygw as the fallback. The swap merges to `main` only once the next tag live will deploy is the end-of-Alpha switch's: the OTA stack takes it first, and live in that switch, which empties the store anyway (0119 §3, item 5, re-read 2026-10-23). |
 | T8 A watch on the pinned images Dependabot leaves alone | Watch half ✅ **done** in #1663, merged 2026-10-21 (`087183b7`): every pin Dependabot cannot see, one issue per owner's-call row and one summary issue, and `/deploy/compose` out of `dependabot.yml` (Status, 2026-10-21); scan half ✅ **done** in #1674, merged 2026-10-22 (`51a0d267`): a weekly, report-only Trivy scan of every image the stacks run, with one issue per image past its end of life (Status, 2026-10-22) — *was:* scan half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-image-scan`, not merged (2026-10-22); watch half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-pin-watch`, not merged (2026-10-21), scan half 📋 Proposed; 📋 **Proposed** | §3. Widened 2026-10-21: Dependabot read no file in `deploy/compose`, so the watch covers every image line of its `managed.yml`, `dev.yml` and `www.yml` and the busybox and GoAccess copies in its scripts, `packageManager`, the Trivy the scan runs and the TypeScript split as well as Trigger.dev, ClickHouse and the task base image. MinIO has no upstream to compare with and is left to the scan half. |
+| T9 The API image runs without the dev tools | 🔨 **Being built** as a draft on branch `claude/ownpace-public-readiness-y7orc6-api-image-prod-deps`, for after the first invitation (2026-10-23) | Status, 2026-10-23 (the scan triage). `apps/api/Dockerfile`'s runtime stage copies the build stage's whole `/app`, where `pnpm install --filter @openmig/api...` installed the devDependencies too, the root's included, and `CMD` (`node apps/api/src/index.ts`) needs none of them. Their Go binaries are 2 critical and 65 high of the image's 3/125 on 2026-10-23: esbuild 0.25.12 (Go 1.23.12; drizzle-kit's and `@esbuild-kit/esm-loader`'s), counted twice, and TypeScript 7's native compiler (Go 1.26.4). The lockfile itself, dev dependencies included, reads 0/0. Done when the runtime image holds production dependencies only, a dependency it still needs and lacks fails at start, which the managed gate's first `curl $API/health` catches, and the image scan finds the Node base's findings alone. |
+| T10 The image scan reads the tasks' image as it is built | 📋 **Proposed** (2026-10-23) | Status, 2026-10-23 (the scan triage). `scripts/image-scan.mjs` scans the base image the pinned CLI names (`triggerdotdev/node:24-bookworm` by digest, category `trigger-task-base`, 14/117 on 2026-10-23), not the tasks' image that `deploy-tasks.sh` builds from it. The Trigger.dev v4.7.6 branch upgrades that image's Debian packages at build (`apt-get -y upgrade`), which fixes the 42 Debian findings that have a fix (12 critical, all Perl, fixed in 5.36.0-7+deb12u4, and 30 high). It leaves npm's bundled packages under `/usr/local/lib/node_modules/npm`, since the overlay copies only `/usr/local/bin/node` (tar 7.5.15's CVE-2026-59873, critical, fixed in 7.5.19, and 12 high, 11 of them with a fix), and the 76 Debian findings without a fix, zlib1g's CVE-2023-45853 among them: the built image would still carry 2 critical and 87 high of the 131 (read with Trivy 0.76.0, 2026-10-23). The scan cannot see the upgrade, so the category keeps alerts for 42 findings the built image no longer has. The scan runs on a GitHub-hosted runner, which cannot read the stack's own registry, so the proposal is to build the image in the scan job as the deploy builds it. The old category, if renamed, has its configuration deleted by hand (T8). |
+| T11 The patch and minor moves that clear findings | (a) 📋 **Proposed**; (b) ⏳ **Owner**; (c) 📋 **Proposed**, after the Alpha (2026-10-23) | Status, 2026-10-23 (the scan triage), read with Trivy 0.76.0 on linux/amd64. (a) **Mailpit v1.32.0**: 0/0, where v1.31.6 has CVE-2026-111943 (Go's `crypto/x509`); after the first invitation, by hand in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts`, which pins the reference by tag and digest and records Mailpit's release check as read at v1.31.6, so that fact is read again at v1.32.0 in the same change. (b) **Stalwart v0.16.27** (Debian 13.7): 0 critical and 47 high, none with a fix, where v0.16.10 has 3/114. The owner's call: `docs/stalwart-integration-fix.md` pins v0.16.10 and says *"DO NOT change the pinned version"* (AGENTS.md puts its decisions in ADR-0022), and every copy moves together: `setup-stalwart.sh`, the fixture's Dockerfile, the Testcontainers setup, the fix doc and the guards that name it. (c) **ClickHouse 26.3** (26.3.59, Ubuntu 22.04): 0/0, where 26.2.19.43 has CVE-2026-45447 and CVE-2026-84782 in openssl. After the Alpha: the owner accepted 26.2 for it on 2026-10-23 (0119 §3 item 9 on the Trigger.dev v4.7.6 branch), and 26.3 is ahead of the 26.2 Trigger.dev's own compose pins, which the pin watch compares with (T8). It moves in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts` together: the guard pins the reference by tag and digest and records the crash-report default as read at `v26.2.19.43-stable`, as `clickhouse-no-crash-reports.xml`'s comment does, so both are read again at 26.3. |
 
 ## 1. What there is today
 
@@ -995,7 +1184,9 @@ chain from the released tag (lines 140–152).
     above it (lines 421–440) explains the pin.
   - 0119 §3 item 5 (lines 228–242) says *"There is no maintained free MinIO image to move to"*.
     It names versitygw as the drop-in candidate, and Garage if a store with its own integrity
-    model is wanted, at the price of more ceremony at bring-up.
+    model is wanted, at the price of more ceremony at bring-up. Re-read on 2026-10-23 (0119 §3
+    item 5): a maintained free build exists, Chainguard's `chainguard/minio`, which is now the
+    candidate; versitygw is the fallback.
   - Upstream's own self-hosting compose at `v4.5.16` still defaults to
     `bitnamilegacy/minio:${MINIO_IMAGE_TAG:-latest}` (`hosting/docker/webapp/docker-compose.yml`,
     read the same day).
@@ -1472,9 +1663,10 @@ It fails today, because the key is absent.
   - What it costs: the image is frozen, so a vulnerability found in it stays.
   - What it holds is Trigger.dev's large payloads and run artifacts. What those contain for this
     product was not measured here; 0139 T6 covers how long task payloads may keep a tester's data.
-- **(b) Replace it before `ownpace-live`'s first deploy, with versitygw** (0119's candidate).
-  `ownpace-live`'s object store starts empty, so this is the one moment the swap needs no copy.
-  But:
+- **(b) Replace it before `ownpace-live`'s first deploy, with versitygw** (0119's candidate on
+  2026-09-24; since the re-read of 2026-10-23 the candidate is Chainguard's MinIO build, with
+  versitygw as the fallback, 0119 §3 item 5). `ownpace-live`'s object store starts empty, so this
+  is the one moment the swap needs no copy. But:
   - nobody has run Trigger.dev `v4.5.16` against versitygw;
   - the `packets` bucket has to be created some other way, because `MINIO_DEFAULT_BUCKETS` is a
     bitnami convenience (`docs/managed-bring-up.md`, lines 2112–2122, lists what a non-bitnami
@@ -1486,7 +1678,9 @@ It fails today, because the key is absent.
   That is more than the first invitation should wait for, unless the owner wants it.
 - **(c) Replace it after the alpha,** in the same drain window as the next Trigger.dev upgrade,
   which is 0119's own advice. That is also when `ownpace-live` is either reset or carried on
-  (0131 T4).
+  (0131 T4). Re-read on 2026-10-23: *at the end of the alpha*, because one `managed.yml` serves
+  both stacks, the swap merges to `main` only once the next tag live will deploy is the
+  end-of-Alpha switch's (the T7 row above).
 
 *Recommended: (a) now, then (c).* Under (a), the acceptance is written in this block with its date,
 and the same line goes into 0119 §3's item 5 (0119 T3, the owner's decisions).
