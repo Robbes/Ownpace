@@ -23,15 +23,37 @@ both.
       contract's copy, which `scripts/a-release-that-names-itself.unit.test.ts`
       fails on while the two differ.
 - [ ] **Upgrade gates against the PREVIOUS release** (these skip silently
-      without the ref present — a skip here is a hole, not a pass):
+      without the ref present — a skip here is a hole, not a pass). Both
+      unit gates read the release from `UPGRADE_FROM_REF`; without it each
+      starts from its own default, which is not the previous release:
   - [ ] `git fetch origin tag <previous-tag>` and run
-        `pnpm vitest run --project unit packages/ledger/src/migrate-upgrade.unit.test.ts`
+        `UPGRADE_FROM_REF=<previous-tag> pnpm vitest run --project unit packages/ledger/src/migrate-upgrade.unit.test.ts`
         — confirm the six `skipIf(!HAVE_REF)` tests **executed**, including
-        the downgrade refusal.
+        the downgrade refusal. This is the shared chain's gate.
+  - [ ] The same with `packages/managed/src/migrate-upgrade.unit.test.ts`,
+        **the managed chain's upgrade proof** — confirm the seven
+        `skipIf(!HAVE_REF)` tests **executed**. It applies both chains as the
+        previous release did, with that release's own migrators, then this
+        build's, and compares the result with a fresh install. A release
+        before the managed chain (rc.1) is refused by name.
+        `two-chains.unit.test.ts` is not an upgrade proof and does not count
+        as one: it adopts a database that predates the managed chain.
   - [ ] `scripts/upgrade-drill.sh` on a Docker host (the Spark box): previous
         release image, real volumes, swap to HEAD in place, healthy after a
         further restart. The drill says when it is vacuous (tag == HEAD) —
         a vacuous pass does not count.
+        **Not applicable for `v0.2.0-alpha.2`** (workplan 0146, 2026-10-23).
+        The drill upgrades the appliance, which applies the shared chain only,
+        and that chain is the same 65 files, byte for byte, in
+        `v0.2.0-alpha.1` and on `main`: from alpha.1 the drill, and the
+        shared chain's unit gate, would exercise no migration, and each says
+        so. The alpha is managed-only, so no tester runs an appliance. What
+        moved is the managed chain (46 files in alpha.1, 59 on `main`), and
+        its proof is the test above. If a shared migration lands before the
+        tag, the drill applies again. What it alone would still show is an
+        appliance opening a PGlite directory alpha.1's image wrote, across
+        PGlite 0.5.8 to 0.5.10: the appliance's question, for the first
+        release an appliance tester runs.
 - [ ] **Before the first non-demo tenant beyond the alpha** (not per release,
       but check it here because this list is what gets read): CI and the live
       managed stack are not on the same machine — see the operator runbook,

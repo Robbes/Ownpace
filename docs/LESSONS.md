@@ -2100,6 +2100,10 @@ reading a file drops off its entry by itself.
 
 - [a-version-the-tester-accepted](../scripts/a-version-the-tester-accepted.unit.test.ts) — A VERSION THE TESTER ACCEPTED (workplan 0139 T3).
 
+### `packages/managed/src/migrate-upgrade.unit.test.ts`
+
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
+
 ### `packages/managed/src/mollie-refunds.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
@@ -4344,6 +4348,7 @@ Reads:
 - `apps/web/vite.config.ts`
 - `docs/release.md`
 - `packages/ledger/src/migrate-upgrade.unit.test.ts`
+- `packages/managed/src/migrate-upgrade.unit.test.ts`
 - `scripts/package-appliance.mjs`
 - `scripts/package-appliance.unit.test.ts`
 - `scripts/release-names-agree.mjs`
