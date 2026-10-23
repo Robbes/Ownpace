@@ -106,14 +106,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 ### Added
 
 - **A release is cut by the Release workflow, and published in an order that
-  holds** (`.github/workflows/release.yml`, `docs/release.md`, workplan 0146):
-  dispatched from `main`, it reads the record (the changelog folded, CI and the
-  scan green on the commit, two scheduled nights green on it as workplan 0141
-  T14 defines them, both migration chains' upgrade tests from the release
-  before), waits for the owner's approval, scans the exact commit, cuts the
-  annotated tag itself, and only then publishes: Security Scan on the tag
-  first, the images and the Windows zip after it, then checks what was
-  published. A hand-pushed tag still works, as the break-glass path. It exists
+  holds** (`.github/workflows/release.yml`, `docs/release.md`, workplan 0146,
+  #1682): dispatched from `main`, it reads the record (the changelog folded, CI
+  and the scan green on the commit, two scheduled nights green on it as
+  workplan 0141 T14 defines them, both migration chains' upgrade tests from the
+  release before, the managed chain's new in #1681), waits for the owner's
+  approval, scans the exact commit, cuts the annotated tag itself, and only
+  then publishes: Security Scan on the tag first, the images and the Windows
+  zip after it, then checks what was published. A hand-pushed tag still works, as the break-glass path. It exists
   because `v0.2.0-alpha.1` shipped on a red scan: see that release's section.
 - **A weekly scan of every image the stacks run** (workplan 0146 T8, #1674):
   Trivy, report only. Findings go to code scanning, and an image whose
