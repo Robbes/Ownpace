@@ -36,7 +36,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **CI on the Spark takes the newest Node 24, and the security scan names its
   Trivy** (#1659): every setup-node step asks for the newest 24.x, where the
   Spark's jobs had kept 24.18.0; Security Scan sets up pnpm and Node as every
-  other job does and installs from the lockfile; Trivy is held at v0.76.0.
+  other job does and installs from the lockfile; Trivy is held at v0.76.0,
+  and at v0.76.1 since the pin watch named it behind (#1671).
 - **Live refuses a sign-in provider's key, so its sign-in page stays email and
   password only** (workplan 0140 T10, #1644): the stand-up and the deploy
   refuse live's settings while a Google, Microsoft, GitHub or Apple sign-in key

@@ -219,12 +219,15 @@ jobs:
           # default, v0.70.0 (2026-04-17) at this SHA, and Dependabot moves the
           # action, not that default: v0.36.0 is still its newest release. The
           # vulnerability database updates daily either way; this is the engine
-          # (parsers, detection). v0.76.0 is from 2026-10-14; v0.76.1
-          # (2026-10-21) is three days old, the age CONTRIBUTING.md asks of a
-          # dependency, on 2026-10-24.
+          # (parsers, detection). v0.76.1 is from 2026-10-21: v0.76.0
+          # (2026-10-14) with three dependency groups backported (the AWS SDK,
+          # Docker's and moby's modules, a common group), and Trivy's own code
+          # unchanged. It is three days old, the age CONTRIBUTING.md asks of a
+          # dependency, on 2026-10-24. scripts/idp-pin-watch.mjs reads this
+          # line and keeps an issue open while a newer Trivy exists.
           # Raise when Dependabot takes trivy-action > v0.36.0. Every Trivy step
           # must name one: held by a-gate-on-a-version-nothing-ships.
-          version: v0.76.0
+          version: v0.76.1
           scan-type: fs
           format: sarif
           output: trivy.sarif
@@ -485,7 +488,7 @@ jobs:
           # a-gate-on-a-version-nothing-ships holds each Trivy step to an
           # exact release; an-image-nobody-scanned holds this one to the job
           # above's.
-          version: v0.76.0
+          version: v0.76.1
           scan-type: image
           image-ref: ${{ matrix.ref }}
           format: json

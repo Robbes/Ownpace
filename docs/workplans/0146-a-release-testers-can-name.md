@@ -4,6 +4,29 @@
 
 ## Status — 2026-10-23 (update this block at the end of every session)
 
+**2026-10-23, build: Trivy v0.76.1 in both Security Scan steps, on branch
+`claude/ownpace-public-readiness-y7orc6-trivy-0-76-1`, not merged.** T8's watch named it in
+#1671: *"`Trivy` (.github/workflows/security-scan.yml): v0.76.0, newest **v0.76.1**"*. The
+filesystem scan and the image scan move together, as `an-image-nobody-scanned` holds them.
+v0.76.1, tagged 2026-10-21, is v0.76.0 with three dependency groups backported from Trivy's
+main line: the AWS SDK for Go (six modules), Docker's and moby's (buildkit 0.34.0, the moby API
+1.56.1 and client 0.6.1) and a common group (azcore 1.23.3, go-getter 1.8.10, go-redis 9.23.0),
+each with its indirect modules. Between the two tags only `go.mod`, `go.sum` and the release's
+own files change, so detection and the report formats are v0.76.0's. trivy-action installs it
+with setup-trivy's `install.sh`, which checks the archive against the release's own
+`trivy_0.76.1_checksums.txt`; this repository pins no checksum of its own for Trivy.
+
+- **Proved here.** Moving only the filesystem scan's pin failed four cases: the image scan's
+  *same named Trivy* in `an-image-nobody-scanned`, and three of `a-pin-that-knows-it-is-behind`'s
+  routine-pin cases, which read the lower pin as behind. With both moved, the three guards pass
+  (102 tests). `node scripts/idp-pin-watch.mjs` on the branch reads *"Trivy v0.76.1 v0.76.1
+  current"*.
+- **Owed.** The release is three days old, CONTRIBUTING.md's age, on 2026-10-24 at 10:20 UTC;
+  the merge waits for that. The pull request's `Trivy` check is the first run of v0.76.1 (the
+  filesystem scan, on a GitHub-hosted runner); the image legs run it first on a dispatch of
+  Security Scan or on Monday's schedule. #1671 stays open for its other rows, and the watch's
+  next run drops the Trivy row.
+
 **2026-10-23, build: the Release workflow, on branch
 `claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged.** T2's
 steps 4 to 6 (the gates, the commit, the tag) and §3's checks become one
