@@ -92,6 +92,7 @@ import {
   alertsNotes,
   alertGroups,
   readOpenAlerts,
+  openAlertsNotes,
   REPOSITORY_SCAN_CATEGORY,
   TOP_RULES,
   candidateEnv,
@@ -317,12 +318,12 @@ describe('the open code-scanning alerts, read whole and grouped (report only)', 
     html_url: `https://github.com/Robbes/Ownpace/security/code-scanning/${alert.number}`,
     instances_url: `https://api.github.com/repos/Robbes/Ownpace/code-scanning/alerts/${alert.number}/instances`,
     fixed_at: null,
-    dismissed_by: { login: 'somebody', id: 1, type: 'User' },
+    dismissed_by: { login: 'example-dismisser', id: 1, type: 'User' },
     dismissed_at: null,
     dismissed_reason: null,
     dismissed_comment: null,
-    dismissal_approved_by: { login: 'somebody-else', id: 2, type: 'User' },
-    assignees: [{ login: 'a-third', id: 3, type: 'User' }],
+    dismissal_approved_by: { login: 'example-approver', id: 2, type: 'User' },
+    assignees: [{ login: 'example-assignee', id: 3, type: 'User' }],
     rule: { ...alert.rule, name: 'OsPackageVulnerability', description: 'a description', tags: ['vulnerability', 'security'], help: 'help text' },
     tool: { ...alert.tool, guid: null, version: '0.67.2' },
     most_recent_instance: {
@@ -349,7 +350,21 @@ describe('the open code-scanning alerts, read whole and grouped (report only)', 
     const whole = raw(ALERTS[0]!);
     const slim = slimAlert(whole);
     expect(slim).toEqual(ALERTS[0]);
-    expect(JSON.stringify(slim)).not.toMatch(/somebody|a-third|dismiss|assignee|html_url|message|location/);
+    expect(JSON.stringify(slim)).not.toMatch(/example-|dismiss|assignee|approved|html_url|message|location/);
+  });
+
+  /** A client that answers each severity's pages from `pages`, and records what it was asked. */
+  const paged = (pages: Record<string, unknown[][]>, asked: string[] = []): Client => ({
+    async get(path: string) {
+      asked.push(path);
+      const url = new URL(path, 'https://api.example/');
+      const severity = url.searchParams.get('severity') ?? '';
+      const page = Number(url.searchParams.get('page'));
+      return pages[severity]?.[page - 1] ?? [];
+    },
+    async send() {
+      throw new Error('the preflight writes nothing');
+    },
   });
 
   it('reads every page of both severities, per_page=100, and keeps only the whitelist', async () => {
@@ -369,27 +384,37 @@ describe('the open code-scanning alerts, read whole and grouped (report only)', 
       high: [made('high', 100, 1000), made('high', 100, 1100), made('high', 37, 1200)],
     };
     const asked: string[] = [];
-    const client: Client = {
-      async get(path: string) {
-        asked.push(path);
-        const url = new URL(path, 'https://api.example/');
-        const severity = url.searchParams.get('severity') ?? '';
-        const page = Number(url.searchParams.get('page'));
-        return pages[severity]?.[page - 1] ?? [];
-      },
-      async send() {
-        throw new Error('the preflight writes nothing');
-      },
-    };
-    const alerts = await readOpenAlerts(client);
+    const alerts = await readOpenAlerts(paged(pages, asked));
     expect(alerts).toHaveLength(67 + 237);
     expect(asked).toHaveLength(4);
     for (const path of asked) {
       expect(path).toMatch(/^code-scanning\/alerts\?state=open&ref=refs\/heads\/main&severity=(critical|high)&per_page=100&page=\d$/);
     }
-    expect(JSON.stringify(alerts)).not.toMatch(/somebody|dismiss|assignee|message/);
+    expect(JSON.stringify(alerts)).not.toMatch(/example-|dismiss|assignee|approved|message/);
     const lines = alertsNotes(alerts);
     expect(lines[0]!.sentence).toMatch(/^67 critical and 237 high code-scanning alert\(s\) open on main, in 2 group\(s\)/);
+  });
+
+  it('counts an alert once, though the API answers it twice: under both severities, or on two pages of a list that moved', async () => {
+    const alert = (number: number, severity: string) =>
+      raw({
+        number,
+        state: 'open',
+        rule: { id: `CVE-2026-${20000 + number}`, severity: 'error', security_severity_level: severity },
+        tool: { name: 'Trivy' },
+        most_recent_instance: { ref: 'refs/heads/main', category: 'trivy-image-redis' },
+      });
+    const high = Array.from({ length: 100 }, (_, i) => alert(200 + i, 'high'));
+    const alerts = await readOpenAlerts(
+      paged({
+        critical: [[alert(7, 'critical')]],
+        // Alert 299 ends page 1 and, after one more opened between the reads, starts page 2.
+        high: [high, [alert(299, 'high'), alert(300, 'high'), alert(7, 'critical')]],
+      }),
+    );
+    expect(alerts).toHaveLength(1 + 100 + 1);
+    expect(new Set(alerts.map((a) => a.number)).size).toBe(alerts.length);
+    expect(alertsNotes(alerts)[0]!.sentence).toMatch(/^1 critical and 101 high code-scanning alert\(s\) open on main, in 1 group\(s\)/);
   });
 
   it('a list longer than the cap is an error, never a short count; an answer that is not a list is one too', async () => {
@@ -436,6 +461,24 @@ describe('the open code-scanning alerts, read whole and grouped (report only)', 
     expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
     expect(most.some((r) => r.alerts > 1)).toBe(true);
     for (const rule of nextcloud.rules) expect(rule.id).toMatch(/^(CVE-\d{4}-\d{4,}|GHSA(-[23456789cfghjmpqrvwx]{4}){3})$/);
+    // Pinned whole, so "most alerted" is the code's order and not the fixture's.
+    expect(sentence).toBe(
+      'Trivy, image nextcloud (category trivy-image-nextcloud): 5 critical and 11 high in 10 rule(s); most: CVE-2025-49794 (critical, 2), CVE-2025-49796 (critical, 2), CVE-2023-45853 (critical, 1), CVE-2025-6020 (high, 3), CVE-2024-56171 (high, 2), and 5 more',
+    );
+  });
+
+  it('prints the same notes whatever order the API answers in: within a severity, a rule never follows one with fewer alerts', () => {
+    const lines = alertsNotes(ALERTS);
+    expect(alertsNotes([...ALERTS].reverse())).toEqual(lines);
+    const shuffled = ALERTS.map((a, i) => [(i * 17) % ALERTS.length, a] as const)
+      .sort((a, b) => a[0] - b[0])
+      .map(([, a]) => a);
+    expect(alertsNotes(shuffled)).toEqual(lines);
+    for (const group of alertGroups([...ALERTS].reverse())) {
+      for (const [before, after] of group.rules.slice(1).map((r, i) => [group.rules[i]!, r] as const)) {
+        if (before.severity === after.severity) expect(after.alerts).toBeLessThanOrEqual(before.alerts);
+      }
+    }
   });
 
   it('keeps tools apart: one category under two tools is two groups', () => {
@@ -465,6 +508,28 @@ describe('the open code-scanning alerts, read whole and grouped (report only)', 
       { kind: 'note', check: 'code-scanning', sentence: 'the open code-scanning alerts could not be read: GET code-scanning/alerts answered 403: Resource not accessible by integration' },
     ]);
     expect(alertsNotes([])).toEqual([{ kind: 'note', check: 'code-scanning', sentence: 'no open critical or high code-scanning alert on main' }]);
+  });
+
+  it('the check step reads the alerts and, when the API refuses, says why in the note', async () => {
+    const refused: Client = {
+      async get(path: string) {
+        throw new Error(`GET ${path} answered 403: Resource not accessible by integration`);
+      },
+      async send() {
+        throw new Error('the preflight writes nothing');
+      },
+    };
+    expect(await openAlertsNotes(refused)).toEqual([
+      {
+        kind: 'note',
+        check: 'code-scanning',
+        sentence:
+          'the open code-scanning alerts could not be read: GET code-scanning/alerts?state=open&ref=refs/heads/main&severity=critical&per_page=100&page=1 answered 403: Resource not accessible by integration',
+      },
+    ]);
+    expect(await openAlertsNotes(paged({ critical: [ALERTS.filter((a) => a.rule?.security_severity_level === 'critical')], high: [ALERTS.filter((a) => a.rule?.security_severity_level === 'high')] }))).toEqual(
+      alertsNotes(ALERTS),
+    );
   });
 });
 

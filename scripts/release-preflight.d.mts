@@ -56,6 +56,7 @@ export declare function readOpenAlerts(client: Pick<Client, 'get'>): Promise<Ale
 export declare function alertGroups(alerts: Alert[]): AlertGroup[];
 export declare function alertsNote(counts: { critical: number; high: number; groups?: number } | null, reason?: string): Line;
 export declare function alertsNotes(alerts: Alert[] | null, reason?: string): Line[];
+export declare function openAlertsNotes(client: Pick<Client, 'get'>): Promise<Line[]>;
 export declare function candidateEnv(env: Record<string, string | undefined>): Record<string, string | undefined>;
 export declare function notChecked(): Line[];
 export declare function namesStep(candidate: string, version: string, env?: Record<string, string | undefined>): Line;

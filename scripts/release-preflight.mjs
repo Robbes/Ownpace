@@ -373,6 +373,17 @@ export function alertsNotes(alerts, reason) {
   return [alertsNote({ critical: count('critical'), high: count('high'), groups: groups.length }), ...groups.map(groupNote)];
 }
 
+/** The check step's alert notes: read, then printed; or, when the API refuses, why. */
+export async function openAlertsNotes(client) {
+  let alerts;
+  try {
+    alerts = await readOpenAlerts(client);
+  } catch (err) {
+    return alertsNotes(null, err instanceof Error ? err.message : String(err));
+  }
+  return alertsNotes(alerts);
+}
+
 /** The environment a candidate's own code runs with: no token of any kind. */
 export const candidateEnv = withoutTokens;
 
@@ -513,13 +524,7 @@ async function checkStep(client, env, candidate) {
       lines.push(approvalNote(null, false));
     }
   }
-  let alerts;
-  try {
-    alerts = await readOpenAlerts(client);
-  } catch (err) {
-    lines.push(...alertsNotes(null, err instanceof Error ? err.message : String(err)));
-  }
-  if (alerts) lines.push(...alertsNotes(alerts));
+  lines.push(...(await openAlertsNotes(client)));
   try {
     const after = git(['rev-list', '--count', `${commit}..origin/main`]).trim();
     lines.push(note('main-after-candidate', `${after} commit(s) on main after C${after === '0' ? '' : ': the freeze (0141 T14) did not hold, or has not started'}`));

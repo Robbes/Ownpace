@@ -20,6 +20,11 @@ never a refusal (decision 11), and a list that cannot be read is a note that
 says why. Proven by the preflight's guard on a fixture written by hand in the
 API's shape and kept through `slimAlert`, since this session's token gets 403
 from code scanning; the real breakdown is the next preflight dispatch's log.
+The review's mutations (the rules unsorted, alerts keyed by place and not by
+number, the API's reason dropped) each turn the guard red: it pins one
+group's sentence whole, prints the same notes for the fixture reversed and
+shuffled, counts an alert answered twice once, and reads the check step's
+notes through `openAlertsNotes` with a client that is refused.
 
 **2026-10-23, build: the Release workflow, on branch
 `claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged.** T2's
