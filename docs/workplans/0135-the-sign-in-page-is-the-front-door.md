@@ -16,8 +16,8 @@ from upstream's main, one a `go mod tidy`):
 - **Go 1.26.10 and golang.org/x/net v0.61.0 (3fe639d, 1f984a1).** v4.19.5 was built with
   `toolchain go1.25.11`, a line the Go project no longer fixes, and x/net v0.58.0 (the same
   `go.mod` and `go.sum` as v4.19.4). 3fe639d names eleven Go CVEs a Trivy scan of the v4.19.4
-  image reported HIGH, three of them fixed only on the 1.26 line. Read against this stack, each
-  id resolved on pkg.go.dev:
+  image reported HIGH, three of them fixed only in 1.26.9 and 1.27.2, none on the 1.25 line.
+  Read against this stack, each id resolved on pkg.go.dev:
   - CVE-2026-78667 (GO-2026-6609): a `Range` header of many small ranges makes net/http's
     `FileServer`, `ServeContent` and `ServeFile` burn CPU; fixed in go1.26.9. **Reached, without
     signing in**: the console (`internal/api/ui/console/console.go:142`) and login v1's static
@@ -38,9 +38,11 @@ from upstream's main, one a `go mod tidy`):
     Not reached: no Zitadel code outside its tests calls `os.OpenRoot` or `OpenInRoot`.
   - 1f984a1 also moves grpc to 1.84.0 and grpc-gateway/v2 to v2.32.0, under every REST call
     `setup-zitadel.sh`, the smoke and `idp-strays.sh` make, with prometheus client_golang 1.24.1
-    and klauspost/compress 1.19.1. 3fe639d's own govulncheck left six findings in the new binary
-    (x/crypto's openpgp, which has no fix, and go-chi/chi, gorilla/csrf and klauspost/compress),
-    so the weekly image scan will not read zero.
+    and klauspost/compress 1.18.5 to 1.19.1. 3fe639d's own govulncheck, of its Go 1.26.9 build
+    before 1f984a1, left six findings: x/crypto's openpgp, which has no fix, and go-chi/chi,
+    gorilla/csrf and klauspost/compress. The compress one should not recur on v4.20.0: the
+    module's one Go vuln DB entry, GO-2026-5841 (`s2.NewDict`), is fixed in 1.18.7. chi (v5.2.5)
+    and csrf (v1.7.2) stay where they were, so the weekly image scan will not read zero.
 - **The console's `api` from the issuer's origin (e01ccc9).** `environment.json` built `api` from
   the request's Host and `ExternalSecure`; it now takes `http_util.DomainContext(ctx).Origin()`,
   what `ContextToIssuer` returns for the issuer (`internal/api/oidc/op.go:256-257`). The two now
@@ -65,16 +67,21 @@ from upstream's main, one a `go mod tidy`):
   `LoginV2.Required`, `ServicePing`, `Telemetry`, the lockout and privacy defaults hold, as do the
   admin SMTP handler's two test verbs (`internal/api/grpc/admin` unchanged), `zitadel ready`
   (`cmd/ready` unchanged), `internal/api/oidc` and `internal/api/http`.
-- **Go 1.26's defaults** (the release notes): a URL with stray colons in its host is refused
-  (`GODEBUG=urlstrictcolons=0` undoes it), and TLS offers post-quantum hybrid key exchange
-  (`GODEBUG=tlssecpmlkem=0` in the zitadel service's environment, if live's relay refuses it).
-  The eMudhra block has no switch: a relay whose chain passes through one must change its
-  certificate.
+- **Go 1.26's defaults** (the release notes, and `crypto/tls` at go1.25.11 and go1.26.10): a URL
+  with stray colons in its host is refused (`GODEBUG=urlstrictcolons=0` undoes it). TLS adds the
+  SecP256r1MLKEM768 and SecP384r1MLKEM1024 hybrids to the groups it offers, after X25519MLKEM768
+  (`GODEBUG=tlssecpmlkem=0` removes the two). Post-quantum key exchange is not new in this build:
+  X25519MLKEM768 has led the defaults since Go 1.24, so v4.19.5 offered it too, and the key shares
+  Zitadel's SMTP client sends (its `tls.Config` sets no groups) are the same under both,
+  X25519MLKEM768 with an X25519 fallback. A relay that refused it would already fail on v4.19.5;
+  `GODEBUG=tlsmlkem=0`, not `tlssecpmlkem=0`, is the setting that turns post-quantum off. The new
+  outbound-TLS risk is the eMudhra block, which has no switch: a relay whose chain passes through
+  one must change its certificate.
 - The guards pass: 176 unit files that read `managed.yml`, the workplans, `deploy/compose` or the
   docs, 4994 cases. `a-service-that-phones-home` names v4.20.0 and was red against `main`'s pin
-  first (1 of its 39 cases). #1643 stays
-  open while `main`'s pin is behind the newest tag; the pin watch's first run after the merge
-  closes it (Mondays 06:23 UTC, so 2026-10-26 if the merge lands before then).
+  first (1 of its 39 cases). #1643 stays open while `main`'s pin is behind the newest tag; the pin
+  watch's first run after the merge closes it (Mondays 06:23 UTC, so 2026-10-26 if the merge lands
+  before then).
 - **Owed, in this order.** (1) The owner dumps the OTA instance's `zitadel` database on v4.19.5
   with `./deploy/compose/dump-idp.sh`, and keeps it with that stack's `.env`. The dump of
   2026-10-22 21:49 UTC was taken on v4.19.4, before #1651 applied v4.19.5, and does not count.
