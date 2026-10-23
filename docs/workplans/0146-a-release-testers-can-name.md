@@ -1069,7 +1069,9 @@ chain from the released tag (lines 140–152).
     above it (lines 421–440) explains the pin.
   - 0119 §3 item 5 (lines 228–242) says *"There is no maintained free MinIO image to move to"*.
     It names versitygw as the drop-in candidate, and Garage if a store with its own integrity
-    model is wanted, at the price of more ceremony at bring-up.
+    model is wanted, at the price of more ceremony at bring-up. Re-read on 2026-10-23 (0119 §3
+    item 5): a maintained free build exists, Chainguard's `chainguard/minio`, which is now the
+    candidate; versitygw is the fallback.
   - Upstream's own self-hosting compose at `v4.5.16` still defaults to
     `bitnamilegacy/minio:${MINIO_IMAGE_TAG:-latest}` (`hosting/docker/webapp/docker-compose.yml`,
     read the same day).
@@ -1546,9 +1548,10 @@ It fails today, because the key is absent.
   - What it costs: the image is frozen, so a vulnerability found in it stays.
   - What it holds is Trigger.dev's large payloads and run artifacts. What those contain for this
     product was not measured here; 0139 T6 covers how long task payloads may keep a tester's data.
-- **(b) Replace it before `ownpace-live`'s first deploy, with versitygw** (0119's candidate).
-  `ownpace-live`'s object store starts empty, so this is the one moment the swap needs no copy.
-  But:
+- **(b) Replace it before `ownpace-live`'s first deploy, with versitygw** (0119's candidate on
+  2026-09-24; since the re-read of 2026-10-23 the candidate is Chainguard's MinIO build, with
+  versitygw as the fallback, 0119 §3 item 5). `ownpace-live`'s object store starts empty, so this
+  is the one moment the swap needs no copy. But:
   - nobody has run Trigger.dev `v4.5.16` against versitygw;
   - the `packets` bucket has to be created some other way, because `MINIO_DEFAULT_BUCKETS` is a
     bitnami convenience (`docs/managed-bring-up.md`, lines 2112–2122, lists what a non-bitnami
@@ -1560,7 +1563,9 @@ It fails today, because the key is absent.
   That is more than the first invitation should wait for, unless the owner wants it.
 - **(c) Replace it after the alpha,** in the same drain window as the next Trigger.dev upgrade,
   which is 0119's own advice. That is also when `ownpace-live` is either reset or carried on
-  (0131 T4).
+  (0131 T4). Re-read on 2026-10-23: *at the end of the alpha*, because one `managed.yml` serves
+  both stacks, the swap merges to `main` only once the next tag live will deploy is the
+  end-of-Alpha switch's (the T7 row above).
 
 *Recommended: (a) now, then (c).* Under (a), the acceptance is written in this block with its date,
 and the same line goes into 0119 §3's item 5 (0119 T3, the owner's decisions).
