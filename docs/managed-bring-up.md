@@ -3013,8 +3013,8 @@ refuses a `COMPOSE_FILE` in the shell.
 
 | Service | What it sent by default | The switch | Read at |
 |---|---|---|---|
-| `trigger-api` | PostHog from the server at every sign-in (the user's id, email and name) and when a user, an organisation or a project is created; and PostHog in the dashboard's browser, which identifies the signed-in user by id and email, under Trigger.dev's own project key | `TRIGGER_TELEMETRY_DISABLED: "1"` stops the server's half only. `POSTHOG_PROJECT_KEY: ""` stops the browser's: the key defaults to Trigger.dev's, and the dashboard starts PostHog whenever it is not empty | `apps/webapp/app/services/telemetry.server.ts`, `services/postAuth.server.ts`, `app/root.tsx`, `app/hooks/usePostHog.ts`, `app/env.server.ts` at v4.5.16 |
-| `trigger-api`, its entrypoint | Prisma's checkpoint to `checkpoint.prisma.io` at every start, from the `prisma migrate deploy` the entrypoint runs: the version, OS, architecture, Node, CI, the command, hashes of the project's and the CLI's paths, the schema's providers and a stored random signature | `CHECKPOINT_DISABLE: "1"`, the only thing the CLI and its client check | `docker/scripts/entrypoint.sh` at v4.5.16; `packages/cli/src/CLI.ts` and `utils/checkpoint.ts` at prisma 6.14.0; checkpoint-client 1.1.33 |
+| `trigger-api` | PostHog from the server at every sign-in (the user's id, email and name) and when a user, an organisation or a project is created; and PostHog in the dashboard's browser, which identifies the signed-in user by id and email, under Trigger.dev's own project key | `TRIGGER_TELEMETRY_DISABLED: "1"` stops the server's half only. `POSTHOG_PROJECT_KEY: ""` stops the browser's: the key defaults to Trigger.dev's, and the dashboard starts PostHog whenever it is not empty | `apps/webapp/app/services/telemetry.server.ts`, `services/postAuth.server.ts`, `app/root.tsx`, `app/hooks/usePostHog.ts`, `app/env.server.ts` at v4.5.16, and again at v4.7.2 and v4.7.6 |
+| `trigger-api`, its entrypoint | Prisma's checkpoint to `checkpoint.prisma.io` at every start, from the `prisma migrate deploy` the entrypoint runs: the version, OS, architecture, Node, CI, the command, hashes of the project's and the CLI's paths, the schema's providers and a stored random signature | `CHECKPOINT_DISABLE: "1"`, the only thing the CLI and its client check | `docker/scripts/entrypoint.sh` at v4.5.16, v4.7.2 and v4.7.6; `packages/cli/src/CLI.ts` and `utils/checkpoint.ts` at prisma 6.14.0; checkpoint-client 1.1.33 |
 | `zitadel` | A "service ping" once a day to `zitadel.com`: the version, each instance's id, creation date and domains, and its count of users, organisations and projects | `ZITADEL_SERVICEPING_ENABLED: "false"`; `ZITADEL_TELEMETRY_ENABLED: "false"` too, which ships off | `cmd/defaults.yaml` at v4.19.2 (*"It's enabled by default"*) |
 | `clickhouse` | A report on every crash and logical error to `crash.clickhouse.com` | `clickhouse-no-crash-reports.xml`, mounted into `config.d`, sets both off; the `config.xml` the image ships sets them on. It is the only file ClickHouse merges that speaks of crash reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d` and `conf.d`, in sorted order, so a later one would win | `programs/server/config.xml`, `src/Daemon/CrashWriter.cpp`, `src/Common/Config/ConfigProcessor.cpp` at `v26.2.19.43-stable` |
 | `minio` | A release check to `dl.min.io` at every start, its User-Agent carrying the OS, architecture, version and CPU | `MINIO_UPDATE: "off"`; `MINIO_CALLHOME_ENABLE: "off"` too, which ships off | `cmd/server-main.go`, `cmd/update.go`, `internal/config/callhome/callhome.go` at `RELEASE.2025-05-24T17-08-30Z` |
@@ -3023,7 +3023,13 @@ refuses a `COMPOSE_FILE` in the shell.
 
 The entrypoint's other children do not call out: pnpm 10.33.2 checks for its
 own update only on `install` and `add`, goose v3.27.1 has no network use of its
-own, and the dashboard agent's migration is plain drizzle-orm.
+own, and the dashboard agent's migration is plain drizzle-orm. At v4.7.6 it also
+preloads `distrust-cas.cjs`, which drops the compromised eMudhra roots from
+Node's own list and calls nothing; the webapp's two new server-side events go
+through the PostHog client `TRIGGER_TELEMETRY_DISABLED` leaves unmade; and its
+new third-party switches, Cloudflare Turnstile on the sign-in form and AWS KMS
+as a secret store, are off while unset, as every key the guard has not read is
+refused (`scripts/a-service-that-phones-home.unit.test.ts`).
 
 `trigger-tls` has no telemetry; its one default that leaves the machine is
 automatic HTTPS, which asks a public certificate authority, and
@@ -4920,6 +4926,21 @@ dependency in the root, `apps/worker` and `packages/scheduler` manifests
 machine). `--from trigger` refuses at bring-up when they disagree, and
 `bootstrap-managed.unit.test.ts` refuses in CI — added after dependabot moved
 the SDK alone, passed all seventeen checks and broke the managed gate.
+
+**A `.env` that sets `TRIGGER_IMAGE_TAG` moves by hand, on each stack.** Live's
+was copied from `managed.env.example`, so it names the pin of the day it was
+made, and the OTA stack's persisted one (`~/.persistent/ownpace-managed/.env`)
+is the gate's. Before the change that moves the pin reaches a stack, set it
+there to the new tag, with no run `EXECUTING`, after the backup; on live:
+
+```bash
+./deploy/compose/env-upsert.sh ~/.persistent/ownpace-live/.env TRIGGER_IMAGE_TAG=v<new>
+```
+
+Left at the old tag, the bring-up stops at its `trigger` phase, on the drift
+from the SDK, before the plane starts. Rolling back from the copy before an
+update sets it back to the old release's pin first (`docs/operator-runbook.md`,
+step 9 of *Rolling back from it*).
 
 `trigger-version.sh` does the whole thing rather than leaving it to `sed`:
 
