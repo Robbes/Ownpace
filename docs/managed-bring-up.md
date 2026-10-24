@@ -5086,9 +5086,12 @@ never reads as "nothing newer", nor as an older newest.
 > request of its own with the new image's scan read and E2E (managed) on its
 > branch.
 >
-> **Removing the old volume**, once the stack runs on `minio_data_v2` and its
-> gate or deploy after the move was green. Read-only first, from the stack's
-> checkout; the second line must print nothing:
+> **Removing the old volume**, once the stack runs on `minio_data_v2` from
+> `main` or a release tag, and the nightly gate or the deploy after the move
+> was green. Not after a branch's E2E alone: until the change is on `main`,
+> `main`'s nightly brings the Bitnami image back on the old volume.
+> Read-only first, from the stack's checkout; the second line must print
+> nothing:
 >
 > ```
 > docker volume inspect -f '{{.Name}} {{.CreatedAt}}' <project>_minio_data <project>_minio_data_v2

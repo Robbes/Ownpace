@@ -1713,11 +1713,13 @@ to exit 0. 0119 §3 item 5 has what each choice was read from. What remains, in 
    otherwise with the first release after the launch.
 3. **Live from the tag that carries it** (alpha.2's deploy is planned for 2026-10-28), inside the
    hold, after the Trigger.dev drain that deploy needs anyway, on a store that starts empty.
-4. **The old volume removed by the owner**, on the OTA stack once the branch's E2E is green, and on
-   live once its deploy is. Read-only checks first, from the stack's checkout, as
-   `docs/managed-bring-up.md` says beside the MinIO pin: `docker volume inspect` of both volumes,
-   `docker ps -a --filter volume=<project>_minio_data` (it must name nothing), and `mc ready`
-   inside the new store; then `docker volume rm <project>_minio_data`, which cannot be undone.
+4. **The old volume removed by the owner**, on the OTA stack once the change is on `main` and a
+   nightly on `main` has run green with it (until the merge, `main`'s nightly brings the Bitnami
+   image back on the old volume), and on live once the deploy that carries it is green. Read-only
+   checks first, from the stack's checkout, as `docs/managed-bring-up.md` says beside the MinIO
+   pin: `docker volume inspect` of both volumes, `docker ps -a --filter
+   volume=<project>_minio_data` (it must name nothing), and `mc ready` inside the new store; then
+   `docker volume rm <project>_minio_data`, which cannot be undone.
 
 **The guard**, `scripts/an-object-store-with-a-maintainer.unit.test.ts`, is built on the branch:
 it fails while any service in `managed.yml` runs a `bitnamilegacy/*` image, and checks that
