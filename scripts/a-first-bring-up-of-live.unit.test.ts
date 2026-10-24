@@ -417,7 +417,7 @@ case "$*" in
     exit "\${STUB_BOOTSTRAP_ONLY_EXIT:-0}"
     ;;
   "--from trigger")
-    volume trigger_db_data; volume clickhouse_data_v2; volume minio_data
+    volume trigger_db_data; volume clickhouse_data_v2; volume minio_data_v2
     if [ "\${STUB_TRIGGER_STOP:-}" = account ]; then
       echo '--- Your turn. When you have done the above, carry on with:'
       echo '      ./deploy/compose/bootstrap-managed.sh --from account'

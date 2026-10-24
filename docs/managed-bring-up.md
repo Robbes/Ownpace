@@ -570,7 +570,7 @@ own date.
 `TRIGGER_DB_PASSWORD` (Trigger.dev's own database, `trigger-db`). The example
 ships them empty, and `ensure-env-secrets.sh` generates each one while its
 volume does not exist yet (`postgres_data`, `clickhouse_data_v2`,
-`minio_data`, `trigger_db_data`). While that volume does not exist, it also
+`minio_data_v2`, `trigger_db_data`). While that volume does not exist, it also
 replaces a value this repository publishes. Once the volume exists it writes
 nothing for that key, and says so. Postgres, `trigger-db` among them, keeps the
 password its volume was made with, so a new value here would not reach the

@@ -157,7 +157,7 @@ const FIVE: Array<[string, string]> = [
   ['POSTGRES_PASSWORD', 'postgres_data'],
   ['APP_DB_PASSWORD', 'postgres_data'],
   ['CLICKHOUSE_PASSWORD', 'clickhouse_data_v2'],
-  ['MINIO_ROOT_PASSWORD', 'minio_data'],
+  ['MINIO_ROOT_PASSWORD', 'minio_data_v2'],
   [KEY, 'trigger_db_data'],
 ];
 const FIVE_KEYS = FIVE.map(([k]) => k);
@@ -725,7 +725,7 @@ describe('TRIGGER_DB_PASSWORD is judged as the four (0132 T2 step B, after the o
   it("the OTA stack's .env since the owner's run (a generated value, every volume there): kept, and docker is not asked", () => {
     const r = checkout(
       envText({ JWT_SECRET: '', ...GOOD }),
-      ['postgres_data', 'clickhouse_data_v2', 'minio_data', 'trigger_db_data'].map((v) => `ownpace-managed_${v}`),
+      ['postgres_data', 'clickhouse_data_v2', 'minio_data_v2', 'trigger_db_data'].map((v) => `ownpace-managed_${v}`),
     );
     expect(r.status, r.out).toBe(0);
     expect(keyValue(r.env)).toBe(TRIGGER_PW);
@@ -1452,7 +1452,7 @@ describe("the gate's Fill step, on an .env like the OTA stack's after the owner'
   it('runs, and changes none of them in the checkout or the persisted file, without asking docker', () => {
     expect(fill?.run, 'no Fill step in e2e-managed.yml').toBeTruthy();
     const ota = { TRIGGER_PROJECT_REF: 'proj_example', TRIGGER_SECRET_KEY: 'tr_prod_example', NODE_ENV: 'development', ...GOOD };
-    const s = aStack(envText(ota), { volumes: ['postgres_data', 'clickhouse_data_v2', 'minio_data', 'trigger_db_data'].map((v) => `ownpace-managed_${v}`) });
+    const s = aStack(envText(ota), { volumes: ['postgres_data', 'clickhouse_data_v2', 'minio_data_v2', 'trigger_db_data'].map((v) => `ownpace-managed_${v}`) });
     const persist = tempDir('a-password-persist-');
     const r = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', fill?.run ?? 'exit 99'], {
       cwd: s.root,

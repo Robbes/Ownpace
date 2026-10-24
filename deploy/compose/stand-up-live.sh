@@ -230,7 +230,7 @@ PASSWORDS=(
   'POSTGRES_PASSWORD postgres_data'
   'APP_DB_PASSWORD postgres_data'
   'CLICKHOUSE_PASSWORD clickhouse_data_v2'
-  'MINIO_ROOT_PASSWORD minio_data'
+  'MINIO_ROOT_PASSWORD minio_data_v2'
   'TRIGGER_DB_PASSWORD trigger_db_data'
 )
 # managed.yml puts these in a URL, so only characters a URL carries as they are.

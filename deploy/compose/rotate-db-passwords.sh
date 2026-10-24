@@ -383,9 +383,11 @@ check_stores() {
     done
   fi
 
-  # MinIO has no health check. Its control is its own pair, asked inside the
+  # MinIO's health check (`mc ready`, since 0146 T7) asks no password, so it
+  # proves nothing here. Its control is its own pair, asked inside the
   # container, where the values stay in that container's environment. mc takes
   # an alias from MC_HOST_<alias>, so a value is never an argument there either.
+  # Chainguard's image carries sh and mc, as Bitnami's did.
   user="$(env_value "$ENV_FILE" MINIO_ROOT_USER admin)"
   out=$("${COMPOSE[@]}" exec -T minio sh -c \
     'MC_HOST_probe="http://${MINIO_ROOT_USER}:${MINIO_ROOT_PASSWORD}@127.0.0.1:9000" mc --config-dir /tmp/rotate-db-passwords-mc ls probe' \
