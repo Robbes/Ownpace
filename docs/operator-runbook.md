@@ -2581,25 +2581,32 @@ steps for a tester's report. The items below are causes it points to.
 ### Which services the managed gate actually speaks for
 
 `smoke-managed.sh` says `unhealthy: none`, and that sentence is narrower than
-it sounds: **six of the seventeen long-running services define no
-healthcheck**, so `docker compose ps` can only say they are *running*. If a red
-gate points at a service, this is the map of what proved it and how:
+it sounds: **five of the seventeen long-running services define no
+healthcheck** (six until workplan 0146 T7 gave `minio` one), so
+`docker compose ps` can only say they are *running*. If a red gate points at a
+service, this is the map of what proved it and how:
 
 | service | how it is proven |
 |---|---|
 | postgres, pgbouncer, trigger-db, trigger-redis, clickhouse, api, web, mailpit | healthcheck (compose, or the image's own HEALTHCHECK for api and web) — `--wait` blocks on them |
 | nextcloud, trigger-api, trigger-supervisor | compose healthcheck, added 2026-08-19 |
 | trigger-registry, trigger-docker-proxy | **functionally**, by the gate itself: a deploy pushes through the registry and the supervisor starts runners through the proxy |
-| minio, trigger-tls | **asserted by the smoke**, not probed — see below |
+| minio | compose healthcheck, `mc ready` (since 0146 T7, Chainguard's build), **and asserted by the smoke** from the API container — see below |
+| minio-init | a one-shot, not a service that stays up: it makes the `packets` bucket and exits 0, `--wait` waits for that, and `trigger-api` starts only after it |
+| trigger-tls | **asserted by the smoke**, not probed — see below |
 | zitadel | no healthcheck by design (managed.yml): readiness is asked from the host by `wait_for_idp_ready`, and the smoke checks the issuer |
 | gatus | no healthcheck by design (a `FROM scratch` image): the smoke probes `/health` over the published port |
 
-`minio` and `trigger-tls` have no healthcheck on purpose. A compose probe runs
-INSIDE the image, so under `up -d --wait` one naming a binary that image lacks
-does not misreport — it fails the bring-up and takes the stack with it. Nothing
-in this repository has ever run a command inside `bitnamilegacy/minio` or
-`caddy:2-alpine`, so there was no evidence to write either probe from. The
-smoke asserts them from places whose tooling is proven instead:
+`trigger-tls` has no healthcheck on purpose, and `minio` had none until
+workplan 0146 T7. A compose probe runs INSIDE the image, so under
+`up -d --wait` one naming a binary that image lacks does not misreport — it
+fails the bring-up and takes the stack with it. Nothing in this repository had
+run a command inside `bitnamilegacy/minio` or `caddy:2-alpine`, so there was no
+evidence to write either probe from. Chainguard's MinIO, which replaced
+Bitnami's, carries `mc`, and its probe is upstream's own `mc ready`, which
+Trigger.dev's compose runs in that image. The smoke asserts both from places
+whose tooling is proven, which for `minio` also says that another container on
+the stack network reaches it, as `trigger-api` does:
 
 ```
 --- minio and trigger-tls (0084 — the last two unasserted services) ---

@@ -975,6 +975,13 @@ fi
 # instead of never starting. What it cannot do is make `docker compose ps` say
 # "healthy" — so T7.1's count of services without a healthcheck is unchanged,
 # and 0084 says so.
+#
+# MINIO HAS A PROBE NOW, since 0146 T7 put Chainguard's build in Bitnami's
+# place: upstream's `mc ready`, run by the mc that image carries, which
+# Trigger.dev's own compose runs in it. This assertion stays, because it asks
+# something a probe inside the store cannot: that the store answers at
+# `minio:9000` from another container on the stack network, as trigger-api
+# reaches it.
 note "minio and trigger-tls (0084 — the last two unasserted services)"
 
 # MINIO is network-internal (no published port), so this goes through a
@@ -1054,7 +1061,7 @@ trap 'kill "$WATCHER_PID" 2>/dev/null || true; end_stream' EXIT
 # healthcheck audit was redone against the gate's own printed list rather than
 # memory: FOUR services define no healthcheck, not seven, and `minio` and
 # `trigger-tls` are already asserted above. These two were not asserted by
-# anything at all.
+# anything at all. (Three since 0146 T7, which gave minio a probe.)
 #
 # ASSERTED HERE RATHER THAN PROBED, for exactly the reason the other two were,
 # and it is worth restating because the temptation is to "just add a
@@ -1069,8 +1076,9 @@ trap 'kill "$WATCHER_PID" 2>/dev/null || true; end_stream' EXIT
 # when it is wrong the gate goes red with a sentence instead of never starting.
 #
 # What this does NOT do is make `docker compose ps` say "healthy", so the count
-# of services without a healthcheck is unchanged at four. That is stated rather
-# than glossed: this closes the COVERAGE gap, not the healthcheck one.
+# of services without a healthcheck is unchanged by it (four then, three since
+# minio's probe in 0146 T7). That is stated rather than glossed: this
+# closes the COVERAGE gap, not the healthcheck one.
 note "trigger-registry and trigger-docker-proxy (the last two unasserted services)"
 
 # THE REGISTRY publishes on 127.0.0.1:5000, so the host's own curl reaches it —

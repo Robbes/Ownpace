@@ -397,6 +397,9 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_healthy
+      # The bucket its packets go to, made before it serves (minio-init).
+      minio-init:
+        condition: service_completed_successfully
     # LIVENESS, deliberately — not a named endpoint (0084 T7.1).
     #
     # `fetch` resolves on ANY http response, 404 included, and rejects only
@@ -607,49 +610,146 @@ services:
   # Object store for large task payloads/outputs. trigger-api has pointed at
   # http://minio:9000 since the stack was written — the service just never
   # existed, so anything over the inline payload limit failed. Same
-  # credentials as the OBJECT_STORE_* values above; the bitnami image is used
-  # for MINIO_DEFAULT_BUCKETS (auto-creates the bucket the webapp expects).
+  # credentials as the OBJECT_STORE_* values above.
+  #
+  # CHAINGUARD'S MAINTAINED MINIO, BY THE OWNER'S ANSWER OF 2026-10-23 (0146
+  # T7: "T7 no, fix already within the alpha"). Until then this was
+  # `bitnamilegacy/minio:2025.5.24-debian-12-r5` by digest: frozen, from a
+  # repository Docker Hub labels "no longer updated", and Security Scan #4726
+  # read 26 critical and 259 high findings in it on 2026-10-23, 206 of them
+  # fixed in a newer package that would never reach it. MinIO's own image is
+  # gone from Docker Hub and its repository is no longer maintained. This is
+  # the same server built by Chainguard from its maintained fork
+  # (`chainguard-forks/minio`), which Trivy read 0 critical / 0 high the same
+  # day, and it is what Trigger.dev's own development compose runs
+  # (docker/docker-compose.yml at v4.7.6). 0119 §3 item 5 has the comparison.
+  #
+  # THE PIN. Chainguard's free tier publishes `latest` and `latest-dev` and
+  # nothing else, rebuilt about daily, so this is `latest` by an index digest
+  # read from Docker Hub's API and registry on 2026-10-24: d88920d6a50b…,
+  # built 2026-10-22 09:59 UTC and pushed as `latest` at 11:25 UTC that day,
+  # with linux/amd64 and linux/arm64 in it. Not the newest `latest`
+  # (c47b1779bfd1…, pushed 2026-10-24 02:01 UTC), on purpose: this is the
+  # build Trivy read 0 critical / 0 high on 2026-10-23, when it was `latest`,
+  # and it is three days old on 2026-10-25 at 11:25 UTC, as a release this
+  # repository takes should be (CONTRIBUTING.md). The two differ only in
+  # brotli's libraries, 1.2.1-r0 here and -r1 there (their apk databases).
+  # Inside: Wolfi's `minio` 0.20260922.192518-r5 (the fork's
+  # RELEASE.2026-09-22T19-25-18Z), `mc` 0.20250813.083541-r27, and bash as
+  # /bin/sh. The weekly pin watch (idp-pin-watch.mjs) says when `latest` has
+  # moved on; a move is a pull request with the new digest's scan read and
+  # E2E (managed) on its branch. Trigger.dev's own digest from its move of
+  # 2026-09-28 still resolved on 2026-10-24, so an old digest stays pullable
+  # for weeks at least; if the free image goes, build the fork's tag here
+  # (0119 §3 item 5).
+  #
+  # NOT A TAG SWAP. Each difference was read off the image itself (its config
+  # and last layer, both architectures) and Chainguard's locked config
+  # (chainguard-images/images, images/minio/locked_config.json):
+  #   - the entrypoint is the bare `/usr/bin/minio`, with no arguments, so the
+  #     command below names `server /data`;
+  #   - it runs as 65532, not Bitnami's 1001, and keeps its data in /data, not
+  #     /bitnami/minio/data;
+  #   - the image ships /data root-owned with mode 0777, and /data/.minio.sys
+  #     owned by 65532. Docker gives a NEW named volume the ownership, mode
+  #     and contents of the image's directory the first time it is mounted
+  #     there, so the volume below is writable by 65532 as it comes, with no
+  #     chown step. (zitadel-machinekey exists because the mount point
+  #     Zitadel's volume got was root's, which its non-root user could not
+  #     write.)
+  #   - there is no MINIO_DEFAULT_BUCKETS. That was a Bitnami convenience;
+  #     minio-init below makes `packets`.
+  # `scripts/an-object-store-with-a-maintainer.unit.test.ts` holds all of it.
   minio:
-    # PINNED TO WHAT WAS ALREADY RUNNING, not to something newer. The digest is
-    # the one `bitnamilegacy/minio:latest` resolved to on 2026-08-24, so this
-    # line changes the NAME of what runs and not the bytes — deliberately, on a
-    # service that holds Trigger.dev's packets and run artifacts.
-    #
-    # `latest` here told the same lie ClickHouse's did, and a slightly worse
-    # one. It is not merely frozen: it stopped moving on 2025-07-03 at
-    # 2025.5.24, while the repository went on publishing until 2025-08-19 and
-    # ends at 2025.7.23-debian-12-r5. So `latest` was not even bitnamilegacy's
-    # last word — it was a tag that quietly stopped six weeks early, and
-    # nothing anywhere said which MinIO this stack ran.
-    #
-    # Moving to 2025.7.23, or to upstream's `minio/minio`, are both real
-    # options and neither belongs in a de-floating commit. Upstream's in
-    # particular is NOT a tag swap: it reads /data rather than
-    # /bitnami/minio/data, and it has no MINIO_DEFAULT_BUCKETS — the `packets`
-    # bucket is created by a separate `minio-init` service running `mc mb`
-    # (trigger.dev docker-compose.yml @ v4.5.12). Doing that means a new volume
-    # and an empty object store, which is a decision with a restore plan, not a
-    # rider. See docs/managed-bring-up.md.
-    image: bitnamilegacy/minio:2025.5.24-debian-12-r5@sha256:451fe6858cb770cc9d0e77ba811ce287420f781c7c1b806a386f6896471a349c
+    image: chainguard/minio:latest@sha256:d88920d6a50bd0b088223b688be3b76c63e6205dbe494437f67ba1240ea12880
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio
     restart: unless-stopped
     logging: *logging
+    command: ["server", "/data"]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-very-safe-password}
-      MINIO_DEFAULT_BUCKETS: packets
-      # NO RELEASE CHECK AT START (workplan 0139, 2026-09-28). At every start
-      # this MinIO (RELEASE.2025-05-24T17-08-30Z) asks dl.min.io for its newest
-      # release, and its User-Agent carries the OS, the architecture, `docker`,
-      # its version and the CPU's count, vendor and model (cmd/server-main.go,
-      # cmd/update.go). `off` here is the one thing that skips it. Its
-      # call-home to SUBNET already ships off, and is written out so a stored
-      # setting cannot turn it on: the environment wins over MinIO's own
-      # config. `scripts/a-service-that-phones-home.unit.test.ts`.
+      # NO RELEASE CHECK AT START (workplan 0139, 2026-09-28; read again at the
+      # fork's RELEASE.2026-09-22T19-25-18Z). At every start this MinIO asks
+      # dl.min.io for its newest release, and its User-Agent carries the OS,
+      # the architecture, `docker`, its version and the CPU's count, vendor and
+      # model (cmd/server-main.go, cmd/common-main.go, cmd/update.go). `off`
+      # here is the one thing that skips it. Its call-home to SUBNET already
+      # ships off (internal/config/callhome/callhome.go), and is written out so
+      # a stored setting cannot turn it on: the environment wins over MinIO's
+      # own config. `scripts/a-service-that-phones-home.unit.test.ts`.
       MINIO_UPDATE: "off"
       MINIO_CALLHOME_ENABLE: "off"
+      # The health check's alias. `mc ready` asks the server's own health
+      # endpoint with an anonymous client (cmd/ready-main.go,
+      # cmd/client-admin.go at mc's RELEASE.2025-08-13T08-35-41Z), so it
+      # carries no password. 127.0.0.1 and not localhost: no name to resolve
+      # (a-healthcheck-that-asked-the-wrong-address).
+      MC_HOST_local: http://127.0.0.1:9000
     volumes:
-      - minio_data:/bitnami/minio/data
+      # A NEW VOLUME, and the old one is left alone (hard rule 2). Bitnami's
+      # layout under /bitnami/minio/data, owned by 1001, is not handed to
+      # another vendor's image at another path. So the store starts empty:
+      # after the drain a Trigger.dev upgrade needs anyway, what is lost is old
+      # runs' large payloads and outputs, read only by the dashboard, a replay
+      # and `runs.retrieve`, which hands back `payload` undefined and does not
+      # throw; ours reads only a run's status flags (0119 §3 item 5, What
+      # moving costs). `minio_data` stays on disk until somebody deliberately
+      # removes it, read-only checks first (0146 T7):
+      #     docker volume rm <project>_minio_data
+      - minio_data_v2:/data
+    # Upstream's probe (docker/docker-compose.yml at v4.7.6), run by the mc
+    # this image carries. `--config-dir` because mc writes a config on first
+    # use and /tmp is the one directory certainly writable by 65532 (1777 in
+    # the image). Generous start_period: under `up -d --wait` a probe that is
+    # too eager fails the bring-up.
+    healthcheck:
+      test: ["CMD", "mc", "--config-dir", "/tmp/mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - ownpace-network
+
+  # THE `packets` BUCKET, made before trigger-api starts and made again,
+  # harmlessly, on every `up` (`--ignore-existing`). Trigger.dev v4.7.6 makes
+  # no bucket: every packet key's first segment is `packets`, and a store
+  # without it answers each write with NoSuchBucket. Bitnami's image made it
+  # from MINIO_DEFAULT_BUCKETS; this one does not, so a one-shot does, as
+  # upstream's development compose does with `minio-init`.
+  #
+  # The SAME pinned image as the store, which carries mc, so there is one
+  # image to pin, scan and move. The pair stays in this container's
+  # environment and goes into mc's alias inside it (MC_HOST_<alias>, as
+  # rotate-db-passwords.sh asks the store), never into this file as a URL or
+  # onto a command line. `mc mb` reaches no update check: mc asks dl.min.io
+  # only when run with no command (cmd/main.go at RELEASE.2025-08-13T08-35-41Z).
+  # mc reads a ':' in the password as the start of a session token
+  # (hostKeyTokens, cmd/config.go), so such a password stops the bring-up
+  # here: the values ensure-env-secrets.sh and rotate-db-passwords.sh make are
+  # hex, and stand-up-live.sh refuses any other character.
+  #
+  # A DEPENDENCY, NOT A `compose run`. trigger-api waits for it with
+  # `service_completed_successfully`, and that condition is what lets
+  # `up -d --wait` treat its exit 0 as done rather than as a container that
+  # stopped: compose reads it for every service another depends on that way
+  # (getDependencyCondition, pkg/compose/start.go, v2.20.0 to v5.6.1). The
+  # bring-up names it beside `minio` all the same, so a failure prints its log.
+  minio-init:
+    image: chainguard/minio:latest@sha256:d88920d6a50bd0b088223b688be3b76c63e6205dbe494437f67ba1240ea12880
+    container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio-init
+    restart: "no"
+    logging: *logging
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - 'MC_HOST_store="http://$${MINIO_ROOT_USER}:$${MINIO_ROOT_PASSWORD}@minio:9000" exec mc --config-dir /tmp/mc mb --ignore-existing store/packets'
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-very-safe-password}
+    depends_on:
+      minio:
+        condition: service_healthy
     networks:
       - ownpace-network
 
@@ -1862,7 +1962,10 @@ volumes:
   redis_data:
   trigger_shared:
   registry_data:
-  minio_data:
+  # The object store since 0146 T7, Chainguard's MinIO at /data. Not declared:
+  # the Bitnami-era `minio_data`, which nothing mounts any more and which
+  # stays on disk until removed by hand (the minio service above says how).
+  minio_data_v2:
   # Accounts, calendars, address books and files of the DAV backend.
   nextcloud_data:
   trigger_tls_data:

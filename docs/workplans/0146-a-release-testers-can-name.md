@@ -2,7 +2,15 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-10-23 (update this block at the end of every session)
+## Status — 2026-10-24 (update this block at the end of every session)
+
+**2026-10-24: T7 answered and being built.** The owner, on 2026-10-23 at 19:05 UTC: *"T7 no,
+fix already within the alpha"*. The frozen `bitnamilegacy/minio` is not accepted for the Alpha.
+Chainguard's maintained MinIO replaces it on branch
+`claude/ownpace-public-readiness-y7orc6-object-store-swap`, not merged: by index digest, on a
+new volume, with a one-shot that makes `packets`, and the guard §3 T7 asked for. It needs E2E
+(managed) on the branch before it merges, then live from the tag that carries it, starting
+empty. T7's row, §3 T7 and 0119's Status entry of 2026-10-24 have the detail.
 
 **2026-10-23, recorded: the open code-scanning alerts read and triaged before the
 fold, and their follow-ups made T9 to T11.** Release run 7 (Actions run
@@ -931,8 +939,8 @@ best given with T0.
 | T4 Upgrades rehearsed from rc.1 and from the alpha tag, on both chains | The managed chain's upgrade proof from the alpha tag ✅ **done** in #1681, merged 2026-10-23 (`b357add8`): `packages/managed/src/migrate-upgrade.unit.test.ts`, from `UPGRADE_FROM_REF` or `v0.2.0-alpha.1`, both chains, with the shared gate's allow-list held to releases before the split (Status, 2026-10-23); the rest 📋 **Proposed** (D3) — *was:* 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-managed-upgrade-test`, not merged (2026-10-23) | §3. The container drill from rc.1 runs in T2. The rest follows the tag: both unit gates start from both tags, the managed chain included, on Postgres as well as PGlite. |
 | T5 `ownpace-live` runs only a release tag | (a) ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), in 0132 T6's `deploy-live.sh`, not yet run on live: the release rule, `/api/version`'s version, one-way or reversible, and the guard's four cases. `--external-id` is deferred (open question 6) — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); 📋 **Proposed** (D2, D3, D4) | §3. **Alpha minimum.** 0132 T6's procedure and script, with the tag always a release whose name, version and commit agree. The deploy says before the hold lifts whether it can be undone. |
 | T6 The tasks run the Node the images run | ✅ **done** in #1231, merged 2026-09-27: (a), `runtime: 'node-24'` and Guard 1. Guard 2, the bundle-load check, not built (after the first invitation) — *was:* 📋 Proposed | §3. **Alpha minimum:** `runtime: 'node-24'` in `trigger.config.ts` (supported by the pinned CLI, read from its package) and the version guard extended. **After the first invitation:** a pull-request check that the bundle loads. |
-| T7 The object store: replace the frozen MinIO, or accept it for the alpha in writing | ⏳ **Owner** | §3. Recommended: accept it for the alpha, in writing, and replace it at the end of the alpha with Chainguard's maintained MinIO build, with versitygw as the fallback. The swap merges to `main` only once the next tag live will deploy is the end-of-Alpha switch's: the OTA stack takes it first, and live in that switch, which empties the store anyway (0119 §3, item 5, re-read 2026-10-23). |
-| T8 A watch on the pinned images Dependabot leaves alone | Watch half ✅ **done** in #1663, merged 2026-10-21 (`087183b7`): every pin Dependabot cannot see, one issue per owner's-call row and one summary issue, and `/deploy/compose` out of `dependabot.yml` (Status, 2026-10-21); scan half ✅ **done** in #1674, merged 2026-10-22 (`51a0d267`): a weekly, report-only Trivy scan of every image the stacks run, with one issue per image past its end of life (Status, 2026-10-22) — *was:* scan half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-image-scan`, not merged (2026-10-22); watch half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-pin-watch`, not merged (2026-10-21), scan half 📋 Proposed; 📋 **Proposed** | §3. Widened 2026-10-21: Dependabot read no file in `deploy/compose`, so the watch covers every image line of its `managed.yml`, `dev.yml` and `www.yml` and the busybox and GoAccess copies in its scripts, `packageManager`, the Trivy the scan runs and the TypeScript split as well as Trigger.dev, ClickHouse and the task base image. MinIO has no upstream to compare with and is left to the scan half. |
+| T7 The object store: replace the frozen MinIO, or accept it for the alpha in writing | 🔨 **Being built** on branch `claude/ownpace-public-readiness-y7orc6-object-store-swap`, not merged (2026-10-24): Chainguard's MinIO by index digest on a new volume, `minio-init` making `packets`, and the guard; **answered 2026-10-23**: *"T7 no, fix already within the alpha"*, so the frozen image is not accepted, and is replaced within the Alpha. Remains: E2E (managed) on the branch, the merge, live from the tag that carries it (alpha.2, if the merge makes the fold) after the drain, starting empty, and the old volume removed by the owner on each stack (§3) — *was:* ⏳ **Owner** | §3. The owner declined the recommendation to accept it for the alpha and replace it at its end: Chainguard's maintained MinIO build replaces it now, with versitygw still the fallback (0119 §3, item 5, decided 2026-10-23 and built 2026-10-24). |
+| T8 A watch on the pinned images Dependabot leaves alone | Watch half ✅ **done** in #1663, merged 2026-10-21 (`087183b7`): every pin Dependabot cannot see, one issue per owner's-call row and one summary issue, and `/deploy/compose` out of `dependabot.yml` (Status, 2026-10-21); scan half ✅ **done** in #1674, merged 2026-10-22 (`51a0d267`): a weekly, report-only Trivy scan of every image the stacks run, with one issue per image past its end of life (Status, 2026-10-22) — *was:* scan half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-image-scan`, not merged (2026-10-22); watch half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-pin-watch`, not merged (2026-10-21), scan half 📋 Proposed; 📋 **Proposed** | §3. Widened 2026-10-21: Dependabot read no file in `deploy/compose`, so the watch covers every image line of its `managed.yml`, `dev.yml` and `www.yml` and the busybox and GoAccess copies in its scripts, `packageManager`, the Trivy the scan runs and the TypeScript split as well as Trigger.dev, ClickHouse and the task base image. MinIO has no upstream to compare with and is left to the scan half; since 0146 T7 (on its branch, not merged, 2026-10-24), Chainguard's MinIO `latest` is compared by its index digest, and `bitnamilegacy/minio` leaves the watch's list of images compared elsewhere. |
 | T9 The API image runs without the dev tools | 🔨 **Being built** as a draft on branch `claude/ownpace-public-readiness-y7orc6-api-image-prod-deps`, for after the first invitation (2026-10-23) | Status, 2026-10-23 (the scan triage). `apps/api/Dockerfile`'s runtime stage copies the build stage's whole `/app`, where `pnpm install --filter @openmig/api...` installed the devDependencies too, the root's included, and `CMD` (`node apps/api/src/index.ts`) needs none of them. Their Go binaries are 2 critical and 65 high of the image's 3/125 on 2026-10-23: esbuild 0.25.12 (Go 1.23.12; drizzle-kit's and `@esbuild-kit/esm-loader`'s), counted twice, and TypeScript 7's native compiler (Go 1.26.4). The lockfile itself, dev dependencies included, reads 0/0. Done when the runtime image holds production dependencies only, a dependency it still needs and lacks fails at start, which the managed gate's first `curl $API/health` catches, and the image scan finds the Node base's findings alone. |
 | T10 The image scan reads the tasks' image as it is built | 📋 **Proposed** (2026-10-23) | Status, 2026-10-23 (the scan triage). `scripts/image-scan.mjs` scans the base image the pinned CLI names (`triggerdotdev/node:24-bookworm` by digest, category `trigger-task-base`, 14/117 on 2026-10-23), not the tasks' image that `deploy-tasks.sh` builds from it. The Trigger.dev v4.7.6 branch upgrades that image's Debian packages at build (`apt-get -y upgrade`), which fixes the 42 Debian findings that have a fix (12 critical, all Perl, fixed in 5.36.0-7+deb12u4, and 30 high). It leaves npm's bundled packages under `/usr/local/lib/node_modules/npm`, since the overlay copies only `/usr/local/bin/node` (tar 7.5.15's CVE-2026-59873, critical, fixed in 7.5.19, and 12 high, 11 of them with a fix), and the 76 Debian findings without a fix, zlib1g's CVE-2023-45853 among them: the built image would still carry 2 critical and 87 high of the 131 (read with Trivy 0.76.0, 2026-10-23). The scan cannot see the upgrade, so the category keeps alerts for 42 findings the built image no longer has. The scan runs on a GitHub-hosted runner, which cannot read the stack's own registry, so the proposal is to build the image in the scan job as the deploy builds it. The old category, if renamed, has its configuration deleted by hand (T8). |
 | T11 The patch and minor moves that clear findings | (a) 📋 **Proposed**; (b) ⏳ **Owner**; (c) 📋 **Proposed**, after the Alpha (2026-10-23) | Status, 2026-10-23 (the scan triage), read with Trivy 0.76.0 on linux/amd64. (a) **Mailpit v1.32.0**: 0/0, where v1.31.6 has CVE-2026-111943 (Go's `crypto/x509`); after the first invitation, by hand in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts`, which pins the reference by tag and digest and records Mailpit's release check as read at v1.31.6, so that fact is read again at v1.32.0 in the same change. (b) **Stalwart v0.16.27** (Debian 13.7): 0 critical and 47 high, none with a fix, where v0.16.10 has 3/114. The owner's call: `docs/stalwart-integration-fix.md` pins v0.16.10 and says *"DO NOT change the pinned version"* (AGENTS.md puts its decisions in ADR-0022), and every copy moves together: `setup-stalwart.sh`, the fixture's Dockerfile, the Testcontainers setup, the fix doc and the guards that name it. (c) **ClickHouse 26.3** (26.3.59, Ubuntu 22.04): 0/0, where 26.2.19.43 has CVE-2026-45447 and CVE-2026-84782 in openssl. After the Alpha: the owner accepted 26.2 for it on 2026-10-23 (0119 §3 item 9 on the Trigger.dev v4.7.6 branch), and 26.3 is ahead of the 26.2 Trigger.dev's own compose pins, which the pin watch compares with (T8). It moves in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts` together: the guard pins the reference by tag and digest and records the crash-report default as read at `v26.2.19.43-stable`, as `clickhouse-no-crash-reports.xml`'s comment does, so both are read again at 26.3. |
@@ -1685,6 +1693,59 @@ It fails today, because the key is absent.
 *Recommended: (a) now, then (c).* Under (a), the acceptance is written in this block with its date,
 and the same line goes into 0119 §3's item 5 (0119 T3, the owner's decisions).
 
+**The owner's answer, 2026-10-23, 19:05 UTC:** *"T7 no, fix already within the alpha"*. Not (a):
+the frozen image is not accepted for the Alpha. Replace it during the Alpha: (b)'s replacement,
+later than (b) named it and sooner than (c). Live runs alpha.1 with no testers yet, so its store
+can still start empty without losing anything a tester sent.
+
+**Status, 2026-10-24: being built**, on branch
+`claude/ownpace-public-readiness-y7orc6-object-store-swap`, not merged. `managed.yml` runs
+`chainguard/minio:latest` by its index digest on a new volume, `minio_data_v2`, at `/data`, with
+upstream's `mc ready` health check; a one-shot, `minio-init`, from the same pinned image, makes
+`packets` with `mc mb --ignore-existing` once the store is healthy, and `trigger-api` waits for it
+to exit 0. 0119 §3 item 5 has what each choice was read from. What remains, in order:
+
+1. **E2E (managed) on the branch**, on the OTA stack, after Trigger.dev v4.7.6 (#1689) merges and
+   not before 2026-10-25 11:25 UTC, when the pinned build is three days old. **First, `main` with
+   #1689 merged into the branch** (a merge, since the branch is never force-pushed), and
+   `managed.yml`'s `TRIGGER_IMAGE_TAG` default read as `v4.7.6` on the branch, with
+   `apps/worker`'s `@trigger.dev/sdk` at 4.7.6. Without it the branch still pins v4.7.2: the run
+   either stops on the bring-up's SDK and image check, or puts v4.7.2 back on a `triggerdb` that
+   `main`'s nightly has already migrated to v4.7.6, which Prisma cannot undo. The merge also takes
+   #1689's change to 0119, which conflicts with this branch's. It is the first time
+   anything pulls or runs the image. Its bring-up recreates `minio` on the new,
+   empty volume and runs `minio-init`; the smoke asserts the store from the API container. It
+   writes and reads no object: nothing in the smoke offloads a payload or an output, so the run
+   proves the store, the bucket and the wiring, not a packet's round trip.
+2. **The merge**, before alpha.2's changelog fold (2026-10-25 23:30 UTC) if the run is green;
+   otherwise with the first release after the launch.
+3. **Live from the tag that carries it** (alpha.2's deploy is planned for 2026-10-28), inside the
+   hold, after the Trigger.dev drain that deploy needs anyway, on a store that starts empty.
+   `deploy-live.sh` checks Ownpace's own passes only, not Trigger.dev's runs, so before it, from
+   live's checkout, read-only: `docker compose -f deploy/compose/managed.yml exec -T trigger-db
+   psql -X -At -U trigger -d triggerdb -c "SELECT \"taskIdentifier\", status, count(*) FROM
+   \"TaskRun\" WHERE status IN ('DELAYED','PENDING','PENDING_VERSION','WAITING_FOR_DEPLOY',
+   'DEQUEUED','EXECUTING','WAITING_TO_RESUME','RETRYING_AFTER_FAILURE','PAUSED') GROUP BY 1, 2"`
+   (the non-final statuses of v4.7.6's `TaskRunStatus`). It should print nothing, or only a
+   scheduled task's run for the minute it takes to finish; `docs/managed-bring-up.md`, beside
+   the MinIO pin, says what to do with anything else.
+4. **The old volume removed by the owner**, on the OTA stack once the change is on `main` and a
+   nightly on `main` has run green with it (until the merge, `main`'s nightly brings the Bitnami
+   image back on the old volume), and on live once the deploy that carries it is green. Read-only
+   checks first, from the stack's checkout, as `docs/managed-bring-up.md` says beside the MinIO
+   pin: `docker volume inspect` of both volumes, `docker ps -a --filter
+   volume=<project>_minio_data` (it must name nothing), and `mc ready` inside the new store; then
+   `docker volume rm <project>_minio_data`, which cannot be undone.
+
+**The guard**, `scripts/an-object-store-with-a-maintainer.unit.test.ts`, is built on the branch:
+it fails while any service in `managed.yml` runs a `bitnamilegacy/*` image, and checks that
+`minio-init` makes `packets` and `trigger-api` waits for it, that the store is
+`chainguard/minio:latest` by digest with the digest's date (in the sentence that names it) and
+both architectures beside it, on a new volume at `/data`, with the release check off and no port
+published. Since the branch's review (2026-10-24) it also checks that `minio-init` carries the
+store's pair in its own environment and reads it with `$${…}` inside the container, and that
+neither service sets a `network_mode`.
+
 **Guard, when (b) or (c) is built.** `scripts/an-object-store-with-a-maintainer.unit.test.ts` fails
 while `managed.yml` runs a `bitnamilegacy/*` image. It also checks that the service that replaces
 MinIO creates the `packets` bucket.
@@ -1787,7 +1848,7 @@ and response window (0135 T7).
 - **T3**, as soon as the tag exists;
 - **T4's** unit legs, by the next alpha tag;
 - **T6's Guard 2**, the pull-request check that the task bundle loads;
-- **T7's** sentence, best given with T0;
+- **T7's** sentence, best given with T0 (given 2026-10-23: replace it within the Alpha);
 - **T8.**
 
 ## Not in this plan
@@ -1822,6 +1883,7 @@ and response window (0135 T7).
    on the OTA stack? The short list is recommended for the alpha's fixes, and the full list for the
    tag that ends the alpha.
 5. **The object store (T7).** (a) accept it for the alpha in writing, then (c) replace it after the
-   alpha (recommended); or (b) replace it before `ownpace-live`'s first deploy?
+   alpha (recommended); or (b) replace it before `ownpace-live`'s first deploy? *Answered
+   2026-10-23: "T7 no, fix already within the alpha": replace it during the Alpha (§3 T7).*
 6. **The task deploy's name (T5).** Keep `--external-id <tag>` if the self-hosted server records it,
    or leave the task plane's deployments unnamed and rely on the deploy log?
