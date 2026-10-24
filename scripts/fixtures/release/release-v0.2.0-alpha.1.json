@@ -1,0 +1,16 @@
+{
+  "tag_name": "v0.2.0-alpha.1",
+  "name": "v0.2.0-alpha.1",
+  "draft": false,
+  "prerelease": true,
+  "immutable": false,
+  "body": null,
+  "assets": [
+    {
+      "name": "ownpace-appliance-win-x64-v0.2.0-alpha.1.zip",
+      "size": 45216640,
+      "state": "uploaded",
+      "browser_download_url": "https://github.com/Robbes/Ownpace/releases/download/v0.2.0-alpha.1/ownpace-appliance-win-x64-v0.2.0-alpha.1.zip"
+    }
+  ]
+}

@@ -511,7 +511,11 @@ type Job = {
   steps: Step[];
 };
 const workflow = parseYaml(WORKFLOW) as { jobs: Record<string, Job> };
-const SCHEDULE_OR_DISPATCH = "github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'";
+// A dispatch scans the images unless it says not to: the Release workflow
+// dispatches this file twice per release (on the commit, then on the tag) and
+// passes `image_scans: false`, so its runs are the repository scan alone
+// (workplan 0146, Status of 2026-10-23). A hand dispatch keeps the default.
+const SCHEDULE_OR_DISPATCH = "github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.image_scans)";
 
 describe(`${WORKFLOW_FILE}: the image scan`, () => {
   const list = workflow.jobs['image-list'];
@@ -525,6 +529,8 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
 
   it('runs only on the weekly schedule and on dispatch, so pull requests and the required check are untouched', () => {
     for (const job of [list, scan, report]) expect(job?.if ?? '').toContain(SCHEDULE_OR_DISPATCH);
+    const on = (parseYaml(WORKFLOW) as { on: { workflow_dispatch: { inputs: Record<string, unknown> } } }).on;
+    expect(on.workflow_dispatch.inputs.image_scans).toMatchObject({ type: 'boolean', default: true });
     expect(report?.if).toMatch(/^always\(\) && \(/);
     expect(report?.if).toContain("needs.image-list.result == 'success'");
   });

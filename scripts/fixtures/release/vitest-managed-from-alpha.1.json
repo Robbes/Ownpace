@@ -1,0 +1,112 @@
+{
+  "numTotalTests": 12,
+  "numPassedTests": 12,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "success": true,
+  "testResults": [
+    {
+      "name": "/home/runner/work/Ownpace/Ownpace/candidate/packages/managed/src/migrate-upgrade.unit.test.ts",
+      "status": "passed",
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "upgrading a managed database from v0.2.0-alpha.1, both chains (0146 T4)"
+          ],
+          "title": "can actually reach the release it upgrades from",
+          "fullName": "upgrading a managed database from v0.2.0-alpha.1, both chains (0146 T4) can actually reach the release it upgrades from",
+          "status": "passed"
+        },
+        {
+          "ancestorTitles": [
+            "upgrading a managed database from v0.2.0-alpha.1, both chains (0146 T4)"
+          ],
+          "title": "knows what each chain added since the release, and lost nothing",
+          "fullName": "upgrading a managed database from v0.2.0-alpha.1, both chains (0146 T4) knows what each chain added since the release, and lost nothing",
+          "status": "passed"
+        },
+        {
+          "ancestorTitles": [
+            "upgrading a managed database from v0.2.0-alpha.1, both chains (0146 T4)"
+          ],
+          "title": "applies the release's two chains with the release's own migrators, shared first",
+          "fullName": "upgrading a managed database from v0.2.0-alpha.1, both chains (0146 T4) applies the release's two chains with the release's own migrators, shared first",
+          "status": "passed"
+        },
+        {
+          "ancestorTitles": [
+            "upgrading a managed database from v0.2.0-alpha.1, both chains (0146 T4)"
+          ],
+          "title": "applies only the files added since, with this build's migrators, and re-applies nothing",
+          "fullName": "upgrading a managed database from v0.2.0-alpha.1, both chains (0146 T4) applies only the files added since, with this build's migrators, and re-applies nothing",
+          "status": "passed"
+        },
+        {
+          "ancestorTitles": [
+            "upgrading a managed database from v0.2.0-alpha.1, both chains (0146 T4)"
+          ],
+          "title": "keeps every file the release applied the SQL it applied",
+          "fullName": "upgrading a managed database from v0.2.0-alpha.1, both chains (0146 T4) keeps every file the release applied the SQL it applied",
+          "status": "passed"
+        },
+        {
+          "ancestorTitles": [
+            "upgrading a managed database from v0.2.0-alpha.1, both chains (0146 T4)"
+          ],
+          "title": "lands on the schema a fresh install of this build has",
+          "fullName": "upgrading a managed database from v0.2.0-alpha.1, both chains (0146 T4) lands on the schema a fresh install of this build has",
+          "status": "passed"
+        },
+        {
+          "ancestorTitles": [
+            "upgrading a managed database from v0.2.0-alpha.1, both chains (0146 T4)"
+          ],
+          "title": "applies nothing on a further run of either chain",
+          "fullName": "upgrading a managed database from v0.2.0-alpha.1, both chains (0146 T4) applies nothing on a further run of either chain",
+          "status": "passed"
+        },
+        {
+          "ancestorTitles": [
+            "upgrading a managed database from v0.2.0-alpha.1, both chains (0146 T4)"
+          ],
+          "title": "the release's own migrators refuse the upgraded database wherever a chain moved on",
+          "fullName": "upgrading a managed database from v0.2.0-alpha.1, both chains (0146 T4) the release's own migrators refuse the upgraded database wherever a chain moved on",
+          "status": "passed"
+        },
+        {
+          "ancestorTitles": [
+            "the comparison of an applied file reads past comments and nothing else"
+          ],
+          "title": "drops line and nested block comments, and collapses whitespace",
+          "fullName": "the comparison of an applied file reads past comments and nothing else drops line and nested block comments, and collapses whitespace",
+          "status": "passed"
+        },
+        {
+          "ancestorTitles": [
+            "the comparison of an applied file reads past comments and nothing else"
+          ],
+          "title": "keeps strings, quoted names and dollar-quoted bodies exactly, comments in them included",
+          "fullName": "the comparison of an applied file reads past comments and nothing else keeps strings, quoted names and dollar-quoted bodies exactly, comments in them included",
+          "status": "passed"
+        },
+        {
+          "ancestorTitles": [
+            "the comparison of an applied file reads past comments and nothing else"
+          ],
+          "title": "tells a changed statement from a changed note",
+          "fullName": "the comparison of an applied file reads past comments and nothing else tells a changed statement from a changed note",
+          "status": "passed"
+        },
+        {
+          "ancestorTitles": [
+            "the comparison of an applied file reads past comments and nothing else"
+          ],
+          "title": "refuses SQL it cannot read to the end, rather than guessing",
+          "fullName": "the comparison of an applied file reads past comments and nothing else refuses SQL it cannot read to the end, rather than guessing",
+          "status": "passed"
+        }
+      ]
+    }
+  ]
+}

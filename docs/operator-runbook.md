@@ -592,6 +592,16 @@ nearly happened twice:
 - **The runs contend.** The two nightly e2e crons are staggered by two hours
   for one reason: the runner is a single shared box, and a full stack bring-up
   next to a live one is not free.
+- **The runner can die quietly.** On 2026-09-25 the OOM killer took a process
+  of a job, the runner's listener exited with code 0, and its systemd unit,
+  which had no restart policy, stayed failed for four weeks; a runner started
+  by hand covered for it until it stopped on 2026-10-24, and the nightly
+  queued with nobody to run it (workplan 0132's Status). The unit now carries
+  a drop-in with `Restart=always` and `RestartSec=30`. To check it on the box:
+  `systemctl list-units --all 'actions.runner*'` shows the unit and its state,
+  and `systemctl show <that unit> -p Restart -p RestartUSec` prints
+  `Restart=always` and `RestartUSec=30s`. A job queued for longer than a run
+  takes, with nothing in progress, means the runner is down: look here first.
 
 **The rule:** before the first non-demo tenant is onboarded, CI and production
 must not share this machine. Two ways to get there, and the cheaper one only
@@ -885,7 +895,10 @@ remedy.
   `./deploy/compose/deploy-live.sh <tag>` from `~/ownpace-live`: the hold, the drain, the tag, the
   bring-up without the demo, the checks, and then you lift the hold. The steps are in
   `docs/managed-bring-up.md`, *Updating a running deployment*, and `docs/release.md` §5. Never
-  `git pull` there.
+  `git pull` there. The tag is cut by the Release workflow (`docs/release.md` §2), dispatched
+  from the Actions tab: it reads the nights and the gates, waits for your approval, tags, publishes
+  in order and verifies, all on GitHub's runners and never on this box. Its message names the run
+  that proved it, for the deploy log. Pushing a tag by hand is the break-glass path.
 - **The OTA stack** (`~/ownpace-managed`) is deployed by the nightly gate, from `main`. By hand, the
   pull sequence in the same section of the bring-up.
 

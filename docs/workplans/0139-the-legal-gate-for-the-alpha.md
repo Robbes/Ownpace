@@ -278,7 +278,8 @@ are pinned. Once a release carries it, the Alpha asks every member to accept the
     governs, with the exception"*.
   - Asked what v0.2.0-alpha.1 waits for: *"Two tags"*. alpha.1 as soon as the pull requests in
     flight merge, to stand up live and rehearse; these final texts come in alpha.2, with its own
-    freeze, two nights and a deploy, before the first invitation.
+    freeze (0141 T14 says what a freeze is), two nights and a deploy, before the first
+    invitation.
   - Docker's log driver on the machine: `docker info --format '{{.LoggingDriver}}'` printed
     `json-file`. `stand-up-live.sh`'s check and privacy §9's *Server logs* row hold.
   - NetBird: *"Netbird: no SSO or password, i checked."* That is the dashboard; the proof from
@@ -441,8 +442,9 @@ are pinned. Once a release carries it, the Alpha asks every member to accept the
 - **Still to do.** **The owner's one check before merge:** the sign-in history on the OTA stack.
   Remove a test account in Zitadel and see what stays. If the earlier entries go, privacy §4.4
   and §9 change in this pull request, under 1.2, with the pins. Then the merge after alpha.1 is
-  tagged, and alpha.2 (freeze, two nights, deploy). After the merge only a deployment with
-  `OWNPACE_STAGE=alpha` asks for acceptance at sign-in: live, from alpha.2. The OTA stack does
+  tagged, and alpha.2 (freeze, two nights, deploy; 0141 T14 says what a freeze is). After the
+  merge only a deployment with `OWNPACE_STAGE=alpha` asks for acceptance at sign-in: live, from
+  alpha.2. The OTA stack does
   not set it (`apps/api/src/conditions-not-accepted.ts`, the `OWNPACE_STAGE` block of
   `deploy/compose/managed.env.example`, and `docs/managed-bring-up.md`: the OTA site was built
   without it), so it asks nobody, and the E2E (managed) gate, whose smoke
