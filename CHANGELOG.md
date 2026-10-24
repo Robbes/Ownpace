@@ -6,6 +6,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The release preflight lists the open critical and high code-scanning
+  alerts by image** (workplan 0146, #1683): every page of them, as one line
+  per tool and category with its counts and its most alerted CVEs, where it
+  printed one count of the first page. Still reported, never refused: the
+  pull request's Trivy check blocks new findings, and the advisory gate
+  refuses a tag. The triage of 2026-10-23 is in 0146's Status.
 - **The identity provider is Zitadel v4.19.5, which carries three security
   fixes** (workplan 0135 T7, #1651): device authorizations need the user's
   consent, login v2 signs its proofs with a server secret, and an invalid
