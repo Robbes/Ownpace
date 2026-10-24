@@ -92,6 +92,30 @@
  * nightly managed gate's task deploy does, and its build output names the base
  * image), or that the task bundle loads on it (0146 T6's second guard).
  *
+ * ## Node: the tasks run the API image's Node, not the base image's
+ *
+ * The right major was not enough here either. The base image the CLI names for
+ * `node-24`, `triggerdotdev/node:24-bookworm@sha256:d2d0c018…`, is Node
+ * 24.18.0 on a Debian snapshot of 2026-07-13, in every CLI from 4.7.2 to 4.7.6:
+ * below the security releases 24.18.1 (2026-07-28) and 24.22.1 (2026-10-20),
+ * while the API image moved to 24.22.1 the day after it shipped. The tasks hold
+ * every tenant's mailbox and calendar credentials during a pass and are HTTPS
+ * clients, and nothing moved their Node: Dependabot ignores `@trigger.dev/*`,
+ * and upstream rebuilt that image only when it chose to (issue #1669, the pin
+ * watch's record of it).
+ *
+ * So the deploy config adds one layer, for every target but `trigger dev`,
+ * that copies the Node binary out of the very image `apps/api/Dockerfile`
+ * builds FROM over the base image's, and refreshes the base image's Debian
+ * packages. Dependabot moves that FROM line every week, and the tasks move
+ * with it. This block holds the layer to that line exactly: it runs the
+ * config's own extension with a stand-in build context and compares the
+ * instruction with the image this file reads from the Dockerfile itself, and
+ * it checks that `trigger dev`, which builds no image, gets no layer. It also
+ * holds that the pin watch's `TASK_OVERLAY` finds the layer in the config's
+ * text exactly once, because that is how the watch knows to stop reporting
+ * the base image's Node.
+ *
  * ## Postgres: migration-lint replays onto the major the deployments run
  *
  * Found the same day. The `migration-lint` job in `.github/workflows/ci.yml`
@@ -111,6 +135,8 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { resolveBuildRuntime } from '@trigger.dev/core/v3/build';
+import type { BuildContext, BuildLayer } from '@trigger.dev/core/v3/build';
+import { TASK_OVERLAY } from './idp-pin-watch.mjs';
 import taskConfig from '../apps/worker/trigger.config.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -357,5 +383,53 @@ describe('the tasks run the Node major the images ship', () => {
     // typecheck having run: a major the CLI cannot build fails here, not on
     // the nightly deploy.
     expect(resolveBuildRuntime(runtime)).toBe(runtime);
+  });
+});
+
+/** The image `apps/api/Dockerfile` builds FROM, read here on its own: a Node image by tag and digest. */
+const API_DOCKERFILE = 'apps/api/Dockerfile';
+const API_NODE = /^FROM\s+(node:\S+)/m.exec(read(API_DOCKERFILE))?.[1];
+
+/** The config's own extension run with a stand-in context, as the CLI runs it: start, then complete. */
+async function layersFor(target: BuildContext['target']): Promise<BuildLayer[]> {
+  const extension = (taskConfig.build?.extensions ?? []).find((e) => e.name === 'task-node');
+  if (!extension) throw new Error(`${TASK_CONFIG} has no task-node build extension`);
+  const layers: BuildLayer[] = [];
+  const context = {
+    target,
+    workingDir: join(REPO_ROOT, 'apps/worker'),
+    addLayer: (layer: BuildLayer) => layers.push(layer),
+  } as unknown as BuildContext;
+  await extension.onBuildStart?.(context);
+  await extension.onBuildComplete?.(context, {} as Parameters<NonNullable<typeof extension.onBuildComplete>>[1]);
+  return layers;
+}
+
+describe("the tasks run the API image's Node", () => {
+  it('the API image builds FROM a Node image pinned by tag and digest', () => {
+    // Vacuity guard: a FROM line the regex no longer reads would leave
+    // nothing below to compare with.
+    expect(API_NODE, `${API_DOCKERFILE} has no FROM node:… line`).toMatch(/^node:\d+\.\d+\.\d+[^@\s]*@sha256:[0-9a-f]{64}$/);
+  });
+
+  it("a deploy's image copies that image's Node over the base image's, and refreshes its packages", async () => {
+    const layers = await layersFor('deploy');
+    expect(layers, 'one layer, from the task-node extension').toHaveLength(1);
+    expect(layers[0]!.id).toBe('task-node');
+    expect(layers[0]!.image?.instructions).toEqual([
+      `COPY --from=${API_NODE} /usr/local/bin/node /usr/local/bin/node`,
+      'RUN apt-get update && apt-get -y upgrade && apt-get clean && rm -rf /var/lib/apt/lists/*',
+    ]);
+  });
+
+  it('`trigger dev` builds no image, and gets no layer', async () => {
+    expect(await layersFor('dev')).toEqual([]);
+  });
+
+  it("the pin watch finds the layer in the config's text, exactly once", () => {
+    // `taskNodeRow` stops reporting the base image's Node when this matches,
+    // and its own guard takes the first match out to see the row report again.
+    const text = read(TASK_CONFIG);
+    expect(text.match(new RegExp(TASK_OVERLAY.source, 'g')) ?? []).toHaveLength(1);
   });
 });
