@@ -152,6 +152,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **body-parser 2.4.0 closes a denial of service through compressed request
+  bodies** (GHSA-27r3-jxmh-p828, CVE-2026-111181, high): trailing bytes after
+  a compressed body could tie up the API, which inflates JSON bodies by
+  default, before anyone signs in. The API takes 2.4.0 through express. It
+  was published on 2026-10-22, inside the three-day cooldown, so the
+  lockfile's policy names it as the deliberate exception that list is for.
 - **The visit count gives GoAccess nginx's own time, never a visitor's text**
   (workplan 0152, #1676): the time is read only from the end of a log line's
   first piece, in nginx's own shape, and the user field is never handed on,
