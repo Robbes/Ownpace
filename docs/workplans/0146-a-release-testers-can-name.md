@@ -2,7 +2,7 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-10-23 (update this block at the end of every session)
+## Status — 2026-10-24 (update this block at the end of every session)
 
 **2026-10-24, merged: Trivy v0.76.1 in both Security Scan steps**, as #1685, from branch
 `claude/ownpace-public-readiness-y7orc6-trivy-0-76-1`. T8's watch named it in
