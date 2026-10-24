@@ -654,8 +654,9 @@ services:
   #     owned by 65532. Docker gives a NEW named volume the ownership, mode
   #     and contents of the image's directory the first time it is mounted
   #     there, so the volume below is writable by 65532 as it comes, with no
-  #     chown step. (zitadel-machinekey exists because Zitadel's image has no
-  #     such directory, and a mount point Docker makes itself is root's.)
+  #     chown step. (zitadel-machinekey exists because the mount point
+  #     Zitadel's volume got was root's, which its non-root user could not
+  #     write.)
   #   - there is no MINIO_DEFAULT_BUCKETS. That was a Bitnami convenience;
   #     minio-init below makes `packets`.
   # `scripts/an-object-store-with-a-maintainer.unit.test.ts` holds all of it.
