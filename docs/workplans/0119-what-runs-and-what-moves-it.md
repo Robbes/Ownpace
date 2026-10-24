@@ -8,8 +8,9 @@
 (0146 T7).** The owner's answer of 2026-10-23, 19:05 UTC, on the recommendation to accept the
 frozen image for the Alpha: *"T7 no, fix already within the alpha"*. Branch
 `claude/ownpace-public-readiness-y7orc6-object-store-swap` runs `chainguard/minio:latest` by
-its index digest `c47b1779bfd1…` (pushed 2026-10-24, linux/amd64 and linux/arm64) on a new
-volume, `minio_data_v2`, with `server /data` and upstream's `mc ready` health check, and a
+the index digest it had on 2026-10-22, `d88920d6a50b…` (linux/amd64 and linux/arm64): the
+build this plan's Trivy read 0/0 on 2026-10-23, and three days old at 2026-10-25 11:25 UTC,
+before the branch's E2E. It is on a new volume, `minio_data_v2`, with `server /data` and upstream's `mc ready` health check, and a
 one-shot `minio-init` from the same image that makes `packets` before `trigger-api` starts.
 The Bitnami-era `minio_data` is no longer mounted or declared and stays on disk for the owner
 to remove. Read for it: the image's config and last layer on both architectures, Chainguard's
@@ -229,7 +230,7 @@ is who moves it after T1.
 | `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8) | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`) |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
 | `tecnativa/docker-socket-proxy` | `managed.yml` | v0.5.0 | v0.5.0 | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
-| `bitnamilegacy/minio`; `chainguard/minio` on branch `claude/ownpace-public-readiness-y7orc6-object-store-swap` (0146 T7) | `managed.yml` (`minio`, and on the branch `minio-init`) | 2025.5.24-debian-12-r5 by digest; on the branch `latest` by index digest `c47b1779…` (2026-10-24) | none for Bitnami's: `bitnamilegacy` stopped at 2025.7.23 (pushed 2025-08-19); `minio/minio` stopped at RELEASE.2025-09-07. Chainguard's `latest` is rebuilt about daily | no upstream for Bitnami's | owner; on the branch, by hand when the pin watch says `latest` was rebuilt (0146 T8) | **§3, taken 2026-10-23** — replace it within the Alpha with Chainguard's maintained build (item 5) |
+| `bitnamilegacy/minio`; `chainguard/minio` on branch `claude/ownpace-public-readiness-y7orc6-object-store-swap` (0146 T7) | `managed.yml` (`minio`, and on the branch `minio-init`) | 2025.5.24-debian-12-r5 by digest; on the branch `latest` by index digest `d88920d6…` (built 2026-10-22, read 2026-10-24) | none for Bitnami's: `bitnamilegacy` stopped at 2025.7.23 (pushed 2025-08-19); `minio/minio` stopped at RELEASE.2025-09-07. Chainguard's `latest` is rebuilt about daily | no upstream for Bitnami's | owner; on the branch, by hand when the pin watch says `latest` was rebuilt (0146 T8) | **§3, taken 2026-10-23** — replace it within the Alpha with Chainguard's maintained build (item 5) |
 | `caddy` | `managed.yml` | 2-alpine, floating (2.11.4) | 2.11.4 | current | `docker compose pull` | stays floating; a major is ignored and is the owner's |
 | `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.19.2 (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.19.2 | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`; one test pins the printed command | 1.37 | 1.38 | one minor | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
@@ -548,7 +549,8 @@ is beside each; none is urgent tonight.
    the recommendation above: *"T7 no, fix already within the alpha"*. So the frozen image is
    not accepted for the Alpha, and the swap does not wait for the end-of-Alpha switch. The
    timing above changes with it. The plan: E2E (managed) on the branch on the OTA stack this
-   weekend, once Trigger.dev v4.7.6 (#1689) has merged, and the merge before alpha.2's
+   weekend, once Trigger.dev v4.7.6 (#1689) has merged and the pinned build is three days old
+   (2026-10-25 11:25 UTC), and the merge before alpha.2's
    changelog fold (2026-10-25 23:30 UTC) if it is green; otherwise it rides the first release
    after the launch. Live takes it from the tag that carries it (alpha.2's deploy is planned
    for 2026-10-28), after the drain that deploy needs anyway, on a store that starts empty.
@@ -556,12 +558,19 @@ is beside each; none is urgent tonight.
 
    **Built 2026-10-24, on branch `claude/ownpace-public-readiness-y7orc6-object-store-swap`, not
    merged.** What it does, each point read off the image or upstream rather than assumed:
-   - `chainguard/minio:latest` by its index digest `c47b1779bfd1…`, read from Docker Hub's API
-     and its registry on 2026-10-24: pushed 2026-10-24 02:01 UTC, built 2026-10-23 17:13 UTC,
-     linux/amd64 and linux/arm64. Its apk database names Wolfi's `minio` 0.20260922.192518
-     (the fork's `RELEASE.2026-09-22T19-25-18Z`) and `mc` 0.20250813.083541. Trigger.dev's
-     own digest from its move of 2026-09-28 still resolved on Docker Hub the same day, so an
-     old digest stays pullable for weeks at least.
+   - `chainguard/minio:latest` by an index digest read from Docker Hub's API and its registry
+     on 2026-10-24: `d88920d6a50b…`, built 2026-10-22 09:59 UTC and pushed as `latest` at
+     11:25 UTC that day (its attestation's push time; the tag moved on at 2026-10-23 18:05
+     UTC), linux/amd64 and linux/arm64. So it is the build the scans above read on 2026-10-23
+     between 10:13 and 10:15 UTC, 0 critical and 0 high, and it is three days old at
+     2026-10-25 11:25 UTC, before the branch's E2E. Not the newest `latest`, `c47b1779bfd1…`
+     (built 2026-10-23 17:13 UTC, pushed 2026-10-24 02:01 UTC), which nothing here scanned
+     and which is three days old only on 2026-10-27. The two apk databases differ in brotli's
+     three libraries alone, 1.2.1-r0 against -r1; both name Wolfi's `minio`
+     0.20260922.192518-r5 (the fork's `RELEASE.2026-09-22T19-25-18Z`) and `mc`
+     0.20250813.083541-r27. (The candidates table says epoch 4; this image's apk database
+     says r5.) Trigger.dev's own digest from its move of 2026-09-28 still resolved on Docker
+     Hub on 2026-10-24, so an old digest stays pullable for weeks at least.
    - The image's config and last layer, both architectures: entrypoint `/usr/bin/minio` with
      no arguments, user `65532`, `/data` root-owned with mode 0777 and `/data/.minio.sys`
      owned by 65532 (Chainguard's `locked_config.json` lists the same paths), `/tmp` 1777,
@@ -590,7 +599,7 @@ is beside each; none is urgent tonight.
      with nine problems and passes on the branch. The pin watch compares a pin with no number,
      held by its digest, with the digest its registry names for the tag today, read with a
      HEAD; since Chainguard rebuilds `latest` about daily, the summary issue will list it most
-     weeks. `MINIO_ROOT_PASSWORD` pairs with `minio_data_v2` in `shipped-passwords.sh` and
+     weeks, and from its first run, since the pin is not the newest `latest` on purpose. `MINIO_ROOT_PASSWORD` pairs with `minio_data_v2` in `shipped-passwords.sh` and
      `stand-up-live.sh`; both stacks' `.env` already hold a generated value, so neither
      changes.
    - What it does not prove: no Docker daemon was available, so nothing here pulled or ran

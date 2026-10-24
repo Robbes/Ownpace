@@ -625,16 +625,23 @@ services:
   # (docker/docker-compose.yml at v4.7.6). 0119 §3 item 5 has the comparison.
   #
   # THE PIN. Chainguard's free tier publishes `latest` and `latest-dev` and
-  # nothing else, rebuilt about daily, so this is `latest` by its index
-  # digest, c47b1779bfd1…, read from Docker Hub's API on 2026-10-24: pushed
-  # 2026-10-24 02:01 UTC, built 2026-10-23 17:13 UTC, with linux/amd64 and
-  # linux/arm64 in it. Inside: Wolfi's `minio` 0.20260922.192518 (the fork's
-  # RELEASE.2026-09-22T19-25-18Z), `mc` 0.20250813.083541, and bash as
-  # /bin/sh (its apk database). The weekly pin watch (idp-pin-watch.mjs) says
-  # when `latest` has moved on; a move is a pull request with the scan read
-  # and E2E (managed) on its branch. Trigger.dev's own digest of 2026-09-28
-  # still resolved on 2026-10-24, so an old digest stays pullable for weeks at
-  # least; if the free image goes, build the fork's tag here (0119).
+  # nothing else, rebuilt about daily, so this is `latest` by an index digest
+  # read from Docker Hub's API and registry on 2026-10-24: d88920d6a50b…,
+  # built 2026-10-22 09:59 UTC and pushed as `latest` at 11:25 UTC that day,
+  # with linux/amd64 and linux/arm64 in it. Not the newest `latest`
+  # (c47b1779bfd1…, pushed 2026-10-24 02:01 UTC), on purpose: this is the
+  # build Trivy read 0 critical / 0 high on 2026-10-23, when it was `latest`,
+  # and it is three days old on 2026-10-25 at 11:25 UTC, as a release this
+  # repository takes should be (CONTRIBUTING.md). The two differ only in
+  # brotli's libraries, 1.2.1-r0 here and -r1 there (their apk databases).
+  # Inside: Wolfi's `minio` 0.20260922.192518-r5 (the fork's
+  # RELEASE.2026-09-22T19-25-18Z), `mc` 0.20250813.083541-r27, and bash as
+  # /bin/sh. The weekly pin watch (idp-pin-watch.mjs) says when `latest` has
+  # moved on; a move is a pull request with the new digest's scan read and
+  # E2E (managed) on its branch. Trigger.dev's own digest from its move of
+  # 2026-09-28 still resolved on 2026-10-24, so an old digest stays pullable
+  # for weeks at least; if the free image goes, build the fork's tag here
+  # (0119 §3 item 5).
   #
   # NOT A TAG SWAP. Each difference was read off the image itself (its config
   # and last layer, both architectures) and Chainguard's locked config
@@ -653,7 +660,7 @@ services:
   #     minio-init below makes `packets`.
   # `scripts/an-object-store-with-a-maintainer.unit.test.ts` holds all of it.
   minio:
-    image: chainguard/minio:latest@sha256:c47b1779bfd12cdf5a4fcd3bd50671b8d66465fdae45271babc2fb467958b712
+    image: chainguard/minio:latest@sha256:d88920d6a50bd0b088223b688be3b76c63e6205dbe494437f67ba1240ea12880
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio
     restart: unless-stopped
     logging: *logging
@@ -725,7 +732,7 @@ services:
   # (getDependencyCondition, pkg/compose/start.go, v2.20.0 to v5.6.1). The
   # bring-up names it beside `minio` all the same, so a failure prints its log.
   minio-init:
-    image: chainguard/minio:latest@sha256:c47b1779bfd12cdf5a4fcd3bd50671b8d66465fdae45271babc2fb467958b712
+    image: chainguard/minio:latest@sha256:d88920d6a50bd0b088223b688be3b76c63e6205dbe494437f67ba1240ea12880
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio-init
     restart: "no"
     logging: *logging

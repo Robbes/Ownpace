@@ -1705,8 +1705,9 @@ upstream's `mc ready` health check; a one-shot, `minio-init`, from the same pinn
 `packets` with `mc mb --ignore-existing` once the store is healthy, and `trigger-api` waits for it
 to exit 0. 0119 §3 item 5 has what each choice was read from. What remains, in order:
 
-1. **E2E (managed) on the branch**, on the OTA stack, after Trigger.dev v4.7.6 (#1689) merges. It
-   is the first time anything pulls or runs the image. Its bring-up recreates `minio` on the new,
+1. **E2E (managed) on the branch**, on the OTA stack, after Trigger.dev v4.7.6 (#1689) merges and
+   not before 2026-10-25 11:25 UTC, when the pinned build is three days old. It is the first time
+   anything pulls or runs the image. Its bring-up recreates `minio` on the new,
    empty volume and runs `minio-init`; the smoke asserts the store from the API container.
 2. **The merge**, before alpha.2's changelog fold (2026-10-25 23:30 UTC) if the run is green;
    otherwise with the first release after the launch.

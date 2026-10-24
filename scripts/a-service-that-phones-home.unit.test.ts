@@ -502,12 +502,13 @@ const ZITADEL = 'ghcr.io/zitadel/zitadel:v4.19.5';
 const CLICKHOUSE =
   'clickhouse/clickhouse-server:26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd';
 /**
- * Chainguard's MinIO (0146 T7): `latest` by its index digest, read on
- * 2026-10-24. Its server is the fork's `RELEASE.2026-09-22T19-25-18Z`, read at
- * that tag of `chainguard-forks/minio`; its mc is `RELEASE.2025-08-13T08-35-41Z`.
+ * Chainguard's MinIO (0146 T7): `latest` by the index digest it had from
+ * 2026-10-22 to 2026-10-23, read on 2026-10-24. Its server is the fork's
+ * `RELEASE.2026-09-22T19-25-18Z`, read at that tag of `chainguard-forks/minio`;
+ * its mc is `RELEASE.2025-08-13T08-35-41Z`.
  */
 const MINIO =
-  'chainguard/minio:latest@sha256:c47b1779bfd12cdf5a4fcd3bd50671b8d66465fdae45271babc2fb467958b712';
+  'chainguard/minio:latest@sha256:d88920d6a50bd0b088223b688be3b76c63e6205dbe494437f67ba1240ea12880';
 const MAILPIT =
   'axllent/mailpit:v1.31.6@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387';
 const NEXTCLOUD = 'nextcloud:34-apache';
