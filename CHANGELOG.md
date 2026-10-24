@@ -7,7 +7,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 ### Changed
 
 - **Trigger.dev's object store runs Chainguard's maintained MinIO, and starts
-  empty** (workplan 0146 T7, the owner's answer of 2026-10-23): the frozen
+  empty** (workplan 0146 T7, the owner's answer of 2026-10-23, #1692): the frozen
   `bitnamilegacy/minio` image, with 26 critical and 259 high findings no fix
   would ever reach, is replaced by `chainguard/minio`, the same server from a
   maintained fork, pinned by digest. Its data moves to a new volume,
