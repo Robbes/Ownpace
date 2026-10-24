@@ -7,11 +7,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 ### Changed
 
 - **The release preflight lists the open critical and high code-scanning
-  alerts by image** (workplan 0146, #1683): every page of them, as one line
-  per tool and category with its counts and its most alerted CVEs, where it
-  printed one count of the first page. Still reported, never refused: the
-  pull request's Trivy check blocks new findings, and the advisory gate
-  refuses a tag. The triage of 2026-10-23 is in 0146's Status.
+  alerts by tool and category** (workplan 0146, #1683): every page of them,
+  the repository's filesystem scan and each scanned image apart, with their
+  counts and their most alerted CVEs, where it printed one count of the first
+  page. Still reported, never refused: the pull request's Trivy check blocks
+  new findings, and the advisory gate refuses a tag. The triage of 2026-10-23
+  is in 0146's Status.
 - **The identity provider is Zitadel v4.19.5, which carries three security
   fixes** (workplan 0135 T7, #1651): device authorizations need the user's
   consent, login v2 signs its proofs with a server secret, and an invalid
@@ -76,7 +77,6 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   they were found; where a reason or a measurement is still English, the
   Dutch report says so. Without `lang`, or with any other value, it is
   English.
-
 - **The identity provider's mails, in Ownpace's words, in Dutch and English**
   (workplan 0135 T6): the sign-up, address-change and password-reset mails
   (#1604), and the notice that a password was changed and the link to add a
@@ -115,15 +115,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   kept the word until #1639). Two items, the tiles on a phone and
   the legal texts' wording, were asked again.
 - **The sentences a tester meets, in a tester's words rather than a
-  developer's, in English and Dutch** (workplan 0144, the owner's scan of
-  2026-10-14, #1591, #1592, #1595, #1598, #1605), with any technical detail in
-  the server log:
-  - the Connect buttons say *sign-in page* and *give Ownpace access*, not
-    *consent screen* or *refresh token*, and the grant page says each Google
-    permission in words, with the exact scope in a closed *Technical
-    details*;
+  developer's, in English and Dutch** (workplans 0144, 0148 and 0143, the
+  owner's scan of 2026-10-14, #1591, #1592, #1595, #1598, #1605), with any
+  technical detail in a closed *Technical details* or a log:
+  - the hint beside each Connect button says *sign-in page* and *give Ownpace
+    access*, not *consent screen* or *refresh token*, and the grant page says
+    each Google permission in words, with the exact scope in a closed
+    *Technical details*;
   - a service that cannot be reached is said in the reader's language, never
-    as the browser's *Network Error*;
+    as *Network Error*;
   - a missing credential for Box, Dropbox, Google or Gmail names the field as
     the Accounts form does, and says to fix it there;
   - a Connect with Google, Dropbox or Microsoft that fails at the end, and a
@@ -134,25 +134,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
     managed, the OneDrive and SharePoint line no longer points to a setting
     or a document a tester cannot reach.
 - **The *What migrates, and what does not* panel is in plain words, in Dutch
-  too, and tells each source only what it carries** (workplan 0013, #1596,
-  #1602): no architecture words on *Start a migration* and *Review and
-  start*; a Dropbox, Box or Takeout export is no longer told its mail moves;
-  Microsoft To Do is listed under *Migrates* and Apple's task lists under
-  *Partial*; and Google Photos, mail with no Message-ID and Microsoft's
-  permissions promise only what the code does.
-- **The warning before deletions are switched on says what each data type's
-  check does** (workplan 0144 T4 and 0149 T6, #1607): a file, calendar entry
-  or contact someone changed in the new system since Ownpace wrote it is not
-  removed, nor when that cannot be checked; mail is not checked for changes.
-  The guidance the API and the appliance return with a deletion says the
-  same.
+  too** (workplan 0013, #1596): no architecture words on *Start a migration*
+  and *Review and start*, and Google Photos, mail with no Message-ID and
+  Microsoft's permissions promise only what the code does.
 - **A share the new system refused is said in Ownpace's words, in English and
-  Dutch** (workplan 0136 T3, #1606): on one decision, on all of them at once
-  or on a folder, a managed tester reads which case it was (the sign-in
-  refused, no such person or item, a 403, nothing answered, a certificate,
-  and more) with a reference, and the target's own reply goes only to the
-  server log under that reference. The appliance still shows the target's
-  words.
+  Dutch** (workplan 0136 T3, #1606): on one decision or a folder press, a
+  managed tester reads which case it was (the sign-in refused, no such person
+  or item, a 403, nothing answered, a certificate, and more) with a
+  reference, and the target's own reply goes only to the server log under
+  that reference; the API's apply-all answers the same. The appliance still
+  shows the target's words.
 - **An organisation may run six migrations at once by default, as the terms
   and the site's prices say** (workplan 0143, #1598), where it was five; the
   refusal past six is in the reader's language and says to contact us for
@@ -218,13 +209,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   0152 T8 (c), #1599): its footer carries privacy §1's own sentence, with the
   Chamber of Commerce and VAT numbers, read from the privacy text in the
   page's language.
-- **A refusal links the guide that explains it, and a guide keeps its tables
-  and quotes** (workplan 0148 T6 (b) and T7, #1584, #1585): a refused start
-  or account test, and the *What migrates* panel, show *Guide: …* /
-  *Handleiding: …*, which opens the guide at its section, where a refusal
-  used to name a `docs/` file a tester cannot open; and the guides draw their
-  tables, which scroll inside their own box on a phone, their quotes and the
-  lines and lists inside a list item.
+- **A refusal links the guide that explains it** (workplan 0148 T6 (b) and
+  T7, #1584, #1585): a refused start or account test, and the *What
+  migrates* panel, show *Guide: …* / *Handleiding: …*, which opens the guide
+  at its section, where a refusal used to name a `docs/` file a tester cannot
+  open. The guide page can now draw tables, which scroll inside their own box
+  on a phone, quotes and the lines and lists inside a list item, which no
+  guide uses yet; the CalDAV, CardDAV and WebDAV guide's italics no longer
+  show their asterisks.
 - **Money owed back reaches the operator** (workplan 0111, managed migration
   0055, #1576): a credit note paid other than through Mollie, a refund Mollie
   ended failed or canceled, or one still going after a week sends one mail to
@@ -278,6 +270,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   #1610): a migration from the IMAP card is told about its mail, and no
   longer about calendars, contacts, files or tasks. An Apple account keeps
   every row it had.
+- **The *What migrates* panel tells each source only what it carries**
+  (workplan 0013, #1602): a Dropbox, Box or Takeout export is no longer told
+  its mail moves; Microsoft To Do is listed under *Migrates* and Apple's task
+  lists under *Partial*.
+- **The warning before deletions are switched on says what each data type's
+  check does** (workplan 0144 T4 and 0149 T6, #1607), where it promised that
+  every removal spared a copy someone had since edited: a file, calendar
+  entry or contact someone changed in the new system since Ownpace wrote it
+  is not removed, nor when that cannot be checked; mail is not checked for
+  changes. The guidance the API and the appliance return with a deletion
+  says the same.
 - **Sharing says which shares a folder press could not make, and why**
   (workplan 0136 T3, #1645), in Dutch where the server gave Dutch and in
   English otherwise, under the folder and in each row's card.
@@ -345,11 +348,11 @@ switched on is in `docs/ending-the-alpha.md`.
 
 - **After cutover the new system is left alone** (the owner's decisions of
   2026-10-05, #1566): nothing there is removed or overwritten because of what
-  happens at the old system any more. A manual *Apply* of a deletion or a move is
-  refused, the button is gone for those data types (a rollback brings it back),
-  relocations are no longer auto-applied, a pass running across the cutover
-  concludes nothing about deletions, and changes at the old system no longer
-  overwrite the copies; new items still arrive.
+  happens at the old system any more. A manual *Apply* of a deletion or a
+  move is refused, the button is gone for those data types (a rollback
+  brings it back), relocations are no longer auto-applied, a pass running
+  across the cutover concludes nothing about deletions, and changes at the
+  old system no longer overwrite the copies; new items still arrive.
 - `ci-complete` fails when a gate that should have run never did, whatever
   GitHub calls it (#1536).
 - The exposure check tells the development stack's compose project from the
