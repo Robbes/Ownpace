@@ -71,7 +71,12 @@ one line per check, `pass` or `refuse`, every reason at once):
   reviewer, the open critical and high code-scanning alerts on `main` (the
   pull request's `Trivy` check blocks new ones, and the advisory gate is what
   refuses), the commits on `main` after C, what the release before is
-  missing, and what it does not check.
+  missing, and what it does not check. The alerts are read whole, every page,
+  and printed as a total and then one `note code-scanning` line per tool and
+  category: the repository's filesystem scan, and each image of the weekly
+  image scan (`trivy-image-<name>`, which names the image), with the
+  category's counts and its five most alerted rule ids, critical first. That
+  is where to start a triage before the fold.
 
 **You do these:**
 
@@ -257,8 +262,8 @@ attached `bom.json` is the build's SBOM, and a note on that failed scan that
 says `bom.json` is missing, pasted in by the owner by hand: a session does not
 edit releases (the owner's answer of 2026-10-23). Leaving that sentence out
 does not change what verify says about the body: it finds the block by its
-`cosign verify` line and checks the changelog link. Until the paste, verify
-refuses the body as well.
+`cosign verify` line and checks the changelog link. The owner pasted it on
+2026-10-23; since then verify refuses only the missing `bom.json`.
 `v0.1.0-rc.1` refuses: no generated body and no Windows zip.
 
 ## 4. After

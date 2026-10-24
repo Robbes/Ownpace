@@ -11,12 +11,26 @@ export declare const JOB_FIELDS: string[];
 export declare const STEP_FIELDS: string[];
 export declare const RELEASE_FIELDS: string[];
 export declare const ASSET_FIELDS: string[];
+export declare const ALERT_FIELDS: string[];
+export declare const ALERT_RULE_FIELDS: string[];
+export declare const ALERT_TOOL_FIELDS: string[];
+export declare const ALERT_INSTANCE_FIELDS: string[];
 /** Keys that never belong in anything recorded from the API. */
 export declare const NEVER_RECORDED: string[];
+
+/** A code-scanning alert as the whitelist keeps it. */
+export interface Alert {
+  number?: number;
+  state?: string;
+  rule?: { id?: string; severity?: string; security_severity_level?: string };
+  tool?: { name?: string };
+  most_recent_instance?: { ref?: string; category?: string };
+}
 
 export declare function slimRun(run: unknown): Record<string, unknown>;
 export declare function slimJob(job: unknown): Record<string, unknown>;
 export declare function slimRelease(release: unknown): Record<string, unknown>;
+export declare function slimAlert(alert: unknown): Alert;
 
 /** One check's answer. */
 export interface Line {
@@ -54,6 +68,8 @@ export declare function github(options?: {
   sleep?: (ms: number) => Promise<unknown>;
   tries?: number;
 }): Client & { url(path: string): string };
+
+export declare function getAll(client: Pick<Client, 'get'>, path: string, options?: { perPage?: number; maxPages?: number }): Promise<unknown[]>;
 
 export declare function runUrl(id: number | string, repository?: string, server?: string): string;
 export declare function short(sha: string): string;

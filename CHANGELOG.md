@@ -6,6 +6,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The release preflight lists the open critical and high code-scanning
+  alerts by image** (workplan 0146, #1683): every page of them, as one line
+  per tool and category with its counts and its most alerted CVEs, where it
+  printed one count of the first page. Still reported, never refused: the
+  pull request's Trivy check blocks new findings, and the advisory gate
+  refuses a tag. The triage of 2026-10-23 is in 0146's Status.
 - **The identity provider is Zitadel v4.19.5, which carries three security
   fixes** (workplan 0135 T7, #1651): device authorizations need the user's
   consent, login v2 signs its proofs with a server secret, and an invalid
@@ -107,15 +113,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 ### Added
 
 - **A release is cut by the Release workflow, and published in an order that
-  holds** (`.github/workflows/release.yml`, `docs/release.md`, workplan 0146):
-  dispatched from `main`, it reads the record (the changelog folded, CI and the
-  scan green on the commit, two scheduled nights green on it as workplan 0141
-  T14 defines them, both migration chains' upgrade tests from the release
-  before), waits for the owner's approval, scans the exact commit, cuts the
-  annotated tag itself, and only then publishes: Security Scan on the tag
-  first, the images and the Windows zip after it, then checks what was
-  published. A hand-pushed tag still works, as the break-glass path. It exists
-  because `v0.2.0-alpha.1` shipped on a red scan: see that release's section.
+  holds** (`.github/workflows/release.yml`, `docs/release.md`, workplan 0146,
+  #1682): dispatched from `main`, it reads the record (the changelog folded, CI
+  and the scan green on the commit, two scheduled nights green on it as
+  workplan 0141 T14 defines them, both migration chains' upgrade tests from the
+  release before, the managed chain's new in #1681), waits for the owner's
+  approval, scans the exact commit, cuts the annotated tag itself, and only
+  then publishes: Security Scan on the tag first, the images and the Windows
+  zip after it, then checks what was published. A hand-pushed tag still
+  works, as the break-glass path. It exists because `v0.2.0-alpha.1` shipped
+  on a red scan: see that release's section.
 - **A weekly scan of every image the stacks run** (workplan 0146 T8, #1674):
   Trivy, report only. Findings go to code scanning, and an image whose
   operating system is past its end of life gets an issue of its own. The first
@@ -146,6 +153,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **body-parser 2.4.0 closes a denial of service through compressed request
+  bodies** (GHSA-27r3-jxmh-p828, CVE-2026-111181, high): trailing bytes after
+  a compressed body could tie up the API, which inflates JSON bodies by
+  default, before anyone signs in. The API takes 2.4.0 through express. It
+  was published on 2026-10-22, inside the three-day cooldown, so the
+  lockfile's policy names it as the deliberate exception that list is for.
 - **The visit count gives GoAccess nginx's own time, never a visitor's text**
   (workplan 0152, #1676): the time is read only from the end of a log line's
   first piece, in nginx's own shape, and the user field is never handed on,
@@ -260,21 +273,21 @@ source and target by target, is in the [feature matrix](docs/feature-matrix.md).
 Grouped by what an operator would notice, not by workplan; the workplan status
 blocks in `docs/workplans/` remain the detailed record.
 
-**Its release page has no generated body (the standard text is pasted by hand)
-and no `bom.json`** (recorded 2026-10-23, workplan 0146). The tag's Security
-Scan, run 37523297841 on 2026-10-06, failed at its advisory gate, though the
-same commit's scan on `main` had been green about nineteen hours before:
-seroval (critical, GHSA-p6vx-979v-rg4c; high, GHSA-jp82-f5mq-hwhp), proxy-addr
-(critical, GHSA-jqcg-44mw-7w3h) and source-map-js (high, development only,
-GHSA-68fv-2mgg-jv7q). The steps after it, the SBOM, the release body and the
-SBOM's attachment, did not run. The images had already been pushed and signed,
-and the Windows zip was attached to a release `windows-payload.yml` created
-without a body. The standard release text, without its sentence about an
-attached `bom.json`, and a note on this failed scan, which says the `bom.json`
-is missing, are added to the release page by hand. The `bom.json` stays
-missing: nothing regenerates it, and a re-run of that scan would fail the same
-way on the tag's lockfile. The Release workflow's `mode=verify` refuses the
-tag for it.
+**Its release page has no generated body (the standard text was pasted by hand
+on 2026-10-23) and no `bom.json`** (recorded 2026-10-23, workplan 0146). The
+tag's Security Scan, run 37523297841 on 2026-10-06, failed at its advisory
+gate, though the same commit's scan on `main` had been green about nineteen
+hours before: seroval (critical, GHSA-p6vx-979v-rg4c; high,
+GHSA-jp82-f5mq-hwhp), proxy-addr (critical, GHSA-jqcg-44mw-7w3h) and
+source-map-js (high, development only, GHSA-68fv-2mgg-jv7q). The steps after
+it, the SBOM, the release body and the SBOM's attachment, did not run. The
+images had already been pushed and signed, and the Windows zip was attached to
+a release `windows-payload.yml` created without a body. The standard release
+text, without its sentence about an attached `bom.json`, and a note on this
+failed scan, which says the `bom.json` is missing, were added to the release
+page by hand on 2026-10-23. The `bom.json` stays missing: nothing regenerates
+it, and a re-run of that scan would fail the same way on the tag's lockfile.
+The Release workflow's `mode=verify` refuses the tag for it.
 
 ### Added
 

@@ -2,7 +2,23 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-10-22 (update this block at the end of every session)
+## Status — 2026-10-23 (update this block at the end of every session)
+
+**2026-10-23: the object store re-read for 0146 T7, docs only.** Read for it: Trigger.dev
+v4.7.6 at its tag (`166db1ca`), the webapp's object-store client, its packet, session and
+run-retrieve routes, the SDK's packet offload and `runs.retrieve`, and both of upstream's
+compose files; Docker Hub's API for every candidate's tags; each candidate's source at its
+newest tag (MinIO's last release and its README history, the Chainguard fork of MinIO, Wolfi's
+package of it and Chainguard's locked image config, versitygw, Garage, SeaweedFS, RustFS); five
+Trivy 0.76.0 scans on linux/arm64; and what in `scripts/`, `deploy/compose` and the docs pins
+MinIO today. One fact changed since 2026-09-06: Docker Hub no longer serves `minio/minio` and
+`minio/mc` (Trigger.dev's CI moved off them on 2026-09-12). Two were missed on 2026-09-06.
+MinIO's README has said *"Maintenance Mode"* since 2025-12-03 and *"THIS REPOSITORY IS NO
+LONGER MAINTAINED"* since 2026-02-12. And Chainguard's maintained MinIO has been free on Docker
+Hub as `chainguard/minio` since 2025-10-24, with fork releases since 2026-03-04; Trivy scans it
+clean, and it carries `mc` and bash, so `rotate-db-passwords.sh`'s checks run in it
+unchanged. §3 item 5 has the read and a recommendation. The question stays the owner's (T3, 0146 T7). Nothing in
+`managed.yml`, the scripts or the guards changed.
 
 **2026-10-22: the floating tags' pull request opened as a draft**, #1678 (head `b900ccf3`, with
 `main` merged in): postgres, redis, caddy, nextcloud and nginx by exact tag and digest. Its
@@ -308,19 +324,204 @@ is beside each; none is urgent tonight.
    through it, the smoke runs a task pulled from it).
 5. **The object store.** `bitnamilegacy/minio` was pinned by digest after `latest` stopped
    moving (`managed-bring-up.md`); tonight's check shows the other free image,
-   `minio/minio`, stopped too, at RELEASE.2025-09-07. There is no maintained free MinIO
-   image to move to. The pin is safe as long as it is honest about what it is: frozen
-   software with no fixes coming. The decision is whether Trigger.dev's object store should
-   be something else (an S3-compatible store that is still published), and that is a design
-   choice with a migration behind it, not a version bump. **A candidate, 2026-09-06.**
-   Upstream's own compose floats on the same frozen bitnamilegacy image. Suggested:
-   **versitygw** (Apache-2.0, `versity/versitygw:v1.8.0`, released monthly, a single binary
-   whose bucket is a directory of files on the volume, keys from the environment like
-   MinIO's, arm64 published) as the drop-in; **Garage** (AGPLv3, `dxflrs/garage:v2.3.0`)
-   if a store with its own integrity model is wanted, at the price of a layout and key
-   ceremony at bring-up; SeaweedFS is heavier than this needs; RustFS is still a release
-   candidate. The swap belongs in the same drain window as the Trigger.dev upgrade: the
+   `minio/minio`, stopped too, at RELEASE.2025-09-07 (and since 2026-09-12 Docker Hub no
+   longer serves it). That check, and the candidate below, found no maintained free MinIO
+   image to move to. Both missed one: Chainguard's, free on Docker Hub since 2025-10-24 (the
+   re-read below). The pin is safe as long as it is honest about what it is: frozen software
+   with no fixes coming. The decision is whether Trigger.dev's object
+   store should be something else (an S3-compatible store that is still published), and
+   that is a design choice with a migration behind it, not a version bump. **A candidate,
+   2026-09-06.** Upstream's own compose floats on the same frozen bitnamilegacy image.
+   Suggested: **versitygw** (Apache-2.0, `versity/versitygw:v1.8.0`, v1.10.0 by 2026-10-23,
+   released monthly, a single binary whose bucket is a directory of files on the volume,
+   keys from the environment like MinIO's, arm64 published) as the drop-in; **Garage**
+   (AGPLv3, `dxflrs/garage:v2.3.0`, v2.4.1 by 2026-10-23) if a store with its own integrity
+   model is wanted, at the price of a layout and key ceremony at bring-up; SeaweedFS is
+   heavier than this needs; RustFS was still a release candidate (1.0.0 came on
+   2026-09-16). The swap belongs in the same drain window as the Trigger.dev upgrade: the
    bucket holds large run payloads, so copy it over or start empty. The owner's call.
+
+   **Re-read 2026-10-23, for 0146 T7. Docs only: nothing in `managed.yml` moved.**
+
+   *What runs.* `bitnamilegacy/minio:2025.5.24-debian-12-r5` by digest `451fe685…`, built
+   2025-06-06 and pushed 2025-07-03. Docker Hub labels the repository *"Legacy Bitnami images
+   (no longer updated)"*. Its last push was 2025-08-19, and its newest tag,
+   `2025.7.23-debian-12-r5`, is just as frozen. Security Scan #4726 (its *Image scan report*
+   job, linux/arm64) counts 26 critical and 259 high findings, 206 of them fixed in a newer
+   package. The split by what carries them comes from a local Trivy 0.76.0 read of the same
+   digest, whose totals match CI's:
+   - Debian 12.11: 17 critical and 140 high, 84 of them fixable, OpenSSL and Perl most of all;
+   - the `mc` client: 2 critical and 50 high, built with Go 1.23.10;
+   - the `minio` server: 7 critical and 69 high, built with Go 1.24.2.
+
+   Seven of the server's findings are MinIO's own, and only CVE-2025-62506 has a fixed version.
+   The two criticals with no fix are CVE-2026-33322, *"JWT Algorithm Confusion in OIDC
+   Authentication"*, and CVE-2026-33419, *"LDAP login brute-force via user enumeration and
+   missing rate limit"*. This service sets neither OIDC nor LDAP: its environment holds the root
+   pair, the bucket and the two phone-home switches. By their titles, two highs need nothing
+   this stack lacks: CVE-2026-40344 and CVE-2026-41145, an *"Unauthenticated Object Write"* in
+   unsigned-trailer uploads. They are open to anything that reaches `minio:9000`. The service
+   publishes no port, and it sits on the compose network with the API and the tasks.
+
+   *What Trigger.dev v4.7.6 asks of it.* Read at the tag:
+   `apps/webapp/app/v3/objectStoreClient.server.ts`, `objectStore.server.ts`, the packet routes
+   and `packages/core/src/v3/utils/ioSerialization.ts`. `managed.yml` sets an access key and a
+   secret, so the webapp signs with `aws4fetch` 1.0.18 and not the AWS SDK. That means:
+   - **Path-style addressing** on `OBJECT_STORE_BASE_URL`. The bucket is the key's first
+     segment: `packets/<project ref>/<environment>/<file>`. `OBJECT_STORE_BUCKET` is unset, and
+     only IAM mode reads it.
+   - **SigV4 in a header**, with `X-Amz-Content-Sha256: UNSIGNED-PAYLOAD` and the service `s3`.
+     The region is `us-east-1`, `aws4fetch`'s default, since `OBJECT_STORE_REGION` is unset. A
+     store that checks the region must expect that one.
+   - **Presigned URLs** for `PUT` and `GET`, valid for five minutes, with SigV4 in the query,
+     only `host` signed and the payload unsigned. The task processes use them directly: they
+     upload a payload or output of 128 KB or more (`OFFLOAD_IO_PACKET_LENGTH_LIMIT`) and fetch
+     stored ones. So the task containers must reach the store at the same `minio:9000`.
+   - **One `PUT` per object**, with a string body and a `Content-Type` that `GET` gives back.
+     For chat sessions' transcripts, and only for them, `GET` takes `Range` (a span or a
+     suffix) and `If-Match` (a mismatch must answer 412) and returns `Content-Range` and
+     `ETag` (`services/realtime/transcriptPage.server.ts`), and the dashboard's transcript
+     download asks `HEAD`, which answers 404 for a missing key. No task here is a chat agent
+     (nothing in `apps/` or `packages/` imports `@trigger.dev/sdk/ai`), so a run's packets need
+     a plain `PUT` and `GET`.
+   - **Nothing else:** no multipart upload, no `x-amz-checksum-*` header, no `DeleteObject`, no
+     listing and no bucket call. So `packets` must exist before the first write.
+
+   Deployment artifacts would use a store of their own (`ARTIFACTS_OBJECT_STORE_*`), and
+   `managed.yml` sets none. Upstream's two compose files at v4.7.6 run different images:
+   - its self-hosting compose (`hosting/docker/webapp/docker-compose.yml`) still runs
+     `bitnamilegacy/minio:${MINIO_IMAGE_TAG:-latest}`, with `MINIO_DEFAULT_BUCKETS: packets`,
+     its two ports published on loopback, and a `curl` health check;
+   - its development compose (`docker/docker-compose.yml`) runs `chainguard/minio:latest` by
+     digest with `command: server /data --console-address ":9001"`, health-checks it with
+     `mc ready local` inside that container, and makes `packets` with a
+     `chainguard/minio-client` service that runs `mc mb --ignore-existing local/packets`. It
+     moved there on 2026-09-28 (Trigger.dev #4985), from Quay's MinIO images, which it had
+     taken on 2026-09-12 because Docker Hub no longer served `minio/minio`.
+
+   *The candidates*, read on 2026-10-23. Tags come from Docker Hub's API, and sources were read
+   at the tag named. The scans are Trivy 0.76.0, linux/arm64, high and critical only, run
+   between 10:13 and 10:15 UTC. They cover Docker Hub images only, and there are five of them
+   because of the registry's pull limit.
+
+   | Store | Maintained | Newest (date) | arm64 image | Licence | Fits the list above | Weight | Trivy: critical / high / fixable |
+   |---|---|---|---|---|---|---|---|
+   | `bitnamilegacy/minio` | no: *"no longer updated"* | `2025.7.23-debian-12-r5` (2025-08-19) | yes | AGPLv3 server | yes: it is today's | today's | not scanned; ours, 2025.5.24: 26 / 259 / 206 |
+   | MinIO's own, `minio/minio` | no: its README has opened *"Maintenance Mode"* since 2025-12-03 and *"THIS REPOSITORY IS NO LONGER MAINTAINED"* since its last commit, on 2026-02-12, and it has been source only since its last release | `RELEASE.2025-10-15T17-29-55Z` (2025-10-15) | none: `minio/minio` and `minio/mc` are gone from Docker Hub, and the `minio` organisation lists neither | AGPLv3 | yes | — | nothing to scan |
+   | MinIO built here from a tag | as maintained as the tag it builds: upstream's last tag fixes only CVE-2025-62506 of the seven; the fork's tag (next row) fixes more | — | ours to build | AGPLv3 | yes | an image this repository builds, scans and moves itself, for both architectures | not built |
+   | Chainguard's MinIO, `chainguard/minio` | yes. Its source, `chainguard-forks/minio`, calls itself *"a supported replacement of the original minio repository"* and promises best-effort CVE fixes. It has been free on Docker Hub since 2025-10-24, and the fork has eleven release tags in 2026, the first on 2026-03-04. Its fixes include CVE-2026-33322, -34204, -40344, -41145 and -42600, plus an LDAP rate limit and an S3 Select CSV bound that match the titles of CVE-2026-33419 and -39414 (not checked against those advisories) | fork tag `RELEASE.2026-09-22T19-25-18Z`; image `latest` built 2026-10-22 (Wolfi's `minio` package `0.20260922.192518`, epoch 4, Go 1.27) | yes | AGPLv3 server. The free tags are `latest` and `latest-dev`, and older tags need a subscription. Whether an old digest stays pullable was not checked | yes: the same server | today's server, with `mc` and bash (as `/bin/sh`) inside, but no `MINIO_DEFAULT_BUCKETS`. Its entrypoint is `/usr/bin/minio`, so it needs `command: server /data`, with the data at `/data`, and it runs as uid 65532 (bitnami's is 1001). Chainguard's locked image config (`chainguard-images/images`, `images/minio/locked_config.json`) lists `bash`, `bash-binsh`, `coreutils`, `mc` and `minio` with their libraries | 0 / 0 / 0. Trivy reads the server as Wolfi's `minio` package, against Wolfi's advisories, not as a Go binary |
+   | versitygw, `versity/versitygw` | yes, about monthly: v1.8.0 (2026-09-04), v1.9.0 (2026-10-13), v1.10.0 | v1.10.0 (2026-10-22) | yes | Apache-2.0 | yes, read in source: path style, SigV4 in a header and in the query, the unsigned payload, `Range` and `If-Match`. It checks the region against `VGW_REGION`, whose default is `us-east-1` | one Go binary on Alpine 3.24, run as root unless told otherwise. Keys come from `ROOT_ACCESS_KEY` and `ROOT_SECRET_KEY`, and it listens on port 7070 by default. A bucket is a directory, with metadata in extended attributes or a sidecar directory | 0 / 0 / 0, its Go binary read too |
+   | Garage, `dxflrs/garage` | yes: v2.4.0 (2026-09-06), v2.4.1 (2026-09-08); v1.3.1 for the 1.x line | v2.4.1 (2026-09-08) | yes | AGPLv3 | yes, read in source. The region must match `s3_region`, so set it to `us-east-1` | a `FROM scratch` image with one binary and no shell, and a `garage.toml` with an RPC secret. At first start: a layout assign and apply, then `key import`, `bucket create` and `bucket allow`, each through `docker compose exec`. `key import` needs an id of 8 characters or more, so `admin` is refused | 0 / 0 / 0, but Trivy found nothing it could read: no OS, and no package list in the Rust binary. So it says nothing |
+   | SeaweedFS, `chrislusf/seaweedfs` | yes, about weekly: 4.44 (2026-08-22) to 4.48 (2026-09-28). Git tag 4.49 is from 2026-10-23, with no standard or arm64 4.49 image yet (only an amd64 `4.49_large_disk_foundationdb`, pushed at 07:31 UTC) | 4.48 image (2026-09-28) | yes | Apache-2.0 | yes, read in source: conditional reads, presigned SigV4, keys from `AWS_ACCESS_KEY_ID` | master, volume, filer and S3 gateway in one `weed server -s3`; 502 MB unpacked on arm64 | 0 / 5 / 5: Go 1.26.8's standard library and `x/net` |
+   | RustFS, `rustfs/rustfs` | yes, but young: 1.0.0 on 2026-09-16, then 1.0.1, 1.0.2 and 1.0.3 by 2026-10-17. Its security policy supports the latest release only | 1.0.3 (2026-10-17) | yes | Apache-2.0 | MinIO-like by design. Not read here beyond its keys (`RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY`) and its `/data` | one binary on Alpine 3.24 | 0 / 0 / 0 for Alpine only. The Rust binary is not read |
+
+   *What moving costs.*
+   - **What `packets` holds, and for how long.** It holds four kinds of run packet:
+     - a payload of 512 KB or more when a run is triggered (`TASK_PAYLOAD_OFFLOAD_THRESHOLD` is
+       unset here, so its default holds);
+     - a batch item's payload;
+     - a waitpoint's completion;
+     - what a task process offloads itself: a payload or output of 128 KB or more.
+
+     Chat sessions' snapshots and transcripts go there too
+     (`api.v1.sessions.$sessionId.snapshot-url.ts` and `transcript.ts`), and no task here
+     writes them.
+
+     Nothing in Trigger.dev v4.7.6 deletes a packet. Its client has no delete call, and no
+     lifecycle rule is set, so the bucket only grows. A packet is needed while something can
+     still read it: its run starting, a retry, or a parent waiting on it. When a
+     `triggerAndWait` resumes, the parent reads the output: `run-cutover.ts` reads the final
+     sync's output that way. After that, the packet is history. It is read by the dashboard, a
+     replay, and `runs.retrieve`. For a stored payload or output, the server only presigns a
+     `GET` and never checks that the object is there (`ApiRetrieveRunPresenter.server.ts`).
+     The SDK then fetches it, and when the fetch fails it gives `payload` or `output` as
+     undefined and does not throw (`resolvePresignedPacketUrl` in `ioSerialization.ts`, called
+     from `retrieveRun` in `packages/trigger-sdk/src/v3/runs.ts`). Ours calls `runs.retrieve`
+     in `managed-purge-closed.ts`, only for runs the ledger still counts as live, and reads
+     only the run's status flags (`isExecuting`, `isQueued`, `isWaiting`, `isCompleted`,
+     `isFailed`, `isCancelled`), so an emptied bucket changes nothing there. So after a drain
+     the bucket can be thrown away, and what is lost is old runs'
+     large payloads and outputs, as `managed-bring-up.md` already says. How much it holds on
+     either stack was not measured. This prints its size and object count, and no secret:
+     `docker compose -f deploy/compose/managed.yml exec -T minio sh -c 'MC_HOST_l="http://${MINIO_ROOT_USER}:${MINIO_ROOT_PASSWORD}@127.0.0.1:9000" mc --config-dir /tmp/mc du l/packets'`.
+   - **The drain.** The hold waits for the passes in flight to finish, which is what the
+     bring-up's upgrade order asks: nothing `EXECUTING`. A run that is queued, delayed or
+     waiting can also own a stored payload. So a swap that starts empty also waits until
+     `TaskRun` has none of those, or it copies the bucket.
+   - **The copy**, when one is wanted. Use `mc mirror` (from `chainguard/minio-client` on the
+     compose network) or `rclone sync` between two S3 remotes, from `minio:9000` to the new
+     service, with `trigger-api` and the tasks stopped. Chainguard's MinIO has a shorter road:
+     it is the same server and should read its own on-disk format. Copy the volume, as
+     ClickHouse moved to `clickhouse_data_v2`, mount the copy at `/data`, and run the server as
+     bitnami's uid 1001. It should come up with `packets` and its objects in place. That was not
+     tried here, and it is the first thing the pull request that builds it proves on the OTA
+     stack.
+   - **The restore plan.** The old `minio_data` volume stays untouched beside the new one, and
+     rolling back means the old image line on it again. What the new store took in meanwhile is
+     lost on the way back, and that is again only large payloads and outputs.
+   - **Live needs no copy at the end of the Alpha.** `ending-the-alpha.md` step 3 removes
+     `ownpace-live_minio_data` anyway, with `triggerdb`, so no run refers to an old packet. A
+     replacement that live first runs in that window starts empty by design.
+   - **What pins MinIO today.** The pull request that builds the swap reads each of these
+     again. `grep -ril minio scripts deploy/compose docs/ending-the-alpha.md docs/managed-bring-up.md`
+     finds 28 files: the ones below, and others that name MinIO only in a comment or a test
+     fixture (`reset-trigger.sh`, `clickhouse-disable-system-logs.xml`,
+     `bootstrap-managed.unit.test.ts`, `an-image-nobody-scanned.unit.test.ts`,
+     `every-service-somebody-starts.unit.test.ts` and two release fixtures). Chainguard's MinIO
+     keeps the service name, the `MINIO_ROOT_*` keys, `sh` and `mc`, so with it most of these
+     stay as they are; another store changes all of them.
+     - `managed.yml` itself: the image line, `MINIO_DEFAULT_BUCKETS` and the volume's mount
+       path change. The service name `minio`, in `OBJECT_STORE_BASE_URL` and in
+       `bootstrap-managed.sh`'s `up_wait` lines, stays if the replacement keeps it.
+     - `a-service-that-phones-home.unit.test.ts`, which pins the bitnami reference as the place
+       where `MINIO_UPDATE` and `MINIO_CALLHOME_ENABLE` were read. Chainguard's fork still runs
+       the release check at start, gated the same way.
+     - `rotate-db-passwords.sh` and its test. They check MinIO's pair with `sh -c` and `mc`
+       inside the container. Chainguard's image has both, so those checks run unchanged in it.
+     - `shipped-passwords.sh`, `ensure-env-secrets.sh`, `stand-up-live.sh`,
+       `managed.env.example` (`MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD`),
+       `a-password-the-repository-knows.unit.test.ts` and
+       `a-first-bring-up-of-live.unit.test.ts`, which pair `MINIO_ROOT_PASSWORD` with the
+       volume `minio_data`.
+     - `a-demo-on-a-real-address.unit.test.ts` and `a-retention-the-bring-up-states.unit.test.ts`,
+       which list `MINIO_ROOT_PASSWORD` among the stack's passwords, and
+       `a-disk-that-says-it-is-filling.unit.test.ts`, with a MinIO volume in its fixture.
+     - `ending-the-alpha.md` and `the-end-of-the-alpha-empties-the-task-history.unit.test.ts`,
+       which name the store and its volume.
+     - `smoke-managed.sh` and `smoke-managed-verdict.unit.test.ts`, which want any HTTP answer
+       on `minio:9000` from the API container.
+     - `two-stacks-on-one-box.unit.test.ts`, for the container name `trigger-minio`.
+     - `idp-pin-watch.mjs`, which skips `bitnamilegacy/minio` as having no upstream. An image
+       with only a `latest` tag needs its digest watched instead.
+     - `managed-bring-up.md`'s notes on the MinIO pin and its row in the phone-home table.
+
+     0146 T7's guard, `an-object-store-with-a-maintainer.unit.test.ts`, comes with that build.
+
+   *Recommendation, 2026-10-23.*
+   - **Accept the frozen image for the alpha, in writing**, as before. It publishes no port.
+     The two criticals with no fix sit in OIDC and LDAP, which it does not use. The
+     unsigned-trailer writes need a foothold on the compose network.
+   - **Replace it at the end of the alpha with Chainguard's MinIO build.** Pin it by digest,
+     with the fork's release in the comment, and make the bucket with a `chainguard/minio-client`
+     service. It is the same server, with `sh` and `mc` inside, so nothing in the list above is
+     new to it. It is what Trigger.dev's own development compose runs, and it may keep today's
+     data. It goes to the OTA stack first, proven by the managed gate, and to live in the
+     end-of-Alpha switch, which empties the store anyway. One `managed.yml` serves both stacks:
+     the OTA stack's nightly gate deploys `main`, and live deploys release tags. So the swap
+     merges to `main` only once the next tag live will deploy is the one the end-of-Alpha
+     switch deploys. Merged sooner, it would reach live at its next alpha tag, onto a store
+     that is not empty. If the owner wants it on live before then, live takes it at its first
+     tag that carries it, under the hold, after the drain above, and starting empty; what is
+     lost is old runs' large payloads and outputs.
+   - **The fallback is versitygw.** It is also the better choice if the store should not depend
+     on one vendor's free tier. It has the cleanest scan that reads the binary, it is
+     Apache-2.0, and it is released monthly. The price: nobody has run Trigger.dev against it,
+     and the swap needs a copy or an empty start.
+   - **If Chainguard's free image goes away**, build the fork's tag here.
+   - **Not the others.** Garage asks the most ceremony. SeaweedFS is heavier than one bucket
+     needs. RustFS's 1.0 line is five weeks old.
+
+   Still the owner's call.
 6. **`@azure/msal-node` 5 → 6** — taken 2026-09-06 (#819). Its one breaking change removes
    the interactive loopback flow, which the connectors never call: they use the
    client-credential, refresh-token and username-password paths only. The O365 gate
