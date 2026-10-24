@@ -5081,7 +5081,21 @@ never reads as "nothing newer", nor as an older newest.
 >
 > A stack takes it at its next bring-up after the drain a Trigger.dev upgrade
 > needs anyway: nothing `EXECUTING`, and nothing queued, delayed or waiting
-> that owns a stored payload, since the new store starts empty. The weekly
+> that owns a stored payload, since the new store starts empty. The hold, and
+> `deploy-live.sh` under it, count Ownpace's own passes only. This reads
+> Trigger.dev's runs that have not finished, the non-final statuses of
+> v4.7.6's `TaskRunStatus`, and prints no secret:
+>
+> ```
+> docker compose -f deploy/compose/managed.yml exec -T trigger-db psql -X -At -U trigger -d triggerdb -c "SELECT \"taskIdentifier\", status, count(*) FROM \"TaskRun\" WHERE status IN ('DELAYED','PENDING','PENDING_VERSION','WAITING_FOR_DEPLOY','DEQUEUED','EXECUTING','WAITING_TO_RESUME','RETRYING_AFTER_FAILURE','PAUSED') GROUP BY 1, 2"
+> ```
+>
+> Before the bring-up it prints nothing, or only a run of a scheduled task
+> (`managed-sync-tick` and the others `apps/worker` declares with
+> `schedules.task`, whose payload is the schedule's own few hundred bytes,
+> kept in the database) for the minute it takes to finish. Anything else may
+> own a payload or an output the empty store will not have: wait for it to
+> finish, or cancel it from the dashboard. The weekly
 > pin watch says when `latest` has been rebuilt; moving the digest is a pull
 > request of its own with the new image's scan read and E2E (managed) on its
 > branch.

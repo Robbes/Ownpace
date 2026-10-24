@@ -174,10 +174,12 @@ hold (step 3), because the privacy policy promises it for the end of the Alpha.
    ./deploy/compose/bootstrap-managed.sh --from trigger
    ```
 
-   MinIO's store has been `ownpace-live_minio_data_v2` since alpha.2 (Chainguard's build, workplan
-   0146 T7). The Bitnami-era `ownpace-live_minio_data` is the owner's to remove after that deploy;
-   if `docker volume ls` still lists it here, it holds the packets of the weeks before alpha.2, so
-   remove it in this step too, with `docker volume rm ownpace-live_minio_data`.
+   MinIO's store has been `ownpace-live_minio_data_v2` since the release that carries workplan
+   0146 T7, Chainguard's build (alpha.2, if its merge made that release's fold; otherwise the
+   first release after the launch). The Bitnami-era `ownpace-live_minio_data` is the owner's to
+   remove after that release's deploy; if `docker volume ls` still lists it here, it holds the
+   packets of the weeks before that release, so remove it in this step too, with
+   `docker volume rm ownpace-live_minio_data`.
 
    A volume `docker volume rm` refuses is one something still holds: see *If a check fails*. The
    bring-up starts the task runner and its stores empty (`trigger-api` applies ClickHouse's

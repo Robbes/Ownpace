@@ -38,9 +38,15 @@
  *
  * And what must survive the move: the release check at start stays off
  * (`MINIO_UPDATE`, `MINIO_CALLHOME_ENABLE`; `a-service-that-phones-home`
- * holds the reading), and the store publishes no port, since anything that
- * reaches `minio:9000` can try an unauthenticated write the frozen image never
- * fixed.
+ * holds the reading), and neither the store nor its one-shot publishes a
+ * port or leaves the stack's network (`network_mode: host` would publish
+ * everything without a `ports:` line), since anything that reaches
+ * `minio:9000` can try an unauthenticated write the frozen image never fixed.
+ * The one-shot carries the store's pair in its own environment and its shell
+ * reads it there (`$${…}`): without the environment it presents two empty
+ * strings and the bucket is refused, and with one `$` Compose writes the
+ * password into the command line (review of the branch, 2026-10-24, which
+ * also tied the pin's date to the sentence that names its digest).
  *
  * Read from the file with a YAML parser, as Compose reads it. The rules are
  * `objectStoreProblems`, and the cases at the bottom show each one refusing
@@ -79,6 +85,7 @@ type Service = {
   volumes?: Array<string | { source?: string; target?: string }>;
   ports?: unknown[];
   expose?: unknown[];
+  network_mode?: string;
   healthcheck?: { test?: string | string[]; disable?: boolean };
   restart?: string;
   depends_on?: string[] | Record<string, Dependency>;
@@ -154,6 +161,9 @@ export function objectStoreProblems(yml: string): string[] {
     problems.push(`${STORE} still sets MINIO_DEFAULT_BUCKETS, a Bitnami convenience this image never reads: ${INIT} makes the bucket`);
   }
   if ((store.ports ?? []).length > 0) problems.push(`${STORE} publishes a port; it is reached on the stack's network only`);
+  // `host` would put every port it listens on, the console's too, on the
+  // machine's own addresses without a `ports:` line to see.
+  if (store.network_mode !== undefined) problems.push(`${STORE} sets network_mode: ${store.network_mode}; it is reached on the stack's network only`);
   const health = store.healthcheck;
   if (!health || health.disable === true || !/\bmc\b.*\bready\b/.test(words(health.test))) {
     problems.push(`${STORE} has no health check that asks mc ready, so nothing waits for it to answer before ${INIT} runs`);
@@ -174,6 +184,23 @@ export function objectStoreProblems(yml: string): string[] {
     if (!/@minio:9000\b/.test(script) && !Object.values(environmentOf(init)).some((v) => /@minio:9000\b/.test(v))) {
       problems.push(`${INIT} does not ask ${STORE} at minio:9000, the address trigger-api uses`);
     }
+    // The pair: in the one-shot's own environment, as the store has it, and
+    // read by the shell inside the container (`$${…}`, which Compose hands on
+    // as `${…}`). Without the environment the shell expands two empty strings
+    // and the store refuses `mc mb`; with a single `$` Compose writes the
+    // password into the container's command line, where `docker inspect`
+    // shows it.
+    const initEnv = environmentOf(init);
+    for (const key of ['MINIO_ROOT_USER', 'MINIO_ROOT_PASSWORD']) {
+      if (!initEnv[key]) problems.push(`${INIT} sets no ${key}, so the shell hands mc an empty one and ${STORE} refuses the bucket`);
+      else if (initEnv[key] !== env[key]) problems.push(`${INIT}'s ${key} is not ${STORE}'s (${env[key] ?? 'unset'}), so the pair it presents is not the store's`);
+      if (new RegExp(`(^|[^$])\\$\\{${key}\\b`).test(script)) {
+        problems.push(`${INIT}'s command has \${${key}} with one $, which Compose fills in from .env and writes into the command line`);
+      } else if (!script.includes(`$\${${key}}`)) {
+        problems.push(`${INIT}'s command does not read ${key} as $\${${key}}, from its own environment inside the container`);
+      }
+    }
+    if (init.network_mode !== undefined) problems.push(`${INIT} sets network_mode: ${init.network_mode}; it is reached on the stack's network only`);
     if (init.restart !== 'no') problems.push(`${INIT}'s restart is ${init.restart ?? 'unset'}; a one-shot says "no"`);
     if (dependsOn(init, STORE)?.condition !== 'service_healthy') {
       problems.push(`${INIT} does not wait for ${STORE} to be healthy, so it can ask a server that is not listening yet`);
@@ -187,6 +214,25 @@ export function objectStoreProblems(yml: string): string[] {
     problems.push(`trigger-api does not wait for ${INIT} to complete successfully, so it can start before ${BUCKET} exists`);
   }
   return problems;
+}
+
+/**
+ * The sentence of `comment` that names `needle`: from the full stop before it
+ * to the one after it, a full stop being one followed by a space or the end.
+ * The `# ` of each line is dropped first, so a sentence runs across lines.
+ */
+export function sentenceNaming(comment: string, needle: string): string {
+  const text = comment
+    .split('\n')
+    .map((l) => l.replace(/^\s*#\s?/, ''))
+    .join(' ')
+    .replace(/\s+/g, ' ');
+  const at = text.indexOf(needle);
+  if (at < 0) return '';
+  const before = text.slice(0, at);
+  const start = Math.max(...['. ', '! ', '? '].map((stop) => before.lastIndexOf(stop)));
+  const end = text.slice(at).search(/[.!?](\s|$)/);
+  return text.slice(start < 0 ? 0 : start + 2, end < 0 ? undefined : at + end + 1);
 }
 
 /** The comment above the pin: the digest's date, and the two architectures its index carries. */
@@ -207,7 +253,11 @@ export function pinCommentProblems(yml: string): string[] {
   if (!comment.includes(digest.slice(0, 12))) {
     problems.push(`the comment beside the pin does not name its digest (${digest.slice(0, 12)}…), so the date beside it says nothing`);
   }
-  if (!/\b20\d\d-\d\d-\d\d\b/.test(comment)) problems.push("the comment beside the pin gives no date for the digest");
+  // In the sentence that names the digest: the comment holds a dozen other
+  // dates, and any of them would pass for a stale one once the prefix moved.
+  if (!/\b20\d\d-\d\d-\d\d\b/.test(sentenceNaming(comment, digest.slice(0, 12)))) {
+    problems.push('the sentence beside the pin that names its digest gives no date for it');
+  }
   for (const arch of ['linux/amd64', 'linux/arm64']) {
     if (!comment.includes(arch)) problems.push(`the comment beside the pin does not say its index carries ${arch}`);
   }
@@ -267,6 +317,12 @@ volumes:
 `;
 
 const DIGEST = 'c'.repeat(64);
+/** The one-shot's own copy of the pair, which its shell reads. */
+const INIT_ENV = `    environment:
+      MINIO_ROOT_USER: \${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: \${MINIO_ROOT_PASSWORD:-very-safe-password}
+    depends_on:
+`;
 /** The shape this guard asks for, small. */
 const GOOD = `
 services:
@@ -295,8 +351,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - 'MC_HOST_store="http://$\${MINIO_ROOT_USER}:$\${MINIO_ROOT_PASSWORD}@minio:9000" exec mc --config-dir /tmp/mc mb --ignore-existing store/packets'
-    depends_on:
-      minio:
+${INIT_ENV}      minio:
         condition: service_healthy
 volumes:
   minio_data_v2:
@@ -371,6 +426,32 @@ describe('the rules', () => {
     expect(objectStoreProblems(client)).toContainEqual(expect.stringMatching(/minio-init runs chainguard\/minio-client/));
   });
 
+  it("refuse a one-shot without the pair in its own environment, or with another pair, or with Compose filling it in", () => {
+    const noEnv = GOOD.replace(INIT_ENV, () => '    depends_on:\n');
+    for (const key of ['MINIO_ROOT_USER', 'MINIO_ROOT_PASSWORD']) {
+      expect(objectStoreProblems(noEnv)).toContainEqual(`minio-init sets no ${key}, so the shell hands mc an empty one and minio refuses the bucket`);
+    }
+    const other = GOOD.replace(INIT_ENV, () => INIT_ENV.replace('very-safe-password', 'another-one'));
+    expect(objectStoreProblems(other)).toEqual([
+      "minio-init's MINIO_ROOT_PASSWORD is not minio's (${MINIO_ROOT_PASSWORD:-very-safe-password}), so the pair it presents is not the store's",
+    ]);
+    const filled = GOOD.replace('$${MINIO_ROOT_PASSWORD}', () => '${MINIO_ROOT_PASSWORD}');
+    expect(objectStoreProblems(filled)).toEqual([
+      "minio-init's command has ${MINIO_ROOT_PASSWORD} with one $, which Compose fills in from .env and writes into the command line",
+    ]);
+    const literal = GOOD.replace('$${MINIO_ROOT_USER}', () => 'admin');
+    expect(objectStoreProblems(literal)).toEqual([
+      "minio-init's command does not read MINIO_ROOT_USER as $${MINIO_ROOT_USER}, from its own environment inside the container",
+    ]);
+  });
+
+  it('refuse a network_mode on the store or the one-shot', () => {
+    const store = GOOD.replace('    command: ["server", "/data"]\n', '    command: ["server", "/data"]\n    network_mode: host\n');
+    expect(objectStoreProblems(store)).toEqual(["minio sets network_mode: host; it is reached on the stack's network only"]);
+    const init = GOOD.replace('    restart: "no"\n', '    restart: "no"\n    network_mode: host\n');
+    expect(objectStoreProblems(init)).toEqual(["minio-init sets network_mode: host; it is reached on the stack's network only"]);
+  });
+
   it('refuse a trigger-api that starts before the bucket is made', () => {
     expect(objectStoreProblems(GOOD.replace('condition: service_completed_successfully', 'condition: service_started'))).toContainEqual(
       expect.stringMatching(/trigger-api does not wait for minio-init to complete successfully/),
@@ -380,6 +461,21 @@ describe('the rules', () => {
   it('refuse a pin whose comment names no digest, no date, or one architecture', () => {
     expect(pinCommentProblems(GOOD.replace(`${DIGEST.slice(0, 12)}…, `, ''))).toContainEqual(expect.stringMatching(/does not name its digest/));
     expect(pinCommentProblems(GOOD.replace('read on 2026-10-24', 'read today'))).toContainEqual(expect.stringMatching(/gives no date/));
+    // A date in another sentence is not the digest's: once the prefix moves,
+    // it would vouch for a digest nobody dated.
+    const elsewhere = GOOD.replace(
+      `# The index digest, ${DIGEST.slice(0, 12)}…, read on 2026-10-24: linux/amd64 and linux/arm64.`,
+      `# Read on 2026-10-24. The index digest, ${DIGEST.slice(0, 12)}…: linux/amd64 and linux/arm64.`,
+    );
+    expect(elsewhere).not.toBe(GOOD);
+    expect(pinCommentProblems(elsewhere)).toEqual(['the sentence beside the pin that names its digest gives no date for it']);
+    // One sentence across two comment lines is still one sentence.
+    const wrapped = GOOD.replace(
+      `# The index digest, ${DIGEST.slice(0, 12)}…, read on 2026-10-24: linux/amd64 and linux/arm64.`,
+      `# Read on\n  # 2026-10-24: the index digest, ${DIGEST.slice(0, 12)}…, linux/amd64 and linux/arm64.`,
+    );
+    expect(wrapped).not.toBe(GOOD);
+    expect(pinCommentProblems(wrapped)).toEqual([]);
     expect(pinCommentProblems(GOOD.replace('linux/amd64 and ', ''))).toEqual([
       'the comment beside the pin does not say its index carries linux/amd64',
     ]);

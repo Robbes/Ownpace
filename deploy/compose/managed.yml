@@ -725,6 +725,10 @@ services:
   # rotate-db-passwords.sh asks the store), never into this file as a URL or
   # onto a command line. `mc mb` reaches no update check: mc asks dl.min.io
   # only when run with no command (cmd/main.go at RELEASE.2025-08-13T08-35-41Z).
+  # mc reads a ':' in the password as the start of a session token
+  # (hostKeyTokens, cmd/config.go), so such a password stops the bring-up
+  # here: the values ensure-env-secrets.sh and rotate-db-passwords.sh make are
+  # hex, and stand-up-live.sh refuses any other character.
   #
   # A DEPENDENCY, NOT A `compose run`. trigger-api waits for it with
   # `service_completed_successfully`, and that condition is what lets

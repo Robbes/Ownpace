@@ -334,8 +334,11 @@ const MANIFEST_TYPES = 'application/vnd.oci.image.manifest.v1+json,application/v
  * The digest a tag names today: the registry's `Docker-Content-Digest` for the
  * tag's manifest, the index when there is one, which is the digest a compose
  * file pins. Asked with a HEAD, which Docker Hub does not count against its
- * anonymous pull limit, as it counts a GET. Anything but a sha256 is an error,
- * never "current".
+ * anonymous pull limit, as it counts a GET, but does refuse with a 429 once an
+ * address shared with others has used that limit up (seen 2026-10-24, with
+ * `ratelimit-remaining: 0`). That throws in `net.digest`, and the row reads
+ * as not read that week, as any other unreadable row does. Anything but a
+ * sha256 is an error, never "current".
  */
 export async function registryDigest(net, repo, tag) {
   const { host, name } = registryOf(repo);

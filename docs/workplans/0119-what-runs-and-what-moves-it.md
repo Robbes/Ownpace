@@ -20,11 +20,13 @@ of a one-shot. Proved here: unit, with the new guard red on `main` (nine problem
 on the branch, and two mutations caught (a digest-only pin read as current whatever the
 registry says; `minio-init` dropped from the trigger phase); typecheck and lint; and Compose
 v5.6.1's `config`, with no daemon, accepts the file and resolves `trigger-api`'s wait on
-`minio-init`. Owed: E2E
-(managed) on the branch, which is the first time anything pulls or runs the image; the merge;
+`minio-init`. Owed: `main` with Trigger.dev v4.7.6 (#1689) merged into the branch, then E2E
+(managed) on it, which is the first time anything pulls or runs the image; the merge;
 live from the tag that carries it, after the drain, starting empty; then the old volume
 removed on each stack (`managed-bring-up.md`, the note on the MinIO pin). §3 item 5 has the
-decision and the build.
+decision and the build. Reviewed the same day: the drain now has a read of Trigger.dev's
+unfinished runs, the guard catches three more ways to break `minio` and `minio-init`, and
+`stand-up-live.sh` refuses a `MINIO_ROOT_PASSWORD` that `mc` would misread.
 
 **2026-10-23: the object store re-read for 0146 T7, docs only.** Read for it: Trigger.dev
 v4.7.6 at its tag (`166db1ca`), the webapp's object-store client, its packet, session and
@@ -469,7 +471,11 @@ is beside each; none is urgent tonight.
    - **The drain.** The hold waits for the passes in flight to finish, which is what the
      bring-up's upgrade order asks: nothing `EXECUTING`. A run that is queued, delayed or
      waiting can also own a stored payload. So a swap that starts empty also waits until
-     `TaskRun` has none of those, or it copies the bucket.
+     `TaskRun` has none of those, or it copies the bucket. The hold and `deploy-live.sh` count
+     Ownpace's passes only; Trigger.dev's runs that have not finished are read with
+     `docker compose -f deploy/compose/managed.yml exec -T trigger-db psql -X -At -U trigger -d triggerdb -c "SELECT \"taskIdentifier\", status, count(*) FROM \"TaskRun\" WHERE status IN ('DELAYED','PENDING','PENDING_VERSION','WAITING_FOR_DEPLOY','DEQUEUED','EXECUTING','WAITING_TO_RESUME','RETRYING_AFTER_FAILURE','PAUSED') GROUP BY 1, 2"`,
+     the non-final statuses of v4.7.6's `TaskRunStatus` (added 2026-10-24, in review of the
+     branch below; `managed-bring-up.md`, beside the MinIO pin, says what output is accepted).
    - **The copy**, when one is wanted. Use `mc mirror` (from `chainguard/minio-client` on the
      compose network) or `rclone sync` between two S3 remotes, from `minio:9000` to the new
      service, with `trigger-api` and the tasks stopped. Chainguard's MinIO has a shorter road:
@@ -550,7 +556,9 @@ is beside each; none is urgent tonight.
    not accepted for the Alpha, and the swap does not wait for the end-of-Alpha switch. The
    timing above changes with it. The plan: E2E (managed) on the branch on the OTA stack this
    weekend, once Trigger.dev v4.7.6 (#1689) has merged and the pinned build is three days old
-   (2026-10-25 11:25 UTC), and the merge before alpha.2's
+   (2026-10-25 11:25 UTC), with `main` carrying #1689 merged into the branch before the run, so
+   that it runs v4.7.6 like `main`'s nightly and not v4.7.2 on a `triggerdb` already migrated
+   past it (0146 §3 T7, step 1), and the merge before alpha.2's
    changelog fold (2026-10-25 23:30 UTC) if it is green; otherwise it rides the first release
    after the launch. Live takes it from the tag that carries it (alpha.2's deploy is planned
    for 2026-10-28), after the drain that deploy needs anyway, on a store that starts empty.

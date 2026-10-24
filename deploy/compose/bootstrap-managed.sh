@@ -1661,8 +1661,15 @@ phase_trigger() {
     trigger-docker-proxy trigger-api trigger-tls
   # mc's own last line from the one-shot, which names the bucket: the run's
   # record that `packets` is there. A note, not a verdict: up_wait above has
-  # already failed this phase if minio-init did not exit 0.
-  note "minio-init: $("${COMPOSE[@]}" logs --no-color --no-log-prefix --tail 1 minio-init 2>&1)"
+  # already failed this phase if minio-init did not exit 0, so a log that
+  # cannot be read leaves the note empty and stops nothing. Through the
+  # address filter before it is printed, as every container log this script
+  # prints (explain_failure): mc's line names no address today, and the gate's
+  # log is public.
+  local init_line
+  init_line="$("${COMPOSE[@]}" logs --no-color --no-log-prefix --tail 1 minio-init 2>&1 || true)"
+  if [ -n "$init_line" ]; then init_line="$(own_address_redact "$ENV_FILE" <<<"$init_line")"; fi
+  note "minio-init: ${init_line}"
 
   local waited=0
   until "${COMPOSE[@]}" exec -T -u 0 trigger-api \
