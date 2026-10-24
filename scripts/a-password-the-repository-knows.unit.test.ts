@@ -656,8 +656,11 @@ describe("managed.yml reads trigger-db's password from .env, and falls back to t
     // `${KEY:?…}`. So an empty key on localhost is a note rather than a
     // compose error, and the gate's backfill (which loops over the `:?` keys)
     // never meets it.
+    // `$${KEY}` is Compose's escape for a literal `${KEY}`, which a shell inside
+    // the container expands from that container's own environment (minio-init,
+    // 0146 T7): it is not a read of `.env`, so it is not one of these.
     for (const key of FIVE_KEYS) {
-      const uses = [...MANAGED.matchAll(new RegExp(`\\$\\{${key}(\\}|:[-?][^}]*\\})`, 'g'))].map((m) => m[0]);
+      const uses = [...MANAGED.matchAll(new RegExp(`(?<!\\$)\\$\\{${key}(\\}|:[-?][^}]*\\})`, 'g'))].map((m) => m[0]);
       expect(uses.length, `managed.yml does not read ${key}`).toBeGreaterThan(0);
       for (const use of uses) expect(use, `${key} in managed.yml`).toBe(`\${${key}:-${composeDefault(key)}}`);
       expect(MANAGED, `a bare $${key}`).not.toMatch(new RegExp(`\\$${key}\\b`));

@@ -169,16 +169,21 @@ hold (step 3), because the privacy policy promises it for the end of the Alpha.
    ```bash
    ./deploy/compose/reset-trigger.sh --yes
    docker compose -f deploy/compose/managed.yml rm -s -f trigger-redis clickhouse minio
-   docker volume rm ownpace-live_redis_data ownpace-live_clickhouse_data_v2 ownpace-live_clickhouse_logs ownpace-live_minio_data
+   docker volume rm ownpace-live_redis_data ownpace-live_clickhouse_data_v2 ownpace-live_clickhouse_logs ownpace-live_minio_data_v2
    ./deploy/compose/ensure-env-secrets.sh
    ./deploy/compose/bootstrap-managed.sh --from trigger
    ```
 
+   MinIO's store has been `ownpace-live_minio_data_v2` since alpha.2 (Chainguard's build, workplan
+   0146 T7). The Bitnami-era `ownpace-live_minio_data` is the owner's to remove after that deploy;
+   if `docker volume ls` still lists it here, it holds the packets of the weeks before alpha.2, so
+   remove it in this step too, with `docker volume rm ownpace-live_minio_data`.
+
    A volume `docker volume rm` refuses is one something still holds: see *If a check fails*. The
    bring-up starts the task runner and its stores empty (`trigger-api` applies ClickHouse's
-   schema when it starts, and MinIO makes `packets`) and stops at its `account` phase (exit 2)
-   with the one human step: on live's Trigger.dev dashboard, sign in and name an organisation and
-   a project. Then:
+   schema when it starts, and `minio-init` makes MinIO's `packets` bucket) and stops at its
+   `account` phase (exit 2) with the one human step: on live's Trigger.dev dashboard, sign in and
+   name an organisation and a project. Then:
 
    ```bash
    ./deploy/compose/bootstrap-managed.sh --from account
@@ -281,7 +286,7 @@ Before lifting the hold:
    typed.
 
    ```bash
-   docker volume inspect -f '{{.Name}} {{.CreatedAt}}' ownpace-live_trigger_db_data ownpace-live_redis_data ownpace-live_clickhouse_data_v2 ownpace-live_clickhouse_logs ownpace-live_minio_data   # each at step 3
+   docker volume inspect -f '{{.Name}} {{.CreatedAt}}' ownpace-live_trigger_db_data ownpace-live_redis_data ownpace-live_clickhouse_data_v2 ownpace-live_clickhouse_logs ownpace-live_minio_data_v2   # each at step 3
    docker compose -f deploy/compose/managed.yml exec -T trigger-db psql -X -At -U trigger -d triggerdb -c 'SELECT min("createdAt") FROM "TaskRun"'   # after the reset, or empty
    docker compose -f deploy/compose/managed.yml exec -T clickhouse clickhouse-client --query "SELECT count(), min(bucket_start) FROM trigger_dev.metrics_v1"   # 0, or an oldest after the reset
    ```

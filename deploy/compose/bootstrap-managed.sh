@@ -1653,7 +1653,11 @@ phase_trigger() {
   # trigger-api starts and presents that value (trigger_db_role_matches_env).
   up_wait trigger-db
   trigger_db_role_matches_env
-  up_wait trigger-redis clickhouse minio trigger-registry \
+  # minio-init is a one-shot that makes MinIO's `packets` bucket and exits 0
+  # (0146 T7). `--wait` takes that exit as done, not as a container that
+  # stopped, because trigger-api waits for it with
+  # service_completed_successfully. It is named here so a failure prints its log.
+  up_wait trigger-redis clickhouse minio minio-init trigger-registry \
     trigger-docker-proxy trigger-api trigger-tls
 
   local waited=0
@@ -2056,7 +2060,7 @@ phase_app() {
   # `up` means for an existing stack is a bigger change than this needs.)
   local services=(
     postgres pgbouncer
-    trigger-db trigger-redis clickhouse minio trigger-registry
+    trigger-db trigger-redis clickhouse minio minio-init trigger-registry
     trigger-docker-proxy trigger-api trigger-tls trigger-supervisor
     # The identity provider (ADR-0042). It was in managed.yml from #496 and NOT
     # in this list, so it was defined, interpolated, required in .env — and

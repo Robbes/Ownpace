@@ -50,6 +50,8 @@ const COMPOSE = join(
 const KEEPS_NOTHING: Record<string, string> = {
   api: "the API image is code; its state is Postgres, which has postgres_data",
   web: "the web image is a built bundle served read-only; it stores nothing",
+  "minio-init":
+    "a one-shot that makes minio's packets bucket over the network; the bucket is in minio's own minio_data_v2",
 };
 
 interface ComposeFile {
