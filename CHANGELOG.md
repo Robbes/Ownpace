@@ -6,6 +6,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The release preflight lists the open critical and high code-scanning
+  alerts by image** (workplan 0146, #1683): every page of them, as one line
+  per tool and category with its counts and its most alerted CVEs, where it
+  printed one count of the first page. Still reported, never refused: the
+  pull request's Trivy check blocks new findings, and the advisory gate
+  refuses a tag. The triage of 2026-10-23 is in 0146's Status.
 - **The identity provider is Zitadel v4.19.5, which carries three security
   fixes** (workplan 0135 T7, #1651): device authorizations need the user's
   consent, login v2 signs its proofs with a server secret, and an invalid
@@ -146,6 +152,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **body-parser 2.4.0 closes a denial of service through compressed request
+  bodies** (GHSA-27r3-jxmh-p828, CVE-2026-111181, high): trailing bytes after
+  a compressed body could tie up the API, which inflates JSON bodies by
+  default, before anyone signs in. The API takes 2.4.0 through express. It
+  was published on 2026-10-22, inside the three-day cooldown, so the
+  lockfile's policy names it as the deliberate exception that list is for.
 - **The visit count gives GoAccess nginx's own time, never a visitor's text**
   (workplan 0152, #1676): the time is read only from the end of a log line's
   first piece, in nginx's own shape, and the user field is never handed on,
