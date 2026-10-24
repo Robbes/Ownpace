@@ -17,7 +17,9 @@ locked image config, Trigger.dev v4.7.6's development compose, the fork's releas
 its tag, mc's `ready`, `mb` and update check at its last tag, and compose's `--wait` handling
 of a one-shot. Proved here: unit, with the new guard red on `main` (nine problems) and green
 on the branch, and two mutations caught (a digest-only pin read as current whatever the
-registry says; `minio-init` dropped from the trigger phase); typecheck and lint. Owed: E2E
+registry says; `minio-init` dropped from the trigger phase); typecheck and lint; and Compose
+v5.6.1's `config`, with no daemon, accepts the file and resolves `trigger-api`'s wait on
+`minio-init`. Owed: E2E
 (managed) on the branch, which is the first time anything pulls or runs the image; the merge;
 live from the tag that carries it, after the drain, starting empty; then the old volume
 removed on each stack (`managed-bring-up.md`, the note on the MinIO pin). §3 item 5 has the
@@ -574,8 +576,8 @@ is beside each; none is urgent tonight.
      from its own environment inside the container, once `minio` is healthy. `trigger-api`
      depends on it with `service_completed_successfully`, which is also what makes
      `up -d --wait` take its exit 0 as done (compose's `getDependencyCondition`, the same
-     from v2.20.0 to v2.40.3). The bring-up names it beside `minio` so a failure prints its
-     log.
+     from v2.20.0 to v5.6.1). The bring-up names it beside `minio` so a failure prints its
+     log, and on success prints its last line, mc's, which names the bucket.
    - A health check, upstream's `mc ready local` with `--config-dir /tmp/mc`, and
      `MC_HOST_local: http://127.0.0.1:9000`: `mc ready` uses an anonymous client
      (`cmd/ready-main.go`, `cmd/client-admin.go` at mc's `RELEASE.2025-08-13T08-35-41Z`), so

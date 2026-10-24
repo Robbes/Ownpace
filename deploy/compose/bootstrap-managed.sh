@@ -1659,6 +1659,10 @@ phase_trigger() {
   # service_completed_successfully. It is named here so a failure prints its log.
   up_wait trigger-redis clickhouse minio minio-init trigger-registry \
     trigger-docker-proxy trigger-api trigger-tls
+  # mc's own last line from the one-shot, which names the bucket: the run's
+  # record that `packets` is there. A note, not a verdict: up_wait above has
+  # already failed this phase if minio-init did not exit 0.
+  note "minio-init: $("${COMPOSE[@]}" logs --no-color --no-log-prefix --tail 1 minio-init 2>&1)"
 
   local waited=0
   until "${COMPOSE[@]}" exec -T -u 0 trigger-api \

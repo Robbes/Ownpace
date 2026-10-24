@@ -722,7 +722,7 @@ services:
   # `service_completed_successfully`, and that condition is what lets
   # `up -d --wait` treat its exit 0 as done rather than as a container that
   # stopped: compose reads it for every service another depends on that way
-  # (getDependencyCondition, pkg/compose/start.go, v2.20.0 to v2.40.3). The
+  # (getDependencyCondition, pkg/compose/start.go, v2.20.0 to v5.6.1). The
   # bring-up names it beside `minio` all the same, so a failure prints its log.
   minio-init:
     image: chainguard/minio:latest@sha256:c47b1779bfd12cdf5a4fcd3bd50671b8d66465fdae45271babc2fb467958b712
