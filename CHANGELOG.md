@@ -6,6 +6,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **Trigger.dev's object store runs Chainguard's maintained MinIO, and starts
+  empty** (workplan 0146 T7, the owner's answer of 2026-10-23): the frozen
+  `bitnamilegacy/minio` image, with 26 critical and 259 high findings no fix
+  would ever reach, is replaced by `chainguard/minio`, the same server from a
+  maintained fork, pinned by digest. Its data moves to a new volume,
+  `minio_data_v2`, and a one-shot, `minio-init`, makes the `packets` bucket
+  before Trigger.dev starts. What the empty store loses is old runs' large
+  payloads and outputs. The Bitnami-era volume stays on disk until it is
+  removed by hand, and the weekly pin watch says when Chainguard has rebuilt
+  the image.
 - **The identity provider is Zitadel v4.19.5, which carries three security
   fixes** (workplan 0135 T7, #1651): device authorizations need the user's
   consent, login v2 signs its proofs with a server secret, and an invalid

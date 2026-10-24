@@ -2,7 +2,26 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-10-23 (update this block at the end of every session)
+## Status — 2026-10-24 (update this block at the end of every session)
+
+**2026-10-24: the object store moves to Chainguard's MinIO, built on a branch, not merged
+(0146 T7).** The owner's answer of 2026-10-23, 19:05 UTC, on the recommendation to accept the
+frozen image for the Alpha: *"T7 no, fix already within the alpha"*. Branch
+`claude/ownpace-public-readiness-y7orc6-object-store-swap` runs `chainguard/minio:latest` by
+its index digest `c47b1779bfd1…` (pushed 2026-10-24, linux/amd64 and linux/arm64) on a new
+volume, `minio_data_v2`, with `server /data` and upstream's `mc ready` health check, and a
+one-shot `minio-init` from the same image that makes `packets` before `trigger-api` starts.
+The Bitnami-era `minio_data` is no longer mounted or declared and stays on disk for the owner
+to remove. Read for it: the image's config and last layer on both architectures, Chainguard's
+locked image config, Trigger.dev v4.7.6's development compose, the fork's release check at
+its tag, mc's `ready`, `mb` and update check at its last tag, and compose's `--wait` handling
+of a one-shot. Proved here: unit, with the new guard red on `main` (nine problems) and green
+on the branch, and two mutations caught (a digest-only pin read as current whatever the
+registry says; `minio-init` dropped from the trigger phase); typecheck and lint. Owed: E2E
+(managed) on the branch, which is the first time anything pulls or runs the image; the merge;
+live from the tag that carries it, after the drain, starting empty; then the old volume
+removed on each stack (`managed-bring-up.md`, the note on the MinIO pin). §3 item 5 has the
+decision and the build.
 
 **2026-10-23: the object store re-read for 0146 T7, docs only.** Read for it: Trigger.dev
 v4.7.6 at its tag (`166db1ca`), the webapp's object-store client, its packet, session and
@@ -169,7 +188,7 @@ a decision each, §3, for the owner.
 | T0 The audit | ✅ Done 2026-09-06 | §2. Registries queried directly (Docker Hub v2 API, GHCR token + paginated tag list, `git ls-remote` for the actions); `pnpm outdated -r` for npm. |
 | T1 Dependabot learns the images | ✅ Done 2026-09-06 | `docker` over the three Dockerfiles, `docker-compose` over `deploy/compose` and `deploy/selfhost`, weekly, minor+patch grouped, majors one PR each. The one-way images and the deliberate pins are ignored by name (§2.1). `@trigger.dev/*` ignored in npm: it moves through `trigger-version.sh` or not at all. The three digest-only pins (`node@sha256:…` ×3, `postgres@sha256:…`) carry their tag now — same digests, no version moved — because Dependabot compares tags, and a bare digest has nothing to compare. |
 | T2 The safe moves | ✅ Done 2026-09-06 | node 24.20.0-slim (three Dockerfiles), postgres 18.6-alpine (self-host), pgbouncer v1.25.2-p0, mailpit v1.31.1, busybox 1.38 (compose, three scripts, one test, the bring-up doc), nginx 1.30-alpine (web image and www; both on 1.31 since the morning, see the status block); three action version comments set to the tag their SHA is. Stateless, or a fixture, or a patch of a store that upgrades in place. Proved on the branch before merge: **E2E (self-hosted) #189 green** (the postgres and node moves, restart-resume included) and **E2E (managed) #161 green** (pgbouncer in front of the API, mailpit, busybox, nginx behind www), both dispatched at 01:57 UTC; `images.yml` built the three images from the moved FROM lines; the `unit` scripts guards 92 files, 1 567 tests. |
-| T3 The owner's decisions | 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Taken 2026-09-09: Redis (item 3 — **stay on 7.4**, with a revisit trigger) and the release-age gate (item 8 — `minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). Still the owner's: the object store (item 5, with a candidate named). |
+| T3 The owner's decisions | 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Taken 2026-09-09: Redis (item 3 — **stay on 7.4**, with a revisit trigger) and the release-age gate (item 8 — `minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). The object store (item 5): taken 2026-10-23, *"T7 no, fix already within the alpha"* (0146 T7), and 🔨 being built on branch `claude/ownpace-public-readiness-y7orc6-object-store-swap`, not merged (2026-10-24) — *was:* still the owner's, with a candidate named. |
 | T4 vitest 5 | ✅ Done 2026-09-06 | `vitest` and `@vitest/coverage-v8` 4.1.11 → 5.0.0, every declaring package together. Green on Node 22 (508 files, 6 326 tests) and on Node 24 as CI runs it (509 files, 6 411 tests); the v8 provider loads and reports. Two things the major needed first, found by trying it and landed as their own PR (#810) because they are right under vitest 4 too: the alias map's missing subpath pins — `@openmig/core/archive-reader` and thirteen more, plus a guard — and the exclude patterns in their documented form, since vitest 5 follows pnpm's workspace symlinks when it crawls and a bare `node_modules` matched only the top level. The bump is its own PR, stacked on #810. |
 
 ## 1. Why this exists
@@ -208,7 +227,7 @@ is who moves it after T1.
 | `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8) | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`) |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
 | `tecnativa/docker-socket-proxy` | `managed.yml` | v0.5.0 | v0.5.0 | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
-| `bitnamilegacy/minio` | `managed.yml` | 2025.5.24-debian-12-r5 by digest | none: `bitnamilegacy` stopped at 2025.7.23 (pushed 2025-08-19); `minio/minio` stopped at RELEASE.2025-09-07 | no upstream | owner | **§3** — the object store has no maintained free image; a replacement is a decision, and item 5 names a candidate |
+| `bitnamilegacy/minio`; `chainguard/minio` on branch `claude/ownpace-public-readiness-y7orc6-object-store-swap` (0146 T7) | `managed.yml` (`minio`, and on the branch `minio-init`) | 2025.5.24-debian-12-r5 by digest; on the branch `latest` by index digest `c47b1779…` (2026-10-24) | none for Bitnami's: `bitnamilegacy` stopped at 2025.7.23 (pushed 2025-08-19); `minio/minio` stopped at RELEASE.2025-09-07. Chainguard's `latest` is rebuilt about daily | no upstream for Bitnami's | owner; on the branch, by hand when the pin watch says `latest` was rebuilt (0146 T8) | **§3, taken 2026-10-23** — replace it within the Alpha with Chainguard's maintained build (item 5) |
 | `caddy` | `managed.yml` | 2-alpine, floating (2.11.4) | 2.11.4 | current | `docker compose pull` | stays floating; a major is ignored and is the owner's |
 | `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.19.2 (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.19.2 | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`; one test pins the printed command | 1.37 | 1.38 | one minor | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
@@ -522,6 +541,58 @@ is beside each; none is urgent tonight.
      needs. RustFS's 1.0 line is five weeks old.
 
    Still the owner's call.
+
+   **Decided 2026-10-23, 19:05 UTC (0146 T7): replace it within the Alpha.** The owner, on
+   the recommendation above: *"T7 no, fix already within the alpha"*. So the frozen image is
+   not accepted for the Alpha, and the swap does not wait for the end-of-Alpha switch. The
+   timing above changes with it. The plan: E2E (managed) on the branch on the OTA stack this
+   weekend, once Trigger.dev v4.7.6 (#1689) has merged, and the merge before alpha.2's
+   changelog fold (2026-10-25 23:30 UTC) if it is green; otherwise it rides the first release
+   after the launch. Live takes it from the tag that carries it (alpha.2's deploy is planned
+   for 2026-10-28), after the drain that deploy needs anyway, on a store that starts empty.
+   Live has had no testers on alpha.1, so what it loses is nothing a tester sent.
+
+   **Built 2026-10-24, on branch `claude/ownpace-public-readiness-y7orc6-object-store-swap`, not
+   merged.** What it does, each point read off the image or upstream rather than assumed:
+   - `chainguard/minio:latest` by its index digest `c47b1779bfd1…`, read from Docker Hub's API
+     and its registry on 2026-10-24: pushed 2026-10-24 02:01 UTC, built 2026-10-23 17:13 UTC,
+     linux/amd64 and linux/arm64. Its apk database names Wolfi's `minio` 0.20260922.192518
+     (the fork's `RELEASE.2026-09-22T19-25-18Z`) and `mc` 0.20250813.083541. Trigger.dev's
+     own digest from its move of 2026-09-28 still resolved on Docker Hub the same day, so an
+     old digest stays pullable for weeks at least.
+   - The image's config and last layer, both architectures: entrypoint `/usr/bin/minio` with
+     no arguments, user `65532`, `/data` root-owned with mode 0777 and `/data/.minio.sys`
+     owned by 65532 (Chainguard's `locked_config.json` lists the same paths), `/tmp` 1777,
+     `/home/nonroot` 65532's. Docker gives a new named volume the image directory's
+     ownership and mode at its first mount, so `minio_data_v2` mounted at `/data` is
+     writable by 65532 with no chown step. `command: ["server", "/data"]`.
+   - `minio_data` is no longer mounted or declared, and stays on disk. The store starts
+     empty on both stacks; what that loses is old runs' large payloads and outputs (*What
+     moving costs*, above).
+   - `minio-init`, a one-shot from the same pinned image, runs
+     `mc --config-dir /tmp/mc mb --ignore-existing store/packets` with the root pair taken
+     from its own environment inside the container, once `minio` is healthy. `trigger-api`
+     depends on it with `service_completed_successfully`, which is also what makes
+     `up -d --wait` take its exit 0 as done (compose's `getDependencyCondition`, the same
+     from v2.20.0 to v2.40.3). The bring-up names it beside `minio` so a failure prints its
+     log.
+   - A health check, upstream's `mc ready local` with `--config-dir /tmp/mc`, and
+     `MC_HOST_local: http://127.0.0.1:9000`: `mc ready` uses an anonymous client
+     (`cmd/ready-main.go`, `cmd/client-admin.go` at mc's `RELEASE.2025-08-13T08-35-41Z`), so
+     no password goes into it.
+   - The release check stays off, read again at the fork's tag: `cmd/server-main.go`,
+     `cmd/common-main.go` and `cmd/update.go` still ask `dl.min.io` with the same User-Agent
+     unless `MINIO_UPDATE` is `off`, and call-home ships off. mc asks `dl.min.io` only when it
+     is run with no command (`cmd/main.go`), which neither the probe nor the one-shot does.
+   - The guard `an-object-store-with-a-maintainer` (0146 T7) fails on `main`'s `managed.yml`
+     with nine problems and passes on the branch. The pin watch compares a pin with no number,
+     held by its digest, with the digest its registry names for the tag today, read with a
+     HEAD; since Chainguard rebuilds `latest` about daily, the summary issue will list it most
+     weeks. `MINIO_ROOT_PASSWORD` pairs with `minio_data_v2` in `shipped-passwords.sh` and
+     `stand-up-live.sh`; both stacks' `.env` already hold a generated value, so neither
+     changes.
+   - What it does not prove: no Docker daemon was available, so nothing here pulled or ran
+     the image. The branch's E2E (managed) on the Spark is the first run.
 6. **`@azure/msal-node` 5 → 6** — taken 2026-09-06 (#819). Its one breaking change removes
    the interactive loopback flow, which the connectors never call: they use the
    client-credential, refresh-token and username-password paths only. The O365 gate
