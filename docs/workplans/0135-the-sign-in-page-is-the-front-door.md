@@ -89,13 +89,15 @@ from upstream's main, one a `go mod tidy`):
   2026-10-23). (2) E2E (managed) #277 on this branch applied v4.20.0 to the OTA instance and was
   green on its third attempt, 06:37 to 06:44 UTC. Attempt 1 ran while the OTA's hold on new
   passes was still open, so its sync copied nothing and the apply half had no item to apply.
-  Attempt 2 failed at the one-go share press, which applied none of the run's rows; the same code
-  passed on attempt 3. (3) The merge followed at 06:45 UTC, before alpha.2's counted nights
-  begin. **Still owed:** (4) live from alpha.2 by **2026-10-29**, after a dump of live's
-  `zitadel` database; then one mail through live's relay and one sign-in, because no gate run
-  proves Zitadel's outbound TLS under Go 1.26.10 (the OTA relay is Mailpit, plain SMTP). alpha.2
-  brings live v4.19.5's three fixes too. Missing 2026-10-29 is a T7 miss, recorded here with its
-  date.
+  Attempt 2 failed at the one-go share press, which applied none of the run's rows: it reached
+  Nextcloud's limit on new shares, as attempt 1 had pressed eight minutes earlier and every press
+  retries the share rows old runs left open (the gate settles them since 2026-10-25, workplan
+  0104). The same code passed on attempt 3. (3) The merge followed at 06:45 UTC, before alpha.2's
+  counted nights begin. **Still owed:** (4) live from alpha.2 by **2026-10-29**, after a dump of
+  live's `zitadel` database; then one mail through live's relay and one sign-in, because no gate
+  run proves Zitadel's outbound TLS under Go 1.26.10 (the OTA relay is Mailpit, plain SMTP).
+  alpha.2 brings live v4.19.5's three fixes too. Missing 2026-10-29 is a T7 miss, recorded here
+  with its date.
 
 **2026-10-21: the pin moves to v4.19.5, from the watch's issue #1643 (2026-10-19)**, merged as
 #1651 on 2026-10-22 at 22:39 UTC (`721c6ea8`). #1643 stays open: upstream tagged v4.20.0 on
