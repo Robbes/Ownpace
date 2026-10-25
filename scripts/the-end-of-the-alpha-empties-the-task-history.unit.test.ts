@@ -59,7 +59,9 @@
  *     stand-up-live.sh (which refuses once live's deploy log has a line);
  *   - between the reset and that *Next*, it removes every store's container and
  *     every named volume they mount, and the bring-up's trigger phase starts
- *     each store again; no other service names them;
+ *     each store again; no other service names them but a store's own
+ *     one-shot (minio-init, which makes MinIO's bucket since 0146 T7), which
+ *     mounts nothing and which that phase runs again;
  *   - *Checks*, before the hold lifts, read every one of those volumes' dates,
  *     triggerdb's oldest run and ClickHouse's oldest metrics row, with the
  *     client taking the container's own credentials and no password on any
@@ -119,6 +121,14 @@ const API = code(service('trigger-api'));
 /** The stores: the services trigger-api's environment reaches by host name. */
 const STORES = SERVICES.filter((s) => new RegExp(`(?:@|//|_HOST: )${s}(?::\\d|\\s|$)`, 'm').test(API));
 
+/**
+ * A store's own one-shot, with the store it serves. It names that store because
+ * it exists for it, mounts nothing, and runs again with the bring-up, so the
+ * step that removes the store's volume leaves nothing of it behind. minio-init
+ * makes minio's `packets` bucket (workplan 0146 T7).
+ */
+const STORE_HELPERS: Readonly<Record<string, string>> = { 'minio-init': 'minio' };
+
 /** The named volumes a service mounts (bind mounts start with `.` or `/`). */
 const volumesOf = (name: string): string[] =>
   [...code(service(name)).matchAll(/\n\s+- ([a-z][a-z0-9_]*):\//g)].map((m) => m[1]!);
@@ -174,7 +184,7 @@ describe('the stores the history is in', () => {
   });
 
   it('are used by the task runner alone, so removing them touches nothing of the application', () => {
-    for (const other of SERVICES.filter((s) => s !== 'trigger-api' && !STORES.includes(s))) {
+    for (const other of SERVICES.filter((s) => s !== 'trigger-api' && !STORES.includes(s) && !(s in STORE_HELPERS))) {
       const block = code(service(other));
       for (const store of STORES) {
         expect(
@@ -182,6 +192,24 @@ describe('the stores the history is in', () => {
           `managed.yml's ${other} names ${store}: the end of the Alpha removes its volume (${RUNBOOK_PATH}, The switch, step 3)`,
         ).not.toMatch(new RegExp(`(?<![\\w-])${store}(?![\\w-])`));
       }
+    }
+  });
+
+  it("have one-shots that serve them alone, keep nothing, and are run again by the trigger phase", () => {
+    const start = BOOTSTRAP.indexOf('\nphase_trigger() {');
+    const phase = BOOTSTRAP.slice(start, BOOTSTRAP.indexOf('\n}\n', start));
+    for (const [helper, store] of Object.entries(STORE_HELPERS)) {
+      expect(SERVICES, `${helper} is gone from managed.yml: take it out of STORE_HELPERS`).toContain(helper);
+      expect(STORES).toContain(store);
+      const block = code(service(helper));
+      for (const other of STORES.filter((s) => s !== store)) {
+        expect(block, `${helper} names ${other} too`).not.toMatch(new RegExp(`(?<![\\w-])${other}(?![\\w-])`));
+      }
+      expect(volumesOf(helper), `${helper} mounts a volume, so it keeps something the step does not remove`).toEqual([]);
+      expect(block, `${helper} is not a one-shot`).toMatch(/\n\s+restart: "no"\n/);
+      expect(phase, `bootstrap-managed.sh --from trigger does not run ${helper} again`).toMatch(
+        new RegExp(`\\n\\s*up_wait [^\\n]*(?:\\\\\\n[^\\n]*)*\\b${helper}\\b`),
+      );
     }
   });
 
