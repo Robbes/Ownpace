@@ -2,7 +2,46 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-10-23 (update this block at the end of every session)
+## Status — 2026-10-25 (update this block at the end of every session)
+
+**2026-10-25: pnpm 11.28.7, on the branch `claude/ownpace-public-readiness-y7orc6-pnpm-pin`**
+(issue #1694 is the pin watch's record). Its entry stays on its branch until it merges, after
+the alpha.2 tag. `packageManager` moves from 11.28.6 to 11.28.7, the newest pnpm 11 past the
+three-day floor today: npm dates it 2026-10-21 11:14 UTC. `latest-11` is 11.28.8, dated
+2026-10-22 22:08 UTC, which passes the floor at 2026-10-25 22:09 UTC; this pull request's CI
+would have fetched it before then, through corepack and `pnpm/action-setup`, which keep no
+floor of their own. Between the two tags the `pnpm11/` source differs in comments and in one
+constant, the Node.js the standalone `@pnpm/exe` embeds (26.0.0 → 26.12.1, for the
+certificate authorities Node.js distrusted in October). Nothing here runs `@pnpm/exe`: CI,
+the three Dockerfiles and the hosts run the npm `pnpm` package on their own Node. Taking
+11.28.8 is the one `packageManager` line, and #1694 stays open until then.
+- **Read for it:** the GitHub release notes of 11.28.7 and 11.28.8, and pnpm's `pnpm11/`
+  source at both tags (`switchCliVersion.ts`, `shouldPersistLockfile` in the config reader).
+  What reaches this repository:
+  - a re-resolution records every peer a package declares, also one its own dependency
+    supplies, and reuses a version the same install already resolved instead of keeping the
+    lockfile's and adding a second copy;
+  - `trustPolicy` now applies to the version `packageManager` pins; this repository sets none;
+  - registry revisions (a `revision` field in the lockfile, a `+rN` specifier) fail with
+    `ERR_PNPM_REGISTRY_REVISIONS_UNSUPPORTED`; the lockfile has neither;
+  - with `minimumReleaseAge` set, cached metadata is revalidated with one ETag request; the
+    floor and `minimumReleaseAgeExclude` are read as before;
+  - a `workspace:` path in `overrides` resolves from the workspace root; none is written here;
+  - the store keeps its `v11` layout, so the images' cache mounts and the hosts' stores carry
+    over. The version switch writes nothing to `pnpm-lock.yaml` for a pin below major 12
+    (`shouldPersistLockfile`), so the pin itself never shows in the lockfile.
+- **Proved here**, with 11.28.7 and the same commands under 11.28.6 beside it: `pnpm install`
+  and `pnpm install --frozen-lockfile` leave `pnpm-lock.yaml` byte-identical, in the worktree
+  and in a fresh copy with no `node_modules`; the api and web Dockerfiles' filtered frozen
+  installs install the same 622 and 642 packages as 11.28.6 and leave the lockfile alone; the
+  advisory gate's `pnpm audit --json` is the same document under both (828 dependencies, no
+  advisory); corepack 0.34.0 fetches and verifies 11.28.7. A full re-resolution
+  (`pnpm install --lockfile-only --resolution-only`) adds five lines, `ajv-formats@3.0.1`'s
+  optional peer `ajv`, where 11.28.6's leaves the file identical: the first item above. Not
+  taken here; it comes with the next update that re-resolves.
+- Owed before merge: CI on the pull request. The images do not build on it (`images.yml`
+  builds on a pull request only when a Dockerfile, `deploy/**` or itself changes), so the
+  first image built with 11.28.7 is `main`'s push run after the merge.
 
 **2026-10-23: Trigger.dev v4.7.6, the tasks on the API image's Node, and ClickHouse 26.2
 accepted for the Alpha**, on the branch `claude/ownpace-public-readiness-y7orc6-trigger-4-7-6`
@@ -322,9 +361,9 @@ which for a current SHA is never. T2 sets the three labels to the truth.
 
 Node 24 everywhere it matters: `engines` says `>=24`, CI installs `24`, the images run
 24.22.1 (24.20.0 at the audit), and the Windows payload ships the self-host image's version.
-pnpm 11.28.6 (11.22.0 at the audit), moved by hand: Dependabot never touches `packageManager`,
-so a bump is `latest-11` once it is three days old, then `pnpm install` to show the lockfile
-unchanged. PostgreSQL 18 on both stacks; PGlite (npm) current. Prisma current.
+pnpm 11.28.7 (11.22.0 at the audit), moved by hand: Dependabot never touches `packageManager`,
+so a bump is the newest pnpm 11 that is three days old (`latest-11` once it is), then
+`pnpm install` to show the lockfile unchanged. PostgreSQL 18 on both stacks; PGlite (npm) current. Prisma current.
 
 ## 3. The owner's decisions
 

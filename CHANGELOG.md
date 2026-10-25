@@ -6,6 +6,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **pnpm is 11.28.7** (workplan 0119, #1694): the lockfile is unchanged, and
+  the installs, the images' filtered installs and the advisory gate give what
+  11.28.6 gave. When pnpm next re-resolves the tree it also records an
+  optional peer that a package's own dependency supplies, and reuses a
+  version the same install already resolved, so the next dependency update
+  may move a few lockfile lines it did not ask for. 11.28.8 waits until it is
+  three days old; it changes only the Node.js inside the standalone
+  `@pnpm/exe`, which nothing here runs.
 - **Trigger.dev is v4.7.6, its tasks run the API image's Node, and ClickHouse
   26.2 is accepted for the Alpha** (workplan 0119, issues #1668 and #1669,
   #1689): since v4.7.4, a magic link signs in only the browser that asked
