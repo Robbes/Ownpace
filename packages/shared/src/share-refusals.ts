@@ -93,21 +93,31 @@ export interface ShareLimit {
 }
 
 /**
+ * The longest wait a `Retry-After` is believed for: one day. A limit on new
+ * shares counts minutes; a longer wait is a header gone wrong, and a sentence
+ * saying "in about 277777778 hours" helps nobody.
+ */
+const RETRY_AFTER_MAX_SECONDS = 24 * 60 * 60;
+
+/**
  * The seconds a `Retry-After` asks for (RFC 9110 §10.2.3): a whole number of
  * seconds, or an HTTP date counted from `now`. Undefined when there is no
- * header or it is neither, so a sentence never claims a wait nobody asked for.
+ * header, it is neither, or it asks for more than `RETRY_AFTER_MAX_SECONDS`,
+ * so a sentence never claims a wait nobody asked for, or one nobody meant.
  */
 export function retryAfterSecondsOf(header: string | undefined, now: Date = new Date()): number | undefined {
   const value = header?.trim();
   if (!value) return undefined;
-  if (/^\d+$/.test(value)) return Number(value);
+  const believed = (seconds: number): number | undefined =>
+    Number.isSafeInteger(seconds) && seconds <= RETRY_AFTER_MAX_SECONDS ? seconds : undefined;
+  if (/^\d+$/.test(value)) return believed(Number(value));
   // Every form of an HTTP date names its month and its zone in letters. A
   // bare number of another shape (`-5`, `1.5`) is no date, though `Date.parse`
   // reads one as a year.
   if (!/[a-z]/i.test(value)) return undefined;
   const at = Date.parse(value);
   if (Number.isNaN(at)) return undefined;
-  return Math.max(0, Math.ceil((at - now.getTime()) / 1000));
+  return believed(Math.max(0, Math.ceil((at - now.getTime()) / 1000)));
 }
 
 /** Whether one reply is the target's limit: a 429, as a status or as OCS's code. */

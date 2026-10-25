@@ -270,13 +270,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   press asks twice for each person without an account there, so a one-go
   press over more than about ten of them reported every row after the limit
   as refused, under the generic sentence. A 429 now has its own sentence, in
-  English and Dutch, on both editions, with what `Retry-After` asked or
-  Nextcloud's ten minutes. `apply-all` and `apply-folder` stop at the first
-  one and list that row and the rows after it as `waitingForLimit`, open and
-  untried, apart from `refused`, with the sentence as `limit`; the Sharing
-  page says them under the folder as waiting. A grantee that looks like an
-  e-mail address still gets the user share first: a Nextcloud login may be
-  an address.
+  English and Dutch, on both editions, with what `Retry-After` asked, up to a
+  day, or Nextcloud's ten minutes. `apply-all` and `apply-folder` stop at the
+  first one and list that row and the rows after it as `waitingForLimit`,
+  open and untried, apart from `refused`, with the sentence as `limit`; the
+  Sharing page says them under the folder as waiting. A grantee that looks
+  like an e-mail address still gets the user share first: a Nextcloud login
+  may be an address.
 - **The managed smoke gate settles the share rows it made, so one run's
   leftovers no longer spend the next run's shares** (workplan 0104, #1696):
   Nextcloud lets an account create 20 shares in 10 minutes, and every press

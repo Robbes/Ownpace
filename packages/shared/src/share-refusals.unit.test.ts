@@ -190,4 +190,28 @@ describe('retryAfterSecondsOf', () => {
     expect(retryAfterSecondsOf('-5', NOW)).toBeUndefined();
     expect(retryAfterSecondsOf('1.5', NOW)).toBeUndefined();
   });
+
+  it('believes a wait of up to one day, and no longer one, so the sentence falls back to ten minutes', () => {
+    expect(retryAfterSecondsOf('86400', NOW)).toBe(86400);
+    expect(retryAfterSecondsOf('86401', NOW)).toBeUndefined();
+    expect(retryAfterSecondsOf('1000000000000', NOW)).toBeUndefined();
+    // Past what a double holds exactly, and past what it holds at all.
+    expect(retryAfterSecondsOf('9007199254740993', NOW)).toBeUndefined();
+    expect(retryAfterSecondsOf('9'.repeat(400), NOW)).toBeUndefined();
+    expect(retryAfterSecondsOf('Mon, 26 Oct 2026 10:00:00 GMT', NOW)).toBe(86400);
+    expect(retryAfterSecondsOf('Fri, 01 Jan 2100 00:00:00 GMT', NOW)).toBeUndefined();
+
+    // What a connector carries from such a header: no wait at all.
+    const retryAfterSeconds = retryAfterSecondsOf('9'.repeat(400), NOW);
+    const said = shareRefusalSaid({
+      kind: 'answered',
+      status: 429,
+      ocs: true,
+      ocsStatus: 429,
+      ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
+    });
+    expect(said.en).toContain('apply again in ten minutes');
+    expect(said.en).not.toMatch(/Infinity|NaN/);
+    expect(said.nl).not.toMatch(/Infinity|NaN/);
+  });
 });
