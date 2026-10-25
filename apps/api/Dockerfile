@@ -16,8 +16,18 @@
 # Copying the whole /app between stages preserves pnpm's node_modules symlink
 # layout.
 
-# The same node tag and digest the selfhost image pins (apps/selfhost/Dockerfile).
-FROM node:24.22.1-slim@sha256:1681862882da07ee5476fee047bcf34138833f1df42633bb25bcb0f438d5bf3d AS base
+# The same node tag and digest the selfhost and web images pin
+# (apps/selfhost/Dockerfile, apps/web/Dockerfile).
+#
+# DEBIAN 13 ("trixie"), NAMED IN THE TAG. The bare `-slim` tag is Debian 12
+# ("bookworm"): on 2026-10-25 Trivy 0.76.1 read 1 critical and 61 high findings
+# in `node:24.22.1-slim` and 0 and 48 in this image, on amd64 and arm64 alike,
+# and none of the 43 Debian ones left has a fix. Node is the same file in both,
+# byte for byte, and the managed tasks copy it out of this image
+# (apps/worker/trigger.config.ts). Dependabot keeps the suffix when it moves the
+# tag. scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts holds
+# the three FROM lines to one string and the tag to a named Debian release.
+FROM node:24.22.1-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
@@ -47,6 +57,15 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile --filter @openmig/api...
 
 FROM base AS runtime
+# NO PACKAGE MANAGER AT RUNTIME. CMD and the HEALTHCHECK run `node`, and nothing
+# execs npm, npx, pnpm, yarn or corepack into this container. npm's bundled
+# undici, brace-expansion and http-cache-semantics were the base image's 5
+# high Node.js findings. The tasks copy /usr/local/bin/node out of the FROM
+# image, not out of this stage, so this changes nothing for them.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+    /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+    /opt/yarn-v*
 ENV NODE_ENV=production
 # Surfaced by GET /version (buildIdentity in @openmig/core).
 ARG GIT_SHA=unknown

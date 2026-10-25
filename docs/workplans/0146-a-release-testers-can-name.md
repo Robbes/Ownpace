@@ -2,7 +2,65 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-10-24 (update this block at the end of every session)
+## Status — 2026-10-25 (update this block at the end of every session)
+
+**2026-10-25, build: T12, the images' Node base on Debian 13, with no package manager in the
+api and selfhost runtimes, a draft for alpha.3**, on branch
+`claude/ownpace-public-readiness-y7orc6-node-trixie-slim`. It merges after the alpha.2 tag and
+after #1687 (T9), which changes the same runtime stage of `apps/api/Dockerfile`, once E2E
+(managed) and E2E (self-hosted) have run on the branch.
+
+- **What changes.** The three `FROM node` lines (`apps/api`, `apps/selfhost`, `apps/web`) move
+  from `node:24.22.1-slim@sha256:16818628…` (Debian 12.15) to
+  `node:24.22.1-trixie-slim@sha256:43b9ba11…` (Debian 13.7). That is the index Docker Hub
+  serves for the tag: its amd64 (`e79437bb…`) and arm64/v8 (`401346cb…`) images were pushed on
+  2026-10-21 at 14:41 UTC and the index last at 17:39 UTC (ppc64le), so it is past the three
+  days. The api and selfhost runtime stages remove npm, npx, corepack, corepack's pnpm, pnpx,
+  yarn and yarnpkg links, and yarn 1 under `/opt`, in one RUN before `USER`.
+  `scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts` holds the three lines to
+  one string whose tag names a Debian release that is not bookworm, the removal before `USER`
+  with nothing after it putting a package manager back, and every CMD, HEALTHCHECK and
+  ENTRYPOINT of those stages, and every compose `command`, `entrypoint` and `healthcheck` of the
+  services built from them, on `node`. Six mutations each turned it red: the web line back on
+  `-slim`, all three on `-bookworm-slim`, yarn kept, the removal after `USER`, `corepack enable`
+  after it, and `npx` in the self-host compose's healthcheck.
+  `scripts/package-appliance.unit.test.ts` read the selfhost line as `-slim@sha256:`, and now
+  takes any variant: the version is what the packager reads.
+- **Measured here**, Trivy 0.76.1 (DB of 2026-10-25 19:10 UTC), CRITICAL and HIGH, the same on
+  linux/amd64 and linux/arm64: `node:24.22.1-slim` 1 critical and 61 high, 4 with a fix;
+  `node:24.22.1-trixie-slim` 0 and 48, 4 with a fix, all four in npm; and that image with one
+  more layer holding the RUN's removals as whiteouts, assembled as an OCI layout and scanned with
+  `--input`, 0 and 43, none with a fix. The 43 are util-linux, 4 CVEs over 9 packages (36
+  findings), libsystemd0 and libudev1 (2), ncurses (3), perl-base (1) and libacl1 (1); perl-base
+  and util-linux are Essential packages. The 5 that leave are npm's bundled undici 6.28.0 (2),
+  brace-expansion 5.0.9 (2) and http-cache-semantics 4.2.0 (1). `/usr/local/bin/node`, read out
+  of both images' layers, is the same file in both: sha256 `e32e2d16…` on amd64 and `c8c57216…`
+  on arm64. So the tasks' layer, which copies the Node of the API's FROM image
+  (`apps/worker/trigger.config.ts`), gets the same bytes, and that file's comment, which
+  already allowed a trixie Node on the base image's bookworm, needed no change.
+- **What still works, read in the trixie image's layers:** bash and dash, `printenv`,
+  `useradd`, `chown`, `cp` and `mkdir`, and `docker-entrypoint.sh`, so the images'
+  HEALTHCHECKs, the self-host compose's `CMD-SHELL` healthcheck, the runtime RUNs and the
+  `docker exec` sites (`printenv` in `e2e-managed.yml`, `deploy-live.sh`, `stand-up-live.sh`
+  and `smoke-managed.sh`; `node -e` in `smoke-managed.sh`) are unchanged.
+- **Expected after it merges.** The scan's `ownpace-api-edge` and `ownpace-selfhost-edge` read
+  about 0/43 at the first Security Scan with image scans on `main` (the API's with T9's `--prod`
+  install, whose `node_modules` read 0/0). `ownpace-api-release`, `ownpace-selfhost-release`
+  and live follow with the alpha.3 tag; alpha.2's images keep the Debian 12 base. The first
+  task deploy after the merge misses the `trigger` builder's cache, because the `COPY --from=`
+  text changes: it runs apt in both of the CLI's stages, takes longer and needs the Debian
+  archive.
+- **Not proved here.** The images themselves, since this session has no Docker daemon: CI's
+  `build (api|web|selfhost)` builds them on the pull request, and E2E (managed) and E2E
+  (self-hosted) boot them.
+- **Left out.** Distroless `nodejs24-debian13` (0/0, Node 24.22.1) for the API alone: no shell
+  or `printenv` for seven script sites and four doc lines, Node off `PATH`, no RUN in the
+  runtime stage, and no exact version tag to pin beside the digest; a decision of its own after
+  alpha.3. Alpine (0/5): a musl Node, which the tasks' bookworm image cannot take. Chainguard's
+  free `node:latest` is Node 26, a major `engines` and Dependabot's ignore rule refuse. An
+  `apt-get upgrade` at build: neither Debian base has an OS finding with a fix today, and it
+  would make two builds of one commit differ.
+- **One-way:** none. Reverting the three lines and the two RUNs restores the old base.
 
 **2026-10-24: T7 answered and being built.** The owner, on 2026-10-23 at 19:05 UTC: *"T7 no,
 fix already within the alpha"*. The frozen `bitnamilegacy/minio` is not accepted for the Alpha.
@@ -970,6 +1028,7 @@ best given with T0.
 | T9 The API image runs without the dev tools | 🔨 **Being built** as a draft on branch `claude/ownpace-public-readiness-y7orc6-api-image-prod-deps`, for after the first invitation (2026-10-23) | Status, 2026-10-23 (the scan triage). `apps/api/Dockerfile`'s runtime stage copies the build stage's whole `/app`, where `pnpm install --filter @openmig/api...` installed the devDependencies too, the root's included, and `CMD` (`node apps/api/src/index.ts`) needs none of them. Their Go binaries are 2 critical and 65 high of the image's 3/125 on 2026-10-23: esbuild 0.25.12 (Go 1.23.12; drizzle-kit's and `@esbuild-kit/esm-loader`'s), counted twice, and TypeScript 7's native compiler (Go 1.26.4). The lockfile itself, dev dependencies included, reads 0/0. Done when the runtime image holds production dependencies only, a dependency it still needs and lacks fails at start, which the managed gate's first `curl $API/health` catches, and the image scan finds the Node base's findings alone. |
 | T10 The image scan reads the tasks' image as it is built | 📋 **Proposed** (2026-10-23) | Status, 2026-10-23 (the scan triage). `scripts/image-scan.mjs` scans the base image the pinned CLI names (`triggerdotdev/node:24-bookworm` by digest, category `trigger-task-base`, 14/117 on 2026-10-23), not the tasks' image that `deploy-tasks.sh` builds from it. The Trigger.dev v4.7.6 branch upgrades that image's Debian packages at build (`apt-get -y upgrade`), which fixes the 42 Debian findings that have a fix (12 critical, all Perl, fixed in 5.36.0-7+deb12u4, and 30 high). It leaves npm's bundled packages under `/usr/local/lib/node_modules/npm`, since the overlay copies only `/usr/local/bin/node` (tar 7.5.15's CVE-2026-59873, critical, fixed in 7.5.19, and 12 high, 11 of them with a fix), and the 76 Debian findings without a fix, zlib1g's CVE-2023-45853 among them: the built image would still carry 2 critical and 87 high of the 131 (read with Trivy 0.76.0, 2026-10-23). The scan cannot see the upgrade, so the category keeps alerts for 42 findings the built image no longer has. The scan runs on a GitHub-hosted runner, which cannot read the stack's own registry, so the proposal is to build the image in the scan job as the deploy builds it. The old category, if renamed, has its configuration deleted by hand (T8). |
 | T11 The patch and minor moves that clear findings | (a) 📋 **Proposed**; (b) ⏳ **Owner**; (c) 📋 **Proposed**, after the Alpha (2026-10-23) | Status, 2026-10-23 (the scan triage), read with Trivy 0.76.0 on linux/amd64. (a) **Mailpit v1.32.0**: 0/0, where v1.31.6 has CVE-2026-111943 (Go's `crypto/x509`); after the first invitation, by hand in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts`, which pins the reference by tag and digest and records Mailpit's release check as read at v1.31.6, so that fact is read again at v1.32.0 in the same change. (b) **Stalwart v0.16.27** (Debian 13.7): 0 critical and 47 high, none with a fix, where v0.16.10 has 3/114. The owner's call: `docs/stalwart-integration-fix.md` pins v0.16.10 and says *"DO NOT change the pinned version"* (AGENTS.md puts its decisions in ADR-0022), and every copy moves together: `setup-stalwart.sh`, the fixture's Dockerfile, the Testcontainers setup, the fix doc and the guards that name it. (c) **ClickHouse 26.3** (26.3.59, Ubuntu 22.04): 0/0, where 26.2.19.43 has CVE-2026-45447 and CVE-2026-84782 in openssl. After the Alpha: the owner accepted 26.2 for it on 2026-10-23 (0119 §3 item 9 on the Trigger.dev v4.7.6 branch), and 26.3 is ahead of the 26.2 Trigger.dev's own compose pins, which the pin watch compares with (T8). It moves in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts` together: the guard pins the reference by tag and digest and records the crash-report default as read at `v26.2.19.43-stable`, as `clickhouse-no-crash-reports.xml`'s comment does, so both are read again at 26.3. |
+| T12 The images' Node base on a named Debian, with no package manager at runtime | 🔨 **Being built** as a draft on branch `claude/ownpace-public-readiness-y7orc6-node-trixie-slim`, for after the alpha.2 tag and #1687 (2026-10-25) | Status, 2026-10-25. The api, selfhost and web images built on `node:24.22.1-slim`, Debian 12.15: 1 critical and 61 high on 2026-10-25. `node:24.22.1-trixie-slim`, Debian 13.7, reads 0/48 with the same Node binary, and 0/43 without npm and corepack, which nothing in the api or selfhost container runs. Done when the three FROM lines name Debian 13 by tag and digest, the two runtime stages carry no package manager, E2E (managed) and E2E (self-hosted) are green on it, and the scan's `-edge` categories read the base's 0/43 (the API's with T9). Distroless `nodejs24-debian13` (0/0) for the API is the next step, after alpha.3, as its own decision. |
 
 ## 1. What there is today
 

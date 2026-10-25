@@ -4,6 +4,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **The api, selfhost and web images build on Debian 13, and the api and
+  selfhost images carry no package manager** (workplan 0146 T12): the three
+  built `FROM node:24.22.1-slim`, which is Debian 12, where Trivy read 1
+  critical and 61 high findings. `node:24.22.1-trixie-slim`, Debian 13.7,
+  reads 0 and 48, and its Node is the same binary, byte for byte. The api and
+  selfhost runtime stages also remove npm, npx, corepack, pnpm and yarn,
+  which nothing in either container runs; npm's bundled packages were 5 of
+  the highs, so the base under both reads 0 critical and 43 high, none of
+  which Debian has fixed. The managed tasks copy the same Node as before.
+  Nothing a stack sets changes.
+
 ### Changed
 
 - **Trigger.dev's object store runs Chainguard's maintained MinIO, and starts
