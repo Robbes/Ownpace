@@ -480,7 +480,7 @@ executing tasks cleanly by hand. Both failed at the exact same step:
 
 **Neither is a defect in the stack.** The job log (`get_job_logs`, not
 guessed) showed the checkout at
-`/home/robbes/infra/gha-runner-openmig/_work/open-migrate/open-migrate` —
+the runner's own `_work/open-migrate/open-migrate` —
 a different directory from wherever the manual bring-up happened all day.
 A self-hosted runner does not share a working directory with a human's own
 clone just because it is the same machine.

@@ -6,12 +6,52 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
-- **The identity provider is Zitadel v4.19.5, which carries three security
-  fixes** (workplan 0135 T7, #1651): device authorizations need the user's
-  consent, login v2 signs its proofs with a server secret, and an invalid
-  public host header is refused instead of ignored. None of them reaches a
-  flow this stack uses, and the upgrade runs no setup step. Live takes it from
-  the next release tag.
+- **Trigger.dev is v4.7.6, its tasks run the API image's Node, and ClickHouse
+  26.2 is accepted for the Alpha** (workplan 0119, issues #1668 and #1669,
+  #1689): since v4.7.4, a magic link signs in only the browser that asked
+  for it and always points at `TRIGGER_LOGIN_ORIGIN`, so ask for it there;
+  the webapp and the task images distrust the roots behind the compromised
+  eMudhra intermediates and the Sectigo AAA cross-sign, and the tasks verify
+  TLS against Debian's certificate store instead of Node's own list. Each
+  task deploy now copies Node out of the image `apps/api/Dockerfile` builds
+  from (24.22.1), where the tasks ran Trigger.dev's Node 24.18.0, and
+  upgrades the base image's packages, so the tasks move with the API; the
+  first deploy after that image moves is the slow one and needs the Debian
+  archive. The move is one way (twelve database and six ClickHouse
+  migrations): a stack whose `.env` sets `TRIGGER_IMAGE_TAG` sets `v4.7.6`
+  there first, with no run executing and after the backup, or its bring-up
+  stops at the `trigger` phase, and a rollback sets it back first. v4.7.7, a
+  security release of 2026-10-22, waits until after the launch: its task
+  half is what the Node layer gives, and its supervisor makes no TLS
+  connection here. ClickHouse stays on 26.2, which ClickHouse no longer
+  supports, as Trigger.dev's own compose pins it: reachable on the compose
+  network only, and revisited when Trigger.dev moves off it, when an
+  advisory reaches it, or in 2027-03. `docs/ending-the-alpha.md`'s list of
+  the stores the task runner writes was read at v4.7.2 and says so.
+- **The release preflight lists the open critical and high code-scanning
+  alerts by tool and category** (workplan 0146, #1683): every page of them,
+  the repository's filesystem scan and each scanned image apart, with their
+  counts and their most alerted CVEs, where it printed one count of the first
+  page. Still reported, never refused: the pull request's Trivy check blocks
+  new findings, and the advisory gate refuses a tag. The triage of 2026-10-23
+  is in 0146's Status.
+- **The identity provider is Zitadel v4.20.0, which carries v4.19.5's three
+  security fixes and is built with a Go that is still fixed** (workplan 0135
+  T7, #1651, #1680): v4.19.5 makes device authorizations need the user's
+  consent, has login v2 sign its proofs with a server secret, and refuses an
+  invalid public host header instead of ignoring it; none of them reaches a
+  flow this stack uses. v4.20.0 is built with Go 1.26.10, where v4.19.5 was
+  built with Go 1.25, a line Go no longer fixes: it closes a CPU hole in the
+  file server that serves the console and the sign-in page's files to anyone,
+  signed in or not (CVE-2026-78667), and one in the HTTP/2 server behind the
+  provider's port (CVE-2026-78669). The console now takes its API address
+  from the issuer's origin, so the mixed-content mismatch
+  `bootstrap-managed.sh` checks for cannot arise on it. Neither move runs a
+  setup step. Outbound TLS now refuses chains through the compromised eMudhra
+  intermediates, which on live reaches the mail relay alone: live takes it
+  from a release tag, after a dump of its `zitadel` database, and then sends
+  one mail through its relay and signs in once, because no gate run proves
+  that path.
 - **PgBouncer 1.26.1 closes three holes this stack's settings left open, and
   Trigger.dev's Redis leaves Alpine 3.21** (workplan 0119, #1657): each hole
   was open to a client that had not logged in (CVE-2026-19888, CVE-2026-6668
@@ -30,13 +70,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   100 MB at most, where Docker's default kept all of it until the container
   was removed. The website's container stays uncapped, because the visit
   count reads its whole log.
-- **imapflow 2.5.6** (from 2.4.3), with nodemailer 10.1.7, eslint 10.13.0,
-  @tanstack/react-query and its devtools 5.104.4 and lucide-react 1.59.0
-  (Dependabot, #1673).
+- **imapflow 2.5.6 and nodemailer 10.1.7** (from 2.2.1 and 10.0.13), with
+  express 5.3.0, @azure/msal-node 7.1.0, @electric-sql/pglite 0.5.10, undici
+  8.12.2, drizzle-orm 0.45.4, zod 4.6.7, React 19.3.1, @tanstack/react-query
+  and its devtools 5.104.4 and lucide-react 1.59.0, and the development tools
+  with them (Dependabot, #1587, #1642, #1673).
 - **CI on the Spark takes the newest Node 24, and the security scan names its
   Trivy** (#1659): every setup-node step asks for the newest 24.x, where the
   Spark's jobs had kept 24.18.0; Security Scan sets up pnpm and Node as every
-  other job does and installs from the lockfile; Trivy is held at v0.76.0.
+  other job does and installs from the lockfile; Trivy is held at v0.76.0,
+  and at v0.76.1 in both scan steps since the pin watch named it behind
+  (#1671, #1685).
 - **Live refuses a sign-in provider's key, so its sign-in page stays email and
   password only** (workplan 0140 T10, #1644): the stand-up and the deploy
   refuse live's settings while a Google, Microsoft, GitHub or Apple sign-in key
@@ -52,30 +96,31 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   privacy statement says what two-factor sign-in, passkeys and the lock after
   ten wrong passwords keep, on which basis, for how long, and that you can
   object. #1639 numbered the words 1.1; on 2026-10-21 the owner kept them on
-  1.0, edited in place, because no tester had accepted any version yet. They
-  apply from publication.
+  1.0, edited in place, because no tester had accepted any version yet
+  (#1655). They apply from publication.
 - **On a phone, a migration draws its two tiles once, under its name** (workplan
   0159 row 19, #1638); each data type keeps its icon, name, state and sentence,
   and a computer shows the page as before.
-- **The permission report comes in the reader's language** (workplan 0144): the
-  Finish page asks for it in the screen's language (`lang=nl` or `lang=en` on
-  `GET /api/permissions/report` and the appliance's `/permissions/report`), and
-  its headings, table headers and fixed sentences follow, and each blind spot
-  is said in Dutch where its sentence has Dutch. Addresses, folder names and
-  rights such as FullAccess and SendAs stay as they were found; where a reason or
-  a measurement is still English, the Dutch report says so. Without `lang`, or
-  with any other value, it is English.
-
+- **The permission report comes in the reader's language** (workplan 0144,
+  #1609): the Finish page asks for it in the screen's language (`lang=nl` or
+  `lang=en` on `GET /api/permissions/report` and the appliance's
+  `/permissions/report`), and its headings, table headers and fixed sentences
+  follow, and each blind spot is said in Dutch where its sentence has Dutch.
+  Addresses, folder names and rights such as FullAccess and SendAs stay as
+  they were found; where a reason or a measurement is still English, the
+  Dutch report says so. Without `lang`, or with any other value, it is
+  English.
 - **The identity provider's mails, in Ownpace's words, in Dutch and English**
   (workplan 0135 T6): the sign-up, address-change and password-reset mails
-  (#1604), and now the notice that a password was changed and the link to add
-  a passkey. Each names Ownpace and the address to write to.
+  (#1604), and the notice that a password was changed and the link to add a
+  passkey (#1611). Each names Ownpace and the address to write to.
 - **The sign-in page locks an account after ten wrong passwords, offers a
   second factor, and live's organisation is called Ownpace** (workplan 0135
-  T4 and open questions 2, 3 and 8, the owner's answers of 2026-10-17): ten
-  wrong passwords in a row lock the account until an operator unlocks it; an
-  authenticator app or a security key may be added and is never required; and
-  the organisation on live's sign-in page is named Ownpace.
+  T4 and open questions 2, 3 and 8, the owner's answers of 2026-10-17,
+  #1612): ten wrong passwords in a row lock the account until an operator
+  unlocks it; an authenticator app or a security key may be added and is
+  never required; and the organisation on live's sign-in page is named
+  Ownpace.
 - **Every screen of the app and the site, swept for a tester** (workplan 0159,
   #1613 to #1628):
   - each screen names itself once, in the top bar and the browser tab, and a
@@ -102,6 +147,45 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   archive guide no longer promise a *free preflight* (the privacy statement
   kept the word until #1639). Two items, the tiles on a phone and
   the legal texts' wording, were asked again.
+- **The sentences a tester meets, in a tester's words rather than a
+  developer's, in English and Dutch** (workplans 0144, 0148 and 0143, the
+  owner's scan of 2026-10-14, #1591, #1592, #1595, #1598, #1605), with any
+  technical detail in a closed *Technical details* or a log:
+  - the hint beside each Connect button says *sign-in page* and *give Ownpace
+    access*, not *consent screen* or *refresh token*, and the grant page says
+    each Google permission in words, with the exact scope in a closed
+    *Technical details*;
+  - a service that cannot be reached is said in the reader's language, never
+    as *Network Error*;
+  - a missing credential for Box, Dropbox, Google or Gmail names the field as
+    the Accounts form does, and says to fix it there;
+  - a Connect with Google, Dropbox or Microsoft that fails at the end, and a
+    sign-in nobody is waiting for, each get a plain sentence;
+  - the permission report and the Sharing checklist say what was not read in
+    words that fit the source, naming Exchange PowerShell only for an
+    organisation's own Microsoft 365, and the checklist has its Dutch; on
+    managed, the OneDrive and SharePoint line no longer points to a setting
+    or a document a tester cannot reach.
+- **The *What migrates, and what does not* panel is in plain words, in Dutch
+  too** (workplan 0013, #1596): no architecture words on *Start a migration*
+  and *Review and start*, and Google Photos, mail with no Message-ID and
+  Microsoft's permissions promise only what the code does.
+- **A share the new system refused is said in Ownpace's words, in English and
+  Dutch** (workplan 0136 T3, #1606): on one decision or a folder press, a
+  managed tester reads which case it was (the sign-in refused, no such person
+  or item, a 403, nothing answered, a certificate, and more) with a
+  reference, and the target's own reply goes only to the server log under
+  that reference; the API's apply-all answers the same. The appliance still
+  shows the target's words.
+- **An organisation may run six migrations at once by default, as the terms
+  and the site's prices say** (workplan 0143, #1598), where it was five; the
+  refusal past six is in the reader's language and says to contact us for
+  more.
+- **The operator's screens and mail are in English only** (ADR-0013, #1573):
+  the support screens, the access queue and the redirect URIs, whatever
+  language the app is shown in, and the *Somebody asked for access* mail,
+  whatever `NOTIFY_LOCALE` says. Everything a customer reads stays in Dutch
+  and English.
 
 ### Added
 
@@ -143,9 +227,58 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **The grant and progress link pages are opened in a real browser on every
   pull request** (workplan 0141 T12 (b), #1646), in English and in Dutch, and on
   a phone, where neither may scroll sideways.
+- **The operator's guides say more before it is needed** (#1572, #1601,
+  #1603): the managed bring-up gives the books and payments a step of their
+  own (8i) and says, before you start, the memory and CPU a stack needs, as
+  the plan's estimates until they are measured (workplan 0143 T1); the
+  operator runbook says how to hand a customer their migration records on
+  request, by hand, until a command does it (workplan 0155 T0).
+- **A tester of the hosted Alpha who opens an issue on GitHub is sent to a
+  person first** (workplan 0144 T6 (c), #1600): the issue chooser's first
+  link leads to the tester guide's help, and says to use *Report a problem*
+  in the app and never to post mailbox contents, addresses or screenshots of
+  their data.
+- **Every page of the site names the company that runs Ownpace** (workplan
+  0152 T8 (c), #1599): its footer carries privacy §1's own sentence, with the
+  Chamber of Commerce and VAT numbers, read from the privacy text in the
+  page's language.
+- **A refusal links the guide that explains it** (workplan 0148 T6 (b) and
+  T7, #1584, #1585): a refused start or account test, and the *What
+  migrates* panel, show *Guide: …* / *Handleiding: …*, which opens the guide
+  at its section, where a refusal used to name a `docs/` file a tester cannot
+  open. The guide page can now draw tables, which scroll inside their own box
+  on a phone, quotes and the lines and lists inside a list item, which no
+  guide uses yet; the CalDAV, CardDAV and WebDAV guide's italics no longer
+  show their asterisks.
+- **Money owed back reaches the operator** (workplan 0111, managed migration
+  0055, #1576): a credit note paid other than through Mollie, a refund Mollie
+  ended failed or canceled, or one still going after a week sends one mail to
+  `NOTIFY_TO` and is listed on the support screen *Money to give back*, where
+  the operator marks what was paid back by transfer, once, in their own name.
+- **An erasure deletes the organisation's invoice copies and keeps their
+  numbers** (workplan 0111 T10, ADR-0044, managed migration 0054, #1571): the
+  books keep each issued invoice, so the purge deletes Ownpace's copies and
+  its drafts and keeps their Moneybird numbers on the erasure record, which
+  the operator's *Invoices kept after an erasure* lists. An issued invoice
+  the books do not hold is kept, as the only record of itself.
 
 ### Fixed
 
+- **The managed smoke gate settles the share rows it made, so one run's
+  leftovers no longer spend the next run's shares** (workplan 0104, #1696):
+  Nextcloud lets an account create 20 shares in 10 minutes, and every press
+  retried the rows earlier presses had refused, so E2E (managed) #277's second
+  attempt came back 429, as the demo Nextcloud's access log shows.
+  `smoke-managed.sh` now skips every still-open share row a run of the gate
+  seeded, through the product's own decision route, and prints each refused
+  row whole, with the target's status.
+- **body-parser 2.4.0 closes a denial of service through compressed request
+  bodies** (GHSA-27r3-jxmh-p828, CVE-2026-111181, high, #1691): trailing
+  bytes after a compressed body could tie up the API, which inflates JSON
+  bodies by default, before anyone signs in. The API takes 2.4.0 through
+  express. It was published on 2026-10-22, inside the three-day cooldown, so
+  the lockfile's policy names it as the deliberate exception that list is
+  for.
 - **The visit count gives GoAccess nginx's own time, never a visitor's text**
   (workplan 0152, #1676): the time is read only from the end of a log line's
   first piece, in nginx's own shape, and the user field is never handed on,
@@ -170,9 +303,25 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   @opentelemetry/core reach 3.0.0, which would have broken the task image. The
   web app drops recharts, croner, autoprefixer and postcss, which it never
   imported.
-- **An IMAP account is shown what an IMAP server holds** (workplan 0013): a
-  migration from the IMAP card is told about its mail, and no longer about
-  calendars, contacts, files or tasks. An Apple account keeps every row it had.
+- **follow-redirects 1.16.1 closes two high advisories** (#1647): credential
+  headers could survive a redirect to another host (GHSA-8r9p-f939-6h3c,
+  GHSA-q3jh-wrc6-jgq8). Its one copy sits under the web app's axios; the
+  advisory gate had refused every pull request on it.
+- **An IMAP account is shown what an IMAP server holds** (workplan 0013,
+  #1610): a migration from the IMAP card is told about its mail, and no
+  longer about calendars, contacts, files or tasks. An Apple account keeps
+  every row it had.
+- **The *What migrates* panel tells each source only what it carries**
+  (workplan 0013, #1602): a Dropbox, Box or Takeout export is no longer told
+  its mail moves; Microsoft To Do is listed under *Migrates* and Apple's task
+  lists under *Partial*.
+- **The warning before deletions are switched on says what each data type's
+  check does** (workplan 0144 T4 and 0149 T6, #1607), where it promised that
+  every removal spared a copy someone had since edited: a file, calendar
+  entry or contact someone changed in the new system since Ownpace wrote it
+  is not removed, nor when that cannot be checked; mail is not checked for
+  changes. The guidance the API and the appliance return with a deletion
+  says the same.
 - **Sharing says which shares a folder press could not make, and why**
   (workplan 0136 T3, #1645), in Dutch where the server gave Dutch and in
   English otherwise, under the folder and in each row's card.
@@ -185,6 +334,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   try later** (workplan 0111 slice 5d, #1653): it waits out a 429's Retry-After
   of up to two minutes rather than asking early, and never posts a payment
   twice.
+- **The advisories `v0.2.0-alpha.1`'s tag scan failed on are closed**
+  (#1545): proxy-addr 2.0.8, which the API takes through express
+  (GHSA-jqcg-44mw-7w3h, critical: an address spoofed through an IPv4-mapped
+  IPv6 address in a trusted subnet); seroval 1.6.3 or later, under the web
+  app's query devtools (GHSA-p6vx-979v-rg4c, critical, and
+  GHSA-jp82-f5mq-hwhp, high); and source-map-js 1.2.2, a development tool's
+  (GHSA-68fv-2mgg-jv7q, high).
 
 ## [0.2.0-alpha.2] - 2026-10-11
 
@@ -195,9 +351,9 @@ asked to accept the texts once, at their first sign-in on this release.
 
 - **The texts testers accept are final** (workplan 0139): the privacy policy
   **1.0** and the terms of service **1.0**, beside the Alpha conditions 1.0, no
-  longer marked draft (numbered 1.0 on the owner's decision of 2026-10-14: no
-  tester had accepted the drafts' numbers, so the first version testers accept
-  is 1.0), so the app asks every member to accept them before the
+  longer marked draft (numbered 1.0 on the owner's decision of 2026-10-14,
+  #1597: no tester had accepted the drafts' numbers, so the first version
+  testers accept is 1.0), so the app asks every member to accept them before the
   first connection (#1532, #1556, #1557, #1559, #1580, and 0111's slices that
   changed §7 and §8 of the terms and §4.4 of the privacy policy). Closing an account is said as the code does it; the Dutch
   page's note keeps the exception for mandatory consumer law.
@@ -232,12 +388,12 @@ switched on is in `docs/ending-the-alpha.md`.
 ### Fixed
 
 - **After cutover the new system is left alone** (the owner's decisions of
-  2026-10-05): nothing there is removed or overwritten because of what happens
-  at the old system any more. A manual *Apply* of a deletion or a move is
-  refused, the button is gone for those data types (a rollback brings it back),
-  relocations are no longer auto-applied, a pass running across the cutover
-  concludes nothing about deletions, and changes at the old system no longer
-  overwrite the copies; new items still arrive.
+  2026-10-05, #1566): nothing there is removed or overwritten because of what
+  happens at the old system any more. A manual *Apply* of a deletion or a
+  move is refused, the button is gone for those data types (a rollback
+  brings it back), relocations are no longer auto-applied, a pass running
+  across the cutover concludes nothing about deletions, and changes at the
+  old system no longer overwrite the copies; new items still arrive.
 - `ci-complete` fails when a gate that should have run never did, whatever
   GitHub calls it (#1536).
 - The exposure check tells the development stack's compose project from the

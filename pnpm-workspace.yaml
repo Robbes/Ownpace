@@ -65,6 +65,13 @@ overrides:
   # for a while on the reasoning that it was dev-only and the bump looked risky; that reasoning was
   # retired on 2026-09-09 — see the note down there for what was actually measured.
   body-parser@<1.20.6: ^1.20.6
+  # 2026-10-24. body-parser GHSA-27r3-jxmh-p828 (CVE-2026-111181, HIGH, PRODUCTION via express):
+  # denial of service through trailing bytes after a compressed request body, which the API's
+  # JSON parser inflates by default. Fixed in 2.4.0 only; the tree had one copy, 2.3.0. Scoped
+  # to the 2.x line, which express 5 asks for (^2.2.x), so no consumer leaves its own range.
+  # 2.4.0 was published 2026-10-22 11:39 UTC, inside the 3-day cooldown below: its
+  # minimumReleaseAgeExclude entry is the deliberate take that list exists for.
+  "body-parser@>=2.0.0 <2.4.0": ^2.4.0
   brace-expansion@<1.1.16: ^1.1.16
   # Raised 2026-10-03 for three more on both lines (dev-only: minimatch under eslint, glob and
   # testcontainers), each with its own floor, so the highest of them is the bound:
@@ -267,6 +274,9 @@ overrides:
 # a version the lockfile actually has, and that no entry is a bare name.
 minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
+  # Security fix inside the cooldown (GHSA-27r3-jxmh-p828, the override above); expires by itself
+  # once the tree moves past 2.4.0.
+  - body-parser@2.4.0
   - socket.io-parser@4.2.7
   - qs@6.16.0
   - js-yaml@4.3.2
