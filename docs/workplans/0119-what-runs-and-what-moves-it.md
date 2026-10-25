@@ -4,6 +4,12 @@
 
 ## Status — 2026-10-25 (update this block at the end of every session)
 
+**2026-10-25, 22:13 UTC: 11.28.8, the one `packageManager` line.** It passed the three-day floor
+at 22:09 UTC (npm dates it 2026-10-22 22:08 UTC). Under it, `pnpm install --frozen-lockfile`
+leaves `pnpm-lock.yaml` byte-identical and `pnpm audit` reads no advisory at any severity. #1694
+closes with this pull request. The entry below, written for 11.28.7 earlier the same day, holds
+for 11.28.8: the two differ only in the Node.js the standalone `@pnpm/exe` embeds.
+
 **2026-10-25: pnpm 11.28.7, on the branch `claude/ownpace-public-readiness-y7orc6-pnpm-pin`**
 (issue #1694 is the pin watch's record). Its entry stays on its branch until it merges, after
 the alpha.2 tag. `packageManager` moves from 11.28.6 to 11.28.7, the newest pnpm 11 past the
@@ -399,7 +405,7 @@ which for a current SHA is never. T2 sets the three labels to the truth.
 
 Node 24 everywhere it matters: `engines` says `>=24`, CI installs `24`, the images run
 24.22.1 (24.20.0 at the audit), and the Windows payload ships the self-host image's version.
-pnpm 11.28.7 (11.22.0 at the audit), moved by hand: Dependabot never touches `packageManager`,
+pnpm 11.28.8 (11.22.0 at the audit), moved by hand: Dependabot never touches `packageManager`,
 so a bump is the newest pnpm 11 that is three days old (`latest-11` once it is), then
 `pnpm install` to show the lockfile unchanged. PostgreSQL 18 on both stacks; PGlite (npm) current. Prisma current.
 
