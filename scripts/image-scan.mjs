@@ -101,16 +101,16 @@
  * numbers, their triage left on the closed ones. The tag is local: Trivy reads
  * that leg's image from the runner's Docker alone, and nothing pushes it.
  *
- * What is left out is npm packages only: the bundled task code, and the
- * externals the CLI installs with `npm i` at a deploy (`pg`,
+ * What the built stage leaves out is npm packages only: the bundled task
+ * code, and the externals the CLI installs with `npm i` at a deploy (`pg`,
  * `@electric-sql/pglite`). Their own versions are the ones installed here, so
  * the repository scan of the lockfile reads them; the packages npm resolves
- * under them, with no lockfile, neither scan reads. And the base is the CLI's
- * own: a Trigger.dev instance can name others for its deploys (the webapp's
- * `DEPLOY_BASE_IMAGES` and `DEPLOY_BUILD_BASE_IMAGES`, which the CLI applies
- * since `supportsInstanceBaseImages`, read at 4.7.6), and `managed.yml`, which
- * hands its Trigger.dev services only the keys it lists, sets neither. The
- * guard holds that.
+ * under them, with no lockfile, neither scan reads. And it is built on the
+ * CLI's own base: a Trigger.dev instance can name other base images for its
+ * deploys (the webapp's `DEPLOY_BASE_IMAGES` and `DEPLOY_BUILD_BASE_IMAGES`,
+ * which the CLI builds on when the instance sends them, `applyServerBaseImages`
+ * read at 4.7.6), and `managed.yml`, which hands its Trigger.dev services only
+ * the keys it lists, sets neither. The guard holds that.
  *
  * A floating tag (`redis:7-alpine`) is scanned as the registry serves it
  * today, which need not be what the box pulled last. The summary says which.
