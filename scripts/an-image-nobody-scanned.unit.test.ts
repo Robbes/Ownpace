@@ -39,8 +39,18 @@
  *    runner condition. The new jobs come after it, with names of their own and
  *    a plain `runs-on`.
  *
+ * And one that went wrong in the first version (workplan 0146 T10, 2026-10-25).
+ * The tasks' image is in no registry: each deploy builds it, on the base image
+ * the pinned CLI names, with the layers `apps/worker/trigger.config.ts` adds
+ * (the API image's Node, the Debian packages upgraded). The scan read that base
+ * alone (14 critical and 119 high on 2026-10-25), so the alerts for the Debian
+ * findings the upgrade fixes (42 on 2026-10-23) could never close. Its leg now builds the
+ * deploy's `base` stage from the config's own extensions and scans that, under
+ * the name, and so the category, its alerts were opened under.
+ *
  * The network is stubbed (the git tags, the Trigger.dev CLI's tarball) and so
- * is `gh`; the compose files and scripts are the real ones.
+ * is `gh`; the compose files, the scripts and the deploy config are the real
+ * ones.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -52,11 +62,15 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { COMPOSE_FILES, readImages, repoReader, stepsUsing, type Net, type Repo } from './idp-pin-watch.mjs';
+import type { BuildContext, BuildLayer } from '@trigger.dev/core/v3/build';
+import taskConfig from '../apps/worker/trigger.config.ts';
 import {
   ISSUE_PREFIX,
   OWNPACE_IMAGES,
   OWNPACE_REGISTRY,
   SCAN_FILES,
+  TASK_CONFIG,
+  TASK_IMAGE,
   eoslIssue,
   imagesFromEnv,
   imagesToScan,
@@ -66,7 +80,9 @@ import {
   readReport,
   stackOf,
   summarize,
+  taskBaseStage,
   type ScanImage,
+  type TaskConfig,
 } from './image-scan.mjs';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -242,12 +258,39 @@ describe('which images it scans', () => {
     expect(without.find((i) => i.name === 'postgres-managed')?.ref).toBe(managedPostgres.ref);
   });
 
-  it("the tasks' base image, as the pinned CLI names it for the runtime trigger.config.ts asks for", async () => {
+  it("the tasks' image, built on the base the pinned CLI names for the runtime trigger.config.ts asks for", async () => {
     const net = fakeNet();
     const images = await imagesToScan(REAL, net);
     const cli = JSON.parse(REAL.read('apps/worker/package.json')!).dependencies['@trigger.dev/sdk'] as string;
-    expect(images.find((i) => i.name === 'trigger-task-base')).toMatchObject({ ref: TASK_BASE, where: expect.stringContaining(cli) });
+    // The name, and so the SARIF category `trivy-image-trigger-task-base`, is
+    // the one its alerts were opened under (workplan 0146 T10): renamed, the
+    // old category would keep them open until somebody deleted it by hand.
+    expect(TASK_IMAGE).toBe('trigger-task-base');
+    expect(images.find((i) => i.name === TASK_IMAGE)).toEqual({
+      name: TASK_IMAGE,
+      ref: TASK_BASE,
+      where: expect.stringContaining(cli),
+      floating: false,
+      build: `${TASK_IMAGE}:built`,
+    });
+    expect(images.find((i) => i.name === TASK_IMAGE)?.where).toContain(TASK_CONFIG);
     expect(net.asked).toContain(`https://registry.npmjs.org/trigger.dev/-/trigger.dev-${cli}.tgz`);
+    // No other image is built: every other leg reads its registry.
+    expect(images.filter((i) => i.build).map((i) => i.name)).toEqual([TASK_IMAGE]);
+  });
+
+  it("follows the pinned CLI wherever it moves, and keeps the tasks' name and build tag when it does", async () => {
+    // Nothing here names a Trigger.dev version: a move of the SDK pin (4.7.6
+    // to 4.8.1, say) moves the tarball read and the `where`, and nothing else.
+    const manifest = JSON.parse(REAL.read('apps/worker/package.json')!) as { dependencies: Record<string, string> };
+    const moved = JSON.stringify({ ...manifest, dependencies: { ...manifest.dependencies, '@trigger.dev/sdk': '99.0.1' } });
+    const net = fakeNet();
+    const images = await imagesToScan(withFiles({ 'apps/worker/package.json': moved }), net);
+    expect(net.asked).toContain('https://registry.npmjs.org/trigger.dev/-/trigger.dev-99.0.1.tgz');
+    const before = (await imagesToScan(REAL, fakeNet())).find((i) => i.name === TASK_IMAGE)!;
+    const after = images.find((i) => i.name === TASK_IMAGE)!;
+    expect(after.where).toContain('trigger.dev 99.0.1');
+    expect({ name: after.name, build: after.build }).toEqual({ name: before.name, build: before.build });
   });
 
   it("Ownpace's three images at :edge and at the newest release tag, as images.yml publishes them", async () => {
@@ -350,6 +393,106 @@ describe('which images it scans', () => {
   });
 });
 
+// -------------------------------------------- the tasks' image, built ---
+
+const WORKER_DIR = join(REPO_ROOT, dirname(TASK_CONFIG));
+
+/** The layers the deploy config's own extensions add for a deploy, run here apart from `taskBaseStage`. */
+async function deployLayers(): Promise<BuildLayer[]> {
+  const layers: BuildLayer[] = [];
+  const context = { target: 'deploy', workingDir: WORKER_DIR, addLayer: (layer: BuildLayer) => layers.push(layer) } as unknown as BuildContext;
+  const extensions = taskConfig.build?.extensions ?? [];
+  for (const extension of extensions) await extension.onBuildStart?.(context);
+  for (const extension of extensions) {
+    await extension.onBuildComplete?.(context, {} as Parameters<NonNullable<typeof extension.onBuildComplete>>[1]);
+  }
+  return layers;
+}
+
+type Layer = { id: string; image?: { instructions?: string[]; pkgs?: string[] } };
+type StubContext = { target: string; addLayer: (layer: Layer) => void };
+
+/** A deploy config whose extensions record what the CLI's order makes of them. */
+function stubConfig(calls: string[], layers: Record<string, Layer>, fail?: string): TaskConfig {
+  const extension = (name: string) => ({
+    name,
+    onBuildStart(context: StubContext) {
+      calls.push(`start ${name} ${context.target}`);
+    },
+    onBuildComplete(context: StubContext) {
+      calls.push(`complete ${name} ${context.target}`);
+      if (fail === name) throw new Error(`${name} could not read what it needs`);
+      if (layers[name]) context.addLayer(layers[name]);
+    },
+  });
+  return { build: { extensions: Object.keys(layers).map(extension) } };
+}
+
+describe("the tasks' image, built as a deploy builds it (workplan 0146 T10)", () => {
+  it("is the deploy's base stage: the CLI's base image, then every instruction the config's extensions add", async () => {
+    const stage = await taskBaseStage(taskConfig, { base: TASK_BASE, workingDir: WORKER_DIR });
+    const instructions = (await deployLayers()).flatMap((layer) => layer.image?.instructions ?? []);
+    // Vacuity guard: a config whose extensions add nothing would make the
+    // built stage the base image again, which is what this was written to end.
+    expect(instructions.length, `${TASK_CONFIG}'s extensions add no instruction for a deploy`).toBeGreaterThan(0);
+    const lines = stage.split('\n');
+    expect(lines[0]).toBe('# syntax=docker/dockerfile:1');
+    const from = lines.indexOf(`FROM ${TASK_BASE} AS base`);
+    expect(from, 'no FROM line naming the base image as the stage `base`').toBeGreaterThan(0);
+    expect(lines.filter((l) => l.startsWith('FROM ')), 'one stage, the base one').toHaveLength(1);
+    const body = lines.slice(from + 1).filter((l) => l.trim() !== '');
+    expect(body).toEqual(['ENV DEBIAN_FRONTEND=noninteractive', ...instructions]);
+    // The API image's Node, by tag and digest, as the deploy's layer copies it.
+    const apiNode = /^FROM\s+(node:\S+)/m.exec(REAL.read('apps/api/Dockerfile')!)![1]!;
+    expect(stage).toContain(`COPY --from=${apiNode} /usr/local/bin/node /usr/local/bin/node`);
+  });
+
+  it('runs the extensions in the CLI\'s order, as a deploy, and keeps the layers in theirs', async () => {
+    const calls: string[] = [];
+    const config = stubConfig(calls, {
+      first: { id: 'first', image: { instructions: ['RUN echo one', 'RUN echo two'] } },
+      second: { id: 'second', image: { instructions: ['COPY --from=example:1 /x /x'] } },
+      third: { id: 'third' },
+    });
+    const stage = await taskBaseStage(config, { base: TASK_BASE, workingDir: WORKER_DIR });
+    expect(calls).toEqual([
+      'start first deploy', 'start second deploy', 'start third deploy',
+      'complete first deploy', 'complete second deploy', 'complete third deploy',
+    ]);
+    expect(stage.split('\n').filter((l) => /^(RUN|COPY) /.test(l))).toEqual(['RUN echo one', 'RUN echo two', 'COPY --from=example:1 /x /x']);
+    // No extension at all: the stage is the base image, said plainly.
+    const bare = await taskBaseStage({}, { base: TASK_BASE, workingDir: WORKER_DIR });
+    expect(bare.split('\n').filter((l) => /^[A-Z]+ /.test(l))).toEqual([`FROM ${TASK_BASE} AS base`, 'ENV DEBIAN_FRONTEND=noninteractive']);
+  });
+
+  it('refuses rather than scans less than the deploy builds', async () => {
+    // A package the CLI would install with apt in this stage.
+    const pkgs = stubConfig([], { tools: { id: 'tools', image: { instructions: ['RUN true'], pkgs: ['curl'] } } });
+    await expect(taskBaseStage(pkgs, { base: TASK_BASE, workingDir: WORKER_DIR })).rejects.toThrow(/tools installs curl with apt/);
+    // A throw the CLI would log and deploy past, without the layer.
+    const failing = stubConfig([], { node: { id: 'node', image: { instructions: ['RUN true'] } } }, 'node');
+    await expect(taskBaseStage(failing, { base: TASK_BASE, workingDir: WORKER_DIR })).rejects.toThrow(/could not read/);
+    // A base that is not one reference: nothing reaches the Containerfile but an image.
+    for (const base of [undefined, '', 'node:24 AS base\nRUN true', `${TASK_BASE} extra`]) {
+      await expect(taskBaseStage({}, { base: base as unknown as string, workingDir: WORKER_DIR })).rejects.toThrow(/must be an image reference/);
+    }
+  });
+
+  it('the command line writes the same stage, importing the config with Node alone', async () => {
+    // The CI leg runs `node scripts/image-scan.mjs containerfile <base>`: the
+    // config is a .ts file that Node strips, with the workspace installed.
+    const run = spawnSync(process.execPath, [join(REPO_ROOT, 'scripts/image-scan.mjs'), 'containerfile', TASK_BASE], {
+      encoding: 'utf8',
+      env: { PATH: process.env.PATH },
+    });
+    expect(run.status, run.stderr).toBe(0);
+    expect(run.stdout).toBe(await taskBaseStage(taskConfig, { base: TASK_BASE, workingDir: WORKER_DIR }));
+    const refused = spawnSync(process.execPath, [join(REPO_ROOT, 'scripts/image-scan.mjs'), 'containerfile'], { encoding: 'utf8', env: { PATH: process.env.PATH } });
+    expect(refused.status).toBe(1);
+    expect(refused.stdout).toBe('');
+  });
+});
+
 // ----------------------------------------------------------- reports -----
 
 describe('what a report says', () => {
@@ -436,6 +579,17 @@ describe('the report job', () => {
     const table = summary.lines.join('\n');
     expect(table).toMatch(/\| `redis` \| `redis:7-alpine` \(floats\) \| alpine 3\.21\.9 \| \*\*past its end of life\*\* \|/);
     expect(table).toMatch(/\| `minio` \| `bitnamilegacy\/minio:2025\.5\.24-debian-12-r5@sha256:444444444444…` \| debian 12\.11 \| supported \| 1 \| 0 \| 1 \|/);
+  });
+
+  it('marks the image a leg built, and says what that reading is', () => {
+    const built: ScanImage = { name: TASK_IMAGE, ref: TASK_BASE, where: 'the CLI', floating: false, build: `${TASK_IMAGE}:built` };
+    const fine = trivyJson({ Family: 'debian', Name: '12.15' });
+    const table = summarize([built, IMAGES[0]!], reports({ [`trivy-image-${TASK_IMAGE}.json`]: fine, 'trivy-image-redis.json': fine })).lines.join('\n');
+    expect(table).toContain(`| \`${TASK_IMAGE}\` | \`triggerdotdev/node:24-bookworm@sha256:dddddddddddd…\` (built on) | debian 12.15 |`);
+    expect(table).toMatch(/built on\* is scanned as a deploy builds on that reference/);
+    // Without a built image, no such line.
+    expect(summarize([IMAGES[0]!], reports({ 'trivy-image-redis.json': fine })).lines.join('\n')).not.toContain('built on');
+    expect(imagesFromEnv(JSON.stringify([built]))).toEqual([built]);
   });
 
   it('reads the image list the list job handed on, and refuses an empty one', () => {
@@ -536,7 +690,10 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
   });
 
   it('runs on a GitHub-hosted runner, never on the machine whose images it scans', () => {
-    for (const job of [list, scan, report]) expect(job?.['runs-on']).toBe('ubuntu-24.04');
+    for (const job of [list, report]) expect(job?.['runs-on']).toBe('ubuntu-24.04');
+    // A leg that builds its image builds it natively for the platform scanned,
+    // on GitHub's arm64 runner; every other leg reads a registry from amd64.
+    expect(scan?.['runs-on']).toBe("${{ matrix.build && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}");
   });
 
   it('may do what each job needs, and nothing else', () => {
@@ -552,7 +709,9 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
     expect(scan!.needs).toBe('image-list');
     expect(scan!.strategy?.['fail-fast']).toBe(false);
     expect(scan!.strategy?.matrix).toEqual({ include: '${{ fromJSON(needs.image-list.outputs.images) }}' });
-    expect(scan!.env).toEqual({ TRIVY_PLATFORM: 'linux/arm64', TRIVY_IMAGE_SRC: 'remote' });
+    // A registry, or for a leg that built its image this runner's Docker
+    // alone, so a build that left nothing is never read from a registry instead.
+    expect(scan!.env).toEqual({ TRIVY_PLATFORM: 'linux/arm64', TRIVY_IMAGE_SRC: "${{ matrix.build && 'docker' || 'remote' }}" });
   });
 
   it('runs the same pinned trivy-action and the same named Trivy as the existing scan, as JSON, report only', () => {
@@ -562,7 +721,7 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
     expect(image!.with).toMatchObject({
       version: existing!.with.version,
       'scan-type': 'image',
-      'image-ref': '${{ matrix.ref }}',
+      'image-ref': '${{ matrix.build || matrix.ref }}',
       format: 'json',
       output: 'trivy-image-${{ matrix.name }}.json',
       'exit-code': '0',
@@ -575,6 +734,28 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
     });
     const step = scan!.steps.find((s) => s.uses?.startsWith('aquasecurity/trivy-action@'))!;
     expect(step['continue-on-error'], 'a failed scan must fail its leg').toBeUndefined();
+  });
+
+  it("builds the tasks' image before it scans it, on that leg alone, from the deploy config itself", () => {
+    const trivyAt = scan!.steps.findIndex((s) => s.uses?.startsWith('aquasecurity/trivy-action@'));
+    const before = scan!.steps.slice(0, trivyAt);
+    // Every step before the scan is the build's, and runs only where the list asked for one.
+    expect(before.length).toBeGreaterThan(0);
+    for (const step of before) expect(step.if, `${step.name ?? step.uses} runs on every leg`).toBe('matrix.build');
+    for (const step of scan!.steps.slice(trivyAt)) expect(step.if ?? '', `${step.name ?? step.uses}`).not.toContain('matrix.build');
+    expect(before.map((s) => s.uses?.split('@')[0] ?? s.run?.trim().split('\n')[0])).toEqual([
+      'actions/checkout',
+      'pnpm/action-setup',
+      'actions/setup-node',
+      'pnpm install --frozen-lockfile',
+      'set -euo pipefail',
+    ]);
+    expect(before[0]!.with?.['persist-credentials']).toBe(false);
+    const build = before.at(-1)!;
+    expect(build.env).toEqual({ BASE: '${{ matrix.ref }}', TAG: '${{ matrix.build }}' });
+    expect(build.run).toContain('node scripts/image-scan.mjs containerfile "$BASE" > "$context/Containerfile"');
+    expect(build.run).toMatch(/docker build --pull --platform "\$TRIVY_PLATFORM" --tag "\$TAG" --file "\$context\/Containerfile" "\$context"/);
+    expect(build.run, 'the Containerfile built is in the log').toContain('cat "$context/Containerfile"');
   });
 
   it('turns the JSON into SARIF and uploads it under a category of its own per image', () => {
@@ -610,7 +791,7 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
     });
     const download = report!.steps.find((s) => s.uses?.startsWith('actions/download-artifact@'))!;
     expect(download.with).toMatchObject({ pattern: 'trivy-image-*', path: 'image-reports', 'merge-multiple': true });
-    for (const job of [list, report]) {
+    for (const job of [list, scan, report]) {
       const checkout = job!.steps.find((s) => s.uses?.startsWith('actions/checkout@'));
       expect(checkout?.with?.['persist-credentials']).toBe(false);
     }
