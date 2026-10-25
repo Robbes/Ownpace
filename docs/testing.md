@@ -459,6 +459,10 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   floating `postgres:18-alpine`). It moves nothing: each issue gives the route, and the
   move is the owner's call. A row that cannot read its upstream, or finds its pin ahead of every
   tag listed, fails the run and never closes an issue.
+- `nextcloud-second-major.yml` — Mondays 05:17 UTC, on a push to `main` that touches the code
+  the Nextcloud suites exercise, on a pull request that changes the leg, and on dispatch; on a
+  GitHub-hosted runner, never a required check: the suites that talk to Nextcloud against the
+  major the demo does not run (see "The second Nextcloud major" below).
 - `images.yml` — the three application images: an amd64 build-only check on a pull request that
   touches a Dockerfile, `deploy/` or the workflow; a multi-arch build and publish on `main` and
   on `v*` tags.
@@ -537,10 +541,10 @@ demo run Nextcloud 34; a customer's own server may already run 35. `nextcloud-se
 runs the suites that read a `NEXTCLOUD_` variable (found by `scripts/nextcloud-suites.mjs`: WebDAV,
 CalDAV, CardDAV, the DAV sync, the chunked upload and the share verb) against the image its
 `NEXTCLOUD_IMAGE` names, pinned by tag and digest, without Stalwart, on a GitHub-hosted runner: on a
-push to `main` that touches `packages/**` or the test setup, weekly, on demand, and on a pull request
-that changes the leg itself. A Nextcloud asked for by name that does not start fails the run (the
-default only warns and lets the suites skip), the version `status.php` reports must be the one the
-tag names, and a report with a skipped test fails it too. Locally, the same with
+push to `main` that touches `packages/**`, `apps/**` or the test setup, weekly, on demand, and on a
+pull request that changes the leg itself. A Nextcloud asked for by name that does not start fails
+the run (the default only warns and lets the suites skip), the version `status.php` reports must be
+the one the tag names, and a report with a skipped test fails it too. Locally, the same with
 `NEXTCLOUD_IMAGE=<ref> SKIP_STALWART=true pnpm exec vitest run --project integration
 --no-file-parallelism $(node scripts/nextcloud-suites.mjs)`.
 

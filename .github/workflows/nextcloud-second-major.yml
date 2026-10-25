@@ -22,7 +22,7 @@
 # of skipping every suite, and the server that answered must be the version
 # the tag names. The step after the run refuses a report with a skipped test,
 # so this cannot be green over nothing. The pin moves by hand: Dependabot reads
-# no workflow env and the pin watch reads the compose files, not this one.
+# no workflow env and the pin watch reads no workflow file.
 # A tag waits three days after its push before it is pinned here, the age
 # CONTRIBUTING.md asks of a dependency, unless a security fix needs it sooner.
 #
@@ -31,7 +31,8 @@
 # for 35 on every pull request buys little. It runs:
 #   - on a push to main that touches the code those suites exercise;
 #   - on a pull request that changes how this leg runs (this file, the suite
-#     finder, the integration setup), so a change to the leg proves itself;
+#     finder, the integration setup and project), so a change to the leg
+#     proves itself;
 #   - weekly, so main has a recent answer even in a week with no such push;
 #   - on demand.
 # Always on a GitHub-hosted runner, never the self-hosted one: it has a
@@ -53,6 +54,7 @@ on:
     branches: [main]
     paths:
       - 'packages/**'
+      - 'apps/**'
       - 'vitest.config.ts'
       - 'vitest.global-setup.ts'
       - 'vitest.aliases.ts'
@@ -65,6 +67,7 @@ on:
     paths:
       - 'packages/testing/src/testcontainers-setup.ts'
       - 'packages/testing/src/nextcloud-image.ts'
+      - 'vitest.config.ts'
       - 'vitest.global-setup.ts'
       - 'scripts/nextcloud-suites.mjs'
       - '.github/workflows/nextcloud-second-major.yml'
@@ -87,10 +90,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      # 35.0.1-apache, this digest pushed 2026-10-10. 35.0.2-apache's current
-      # digest (sha256:89af7ee7…, pushed 2026-10-23 19:50 UTC, the rebuild that
-      # sets session.upload_progress.enabled=0) passes the three-day wait on
-      # 2026-10-26 at 19:51 UTC.
+      # 35.0.1-apache, this digest pushed 2026-10-10, upstream's last build of
+      # that tag: PHP 8.5.11. 35.0.2-apache's current digest (sha256:89af7ee7…,
+      # pushed 2026-10-23 19:50 UTC, also what `35-apache` and `latest` name)
+      # and the 34-apache the integration job pulls (34.0.5, rebuilt 2026-10-23)
+      # carry PHP 8.5.12, which closes CVE-2026-109618 and CVE-2026-109619. It
+      # passes the three-day wait on 2026-10-26 at 19:51 UTC and is the next pin
+      # (workplan 0119, T5).
       NEXTCLOUD_IMAGE: nextcloud:35.0.1-apache@sha256:8f2f0e93aca5e9457019933936dea1f313052e72c696b4aecb31580a208b859f
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

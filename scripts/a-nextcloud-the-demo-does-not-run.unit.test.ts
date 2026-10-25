@@ -28,9 +28,11 @@
  *    and a pull request that changes the leg runs it;
  *  - the runner: GitHub-hosted, since a pull request can start it;
  *  - the image: exact version and index digest, and a major other than the
- *    one the integration tier and the demo run, or the leg proves nothing new;
+ *    one the integration tier, the demo and the dev stack run, or the leg
+ *    proves nothing new;
  *  - the run: the found suites, without Stalwart, with a report in which a
- *    skipped test fails the run;
+ *    skipped test fails the run, and neither step nor the job able to be
+ *    skipped or to fail quietly;
  *  - the finder: the suites it must find, each one reading the Nextcloud the
  *    setup exports and none waiting for a Stalwart the leg does not start;
  *    and a refusal, not an empty list, when it finds none;
@@ -83,8 +85,12 @@ const majorOf = (ref: string): number => Number(/^nextcloud:(\d+)/.exec(ref)?.[1
 const setup = read(SETUP_PATH);
 const defaults = [...setup.matchAll(/new GenericContainer\('(nextcloud:[^']+)'\)/g)].map((m) => m[1]!);
 
-/** The demo's: every `image: nextcloud:` line of managed.yml. */
-const demo = [...read('deploy/compose/managed.yml').matchAll(/^\s*image:\s*(nextcloud:\S+)/gm)].map((m) => m[1]!);
+/** The stacks': every `image: nextcloud:` line of managed.yml (the demo) and dev.yml (the dev stack). */
+const COMPOSE_PATHS = ['deploy/compose/managed.yml', 'deploy/compose/dev.yml'] as const;
+const stacks = COMPOSE_PATHS.map((path) => ({
+  path,
+  refs: [...read(path).matchAll(/^\s*image:\s*(nextcloud:\S+)/gm)].map((m) => m[1]!),
+}));
 
 describe('when the second-major leg runs', () => {
   it('read a workflow with one job and its steps', () => {
@@ -94,7 +100,11 @@ describe('when the second-major leg runs', () => {
 
   it('on a push to main, weekly and on demand', () => {
     expect(triggers.push?.branches).toEqual(['main']);
-    expect(triggers.push?.paths).toEqual(expect.arrayContaining(['packages/**', 'pnpm-lock.yaml', WORKFLOW_PATH]));
+    // Both roots the finder walks (ROOTS in scripts/nextcloud-suites.mjs), so a
+    // suite under apps/ moves the leg as one under packages/ does.
+    expect(triggers.push?.paths).toEqual(
+      expect.arrayContaining(['packages/**', 'apps/**', 'vitest.config.ts', 'pnpm-lock.yaml', WORKFLOW_PATH]),
+    );
     expect(Object.keys(triggers)).toEqual(expect.arrayContaining(['schedule', 'workflow_dispatch']));
   });
 
@@ -110,6 +120,8 @@ describe('when the second-major leg runs', () => {
         WORKFLOW_PATH,
         SETUP_PATH,
         'packages/testing/src/nextcloud-image.ts',
+        // The integration project's include and timeouts.
+        'vitest.config.ts',
         'vitest.global-setup.ts',
         'scripts/nextcloud-suites.mjs',
       ]),
@@ -136,11 +148,11 @@ describe('which Nextcloud it runs', () => {
     );
   });
 
-  it('a major other than the one the integration tier and the demo run', () => {
+  it('a major other than the one the integration tier, the demo and the dev stack run', () => {
     expect(defaults, `${SETUP_PATH} starts no single default Nextcloud by a literal reference`).toHaveLength(1);
-    expect(demo.length, 'managed.yml runs no Nextcloud').toBeGreaterThan(0);
+    for (const { path, refs } of stacks) expect(refs.length, `${path} runs no Nextcloud`).toBeGreaterThan(0);
     const ours = majorOf(image);
-    for (const ref of [...defaults, ...demo]) {
+    for (const ref of [...defaults, ...stacks.flatMap((s) => s.refs)]) {
       expect(Number.isFinite(majorOf(ref)), `${ref} names no major`).toBe(true);
       expect(
         majorOf(ref),
@@ -171,11 +183,39 @@ describe('what it runs', () => {
     expect(report, 'the run writes no JSON report').toBeDefined();
     const check = steps.find((s) => s.run?.includes(report!) && s !== run);
     expect(check, 'no step reads the report').toBeDefined();
-    expect(check!.run).toContain('.numPendingTests == 0');
-    expect(check!.run).toContain('.numTodoTests == 0');
-    expect(check!.run).toContain('.numTotalTests > 0');
+    // One condition, every clause joined by `and`: an `or` anywhere lets a
+    // skipped or failed test through.
+    const condition = /jq -e '([^']+)'/.exec(check!.run!)?.[1] ?? '';
+    expect(condition, 'the report step decides with no `jq -e` condition').not.toBe('');
+    expect(condition.split(/\s+and\s+/).map((c) => c.trim())).toEqual(
+      expect.arrayContaining([
+        '.numTotalTests > 0',
+        '.numPendingTests == 0',
+        '.numTodoTests == 0',
+        '.numPassedTests == .numTotalTests',
+      ]),
+    );
+    expect(condition, 'a clause of the report condition is joined by `or`').not.toMatch(/\bor\b/);
+    expect(check!.run).toMatch(/^set -euo pipefail$/m);
     expect(check!.run).toContain('exit 1');
     expect(steps.indexOf(check!)).toBeGreaterThan(steps.indexOf(run!));
+  });
+
+  it('with neither step allowed to fail quietly or be skipped', () => {
+    const report = /--outputFile\.json=(\S+)/.exec(run?.run ?? '')?.[1] ?? '';
+    const check = steps.find((s) => s.run?.includes(report) && s !== run);
+    for (const step of [run, check]) {
+      expect(step, 'the run or the report step is gone').toBeDefined();
+      const keys = Object.keys(step!);
+      expect(keys, `"${step!.name ?? step!.run}" carries continue-on-error, so its red is a green job`).not.toContain(
+        'continue-on-error',
+      );
+      expect(keys, `"${step!.name ?? step!.run}" carries an if:, so it can be skipped and the job still pass`).not.toContain(
+        'if',
+      );
+    }
+    expect(Object.keys(job), 'the job carries continue-on-error').not.toContain('continue-on-error');
+    expect(Object.keys(job), 'the job carries an if:').not.toContain('if');
   });
 });
 
