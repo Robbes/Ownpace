@@ -7,7 +7,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 ### Changed
 
 - **The Stalwart the tests and the demo start is v0.16.27** (workplan 0146
-  T11 (b), ADR-0022, #PRNUM): the integration tests, the self-hosted
+  T11 (b), ADR-0022, #1698): the integration tests, the self-hosted
   end-to-end run and the OTA demo run it, live never does. v0.16.10's image
   carried 3 critical and 114 high findings, v0.16.27's carries no critical
   and 47 high, none with a fix. On x86_64 its image needs a CPU with
