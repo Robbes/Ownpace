@@ -37,16 +37,16 @@
  *  - The existing job's step names are matched by `indexOf` in
  *    `a-scan-that-skipped-itself`, and its first `runs-on: ${{` is read as the
  *    runner condition. The new jobs come after it, with names of their own and
- *    a plain `runs-on`.
+ *    a `runs-on` that names GitHub-hosted runners only.
  *
  * And one that went wrong in the first version (workplan 0146 T10, 2026-10-25).
  * The tasks' image is in no registry: each deploy builds it, on the base image
  * the pinned CLI names, with the layers `apps/worker/trigger.config.ts` adds
  * (the API image's Node, the Debian packages upgraded). The scan read that base
  * alone (14 critical and 119 high on 2026-10-25), so the alerts for the Debian
- * findings the upgrade fixes (42 on 2026-10-23) could never close. Its leg now builds the
- * deploy's `base` stage from the config's own extensions and scans that, under
- * the name, and so the category, its alerts were opened under.
+ * findings the upgrade fixes (42 on 2026-10-23) could never close. Its leg now
+ * builds the deploy's `base` stage from the config's own extensions and scans
+ * that, under the name, and so the category, its alerts were opened under.
  *
  * The network is stubbed (the git tags, the Trigger.dev CLI's tarball) and so
  * is `gh`; the compose files, the scripts and the deploy config are the real
