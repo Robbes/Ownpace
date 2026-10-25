@@ -65,9 +65,15 @@
  *    (`cmd/server-main.go`, `cmd/update.go` at `RELEASE.2025-05-24T17-08-30Z`),
  *    unless `MINIO_UPDATE` is `off`. Its call-home to SUBNET ships `off`
  *    (`internal/config/callhome/callhome.go`) and is written out here too.
- *  - MAILPIT (v1.31.6, the test stack's catcher; live has none) asks GitHub for
- *    its newest release whenever its web page asks for the server's info,
- *    unless `MP_DISABLE_VERSION_CHECK` says true (`internal/stats/stats.go`).
+ *  - MAILPIT (v1.31.6, and again at v1.32.0 on 2026-10-25; the test stack's
+ *    catcher, live has none) asks GitHub for its newest release whenever its
+ *    web page asks for the server's info, unless `MP_DISABLE_VERSION_CHECK`
+ *    says true (`internal/stats/stats.go`, the variable read in `cmd/root.go`
+ *    as `1`, `true` or `yes`). Neither file changed between the two tags.
+ *    None of its other requests goes to its maker: a webhook goes out only
+ *    when one is configured, and the HTML check, link check and screenshot
+ *    proxy fetch what a caught message names only when its API is asked for
+ *    them; none of those files changed either.
  *  - NEXTCLOUD (34, the demo's DAV target on the OTA stack every night, and the
  *    development one) sends its version, PHP version and install time to
  *    `updates.nextcloud.com`, asks `apps.nextcloud.com` for the app store, the
@@ -512,7 +518,7 @@ const CLICKHOUSE =
 const MINIO =
   'bitnamilegacy/minio:2025.5.24-debian-12-r5@sha256:451fe6858cb770cc9d0e77ba811ce287420f781c7c1b806a386f6896471a349c';
 const MAILPIT =
-  'axllent/mailpit:v1.31.6@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387';
+  'axllent/mailpit:v1.32.0@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498';
 const NEXTCLOUD = 'nextcloud:34-apache';
 /** The demo's Stalwart, outside every compose file; its fetches were read at this tag. */
 const STALWART = 'stalwartlabs/stalwart:v0.16.10';
@@ -567,7 +573,7 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
   },
   'deploy/compose/managed.yml:mailpit': {
     readAt: MAILPIT,
-    why: "a release check to GitHub when its web page asks for the server's info (internal/stats/stats.go at v1.31.6)",
+    why: "a release check to GitHub when its web page asks for the server's info (internal/stats/stats.go at v1.31.6, unchanged at v1.32.0)",
     holds: (svc) => exactly(environmentOf(svc), 'MP_DISABLE_VERSION_CHECK', 'true'),
   },
   'deploy/compose/managed.yml:trigger-tls': {

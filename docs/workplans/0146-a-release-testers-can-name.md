@@ -2,7 +2,49 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-10-24 (update this block at the end of every session)
+## Status — 2026-10-25 (update this block at the end of every session)
+
+**2026-10-25, build: T11 (a), Mailpit v1.31.6 → v1.32.0, a draft for alpha.3**, on branch
+`claude/ownpace-public-readiness-y7orc6-mailpit-1-32-0`. Main is frozen from the alpha.2 fold to
+its tag; this merges after the tag, once E2E (managed) has run on it.
+- **The pin.** `axllent/mailpit:v1.32.0@sha256:0790692b…` in `managed.yml`, the index digest
+  Docker Hub's tag listing gives and a HEAD of the tag on `registry-1.docker.io` returns (an OCI
+  index: amd64, arm64 and 386). `scripts/a-service-that-phones-home.unit.test.ts` pins the same
+  reference. No other file runs Mailpit: no `dev.yml` service, no Testcontainers setup, no
+  workflow; `docs/managed-bring-up.md`'s *Nothing phones home* row, 0119's inventory row and an
+  example in `idp-pin-watch.mjs`'s comment move with it. The released `CHANGELOG.md` line naming
+  v1.31.6 and the release fixture that copies it stay as written.
+- **Why.** v1.31.6's binary is built with Go 1.27.2 and v1.32.0's with Go 1.27.3 (`go version -m`
+  on `/mailpit` from each image's amd64 layer). Go 1.27.3 is two commits on go1.27.2, one of
+  them *"crypto/x509: distrust a handful of intermediates … Fixes CVE-2026-111943"* (golang/go
+  `90617fb`), the finding the 2026-10-23 triage read on v1.31.6 (0/1) and not on v1.32.0 (0/0).
+  Mailpit's own notes add two security fixes: the `/view/{ID}.html` output loses `<base>` and
+  `<meta http-equiv="refresh">` tags, and goexif is replaced by a small EXIF orientation reader
+  (GHSA-379p-g4f4-hq5h). The image is Alpine 3.24.3.
+- **Read:** Mailpit's `CHANGELOG.md` at v1.32.0 and `git diff v1.31.6 v1.32.0` (24 commits).
+  The release check is as it was: `internal/stats/stats.go` and `cmd/root.go` did not change, so
+  `MP_DISABLE_VERSION_CHECK` still answers `"disabled"` before any request, and the variable is
+  still read as `1`, `true` or `yes`. The webhook, the HTML and link checks and the screenshot
+  proxy did not change either. The API the smoke and `setup-zitadel.sh` read (`/api/v1/messages`,
+  `/api/v1/search`) did not change, nor did `/mailpit readyz`, the healthcheck. New: SMTP, POP3
+  and HTTP each hold back or refuse a connection past 1 000 open at once
+  (`internal/connlimit`), far above what the gate opens.
+- **One schema step, not one way.** The first start on the kept `mailpit_data` volume applies
+  `internal/storage/schemas/1.32.0.sql` to `mailpit.db`: the index `idx_message_tags_id` is
+  dropped and made again on `(ID, TagID)`, and a row `1.32.0` goes into its `schemas` table.
+  v1.31.6 opens that file if rolled back: `dbApplySchemas` applies only the scripts it carries
+  that have no row yet, so a row it has no script for changes nothing, and the index keeps its
+  name and still leads with `ID`.
+  Nothing to do before or after.
+- **Three days.** The tag was pushed at 2026-10-22T22:13:49Z (Docker Hub's `tag_last_pushed`;
+  upstream's release commit `ce798cfd` is from 22:02Z), so it is three days old at
+  2026-10-25T22:13Z, before this can merge.
+- **Proved here:** the 115 guards in `scripts/` that read `managed.yml`, Mailpit, or a file this
+  changes pass (3 682 tests); with the old pin put back in `managed.yml`, the phone-home guard
+  fails on the Mailpit row, as it should. `node scripts/idp-pin-watch.mjs` on the branch reads
+  *"axllent/mailpit v1.32.0 v1.32.0 current"*. Not proved here: a stack running v1.32.0.
+  That is E2E (managed), on the OTA stack, where Mailpit is the catcher every mail assertion of
+  the smoke reads.
 
 **2026-10-24, merged: Trivy v0.76.1 in both Security Scan steps**, as #1685, from branch
 `claude/ownpace-public-readiness-y7orc6-trivy-0-76-1`. T8's watch named it in
@@ -961,7 +1003,7 @@ best given with T0.
 | T8 A watch on the pinned images Dependabot leaves alone | Watch half ✅ **done** in #1663, merged 2026-10-21 (`087183b7`): every pin Dependabot cannot see, one issue per owner's-call row and one summary issue, and `/deploy/compose` out of `dependabot.yml` (Status, 2026-10-21); scan half ✅ **done** in #1674, merged 2026-10-22 (`51a0d267`): a weekly, report-only Trivy scan of every image the stacks run, with one issue per image past its end of life (Status, 2026-10-22) — *was:* scan half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-image-scan`, not merged (2026-10-22); watch half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-pin-watch`, not merged (2026-10-21), scan half 📋 Proposed; 📋 **Proposed** | §3. Widened 2026-10-21: Dependabot read no file in `deploy/compose`, so the watch covers every image line of its `managed.yml`, `dev.yml` and `www.yml` and the busybox and GoAccess copies in its scripts, `packageManager`, the Trivy the scan runs and the TypeScript split as well as Trigger.dev, ClickHouse and the task base image. MinIO has no upstream to compare with and is left to the scan half. |
 | T9 The API image runs without the dev tools | 🔨 **Being built** as a draft on branch `claude/ownpace-public-readiness-y7orc6-api-image-prod-deps`, for after the first invitation (2026-10-23) | Status, 2026-10-23 (the scan triage). `apps/api/Dockerfile`'s runtime stage copies the build stage's whole `/app`, where `pnpm install --filter @openmig/api...` installed the devDependencies too, the root's included, and `CMD` (`node apps/api/src/index.ts`) needs none of them. Their Go binaries are 2 critical and 65 high of the image's 3/125 on 2026-10-23: esbuild 0.25.12 (Go 1.23.12; drizzle-kit's and `@esbuild-kit/esm-loader`'s), counted twice, and TypeScript 7's native compiler (Go 1.26.4). The lockfile itself, dev dependencies included, reads 0/0. Done when the runtime image holds production dependencies only, a dependency it still needs and lacks fails at start, which the managed gate's first `curl $API/health` catches, and the image scan finds the Node base's findings alone. |
 | T10 The image scan reads the tasks' image as it is built | 📋 **Proposed** (2026-10-23) | Status, 2026-10-23 (the scan triage). `scripts/image-scan.mjs` scans the base image the pinned CLI names (`triggerdotdev/node:24-bookworm` by digest, category `trigger-task-base`, 14/117 on 2026-10-23), not the tasks' image that `deploy-tasks.sh` builds from it. The Trigger.dev v4.7.6 branch upgrades that image's Debian packages at build (`apt-get -y upgrade`), which fixes the 42 Debian findings that have a fix (12 critical, all Perl, fixed in 5.36.0-7+deb12u4, and 30 high). It leaves npm's bundled packages under `/usr/local/lib/node_modules/npm`, since the overlay copies only `/usr/local/bin/node` (tar 7.5.15's CVE-2026-59873, critical, fixed in 7.5.19, and 12 high, 11 of them with a fix), and the 76 Debian findings without a fix, zlib1g's CVE-2023-45853 among them: the built image would still carry 2 critical and 87 high of the 131 (read with Trivy 0.76.0, 2026-10-23). The scan cannot see the upgrade, so the category keeps alerts for 42 findings the built image no longer has. The scan runs on a GitHub-hosted runner, which cannot read the stack's own registry, so the proposal is to build the image in the scan job as the deploy builds it. The old category, if renamed, has its configuration deleted by hand (T8). |
-| T11 The patch and minor moves that clear findings | (a) 📋 **Proposed**; (b) ⏳ **Owner**; (c) 📋 **Proposed**, after the Alpha (2026-10-23) | Status, 2026-10-23 (the scan triage), read with Trivy 0.76.0 on linux/amd64. (a) **Mailpit v1.32.0**: 0/0, where v1.31.6 has CVE-2026-111943 (Go's `crypto/x509`); after the first invitation, by hand in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts`, which pins the reference by tag and digest and records Mailpit's release check as read at v1.31.6, so that fact is read again at v1.32.0 in the same change. (b) **Stalwart v0.16.27** (Debian 13.7): 0 critical and 47 high, none with a fix, where v0.16.10 has 3/114. The owner's call: `docs/stalwart-integration-fix.md` pins v0.16.10 and says *"DO NOT change the pinned version"* (AGENTS.md puts its decisions in ADR-0022), and every copy moves together: `setup-stalwart.sh`, the fixture's Dockerfile, the Testcontainers setup, the fix doc and the guards that name it. (c) **ClickHouse 26.3** (26.3.59, Ubuntu 22.04): 0/0, where 26.2.19.43 has CVE-2026-45447 and CVE-2026-84782 in openssl. After the Alpha: the owner accepted 26.2 for it on 2026-10-23 (0119 §3 item 9 on the Trigger.dev v4.7.6 branch), and 26.3 is ahead of the 26.2 Trigger.dev's own compose pins, which the pin watch compares with (T8). It moves in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts` together: the guard pins the reference by tag and digest and records the crash-report default as read at `v26.2.19.43-stable`, as `clickhouse-no-crash-reports.xml`'s comment does, so both are read again at 26.3. |
+| T11 The patch and minor moves that clear findings | (a) 🔨 **Being built** as a draft on branch `claude/ownpace-public-readiness-y7orc6-mailpit-1-32-0`, for alpha.3 (Status, 2026-10-25); (b) ⏳ **Owner**; (c) 📋 **Proposed**, after the Alpha (2026-10-23) | Status, 2026-10-23 (the scan triage), read with Trivy 0.76.0 on linux/amd64. (a) **Mailpit v1.32.0**: 0/0, where v1.31.6 has CVE-2026-111943 (Go's `crypto/x509`); after the first invitation, by hand in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts`, which pins the reference by tag and digest and records Mailpit's release check as read at v1.31.6, so that fact is read again at v1.32.0 in the same change. Done so on the branch: the release check read again at v1.32.0, unchanged. (b) **Stalwart v0.16.27** (Debian 13.7): 0 critical and 47 high, none with a fix, where v0.16.10 has 3/114. The owner's call: `docs/stalwart-integration-fix.md` pins v0.16.10 and says *"DO NOT change the pinned version"* (AGENTS.md puts its decisions in ADR-0022), and every copy moves together: `setup-stalwart.sh`, the fixture's Dockerfile, the Testcontainers setup, the fix doc and the guards that name it. (c) **ClickHouse 26.3** (26.3.59, Ubuntu 22.04): 0/0, where 26.2.19.43 has CVE-2026-45447 and CVE-2026-84782 in openssl. After the Alpha: the owner accepted 26.2 for it on 2026-10-23 (0119 §3 item 9 on the Trigger.dev v4.7.6 branch), and 26.3 is ahead of the 26.2 Trigger.dev's own compose pins, which the pin watch compares with (T8). It moves in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts` together: the guard pins the reference by tag and digest and records the crash-report default as read at `v26.2.19.43-stable`, as `clickhouse-no-crash-reports.xml`'s comment does, so both are read again at 26.3. |
 
 ## 1. What there is today
 
