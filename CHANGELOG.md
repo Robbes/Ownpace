@@ -264,6 +264,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **The weekly image scan reads the tasks' image as a task deploy builds it**
+  (workplan 0146 T10, #1700): it read only the base image Trigger.dev's CLI
+  names, while every deploy copies the API image's Node over that base and
+  upgrades its Debian packages, so the alerts for what the upgrade fixes could
+  never close. The scan now builds that stage itself, from the deploy config,
+  and reports it under the same code-scanning category, so the first scan on
+  `main` after this closes them.
 - **The managed smoke gate settles the share rows it made, so one run's
   leftovers no longer spend the next run's shares** (workplan 0104, #1696):
   Nextcloud lets an account create 20 shares in 10 minutes, and every press

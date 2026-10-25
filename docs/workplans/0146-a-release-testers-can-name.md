@@ -2,7 +2,64 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-10-24 (update this block at the end of every session)
+## Status — 2026-10-25 (update this block at the end of every session)
+
+**2026-10-25, build: T10, the image scan reads the tasks' image as a deploy builds it, a draft
+for alpha.3**, as draft #1700 on branch `claude/ownpace-public-readiness-y7orc6-tasks-image-scan`.
+Main is frozen from the alpha.2 fold to its tag; this merges after the tag. It changes the weekly
+image scan and nothing a stack runs, so no E2E reads it; the proof is a dispatch of Security Scan.
+
+- **What the leg reads now.** The leg named `trigger-task-base` builds the `base` stage of the
+  Containerfile a task deploy writes, and Trivy scans that. `scripts/image-scan.mjs containerfile
+  <base>` imports `apps/worker/trigger.config.ts`, runs its build extensions as the CLI does (every
+  `onBuildStart`, then every `onBuildComplete`, with `target: 'deploy'`) and writes
+  `FROM <base> AS base`, `ENV DEBIAN_FRONTEND=noninteractive` and each layer's
+  `image.instructions` in order: today the API image's Node copied over the base image's, and
+  `apt-get -y upgrade`. So nothing in the scan repeats an instruction or a version. The base is
+  still the one the list reads from the CLI that `apps/worker/package.json` pins, so the v4.8.1
+  branch moves it with no change here. The leg runs on `ubuntu-24.04-arm`, GitHub's arm64 runner
+  (free on a public repository, as ci.yml's integration tests already use it), so the build is
+  native for linux/arm64, the platform every leg scans; it installs the workspace first, because
+  the config imports `@trigger.dev/sdk`. Trivy reads the image from that runner's Docker alone
+  (`TRIVY_IMAGE_SRC` is `docker` on that leg), so a build that left nothing cannot be read from a
+  registry instead. Every other leg is as it was.
+- **The category stays `trivy-image-trigger-task-base`.** The name is kept and now means the
+  stage it is: the CLI's `base`, which every later stage starts from. The first image scan on
+  `main` after the merge (Monday's schedule, or a dispatch on `main`) uploads the built stage's
+  findings under it, and code scanning closes every alert that analysis no longer has. Nothing is
+  deleted by hand, and the release preflight's grouped note drops with it. The base read 14
+  critical and 119 high on 2026-10-25 (Security Scan #4763), and the triage of 2026-10-23 worked
+  out from the base's report that the upgraded image would keep 2 critical and 87 high (T10's
+  row): the dispatch says what it reads. What stays: zlib1g's CVE-2023-45853, which has no fix,
+  and npm's own bundled packages under `/usr/local/lib/node_modules/npm`, tar 7.5.15's
+  CVE-2026-59873 the critical among them, since the layer copies only the Node binary.
+- **What it leaves out, and says so.** The CLI's two steps after the layers install nothing
+  (an `apt-get --fix-broken install` and the CA trust edits). The task code and the externals the
+  CLI installs with `npm i` (`pg`, `@electric-sql/pglite`) are npm packages: their own versions
+  are the ones installed here, which the repository scan of the lockfile reads, and what npm
+  resolves under them at a deploy neither scan reads. A layer with `image.pkgs` is refused, since
+  the CLI installs those in this stage; so is any throw in an extension, which the CLI would log
+  and deploy past. A deploy that the CLI's builder serves from its cache keeps the Debian packages
+  of the build that filled it, so the scan can read newer packages than a stack runs, as with a
+  floating tag; the summary says so under the table.
+- **Read for this:** trigger.dev 4.7.6's npm tarball, `dist/esm/deploy/buildImage.js`
+  (`generateNodeContainerfile`, `parseGenerateOptions`, `BASE_IMAGE`) and
+  `dist/esm/build/extensions.js` (the order the hooks run in, and `onBuildComplete`'s errors
+  logged, not thrown); trivy-action v0.36.0's `action.yaml` and `entrypoint.sh` (`image-ref` is
+  the positional reference, `TRIVY_IMAGE_SRC` passes through), and Trivy v0.76.1's
+  `pkg/fanal/image/daemon.go` (an image from Docker is inspected by name, `--platform` not
+  consulted). GitHub's changelog of 2025-08-07: arm64 hosted runners are generally available
+  and free in public repositories.
+- **Proved here:** `scripts/an-image-nobody-scanned.unit.test.ts`, 40 tests, among them the
+  built stage against the config's own layers, the CLI's hook order, the refusals, the command
+  line under plain Node, a pin move of the SDK that keeps the name and the build tag, and the
+  workflow's five build steps on that leg alone. Each of three mutations of `image-scan.mjs`
+  (hooks interleaved, the `pkgs` refusal gone, the `build` field gone) fails exactly its case.
+  Not proved here: the leg itself. No workflow was dispatched from this session; a dispatch of
+  Security Scan on this branch with `image_scans` on runs it, and its SARIF goes to the branch's
+  ref, not `main`'s.
+- **One-way:** none. Reverting restores the base-image scan, and its next upload under the same
+  category reopens what the base has.
 
 **2026-10-24, merged: Trivy v0.76.1 in both Security Scan steps**, as #1685, from branch
 `claude/ownpace-public-readiness-y7orc6-trivy-0-76-1`. T8's watch named it in
@@ -960,7 +1017,7 @@ best given with T0.
 | T7 The object store: replace the frozen MinIO, or accept it for the alpha in writing | ⏳ **Owner** | §3. Recommended: accept it for the alpha, in writing, and replace it at the end of the alpha with Chainguard's maintained MinIO build, with versitygw as the fallback. The swap merges to `main` only once the next tag live will deploy is the end-of-Alpha switch's: the OTA stack takes it first, and live in that switch, which empties the store anyway (0119 §3, item 5, re-read 2026-10-23). |
 | T8 A watch on the pinned images Dependabot leaves alone | Watch half ✅ **done** in #1663, merged 2026-10-21 (`087183b7`): every pin Dependabot cannot see, one issue per owner's-call row and one summary issue, and `/deploy/compose` out of `dependabot.yml` (Status, 2026-10-21); scan half ✅ **done** in #1674, merged 2026-10-22 (`51a0d267`): a weekly, report-only Trivy scan of every image the stacks run, with one issue per image past its end of life (Status, 2026-10-22) — *was:* scan half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-image-scan`, not merged (2026-10-22); watch half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-pin-watch`, not merged (2026-10-21), scan half 📋 Proposed; 📋 **Proposed** | §3. Widened 2026-10-21: Dependabot read no file in `deploy/compose`, so the watch covers every image line of its `managed.yml`, `dev.yml` and `www.yml` and the busybox and GoAccess copies in its scripts, `packageManager`, the Trivy the scan runs and the TypeScript split as well as Trigger.dev, ClickHouse and the task base image. MinIO has no upstream to compare with and is left to the scan half. |
 | T9 The API image runs without the dev tools | 🔨 **Being built** as a draft on branch `claude/ownpace-public-readiness-y7orc6-api-image-prod-deps`, for after the first invitation (2026-10-23) | Status, 2026-10-23 (the scan triage). `apps/api/Dockerfile`'s runtime stage copies the build stage's whole `/app`, where `pnpm install --filter @openmig/api...` installed the devDependencies too, the root's included, and `CMD` (`node apps/api/src/index.ts`) needs none of them. Their Go binaries are 2 critical and 65 high of the image's 3/125 on 2026-10-23: esbuild 0.25.12 (Go 1.23.12; drizzle-kit's and `@esbuild-kit/esm-loader`'s), counted twice, and TypeScript 7's native compiler (Go 1.26.4). The lockfile itself, dev dependencies included, reads 0/0. Done when the runtime image holds production dependencies only, a dependency it still needs and lacks fails at start, which the managed gate's first `curl $API/health` catches, and the image scan finds the Node base's findings alone. |
-| T10 The image scan reads the tasks' image as it is built | 📋 **Proposed** (2026-10-23) | Status, 2026-10-23 (the scan triage). `scripts/image-scan.mjs` scans the base image the pinned CLI names (`triggerdotdev/node:24-bookworm` by digest, category `trigger-task-base`, 14/117 on 2026-10-23), not the tasks' image that `deploy-tasks.sh` builds from it. The Trigger.dev v4.7.6 branch upgrades that image's Debian packages at build (`apt-get -y upgrade`), which fixes the 42 Debian findings that have a fix (12 critical, all Perl, fixed in 5.36.0-7+deb12u4, and 30 high). It leaves npm's bundled packages under `/usr/local/lib/node_modules/npm`, since the overlay copies only `/usr/local/bin/node` (tar 7.5.15's CVE-2026-59873, critical, fixed in 7.5.19, and 12 high, 11 of them with a fix), and the 76 Debian findings without a fix, zlib1g's CVE-2023-45853 among them: the built image would still carry 2 critical and 87 high of the 131 (read with Trivy 0.76.0, 2026-10-23). The scan cannot see the upgrade, so the category keeps alerts for 42 findings the built image no longer has. The scan runs on a GitHub-hosted runner, which cannot read the stack's own registry, so the proposal is to build the image in the scan job as the deploy builds it. The old category, if renamed, has its configuration deleted by hand (T8). |
+| T10 The image scan reads the tasks' image as it is built | 🔨 **Being built** as draft #1700 on branch `claude/ownpace-public-readiness-y7orc6-tasks-image-scan`, for after the alpha.2 tag: the leg builds the deploy's `base` stage from `trigger.config.ts`'s own extensions on GitHub's arm64 runner and scans it under the same category (Status, 2026-10-25) — *was:* 📋 Proposed (2026-10-23) | Status, 2026-10-23 (the scan triage). `scripts/image-scan.mjs` scans the base image the pinned CLI names (`triggerdotdev/node:24-bookworm` by digest, category `trigger-task-base`, 14/117 on 2026-10-23), not the tasks' image that `deploy-tasks.sh` builds from it. The Trigger.dev v4.7.6 branch upgrades that image's Debian packages at build (`apt-get -y upgrade`), which fixes the 42 Debian findings that have a fix (12 critical, all Perl, fixed in 5.36.0-7+deb12u4, and 30 high). It leaves npm's bundled packages under `/usr/local/lib/node_modules/npm`, since the overlay copies only `/usr/local/bin/node` (tar 7.5.15's CVE-2026-59873, critical, fixed in 7.5.19, and 12 high, 11 of them with a fix), and the 76 Debian findings without a fix, zlib1g's CVE-2023-45853 among them: the built image would still carry 2 critical and 87 high of the 131 (read with Trivy 0.76.0, 2026-10-23). The scan cannot see the upgrade, so the category keeps alerts for 42 findings the built image no longer has. The scan runs on a GitHub-hosted runner, which cannot read the stack's own registry, so the proposal is to build the image in the scan job as the deploy builds it. The old category, if renamed, has its configuration deleted by hand (T8). |
 | T11 The patch and minor moves that clear findings | (a) 📋 **Proposed**; (b) ⏳ **Owner**; (c) 📋 **Proposed**, after the Alpha (2026-10-23) | Status, 2026-10-23 (the scan triage), read with Trivy 0.76.0 on linux/amd64. (a) **Mailpit v1.32.0**: 0/0, where v1.31.6 has CVE-2026-111943 (Go's `crypto/x509`); after the first invitation, by hand in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts`, which pins the reference by tag and digest and records Mailpit's release check as read at v1.31.6, so that fact is read again at v1.32.0 in the same change. (b) **Stalwart v0.16.27** (Debian 13.7): 0 critical and 47 high, none with a fix, where v0.16.10 has 3/114. The owner's call: `docs/stalwart-integration-fix.md` pins v0.16.10 and says *"DO NOT change the pinned version"* (AGENTS.md puts its decisions in ADR-0022), and every copy moves together: `setup-stalwart.sh`, the fixture's Dockerfile, the Testcontainers setup, the fix doc and the guards that name it. (c) **ClickHouse 26.3** (26.3.59, Ubuntu 22.04): 0/0, where 26.2.19.43 has CVE-2026-45447 and CVE-2026-84782 in openssl. After the Alpha: the owner accepted 26.2 for it on 2026-10-23 (0119 §3 item 9 on the Trigger.dev v4.7.6 branch), and 26.3 is ahead of the 26.2 Trigger.dev's own compose pins, which the pin watch compares with (T8). It moves in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts` together: the guard pins the reference by tag and digest and records the crash-report default as read at `v26.2.19.43-stable`, as `clickhouse-no-crash-reports.xml`'s comment does, so both are read again at 26.3. |
 
 ## 1. What there is today
