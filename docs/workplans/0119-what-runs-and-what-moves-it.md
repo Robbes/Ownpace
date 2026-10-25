@@ -66,12 +66,14 @@ tag.
   prisma 6.14.0, pnpm 10.33.2 and goose v3.27.1 are unchanged. The CLI's `environment.ts` did not
   change, so `deploy-tasks.sh`'s `--env` note holds.
 - **The three-day floor.** pnpm dates `@trigger.dev/core` and `@trigger.dev/sdk` 4.8.1 at
-  2026-10-23 14:28 UTC, so every frozen install refuses this branch's lockfile
-  (`ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`, seen here) until about 14:29 UTC on 2026-10-26, and
-  accepts it after with nothing changed. The npm packages carry no security fix, so no exclude
-  entry; the lockfile was written with the floor lifted for that one command only. The deploy
-  CLI is fetched by `npx`, which the floor does not cover; `trigger.dev@4.8.1` is of the same
-  day.
+  2026-10-23 14:28:03 and 14:28:06 UTC, the signing times of their provenance, so every frozen
+  install refuses this branch's lockfile (`ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`, seen here,
+  with those two dates) until about 14:29 UTC on 2026-10-26, and accepts it after with nothing
+  changed. `npm view … time` dates them later, 14:29:05 (sdk) and 14:29:45 (core), when they
+  reached the registry; the floor goes by pnpm's dates, not those. The npm packages carry no
+  security fix, so no exclude entry; the lockfile was written with the floor lifted for that one
+  command only. The deploy CLI is fetched by `npx`, which the floor does not cover;
+  `trigger.dev@4.8.1` is of the same day.
 - Proved here: the unit guards that read these files, `a-service-that-phones-home` red on the
   old tag first. Owed before merge, after the alpha.2 tag and never during the counted nights:
   main merged in once, after the fold (#1706), with this change's CHANGELOG line moved back
@@ -354,7 +356,7 @@ is who moves it after T1.
 | `postgres` (managed ×2, dev) | `managed.yml`, `dev.yml` | 18-alpine, floating | 18.6 | none, it floats within 18 | `docker compose pull` | stays floating; a major (`pg_upgrade`) is ignored in Dependabot and is the owner's |
 | `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
 | `redis` | `managed.yml` | 7.4-bookworm, floating (7.4.11 on Debian 12; 7-alpine, on Alpine 3.21, until 2026-10-21) | 8.8.2-alpine | one major | owner | **§3** — the licence changed at 7.4, which is the line this floats on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
-| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, `apps/worker/package.json` | v4.8.1 (2026-10-25; v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.1 (2026-10-23) | current | `trigger-version.sh` only; the pin watch keeps an issue open while a newer tag is in both images (0146 T8) | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave all four places alone |
+| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json` | v4.8.1 (2026-10-25; v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.1 (2026-10-23) | current | `trigger-version.sh` only; the pin watch keeps an issue open while a newer tag is in both images (0146 T8) | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and it reads no file in `deploy/compose` |
 | `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8) | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`); 26.2 is out of ClickHouse's support, **accepted for the Alpha** (§3 item 9) |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
 | `tecnativa/docker-socket-proxy` | `managed.yml` | v0.5.0 | v0.5.0 | current | by hand, when the pin watch's summary issue says (0146 T8) | — |

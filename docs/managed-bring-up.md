@@ -3123,9 +3123,11 @@ image scan (the image jobs of `.github/workflows/security-scan.yml`,
 [#1674](https://github.com/Robbes/Ownpace/pull/1674)) reports a HIGH or
 CRITICAL finding in musl.
 
-The deploy CLI, which runs on the host, was read only this far: at 4.5.16 its
-`src/telemetry/tracing.ts` is gone, and no exporter of its own was found. The
-integration tests' throwaway Nextcloud and Stalwart, which Testcontainers
+The deploy CLI, which runs on the host, was read only this far: at 4.5.16,
+4.7.2, 4.7.6 and 4.8.1 its `src/telemetry/tracing.ts` is gone, and no exporter
+of its own was found; its one PostHog client (4.5.16 had none) is the MCP
+server's feedback tool (`src/mcp/telemetry.ts`), which `deploy` never starts.
+The integration tests' throwaway Nextcloud and Stalwart, which Testcontainers
 starts on a CI runner, are not switched.
 
 `scripts/a-service-that-phones-home.unit.test.ts` puts every service of every
