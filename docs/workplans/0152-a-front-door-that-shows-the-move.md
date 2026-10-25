@@ -45,6 +45,17 @@ A review of the branch at `4ff19520` found two faults that held, and five smalle
   - Five mutations, each caught: the `GITHUB_REF` check removed, `/deploy/compose/goaccess` put
     back into the apps' Dependabot entry, its directory dropped from the workflow's matrix, its path
     dropped from the workflow's trigger, and `--quiet` put back.
+- **The image built, for the first time:** *Images the scripts build* on this pull request's head
+  after the merge of main (`fc2b10c0`, run 40198074117, `ubuntu-24.04-arm`), green in 32 seconds.
+  Its log: `alpine:3.24.3@sha256:be265606…` resolved for arm64; the build stage installed clang22
+  `22.1.3-r2`, gettext and gettext-dev `1.0-r0`, autoconf `2.73-r0` and automake `1.18.1-r1`;
+  `autoreconf` ran gettext 1.0's `autopoint` without error; `configure` and `make` passed with
+  warnings only (`-Wshadow`, `-Wunused-variable`); `ldd` passed; the run stage installed libintl
+  `1.0-r0` and libncursesw `6.6_p20260516-r0` among its five, and its `goaccess --version` printed
+  `GoAccess - 1.12.`; the image is `linux/arm64 sha256:af64b4b2c40d…`. So the open question of the
+  entry below (gettext 1.0, the run stage's library list, 3.24's clang) is answered on arm64. What
+  is still unproved before the merge is the scan leg: Trivy reading that build from the runner's
+  Docker.
 
 **2026-10-25: GoAccess is built here, on Alpine 3.24** ([#1675](https://github.com/Robbes/Ownpace/issues/1675)).
 The entry of 2026-10-22 below kept upstream's `allinurl/goaccess:1.12`, on Alpine 3.20, until
