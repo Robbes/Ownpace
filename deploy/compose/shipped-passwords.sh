@@ -56,14 +56,15 @@ SHIPPED_TRIGGER_DB_FROM="compose's default"
 # initialised, and keeps it. ClickHouse and MinIO read theirs when their
 # containers are recreated. On a stack whose volumes exist, a new value goes
 # through rotate-db-passwords.sh --rotate --with-trigger-stores, which sets the
-# roles and changes the stores, and trigger-api with them. stand-up-live.sh
+# roles and changes the stores, and trigger-api with them. MinIO's volume is
+# minio_data_v2, its store since workplan 0146 T7. stand-up-live.sh
 # keeps a list of its own with the same five (PASSWORDS);
 # a-password-the-repository-knows.unit.test.ts holds the two equal.
 SHIPPED_PASSWORD_KEYS=(
   'POSTGRES_PASSWORD postgres_data'
   'APP_DB_PASSWORD postgres_data'
   'CLICKHOUSE_PASSWORD clickhouse_data_v2'
-  'MINIO_ROOT_PASSWORD minio_data'
+  'MINIO_ROOT_PASSWORD minio_data_v2'
   'TRIGGER_DB_PASSWORD trigger_db_data'
 )
 
