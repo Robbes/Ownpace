@@ -29,6 +29,13 @@
  * compared or named with a reason, that a row which cannot read its upstream
  * never reads as current, and that the identity provider's issue keeps its
  * title.
+ *
+ * A PIN WITH NO NUMBER (workplan 0146 T7, 2026-10-24). MinIO moved to
+ * Chainguard's build, whose free tier publishes `latest` and `latest-dev`
+ * only, so `managed.yml` pins `latest` by its index digest. A tag list cannot
+ * say a `latest` is behind, and the watch refused it as a pin with no version
+ * to compare. Such a pin is compared with the digest its registry names for
+ * the tag today, read with a HEAD, and is behind when the two differ.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -62,8 +69,10 @@ import {
   readImages,
   readPin,
   readTriggerPin,
+  registryDigest,
   registryOf,
   repoReader,
+  REBUILD_NOTE,
   routineRows,
   securityFloor,
   stepsUsing,
@@ -256,6 +265,7 @@ interface Stubs {
   json?: Array<[RegExp, Answer]>;
   text?: Array<[RegExp, Answer]>;
   bytes?: Array<[RegExp, Answer]>;
+  digest?: Array<[RegExp, Answer]>;
   lsRemote?: Record<string, string>;
   npm?: (args: string[]) => string;
   probe?: (pin: string) => string;
@@ -277,6 +287,7 @@ function fakeNet(stubs: Stubs = {}): Net & { asked: string[] } {
     json: async (url) => answer(stubs.json, url),
     text: async (url) => answer(stubs.text, url) as string,
     bytes: async (url) => answer(stubs.bytes, url) as Buffer,
+    digest: async (url) => answer(stubs.digest, url) as string,
     lsRemote: async (url) => {
       asked.push(url);
       const listed = stubs.lsRemote?.[url];
@@ -593,11 +604,19 @@ describe('pnpm, and the TypeScript split', () => {
 /** The Trivy the scan names, once it names one; until then the action's default, which the stub gives as v0.70.0. */
 const TRIVY_NAMED = stepsUsing(REAL.read('.github/workflows/security-scan.yml')!, 'aquasecurity/trivy-action')[0]?.with.version;
 
-/** Every tag list answered with the pin itself, plus one newer tag for each of `newer`. */
+/**
+ * Every tag list answered with the pin itself, plus one newer tag for each of
+ * `newer`; and a digest-only pin's tag answered with its own digest, or with
+ * the one `newer` names for it.
+ */
 function registry(newer: Record<string, string> = {}): Stubs {
   const pins = new Map<string, string[]>();
+  const digests = new Map<string, string>();
   for (const file of COMPOSE_FILES) {
-    for (const image of readImages(REAL.read(file)!)) pins.set(registryOf(image.repo).name, [...(pins.get(registryOf(image.repo).name) ?? []), image.tag]);
+    for (const image of readImages(REAL.read(file)!)) {
+      pins.set(registryOf(image.repo).name, [...(pins.get(registryOf(image.repo).name) ?? []), image.tag]);
+      if (image.digest) digests.set(`${registryOf(image.repo).name}:${image.tag}`, image.digest);
+    }
   }
   for (const m of REAL.read('deploy/compose/site-visits.sh')!.matchAll(/GOACCESS_IMAGE="allinurl\/goaccess:([^@"]+)/g)) pins.set('allinurl/goaccess', [m[1]!]);
   for (const file of STALWART_FILES) for (const m of (REAL.read(file) ?? '').matchAll(/stalwartlabs\/stalwart:(v[\d.]+)/g)) pins.set('stalwartlabs/stalwart', [m[1]!]);
@@ -607,6 +626,12 @@ function registry(newer: Record<string, string> = {}): Stubs {
       [/\/v2\/(.+)\/tags\/list/, (url: string) => {
         const name = /\/v2\/(.+)\/tags\/list/.exec(url)![1]!;
         return { tags: [...(pins.get(name) ?? []), ...(newer[name] ? [newer[name]] : [])] };
+      }],
+    ],
+    digest: [
+      [/\/v2\/(.+)\/manifests\/([^/]+)$/, (url: string) => {
+        const [, name, tag] = /\/v2\/(.+)\/manifests\/([^/]+)$/.exec(url)!;
+        return newer[`${name}:${tag}`] ?? digests.get(`${name}:${tag}`) ?? new Error(`no digest stubbed for ${name}:${tag}`);
       }],
     ],
     text: [
@@ -690,6 +715,53 @@ describe('the routine pins, in one summary issue', () => {
     for (const doc of ['docs/stalwart-integration-fix.md', 'docs/adr/0022-imap-dependency-security-strategy.md']) {
       expect(REAL.read(doc), `${doc} is gone`).not.toBeNull();
     }
+  });
+
+  it("compares a pin with no number, held by its digest, with the digest its registry names for the tag today", async () => {
+    const minio = readImages(MANAGED).find((i) => i.repo === 'chainguard/minio')!;
+    expect(minio, 'managed.yml no longer pins chainguard/minio: move this case to the pin that has no number').toBeDefined();
+    expect(minio.tag).toBe('latest');
+    expect(minio.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+
+    const same = await routineRows(REAL, fakeNet(registry()));
+    expect(same.rows.find((r) => r.name === 'chainguard/minio')).toMatchObject({
+      pin: `latest@${minio.digest}`,
+      newest: `latest@${minio.digest}`,
+      state: 'current',
+    });
+
+    const moved = `sha256:${'e'.repeat(64)}`;
+    const { rows, status } = await routineRows(REAL, fakeNet(registry({ 'chainguard/minio:latest': moved })));
+    const row = rows.find((r) => r.name === 'chainguard/minio')!;
+    expect(row).toMatchObject({ newest: `latest@${moved}`, state: 'behind', notes: [REBUILD_NOTE] });
+    expect(rows.filter((r) => r.state !== 'current').map((r) => r.name)).toEqual(['chainguard/minio']);
+    const summary = summaryOf(rows, status);
+    expect(summary.state).toBe('behind');
+    expect(summary.body).toContain(`- \`chainguard/minio\` (deploy/compose/managed.yml): latest@${minio.digest}, newest **latest@${moved}**; ${REBUILD_NOTE}`);
+    expect(table({ issues: [], routine: rows, status })).toMatch(/chainguard\/minio\s+latest@sha256:[0-9a-f]{8}…\s+latest@sha256:eeeeeeee…\s+behind/);
+  });
+
+  it('asks the digest with the anonymous token, for the index, and never calls a pin current on an answer that is not a digest', async () => {
+    const heads: Array<[string, Record<string, string> | undefined]> = [];
+    const net: Net = {
+      ...fakeNet({ json: [TOKEN] }),
+      digest: async (url, headers) => {
+        heads.push([url, headers]);
+        return '';
+      },
+    };
+    await expect(registryDigest(net, 'chainguard/minio', 'latest')).rejects.toThrow('registry-1.docker.io named no digest for chainguard/minio:latest');
+    expect(heads).toEqual([
+      [
+        'https://registry-1.docker.io/v2/chainguard/minio/manifests/latest',
+        { Authorization: 'Bearer anonymous', Accept: expect.stringContaining('application/vnd.oci.image.index.v1+json') },
+      ],
+    ]);
+    const stubs = registry();
+    stubs.digest = [[/\/manifests\//, new Error('registry-1.docker.io answered 429')]];
+    const { rows, status } = await routineRows(REAL, fakeNet(stubs));
+    expect(rows.find((r) => r.name === 'chainguard/minio')).toMatchObject({ state: 'error', error: 'registry-1.docker.io answered 429' });
+    expect(summaryOf(rows, status).state).toBe('error');
   });
 
   it('reads a pin ahead of every listed tag as a read it cannot trust: the issue is neither closed nor called current', async () => {
