@@ -15,11 +15,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   once; the site's nginx moves only when `www.yml` is brought up again.
   The dashboard's front overrides none of Caddy 2.11.7's new defaults: it
   answers 431 to request headers over 16 KiB and closes a connection idle for
-  a minute. The demo
-  Nextcloud upgrades its volume to 34.0.5 and refuses an older image on it
-  afterwards, and runs with PHP's session upload progress off, upstream's
-  mitigation for CVE-2026-115560. `db-roles.sh` runs the postgres client
-  `managed.yml` pins.
+  a minute. The demo Nextcloud upgrades its volume to 34.0.5 and refuses an
+  older image on it afterwards, and runs with PHP's session upload progress
+  off, upstream's mitigation for CVE-2026-115560. `db-roles.sh` runs the
+  postgres client `managed.yml` pins.
 - **Trigger.dev's object store runs Chainguard's maintained MinIO, and starts
   empty** (workplan 0146 T7, the owner's answer of 2026-10-23, #1692): the
   frozen `bitnamilegacy/minio` image, in which the scan read 26 critical and

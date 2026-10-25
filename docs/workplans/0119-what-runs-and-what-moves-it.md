@@ -11,11 +11,11 @@ frozen from the alpha.2 fold to its tag; this merges after the tag, for alpha.3.
 - **Read at 10:47 UTC:** Docker Hub's tag API for each exact tag (digest, push time, the
   images under it), and both Nextcloud indexes and their arm64 images' configs through
   `mirror.gcr.io`, because Docker Hub's registry had stopped answering anonymous pulls for the
-  hour. Four are
-  unchanged and still the tag's: postgres 18.6-alpine `898c60cb…` (pushed 2026-10-22 13:08
-  UTC), redis 7.4.11-bookworm `44960b31…` (2026-10-21 06:05), caddy 2.11.7-alpine `eb4d35b7…`
-  (2026-10-22 17:52) and nginx 1.31.8-alpine `1ef7ca94…` (2026-10-22 16:51). Each index carries
-  linux/amd64 and linux/arm64, and each tag is still the newest in its line.
+  hour. Four are unchanged and still the tag's: postgres 18.6-alpine `898c60cb…` (pushed
+  2026-10-22 13:08 UTC), redis 7.4.11-bookworm `44960b31…` (2026-10-21 06:05), caddy
+  2.11.7-alpine `eb4d35b7…` (2026-10-22 17:52) and nginx 1.31.8-alpine `1ef7ca94…` (2026-10-22
+  16:51). Each index carries linux/amd64 and linux/arm64, and each tag is still the newest in
+  its line.
 - **Nextcloud's tag moved.** `34.0.5-apache` was rebuilt at 17:17 UTC on 2026-10-23 as
   `1f9212ad…` (official-images `c1edc1f7`, building nextcloud/docker `7e9e152f`, "Set
   session.upload_progress.enabled=0"), and the pin names it now in `managed.yml`, `dev.yml` and
@@ -32,13 +32,35 @@ frozen from the alpha.2 fold to its tag; this merges after the tag, for alpha.3.
   the demo's volume stays at 34.0.5 under either.
 - **The three-day floor.** postgres passes it at 13:08 UTC today, nginx at 16:51 and caddy at
   17:52; Nextcloud's new build at 17:17 UTC on 2026-10-26. It is taken before then as a
-  security fix, the floor's one exception, and the merge waits for the alpha.2 tag anyway. The
-  release checklist's retag of the floats on the OTA machine (T17) follows these five digests,
-  Nextcloud's at `1f9212ad…`, so that `main`'s nights and this branch run the same bytes.
-- Proved here: the guards that read the files this touches, listed in the pull request. Owed
-  before merge, unchanged: E2E (managed) and E2E (self-hosted) on the branch, and integration
-  in CI; after the fold, `main` merged in once more, so that the CHANGELOG line lands in the
-  new `[Unreleased]` and not in alpha.2's section.
+  security fix, the floor's one exception, and the merge waits for the alpha.2 tag anyway.
+- **The OTA machine retags once, before the fold.** The release checklist's T17 points
+  `main`'s floating tags at these five digests tonight, at 18:00 UTC or later and before the
+  fold merges, so that the E2E on `main` before the fold, the two counted nights and this
+  branch all run the same bytes. Nextcloud's is `1f9212ad…`, about 49 hours old at 18:00 UTC,
+  on the same exception. The other choice is to keep `9dbdc711…` for both counted nights and
+  let this pull request move it after the tag. Never a retag between the two counted nights:
+  they would run two Nextcloud builds on one commit. Both builds are 34.0.5, so neither
+  choice is one way.
+- **Ordering with #1705** (Nextcloud 35 in CI, a draft). Both change the line of the
+  Testcontainers setup that starts Nextcloud. Whichever merges second resolves it to #1705's
+  one-line `(asked ? new GenericContainer(asked) : new GenericContainer('…'))` with `dev.yml`'s
+  reference, this branch's digest, as the literal. Tried in a scratch merge of the two: that
+  form passes `a-float-nothing-ever-pulled`, #1705's `a-nextcloud-the-demo-does-not-run` and
+  `nextcloud-image` (47 of 47); keeping #1705's `nextcloud:34-apache` fails the first, and
+  the same ternary wrapped over three lines fails the second. The two also meet in this Status
+  block, `docs/workplans/README.md` and `docs/LESSONS.md`, as text.
+- **Reviewed the same day.** `main` merged in again for #1692 (MinIO, on `main` since 11:38
+  UTC): text conflicts in the CHANGELOG, this Status block and the inventory's MinIO row. A
+  guard now holds `dev.yml`'s Postgres and Nextcloud to `managed.yml`'s, every postgres line
+  there one reference and every nextcloud line one: the pin watch compares tags, not digests,
+  so the move above, missed in `dev.yml`, would have been reported by nothing. The old guard
+  passed with only `managed.yml`'s Nextcloud digest moved; the new one fails on that, and on
+  one of `managed.yml`'s two postgres lines moved alone.
+- Proved here: the guards that read the files this touches, listed in the pull request, and
+  CI on `0b581fdc`, integration on amd64 and arm64 among it. Owed before merge: E2E (managed)
+  and E2E (self-hosted) on the branch; after the fold, `main` merged in once more, so that
+  the CHANGELOG line lands in the new `[Unreleased]` and not in alpha.2's section, and CI
+  again on that merge.
 
 **2026-10-24: the object store moves to Chainguard's MinIO, built on a branch, not merged
 (0146 T7).** The owner's answer of 2026-10-23, 19:05 UTC, on the recommendation to accept the
