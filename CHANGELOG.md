@@ -7,12 +7,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 ### Changed
 
 - **The test stack's mail catcher is Mailpit v1.32.0** (workplan 0146 T11,
-  #1699): it is built with Go 1.27.3, which fixes CVE-2026-111943 in
-  `crypto/x509` that v1.31.6's Go 1.27.2 has, and its own release strips
-  `<base>` and refresh tags from a message's HTML view and replaces its EXIF
-  reader (GHSA-379p-g4f4-hq5h). Its release check is still off, read again
-  at v1.32.0. The first start rebuilds one index in the kept `mailpit.db`;
-  v1.31.6 still opens that file. Live runs no catcher.
+  #1699): it closes GHSA-379p-g4f4-hq5h (high), in which an image
+  attachment whose EXIF directories point at each other held Mailpit's
+  thumbnail endpoint in a loop, a core busy and memory growing until the
+  process was killed, and it is built with Go 1.27.3, which fixes
+  CVE-2026-111943 in `crypto/x509` that v1.31.6's Go 1.27.2 has. It also
+  strips `<base>` and refresh tags from a message's HTML view. The stack's
+  exposure to the loop was small: SMTP is reachable only from the stack's
+  own services, and the web page and its API only on the address
+  `MAILPIT_BIND` names, loopback by default. Its release check is still
+  off, read again at v1.32.0. The first start rebuilds one index in the kept
+  `mailpit.db`; v1.31.6 still opens that file. Live runs no catcher.
 - **Trigger.dev's object store runs Chainguard's maintained MinIO, and starts
   empty** (workplan 0146 T7, the owner's answer of 2026-10-23, #1692): the
   frozen `bitnamilegacy/minio` image, in which the scan read 26 critical and
