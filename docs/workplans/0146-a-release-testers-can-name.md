@@ -5,7 +5,7 @@
 ## Status — 2026-10-25 (update this block at the end of every session)
 
 **2026-10-25, build: the cosign that signs and checks the images is named, v3.1.4, where
-cosign-installer's default gave v3.0.6, a draft for alpha.3**, on branch
+cosign-installer's default gave v3.0.6, a draft for alpha.3**, as draft #1702 on branch
 `claude/ownpace-public-readiness-y7orc6-dependabot-invisible-pins`. Main is frozen from the alpha.2
 fold to its tag; this merges after the tag. #1671 listed it under *Also known*: *"cosign:
 cosign-installer v4.1.2 installs v3.0.6 (its default), and the newest cosign is v3.1.4"*. Its two
