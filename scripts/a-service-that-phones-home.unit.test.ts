@@ -59,12 +59,16 @@
  *    reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d`
  *    and `conf.d`, in sorted order, so a later one wins
  *    (`src/Common/Config/ConfigProcessor.cpp`, `getConfigMergeFiles`).
- *  - MINIO (bitnamilegacy 2025.5.24) asks `dl.min.io` for the newest release at
- *    every start, with a User-Agent that carries the OS, the architecture,
- *    `docker`, its version and the CPU's count, vendor and model
- *    (`cmd/server-main.go`, `cmd/update.go` at `RELEASE.2025-05-24T17-08-30Z`),
- *    unless `MINIO_UPDATE` is `off`. Its call-home to SUBNET ships `off`
- *    (`internal/config/callhome/callhome.go`) and is written out here too.
+ *  - MINIO (Chainguard's build since 0146 T7, the fork's
+ *    `RELEASE.2026-09-22T19-25-18Z`; read first at Bitnami's 2025.5.24) asks
+ *    `dl.min.io` for the newest release at every start, with a User-Agent that
+ *    carries the OS, the architecture, `docker`, its version and the CPU's
+ *    count, vendor and model (`cmd/server-main.go`, `cmd/common-main.go`,
+ *    `cmd/update.go`), unless `MINIO_UPDATE` is `off`. Its call-home to SUBNET
+ *    ships `off` (`internal/config/callhome/callhome.go`) and is written out
+ *    here too. Its one-shot `minio-init` runs `mc mb`, and mc asks `dl.min.io`
+ *    only when it is run with no command (`cmd/main.go` at mc's
+ *    `RELEASE.2025-08-13T08-35-41Z`).
  *  - MAILPIT (v1.31.6, the test stack's catcher; live has none) asks GitHub for
  *    its newest release whenever its web page asks for the server's info,
  *    unless `MP_DISABLE_VERSION_CHECK` says true (`internal/stats/stats.go`).
@@ -524,8 +528,14 @@ const TRIGGER_WEBAPP = 'ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v
 const ZITADEL = 'ghcr.io/zitadel/zitadel:v4.20.0';
 const CLICKHOUSE =
   'clickhouse/clickhouse-server:26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd';
+/**
+ * Chainguard's MinIO (0146 T7): `latest` by the index digest it had from
+ * 2026-10-22 to 2026-10-23, read on 2026-10-24. Its server is the fork's
+ * `RELEASE.2026-09-22T19-25-18Z`, read at that tag of `chainguard-forks/minio`;
+ * its mc is `RELEASE.2025-08-13T08-35-41Z`.
+ */
 const MINIO =
-  'bitnamilegacy/minio:2025.5.24-debian-12-r5@sha256:451fe6858cb770cc9d0e77ba811ce287420f781c7c1b806a386f6896471a349c';
+  'chainguard/minio:latest@sha256:d88920d6a50bd0b088223b688be3b76c63e6205dbe494437f67ba1240ea12880';
 const MAILPIT =
   'axllent/mailpit:v1.31.6@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387';
 /** Read at `stable34` (config.sample.php and the two crawlers), so the line, not one patch of it. */
@@ -575,7 +585,8 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
     readAt: MINIO,
     why:
       'a release check to dl.min.io at every start, its User-Agent carrying OS, architecture, version and CPU ' +
-      '(cmd/server-main.go, cmd/update.go, cmd/common-main.go at RELEASE.2025-05-24T17-08-30Z)',
+      "(cmd/server-main.go, cmd/update.go, cmd/common-main.go at chainguard-forks/minio's RELEASE.2026-09-22T19-25-18Z; " +
+      'first read at RELEASE.2025-05-24T17-08-30Z, the Bitnami image this replaced)',
     holds: (svc) => {
       const env = environmentOf(svc);
       return [...exactly(env, 'MINIO_UPDATE', 'off'), ...exactly(env, 'MINIO_CALLHOME_ENABLE', 'off')];
@@ -633,6 +644,16 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
     },
   },
   'deploy/compose/managed.yml:zitadel-machinekey': { readAt: 'busybox', why: 'a one-shot chown of a volume, with no network use' },
+  'deploy/compose/managed.yml:minio-init': {
+    readAt: 'chainguard/minio',
+    why:
+      "a one-shot `mc mb` against the stack's own minio; mc's release check to dl.min.io runs only when mc is given no " +
+      "command (app.Action in cmd/main.go at mc's RELEASE.2025-08-13T08-35-41Z), and the server never starts here",
+    holds: (svc) => {
+      const run = [svc.entrypoint, svc.command].flat().filter((p) => p !== undefined).join(' ');
+      return /\bmc\b.*\bmb\b/.test(run) ? [] : [`it runs "${run}", not mc mb: read what that sends before it stays here`];
+    },
+  },
   'deploy/compose/managed.yml:api': { readAt: 'build', why: "Ownpace's own API: what it sends, and to whom, is privacy §7's list" },
   'deploy/compose/managed.yml:web': { readAt: 'build', why: "Ownpace's own web app, served by nginx: no third-party script, font or tracker" },
   'deploy/compose/managed.yml:gatus': {
