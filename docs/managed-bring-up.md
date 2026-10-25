@@ -570,7 +570,7 @@ own date.
 `TRIGGER_DB_PASSWORD` (Trigger.dev's own database, `trigger-db`). The example
 ships them empty, and `ensure-env-secrets.sh` generates each one while its
 volume does not exist yet (`postgres_data`, `clickhouse_data_v2`,
-`minio_data`, `trigger_db_data`). While that volume does not exist, it also
+`minio_data_v2`, `trigger_db_data`). While that volume does not exist, it also
 replaces a value this repository publishes. Once the volume exists it writes
 nothing for that key, and says so. Postgres, `trigger-db` among them, keeps the
 password its volume was made with, so a new value here would not reach the
@@ -764,7 +764,9 @@ managed chain references `public.tenant`.
 Brings up `trigger-db`, `trigger-redis`, `clickhouse`, `minio`,
 `trigger-registry`, `trigger-docker-proxy`, `trigger-api`, `trigger-tls`,
 `trigger-supervisor` and waits for all of them to be **healthy**, not merely
-started.
+started. `minio-init`, a one-shot, makes MinIO's `packets` bucket once `minio`
+answers its health check, and `trigger-api` starts only after it has exited 0
+(workplan 0146 T7).
 
 `trigger-db` comes up first, on its own. Then the phase sets its role
 `trigger` to `.env`'s `TRIGGER_DB_PASSWORD` (`managed.yml`'s fallback when the
@@ -3022,7 +3024,7 @@ refuses a `COMPOSE_FILE` in the shell.
 | `trigger-api`, its entrypoint | Prisma's checkpoint to `checkpoint.prisma.io` at every start, from the `prisma migrate deploy` the entrypoint runs: the version, OS, architecture, Node, CI, the command, hashes of the project's and the CLI's paths, the schema's providers and a stored random signature | `CHECKPOINT_DISABLE: "1"`, the only thing the CLI and its client check | `docker/scripts/entrypoint.sh` at v4.5.16, v4.7.2 and v4.7.6; `packages/cli/src/CLI.ts` and `utils/checkpoint.ts` at prisma 6.14.0; checkpoint-client 1.1.33 |
 | `zitadel` | A "service ping" once a day to `zitadel.com`: the version, each instance's id, creation date and domains, and its count of users, organisations and projects | `ZITADEL_SERVICEPING_ENABLED: "false"`; `ZITADEL_TELEMETRY_ENABLED: "false"` too, which ships off | `cmd/defaults.yaml` at v4.19.2 (*"It's enabled by default"*) |
 | `clickhouse` | A report on every crash and logical error to `crash.clickhouse.com` | `clickhouse-no-crash-reports.xml`, mounted into `config.d`, sets both off; the `config.xml` the image ships sets them on. It is the only file ClickHouse merges that speaks of crash reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d` and `conf.d`, in sorted order, so a later one would win | `programs/server/config.xml`, `src/Daemon/CrashWriter.cpp`, `src/Common/Config/ConfigProcessor.cpp` at `v26.2.19.43-stable` |
-| `minio` | A release check to `dl.min.io` at every start, its User-Agent carrying the OS, architecture, version and CPU | `MINIO_UPDATE: "off"`; `MINIO_CALLHOME_ENABLE: "off"` too, which ships off | `cmd/server-main.go`, `cmd/update.go`, `internal/config/callhome/callhome.go` at `RELEASE.2025-05-24T17-08-30Z` |
+| `minio` | A release check to `dl.min.io` at every start, its User-Agent carrying the OS, architecture, version and CPU | `MINIO_UPDATE: "off"`; `MINIO_CALLHOME_ENABLE: "off"` too, which ships off | `cmd/server-main.go`, `cmd/common-main.go`, `cmd/update.go`, `internal/config/callhome/callhome.go` at `chainguard-forks/minio`'s `RELEASE.2026-09-22T19-25-18Z`, Chainguard's build since workplan 0146 T7 (first read at `RELEASE.2025-05-24T17-08-30Z`, the Bitnami image it replaced) |
 | `mailpit` (the test stack's catcher; live runs none) | A release check to GitHub whenever its page asks for the server's info | `MP_DISABLE_VERSION_CHECK: "true"` | `internal/stats/stats.go`, `cmd/root.go` at v1.31.6, and again at v1.32.0 |
 | `nextcloud` (the demo's DAV target, on the OTA stack every night; and `dev.yml`'s) | Its version, PHP version and install time to `updates.nextcloud.com`, the app store at `apps.nextcloud.com`, the announcements feed at `pushfeed.nextcloud.com`, and a connectivity check to four public sites | **None yet.** `updatechecker`, `appstoreenabled` and `has_internet_connection` stay on, Nextcloud's defaults; see *What is left on, and where*, below | `config/config.sample.php` and `apps/settings/lib/SetupChecks/InternetConnectivity.php` at `stable34`; `lib/Cron/Crawler.php` in nextcloud_announcements at `stable34` |
 
@@ -3042,7 +3044,10 @@ automatic HTTPS, which asks a public certificate authority, and
 PostgreSQL, PgBouncer, Redis, the registry (its trace exporter's default is
 its own container), the Docker socket proxy, the supervisor (its traces go to
 the webapp's own `/otel`), busybox, nginx, the status page (its requests are
-the probes `gatus.yaml` lists), and our own API, web app and appliance.
+the probes `gatus.yaml` lists), `minio-init` (it runs `mc mb`, and mc asks
+`dl.min.io` for its newest release only when it is run with no command:
+`cmd/main.go` at mc's `RELEASE.2025-08-13T08-35-41Z`), and our own API, web app
+and appliance.
 
 **What is left on, and where.** The demo's Nextcloud, in `managed.yml`, and
 the development one in `dev.yml`: their three settings are **not** switched off
@@ -3146,9 +3151,10 @@ bring-up, and live at its stand-up and every deploy from a tag that contains
 this change, since both run `bootstrap-managed.sh`, which brings each of them
 up by name. The pull sequence in *Updating a running deployment* does **not**
 do all of it: it brings up `api` and `web`, whose dependencies take in
-`trigger-api` and `clickhouse` but not the identity provider, the object store
-or the catcher, which keep their old environment until the next bring-up. By
-hand, on a stack that is already up, from its checkout:
+`trigger-api`, `clickhouse` and, through `minio-init`, the object store, but
+not the identity provider or the catcher, which keep their old environment
+until the next bring-up. By hand, on a stack that is already up, from its
+checkout:
 
 ```bash
 docker compose -f deploy/compose/managed.yml up -d trigger-api clickhouse zitadel minio
@@ -5104,6 +5110,66 @@ never reads as "nothing newer", nor as an older newest.
 >
 > Losing the packets store costs historical large run payloads and outputs — not
 > deployments, which live in the registry, and not the ability to run anything.
+
+> **Since workplan 0146 T7 it is Chainguard's maintained build of the same
+> server**, the owner's answer of 2026-10-23 (*"T7 no, fix already within the
+> alpha"*): `chainguard/minio:latest` by its index digest, because Chainguard's
+> free tier publishes `latest` and `latest-dev` only. The four points above,
+> as they came out, each read off the image itself:
+>
+> 1. `command: ["server", "/data"]`: the image's entrypoint is the bare
+>    `/usr/bin/minio`. No console address: nothing publishes or reads one.
+> 2. `/data`, on a **new volume**, `minio_data_v2`. The image runs as 65532 and
+>    ships `/data` root-owned with mode 0777, and Docker gives a new named
+>    volume that directory's ownership and mode the first time it mounts it,
+>    so the volume is writable as it comes. The Bitnami-era `minio_data` is
+>    not mounted or declared any more and stays on disk until it is removed
+>    (below).
+> 3. `minio-init`, from the same pinned image (it carries `mc`), runs
+>    `mc mb --ignore-existing` for `packets` once `minio` is healthy, and
+>    `trigger-api` waits for it to exit 0.
+> 4. A health check, upstream's `mc ready local`, which asks the server's
+>    health endpoint without a password.
+>
+> A stack takes it at its next bring-up after the drain a Trigger.dev upgrade
+> needs anyway: nothing `EXECUTING`, and nothing queued, delayed or waiting
+> that owns a stored payload, since the new store starts empty. The hold, and
+> `deploy-live.sh` under it, count Ownpace's own passes only. This reads
+> Trigger.dev's runs that have not finished, the non-final statuses of
+> v4.7.6's `TaskRunStatus`, and prints no secret:
+>
+> ```
+> docker compose -f deploy/compose/managed.yml exec -T trigger-db psql -X -At -U trigger -d triggerdb -c "SELECT \"taskIdentifier\", status, count(*) FROM \"TaskRun\" WHERE status IN ('DELAYED','PENDING','PENDING_VERSION','WAITING_FOR_DEPLOY','DEQUEUED','EXECUTING','WAITING_TO_RESUME','RETRYING_AFTER_FAILURE','PAUSED') GROUP BY 1, 2"
+> ```
+>
+> Before the bring-up it prints nothing, or only a run of a scheduled task
+> (`managed-sync-tick` and the others `apps/worker` declares with
+> `schedules.task`, whose payload is the schedule's own few hundred bytes,
+> kept in the database) for the minute it takes to finish. Anything else may
+> own a payload or an output the empty store will not have: wait for it to
+> finish, or cancel it from the dashboard. The weekly
+> pin watch says when `latest` has been rebuilt; moving the digest is a pull
+> request of its own with the new image's scan read and E2E (managed) on its
+> branch.
+>
+> **Removing the old volume**, once the stack runs on `minio_data_v2` from
+> `main` or a release tag, and the nightly gate or the deploy after the move
+> was green. Not after a branch's E2E alone: until the change is on `main`,
+> `main`'s nightly brings the Bitnami image back on the old volume.
+> Read-only first, from the stack's checkout; the second line must print
+> nothing:
+>
+> ```
+> docker volume inspect -f '{{.Name}} {{.CreatedAt}}' <project>_minio_data <project>_minio_data_v2
+> docker ps -a --filter volume=<project>_minio_data --format '{{.Names}}'
+> docker compose -f deploy/compose/managed.yml exec -T minio mc --config-dir /tmp/mc ready local
+> ```
+>
+> Then, and it cannot be undone:
+>
+> ```
+> docker volume rm <project>_minio_data
+> ```
 
 **Rotating a secret**: change it in `.env`, `docker compose up -d` the affected
 services, re-run `set-task-env.sh` if a task variable changed, and re-mint any

@@ -13,6 +13,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   reader (GHSA-379p-g4f4-hq5h). Its release check is still off, read again
   at v1.32.0. The first start rebuilds one index in the kept `mailpit.db`;
   v1.31.6 still opens that file. Live runs no catcher.
+- **Trigger.dev's object store runs Chainguard's maintained MinIO, and starts
+  empty** (workplan 0146 T7, the owner's answer of 2026-10-23, #1692): the
+  frozen `bitnamilegacy/minio` image, in which the scan read 26 critical and
+  259 high findings, 206 of them fixed in packages it would never get, is
+  replaced by `chainguard/minio`, the same server built from a maintained
+  fork, pinned by digest. It keeps its data on a new volume, `minio_data_v2`,
+  which starts empty, and a one-shot, `minio-init`, makes the `packets`
+  bucket before Trigger.dev starts. A stack takes it at its next bring-up
+  after the drain a Trigger.dev upgrade needs: nothing running or waiting
+  that owns a stored payload, because old runs' large payloads and outputs
+  are not carried over. The Bitnami-era volume stays on disk until it is
+  removed by hand, once the stack runs the change from `main` or a release
+  tag and a nightly or a deploy after it was green. The weekly pin watch says
+  when Chainguard has rebuilt the image.
 - **Trigger.dev is v4.7.6, its tasks run the API image's Node, and ClickHouse
   26.2 is accepted for the Alpha** (workplan 0119, issues #1668 and #1669,
   #1689): since v4.7.4, a magic link signs in only the browser that asked
