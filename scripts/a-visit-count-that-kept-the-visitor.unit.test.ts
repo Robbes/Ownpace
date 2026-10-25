@@ -112,10 +112,15 @@
  *     its HTML there. Never `--persist`, `--restore`, `--db-path`,
  *     `--keep-last`, an agent list, a real-time server, a resolver or a GeoIP
  *     database.
- *   - The image is pinned by digest, and runs with `--network none`,
- *     read-only, as `65534:65534` with every capability dropped and no new
- *     privileges, with no port and nothing mounted but the image's own empty
- *     volume (`a-service-that-phones-home` names it too).
+ *   - The image is the one this checkout builds, once per run and before any
+ *     log is read, from `deploy/compose/goaccess/Dockerfile`, as
+ *     `localhost/goaccess:<version>`, a name no registry serves, and it runs
+ *     with `--pull never` (#1675: upstream's image is on an Alpine past its
+ *     end of life). A build that fails reads no log and is a failure. It runs
+ *     with `--network none`, read-only, as `65534:65534` with every
+ *     capability dropped and no new privileges, with no port and nothing
+ *     mounted but the image's own empty volume (`a-service-that-phones-home`
+ *     names it too).
  *   - One report per container of the site, under live's persistent
  *     directory (`~/.persistent/<project>/site-visits/`), and nothing else
  *     left there: a deploy recreates the container and its log, and the
@@ -124,9 +129,9 @@
  *     switch that is neither true nor false, an argument, and a privacy text
  *     without the sentence, before asking Docker anything; and while
  *     `WWW_LIVE` is not true it reads nothing and says so.
- *   - A failure is one: no container, `docker logs`, `docker run` or GoAccess
- *     failing, or a report that is not HTML, each exits 1, and an earlier
- *     report is kept.
+ *   - A failure is one: no container, the image's build, `docker logs`,
+ *     `docker run` or GoAccess failing, or a report that is not HTML, each
+ *     exits 1, and an earlier report is kept.
  *   - The site's take-down in `docs/managed-bring-up.md` deletes the reports
  *     (privacy §9 on 0139's branch: the totals are kept "as long as we run
  *     this website").
@@ -146,6 +151,17 @@
  * `--read-only`, `--network none` and `--cap-drop ALL`, and the arm64 image,
  * were not run. The first run on the machine is that check
  * (`docs/managed-bring-up.md`, *Counting its visits*).
+ *
+ * On 2026-10-25 (#1675) the image became one this checkout builds. GoAccess
+ * was built from the commit `deploy/compose/goaccess/Dockerfile` fetches
+ * (`ef3c4f3c`), with its `autoreconf`, its `configure` line and its `make`, on
+ * the agent's Ubuntu (glibc, not Alpine's musl), and run through this script
+ * in place of `docker run`, as 65534:65534 under `setpriv --no-new-privs`, in
+ * a network namespace with no interface: it took every flag and wrote HTML of
+ * eight valid requests in which none of the addresses or personal words of
+ * the log it was given appears. The Dockerfile itself was not built there (no
+ * Docker daemon); the scan's goaccess leg builds it on arm64, and so does the
+ * first run on the machine.
  *
  * Addresses here are documentation shapes: the placeholder `100.64.0.1` for
  * NetBird's on the mesh (`an-address-that-was-not-an-example`), RFC 5737's and
@@ -392,12 +408,18 @@ const DOCKER_STUB = [
   '    [ -z "${STUB_LOGS_FAIL:-}" ] || exit 1',
   '    cat "$STUB_DIR/log.$id"',
   '    ;;',
+  '  build)',
+  '    shift',
+  '    printf "%s\\n" "$@" >"$STUB_DIR/build.argv"',
+  `    if [ -n "\${STUB_BUILD_FAIL:-}" ]; then echo "#5 [builds 1/7] FROM docker.io/library/alpine:3.24.3" >&2; echo "ERROR: failed to build: failed to solve: alpine:3.24.3: failed to resolve source metadata for docker.io/library/alpine:3.24.3: dial tcp: lookup registry-1.docker.io on ${NETBIRD}:53: server misbehaving" >&2; exit 1; fi`,
+  '    echo "sha256:5f0e3c1d2b4a69788776655443322110ffeeddccbbaa99887766554433221100"',
+  '    ;;',
   '  run)',
   '    shift',
   '    printf "%s\\n" "$@" >"$STUB_DIR/run.argv"',
   '    find "$HOME" -type f ! -name "*.html" -exec grep -l "HTTP/1" {} + >"$STUB_DIR/copies" 2>/dev/null',
   '    cat >"$STUB_DIR/given"',
-  '    if [ -n "${STUB_DOCKER_RUN_FAIL:-}" ]; then echo "docker: Error response from daemon: pull access denied for allinurl/goaccess" >&2; exit 125; fi',
+  '    if [ -n "${STUB_DOCKER_RUN_FAIL:-}" ]; then echo "docker: Error response from daemon: No such image: localhost/goaccess:1.12" >&2; exit 125; fi',
   '    for a in "$@"; do',
   '      case "$a" in -o|-o*|--output|--output=*) echo "No write permission for directory: ." >&2; echo "Invalid or unwritable path." >&2; exit 1 ;; esac',
   '    done',
@@ -436,6 +458,8 @@ function stage(dotEnv: string = LIVE_ENV, privacy: { en?: string | null; nl?: st
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
   }
   chmodSync(join(compose, 'site-visits.sh'), 0o755);
+  mkdirSync(join(compose, 'goaccess'));
+  copyFileSync(join(COMPOSE_DIR, 'goaccess', 'Dockerfile'), join(compose, 'goaccess', 'Dockerfile'));
   writeFileSync(join(compose, '.env'), dotEnv);
   const legal = join(checkout, 'site', 'legal');
   mkdirSync(legal, { recursive: true });
@@ -479,15 +503,18 @@ function run(s: Stage, extra: NodeJS.ProcessEnv = {}, args: string[] = []) {
   });
   const asked = readFileSync(join(s.stub, 'asked'), 'utf8').split('\n').filter(Boolean);
   const argvFile = join(s.stub, 'run.argv');
+  const buildFile = join(s.stub, 'build.argv');
   const givenFile = join(s.stub, 'given');
   const copiesFile = join(s.stub, 'copies');
   return {
+    compose: s.compose,
     status: r.status ?? -1,
     stdout: r.stdout ?? '',
     stderr: r.stderr ?? '',
     out: `${r.stdout ?? ''}${r.stderr ?? ''}`,
     asked,
     argv: existsSync(argvFile) ? readFileSync(argvFile, 'utf8').split('\n').filter(Boolean) : [],
+    build: existsSync(buildFile) ? readFileSync(buildFile, 'utf8').split('\n').filter(Boolean) : [],
     given: existsSync(givenFile) ? readFileSync(givenFile, 'utf8') : null,
     copies: existsSync(copiesFile) ? readFileSync(copiesFile, 'utf8').split('\n').filter(Boolean) : null,
   };
@@ -574,11 +601,23 @@ describe('site-visits.sh gives GoAccess the visits, and nobody', () => {
     expect(r.out).toMatch(/17 of GoAccess's lines quote the log, and are not shown/);
   });
 
+  it("reads no log when GoAccess's image cannot be built, and shows docker's last words without this machine's addresses", () => {
+    const s = stage();
+    const r = run(s, { STUB_BUILD_FAIL: '1' });
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toMatch(/GoAccess's image could not be built from deploy\/compose\/goaccess\/Dockerfile/);
+    expect(r.out, "docker's own words are shown").toContain('failed to resolve source metadata');
+    expect(r.out, 'the mesh resolver in its words is replaced').toContain('<mesh-ip>');
+    expect(r.asked.filter((a) => a.startsWith('logs ')), 'a log was read for a GoAccess that could not run').toEqual([]);
+    expect(r.given, 'GoAccess was run').toBeNull();
+    expectNobody(s, r);
+  });
+
   it("shows docker's own words when docker could not run GoAccess at all (exit 125)", () => {
     const s = stage();
     const r = run(s, { STUB_DOCKER_RUN_FAIL: '1' });
     expect(r.status, r.out).toBe(1);
-    expect(r.out).toContain('pull access denied for allinurl/goaccess');
+    expect(r.out).toContain('No such image: localhost/goaccess:1.12');
     expect(r.out).toMatch(/docker could not run GoAccess/);
     expectNobody(s, r);
   });
@@ -611,7 +650,7 @@ describe('GoAccess keeps totals: the flags, the image and what it may touch', ()
   const ran = () => {
     if (!once) {
       const r = run(stage());
-      const image = r.argv.findIndex((a) => /^allinurl\/goaccess[:@]/.test(a));
+      const image = r.argv.findIndex((a) => /^localhost\/goaccess[:@]/.test(a));
       once = { r, image, docker: r.argv.slice(0, Math.max(image, 0)), goaccess: image < 0 ? [] : r.argv.slice(image + 1) };
     }
     return once;
@@ -620,7 +659,7 @@ describe('GoAccess keeps totals: the flags, the image and what it may touch', ()
   it('ran', () => {
     const { r, image } = ran();
     expect(r.status, r.out).toBe(0);
-    expect(image, `no allinurl/goaccess image among: ${r.argv.join(' ')}`).toBeGreaterThan(-1);
+    expect(image, `no localhost/goaccess image among: ${r.argv.join(' ')}`).toBeGreaterThan(-1);
   });
 
   it.each([
@@ -662,9 +701,23 @@ describe('GoAccess keeps totals: the flags, the image and what it may touch', ()
     expect(kept, 'privacy §4.5: totals only. --persist keeps a fingerprint per visitor and per day').toEqual([]);
   });
 
-  it('is pinned by digest, and runs with no network, no port, nothing of ours mounted, nothing to write, no root and no capability', () => {
+  it('is the image this checkout built from goaccess/Dockerfile, under a name no registry serves, and never pulled (#1675)', () => {
     const { r, image, docker } = ran();
-    expect(r.argv[image]).toMatch(/^allinurl\/goaccess:[0-9][0-9.]*@sha256:[0-9a-f]{64}$/);
+    const named = /^GOACCESS_IMAGE="([^"]+)"$/m.exec(readFileSync(join(ROOT, SCRIPT_REL), 'utf8'))?.[1];
+    expect(named, 'site-visits.sh names no GOACCESS_IMAGE').toMatch(/^localhost\/goaccess:[0-9][0-9.]*$/);
+    expect(r.argv[image]).toBe(named);
+    expect(docker.join(' '), 'a missing image would be pulled under its name').toMatch(/(^| )--pull never( |$)/);
+    // docker build --quiet --tag <the image> <checkout>/deploy/compose/goaccess, before any log is read.
+    expect(r.build.at(-1), r.build.join(' ')).toBe(join(r.compose, 'goaccess'));
+    expect(r.build.join(' ')).toMatch(new RegExp(`(^| )--tag ${named!.replace(/[.]/g, '\\.')}( |$)`));
+    const order = r.asked.map((a) => a.split(' ')[0]);
+    expect(order.indexOf('build'), r.asked.join('\n')).toBeGreaterThan(-1);
+    expect(order.indexOf('build'), 'built after a log was read').toBeLessThan(order.indexOf('logs'));
+    expect(order.filter((a) => a === 'build'), 'one build per run, not one per container').toHaveLength(1);
+  });
+
+  it('runs with no network, no port, nothing of ours mounted, nothing to write, no root and no capability', () => {
+    const { docker } = ran();
     const line = docker.join(' ');
     expect(docker).toContain('--rm');
     expect(docker).toContain('-i');
@@ -827,6 +880,7 @@ describe('a failure is a failure, and an earlier report stays', () => {
   it.each([
     ['docker logs fails', { STUB_LOGS_FAIL: '1' }, /docker logs .* failed/],
     ['docker cannot run GoAccess', { STUB_DOCKER_RUN_FAIL: '1' }, /docker could not run GoAccess/],
+    ["GoAccess's image cannot be built", { STUB_BUILD_FAIL: '1' }, /GoAccess's image could not be built/],
     ['GoAccess fails', { STUB_GOACCESS_FAIL: '1' }, /GoAccess failed/],
     ['GoAccess writes no HTML', { STUB_GOACCESS_EMPTY: '1' }, /not an HTML report/],
   ] as const)('%s: exit 1, and the report from the run before is kept as it was', (_l, extra, why) => {

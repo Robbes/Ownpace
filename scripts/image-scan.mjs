@@ -27,7 +27,12 @@
  *             - every image a script in deploy/compose or deploy/selfhost
  *               names in a literal `…IMAGE=` assignment (GoAccess, Stalwart
  *               for the demo, db-roles.sh's client), deduplicated against
- *               the compose files of its stack;
+ *               the compose files of its stack. One named `localhost/<name>`
+ *               is built by its script from `<name>/Dockerfile` beside it, and
+ *               no registry serves it (GoAccess since #1675: upstream's image
+ *               is on an Alpine past its end of life), so its leg builds that
+ *               directory for linux/arm64 and scans what it built
+ *               (`context`); the Dockerfile must be there;
  *             - the base image the pinned Trigger.dev CLI names for the
  *               tasks' runtime, which no file here names (the pin watch's
  *               `cliBaseImage`);
@@ -102,7 +107,7 @@ export const ISSUE_PREFIX = "An image's operating system is past its end of life
 /** What the report reads for a summary: the two severities the scan asks for. */
 const SEVERITIES = ['CRITICAL', 'HIGH'];
 
-/** A literal image in a script: `GOACCESS_IMAGE="allinurl/goaccess:1.12@sha256:…"`. */
+/** A literal image in a script: `GOACCESS_IMAGE="localhost/goaccess:1.12"`, `IMAGE="stalwartlabs/stalwart:v0.16.10"`. */
 const SCRIPT_IMAGE = /^\s*(?:readonly\s+|export\s+|local\s+)?(?:[A-Z][A-Z0-9_]*_)?IMAGE=(["'])([a-z0-9][^"'\s$]*)\1\s*(?:#.*)?$/gm;
 
 const need = (repo, rel) => {
@@ -139,6 +144,9 @@ export function newestReleaseTag(lsRemote) {
   return versions.sort(compareSemVer).at(-1);
 }
 
+/** The registry no image is pulled from: a script's image named under it is built from a Dockerfile here. */
+export const BUILT_HERE = 'localhost/';
+
 /** The images a script names literally, each with its line. */
 function scriptImages(text) {
   const images = [];
@@ -148,6 +156,21 @@ function scriptImages(text) {
     images.push({ line: text.slice(0, m.index).split('\n').length, ...image });
   }
   return images;
+}
+
+/**
+ * Where a script's `localhost/<name>` image is built from: `<name>/` beside the
+ * script, which must hold a Dockerfile. Any other image is pulled: null.
+ */
+function buildContext(repo, dir, image) {
+  if (!image.repo.startsWith(BUILT_HERE)) return null;
+  const name = image.repo.slice(BUILT_HERE.length);
+  if (!/^[a-z0-9][a-z0-9._-]*$/.test(name)) throw new Error(`${image.ref} names no directory a Dockerfile could be in`);
+  const context = `${dir}/${name}`;
+  if (repo.read(`${context}/Dockerfile`) === null) {
+    throw new Error(`${image.ref} is built from ${context}/Dockerfile, which is not in this checkout: no registry serves it, so nothing could scan it`);
+  }
+  return context;
 }
 
 /**
@@ -161,17 +184,17 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
   // Once per stack and reference: one reference both stacks run is two scans,
   // so neither name moves when two pins converge.
   const byStackRef = new Map();
-  const add = (image, where) => {
+  const add = (image, where, context = null) => {
     if (image.repo.startsWith(ownpace)) return;
     const stack = stackOf(where);
     const key = `${stack}\n${image.ref}`;
-    if (!byStackRef.has(key)) byStackRef.set(key, { ...image, stack, where: [] });
+    if (!byStackRef.has(key)) byStackRef.set(key, { ...image, stack, context, where: [] });
     if (!byStackRef.get(key).where.includes(where)) byStackRef.get(key).where.push(where);
   };
   for (const file of SCAN_FILES) for (const image of readImages(need(repo, file))) add(image, file);
   for (const dir of SCRIPT_DIRS) {
     for (const name of repo.list(dir).filter((n) => n.endsWith('.sh')).sort()) {
-      for (const image of scriptImages(need(repo, `${dir}/${name}`))) add(image, `${dir}/${name}`);
+      for (const image of scriptImages(need(repo, `${dir}/${name}`))) add(image, `${dir}/${name}`, buildContext(repo, dir, image));
     }
   }
 
@@ -188,6 +211,8 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
     const base = stacks.get(short(image)).size > 1 ? `${short(image)}-${image.stack}` : short(image);
     const name = taken.has(base) ? `${base}-${basename(image.where[0]).replace(/\.(ya?ml|sh)$/, '')}` : base;
     taken.add(base);
+    // A built image's pins are its Dockerfile's, so its tag does not float.
+    if (image.context) return { name, ref: image.ref, where: image.where.join(', '), floating: false, context: image.context };
     return { name, ref: image.ref, where: image.where.join(', '), floating: isFloating(image) };
   });
 
@@ -260,7 +285,9 @@ export function eoslIssue(image, report) {
   const body = [
     `\`${image.ref}\` (${image.where}) runs on **${os}**, which its distribution no longer supports: Trivy's report for it says \`EOSL\`, end of service life. Its packages get no more security fixes, so what the scan finds in them from now on stays open whatever else moves.`,
     '',
-    'The way out is the same image on a supported base: a newer tag of it once upstream has moved its base, or another variant of it. The pin watch (`.github/workflows/idp-pin-watch.yml`) says when a newer tag exists. The move goes in a pull request like any pin, with its release notes read; an image of `managed.yml` takes E2E (managed) dispatched on its branch, and live takes it from a release tag. A major is the owner\'s call.',
+    image.context
+      ? `This image is built here, from \`${image.context}/Dockerfile\`, and its base is the \`FROM\` there. The way out is a supported base in that file, by exact tag and digest: Dependabot moves the pin within its line (\`.github/dependabot.yml\`), and a new line of the base goes in a pull request like any pin, with its release notes read. Live takes it from a release tag. A major is the owner's call.`
+      : 'The way out is the same image on a supported base: a newer tag of it once upstream has moved its base, or another variant of it. The pin watch (`.github/workflows/idp-pin-watch.yml`) says when a newer tag exists. The move goes in a pull request like any pin, with its release notes read; an image of `managed.yml` takes E2E (managed) dispatched on its branch, and live takes it from a release tag. A major is the owner\'s call.',
     ...(image.floating
       ? ['', 'The tag floats, so this is the image its registry serves today, which need not be the one the box pulled last.']
       : []),
@@ -308,7 +335,7 @@ export function summarize(images, readFile) {
       annotations.push(`::warning::${image.name}: ${shortRef(image.ref)} runs ${report.os}, past its end of life (Trivy: EOSL). An issue is kept open for it.`);
     }
     rows.push(
-      `| \`${image.name}\` | \`${shortRef(image.ref)}\`${image.floating ? ' (floats)' : ''} | ${report.os ?? 'not detected'} | ${report.eosl ? '**past its end of life**' : 'supported'} | ${report.critical} | ${report.high} | ${report.fixable} |`,
+      `| \`${image.name}\` | \`${shortRef(image.ref)}\`${image.floating ? ' (floats)' : ''}${image.context ? ` (built from \`${image.context}\`)` : ''} | ${report.os ?? 'not detected'} | ${report.eosl ? '**past its end of life**' : 'supported'} | ${report.critical} | ${report.high} | ${report.fixable} |`,
     );
   }
   const eosl = read.filter((r) => r.report.eosl).length;
@@ -321,7 +348,7 @@ export function summarize(images, readFile) {
     '|---|---|---|---|---|---|---|',
     ...rows,
     '',
-    'A floating tag is scanned as its registry serves it today, which need not be what the box pulled last. The platform scanned is the one the stacks run on, linux/arm64.',
+    'A floating tag is scanned as its registry serves it today, which need not be what the box pulled last. An image built here is scanned as its Dockerfile builds today, which need not be what the box built last. The platform scanned is the one the stacks run on, linux/arm64.',
   ];
   return { lines, annotations, missing, read };
 }

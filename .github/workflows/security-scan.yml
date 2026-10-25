@@ -430,10 +430,20 @@ jobs:
   # on the code scanning tool status page (the Security tab, Code scanning,
   # Tool status).
   #
+  # AN IMAGE NO REGISTRY SERVES IS BUILT, NOT PULLED (#1675, 2026-10-25). A
+  # script's `localhost/<name>` image is built by that script from
+  # `<name>/Dockerfile` beside it (GoAccess: deploy/compose/site-visits.sh,
+  # because upstream's image is on an Alpine past its end of life), so the
+  # list gives its leg a `context`. That leg checks out this commit, builds the
+  # directory natively on GitHub's arm64 runner (free on a public repository;
+  # ci.yml's integration tests use it) under the reference the script runs,
+  # and Trivy reads it from that runner's Docker only. The name, and so the
+  # category and the issue, stays the image's short name (`goaccess`).
+  #
   # Step names differ from the job above on purpose: its guard finds them by
   # `indexOf`, and reads the first `runs-on:` expression in this file as the
-  # runner condition, so these jobs name their runner plainly. Held by
-  # scripts/an-image-nobody-scanned.unit.test.ts.
+  # runner condition, so these jobs come after it and name GitHub-hosted
+  # runners only. Held by scripts/an-image-nobody-scanned.unit.test.ts.
   image-list:
     name: Images the stacks run
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.image_scans)
@@ -455,7 +465,8 @@ jobs:
       # `${VAR:-default}` as its default, a digest kept), the images the
       # scripts name, the tasks' base image as the pinned Trigger.dev CLI names
       # it, and Ownpace's three at `:edge` and at the newest release tag, which
-      # is what live runs: it builds the tag it deploys. See image-scan.mjs.
+      # is what live runs: it builds the tag it deploys; an image a script
+      # builds here carries its `context`. See image-scan.mjs.
       - name: List every image the stacks run
         id: list
         run: node scripts/image-scan.mjs list >> "$GITHUB_OUTPUT"
@@ -464,7 +475,10 @@ jobs:
     name: Image scan (${{ matrix.name }})
     needs: image-list
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.image_scans)
-    runs-on: ubuntu-24.04
+    # A leg that builds its image builds it for the platform scanned, on
+    # GitHub's arm64 runner: no emulation, no setup actions. Every other leg
+    # reads its image from the registry, from amd64.
+    runs-on: ${{ matrix.context && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -477,10 +491,31 @@ jobs:
     env:
       # The platform the stacks run on: the Spark is arm64, and the tasks' image
       # is built for its host (deploy-tasks.sh). Read from the registry itself,
-      # never from a local daemon. Ownpace's images are public, so no login.
+      # never from a local daemon, unless the leg built the image itself, and
+      # then from this runner's Docker only, so a build that left nothing can
+      # never be read from a registry instead. Ownpace's images are public, so
+      # no login.
       TRIVY_PLATFORM: linux/arm64
-      TRIVY_IMAGE_SRC: remote
+      TRIVY_IMAGE_SRC: ${{ matrix.context && 'docker' || 'remote' }}
     steps:
+      # AN IMAGE ITS SCRIPT BUILDS (the comment above image-list). These two
+      # steps run on that leg only. The build pulls the Dockerfile's bases by
+      # their digests and reaches the package mirrors and the source it names,
+      # as the script's own build does on the machine.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: matrix.context
+        with:
+          persist-credentials: false
+      - name: Build the image its script builds, from its Dockerfile here
+        if: matrix.context
+        env:
+          CONTEXT: ${{ matrix.context }}
+          REF: ${{ matrix.ref }}
+        run: |
+          set -euo pipefail
+          docker build --pull --platform "$TRIVY_PLATFORM" --tag "$REF" "$CONTEXT"
+          docker image inspect --format '{{.Os}}/{{.Architecture}} {{.Id}}' "$REF"
+
       - name: Scan the image with Trivy (JSON)
         id: image_trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0

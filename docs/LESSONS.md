@@ -31,6 +31,7 @@ reading a file drops off its entry by itself.
 
 - [a-dependabot-directory-with-nothing-to-read](../scripts/a-dependabot-directory-with-nothing-to-read.unit.test.ts) — A DEPENDABOT DIRECTORY WITH NOTHING TO READ: `.github/dependabot.yml` listed `/deploy/compose` for its `docker-compose` updater from 2026-09-06, and in seven weeks of Mondays it never moved one image there (workplan 0146 T8).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
 ### `.github/workflows/ci.yml`
 
@@ -1032,6 +1033,13 @@ reading a file drops off its entry by itself.
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [status-page](../scripts/status-page.unit.test.ts) — The status page's configuration says what we think it says (workplan 0094).
+
+### `deploy/compose/goaccess/Dockerfile`
+
+- [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
+- [a-visit-count-that-kept-the-visitor](../scripts/a-visit-count-that-kept-the-visitor.unit.test.ts) — A VISIT COUNT THAT KEPT THE VISITOR (the owner, 2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip for now, no netbird api tokens..."*; privacy §4.5, §5 and §9).
+- [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
 ### `deploy/compose/idp-strays.sh`
 
@@ -4168,6 +4176,7 @@ Reads:
 - `apps/worker/package.json`
 - `apps/worker/trigger.config.ts`
 - `deploy/compose/dump-idp.sh`
+- `deploy/compose/goaccess/Dockerfile`
 - `deploy/compose/managed.yml`
 - `deploy/compose/site-visits.sh`
 - `deploy/compose/smoke-managed.sh`
@@ -4753,6 +4762,7 @@ Reads:
 - `deploy/compose/bootstrap-managed.sh`
 - `deploy/compose/deploy-live.sh`
 - `deploy/compose/dev.yml`
+- `deploy/compose/goaccess/Dockerfile`
 - `deploy/compose/managed.yml`
 - `deploy/compose/site-visits.sh`
 - `deploy/compose/stand-up-live.sh`
@@ -5046,6 +5056,7 @@ Reads:
 
 - `deploy/compose/env-read.sh`
 - `deploy/compose/gatus.yaml`
+- `deploy/compose/goaccess/Dockerfile`
 - `deploy/compose/managed.yml`
 - `deploy/compose/own-addresses.sh`
 - `deploy/compose/site-visits.sh`
@@ -5278,6 +5289,7 @@ AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked insid
 
 Reads:
 
+- `.github/dependabot.yml`
 - `.github/workflows/idp-pin-watch.yml`
 - `.github/workflows/images.yml`
 - `.github/workflows/security-scan.yml`
@@ -5286,6 +5298,7 @@ Reads:
 - `apps/worker/package.json`
 - `deploy/compose/db-roles.sh`
 - `deploy/compose/dev.yml`
+- `deploy/compose/goaccess/Dockerfile`
 - `deploy/compose/managed.yml`
 - `deploy/compose/site-visits.sh`
 - `deploy/compose/www.yml`

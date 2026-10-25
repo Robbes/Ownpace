@@ -2,7 +2,82 @@
 
 > **In one line:** The public site explains a move at a glance: old account and new home in one picture, the destinations named, the alpha said, a shorter menu, a calculator that ends in a button, monthly and yearly prices (a year costs six months), and a page per provider a person leaves.
 
-## Status — 2026-10-22 (update this block at the end of every session)
+## Status — 2026-10-25 (update this block at the end of every session)
+
+**2026-10-25: GoAccess is built here, on Alpine 3.24** ([#1675](https://github.com/Robbes/Ownpace/issues/1675)).
+The entry of 2026-10-22 below kept upstream's `allinurl/goaccess:1.12`, on Alpine 3.20, until an
+upstream release moved off 3.20 or the scan found a HIGH or CRITICAL in musl. Neither has
+happened, and #1675 stays open while the image runs, so the visit count takes the second way out
+that entry named: an image of our own. A draft pull request for alpha.3; main is frozen until the
+alpha.2 tag (Tuesday 2026-10-27), which still carries upstream's image.
+- **Read today, and what it showed:**
+  - upstream's tags (`git ls-remote`): `v1.12` (`ef3c4f3c`) is still the newest release;
+  - upstream's `Dockerfile` at `master` and at `v1.12`: identical, `FROM alpine:3.20` in both
+    stages;
+  - Docker Hub: `latest` was rebuilt on 2026-10-21, and its arm64 config's first layer is
+    `alpine-minirootfs-3.20.10`;
+  - aports (GitHub's mirror): GoAccess is 1.10.2 in `3.24-stable` and 1.12 only on `master`
+    (edge). `libmaxminddb` depends on `curl` on 3.24 and installs a weekly GeoIP job, and gettext
+    is 1.0. Its `autopoint` still carries the 0.19 infrastructure GoAccess's `configure.ac` asks
+    for. The 3.24 branch fixed musl's `regcomp` (CVE-2026-107891, `1.2.6-r3`) on 2026-10-21;
+  - `alpine:3.24.3`: the index digest `be265606…` (HEAD of the tag), amd64 and arm64 among its
+    platforms, pushed 2026-10-23. Its arm64 layer's package database has musl `1.2.6-r3`,
+    libcrypto3 and libssl3 `3.5.9-r0`, zlib `1.3.2-r1` and ca-certificates `20261020`.
+  - Trivy v0.76.1's Alpine table (`pkg/detector/ospkg/alpine/alpine.go`): 3.20 ended 2026-04-01;
+    3.24 runs to 2028-06-01.
+- **One choice against the three-day wait.** 3.24.3 is two days old today, and the policy waits
+  three. It is taken for the security fixes it carries over 3.24.2 (musl's `regcomp`, OpenSSL
+  3.5.9, zlib). It is five days old by the time this can merge, after the tag.
+- **What changed:**
+  - `deploy/compose/goaccess/Dockerfile`: upstream's at `v1.12`. Both stages are on
+    `alpine:3.24.3@sha256:be265606…`. The source is fetched by its commit and checked against it.
+    The run stage takes the five libraries the binary loads (libintl, libmaxminddb-libs,
+    libncursesw, libssl3, libcrypto3) and tzdata, where upstream took `gettext-libs`,
+    `libmaxminddb` (curl and a GeoIP job) and `openssl`, and it runs `goaccess --version` once.
+    Configure flags, compiler, volume, port, entrypoint and command are upstream's.
+  - `site-visits.sh` builds it as `localhost/goaccess:1.12`, a name no registry serves. The
+    build runs once per run, after the containers are listed and before any log is read. A
+    build that fails shows Docker's last 40 lines through `own_address_redact`, reads nothing and
+    exits 1. `docker run` gains `--pull never`. *THE IMAGE* in its header says so.
+  - The image scan (`image-scan.mjs`, `security-scan.yml`): a script's `localhost/<name>` image is
+    listed with `context: <dir>/<name>`, and refused if that Dockerfile is missing. Its leg runs
+    on `ubuntu-24.04-arm`, checks out and builds the context under the script's reference, and
+    Trivy reads it with `TRIVY_IMAGE_SRC=docker`. The name stays `goaccess`, so #1675 and the
+    `trivy-image-goaccess` category close on the first scan on `main` that reads 3.24. Its issue
+    body for a built image names the Dockerfile and Dependabot.
+  - The pin watch's GoAccess row reads the release from the Dockerfile's `# GoAccess v1.12` line.
+    It errors when the script's tag is another release, and compares with upstream's git tags,
+    two-part and three-part: the Docker Hub row would never have seen a `1.12.1` beside `1.12`.
+  - `.github/dependabot.yml` gives its `docker` updater `/deploy/compose/goaccess`, so the Alpine
+    pin moves with tag and digest.
+  - `docs/managed-bring-up.md`: *Counting its visits* gains *The image*, with the two commands to
+    build and check it by hand; *Nothing phones home* says the base was past its end of life and
+    how it is built now.
+- **Run here:**
+  - GoAccess built from `ef3c4f3c` with the Dockerfile's `autoreconf`, `configure` and `make`
+    lines (Ubuntu 24.04, glibc, gettext 0.21), and the real `site-visits.sh` run with a `docker`
+    stub that hands the filter's output to that binary: as 65534 under `setpriv --no-new-privs`,
+    in a network namespace with no interface (`unshare -n`). Exit 0, HTML of 8 valid requests and
+    0 failed, and none of the log's addresses or personal words in it.
+  - **Not run: the image build.** This session has no Docker daemon. A Security Scan dispatched
+    on this branch with `image_scans` builds it on arm64 (its `goaccess` leg); the first daily
+    run on live builds it on the machine.
+- **Guards:**
+  - `a-visit-count-that-kept-the-visitor`: the build, from `goaccess/`, once and before `logs`;
+    `--pull never`; a failed build reads nothing and keeps the earlier report. 56 of 56.
+  - `a-service-that-phones-home`: the commit, its check, every `FROM` by tag and digest,
+    `--pull never` and the build line. 39 of 39.
+  - `an-image-nobody-scanned`: the context, the refusal without a Dockerfile, the summary marker,
+    the issue's route and the workflow's build steps. 36 of 36.
+  - `a-pin-that-knows-it-is-behind`: the row current, behind on a three-part patch, and in error
+    on a name that is not the release. 58 of 58.
+  - Seven mutations, each caught: `--pull never` dropped (2 tests), the build moved after `logs`
+    (1), a failed build ignored (2), the scan's `context` dropped (1), the commit check removed
+    (1), a `FROM` without its digest (1), the three-part tags ignored (1).
+- **Live, after this merges:** it takes effect from the first release tag that carries it, with
+  `deploy-live.sh`. The daily duty builds the image on its first run after that deploy, or by
+  hand with the commands in *The image*. Nothing in a stack's database moves, and the reports
+  under `~/.persistent/ownpace-live/site-visits/` are kept. The OTA stack does not run the count.
 
 **2026-10-22: GoAccess stays on 1.12 for now, and the visit count takes nginx's own time, never a
 visitor's** ([#1675](https://github.com/Robbes/Ownpace/issues/1675)). The weekly image scan

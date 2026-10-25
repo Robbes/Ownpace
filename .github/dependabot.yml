@@ -73,11 +73,17 @@ updates:
   # `image:tag@sha256:…`: Dependabot compares tags and moves the digest with the
   # tag, and a bare digest has no version to compare. Minor+patch grouped; a
   # major (a new Node line) is its own PR, because `engines` and CI must follow.
+  # deploy/compose/goaccess is the visit count's GoAccess, built on Alpine
+  # because upstream's image is on one past its end of life (#1675): its PR
+  # changes what live's daily duty builds, from the tag that carries it, and
+  # nothing in CI builds it, so dispatch Security Scan on the PR's branch (its
+  # goaccess leg builds it) before merging one.
   - package-ecosystem: docker
     directories:
       - "/apps/api"
       - "/apps/web"
       - "/apps/selfhost"
+      - "/deploy/compose/goaccess"
     schedule:
       interval: weekly
       day: monday

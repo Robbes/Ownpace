@@ -18,6 +18,7 @@ export declare const COMPOSE_FILES: string[];
 export declare const COMPARED_ELSEWHERE: Record<string, string>;
 export declare const STALWART_RULE: string;
 export declare const STALWART_FILES: string[];
+export declare const GOACCESS_DOCKERFILE: string;
 export declare const TASK_OVERLAY: RegExp;
 
 export type State = 'current' | 'behind' | 'ahead' | 'error';

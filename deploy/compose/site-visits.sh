@@ -132,21 +132,23 @@
 # --real-time-html (a server), --enable-html-resolver (a lookup of hosts) or
 # --geoip-database.
 #
-# THE IMAGE is GoAccess's own, pinned by digest, as managed.yml pins its
-# images: Docker Hub's index of the tag 1.12, for amd64 and arm64 (read back
-# from the registry on 2026-10-06). GoAccess 1.12 has no telemetry, update
-# check or error report; what in it can reach a network is its lookup of hosts
-# (gdns.c) and its WebSocket server (websocket.c, only with --real-time-html).
-# It runs with --network none all the same
-# (scripts/a-service-that-phones-home.unit.test.ts). Docker pulls the image the
-# first time, from Docker Hub, as it pulls any other. Its base is Alpine
-# 3.20.10, past its end of life (#1675), accepted for now because GoAccess runs
-# offline (--network none) on input the filter has cut to a few fields, only
-# musl lies on that input's path, and, on 2026-10-22, no release tag carries
-# this script yet; it moves with an upstream release on a supported base, or to
-# an image of our own if upstream's next release is still on 3.20 or the weekly
-# image scan (security-scan.yml, #1674) reports a HIGH or CRITICAL finding in
-# musl.
+# THE IMAGE is built here, from goaccess/Dockerfile beside this script, as
+# localhost/goaccess:1.12 (#1675, workplan 0152). Upstream's own image,
+# allinurl/goaccess:1.12 and latest alike, is built on Alpine 3.20, past its
+# end of life, and no upstream release has moved off it (2026-10-25). The
+# Dockerfile is upstream's at the tag v1.12, on Alpine 3.24 by tag and digest,
+# with GoAccess's source fetched by the commit the tag names (ef3c4f3c), the
+# source this header was read at; it says what else it changes, and why. The
+# name is one no registry serves, and the run says --pull never, so the image
+# GoAccess runs from is the one this checkout built, never one pulled under
+# its name. The build runs on every run: Docker's cache makes it seconds when
+# the Dockerfile has not changed, and a pin Dependabot moved is built on the
+# first run after the deploy that brought it. Only such a build reaches a
+# network (Docker Hub for Alpine, Alpine's mirrors, GitHub for the source).
+# GoAccess 1.12 has no telemetry, update check or error report; what in it can
+# reach a network is its lookup of hosts (gdns.c) and its WebSocket server
+# (websocket.c, only with --real-time-html). It runs with --network none all
+# the same (scripts/a-service-that-phones-home.unit.test.ts).
 #
 # WHEN IT RUNS. Once a day, as box-duties.sh's eighth duty, `visits`, and by
 # hand whenever the owner wants a fresh report, and right before a deploy.
@@ -171,7 +173,8 @@
 # Usage:  ./deploy/compose/site-visits.sh      (from live's checkout, no arguments)
 # Exit:   0 counted, or nothing to count (WWW_LIVE not true, or no request
 #         through the public name yet); 1 not counted, the reason named (no
-#         container of the site, docker or GoAccess failing); 2 refused before
+#         container of the site, GoAccess's image not built, docker or
+#         GoAccess failing); 2 refused before
 #         asking Docker anything (not live's .env, the project, the switch, an
 #         argument, a privacy text that does not say it).
 # scripts/a-visit-count-that-kept-the-visitor.unit.test.ts runs it.
@@ -188,9 +191,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=deploy/compose/www-live.sh
 . "${SCRIPT_DIR}/www-live.sh"
 
-# GoAccess 1.12: Docker Hub's index digest for the tag (amd64 and arm64),
-# read from its listing on 2026-10-05 and from the registry on 2026-10-06.
-GOACCESS_IMAGE="allinurl/goaccess:1.12@sha256:9e6dfd4abce94bd7c2907c1840b7b35f666587d56b24ffbb930b4782a87ea172"
+# GoAccess 1.12, built from goaccess/Dockerfile under a name no registry
+# serves (the header, THE IMAGE). image-scan.mjs builds the same directory for
+# the weekly scan: a localhost/<name> image of a script is built from <name>/
+# beside it.
+GOACCESS_IMAGE="localhost/goaccess:1.12"
+GOACCESS_CONTEXT="${SCRIPT_DIR}/goaccess"
 
 # The header says why each one.
 GOACCESS_FLAGS=(
@@ -409,6 +415,19 @@ ids="$(docker ps -a --filter "label=com.docker.compose.project=${SITE_PROJECT}" 
 [ -n "$ids" ] ||
   fail "${WWW_LIVE_KEY} is true, and ${SITE_PROJECT} has no container, so there is no log to count. deploy-live.sh brings it up with each deploy of live; the daily duty site says what it finds."
 
+# ------------------------------------------------------ GoAccess's image ---
+#
+# Built from this checkout before any log is read (the header, THE IMAGE).
+# Docker's words name nothing of the log, which no build reads; they are shown
+# only when the build fails, its last lines, without this machine's own
+# addresses.
+built="$(docker build --quiet --tag "$GOACCESS_IMAGE" "$GOACCESS_CONTEXT" 2>&1)" || {
+  own_address_redact "$ENV_FILE" <<<"$(tail -n 40 <<<"$built")" >&2 ||
+    say "  docker's words could not be filtered, and are not shown."
+  fail "GoAccess's image could not be built from deploy/compose/goaccess/Dockerfile (docker's last words above), so nothing was read. Its first build, and one after its pin moved, needs Docker Hub, Alpine's mirrors and github.com. ${SHOWN_DIR} is as it was."
+}
+say "GoAccess's image: ${GOACCESS_IMAGE}, built from deploy/compose/goaccess/Dockerfile."
+
 for id in $ids; do
   short="${id:0:12}"
   created="$(docker inspect --format '{{.Created}}' "$id")" ||
@@ -435,7 +454,7 @@ for id in $ids; do
   words="$(
     {
       docker logs "$id" 2>/dev/null | awk -v counts="$counts" "$FILTER" |
-        docker run --rm -i --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+        docker run --rm -i --pull never --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
           --user 65534:65534 "$GOACCESS_IMAGE" "${GOACCESS_FLAGS[@]}" \
           "--html-report-title=www.ownpace.eu: visits from the server log since ${since}" \
           - >"$tmp"
@@ -459,7 +478,7 @@ for id in $ids; do
     # and nothing of the log is in what docker says.
     own_address_redact "$ENV_FILE" <<<"$words" >&2 ||
       say "  docker's words could not be filtered, and are not shown."
-    fail "docker could not run GoAccess (exit 125, docker's words above): ${GOACCESS_IMAGE%@*}, pinned by digest. ${SHOWN_DIR}/${name}, if there is one, is as it was."
+    fail "docker could not run GoAccess (exit 125, docker's words above): ${GOACCESS_IMAGE}, built from deploy/compose/goaccess/Dockerfile and never pulled. ${SHOWN_DIR}/${name}, if there is one, is as it was."
   fi
   if [ "$st_run" -ne 0 ]; then
     # GoAccess quotes a piece of a line it could not read ('Token '...''). The
