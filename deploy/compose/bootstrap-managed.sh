@@ -1653,8 +1653,23 @@ phase_trigger() {
   # trigger-api starts and presents that value (trigger_db_role_matches_env).
   up_wait trigger-db
   trigger_db_role_matches_env
-  up_wait trigger-redis clickhouse minio trigger-registry \
+  # minio-init is a one-shot that makes MinIO's `packets` bucket and exits 0
+  # (0146 T7). `--wait` takes that exit as done, not as a container that
+  # stopped, because trigger-api waits for it with
+  # service_completed_successfully. It is named here so a failure prints its log.
+  up_wait trigger-redis clickhouse minio minio-init trigger-registry \
     trigger-docker-proxy trigger-api trigger-tls
+  # mc's own last line from the one-shot, which names the bucket: the run's
+  # record that `packets` is there. A note, not a verdict: up_wait above has
+  # already failed this phase if minio-init did not exit 0, so a log that
+  # cannot be read leaves the note empty and stops nothing. Through the
+  # address filter before it is printed, as every container log this script
+  # prints (explain_failure): mc's line names no address today, and the gate's
+  # log is public.
+  local init_line
+  init_line="$("${COMPOSE[@]}" logs --no-color --no-log-prefix --tail 1 minio-init 2>&1 || true)"
+  if [ -n "$init_line" ]; then init_line="$(own_address_redact "$ENV_FILE" <<<"$init_line")"; fi
+  note "minio-init: ${init_line}"
 
   local waited=0
   until "${COMPOSE[@]}" exec -T -u 0 trigger-api \
@@ -2063,7 +2078,7 @@ phase_app() {
   # `up` means for an existing stack is a bigger change than this needs.)
   local services=(
     postgres pgbouncer
-    trigger-db trigger-redis clickhouse minio trigger-registry
+    trigger-db trigger-redis clickhouse minio minio-init trigger-registry
     trigger-docker-proxy trigger-api trigger-tls trigger-supervisor
     # The identity provider (ADR-0042). It was in managed.yml from #496 and NOT
     # in this list, so it was defined, interpolated, required in .env — and
