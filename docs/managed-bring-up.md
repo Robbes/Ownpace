@@ -2972,17 +2972,22 @@ and open the newest file in a browser. It loads nothing from anywhere: its
 scripts, styles and map are inside the file. The run's own lines (how many
 requests came through the public name, and from how many addresses) are in the
 journal with the other duties' (`journalctl --user -u ownpace-box-duties`).
+
 **The image** (#1675). Upstream's `allinurl/goaccess:1.12`, and `latest` with
 it, is built on Alpine 3.20, which Alpine no longer supports, and no upstream
 release has moved off it (2026-10-25). So the script builds GoAccess itself,
 from `deploy/compose/goaccess/Dockerfile`: upstream's own Dockerfile at the tag
-`v1.12`, on Alpine 3.24 (by tag and digest), with the source fetched by the
-commit the tag names and only the libraries GoAccess loads in the image. It
+`v1.12`, on a supported Alpine (by tag and digest, its `FROM` lines), with the
+source fetched by the commit the tag names and only the libraries GoAccess
+loads in the image. It
 builds it as `localhost/goaccess:1.12`, a name no registry serves, at the start
 of every run, before any log is read, and runs it with `--pull never`. Docker's
 cache makes that seconds when nothing changed. The first build, and the first
 after Dependabot moved the Alpine pin and a deploy brought it, takes a few
-minutes and needs Docker Hub, Alpine's package mirrors and `github.com`; a
+minutes and needs Docker Hub, Alpine's package mirrors and `github.com`
+(Dependabot's pull request for that pin is built first, by
+`.github/workflows/script-images.yml`, as every pull request that changes the
+Dockerfile is); a
 build that fails reads no log, and the duty fails with Docker's last lines. To
 build it by hand, from `~/ownpace-live`, before the first daily run:
 
@@ -3134,9 +3139,10 @@ supported one now (2026-10-25, workplan 0152). Upstream's
 which Alpine no longer supports, and upstream's Dockerfile at `master` still
 starts from 3.20, so no upstream release could be waited for. Alpine's own
 package is 1.10.2 on 3.24. So `deploy/compose/goaccess/Dockerfile` builds 1.12
-on Alpine 3.24 (supported until 2028-06-01 by the table of the Trivy the scan
-runs), and `site-visits.sh` builds it (*Counting its visits*, *The image*).
-Dependabot moves its Alpine pin, the pin watch (`scripts/idp-pin-watch.mjs`)
+on a supported Alpine (3.24 when this was written, supported until 2028-06-01
+by the table of the Trivy the scan runs), and `site-visits.sh` builds it
+(*Counting its visits*, *The image*). Dependabot moves its Alpine pin in a pull
+request of its own, which builds it, the pin watch (`scripts/idp-pin-watch.mjs`)
 compares the GoAccess release it builds with upstream's tags, and the weekly
 image scan (the image jobs of `.github/workflows/security-scan.yml`) builds it
 on an arm64 runner and scans what it built, under the name it always had,

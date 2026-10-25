@@ -415,7 +415,10 @@ jobs:
   # it for the report job, converts it with `trivy convert` (the binary
   # trivy-action put on the PATH) and uploads the SARIF. The report job warns,
   # writes a summary line, and keeps one issue open per image past its end of
-  # life, closed when that ends.
+  # life, closed when that ends: from a run on main only (the schedule, or a
+  # dispatch on main). A dispatch on a pull request's branch scans the images
+  # that branch brings, and would close an issue for a fix main does not have
+  # yet (#1675, 2026-10-25), so its report says so and touches no issue.
   #
   # ONE CATEGORY PER IMAGE, AND WHAT THAT LEAVES BEHIND. Each upload is a
   # Trivy configuration of its own, `trivy-image-<name>`, which no pull request
@@ -630,6 +633,8 @@ jobs:
       # Every listed image against its report: a missing one is an ::error::
       # and fails the run; one past its end of life is a ::warning::, a line
       # in the summary and an issue; findings are counted and fail nothing.
+      # `--issue` keeps the issues on main only: the script reads GITHUB_REF
+      # (image-scan.mjs, ISSUES_REF), and on any other ref says it kept none.
       - name: Every image has a report, and one issue per image past its end of life
         if: always()
         env:

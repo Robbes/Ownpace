@@ -17,6 +17,8 @@ export declare const STACKS: Record<string, string>;
 export declare const OWNPACE_REGISTRY: string;
 export declare const OWNPACE_IMAGES: string[];
 export declare const ISSUE_PREFIX: string;
+/** The only ref whose run keeps the issues: `refs/heads/main`. */
+export declare const ISSUES_REF: string;
 export declare const BUILT_HERE: string;
 
 /** One image to scan: one matrix leg, one SARIF category, one artifact, one issue title. */

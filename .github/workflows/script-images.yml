@@ -1,0 +1,72 @@
+# Builds every image a script builds for itself, on a pull request that
+# changes one (#1675, workplan 0152, 2026-10-25).
+#
+# deploy/compose/site-visits.sh, live's daily duty `visits`, builds GoAccess
+# from deploy/compose/goaccess/Dockerfile at the start of every run, because
+# upstream's image is on an Alpine past its end of life. Nothing else in CI
+# builds that Dockerfile: images.yml builds the apps' three images, and the
+# weekly image scan (security-scan.yml) builds it only on its schedule or a
+# dispatch. So a pull request that moves its Alpine pin (Dependabot's, which
+# has an entry of its own in .github/dependabot.yml) or edits it would be
+# green on everything, and the first build would be the daily duty's on live,
+# from the tag that carried it. Here it is built on the pull request itself.
+#
+# Natively on GitHub's arm64 runner (free on a public repository; ci.yml's
+# integration tests use it), for the platform the machine that counts runs,
+# with no emulation and no setup action. The Dockerfile's run stage ends by
+# running the binary once, so a library missing from it fails here. It builds,
+# and that is all: nothing is pushed, nothing is logged in to, no secret is
+# read, and the image goes with the runner.
+#
+# A script's image is `localhost/<name>`, built from `<name>/` beside the
+# script (image-scan.mjs, `buildContext`). Every directory with a Dockerfile
+# beside deploy's scripts is in the matrix and in the paths below, and
+# scripts/an-image-nobody-scanned.unit.test.ts holds that, so a second one
+# cannot be left out.
+name: Images the scripts build
+
+on:
+  # No `branches:` filter — see ci.yml's trigger block for why.
+  pull_request:
+    paths:
+      - 'deploy/compose/goaccess/**'
+      - '.github/workflows/script-images.yml'
+
+# A newer push to the pull request replaces its build. Conditioned on the
+# event all the same, as ci.yml and images.yml are, so a trigger added later
+# never cancels a push or schedule run nothing re-runs
+# (scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.context }})
+    # GitHub-hosted, like every other pull_request job: see ci.yml's "Which
+    # machine runs untrusted code" header for the policy.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        context:
+          - deploy/compose/goaccess
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # --pull: the bases as the Dockerfile pins them, never a copy the runner
+      # had. --progress=plain: every step's own output in the log, so a failed
+      # `apk add` or compile says what failed.
+      - name: Build the image its script builds, from its Dockerfile here
+        env:
+          CONTEXT: ${{ matrix.context }}
+        run: |
+          set -euo pipefail
+          ref="localhost/$(basename "$CONTEXT"):pull-request"
+          docker build --pull --progress=plain --platform linux/arm64 --tag "$ref" "$CONTEXT"
+          docker image inspect --format '{{.Os}}/{{.Architecture}} {{.Id}}' "$ref"

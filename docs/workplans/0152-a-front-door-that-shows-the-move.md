@@ -4,12 +4,56 @@
 
 ## Status — 2026-10-25 (update this block at the end of every session)
 
+**2026-10-25, after review: issues are kept from main only, the pull request builds the image,
+and Dependabot moves its base in a pull request of its own** ([#1675](https://github.com/Robbes/Ownpace/issues/1675)).
+A review of the branch at `4ff19520` found two faults that held, and five smaller ones.
+- **A dispatch on this branch would have closed #1675 before the merge.** The report job ran
+  `image-scan.mjs report image-reports --issue` on every dispatch with `image_scans`, whatever the
+  branch, and `keepIssue` closes the issue of an image it reads as supported. So the Security Scan
+  dispatch the entry below asks for would have closed #1675 while main and live still ran 3.20,
+  and the next scan on main would have opened a second issue for the same image. (0146's entry of
+  2026-10-22 records the reverse: a dispatch on #1674's branch opened #1675.) Now `image-scan.mjs`
+  keeps the issues only when `GITHUB_REF` is `refs/heads/main` (`ISSUES_REF`): the Monday schedule,
+  or a dispatch on main. On any other ref the report still warns, writes its summary and fails on
+  a missing report, and says that it kept no issue.
+- **Dependabot's move of the Alpine pin would have been merged unbuilt.** `/deploy/compose/goaccess`
+  sat in the `docker` entry that groups minor and patch updates across the apps' Dockerfiles, so
+  3.24 to 3.25 would have come in one `chore(images)` pull request whose checks build only the
+  apps' images. It now has an entry of its own (`chore(goaccess)`). A new workflow,
+  `.github/workflows/script-images.yml` (*Images the scripts build*), builds every directory with a
+  Dockerfile beside deploy's scripts on a pull request that changes one: natively on
+  `ubuntu-24.04-arm`, with `--pull --progress=plain`, with `contents: read`, pushing nothing. This
+  pull request changes that directory, so its own check is the first build of the Dockerfile.
+- **Smaller:**
+  - `site-visits.sh` builds with `--progress=plain`, not `--quiet`: BuildKit's quiet mode drops each
+    step's own output, so a failed `apk add` would have shown only "did not complete successfully";
+  - the script's header, the Dockerfile and `docs/managed-bring-up.md` say "a supported Alpine (its
+    `FROM` lines)" where they said 3.24, so a pin Dependabot moves leaves them true; 3.24.3's
+    package versions stay, as what was read on 2026-10-25;
+  - the issue body for a built image no longer says Dependabot stays within the Alpine line;
+  - *The image* in `docs/managed-bring-up.md` is a paragraph of its own;
+  - the entry below gave the wrong reason for the move (corrected there).
+- **Guards:**
+  - `an-image-nobody-scanned`, 41 of 41, five new: run from the command line with a recording `gh`
+    on the PATH, a report on a pull request's branch, a `release-gate/` branch, a tag, or no ref
+    keeps no issue and says so, and one on main opens the issue; every directory with a Dockerfile
+    beside deploy's scripts is in the new workflow's matrix and its paths; the workflow runs on
+    pull requests only, with `contents: read`, on arm64, and pushes nothing; and each such
+    directory has a Dependabot `docker` entry of its own.
+  - `a-visit-count-that-kept-the-visitor`, 56 of 56: the build says `--progress=plain` and never
+    `--quiet`.
+  - Five mutations, each caught: the `GITHUB_REF` check removed, `/deploy/compose/goaccess` put
+    back into the apps' Dependabot entry, its directory dropped from the workflow's matrix, its path
+    dropped from the workflow's trigger, and `--quiet` put back.
+
 **2026-10-25: GoAccess is built here, on Alpine 3.24** ([#1675](https://github.com/Robbes/Ownpace/issues/1675)).
-The entry of 2026-10-22 below kept upstream's `allinurl/goaccess:1.12`, on Alpine 3.20, until an
-upstream release moved off 3.20 or the scan found a HIGH or CRITICAL in musl. Neither has
-happened, and #1675 stays open while the image runs, so the visit count takes the second way out
-that entry named: an image of our own. A draft pull request for alpha.3; main is frozen until the
-alpha.2 tag (Tuesday 2026-10-27), which still carries upstream's image.
+The entry of 2026-10-22 below kept upstream's `allinurl/goaccess:1.12`, on Alpine 3.20, until
+upstream's next release turned out to be on 3.20 too, or the scan found a HIGH or CRITICAL in musl,
+and then an image of our own. Neither has happened: 1.12 is still upstream's newest release. The
+move is made now because the owner asked on 2026-10-25 for every vulnerability fixed and the
+lifecycle upgrades done, and because upstream's Dockerfile at `master` is still on 3.20, so no
+upstream image on a supported base is in sight. A draft pull request for alpha.3; main is frozen
+until the alpha.2 tag (Tuesday 2026-10-27), which still carries upstream's image.
 - **Read today, and what it showed:**
   - upstream's tags (`git ls-remote`): `v1.12` (`ef3c4f3c`) is still the newest release;
   - upstream's `Dockerfile` at `master` and at `v1.12`: identical, `FROM alpine:3.20` in both

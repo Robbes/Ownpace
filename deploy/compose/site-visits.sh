@@ -136,14 +136,16 @@
 # localhost/goaccess:1.12 (#1675, workplan 0152). Upstream's own image,
 # allinurl/goaccess:1.12 and latest alike, is built on Alpine 3.20, past its
 # end of life, and no upstream release has moved off it (2026-10-25). The
-# Dockerfile is upstream's at the tag v1.12, on Alpine 3.24 by tag and digest,
-# with GoAccess's source fetched by the commit the tag names (ef3c4f3c), the
-# source this header was read at; it says what else it changes, and why. The
-# name is one no registry serves, and the run says --pull never, so the image
-# GoAccess runs from is the one this checkout built, never one pulled under
-# its name. The build runs on every run: Docker's cache makes it seconds when
-# the Dockerfile has not changed, and a pin Dependabot moved is built on the
-# first run after the deploy that brought it. Only such a build reaches a
+# Dockerfile is upstream's at the tag v1.12, on a supported Alpine by tag and
+# digest (its FROM lines), with GoAccess's source fetched by the commit the
+# tag names (ef3c4f3c), the source this header was read at; it says what else
+# it changes, and why. The name is one no registry serves, and the run says
+# --pull never, so the image GoAccess runs from is the one this checkout
+# built, never one pulled under its name. The build runs on every run:
+# Docker's cache makes it seconds when the Dockerfile has not changed, and a
+# pin Dependabot moved is built on the first run after the deploy that
+# brought it (and before that on its pull request, by
+# .github/workflows/script-images.yml). Only such a build reaches a
 # network (Docker Hub for Alpine, Alpine's mirrors, GitHub for the source).
 # GoAccess 1.12 has no telemetry, update check or error report; what in it can
 # reach a network is its lookup of hosts (gdns.c) and its WebSocket server
@@ -420,8 +422,10 @@ ids="$(docker ps -a --filter "label=com.docker.compose.project=${SITE_PROJECT}" 
 # Built from this checkout before any log is read (the header, THE IMAGE).
 # Docker's words name nothing of the log, which no build reads; they are shown
 # only when the build fails, its last lines, without this machine's own
-# addresses.
-built="$(docker build --quiet --tag "$GOACCESS_IMAGE" "$GOACCESS_CONTEXT" 2>&1)" || {
+# addresses. --progress=plain, not --quiet: BuildKit's quiet mode drops each
+# step's own output, so a failed `apk add` or compile would show only "did not
+# complete successfully"; plain ends with the failed step's last lines.
+built="$(docker build --progress=plain --tag "$GOACCESS_IMAGE" "$GOACCESS_CONTEXT" 2>&1)" || {
   own_address_redact "$ENV_FILE" <<<"$(tail -n 40 <<<"$built")" >&2 ||
     say "  docker's words could not be filtered, and are not shown."
   fail "GoAccess's image could not be built from deploy/compose/goaccess/Dockerfile (docker's last words above), so nothing was read. Its first build, and one after its pin moved, needs Docker Hub, Alpine's mirrors and github.com. ${SHOWN_DIR} is as it was."

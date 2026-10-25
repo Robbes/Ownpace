@@ -707,9 +707,13 @@ describe('GoAccess keeps totals: the flags, the image and what it may touch', ()
     expect(named, 'site-visits.sh names no GOACCESS_IMAGE').toMatch(/^localhost\/goaccess:[0-9][0-9.]*$/);
     expect(r.argv[image]).toBe(named);
     expect(docker.join(' '), 'a missing image would be pulled under its name').toMatch(/(^| )--pull never( |$)/);
-    // docker build --quiet --tag <the image> <checkout>/deploy/compose/goaccess, before any log is read.
+    // docker build --progress=plain --tag <the image> <checkout>/deploy/compose/goaccess, before any log is read.
     expect(r.build.at(-1), r.build.join(' ')).toBe(join(r.compose, 'goaccess'));
     expect(r.build.join(' ')).toMatch(new RegExp(`(^| )--tag ${named!.replace(/[.]/g, '\\.')}( |$)`));
+    // BuildKit's quiet mode drops each step's own output, so a failed build
+    // would show only "did not complete successfully", never what failed.
+    expect(r.build, 'a failed build would not say which package or line failed').toContain('--progress=plain');
+    expect(r.build).not.toContain('--quiet');
     const order = r.asked.map((a) => a.split(' ')[0]);
     expect(order.indexOf('build'), r.asked.join('\n')).toBeGreaterThan(-1);
     expect(order.indexOf('build'), 'built after a log was read').toBeLessThan(order.indexOf('logs'));

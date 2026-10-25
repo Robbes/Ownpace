@@ -8,12 +8,14 @@
 # is GoAccess 1.10.2 on 3.24, and 1.12 only on edge. So this is upstream's own
 # Dockerfile at the tag v1.12, with three changes and no other:
 #
-#   1. Both stages start from Alpine 3.24, by exact tag and the digest of its
-#      index (amd64 and arm64 among its platforms, read from the registry on
-#      2026-10-25). 3.24.3 carries musl 1.2.6-r3 (the fix in regcomp,
-#      CVE-2026-107891), openssl 3.5.9 and zlib 1.3.2-r1, read from its arm64
-#      layer's package database. Dependabot moves this pin
-#      (.github/dependabot.yml), tag and digest together.
+#   1. Both stages start from a supported Alpine, by exact tag and the digest
+#      of its index. The pin taken on 2026-10-25 was 3.24.3 (amd64 and arm64
+#      among its platforms, read from the registry that day), which carries
+#      musl 1.2.6-r3 (the fix in regcomp, CVE-2026-107891), openssl 3.5.9 and
+#      zlib 1.3.2-r1, read from its arm64 layer's package database.
+#      Dependabot moves this pin, tag and digest together, a new Alpine line
+#      included, in a pull request of its own (.github/dependabot.yml), and
+#      that pull request builds this file (.github/workflows/script-images.yml).
 #   2. The source is fetched by its commit, the one the tag v1.12 names
 #      (github.com/allinurl/goaccess, ef3c4f3c), the source the script and the
 #      privacy text were read at, instead of upstream's `COPY .` of a checkout.
@@ -34,7 +36,8 @@
 #
 # Built by site-visits.sh on the machine that counts (live's), as
 # `localhost/goaccess:1.12`, a name no registry serves, and run with
-# `--pull never`; and by the weekly image scan (security-scan.yml), which
+# `--pull never`; by every pull request that changes this directory
+# (script-images.yml); and by the weekly image scan (security-scan.yml), which
 # builds it on an arm64 runner and scans what it built.
 
 # Build stage

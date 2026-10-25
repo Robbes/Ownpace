@@ -48,7 +48,10 @@
  *           image whose operating system Trivy calls past its end of life
  *           (`.Metadata.OS.EOSL`, which only the JSON report carries; SARIF
  *           never shows it) gets a `::warning::`, a line in the job summary,
- *           and one issue, kept open while it lasts and closed when it ends.
+ *           and one issue, kept open while it lasts and closed when it ends,
+ *           by a run on main only (`ISSUES_REF`): a run dispatched on a pull
+ *           request's branch scans that branch's images, and its report says
+ *           what it found and touches no issue.
  *           Findings fail nothing: a CVE published upstream on a Sunday
  *           cannot turn main red. They go to code scanning as SARIF, one
  *           category per image.
@@ -103,6 +106,17 @@ export const OWNPACE_IMAGES = ['api', 'web', 'selfhost'];
 
 /** Every image issue's title starts with this, and ends with the image's name. */
 export const ISSUE_PREFIX = "An image's operating system is past its end of life: ";
+
+/**
+ * The only ref whose run keeps the issues: main, where the schedule runs and
+ * where the stacks take their images from. A run dispatched on a pull
+ * request's branch scans the images that branch would bring, so its report
+ * would close an issue for a fix main does not have yet, or open one for an
+ * image main does not run (#1675 would have closed on a dispatch of the
+ * branch that fixes it, before its merge, and the next Monday on main would
+ * have opened it again under a new number).
+ */
+export const ISSUES_REF = 'refs/heads/main';
 
 /** What the report reads for a summary: the two severities the scan asks for. */
 const SEVERITIES = ['CRITICAL', 'HIGH'];
@@ -286,7 +300,7 @@ export function eoslIssue(image, report) {
     `\`${image.ref}\` (${image.where}) runs on **${os}**, which its distribution no longer supports: Trivy's report for it says \`EOSL\`, end of service life. Its packages get no more security fixes, so what the scan finds in them from now on stays open whatever else moves.`,
     '',
     image.context
-      ? `This image is built here, from \`${image.context}/Dockerfile\`, and its base is the \`FROM\` there. The way out is a supported base in that file, by exact tag and digest: Dependabot moves the pin within its line (\`.github/dependabot.yml\`), and a new line of the base goes in a pull request like any pin, with its release notes read. Live takes it from a release tag. A major is the owner's call.`
+      ? `This image is built here, from \`${image.context}/Dockerfile\`, and its base is the \`FROM\` there. The way out is a supported base in that file, by exact tag and digest. Dependabot moves that pin, a new line of the base included, in a pull request of its own (\`.github/dependabot.yml\`), and the pull request's checks build the image; read the base's release notes before merging it. Live takes it from a release tag. A major is the owner's call.`
       : 'The way out is the same image on a supported base: a newer tag of it once upstream has moved its base, or another variant of it. The pin watch (`.github/workflows/idp-pin-watch.yml`) says when a newer tag exists. The move goes in a pull request like any pin, with its release notes read; an image of `managed.yml` takes E2E (managed) dispatched on its branch, and live takes it from a release tag. A major is the owner\'s call.',
     ...(image.floating
       ? ['', 'The tag floats, so this is the image its registry serves today, which need not be the one the box pulled last.']
@@ -415,7 +429,11 @@ async function main(argv, env) {
     console.log(summary.lines.join('\n'));
     if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${summary.lines.join('\n')}\n`);
     let failed = summary.missing.length > 0;
-    if (rest.includes('--issue')) {
+    if (rest.includes('--issue') && env.GITHUB_REF !== ISSUES_REF) {
+      const line = `Issues are kept by a run on main only. This run is on ${env.GITHUB_REF || 'no ref'}, so no issue was opened, updated or closed.`;
+      console.log(`issue, none: ${line}`);
+      if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `\n${line}\n`);
+    } else if (rest.includes('--issue')) {
       const gh = (args) => execFileSync('gh', args, { encoding: 'utf8' });
       try {
         for (const line of keepIssues(images, summary, gh)) console.log(`issue, ${line}`);

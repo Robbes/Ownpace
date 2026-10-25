@@ -15,11 +15,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   `localhost/goaccess:1.12` at the start of each run, and never pulls it. The
   first run after the deploy that brings it builds for a few minutes and needs
   Docker Hub, Alpine's package mirrors and `github.com`; a build that fails
-  reads no log and fails the duty `visits`. The weekly image scan builds it on
-  an arm64 runner and scans it under the name it had, `goaccess`, so #1675
-  closes on the first scan on `main` that reads it; Dependabot moves its
-  Alpine pin, and the pin watch compares the GoAccess release it builds with
-  upstream's tags, a three-part patch release included.
+  reads no log and fails the duty `visits`. A pull request that changes that
+  directory builds it on an arm64 runner (the new *Images the scripts build*,
+  `.github/workflows/script-images.yml`), and Dependabot moves its Alpine pin
+  in a pull request of its own, which that build covers. The weekly image scan
+  builds it too and scans it under the name it had, `goaccess`, so #1675
+  closes on the first scan on `main` that reads it: the scan's report now
+  keeps its issues from a run on `main` only, so a scan dispatched on a pull
+  request's branch reports what it found and opens or closes no issue. The
+  pin watch compares the GoAccess release it builds with upstream's tags, a
+  three-part patch release included.
 - **Trigger.dev is v4.7.6, its tasks run the API image's Node, and ClickHouse
   26.2 is accepted for the Alpha** (workplan 0119, issues #1668 and #1669,
   #1689): since v4.7.4, a magic link signs in only the browser that asked
