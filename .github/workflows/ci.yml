@@ -65,10 +65,22 @@ on:
   pull_request:
   push:
     branches: [main]
-    # Release refs are test-gated (release-readiness, 2026-08-10): before
+    # A tag pushed by hand runs CI (release-readiness, 2026-08-10): before
     # this, pushing a tag published signed images and a release with no lint,
     # typecheck, unit or integration gate on that ref — only the images and
-    # security-scan workflows listened for tags.
+    # security-scan workflows listened for tags. It ran beside the publishers
+    # and held none of them back: on v0.2.0-alpha.1 it finished forty
+    # minutes after everything was published.
+    #
+    # A tag the Release workflow makes runs no CI (release.yml, workplan 0146,
+    # Status of 2026-10-23). It is created with the workflow's own token,
+    # whose events start no push run, and Release dispatches only the
+    # publishers on it. What stands in for CI on the tag is the push run on
+    # main of the commit the tag is cut on: Release's preflight refuses a
+    # commit whose push run here did not run lint, the unit tests, the UI
+    # tests and the integration tests. This workflow has no dispatch trigger
+    # on purpose: dispatched, every `runs-on` below would pick a hosted
+    # runner, which is not the run that proved the commit.
     tags: ['v*']
 
 # CANCEL A SUPERSEDED PULL REQUEST RUN. DO NOT ASK FOR A PUSH RUN TO BE CANCELLED.

@@ -1,7 +1,9 @@
 # Security scanning — Node/TS equivalent of OWASP Dependency-Check + CycloneDX.
 # Trivy (dependency/filesystem) -> SARIF, plus a CycloneDX SBOM; SBOM attached to release tags.
 # Weekly and on dispatch, also every container image the stacks run, report
-# only (the jobs after security-scan, workplan 0146 T8).
+# only (the jobs after security-scan, workplan 0146 T8). A dispatch can turn
+# that off with `image_scans: false`, which the Release workflow
+# (release.yml) does for both of its dispatches of this file.
 #
 # The SBOM half runs on TAGS as well as main. It did not until 2026-08-04, and
 # the attach step was gated on a tag ref the workflow never saw — so the step
@@ -25,7 +27,21 @@ on:
   pull_request:
   schedule:
     - cron: '0 6 * * 1'   # weekly, Monday 06:00 UTC, to catch newly disclosed CVEs
+  # THE RELEASE WORKFLOW DISPATCHES THIS FILE TWICE PER RELEASE (workplan
+  # 0146, Status of 2026-10-23; docs/release.md §2): on `release-gate/<tag>`,
+  # a branch at exactly the commit to tag, minutes before the tag, and then
+  # on the tag itself, where it makes the release with its body and
+  # `bom.json` before the images and the zip are published. Both pass
+  # `image_scans: false`, so they are the repository scan alone: the image
+  # legs add twenty minutes and a report job that can fail on a report that
+  # is missing, which has nothing to do with the tag. A hand dispatch keeps
+  # the default and scans the images, as it did before.
   workflow_dispatch:
+    inputs:
+      image_scans:
+        description: 'Also scan every image the stacks run (report only). Release passes false.'
+        type: boolean
+        default: true
 
 # CANCEL A SUPERSEDED PULL REQUEST SCAN. NOTHING ELSE.
 #
@@ -54,7 +70,8 @@ on:
 # attaches the release SBOM.
 #
 # THE WEEKLY RUN NOW HOLDS THE GROUP LONGER. Since 2026-10-22 the schedule and
-# a dispatch also scan every image the stacks run (the jobs after
+# a dispatch (unless it passes `image_scans: false`, as Release's do) also
+# scan every image the stacks run (the jobs after
 # security-scan): one leg per image, about 26, in two waves where a Free
 # public repository runs 20 jobs at once. A push to main in that time waits,
 # and a second push replaces the first one waiting, which then uploads no
@@ -202,12 +219,16 @@ jobs:
           # default, v0.70.0 (2026-04-17) at this SHA, and Dependabot moves the
           # action, not that default: v0.36.0 is still its newest release. The
           # vulnerability database updates daily either way; this is the engine
-          # (parsers, detection). v0.76.0 is from 2026-10-14; v0.76.1
-          # (2026-10-21) is three days old, the age CONTRIBUTING.md asks of a
-          # dependency, on 2026-10-24.
+          # (parsers, detection). v0.76.1 is from 2026-10-21: v0.76.0
+          # (2026-10-14) with three dependency groups backported (the AWS SDK,
+          # Docker's and moby's modules, a common group), and Trivy's own code
+          # unchanged. It is three days old, the age CONTRIBUTING.md asks of a
+          # dependency, on 2026-10-24. scripts/idp-pin-watch.mjs reads every
+          # Trivy step's version: and keeps an issue open while a newer Trivy
+          # exists.
           # Raise when Dependabot takes trivy-action > v0.36.0. Every Trivy step
           # must name one: held by a-gate-on-a-version-nothing-ships.
-          version: v0.76.0
+          version: v0.76.1
           scan-type: fs
           format: sarif
           output: trivy.sarif
@@ -376,7 +397,8 @@ jobs:
   # found it. The pin watch (idp-pin-watch.yml) says when a newer tag exists;
   # these three jobs say what is inside the one that runs.
   #
-  # ONLY ON THE WEEKLY SCHEDULE AND ON DISPATCH, so a pull request, a push to
+  # ONLY ON THE WEEKLY SCHEDULE AND ON A DISPATCH THAT LEAVES `image_scans`
+  # ON (Release's two dispatches turn it off), so a pull request, a push to
   # main and a tag run exactly as before, and the required `security-scan`
   # check is still the job above alone. ON GITHUB-HOSTED RUNNERS ONLY, never
   # the Spark: a scan downloads every image's layers, and that box's disk and
@@ -414,7 +436,7 @@ jobs:
   # scripts/an-image-nobody-scanned.unit.test.ts.
   image-list:
     name: Images the stacks run
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.image_scans)
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -441,7 +463,7 @@ jobs:
   image-scan:
     name: Image scan (${{ matrix.name }})
     needs: image-list
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.image_scans)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -467,7 +489,7 @@ jobs:
           # a-gate-on-a-version-nothing-ships holds each Trivy step to an
           # exact release; an-image-nobody-scanned holds this one to the job
           # above's.
-          version: v0.76.0
+          version: v0.76.1
           scan-type: image
           image-ref: ${{ matrix.ref }}
           format: json
@@ -550,7 +572,7 @@ jobs:
     needs: [image-list, image-scan]
     # Also when some scans failed: it says which images have no report, and
     # still keeps the issues of those that have one.
-    if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && needs.image-list.result == 'success'
+    if: always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.image_scans)) && needs.image-list.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

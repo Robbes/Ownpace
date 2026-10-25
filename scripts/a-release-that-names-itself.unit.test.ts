@@ -83,7 +83,10 @@
  * commit as long as its `git rev-parse --short=12`. And `docs/release.md`
  * said the shared-chain upgrade gate has five `skipIf(!HAVE_REF)` tests,
  * which a person is to confirm ran; the file has six, so a person counting to
- * five would have missed one. The count it states must be the file's.
+ * five would have missed one. The count it states must be the file's, for
+ * each chain's gate: the managed chain has its own since 2026-10-23
+ * (`packages/managed/src/migrate-upgrade.unit.test.ts`, 0146 T4), and the
+ * count after each path must be that file's.
  *
  * Where the form sends a self-host tester depends on how the appliance was
  * built (the two reviews of step 1, 2026-09-28). `Layout.tsx` renders the
@@ -702,7 +705,11 @@ const BUG_REPORT = join(ROOT, '.github', 'ISSUE_TEMPLATE', 'bug_report.yml');
 const PACKAGER = join(HERE, 'package-appliance.mjs');
 const APPLIANCE_DOCKERFILE = join(ROOT, 'apps', 'selfhost', 'Dockerfile');
 const WEB_SRC = join(ROOT, 'apps', 'web', 'src');
-const UPGRADE_GATE = join(ROOT, 'packages', 'ledger', 'src', 'migrate-upgrade.unit.test.ts');
+/** The two chains' upgrade gates, by the path `docs/release.md` names each by. */
+const UPGRADE_GATES = {
+  shared: 'packages/ledger/src/migrate-upgrade.unit.test.ts',
+  managed: 'packages/managed/src/migrate-upgrade.unit.test.ts',
+} as const;
 const RELEASE_DOC = join(ROOT, 'docs', 'release.md');
 
 /** The bug report form's Build field: what it tells a tester to copy, and the grey text in the empty box. */
@@ -852,13 +859,31 @@ describe('what the release asks of people is what the code does', () => {
     expect(examples).toContain(placeholder);
   });
 
-  it("docs/release.md counts the shared-chain upgrade gate's skipIf(!HAVE_REF) tests as the file has them", () => {
-    const said = /\bthe\s+(\w+)\s+`skipIf\(!HAVE_REF\)`\s+tests\b/.exec(readFileSync(RELEASE_DOC, 'utf8'));
-    expect(said, 'docs/release.md no longer names a count of skipIf(!HAVE_REF) tests').not.toBeNull();
-    const inFile = readFileSync(UPGRADE_GATE, 'utf8').match(/\b(?:it|test)\.skipIf\(!HAVE_REF\)\(/g)?.length ?? 0;
-    expect(inFile, 'the gate has no skipIf(!HAVE_REF) tests: this case would compare nothing').toBeGreaterThan(0);
-    expect(COUNT_WORDS.indexOf(said![1]!), `docs/release.md says "${said![1]}", and the file has ${inFile}`).toBe(inFile);
-  });
+  // One case per chain. The release workflow's preflight refuses unless every
+  // `skipIf(!HAVE_REF)` case in both files executed, and a person checking a
+  // run by hand counts to the number written here. The count is read from the
+  // text after each gate's own path, so the managed gate's number cannot be
+  // satisfied by the shared gate's.
+  it.each(Object.entries(UPGRADE_GATES))(
+    "docs/release.md counts the %s chain's upgrade gate's skipIf(!HAVE_REF) tests as the file has them",
+    (_chain, path) => {
+      const doc = readFileSync(RELEASE_DOC, 'utf8');
+      const at = doc.indexOf(path);
+      expect(at, `docs/release.md does not name ${path}`).toBeGreaterThanOrEqual(0);
+      const said = /\bthe\s+(\w+)\s+`skipIf\(!HAVE_REF\)`\s+tests\b/.exec(doc.slice(at + path.length));
+      expect(said, `docs/release.md names no count of skipIf(!HAVE_REF) tests after ${path}`).not.toBeNull();
+      // The count must belong to this path: no other gate is named between them.
+      const between = doc.slice(at + path.length, at + path.length + said!.index);
+      expect(between, `the count docs/release.md gives after ${path} belongs to another gate`).not.toMatch(
+        /migrate-upgrade\.unit\.test\.ts/,
+      );
+      const inFile = readFileSync(join(ROOT, path), 'utf8').match(/\b(?:it|test)\.skipIf\(!HAVE_REF\)\(/g)?.length ?? 0;
+      expect(inFile, `${path} has no skipIf(!HAVE_REF) tests: this case would compare nothing`).toBeGreaterThan(0);
+      expect(COUNT_WORDS.indexOf(said![1]!), `docs/release.md says "${said![1]}" for ${path}, and the file has ${inFile}`).toBe(
+        inFile,
+      );
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------

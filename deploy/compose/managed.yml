@@ -290,7 +290,7 @@ services:
     # deploy story). The old hardcoded v4.5.4 pin claimed to match an SDK that
     # had moved to 4.5.7 — and the v4.5.7 pin then repeated the same drift
     # when the SDK moved to 4.5.9.
-    image: ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.7.2}
+    image: ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.7.6}
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-api
     restart: unless-stopped
     logging: *logging
@@ -573,7 +573,7 @@ services:
   # deployed task is dequeued by nobody — which is exactly what this stack
   # was before 0018: bootstrap env vars with no consumer.
   trigger-supervisor:
-    image: ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.7.2}
+    image: ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.7.6}
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-supervisor
     restart: unless-stopped
     logging: *logging
@@ -836,7 +836,40 @@ services:
     # the service ping's default and the privacy policy's fields hold at
     # v4.19.5. The OTA instance's `zitadel` database was dumped first by the
     # owner, with deploy/compose/dump-idp.sh; E2E (managed) #274 applied it.
-    image: ghcr.io/zitadel/zitadel:v4.19.5
+    #
+    # v4.20.0 (2026-10-22), for issue #1643. Twelve commits after v4.19.5 on
+    # upstream's v4.x branch, eleven backports and a go.sum tidy; there is no
+    # v4.19.6, so this is the smallest move. Five are docs and one is login
+    # v2's device-code cookie (895a29f; login v2 does not run here). No Zitadel
+    # advisory: the security content is the build. v4.19.5 was built with Go
+    # 1.25.11, a line Go no longer fixes, and x/net v0.58.0; v4.20.0 with Go
+    # 1.26.10 and x/net v0.61.0 (3fe639d, 1f984a1). That closes
+    # CVE-2026-78667 (GO-2026-6609): a Range header of many small ranges makes
+    # net/http's FileServer burn CPU, and the console and login v1's static
+    # files are served by http.FileServer to anybody, signed in or not. It
+    # closes CVE-2026-78669 (GO-2026-6611) in x/net's HTTP/2 server, which
+    # serves this port's h2c, and adds Go's block on the compromised eMudhra
+    # intermediates (CVE-2026-111943, GO-2026-6809) to outbound TLS, which on
+    # live is the mail relay alone. So T7's seven days apply, to 2026-10-29.
+    # No setup step (cmd/setup unchanged), so the schema stays at v4.19.4's
+    # step 80. cmd/defaults.yaml, internal/api/grpc/admin and cmd/ready are
+    # unchanged, so the three facts above, the service ping's default, the
+    # lockout and the privacy policy's fields hold at v4.20.0. Login v1 gains
+    # one text (fb4bc84), shown only when an IdP allows neither creating nor
+    # linking an account; every IdP setup-zitadel.sh configures allows both.
+    # An empty text pattern no longer filters (f8ddee1); nothing here sends
+    # one. The console's environment.json takes `api` from the issuer's origin
+    # (e01ccc9), so the mismatch bootstrap-managed.sh checks for cannot arise
+    # on this image. grpc 1.84.0 and grpc-gateway v2.32.0 sit under every REST
+    # call. Go 1.26 refuses URLs with stray colons in the host
+    # (GODEBUG=urlstrictcolons=0 undoes it) and adds the SecP256r1MLKEM768 and
+    # SecP384r1MLKEM1024 hybrids to the groups TLS offers (tlssecpmlkem=0
+    # removes them). Its key share is still X25519MLKEM768, the default since
+    # Go 1.24, so v4.19.5 sent the same one. The eMudhra block has no switch.
+    # The OTA instance's `zitadel` database was dumped first by the owner, on
+    # v4.19.5, with deploy/compose/dump-idp.sh (2026-10-25 06:06 UTC); E2E
+    # (managed) #277 applied it.
+    image: ghcr.io/zitadel/zitadel:v4.20.0
     container_name: ${COMPOSE_PROJECT_NAME}-idp
     restart: unless-stopped
     logging: *logging

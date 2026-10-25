@@ -1,0 +1,18 @@
+{
+  "38705963804": [
+    {
+      "id": 38705963804,
+      "run_number": 255,
+      "event": "schedule",
+      "status": "completed",
+      "conclusion": "failure",
+      "run_attempt": 1,
+      "head_sha": "b21a973538c0cf3865e201ef218b6947e9d32890",
+      "head_branch": "main",
+      "path": ".github/workflows/e2e-managed.yml",
+      "created_at": "2026-10-15T08:28:59Z",
+      "run_started_at": "2026-10-15T08:28:59Z",
+      "updated_at": "2026-10-15T08:30:13Z"
+    }
+  ]
+}

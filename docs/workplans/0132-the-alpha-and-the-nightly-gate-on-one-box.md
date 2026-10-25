@@ -2,7 +2,19 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-10-22 (update this block at the end of every session)
+## Status — 2026-10-24 (update this block at the end of every session)
+
+**2026-10-24: the Spark's runner service had been down since 2026-09-25, and it showed only when
+the queue stopped.** E2E (self-hosted) #292 (scheduled, on `cf47ea50`) waited from 01:48 UTC for a
+runner that never came. The runner's systemd unit had failed on 2026-09-25 with `Result:
+oom-kill`: the OOM killer took a process of a job, the listener then exited with code 0 (*"no
+retry needed"*), and the unit had no restart policy, so it stayed failed. The jobs after that ran
+on a runner started by hand from the same directory, which stopped between the last push run on
+`main` (2026-10-23 12:49 UTC) and 01:48 UTC. The owner started the unit again at 03:16 UTC, and
+#292 started at once. A systemd drop-in now sets `Restart=always` and `RestartSec=30`, so a
+killed or crashed runner comes back by itself (the operator runbook, *This box also runs CI*). A
+second runner on the box, in a container, serves another repository and never took this
+repository's jobs. Not changed: a job still has no memory limit of its own on this box.
 
 **2026-10-22, recorded: T7's voice merged** as #1664 on 2026-10-21 (`6bd020f6`): the 2026-10-21
 T7 entry below, and 0142 T3. Live takes it with the first tag that carries it.
@@ -21,10 +33,12 @@ after #267, #1672 after #268.
 Since #1662 (`d98f54f2`) and #1672 (`be6a857f`), `setup-zitadel.sh` and `smoke-managed.sh` ask a
 read of the provider again on a 502, 503 or 504, four asks with 14 seconds of waiting between
 them (`IDP_READ_ATTEMPTS`), and still send each write once. A short 502 on a read no longer
-fails the gate, but no retry rides out an outage like this one. The follow-up is the
+fails the gate, but no retry rides out an outage like this one. The follow-up was the
 owner's: making sure the Spark's NetBird peer cannot expire (the owner's checklist of
 2026-10-21, T10, by 2026-10-27), since a peer whose login expires takes the tunnel down, and
-every public name with it.
+every public name with it. The owner's call on T10, 2026-10-22: not now. When every public
+name stops answering at once, the first thing to check is the Spark peer's login (`netbird
+status` on the Spark).
 
 **2026-10-21, T7: the daily duties have a voice** (0142 T3), on branch
 `claude/ownpace-public-readiness-y7orc6-owner-told`, not merged. `ownpace-box-duties.service` has
@@ -3542,7 +3556,9 @@ document is changed to mark staged rollout and a backup before migrating as not 
 `docs/deployment.md` has done since #1137 (merged 2026-09-24).
 
 1. Name the tag: a tag on `main` (0146) whose commit the nightly gate ran green on the OTA stack.
-   0131 T5 asks for N green scheduled runs of the deployed commit. Record the tag and its hash.
+   0131 T5 asks for N green scheduled runs of the deployed commit; 0141 T14 is the one statement
+   of the rule, and the Release workflow refuses to tag a commit it does not hold for
+   (`docs/release.md` §2). Record the tag, its hash and the Release run its message names.
 2. Start the hold on live, with a sentence in Dutch (D6). Testers read it word for word on the
    banner, and as the answer to every button that would start work, which the hold now refuses
    (T6 (b)). The count the wizard's confirm screen starts by itself shows the sentence too, and

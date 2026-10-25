@@ -1,0 +1,417 @@
+# Release: the one way a release tag is cut and published, in an order that
+# holds (workplan 0146, Status of 2026-10-23; docs/release.md).
+#
+# WHY IT EXISTS. v0.2.0-alpha.1 was a tag pushed by hand on 2026-10-06. Four
+# workflows heard it and ran side by side: its Security Scan (run 37523297841)
+# failed at the advisory gate, so the release got no body and no bom.json,
+# while images.yml had already pushed and signed the images and
+# windows-payload.yml had made a bodiless release for its zip. CI on the tag
+# finished forty minutes after all of it. Nothing a tag fired waited for
+# anything else.
+#
+# WHAT IT DOES, dispatched from main, on GitHub-hosted runners only. It never
+# runs on the self-hosted machine, never names or touches the live stack, and
+# never builds, pushes or signs anything itself:
+#
+#   preflight     reads the record and the candidate commit C; writes nothing
+#   approve       the owner's recorded say-so: the `release` environment
+#   gate-scan     Security Scan on exactly C, minutes before the tag, and
+#                 only on a C the preflight found on main's first-parent
+#                 line, rehearsal included
+#   tag           peels the tag (Release's own at C: a re-run carries on);
+#                 otherwise reads the nights and the tag again, then makes
+#                 the annotated tag with this workflow's token
+#   publish-scan  Security Scan on the tag: it makes the release, its body
+#                 and bom.json, before anything else ships
+#   publish-images, publish-payload
+#                 images.yml and windows-payload.yml on the tag, only after
+#                 the scan on the tag is green
+#   verify        what the tag published, checked
+#
+# A TAG MADE WITH THIS WORKFLOW'S TOKEN STARTS NO PUSH WORKFLOW (GitHub's
+# rule: only workflow_dispatch and repository_dispatch events from it start
+# runs). So Release dispatches each publisher on the tag ref itself, in its
+# order, and each sees github.ref = refs/tags/<tag> and github.sha = C, the
+# same as on a pushed tag: every tag condition in those files holds as it
+# is. CI does not run on such a tag; C's own push run on main stands in for
+# it, with the suite actually run (ci.yml's trigger block). A tag pushed by
+# hand still fires all four as before: the break-glass path, unordered.
+#
+# MODES (input `mode`):
+#   preflight     the default; read-only, red with the list of refusals
+#   rehearse      the preflight, then the gate scan, and no tag; it needs an
+#                 explicit commit on main's first-parent line while the
+#                 nights pick none. It carries the record's refusals to the
+#                 end; a refusal of which commit this is ends it at once
+#   rehearse-tag  a throwaway annotated tag `rehearsal-<run number>` at main's
+#                 head, Security Scan dispatched on it and expected to refuse
+#                 it at the names check, then the tag deleted: proves the tag
+#                 calls and a tag-ref dispatch before a real tag needs them
+#   release       everything, after the owner approves
+#   verify        what an existing tag published, checked
+#
+# THE APPROVAL is the recorded say-so of workplan 0025 T2, with a name and a
+# time, and a guard against accidents. It is not a boundary: anyone with
+# write access can push a tag by hand, and a copy of this file on another
+# branch could drop the job. The owner creates the `release` environment with
+# themselves as required reviewer; until then a job naming it creates it
+# unprotected and passes without a click, which the preflight says.
+#
+# ONE GROUP, NEVER CANCELLED. GitHub keeps one run waiting per group, and a
+# newer one replaces it: reject or cancel an approval left waiting to free it.
+# A run you cancel stops: the jobs that would otherwise run after a failure
+# say `!cancelled()`, and only the two clean-ups (the gate branch, the
+# rehearsal tag) say `always()`.
+#
+# Every input reaches a shell through `env:` only, every checkout leaves no
+# token on disk, and each job holds only the permissions it uses. Held by
+# scripts/a-tag-cut-only-on-green.unit.test.ts.
+name: Release
+run-name: Release ${{ inputs.version }} (${{ inputs.mode }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'v and the root package.json version, e.g. v0.2.0-alpha.2'
+        type: string
+        required: true
+      commit:
+        description: 'Full commit to tag. Empty: the commit the counted nights ran (0141 T14)'
+        type: string
+        required: false
+        default: ''
+      mode:
+        description: 'preflight reads only; rehearse adds the gate scan; rehearse-tag proves the tag calls; release cuts and publishes; verify checks an existing tag'
+        type: choice
+        default: preflight
+        options: [preflight, rehearse, rehearse-tag, release, verify]
+
+permissions: {}
+
+concurrency:
+  group: release-tag
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: preflight
+    if: inputs.mode != 'rehearse-tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+      # Read only, to read the open code-scanning alerts it reports, grouped
+      # by tool and category (scripts/release-preflight.mjs).
+      security-events: read
+    outputs:
+      commit: ${{ steps.resolve.outputs.commit }}
+      # 'true' only when the resolve step refused nothing: C is on main's
+      # first-parent line. The gate scan asks for it in every mode.
+      candidate: ${{ steps.resolve.outputs.candidate }}
+      previous: ${{ steps.resolve.outputs.previous }}
+      refused: ${{ steps.verdict.outputs.refused }}
+      proof: ${{ steps.check.outputs.proof }}
+    env:
+      VERSION: ${{ inputs.version }}
+      COMMIT_INPUT: ${{ inputs.commit }}
+      MODE: ${{ inputs.mode }}
+      RELEASE_LINES: release-lines.jsonl
+    steps:
+      # main's scripts, with every branch and tag, for `merge-base` and for
+      # the upgrade gates' `git show <previous tag>:...`.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+
+      # The inputs, main, C, the release before, and C on main's own line,
+      # all before a worktree exists: a commit that is not on main is a
+      # refusal here, not a git error in the next step.
+      - name: Resolve the version, the commit and the release before it
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release-preflight.mjs resolve
+
+      - name: Check the candidate out beside main
+        id: worktree
+        if: steps.resolve.outputs.candidate == 'true'
+        env:
+          COMMIT: ${{ steps.resolve.outputs.commit }}
+        run: git worktree add --detach candidate "$COMMIT"
+
+      # The candidate's own code: no token in this step. Its parent process
+      # is main's script, and a process can read its parent's environment,
+      # so the token stays out of the step, as in the install below.
+      - name: The candidate's own names check
+        id: names
+        if: steps.resolve.outputs.candidate == 'true' && inputs.mode != 'verify'
+        run: node scripts/release-preflight.mjs names --candidate candidate
+
+      # The tag, the API contract's version, the changelog folded, CI and the
+      # scan on main for C, the nights, and the notes.
+      - name: What the candidate says, and what the record says about it
+        id: check
+        if: steps.resolve.outputs.candidate == 'true' && inputs.mode != 'verify'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT: ${{ steps.resolve.outputs.commit }}
+          PREVIOUS: ${{ steps.resolve.outputs.previous }}
+        run: node scripts/release-preflight.mjs check --candidate candidate
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        if: steps.check.outcome == 'success'
+        with:
+          package_json_file: candidate/package.json
+
+      # The candidate's lifecycle scripts run here: no token in this step.
+      - name: Install the candidate
+        id: install
+        if: steps.check.outcome == 'success'
+        run: pnpm --dir candidate install --frozen-lockfile
+
+      # Read with the candidate's own YAML parser, after the install.
+      - name: The workflows Release dispatches take what it passes
+        id: callees
+        if: steps.install.outcome == 'success'
+        run: node scripts/release-preflight.mjs callees --candidate candidate
+
+      # Each chain's upgrade test from the release before, read from vitest's
+      # report: every case ran, none skipped. A chain whose test does not
+      # exist at C is "not exercised".
+      - name: The upgrade gates, from the release before
+        id: gates
+        if: steps.install.outcome == 'success'
+        env:
+          PREVIOUS: ${{ steps.resolve.outputs.previous }}
+        run: node scripts/release-upgrade-gates.mjs --candidate candidate --from "$PREVIOUS"
+
+      - name: Verdict
+        id: verdict
+        if: '!cancelled()'
+        env:
+          COMMIT: ${{ steps.resolve.outputs.commit }}
+          OUTCOMES: >-
+            resolve=${{ steps.resolve.outcome }}
+            worktree=${{ steps.worktree.outcome }}
+            names=${{ steps.names.outcome }}
+            check=${{ steps.check.outcome }}
+            install=${{ steps.install.outcome }}
+            callees=${{ steps.callees.outcome }}
+            gates=${{ steps.gates.outcome }}
+        run: node scripts/release-preflight.mjs verdict
+
+  approve:
+    name: approve (the owner's say-so)
+    needs: preflight
+    if: inputs.mode == 'release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: release
+    permissions: {}
+    steps:
+      - name: Name what was approved
+        env:
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ needs.preflight.outputs.commit }}
+        run: |
+          echo "Approved in the release environment: tag ${VERSION} on ${COMMIT}."
+
+  gate-scan:
+    name: gate scan (Security Scan on exactly C)
+    needs: [preflight, approve]
+    # It makes a branch at C and dispatches C's own security-scan.yml with a
+    # write token: only on a C the preflight found on main, in every mode.
+    if: "!cancelled() && needs.preflight.result == 'success' && needs.preflight.outputs.candidate == 'true' && (inputs.mode == 'rehearse' || (inputs.mode == 'release' && needs.approve.result == 'success'))"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      actions: write
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ inputs.version }}
+      COMMIT: ${{ needs.preflight.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+      # Advisories are read live: alpha.1's commit scanned green on main at
+      # 00:55 and red on its tag at 20:01 the same day. So the scan that
+      # counts is this one, after the approval, on a branch at exactly C.
+      - name: Scan C, minutes before the tag
+        id: gate
+        run: node scripts/release-dispatch.mjs gate
+      - name: Remove the gate branch
+        if: always()
+        run: node scripts/release-dispatch.mjs drop-gate
+      - name: Say what the real run would have done
+        if: "!cancelled() && inputs.mode == 'rehearse'"
+        env:
+          REFUSED: ${{ needs.preflight.outputs.refused }}
+        run: node scripts/release-preflight.mjs rehearsal-verdict
+
+  tag:
+    name: tag
+    needs: [preflight, approve, gate-scan]
+    if: inputs.mode == 'release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ inputs.version }}
+      COMMIT: ${{ needs.preflight.outputs.commit }}
+      PROOF: ${{ needs.preflight.outputs.proof }}
+      GATE_RUN: ${{ needs.gate-scan.outputs.run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+      - name: Peel the tag, or read the nights and the tag again and cut it on C
+        run: node scripts/release-cut-tag.mjs
+
+  publish-scan:
+    name: publish (Security Scan on the tag, first)
+    needs: [preflight, tag]
+    if: inputs.mode == 'release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ inputs.version }}
+      COMMIT: ${{ needs.preflight.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+      # It makes the release, with its body and bom.json. If it goes red after
+      # its attach step (Trivy or the SARIF upload), the release page exists
+      # while nothing else is published: the half-published state of
+      # docs/release.md §3.
+      - name: Dispatch Security Scan on the tag and wait
+        run: node scripts/release-dispatch.mjs publish --workflow security-scan.yml --input image_scans=false
+
+  publish-images:
+    name: publish (images on the tag)
+    needs: [preflight, publish-scan]
+    if: inputs.mode == 'release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    permissions:
+      contents: read
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ inputs.version }}
+      COMMIT: ${{ needs.preflight.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+      - name: Dispatch images.yml on the tag and wait
+        run: node scripts/release-dispatch.mjs publish --workflow images.yml
+
+  publish-payload:
+    name: publish (Windows zip on the tag)
+    needs: [preflight, publish-scan]
+    if: inputs.mode == 'release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ inputs.version }}
+      COMMIT: ${{ needs.preflight.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+      - name: Dispatch windows-payload.yml on the tag and wait
+        run: node scripts/release-dispatch.mjs publish --workflow windows-payload.yml --input platform=win-x64
+
+  verify:
+    name: verify
+    needs: [preflight, tag, publish-scan, publish-images, publish-payload]
+    if: "!cancelled() && needs.preflight.result == 'success' && (inputs.mode == 'verify' || (inputs.mode == 'release' && needs.tag.result == 'success'))"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ inputs.version }}
+      COMMIT: ${{ needs.preflight.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: The release, the SBOM, the zip, the images, the signatures and /version
+        run: node scripts/release-verify.mjs
+
+  tag-rehearsal:
+    name: tag rehearsal (a throwaway tag, never a release)
+    if: inputs.mode == 'rehearse-tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+      - name: Make rehearsal-<run number> at main's head, and see Security Scan refuse it
+        run: node scripts/release-dispatch.mjs rehearse-tag
+      - name: Delete the rehearsal tag
+        if: always()
+        run: node scripts/release-dispatch.mjs drop-rehearsal-tag

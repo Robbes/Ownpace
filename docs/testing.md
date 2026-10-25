@@ -416,12 +416,14 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
 - `e2e-managed.yml` — nightly (03:30 UTC) and on dispatch, on the Spark: the managed-edition gate
   (workplan 0084), run against a long-lived configured stack, so it does not prove bring-up from
   scratch.
-- **Before a deploy to live** (workplan 0141 T14, the owner's rule of 2026-09-27): the last two
-  *scheduled* runs of `e2e-managed.yml` on `main` are green, and the newer of them ran the commit
-  being tagged. `e2e.yml`'s scheduled runs over the same two nights, four runs, are green too. A
-  dispatched run does not count, and a red scheduled run starts the count again. This holds for
-  live's first bring-up from a tag and for each deploy after it, unless the owner accepts fewer
-  in writing. T14 has the two `gh run list` commands that read it.
+- **Before a release tag, and so before a deploy to live** (workplan 0141 T14, the owner's rule
+  of 2026-09-27, read strictly since 2026-10-23): the newest two *scheduled* runs of
+  `e2e-managed.yml` on `main` both ran the commit being tagged and are green on every attempt,
+  with no night missing, and the four scheduled `e2e.yml` runs of those nights ran it and are
+  green too. A dispatched run does not count, and a red scheduled run starts the count again.
+  T14 is the one statement of it; `scripts/release-nights.mjs` reads it, and the Release
+  workflow refuses to tag a commit it does not hold for. A tag pushed by hand is the owner's
+  break-glass, with the acceptance written in the deploy log.
 - `e2e-live-target.yml` — nightly (04:30 UTC) and on dispatch, on the Spark: the soft lane against
   a target we do not host (workplan 0105 T4). Red means investigate; it never runs on a pull
   request, so it blocks nothing.
@@ -447,7 +449,8 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   identity provider's pin in `managed.yml` against upstream's newest release of the same major;
   Trigger.dev against the newest tag both its images carry (`trigger-version.sh probe`);
   ClickHouse against the one Trigger.dev's own compose file pins; the tasks' Node against Node's
-  newest security release; `packageManager` against the newest pnpm of its major; and the
+  newest security release, until `trigger.config.ts` copies the API image's Node (it does since
+  issue #1669, so that row reports current); `packageManager` against the newest pnpm of its major; and the
   TypeScript split's exit. Each of those keeps one issue open while it is behind, says a newer
   release in a comment, and closes the issue when the pin catches up. Every other image line of
   `managed.yml`, `dev.yml` and `www.yml` (Dependabot reads no file in `deploy/compose`), the
@@ -463,6 +466,12 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   touches a Dockerfile, `deploy/` or the workflow; a multi-arch build and publish on `main` and
   on `v*` tags.
 - `windows-payload.yml` (dispatch, and on v* tags; builds the Windows appliance payload).
+- `release.yml` — dispatch only, from `main`, on GitHub-hosted runners only; never a required
+  check, since it has no pull-request trigger. It cuts a release tag and publishes it in order
+  (`docs/release.md`): a preflight that reads the record, the owner's approval, Security Scan on
+  exactly the commit, the tag, Security Scan, `images.yml` and `windows-payload.yml` dispatched on
+  the tag, and a verify. It dispatches `security-scan.yml` with `image_scans: false`, so those runs
+  are the repository scan alone; a hand dispatch keeps the image scans.
 - `no-committed-artifacts.yml` — PR guard against committed `node_modules/`, build outputs, local
   DBs, and `.env`.
 

@@ -1,0 +1,16 @@
+{
+  "tag_name": "v0.1.0-rc.1",
+  "name": "v0.1.0-rc.1",
+  "draft": false,
+  "prerelease": true,
+  "immutable": false,
+  "body": null,
+  "assets": [
+    {
+      "name": "bom.json",
+      "size": 2159983,
+      "state": "uploaded",
+      "browser_download_url": "https://github.com/Robbes/Ownpace/releases/download/v0.1.0-rc.1/bom.json"
+    }
+  ]
+}
