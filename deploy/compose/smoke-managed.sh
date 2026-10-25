@@ -5629,9 +5629,9 @@ else
   # costs two of the twenty. A row a press refused stayed OPEN for good, and
   # apply-all presses the whole mapping, not this run's tag, so every later
   # press paid for it again. #277's attempt 2 pressed eight minutes after
-  # attempt 1, and by the count inferred from the timings (workplan 0104) the
-  # two presses had spent the twenty, eight of them on three rows #238 left
-  # open, so the run's own row most likely came back 429.
+  # attempt 1; the two presses had spent the twenty, eight of them on three
+  # rows #238 left open, and the run's own row came back 429 (the demo
+  # Nextcloud's access log shows it; workplan 0104).
   #
   # So every still-open row a run of this gate seeded, whatever its tag, is
   # skipped through the product's own decision route, which writes the audit

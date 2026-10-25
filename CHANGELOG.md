@@ -268,7 +268,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   leftovers no longer spend the next run's shares** (workplan 0104):
   Nextcloud lets an account create 20 shares in 10 minutes, and every press
   retried the rows earlier presses had refused, so E2E (managed) #277's second
-  attempt most likely came back 429 (inferred from the timings).
+  attempt came back 429, as the demo Nextcloud's access log shows.
   `smoke-managed.sh` now skips every still-open share row a run of the gate
   seeded, through the product's own decision route, and prints each refused
   row whole, with the target's status.

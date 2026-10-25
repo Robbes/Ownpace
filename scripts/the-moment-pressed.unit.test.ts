@@ -183,8 +183,8 @@ describe('the folder press, pressed', () => {
  * a 404, so an outsider row costs two. A row a press refused stayed open for
  * good, and apply-all presses the whole mapping, so three rows run #238 left
  * were paid for by every later press. Attempt 2 pressed eight minutes after
- * attempt 1, and its own row most likely came back 429 (inferred from the
- * timings, workplan 0104). The log could not say: it printed the first six
+ * attempt 1, and its own row came back 429 (the demo Nextcloud's access log
+ * shows it, workplan 0104). The gate's log could not say: it printed the first six
  * lines of the refused JSON, and the status sits at the end of each reason.
  *
  * Pinned here: the refused list is printed whole, a row to a line, and never

@@ -90,10 +90,10 @@ from upstream's main, one a `go mod tidy`):
   green on its third attempt, 06:37 to 06:44 UTC. Attempt 1 ran while the OTA's hold on new
   passes was still open, so its prepare's sync was refused and the apply half had no item to apply;
   the hold lifted during the run, and its own share press ran green at 06:23. Attempt 2 failed at
-  the one-go share press, which applied none of the run's rows: it most likely reached Nextcloud's
-  limit on new shares, as attempt 1 had pressed eight minutes earlier and every press retries the
-  share rows old runs left open (inferred from the timings in workplan 0104; the gate settles them
-  since 2026-10-25). The same code passed on attempt 3. (3) The merge followed at 06:45 UTC, before
+  the one-go share press, which applied none of the run's rows: it reached Nextcloud's limit on
+  new shares, as attempt 1 had pressed eight minutes earlier and every press retries the share rows
+  old runs left open (Nextcloud's access log shows the 429s; workplan 0104; the gate settles those
+  rows since 2026-10-25). The same code passed on attempt 3. (3) The merge followed at 06:45 UTC, before
   alpha.2's counted nights begin. **Still owed:** (4) live from alpha.2 by **2026-10-29**, after a
   dump of live's `zitadel` database; then one mail through live's relay and one sign-in, because no
   gate run proves Zitadel's outbound TLS under Go 1.26.10 (the OTA relay is Mailpit, plain SMTP).
