@@ -62,9 +62,11 @@ pnpm test:integration
 Testcontainers manages everything: fresh Postgres, fresh Stalwart (two-phase: recovery-mode
 provisioning of `dev.local` + `source@dev.local` / `target@dev.local` via `stalwart-cli apply`,
 then a normal-mode container on the same data volume), schema migration, and teardown including
-volume cleanup. Stalwart binds **TLS listeners only** (IMAPS 993, HTTPS 443, SMTPS 465, POP3S 995)
-plus unencrypted management/JMAP HTTP on 8080; there is **no plaintext IMAP 143** — the IMAP
-client connects to 993 with `rejectUnauthorized: false` for the self-signed test certificate.
+volume cleanup. In normal mode Stalwart binds IMAPS 993, HTTPS 443, SMTPS 465 and POP3S 995,
+unencrypted management/JMAP HTTP on 8080, and plain SMTP on 25 and ManageSieve on 4190; it does
+not bind IMAP 143, POP3 110 or submission 587, so there is **no plaintext IMAP**. The tests
+publish only 8080, 993 and 465, and the IMAP client connects to 993 with
+`rejectUnauthorized: false` for the self-signed test certificate.
 
 The optional `deploy/compose/dev.yml` stack (Postgres + Nextcloud) remains available for manual
 exploration, but the integration suite does not depend on it. `dev.yml` does **not** include

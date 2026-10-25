@@ -32,6 +32,14 @@ the same change:
   `packages/testing/src/testcontainers-setup.ts`, `packages/testing/fixtures/stalwart/Dockerfile`,
   `STALWART` in `scripts/a-service-that-phones-home.unit.test.ts`, and this file
   (`scripts/idp-pin-watch.mjs` reads the first four and reports "the copies disagree" otherwise);
+- then `git grep -n` for the old tag, because nothing guards the other places that name the
+  current pin: ADR-0022's operative bullet (then `node scripts/adr-operative.mjs --write`) and its
+  row in `docs/adr/README.md`, the comments in `testcontainers-setup.ts` and
+  `packages/ledger/src/shadow-pass.integration.test.ts`, `e2e.yml`'s header, `docs/testing.md`,
+  "Nothing phones home" in `docs/managed-bring-up.md`, the demo's Stalwart in
+  `scripts/a-service-that-phones-home.unit.test.ts`'s header, and the calendar reason in
+  `packages/connectors/src/jmap-capabilities.ts`. Dated records (ADR updates, workplan Status
+  entries, the dated paragraphs below) keep the tag they name;
 - upstream's changelog between the two tags, read for the recovery-mode variables, the CLI and
   the `Domain`/`Account` objects the plan below upserts;
 - `crates/common/src/manager/defaults.rs` re-read at the new tag for what it downloads, and

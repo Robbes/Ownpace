@@ -752,9 +752,12 @@ async function startStalwart(): Promise<{
     .withEnvironment({
       STALWART_HOSTNAME: 'localhost',
     })
-    // 465 = SMTPS. Stalwart v0.16.27 auto-binds TLS listeners only, so there is
-    // no plaintext 25/587 to reach. Published so 0043 T1 can prove this product
-    // actually sends an email rather than proving its digest logic in isolation.
+    // 465 = SMTPS. Stalwart binds 25, 443, 465, 993, 995, 4190 and 8080 here, and
+    // not 143, 110 or 587 (docs/stalwart-integration-fix.md, "TLS Ports"); only
+    // 8080, 993 and 465 are published, so plain SMTP on 25 and ManageSieve on
+    // 4190 stay unreachable from the tests. 465 is published so 0043 T1 can prove
+    // this product actually sends an email rather than proving its digest logic
+    // in isolation.
     .withExposedPorts(8080, 993, 465)
     .withStartupTimeout(180000)
     .withUser('root')
@@ -762,7 +765,7 @@ async function startStalwart(): Promise<{
     // Attach log consumer BEFORE start() to capture ALL logs including startup failures
     .withLogConsumer(createFileLogConsumer('stalwart-phase2.log'))
     // Wait for both HTTP (8080) and IMAPS (993) ports to be listening
-    // Note: Stalwart v0.16.27 auto-binds TLS listeners (993/995) but NOT plaintext (143/110)
+    // Note: Stalwart binds IMAPS and POP3S (993/995) but NOT plaintext IMAP or POP3 (143/110)
     .withWaitStrategy(Wait.forListeningPorts());
 
   // Start the container with retry logic for RocksDB lock race condition

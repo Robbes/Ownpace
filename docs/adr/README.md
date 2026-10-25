@@ -103,5 +103,5 @@ first.
 list bullet, and its row above is maintained from that line. The decision itself (a pnpm override for the `semver` chain rather than migrating off
 `imap-simple`) has since been overtaken: [workplan 0032](../workplans/0032-imapflow-migration.md)
 did the migration, and the vulnerable chain is absent from the lockfile rather than overridden.
-The `semver` override remains in `pnpm-workspace.yaml`. Since 2026-10-25 it also records the
-owner's decisions on the Stalwart test fixture's pin, which AGENTS.md has long sent here.
+The `semver` override remains in `pnpm-workspace.yaml`. Since 2026-10-25 ADR-0022 also records
+the owner's decisions on the Stalwart test fixture's pin, which AGENTS.md has long sent here.

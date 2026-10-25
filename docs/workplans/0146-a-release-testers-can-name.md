@@ -31,8 +31,17 @@ names the new pin and, under "Moving the pin", the rule and the checklist for th
   all three rungs, so 0031 T1 stays parked; and one volume made at v0.16.10, taken to v0.16.27,
   back and forward again, mail and contacts read back each time. So no step is one way: a
   branch's E2E (managed) leaves the OTA demo's volume usable for main's next night.
-- **Before the merge:** the CI `integration-tests` job on the pull request, then E2E
-  (self-hosted) and E2E (managed) on the branch, after the tag.
+- **CI on the pull request, green at `06ca97c8`:** every check passed, `integration-tests` on
+  `ubuntu-24.04` and on `ubuntu-24.04-arm` included, so a GitHub-hosted x86_64 runner has the
+  x86-64-v2 floor, and arm64 ran v0.16.27 for the first time. A review then found no blocker;
+  its fixes (the port comment, `docs/testing.md` and the two SMTP comments now say 25 and 4190
+  are bound but not published, and that the tests reach SMTP only as SMTPS on 465; "Moving the
+  pin" asks for a `git grep` of the old tag) and a merge of `main` after #1692 followed.
+- **Before the merge:** after the tag, merge `main` again, keeping the `CHANGELOG.md` line under
+  the new `[Unreleased]` and not in the alpha.2 section; then E2E (self-hosted) and E2E (managed) on the
+  branch. Watch their logs for *"other side closed"* on a JMAP request: v0.16.24 started closing
+  idle HTTP keep-alive connections (*"HTTP: Idle keep-alive connections are never closed."*,
+  under Fixed), and a reused socket would fail that way. CI's integration run did not show it.
 - **Not in this:** switching Stalwart's downloads off (0139's follow-up) and pinning
   `stalwart-cli`.
 
