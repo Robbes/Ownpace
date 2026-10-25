@@ -12,11 +12,18 @@ three-day floor today: npm dates it 2026-10-21 11:14 UTC. `latest-11` is 11.28.8
 would have fetched it before then, through corepack and `pnpm/action-setup`, which keep no
 floor of their own. Between the two tags the `pnpm11/` source differs in comments and in one
 constant, the Node.js the standalone `@pnpm/exe` embeds (26.0.0 → 26.12.1, for the
-certificate authorities Node.js distrusted in October). Nothing here runs `@pnpm/exe`: CI,
-the three Dockerfiles and the hosts run the npm `pnpm` package on their own Node. Taking
-11.28.8 is the one `packageManager` line, and #1694 stays open until then.
+certificate authorities Node.js distrusted in October). CI and the three Dockerfiles run the
+npm `pnpm` package on their own Node, through corepack, never `@pnpm/exe`. The hosts are
+taken from the documented installs, not checked one by one: `corepack enable pnpm` (README)
+and `npm install -g pnpm@11` (TROUBLESHOOTING) are the same package. A host that installed
+pnpm's standalone build instead would switch to `@pnpm/exe@11.28.7`, since pnpm 11 keeps the
+running build's name when it switches (`installPnpm.ts`), and so run the Node that 11.28.8
+replaces; `readlink -f "$(command -v pnpm)"` names a path under `@pnpm/exe` or
+`~/.local/share/pnpm` on such a host. Taking 11.28.8 is the one `packageManager` line, and
+#1694 stays open until then.
 - **Read for it:** the GitHub release notes of 11.28.7 and 11.28.8, and pnpm's `pnpm11/`
-  source at both tags (`switchCliVersion.ts`, `shouldPersistLockfile` in the config reader).
+  source at both tags (`switchCliVersion.ts`, `shouldPersistLockfile` in the config reader,
+  `installPnpm.ts`), and Node v24.22.1's `deps/corepack/package.json` (corepack 0.36.0).
   What reaches this repository:
   - a re-resolution records every peer a package declares, also one its own dependency
     supplies, and reuses a version the same install already resolved instead of keeping the
@@ -35,13 +42,20 @@ the three Dockerfiles and the hosts run the npm `pnpm` package on their own Node
   and in a fresh copy with no `node_modules`; the api and web Dockerfiles' filtered frozen
   installs install the same 622 and 642 packages as 11.28.6 and leave the lockfile alone; the
   advisory gate's `pnpm audit --json` is the same document under both (828 dependencies, no
-  advisory); corepack 0.34.0 fetches and verifies 11.28.7. A full re-resolution
-  (`pnpm install --lockfile-only --resolution-only`) adds five lines, `ajv-formats@3.0.1`'s
-  optional peer `ajv`, where 11.28.6's leaves the file identical: the first item above. Not
-  taken here; it comes with the next update that re-resolves.
+  advisory); corepack 0.36.0, the one Node 24.22.1 carries into the three images, fetches,
+  verifies and runs 11.28.7 from an empty `COREPACK_HOME`, and so does 0.34.0. A full
+  re-resolution (`pnpm install --lockfile-only --resolution-only`) adds five lines,
+  `ajv-formats@3.0.1`'s optional peer `ajv`, where 11.28.6's leaves the file identical: the
+  first item above. Not taken here; it comes with the next update that re-resolves.
 - Owed before merge: CI on the pull request. The images do not build on it (`images.yml`
   builds on a pull request only when a Dockerfile, `deploy/**` or itself changes), so the
-  first image built with 11.28.7 is `main`'s push run after the merge.
+  first image built with 11.28.7 is `main`'s push run after the merge. Also owed: after the
+  alpha.2 fold (#1706) lands, `main` merged in again and the entry's section read with
+  `awk '/^## \[/{s=$0} /pnpm is 11\.28/{print s}' CHANGELOG.md`, which must print
+  `## [Unreleased]`. The fold puts `## [0.2.0-alpha.2] - 2026-10-25` between
+  `## [Unreleased]` and the `### Changed` this entry sits under, so a merge raises no conflict
+  and moves the entry into the release: tried on 2026-10-25 with `git merge-file` against the
+  fold's head, 841d63c0, the entry landed under `## [0.2.0-alpha.2]`. No guard catches it.
 
 **2026-10-24: the object store moves to Chainguard's MinIO, built on a branch, not merged
 (0146 T7).** The owner's answer of 2026-10-23, 19:05 UTC, on the recommendation to accept the
