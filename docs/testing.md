@@ -395,9 +395,14 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   SBOM attached to release tags. On the weekly run (Mondays 06:00 UTC) and on dispatch only, and on
   GitHub-hosted runners, it also scans every container image the stacks run (workplan 0146 T8):
   the `image:` lines of `managed.yml`, `dev.yml`, `www.yml` and the appliance's compose file, the
-  images the scripts name, the tasks' base image the pinned Trigger.dev CLI names, and Ownpace's
-  three images at `:edge` and at the newest release tag, all as linux/arm64
-  (`scripts/image-scan.mjs list`). Report only: each image's findings go to code scanning under
+  images the scripts name, the tasks' image, and Ownpace's three images at `:edge` and at the
+  newest release tag, all as linux/arm64 (`scripts/image-scan.mjs list`). The tasks' image is
+  built in its leg, not pulled (workplan 0146 T10): the leg installs the workspace, writes the
+  `base` stage a task deploy builds on the base image the pinned Trigger.dev CLI names
+  (`image-scan.mjs containerfile`, which runs `apps/worker/trigger.config.ts`'s own build
+  extensions), builds it natively on `ubuntu-24.04-arm` under a local tag in that base's
+  repository, so its alerts keep their location, and Trivy reads it from that runner's Docker
+  alone. Report only: each image's findings go to code scanning under
   `trivy-image-<name>` and fail nothing; an image whose operating system Trivy calls past its end
   of life gets a warning, a line in the run's summary and one issue, closed when that ends. A scan
   that left no report fails the run. An image is named after its repository's last part, with

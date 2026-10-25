@@ -283,8 +283,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   names, while every deploy copies the API image's Node over that base and
   upgrades its Debian packages, so the alerts for what the upgrade fixes could
   never close. The scan now builds that stage itself, from the deploy config,
-  and reports it under the same code-scanning category, so the first scan on
-  `main` after this closes them.
+  and reports it under the same code-scanning category and alert location, so
+  the first scan on `main` after this closes them, and the alerts it still has
+  keep their numbers.
 - **The managed smoke gate settles the share rows it made, so one run's
   leftovers no longer spend the next run's shares** (workplan 0104, #1696):
   Nextcloud lets an account create 20 shares in 10 minutes, and every press
