@@ -230,11 +230,14 @@ PASSWORDS=(
   'POSTGRES_PASSWORD postgres_data'
   'APP_DB_PASSWORD postgres_data'
   'CLICKHOUSE_PASSWORD clickhouse_data_v2'
-  'MINIO_ROOT_PASSWORD minio_data'
+  'MINIO_ROOT_PASSWORD minio_data_v2'
   'TRIGGER_DB_PASSWORD trigger_db_data'
 )
-# managed.yml puts these in a URL, so only characters a URL carries as they are.
-URL_PASSWORDS=' POSTGRES_PASSWORD APP_DB_PASSWORD CLICKHOUSE_PASSWORD TRIGGER_DB_PASSWORD '
+# managed.yml puts these in a URL, so only characters a URL carries as they are:
+# a database's, or minio-init's MC_HOST_store, where mc reads a ':' in the
+# password as the start of a session token (hostKeyTokens, cmd/config.go at
+# mc's RELEASE.2025-08-13T08-35-41Z) and the bucket is never made.
+URL_PASSWORDS=' POSTGRES_PASSWORD APP_DB_PASSWORD CLICKHOUSE_PASSWORD TRIGGER_DB_PASSWORD MINIO_ROOT_PASSWORD '
 # The .env named to Compose, so that it reads the file checked below.
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml" --env-file "${ENV_FILE}")
 CHECK_TRIES="${STAND_UP_LIVE_CHECK_TRIES:-5}"
@@ -1009,7 +1012,7 @@ check_passwords() {
         _g+=("$key")
       fi
     elif [[ "$URL_PASSWORDS" == *" ${key} "* ]] && ! [[ "$value" =~ ^[A-Za-z0-9._~-]+$ ]]; then
-      _p+=("${key}: holds a character a URL does not carry as it is, and managed.yml puts it in a database URL. Use hex (openssl rand -hex 24).")
+      _p+=("${key}: holds a character a URL does not carry as it is, and managed.yml puts it in a URL. Use hex (openssl rand -hex 24).")
     fi
   done
 }
