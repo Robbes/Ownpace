@@ -1132,6 +1132,7 @@ reading a file drops off its entry by itself.
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
+- [an-object-store-with-a-maintainer](../scripts/an-object-store-with-a-maintainer.unit.test.ts) — AN OBJECT STORE WITH A MAINTAINER (workplan 0146 T7; the owner, 2026-10-23: *"T7 no, fix already within the alpha"*).
 - [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts) — AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
@@ -5353,6 +5354,14 @@ Reads:
 - `packages/connectors/src/graph-drive-source.ts`
 - `packages/core/src/dav-sync.ts`
 - `packages/shared/src/ports.ts`
+
+### [an-object-store-with-a-maintainer](../scripts/an-object-store-with-a-maintainer.unit.test.ts)
+
+AN OBJECT STORE WITH A MAINTAINER (workplan 0146 T7; the owner, 2026-10-23: *"T7 no, fix already within the alpha"*).
+
+Reads:
+
+- `deploy/compose/managed.yml`
 
 ### [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts)
 
