@@ -74,23 +74,24 @@ tag.
   security fix, so no exclude entry; the lockfile was written with the floor lifted for that one
   command only. The deploy CLI is fetched by `npx`, which the floor does not cover;
   `trigger.dev@4.8.1` is of the same day.
-- Proved here: the unit guards that read these files, `a-service-that-phones-home` red on the
-  old tag first. Owed before merge, after the alpha.2 tag and never during the counted nights:
-  main merged in once, after the fold (#1706), with this change's CHANGELOG line moved back
-  under `## [Unreleased]` (the fold renames that heading to `## [0.2.0-alpha.2]`, and git
-  leaves the line beneath it, in a conflict or without one); then checklist T15 on the OTA
+- Proved here: the unit guards that read these files, `a-service-that-phones-home` red on the old
+  tag first. Done on 2026-10-25: main merged in after the fold (#1706, `7c8226a3`), with this
+  change's CHANGELOG line under `## [Unreleased]` (the fold renames that heading to
+  `## [0.2.0-alpha.2]`, and git leaves the line beneath it, in a conflict or without one). Owed
+  before merge, after the alpha.2 tag and never during the counted nights: checklist T15 on the OTA
   stack (the hold, nothing `EXECUTING`, `trigger-version.sh backup before-v4.8.1`,
-  `TRIGGER_IMAGE_TAG=v4.8.1` in its persisted `.env`), then E2E (managed) on the branch,
-  merged within the hour. **That is one window, with no other E2E (managed) in it and the
-  03:30 UTC nightly outside it:** once the persisted `.env` names v4.8.1,
-  `bootstrap-managed.sh` stops at the `trigger` phase (exit 1, on the drift from the SDK) for
-  every tree whose `apps/worker` still pins 4.7.6, main and every other branch. If the merge
-  does not follow, the tag goes back to v4.7.6 before anything else runs; after it, other
-  branches merge main before their own E2E (managed). Live takes it from the alpha.3 tag, after
-  `TRIGGER_IMAGE_TAG=v4.8.1` in its `.env`. `deploy-live.sh --dry-run` will call that tag
-  one-way over alpha.2 for this move alone, although v4.8.1 adds no migration: it counts any
-  move of the Trigger.dev pin in `managed.yml` as one-way (`differences()`), and the way back
-  is then the copy before the update, as for any one-way deploy.
+  `TRIGGER_IMAGE_TAG=v4.8.1` in its persisted `.env`), then E2E (managed) on the branch, merged
+  within the hour. **That is one window, with no other E2E (managed) in it and the scheduled nightly
+  outside it** (its cron says 03:30 UTC, but GitHub has started it between about 08:10 and 09:10
+  UTC; the window ends before 08:00 UTC): once the persisted `.env` names v4.8.1,
+  `bootstrap-managed.sh` stops at the `trigger` phase (exit 1, on the drift from the SDK) for every
+  tree whose `apps/worker` still pins 4.7.6, main and every other branch. If the merge does not
+  follow, the tag goes back to v4.7.6 before anything else runs; after it, other branches merge main
+  before their own E2E (managed). Live takes it from the alpha.3 tag, after
+  `TRIGGER_IMAGE_TAG=v4.8.1` in its `.env`. `deploy-live.sh --dry-run` will call that tag one-way
+  over alpha.2 for this move alone, although v4.8.1 adds no migration: it counts any move of the
+  Trigger.dev pin in `managed.yml` as one-way (`differences()`), and the way back is then the copy
+  before the update, as for any one-way deploy.
 
 **2026-10-24: the object store moves to Chainguard's MinIO, built on a branch, not merged
 (0146 T7).** The owner's answer of 2026-10-23, 19:05 UTC, on the recommendation to accept the
