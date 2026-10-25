@@ -2,7 +2,7 @@
 
 > **In one line:** Announcing shares at cutover: `createNextcloudShare` with share-by-mail fallback, one-press `sharing/apply-all` of held share grants so the target platform mails, a Mailpit arrival gate, and a fallback digest via `sharing/announce`.
 
-## Status — 2026-08-26 (update this block at the end of every session)
+## Status — 2026-10-25 (update this block at the end of every session)
 
 | Task | Status | Evidence |
 |---|---|---|
@@ -12,6 +12,43 @@
 | T2 The gate proves the mail ARRIVES | ✅ **Done 2026-08-26 (both stages)** | First stage: the smoke's mailproof control (pipe proved before silence believed). Final stage: the seed creates a REAL source share (by mail, tag-addressed), `scanNextcloudShares` (new — a Nextcloud source's outbound shares were a blind spot) discovers it through the real rescan, the smoke PRESSES apply-all with a tagged note inside a fabricate-and-retract cutover window, and the TARGET's own mail must arrive carrying that note. Found and fixed on the way: the capability gate refused kind `nextcloud`/`baseUrl` connections — the demo's own kind — so the first live press would have answered `no_share_api`. Plus the queue drain: `cron.php` runs before the final silence checks, turning "no queue fired yet" into "drained and still nothing" (the owner's question, 2026-08-26). Since 2026-10-04 the drain names the jobs that can mail, as a bare `cron.php` stops at 14 minutes with the queue unemptied, and the rest runs detached after the check (0150). |
 | T3 The fallback digest | ✅ **Done 2026-08-26** | `share-announcement.ts` (shared) + `POST /:mappingId/sharing/announce` on BOTH editions, through 0030's channel (`tellMessage` / the appliance's own notifier). Audience: `done_manual` rows only — applied rows the platform announced, skipped rows carry no access, links have no address and are COUNTED, never dropped. One digest per grantee, their items only (§17). Note required (the "where" comes from the person who carried the shares); Template 6 EN/NL in the templates doc, subjects pinned to the code; a prior press makes the next an explicit `confirmResend`, gated on the audit log (`latestAuditEventAt` widened: actor optional, mappingId filter). |
 | T4 Flags restated | ⬜ proposed | The four cloud silence flags recorded beside `applyShareGrant` (0103 T6) are for any **pre-moment** technical write a future needs — at the chosen moment the apply notifies on purpose. Same flags, opposite press, one policy: mail happens exactly once, when a person chose. |
+
+**2026-10-25: the gate's press met Nextcloud's limit on new shares.** E2E (managed) #277, attempt
+2, on the branch of #1680, failed at *the moment, pressed*: apply-all applied none of the run's
+rows. The same code passed on attempt 3, and E2E (managed) #278 was green.
+
+- **The mechanism.** Nextcloud 31 to 34 let one account create 20 shares in 10 minutes
+  (`ShareAPIController::createShare`, `#[UserRateLimit(limit: 20, period: 600)]`), failed attempts
+  included, and answer the next one 429. Every share the gate makes on the target is made as the
+  target account: the mail-pipe control, the folder press and apply-all. `createNextcloudShare` asks
+  for a user share first and by mail only after a 404, so an outsider row, or a row whose file is
+  gone, costs two calls. A row a press refused stayed open for good, because neither the rescan nor
+  the balance closed it, and apply-all presses every open row of the mapping, not the run's own: run
+  #238 of 2026-10-05 had left three. Attempt 1 pressed about eight minutes before attempt 2 and
+  spent 13 calls. Attempt 2's control and folder press took the count to 18, #238's file row to 20,
+  and its own row came back 429 as `target_refused`. Attempt 2's row stayed open too, so four were
+  left. The smoke's log could not say so: it printed the first six lines of the refused JSON, which
+  stopped before the reasons and their status. The demo Nextcloud's own access log, read by the
+  owner the same evening, does: ten share calls between 06:31:31 and 06:31:37 UTC, answered 200
+  (the control), 404 200 404 200 (the folder press), then 404 404 429 429 429 (apply-all).
+- **What the gate does now.** The refused list is printed a row to a line, each with its whole
+  reason, which ends with the status; with nothing refused it prints the reason or the count, never
+  the body, whose applied rows carry the source's share verbatim. The apply-all branch says whether
+  the run's own row was refused, when the answer lists refused rows at all, and a 429 is named as
+  this limit. The balance first fails if both presses said they applied and one of the run's own
+  rows is still open. It then skips every still-open share row that a run of the gate seeded, under
+  any run's tag, through `POST …/sharing/:grantId/decision` with `{"action":"skip"}`, which writes
+  the audit trail and makes no share, and fails if one is left. Taking another run's rows is safe
+  because the workflow's concurrency group never lets two runs share the stack. The four go on the
+  next run. A run with nothing left over spends seven calls (the control, two for each folder row,
+  two for its own file row), so two presses inside ten minutes stay under the limit. Guarded in
+  `scripts/the-moment-pressed.unit.test.ts`.
+- **Owed, after the launch (product).** A real Nextcloud 31 to 34 target has the same limit. A
+  one-go press over more than ten outsider rows meets it, fewer when the account made other shares
+  in the same ten minutes; rows are shares, not people, so one person with five shared items is
+  five. Every row after that comes back 429 under the generic refusal sentence
+  (`SHARE_REFUSAL.other`), with nothing to say that waiting is the remedy. The press should
+  recognise a 429, stop, and say when to press again. No product code changed here.
 
 ## The owner's framing, which the research now serves
 

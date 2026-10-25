@@ -851,9 +851,9 @@ services:
     # SecP384r1MLKEM1024 hybrids to the groups TLS offers (tlssecpmlkem=0
     # removes them). Its key share is still X25519MLKEM768, the default since
     # Go 1.24, so v4.19.5 sent the same one. The eMudhra block has no switch.
-    # The OTA instance's `zitadel` database is dumped first by the owner, on
-    # v4.19.5, with deploy/compose/dump-idp.sh; then E2E (managed) on the
-    # branch applies it.
+    # The OTA instance's `zitadel` database was dumped first by the owner, on
+    # v4.19.5, with deploy/compose/dump-idp.sh (2026-10-25 06:06 UTC); E2E
+    # (managed) #277 applied it.
     image: ghcr.io/zitadel/zitadel:v4.20.0
     container_name: ${COMPOSE_PROJECT_NAME}-idp
     restart: unless-stopped

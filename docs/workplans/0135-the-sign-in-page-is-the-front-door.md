@@ -2,11 +2,11 @@
 
 > **In one line:** Hardening Zitadel sign-in at `id.ownpace.eu` and the OTA instance via `setup-zitadel.sh`: public organisation registration off, `hasProjectCheck`, organisation counts, MFA and lockout, legal links, Dutch and English copy, release watch, orphan accounts.
 
-## Status — 2026-10-22 (update this block at the end of every session)
+## Status — 2026-10-25 (update this block at the end of every session)
 
 **2026-10-22: the pin moves to v4.20.0, the Go 1.26.10 build that closes an unauthenticated CPU
-hole in the console (issue #1643)**, on branch
-`claude/ownpace-public-readiness-y7orc6-zitadel-4-20-0`, not merged. Upstream tagged v4.20.0 on
+hole in the console (issue #1643)**, merged as #1680 on 2026-10-25 at 06:45 UTC (`359f8e96`), from
+branch `claude/ownpace-public-readiness-y7orc6-zitadel-4-20-0`. Upstream tagged v4.20.0 on
 2026-10-22, the day #1651 merged. There is no v4.19.6 and no v4.19 branch: v4.19.x and v4.20.0
 are cut from the same `v4.x` branch, whose head is v4.20.0, so this is the smallest move. No
 Zitadel advisory names it (the newest are #1651's three of 2026-10-15); its security content is
@@ -82,19 +82,22 @@ from upstream's main, one a `go mod tidy`):
   first (1 of its 39 cases). #1643 stays open while `main`'s pin is behind the newest tag; the pin
   watch's first run after the merge closes it (Mondays 06:23 UTC, so 2026-10-26 if the merge lands
   before then).
-- **Owed, in this order.** (1) The owner dumps the OTA instance's `zitadel` database on v4.19.5
-  with `./deploy/compose/dump-idp.sh`, and keeps it with that stack's `.env`. The dump of
-  2026-10-22 21:49 UTC was taken on v4.19.4, before #1651 applied v4.19.5, and does not count.
-  (2) E2E (managed) on this branch applies v4.20.0 to the OTA instance; read in its log: no setup
-  step above 80, `runs as 'zitadel', which is uid N` with N unchanged, `the console's api and
-  issuer agree`, `setup-zitadel.sh`'s read-backs, the smoke green. Until the merge, no other
-  branch that still pins v4.19.5 runs E2E (managed) against it. (3) The merge, straight after a
-  green run and before alpha.2's counted nights begin, never into them. (4) Live from alpha.2 by
-  **2026-10-29**, after a dump of live's `zitadel` database; then one mail through live's relay
-  and one sign-in, because no gate run proves Zitadel's outbound TLS under Go 1.26.10 (the OTA
-  relay is Mailpit, plain SMTP). alpha.2 brings live v4.19.5's three fixes too. Missing
-  2026-10-29 is a T7 miss, recorded here with its date. `managed.yml`'s paragraph and this entry
-  turn to past tense, with the run's number, once (1) and (2) are done.
+- **The dump, the run, the merge.** (1) The owner dumped the OTA instance's `zitadel` database on
+  v4.19.5 with `./deploy/compose/dump-idp.sh`, 2026-10-25 06:06 UTC (the set `20261025T060618Z`),
+  and deleted the dump of 2026-10-22 21:49 UTC, which was taken on v4.19.4 and did not count (main's
+  first nightly on v4.19.5, E2E (managed) #275, had been green since 2026-10-23). (2) E2E (managed)
+  #277 on this branch applied v4.20.0 to the OTA instance and was green on its third attempt, 06:37
+  to 06:44 UTC. Attempt 1 ran while the OTA's hold on new passes was still open, so its prepare's
+  sync was refused and the apply half had no item to apply; the hold lifted during the run, and its
+  own share press ran green at 06:23. Attempt 2 failed at the one-go share press, which applied none
+  of the run's rows: it reached Nextcloud's limit on new shares, as attempt 1 had pressed eight
+  minutes earlier and every press retries the share rows old runs left open (Nextcloud's access log
+  shows the 429s; workplan 0104; the gate settles those rows since 2026-10-25). The same code passed
+  on attempt 3. (3) The merge followed at 06:45 UTC, before alpha.2's counted nights begin. **Still
+  owed:** (4) live from alpha.2 by **2026-10-29**, after a dump of live's `zitadel` database; then
+  one mail through live's relay and one sign-in, because no gate run proves Zitadel's outbound TLS
+  under Go 1.26.10 (the OTA relay is Mailpit, plain SMTP). alpha.2 brings live v4.19.5's three fixes
+  too. Missing 2026-10-29 is a T7 miss, recorded here with its date.
 
 **2026-10-21: the pin moves to v4.19.5, from the watch's issue #1643 (2026-10-19)**, merged as
 #1651 on 2026-10-22 at 22:39 UTC (`721c6ea8`). #1643 stays open: upstream tagged v4.20.0 on
