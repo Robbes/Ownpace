@@ -53,6 +53,17 @@ image scan and nothing a stack runs, so no E2E reads it; the proof is a dispatch
   the guard holds that. The Containerfile has no `# syntax=` line, though the CLI's has one: it
   would pull the floating `docker/dockerfile:1` frontend on every scan, and the stage needs
   nothing beyond the builder's own.
+- **After the second review (2026-10-25).** The leg checks the repository out under `src/` and
+  installs and builds there. Trivy reads a `.trivyignore` and a `trivy.yaml` from its working
+  directory when trivy-action names neither (it sets `TRIVY_IGNOREFILE` and `TRIVY_CONFIG` only
+  when asked), and the Trivy step and `trivy convert` run in `$GITHUB_WORKSPACE`, which on this
+  leg alone was the repository's root: a file there would have dropped findings from this leg's
+  SARIF, and code scanning would have called them fixed. Neither file exists today; reproduced
+  with Trivy v0.76.1's `trivy convert` on a one-finding report. A failed install or build is now
+  named in the leg's last step (the `install` and `build` outcomes, counted only when `failure`
+  or `cancelled`, since the other legs skip both), where before it read only as the Trivy step
+  ended `skipped`. And the guard holds the three jobs' `if:` whole: it held them to contain the
+  condition, which `github.event_name == 'pull_request' || <the condition>` also does.
 - **Read for this:** trigger.dev 4.7.6's npm tarball, `dist/esm/deploy/buildImage.js`
   (`generateNodeContainerfile`, `parseGenerateOptions`, `BASE_IMAGE`) and
   `dist/esm/build/extensions.js` (the order the hooks run in, and `onBuildComplete`'s errors
@@ -64,7 +75,7 @@ image scan and nothing a stack runs, so no E2E reads it; the proof is a dispatch
   consulted) and `pkg/report/sarif.go` (`ToPathUri`: an operating-system finding's location is
   the image's repository, with Docker Hub's `library/` for a one-part name). GitHub's changelog of 2025-08-07: arm64 hosted runners are generally available
   and free in public repositories.
-- **Proved here:** `scripts/an-image-nobody-scanned.unit.test.ts`, 42 tests, among them the
+- **Proved here:** `scripts/an-image-nobody-scanned.unit.test.ts`, 43 tests, among them the
   built stage against the config's own layers, the CLI's hook order, the refusals, the command
   line under plain Node, a pin move of the SDK that keeps the name and the build tag, the
   build tag's SARIF location against the base's (Trivy's rule written out, with the first
@@ -72,7 +83,10 @@ image scan and nothing a stack runs, so no E2E reads it; the proof is a dispatch
   workflow's five build steps on that leg alone. Each of three mutations of `image-scan.mjs`
   (hooks interleaved, the `pkgs` refusal gone, the `build` field gone) failed exactly its case in
   the first draft, and each of three after the review does in this one (the first draft's tag
-  back, the `# syntax=` line back, a `DEPLOY_BASE_IMAGES` in `managed.yml`).
+  back, the `# syntax=` line back, a `DEPLOY_BASE_IMAGES` in `managed.yml`). After the second
+  review, each of five mutations of the workflow fails exactly one case: the checkout back at the
+  root, the Trivy step moved into `src/`, a pull request added to the scan's `if:` and to the
+  report's, and the install's outcome dropped from the last step.
   Not proved here: the leg itself. No workflow was dispatched from this session; a dispatch of
   Security Scan on this branch with `image_scans` on runs it, and its SARIF goes to the branch's
   ref, not `main`'s.

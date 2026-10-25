@@ -700,7 +700,17 @@ describe('one issue per image past its end of life', () => {
 
 // ---------------------------------------------------------- the workflow -
 
-type Step = { name?: string; id?: string; uses?: string; run?: string; if?: string; env?: Record<string, string>; with?: Record<string, unknown>; 'continue-on-error'?: unknown };
+type Step = {
+  name?: string;
+  id?: string;
+  uses?: string;
+  run?: string;
+  if?: string;
+  env?: Record<string, string>;
+  with?: Record<string, unknown>;
+  'working-directory'?: string;
+  'continue-on-error'?: unknown;
+};
 type Job = {
   name?: string;
   if?: string;
@@ -709,10 +719,11 @@ type Job = {
   permissions?: Record<string, string>;
   outputs?: Record<string, string>;
   env?: Record<string, string>;
+  defaults?: unknown;
   strategy?: { 'fail-fast'?: boolean; matrix?: Record<string, unknown> };
   steps: Step[];
 };
-const workflow = parseYaml(WORKFLOW) as { jobs: Record<string, Job> };
+const workflow = parseYaml(WORKFLOW) as { defaults?: unknown; jobs: Record<string, Job> };
 // A dispatch scans the images unless it says not to: the Release workflow
 // dispatches this file twice per release (on the commit, then on the tag) and
 // passes `image_scans: false`, so its runs are the repository scan alone
@@ -730,11 +741,13 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
   });
 
   it('runs only on the weekly schedule and on dispatch, so pull requests and the required check are untouched', () => {
-    for (const job of [list, scan, report]) expect(job?.if ?? '').toContain(SCHEDULE_OR_DISPATCH);
+    // Whole conditions, not a part of one: `github.event_name == 'pull_request' || <this>`
+    // contains it too, and would run the build leg on this repository's pull requests.
+    expect(list?.if).toBe(SCHEDULE_OR_DISPATCH);
+    expect(scan?.if).toBe(SCHEDULE_OR_DISPATCH);
+    expect(report?.if).toBe(`always() && (${SCHEDULE_OR_DISPATCH}) && needs.image-list.result == 'success'`);
     const on = (parseYaml(WORKFLOW) as { on: { workflow_dispatch: { inputs: Record<string, unknown> } } }).on;
     expect(on.workflow_dispatch.inputs.image_scans).toMatchObject({ type: 'boolean', default: true });
-    expect(report?.if).toMatch(/^always\(\) && \(/);
-    expect(report?.if).toContain("needs.image-list.result == 'success'");
   });
 
   it('runs on a GitHub-hosted runner, never on the machine whose images it scans', () => {
@@ -799,11 +812,31 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
       'set -euo pipefail',
     ]);
     expect(before[0]!.with?.['persist-credentials']).toBe(false);
+    expect(before.slice(3).map((s) => s.id)).toEqual(['install', 'build']);
     const build = before.at(-1)!;
     expect(build.env).toEqual({ BASE: '${{ matrix.ref }}', TAG: '${{ matrix.build }}' });
     expect(build.run).toContain('node scripts/image-scan.mjs containerfile "$BASE" > "$context/Containerfile"');
     expect(build.run).toMatch(/docker build --pull --platform "\$TRIVY_PLATFORM" --tag "\$TAG" --file "\$context\/Containerfile" "\$context"/);
     expect(build.run, 'the Containerfile built is in the log').toContain('cat "$context/Containerfile"');
+  });
+
+  it("checks the repository out under src/, so the scan's working directory holds no .trivyignore or trivy.yaml of its own", () => {
+    // trivy-action sets TRIVY_IGNOREFILE and TRIVY_CONFIG only when asked, so
+    // Trivy, and `trivy convert` after it, read `.trivyignore` and `trivy.yaml`
+    // from the working directory. A checkout there would let a file at the
+    // repository's root drop findings from this one leg's SARIF, and code
+    // scanning would call them fixed.
+    const trivyAt = scan!.steps.findIndex((s) => s.uses?.startsWith('aquasecurity/trivy-action@'));
+    const [checkout, pnpm, , install, build] = scan!.steps.slice(0, trivyAt);
+    expect(checkout!.with?.path).toBe('src');
+    expect(pnpm!.with?.package_json_file).toBe('src/package.json');
+    expect(install!['working-directory']).toBe('src');
+    expect(build!['working-directory']).toBe('src');
+    expect(scan!.steps.filter((s) => s.uses?.startsWith('actions/checkout@')), 'one checkout, under src/').toHaveLength(1);
+    // Every step from the scan on runs in the working directory every leg shares.
+    for (const step of scan!.steps.slice(trivyAt)) expect(step['working-directory'], `${step.name ?? step.uses}`).toBeUndefined();
+    expect(scan!.defaults, 'a job default would move the scan into the checkout').toBeUndefined();
+    expect(workflow.defaults, 'a workflow default would move the scan into the checkout').toBeUndefined();
   });
 
   it('turns the JSON into SARIF and uploads it under a category of its own per image', () => {
@@ -820,6 +853,8 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
     const check = scan!.steps.at(-1)!;
     expect(check.if).toBe('always()');
     expect(check.env).toMatchObject({
+      INSTALL_OUTCOME: '${{ steps.install.outcome }}',
+      BUILD_OUTCOME: '${{ steps.build.outcome }}',
       TRIVY_OUTCOME: '${{ steps.image_trivy.outcome }}',
       UPLOAD_OUTCOME: '${{ steps.image_upload.outcome }}',
     });
