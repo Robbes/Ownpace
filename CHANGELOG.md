@@ -6,12 +6,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
-- **The test stack's mail catcher is Mailpit v1.32.0** (workplan 0146 T11):
-  it is built with Go 1.27.3, which fixes CVE-2026-111943 in `crypto/x509`
-  that v1.31.6's Go 1.27.2 has, and its own release strips `<base>` and
-  refresh tags from a message's HTML view and replaces its EXIF reader
-  (GHSA-379p-g4f4-hq5h). Its release check is still off, read again at
-  v1.32.0. The first start rebuilds one index in the kept `mailpit.db`;
+- **The test stack's mail catcher is Mailpit v1.32.0** (workplan 0146 T11,
+  #1699): it is built with Go 1.27.3, which fixes CVE-2026-111943 in
+  `crypto/x509` that v1.31.6's Go 1.27.2 has, and its own release strips
+  `<base>` and refresh tags from a message's HTML view and replaces its EXIF
+  reader (GHSA-379p-g4f4-hq5h). Its release check is still off, read again
+  at v1.32.0. The first start rebuilds one index in the kept `mailpit.db`;
   v1.31.6 still opens that file. Live runs no catcher.
 - **Trigger.dev is v4.7.6, its tasks run the API image's Node, and ClickHouse
   26.2 is accepted for the Alpha** (workplan 0119, issues #1668 and #1669,
