@@ -21,7 +21,10 @@ and E2E (self-hosted) have run on the branch.
 - **Brought up to main** with merge commit `62af1e8d`: Trigger.dev v4.7.6 and the tasks on the
   API image's Node (#1689), body-parser 2.4.0 (#1691) and fast-uri 3.1.9 (#1693) merged without
   a conflict. The `FROM` line `apps/worker/trigger.config.ts` reads is unchanged, so the tasks
-  still take the API image's Node.
+  still take the API image's Node. Merged again with `d775def7`, up to `0029db4a`, the MinIO
+  swap (#1692): its T7 and T8 rows were taken over this branch's, which had not changed them.
+  GitHub runs no pull-request workflow on a branch that conflicts with its base, so without it
+  the `--filter-prod` commit below would have had no CI until after the tag.
 - **Proved here, on the merged tree, without Docker.** In a copy of the branch made with
   `git archive`, less `.github` as `.dockerignore` says, the runtime stage's install under Node
   24.22.1 (the image's, nodejs.org's archive checked against its `SHASUMS256.txt`) and pnpm
