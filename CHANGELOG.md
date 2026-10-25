@@ -4,6 +4,31 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Fixed
+
+- **The weekly image scan reads the tasks' image as a task deploy builds it**
+  (workplan 0146 T10, #1700): it read only the base image Trigger.dev's CLI
+  names, while every deploy copies the API image's Node over that base and
+  upgrades its Debian packages, so the alerts for what the upgrade fixes could
+  never close. The scan now builds that stage itself, from the deploy config,
+  and reports it under the same code-scanning category and alert location, so
+  the first scan on `main` after this closes them, and the alerts it still has
+  keep their numbers.
+
+## [0.2.0-alpha.2] - 2026-10-25
+
+The Alpha's texts are final at version 1.0, and testers are asked to accept
+them once, at their first sign-in on this release. Every screen a tester meets
+in the app and on the site was swept: plainer words in English and Dutch, and
+the queues, Verify, Confirmed, Team, Billing and the site's legal pages now
+read on a phone. For whoever runs it, the identity provider moves to Zitadel
+v4.20.0 and the task runner to Trigger.dev v4.7.6, with its tasks on the API
+image's Node and its object store on Chainguard's maintained MinIO, and the
+security fixes since `v0.2.0-alpha.1` reach PgBouncer, Node and the
+dependencies of the API and the web app. A release is now cut by the Release
+workflow, which tags a commit only with the owner's approval and once its
+checks, its nights and a scan of that exact commit are green.
+
 ### Changed
 
 - **Trigger.dev's object store runs Chainguard's maintained MinIO, and starts
@@ -200,6 +225,21 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   language the app is shown in, and the *Somebody asked for access* mail,
   whatever `NOTIFY_LOCALE` says. Everything a customer reads stays in Dutch
   and English.
+- **The texts testers accept are final** (workplan 0139): the privacy policy
+  **1.0** and the terms of service **1.0**, beside the Alpha conditions 1.0, no
+  longer marked draft (numbered 1.0 on the owner's decision of 2026-10-14,
+  #1597: no tester had accepted the drafts' numbers, so the first version
+  testers accept is 1.0), so the app asks every member to accept them before the
+  first connection (#1532, #1556, #1557, #1559, #1580, and 0111's slices that
+  changed §7 and §8 of the terms and §4.4 of the privacy policy). Closing an account is said as the code does it; the Dutch
+  page's note keeps the exception for mandatory consumer law.
+- **The owner's own review of the app's words, in Dutch and English** (#1556):
+  plainer sentences throughout, the glossary's new Dutch terms (*gemigreerd*,
+  *Overgestapt*, *Frequentie om naar wijzigingen te kijken*, *Controleer en
+  start*), and the help pages and the tester guide quoting the new labels.
+- **Visits to www.ownpace.eu are counted from its own server log, as totals**
+  (privacy §4.5): GoAccess, run by the box duties, with no script, cookie or
+  banner on the pages, no address handed to it and no database kept.
 
 ### Added
 
@@ -275,17 +315,26 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   its drafts and keeps their Moneybird numbers on the erasure record, which
   the operator's *Invoices kept after an erasure* lists. An issued invoice
   the books do not hold is kept, as the only record of itself.
+- **Invoices through Moneybird** (workplan 0111, slices 5a–6): each month's
+  draft numbered by Moneybird, the Billing page naming an invoice by that
+  number and offering *Pay* and Moneybird's own PDF only on an issued one, an
+  invoice address on *Invoice details*, and the books proved by hand and every
+  night (`operator.sh moneybird proof`).
+- **Payments, credit notes and the withdrawal function** (workplan 0111,
+  slices 5f–7e): a payment through Mollie booked on its invoice, paid and late
+  read back from the books every hour, a credit note as Moneybird's own credit
+  invoice, money back refunded through Mollie and followed until it ends, the
+  withdrawal function on the Billing page (*Withdraw from contract here*), and
+  the order button that asks to begin within the 14 days without a tick box.
+- **A year paid ahead** (workplan 0111 T11): ordered on the Billing page, its
+  credit drawn month by month, and one email a month before it runs out.
+
+Billing stays off during the Alpha (`OWNPACE_STAGE=alpha`, an empty
+`OWNPACE_BILLING_FROM`): nothing is charged. What must happen before it is
+switched on is in `docs/ending-the-alpha.md`.
 
 ### Fixed
 
-- **The weekly image scan reads the tasks' image as a task deploy builds it**
-  (workplan 0146 T10, #1700): it read only the base image Trigger.dev's CLI
-  names, while every deploy copies the API image's Node over that base and
-  upgrades its Debian packages, so the alerts for what the upgrade fixes could
-  never close. The scan now builds that stage itself, from the deploy config,
-  and reports it under the same code-scanning category and alert location, so
-  the first scan on `main` after this closes them, and the alerts it still has
-  keep their numbers.
 - **The managed smoke gate settles the share rows it made, so one run's
   leftovers no longer spend the next run's shares** (workplan 0104, #1696):
   Nextcloud lets an account create 20 shares in 10 minutes, and every press
@@ -363,52 +412,6 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   app's query devtools (GHSA-p6vx-979v-rg4c, critical, and
   GHSA-jp82-f5mq-hwhp, high); and source-map-js 1.2.2, a development tool's
   (GHSA-68fv-2mgg-jv7q, high).
-
-## [0.2.0-alpha.2] - 2026-10-11
-
-The Alpha's texts, final, and what changed since `v0.2.0-alpha.1`. Testers are
-asked to accept the texts once, at their first sign-in on this release.
-
-### Changed
-
-- **The texts testers accept are final** (workplan 0139): the privacy policy
-  **1.0** and the terms of service **1.0**, beside the Alpha conditions 1.0, no
-  longer marked draft (numbered 1.0 on the owner's decision of 2026-10-14,
-  #1597: no tester had accepted the drafts' numbers, so the first version
-  testers accept is 1.0), so the app asks every member to accept them before the
-  first connection (#1532, #1556, #1557, #1559, #1580, and 0111's slices that
-  changed §7 and §8 of the terms and §4.4 of the privacy policy). Closing an account is said as the code does it; the Dutch
-  page's note keeps the exception for mandatory consumer law.
-- **The owner's own review of the app's words, in Dutch and English** (#1556):
-  plainer sentences throughout, the glossary's new Dutch terms (*gemigreerd*,
-  *Overgestapt*, *Frequentie om naar wijzigingen te kijken*, *Controleer en
-  start*), and the help pages and the tester guide quoting the new labels.
-- **Visits to www.ownpace.eu are counted from its own server log, as totals**
-  (privacy §4.5): GoAccess, run by the box duties, with no script, cookie or
-  banner on the pages, no address handed to it and no database kept.
-
-### Added
-
-- **Invoices through Moneybird** (workplan 0111, slices 5a–6): each month's
-  draft numbered by Moneybird, the Billing page naming an invoice by that
-  number and offering *Pay* and Moneybird's own PDF only on an issued one, an
-  invoice address on *Invoice details*, and the books proved by hand and every
-  night (`operator.sh moneybird proof`).
-- **Payments, credit notes and the withdrawal function** (workplan 0111,
-  slices 5f–7e): a payment through Mollie booked on its invoice, paid and late
-  read back from the books every hour, a credit note as Moneybird's own credit
-  invoice, money back refunded through Mollie and followed until it ends, the
-  withdrawal function on the Billing page (*Withdraw from contract here*), and
-  the order button that asks to begin within the 14 days without a tick box.
-- **A year paid ahead** (workplan 0111 T11): ordered on the Billing page, its
-  credit drawn month by month, and one email a month before it runs out.
-
-Billing stays off during the Alpha (`OWNPACE_STAGE=alpha`, an empty
-`OWNPACE_BILLING_FROM`): nothing is charged. What must happen before it is
-switched on is in `docs/ending-the-alpha.md`.
-
-### Fixed
-
 - **After cutover the new system is left alone** (the owner's decisions of
   2026-10-05, #1566): nothing there is removed or overwritten because of what
   happens at the old system any more. A manual *Apply* of a deletion or a
