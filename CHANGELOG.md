@@ -265,7 +265,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 ### Fixed
 
 - **A share press stops at the new system's limit on new shares, and says
-  when to apply again** (workplan 0104 T5): Nextcloud 31 to 35 let one
+  when to apply again** (workplan 0104 T5, #1704): Nextcloud 31 to 35 let one
   account create 20 shares in 10 minutes and answer the next one 429, and a
   press asks twice for each person without an account there, so a one-go
   press over more than about ten of them reported every row after the limit
