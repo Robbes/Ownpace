@@ -449,7 +449,8 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   identity provider's pin in `managed.yml` against upstream's newest release of the same major;
   Trigger.dev against the newest tag both its images carry (`trigger-version.sh probe`);
   ClickHouse against the one Trigger.dev's own compose file pins; the tasks' Node against Node's
-  newest security release; `packageManager` against the newest pnpm of its major; and the
+  newest security release, until `trigger.config.ts` copies the API image's Node (it does since
+  issue #1669, so that row reports current); `packageManager` against the newest pnpm of its major; and the
   TypeScript split's exit. Each of those keeps one issue open while it is behind, says a newer
   release in a comment, and closes the issue when the pin catches up. Every other image line of
   `managed.yml`, `dev.yml` and `www.yml` (Dependabot reads no file in `deploy/compose`), the

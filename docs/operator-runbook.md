@@ -342,7 +342,9 @@ workplan 0018.
 **One-time setup (per fresh trigger-db volume):**
 
 1. Open the dashboard — `https://$TRIGGER_TLS_HOST:$TRIGGER_TLS_PORT` — and enter an email.
-   There is no SMTP: fetch the magic link from the logs and open it in the same browser:
+   There is no SMTP: fetch the magic link from the logs and open it in the same browser. Ask
+   for it on that address (`TRIGGER_LOGIN_ORIGIN`): since Trigger.dev v4.7.4 the link points
+   there and signs in only the browser session that asked for it:
    ```bash
    ./deploy/compose/trigger-magic-link.sh
    ```
@@ -793,8 +795,19 @@ gone. Steps 4, 6 and 10 do each of them again; do not skip them.
    ./deploy/compose/trigger-version.sh restore "$C"/triggerdb-<stamp>-before-<tag>.sql.gz --yes
    ```
 
-9. **Deploy the release that ran before**, the note's `from=`, the hold still on:
-   `./deploy/compose/deploy-live.sh <that tag>`. It says one-way, keeps the copy (its update
+9. **Deploy the release that ran before**, the note's `from=`, the hold still on. When the copy
+   held the task runner's database (step 8 ran), first set live's `TRIGGER_IMAGE_TAG` back to
+   the Trigger.dev pin of that release. `.env`'s value wins over the release's own default: left
+   at the newer tag, the bring-up refuses the drift from that release's SDK, and a webapp started
+   at it would migrate the restored database forward again. Both lines the first command prints
+   name the same pin:
+
+   ```bash
+   git show <that tag>:deploy/compose/managed.yml | grep -oE 'TRIGGER_IMAGE_TAG:-v[0-9.]+'
+   ./deploy/compose/env-upsert.sh ~/.persistent/ownpace-live/.env TRIGGER_IMAGE_TAG=<that pin>
+   ```
+
+   Then `./deploy/compose/deploy-live.sh <that tag>`. It says one-way, keeps the copy (its update
    is not proven; on the copy's last day it lets this deploy through, and no other), brings
    every service up at that release and runs its checks. The restored database still carries
    the hold that was on when the copy was taken.

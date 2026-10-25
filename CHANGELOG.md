@@ -6,6 +6,28 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **Trigger.dev is v4.7.6, its tasks run the API image's Node, and ClickHouse
+  26.2 is accepted for the Alpha** (workplan 0119, issues #1668 and #1669,
+  #1689): since v4.7.4, a magic link signs in only the browser that asked
+  for it and always points at `TRIGGER_LOGIN_ORIGIN`, so ask for it there;
+  the webapp and the task images distrust the roots behind the compromised
+  eMudhra intermediates and the Sectigo AAA cross-sign, and the tasks verify
+  TLS against Debian's certificate store instead of Node's own list. Each
+  task deploy now copies Node out of the image `apps/api/Dockerfile` builds
+  from (24.22.1), where the tasks ran Trigger.dev's Node 24.18.0, and
+  upgrades the base image's packages, so the tasks move with the API; the
+  first deploy after that image moves is the slow one and needs the Debian
+  archive. The move is one way (twelve database and six ClickHouse
+  migrations): a stack whose `.env` sets `TRIGGER_IMAGE_TAG` sets `v4.7.6`
+  there first, with no run executing and after the backup, or its bring-up
+  stops at the `trigger` phase, and a rollback sets it back first. v4.7.7, a
+  security release of 2026-10-22, waits until after the launch: its task
+  half is what the Node layer gives, and its supervisor makes no TLS
+  connection here. ClickHouse stays on 26.2, which ClickHouse no longer
+  supports, as Trigger.dev's own compose pins it: reachable on the compose
+  network only, and revisited when Trigger.dev moves off it, when an
+  advisory reaches it, or in 2027-03. `docs/ending-the-alpha.md`'s list of
+  the stores the task runner writes was read at v4.7.2 and says so.
 - **The release preflight lists the open critical and high code-scanning
   alerts by tool and category** (workplan 0146, #1683): every page of them,
   the repository's filesystem scan and each scanned image apart, with their

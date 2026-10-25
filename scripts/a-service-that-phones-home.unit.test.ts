@@ -10,7 +10,8 @@
  * read at the version this repository pins; five are switched off, and
  * Nextcloud is not yet:
  *
- *  - TRIGGER.DEV'S WEBAPP (v4.7.2), three ways. Its server's PostHog identified
+ *  - TRIGGER.DEV'S WEBAPP (read at v4.7.2, and again at v4.7.6), three ways.
+ *    Its server's PostHog identified
  *    the user by id, email and name at every sign-in (`services/postAuth.server.ts`
  *    calls `telemetry.user.identify`, `services/telemetry.server.ts`) and sent
  *    events when a user, an organisation or a project was created. Its dashboard
@@ -32,7 +33,13 @@
  *    again), so that is set too. The entrypoint's other children do not call
  *    out: pnpm 10.33.2 checks for its own update only on `install` and `add`
  *    (`pnpm/src/main.ts`), goose v3.27.1 has no network use of its own, and the
- *    dashboard agent's migration is plain drizzle-orm.
+ *    dashboard agent's migration is plain drizzle-orm. At v4.7.6 (read
+ *    2026-10-23) all of that holds: the server's two new events (the dashboard
+ *    agent's feedback, a webhooks beta request) go through the same client,
+ *    which the opt-out leaves unmade, and only on Trigger.dev's own cloud; the
+ *    browser's new queue drops what it holds when the key is empty; the
+ *    entrypoint now preloads a local CA filter (`distrust-cas.cjs`), which
+ *    calls nothing; and prisma, pnpm and goose are the same versions.
  *  - ZITADEL (v4.19.2) sends a "service ping" once a day to
  *    `https://zitadel.com/api/ping`: the version, and the id, creation date and
  *    domains of every instance, and with `ResourceCount` the number of users,
@@ -142,10 +149,11 @@
  * WHAT THIS CANNOT SEE. A running container, or a machine's `.env`: live's own
  * `TRIGGER_IMAGE_TAG` would run another webapp than the default read here, which
  * is why `docs/managed-bring-up.md`, *Nothing phones home*, has the check to run
- * on the machine. The deploy CLI, which runs on the host: at 4.7.2
+ * on the machine. The deploy CLI, which runs on the host: at 4.7.2 and 4.7.6
  * `packages/cli-v3/src/telemetry/tracing.ts` is gone, and `handleTelemetry` in
  * `src/cli/common.ts` only runs the command, so no exporter of its own was
- * found. The integration tests' throwaway Nextcloud and Stalwart, started by
+ * found; its one PostHog client is the MCP server's feedback tool
+ * (`src/mcp/telemetry.ts`), which `deploy` never starts. The integration tests' throwaway Nextcloud and Stalwart, started by
  * Testcontainers on a CI runner. And what a service does once somebody
  * configures it to: every key the webapp is given is in `WEBAPP_KEYS` below
  * with its reason, and any other key fails here until somebody has read what
@@ -280,9 +288,10 @@ function exactly(env: Record<string, string>, key: string, want: string): string
 
 /**
  * Keys that switch a third party on in Trigger.dev's webapp, all read at
- * v4.7.2 (`apps/webapp/app/env.server.ts`), each off while unset. The list
- * also stops an overlay setting one; `WEBAPP_KEYS` below is what holds the
- * webapp itself.
+ * v4.7.2 (`apps/webapp/app/env.server.ts`), each off while unset, and the
+ * three added by v4.7.6: Cloudflare Turnstile on the sign-in form (v4.7.4, on
+ * only with both keys) and AWS KMS as a secret store. The list also stops an
+ * overlay setting one; `WEBAPP_KEYS` below is what holds the webapp itself.
  */
 export const WEBAPP_THIRD_PARTIES = Object.freeze([
   'SENTRY_DSN',
@@ -307,6 +316,9 @@ export const WEBAPP_THIRD_PARTIES = Object.freeze([
   'AUTH_GITHUB_CLIENT_ID',
   'AUTH_GOOGLE_CLIENT_ID',
   'DEPOT_TOKEN',
+  'TURNSTILE_SITE_KEY',
+  'TURNSTILE_SECRET_KEY',
+  'SECRET_STORE_AWS_KMS_KEY_ID',
 ]);
 
 /**
@@ -321,7 +333,7 @@ export const WEBAPP_KEYS: Readonly<Record<string, string>> = Object.freeze({
   SESSION_SECRET: 'a secret; names no host',
   MAGIC_LINK_SECRET: 'a secret; names no host',
   ENCRYPTION_KEY: 'a secret; names no host',
-  LOGIN_SECRET: 'a secret; names no host, and env.server.ts at v4.7.2 does not read it',
+  LOGIN_SECRET: 'a secret; names no host, and env.server.ts at v4.7.2 and v4.7.6 does not read it',
   MANAGED_WORKER_SECRET: 'a secret; names no host',
   APP_ORIGIN: "the dashboard's own origin",
   LOGIN_ORIGIN: "the dashboard's own origin",
@@ -493,7 +505,7 @@ interface Row {
   readonly holds?: (svc: Service, entry: Entry) => string[];
 }
 
-const TRIGGER_WEBAPP = 'ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.7.2}';
+const TRIGGER_WEBAPP = 'ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.7.6}';
 const ZITADEL = 'ghcr.io/zitadel/zitadel:v4.20.0';
 const CLICKHOUSE =
   'clickhouse/clickhouse-server:26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd';
@@ -526,7 +538,7 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
     why:
       "PostHog from the server at every sign-in (id, email, name) and on user, organisation and project creation, PostHog in " +
       "the dashboard's browser with the signed-in user's id and email, and Prisma's checkpoint to checkpoint.prisma.io at every " +
-      'start (telemetry.server.ts, postAuth.server.ts, usePostHog.ts, env.server.ts, docker/scripts/entrypoint.sh at v4.7.2; ' +
+      'start (telemetry.server.ts, postAuth.server.ts, usePostHog.ts, env.server.ts, docker/scripts/entrypoint.sh at v4.7.2 and v4.7.6; ' +
       'prisma 6.14.0 CLI.ts and utils/checkpoint.ts)',
     holds: (svc) => webappProblems(environmentOf(svc)),
   },
@@ -594,7 +606,7 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
   'deploy/compose/managed.yml:trigger-supervisor': {
     readAt: 'ghcr.io/triggerdotdev/supervisor',
     why:
-      "its settings at v4.7.2 (apps/supervisor/src/env.ts) have no analytics or error report; it sends its traces to the webapp's " +
+      "its settings at v4.7.2 and v4.7.6 (apps/supervisor/src/env.ts) have no analytics or error report; it sends its traces to the webapp's " +
       'own /otel and serves its metrics on its own loopback',
     holds: (svc) => {
       const otel = environmentOf(svc)['OTEL_EXPORTER_OTLP_ENDPOINT'];

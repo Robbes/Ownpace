@@ -290,6 +290,14 @@ fi
 # prod key prefix (tr_prod_) is the one this repository has actually seen, so
 # it is the only one asserted; a non-prod environment whose key prefix we do
 # not recognise is left alone rather than guessed at.
+#
+# The CLI holds the other half since 4.7.5 (`src/deploy/environment.ts`, read
+# at 4.7.6): when TRIGGER_ACCESS_TOKEN is an ENVIRONMENT API key (`tr_prod_…`,
+# `tr_stg_…`), an `--env` naming another environment is an error, where before
+# the deploy quietly went to the key's environment. The token this script and
+# the gate pass is a personal access token (`tr_pat_…`, which
+# trigger-remember-token.sh lifts from the CLI's login), which names no
+# environment, so `--env "${TRIGGER_ENV}"` below decides, as it always did.
 TRIGGER_ENV="$(trigger_env "${ENV_FILE}")" || exit 1
 
 case "${TRIGGER_ENV}:${TRIGGER_SECRET_KEY}" in
