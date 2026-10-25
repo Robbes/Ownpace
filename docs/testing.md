@@ -462,6 +462,10 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
 - `images.yml` — the three application images: an amd64 build-only check on a pull request that
   touches a Dockerfile, `deploy/` or the workflow; a multi-arch build and publish on `main` and
   on `v*` tags.
+- `script-images.yml` — the images a script builds for itself (today GoAccess, which
+  `deploy/compose/site-visits.sh` builds from `deploy/compose/goaccess/Dockerfile`, #1675): an
+  arm64 build-only check, `Build (<directory>)`, on a pull request that touches that directory or
+  the workflow, Dependabot's move of its Alpine pin included. It pushes nothing.
 - `windows-payload.yml` (dispatch, and on v* tags; builds the Windows appliance payload).
 - `release.yml` — dispatch only, from `main`, on GitHub-hosted runners only; never a required
   check, since it has no pull-request trigger. It cuts a release tag and publishes it in order
@@ -503,9 +507,10 @@ against the runs recorded that evening, recorded green runs, and every event and
 red when the two disagree.
 
 Do **not** require `integration-tests (ubuntu-24.04)` / `(ubuntu-24.04-arm)`, nor
-`build (api|web|selfhost)` from `images.yml`. Neither is reported at all on some pull requests —
+`build (api|web|selfhost)` from `images.yml`, nor `Build (deploy/compose/goaccess)` from
+`script-images.yml`. None is reported at all on some pull requests —
 a skipped matrix job reports once under the literal `integration-tests (${{ matrix.runner }})`,
-and `images.yml` has a `paths:` filter — so a docs-only PR blocks forever on "Expected — waiting
+and `images.yml` and `script-images.yml` have a `paths:` filter — so a docs-only PR blocks forever on "Expected — waiting
 for status to be reported", with nothing queued in Actions to explain it. Full rationale is the
 `SCOPE:` comment above `ci-complete` in `ci.yml`.
 

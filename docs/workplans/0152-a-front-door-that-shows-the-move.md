@@ -42,6 +42,10 @@ A review of the branch at `4ff19520` found two faults that held, and five smalle
     directory has a Dependabot `docker` entry of its own.
   - `a-visit-count-that-kept-the-visitor`, 56 of 56: the build says `--progress=plain` and never
     `--quiet`.
+  - `every-pr-check-is-classified` (at the root, so outside the local run of `scripts/`; CI's
+    unit-tests shard 3 on `fc2b10c0` found it): the new check, `Build (${{ matrix.context }})`, is
+    classified as not requirable, because the workflow's `paths:` filter leaves it unreported on
+    most pull requests. `docs/testing.md` names the workflow and says not to require it.
   - Five mutations, each caught: the `GITHUB_REF` check removed, `/deploy/compose/goaccess` put
     back into the apps' Dependabot entry, its directory dropped from the workflow's matrix, its path
     dropped from the workflow's trigger, and `--quiet` put back.
