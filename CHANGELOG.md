@@ -265,7 +265,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 ### Fixed
 
 - **The managed smoke gate settles the share rows it made, so one run's
-  leftovers no longer spend the next run's shares** (workplan 0104):
+  leftovers no longer spend the next run's shares** (workplan 0104, #1696):
   Nextcloud lets an account create 20 shares in 10 minutes, and every press
   retried the rows earlier presses had refused, so E2E (managed) #277's second
   attempt came back 429, as the demo Nextcloud's access log shows.
