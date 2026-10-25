@@ -48,7 +48,13 @@ tag.
   (stages on a custom base image keep that image's trust store) does not reach this config,
   which names no custom image: the tasks keep `--use-openssl-ca` on Debian's store.
   `scripts/image-scan.mjs` reads the base from the pinned CLI, so `trigger-task-base` (0146 T10)
-  is scanned at the new digest on this branch's Security Scan.
+  is scanned at the new digest by the first Security Scan that runs its image legs on a tree
+  carrying this change. A pull request's run is not one: those legs run only on the Monday
+  schedule and on a dispatch that leaves `image_scans` on (`security-scan.yml`, the
+  `image-list`, `image-scan` and `image-scan-report` jobs), and on this branch's runs all three
+  are skipped. So the counts for the new base and the two v4.8.1 images were not read here
+  (no Trivy in this session, the registry blobs behind its proxy); they come from the first
+  Monday scan after the merge, or before it from a hand dispatch on this branch.
 - **Upstream's compose at v4.8.1** (`docker/docker-compose.yml`, `hosting/docker/`, the same as
   at v4.7.6): ClickHouse `26.2.19.43@sha256:c2f26055…` (`26.2` in `hosting/`), Redis 7,
   Postgres 14, MinIO as `chainguard/minio` by digest (development) and `bitnamilegacy/minio`
@@ -68,10 +74,21 @@ tag.
   day.
 - Proved here: the unit guards that read these files, `a-service-that-phones-home` red on the
   old tag first. Owed before merge, after the alpha.2 tag and never during the counted nights:
-  checklist T15 on the OTA stack (nothing `EXECUTING`, `trigger-version.sh backup
-  before-v4.8.1`, `TRIGGER_IMAGE_TAG=v4.8.1` in its persisted `.env`), then E2E (managed) on
-  the branch, merged within the hour. Live takes it from the alpha.3 tag, after
-  `TRIGGER_IMAGE_TAG=v4.8.1` in its `.env`.
+  main merged in once, after the fold (#1706), with this change's CHANGELOG line moved back
+  under `## [Unreleased]` (the fold renames that heading to `## [0.2.0-alpha.2]`, and git
+  leaves the line beneath it, in a conflict or without one); then checklist T15 on the OTA
+  stack (the hold, nothing `EXECUTING`, `trigger-version.sh backup before-v4.8.1`,
+  `TRIGGER_IMAGE_TAG=v4.8.1` in its persisted `.env`), then E2E (managed) on the branch,
+  merged within the hour. **That is one window, with no other E2E (managed) in it and the
+  03:30 UTC nightly outside it:** once the persisted `.env` names v4.8.1,
+  `bootstrap-managed.sh` stops at the `trigger` phase (exit 1, on the drift from the SDK) for
+  every tree whose `apps/worker` still pins 4.7.6, main and every other branch. If the merge
+  does not follow, the tag goes back to v4.7.6 before anything else runs; after it, other
+  branches merge main before their own E2E (managed). Live takes it from the alpha.3 tag, after
+  `TRIGGER_IMAGE_TAG=v4.8.1` in its `.env`. `deploy-live.sh --dry-run` will call that tag
+  one-way over alpha.2 for this move alone, although v4.8.1 adds no migration: it counts any
+  move of the Trigger.dev pin in `managed.yml` as one-way (`differences()`), and the way back
+  is then the copy before the update, as for any one-way deploy.
 
 **2026-10-23: Trigger.dev v4.7.6, the tasks on the API image's Node, and ClickHouse 26.2
 accepted for the Alpha**, on the branch `claude/ownpace-public-readiness-y7orc6-trigger-4-7-6`

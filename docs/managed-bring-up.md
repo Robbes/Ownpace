@@ -3035,8 +3035,10 @@ through the PostHog client `TRIGGER_TELEMETRY_DISABLED` leaves unmade; and its
 new third-party switches, Cloudflare Turnstile on the sign-in form and AWS KMS
 as a secret store, are off while unset, as every key the guard has not read is
 refused (`scripts/a-service-that-phones-home.unit.test.ts`). v4.8.1 changes none
-of those files but `env.server.ts`, whose new keys name no host, and runs the
-webapp on Node 24.22.1; its supervisor preloads the same CA filter.
+of those files but `env.server.ts`, whose new keys name no host, and
+`app/root.tsx`, by one line that hands the page `PUBLIC_APP_ORIGIN`, this
+stack's own address; it runs the webapp on Node 24.22.1, and its supervisor
+preloads the same CA filter.
 
 `trigger-tls` has no telemetry; its one default that leaves the machine is
 automatic HTTPS, which asks a public certificate authority, and
