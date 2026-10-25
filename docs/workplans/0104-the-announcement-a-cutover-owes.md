@@ -11,8 +11,8 @@
 | T1 One go, one press | ✅ **Done 2026-08-26** | `applyAllOpenShareGrants` (share-queue.ts) + `POST /:mappingId/sharing/apply-all` on BOTH editions. Every row still walks applyShareGrant's gates (`NOT_CUT_OVER_REASON` now single-sourced, per-row and press proved equal); links and manual verdicts stay on the checklist; one refusal never stops the next; a second press retries exactly the refused (pinned: the settled row's grantee gets no second mail); the press lands once in the audit log, counted and attributed. |
 | T2 The gate proves the mail ARRIVES | ✅ **Done 2026-08-26 (both stages)** | First stage: the smoke's mailproof control (pipe proved before silence believed). Final stage: the seed creates a REAL source share (by mail, tag-addressed), `scanNextcloudShares` (new — a Nextcloud source's outbound shares were a blind spot) discovers it through the real rescan, the smoke PRESSES apply-all with a tagged note inside a fabricate-and-retract cutover window, and the TARGET's own mail must arrive carrying that note. Found and fixed on the way: the capability gate refused kind `nextcloud`/`baseUrl` connections — the demo's own kind — so the first live press would have answered `no_share_api`. Plus the queue drain: `cron.php` runs before the final silence checks, turning "no queue fired yet" into "drained and still nothing" (the owner's question, 2026-08-26). Since 2026-10-04 the drain names the jobs that can mail, as a bare `cron.php` stops at 14 minutes with the queue unemptied, and the rest runs detached after the check (0150). |
 | T3 The fallback digest | ✅ **Done 2026-08-26** | `share-announcement.ts` (shared) + `POST /:mappingId/sharing/announce` on BOTH editions, through 0030's channel (`tellMessage` / the appliance's own notifier). Audience: `done_manual` rows only — applied rows the platform announced, skipped rows carry no access, links have no address and are COUNTED, never dropped. One digest per grantee, their items only (§17). Note required (the "where" comes from the person who carried the shares); Template 6 EN/NL in the templates doc, subjects pinned to the code; a prior press makes the next an explicit `confirmResend`, gated on the audit log (`latestAuditEventAt` widened: actor optional, mappingId filter). |
-| T5 The press meets the target's limit on new shares | 🔨 **Built 2026-10-25 (#1704), merges after the alpha.2 tag** | The product half owed by the 2026-10-25 entry below. A 429 from the target is `ShareLimit` (shared) and its own sentence, in English and Dutch, with when to apply again; `applyAllOpenShareGrants` and `applyShareGrantsInFolder` stop at the first one and answer the rows from there as `waitingForLimit`, open and untried, apart from `refused`; both editions and the Sharing page. The order of the two calls is unchanged, on purpose: see the entry *the product half, built*. Needs CI and E2E (managed) on its pull request, after the tag. |
 | T4 Flags restated | ⬜ proposed | The four cloud silence flags recorded beside `applyShareGrant` (0103 T6) are for any **pre-moment** technical write a future needs — at the chosen moment the apply notifies on purpose. Same flags, opposite press, one policy: mail happens exactly once, when a person chose. |
+| T5 The press meets the target's limit on new shares | 🔨 **Built 2026-10-25 (#1704), merges after the alpha.2 tag** | The product half owed by the 2026-10-25 entry below. A 429 from the target is `ShareLimit` (shared) and its own sentence, in English and Dutch, with when to apply again; `applyAllOpenShareGrants` and `applyShareGrantsInFolder` stop at the first one and answer the rows from there as `waitingForLimit`, open and untried, apart from `refused`; both editions and the Sharing page. The order of the two calls is unchanged, on purpose: see the entry *the product half, built*. Needs CI and E2E (managed) on its pull request, after the tag. |
 
 **2026-10-25: the gate's press met Nextcloud's limit on new shares.** E2E (managed) #277, attempt
 2, on the branch of #1680, failed at *the moment, pressed*: apply-all applied none of the run's
@@ -89,7 +89,8 @@ fold until the alpha.2 tag, so its pull request waits for the tag.
   account. A test pins the order.
 - **What was read upstream.** `apps/files_sharing/lib/Controller/ShareAPIController.php` on
   `stable31`, `stable32`, `stable33`, `stable34` and `stable35`: `#[UserRateLimit(limit:
-  20, period: 600)]` on `createShare` on all five. On `master` it is 60: nextcloud/server
+  20, period: 600)]` on `createShare` on all five. So the limit holds on Nextcloud 31 to 35,
+  not 31 to 34 as the entry above says. On `master` it is 60: nextcloud/server
   #65333, *Increase rate limiting limit for creating shares*, merged 2026-10-15 on the
   Nextcloud 36 milestone, no backport shown. `RateLimitingMiddleware` (`stable31`,
   `stable34`, `master`): the attempt is registered before the controller runs, so a failed
@@ -112,6 +113,19 @@ fold until the alpha.2 tag, so its pull request waits for the tag.
   spends seven calls, so it should not meet the limit; when it does, the run now says
   which rows waited rather than calling them refused. Nextcloud 36 moves the limit to 60 in
   ten minutes; nothing here depends on the number.
+- **After review, the same day.** `retryAfterSecondsOf` believes a wait of up to one day
+  and no longer one: a header of 10^12 seconds, or 400 digits, said "in about 277777778
+  hours" or "in about Infinity hours", and now gives the ten-minute sentence. The API's
+  description (`apps/api/docs/openapi.yaml`) lists `waitingForLimit` and `limit` on both
+  presses, says that the limit stops them, and names `target_limited` on the single row's
+  409. ADR-0032 gained a build record: on a Nextcloud target the one-go press's wave
+  arrives in parts, each pressed by a person. The operator's log page still records such a
+  request as `share.refused`: it is one event and one reference per request, made at its
+  first answer, and a request may refuse rows before it meets the limit; the log line under
+  that reference carries the 429. The CHANGELOG line is under `[Unreleased]` / Fixed here,
+  and the fold (#1706) puts the alpha.2 heading directly under `[Unreleased]`, so a clean
+  merge would file it under alpha.2: the merge of `main` after the tag moves it into a new
+  `### Fixed` under `[Unreleased]`.
 
 ## The owner's framing, which the research now serves
 

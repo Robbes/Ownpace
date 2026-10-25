@@ -4194,6 +4194,13 @@ paths:
         words, chosen by what failed, never the target's (workplan 0136 T3):
         `reason` in English and `reasonNl` in Dutch, each ending with the
         reference the target's words are logged under.
+
+        The target's limit on new shares does stop the press (workplan 0104
+        T5): Nextcloud answers 429 once one account has created its quota of
+        shares in ten minutes. The row that met the limit and every row after
+        it stay open and untried, listed in `waitingForLimit` and never in
+        `refused`, and `limit` says when to press again. A later press tries
+        them again, as it tries the refused rows.
       parameters:
         - { name: mappingId, in: path, required: true, schema: { type: string } }
       requestBody:
@@ -4232,6 +4239,22 @@ paths:
                       links: { type: integer }
                       manual: { type: integer }
                   waitingForCutover: { type: integer, description: Rows left open for their own data type's cutover (workplan 0128 T5, slice 6). }
+                  waitingForLimit:
+                    type: array
+                    description: The row the target's limit on new shares was met on and every row the press had not tried yet, in the order it would have tried them; open and untried, none of them refused (workplan 0104 T5). Empty when the press met no limit.
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        on: { type: string }
+                        grantee: { type: string }
+                  limit:
+                    type: object
+                    description: Present exactly when `waitingForLimit` is not empty. The sentence for the row the limit was met on, saying when to press again.
+                    properties:
+                      retryAfterSeconds: { type: integer, description: "The wait the target asked for in `Retry-After`, in seconds, when it sent one it could be read from. Stock Nextcloud sends none." }
+                      reason: { type: string }
+                      reasonNl: { type: string, description: "`reason` in Dutch." }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Unknown mapping. }
         '409':
@@ -4269,6 +4292,12 @@ paths:
         container are not in the group and so are never part of this press,
         which is the point of surfacing them above the fold. Link shares and
         manual verdicts are counted and left, as the one-go press leaves them.
+
+        A refusal on one row never stops the next. The target's limit on new
+        shares does, as it stops the one-go press (workplan 0104 T5): the row
+        that met it and every row after it stay open and untried, listed in
+        `waitingForLimit` and never in `refused`, and `limit` says when to
+        press again.
       parameters:
         - { name: mappingId, in: path, required: true, schema: { type: string } }
       requestBody:
@@ -4313,6 +4342,22 @@ paths:
                     properties:
                       links: { type: integer }
                       manual: { type: integer }
+                  waitingForLimit:
+                    type: array
+                    description: The row the target's limit on new shares was met on and every row the press had not tried yet, in the order it would have tried them; open and untried, none of them refused (workplan 0104 T5). Empty when the press met no limit.
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        on: { type: string }
+                        grantee: { type: string }
+                  limit:
+                    type: object
+                    description: Present exactly when `waitingForLimit` is not empty. The sentence for the row the limit was met on, saying when to press again.
+                    properties:
+                      retryAfterSeconds: { type: integer, description: "The wait the target asked for in `Retry-After`, in seconds, when it sent one it could be read from. Stock Nextcloud sends none." }
+                      reason: { type: string }
+                      reasonNl: { type: string, description: "`reason` in Dutch." }
         '400': { description: No `parentKey` was named. }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Unknown mapping, or no folder group under that container. }
@@ -4406,7 +4451,10 @@ paths:
             The refusal, with its reason verbatim. `target_refused` is said in
             our words, in English as `reason` and in Dutch as `reasonNl`, each
             ending with the reference the target's words are logged under
-            (workplan 0136 T3). Or `account_closed`
+            (workplan 0136 T3). `target_limited` is no refusal: the target's
+            limit on new shares was met (a 429), the row stays open, and
+            `reason` and `reasonNl` say when to apply it again (workplan 0104
+            T5). Or `account_closed`
             (`AccountClosed`): `apply`, for an organisation that was closed
             (workplan 0085 T2). Ticking a row off by hand, or skipping it, is
             not refused for that.
