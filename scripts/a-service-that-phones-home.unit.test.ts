@@ -117,15 +117,17 @@
  * follow-up switches them off with a check that the demo's DAV writes still
  * work.
  *
- * And the demo's Stalwart (v0.16.10), which
+ * And the demo's Stalwart (v0.16.27), which
  * `setup-stalwart.sh` starts with `docker run`, outside every compose file, on
  * the OTA stack every night, in the self-host end-to-end run and on a
- * developer's machine. In normal mode
- * it fetches its WebUI from `github.com/stalwartlabs/webui/releases/latest` on
- * first start and every 30 days, its spam-filter rules from
+ * developer's machine. It fetches its WebUI from
+ * `github.com/stalwartlabs/webui/releases/download/v1.0.11` on first start and
+ * every 30 days, its spam-filter rules from
  * `github.com/stalwartlabs/spam-filter/releases/latest`, and an ASN and country
- * database from `cdn.jsdelivr.net` every day
- * (`crates/common/src/manager/defaults.rs`, `SpamSettings` in
+ * database every day, from `github.com/sapics/ip-location-db` on a database it
+ * made and from `cdn.jsdelivr.net` on one v0.16.10 made, which keeps the
+ * addresses it was given (`crates/common/src/manager/defaults.rs` and
+ * `application.rs`, `SpamSettings` in
  * `crates/registry/src/schema/structs_impl.rs`). Each is an object in its
  * database, not in its one-line file on disk, so switching it off is new
  * objects in the provisioning plan, and Stalwart settings written without
@@ -515,7 +517,7 @@ const MAILPIT =
   'axllent/mailpit:v1.31.6@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387';
 const NEXTCLOUD = 'nextcloud:34-apache';
 /** The demo's Stalwart, outside every compose file; its fetches were read at this tag. */
-const STALWART = 'stalwartlabs/stalwart:v0.16.10';
+const STALWART = 'stalwartlabs/stalwart:v0.16.27';
 /**
  * The site's visit count, outside every compose file (`site-visits.sh`); read
  * at the tag `v1.12` (`ef3c4f3c`). The digest is Docker Hub's index for the tag
@@ -815,9 +817,14 @@ describe('an overlay runs its base image and switches nothing back on', () => {
 describe('what runs outside every compose file is named, at the version it was read at', () => {
   it("the demo's Stalwart (setup-stalwart.sh, docker run) is the one whose fetches docs/managed-bring-up.md names", () => {
     const image = /^IMAGE="([^"]+)"$/m.exec(read('deploy/selfhost/setup-stalwart.sh'))?.[1];
-    expect(image, "Stalwart's WebUI, spam-rule and ASN fetches were read at v0.16.10; re-read defaults.rs at the new pin").toBe(STALWART);
+    expect(image, "Stalwart's WebUI, spam-rule and ASN fetches were read at v0.16.27; re-read defaults.rs at the new pin").toBe(STALWART);
     const doc = read('docs/managed-bring-up.md');
-    for (const host of ['github.com/stalwartlabs/webui', 'github.com/stalwartlabs/spam-filter', 'cdn.jsdelivr.net']) {
+    for (const host of [
+      'github.com/stalwartlabs/webui',
+      'github.com/stalwartlabs/spam-filter',
+      'github.com/sapics/ip-location-db',
+      'cdn.jsdelivr.net',
+    ]) {
       expect(doc, `Nothing phones home no longer names Stalwart's ${host}`).toContain(host);
     }
   });

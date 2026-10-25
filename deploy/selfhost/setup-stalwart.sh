@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Stand up a real, working Stalwart v0.16.10 for local dev / e2e (workplan 0010 T5 and
+# Stand up a real, working Stalwart v0.16.27 for local dev / e2e (workplan 0010 T5 and
 # friends — the self-host restart-resume idempotency gate needs a real IMAP+JMAP source
 # and target). This is the ONE canonical way to do that in this repo; do not re-invent a
 # second path (see docs/stalwart-integration-fix.md, "DO NOT deviate").
@@ -56,14 +56,18 @@ set -euo pipefail
 # WHAT THIS STALWART FETCHES FROM OUTSIDE, LEFT ON, AS THE OWNER PREFERRED ON 2026-09-29
 # (workplan 0139). The owner's ops-telemetry answer was "Switch it off everywhere"; asked
 # about these three, the owner wrote "Do we need it. And where? Perhaps not in live but yes
-# in OTA?", which is where this Stalwart already runs (below). In normal mode (phase 2),
-# v0.16.10 inserts three defaults into its database
-# (crates/common/src/manager/defaults.rs, SpamSettings in
-# crates/registry/src/schema/structs_impl.rs):
-#   - its WebUI, downloaded from github.com/stalwartlabs/webui/releases/latest on first
-#     start and again every 30 days;
+# in OTA?", which is where this Stalwart already runs (below). v0.16.27 inserts three
+# defaults into its database (crates/common/src/manager/defaults.rs, SpamSettings in
+# crates/registry/src/schema/structs_impl.rs), read at that tag on 2026-10-25:
+#   - its WebUI, from github.com/stalwartlabs/webui/releases/download/v1.0.11, on first start
+#     and again every 30 days. Since v0.16.16 it is inserted in recovery mode (phase 1) too,
+#     and a database holding the releases/latest address an older version wrote is served
+#     the v1.0.11 one instead;
 #   - its spam-filter rules, from github.com/stalwartlabs/spam-filter/releases/latest;
-#   - an ASN and country database, from cdn.jsdelivr.net, refreshed daily.
+#   - an ASN and country database, refreshed daily: github.com/sapics/ip-location-db on a
+#     new database, while one a version before v0.16.18 made keeps the cdn.jsdelivr.net
+#     addresses it was given (every database the v0.16.10 pin made, the OTA demo's too).
+# The last two are inserted on the first normal-mode start (phase 2).
 # They are downloads, not reports about anybody, but each asks a third party's host (GitHub,
 # and jsDelivr's CDN). They are objects in the datastore, never config.json
 # (docs/stalwart-integration-fix.md), and switching them off means new objects in the
@@ -83,7 +87,7 @@ set -euo pipefail
 # `scripts/a-service-that-phones-home.unit.test.ts` pins the version they were read at, and
 # docs/managed-bring-up.md, "Nothing phones home", names them.
 
-IMAGE="stalwartlabs/stalwart:v0.16.10"
+IMAGE="stalwartlabs/stalwart:v0.16.27"
 CONTAINER="${STALWART_CONTAINER:-ownpace-dev-stalwart}"
 VOLUME="${STALWART_VOLUME:-ownpace-dev-stalwart-data}"
 CONFIG_VOLUME="${STALWART_CONFIG_VOLUME:-ownpace-dev-stalwart-config}"

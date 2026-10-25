@@ -678,7 +678,7 @@ describe('the routine pins, in one summary issue', () => {
     expect(rows.find((r) => r.name === 'stalwartlabs/stalwart')!.notes).toEqual(['the copies disagree', STALWART_RULE]);
   });
 
-  /** AGENTS.md: "Never change the pinned Stalwart version". The issue says whose call it is. */
+  /** AGENTS.md: it moves "only on the owner's decision, recorded in ADR-0022". The issue says whose call. */
   const STALWART_RULE = "the owner's call: it moves only by docs/stalwart-integration-fix.md and ADR-0022, every copy together (AGENTS.md)";
 
   it('names the rule Stalwart moves by, in the summary issue, beside its line', async () => {

@@ -26,7 +26,7 @@ name: E2E (self-hosted)
 #      files sync is proven ACROSS accounts, the real-world shape, not within one
 #      shared admin account like the source-only DAV integration tests use.
 #   2. SEED the source mailbox over IMAPS (the gate is only meaningful against a
-#      non-zero source; v0.16.10 doesn't bind plaintext IMAP in normal mode, so
+#      non-zero source; v0.16.27 doesn't bind plaintext IMAP in normal mode, so
 #      this — like the rest of the repo — uses TLS, not port 143) AND seed calendar
 #      events + TASKS + contacts + files into the e2e-source Nextcloud account
 #      (test/e2e/seed-dav-source.mjs). The tasks go into a collection of their

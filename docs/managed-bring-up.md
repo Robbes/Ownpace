@@ -3063,16 +3063,20 @@ them, which is what points the demo's Nextcloud at the catcher (0103). And as
 booleans: `--value=false` alone stores the string `"false"`, which PHP reads as
 true.
 
-The demo's Stalwart (v0.16.10), which
+The demo's Stalwart (v0.16.27), which
 `setup-stalwart.sh` starts with `docker run`, outside every compose file, on
 the OTA stack every night, in the self-host end-to-end run, and on a
-developer's machine beside `deploy/compose/dev.yml`. In normal mode
-it downloads its WebUI from `github.com/stalwartlabs/webui/releases/latest` on
-first start and every 30 days, its spam-filter rules from
+developer's machine beside `deploy/compose/dev.yml`. It downloads its WebUI
+from `github.com/stalwartlabs/webui/releases/download/v1.0.11` on first start
+and every 30 days, in recovery mode too, its spam-filter rules from
 `github.com/stalwartlabs/spam-filter/releases/latest`, and an ASN and country
-database from `cdn.jsdelivr.net` daily (`crates/common/src/manager/defaults.rs`,
-and `SpamSettings` in `crates/registry/src/schema/structs_impl.rs`, at
-v0.16.10). They are downloads rather than reports about anybody. They are
+database daily: from `github.com/sapics/ip-location-db` on a database it made,
+and from `cdn.jsdelivr.net` on one an older version made, which keeps the
+addresses it was given (the OTA demo's, made at v0.16.10)
+(`crates/common/src/manager/defaults.rs` and `application.rs`, and
+`SpamSettings` in `crates/registry/src/schema/structs_impl.rs`, at v0.16.27;
+the stored addresses read back with `stalwart-cli snapshot` on 2026-10-25).
+They are downloads rather than reports about anybody. They are
 objects in its database, not in `config.json`, so switching them off is new
 objects in the provisioning plan, a change that has to be run and watched on
 the machine (`docs/stalwart-integration-fix.md`). **Left on, as the owner

@@ -6,6 +6,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The Stalwart the tests and the demo start is v0.16.27** (workplan 0146
+  T11 (b), ADR-0022, #PRNUM): the integration tests, the self-hosted
+  end-to-end run and the OTA demo run it, live never does. v0.16.10's image
+  carried 3 critical and 114 high findings, v0.16.27's carries no critical
+  and 47 high, none with a fix. On x86_64 its image needs a CPU with
+  x86-64-v2, so a virtual machine with a generic CPU model refuses to start
+  it. Its WebUI now comes from release v1.0.11, in recovery mode too, and a
+  new database fetches its ASN lists from GitHub instead of jsDelivr. A data
+  volume v0.16.10 made works under v0.16.27 and back again. The pin moves
+  only on the owner's decision, recorded in ADR-0022, every copy together.
 - **Trigger.dev is v4.7.6, its tasks run the API image's Node, and ClickHouse
   26.2 is accepted for the Alpha** (workplan 0119, issues #1668 and #1669,
   #1689): since v4.7.4, a magic link signs in only the browser that asked
