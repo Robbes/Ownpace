@@ -45,12 +45,23 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   page. Still reported, never refused: the pull request's Trivy check blocks
   new findings, and the advisory gate refuses a tag. The triage of 2026-10-23
   is in 0146's Status.
-- **The identity provider is Zitadel v4.19.5, which carries three security
-  fixes** (workplan 0135 T7, #1651): device authorizations need the user's
-  consent, login v2 signs its proofs with a server secret, and an invalid
-  public host header is refused instead of ignored. None of them reaches a
-  flow this stack uses, and the upgrade runs no setup step. Live takes it from
-  the next release tag.
+- **The identity provider is Zitadel v4.20.0, which carries v4.19.5's three
+  security fixes and is built with a Go that is still fixed** (workplan 0135
+  T7, #1651, #1680): v4.19.5 makes device authorizations need the user's
+  consent, has login v2 sign its proofs with a server secret, and refuses an
+  invalid public host header instead of ignoring it; none of them reaches a
+  flow this stack uses. v4.20.0 is built with Go 1.26.10, where v4.19.5 was
+  built with Go 1.25, a line Go no longer fixes: it closes a CPU hole in the
+  file server that serves the console and the sign-in page's files to anyone,
+  signed in or not (CVE-2026-78667), and one in the HTTP/2 server behind the
+  provider's port (CVE-2026-78669). The console now takes its API address
+  from the issuer's origin, so the mixed-content mismatch
+  `bootstrap-managed.sh` checks for cannot arise on it. Neither move runs a
+  setup step. Outbound TLS now refuses chains through the compromised eMudhra
+  intermediates, which on live reaches the mail relay alone: live takes it
+  from a release tag, after a dump of its `zitadel` database, and then sends
+  one mail through its relay and signs in once, because no gate run proves
+  that path.
 - **PgBouncer 1.26.1 closes three holes this stack's settings left open, and
   Trigger.dev's Redis leaves Alpine 3.21** (workplan 0119, #1657): each hole
   was open to a client that had not logged in (CVE-2026-19888, CVE-2026-6668
@@ -263,6 +274,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **The managed smoke gate settles the share rows it made, so one run's
+  leftovers no longer spend the next run's shares** (workplan 0104, #1696):
+  Nextcloud lets an account create 20 shares in 10 minutes, and every press
+  retried the rows earlier presses had refused, so E2E (managed) #277's second
+  attempt came back 429, as the demo Nextcloud's access log shows.
+  `smoke-managed.sh` now skips every still-open share row a run of the gate
+  seeded, through the product's own decision route, and prints each refused
+  row whole, with the target's status.
 - **body-parser 2.4.0 closes a denial of service through compressed request
   bodies** (GHSA-27r3-jxmh-p828, CVE-2026-111181, high, #1691): trailing
   bytes after a compressed body could tie up the API, which inflates JSON
