@@ -63,7 +63,9 @@ describe('Report a problem, beside Sign out', () => {
   it('is offered when the service takes reports, and carries the page the person is on', async () => {
     renderLayout('/mappings/m-1/failures');
 
-    const link = await screen.findByRole('link', { name: 'Report a problem' });
+    // Room to wait: on main's CI of 2026-10-25, on a busy runner, the link
+    // came after the default second.
+    const link = await screen.findByRole('link', { name: 'Report a problem' }, { timeout: 5000 });
     expect(link.getAttribute('href')).toBe('/report?from=%2Fmappings%2Fm-1%2Ffailures');
   });
 
