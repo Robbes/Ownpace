@@ -62,9 +62,14 @@ customer whose own Nextcloud already runs it.
   (`deploy/compose/nextcloud-php.ini`) still sorts after it and is still needed when the demo moves
   (`a-jit-that-compiled-a-crash`), and `APACHE_BODY_LIMIT` works as on 34. `latest` and `apache`
   point at 35 (read 2026-10-25), so a customer who pulls `nextcloud` without a tag runs 35.
-- **Not run here.** This session has no Docker daemon (`docker ps`: no socket), so no suite ran
-  against either image in it; the pull request's own run of the leg is the first evidence, and its
-  run number belongs here. Proved here: the unit tests of `nextcloud-image.ts` (22) and the guard
+- **Proved on the pull request (#1705, head `40a2dba5`).** Nextcloud second major #1 (run
+  40187374651), 11:04 to 11:07 UTC: *"Nextcloud 35.0.1 answered"*, 7 files and 36 tests passed,
+  none skipped (`numPendingTests: 0`), the share suite's 3 among them. CI #4762: both
+  `integration-tests` legs logged *"Nextcloud 34.0.5 answered"* and passed 96 files and 814 tests,
+  the share suite's 3 among them; `ci-complete` green. So nothing in the DAV, chunked-upload or share
+  code needs to change for 35.0.1. The session that wrote this has no Docker daemon (`docker ps`: no
+  socket), so those runs are the only ones. Proved before the push: the unit tests of
+  `nextcloud-image.ts` (22) and the guard
   `a-nextcloud-the-demo-does-not-run` (14), red on nine mutations of the workflow and the setup
   (no `paths:` on the pull request trigger, the self-hosted runner, the default's major, a floating
   tag, Stalwart started, skips allowed, a finder failure unseen, no throw when the asked image does
@@ -307,7 +312,7 @@ a decision each, §3, for the owner.
 | T2 The safe moves | ✅ Done 2026-09-06 | node 24.20.0-slim (three Dockerfiles), postgres 18.6-alpine (self-host), pgbouncer v1.25.2-p0, mailpit v1.31.1, busybox 1.38 (compose, three scripts, one test, the bring-up doc), nginx 1.30-alpine (web image and www; both on 1.31 since the morning, see the status block); three action version comments set to the tag their SHA is. Stateless, or a fixture, or a patch of a store that upgrades in place. Proved on the branch before merge: **E2E (self-hosted) #189 green** (the postgres and node moves, restart-resume included) and **E2E (managed) #161 green** (pgbouncer in front of the API, mailpit, busybox, nginx behind www), both dispatched at 01:57 UTC; `images.yml` built the three images from the moved FROM lines; the `unit` scripts guards 92 files, 1 567 tests. |
 | T3 The owner's decisions | 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Taken 2026-09-09: Redis (item 3 — **stay on 7.4**, with a revisit trigger) and the release-age gate (item 8 — `minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). Taken 2026-10-23: ClickHouse 26.2 for the Alpha (item 9). Still the owner's: the object store (item 5, with a candidate named). |
 | T4 vitest 5 | ✅ Done 2026-09-06 | `vitest` and `@vitest/coverage-v8` 4.1.11 → 5.0.0, every declaring package together. Green on Node 22 (508 files, 6 326 tests) and on Node 24 as CI runs it (509 files, 6 411 tests); the v8 provider loads and reports. Two things the major needed first, found by trying it and landed as their own PR (#810) because they are right under vitest 4 too: the alias map's missing subpath pins — `@openmig/core/archive-reader` and thirteen more, plus a guard — and the exclude patterns in their documented form, since vitest 5 follows pnpm's workspace symlinks when it crawls and a bare `node_modules` matched only the top level. The bump is its own PR, stacked on #810. |
-| T5 The second Nextcloud major in CI | 🔨 In progress | 2026-10-25: `nextcloud-second-major.yml` runs the suites that talk to Nextcloud against 35.0.1 by digest, the setup refuses a Nextcloud that did not start or is not the version named, and the tier has a share suite. A draft, merged after the alpha.2 tag once its own run of the leg is green; the Status entry of that date. CI only, not one way. |
+| T5 The second Nextcloud major in CI | 🔨 In progress | 2026-10-25: `nextcloud-second-major.yml` runs the suites that talk to Nextcloud against 35.0.1 by digest, the setup refuses a Nextcloud that did not start or is not the version named, and the tier has a share suite. Green on its pull request (#1705: 36 tests against 35.0.1, 814 against 34.0.5 on both architectures); a draft, merged after the alpha.2 tag. CI only, not one way. |
 
 ## 1. Why this exists
 
