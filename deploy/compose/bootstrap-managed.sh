@@ -1981,12 +1981,18 @@ wait_for_idp_ready() {
 # from there everything was genuinely fine.
 #
 # The console reads `/ui/console/assets/environment.json` at boot to learn
-# where its API is. With `ZITADEL_TLS_MODE=disabled` behind a proxy that
-# terminates TLS, Zitadel writes `api: http://…` there while `issuer` stays
-# `https://…` (that one follows ZITADEL_EXTERNALSECURE). The page is served
-# over https, so the browser refuses the http call as MIXED CONTENT before it
-# leaves: no status code, no CORS message, no server log. Unfindable from the
-# server, and one line to see from here.
+# where its API is. Before Zitadel v4.20.0, with `ZITADEL_TLS_MODE=disabled`
+# behind a proxy that terminates TLS, it wrote `api: http://…` there while
+# `issuer` stayed `https://…` (that one follows ZITADEL_EXTERNALSECURE). The
+# page is served over https, so the browser refuses the http call as MIXED
+# CONTENT before it leaves: no status code, no CORS message, no server log.
+# Unfindable from the server, and one line to see from here.
+#
+# FROM v4.20.0 THE TWO CANNOT DISAGREE (upstream e01ccc9): `api` is built from
+# the same origin as `issuer`, where it was built from the request's Host and
+# the TLS mode. On the image managed.yml pins this check therefore always
+# says they agree, and a disagreement means an image older than v4.20.0 is
+# running. It stays, because it costs one request and still catches that.
 #
 # WHAT IS ASSERTED IS AGREEMENT, NOT HTTPS. A local bring-up is http on both
 # and perfectly correct; a fronted one is https on both. Only a document that
@@ -2034,7 +2040,8 @@ check_idp_console_config() {
   echo "!!! A page served over ${issuer%%:*} may not call ${api%%:*} — the browser refuses it" >&2
   echo "!!! as mixed content before the request leaves, so the console shows a bare" >&2
   echo "!!! NetworkError and no server anywhere logs a thing." >&2
-  echo "!!! ZITADEL_EXTERNALSECURE fixes the issuer; the api follows ZITADEL_TLS_MODE." >&2
+  echo "!!! ZITADEL_EXTERNALSECURE fixes the issuer; before v4.20.0 the api followed ZITADEL_TLS_MODE," >&2
+  echo "!!! and from v4.20.0 both come from one origin, so the image answering is older than that." >&2
   echo "!!! Behind a proxy that terminates TLS, set in ${ENV_FILE}:" >&2
   echo "!!!   ZITADEL_TLS_MODE=external" >&2
   echo "!!!   docker compose -f managed.yml up -d zitadel" >&2
