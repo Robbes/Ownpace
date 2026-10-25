@@ -49,7 +49,10 @@
  *                      latest release admits a stable TypeScript 7.1 or later.
  *   routine pins       ONE summary issue: every other image line of
  *                      managed.yml, dev.yml and www.yml against its registry's
- *                      tag list (Docker Hub and ghcr, anonymous tokens), the
+ *                      tag list (Docker Hub and ghcr, anonymous tokens), or,
+ *                      for a tag with no number held by its digest
+ *                      (`chainguard/minio:latest`, 0146 T7), against the digest
+ *                      its registry names for that tag today; the
  *                      busybox copies in the scripts, www.yml's nginx against
  *                      apps/web/Dockerfile's, Stalwart's copies and its newest
  *                      v0.16.x, GoAccess, the Trivy the Security Scan runs,
@@ -122,8 +125,15 @@ export const COMPARED_ELSEWHERE = {
   'ghcr.io/triggerdotdev/trigger.dev': 'the Trigger.dev row',
   'ghcr.io/triggerdotdev/supervisor': 'the Trigger.dev row',
   'clickhouse/clickhouse-server': 'the ClickHouse row',
-  'bitnamilegacy/minio': 'no upstream left to follow (0119 §3 item 5): a replacement is a decision',
 };
+
+/**
+ * Said beside a digest-only pin that is behind: its tag is the only one the
+ * image publishes free, so a new digest is a rebuild, and nothing else says
+ * what changed in it.
+ */
+export const REBUILD_NOTE =
+  'a rebuild of the same tag: move the digest in a pull request of its own, with the image scan of the new one read and E2E (managed) on its branch';
 
 /** How Stalwart moves, said beside its line in the summary issue: AGENTS.md forbids moving it otherwise. */
 export const STALWART_RULE =
@@ -326,6 +336,27 @@ export async function registryTags(net, repo) {
 
 const INDEX_TYPES = 'application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json';
 const MANIFEST_TYPES = 'application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json';
+
+/**
+ * The digest a tag names today: the registry's `Docker-Content-Digest` for the
+ * tag's manifest, the index when there is one, which is the digest a compose
+ * file pins. Asked with a HEAD, which Docker Hub does not count against its
+ * anonymous pull limit, as it counts a GET, but does refuse with a 429 once an
+ * address shared with others has used that limit up (seen 2026-10-24, with
+ * `ratelimit-remaining: 0`). That throws in `net.digest`, and the row reads
+ * as not read that week, as any other unreadable row does. Anything but a
+ * sha256 is an error, never "current".
+ */
+export async function registryDigest(net, repo, tag) {
+  const { host, name } = registryOf(repo);
+  const token = await registryToken(net, host, name);
+  const digest = await net.digest(`https://${host}/v2/${name}/manifests/${tag}`, {
+    Authorization: `Bearer ${token}`,
+    Accept: `${INDEX_TYPES},${MANIFEST_TYPES}`,
+  });
+  if (!/^sha256:[0-9a-f]{64}$/.test(digest ?? '')) throw new Error(`${host} named no digest for ${name}:${tag}`);
+  return digest;
+}
 
 /** The `NODE_VERSION` an image's linux/amd64 config sets: index, manifest, config, as `docker pull` reads them. */
 export async function nodeVersionOf(net, image) {
@@ -726,6 +757,18 @@ export async function routineRows(repo, net) {
   for (const image of images.values()) {
     jobs.push([image.repo, image.where.join(', '), async () => {
       if (!image.tag) throw new Error(`${image.repo} is pinned by no tag`);
+      // A tag with no number to compare, held by its digest: what moves is the
+      // digest the registry names for it (Chainguard's free `latest`, 0146 T7).
+      if (!/\d/.test(image.tag) && image.digest) {
+        const now = await registryDigest(net, image.repo, image.tag);
+        const state = now === image.digest ? 'current' : 'behind';
+        return {
+          pin: `${image.tag}@${image.digest}`,
+          newest: `${image.tag}@${now}`,
+          state,
+          ...(state === 'behind' ? { notes: [REBUILD_NOTE] } : {}),
+        };
+      }
       const newest = newestLike(image.tag, await tagsFor(image.repo));
       return { pin: image.tag, newest, state: stateOf(image.tag, newest) };
     }]);
@@ -1009,6 +1052,15 @@ export function realNet(root) {
     text: async (url, headers) => (await get(url, headers)).text(),
     json: async (url, headers) => (await get(url, headers)).json(),
     bytes: async (url, headers) => Buffer.from(await (await get(url, headers)).arrayBuffer()),
+    digest: async (url, headers = {}) => {
+      const res = await fetch(url, {
+        method: 'HEAD',
+        headers: { 'User-Agent': 'ownpace-pin-watch', ...headers },
+        signal: globalThis.AbortSignal.timeout(30_000),
+      });
+      if (!res.ok) throw new Error(`${new URL(url).host} answered ${res.status} for ${new URL(url).pathname}`);
+      return res.headers.get('docker-content-digest') ?? '';
+    },
     lsRemote: async (url) => run('git', ['ls-remote', '--tags', '--refs', url]),
     npm: async (args) => run('npm', args, ['ignore', 'pipe', 'inherit']),
     probe: async (pin) => run('bash', [join(root, 'deploy/compose/trigger-version.sh'), 'probe', pin], ['ignore', 'pipe', 'inherit']),
