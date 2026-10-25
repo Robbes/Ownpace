@@ -102,7 +102,9 @@
  * every tenant's mailbox and calendar credentials during a pass and are HTTPS
  * clients, and nothing moved their Node: Dependabot ignores `@trigger.dev/*`,
  * and upstream rebuilt that image only when it chose to (issue #1669, the pin
- * watch's record of it).
+ * watch's record of it). CLI 4.7.7 and 4.8.1 name a rebuild on 24.22.1
+ * (`…@sha256:3cdc8242…`), which is when upstream chose to; the layer below
+ * stays, for the reason the config gives.
  *
  * So the deploy config adds one layer, for every target but `trigger dev`,
  * that copies the Node binary out of the very image `apps/api/Dockerfile`

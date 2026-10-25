@@ -3018,8 +3018,8 @@ refuses a `COMPOSE_FILE` in the shell.
 
 | Service | What it sent by default | The switch | Read at |
 |---|---|---|---|
-| `trigger-api` | PostHog from the server at every sign-in (the user's id, email and name) and when a user, an organisation or a project is created; and PostHog in the dashboard's browser, which identifies the signed-in user by id and email, under Trigger.dev's own project key | `TRIGGER_TELEMETRY_DISABLED: "1"` stops the server's half only. `POSTHOG_PROJECT_KEY: ""` stops the browser's: the key defaults to Trigger.dev's, and the dashboard starts PostHog whenever it is not empty | `apps/webapp/app/services/telemetry.server.ts`, `services/postAuth.server.ts`, `app/root.tsx`, `app/hooks/usePostHog.ts`, `app/env.server.ts` at v4.5.16, and again at v4.7.2 and v4.7.6 |
-| `trigger-api`, its entrypoint | Prisma's checkpoint to `checkpoint.prisma.io` at every start, from the `prisma migrate deploy` the entrypoint runs: the version, OS, architecture, Node, CI, the command, hashes of the project's and the CLI's paths, the schema's providers and a stored random signature | `CHECKPOINT_DISABLE: "1"`, the only thing the CLI and its client check | `docker/scripts/entrypoint.sh` at v4.5.16, v4.7.2 and v4.7.6; `packages/cli/src/CLI.ts` and `utils/checkpoint.ts` at prisma 6.14.0; checkpoint-client 1.1.33 |
+| `trigger-api` | PostHog from the server at every sign-in (the user's id, email and name) and when a user, an organisation or a project is created; and PostHog in the dashboard's browser, which identifies the signed-in user by id and email, under Trigger.dev's own project key | `TRIGGER_TELEMETRY_DISABLED: "1"` stops the server's half only. `POSTHOG_PROJECT_KEY: ""` stops the browser's: the key defaults to Trigger.dev's, and the dashboard starts PostHog whenever it is not empty | `apps/webapp/app/services/telemetry.server.ts`, `services/postAuth.server.ts`, `app/root.tsx`, `app/hooks/usePostHog.ts`, `app/env.server.ts` at v4.5.16, and again at v4.7.2, v4.7.6 and v4.8.1 |
+| `trigger-api`, its entrypoint | Prisma's checkpoint to `checkpoint.prisma.io` at every start, from the `prisma migrate deploy` the entrypoint runs: the version, OS, architecture, Node, CI, the command, hashes of the project's and the CLI's paths, the schema's providers and a stored random signature | `CHECKPOINT_DISABLE: "1"`, the only thing the CLI and its client check | `docker/scripts/entrypoint.sh` at v4.5.16, v4.7.2, v4.7.6 and v4.8.1; `packages/cli/src/CLI.ts` and `utils/checkpoint.ts` at prisma 6.14.0; checkpoint-client 1.1.33 |
 | `zitadel` | A "service ping" once a day to `zitadel.com`: the version, each instance's id, creation date and domains, and its count of users, organisations and projects | `ZITADEL_SERVICEPING_ENABLED: "false"`; `ZITADEL_TELEMETRY_ENABLED: "false"` too, which ships off | `cmd/defaults.yaml` at v4.19.2 (*"It's enabled by default"*) |
 | `clickhouse` | A report on every crash and logical error to `crash.clickhouse.com` | `clickhouse-no-crash-reports.xml`, mounted into `config.d`, sets both off; the `config.xml` the image ships sets them on. It is the only file ClickHouse merges that speaks of crash reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d` and `conf.d`, in sorted order, so a later one would win | `programs/server/config.xml`, `src/Daemon/CrashWriter.cpp`, `src/Common/Config/ConfigProcessor.cpp` at `v26.2.19.43-stable` |
 | `minio` | A release check to `dl.min.io` at every start, its User-Agent carrying the OS, architecture, version and CPU | `MINIO_UPDATE: "off"`; `MINIO_CALLHOME_ENABLE: "off"` too, which ships off | `cmd/server-main.go`, `cmd/update.go`, `internal/config/callhome/callhome.go` at `RELEASE.2025-05-24T17-08-30Z` |
@@ -3034,7 +3034,9 @@ Node's own list and calls nothing; the webapp's two new server-side events go
 through the PostHog client `TRIGGER_TELEMETRY_DISABLED` leaves unmade; and its
 new third-party switches, Cloudflare Turnstile on the sign-in form and AWS KMS
 as a secret store, are off while unset, as every key the guard has not read is
-refused (`scripts/a-service-that-phones-home.unit.test.ts`).
+refused (`scripts/a-service-that-phones-home.unit.test.ts`). v4.8.1 changes none
+of those files but `env.server.ts`, whose new keys name no host, and runs the
+webapp on Node 24.22.1; its supervisor preloads the same CA filter.
 
 `trigger-tls` has no telemetry; its one default that leaves the machine is
 automatic HTTPS, which asks a public certificate authority, and
@@ -5056,7 +5058,7 @@ never reads as "nothing newer", nor as an older newest.
 > moved, move with it, tag and digest, in the same pull request, proven by
 > E2E (managed) on its branch; ClickHouse's data moves forward only. The weekly
 > pin watch says the same while the two differ (its ClickHouse issue, workplan
-> 0146 T8). At v4.7.6 and v4.7.7 both say `26.2.19.43@sha256:c2f26055…`.
+> 0146 T8). At v4.7.6, v4.7.7 and v4.8.1 both say `26.2.19.43@sha256:c2f26055…`.
 > ClickHouse's `SECURITY.md` has not supported 26.2 since its last patch
 > (2026-05-21); the owner accepted that for the Alpha on 2026-10-23, with the
 > exposure and the revisit triggers in workplan 0119 §3 item 9.

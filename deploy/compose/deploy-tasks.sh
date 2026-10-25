@@ -292,7 +292,7 @@ fi
 # not recognise is left alone rather than guessed at.
 #
 # The CLI holds the other half since 4.7.5 (`src/deploy/environment.ts`, read
-# at 4.7.6): when TRIGGER_ACCESS_TOKEN is an ENVIRONMENT API key (`tr_prod_…`,
+# at 4.7.6, unchanged at 4.8.1): when TRIGGER_ACCESS_TOKEN is an ENVIRONMENT API key (`tr_prod_…`,
 # `tr_stg_…`), an `--env` naming another environment is an error, where before
 # the deploy quietly went to the key's environment. The token this script and
 # the gate pass is a personal access token (`tr_pat_…`, which

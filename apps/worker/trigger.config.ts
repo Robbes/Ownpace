@@ -36,6 +36,12 @@ import { defineConfig } from '@trigger.dev/sdk';
  * from. An official Node binary needs only glibc 2.28, so one taken from a
  * trixie image runs on the base image's bookworm.
  *
+ * CLI 4.7.7 and 4.8.x name a base image rebuilt on Node 24.22.1
+ * (`triggerdotdev/node:24-bookworm@sha256:3cdc8242…` at 4.8.1), the same Node
+ * the API image runs today. The layer stays: it moves the tasks when the API's
+ * Node moves, where the base image moves only when upstream rebuilds it and
+ * this repository moves the CLI.
+ *
  * The upgrade's text never changes, so the CLI's persistent `trigger` builder
  * serves it from its cache: the packages are refreshed when the API's Node
  * image moves (the COPY above it invalidates the cache) or when the builder's

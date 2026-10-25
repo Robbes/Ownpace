@@ -6,6 +6,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **Trigger.dev is v4.8.1** (workplan 0119, issue #1668): the webapp and
+  the supervisor run on Node 24.22.1, October's security release, where
+  they ran 24.18.0, and the supervisor distrusts the compromised eMudhra
+  roots too. It carries no database or ClickHouse migration, but a stack
+  whose `.env` sets `TRIGGER_IMAGE_TAG` sets `v4.8.1` there first, with no
+  run executing and after the backup, or its bring-up stops at the
+  `trigger` phase. The tasks still take the API image's Node; the CLI's
+  own base image under them is now on 24.22.1 as well, so the first task
+  deploy after this one is the slow one. ClickHouse stays on 26.2, which
+  Trigger.dev still pins.
 - **Trigger.dev is v4.7.6, its tasks run the API image's Node, and ClickHouse
   26.2 is accepted for the Alpha** (workplan 0119, issues #1668 and #1669,
   #1689): since v4.7.4, a magic link signs in only the browser that asked
