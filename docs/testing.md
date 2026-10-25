@@ -503,9 +503,10 @@ against the runs recorded that evening, recorded green runs, and every event and
 red when the two disagree.
 
 Do **not** require `integration-tests (ubuntu-24.04)` / `(ubuntu-24.04-arm)`, nor
-`build (api|web|selfhost)` from `images.yml`. Neither is reported at all on some pull requests —
+`build (api|web|selfhost)` from `images.yml`, nor `DAV suites on the second Nextcloud major` from
+`nextcloud-second-major.yml`. None is reported at all on some pull requests —
 a skipped matrix job reports once under the literal `integration-tests (${{ matrix.runner }})`,
-and `images.yml` has a `paths:` filter — so a docs-only PR blocks forever on "Expected — waiting
+and the other two workflows have a `paths:` filter — so a docs-only PR blocks forever on "Expected — waiting
 for status to be reported", with nothing queued in Actions to explain it. Full rationale is the
 `SCOPE:` comment above `ci-complete` in `ci.yml`.
 
@@ -530,6 +531,18 @@ Runners: on a pull request every `ci.yml` job is GitHub-hosted, with integration
 the same jobs run on the self-hosted arm64 Spark. Image builds are GitHub-hosted, and e2e runs only
 on the Spark. The Spark runner executes trusted workflows only. Both the `integration-tests` job
 and `e2e.yml` install `stalwart-cli` as a host binary for their respective provisioning phases.
+
+**The second Nextcloud major** (workplan 0119, Status of 2026-10-25). The integration tier and the
+demo run Nextcloud 34; a customer's own server may already run 35. `nextcloud-second-major.yml`
+runs the suites that read a `NEXTCLOUD_` variable (found by `scripts/nextcloud-suites.mjs`: WebDAV,
+CalDAV, CardDAV, the DAV sync, the chunked upload and the share verb) against the image its
+`NEXTCLOUD_IMAGE` names, pinned by tag and digest, without Stalwart, on a GitHub-hosted runner: on a
+push to `main` that touches `packages/**` or the test setup, weekly, on demand, and on a pull request
+that changes the leg itself. A Nextcloud asked for by name that does not start fails the run (the
+default only warns and lets the suites skip), the version `status.php` reports must be the one the
+tag names, and a report with a skipped test fails it too. Locally, the same with
+`NEXTCLOUD_IMAGE=<ref> SKIP_STALWART=true pnpm exec vitest run --project integration
+--no-file-parallelism $(node scripts/nextcloud-suites.mjs)`.
 
 ## Appendix — untested seams (verified against the tree, 2026-08-02; re-verified 2026-09-24)
 

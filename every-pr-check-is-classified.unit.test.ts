@@ -67,6 +67,15 @@ const NOT_REQUIRABLE = new Map([
   // the matrix job under its unexpanded name. The scan is report-only by design:
   // a finding never blocks a merge, and the weekly run is where a missing report
   // fails.
+  // nextcloud-second-major.yml (workplan 0119, Status of 2026-10-25). It runs on
+  // a pull request only when that pull request changes how it runs, so most
+  // never see it.
+  [
+    'DAV suites on the second Nextcloud major',
+    'nextcloud-second-major.yml carries a `paths:` filter on its pull_request trigger (the leg ' +
+      'itself, the integration setup, the suite finder), so on any other PR it is never reported; ' +
+      'a red run is a finding about the other major, for the owner, not a merge gate.',
+  ],
   ...['Images the stacks run', 'Image scan (${{ matrix.name }})', 'Image scan report'].map(
     (name): [string, string] => [
       name,

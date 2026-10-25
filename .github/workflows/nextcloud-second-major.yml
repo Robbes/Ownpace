@@ -1,0 +1,143 @@
+# The suites that talk to Nextcloud, against the major the demo does not run
+# (workplan 0119, Status of 2026-10-25).
+#
+# The demo Nextcloud, the dev stack and the integration tier run one major, 34.
+# A customer's own Nextcloud is whatever they run, and Nextcloud 35 has been
+# on Docker Hub since mid-September 2026, 35.0.2 since mid-October.
+# Moving the demo is one way, since Nextcloud's data never goes back a
+# version, and it waits for after the alpha.2 tag. What can be known before
+# then is whether the code works against 35: WebDAV, CalDAV, CardDAV, the
+# chunked upload and the OCS share verb. This runs those suites, and only
+# those, against 35, so the answer is on record before the demo moves and
+# before a customer finds out.
+#
+# WHICH SUITES. Every `*.integration.test.ts` that reads a NEXTCLOUD_ variable,
+# found by scripts/nextcloud-suites.mjs rather than listed here, so the next
+# such suite runs here too. None of them needs Stalwart, so Stalwart is not
+# started and stalwart-cli is not installed.
+#
+# WHICH IMAGE. NEXTCLOUD_IMAGE below, by exact tag and index digest. Setting
+# it changes two things in the integration setup (packages/testing/src/
+# nextcloud-image.ts): a Nextcloud that does not start fails the run instead
+# of skipping every suite, and the server that answered must be the version
+# the tag names. The step after the run refuses a report with a skipped test,
+# so this cannot be green over nothing. The pin moves by hand: Dependabot reads
+# no workflow env and the pin watch reads the compose files, not this one.
+# A tag waits three days after its push before it is pinned here, the age
+# CONTRIBUTING.md asks of a dependency, unless a security fix needs it sooner.
+#
+# WHEN, AND WHERE. Not on every pull request: the integration job in ci.yml
+# already runs every suite against 34 on two architectures, and doubling that
+# for 35 on every pull request buys little. It runs:
+#   - on a push to main that touches the code those suites exercise;
+#   - on a pull request that changes how this leg runs (this file, the suite
+#     finder, the integration setup), so a change to the leg proves itself;
+#   - weekly, so main has a recent answer even in a week with no such push;
+#   - on demand.
+# Always on a GitHub-hosted runner, never the self-hosted one: it has a
+# pull_request trigger (ci.yml's header says why that must never reach the
+# Spark), and the Spark is one machine that also serves production. amd64:
+# the question is the Nextcloud major, not the architecture, and ci.yml's
+# arm64 leg covers that for 34.
+#
+# NOT A REQUIRED CHECK. Its `paths:` filters leave it unreported on most pull
+# requests, so requiring it would block them forever
+# (every-pr-check-is-classified.unit.test.ts lists it with that reason). A red
+# run here is a finding about 35, for the owner's decision on the demo's move.
+#
+# scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts holds this file.
+name: Nextcloud second major
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/**'
+      - 'vitest.config.ts'
+      - 'vitest.global-setup.ts'
+      - 'vitest.aliases.ts'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'scripts/nextcloud-suites.mjs'
+      - '.github/workflows/nextcloud-second-major.yml'
+  pull_request:
+    paths:
+      - 'packages/testing/src/testcontainers-setup.ts'
+      - 'packages/testing/src/nextcloud-image.ts'
+      - 'vitest.global-setup.ts'
+      - 'scripts/nextcloud-suites.mjs'
+      - '.github/workflows/nextcloud-second-major.yml'
+  schedule:
+    # Mondays, 05:17 UTC. Off the hour, and after the nights' gates.
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nextcloud-second-major-${{ github.ref }}
+  # As in ci.yml: a superseded pull request run is cancelled, a run on main is not.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  dav-suites:
+    name: DAV suites on the second Nextcloud major
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      # 35.0.1-apache, this digest pushed 2026-10-10. 35.0.2-apache's current
+      # digest (sha256:89af7ee7…, pushed 2026-10-23 19:50 UTC, the rebuild that
+      # sets session.upload_progress.enabled=0) passes the three-day wait on
+      # 2026-10-26 at 19:51 UTC.
+      NEXTCLOUD_IMAGE: nextcloud:35.0.1-apache@sha256:8f2f0e93aca5e9457019933936dea1f313052e72c696b4aecb31580a208b859f
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run the suites that talk to Nextcloud, against NEXTCLOUD_IMAGE
+        env:
+          # None of the suites needs Stalwart (scripts/nextcloud-suites.mjs finds
+          # them by the NEXTCLOUD_ variables they read).
+          SKIP_STALWART: 'true'
+        run: |
+          set -euo pipefail
+          docker --version
+          suites=$(node scripts/nextcloud-suites.mjs)
+          mapfile -t files <<<"$suites"
+          echo "Image: $NEXTCLOUD_IMAGE"
+          printf 'Suite: %s\n' "${files[@]}"
+          mkdir -p reports
+          pnpm exec vitest run --project integration --no-file-parallelism \
+            --reporter=default --reporter=json --outputFile.json=reports/nextcloud-second-major.json \
+            "${files[@]}"
+      - name: A skipped test is not a passed one
+        # A suite skips when the setup exported no Nextcloud, and the run would
+        # still be green. The setup refuses that when NEXTCLOUD_IMAGE is set;
+        # this refuses it again from the report, whatever the cause.
+        run: |
+          set -euo pipefail
+          report=reports/nextcloud-second-major.json
+          jq '{numTotalTests, numPassedTests, numPendingTests, numTodoTests, numFailedTests}' "$report"
+          if ! jq -e '.numTotalTests > 0 and .numPendingTests == 0 and .numTodoTests == 0 and .numPassedTests == .numTotalTests' "$report" >/dev/null; then
+            echo "::error::Not every test ran and passed against $NEXTCLOUD_IMAGE (counts above): a skipped suite is not a proof."
+            exit 1
+          fi
+          echo "Every test ran and passed against $NEXTCLOUD_IMAGE." | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Upload the containers' logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nextcloud-second-major-logs-${{ github.run_id }}
+          path: |
+            test-logs/
+            reports/nextcloud-second-major.json
+          retention-days: 3

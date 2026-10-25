@@ -2,7 +2,79 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-10-23 (update this block at the end of every session)
+## Status — 2026-10-25 (update this block at the end of every session)
+
+**2026-10-25: the suites that talk to Nextcloud run against 35 too, in CI only**, on the branch
+`claude/ownpace-public-readiness-y7orc6-nextcloud-35-ci` (T5), a draft to merge after the alpha.2
+tag. Nothing on either stack moves and nothing here is one way: the demo, the dev stack and the
+integration tier stay on 34 for alpha.2, and the demo's move to 35, which is one way (Nextcloud's
+data never goes back a version), is a decision for after the tag. What this gives that decision is
+the answer to "does our code work against 35", where until now the first to ask would have been a
+customer whose own Nextcloud already runs it.
+- **What runs.** `.github/workflows/nextcloud-second-major.yml` runs every
+  `*.integration.test.ts` that reads a `NEXTCLOUD_` variable, found by `scripts/nextcloud-suites.mjs`
+  rather than listed: WebDAV, CalDAV and CardDAV sources, the DAV sync and update propagation, the
+  chunked upload (0156) and a new share suite. None needs Stalwart, so Stalwart is not started. On a
+  GitHub-hosted amd64 runner, never the Spark: on a push to `main` that touches `packages/**` or the
+  test setup, Mondays at 05:17 UTC, on demand, and on a pull request that changes the leg itself. Not
+  on every pull request, since `ci.yml` already runs every suite against 34 on two architectures.
+  Not a required check (`every-pr-check-is-classified` lists it with the reason).
+- **The pin.** `nextcloud:35.0.1-apache@sha256:8f2f0e93…`, that digest pushed 2026-10-10.
+  35.0.2-apache's current digest (`sha256:89af7ee7…`, pushed 2026-10-23 at 19:50 UTC, the image
+  rebuild that sets `session.upload_progress.enabled=0`) passes the three-day wait on 2026-10-26 at
+  19:51 UTC. Nothing argues for taking it sooner: the newest advisories on nextcloud/security-advisories
+  are of 2026-10-08, before 35.0.2, and none of the ten on its first page mentions a 35 release. It moves by hand, the workflow line and §2.1's row: Dependabot reads no
+  workflow `env:` and the pin watch reads the compose files only (§4).
+- **The setup, when `NEXTCLOUD_IMAGE` names an image** (`packages/testing/src/nextcloud-image.ts`):
+  a Nextcloud that does not start fails the run, where the default warns and lets the DAV suites
+  skip; the version `status.php` reports must be the one the tag names; and the step after the run
+  fails a vitest report with any skipped test. Every run of the tier now logs which Nextcloud
+  answered.
+- **The share verb against a real server, for the first time in this tier**
+  (`packages/connectors/src/nextcloud-ocs.integration.test.ts`): a folder shared with an account the
+  server knows is a user share with the editor bits; `scanNextcloudShares` reads it back with its
+  grantee, note and place; a grantee the server does not know and who is no address is refused as
+  `notAnAccount` after the user attempt's OCS 404 and share-by-mail's. Three create calls, inside
+  the 20 per account in ten minutes. It runs in `ci.yml`'s integration job against 34 as well.
+- **Read for it.** The admin and developer manuals' *Upgrade to Nextcloud 35*
+  (nextcloud/documentation, `master`): PHP 8.2 dropped, Debian 13 the minimum, MariaDB 10.11 and
+  MySQL 8.4 the minimums, phpseclib 3, the Remote API and some Calendar resource methods removed;
+  nothing about WebDAV paths, the OCS share API or chunking. nextcloud/server `stable34` against
+  `stable35`, file by file:
+  - `ShareAPIController::createShare` is identical (232 lines), `#[UserRateLimit(limit: 20,
+    period: 600)]` on both, so the share press's limit is the same on 35;
+  - `remote.php`, `RootCollection`, `Server`, `ChunkingPlugin`, `UploadHome`, `Directory`, `File`,
+    `FilesPlugin`, `QuotaPlugin`, `TrashbinPlugin`, `AssemblyStream` and `CardDavBackend`: no
+    change in behaviour (typed constants, l10n lookups, exception classes);
+  - `ChunkingV2Plugin`: the upload session's metadata in the distributed cache now has a sliding
+    24-hour lifetime, renewed by every piece, where 34 set it once at the MKCOL; on 34 a v2 transfer
+    longer than 24 hours fails with "Missing metadata for chunked upload". Only with a distributed
+    cache: the test image has none and takes the v1 assembly path (`nextcloud-chunked-upload.ts`);
+  - `CalDavBackend::getDenormalizedData`: an object made only of recurrence exceptions, with no
+    series master, is stored, where 34 answers 400 *"A valid calendar object must contain at least
+    one VJOURNAL, VEVENT, or VTODO component type"*. More permissive; nothing here relies on the
+    refusal.
+
+  The image (nextcloud/docker `master`, `35/apache/Dockerfile` at `7e9e152` and at `6edd06e`, the
+  commit 35.0.1 was built from; `docker-library/official-images`' `library/nextcloud`): the same
+  `php:8.5-apache-trixie` base as 34, and the same `opcache-recommended.ini`, by that name, with
+  `opcache.jit=1255` and `opcache.jit_buffer_size=8M`. So `zz-ownpace-no-jit.ini`
+  (`deploy/compose/nextcloud-php.ini`) still sorts after it and is still needed when the demo moves
+  (`a-jit-that-compiled-a-crash`), and `APACHE_BODY_LIMIT` works as on 34. `latest` and `apache`
+  point at 35 (read 2026-10-25), so a customer who pulls `nextcloud` without a tag runs 35.
+- **Not run here.** This session has no Docker daemon (`docker ps`: no socket), so no suite ran
+  against either image in it; the pull request's own run of the leg is the first evidence, and its
+  run number belongs here. Proved here: the unit tests of `nextcloud-image.ts` (22) and the guard
+  `a-nextcloud-the-demo-does-not-run` (14), red on nine mutations of the workflow and the setup
+  (no `paths:` on the pull request trigger, the self-hosted runner, the default's major, a floating
+  tag, Stalwart started, skips allowed, a finder failure unseen, no throw when the asked image does
+  not start, the version check off); the workflow guards and the classification guard.
+- **Ordering.** #1678 changes the same line of `testcontainers-setup.ts` (the default to
+  `nextcloud:34.0.5-apache@sha256:…`), and its guard finds the default as a literal
+  `new GenericContainer('nextcloud:…')`. This keeps the default a literal call of its own, so that
+  guard still finds it; whichever merges second resolves the one line. When the demo and the tier
+  move to 35, this guard fails until the leg names another major, most likely 34, which customers
+  will still run: the pull request that moves the demo makes that choice.
 
 **2026-10-23: Trigger.dev v4.7.6, the tasks on the API image's Node, and ClickHouse 26.2
 accepted for the Alpha**, on the branch `claude/ownpace-public-readiness-y7orc6-trigger-4-7-6`
@@ -235,6 +307,7 @@ a decision each, §3, for the owner.
 | T2 The safe moves | ✅ Done 2026-09-06 | node 24.20.0-slim (three Dockerfiles), postgres 18.6-alpine (self-host), pgbouncer v1.25.2-p0, mailpit v1.31.1, busybox 1.38 (compose, three scripts, one test, the bring-up doc), nginx 1.30-alpine (web image and www; both on 1.31 since the morning, see the status block); three action version comments set to the tag their SHA is. Stateless, or a fixture, or a patch of a store that upgrades in place. Proved on the branch before merge: **E2E (self-hosted) #189 green** (the postgres and node moves, restart-resume included) and **E2E (managed) #161 green** (pgbouncer in front of the API, mailpit, busybox, nginx behind www), both dispatched at 01:57 UTC; `images.yml` built the three images from the moved FROM lines; the `unit` scripts guards 92 files, 1 567 tests. |
 | T3 The owner's decisions | 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Taken 2026-09-09: Redis (item 3 — **stay on 7.4**, with a revisit trigger) and the release-age gate (item 8 — `minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). Taken 2026-10-23: ClickHouse 26.2 for the Alpha (item 9). Still the owner's: the object store (item 5, with a candidate named). |
 | T4 vitest 5 | ✅ Done 2026-09-06 | `vitest` and `@vitest/coverage-v8` 4.1.11 → 5.0.0, every declaring package together. Green on Node 22 (508 files, 6 326 tests) and on Node 24 as CI runs it (509 files, 6 411 tests); the v8 provider loads and reports. Two things the major needed first, found by trying it and landed as their own PR (#810) because they are right under vitest 4 too: the alias map's missing subpath pins — `@openmig/core/archive-reader` and thirteen more, plus a guard — and the exclude patterns in their documented form, since vitest 5 follows pnpm's workspace symlinks when it crawls and a bare `node_modules` matched only the top level. The bump is its own PR, stacked on #810. |
+| T5 The second Nextcloud major in CI | 🔨 In progress | 2026-10-25: `nextcloud-second-major.yml` runs the suites that talk to Nextcloud against 35.0.1 by digest, the setup refuses a Nextcloud that did not start or is not the version named, and the tier has a share suite. A draft, merged after the alpha.2 tag once its own run of the leg is green; the Status entry of that date. CI only, not one way. |
 
 ## 1. Why this exists
 
@@ -279,6 +352,7 @@ is who moves it after T1.
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.37.0 (2026-10-21) | v5.37.0 (2026-09-24) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
 | `axllent/mailpit` | `managed.yml` | v1.31.6 by digest (2026-10-21; v1.31.1 from T2) | v1.31.6 (2026-10-15), digest `23fe39e8…` | current | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
 | `nextcloud` | `managed.yml`, `dev.yml` | 34-apache, floating (34.0.3) | 34.0.3 (2026-09-02) | current | `docker compose pull` | stays floating; a fixture and a demo target; a major is ignored |
+| `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 35.0.1-apache by digest | 35.0.2-apache (its digest of 2026-10-23 clears the three-day wait on 2026-10-26) | one patch release | by hand; the pin watch reads the compose files only (§4) | a CI fixture: the other major customers may run, never deployed |
 | `ghcr.io/robbes/ownpace-selfhost` | `deploy/selfhost/compose.yml` | `edge` | ours | — | `images.yml` | — |
 
 Ignored by name in the new Dependabot entries, so that a green tick cannot make these
@@ -704,6 +778,9 @@ is beside each; none is urgent tonight.
   majors are what the owner decides — so Dependabot is told to ignore their majors rather
   than pin them. A reader who wants reproducibility on the managed stack should know that
   the bring-up records what it pulled; that is where the exact version lives.
+- **The second Nextcloud major's pin is moved by hand** (T5): nothing watches
+  `nextcloud-second-major.yml`'s `NEXTCLOUD_IMAGE`. A row in the pin watch reading it is the
+  follow-up, once the pull requests that change `scripts/idp-pin-watch.mjs` now have merged.
 - **ClickHouse** is not checked against anything but Trigger.dev's own compose, and that
   is by design; the version that rejected a migration is the reason it is pinned at all. That
   pin, 26.2, has been out of ClickHouse's support since 2026-05-21: accepted for the Alpha, with
