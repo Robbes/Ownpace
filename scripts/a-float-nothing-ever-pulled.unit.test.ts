@@ -37,7 +37,12 @@
  *  - the integration tests' Postgres and Nextcloud
  *    (`packages/testing/src/testcontainers-setup.ts`) are the dev stack's.
  *    The pin watch reads `dev.yml` and not that file, so a copy there that
- *    drifted would freeze unseen;
+ *    drifted would freeze unseen. And the dev stack's are `managed.yml`'s:
+ *    every postgres line there names one reference, and so does every
+ *    nextcloud line, and `dev.yml` names the same. The pin watch compares
+ *    tags, not digests, so a rebuild moved in `managed.yml` and missed in
+ *    `dev.yml` would leave the dev stack and the integration tests on the old
+ *    build with nothing to say so; Nextcloud's move of 2026-10-25 was one;
  *  - `managed.yml`'s postgres lines end at the reference. `stand-up-live.sh`
  *    takes everything after `image:` on the first of them as the image it asks
  *    live's database with, so a `# comment` there, the way `dev.yml` writes
@@ -149,6 +154,28 @@ describe("every outside image an app's Dockerfile builds on carries a digest", (
       expect(image.digest, `${file}: FROM ${ref} carries no digest, so the build takes whatever copy the machine has`).toMatch(DIGEST);
     }
   });
+});
+
+describe("the dev stack runs managed.yml's Postgres and Nextcloud", () => {
+  const managed = readImages(read('deploy/compose/managed.yml'));
+  const dev = readImages(read('deploy/compose/dev.yml'));
+
+  for (const repo of ['postgres', 'nextcloud']) {
+    it(repo, () => {
+      const refs = [...new Set(managed.filter((i) => i.repo === repo).map((i) => i.ref))];
+      expect(
+        refs,
+        `managed.yml names ${refs.length} ${repo} references, not one: its ${repo} lines move together`,
+      ).toHaveLength(1);
+      const ours = dev.filter((i) => i.repo === repo).map((i) => i.ref);
+      expect(ours.length, `dev.yml runs ${ours.length} ${repo} images, not one`).toBe(1);
+      expect(
+        ours[0],
+        `dev.yml runs ${ours[0]} while managed.yml runs ${refs[0]}: move both together, since the pin watch ` +
+          'compares tags and not digests, and a rebuild missed here is one nothing reports',
+      ).toBe(refs[0]);
+    });
+  }
 });
 
 describe("the integration tests run the dev stack's Postgres and Nextcloud", () => {
