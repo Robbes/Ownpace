@@ -65,10 +65,16 @@ const NODE_RUNTIMES = ['apps/api/Dockerfile', 'apps/selfhost/Dockerfile'];
  * links in /usr/local/bin, and yarn 1 in /opt/yarn-v1.22.22. `corepack enable`
  * adds the pnpm and pnpx links and points yarn's at itself. `nodejs` is a link
  * to node, and stays.
+ *
+ * The global-modules directory is removed whole, not npm and corepack in it by
+ * name. Named, a base stage that installs a package manager with
+ * `npm install -g` (the way to get one once the Node image ships no corepack,
+ * from Node 25) left its package there while every line here still held:
+ * `RUN npm install -g pnpm@…` in place of `corepack enable` kept this file
+ * green with `/usr/local/lib/node_modules/pnpm` in the runtime image.
  */
 const PACKAGE_MANAGERS = [
-  '/usr/local/lib/node_modules/npm',
-  '/usr/local/lib/node_modules/corepack',
+  '/usr/local/lib/node_modules',
   '/usr/local/bin/npm',
   '/usr/local/bin/npx',
   '/usr/local/bin/corepack',

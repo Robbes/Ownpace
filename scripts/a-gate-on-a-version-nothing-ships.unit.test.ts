@@ -11,7 +11,7 @@
  *
  * ## Node: every `actions/setup-node` asks for the major the images run
  *
- * The api, web and selfhost images build `FROM node:24.x-slim`, `package.json`
+ * The three app images build `FROM node:24.x-trixie-slim`, `package.json`
  * declares `"engines": { "node": ">=24" }`, and eight `setup-node` steps asked
  * for `'24'`. The managed gate (`e2e-managed.yml`) and the live-target lane
  * (`e2e-live-target.yml`) asked for `22` — found 2026-09-24. The managed gate

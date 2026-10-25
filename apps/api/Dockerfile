@@ -62,7 +62,11 @@ FROM base AS runtime
 # undici, brace-expansion and http-cache-semantics were the base image's 5
 # high Node.js findings. The tasks copy /usr/local/bin/node out of the FROM
 # image, not out of this stage, so this changes nothing for them.
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+# The whole global-modules directory goes, not npm and corepack by name: they
+# are all it holds in this base, and a package manager a later base stage
+# installs with `npm install -g` (Node 25 and later ship no corepack) lands
+# there too, so it goes with them.
+RUN rm -rf /usr/local/lib/node_modules \
     /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
     /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg \
     /opt/yarn-v*

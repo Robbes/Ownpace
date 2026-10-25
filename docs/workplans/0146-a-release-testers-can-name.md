@@ -15,8 +15,12 @@ after #1687 (T9), which changes the same runtime stage of `apps/api/Dockerfile`,
   `node:24.22.1-trixie-slim@sha256:43b9ba11…` (Debian 13.7). That is the index Docker Hub
   serves for the tag: its amd64 (`e79437bb…`) and arm64/v8 (`401346cb…`) images were pushed on
   2026-10-21 at 14:41 UTC and the index last at 17:39 UTC (ppc64le), so it is past the three
-  days. The api and selfhost runtime stages remove npm, npx, corepack, corepack's pnpm, pnpx,
-  yarn and yarnpkg links, and yarn 1 under `/opt`, in one RUN before `USER`.
+  days. The api and selfhost runtime stages remove, in one RUN before `USER`, the whole
+  `/usr/local/lib/node_modules` (npm and corepack, all it holds in this base), the npm, npx,
+  corepack, corepack's pnpm, pnpx, yarn and yarnpkg links, and yarn 1 under `/opt`. The
+  directory goes whole, not by package, since the review of 2026-10-25: named, a base stage
+  that installs a package manager with `npm install -g`, as one must once the Node image ships
+  no corepack (Node 25 and later), left it in the runtime with the guard green.
   `scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts` holds the three lines to
   one string whose tag names a Debian release that is not bookworm, the removal before `USER`
   with nothing after it putting a package manager back, and every CMD, HEALTHCHECK and
@@ -42,7 +46,8 @@ after #1687 (T9), which changes the same runtime stage of `apps/api/Dockerfile`,
   `useradd`, `chown`, `cp` and `mkdir`, and `docker-entrypoint.sh`, so the images'
   HEALTHCHECKs, the self-host compose's `CMD-SHELL` healthcheck, the runtime RUNs and the
   `docker exec` sites (`printenv` in `e2e-managed.yml`, `deploy-live.sh`, `stand-up-live.sh`
-  and `smoke-managed.sh`; `node -e` in `smoke-managed.sh`) are unchanged.
+  and `smoke-managed.sh`; `node -e` in `smoke-managed.sh`; `sh -c` with `printf` in
+  `docs/ending-the-alpha.md` and with `ls` in `scripts/upgrade-drill.sh`) are unchanged.
 - **Expected after it merges.** The scan's `ownpace-api-edge` and `ownpace-selfhost-edge` read
   about 0/43 at the first Security Scan with image scans on `main` (the API's with T9's `--prod`
   install, whose `node_modules` read 0/0). `ownpace-api-release`, `ownpace-selfhost-release`
@@ -50,9 +55,12 @@ after #1687 (T9), which changes the same runtime stage of `apps/api/Dockerfile`,
   task deploy after the merge misses the `trigger` builder's cache, because the `COPY --from=`
   text changes: it runs apt in both of the CLI's stages, takes longer and needs the Debian
   archive.
-- **Not proved here.** The images themselves, since this session has no Docker daemon: CI's
-  `build (api|web|selfhost)` builds them on the pull request, and E2E (managed) and E2E
-  (self-hosted) boot them.
+- **Built, not yet booted.** This session has no Docker daemon. CI's `build (api)`,
+  `build (selfhost)` and `build (web)` built all three images on linux/amd64 at the branch's
+  `f7faa08b` (Images run 40233342532), so `useradd`, `chown`, the RUN and the selfhost
+  stage's full `pnpm install` work on trixie; a pull request builds amd64 only. E2E (managed)
+  and E2E (self-hosted) build and boot them on the arm64 runners, and the push to `main` builds
+  both architectures.
 - **Left out.** Distroless `nodejs24-debian13` (0/0, Node 24.22.1) for the API alone: no shell
   or `printenv` for seven script sites and four doc lines, Node off `PATH`, no RUN in the
   runtime stage, and no exact version tag to pin beside the digest; a decision of its own after
