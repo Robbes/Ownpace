@@ -9,7 +9,7 @@ the branch `claude/ownpace-public-readiness-y7orc6-nginx-alpine-slim`, a draft b
 branch, because both change the same two lines. It merges after #1678, after the alpha.2 tag,
 and not before 19:51 UTC on 2026-10-27, three days after Docker Hub pushed the slim tag's index,
 `f45171d3…`. That push added the riscv64 image (built 16:24 UTC on 2026-10-24); the amd64 and
-arm64 images under it, `f9238a4a…` and `0e0bc470…`, were built at 22:47 and 23:12 UTC on
+arm64 images under it, `f9238a4a…` and `0e0bc470…`, were built at 22:47 and 23:13 UTC on
 2026-10-21 and pushed at 01:50 UTC on 2026-10-22, the same hour as -alpine's.
 - **Read with Trivy 0.76.1** (database of 19:10 UTC today), remote image source, critical and
   high, on linux/arm64 and linux/amd64: 1.31.8-alpine `1ef7ca94…` reads 0/1 on both, brotli-libs
@@ -28,11 +28,18 @@ arm64 images under it, `f9238a4a…` and `0e0bc470…`, were built at 22:47 and 
   `deploy/compose/www-nginx.conf`; the API upstream is plain `http://api:3001`; both health
   checks and the incident runbook's look from inside the web container are busybox's `wget`;
   nothing in `deploy/`, `scripts/` or `.github/` runs curl in either container.
+- **Held by `scripts/an-nginx-that-carries-only-what-it-loads.unit.test.ts`** (the review):
+  both references are -alpine-slim by tag and digest, neither config names a directive of the
+  modules slim lacks, and no health check of a container running it, nor a runbook's look
+  from inside the web or www container, asks with curl, which slim does not have. Nothing
+  else would see a curl check on `www.yml`: no workflow brings it up.
 - Proved here: the 31 unit guards that read `apps/web/Dockerfile`, `www.yml` or
   `scripts/nginx-on-this-machine.ts` (the two that run a real nginx skip without one, as on
-  any machine without it; CI runs them). Owed: the pull request's image build, E2E (managed)
-  on the branch once #1678 is in it, and the OTA site recreated by hand after the merge (no
-  workflow runs `www.yml`).
+  any machine without it; CI runs them), and the new guard, which fails on each mutation
+  tried: a curl health check in `www.yml` or the Dockerfile, -alpine in either file, a
+  `js_import` in `www-nginx.conf`, a curl in the incident runbook's look. Owed: the pull
+  request's image build, E2E (managed) on the branch once #1678 is in it, and the OTA site
+  recreated by hand after the merge (no workflow runs `www.yml`).
 
 **2026-10-25: the five pins read again with `main` merged in, and Nextcloud's moved to
 upstream's rebuild of 2026-10-23**, on the branch

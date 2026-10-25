@@ -454,10 +454,15 @@ reading a file drops off its entry by itself.
 - [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 - [an-error-log-that-kept-the-link](../scripts/an-error-log-that-kept-the-link.unit.test.ts) — AN ERROR LOG THAT KEPT THE LINK, on the web image's nginx (workplan 0108).
+- [an-nginx-that-carries-only-what-it-loads](../scripts/an-nginx-that-carries-only-what-it-loads.unit.test.ts) — AN NGINX THAT CARRIES ONLY WHAT IT LOADS (workplan 0146 T12).
 - [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
 - [what-a-browser-may-do-with-the-app](../scripts/what-a-browser-may-do-with-the-app.unit.test.ts) — WHAT A BROWSER MAY DO WITH THE APP (workplan 0158).
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
+
+### `apps/web/README.md`
+
+- [an-nginx-that-carries-only-what-it-loads](../scripts/an-nginx-that-carries-only-what-it-loads.unit.test.ts) — AN NGINX THAT CARRIES ONLY WHAT IT LOADS (workplan 0146 T12).
 
 ### `apps/web/nginx.conf.template`
 
@@ -465,6 +470,7 @@ reading a file drops off its entry by itself.
 - [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
 - [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
 - [an-error-log-that-kept-the-link](../scripts/an-error-log-that-kept-the-link.unit.test.ts) — AN ERROR LOG THAT KEPT THE LINK, on the web image's nginx (workplan 0108).
+- [an-nginx-that-carries-only-what-it-loads](../scripts/an-nginx-that-carries-only-what-it-loads.unit.test.ts) — AN NGINX THAT CARRIES ONLY WHAT IT LOADS (workplan 0146 T12).
 - [what-a-browser-may-do-with-the-app](../scripts/what-a-browser-may-do-with-the-app.unit.test.ts) — WHAT A BROWSER MAY DO WITH THE APP (workplan 0158).
 
 ### `apps/web/src/AppRoutes.tsx`
@@ -1488,6 +1494,7 @@ reading a file drops off its entry by itself.
 - [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
 - [a-visit-count-that-kept-the-visitor](../scripts/a-visit-count-that-kept-the-visitor.unit.test.ts) — A VISIT COUNT THAT KEPT THE VISITOR (the owner, 2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip for now, no netbird api tokens..."*; privacy §4.5, §5 and §9).
 - [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
+- [an-nginx-that-carries-only-what-it-loads](../scripts/an-nginx-that-carries-only-what-it-loads.unit.test.ts) — AN NGINX THAT CARRIES ONLY WHAT IT LOADS (workplan 0146 T12).
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 - [what-a-browser-may-do-with-the-app](../scripts/what-a-browser-may-do-with-the-app.unit.test.ts) — WHAT A BROWSER MAY DO WITH THE APP (workplan 0158).
 
@@ -1509,6 +1516,7 @@ reading a file drops off its entry by itself.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
+- [an-nginx-that-carries-only-what-it-loads](../scripts/an-nginx-that-carries-only-what-it-loads.unit.test.ts) — AN NGINX THAT CARRIES ONLY WHAT IT LOADS (workplan 0146 T12).
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
@@ -1696,6 +1704,7 @@ reading a file drops off its entry by itself.
 - [a-disk-that-says-it-is-filling](../scripts/a-disk-that-says-it-is-filling.unit.test.ts) — A DISK THAT SAYS IT IS FILLING, AND DUTIES THAT SAY THEY FAILED (workplan 0142 T3).
 - [a-runbook-for-every-alert](../scripts/a-runbook-for-every-alert.unit.test.ts) — AN ALERT NOBODY KNOWS WHAT TO DO ABOUT IS THE NEXT THING TO BE IGNORED (workplan 0142 T6).
 - [an-alert-someone-reads](../scripts/an-alert-someone-reads.unit.test.ts) — AN ALERT SOMEONE READS (workplan 0142 T1).
+- [an-nginx-that-carries-only-what-it-loads](../scripts/an-nginx-that-carries-only-what-it-loads.unit.test.ts) — AN NGINX THAT CARRIES ONLY WHAT IT LOADS (workplan 0146 T12).
 
 ### `docs/managed-bring-up.md`
 
@@ -5374,6 +5383,19 @@ Reads:
 - `packages/connectors/src/graph-drive-source.ts`
 - `packages/core/src/dav-sync.ts`
 - `packages/shared/src/ports.ts`
+
+### [an-nginx-that-carries-only-what-it-loads](../scripts/an-nginx-that-carries-only-what-it-loads.unit.test.ts)
+
+AN NGINX THAT CARRIES ONLY WHAT IT LOADS (workplan 0146 T12).
+
+Reads:
+
+- `apps/web/Dockerfile`
+- `apps/web/README.md`
+- `apps/web/nginx.conf.template`
+- `deploy/compose/www-nginx.conf`
+- `deploy/compose/www.yml`
+- `docs/incident-runbook.md`
 
 ### [an-object-store-with-a-maintainer](../scripts/an-object-store-with-a-maintainer.unit.test.ts)
 
