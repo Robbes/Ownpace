@@ -2,7 +2,46 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-10-24 (update this block at the end of every session)
+## Status — 2026-10-25 (update this block at the end of every session)
+
+**2026-10-25, build: T9, the API image carries production dependencies only, a draft for
+alpha.3**, as draft #1687 on branch `claude/ownpace-public-readiness-y7orc6-api-image-prod-deps`.
+Main is frozen from the alpha.2 fold to its tag; this merges after the tag, once E2E (managed)
+and E2E (self-hosted) have run on the branch.
+
+- **What changes.** `apps/api/Dockerfile`'s install stage, renamed `deps`, runs
+  `pnpm install --frozen-lockfile --prod --filter @openmig/api...`, and the runtime stage copies
+  it. `apps/api` now declares drizzle-orm, and `packages/orchestration` drizzle-orm and pg: they
+  loaded them through the root's devDependencies, which `--prod` no longer installs. Not
+  `pnpm deploy --prod`: it copies the workspace packages into `node_modules`, where Node refuses
+  to strip types (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`, measured on 2026-10-23).
+  `scripts/an-image-that-shipped-what-it-never-runs.unit.test.ts` holds both halves: no stage the
+  runtime takes files from installs devDependencies, and every package a runtime file of the
+  API's closure loads is in its own package's `dependencies`.
+- **Brought up to main** with merge commit `62af1e8d`: Trigger.dev v4.7.6 and the tasks on the
+  API image's Node (#1689), body-parser 2.4.0 (#1691) and fast-uri 3.1.9 (#1693) merged without
+  a conflict. The `FROM` line `apps/worker/trigger.config.ts` reads is unchanged, so the tasks
+  still take the API image's Node.
+- **Proved here, on the merged tree, without Docker.** In a copy of the branch made with
+  `git archive`, less `.github` as `.dockerignore` says, the runtime stage's install under Node
+  24.22.1 (the image's, nodejs.org's archive checked against its `SHASUMS256.txt`) and pnpm
+  11.28.6 added 250 packages, body-parser 2.4.0 among them, and no esbuild, TypeScript,
+  drizzle-kit, tsx or vitest. Started from that tree with `NODE_ENV=production` and only
+  `DATABASE_URL` set, against an empty database on a throwaway cluster from
+  `scripts/local-pg.sh`, the API applied both chains itself (65 ledger and 59 managed
+  migrations) and answered `GET /health` and `GET /version` with 200. Trivy v0.76.1 (its DB of
+  2026-10-25 07:10 UTC), `rootfs --scanners vuln --severity HIGH,CRITICAL`: that tree 0
+  critical and 0 high; main's install of the same filter (622 packages) 2 and 65, all of them in
+  three Go binaries: esbuild 0.25.12's, counted twice at 1/25, and TypeScript 7.0.2's native
+  `tsc`, 0/15. The root `node_modules` went from 375 MiB to 141 MiB (apparent size, hard links
+  counted).
+- **Not proved here.** The image itself, since this session has no Docker daemon: CI's
+  `images.yml` builds it on the pull request, and E2E (managed) is what boots, migrates and
+  serves it. The cluster here is Postgres 16; the stacks run 18. The `ownpace-api` alerts close
+  only when a Security Scan with image scans reads `main`'s image after the merge; what should
+  remain is the Node base's, 1/60 on 2026-10-23.
+- **One-way:** none. No migration and no setting; reverting the Dockerfile and the two
+  `package.json` lines restores the full install.
 
 **2026-10-24, merged: Trivy v0.76.1 in both Security Scan steps**, as #1685, from branch
 `claude/ownpace-public-readiness-y7orc6-trivy-0-76-1`. T8's watch named it in
@@ -959,7 +998,7 @@ best given with T0.
 | T6 The tasks run the Node the images run | ✅ **done** in #1231, merged 2026-09-27: (a), `runtime: 'node-24'` and Guard 1. Guard 2, the bundle-load check, not built (after the first invitation) — *was:* 📋 Proposed | §3. **Alpha minimum:** `runtime: 'node-24'` in `trigger.config.ts` (supported by the pinned CLI, read from its package) and the version guard extended. **After the first invitation:** a pull-request check that the bundle loads. |
 | T7 The object store: replace the frozen MinIO, or accept it for the alpha in writing | ⏳ **Owner** | §3. Recommended: accept it for the alpha, in writing, and replace it at the end of the alpha with Chainguard's maintained MinIO build, with versitygw as the fallback. The swap merges to `main` only once the next tag live will deploy is the end-of-Alpha switch's: the OTA stack takes it first, and live in that switch, which empties the store anyway (0119 §3, item 5, re-read 2026-10-23). |
 | T8 A watch on the pinned images Dependabot leaves alone | Watch half ✅ **done** in #1663, merged 2026-10-21 (`087183b7`): every pin Dependabot cannot see, one issue per owner's-call row and one summary issue, and `/deploy/compose` out of `dependabot.yml` (Status, 2026-10-21); scan half ✅ **done** in #1674, merged 2026-10-22 (`51a0d267`): a weekly, report-only Trivy scan of every image the stacks run, with one issue per image past its end of life (Status, 2026-10-22) — *was:* scan half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-image-scan`, not merged (2026-10-22); watch half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-pin-watch`, not merged (2026-10-21), scan half 📋 Proposed; 📋 **Proposed** | §3. Widened 2026-10-21: Dependabot read no file in `deploy/compose`, so the watch covers every image line of its `managed.yml`, `dev.yml` and `www.yml` and the busybox and GoAccess copies in its scripts, `packageManager`, the Trivy the scan runs and the TypeScript split as well as Trigger.dev, ClickHouse and the task base image. MinIO has no upstream to compare with and is left to the scan half. |
-| T9 The API image runs without the dev tools | 🔨 **Being built** as a draft on branch `claude/ownpace-public-readiness-y7orc6-api-image-prod-deps`, for after the first invitation (2026-10-23) | Status, 2026-10-23 (the scan triage). `apps/api/Dockerfile`'s runtime stage copies the build stage's whole `/app`, where `pnpm install --filter @openmig/api...` installed the devDependencies too, the root's included, and `CMD` (`node apps/api/src/index.ts`) needs none of them. Their Go binaries are 2 critical and 65 high of the image's 3/125 on 2026-10-23: esbuild 0.25.12 (Go 1.23.12; drizzle-kit's and `@esbuild-kit/esm-loader`'s), counted twice, and TypeScript 7's native compiler (Go 1.26.4). The lockfile itself, dev dependencies included, reads 0/0. Done when the runtime image holds production dependencies only, a dependency it still needs and lacks fails at start, which the managed gate's first `curl $API/health` catches, and the image scan finds the Node base's findings alone. |
+| T9 The API image runs without the dev tools | 🔨 **Being built** as draft #1687 on branch `claude/ownpace-public-readiness-y7orc6-api-image-prod-deps`, for after the alpha.2 tag: the install takes `--prod`, two packages declare what they load, and the merged tree boots, migrates and reads 0 critical and 0 high (Status, 2026-10-25) — *was:* 🔨 being built as a draft, for after the first invitation (2026-10-23) | Status, 2026-10-23 (the scan triage). `apps/api/Dockerfile`'s runtime stage copies the build stage's whole `/app`, where `pnpm install --filter @openmig/api...` installed the devDependencies too, the root's included, and `CMD` (`node apps/api/src/index.ts`) needs none of them. Their Go binaries are 2 critical and 65 high of the image's 3/125 on 2026-10-23: esbuild 0.25.12 (Go 1.23.12; drizzle-kit's and `@esbuild-kit/esm-loader`'s), counted twice, and TypeScript 7's native compiler (Go 1.26.4). The lockfile itself, dev dependencies included, reads 0/0. Done when the runtime image holds production dependencies only, a dependency it still needs and lacks fails at start, which the managed gate's first `curl $API/health` catches, and the image scan finds the Node base's findings alone. |
 | T10 The image scan reads the tasks' image as it is built | 📋 **Proposed** (2026-10-23) | Status, 2026-10-23 (the scan triage). `scripts/image-scan.mjs` scans the base image the pinned CLI names (`triggerdotdev/node:24-bookworm` by digest, category `trigger-task-base`, 14/117 on 2026-10-23), not the tasks' image that `deploy-tasks.sh` builds from it. The Trigger.dev v4.7.6 branch upgrades that image's Debian packages at build (`apt-get -y upgrade`), which fixes the 42 Debian findings that have a fix (12 critical, all Perl, fixed in 5.36.0-7+deb12u4, and 30 high). It leaves npm's bundled packages under `/usr/local/lib/node_modules/npm`, since the overlay copies only `/usr/local/bin/node` (tar 7.5.15's CVE-2026-59873, critical, fixed in 7.5.19, and 12 high, 11 of them with a fix), and the 76 Debian findings without a fix, zlib1g's CVE-2023-45853 among them: the built image would still carry 2 critical and 87 high of the 131 (read with Trivy 0.76.0, 2026-10-23). The scan cannot see the upgrade, so the category keeps alerts for 42 findings the built image no longer has. The scan runs on a GitHub-hosted runner, which cannot read the stack's own registry, so the proposal is to build the image in the scan job as the deploy builds it. The old category, if renamed, has its configuration deleted by hand (T8). |
 | T11 The patch and minor moves that clear findings | (a) 📋 **Proposed**; (b) ⏳ **Owner**; (c) 📋 **Proposed**, after the Alpha (2026-10-23) | Status, 2026-10-23 (the scan triage), read with Trivy 0.76.0 on linux/amd64. (a) **Mailpit v1.32.0**: 0/0, where v1.31.6 has CVE-2026-111943 (Go's `crypto/x509`); after the first invitation, by hand in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts`, which pins the reference by tag and digest and records Mailpit's release check as read at v1.31.6, so that fact is read again at v1.32.0 in the same change. (b) **Stalwart v0.16.27** (Debian 13.7): 0 critical and 47 high, none with a fix, where v0.16.10 has 3/114. The owner's call: `docs/stalwart-integration-fix.md` pins v0.16.10 and says *"DO NOT change the pinned version"* (AGENTS.md puts its decisions in ADR-0022), and every copy moves together: `setup-stalwart.sh`, the fixture's Dockerfile, the Testcontainers setup, the fix doc and the guards that name it. (c) **ClickHouse 26.3** (26.3.59, Ubuntu 22.04): 0/0, where 26.2.19.43 has CVE-2026-45447 and CVE-2026-84782 in openssl. After the Alpha: the owner accepted 26.2 for it on 2026-10-23 (0119 §3 item 9 on the Trigger.dev v4.7.6 branch), and 26.3 is ahead of the 26.2 Trigger.dev's own compose pins, which the pin watch compares with (T8). It moves in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts` together: the guard pins the reference by tag and digest and records the crash-report default as read at `v26.2.19.43-stable`, as `clickhouse-no-crash-reports.xml`'s comment does, so both are read again at 26.3. |
 

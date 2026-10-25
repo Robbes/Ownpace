@@ -264,6 +264,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **The API image carries production dependencies only, so the dev tools'
+  Go binaries leave it** (workplan 0146 T9, #1687): it copied an install that
+  held every devDependency, the root's included, and the Go builds of
+  esbuild 0.25.12 and TypeScript 7's native compiler in it were 2 critical
+  and 65 high of the `edge` image's 3 and 125 findings, though nothing in the
+  container runs them. The install now takes `--prod`, and the API and
+  `packages/orchestration` declare the drizzle-orm and pg they load, which
+  they used to find among the root's devDependencies. Nothing a stack sets
+  changes.
 - **The managed smoke gate settles the share rows it made, so one run's
   leftovers no longer spend the next run's shares** (workplan 0104, #1696):
   Nextcloud lets an account create 20 shares in 10 minutes, and every press
