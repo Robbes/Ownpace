@@ -265,12 +265,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 ### Fixed
 
 - **The managed smoke gate settles the share rows it made, so one run's
-  leftovers no longer spend the next run's shares** (workplan 0104, #PR):
+  leftovers no longer spend the next run's shares** (workplan 0104):
   Nextcloud lets an account create 20 shares in 10 minutes, and every press
   retried the rows earlier presses had refused, so E2E (managed) #277's second
-  attempt came back 429. `smoke-managed.sh` now skips every still-open share
-  row a run of the gate seeded, through the product's own decision route, and
-  prints each refused row whole, with the target's status.
+  attempt most likely came back 429 (inferred from the timings).
+  `smoke-managed.sh` now skips every still-open share row a run of the gate
+  seeded, through the product's own decision route, and prints each refused
+  row whole, with the target's status.
 - **body-parser 2.4.0 closes a denial of service through compressed request
   bodies** (GHSA-27r3-jxmh-p828, CVE-2026-111181, high, #1691): trailing
   bytes after a compressed body could tie up the API, which inflates JSON

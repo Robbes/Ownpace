@@ -19,25 +19,28 @@ rows. The same code passed on attempt 3, and E2E (managed) #278 was green.
 
 - **The mechanism.** Nextcloud 31 to 34 let one account create 20 shares in 10 minutes
   (`ShareAPIController::createShare`, `#[UserRateLimit(limit: 20, period: 600)]`), failed attempts
-  included, and answer the next one 429. Every share the gate makes is made as the target account:
-  the mail-pipe control, the folder press and apply-all. `createNextcloudShare` asks for a user
-  share first and by mail only after a 404, so an outsider row, or a row whose file is gone, costs
-  two calls. A row a press refused stayed open for good, because neither the rescan nor the
-  balance closed it, and apply-all presses every open row of the mapping, not the run's own: run
+  included, and answer the next one 429. Every share the gate makes on the target is made as the
+  target account: the mail-pipe control, the folder press and apply-all. `createNextcloudShare` asks
+  for a user share first and by mail only after a 404, so an outsider row, or a row whose file is
+  gone, costs two calls. A row a press refused stayed open for good, because neither the rescan nor
+  the balance closed it, and apply-all presses every open row of the mapping, not the run's own: run
   #238 of 2026-10-05 had left three. Attempt 1 pressed about eight minutes before attempt 2 and
-  spent 13 calls. Attempt 2's control and folder press took the count to 18, #238's file row to
-  20, and its own row came back 429 as `target_refused`. Attempt 2's row stayed open too, so four
-  were left. This is inferred from the code and the timings, not read in the log: the smoke
-  printed the first six lines of the refused JSON, which stopped before the reasons and their
-  status.
-- **What the gate does now** (#PR). The refused list is printed a row to a line, each with its
-  whole reason, which ends with the status. The apply-all branch says whether the run's own row
-  was refused, and a 429 is named as this limit. The balance skips every still-open share row that
-  a run of the gate seeded, under any run's tag, through `POST …/sharing/:grantId/decision` with
-  `{"action":"skip"}`, which writes the audit trail and makes no share, and fails if one is left.
-  The four go on the next run. A run with nothing left over spends seven calls (the control, two
-  for each folder row, two for its own file row), so two presses inside ten minutes stay under the
-  limit. Guarded in `scripts/the-moment-pressed.unit.test.ts`.
+  spent 13 calls. Attempt 2's control and folder press took the count to 18, #238's file row to 20,
+  and its own row came back 429 as `target_refused`. Attempt 2's row stayed open too, so four were
+  left. This is inferred from the code and the timings, not read in the log: the smoke printed the
+  first six lines of the refused JSON, which stopped before the reasons and their status.
+- **What the gate does now.** The refused list is printed a row to a line, each with its whole
+  reason, which ends with the status; with nothing refused it prints the reason or the count, never
+  the body, whose applied rows carry the source's share verbatim. The apply-all branch says whether
+  the run's own row was refused, when the answer lists refused rows at all, and a 429 is named as
+  this limit. The balance first fails if both presses said they applied and one of the run's own
+  rows is still open. It then skips every still-open share row that a run of the gate seeded, under
+  any run's tag, through `POST …/sharing/:grantId/decision` with `{"action":"skip"}`, which writes
+  the audit trail and makes no share, and fails if one is left. Taking another run's rows is safe
+  because the workflow's concurrency group never lets two runs share the stack. The four go on the
+  next run. A run with nothing left over spends seven calls (the control, two for each folder row,
+  two for its own file row), so two presses inside ten minutes stay under the limit. Guarded in
+  `scripts/the-moment-pressed.unit.test.ts`.
 - **Owed, after the launch (product).** A real Nextcloud 31 to 34 target has the same limit. A
   one-go press over more than ten outsider rows meets it, fewer when the account made other shares
   in the same ten minutes; rows are shares, not people, so one person with five shared items is

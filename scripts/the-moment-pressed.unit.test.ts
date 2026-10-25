@@ -178,20 +178,22 @@ describe('the folder press, pressed', () => {
  * THE PRESS THAT RAN OUT OF SHARES (E2E (managed) #277, attempt 2, 2026-10-25).
  *
  * Nextcloud lets one account create 20 shares in 10 minutes, failed attempts
- * included, and every share the gate makes is made as the target account. A
- * press asks for a user share first and by mail only after a 404, so an
- * outsider row costs two. A row a press refused stayed open for good, and
- * apply-all presses the whole mapping, so three rows run #238 left were paid
- * for by every later press. Attempt 2 pressed eight minutes after attempt 1,
- * and its own row came back 429. The log could not say so: it printed the
- * first six lines of the refused JSON, and the status sits at the end of
- * each reason.
+ * included, and every share the gate makes on the target is made as the
+ * target account. A press asks for a user share first and by mail only after
+ * a 404, so an outsider row costs two. A row a press refused stayed open for
+ * good, and apply-all presses the whole mapping, so three rows run #238 left
+ * were paid for by every later press. Attempt 2 pressed eight minutes after
+ * attempt 1, and its own row most likely came back 429 (inferred from the
+ * timings, workplan 0104). The log could not say: it printed the first six
+ * lines of the refused JSON, and the status sits at the end of each reason.
  *
- * Pinned here: the refused list is printed whole, a row to a line; the
- * balance skips every open row the gate made through the product's own
- * decision route, after the press, and asserts none is left; and the rows it
- * picks carry a smoke tag on the item AND the grantee and are open, so no
- * other row can be taken.
+ * Pinned here: the refused list is printed whole, a row to a line, and never
+ * the body, whose applied rows carry the source's share verbatim; the balance
+ * fails when a press said it applied this run's rows and one is still open,
+ * then skips every open row the gate made through the product's own decision
+ * route, after the press, and asserts none is left; and the rows it picks
+ * carry a smoke tag on the item AND the grantee and are open, so no other row
+ * can be taken.
  */
 describe('the press that ran out of shares (E2E (managed) #277, 2026-10-25)', () => {
   const smoke = strip('smoke-managed.sh');
@@ -219,8 +221,14 @@ describe('the press that ran out of shares (E2E (managed) #277, 2026-10-25)', ()
       'a refused row must be printed with where it is, its code and its whole reason',
     ).toMatch(/\.refused\[\] \| "[^"\n]*\\\(\.on\)[^"\n]*\\\(\.code\)[^"\n]*\\\(\.reason\)"/);
     expect(helper, 'with no refused array, the reason must still be printed').toMatch(
-      /else "[^"\n]*\\\(\.reason \/\/ \.\)"/,
+      /else "[^"\n]*\\\(\.reason \/\/ \.error \/\/ /,
     );
+    expect(
+      helper,
+      'with nothing refused the whole body is printed. Its applied rows carry the source\n' +
+        'share verbatim, token and address included, and the job log is public.',
+    ).not.toMatch(/\/\/ \.\)|tostring|tojson/);
+    expect(helper, 'an empty answer prints nothing at all').toMatch(/\[ -n "\$1" \] \|\|/);
     for (const from of ['expected the folder AND', 'the press applied nothing:']) {
       const b = branch(from);
       expect(b, `the branch "${from}" is gone`).not.toEqual('');
@@ -236,6 +244,11 @@ describe('the press that ran out of shares (E2E (managed) #277, 2026-10-25)', ()
     expect(b, "the apply-all branch no longer says whether this run's own row was refused").toMatch(
       /own_row="openmig-demo-file-\$\{BALANCE_TAG\}-1\.txt"[\s\S]*any\(\.refused\[\]\?; \.on == \$on\)/,
     );
+    expect(
+      b,
+      'an answer with no refused list (a 500, a proxy page, no body) must not read as\n' +
+        '"the press did not try it": nothing in it says so.',
+    ).toMatch(/if ! jq -e '\.refused \| type == "array"'[\s\S]*cannot say[\s\S]*elif jq -e --arg on/);
     expect(helper, 'a 429 is no longer told apart').toMatch(/grep -q 'status 429'/);
     expect(helper, "the 429 sentence no longer names Nextcloud's limit").toMatch(
       /20 new shares in 10 minutes[\s\S]{0,200}another run's press/,
@@ -261,6 +274,28 @@ describe('the press that ran out of shares (E2E (managed) #277, 2026-10-25)', ()
     );
     expect(smoke.slice(settle, settle + 600), 'a refused skip must fail the run').toMatch(
       /else[\s\S]*fail_at/,
+    );
+    expect(
+      smoke.slice(settle - 300, settle),
+      'the skip reason is written to the audit trail for good, so it must hold for every\n' +
+        'row it settles: name the run that skipped it, and claim nothing about its file',
+    ).toMatch(/skipped by run \$\{BALANCE_TAG\}/);
+
+    const own = smoke.indexOf(
+      'if [ "${fpress_applied:-0}" -ge 2 ] && [ "${press_applied:-0}" -ge 1 ]; then',
+    );
+    expect(
+      own,
+      "this run's own rows are no longer checked before the skip. When both presses said\n" +
+        'they applied, an open one means the press and the ledger disagree, and the skip\n' +
+        'would erase the only trace of it.',
+    ).toBeGreaterThan(-1);
+    expect(
+      smoke.slice(own, own + 600),
+      "an open row of this run's own, after presses that said they applied it, must fail the run",
+    ).toMatch(/\$GATE_SHARES AND on_label LIKE '%\$\{BALANCE_TAG\}%'[\s\S]*fail_at/);
+    expect(own, "the check on this run's own rows must come before the skip").toBeLessThan(
+      smoke.indexOf('gate_rows="$(q '),
     );
 
     const press = smoke.indexOf('sharing/apply-all');

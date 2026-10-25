@@ -5392,11 +5392,15 @@ if [ -n "$BALANCE_TAG" ]; then
   # A REFUSED PRESS IS PRINTED WHOLE, one line per row (E2E (managed) #277,
   # 2026-10-25). Each reason ends with the target's status and a Reference,
   # and the status is what says why. The first six lines of the JSON stopped
-  # short of it, so a 429 read like any other refusal.
+  # short of it, so a 429 read like any other refusal. With nothing refused it
+  # prints the reason or the count, never the body: an applied row carries the
+  # source's share verbatim, token and address included, and this log is public.
   refused_rows() { # refused_rows <press body> — one line per refused row, else its reason
+    [ -n "$1" ] || { echo "    (the press answered with no body)"; return; }
     jq -r 'if (.refused | type) == "array" and (.refused | length) > 0
       then .refused[] | "    \(.on)  \(.code)  \(.reason)"
-      else "    \(.reason // .)" end' <<<"$1" 2>/dev/null || printf '    %s\n' "${1:0:300}"
+      else "    \(.reason // .error // "no row refused, \(.applied | length) applied")" end' <<<"$1" 2>/dev/null \
+      || printf '    %s\n' "${1:0:300}"
     if grep -q 'status 429' <<<"$1"; then
       echo "  A reason says 429: Nextcloud lets one account create 20 new shares in 10 minutes,"
       echo "  failed attempts included, and another run's press inside that window spends the same 20."
@@ -5515,10 +5519,14 @@ if [ -n "$BALANCE_TAG" ]; then
       echo "the press applied nothing:"
       refused_rows "${press_out%$'\n'*}"
       own_row="openmig-demo-file-${BALANCE_TAG}-1.txt"
-      if jq -e --arg on "$own_row" 'any(.refused[]?; .on == $on)' <<<"${press_out%$'\n'*}" >/dev/null 2>&1; then
+      if ! jq -e '.refused | type == "array"' <<<"${press_out%$'\n'*}" >/dev/null 2>&1; then
+        echo "  The answer (HTTP ${press_out##*$'\n'}) lists no refused rows, so it cannot say"
+        echo "  whether this run's own row, ${own_row}, was tried."
+      elif jq -e --arg on "$own_row" 'any(.refused[]?; .on == $on)' <<<"${press_out%$'\n'*}" >/dev/null 2>&1; then
         echo "  This run's own row, ${own_row}, is among the refused."
       else
-        echo "  This run's own row, ${own_row}, is not among the refused: the press did not try it."
+        echo "  This run's own row, ${own_row}, is not among the refused, and none was applied:"
+        echo "  the press did not try it."
       fi
       fail_at
     else
@@ -5615,13 +5623,15 @@ else
 
   # THE SHARE ROWS THE GATE MADE, SETTLED (E2E (managed) #277, 2026-10-25).
   # Nextcloud lets one account create 20 shares in 10 minutes, failed attempts
-  # included, and every share this gate makes is made as the target account. A
-  # press asks for a user share first and by mail only after a 404, so each
-  # outsider row costs two of the twenty. A row a press refused stayed OPEN for
-  # good, and apply-all presses the whole mapping, not this run's tag, so every
-  # later press paid for it again. #277's attempt 2 pressed eight minutes after
-  # attempt 1; the two presses had spent the twenty, eight of them on three rows
-  # #238 left open, and the run's own row came back 429.
+  # included, and every share this gate makes on the target (the mail-pipe
+  # control and both presses) is made as the one target account. A press asks
+  # for a user share first and by mail only after a 404, so each outsider row
+  # costs two of the twenty. A row a press refused stayed OPEN for good, and
+  # apply-all presses the whole mapping, not this run's tag, so every later
+  # press paid for it again. #277's attempt 2 pressed eight minutes after
+  # attempt 1, and by the count inferred from the timings (workplan 0104) the
+  # two presses had spent the twenty, eight of them on three rows #238 left
+  # open, so the run's own row most likely came back 429.
   #
   # So every still-open row a run of this gate seeded, whatever its tag, is
   # skipped through the product's own decision route, which writes the audit
@@ -5630,17 +5640,31 @@ else
   # nothing, and no other row carries a smoke tag. Here, after the press, so it
   # never takes a row the press was there to apply; a decision and not a
   # delete, so it does not wait on objects_gone. Applied rows stay, as the
-  # press section says.
+  # press section says. Another run's rows are safe to take only because two
+  # runs never share the stack at once: the workflow's concurrency group
+  # queues them (e2e-managed.yml). A seeded run by hand during a gate run would
+  # lose its open rows here.
   GATE_SHARE_ON_RE="^openmig-(demo-file|shared)-smoke-[0-9]{8}T[0-9]{6}Z-[0-9]+"
   GATE_SHARE_TO_RE="^openmig-(grantee|folder)-smoke-[0-9]{8}T[0-9]{6}Z-[0-9]+@example[.]invalid$"
   GATE_SHARES="$SCOPE AND state = 'open' AND on_label ~ '$GATE_SHARE_ON_RE' AND grantee ~ '$GATE_SHARE_TO_RE'"
+  # This run's own rows first, when both presses said they applied: an open one
+  # then means the press and the ledger disagree, and the skip below would
+  # erase the only trace of it.
+  if [ "${fpress_applied:-0}" -ge 2 ] && [ "${press_applied:-0}" -ge 1 ]; then
+    own_open="$(q "SELECT on_label FROM share_grant WHERE $GATE_SHARES AND on_label LIKE '%${BALANCE_TAG}%' ORDER BY on_label" | sed 's/^/    /')"
+    if [ -n "$own_open" ]; then
+      echo "both presses reported success, yet this run's own share row(s) are still open:"
+      echo "$own_open"
+      fail_at "a press reported success and left this run's own share row(s) open"
+    fi
+  fi
   gate_rows="$(q "SELECT id, on_label FROM share_grant WHERE $GATE_SHARES ORDER BY on_label")"
   echo "share rows: $(grep -c . <<<"$gate_rows") still open from this gate's runs, each to be skipped"
   gate_settled=0
   while IFS='|' read -r grant_id grant_on; do
     [ -n "$grant_id" ] || continue
     skip_out="$(curl -sS -X POST -H "Authorization: Bearer $APPLY_TOKEN" -H 'Content-Type: application/json' \
-      -d "{\"action\":\"skip\",\"reason\":\"Settled by the gate's take-back, because its file is removed.\"}" \
+      -d "{\"action\":\"skip\",\"reason\":\"Seeded by a run of the managed smoke gate and skipped by run ${BALANCE_TAG}, so no later press tries it again.\"}" \
       -w $'\n%{http_code}' \
       "$API/api/migrations/$APPLY_MAPPING/sharing/${grant_id}/decision")"
     if [ "${skip_out##*$'\n'}" = "200" ]; then
