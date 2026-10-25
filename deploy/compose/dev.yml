@@ -40,7 +40,7 @@ services:
   # on, Nextcloud's defaults, and not switched off yet, as on managed.yml's
   # (workplan 0139; scripts/a-service-that-phones-home.unit.test.ts).
   nextcloud:
-    image: nextcloud:34.0.5-apache@sha256:9dbdc711cef21e1767a6e45a97e318e654d9e2ab2c1f1c570bb9cafc94529a18 # official multi-arch (arm64); base: Debian 13 "Trixie" via php image
+    image: nextcloud:34.0.5-apache@sha256:1f9212adecae32010cdbf137d7e0db78d08c696dc3e77f1eddcbf902d10209b4 # official multi-arch (arm64); base: Debian 13 "Trixie" via php image
     container_name: ownpace-dev-nextcloud # fixed name so provisioning scripts can `docker exec` it deterministically
     environment:
       SQLITE_DATABASE: nextcloud

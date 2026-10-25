@@ -6,6 +6,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The managed stack's databases, Redis, dashboard front and demo Nextcloud,
+  and the web image's nginx, run by exact version and digest** (workplan 0119
+  §4, #1678): postgres 18.6, redis 7.4.11, caddy 2.11.7, nextcloud 34.0.5 and
+  nginx 1.31.8. They floated within their lines and nothing ever pulled them,
+  so each stack ran whatever copy its machine had pulled first. The next `up`
+  pulls each digest and recreates its service, so each database restarts
+  once; the site's nginx moves only when `www.yml` is brought up again.
+  The dashboard's front overrides none of Caddy 2.11.7's new defaults: it
+  answers 431 to request headers over 16 KiB and closes a connection idle for
+  a minute. The demo
+  Nextcloud upgrades its volume to 34.0.5 and refuses an older image on it
+  afterwards, and runs with PHP's session upload progress off, upstream's
+  mitigation for CVE-2026-115560. `db-roles.sh` runs the postgres client
+  `managed.yml` pins.
 - **Trigger.dev is v4.7.6, its tasks run the API image's Node, and ClickHouse
   26.2 is accepted for the Alpha** (workplan 0119, issues #1668 and #1669,
   #1689): since v4.7.4, a magic link signs in only the browser that asked

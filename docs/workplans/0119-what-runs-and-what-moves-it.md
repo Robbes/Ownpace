@@ -2,7 +2,43 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-10-23 (update this block at the end of every session)
+## Status — 2026-10-25 (update this block at the end of every session)
+
+**2026-10-25: the five pins read again with `main` merged in, and Nextcloud's moved to
+upstream's rebuild of 2026-10-23**, on the branch
+`claude/ownpace-public-readiness-y7orc6-floating-images-pinned` (#1678, a draft). Main is
+frozen from the alpha.2 fold to its tag; this merges after the tag, for alpha.3.
+- **Read at 10:47 UTC:** Docker Hub's tag API for each exact tag (digest, push time, the
+  images under it), and both Nextcloud indexes and their arm64 images' configs through
+  `mirror.gcr.io`, because Docker Hub's registry had stopped answering anonymous pulls for the
+  hour. Four are
+  unchanged and still the tag's: postgres 18.6-alpine `898c60cb…` (pushed 2026-10-22 13:08
+  UTC), redis 7.4.11-bookworm `44960b31…` (2026-10-21 06:05), caddy 2.11.7-alpine `eb4d35b7…`
+  (2026-10-22 17:52) and nginx 1.31.8-alpine `1ef7ca94…` (2026-10-22 16:51). Each index carries
+  linux/amd64 and linux/arm64, and each tag is still the newest in its line.
+- **Nextcloud's tag moved.** `34.0.5-apache` was rebuilt at 17:17 UTC on 2026-10-23 as
+  `1f9212ad…` (official-images `c1edc1f7`, building nextcloud/docker `7e9e152f`, "Set
+  session.upload_progress.enabled=0"), and the pin names it now in `managed.yml`, `dev.yml` and
+  the Testcontainers setup. Both builds are Nextcloud 34.0.5 on PHP 8.5.12 over the same
+  `php:8.5-apache-trixie` images (amd64 `54264bcb…`, arm64 `0b3da8b9…`); the new one adds that
+  one line to the image's PHP settings. PHP 8.5.12 (2026-10-21) carries the fixes for
+  CVE-2026-109618 and CVE-2026-109619 (php-src GHSA-w8hw-w9fx-j79w and GHSA-6wmf-4rv5-p3rp, both
+  critical, unauthenticated), so `9dbdc711…` already had those. The second advisory names
+  session upload progress as one way in and says turning it off may be prudent even after the
+  update; upstream's commit takes it off as "the recommended mitigation for the upcoming
+  CVE-2026-115560", citing PHP's news of 2026-10-23, which was not reachable from here. Nothing
+  here uses upload progress: it reports a form POST's progress into the PHP session, and the
+  writer, the seed and the gate write over WebDAV. Both are 34.0.5, so the move is not one way:
+  the demo's volume stays at 34.0.5 under either.
+- **The three-day floor.** postgres passes it at 13:08 UTC today, nginx at 16:51 and caddy at
+  17:52; Nextcloud's new build at 17:17 UTC on 2026-10-26. It is taken before then as a
+  security fix, the floor's one exception, and the merge waits for the alpha.2 tag anyway. The
+  release checklist's retag of the floats on the OTA machine (T17) follows these five digests,
+  Nextcloud's at `1f9212ad…`, so that `main`'s nights and this branch run the same bytes.
+- Proved here: the guards that read the files this touches, listed in the pull request. Owed
+  before merge, unchanged: E2E (managed) and E2E (self-hosted) on the branch, and integration
+  in CI; after the fold, `main` merged in once more, so that the CHANGELOG line lands in the
+  new `[Unreleased]` and not in alpha.2's section.
 
 **2026-10-23: Trigger.dev v4.7.6, the tasks on the API image's Node, and ClickHouse 26.2
 accepted for the Alpha**, on the branch `claude/ownpace-public-readiness-y7orc6-trigger-4-7-6`
@@ -331,7 +367,7 @@ is who moves it after T1.
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason | 1.38 (1.38.0) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.37.0 (2026-10-21) | v5.37.0 (2026-09-24) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
 | `axllent/mailpit` | `managed.yml` | v1.31.6 by digest (2026-10-21; v1.31.1 from T2) | v1.31.6 (2026-10-15), digest `23fe39e8…` | current | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
-| `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 34.0.5-apache by digest `9dbdc711…` (2026-10-22; `34-apache` floating before, never pulled) | 34.0.5 (2026-10-15) | current | by hand, in its own PR, when the pin watch lists a newer 34.x or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and refuses an older image on it, so a bad move is fixed forward (`managed-bring-up.md`, *Updating a running deployment*) |
+| `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 34.0.5-apache by digest `1f9212ad…` (2026-10-25, upstream's rebuild of 2026-10-23 with `session.upload_progress.enabled=0`, PHP's mitigation for CVE-2026-115560; `9dbdc711…` from 2026-10-22, `34-apache` floating before, never pulled) | 34.0.5 (2026-10-15) on PHP 8.5.12 | current | by hand, in its own PR, when the pin watch lists a newer 34.x or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and refuses an older image on it, so a bad move is fixed forward (`managed-bring-up.md`, *Updating a running deployment*) |
 | `ghcr.io/robbes/ownpace-selfhost` | `deploy/selfhost/compose.yml` | `edge` | ours | — | `images.yml` | — |
 
 Ignored by name in the new Dependabot entries, so that a green tick cannot make these
