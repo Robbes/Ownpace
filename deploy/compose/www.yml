@@ -127,7 +127,12 @@ services:
   www:
     # The web image's nginx, by tag and digest (2026-10-23): Dependabot moves
     # apps/web/Dockerfile's, and the pin watch says when this one differs.
-    image: nginx:1.31.8-alpine@sha256:1ef7ca94d7879df82421428ce13bd1eaa412404953859cf7a5b6512c25e67a60
+    # -alpine-slim since 2026-10-25 (workplan 0146 T12): the same nginx package
+    # on the same base layers as -alpine, without the modules and tools
+    # -alpine adds (njs, xslt, geoip, image-filter, acme, curl), which
+    # www-nginx.conf never loads. 1.31.8-alpine read 0 critical and 1 high
+    # (brotli-libs), this 0 and 0.
+    image: nginx:1.31.8-alpine-slim@sha256:f45171d36c76a8b2f5ef97108a3a8a2294248a6578a0a180edc2d78f7d2edc26
     # THE PROJECT'S NAME, NOT A FIXED ONE (workplan 0139 T10). Under the
     # default project this renders the name the container always had.
     # `docker compose -p` does not namespace a fixed `container_name`, so a
