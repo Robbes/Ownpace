@@ -31,7 +31,7 @@
  * row stays open either way.
  */
 
-import { whatHappened, type OcsAnswer, type ShareRefused } from '@openmig/shared';
+import { retryAfterSecondsOf, whatHappened, type OcsAnswer, type ShareRefused } from '@openmig/shared';
 import type { HttpClient } from './dav-http.types.ts';
 
 export interface NextcloudShareOptions {
@@ -116,7 +116,22 @@ function transportRefusal(err: unknown): ShareRefused {
 
 /** The reply's parts, without the kind they were said as. */
 function answerOf(said: OcsAnswer): OcsAnswer {
-  return { status: said.status, ocs: said.ocs, ...(said.ocsStatus === undefined ? {} : { ocsStatus: said.ocsStatus }) };
+  return {
+    status: said.status,
+    ocs: said.ocs,
+    ...(said.ocsStatus === undefined ? {} : { ocsStatus: said.ocsStatus }),
+    ...(said.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: said.retryAfterSeconds }),
+  };
+}
+
+/**
+ * The `Retry-After` a reply carried, whatever case the client kept its name
+ * in, as the seconds it asks for. Read on a refusal only: a share's limit
+ * (`ShareLimit`, `@openmig/shared`) says when to apply again from it.
+ */
+function retryAfterOf(headers: Readonly<Record<string, string>> | undefined): number | undefined {
+  const name = Object.keys(headers ?? {}).find((k) => k.toLowerCase() === 'retry-after');
+  return name === undefined ? undefined : retryAfterSecondsOf(headers![name]);
 }
 
 /**
@@ -194,10 +209,12 @@ async function attemptOcsShare(
   // beside it say what failed and nothing the server wrote.
   const words = meta?.message?.trim() ? meta.message : response.body.slice(0, 300);
   const code = ocsCode(meta?.statuscode);
+  const retryAfterSeconds = retryAfterOf(response.headers);
   const answer: OcsAnswer = {
     status: response.status,
     ocs: typeof meta === 'object' && meta !== null && (typeof meta.status === 'string' || typeof meta.statuscode === 'number'),
     ...(code === undefined ? {} : { ocsStatus: code }),
+    ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
   };
   return {
     ok: false,
@@ -235,7 +252,20 @@ export async function createNextcloudUserShare(
  * then the mail attempt refuses on the same missing path: one extra call,
  * the same honest refusal). Every other refusal comes back unchanged — a
  * permissions problem or a non-Nextcloud server is not an invitation to try
- * a second door.
+ * a second door. A 429 is one of those: the target's limit on new shares
+ * (`ShareLimit`, `@openmig/shared`), which a second door would only spend
+ * again.
+ *
+ * WHY AN ADDRESS STILL GETS THE USER ATTEMPT FIRST (workplan 0104, Status of
+ * 2026-10-25). Skipping it for a grantee that looks like an e-mail address
+ * would save one of the 20 calls an account has in ten minutes, and it is
+ * not safe: a Nextcloud login may contain `@` and `.` (the admin manual's
+ * user configuration page; `OC\User\Manager::validateUserId` refuses only
+ * characters outside `a-zA-Z0-9 _.@-'`), the user share checks `shareWith`
+ * as a user id (`userExists`), and an install behind LDAP or `user_oidc`
+ * can name its accounts by their address. Such a grantee would get a
+ * share by mail, a link outside the account, where a share in the account
+ * was possible.
  */
 export async function createNextcloudShare(
   options: NextcloudShareOptions,

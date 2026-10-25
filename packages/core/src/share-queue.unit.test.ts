@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { MappingId, PermissionGrant, TenantId } from '@openmig/shared';
+import type { MappingId, PermissionGrant, ShareGrantRow, TenantId } from '@openmig/shared';
 import { MemoryLedger } from './__testing__/memory.ts';
 import {
   NOT_CUT_OVER_REASON,
@@ -887,5 +887,210 @@ describe('verdictTargetFor — the line under a row, in the reader\u2019s langua
     expect(person.verdictTarget).toBe(
       'a Nextcloud share with edit permission \u2014 A per-person file or folder share exists on both sides.',
     );
+  });
+});
+
+/**
+ * THE TARGET'S LIMIT ON NEW SHARES (workplan 0104, Status of 2026-10-25).
+ *
+ * Nextcloud 31 to 35 let one account create 20 shares in 10 minutes, failed
+ * attempts included, and answer the next one 429; a 429 itself is not
+ * counted. A press asks for a user share first and by mail after a 404, so an
+ * outsider's row costs two. E2E (managed) #277 met it: apply-all went on past
+ * the first 429, and every row after it came back refused under the generic
+ * sentence, with nothing to say that waiting was the remedy.
+ *
+ * What these hold: a 429 is `target_limited`, never `target_refused`; both
+ * presses stop at the first one, leave that row and every row after it open
+ * and untried, and report them apart from the refusals with the edition's
+ * sentence saying when to apply again; a press after the window tries those
+ * rows and no others.
+ */
+describe("the target's limit on new shares (0104, 2026-10-25)", () => {
+  /** Six people the target has no account for, one item each. */
+  const OUTSIDERS: PermissionGrant[] = [1, 2, 3, 4, 5, 6].map((n) => ({
+    subject: 'drive_item',
+    on: `Projects/item-${n}.xlsx`,
+    grantee: `outsider-${n}@example.nl`,
+    role: 'reader',
+    raw: `{"type":"user","role":"reader","emailAddress":"outsider-${n}@example.nl"}`,
+  }));
+
+  /**
+   * The target, as `createNextcloudShare` meets it: each outsider's row is a
+   * user attempt and a share by mail, two calls against `allowance`, and a
+   * call past it is the limit. The sentence is the edition's; these only need
+   * to see it travel.
+   */
+  function nextcloudWithALimit(allowance: number, retryAfterSeconds?: number) {
+    let calls = 0;
+    const tried: string[] = [];
+    const createShare = async (row: ShareGrantRow) => {
+      tried.push(row.onLabel);
+      for (const _attempt of ['user', 'mail']) {
+        if (calls >= allowance) {
+          return {
+            ok: false as const,
+            reason: 'The new system limits how many shares one account may create (status 429).',
+            reasonNl: 'Het nieuwe systeem beperkt hoeveel deelrechten één account mag aanmaken (status 429).',
+            limited: retryAfterSeconds === undefined ? {} : { retryAfterSeconds },
+          };
+        }
+        calls++;
+      }
+      return { ok: true as const };
+    };
+    return { createShare, tried, calls: () => calls, reset: (more: number) => ((calls = 0), (allowance = more)) };
+  }
+
+  const openClean = async (ledger: MemoryLedger) =>
+    (await ledger.listShareGrants(TENANT, MAPPING)).filter((r) => r.state === 'open' && r.verdict === 'clean' && !r.viaLink);
+
+  it('one row: the limit is target_limited, the row stays open, and nothing is recorded as applied', async () => {
+    const ledger = new MemoryLedger();
+    await refreshed(ledger, OUTSIDERS.slice(0, 1));
+    const [row] = await openClean(ledger);
+    const target = nextcloudWithALimit(0, 120);
+
+    const outcome = await applyShareGrant({ ...deps(ledger), isCutOver: () => true, createShare: target.createShare }, row!.id);
+
+    expect(outcome).toEqual({
+      ok: false,
+      code: 'target_limited',
+      reason: 'The new system limits how many shares one account may create (status 429).',
+      reasonNl: 'Het nieuwe systeem beperkt hoeveel deelrechten één account mag aanmaken (status 429).',
+      limited: { retryAfterSeconds: 120 },
+    });
+    expect((await ledger.listShareGrants(TENANT, MAPPING))[0]!.state).toBe('open');
+    expect(ledger.auditEvents.filter((e) => e.action === 'share.applied')).toHaveLength(0);
+  });
+
+  it('the one-go press stops at the first limit and leaves that row and the rest open and untried', async () => {
+    const ledger = new MemoryLedger();
+    await refreshed(ledger, OUTSIDERS);
+    const order = (await openClean(ledger)).map((r) => r.onLabel);
+    // Room for three outsiders: six calls.
+    const target = nextcloudWithALimit(6);
+
+    const press = await applyAllOpenShareGrants({ ...deps(ledger), isCutOver: () => true, createShare: target.createShare });
+
+    expect(press.ok).toBe(true);
+    if (!press.ok) return;
+    expect(press.applied).toHaveLength(3);
+    // Not refused: none of them was.
+    expect(press.refused).toEqual([]);
+    expect(press.waitingForLimit).toHaveLength(3);
+    // The rows in the order the press would have tried them, the one that met
+    // the limit first.
+    expect([...press.applied.map((r) => r.onLabel), ...press.waitingForLimit.map((r) => r.on)]).toEqual(order);
+    expect(press.waitingForLimit[0]).toMatchObject({ on: order[3], grantee: expect.stringMatching(/^outsider-/) });
+    expect(press.limit).toEqual({
+      reason: 'The new system limits how many shares one account may create (status 429).',
+      reasonNl: 'Het nieuwe systeem beperkt hoeveel deelrechten één account mag aanmaken (status 429).',
+    });
+    // It stopped: the fourth row met the limit, the fifth and sixth were never asked.
+    expect(target.tried).toEqual(order.slice(0, 4));
+    const rows = await ledger.listShareGrants(TENANT, MAPPING);
+    expect(rows.filter((r) => r.state === 'applied')).toHaveLength(3);
+    expect(rows.filter((r) => r.state === 'open').map((r) => r.id).sort()).toEqual(
+      press.waitingForLimit.map((r) => r.id).sort(),
+    );
+
+    const recorded = ledger.auditEvents.filter((e) => e.action === 'share.apply_all');
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0]!.detail).toMatchObject({ attempted: 6, applied: 3, refused: 0, waitingForLimit: 3 });
+  });
+
+  it('a refusal before the limit stays a refusal, and the wait the server asked for travels', async () => {
+    const ledger = new MemoryLedger();
+    await refreshed(ledger, OUTSIDERS.slice(0, 3));
+    const order = (await openClean(ledger)).map((r) => r.onLabel);
+    const target = nextcloudWithALimit(0, 300);
+    let first = true;
+
+    const press = await applyAllOpenShareGrants({
+      ...deps(ledger),
+      isCutOver: () => true,
+      createShare: async (row) => {
+        if (first) {
+          first = false;
+          return { ok: false, reason: 'OCS answered 403: Sharing is disabled for this folder' };
+        }
+        return target.createShare(row);
+      },
+    });
+
+    expect(press.ok).toBe(true);
+    if (!press.ok) return;
+    expect(press.refused.map((r) => [r.on, r.code])).toEqual([[order[0], 'target_refused']]);
+    expect(press.waitingForLimit.map((r) => r.on)).toEqual(order.slice(1));
+    expect(press.limit?.retryAfterSeconds).toBe(300);
+  });
+
+  it('a press after the window tries the rows that waited, and nobody is asked twice', async () => {
+    const ledger = new MemoryLedger();
+    await refreshed(ledger, OUTSIDERS);
+    const target = nextcloudWithALimit(6);
+    const first = await applyAllOpenShareGrants({ ...deps(ledger), isCutOver: () => true, createShare: target.createShare });
+    if (!first.ok) throw new Error('the first press was refused');
+    const waited = first.waitingForLimit.map((r) => r.on);
+
+    target.tried.length = 0;
+    target.reset(20);
+    const second = await applyAllOpenShareGrants({ ...deps(ledger), isCutOver: () => true, createShare: target.createShare });
+
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(target.tried).toEqual(waited);
+    expect(second.applied.map((r) => r.onLabel)).toEqual(waited);
+    expect(second.waitingForLimit).toEqual([]);
+    expect(second).not.toHaveProperty('limit');
+    expect((await ledger.listShareGrants(TENANT, MAPPING)).every((r) => r.state === 'applied')).toBe(true);
+  });
+
+  it('the folder press stops at the limit the same way, and records how many wait', async () => {
+    const ledger = new MemoryLedger();
+    const folder: PermissionGrant[] = [
+      { ...OUTSIDERS[0]!, on: 'Shared', itemKey: 'F', parentKey: 'root', isContainer: true },
+      { ...OUTSIDERS[0]!, on: 'Shared/one.jpg', itemKey: 'c1', parentKey: 'F', isContainer: false },
+      { ...OUTSIDERS[0]!, on: 'Shared/two.jpg', itemKey: 'c2', parentKey: 'F', isContainer: false },
+    ];
+    await refreshed(ledger, folder);
+    const target = nextcloudWithALimit(3);
+
+    const press = await applyShareGrantsInFolder(
+      {
+        ...deps(ledger),
+        isCutOver: () => true,
+        confirmed: { 'outsider-1@example.nl': 'outsider-1@example.nl' },
+        createShare: target.createShare,
+      },
+      'F',
+    );
+
+    expect(press.ok).toBe(true);
+    if (!press.ok) return;
+    // Two calls for the first row, then the second row's share by mail met the limit.
+    expect(press.applied).toHaveLength(1);
+    expect(press.refused).toEqual([]);
+    expect(press.waitingForLimit).toHaveLength(2);
+    expect(press.waitingForCutover).toBe(0);
+    expect(press.limit?.reason).toContain('status 429');
+    expect(target.tried).toHaveLength(2);
+    const recorded = ledger.auditEvents.filter((e) => e.action === 'share.apply_folder');
+    expect(recorded[0]!.detail).toMatchObject({ attempted: 3, applied: 1, refused: 0, waitingForLimit: 2 });
+  });
+
+  it('a press that meets no limit says so: nothing waits, and no limit is named', async () => {
+    const ledger = new MemoryLedger();
+    await refreshed(ledger, OUTSIDERS.slice(0, 2));
+    const press = await applyAllOpenShareGrants({
+      ...deps(ledger),
+      isCutOver: () => true,
+      createShare: nextcloudWithALimit(20).createShare,
+    });
+    expect(press).toMatchObject({ ok: true, waitingForLimit: [] });
+    expect(press).not.toHaveProperty('limit');
+    expect(ledger.auditEvents.find((e) => e.action === 'share.apply_all')!.detail).toMatchObject({ waitingForLimit: 0 });
   });
 });

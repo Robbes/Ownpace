@@ -28,7 +28,15 @@
  * full text, as T3 left a Test there.
  */
 
-import { log, newAppEvent, recordAppEvent, shareRefusalSaid, type ShareRefused } from '@openmig/shared';
+import {
+  log,
+  newAppEvent,
+  recordAppEvent,
+  shareLimitOf,
+  shareRefusalSaid,
+  type ShareLimit,
+  type ShareRefused,
+} from '@openmig/shared';
 
 /** The event on the operator's log page for a request whose share was refused. */
 export const SHARE_REFUSED_EVENT = 'share.refused';
@@ -39,11 +47,16 @@ export interface ShareRefusal {
   readonly said: ShareRefused;
 }
 
-/** A refusal as the tester is answered: our sentence, in both languages. */
+/**
+ * A refusal as the tester is answered: our sentence, in both languages, and
+ * `limited` when it was the target's limit on new shares rather than a
+ * refusal, so a press stops there (workplan 0104, Status of 2026-10-25).
+ */
 export interface ShareRefusalAnswer {
   readonly ok: false;
   readonly reason: string;
   readonly reasonNl: string;
+  readonly limited?: ShareLimit;
 }
 
 /**
@@ -72,10 +85,12 @@ export function shareRefusalAnswers(
       log.warn(`[share] ${doing}: answered in our words [ref ${reference}]: ${refusal.reason}`);
     }
     const said = shareRefusalSaid(refusal.said);
+    const limited = shareLimitOf(refusal.said);
     return {
       ok: false,
       reason: `${said.en} Reference ${reference}.`,
       reasonNl: `${said.nl} Referentie ${reference}.`,
+      ...(limited === undefined ? {} : { limited }),
     };
   };
 }

@@ -89,6 +89,9 @@ export const AUDIT_DETAIL_FIELDS = {
   resend: 'keep',
   leftForChecklist: 'keep',
   waitingForCutover: 'keep',
+  // The rows a share press left untried at the target's limit on new shares
+  // (workplan 0104, Status of 2026-10-25): a count.
+  waitingForLimit: 'keep',
   links: 'keep',
   manual: 'keep',
   capability: 'keep',

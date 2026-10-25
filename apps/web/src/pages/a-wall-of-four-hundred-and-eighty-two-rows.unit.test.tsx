@@ -939,4 +939,107 @@ describe('what a folder press could not share, and why', () => {
     const rowCards = screen.getAllByText(BOB_EN).map((n) => n.closest('li'));
     expect(rowCards.filter((li) => li?.textContent?.includes('Mark done'))).toHaveLength(2);
   });
+
+  /*
+   * THE NEW SYSTEM'S LIMIT ON NEW SHARES (workplan 0104, Status of
+   * 2026-10-25). Nextcloud lets one account create 20 shares in ten minutes
+   * and answers the next one 429; the press stops there, and the rows from
+   * there on were neither refused nor tried. They are said apart from the
+   * rows that did not work, with the server's sentence saying when to apply
+   * again, and never under *did not work*, which reads as a share to correct.
+   */
+  const LIMIT_EN =
+    'The new system limits how many shares one account may create in a short time (status 429): apply again in ten minutes. Reference 0104aa01.';
+  const LIMIT_NL =
+    'Het nieuwe systeem beperkt hoeveel deelrechten één account in korte tijd mag aanmaken (status 429): u kunt het over tien minuten opnieuw toepassen. Referentie 0104aa01.';
+  /** Anna's folder was shared, then the limit: three rows wait, bob's refusal before it stands. */
+  const stoppedAtTheLimit = (nl: boolean) => ({
+    status: 'ok',
+    applied: [folderForTwo()[0]],
+    refused: [],
+    waitingForLimit: [
+      { id: 'fb', on: 'Foto shoot Emma', grantee: 'bob@example.test' },
+      { id: 'ca', on: 'IMG_0.jpg', grantee: 'anna@example.test' },
+      { id: 'cb', on: 'IMG_0.jpg', grantee: 'bob@example.test' },
+    ],
+    limit: { reason: LIMIT_EN, ...(nl ? { reasonNl: LIMIT_NL } : {}) },
+    leftForChecklist: { links: 0, manual: 0 },
+    waitingForCutover: 0,
+  });
+
+  it('says the rows a press stopped before at the limit wait, with when to apply again, and none was refused', async () => {
+    answerWith(folderForTwo());
+    applyShareFolder.mockResolvedValue(stoppedAtTheLimit(true));
+    renderIn('en');
+    await pressFolder('en');
+
+    const heading = await screen.findByText(
+      '3 shares in this folder wait for the new system\u2019s limit on new shares. Their rows stay open; none was refused.',
+    );
+    expect(heading.closest('[role="status"]')).not.toBeNull();
+    expect(screen.getByText(LIMIT_EN)).toBeInTheDocument();
+    expect(screen.queryByText(LIMIT_NL)).toBeNull();
+    expect(screen.queryByText(/did not work for/)).toBeNull();
+  });
+
+  it('a Dutch reader reads the limit in Dutch, and the English, marked, where no Dutch came', async () => {
+    answerWith(folderForTwo());
+    applyShareFolder.mockResolvedValueOnce(stoppedAtTheLimit(true));
+    renderIn('nl');
+    await pressFolder('nl');
+
+    expect(
+      await screen.findByText(
+        '3 deelrechten in deze map wachten op de grens die het nieuwe systeem stelt aan nieuwe deelrechten. De regels blijven open; geen ervan is geweigerd.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(LIMIT_NL).closest('[lang="en"]')).toBeNull();
+    expect(screen.queryByText(LIMIT_EN)).toBeNull();
+  });
+
+  it('the English is marked as English under a Dutch page when no Dutch came', async () => {
+    answerWith(folderForTwo());
+    applyShareFolder.mockResolvedValueOnce(stoppedAtTheLimit(false));
+    renderIn('nl');
+    await pressFolder('nl');
+    expect((await screen.findByText(LIMIT_EN)).closest('[lang="en"]')).not.toBeNull();
+  });
+
+  it('a refusal before the limit is said under its own heading, apart from the rows that wait', async () => {
+    answerWith(folderForTwo());
+    applyShareFolder.mockResolvedValue({
+      ...stoppedAtTheLimit(true),
+      refused: [twoRefusedFor(true).refused[0]],
+      waitingForLimit: stoppedAtTheLimit(true).waitingForLimit.slice(1),
+    });
+    renderIn('en');
+    await pressFolder('en');
+
+    expect(
+      await screen.findByText(
+        'Sharing on the new system did not work for 1 share in this folder. Its row stays open.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        '2 shares in this folder wait for the new system\u2019s limit on new shares. Their rows stay open; none was refused.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(ANNA_EN)).toHaveLength(1);
+    expect(screen.getAllByText(LIMIT_EN)).toHaveLength(1);
+  });
+
+  it('the next press that meets no limit takes the waiting line away', async () => {
+    answerWith(folderForTwo());
+    applyShareFolder.mockResolvedValueOnce(stoppedAtTheLimit(true)).mockResolvedValueOnce(allApplied);
+    renderIn('en');
+    await pressFolder('en');
+    expect(await screen.findByText(LIMIT_EN)).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByText(`${WORDS.en.press} (2)`));
+    fireEvent.click(screen.getByText(WORDS.en.armed));
+    await waitFor(() => expect(applyShareFolder).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText(LIMIT_EN)).toBeNull());
+    expect(screen.queryByText(/wait for the new system/)).toBeNull();
+  });
 });

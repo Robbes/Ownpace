@@ -35,6 +35,7 @@ import type {
   PermissionGrant,
   PermissionSubject,
   ShareGrantRow,
+  ShareLimit,
   TenantId,
 } from '@openmig/shared';
 import { DISCOVERY_DOMAINS, dataTypeOfShare, groupShareGrants } from '@openmig/shared';
@@ -237,6 +238,11 @@ export type ShareActionOutcome =
        * 0136 T3). Absent, `reason` is shown as served.
        */
       readonly reasonNl?: string;
+      /**
+       * Set with `target_limited`: the target's limit on new shares was
+       * reached (`ShareLimit`), and nothing about this row was refused.
+       */
+      readonly limited?: ShareLimit;
     };
 
 export interface ShareQueueDeps {
@@ -277,8 +283,12 @@ export interface ApplyShareDeps extends ShareQueueDeps {
     shareWith?: string,
   ) => Promise<
     | { readonly ok: true }
-    /** `reasonNl` beside `reason` when the edition says the refusal in both languages. */
-    | { readonly ok: false; readonly reason: string; readonly reasonNl?: string }
+    /**
+     * `reasonNl` beside `reason` when the edition says the refusal in both
+     * languages; `limited` when the target answered with its limit on new
+     * shares rather than with a refusal (`ShareLimit`, `@openmig/shared`).
+     */
+    | { readonly ok: false; readonly reason: string; readonly reasonNl?: string; readonly limited?: ShareLimit }
   >;
 }
 
@@ -470,13 +480,24 @@ export async function applyShareGrant(
     };
   }
 
-  let created:
-    | { readonly ok: true }
-    | { readonly ok: false; readonly reason: string; readonly reasonNl?: string };
+  let created: Awaited<ReturnType<NonNullable<ApplyShareDeps['createShare']>>>;
   try {
     created = await deps.createShare(row, shareWith);
   } catch (err) {
     created = { ok: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+  if (!created.ok && created.limited) {
+    // NOT A REFUSAL (workplan 0104, Status of 2026-10-25). The target counts
+    // the shares one account creates and answered this one with its limit:
+    // the same request succeeds once its window has passed. The row stays
+    // open, and its own code tells a press to stop here.
+    return {
+      ok: false,
+      code: 'target_limited',
+      reason: created.reason,
+      ...(created.reasonNl === undefined ? {} : { reasonNl: created.reasonNl }),
+      limited: created.limited,
+    };
   }
   if (!created.ok) {
     // The row stays OPEN: the target refused, so nothing was carried over and
@@ -534,6 +555,94 @@ export interface ApplyAllOutcome {
    * by this one.
    */
   readonly waitingForCutover: number;
+  /**
+   * Rows left open because the target's limit on new shares was reached
+   * (workplan 0104, Status of 2026-10-25): the row it was reached on and
+   * every row the press had not tried yet, in the order it would have tried
+   * them. Empty when the press met no limit. None of them was refused, so a
+   * press after the window has passed tries each of them again.
+   */
+  readonly waitingForLimit: ReadonlyArray<ShareRowWaiting>;
+  /**
+   * The limit the press stopped at, said as the edition said it for the row
+   * it was reached on: when to apply again. Present exactly when
+   * `waitingForLimit` is not empty.
+   */
+  readonly limit?: {
+    readonly retryAfterSeconds?: number;
+    readonly reason: string;
+    readonly reasonNl?: string;
+  };
+}
+
+/** A row a press left open and did not finish: where it is, and who it is for. */
+export interface ShareRowWaiting {
+  readonly id: string;
+  readonly on: string;
+  readonly grantee?: string;
+}
+
+/** What one press did to its rows, before it is counted and recorded. */
+interface Pressed {
+  readonly applied: ShareGrantRow[];
+  readonly refused: Array<ApplyAllOutcome['refused'][number]>;
+  readonly waitingForLimit: ShareRowWaiting[];
+  readonly limit?: ApplyAllOutcome['limit'];
+}
+
+/**
+ * Every row, one after the other, through `applyShareGrant`: both presses'
+ * loop, so the two cannot differ about what a refusal or a limit does.
+ *
+ * A refusal never stops the next row: the grantee whose share failed is who
+ * a retry press is for, and the rows that succeed must not wait on them.
+ *
+ * THE TARGET'S LIMIT DOES (workplan 0104, Status of 2026-10-25). Nextcloud
+ * 31 to 35 let one account create 20 shares in 10 minutes and answer every
+ * call after that 429, so a press that went on would spend the rest of its
+ * rows on answers that say only "not yet", and report each one as refused.
+ * It stops at the first, and leaves that row and every one after it open and
+ * untried.
+ */
+async function pressRows(
+  deps: ApplyShareDeps,
+  rows: ReadonlyArray<ShareGrantRow>,
+  addressFor: (row: ShareGrantRow) => string | undefined = () => undefined,
+): Promise<Pressed> {
+  const applied: ShareGrantRow[] = [];
+  const refused: Array<ApplyAllOutcome['refused'][number]> = [];
+  const where = (row: ShareGrantRow): ShareRowWaiting => ({
+    id: row.id,
+    on: row.onLabel,
+    ...(row.grantee ? { grantee: row.grantee } : {}),
+  });
+  for (const [at, row] of rows.entries()) {
+    const outcome = await applyShareGrant(deps, row.id, addressFor(row));
+    if (outcome.ok) {
+      applied.push(outcome.row);
+    } else if (outcome.code === 'target_limited') {
+      return {
+        applied,
+        refused,
+        waitingForLimit: rows.slice(at).map(where),
+        limit: {
+          ...(outcome.limited?.retryAfterSeconds === undefined
+            ? {}
+            : { retryAfterSeconds: outcome.limited.retryAfterSeconds }),
+          reason: outcome.reason,
+          ...(outcome.reasonNl === undefined ? {} : { reasonNl: outcome.reasonNl }),
+        },
+      };
+    } else {
+      refused.push({
+        ...where(row),
+        code: outcome.code,
+        reason: outcome.reason,
+        ...(outcome.reasonNl === undefined ? {} : { reasonNl: outcome.reasonNl }),
+      });
+    }
+  }
+  return { applied, refused, waitingForLimit: [] };
 }
 
 /**
@@ -547,9 +656,11 @@ export interface ApplyAllOutcome {
  * Each row still walks through `applyShareGrant`, gates and all — the press
  * batches the decision, never the rules. A refusal on one row never stops
  * the next (the grantee whose share failed is exactly who a retry press is
- * for; the rows that succeeded must not wait on them). Applied rows carry
- * `decidedBy`/`decidedAt` per row, and the press itself lands once in the
- * audit log with its counts — who pressed, when, what happened.
+ * for; the rows that succeeded must not wait on them); the target's limit on
+ * new shares does, and the rows from there wait for it (`pressRows`).
+ * Applied rows carry `decidedBy`/`decidedAt` per row, and the press itself
+ * lands once in the audit log with its counts — who pressed, when, what
+ * happened.
  */
 export async function applyAllOpenShareGrants(deps: ApplyShareDeps): Promise<
   ApplyAllOutcome | { ok: false; code: 'not_cut_over'; reason: string }
@@ -570,33 +681,13 @@ export async function applyAllOpenShareGrants(deps: ApplyShareDeps): Promise<
     return { ok: false, code: 'not_cut_over', reason: notCutOverReason(waiting.map((r) => r.subject)) };
   }
 
-  const applied: ShareGrantRow[] = [];
-  const refused: Array<{
-    id: string;
-    on: string;
-    grantee?: string;
-    code: string;
-    reason: string;
-    reasonNl?: string;
-  }> = [];
-  for (const row of candidates) {
-    const outcome = await applyShareGrant(deps, row.id);
-    if (outcome.ok) {
-      applied.push(outcome.row);
-    } else {
-      refused.push({
-        id: row.id,
-        on: row.onLabel,
-        ...(row.grantee ? { grantee: row.grantee } : {}),
-        code: outcome.code,
-        reason: outcome.reason,
-        ...(outcome.reasonNl === undefined ? {} : { reasonNl: outcome.reasonNl }),
-      });
-    }
-  }
+  const pressed = await pressRows(deps, candidates);
+  const { applied, refused, waitingForLimit } = pressed;
 
   // The press is recorded as its own event — one action, its counts, its
   // presser — beside the per-row `share.applied` entries each success wrote.
+  // `attempted` counts the rows it set out to apply, the ones a limit left
+  // untried among them, as it always has; `waitingForLimit` says how many.
   try {
     await deps.ledger.recordAuditEvent(deps.tenantId, {
       actor: deps.decidedBy,
@@ -609,13 +700,22 @@ export async function applyAllOpenShareGrants(deps: ApplyShareDeps): Promise<
         refused: refused.length,
         leftForChecklist: { links, manual },
         waitingForCutover: waiting.length,
+        waitingForLimit: waitingForLimit.length,
       },
     });
   } catch (err) {
     deps.onError?.('recording the apply-all press failed (the shares themselves stand)', err);
   }
 
-  return { ok: true, applied, refused, leftForChecklist: { links, manual }, waitingForCutover: waiting.length };
+  return {
+    ok: true,
+    applied,
+    refused,
+    leftForChecklist: { links, manual },
+    waitingForCutover: waiting.length,
+    waitingForLimit,
+    ...(pressed.limit === undefined ? {} : { limit: pressed.limit }),
+  };
 }
 
 /** Where to send, per grantee the SOURCE named — one address a person confirmed. */
@@ -739,31 +839,12 @@ export async function applyShareGrantsInFolder(
     };
   }
 
-  const applied: ShareGrantRow[] = [];
-  const refused: Array<{
-    id: string;
-    on: string;
-    grantee?: string;
-    code: string;
-    reason: string;
-    reasonNl?: string;
-  }> = [];
-  for (const row of candidates) {
-    const confirmed = row.grantee ? deps.confirmed[row.grantee]?.trim() : undefined;
-    const outcome = await applyShareGrant(deps, row.id, confirmed || undefined);
-    if (outcome.ok) {
-      applied.push(outcome.row);
-    } else {
-      refused.push({
-        id: row.id,
-        on: row.onLabel,
-        ...(row.grantee ? { grantee: row.grantee } : {}),
-        code: outcome.code,
-        reason: outcome.reason,
-        ...(outcome.reasonNl === undefined ? {} : { reasonNl: outcome.reasonNl }),
-      });
-    }
-  }
+  // Each row to the address a person confirmed for its grantee; the target's
+  // limit stops the press as it stops the one-go press (`pressRows`).
+  const pressed = await pressRows(deps, candidates, (row) =>
+    (row.grantee ? deps.confirmed[row.grantee]?.trim() : undefined) || undefined,
+  );
+  const { applied, refused, waitingForLimit } = pressed;
 
   // The press is its own event beside the per-row entries. It records WHICH
   // folder and how many people, never the addresses: the per-row rows already
@@ -782,13 +863,22 @@ export async function applyShareGrantsInFolder(
         refused: refused.length,
         grantees: needed.length,
         leftForChecklist: { links, manual },
+        waitingForLimit: waitingForLimit.length,
       },
     });
   } catch (err) {
     deps.onError?.('recording the folder press failed (the shares themselves stand)', err);
   }
 
-  return { ok: true, applied, refused, leftForChecklist: { links, manual }, waitingForCutover: 0 };
+  return {
+    ok: true,
+    applied,
+    refused,
+    leftForChecklist: { links, manual },
+    waitingForCutover: 0,
+    waitingForLimit,
+    ...(pressed.limit === undefined ? {} : { limit: pressed.limit }),
+  };
 }
 
 /**

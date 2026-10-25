@@ -42,6 +42,12 @@ export interface OcsAnswer {
   readonly ocsStatus?: number;
   /** Whether the body was an OCS reply; a page from anything else is not. */
   readonly ocs: boolean;
+  /**
+   * How long the server asked us to wait, in seconds, when it sent a
+   * `Retry-After` we could read (`retryAfterSecondsOf`). A number of ours,
+   * not the server's words. Stock Nextcloud sends none with its 429.
+   */
+  readonly retryAfterSeconds?: number;
 }
 
 /**
@@ -63,6 +69,97 @@ export type ShareRefused =
   | { readonly kind: 'insideOurNetwork' }
   | { readonly kind: 'unknown' }
   | { readonly kind: 'noOrigin' };
+
+/**
+ * THE TARGET'S LIMIT ON NEW SHARES (workplan 0104, Status of 2026-10-25).
+ *
+ * Nextcloud 31 to 35 let one account create 20 shares in 10 minutes
+ * (`ShareAPIController::createShare`, `#[UserRateLimit(limit: 20, period:
+ * 600)]`; 36 raises it to 60), failed attempts included, and answer the next
+ * one 429 with an empty OCS reply and no `Retry-After`. Each attempt ages out
+ * ten minutes after it was made, and a 429 is not counted. A press asks for
+ * a user share first and by mail only after a 404, so an outsider's row costs
+ * two, and a one-go press over more than about ten of them meets the limit.
+ *
+ * A 429 is not a refusal of the share: the same request succeeds once the
+ * window has passed. So it gets its own sentence, which says when to apply
+ * again, and the presses stop at the first one (`applyAllOpenShareGrants`,
+ * `@openmig/core`) and leave the rows after it open and untried.
+ *
+ * `retryAfterSeconds` is what the server asked, when it said.
+ */
+export interface ShareLimit {
+  readonly retryAfterSeconds?: number;
+}
+
+/**
+ * The seconds a `Retry-After` asks for (RFC 9110 §10.2.3): a whole number of
+ * seconds, or an HTTP date counted from `now`. Undefined when there is no
+ * header or it is neither, so a sentence never claims a wait nobody asked for.
+ */
+export function retryAfterSecondsOf(header: string | undefined, now: Date = new Date()): number | undefined {
+  const value = header?.trim();
+  if (!value) return undefined;
+  if (/^\d+$/.test(value)) return Number(value);
+  // Every form of an HTTP date names its month and its zone in letters. A
+  // bare number of another shape (`-5`, `1.5`) is no date, though `Date.parse`
+  // reads one as a year.
+  if (!/[a-z]/i.test(value)) return undefined;
+  const at = Date.parse(value);
+  if (Number.isNaN(at)) return undefined;
+  return Math.max(0, Math.ceil((at - now.getTime()) / 1000));
+}
+
+/** Whether one reply is the target's limit: a 429, as a status or as OCS's code. */
+function isLimit(a: OcsAnswer): boolean {
+  return a.status === 429 || (a.ocs && a.ocsStatus === 429);
+}
+
+/**
+ * The limit a refusal met, or undefined when it is a refusal of another kind.
+ * The share by mail after "no such account" meets the same limit, and is the
+ * second of the two calls an outsider's row costs.
+ */
+export function shareLimitOf(said: ShareRefused): ShareLimit | undefined {
+  const answer = said.kind === 'answered' ? said : said.kind === 'notAnAccount' ? said.byMail : undefined;
+  if (answer === undefined || !isLimit(answer)) return undefined;
+  return answer.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: answer.retryAfterSeconds };
+}
+
+/**
+ * When to apply again, as the limit's sentence ends: what the server asked,
+ * in minutes, or Nextcloud's own ten minutes when it asked nothing.
+ */
+function pressAgain(retryAfterSeconds: number | undefined): Bilingual {
+  if (retryAfterSeconds === undefined) {
+    return {
+      en:
+        'apply again in ten minutes. Nextcloud counts the shares an account created in the last ten ' +
+        'minutes, unless whoever runs it chose another period.',
+      nl:
+        'u kunt het over tien minuten opnieuw toepassen. Nextcloud telt de deelrechten die een account ' +
+        'in de laatste tien minuten aanmaakte, tenzij de beheerder een andere periode koos.',
+    };
+  }
+  if (retryAfterSeconds <= 60) {
+    return {
+      en: 'apply again in a minute, as the new system asked.',
+      nl: 'u kunt het over een minuut opnieuw toepassen, zoals het nieuwe systeem vroeg.',
+    };
+  }
+  const minutes = Math.ceil(retryAfterSeconds / 60);
+  if (minutes < 120) {
+    return {
+      en: `apply again in about ${minutes} minutes, as the new system asked.`,
+      nl: `u kunt het over ongeveer ${minutes} minuten opnieuw toepassen, zoals het nieuwe systeem vroeg.`,
+    };
+  }
+  const hours = Math.ceil(minutes / 60);
+  return {
+    en: `apply again in about ${hours} hours, as the new system asked.`,
+    nl: `u kunt het over ongeveer ${hours} uur opnieuw toepassen, zoals het nieuwe systeem vroeg.`,
+  };
+}
 
 /** The status as a sentence says it, with OCS's code where it differs. */
 function statusOf(a: OcsAnswer): string {
@@ -136,6 +233,16 @@ export const SHARE_REFUSAL = {
       'Het nieuwe systeem accepteerde dit verzoek om te delen niet ({status}), dus er is niets gedeeld. ' +
       'Deel het item zelf op het nieuwe systeem en vink de regel daarna af.',
   },
+  limited: {
+    en:
+      'The new system limits how many shares one account may create in a short time, and the account ' +
+      'this migration uses there has reached that limit ({status}). Nothing was refused and nothing more ' +
+      'was shared, and the row stays open: {when}',
+    nl:
+      'Het nieuwe systeem beperkt hoeveel deelrechten één account in korte tijd mag aanmaken, en het ' +
+      'account dat deze migratie daar gebruikt, heeft die grens bereikt ({status}). Er is niets geweigerd ' +
+      'en verder niets gedeeld, en de regel blijft open: {when}',
+  },
   other: {
     en:
       'The new system refused this share ({status}), and what it said is not shown here. Nothing was ' +
@@ -195,6 +302,9 @@ export type ShareRefusalKind = keyof typeof SHARE_REFUSAL;
  * then OCS's code, or the status when OCS gave none.
  */
 function answeredKind(a: OcsAnswer): ShareRefusalKind {
+  // The target's limit first, whoever answered it: a proxy in front of the
+  // server limiting requests asks the same of us (`ShareLimit`).
+  if (isLimit(a)) return 'limited';
   if (a.status === 401 || a.ocsStatus === 997) return 'signIn';
   if (a.status >= 500 || a.ocsStatus === 996) return 'serverError';
   if (!a.ocs) return 'notNextcloud';
@@ -212,9 +322,12 @@ export function shareRefusalKind(said: ShareRefused): ShareRefusalKind {
       return answeredKind(said);
     case 'notAnAccount': {
       // Nothing found by mail either says what a 404 says: the item, or the
-      // person. A sign-in or an error of the server's own is said as such.
+      // person. A sign-in, an error of the server's own or its limit is said
+      // as such: the share by mail was not refused, it was not made.
       const byMail = answeredKind(said.byMail);
-      return byMail === 'notFound' || byMail === 'signIn' || byMail === 'serverError' ? byMail : 'noAccountNoMail';
+      return byMail === 'notFound' || byMail === 'signIn' || byMail === 'serverError' || byMail === 'limited'
+        ? byMail
+        : 'noAccountNoMail';
     }
     default:
       return said.kind;
@@ -227,7 +340,11 @@ export function shareRefusalSaid(said: ShareRefused): Bilingual {
   const answer = said.kind === 'answered' ? said : said.kind === 'notAnAccount' ? said.byMail : undefined;
   if (answer === undefined) return sentence;
   const status = statusOf(answer);
-  return { en: sentence.en.replace('{status}', status), nl: sentence.nl.replace('{status}', status) };
+  const when = pressAgain(answer.retryAfterSeconds);
+  return {
+    en: sentence.en.replace('{status}', status).replace('{when}', when.en),
+    nl: sentence.nl.replace('{status}', status).replace('{when}', when.nl),
+  };
 }
 
 /**

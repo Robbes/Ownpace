@@ -189,6 +189,13 @@ export const en = {
     'Sharing on the new system did not work for 1 share in this folder. Its row stays open.',
   'sharing.group.refused.many':
     'Sharing on the new system did not work for {count} shares in this folder. Their rows stay open.',
+  // What a folder press stopped before at the new system's limit on new
+  // shares (workplan 0104): not refused, not tried, waiting. The server's
+  // sentence under it says when to apply again.
+  'sharing.group.waitingForLimit.one':
+    '1 share in this folder waits for the new system\u2019s limit on new shares. Its row stays open; it was not refused.',
+  'sharing.group.waitingForLimit.many':
+    '{count} shares in this folder wait for the new system\u2019s limit on new shares. Their rows stay open; none was refused.',
   'sharing.alone.unplaced': 'The old system did not say where this sits, so it is on its own.',
   'sharing.alone.vsFolder': 'Shared differently from its folder',
   'sharing.alone.vsSiblings': 'Shared differently from the other items here',
@@ -398,6 +405,10 @@ export const nl: Record<keyof typeof en, string> = {
     'Delen op het nieuwe systeem lukte niet voor 1 deelrecht in deze map. De regel blijft open.',
   'sharing.group.refused.many':
     'Delen op het nieuwe systeem lukte niet voor {count} deelrechten in deze map. De regels blijven open.',
+  'sharing.group.waitingForLimit.one':
+    '1 deelrecht in deze map wacht op de grens die het nieuwe systeem stelt aan nieuwe deelrechten. De regel blijft open; het is niet geweigerd.',
+  'sharing.group.waitingForLimit.many':
+    '{count} deelrechten in deze map wachten op de grens die het nieuwe systeem stelt aan nieuwe deelrechten. De regels blijven open; geen ervan is geweigerd.',
   'sharing.alone.unplaced': 'Het oude systeem gaf niet aan waar dit staat, dus het staat apart.',
   'sharing.alone.vsFolder': 'Anders gedeeld dan de map zelf',
   'sharing.alone.vsSiblings': 'Anders gedeeld dan de andere items hier',
