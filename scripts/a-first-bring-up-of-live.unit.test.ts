@@ -417,7 +417,7 @@ case "$*" in
     exit "\${STUB_BOOTSTRAP_ONLY_EXIT:-0}"
     ;;
   "--from trigger")
-    volume trigger_db_data; volume clickhouse_data_v2; volume minio_data
+    volume trigger_db_data; volume clickhouse_data_v2; volume minio_data_v2
     if [ "\${STUB_TRIGGER_STOP:-}" = account ]; then
       echo '--- Your turn. When you have done the above, carry on with:'
       echo '      ./deploy/compose/bootstrap-managed.sh --from account'
@@ -1172,6 +1172,9 @@ describe("refused before anything changes: live's .env, key by key, never a valu
     ["a port the OTA stack uses by default", { WEB_PORT: '3123' }, 'WEB_PORT'],
     ['two of live\'s ports the same', { STATUS_PORT: PORTS.WEB_PORT }, 'STATUS_PORT'],
     ['a password a URL cannot carry as it is', { POSTGRES_PASSWORD: 'abc@def-q5' }, 'POSTGRES_PASSWORD', 'abc@def-q5'],
+    // minio-init puts it in MC_HOST_store, where mc takes a ':' for the start
+    // of a session token and the bucket is never made (0146 T7, review).
+    ["a MinIO password with a ':', which mc would split", { MINIO_ROOT_PASSWORD: 'abc:def-q6' }, 'MINIO_ROOT_PASSWORD', 'abc:def-q6'],
   ];
 
   it.each(CASES)(
