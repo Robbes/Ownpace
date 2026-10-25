@@ -6,6 +6,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **Trigger.dev's object store runs Chainguard's maintained MinIO, and starts
+  empty** (workplan 0146 T7, the owner's answer of 2026-10-23, #1692): the
+  frozen `bitnamilegacy/minio` image, in which the scan read 26 critical and
+  259 high findings, 206 of them fixed in packages it would never get, is
+  replaced by `chainguard/minio`, the same server built from a maintained
+  fork, pinned by digest. It keeps its data on a new volume, `minio_data_v2`,
+  which starts empty, and a one-shot, `minio-init`, makes the `packets`
+  bucket before Trigger.dev starts. A stack takes it at its next bring-up
+  after the drain a Trigger.dev upgrade needs: nothing running or waiting
+  that owns a stored payload, because old runs' large payloads and outputs
+  are not carried over. The Bitnami-era volume stays on disk until it is
+  removed by hand, once the stack runs the change from `main` or a release
+  tag and a nightly or a deploy after it was green. The weekly pin watch says
+  when Chainguard has rebuilt the image.
 - **The site's visit count builds GoAccess 1.12 on Alpine 3.24, because
   upstream's image is on Alpine 3.20, past its end of life** (workplan 0152,
   #1675): no upstream release has moved off 3.20, and Alpine's own package is

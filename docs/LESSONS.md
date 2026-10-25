@@ -143,12 +143,6 @@ reading a file drops off its entry by itself.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
 
-### `CHANGELOG.md`
-
-- [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
-- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
-- [a-signature-checked-under-either-name](../scripts/a-signature-checked-under-either-name.unit.test.ts) — Every documented `cosign verify` accepts the images signed under either of the repository's names, and nothing else (ADR-0040).
-
 ### `CONTRIBUTING.md`
 
 - [a-convention-two-of-two-hundred-commits-followed](../scripts/a-convention-two-of-two-hundred-commits-followed.unit.test.ts) — THE CONVENTION NOTHING ENFORCED.
@@ -1142,6 +1136,7 @@ reading a file drops off its entry by itself.
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
+- [an-object-store-with-a-maintainer](../scripts/an-object-store-with-a-maintainer.unit.test.ts) — AN OBJECT STORE WITH A MAINTAINER (workplan 0146 T7; the owner, 2026-10-23: *"T7 no, fix already within the alpha"*).
 - [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts) — AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
@@ -4500,7 +4495,6 @@ Reads:
 - `.github/workflows/images.yml`
 - `.github/workflows/security-scan.yml`
 - `.github/workflows/windows-payload.yml`
-- `CHANGELOG.md`
 - `apps/api/docs/openapi.yaml`
 - `scripts/fixtures/release/changelog-2026-10-23.md`
 - `scripts/fixtures/release/ci-jobs-39866562875.json`
@@ -4521,7 +4515,6 @@ Reads:
 - `.github/workflows/images.yml`
 - `.github/workflows/security-scan.yml`
 - `.github/workflows/windows-payload.yml`
-- `CHANGELOG.md`
 - `apps/api/docs/openapi.yaml`
 - `apps/web/src/components/Layout.tsx`
 - `apps/web/src/components/Layout.unit.test.tsx`
@@ -4803,10 +4796,6 @@ Reads:
 ### [a-signature-checked-under-either-name](../scripts/a-signature-checked-under-either-name.unit.test.ts)
 
 Every documented `cosign verify` accepts the images signed under either of the repository's names, and nothing else (ADR-0040).
-
-Reads:
-
-- `CHANGELOG.md`
 
 ### [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts)
 
@@ -5351,6 +5340,14 @@ Reads:
 - `packages/connectors/src/graph-drive-source.ts`
 - `packages/core/src/dav-sync.ts`
 - `packages/shared/src/ports.ts`
+
+### [an-object-store-with-a-maintainer](../scripts/an-object-store-with-a-maintainer.unit.test.ts)
+
+AN OBJECT STORE WITH A MAINTAINER (workplan 0146 T7; the owner, 2026-10-23: *"T7 no, fix already within the alpha"*).
+
+Reads:
+
+- `deploy/compose/managed.yml`
 
 ### [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts)
 
