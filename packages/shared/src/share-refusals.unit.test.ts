@@ -11,10 +11,12 @@ import { describe, it, expect } from 'vitest';
 import {
   NO_GRANTEE_TO_SHARE_WITH,
   SHARE_REFUSAL,
+  limitAfterRefusals,
   retryAfterSecondsOf,
   shareLimitOf,
   shareRefusalKind,
   shareRefusalSaid,
+  spentTheLimit,
   type ShareRefused,
 } from './share-refusals.ts';
 
@@ -134,18 +136,50 @@ describe("the target's limit on new shares", () => {
     }
   });
 
-  it('says the target limits new shares, that nothing was refused, and when to apply again', () => {
+  it('says the target limits new shares, that this share was not refused, and when to apply again', () => {
     const { en, nl } = shareRefusalSaid(limit());
     expect(en).toContain('limits how many shares one account may create in a short time');
     expect(en).toContain('(status 429)');
-    expect(en).toContain('Nothing was refused');
+    expect(en).toContain('This share was not refused');
     expect(en).toContain('apply again in ten minutes');
-    // Nobody asked for a wait, so the sentence says where its ten minutes come from.
-    expect(en).toContain('Nextcloud counts the shares an account created in the last ten minutes');
+    // Nobody asked for a wait, so the sentence says where its ten minutes
+    // come from, and that a share that failed counts: with outsiders at two
+    // calls apiece, the limit comes after ten shares made, not twenty.
+    expect(en).toContain(
+      'Nextcloud counts every share an account asked for in the last ten minutes, those that failed included',
+    );
+    expect(en).not.toMatch(/shares an account created/);
     expect(nl).toContain('beperkt hoeveel deelrechten één account in korte tijd mag aanmaken');
-    expect(nl).toContain('Er is niets geweigerd');
+    expect(nl).toContain('Dit deelrecht is niet geweigerd');
     expect(nl).toContain('u kunt het over tien minuten opnieuw toepassen');
+    expect(nl).toContain('Nextcloud telt elk deelrecht dat een account in de laatste tien minuten aanvroeg, ook de mislukte');
     expect(en).not.toBe(SHARE_REFUSAL.other.en.replace('{status}', 'status 429'));
+  });
+
+  it('says limiet in Dutch, the word the product uses for a limit, never grens', () => {
+    const { nl } = shareRefusalSaid(limit());
+    expect(nl).toContain('heeft die limiet bereikt');
+    expect(nl).not.toMatch(/\bgrens\b/);
+  });
+
+  it('a wait the server asked for and is not believed is said as later, never as ten minutes', () => {
+    const said = shareRefusalSaid({ kind: 'answered', status: 429, ocsStatus: 429, ocs: true, retryAfterNotBelieved: true });
+    expect(said.en).toContain('apply again later, as the new system asked.');
+    expect(said.nl).toContain('u kunt het later opnieuw toepassen, zoals het nieuwe systeem vroeg.');
+    expect(said.en).not.toContain('ten minutes');
+    expect(said.en).not.toContain('Nextcloud counts');
+  });
+
+  it('a 429 without OCS and without a wait says later, and nothing of Nextcloud', () => {
+    const said = shareRefusalSaid(answered(429, undefined, false));
+    expect(said.en).toContain('apply again later; the new system did not say when.');
+    expect(said.nl).toContain('u kunt het later opnieuw toepassen; het nieuwe systeem zei niet wanneer.');
+    expect(said.en).not.toMatch(/Nextcloud|ten minutes/);
+    expect(said.nl).not.toMatch(/Nextcloud|tien minuten/);
+    // A wait it did name is still said, OCS or not.
+    expect(shareRefusalSaid({ kind: 'answered', status: 429, ocs: false, retryAfterSeconds: 240 }).en).toContain(
+      'apply again in about 4 minutes',
+    );
   });
 
   it.each<[number, string, string]>([
@@ -191,6 +225,38 @@ describe('retryAfterSecondsOf', () => {
     expect(retryAfterSecondsOf('1.5', NOW)).toBeUndefined();
   });
 
+  it.each(['x 5', 'May 5', 'foo 2026', 'soon 1', '2026-10-25T10:03:00Z', 'Sun, 25 Oct 2026 10:03:00 +0000'])(
+    '%j is none of the three forms of an HTTP date, though Date.parse reads it as one',
+    (header) => {
+      expect(retryAfterSecondsOf(header, NOW)).toBeUndefined();
+    },
+  );
+
+  it('a date that does not exist is no date', () => {
+    expect(retryAfterSecondsOf('Sun, 31 Feb 2026 10:03:00 GMT', NOW)).toBeUndefined();
+    expect(retryAfterSecondsOf('Sun, 25 Oct 2026 25:03:00 GMT', NOW)).toBeUndefined();
+  });
+
+  it("reads RFC 850's form and asctime's, the two obsolete ones a recipient still accepts", () => {
+    expect(retryAfterSecondsOf('Sunday, 25-Oct-26 10:03:00 GMT', NOW)).toBe(180);
+    expect(retryAfterSecondsOf('Sun Oct 25 10:03:00 2026', NOW)).toBe(180);
+    // A single-digit day, padded with a space, as asctime writes it.
+    expect(retryAfterSecondsOf('Mon Nov  2 10:00:00 2026', new Date('2026-11-02T09:59:00Z'))).toBe(60);
+  });
+
+  it('reads asctime, which names no zone, as GMT whatever zone the process runs in', () => {
+    const zone = process.env.TZ;
+    try {
+      for (const tz of ['UTC', 'America/New_York', 'Europe/Amsterdam']) {
+        process.env.TZ = tz;
+        expect(retryAfterSecondsOf('Sun Oct 25 10:03:00 2026', NOW), tz).toBe(180);
+      }
+    } finally {
+      if (zone === undefined) delete process.env.TZ;
+      else process.env.TZ = zone;
+    }
+  });
+
   it('believes a wait of up to one day, and no longer one, so the sentence falls back to ten minutes', () => {
     expect(retryAfterSecondsOf('86400', NOW)).toBe(86400);
     expect(retryAfterSecondsOf('86401', NOW)).toBeUndefined();
@@ -213,5 +279,66 @@ describe('retryAfterSecondsOf', () => {
     expect(said.en).toContain('apply again in ten minutes');
     expect(said.en).not.toMatch(/Infinity|NaN/);
     expect(said.nl).not.toMatch(/Infinity|NaN/);
+  });
+});
+
+/**
+ * WHAT A PRESS ADDS WHEN IT MEETS THE LIMIT AFTER REFUSALS (workplan 0104 T5,
+ * after review). A refused row stays open and unchanged, and the next press
+ * asks for it again before the rows that waited, at the same cost: fifteen
+ * outsiders, the first ten refused, and every press spent the twenty calls on
+ * those ten and said the last five would go through after ten minutes.
+ */
+describe('the limit after refusals', () => {
+  it('says nothing when nothing was refused before the limit', () => {
+    expect(limitAfterRefusals({ refused: 0, signIn: false })).toBeUndefined();
+  });
+
+  it('says the refused rows are asked for again first and count, and to settle them before applying again', () => {
+    const one = limitAfterRefusals({ refused: 1, signIn: false })!;
+    expect(one.en).toContain('refused 1 share this press asked for');
+    expect(one.en).toContain('counts toward the same limit');
+    expect(one.en).toContain('before the rows that wait');
+    expect(one.en).toContain('correct that row, skip it or mark it done before applying again');
+    expect(one.nl).toContain('1 deelrecht');
+    expect(one.nl).toContain('telt mee voor dezelfde limiet');
+    expect(one.nl).toContain('sla hem over of vink hem af');
+
+    const ten = limitAfterRefusals({ refused: 10, signIn: false })!;
+    expect(ten.en).toContain('refused 10 shares this press asked for, and those attempts count toward the same limit');
+    expect(ten.en).toContain('correct those rows, skip them or mark them done before applying again');
+    expect(ten.nl).toContain('10 deelrechten');
+    expect(ten.nl).toContain('sla ze over of vink ze af');
+    for (const said of [one, ten]) {
+      expect(said.en).not.toContain('password');
+      expect(said.nl).not.toMatch(/\b(je|jij|jou|jouw|jullie)\b/i);
+      expect(said.en).toMatch(/[.]$/);
+      expect(said.nl).toMatch(/[.]$/);
+    }
+  });
+
+  it('a sign-in refused before the limit says to check the password first, and that the wait may be half an hour', () => {
+    const said = limitAfterRefusals({ refused: 0, signIn: true })!;
+    expect(said.en).toContain('also refused the sign-in');
+    expect(said.en).toContain('check the password of the destination account on the Accounts page first');
+    expect(said.en).toContain('half an hour');
+    expect(said.nl).toContain('controleer eerst het wachtwoord van het doelaccount op de pagina Accounts');
+    expect(said.nl).toContain('half uur');
+    expect(said.nl).toMatch(/\bu\b/);
+
+    const both = limitAfterRefusals({ refused: 2, signIn: true })!;
+    expect(both.en).toContain('refused 2 shares');
+    expect(both.en).toContain('check the password');
+  });
+
+  it('counts a refusal toward the limit only when the target answered the share call', () => {
+    for (const kind of ['forbidden', 'notFound', 'noAccountNoMail', 'badRequest', 'serverError', 'notNextcloud', 'other'] as const) {
+      expect(spentTheLimit(kind), kind).toBe(true);
+    }
+    for (const kind of ['signIn', 'unreachable', 'certificate', 'insideOurNetwork', 'noOrigin', 'unknown'] as const) {
+      expect(spentTheLimit(kind), kind).toBe(false);
+    }
+    // A refusal the edition made before asking the target anything.
+    expect(spentTheLimit(undefined)).toBe(false);
   });
 });

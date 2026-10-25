@@ -1048,6 +1048,111 @@ describe("the target's limit on new shares (0104, 2026-10-25)", () => {
     expect((await ledger.listShareGrants(TENANT, MAPPING)).every((r) => r.state === 'applied')).toBe(true);
   });
 
+  /**
+   * THE REFUSED ROWS COME FIRST AGAIN (review of #1704, R1-1). A refused row
+   * stays open and unchanged, and the rows come in the same order on every
+   * press, so the rows refused before the limit are asked for again first,
+   * each attempt counted. Fifteen outsiders, the first ten refused: those ten
+   * spend the twenty calls on every press, and the last five are never tried.
+   * The press cannot reorder that (a refusal leaves no mark on its row); its
+   * sentence says to settle the refused rows first.
+   */
+  it('a press that meets the limit after refusals says those rows come first again and count toward it', async () => {
+    const ledger = new MemoryLedger();
+    const fifteen: PermissionGrant[] = Array.from({ length: 15 }, (_, i) => {
+      const n = String(i + 1).padStart(2, '0');
+      return {
+        subject: 'drive_item',
+        on: `Projects/item-${n}.xlsx`,
+        grantee: `outsider-${n}@example.nl`,
+        role: 'reader',
+        raw: `{"type":"user","role":"reader","emailAddress":"outsider-${n}@example.nl"}`,
+      };
+    });
+    await refreshed(ledger, fifteen);
+    const order = (await openClean(ledger)).map((r) => r.onLabel);
+    const refusedOnes = new Set(order.slice(0, 10));
+    let calls = 0;
+    const tried: string[] = [];
+    const createShare = async (row: ShareGrantRow) => {
+      tried.push(row.onLabel);
+      for (const _attempt of ['user', 'mail']) {
+        if (calls >= 20) {
+          return {
+            ok: false as const,
+            reason: 'The new system limits how many shares one account may create (status 429).',
+            reasonNl: 'Het nieuwe systeem beperkt hoeveel deelrechten één account mag aanmaken (status 429).',
+            limited: {},
+          };
+        }
+        calls++;
+      }
+      return refusedOnes.has(row.onLabel)
+        ? { ok: false as const, reason: 'OCS answered 403: no', reasonNl: 'geweigerd', refusedAs: 'noAccountNoMail' as const }
+        : { ok: true as const };
+    };
+
+    for (const press of [1, 2, 3]) {
+      calls = 0;
+      tried.length = 0;
+      const outcome = await applyAllOpenShareGrants({ ...deps(ledger), isCutOver: () => true, createShare });
+      expect(outcome.ok).toBe(true);
+      if (!outcome.ok) return;
+      // The same every time: ten refused, five waiting, none of those five asked.
+      expect(outcome.applied, `press ${press}`).toEqual([]);
+      expect(outcome.refused.map((r) => r.on)).toEqual(order.slice(0, 10));
+      expect(outcome.waitingForLimit.map((r) => r.on)).toEqual(order.slice(10));
+      expect(tried).toEqual(order.slice(0, 11));
+      // And its sentence says why, and what to do, in both languages.
+      expect(outcome.limit?.reason).toMatch(/^The new system limits how many shares one account may create \(status 429\)\. /);
+      expect(outcome.limit?.reason).toContain('refused 10 shares this press asked for, and those attempts count toward the same limit');
+      expect(outcome.limit?.reason).toContain('before the rows that wait');
+      expect(outcome.limit?.reason).toContain('correct those rows, skip them or mark them done before applying again');
+      expect(outcome.limit?.reasonNl).toMatch(/^Het nieuwe systeem beperkt .*\(status 429\)\. Vóór de limiet weigerde het nieuwe systeem 10 deelrechten/);
+      expect(outcome.limit?.reason).not.toContain('password');
+    }
+
+    // Settling the refused rows is what lets the rows that waited through.
+    for (const row of (await openClean(ledger)).filter((r) => refusedOnes.has(r.onLabel))) {
+      await markShareGrant(deps(ledger), row.id, 'skipped');
+    }
+    calls = 0;
+    const after = await applyAllOpenShareGrants({ ...deps(ledger), isCutOver: () => true, createShare });
+    if (!after.ok) throw new Error('the press after settling was refused');
+    expect(after.applied.map((r) => r.onLabel)).toEqual(order.slice(10));
+    expect(after.waitingForLimit).toEqual([]);
+  });
+
+  it('a refused sign-in before the limit says to check the password first; a refusal the target never answered counts nothing', async () => {
+    const ledger = new MemoryLedger();
+    await refreshed(ledger, OUTSIDERS.slice(0, 4));
+    const order = (await openClean(ledger)).map((r) => r.onLabel);
+    const answers = new Map<string, Awaited<ReturnType<NonNullable<Parameters<typeof applyAllOpenShareGrants>[0]['createShare']>>>>([
+      [order[0]!, { ok: false, reason: 'OCS answered 401', reasonNl: 'aanmelding', refusedAs: 'signIn' }],
+      [order[1]!, { ok: false, reason: 'connect ECONNREFUSED', reasonNl: 'onbereikbaar', refusedAs: 'unreachable' }],
+      [order[2]!, { ok: false, reason: 'nobody to share with' }],
+    ]);
+    const press = await applyAllOpenShareGrants({
+      ...deps(ledger),
+      isCutOver: () => true,
+      createShare: async (row) =>
+        answers.get(row.onLabel) ?? {
+          ok: false,
+          reason: 'The new system limits how many shares (status 429).',
+          reasonNl: 'Het nieuwe systeem beperkt (status 429).',
+          limited: {},
+        },
+    });
+    if (!press.ok) throw new Error('the press was refused');
+    expect(press.refused).toHaveLength(3);
+    expect(press.limit?.reason).toContain('also refused the sign-in');
+    expect(press.limit?.reason).toContain('check the password of the destination account on the Accounts page first');
+    expect(press.limit?.reasonNl).toContain('controleer eerst het wachtwoord');
+    // The sign-in, the address nothing answered at and the row with nobody to
+    // share with spent nothing of the limit, so no count is claimed for them.
+    expect(press.limit?.reason).not.toMatch(/refused \d+ shares? this press asked for/);
+  });
+
   it('the folder press stops at the limit the same way, and records how many wait', async () => {
     const ledger = new MemoryLedger();
     const folder: PermissionGrant[] = [

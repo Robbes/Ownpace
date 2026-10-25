@@ -4200,7 +4200,10 @@ paths:
         shares in ten minutes. The row that met the limit and every row after
         it stay open and untried, listed in `waitingForLimit` and never in
         `refused`, and `limit` says when to press again. A later press tries
-        them again, as it tries the refused rows.
+        them again, but only after the rows still refused: those stay open,
+        come first in the same order, and each attempt counts toward the same
+        limit, so when a press met the limit after refusals `limit` says to
+        settle those rows first.
       parameters:
         - { name: mappingId, in: path, required: true, schema: { type: string } }
       requestBody:
@@ -4250,7 +4253,7 @@ paths:
                         grantee: { type: string }
                   limit:
                     type: object
-                    description: Present exactly when `waitingForLimit` is not empty. The sentence for the row the limit was met on, saying when to press again.
+                    description: Present exactly when `waitingForLimit` is not empty. The sentence for the row the limit was met on, saying when to press again; when the press was refused rows before the limit, it goes on to say that those rows are asked for again first and count toward the same limit, and to settle them first.
                     properties:
                       retryAfterSeconds: { type: integer, description: "The wait the target asked for in `Retry-After`, in seconds, when it sent one it could be read from. Stock Nextcloud sends none." }
                       reason: { type: string }
@@ -4353,7 +4356,7 @@ paths:
                         grantee: { type: string }
                   limit:
                     type: object
-                    description: Present exactly when `waitingForLimit` is not empty. The sentence for the row the limit was met on, saying when to press again.
+                    description: Present exactly when `waitingForLimit` is not empty. The sentence for the row the limit was met on, saying when to press again; when the press was refused rows before the limit, it goes on to say that those rows are asked for again first and count toward the same limit, and to settle them first.
                     properties:
                       retryAfterSeconds: { type: integer, description: "The wait the target asked for in `Retry-After`, in seconds, when it sent one it could be read from. Stock Nextcloud sends none." }
                       reason: { type: string }

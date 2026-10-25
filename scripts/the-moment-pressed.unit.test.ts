@@ -273,6 +273,17 @@ describe('the press that ran out of shares (E2E (managed) #277, 2026-10-25)', ()
     expect(b, "the apply-all branch no longer says when this run's own row waits for the limit").toMatch(
       /elif jq -e --arg on "\$own_row" 'any\(\.waitingForLimit\[\]\?; \.on == \$on\)'[\s\S]*not tried/,
     );
+    // Both presses applied, and this run's own row is open: apply-all applied
+    // an older open row and met the limit before this run's. Only the press
+    // bodies say so, in `waitingForLimit`; the branch printed neither.
+    const own = branch("both presses reported success, yet this run's own");
+    expect(own, 'the branch for an own row left open after both presses is gone').not.toEqual('');
+    expect(own, 'the own-row branch no longer prints what the folder press answered').toMatch(
+      /refused_rows "\$\{fpress_out%/,
+    );
+    expect(own, 'the own-row branch no longer prints what the one-go press answered').toMatch(
+      /refused_rows "\$\{press_out%/,
+    );
   });
 
   it("skips the gate's open rows through the decision route, after the press, every run", () => {

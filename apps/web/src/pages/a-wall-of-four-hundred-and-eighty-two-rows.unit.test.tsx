@@ -75,6 +75,7 @@ vi.mock('../services/operating-service', () => ({
 
 import Sharing from './Sharing.tsx';
 import { LocaleProvider, useLocale } from '../i18n/index.tsx';
+import { formatDateTime } from '../i18n/datetime.ts';
 
 const row = (over: Partial<ShareGrantRow> & { id: string }): ShareGrantRow => ({
   grantHash: `hash-${over.id}`,
@@ -990,7 +991,7 @@ describe('what a folder press could not share, and why', () => {
 
     expect(
       await screen.findByText(
-        '3 deelrechten in deze map wachten op de grens die het nieuwe systeem stelt aan nieuwe deelrechten. De regels blijven open; geen ervan is geweigerd.',
+        '3 deelrechten in deze map wachten op de limiet die het nieuwe systeem stelt aan nieuwe deelrechten. De regels blijven open; geen ervan is geweigerd.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByText(LIMIT_NL).closest('[lang="en"]')).toBeNull();
@@ -1027,6 +1028,43 @@ describe('what a folder press could not share, and why', () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText(ANNA_EN)).toHaveLength(1);
     expect(screen.getAllByText(LIMIT_EN)).toHaveLength(1);
+  });
+
+  /*
+   * WHEN, ON THE READER'S CLOCK (review of #1704, R2-4). The line stays on
+   * the page until the folder is pressed again, and *in ten minutes* soon
+   * counts from nothing anybody can see. So it ends with a moment: when to
+   * apply again, when the new system named a wait; when it answered, when it
+   * did not, for the sentence above to count from.
+   */
+  describe('the moment under the waiting line', () => {
+    const ANSWERED = new Date('2026-10-25T14:22:30Z');
+    const clock = (at: Date, locale: 'en' | 'nl') => formatDateTime(at, locale, { dateStyle: undefined });
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(ANSWERED);
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it('says when the new system answered when it named no wait', async () => {
+      answerWith(folderForTwo());
+      applyShareFolder.mockResolvedValue(stoppedAtTheLimit(true));
+      renderIn('en');
+      await pressFolder('en');
+      expect(await screen.findByText(`The new system gave this answer at ${clock(ANSWERED, 'en')}.`)).toBeInTheDocument();
+      expect(screen.queryByText(/^Apply again after/)).toBeNull();
+    });
+
+    it('says when to apply again when it named one, up to the next whole minute, in Dutch for a Dutch reader', async () => {
+      answerWith(folderForTwo());
+      const limited = stoppedAtTheLimit(true);
+      applyShareFolder.mockResolvedValue({ ...limited, limit: { ...limited.limit, retryAfterSeconds: 240 } });
+      renderIn('nl');
+      await pressFolder('nl');
+      // 14:22:30 and four minutes is 14:26:30: after 14:27.
+      expect(await screen.findByText(`Pas het na ${clock(new Date('2026-10-25T14:27:00Z'), 'nl')} opnieuw toe.`)).toBeInTheDocument();
+      expect(screen.queryByText(/gaf dit antwoord om/)).toBeNull();
+    });
   });
 
   it('the next press that meets no limit takes the waiting line away', async () => {

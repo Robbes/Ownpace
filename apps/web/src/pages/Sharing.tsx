@@ -55,6 +55,7 @@ import {
   type ShareRowWaiting,
 } from '../services/operating-service.ts';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
+import { formatDateTime } from '../i18n/datetime.ts';
 import { serverMessage } from '../services/api.ts';
 import { Hint } from '../components/Hint.tsx';
 
@@ -146,10 +147,12 @@ const NotShared: React.FC<{ refused: ReadonlyArray<ShareRowRefused> }> = ({ refu
   );
 };
 
-/** The rows a folder press stopped before at the new system's limit, and that limit. */
+/** The rows a folder press stopped before at the new system's limit, that limit, and when it answered. */
 interface WaitingRows {
   readonly rows: ReadonlyArray<ShareRowWaiting>;
   readonly limit: ShareLimitReached;
+  /** When the press's answer came: the line stays until the folder is pressed again. */
+  readonly at: Date;
 }
 
 /**
@@ -160,11 +163,18 @@ interface WaitingRows {
  * from there on were not refused and were not tried: they wait for the
  * limit. So they are not said under *did not work*, which a person reads as a
  * share to correct, but here, with when to apply again.
+ *
+ * The line stays on the page until this folder is pressed again, so *in ten
+ * minutes* soon counts from nothing anybody can see: it ends with the moment,
+ * on the reader's clock, to apply again after when the new system named a
+ * wait, and the moment it answered otherwise.
  */
 const WaitingForLimit: React.FC<{ waiting: WaitingRows }> = ({ waiting }) => {
   const { t, locale } = useLocale();
   const count = waiting.rows.length;
   const nl = locale === 'nl' && waiting.limit.reasonNl !== undefined;
+  const wait = waiting.limit.retryAfterSeconds;
+  const clock = (at: Date) => formatDateTime(at, locale, { dateStyle: undefined });
   return (
     <div className="p-2 rounded border border-sky-200 bg-sky-50">
       <p className="text-xs font-medium text-sky-900">
@@ -174,6 +184,14 @@ const WaitingForLimit: React.FC<{ waiting: WaitingRows }> = ({ waiting }) => {
       </p>
       <p className="mt-1 text-xs text-sky-800" lang={locale === 'nl' && !nl ? 'en' : undefined}>
         {nl ? waiting.limit.reasonNl : waiting.limit.reason}
+      </p>
+      <p className="mt-1 text-xs text-sky-800">
+        {wait === undefined
+          ? t('sharing.group.waitingForLimit.answeredAt', { time: clock(waiting.at) })
+          : // Up to the next whole minute, since the clock shows no seconds.
+            t('sharing.group.waitingForLimit.after', {
+              time: clock(new Date(Math.ceil((waiting.at.getTime() + wait * 1000) / 60_000) * 60_000)),
+            })}
       </p>
     </div>
   );
@@ -769,7 +787,7 @@ const Sharing: React.FC = () => {
         const limit = outcome.limit;
         setFolderWaiting((r) => ({
           ...r,
-          [group.parentKey]: waiting.length > 0 && limit ? { rows: waiting, limit } : undefined,
+          [group.parentKey]: waiting.length > 0 && limit ? { rows: waiting, limit, at: new Date() } : undefined,
         }));
         refresh();
       })

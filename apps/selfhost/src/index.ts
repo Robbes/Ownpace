@@ -105,6 +105,7 @@ import {
   log,
   permissionsNotDiscoverable,
   shareLimitOf,
+  shareRefusalKind,
   shareRefusalSaid,
   type PermissionListing,
   type ShareGrantRow,
@@ -2303,7 +2304,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           // 429 is an empty OCS reply), and what the owner needs is when to
           // apply again; the reply goes to the log.
           const limited = shareLimitOf(created.said);
-          if (limited === undefined) return created;
+          // Which refusal it was, for a press that meets the limit after it
+          // (`limitAfterRefusals`); the reason stays the target's words.
+          if (limited === undefined) return { ...created, refusedAs: shareRefusalKind(created.said) };
           log.warn(`[share] the target's limit on new shares: ${created.reason}`);
           const said = shareRefusalSaid(created.said);
           return { ok: false as const, reason: said.en, reasonNl: said.nl, limited };

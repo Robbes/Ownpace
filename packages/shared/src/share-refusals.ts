@@ -48,6 +48,13 @@ export interface OcsAnswer {
    * not the server's words. Stock Nextcloud sends none with its 429.
    */
   readonly retryAfterSeconds?: number;
+  /**
+   * Set when the server sent a `Retry-After` that `retryAfterSecondsOf` did
+   * not read as a wait: no form RFC 9110 names, or more than a day. It asked
+   * for a wait all the same, so the sentence says *later*, and neither a
+   * number nobody can trust nor Nextcloud's ten minutes (`pressAgain`).
+   */
+  readonly retryAfterNotBelieved?: true;
 }
 
 /**
@@ -99,11 +106,64 @@ export interface ShareLimit {
  */
 const RETRY_AFTER_MAX_SECONDS = 24 * 60 * 60;
 
+const MONTHS: readonly string[] = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const DAY = '(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)';
+const MONTH = '(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)';
+const TIME = '(\\d{2}):(\\d{2}):(\\d{2})';
+/** `Sun, 06 Nov 1994 08:49:37 GMT`: IMF-fixdate, the form a sender uses. */
+const IMF_FIXDATE = new RegExp(`^${DAY}, (\\d{2}) ${MONTH} (\\d{4}) ${TIME} GMT$`, 'i');
+/** `Sunday, 06-Nov-94 08:49:37 GMT`: RFC 850's form, obsolete, with a two-digit year. */
+const RFC850_DATE = new RegExp(
+  `^(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), (\\d{2})-${MONTH}-(\\d{2}) ${TIME} GMT$`,
+  'i',
+);
+/** `Sun Nov  6 08:49:37 1994`: C's asctime form, obsolete, which names no zone and means GMT. */
+const ASCTIME_DATE = new RegExp(`^${DAY} ${MONTH} ( \\d|\\d{2}) ${TIME} (\\d{4})$`, 'i');
+
+/**
+ * The moment an HTTP date names (RFC 9110 §5.6.7), in milliseconds, or
+ * undefined when the value is not one of its three forms or names no real
+ * moment. Read by hand, never by `Date.parse`: that takes `May 5` or `soon 1`
+ * for a date in 2001, and reads the zoneless asctime form in the process's
+ * own time zone, where RFC 9110 says GMT.
+ */
+function httpDateOf(value: string, now: Date): number | undefined {
+  const imf = IMF_FIXDATE.exec(value);
+  const rfc850 = RFC850_DATE.exec(value);
+  const asctime = ASCTIME_DATE.exec(value);
+  // Day, month, year, hour, minute and second, wherever each form writes them.
+  const parts = imf
+    ? imf.slice(1, 7)
+    : rfc850
+      ? rfc850.slice(1, 7)
+      : asctime
+        ? [asctime[2], asctime[1], asctime[6], asctime[3], asctime[4], asctime[5]]
+        : undefined;
+  if (parts === undefined) return undefined;
+  const [day, month, written, hour, minute, second] = parts as [string, string, string, string, string, string];
+  let year = Number(written);
+  if (rfc850) {
+    // A two-digit year more than 50 years ahead is the most recent past year
+    // with those digits (RFC 9110 §5.6.7).
+    const thisYear = now.getUTCFullYear();
+    year += Math.floor(thisYear / 100) * 100;
+    if (year > thisYear + 50) year -= 100;
+  }
+  const named = [year, MONTHS.indexOf(month.toLowerCase()), Number(day), Number(hour), Number(minute), Number(second)] as const;
+  const at = new Date(Date.UTC(...named));
+  // A day or a time that does not exist (31 Feb, 25:00) rolls over in
+  // `Date.UTC`: it names no moment, so it is no date.
+  const read = [at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate(), at.getUTCHours(), at.getUTCMinutes(), at.getUTCSeconds()];
+  return read.every((n, i) => n === named[i]) ? at.getTime() : undefined;
+}
+
 /**
  * The seconds a `Retry-After` asks for (RFC 9110 §10.2.3): a whole number of
- * seconds, or an HTTP date counted from `now`. Undefined when there is no
- * header, it is neither, or it asks for more than `RETRY_AFTER_MAX_SECONDS`,
- * so a sentence never claims a wait nobody asked for, or one nobody meant.
+ * seconds, or an HTTP date in one of its three forms (`httpDateOf`), counted
+ * from `now`. Undefined when there is no header, it is neither, or it asks
+ * for more than `RETRY_AFTER_MAX_SECONDS`, so a sentence never claims a wait
+ * nobody asked for, or one nobody meant. A header that was sent and comes to
+ * undefined here is said as *later* (`OcsAnswer.retryAfterNotBelieved`).
  */
 export function retryAfterSecondsOf(header: string | undefined, now: Date = new Date()): number | undefined {
   const value = header?.trim();
@@ -111,12 +171,8 @@ export function retryAfterSecondsOf(header: string | undefined, now: Date = new 
   const believed = (seconds: number): number | undefined =>
     Number.isSafeInteger(seconds) && seconds <= RETRY_AFTER_MAX_SECONDS ? seconds : undefined;
   if (/^\d+$/.test(value)) return believed(Number(value));
-  // Every form of an HTTP date names its month and its zone in letters. A
-  // bare number of another shape (`-5`, `1.5`) is no date, though `Date.parse`
-  // reads one as a year.
-  if (!/[a-z]/i.test(value)) return undefined;
-  const at = Date.parse(value);
-  if (Number.isNaN(at)) return undefined;
+  const at = httpDateOf(value, now);
+  if (at === undefined) return undefined;
   return believed(Math.max(0, Math.ceil((at - now.getTime()) / 1000)));
 }
 
@@ -138,17 +194,33 @@ export function shareLimitOf(said: ShareRefused): ShareLimit | undefined {
 
 /**
  * When to apply again, as the limit's sentence ends: what the server asked,
- * in minutes, or Nextcloud's own ten minutes when it asked nothing.
+ * in minutes; *later* when it asked in a way that is not believed
+ * (`retryAfterNotBelieved`), or answered without OCS and asked nothing, as a
+ * proxy does; and Nextcloud's own ten minutes only when Nextcloud answered and
+ * asked nothing, which is what stock Nextcloud does.
  */
-function pressAgain(retryAfterSeconds: number | undefined): Bilingual {
+function pressAgain(a: OcsAnswer): Bilingual {
+  const retryAfterSeconds = a.retryAfterSeconds;
+  if (retryAfterSeconds === undefined && a.retryAfterNotBelieved) {
+    return {
+      en: 'apply again later, as the new system asked.',
+      nl: 'u kunt het later opnieuw toepassen, zoals het nieuwe systeem vroeg.',
+    };
+  }
+  if (retryAfterSeconds === undefined && !a.ocs) {
+    return {
+      en: 'apply again later; the new system did not say when.',
+      nl: 'u kunt het later opnieuw toepassen; het nieuwe systeem zei niet wanneer.',
+    };
+  }
   if (retryAfterSeconds === undefined) {
     return {
       en:
-        'apply again in ten minutes. Nextcloud counts the shares an account created in the last ten ' +
-        'minutes, unless whoever runs it chose another period.',
+        'apply again in ten minutes. Nextcloud counts every share an account asked for in the last ten ' +
+        'minutes, those that failed included, unless whoever runs it chose another period.',
       nl:
-        'u kunt het over tien minuten opnieuw toepassen. Nextcloud telt de deelrechten die een account ' +
-        'in de laatste tien minuten aanmaakte, tenzij de beheerder een andere periode koos.',
+        'u kunt het over tien minuten opnieuw toepassen. Nextcloud telt elk deelrecht dat een account in de ' +
+        'laatste tien minuten aanvroeg, ook de mislukte, tenzij de beheerder een andere periode koos.',
     };
   }
   if (retryAfterSeconds <= 60) {
@@ -246,12 +318,12 @@ export const SHARE_REFUSAL = {
   limited: {
     en:
       'The new system limits how many shares one account may create in a short time, and the account ' +
-      'this migration uses there has reached that limit ({status}). Nothing was refused and nothing more ' +
-      'was shared, and the row stays open: {when}',
+      'this migration uses there has reached that limit ({status}). This share was not refused, nothing ' +
+      'more was shared, and the row stays open: {when}',
     nl:
       'Het nieuwe systeem beperkt hoeveel deelrechten één account in korte tijd mag aanmaken, en het ' +
-      'account dat deze migratie daar gebruikt, heeft die grens bereikt ({status}). Er is niets geweigerd ' +
-      'en verder niets gedeeld, en de regel blijft open: {when}',
+      'account dat deze migratie daar gebruikt, heeft die limiet bereikt ({status}). Dit deelrecht is niet ' +
+      'geweigerd, er is verder niets gedeeld, en de regel blijft open: {when}',
   },
   other: {
     en:
@@ -350,11 +422,104 @@ export function shareRefusalSaid(said: ShareRefused): Bilingual {
   const answer = said.kind === 'answered' ? said : said.kind === 'notAnAccount' ? said.byMail : undefined;
   if (answer === undefined) return sentence;
   const status = statusOf(answer);
-  const when = pressAgain(answer.retryAfterSeconds);
+  const when = pressAgain(answer);
   return {
     en: sentence.en.replace('{status}', status).replace('{when}', when.en),
     nl: sentence.nl.replace('{status}', status).replace('{when}', when.nl),
   };
+}
+
+/**
+ * The kinds of refusal that spent nothing of the target's limit on new
+ * shares: nothing answered, or nothing was asked, or the sign-in was refused
+ * before the share was reached. A refusal of any other kind was a share call
+ * the target answered, and counted.
+ */
+const SPENT_NOTHING: ReadonlySet<ShareRefusalKind> = new Set<ShareRefusalKind>([
+  'signIn',
+  'unreachable',
+  'certificate',
+  'insideOurNetwork',
+  'noOrigin',
+  'unknown',
+]);
+
+/**
+ * Whether a share refused as `kind` counted toward the target's limit on new
+ * shares. A refusal of no kind is one the edition made before asking the
+ * target anything (a row with nobody to share with), and counted nothing.
+ */
+export function spentTheLimit(kind: ShareRefusalKind | undefined): boolean {
+  return kind !== undefined && !SPENT_NOTHING.has(kind);
+}
+
+/** What a press was refused before it met the target's limit (`limitAfterRefusals`). */
+export interface RefusedBeforeTheLimit {
+  /** Rows the target refused, each a share call it counted (`spentTheLimit`). */
+  readonly refused: number;
+  /** Whether it refused this migration's sign-in on any row. */
+  readonly signIn: boolean;
+}
+
+/**
+ * WHAT A PRESS ADDS TO THE LIMIT'S SENTENCE (workplan 0104 T5, after review).
+ *
+ * A refused row stays open and unchanged, and a press tries the open rows in
+ * the same order every time, so the rows refused before the limit are asked
+ * for again before the rows that waited, and Nextcloud counts every attempt,
+ * failed ones included. Fifteen outsiders, the first ten refused: those ten
+ * spend the twenty calls on every press, and the last five are never tried.
+ * So when a press met the limit after refusals, its sentence says to settle
+ * the refused rows first.
+ *
+ * A refused sign-in is said apart: Nextcloud answers 429 for up to half an
+ * hour after more than ten failed sign-ins from one address
+ * (`OC\Security\Bruteforce\Throttler`, before it reads the password), so the
+ * limit may be that, and a corrected password does not lift it at once.
+ *
+ * Undefined when the press was refused nothing before the limit.
+ */
+export function limitAfterRefusals(before: RefusedBeforeTheLimit): Bilingual | undefined {
+  const said: Bilingual[] = [];
+  if (before.refused === 1) {
+    said.push({
+      en:
+        'Before the limit, the new system refused 1 share this press asked for, and that attempt counts ' +
+        'toward the same limit. A press asks for it again before the rows that wait, so correct that row, ' +
+        'skip it or mark it done before applying again, or it spends part of the limit again.',
+      nl:
+        'Vóór de limiet weigerde het nieuwe systeem 1 deelrecht waar deze actie om vroeg, en die poging telt ' +
+        'mee voor dezelfde limiet. Opnieuw toepassen vraagt het eerst weer aan, vóór de regels die wachten: ' +
+        'pas die regel dus eerst aan, sla hem over of vink hem af, anders gaat er opnieuw een deel van de ' +
+        'limiet aan op.',
+    });
+  } else if (before.refused > 1) {
+    said.push({
+      en:
+        `Before the limit, the new system refused ${before.refused} shares this press asked for, and those ` +
+        'attempts count toward the same limit. A press asks for them again before the rows that wait, so ' +
+        'correct those rows, skip them or mark them done before applying again, or they spend the limit again.',
+      nl:
+        `Vóór de limiet weigerde het nieuwe systeem ${before.refused} deelrechten waar deze actie om vroeg, en ` +
+        'die pogingen tellen mee voor dezelfde limiet. Opnieuw toepassen vraagt ze eerst weer aan, vóór de ' +
+        'regels die wachten: pas die regels dus eerst aan, sla ze over of vink ze af, anders gaat de limiet ' +
+        'er opnieuw aan op.',
+    });
+  }
+  if (before.signIn) {
+    said.push({
+      en:
+        'During this press the new system also refused the sign-in this migration uses for it, and after ' +
+        'too many failed sign-ins Nextcloud answers this way for up to half an hour: check the password of ' +
+        'the destination account on the Accounts page first, and allow that half hour before applying again.',
+      nl:
+        'Tijdens deze actie weigerde het nieuwe systeem ook de aanmelding van deze migratie, en na te veel ' +
+        'mislukte aanmeldingen antwoordt Nextcloud tot een half uur lang zo: controleer eerst het wachtwoord ' +
+        'van het doelaccount op de pagina Accounts, en wacht dat half uur af voordat u het opnieuw toepast.',
+    });
+  }
+  if (said.length === 0) return undefined;
+  return { en: said.map((s) => s.en).join(' '), nl: said.map((s) => s.nl).join(' ') };
 }
 
 /**

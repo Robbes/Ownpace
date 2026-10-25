@@ -196,6 +196,12 @@ export const en = {
     '1 share in this folder waits for the new system\u2019s limit on new shares. Its row stays open; it was not refused.',
   'sharing.group.waitingForLimit.many':
     '{count} shares in this folder wait for the new system\u2019s limit on new shares. Their rows stay open; none was refused.',
+  // When the answer came, in the reader's own clock, since the line stays on
+  // the page until this folder is pressed again: the moment to apply again
+  // when the new system named a wait, and the moment it answered otherwise,
+  // for the server's sentence under it to count from.
+  'sharing.group.waitingForLimit.after': 'Apply again after {time}.',
+  'sharing.group.waitingForLimit.answeredAt': 'The new system gave this answer at {time}.',
   'sharing.alone.unplaced': 'The old system did not say where this sits, so it is on its own.',
   'sharing.alone.vsFolder': 'Shared differently from its folder',
   'sharing.alone.vsSiblings': 'Shared differently from the other items here',
@@ -406,9 +412,11 @@ export const nl: Record<keyof typeof en, string> = {
   'sharing.group.refused.many':
     'Delen op het nieuwe systeem lukte niet voor {count} deelrechten in deze map. De regels blijven open.',
   'sharing.group.waitingForLimit.one':
-    '1 deelrecht in deze map wacht op de grens die het nieuwe systeem stelt aan nieuwe deelrechten. De regel blijft open; het is niet geweigerd.',
+    '1 deelrecht in deze map wacht op de limiet die het nieuwe systeem stelt aan nieuwe deelrechten. De regel blijft open; het is niet geweigerd.',
   'sharing.group.waitingForLimit.many':
-    '{count} deelrechten in deze map wachten op de grens die het nieuwe systeem stelt aan nieuwe deelrechten. De regels blijven open; geen ervan is geweigerd.',
+    '{count} deelrechten in deze map wachten op de limiet die het nieuwe systeem stelt aan nieuwe deelrechten. De regels blijven open; geen ervan is geweigerd.',
+  'sharing.group.waitingForLimit.after': 'Pas het na {time} opnieuw toe.',
+  'sharing.group.waitingForLimit.answeredAt': 'Het nieuwe systeem gaf dit antwoord om {time}.',
   'sharing.alone.unplaced': 'Het oude systeem gaf niet aan waar dit staat, dus het staat apart.',
   'sharing.alone.vsFolder': 'Anders gedeeld dan de map zelf',
   'sharing.alone.vsSiblings': 'Anders gedeeld dan de andere items hier',

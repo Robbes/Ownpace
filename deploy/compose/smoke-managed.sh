@@ -5665,6 +5665,13 @@ else
     if [ -n "$own_open" ]; then
       echo "both presses reported success, yet this run's own share row(s) are still open:"
       echo "$own_open"
+      # What each press answered, refused and waiting rows both: a press that
+      # applied an older open row and then met the target's limit before this
+      # run's own lists it in `waitingForLimit`, and that is the explanation.
+      echo "  the folder press answered:"
+      refused_rows "${fpress_out%$'\n'*}"
+      echo "  the one-go press answered:"
+      refused_rows "${press_out%$'\n'*}"
       fail_at "a press reported success and left this run's own share row(s) open"
     fi
   fi

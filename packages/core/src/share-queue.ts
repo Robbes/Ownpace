@@ -36,9 +36,16 @@ import type {
   PermissionSubject,
   ShareGrantRow,
   ShareLimit,
+  ShareRefusalKind,
   TenantId,
 } from '@openmig/shared';
-import { DISCOVERY_DOMAINS, dataTypeOfShare, groupShareGrants } from '@openmig/shared';
+import {
+  DISCOVERY_DOMAINS,
+  dataTypeOfShare,
+  groupShareGrants,
+  limitAfterRefusals,
+  spentTheLimit,
+} from '@openmig/shared';
 import { mapGrant, type ReportLanguage } from './permission-map.ts';
 
 /**
@@ -243,6 +250,12 @@ export type ShareActionOutcome =
        * reached (`ShareLimit`), and nothing about this row was refused.
        */
       readonly limited?: ShareLimit;
+      /**
+       * Set with `target_refused` when the edition said which refusal it was
+       * (`shareRefusalKind`): a press reads it when it meets the limit after
+       * refusals (`limitAfterRefusals`). Never on the wire.
+       */
+      readonly refusedAs?: ShareRefusalKind;
     };
 
 export interface ShareQueueDeps {
@@ -286,9 +299,16 @@ export interface ApplyShareDeps extends ShareQueueDeps {
     /**
      * `reasonNl` beside `reason` when the edition says the refusal in both
      * languages; `limited` when the target answered with its limit on new
-     * shares rather than with a refusal (`ShareLimit`, `@openmig/shared`).
+     * shares rather than with a refusal (`ShareLimit`, `@openmig/shared`);
+     * `refusedAs`, which refusal it was, when the edition knows.
      */
-    | { readonly ok: false; readonly reason: string; readonly reasonNl?: string; readonly limited?: ShareLimit }
+    | {
+        readonly ok: false;
+        readonly reason: string;
+        readonly reasonNl?: string;
+        readonly limited?: ShareLimit;
+        readonly refusedAs?: ShareRefusalKind;
+      }
   >;
 }
 
@@ -509,6 +529,7 @@ export async function applyShareGrant(
       code: 'target_refused',
       reason: created.reason,
       ...(created.reasonNl === undefined ? {} : { reasonNl: created.reasonNl }),
+      ...(created.refusedAs === undefined ? {} : { refusedAs: created.refusedAs }),
     };
   }
 
@@ -559,14 +580,19 @@ export interface ApplyAllOutcome {
    * Rows left open because the target's limit on new shares was reached
    * (workplan 0104, Status of 2026-10-25): the row it was reached on and
    * every row the press had not tried yet, in the order it would have tried
-   * them. Empty when the press met no limit. None of them was refused, so a
-   * press after the window has passed tries each of them again.
+   * them. Empty when the press met no limit. None of them was refused, and a
+   * press after the window has passed tries each of them again, but only
+   * after the rows still open before them: the rows this press refused come
+   * first again, and each attempt counts toward the same limit, so `limit`
+   * says to settle those first (`limitAfterRefusals`).
    */
   readonly waitingForLimit: ReadonlyArray<ShareRowWaiting>;
   /**
    * The limit the press stopped at, said as the edition said it for the row
-   * it was reached on: when to apply again. Present exactly when
-   * `waitingForLimit` is not empty.
+   * it was reached on: when to apply again. When the press was refused rows
+   * before it, the sentence goes on to say so, and to settle those rows
+   * first (`limitAfterRefusals`). Present exactly when `waitingForLimit` is
+   * not empty.
    */
   readonly limit?: {
     readonly retryAfterSeconds?: number;
@@ -603,6 +629,12 @@ interface Pressed {
  * rows on answers that say only "not yet", and report each one as refused.
  * It stops at the first, and leaves that row and every one after it open and
  * untried.
+ *
+ * A refused row stays open and unchanged, and the rows come in the same order
+ * on every press, so the rows refused before the limit are tried again first
+ * next time and spend the same calls (failed ones count). The limit's
+ * sentence then says so (`limitAfterRefusals`): settle them first, or the
+ * rows that waited may never be reached.
  */
 async function pressRows(
   deps: ApplyShareDeps,
@@ -616,11 +648,16 @@ async function pressRows(
     on: row.onLabel,
     ...(row.grantee ? { grantee: row.grantee } : {}),
   });
+  // What the target refused before any limit: the share calls it counted,
+  // and whether it refused the sign-in (`limitAfterRefusals`).
+  let spent = 0;
+  let signIn = false;
   for (const [at, row] of rows.entries()) {
     const outcome = await applyShareGrant(deps, row.id, addressFor(row));
     if (outcome.ok) {
       applied.push(outcome.row);
     } else if (outcome.code === 'target_limited') {
+      const after = limitAfterRefusals({ refused: spent, signIn });
       return {
         applied,
         refused,
@@ -629,11 +666,17 @@ async function pressRows(
           ...(outcome.limited?.retryAfterSeconds === undefined
             ? {}
             : { retryAfterSeconds: outcome.limited.retryAfterSeconds }),
-          reason: outcome.reason,
-          ...(outcome.reasonNl === undefined ? {} : { reasonNl: outcome.reasonNl }),
+          reason: after === undefined ? outcome.reason : `${outcome.reason} ${after.en}`,
+          ...(outcome.reasonNl === undefined
+            ? {}
+            : { reasonNl: after === undefined ? outcome.reasonNl : `${outcome.reasonNl} ${after.nl}` }),
         },
       };
     } else {
+      if (outcome.code === 'target_refused') {
+        if (outcome.refusedAs === 'signIn') signIn = true;
+        else if (spentTheLimit(outcome.refusedAs)) spent++;
+      }
       refused.push({
         ...where(row),
         code: outcome.code,

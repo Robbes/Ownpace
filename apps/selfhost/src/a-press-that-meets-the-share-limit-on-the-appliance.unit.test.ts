@@ -23,7 +23,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pgliteDriver } from '@openmig/ledger';
-import { shareRefusalSaid } from '@openmig/shared';
+import { limitAfterRefusals, shareRefusalSaid } from '@openmig/shared';
 import { start, type SelfhostHandle } from './index.ts';
 import { mappingSeed, uuidFromString } from './config-dir.ts';
 
@@ -47,6 +47,8 @@ let allowance = 0;
 let retryAfter: string | undefined;
 /** Every share call that reached the target, as its share type. */
 let reached: string[] = [];
+/** Items whose share by mail the target refuses (403), a call it still counts. */
+let refuseByMail = new Set<string>();
 let server: http.Server;
 let base = '';
 
@@ -61,7 +63,8 @@ beforeAll(async () => {
         res.end();
         return;
       }
-      const shareType = new URLSearchParams(body).get('shareType') ?? '?';
+      const form = new URLSearchParams(body);
+      const shareType = form.get('shareType') ?? '?';
       reached.push(shareType);
       if (allowance <= 0) {
         res.writeHead(429, { 'Content-Type': 'application/json', ...(retryAfter ? { 'Retry-After': retryAfter } : {}) });
@@ -69,6 +72,11 @@ beforeAll(async () => {
         return;
       }
       allowance--;
+      if (shareType === '4' && refuseByMail.has((form.get('path') ?? '').replace(/^\//, ''))) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ocs: { meta: { status: 'failure', statuscode: 403, message: 'Sharing by mail is off' } } }));
+        return;
+      }
       const ok = shareType === '4';
       res.writeHead(ok ? 200 : 404, { 'Content-Type': 'application/json' });
       res.end(
@@ -147,29 +155,34 @@ const LIMIT = (retryAfterSeconds?: number) =>
     ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
   });
 
+/** An appliance whose files are cut over, with the three rows in `SHARES` open. */
+async function seeded(): Promise<{ cfg: string; dataDir: string }> {
+  const cfg = configDir();
+  const dataDir = tempDir('ownpace-limit-db-');
+  const booted = await boot(cfg, dataDir);
+  try {
+    expect((await fetch(`${booted.base}/mappings/${MAPPING}/start`, { method: 'POST' })).status).toBe(200);
+  } finally {
+    await booted.handle.stop();
+  }
+  for (const [i, id] of SHARES.entries()) {
+    await asTheDatabase(
+      dataDir,
+      `INSERT INTO share_grant (id, tenant_id, mapping_id, grant_hash, subject, on_label, grantee, role, raw, verdict, verdict_target)
+       VALUES ($1, $2, $3, $4, 'drive_item', $5, $6, 'read', '{}', 'clean', 'a Nextcloud share')`,
+      [id, TENANT, ROW, `hash-${i}`, `Projects/item-${i + 1}.xlsx`, `outsider-${i + 1}@example.invalid`],
+    );
+  }
+  // The files are cut over, so the gate lets a share through.
+  await asTheDatabase(dataDir, `UPDATE mailbox_mapping SET status = 'cutover' WHERE id = $1`, [ROW]);
+  await asTheDatabase(dataDir, `UPDATE path_lifecycle SET state = 'cutover' WHERE mapping_id = $1`, [ROW]);
+  return { cfg, dataDir };
+}
+
 describe("a press that meets the target's limit on new shares, on the appliance (0104)", () => {
   it('says the limit in our words, stops the press there, and tries the waiting rows after the window', async () => {
-    const cfg = configDir();
-    const dataDir = tempDir('ownpace-limit-db-');
-    let booted = await boot(cfg, dataDir);
-    try {
-      expect((await fetch(`${booted.base}/mappings/${MAPPING}/start`, { method: 'POST' })).status).toBe(200);
-    } finally {
-      await booted.handle.stop();
-    }
-    for (const [i, id] of SHARES.entries()) {
-      await asTheDatabase(
-        dataDir,
-        `INSERT INTO share_grant (id, tenant_id, mapping_id, grant_hash, subject, on_label, grantee, role, raw, verdict, verdict_target)
-         VALUES ($1, $2, $3, $4, 'drive_item', $5, $6, 'read', '{}', 'clean', 'a Nextcloud share')`,
-        [id, TENANT, ROW, `hash-${i}`, `Projects/item-${i + 1}.xlsx`, `outsider-${i + 1}@example.invalid`],
-      );
-    }
-    // The files are cut over, so the gate lets a share through.
-    await asTheDatabase(dataDir, `UPDATE mailbox_mapping SET status = 'cutover' WHERE id = $1`, [ROW]);
-    await asTheDatabase(dataDir, `UPDATE path_lifecycle SET state = 'cutover' WHERE mapping_id = $1`, [ROW]);
-
-    booted = await boot(cfg, dataDir);
+    const { cfg, dataDir } = await seeded();
+    const booted = await boot(cfg, dataDir);
     try {
       // One row, at the limit, with a wait the target asked for.
       allowance = 0;
@@ -203,6 +216,31 @@ describe("a press that meets the target's limit on new shares, on the appliance 
       expect(again.body.waitingForLimit).toEqual([]);
       expect(reached).toEqual(['0', '4', '0', '4']);
     } finally {
+      await booted.handle.stop();
+    }
+  }, 120_000);
+
+  it('a row refused before the limit is still said in the target\u2019s words, and the limit says it comes first again', async () => {
+    const { cfg, dataDir } = await seeded();
+    const booted = await boot(cfg, dataDir);
+    try {
+      // The first outsider's share by mail is refused: two calls spent, then the limit.
+      refuseByMail = new Set(['Projects/item-1.xlsx']);
+      allowance = 2;
+      retryAfter = undefined;
+      reached = [];
+      const press = await post(booted.base, 'apply-all', {});
+      expect(press.status).toBe(200);
+      expect(press.body.applied).toEqual([]);
+      const refused = press.body.refused as Array<{ id: string; reason: string }>;
+      expect(refused.map((r) => r.id)).toEqual([SHARES[0]]);
+      expect(refused[0]!.reason).toContain('Sharing by mail is off');
+      expect((press.body.waitingForLimit as Array<{ id: string }>).map((r) => r.id)).toEqual(SHARES.slice(1));
+      const after = limitAfterRefusals({ refused: 1, signIn: false })!;
+      expect(press.body.limit).toEqual({ reason: `${LIMIT().en} ${after.en}`, reasonNl: `${LIMIT().nl} ${after.nl}` });
+      expect(reached).toEqual(['0', '4', '0']);
+    } finally {
+      refuseByMail = new Set();
       await booted.handle.stop();
     }
   }, 120_000);

@@ -121,17 +121,25 @@ function answerOf(said: OcsAnswer): OcsAnswer {
     ocs: said.ocs,
     ...(said.ocsStatus === undefined ? {} : { ocsStatus: said.ocsStatus }),
     ...(said.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: said.retryAfterSeconds }),
+    ...(said.retryAfterNotBelieved ? { retryAfterNotBelieved: true as const } : {}),
   };
 }
 
 /**
  * The `Retry-After` a reply carried, whatever case the client kept its name
- * in, as the seconds it asks for. Read on a refusal only: a share's limit
- * (`ShareLimit`, `@openmig/shared`) says when to apply again from it.
+ * in, as the seconds it asks for, or as one not believed when it was sent and
+ * `retryAfterSecondsOf` did not read it as a wait. Read on a refusal only: a
+ * share's limit (`ShareLimit`, `@openmig/shared`) says when to apply again
+ * from it.
  */
-function retryAfterOf(headers: Readonly<Record<string, string>> | undefined): number | undefined {
+function retryAfterOf(
+  headers: Readonly<Record<string, string>> | undefined,
+): Pick<OcsAnswer, 'retryAfterSeconds' | 'retryAfterNotBelieved'> {
   const name = Object.keys(headers ?? {}).find((k) => k.toLowerCase() === 'retry-after');
-  return name === undefined ? undefined : retryAfterSecondsOf(headers![name]);
+  const sent = name === undefined ? '' : (headers![name] ?? '').trim();
+  if (!sent) return {};
+  const retryAfterSeconds = retryAfterSecondsOf(sent);
+  return retryAfterSeconds === undefined ? { retryAfterNotBelieved: true } : { retryAfterSeconds };
 }
 
 /**
@@ -209,12 +217,11 @@ async function attemptOcsShare(
   // beside it say what failed and nothing the server wrote.
   const words = meta?.message?.trim() ? meta.message : response.body.slice(0, 300);
   const code = ocsCode(meta?.statuscode);
-  const retryAfterSeconds = retryAfterOf(response.headers);
   const answer: OcsAnswer = {
     status: response.status,
     ocs: typeof meta === 'object' && meta !== null && (typeof meta.status === 'string' || typeof meta.statuscode === 'number'),
     ...(code === undefined ? {} : { ocsStatus: code }),
-    ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
+    ...retryAfterOf(response.headers),
   };
   return {
     ok: false,

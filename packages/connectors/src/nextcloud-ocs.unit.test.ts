@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { shareLimitOf } from '@openmig/shared';
+import { shareLimitOf, shareRefusalSaid } from '@openmig/shared';
 import type { HttpClient, HttpRequestOptions } from './dav-http.types.ts';
 import {
   createNextcloudShare,
@@ -407,6 +407,23 @@ describe("createNextcloudShare: the target's limit on new shares", () => {
     const seconds = result.ok ? undefined : shareLimitOf(result.said)?.retryAfterSeconds;
     expect(seconds).toBeGreaterThan(290);
     expect(seconds).toBeLessThanOrEqual(300);
+  });
+
+  it('a Retry-After it does not believe is carried as asked-for, not as no header at all', async () => {
+    for (const header of ['May 5', '86401']) {
+      const { httpClient } = nextcloud([{ status: 429, body: LIMITED, headers: { 'Retry-After': header } }]);
+      const result = await createNextcloudShare(OPTIONS(httpClient), REQUEST);
+      expect(result, header).toMatchObject({ ok: false, said: { kind: 'answered', status: 429, retryAfterNotBelieved: true } });
+      expect(result.ok ? undefined : (result.said as { retryAfterSeconds?: number }).retryAfterSeconds).toBeUndefined();
+      expect(result.ok ? undefined : shareRefusalSaid(result.said).en, header).toContain('apply again later, as the new system asked');
+    }
+    // No header, or an empty one, is no wait asked for: Nextcloud's own ten minutes.
+    for (const headers of [{}, { 'Retry-After': '  ' }] as Array<Record<string, string>>) {
+      const { httpClient } = nextcloud([{ status: 429, body: LIMITED, headers }]);
+      const result = await createNextcloudShare(OPTIONS(httpClient), REQUEST);
+      expect(result.ok ? undefined : result.said).not.toHaveProperty('retryAfterNotBelieved');
+      expect(result.ok ? undefined : shareRefusalSaid(result.said).en).toContain('apply again in ten minutes');
+    }
   });
 
   it('a refusal of another kind carries no wait, even with a Retry-After beside it', async () => {

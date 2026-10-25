@@ -32,7 +32,7 @@ import type { AddressInfo } from 'node:net';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
 import { runManagedMigrations } from '@openmig/managed';
-import { log, shareRefusalSaid } from '@openmig/shared';
+import { limitAfterRefusals, log, setAppEventSink, shareRefusalSaid, type AppEvent } from '@openmig/shared';
 
 // UUID family 0104a429-…, unused elsewhere in the repo.
 const TENANT = '0104a429-e29b-41d4-a716-446655440001';
@@ -85,12 +85,17 @@ const NO_SUCH_ACCOUNT = JSON.stringify({
   ocs: { meta: { status: 'failure', statuscode: 404, message: 'Please specify a valid account to share with' }, data: [] },
 });
 const SHARED = JSON.stringify({ ocs: { meta: { status: 'ok', statuscode: 200, message: 'OK' }, data: { id: 1 } } });
+const REFUSED = JSON.stringify({ ocs: { meta: { status: 'failure', statuscode: 403, message: 'Sharing by mail is off' }, data: [] } });
 
 /** Calls the limiter still lets through, and what it says when none are left. */
 let allowance = 0;
 let retryAfter: string | undefined;
 /** Every call that reached the target, as its share type: `0` user, `4` by mail. */
 let reached: string[] = [];
+/** Items whose share by mail the target refuses (403), a call it still counts. */
+let refuseByMail = new Set<string>();
+/** The operator's log page, as this request recorded it. */
+let recorded: AppEvent[] = [];
 let server: http.Server;
 let base = '';
 
@@ -99,7 +104,8 @@ beforeAll(async () => {
     let body = '';
     req.on('data', (c: Buffer) => (body += c.toString()));
     req.on('end', () => {
-      const shareType = new URLSearchParams(body).get('shareType') ?? '?';
+      const form = new URLSearchParams(body);
+      const shareType = form.get('shareType') ?? '?';
       reached.push(shareType);
       // A 429 is not counted: the limiter refuses before it registers the attempt.
       if (allowance <= 0) {
@@ -108,7 +114,12 @@ beforeAll(async () => {
         return;
       }
       allowance--;
-      const reply = shareType === '4' ? { status: 200, body: SHARED } : { status: 404, body: NO_SUCH_ACCOUNT };
+      const refused = shareType === '4' && refuseByMail.has((form.get('path') ?? '').replace(/^\//, ''));
+      const reply = refused
+        ? { status: 403, body: REFUSED }
+        : shareType === '4'
+          ? { status: 200, body: SHARED }
+          : { status: 404, body: NO_SUCH_ACCOUNT };
       res.writeHead(reply.status, { 'Content-Type': 'application/json' });
       res.end(reply.body);
     });
@@ -169,9 +180,15 @@ afterAll(async () => {
 beforeEach(() => {
   reached = [];
   retryAfter = undefined;
+  refuseByMail = new Set();
+  recorded = [];
+  setAppEventSink({ record: async (event) => void recorded.push(event) });
   for (const level of ['warn', 'error', 'info'] as const) vi.spyOn(log, level).mockImplementation(() => {});
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  setAppEventSink(undefined);
+  vi.restoreAllMocks();
+});
 
 /** Our sentence for the limit, as the managed API ends it: with its reference. */
 function isTheLimitSentence(reason: unknown, reasonNl: unknown, retryAfterSeconds?: number): void {
@@ -206,6 +223,11 @@ describe("a press that meets the target's limit on new shares (0104, 2026-10-25)
     // The user attempt met the limit; the share by mail was not asked for.
     expect(reached).toEqual(['0']);
     expect(await states([ALONE[0]!])).toEqual(['open']);
+    // Nothing was refused, so the operator's log page does not say so: it
+    // records the limit, under the reference the sentence ends with.
+    const ref = /Reference ([0-9a-f]{8})\.$/.exec(String(res.body.reason))?.[1];
+    await vi.waitFor(() => expect(recorded).toHaveLength(1));
+    expect(recorded[0]).toMatchObject({ event: 'share.limited', level: 'warn', reference: ref });
   });
 
   it('one folder: the press stops at the limit, and the rows from there wait, untried', async () => {
@@ -252,5 +274,35 @@ describe("a press that meets the target's limit on new shares (0104, 2026-10-25)
     expect(res.body).not.toHaveProperty('limit');
     expect(reached).toHaveLength(8);
     expect(await states([...ALONE, ...FOLDER])).toEqual(Array(15).fill('applied'));
+  });
+
+  /**
+   * THE REFUSED ROWS COME FIRST AGAIN (review of #1704, R1-1). A refused row
+   * stays open, and the next press asks for it again before the rows that
+   * waited, each attempt counted: ten outsiders refused by mail spend the
+   * twenty calls, and the five rows after them wait on every press. The
+   * limit's sentence says to settle those ten first.
+   */
+  it('ten rows refused before the limit: the sentence says they come first again and count, under one reference', async () => {
+    await sql("UPDATE share_grant SET state = 'open', decided_by = NULL, decided_at = NULL WHERE mapping_id = $1", [MAPPING]);
+    refuseByMail = new Set(Array.from({ length: 10 }, (_, i) => `Projects/item-${String(i + 1).padStart(2, '0')}.xlsx`));
+    allowance = 20;
+    const res = await request(app).post(`/api/migrations/${MAPPING}/sharing/apply-all`).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.applied).toEqual([]);
+    expect(res.body.refused).toHaveLength(10);
+    expect(res.body.waitingForLimit).toHaveLength(5);
+    expect(reached).toHaveLength(21);
+
+    const ref = /Reference ([0-9a-f]{8})\./.exec(String(res.body.limit.reason))?.[1];
+    const limit = shareRefusalSaid({ kind: 'answered', status: 429, ocsStatus: 429, ocs: true });
+    const after = limitAfterRefusals({ refused: 10, signIn: false })!;
+    expect(res.body.limit.reason).toBe(`${limit.en} Reference ${ref}. ${after.en}`);
+    expect(res.body.limit.reasonNl).toBe(`${limit.nl} Referentie ${ref}. ${after.nl}`);
+    // One request, one reference: the refusals' and the limit's.
+    for (const row of res.body.refused as Array<{ reason: string }>) expect(row.reason).toContain(`Reference ${ref}.`);
+    // The first answer was a refusal, so that is what the log page records.
+    await vi.waitFor(() => expect(recorded).toHaveLength(1));
+    expect(recorded[0]).toMatchObject({ event: 'share.refused', reference: ref });
   });
 });

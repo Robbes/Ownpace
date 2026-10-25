@@ -126,6 +126,28 @@ fold until the alpha.2 tag, so its pull request waits for the tag.
   and the fold (#1706) puts the alpha.2 heading directly under `[Unreleased]`, so a clean
   merge would file it under alpha.2: the merge of `main` after the tag moves it into a new
   `### Fixed` under `[Unreleased]`.
+- **After the second review, the same day.** *A press after the window goes on from there*
+  held only when nothing was refused before the limit. A refused row stays open and
+  unchanged, `listShareGrants` puts the open rows in the same order every time, and every
+  attempt counts: fifteen outsiders, the first ten refused by mail, spent the twenty calls on
+  those ten on every press, and the last five were never tried, while each press said to apply
+  again in ten minutes (reproduced in `share-queue.unit.test.ts`; main does the same, without
+  the promise). A refusal leaves no mark on its row, so the press cannot try the waiting rows
+  first without a column of its own; instead `pressRows` counts the refusals the target
+  answered (`spentTheLimit`) and the limit's sentence goes on to say they are asked for again
+  first and count, and to correct, skip or mark them done before applying again
+  (`limitAfterRefusals`, both languages, both editions, which now pass `refusedAs` to core).
+  A sign-in refused before the limit adds that Nextcloud answers 429 for up to half an hour
+  after more than ten failed sign-ins (`Throttler`, before it reads the password): check the
+  password first. The ten-minute sentence says *every share an account asked for, those that
+  failed included*, not *created*. `retryAfterSecondsOf` reads only RFC 9110's three date
+  forms, by hand and in GMT (`Date.parse` took `May 5` for 2001, and asctime in the process's
+  zone); a header sent and not believed says *later, as the new system asked*, and a 429
+  without OCS and without a wait says *later* and nothing of Nextcloud. The Dutch says
+  *limiet*, as the product does elsewhere. The Sharing page ends the waiting line with when
+  to apply again, or when the answer came, on the reader's clock. The operator's log page
+  records a request whose first answer was the limit as `share.limited`. The gate prints both
+  press bodies when a press said it applied and the run's own row is still open.
 
 ## The owner's framing, which the research now serves
 

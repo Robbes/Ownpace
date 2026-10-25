@@ -274,9 +274,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   day, or Nextcloud's ten minutes. `apply-all` and `apply-folder` stop at the
   first one and list that row and the rows after it as `waitingForLimit`,
   open and untried, apart from `refused`, with the sentence as `limit`; the
-  Sharing page says them under the folder as waiting. A grantee that looks
-  like an e-mail address still gets the user share first: a Nextcloud login
-  may be an address.
+  Sharing page says them under the folder as waiting, with the time to apply
+  again on the reader's clock. A refused row stays open and is asked for
+  again first, at the same cost, so a press that met the limit after
+  refusals says to settle those rows first, and to check the password first
+  when the sign-in was refused. A grantee that looks like an e-mail address
+  still gets the user share first: a Nextcloud login may be an address.
 - **The managed smoke gate settles the share rows it made, so one run's
   leftovers no longer spend the next run's shares** (workplan 0104, #1696):
   Nextcloud lets an account create 20 shares in 10 minutes, and every press
