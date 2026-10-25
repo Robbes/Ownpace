@@ -439,8 +439,12 @@ jobs:
   # leg builds the deploy's `base` stage (`image-scan.mjs containerfile`, which
   # runs the config's own extensions and so needs the workspace installed) on
   # GitHub's arm64 runner, natively, and Trivy reads it from that runner's
-  # Docker. The name, and so the category, stays `trigger-task-base`: the first
-  # scan on main that reads the built stage closes the alerts it no longer has.
+  # Docker. The name, and so the category, stays `trigger-task-base`, and the
+  # local tag it is built under is in the base's own repository
+  # (`triggerdotdev/node:trigger-task-base-built`, never pushed), which is the
+  # location Trivy's SARIF gives each Debian finding: so the first scan on main
+  # that reads the built stage closes the alerts it no longer has, and the ones
+  # it still has keep their numbers and their triage.
   #
   # Step names differ from the job above on purpose: its guard finds them by
   # `indexOf`, and reads the first `runs-on:` expression in this file as the

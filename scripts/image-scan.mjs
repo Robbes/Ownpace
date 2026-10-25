@@ -87,12 +87,30 @@
  * every later one starts from, the runtime's included, before the task code,
  * its `node_modules` and its index are copied in. Keeping it keeps the SARIF
  * category, so the first scan on `main` that reads the built stage closes the
- * alerts the deploy's layers fixed, with nothing to delete by hand. What is
- * left out is npm packages only: the bundled task code, and the externals the
- * CLI installs with `npm i` at a deploy (`pg`, `@electric-sql/pglite`). Their
- * own versions are the ones installed here, so the repository scan of the
- * lockfile reads them; the packages npm resolves under them, with no lockfile,
- * neither scan reads.
+ * alerts the deploy's layers fixed, with nothing to delete by hand.
+ *
+ * AND ITS ALERTS KEEP THEIR NUMBERS: the leg builds under the base's own
+ * repository (`taskBuildTag`), never under a name of its own. Trivy's SARIF
+ * gives an operating-system package's finding the image's repository as its
+ * location (`ToPathUri` in its `pkg/report/sarif.go`, read at v0.76.1:
+ * `triggerdotdev/node` for the base, by tag and digest or not), and writes no
+ * fingerprint, so code scanning tells one alert from another by rule and
+ * location. Built as `trigger-task-base:built`, the location would have been
+ * `library/trigger-task-base`: every Debian alert would close on the first
+ * scan, fixed or not, and the ones without a fix would open again under new
+ * numbers, their triage left on the closed ones. The tag is local: Trivy reads
+ * that leg's image from the runner's Docker alone, and nothing pushes it.
+ *
+ * What is left out is npm packages only: the bundled task code, and the
+ * externals the CLI installs with `npm i` at a deploy (`pg`,
+ * `@electric-sql/pglite`). Their own versions are the ones installed here, so
+ * the repository scan of the lockfile reads them; the packages npm resolves
+ * under them, with no lockfile, neither scan reads. And the base is the CLI's
+ * own: a Trigger.dev instance can name others for its deploys (the webapp's
+ * `DEPLOY_BASE_IMAGES` and `DEPLOY_BUILD_BASE_IMAGES`, which the CLI applies
+ * since `supportsInstanceBaseImages`, read at 4.7.6), and `managed.yml`, which
+ * hands its Trigger.dev services only the keys it lists, sets neither. The
+ * guard holds that.
  *
  * A floating tag (`redis:7-alpine`) is scanned as the registry serves it
  * today, which need not be what the box pulled last. The summary says which.
@@ -189,7 +207,8 @@ function scriptImages(text) {
  * Every image the stacks run, once each, in a stable order: the compose files,
  * the scripts, the tasks' base image, and Ownpace's own. Each has the name its
  * scan, its SARIF category, its artifact and its issue carry, the reference
- * Trivy pulls, and where it comes from.
+ * Trivy pulls (or, for the one with `build`, the base its leg builds on and
+ * the local tag it builds under), and where it comes from.
  */
 export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
   const ownpace = `${OWNPACE_REGISTRY}/ownpace-`;
@@ -240,7 +259,7 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
     ref: base,
     where: `trigger.dev ${cli}'s BASE_IMAGE['${runtime}'], with the layers ${TASK_CONFIG} adds at a deploy`,
     floating: false,
-    build: `${TASK_IMAGE}:built`,
+    build: taskBuildTag(base),
   });
 
   // Ownpace's own: what main publishes, and the newest release.
@@ -265,6 +284,18 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
 
 /** An image reference as the list writes one: no space, no newline, nothing a Containerfile would read as a second instruction. */
 const IMAGE_REF = /^[a-z0-9][a-z0-9._/-]*(?::[A-Za-z0-9._-]+)?(?:@sha256:[0-9a-f]{64})?$/;
+
+/**
+ * The local tag the tasks' leg builds under: the base's repository, so the
+ * SARIF location of every operating-system finding, and so the identity of
+ * its alert, is the one the base's scans opened it at (the file's header).
+ */
+export function taskBuildTag(base) {
+  if (typeof base !== 'string' || !IMAGE_REF.test(base)) {
+    throw new Error(`the tasks' base image must be an image reference, not ${JSON.stringify(base)}`);
+  }
+  return `${parseRef(base).repo}:${TASK_IMAGE}-built`;
+}
 
 /**
  * THE TASKS' IMAGE AS `trigger.dev deploy` BUILDS IT, up to the task code
@@ -306,8 +337,10 @@ export async function taskBaseStage(config, { base, workingDir }) {
     }
     instructions.push(...(layer.image?.instructions ?? []));
   }
+  // No `# syntax=` line, though the CLI writes one: it would pull the floating
+  // `docker/dockerfile:1` frontend on every scan, and FROM, ENV, COPY --from
+  // and RUN need nothing beyond the builder's own.
   return [
-    '# syntax=docker/dockerfile:1',
     `# The tasks' image up to the task code: the base stage of the Containerfile a`,
     `# task deploy builds, as scripts/image-scan.mjs containerfile writes it from`,
     `# ${TASK_CONFIG} (workplan 0146 T10). Built and scanned, never pushed.`,

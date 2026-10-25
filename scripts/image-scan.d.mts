@@ -66,4 +66,6 @@ export interface TaskConfig {
     }>;
   };
 }
+/** The local tag the tasks' leg builds under: the base's repository, so its alerts keep their SARIF location. */
+export declare function taskBuildTag(base: string): string;
 export declare function taskBaseStage(config: TaskConfig, options: { base: string; workingDir: string }): Promise<string>;

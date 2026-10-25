@@ -61,7 +61,7 @@ import { gzipSync } from 'node:zlib';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
-import { COMPOSE_FILES, readImages, repoReader, stepsUsing, type Net, type Repo } from './idp-pin-watch.mjs';
+import { COMPOSE_FILES, parseRef, readImages, repoReader, stepsUsing, type Net, type Repo } from './idp-pin-watch.mjs';
 import type { BuildContext, BuildLayer } from '@trigger.dev/core/v3/build';
 import taskConfig from '../apps/worker/trigger.config.ts';
 import {
@@ -81,6 +81,7 @@ import {
   stackOf,
   summarize,
   taskBaseStage,
+  taskBuildTag,
   type ScanImage,
   type TaskConfig,
 } from './image-scan.mjs';
@@ -111,6 +112,21 @@ function tgz(files: Record<string, string>): Buffer {
 }
 
 const TASK_BASE = `triggerdotdev/node:24-bookworm@sha256:${'d'.repeat(64)}`;
+
+/**
+ * Where Trivy's SARIF puts an operating-system package's finding: the result's
+ * target with its `(debian 12.x)` dropped, read as an image reference, and
+ * its repository without the registry, Docker Hub's official images under
+ * `library/` (`ToPathUri` in pkg/report/sarif.go at v0.76.1, through
+ * go-containerregistry's `RepositoryStr`).
+ */
+function sarifOsLocation(target: string): string {
+  const named = /^(.+?)(?:\s*\((?:.*?)\).*?)?$/.exec(target)![1]!;
+  const parts = parseRef(named).repo.split('/');
+  const registry = parts.length > 1 && (/[.:]/.test(parts[0]!) || parts[0] === 'localhost') ? parts.shift()! : 'docker.io';
+  const hub = registry === 'docker.io' || registry === 'index.docker.io';
+  return hub && parts.length === 1 ? `library/${parts[0]}` : parts.join('/');
+}
 const CLI_TARBALL = tgz({
   'package/package.json': '{}',
   'package/dist/esm/deploy/buildImage.js': `export const BASE_IMAGE = {\n    node: "triggerdotdev/node:22-bookworm",\n    "node-24": "${TASK_BASE}",\n};\n`,
@@ -272,12 +288,42 @@ describe('which images it scans', () => {
       ref: TASK_BASE,
       where: expect.stringContaining(cli),
       floating: false,
-      build: `${TASK_IMAGE}:built`,
+      build: 'triggerdotdev/node:trigger-task-base-built',
     });
     expect(images.find((i) => i.name === TASK_IMAGE)?.where).toContain(TASK_CONFIG);
     expect(net.asked).toContain(`https://registry.npmjs.org/trigger.dev/-/trigger.dev-${cli}.tgz`);
     // No other image is built: every other leg reads its registry.
     expect(images.filter((i) => i.build).map((i) => i.name)).toEqual([TASK_IMAGE]);
+  });
+
+  it("is built under the base's repository, so its alerts keep the location they were opened at", () => {
+    // Trivy's SARIF writes an operating-system package's finding at the
+    // image's repository and gives it no fingerprint, so code scanning tells
+    // alerts apart by rule and that location. A tag of the leg's own would
+    // close every Debian alert on the first scan, fixed or not, and open the
+    // unfixed ones again under new numbers (the review of #1700).
+    expect(sarifOsLocation(`${TASK_BASE} (debian 12.13)`)).toBe('triggerdotdev/node');
+    expect(sarifOsLocation(`${taskBuildTag(TASK_BASE)} (debian 12.13)`)).toBe('triggerdotdev/node');
+    // Vacuity guard: the tag the first draft built under was read elsewhere.
+    expect(sarifOsLocation('trigger-task-base:built (debian 12.13)')).toBe('library/trigger-task-base');
+    // It follows the base wherever upstream moves it, and is never a registry
+    // reference by digest, which `docker build --tag` would refuse.
+    expect(taskBuildTag('ghcr.io/triggerdotdev/node:26-trixie')).toBe('ghcr.io/triggerdotdev/node:trigger-task-base-built');
+    expect(sarifOsLocation(taskBuildTag('ghcr.io/triggerdotdev/node:26-trixie'))).toBe(sarifOsLocation('ghcr.io/triggerdotdev/node:26-trixie'));
+    expect(taskBuildTag(TASK_BASE)).not.toContain('@');
+    for (const base of ['', 'node:24 AS base', `${TASK_BASE}\nRUN true`]) {
+      expect(() => taskBuildTag(base)).toThrow(/must be an image reference/);
+    }
+  });
+
+  it("builds on the CLI's own base, since the managed stack names no other for its deploys", () => {
+    // A Trigger.dev instance can make the CLI build on base images of its own
+    // (the webapp's DEPLOY_BASE_IMAGES and DEPLOY_BUILD_BASE_IMAGES, which the
+    // 4.7.6 CLI applies); the scan would then read a base no deploy uses.
+    // managed.yml hands its Trigger.dev services only the keys it lists.
+    const managed = REAL.read('deploy/compose/managed.yml')!;
+    expect(managed).toContain('trigger-api:');
+    for (const key of ['DEPLOY_BASE_IMAGES', 'DEPLOY_BUILD_BASE_IMAGES']) expect(managed, key).not.toContain(key);
   });
 
   it("follows the pinned CLI wherever it moves, and keeps the tasks' name and build tag when it does", async () => {
@@ -437,7 +483,8 @@ describe("the tasks' image, built as a deploy builds it (workplan 0146 T10)", ()
     // built stage the base image again, which is what this was written to end.
     expect(instructions.length, `${TASK_CONFIG}'s extensions add no instruction for a deploy`).toBeGreaterThan(0);
     const lines = stage.split('\n');
-    expect(lines[0]).toBe('# syntax=docker/dockerfile:1');
+    // No `# syntax=` line: it would pull a floating frontend image on every scan.
+    expect(lines.filter((l) => /^#\s*syntax\s*=/i.test(l))).toEqual([]);
     const from = lines.indexOf(`FROM ${TASK_BASE} AS base`);
     expect(from, 'no FROM line naming the base image as the stage `base`').toBeGreaterThan(0);
     expect(lines.filter((l) => l.startsWith('FROM ')), 'one stage, the base one').toHaveLength(1);
@@ -583,7 +630,7 @@ describe('the report job', () => {
   });
 
   it('marks the image a leg built, and says what that reading is', () => {
-    const built: ScanImage = { name: TASK_IMAGE, ref: TASK_BASE, where: 'the CLI', floating: false, build: `${TASK_IMAGE}:built` };
+    const built: ScanImage = { name: TASK_IMAGE, ref: TASK_BASE, where: 'the CLI', floating: false, build: taskBuildTag(TASK_BASE) };
     const fine = trivyJson({ Family: 'debian', Name: '12.15' });
     const table = summarize([built, IMAGES[0]!], reports({ [`trivy-image-${TASK_IMAGE}.json`]: fine, 'trivy-image-redis.json': fine })).lines.join('\n');
     expect(table).toContain(`| \`${TASK_IMAGE}\` | \`triggerdotdev/node:24-bookworm@sha256:dddddddddddd…\` (built on) | debian 12.15 |`);
