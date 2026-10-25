@@ -2,7 +2,52 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-10-24 (update this block at the end of every session)
+## Status — 2026-10-25 (update this block at the end of every session)
+
+**2026-10-25, build: the cosign that signs and checks the images is named, v3.1.4, where
+cosign-installer's default gave v3.0.6, a draft for alpha.3**, on branch
+`claude/ownpace-public-readiness-y7orc6-dependabot-invisible-pins`. Main is frozen from the alpha.2
+fold to its tag; this merges after the tag. #1671 listed it under *Also known*: *"cosign:
+cosign-installer v4.1.2 installs v3.0.6 (its default), and the newest cosign is v3.1.4"*. Its two
+other rows, Mailpit and Stalwart, are T11 (a) and (b), each on its own branch.
+- **The pin.** `cosign-release: 'v3.1.4'` in `images.yml`'s *Install cosign* step, whose cosign
+  signs every published image by digest, and in `release.yml`'s verify job, whose cosign checks
+  those signatures. Nothing would have moved it: v4.1.2 is cosign-installer's newest release and
+  still installs v3.0.6, and its main branch says v3.1.3, unreleased. Dependabot moves the
+  installer, never an input.
+- **The watch.** A named cosign is a pin nothing else moves, as Trivy's is, so
+  `idp-pin-watch.mjs` reads it as a routine row from both files (`COSIGN_FILES`), held together
+  (*the copies disagree* when they do), against cosign's tags of its major. Left to the
+  installer's default it stays the status line it was. Run on the branch,
+  `node scripts/idp-pin-watch.mjs` reads *"cosign v3.1.4 v3.1.4 current"* and prints no status
+  line. `a-pin-that-knows-it-is-behind` gains three cases and changes three; with `release.yml`
+  set back to v3.1.3 six fail.
+- **Read:** cosign's release notes from v3.0.6 to v3.1.4. v3.1.0 was never published and
+  v3.1.1 is identical to it: signing runs through sigstore-go, the protobuf bundle (the default
+  since v3.0) is the format for signing and verifying, and flags for trust material given by
+  hand are deprecated. v3.1.2 deprecates `--payload`; v3.1.3 fixes GHSA-fx35-mq7g-6g98; v3.1.4
+  deprecates `--use-signing-config` and fixes signing and verify bugs. The workflows use
+  `cosign sign --yes` on a digest and `cosign verify` with an identity or identity regexp and
+  the OIDC issuer, and neither form is deprecated. GHSA-fx35-mq7g-6g98 (high, up to v3.1.2) is
+  a bypass of `verify-blob` with a legacy JSON bundle. The advisory says `cosign verify` of a
+  container image and the protobuf bundle are not affected, so this is routine and not a
+  security move here.
+- **Waited for.** v3.1.4's assets are from 2026-10-20, 18:02 to 18:04 UTC (`Last-Modified` of
+  `cosign-linux-amd64` and `cosign_checksums.txt`), three days old on 2026-10-23 at 18:04 UTC.
+- **Proved here, by hand, the installer's own path for a named release.** The bootstrap v3.0.6
+  binary hashes to the `c956e5df…` v4.1.2 carries; `release/release-cosign.pub` at v3.1.4
+  hashes to its `f4cea466…`; v3.0.6's `verify-blob` reads *"Verified OK"* for v3.1.4's
+  `cosign-linux-amd64` with both its keyless bundle and its KMS-key bundle; the binary's hash
+  is the one in `cosign_checksums.txt`, and it reports `GitVersion: v3.1.4`. The trusted root
+  was sigstore/root-signing's `targets/trusted_root.json`, given as `--trusted-root`, because
+  the session's network refuses the TUF host; on a runner the installer reads it from TUF.
+- **Not proved here.** No signature has been made with v3.1.4, and v3.1.4 has not checked one
+  made with v3.0.6: a signature's bundle is a blob ghcr hands out from a host the session's
+  network refuses, so both versions read *"no signatures found"* here, for that reason alone. The
+  pull request runs neither step. The first signing is `images.yml` on the merge commit, which
+  its path filter starts, and its sign step fails loud. The first check is the next release's
+  verify job, or a `verify` dispatch of Release on alpha.2 (the owner's call).
+- **One way:** nothing. Going back is the two `cosign-release:` lines.
 
 **2026-10-24, merged: Trivy v0.76.1 in both Security Scan steps**, as #1685, from branch
 `claude/ownpace-public-readiness-y7orc6-trivy-0-76-1`. T8's watch named it in

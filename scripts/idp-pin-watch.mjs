@@ -52,7 +52,8 @@
  *                      tag list (Docker Hub and ghcr, anonymous tokens), the
  *                      busybox copies in the scripts, www.yml's nginx against
  *                      apps/web/Dockerfile's, Stalwart's copies and its newest
- *                      v0.16.x, GoAccess, and the Trivy the Security Scan runs.
+ *                      v0.16.x, GoAccess, the Trivy the Security Scan runs,
+ *                      and the cosign the workflows name, every copy together.
  *                      cosign-installer's default is a status line only. Any
  *                      other image a script in deploy/compose runs is not
  *                      compared; today that is only db-roles.sh's floating
@@ -135,6 +136,12 @@ export const STALWART_FILES = [
   'packages/testing/fixtures/stalwart/Dockerfile',
   'scripts/a-service-that-phones-home.unit.test.ts',
 ];
+
+/**
+ * The workflows that install cosign: images.yml signs every published image
+ * with it, and release.yml's verify job checks those signatures with it.
+ */
+export const COSIGN_FILES = ['.github/workflows/images.yml', '.github/workflows/release.yml'];
 
 const IMAGE_LINE = /^\s*image:\s*ghcr\.io\/zitadel\/zitadel:(\S+)\s*$/gm;
 const RELEASE = /^v(\d+)\.(\d+)\.(\d+)$/;
@@ -796,23 +803,50 @@ export async function routineRows(repo, net) {
     return { pin: pin.join(' / '), newest, state: stateOf(pin[0], newest), notes: [...new Set(notes)] };
   }]);
 
+  // cosign: what signs the images and what checks them. Named in a step
+  // (`cosign-release:`), it is a pin nothing else moves, as Trivy's is, and a
+  // row, its copies held together. Left to cosign-installer's default,
+  // Dependabot moves it with the installer, and it is a status line only.
+  const status = [];
+  const cosignSteps = [];
+  try {
+    for (const file of COSIGN_FILES) {
+      const steps = stepsUsing(need(repo, file), 'sigstore/cosign-installer');
+      if (steps.length === 0) throw new Error(`${file} runs no cosign-installer`);
+      cosignSteps.push(...steps);
+    }
+  } catch (error) {
+    status.push(`cosign: could not be read (${error instanceof Error ? error.message : String(error)})`);
+  }
+  const installs = async (step) =>
+    step.with['cosign-release'] ??
+    actionDefault(await net.text(`https://raw.githubusercontent.com/sigstore/cosign-installer/${step.sha}/action.yml`), 'cosign-release');
+  const cosignNewest = async (pin) => newestLike(pin, tagsOf(await net.lsRemote('https://github.com/sigstore/cosign')));
+  const named = status.length === 0 && cosignSteps.some((step) => step.with['cosign-release']);
+  if (named) {
+    jobs.push(['cosign', COSIGN_FILES.join(', '), async () => {
+      const pins = new Set();
+      for (const step of cosignSteps) pins.add(await installs(step));
+      const pin = [...pins].sort(compareParts);
+      const newest = await cosignNewest(pin[0]);
+      const state = pin.length > 1 ? 'behind' : stateOf(pin[0], newest);
+      return { pin: pin.join(' / '), newest, state, notes: pin.length > 1 ? ['the copies disagree'] : [] };
+    }]);
+  }
+
   const rows = [];
   for (const [name, where, job] of jobs) rows.push(await settle(job, { name, where }));
 
-  // cosign: a status line only. The installer's default is what signs.
-  const status = [];
-  try {
-    const [step] = stepsUsing(need(repo, '.github/workflows/images.yml'), 'sigstore/cosign-installer');
-    if (!step) throw new Error('images.yml runs no cosign-installer');
-    const pin =
-      step.with['cosign-release'] ??
-      actionDefault(await net.text(`https://raw.githubusercontent.com/sigstore/cosign-installer/${step.sha}/action.yml`), 'cosign-release');
-    const newest = newestLike(pin, tagsOf(await net.lsRemote('https://github.com/sigstore/cosign')));
-    status.push(
-      `cosign: cosign-installer ${step.version || step.sha.slice(0, 7)} installs ${pin}${step.with['cosign-release'] ? ' (named)' : ' (its default)'}, and the newest cosign is ${newest}`,
-    );
-  } catch (error) {
-    status.push(`cosign: could not be read (${error instanceof Error ? error.message : String(error)})`);
+  if (status.length === 0 && !named) {
+    try {
+      const [step] = cosignSteps;
+      const pin = await installs(step);
+      status.push(
+        `cosign: cosign-installer ${step.version || step.sha.slice(0, 7)} installs ${pin} (its default), and the newest cosign is ${await cosignNewest(pin)}`,
+      );
+    } catch (error) {
+      status.push(`cosign: could not be read (${error instanceof Error ? error.message : String(error)})`);
+    }
   }
   return { rows, status };
 }

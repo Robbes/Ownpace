@@ -19,6 +19,7 @@ export declare const COMPARED_ELSEWHERE: Record<string, string>;
 export declare const STALWART_RULE: string;
 export declare const STALWART_FILES: string[];
 export declare const TASK_OVERLAY: RegExp;
+export declare const COSIGN_FILES: string[];
 
 export type State = 'current' | 'behind' | 'ahead' | 'error';
 

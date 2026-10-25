@@ -111,6 +111,7 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/release.yml`
 
 - [a-dispatch-that-waited-for-the-wrong-run](../scripts/a-dispatch-that-waited-for-the-wrong-run.unit.test.ts) — A DISPATCH THAT WAITED FOR THE WRONG RUN: a workflow dispatch takes a branch or a tag and never a commit, answers without saying which run it started unless asked, and a dispatch sent twice starts two publishers on one tag (the design re…
+- [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
 - [a-tag-that-already-pointed-elsewhere](../scripts/a-tag-that-already-pointed-elsewhere.unit.test.ts) — A TAG THAT ALREADY POINTED ELSEWHERE: a release tag is what `deploy-live.sh` trusts, and the workflow that cuts it has to know, at the moment it cuts it, that the name is free or already its own at the same commit, and that what it prove…
 
@@ -4163,6 +4164,7 @@ Reads:
 - `.github/dependabot.yml`
 - `.github/workflows/idp-pin-watch.yml`
 - `.github/workflows/images.yml`
+- `.github/workflows/release.yml`
 - `.github/workflows/security-scan.yml`
 - `AGENTS.md`
 - `apps/worker/package.json`

@@ -81,6 +81,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   other job does and installs from the lockfile; Trivy is held at v0.76.0,
   and at v0.76.1 in both scan steps since the pin watch named it behind
   (#1671, #1685).
+- **The images are signed with cosign v3.1.4, and the release checks them
+  with the same** (#1671): `images.yml` and `release.yml`'s verify job name
+  the release, where cosign-installer's default installed v3.0.6, and the pin
+  watch compares it with cosign's newest and holds the two together.
+  Signing stays keyless and by digest, and the `cosign verify` line
+  `deploy/selfhost/README.md` gives does not change.
 - **Live refuses a sign-in provider's key, so its sign-in page stays email and
   password only** (workplan 0140 T10, #1644): the stand-up and the deploy
   refuse live's settings while a Google, Microsoft, GitHub or Apple sign-in key
