@@ -21,8 +21,8 @@
  * twice: `esbuild/bin` and `@esbuild/linux-*`) and
  * `@typescript/typescript-linux-*`'s (Go 1.26.4).
  *
- * The runtime stage now installs `--prod`. Two things have to hold for that,
- * and this file holds both.
+ * The runtime stage now installs `--prod`, selected with `--filter-prod`. Two
+ * things have to hold for that, and this file holds both.
  *
  * ## 1. No stage the runtime takes files from installed devDependencies
  *
@@ -31,6 +31,18 @@
  * may run a package install only with `--prod`, and something among them
  * must install. A `COPY --from=build /app /app` out of a full install is
  * exactly the defect, and it reads like an ordinary multi-stage build.
+ *
+ * And an install among them that selects with a filter selects along
+ * production edges: `--filter-prod x...`, not `--filter x...`. pnpm's `...`
+ * under `--filter` follows every workspace edge, devDependencies included,
+ * and `--prod` then installs each selected package's own production
+ * dependencies. `@openmig/core` lists four workspace packages among its
+ * devDependencies and `@openmig/ledger` one; they are in the production
+ * closure anyway, so on 2026-10-25 both filters selected the same 9 of 14
+ * projects and the same 250 packages. But with `@openmig/testing` added as a
+ * devDependency of core, `--filter @openmig/api...` selected it and
+ * `--filter-prod` did not: that is a test's dependencies in the image, past a
+ * `--prod` that reads as if it kept them out.
  *
  * `pnpm deploy --prod` is the other way pnpm 11 documents, and it does not work
  * here: it copies each workspace package INTO node_modules (as a `file:`
@@ -77,7 +89,8 @@ const DOCKERFILE = 'apps/api/Dockerfile';
 
 // ---------------------------------------------------------------- 1. stages
 
-type Install = { command: string; prod: boolean; frozen: boolean };
+/** `devEdges`: the install selects with `--filter x...`, which follows devDependencies too. */
+type Install = { command: string; prod: boolean; frozen: boolean; devEdges: boolean };
 type Stage = { name: string; base: string; installs: Install[]; copiesFrom: string[] };
 
 /**
@@ -129,7 +142,15 @@ function installsIn(run: string): Install[] {
     const prod = pnpm
       ? args.includes('--prod') || args.includes('-P')
       : args.includes('--omit=dev') || args.includes('--production');
-    out.push({ command: words.slice(at).join(' '), prod, frozen: !pnpm || args.includes('--frozen-lockfile') || verb === 'deploy' });
+    // `x...` and `^x...` select x's dependencies: along every edge under
+    // `--filter`/`-F`, along production edges only under `--filter-prod`.
+    const devEdges = pnpm && filterValues(args, ['--filter', '-F']).some((value) => value.endsWith('...'));
+    out.push({
+      command: words.slice(at).join(' '),
+      prod,
+      frozen: !pnpm || args.includes('--frozen-lockfile') || verb === 'deploy',
+      devEdges,
+    });
   }
   return out;
 }
@@ -137,7 +158,16 @@ function installsIn(run: string): Install[] {
 /** `pnpm --filter x install`: `x` is the filter's value, not the sub-command. */
 function isFlagValue(args: string[], word: string): boolean {
   const i = args.indexOf(word);
-  return i > 0 && ['--filter', '-F', '--dir', '-C'].includes(args[i - 1]!);
+  return i > 0 && ['--filter', '--filter-prod', '-F', '--dir', '-C'].includes(args[i - 1]!);
+}
+
+/** The values the named flags take, as `--flag value` or `--flag=value`. */
+function filterValues(args: string[], names: string[]): string[] {
+  return args.flatMap((word, i) => {
+    if (names.includes(word)) return args[i + 1] === undefined ? [] : [args[i + 1]!];
+    const long = names.find((name) => name.startsWith('--') && word.startsWith(`${name}=`));
+    return long ? [word.slice(long.length + 1)] : [];
+  });
 }
 
 /**
@@ -173,6 +203,11 @@ function devDependencyRefusals(text: string): string[] {
   for (const i of installs.filter((x) => x.prod && !x.frozen)) {
     refusals.push(`stage "${i.stage}" installs without --frozen-lockfile, so the image is not the lockfile: ${i.command}`);
   }
+  for (const i of installs.filter((x) => x.prod && x.devEdges)) {
+    refusals.push(
+      `stage "${i.stage}" selects with --filter, whose "..." follows devDependencies too, so a workspace package only a test reaches brings its production dependencies; select with --filter-prod: ${i.command}`,
+    );
+  }
   if (installs.length === 0) refusals.push(`nothing that "${runtime.name}" takes its files from installs a dependency`);
   return refusals;
 }
@@ -189,24 +224,36 @@ describe('the API image carries production dependencies only', () => {
     expect(installsBehind(stages, 'runtime').length).toBeGreaterThan(0);
   });
 
-  it('installs with --prod and --frozen-lockfile in every stage the runtime takes files from', () => {
+  it('installs with --prod, --frozen-lockfile and --filter-prod in every stage the runtime takes files from', () => {
     expect(devDependencyRefusals(dockerfile), `${DOCKERFILE}: the runtime image would carry devDependencies`).toEqual([]);
   });
 
   it('refuses the shape main had, and the ways back to it', () => {
     const base = 'FROM node:24-slim@sha256:0 AS base\nRUN corepack enable\nWORKDIR /app\n';
-    const install = (flags: string) =>
-      `RUN --mount=type=cache,id=pnpm,target=/pnpm/store \\\n    pnpm install --frozen-lockfile ${flags}--filter @openmig/api...\n`;
+    const install = (flags: string, filter = '--filter') =>
+      `RUN --mount=type=cache,id=pnpm,target=/pnpm/store \\\n    pnpm install --frozen-lockfile ${flags}${filter} @openmig/api...\n`;
     const main = `${base}FROM base AS build\nCOPY . .\n${install('')}FROM base AS runtime\nCOPY --from=build /app /app\nCMD ["node", "apps/api/src/index.ts"]\n`;
     expect(devDependencyRefusals(main)).toEqual([
       'stage "build" installs devDependencies, and "runtime" takes its files: pnpm install --frozen-lockfile --filter @openmig/api...',
     ]);
-    const prod = main.replace(install(''), install('--prod '));
+    const prod = main.replace(install(''), install('--prod ', '--filter-prod'));
     expect(devDependencyRefusals(prod)).toEqual([]);
+    // `--prod` alone still selects along devDependency edges.
+    expect(devDependencyRefusals(main.replace(install(''), install('--prod ')))).toEqual([
+      'stage "build" selects with --filter, whose "..." follows devDependencies too, so a workspace package only a test reaches brings its production dependencies; select with --filter-prod: pnpm install --frozen-lockfile --prod --filter @openmig/api...',
+    ]);
+    expect(installsIn('pnpm install --prod -F @openmig/api...')).toMatchObject([{ devEdges: true }]);
+    expect(installsIn('pnpm install --prod --filter=^@openmig/api...')).toMatchObject([{ devEdges: true }]);
+    expect(installsIn('pnpm install --prod --filter-prod=@openmig/api...')).toMatchObject([{ devEdges: false }]);
+    expect(installsIn('pnpm --filter-prod @openmig/api... install --prod')).toMatchObject([{ prod: true, devEdges: false }]);
+    // The package alone, without its dependencies, follows no edge.
+    expect(installsIn('pnpm install --prod --filter @openmig/api')).toMatchObject([{ devEdges: false }]);
     // Built FROM the full install rather than copied out of it.
     expect(devDependencyRefusals(`${main.split('FROM base AS runtime')[0]}FROM build AS runtime\nCMD ["node"]\n`)).toHaveLength(1);
     // A prod install beside a copy out of a full one still carries the full one.
-    expect(devDependencyRefusals(`${main.replace('FROM base AS runtime\n', `FROM base AS runtime\nCOPY . .\n${install('--prod ')}`)}`)).toHaveLength(1);
+    expect(
+      devDependencyRefusals(`${main.replace('FROM base AS runtime\n', `FROM base AS runtime\nCOPY . .\n${install('--prod ', '--filter-prod')}`)}`),
+    ).toHaveLength(1);
     // By stage index, and through a stage in between.
     expect(devDependencyRefusals(main.replace('--from=build', '--from=1'))).toHaveLength(1);
     expect(devDependencyRefusals(main.replace('FROM base AS runtime', 'FROM build AS mid\nFROM base AS runtime').replace('--from=build', '--from=mid'))).toHaveLength(1);
@@ -226,6 +273,7 @@ type Manifest = {
   name: string;
   dependencies?: Record<string, string>;
   optionalDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
 };
 
 /** Every workspace package, by name. */
@@ -242,7 +290,12 @@ function workspace(): Map<string, { dir: string; manifest: Manifest }> {
   return out;
 }
 
-/** The API and every workspace package its `dependencies` reach: what `--filter @openmig/api...` installs. */
+/**
+ * The API and every workspace package it reaches along production edges: what
+ * `--filter-prod @openmig/api...` selects. pnpm's graph for it has each
+ * package's `dependencies`, `optionalDependencies` and `peerDependencies`, and
+ * leaves out `devDependencies`.
+ */
 function apiClosure(): Array<{ dir: string; manifest: Manifest }> {
   const all = workspace();
   const seen = new Map<string, { dir: string; manifest: Manifest }>();
@@ -250,7 +303,8 @@ function apiClosure(): Array<{ dir: string; manifest: Manifest }> {
     const pkg = all.get(name);
     if (!pkg || seen.has(name)) return;
     seen.set(name, pkg);
-    for (const [dep, spec] of Object.entries(pkg.manifest.dependencies ?? {})) {
+    const { dependencies, optionalDependencies, peerDependencies } = pkg.manifest;
+    for (const [dep, spec] of Object.entries({ ...peerDependencies, ...optionalDependencies, ...dependencies })) {
       if (spec.startsWith('workspace:')) visit(dep);
     }
   };
@@ -307,6 +361,12 @@ describe('what the API image loads is declared where it is loaded', () => {
     expect(closure.map((p) => p.manifest.name).sort()).toEqual(
       expect.arrayContaining(['@openmig/api', '@openmig/core', '@openmig/ledger', '@openmig/managed', '@openmig/orchestration']),
     );
+    // And it starts where the Dockerfile's filter starts, along the edges that filter follows.
+    const commands = installsBehind(readStages(readFileSync(join(ROOT, DOCKERFILE), 'utf8')), 'runtime').map((i) => i.command);
+    expect(
+      commands.some((command) => /--filter-prod[ =]@openmig\/api\.\.\.(\s|$)/.test(command)),
+      `${DOCKERFILE}: this walks what --filter-prod @openmig/api... selects, and the image installs ${commands.join(' | ')}`,
+    ).toBe(true);
   });
 
   for (const { dir, manifest } of closure) {

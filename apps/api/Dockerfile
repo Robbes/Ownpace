@@ -36,10 +36,15 @@ COPY . .
 # checkout (deploy/compose/operator.sh, seed-managed.sh); the migrations are the
 # API's own start-up code, which reads the SQL in packages/*/migrations.
 #
-# `--filter @openmig/api...` = this app AND the workspace packages its
-# `dependencies` reach; the workspace root's `dependencies` come too, whatever
-# the filter says (apps/web/Dockerfile). Measured on 2026-10-23: 249 packages,
-# where the full install of the same filter had 621.
+# `--filter-prod @openmig/api...` = this app AND the workspace packages its
+# `dependencies` reach (pnpm follows `optionalDependencies` and
+# `peerDependencies` too); the workspace root's `dependencies` come too,
+# whatever the filter says (apps/web/Dockerfile). Not `--filter`: its `...`
+# also follows devDependencies, and @openmig/core and @openmig/ledger list
+# workspace packages there, so a workspace package only a test reaches would
+# be selected and `--prod` would install ITS production dependencies. Measured
+# on 2026-10-25: 9 of the 14 workspace projects and 250 packages, the same
+# tree `--filter` gave that day; the full install of the same filter had 622.
 #
 # Not `pnpm deploy --prod`. It copies each workspace package INTO node_modules,
 # and Node refuses to strip types under a node_modules path: the deployed tree
@@ -62,7 +67,7 @@ COPY . .
 # preflight is `curl $API/health`, so an image that cannot resolve its own
 # modules fails loudly at the top of the run.
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile --prod --filter @openmig/api...
+    pnpm install --frozen-lockfile --prod --filter-prod @openmig/api...
 
 FROM base AS runtime
 ENV NODE_ENV=production

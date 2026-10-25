@@ -10,9 +10,9 @@ Main is frozen from the alpha.2 fold to its tag; this merges after the tag, once
 and E2E (self-hosted) have run on the branch.
 
 - **What changes.** `apps/api/Dockerfile`'s install stage, renamed `deps`, runs
-  `pnpm install --frozen-lockfile --prod --filter @openmig/api...`, and the runtime stage copies
-  it. `apps/api` now declares drizzle-orm, and `packages/orchestration` drizzle-orm and pg: they
-  loaded them through the root's devDependencies, which `--prod` no longer installs. Not
+  `pnpm install --frozen-lockfile --prod --filter-prod @openmig/api...`, and the runtime stage
+  copies it. `apps/api` now declares drizzle-orm, and `packages/orchestration` drizzle-orm and
+  pg: they loaded them through the root's devDependencies, which `--prod` no longer installs. Not
   `pnpm deploy --prod`: it copies the workspace packages into `node_modules`, where Node refuses
   to strip types (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`, measured on 2026-10-23).
   `scripts/an-image-that-shipped-what-it-never-runs.unit.test.ts` holds both halves: no stage the
@@ -35,6 +35,18 @@ and E2E (self-hosted) have run on the branch.
   three Go binaries: esbuild 0.25.12's, counted twice at 1/25, and TypeScript 7.0.2's native
   `tsc`, 0/15. The root `node_modules` went from 375 MiB to 141 MiB (apparent size, hard links
   counted).
+- **`--filter-prod`, not `--filter`**, from the review of `76c1db67`. Under `--filter`, pnpm's
+  `@openmig/api...` also follows devDependencies, and `@openmig/core` and `@openmig/ledger` list
+  workspace packages there. Today those are in the production closure anyway, so both flags
+  select the same 9 of 14 projects: in two `git archive` copies of `76c1db67`, the two installs
+  each added 250 packages, and their `node_modules/.pnpm` entries and every symlink outside it
+  were the same, target for target. In a copy with `@openmig/testing` added as a devDependency of
+  core, `pnpm ls -r --depth -1 --filter @openmig/api...` listed it and `--filter-prod` did not;
+  the image would have installed a test package's production dependencies past `--prod`. The
+  guard now refuses a `--prod` install that selects with `--filter x...`, and its closure walks
+  `dependencies`, `optionalDependencies` and `peerDependencies`, the edges `--filter-prod`
+  follows; with `--filter` put back in the Dockerfile, two of its cases fail. The boot above was
+  not repeated, since the tree is the same.
 - **Not proved here.** The image itself, since this session has no Docker daemon: CI's
   `images.yml` builds it on the pull request, and E2E (managed) is what boots, migrates and
   serves it. The cluster here is Postgres 16; the stacks run 18. The `ownpace-api` alerts close
