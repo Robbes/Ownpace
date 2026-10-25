@@ -204,11 +204,11 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
-          # Named, not left to the installer's default (v3.0.6 in v4.1.2):
-          # Dependabot moves the installer and nothing moves this, so the pin
-          # watch compares it with cosign's newest (idp-pin-watch.mjs). The
-          # same release as release.yml's verify job, which checks what this
-          # signs; the two move together.
+          # Named, not left to the installer's default: Dependabot moves the
+          # installer and nothing moves this, so the pin watch compares it
+          # with cosign's newest (idp-pin-watch.mjs). The same release as
+          # release.yml's verify job, which checks what this signs; the two
+          # move together.
           cosign-release: 'v3.1.4'
 
       - name: Sign the published image (keyless, by digest)

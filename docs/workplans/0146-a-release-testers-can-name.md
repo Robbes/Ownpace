@@ -32,8 +32,22 @@ other rows, Mailpit and Stalwart, are T11 (a) and (b), each on its own branch.
   a bypass of `verify-blob` with a legacy JSON bundle. The advisory says `cosign verify` of a
   container image and the protobuf bundle are not affected, so this is routine and not a
   security move here.
-- **Waited for.** v3.1.4's assets are from 2026-10-20, 18:02 to 18:04 UTC (`Last-Modified` of
-  `cosign-linux-amd64` and `cosign_checksums.txt`), three days old on 2026-10-23 at 18:04 UTC.
+- **What naming the release costs.** Left to its default, cosign-installer checks the v3.0.6
+  binary against a hash its `action.yml` carries. With a release named, it downloads v3.1.4 and
+  checks it with the bootstrap v3.0.6's `verify-blob --bundle`, once keyless and once with
+  `--key` (`action.yml` at the pinned commit). v3.0.6 reads any bundle that is not a protobuf
+  one as a legacy bundle (`checkNewBundle` in `cmd/cosign/cli/verify/verify_bundle.go`), and
+  that is the path GHSA-fx35-mq7g-6g98 covers: a crafted legacy bundle skips the identity
+  check, and its embedded key replaces `--key`. So that check is weaker than the hash, in front
+  of a job that holds `packages: write` and `id-token: write`. What holds it is that v3.1.4 is
+  an immutable release (its page: *"Immutable release. Only release title and notes can be
+  modified."*), so its assets cannot be swapped after publication, and its binary was checked
+  here against `cosign_checksums.txt`. A hash check of our own after the installer was not
+  added: the sign step does not run on a pull request, so a later move of the release that
+  missed the hash would fail only on `main`, after the images are pushed unsigned.
+- **Waited for.** v3.1.4 was published 2026-10-20 at 18:27:42 UTC (the release feed's
+  `updated`; its assets' `Last-Modified` is 18:02 to 18:04 UTC), three days old on 2026-10-23
+  at 18:27 UTC.
 - **Proved here, by hand, the installer's own path for a named release.** The bootstrap v3.0.6
   binary hashes to the `c956e5df…` v4.1.2 carries; `release/release-cosign.pub` at v3.1.4
   hashes to its `f4cea466…`; v3.0.6's `verify-blob` reads *"Verified OK"* for v3.1.4's
@@ -45,8 +59,10 @@ other rows, Mailpit and Stalwart, are T11 (a) and (b), each on its own branch.
   made with v3.0.6: a signature's bundle is a blob ghcr hands out from a host the session's
   network refuses, so both versions read *"no signatures found"* here, for that reason alone. The
   pull request runs neither step. The first signing is `images.yml` on the merge commit, which
-  its path filter starts, and its sign step fails loud. The first check is the next release's
-  verify job, or a `verify` dispatch of Release on alpha.2 (the owner's call).
+  every push to `main` starts, and its sign step fails loud. The first check is the next
+  release's verify job, or a `verify` dispatch of Release from `main` on alpha.2 after this
+  merges (the owner's call). It cannot be run before: Release refuses a dispatch from any
+  branch but `main` (`dispatchedFromMain` in `release-preflight.mjs`).
 - **One way:** nothing. Going back is the two `cosign-release:` lines.
 
 **2026-10-24: T7 answered and being built.** The owner, on 2026-10-23 at 19:05 UTC: *"T7 no,
