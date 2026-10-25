@@ -6,8 +6,8 @@
 
 **2026-10-25: the images' Node base names its Debian, built on a branch, not merged (0146
 T12).** The `node` row's pin moves from `24.22.1-slim` (Debian 12.15) to
-`24.22.1-trixie-slim` (Debian 13.7) by index digest `43b9ba11…`, the same Node 24.22.1, on a
-draft from branch `claude/ownpace-public-readiness-y7orc6-node-trixie-slim`, for after the
+`24.22.1-trixie-slim` (Debian 13.7) by index digest `43b9ba11…`, the same Node 24.22.1, on
+draft #1708 from branch `claude/ownpace-public-readiness-y7orc6-node-trixie-slim`, for after the
 alpha.2 tag and #1687. Dependabot `docker` keeps the `-trixie-slim` suffix when it moves the
 tag, so the Node patch still moves weekly and the Debian release only by hand; a guard holds
 the three `FROM node` lines to one string on a named release. The api and selfhost runtimes
