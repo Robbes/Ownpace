@@ -4,6 +4,49 @@
 
 ## Status — 2026-10-26 (update this block at the end of every session)
 
+**2026-10-26, later: T15 after its review, three findings, all fixed on draft #1717.** No fault
+was found in how the image starts, in the uids, or in any script that execs into a database, and
+the review's own Trivy v0.76.1 runs read the same 1/26 and gosu's 1/25.
+- **Every bring-up rebuilt the databases' image, which could restart live's databases outside a
+  hold.** The entry below said compose builds the image only when the machine has none of its
+  name; that holds for `up`, not for `up --build`, which builds every service in its scope that
+  has a `build:`, dependencies included (compose 5.1.1, `cmd/compose/create.go` and `up.go`,
+  read in its source). The app phase ran `up -d --build --wait` over a list that names both
+  databases, and api and web depend on them. With BuildKit's cache that is the same image ID and
+  nothing restarts; from a pruned cache it is a new ID under the same name, the next `up` that
+  reaches a database recreates it (`mustRecreate` compares the image label), and live and the OTA
+  stack share one daemon. Fixed: the app phase builds `api web` by name (with `GIT_SHA`, and `die`
+  when they do not build) and brings its list up through `up_wait`, without `--build`. Every
+  command that said otherwise was rewritten to build by name: `setup-zitadel.sh`'s closing hint,
+  `setup-managed-demo.sh`'s run order, managed.yml's build comment,
+  `docs/managed-bring-up.md` (the app phase, the identity hint, the stage and support-mail
+  rebuilds, the after-a-pull sequence), `docs/billing-rehearsal-on-ota.md` (twice) and
+  `docs/TROUBLESHOOTING.md` (twice). The Dockerfile, managed.yml's header, the pin watch's
+  `builtTag` and the bring-up doc now say when it is built again and why nothing asks.
+- **`docker compose pull` failed on the build, and the first `up` asked the host's own port 443
+  for it.** No registry serves `localhost/postgres`; compose's default policy pulls a missing
+  image first, and a pull of a buildable image is collected into `pull`'s error
+  (`pkg/compose/pull.go`). Fixed: `pull_policy: never` on the three services. `pull` passes them
+  by, `up` builds a missing one without asking (`build.go` builds when the image is absent,
+  whatever the policy), and `--build` would still override it. `docker compose config` resolves
+  both files with it (compose v5.6.1 here).
+- **No pull request built the Dockerfile.** `images.yml` now has `build (postgres)`, on a pull
+  request only (its paths filter includes `deploy/**`): it brings up dev.yml's postgres on a
+  runner without the image, so compose builds it, waits for TCP, and checks the image's user is
+  `70:70`, that `exec`, the server (PID 1) and PGDATA are uid 70, that gosu is gone, and that
+  `psql` answers. It publishes nothing and is not requirable: `every-pr-check-is-classified`
+  lists it beside `build`, silenced by the same `paths:` filter (docs/testing.md, ci.yml's
+  comment).
+- **Guard.** `scripts/a-database-started-as-root.unit.test.ts` gained four tests and a policy
+  check: 5 of its 11 failed before the fix (the policy, the thirteen commands, phase_app, the
+  missing job). Each regression put back fails it: `--build` on phase_app's `up` (2 tests), no
+  `pull_policy` on trigger-db (2), an `up --build` in a document (1), a bare `build` in the
+  identity hint (1), the job removed, building with `docker build`, or without its gosu check (1
+  each). `identity-in-the-gate.unit.test.ts` now finds the web build by its `build api web`.
+- **For E2E (managed) on the branch, in addition:** a second bring-up's app phase shows
+  `postgres` and `trigger-db` *Running*, not *Recreated*, and `docker image inspect` gives the
+  same ID for `localhost/postgres:18.6-alpine-6b2d97623fb5` before and after it.
+
 **2026-10-26: T15, both PostgreSQL databases of the managed stacks without gosu, built as
 draft #1717** on branch `claude/ownpace-public-readiness-y7orc6-postgres-without-gosu`, stacked on
 #1678 (whose pin it builds on), for after the alpha.2 tag. Main is frozen until then.
@@ -1039,7 +1082,7 @@ best given with T0.
 | T9 The API image runs without the dev tools | 🔨 **Being built** as a draft on branch `claude/ownpace-public-readiness-y7orc6-api-image-prod-deps`, for after the first invitation (2026-10-23) | Status, 2026-10-23 (the scan triage). `apps/api/Dockerfile`'s runtime stage copies the build stage's whole `/app`, where `pnpm install --filter @openmig/api...` installed the devDependencies too, the root's included, and `CMD` (`node apps/api/src/index.ts`) needs none of them. Their Go binaries are 2 critical and 65 high of the image's 3/125 on 2026-10-23: esbuild 0.25.12 (Go 1.23.12; drizzle-kit's and `@esbuild-kit/esm-loader`'s), counted twice, and TypeScript 7's native compiler (Go 1.26.4). The lockfile itself, dev dependencies included, reads 0/0. Done when the runtime image holds production dependencies only, a dependency it still needs and lacks fails at start, which the managed gate's first `curl $API/health` catches, and the image scan finds the Node base's findings alone. |
 | T10 The image scan reads the tasks' image as it is built | 📋 **Proposed** (2026-10-23) | Status, 2026-10-23 (the scan triage). `scripts/image-scan.mjs` scans the base image the pinned CLI names (`triggerdotdev/node:24-bookworm` by digest, category `trigger-task-base`, 14/117 on 2026-10-23), not the tasks' image that `deploy-tasks.sh` builds from it. The Trigger.dev v4.7.6 branch upgrades that image's Debian packages at build (`apt-get -y upgrade`), which fixes the 42 Debian findings that have a fix (12 critical, all Perl, fixed in 5.36.0-7+deb12u4, and 30 high). It leaves npm's bundled packages under `/usr/local/lib/node_modules/npm`, since the overlay copies only `/usr/local/bin/node` (tar 7.5.15's CVE-2026-59873, critical, fixed in 7.5.19, and 12 high, 11 of them with a fix), and the 76 Debian findings without a fix, zlib1g's CVE-2023-45853 among them: the built image would still carry 2 critical and 87 high of the 131 (read with Trivy 0.76.0, 2026-10-23). The scan cannot see the upgrade, so the category keeps alerts for 42 findings the built image no longer has. The scan runs on a GitHub-hosted runner, which cannot read the stack's own registry, so the proposal is to build the image in the scan job as the deploy builds it. The old category, if renamed, has its configuration deleted by hand (T8). |
 | T11 The patch and minor moves that clear findings | (a) 📋 **Proposed**; (b) ⏳ **Owner**; (c) 📋 **Proposed**, after the Alpha (2026-10-23) | Status, 2026-10-23 (the scan triage), read with Trivy 0.76.0 on linux/amd64. (a) **Mailpit v1.32.0**: 0/0, where v1.31.6 has CVE-2026-111943 (Go's `crypto/x509`); after the first invitation, by hand in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts`, which pins the reference by tag and digest and records Mailpit's release check as read at v1.31.6, so that fact is read again at v1.32.0 in the same change. (b) **Stalwart v0.16.27** (Debian 13.7): 0 critical and 47 high, none with a fix, where v0.16.10 has 3/114. The owner's call: `docs/stalwart-integration-fix.md` pins v0.16.10 and says *"DO NOT change the pinned version"* (AGENTS.md puts its decisions in ADR-0022), and every copy moves together: `setup-stalwart.sh`, the fixture's Dockerfile, the Testcontainers setup, the fix doc and the guards that name it. (c) **ClickHouse 26.3** (26.3.59, Ubuntu 22.04): 0/0, where 26.2.19.43 has CVE-2026-45447 and CVE-2026-84782 in openssl. After the Alpha: the owner accepted 26.2 for it on 2026-10-23 (0119 §3 item 9 on the Trigger.dev v4.7.6 branch), and 26.3 is ahead of the 26.2 Trigger.dev's own compose pins, which the pin watch compares with (T8). It moves in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts` together: the guard pins the reference by tag and digest and records the crash-report default as read at `v26.2.19.43-stable`, as `clickhouse-no-crash-reports.xml`'s comment does, so both are read again at 26.3. |
-| T15 Both databases of the managed stacks start as uid 70, from the official image without gosu | 🔨 **Being built** as draft #1717 on branch `claude/ownpace-public-readiness-y7orc6-postgres-without-gosu`, stacked on #1678, for after the alpha.2 tag (2026-10-26) | Status, 2026-10-26. `postgres:18.6-alpine` reads 1 critical and 26 high (Trivy v0.76.1, arm64 and amd64); the critical and 25 highs are Go's standard library in gosu, which the entrypoint runs only when it starts as root. `deploy/compose/postgres/Dockerfile` removes it and starts as uid 70, the user gosu dropped to; `managed.yml`'s `postgres` and `trigger-db` and `dev.yml`'s run it, and the scan builds and scans it. Done when E2E (managed) is green on the branch (the OTA stack's existing volumes, started as uid 70), the image scan's `postgres-managed` reads 0 critical and 1 high (brotli-libs, until docker-library rebuilds 18.6-alpine), and live has taken it from a tag. The appliance's Postgres is a decision of its own. |
+| T15 Both databases of the managed stacks start as uid 70, from the official image without gosu | 🔨 **Being built** as draft #1717 on branch `claude/ownpace-public-readiness-y7orc6-postgres-without-gosu`, stacked on #1678, for after the alpha.2 tag (2026-10-26) | Status, 2026-10-26. `postgres:18.6-alpine` reads 1 critical and 26 high (Trivy v0.76.1, arm64 and amd64); the critical and 25 highs are Go's standard library in gosu, which the entrypoint runs only when it starts as root. `deploy/compose/postgres/Dockerfile` removes it and starts as uid 70, the user gosu dropped to; `managed.yml`'s `postgres` and `trigger-db` and `dev.yml`'s run it, and the scan builds and scans it. Done when E2E (managed) is green on the branch (the OTA stack's existing volumes, started as uid 70, and a second bring-up leaving both databases running on the same image ID), `build (postgres)` is green on the pull request, the image scan's `postgres-managed` reads 0 critical and 1 high (brotli-libs, until docker-library rebuilds 18.6-alpine), and live has taken it from a tag. The appliance's Postgres is a decision of its own. |
 
 ## 1. What there is today
 

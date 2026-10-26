@@ -905,9 +905,12 @@ its OUTPUT, not its exit code, which is 0 either way (below).
 
 ### 8. `app` — API and web
 
-`docker compose up -d --build --wait`, with `GIT_SHA` passed so `GET /version`
-reports a commit rather than `unknown`. The API runs both migration chains at
-boot (ADR-0036), shared first.
+`docker compose build api web`, with `GIT_SHA` passed so `GET /version`
+reports a commit rather than `unknown`, then `up -d --wait` without `--build`.
+By name, because `up --build` builds every service in its scope that has a
+`build:`, dependencies included, and the two databases have one (*Both
+PostgreSQL databases run a build of the official image*, below). The API runs
+both migration chains at boot (ADR-0036), shared first.
 
 Without `--with-demo` the services are **named explicitly** rather than swept
 up, so a bare `up` does not start Nextcloud — whose admin password is
@@ -1109,11 +1112,13 @@ person's own language, which the registration page takes from the page's.
 **Then restart the API and REBUILD the web app, or nothing changes.** The API
 only needs the new environment; the web app bakes `VITE_*` in at build time, so
 a container built before the script ran has no issuer in its bundle and still
-renders the paste box. The script prints these two lines when it finishes:
+renders the paste box. The script prints these lines when it finishes (the web
+image built by name: `up --build` would rebuild the databases' image too):
 
 ```bash
 docker compose -f deploy/compose/managed.yml up -d --force-recreate api
-docker compose -f deploy/compose/managed.yml up -d --build web
+docker compose -f deploy/compose/managed.yml build web
+docker compose -f deploy/compose/managed.yml up -d web
 ```
 
 **Verify** — `/login` shows a *Sign in* button rather than only a token box,
@@ -2265,7 +2270,8 @@ start, so rebuild and recreate both:
 
 ```bash
 GIT_SHA=$(git rev-parse --short HEAD) \
-  docker compose -f deploy/compose/managed.yml up -d --build --wait api web
+  docker compose -f deploy/compose/managed.yml build api web
+docker compose -f deploy/compose/managed.yml up -d --wait api web
 ```
 
 Open the sign-in page: the note is under the title. Empty, or any value but
@@ -2354,7 +2360,8 @@ The web bundle bakes it in at build time, so rebuild the web image:
 
 ```bash
 GIT_SHA=$(git rev-parse --short HEAD) \
-  docker compose -f deploy/compose/managed.yml up -d --build --wait web
+  docker compose -f deploy/compose/managed.yml build web
+docker compose -f deploy/compose/managed.yml up -d --wait web
 ```
 
 Open the sign-in page: the line is above the status link.
@@ -4492,8 +4499,22 @@ the user gosu dropped to, it never does. What that means for you:
   the next nightly gate, live inside `deploy-live.sh`'s hold and drain, from the
   tag. The build pulls the pinned base when the machine does not have it (as
   `up` pulled the image before), runs one `rm`, and needs no package mirror.
-  After that compose never builds it again until the Dockerfile changes, which
-  changes the name.
+  The services say `pull_policy: never`, since no registry serves the name:
+  `docker compose pull` passes them by, and `up` builds without asking one.
+- **After that it is built again only when the Dockerfile changes**, which
+  changes the name, **as long as nothing asks for a build.** `up --build`
+  builds every service in its scope that has a `build:`, dependencies
+  included, and api and web depend on both databases; a `build` that names
+  no service builds every one. From a pruned build cache that is a
+  new image under the same name, and the next `up` that reaches a database
+  recreates it; live and the OTA stack share one Docker daemon and this name,
+  so one stack's rebuild makes the other's next such `up` restart its
+  databases, outside any hold. So the bring-up
+  builds `api web` by name and runs `up` without `--build`, every command in
+  this document does the same, and so should yours:
+  `docker compose -f deploy/compose/managed.yml build web`, then
+  `up -d web`. `scripts/a-database-started-as-root.unit.test.ts` refuses a
+  script or document that says otherwise.
 - **The data stays where it is, and is already uid 70's.** The root entrypoint
   chowned every file in PGDATA to uid 70 on every start, so the volumes need
   nothing. To see it before the deploy, on the old containers (their `exec` is
@@ -4748,12 +4769,13 @@ cd ~/ownpace-managed
 git pull
 
 GIT_SHA=$(git rev-parse --short HEAD) \
-  docker compose -f deploy/compose/managed.yml up -d --build --wait api web
+  docker compose -f deploy/compose/managed.yml build api web
+docker compose -f deploy/compose/managed.yml up -d --wait api web
 
 ./deploy/compose/deploy-tasks.sh          # see below: not always needed
 ```
 
-**The third line is the one that gets skipped, and skipping it is invisible.**
+**The last line is the one that gets skipped, and skipping it is invisible.**
 The api and web containers are rebuilt from the working tree; the **tasks are
 not** — they are a bundle uploaded to the Trigger.dev instance, and it keeps
 serving the last one deployed until you replace it. So a fix that lands in

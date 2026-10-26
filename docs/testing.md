@@ -472,7 +472,9 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   tag listed, fails the run and never closes an issue.
 - `images.yml` — the three application images: an amd64 build-only check on a pull request that
   touches a Dockerfile, `deploy/` or the workflow; a multi-arch build and publish on `main` and
-  on `v*` tags.
+  on `v*` tags. On such a pull request only, `build (postgres)` also brings up `dev.yml`'s
+  postgres on a runner without its image, so compose builds `deploy/compose/postgres`, and checks
+  it runs as uid 70 without gosu (workplan 0146 T15); it publishes nothing.
 - `windows-payload.yml` (dispatch, and on v* tags; builds the Windows appliance payload).
 - `release.yml` — dispatch only, from `main`, on GitHub-hosted runners only; never a required
   check, since it has no pull-request trigger. It cuts a release tag and publishes it in order
@@ -514,7 +516,7 @@ against the runs recorded that evening, recorded green runs, and every event and
 red when the two disagree.
 
 Do **not** require `integration-tests (ubuntu-24.04)` / `(ubuntu-24.04-arm)`, nor
-`build (api|web|selfhost)` from `images.yml`. Neither is reported at all on some pull requests —
+`build (api|web|selfhost)` or `build (postgres)` from `images.yml`. Neither is reported at all on some pull requests —
 a skipped matrix job reports once under the literal `integration-tests (${{ matrix.runner }})`,
 and `images.yml` has a `paths:` filter — so a docs-only PR blocks forever on "Expected — waiting
 for status to be reported", with nothing queued in Actions to explain it. Full rationale is the

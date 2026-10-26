@@ -26,8 +26,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   Compose builds `deploy/compose/postgres` on the first `up`, and both
   databases restart once; their data needs nothing, being that user's already.
   `docker compose exec postgres` now runs as that user (add `-u 0` for root);
-  every script's `psql`, `pg_dump` and `pg_restore` answers as before. The
-  self-hosted appliance keeps the official image.
+  every script's `psql`, `pg_dump` and `pg_restore` answers as before. Rebuild
+  the web or API image by name (`docker compose … build web`, then `up -d
+  web`): `up --build` would rebuild the databases' image too and could restart
+  them. The self-hosted appliance keeps the official image.
 
 ## [0.2.0-alpha.2] - 2026-10-25
 

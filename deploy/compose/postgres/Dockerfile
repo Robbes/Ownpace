@@ -38,14 +38,23 @@
 # that pull request moves the tag below too.
 #
 # THE NAME. managed.yml and dev.yml build this as
-# `localhost/postgres:<base tag>-<12 hex>`, a name no registry serves. Compose
-# builds an image only when the machine has none of that name, and never again
-# while it has one, so the twelve hex digits are the SHA-256 of this file's
-# instruction lines (comments and blank lines do not count), and a changed
-# instruction is a name the machine does not have yet:
+# `localhost/postgres:<base tag>-<12 hex>`, a name no registry serves, so the
+# services say `pull_policy: never`. `up` builds an image only when the machine
+# has none of that name, so the twelve hex digits are the SHA-256 of this
+# file's instruction lines (comments and blank lines do not count), and a
+# changed instruction is a name the machine does not have yet:
 #   grep -Ev '^[[:space:]]*(#|$)' deploy/compose/postgres/Dockerfile | sha256sum | cut -c1-12
 # scripts/a-database-started-as-root.unit.test.ts holds every postgres there to
 # it, and says what to write.
+#
+# NOTHING BUILDS IT AGAIN WHILE THE MACHINE HAS IT. `up --build` builds every
+# service in its scope that has a `build:`, dependencies included (api and web
+# depend on both databases), and so does a `build` that names no service. From
+# a pruned build cache that is a new image ID under the same name, and the next
+# `up` that reaches a database recreates it; live and the OTA stack share one
+# daemon, so one stack's rebuild restarts the other's databases. The bring-up
+# builds `api web` by name and runs `up` without `--build`, and the same guard
+# refuses any script or document that says otherwise.
 FROM postgres:18.6-alpine@sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5
 
 # A plain rm: a base without gosu fails here, and this file has nothing left to do.

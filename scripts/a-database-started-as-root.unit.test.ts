@@ -31,11 +31,29 @@
  *    history kept in the container's /tmp, as root's were in /root, and not
  *    in the user's home, which is the data volume;
  *  - every Postgres the deploy/compose files run is that build, under
- *    `localhost/postgres:<builtTag>`, with `build: ./postgres` and no `user:`
- *    that puts root back. The tag carries the hash of the Dockerfile's
- *    instructions: compose builds such an image only when the machine has none
- *    of that name, so a name that stayed when the Dockerfile moved would keep
- *    the old build running for good;
+ *    `localhost/postgres:<builtTag>`, with `build: ./postgres`,
+ *    `pull_policy: never` and no `user:` that puts root back. The tag carries
+ *    the hash of the Dockerfile's instructions: `up` builds such an image only
+ *    when the machine has none of that name, so a name that stayed when the
+ *    Dockerfile moved would keep the old build running for good.
+ *    `pull_policy: never` because no registry serves the name: without it
+ *    `docker compose pull` failed on it, and the first `up` asked whatever
+ *    answers on the host's own port 443 for it before building;
+ *  - NOTHING BUILDS IT AGAIN WHILE THE MACHINE HAS IT (the review of #1717,
+ *    2026-10-26). `up --build` builds every service in its scope that has a
+ *    `build:`, dependencies included (compose 5.1.1, cmd/compose/create.go and
+ *    up.go), and api and web depend on both databases. The bring-up's app
+ *    phase ran exactly that, so every bring-up rebuilt the image. Harmless
+ *    while BuildKit kept its cache; from a pruned cache the same name got a
+ *    new image ID, and the next `up` that reached a database recreated it, on
+ *    a shared daemon live's as well, outside any hold. So the app phase builds
+ *    `api web` by name and runs `up` without `--build`, and no script, compose
+ *    comment or document gives a command that builds the databases' image:
+ *    no `up --build` on managed.yml or dev.yml, no `build` naming no service
+ *    or a database;
+ *  - a pull request that touches deploy/ builds the Dockerfile and starts the
+ *    result (images.yml, `build (postgres)`), so a FROM that does not resolve,
+ *    or a base without gosu, is found there and not first by E2E (managed);
  *  - the appliance's Postgres (deploy/selfhost/compose.yml) still starts as
  *    root on the official image, named below with its reason, so the list
  *    cannot rot in either direction;
@@ -49,7 +67,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
@@ -78,6 +96,7 @@ const NAMED_ROOT_STARTS: Readonly<Record<string, string>> = {
 interface Service {
   image?: string;
   build?: string | { context?: string; dockerfile?: string };
+  pull_policy?: string;
   user?: string | number;
 }
 
@@ -136,6 +155,9 @@ function composeProblems(texts: Readonly<Record<string, string>>, dockerfile: st
       const context = typeof svc.build === 'string' ? svc.build : svc.build?.context;
       if (context !== './postgres') problems.push(`${key} is built from ${String(context)}, not ./postgres`);
       if (typeof svc.build === 'object' && svc.build.dockerfile !== undefined) problems.push(`${key} names a dockerfile of its own`);
+      if (svc.pull_policy !== 'never') {
+        problems.push(`${key} has pull_policy ${String(svc.pull_policy)}, not never: no registry serves ${want}, so \`docker compose pull\` fails on it and \`up\` asks the host's own port 443 before it builds`);
+      }
       if (svc.user !== undefined && !/^70(:70)?$/.test(String(svc.user))) problems.push(`${key} runs as ${String(svc.user)}, not uid 70`);
     }
   }
@@ -200,6 +222,18 @@ describe('the Postgres of the deploy/compose stacks starts as uid 70, from an im
     expect(composeProblems({ ...composeTexts, 'deploy/compose/managed.yml': rooted }, dockerfile)).toEqual([
       'deploy/compose/managed.yml:postgres runs as root, not uid 70',
     ]);
+    // Pulled, or pulled when missing (compose's default): a registry is asked for a name none serves.
+    for (const policy of ['missing', 'always', 'build']) {
+      const pulled = managed.replace(/^(\s*pull_policy:\s*)never$/m, `$1${policy}`);
+      expect(pulled).not.toBe(managed);
+      expect(composeProblems({ ...composeTexts, 'deploy/compose/managed.yml': pulled }, dockerfile)).toEqual([
+        expect.stringContaining(`deploy/compose/managed.yml:postgres has pull_policy ${policy}, not never`),
+      ]);
+    }
+    const unset = managed.replace(/^\s*pull_policy:\s*never\n/m, '');
+    expect(composeProblems({ ...composeTexts, 'deploy/compose/managed.yml': unset }, dockerfile)).toEqual([
+      expect.stringContaining('deploy/compose/managed.yml:postgres has pull_policy undefined, not never'),
+    ]);
   });
 
   it('the Postgres that still starts as root is named, with its reason, and is still the official image', () => {
@@ -233,5 +267,153 @@ describe('the Postgres of the deploy/compose stacks starts as uid 70, from an im
       expect(asked.status, asked.stderr).toBe(0);
       expect(asked.stdout, `${script} reads no image, or another one, from managed.yml`).toBe(`${want}\n`);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// NOTHING BUILDS THE DATABASES' IMAGE AGAIN WHILE THE MACHINE HAS IT.
+
+/** Global options of `docker compose` that take a value as the next word. */
+const COMPOSE_OPTIONS_WITH_VALUE = new Set(['-f', '--file', '-p', '--project-name', '--env-file', '--profile', '--project-directory', '--ansi', '--progress', '--parallel']);
+/** Options of `docker compose build` that take a value as the next word. */
+const BUILD_OPTIONS_WITH_VALUE = new Set(['--build-arg', '--builder', '-m', '--memory', '--progress', '--ssh', '--provenance', '--sbom']);
+/** The compose files whose Postgres is the build; a command naming only other files is not this guard's. */
+const BUILDS_THE_DATABASES = /(^|\/)(managed|dev)\.yml$/;
+
+/**
+ * What is wrong with one line's compose commands, in words; empty when none
+ * builds the databases' image. A command is `docker compose …` or the bring-up's
+ * `"${COMPOSE[@]}" …`, up to the end of the line, a backtick, `&&`, `||`, `;`,
+ * `|`, `)` or a comment. It builds that image when it is `up` with `--build`
+ * (every service in scope that has a `build:`, dependencies included), or
+ * `build` naming no service (all of them) or a database.
+ */
+function rebuilds(line: string): string[] {
+  const problems: string[] = [];
+  for (const m of line.matchAll(/(?:docker compose|docker-compose|"\$\{COMPOSE\[@\]\}")((?:[^`&|;)#\n]|#(?!\s))*)/g)) {
+    const words = m[1]!.trim().split(/\s+/).filter((w) => w && w !== '\\');
+    const files: string[] = [];
+    let i = 0;
+    while (i < words.length && words[i]!.startsWith('-')) {
+      const word = words[i]!;
+      if (word === '-f' || word === '--file') files.push(words[i + 1] ?? '');
+      else if (word.startsWith('--file=')) files.push(word.slice('--file='.length));
+      i += COMPOSE_OPTIONS_WITH_VALUE.has(word) ? 2 : 1;
+    }
+    if (files.length > 0 && !files.some((f) => BUILDS_THE_DATABASES.test(f))) continue;
+    const [command, ...rest] = words.slice(i);
+    const said = m[0]!.trim();
+    if (command === 'up' && rest.includes('--build')) {
+      problems.push(`\`${said}\` builds every service in its scope that has a build:, the databases' image among them: build the images that carry code by name, then \`up\` without --build`);
+    }
+    if (command === 'build') {
+      const named: string[] = [];
+      for (let j = 0; j < rest.length; j += 1) {
+        if (BUILD_OPTIONS_WITH_VALUE.has(rest[j]!)) j += 1;
+        else if (!rest[j]!.startsWith('-')) named.push(rest[j]!);
+      }
+      if (named.length === 0) problems.push(`\`${said}\` builds every service, the databases' image among them: name the services (\`build api web\`)`);
+      for (const db of named.filter((n) => n === 'postgres' || n === 'trigger-db')) {
+        problems.push(`\`${said}\` builds ${db}'s image although the machine has it: it is built when its name is missing, and only then`);
+      }
+    }
+  }
+  return problems;
+}
+
+/**
+ * The files whose commands somebody runs on a stack: scripts, the compose
+ * files' comments, workflows and the documents. Not the records of what was
+ * once run (workplans, the ADR history, the design handoffs) and not
+ * LESSONS.md, which is generated from these guards' headers.
+ */
+function filesWithCommands(): string[] {
+  return execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', 'docs', 'deploy/compose', '.github/workflows', 'README.md', 'CONTRIBUTING.md'], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+  })
+    .split('\n')
+    .filter((f) => /\.(md|sh|ya?ml)$/.test(f))
+    .filter((f) => !/^docs\/(workplans|adr\/history|design)\//.test(f) && f !== 'docs/LESSONS.md');
+}
+
+const bootstrap = read('deploy/compose/bootstrap-managed.sh');
+const lift = (name: string): string => {
+  const at = bootstrap.indexOf(`\n${name}() {`);
+  return at < 0 ? '' : bootstrap.slice(at, bootstrap.indexOf('\n}\n', at) + 3);
+};
+
+describe("nothing builds the databases' image again while the machine has it", () => {
+  it('reads the commands it means, and refuses each way of rebuilding it', () => {
+    for (const line of [
+      'docker compose -f deploy/compose/managed.yml up -d --build web',
+      'GIT_SHA=$(git rev-parse --short HEAD) docker compose -f deploy/compose/managed.yml up -d --build --wait api web',
+      '    "${COMPOSE[@]}" up -d --build --wait "${services[@]}" || explain_failure "${services[@]}"',
+      'docker compose -f deploy/compose/dev.yml up -d --build',
+      '#   GIT_SHA=$(git rev-parse HEAD) docker compose -f managed.yml build',
+      'docker compose build --no-cache',
+      'docker compose -f deploy/compose/managed.yml build postgres',
+      'docker compose -f deploy/compose/managed.yml build --build-arg GIT_SHA=x trigger-db api',
+      'run `docker compose -f deploy/compose/managed.yml -f override.yml up -d --build` first',
+    ]) {
+      expect(rebuilds(line), line).not.toEqual([]);
+    }
+    for (const line of [
+      'GIT_SHA=$(git rev-parse --short HEAD) docker compose -f deploy/compose/managed.yml build api web',
+      'docker compose -f deploy/compose/managed.yml up -d --wait api web',
+      'docker compose -f deploy/compose/managed.yml build --build-arg GIT_SHA=x --no-cache web && docker compose -f deploy/compose/managed.yml up -d web',
+      'docker compose -f deploy/compose/managed.yml up -d --no-deps --no-build api',
+      '          docker compose $SELFHOST_COMPOSE_FILES up -d --build --force-recreate --wait || \\',
+      'docker compose -f deploy/selfhost/compose.yml up -d --build',
+      'docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env up -d --force-recreate',
+      '# the app services used to need `--build` and a GIT_SHA',
+    ]) {
+      expect(rebuilds(line), line).toEqual([]);
+    }
+  });
+
+  it('no script, compose file, workflow or document gives such a command', () => {
+    const files = filesWithCommands();
+    expect(files, 'the listing found none of the files it reads').toEqual(
+      expect.arrayContaining(['deploy/compose/bootstrap-managed.sh', 'deploy/compose/managed.yml', 'docs/managed-bring-up.md', '.github/workflows/images.yml']),
+    );
+    const found = files.flatMap((file) =>
+      read(file)
+        .split('\n')
+        .flatMap((line, n) => rebuilds(line).map((problem) => `${file}:${n + 1}: ${problem}`)),
+    );
+    expect(found).toEqual([]);
+  });
+
+  it('the app phase builds api and web by name, with the commit, before its `up`, which has no --build', () => {
+    const app = lift('phase_app');
+    expect(app, 'phase_app not found').toContain('local services=(');
+    const build = app.search(/^\s*GIT_SHA="\$\(git -C "\$REPO_ROOT" rev-parse HEAD[^\n]*\\\n\s*"\$\{COMPOSE\[@\]\}" build api web \|\| die /m);
+    const up = app.indexOf('up_wait "${services[@]}"');
+    expect(build, 'phase_app does not build api and web by name, with GIT_SHA, and stop when they do not build').toBeGreaterThan(-1);
+    expect(up, 'phase_app does not bring its services up through up_wait').toBeGreaterThan(-1);
+    expect(build, 'the images that carry code are built after the `up` that runs them').toBeLessThan(up);
+    expect(lift('up_wait'), 'up_wait builds what its services need').toMatch(/"\$\{COMPOSE\[@\]\}" up -d --wait "\$@"/);
+  });
+
+  it('a pull request that touches deploy/ builds the Dockerfile with compose, and starts the result as uid 70', () => {
+    const images = parseYaml(read('.github/workflows/images.yml')) as {
+      on: { pull_request?: { paths?: string[] } };
+      jobs: Record<string, { if?: string; 'runs-on'?: string; permissions?: unknown; steps?: Array<{ run?: string; uses?: string }> }>;
+    };
+    expect(images.on.pull_request?.paths, "images.yml no longer runs on a pull request that touches deploy/").toContain('deploy/**');
+    const job = images.jobs['database'];
+    expect(job, 'images.yml has no `database` job').toBeDefined();
+    expect(job!.if).toBe("github.event_name == 'pull_request'");
+    expect(job!['runs-on']).toMatch(/^ubuntu-/);
+    expect(job!.permissions).toEqual({ contents: 'read' });
+    const run = (job!.steps ?? []).map((s) => s.run ?? '').join('\n');
+    expect(run, 'it does not start the database the way dev.yml does, building it where it is missing').toMatch(
+      /docker compose -f "\$file" up -d --wait\b[^\n]*\bpostgres\b/,
+    );
+    expect(run, 'it does not check what built').toContain('{{.Config.User}}');
+    expect(run, 'it does not check the server and the data are uid 70').toMatch(/\/proc\/1\/status/);
+    expect(run, 'it does not check gosu is gone').toContain('/usr/local/bin/gosu');
+    expect(run, 'it builds the image itself, which would hide a compose that does not').not.toMatch(/docker (?:image )?build\b|\bbuild api\b|compose[^\n]* build\b/);
   });
 });

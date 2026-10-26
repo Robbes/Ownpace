@@ -318,10 +318,11 @@ export function dockerfileBase(text) {
  * The tag a compose file gives an image it builds (2026-10-26): the base's tag
  * and the first twelve hex digits of the SHA-256 of the Dockerfile's
  * instruction lines, each with its newline, comments and blank lines left out:
- * `18.6-alpine-0123456789ab`. Compose builds such an image only when the
- * machine has none of that name, and never again while it has one, so a name
- * that did not change when the Dockerfile did would keep the old build running
- * for good, and nothing would say so. The shell gives the same digits:
+ * `18.6-alpine-0123456789ab`. `up` builds such an image only when the machine
+ * has none of that name (nothing here asks it to build one it has: no `up
+ * --build`, no bare `build`), so a name that did not change when the Dockerfile
+ * did would keep the old build running for good, and nothing would say so. The
+ * shell gives the same digits:
  *   grep -Ev '^[[:space:]]*(#|$)' <Dockerfile> | sha256sum | cut -c1-12
  */
 export function builtTag(text) {

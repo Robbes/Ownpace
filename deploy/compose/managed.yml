@@ -84,7 +84,10 @@ name: ownpace-managed
 # the same tag is worth its new digest. db-roles.sh asks with this file's first postgres image.
 # postgres and trigger-db run a build of the official image since 2026-10-26 (workplan 0146 T15):
 # their pin is deploy/compose/postgres/Dockerfile's FROM, by tag and digest, and the name below
-# carries a hash of that file's instructions, so compose builds it again only when it changes.
+# carries a hash of that file's instructions, so a changed Dockerfile is a name the machine does
+# not have yet. `up` builds it only where that name is missing, and only if nothing asks for a
+# build: `up --build` builds every service in its scope that has a `build:`, dependencies
+# included, so bootstrap-managed.sh builds `api web` by name and runs `up` without it.
 # scripts/a-float-nothing-ever-pulled.unit.test.ts refuses a new float; busybox's one-shot
 # chown is the one it names, with its reason.
 #
@@ -115,9 +118,13 @@ services:
     # (workplan 0146 T15): deploy/compose/postgres/Dockerfile says why, what a
     # start as uid 70 leaves out, and why the name carries the hash of its
     # instructions. Compose builds it on the first `up` that finds no image of
-    # this name; the base's digest is the Dockerfile's FROM.
+    # this name; the base's digest is the Dockerfile's FROM. `never`: no
+    # registry serves this name, so `docker compose pull` passes it by rather
+    # than failing on it, and `up` builds it when it is missing without first
+    # asking whatever answers on this host's port 443 for it.
     image: localhost/postgres:18.6-alpine-6b2d97623fb5
     build: ./postgres
+    pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-db
     restart: unless-stopped
     logging: *logging
@@ -233,6 +240,7 @@ services:
     # The same build as postgres above.
     image: localhost/postgres:18.6-alpine-6b2d97623fb5
     build: ./postgres
+    pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-db
     restart: unless-stopped
     logging: *logging
@@ -1295,7 +1303,8 @@ services:
         # GET /version reports this commit (build-identity.ts). CI passes it
         # (images.yml); a hand-built stack must pass it too or the endpoint
         # answers commit "unknown" — build with:
-        #   GIT_SHA=$(git rev-parse HEAD) docker compose -f managed.yml build
+        #   GIT_SHA=$(git rev-parse HEAD) docker compose -f managed.yml build api web
+        # by name: a bare `build` builds the databases' image too.
         GIT_SHA: ${GIT_SHA:-unknown}
     container_name: ${COMPOSE_PROJECT_NAME}-api
     restart: unless-stopped
