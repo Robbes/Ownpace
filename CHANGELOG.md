@@ -4,6 +4,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **The managed tasks run on the API image's own base, with no package
+  manager** (workplan 0146 T14, #PRNUM): a task deploy builds them on the
+  image `apps/api/Dockerfile` builds FROM instead of Trigger.dev's
+  `triggerdotdev/node:24-bookworm`, so they run that image's Node and
+  Debian, which Dependabot moves. They keep dumb-init, Debian's CA store and
+  the distrust of the compromised eMudhra roots and intermediates that the
+  CLI gives its own images, and lose npm, corepack and yarn, which nothing in
+  them runs. On Debian 13 (#1708) the scan reads 0 critical and 43 high
+  findings, none with a fix, where the CLI's v4.8.1 base reads 1 and 83. The
+  first task deploy after this is slow: a new image in both build stages,
+  with the Debian archive reachable.
+
 ### Changed
 
 - **Trigger.dev is v4.8.1** (workplan 0119, issue #1668, #1697): the webapp

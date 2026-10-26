@@ -4679,19 +4679,19 @@ worker bundles** — in practice `packages/connectors`, `packages/engines`,
 `packages/orchestration`, `packages/shared`, which is most changes that are not
 purely web. When in doubt, run it: it is idempotent and costs a minute.
 And when it moved `apps/api/Dockerfile`'s `FROM` line, which Dependabot does
-most weeks: the task image takes its Node from that image
-(`apps/worker/trigger.config.ts`, issue #1669), and a task deploy is what
-carries the new one to the tasks. The managed gate and `deploy-live.sh` run the
-bring-up from `data`, whose `tasks` phase deploys them. That first deploy after
-the `FROM` line moves (or after a Trigger.dev move changes the CLI's own base
-image) is the slow one: the same layer upgrades the base image's
-Debian packages, and with a layer of its own the CLI builds its build stage on
-that image and installs python3, make and g++ there, so apt runs in both
-stages and needs the Debian archive reachable from this machine (the build
-runs with `--network host`). The builder caches both, so the deploys after it,
-until the next move, take their usual minute; it is also when the base image's
-packages are refreshed, not at every deploy. A deploy that slows down or stops
-on `apt-get` points here.
+most weeks: the task image is built on that very image
+(`apps/worker/trigger.config.ts`, workplan 0146 T14), so a task deploy is what
+carries its new Node and Debian to the tasks. The managed gate and
+`deploy-live.sh` run the bring-up from `data`, whose `tasks` phase deploys
+them. That first deploy after the `FROM` line moves (or after a Trigger.dev
+move changes the CLI's build image, which the config names for the build
+stage) is the slow one: it pulls the new image, and the config's one layer runs
+apt in both stages (an upgrade, `ca-certificates` and `dumb-init`), so it needs
+the Debian archive reachable from this machine (the build runs with
+`--network host`). The builder caches both, so the deploys after it, until the
+next move, take their usual minute; it is also when the image's packages are
+refreshed, not at every deploy. A deploy that slows down or stops on
+`apt-get` points here.
 
 **`deploy-tasks.sh` installs this checkout's packages first**
 (`pnpm install --frozen-lockfile`, since 2026-09-28). The images install their

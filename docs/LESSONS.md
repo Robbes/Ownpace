@@ -1046,6 +1046,7 @@ reading a file drops off its entry by itself.
 - [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
+- [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
 - [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
@@ -3743,6 +3744,7 @@ Reads:
 - `apps/api/Dockerfile`
 - `apps/selfhost/Dockerfile`
 - `apps/worker/trigger.config.ts`
+- `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `deploy/selfhost/compose.yml`
 

@@ -2,7 +2,148 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-10-25 (update this block at the end of every session)
+## Status — 2026-10-26 (update this block at the end of every session)
+
+**2026-10-26: T14, the tasks on the API image's own base with no package manager, being
+built** as a draft for alpha.3 or alpha.4, on branch
+`claude/ownpace-public-readiness-y7orc6-tasks-trixie-base`. It is stacked on the Trigger.dev
+v4.8.1 branch (#1697) and is retargeted to `main` after that merges. Not merged.
+- **What changes.** `apps/worker/trigger.config.ts` sets the build manifest's `image.base` to
+  the image `apps/api/Dockerfile` builds FROM. It sets `image.buildBase` to the CLI's own build
+  image for `node-24`: `triggerdotdev/node:24-bookworm-build@sha256:34a3f455…`, which is
+  trigger.dev 4.8.1's `BUILD_IMAGE`, pushed 2026-10-22 08:03 UTC.
+  - The layer that copied the API image's Node over the CLI's base (#1689) is gone. The tasks
+    run that image's own Node binary, and Dependabot's move of the FROM line is the only way
+    the tasks' Node or Debian moves.
+  - One layer remains:
+    - it runs `apt-get upgrade`, then installs `ca-certificates` and `dumb-init`;
+    - it removes every package manager (`/usr/local/lib/node_modules`, the npm, npx, corepack,
+      pnpm, pnpx, yarn and yarnpkg links, `/opt/yarn-v*`) wherever no `g++` is on the PATH;
+    - it makes the trust edits the CLI makes to its own images, which it leaves out on a custom
+      base (`trustStoreHardening` in `deploy/buildImage.js`): four roots distrusted, eight
+      eMudhra intermediates rejected (vendored byte for byte in
+      `apps/worker/task-image/emsign-block/`), and `NODE_OPTIONS=--use-openssl-ca` with
+      `SSL_CERT_FILE`.
+- **Why the manifest.** CLI 4.8.1 has no `trigger.config.ts` option for a base image. A
+  custom base reaches its Containerfile through the build manifest's `image.base` and
+  `image.buildBase`. Upstream's documented way to fill them is an instance setting:
+  `DEPLOY_BASE_IMAGES` and `DEPLOY_BUILD_BASE_IMAGES` on the webapp (`self-hosting/overview.mdx`
+  at v4.8.1). That would name the image in `managed.yml` too, a second place for the Node to
+  move. The extension sets the fields in `onBuildComplete` instead, on the manifest the CLI
+  hands it, reading the FROM line at the start of every deploy as before.
+  - An instance setting would be laid over this, and over an absent build base too
+    (`applyServerBaseImages` in `commands/deploy.js`). The guard holds that `managed.yml` and
+    `managed.env.example` set neither.
+  - Official extensions do not write the manifest, so this rests on the CLI's code, not on
+    a documented API. The CLI passes the manifest it then writes the Containerfile from
+    (`build/buildWorker.js`). A CLI move reads that again.
+- **Why the build stage is named.** With a layer and no build base, the CLI builds its build
+  stage FROM the runtime base and runs `npm i` there for the externals. With npm gone, that
+  install would fail. Named, the build stage starts from the CLI's prebuilt `-build` image.
+  - The CLI replays the layer there. The removal skips it because the image has g++ 12.2.0,
+    and its npm 11.19.1, python3 and make stay (read with Trivy's package list, linux/arm64).
+  - A cache-miss deploy no longer installs python3, make and g++ with apt.
+  - Only `node_modules` and `index.json` leave that stage. Its Node is the CLI's 24.22.1 build:
+    it installs two packages and runs the indexer, and the tasks never run on it.
+- **What the runtime uses**, read from the trigger.dev 4.8.1 tarball and upstream at `v4.8.1`:
+  - The final stage's ENTRYPOINT is `dumb-init node <managed-run-controller>`.
+  - The controller forks the task worker with `execPath: process.execPath`
+    (`executions/taskRunProcess.js`). That is the only `child_process` use in the 19 files the
+    two runtime entry points import.
+  - `@trigger.dev/core` 4.8.1 uses no `child_process` at all, and no task does: only
+    `packages/testing` does, and no task imports it.
+  - The supervisor (`apps/supervisor/src/workloadManager/docker.ts`) creates the container with
+    the image's own entrypoint and runs nothing in it, and the smoke reads runner containers
+    with `docker logs` only.
+
+  So the runtime needs dumb-init, and `ca-certificates` for `--use-openssl-ca`, and openssl
+  comes with it as a dependency. It needs no busybox, git, npm or toolchain. The CLI's base
+  images carry busybox, ca-certificates, dumb-init, git and openssl
+  (`base-images/images.json`), and its `-build` images add python3, make and g++.
+- **The trust edits on Debian 13.** trixie-security's `ca-certificates` `20250419+deb13u1`
+  (2026-10-20) already drops "emSign ECC Root CA - G3" and "Comodo AAA Services root". It still
+  ships `emSign_Root_CA_-_C1`, `emSign_ECC_Root_CA_-_C3` and `emSign_Root_CA_-_G1`. Run on that
+  package's `/etc/ca-certificates.conf`, the layer's `sed` marks C1 and C3, and the two others
+  are no-ops. The eight rejected intermediates are issued by emSign Root TLS CA - G3 or emSign
+  Root CS CA - G3, and every use is rejected.
+  - The CLI's list is now this repository's to keep. Its digest is in the guard (`f4b2b13e…`),
+    and a CLI move compares it with the new `emsignRejectedIntermediates.js`.
+  - A watch for a change in that list is not built (below).
+- **Measured** with Trivy 0.76.1, DB of 2026-10-25 19:10 UTC, CRITICAL and HIGH. The figures
+  are the same on linux/amd64 and linux/arm64:
+
+  | Image | Critical | High | With a fix |
+  |---|---|---|---|
+  | the CLI 4.7.6 base `triggerdotdev/node:24-bookworm@sha256:d2d0c018…` (what `main` deploys on) | 14 | 119 | 56 |
+  | the CLI 4.8.1 base `…@sha256:3cdc8242…` (#1697) | 1 | 83 | 7 |
+  | `node:24.22.1-trixie-slim@sha256:43b9ba11…` (#1708's pin) | 0 | 48 | 4 |
+  | the same with this layer's packages, and without the package managers | 0 | 43 | 0 |
+
+  How the last row was made:
+  - It is an OCI layout of the trixie image's own blobs plus one layer, scanned with `trivy
+    image --input`.
+  - That layer holds dpkg status entries and whiteouts for the removed paths. The entries are
+    `ca-certificates` `20250419+deb13u1` and `openssl` `3.5.7-1~deb13u3`, the versions trixie
+    serves today (read from `buildpack-deps:trixie-curl`), and `dumb-init`.
+  - Debian's archive cannot be reached from this session, so nothing was installed. A probe
+    with `dumb-init` at version 0.0.1 adds no finding, so the database holds no advisory for it
+    in Debian 13.
+
+  The 43 are #1708's, none with a fix: util-linux's packages (36), ncurses (3), libsystemd0
+  and libudev1 (2), perl-base (1) and libacl1 (1). The 5 that leave are npm's bundled undici
+  (2), brace-expansion (2) and http-cache-semantics (1).
+- **Before #1708 merges**, `apps/api/Dockerfile` names `node:24.22.1-slim@sha256:16818628…`
+  (Debian 12.15), so the tasks build on that, with the same layer. The trixie figures hold from
+  when both are in. The CLI's own `generateContainerfile` from the trigger.dev 4.8.1 package,
+  run on the manifest the extension leaves, writes the following:
+  - `FROM node:24.22.1-slim@sha256:16818628… AS base`;
+  - `FROM triggerdotdev/node:24-bookworm-build@sha256:34a3f455… AS build`;
+  - the layer in both stages, followed by its own `apt-get --fix-broken` repair and no trust
+    edits of its own;
+  - `FROM base AS final` and `ENTRYPOINT [ "dumb-init", "node", … ]`.
+
+  The layer's shell bodies were run under `dash` against a scratch tree:
+  - with no `g++` on the PATH, every package manager goes and `node` stays;
+  - with one on the PATH, nothing goes;
+  - the eight files are written byte for byte.
+- **What #1700 (T10) must change to scan this.** Its branch is not edited here.
+  - `taskBaseStage` passes a manifest to `onBuildComplete` and reads it back. It writes `FROM
+    ${manifest.image?.base ?? base}`: the config's base wins over the CLI's `BASE_IMAGE`, as in
+    the CLI's `parseGenerateOptions`. It ignores `image.buildBase`, because the build stage is
+    not scanned.
+  - `imagesToScan` gives that base as the entry's `ref`, and its `where` names the FROM line and
+    the layer.
+  - `taskBuildTag` then tags under `node`. The SARIF location becomes `library/node`, so the
+    first scan on `main` closes every alert the category opened under `triggerdotdev/node`, and
+    the 43 open under new numbers. That is right, because the image is a different one.
+  - Its `DEPLOY_BASE_IMAGES` check and its refusal of `image.pkgs` stay; the layer uses no
+    `pkgs`.
+  - The leg's build runs this layer's apt on its runner, and runs the removal, because the
+    runtime base has no `g++`.
+
+  Until one of the two carries that change, the scan's `trigger-task-base` leg on this tree
+  still reads the CLI's 4.8.1 base, which no deploy builds on after this. The change goes into
+  whichever of #1700 and this branch merges second.
+- **Other branches.**
+  - #1709 (alpha.4) edits the same comment block in `trigger.config.ts`, which will conflict.
+  - #1708's runtime-stage comment in `apps/api/Dockerfile` says the tasks copy the FROM image's
+    Node. That becomes "build on the FROM image" in whichever of the two merges second.
+- **Proved here:**
+  - The version gate's new cases failed on the old config (8 of 8), and pass now.
+  - Every guard that reads a touched file passes, and so do `pnpm typecheck` and eslint (the
+    branch's pull request has the counts).
+- **Owed:**
+  - E2E (managed) on the branch after #1697 merges, and after #1708 for the Debian 13 base. Its
+    log should show the task deploy building `FROM node:24.22.1-trixie-slim@sha256:43b9ba11…
+    AS base` and `FROM triggerdotdev/node:24-bookworm-build@sha256:34a3f455… AS build`, the
+    smoke runs ending `COMPLETED_SUCCESSFULLY`, and the drill passing.
+  - The first task deploy after it is the slow one: a new base in both stages, apt in both, and
+    the Debian archive reachable.
+- **Not done, on purpose:**
+  - No watch for the CLI's trust list or build image moving. A CLI move is read by hand (0119
+    §2), and a stale build image still builds.
+  - No `DEPLOY_BASE_IMAGES` route, for the reason above.
+  - busybox and git are not installed, because nothing runs them.
 
 **2026-10-25: T7 merged, and alpha.2 is folded.** Chainguard's MinIO merged as #1692 at 11:38 UTC
 (`0029db4a`), after E2E (managed) #281 on its branch was green (11:26 to 11:37 UTC):
@@ -979,6 +1120,7 @@ best given with T0.
 | T9 The API image runs without the dev tools | 🔨 **Being built** as a draft on branch `claude/ownpace-public-readiness-y7orc6-api-image-prod-deps`, for after the first invitation (2026-10-23) | Status, 2026-10-23 (the scan triage). `apps/api/Dockerfile`'s runtime stage copies the build stage's whole `/app`, where `pnpm install --filter @openmig/api...` installed the devDependencies too, the root's included, and `CMD` (`node apps/api/src/index.ts`) needs none of them. Their Go binaries are 2 critical and 65 high of the image's 3/125 on 2026-10-23: esbuild 0.25.12 (Go 1.23.12; drizzle-kit's and `@esbuild-kit/esm-loader`'s), counted twice, and TypeScript 7's native compiler (Go 1.26.4). The lockfile itself, dev dependencies included, reads 0/0. Done when the runtime image holds production dependencies only, a dependency it still needs and lacks fails at start, which the managed gate's first `curl $API/health` catches, and the image scan finds the Node base's findings alone. |
 | T10 The image scan reads the tasks' image as it is built | 📋 **Proposed** (2026-10-23) | Status, 2026-10-23 (the scan triage). `scripts/image-scan.mjs` scans the base image the pinned CLI names (`triggerdotdev/node:24-bookworm` by digest, category `trigger-task-base`, 14/117 on 2026-10-23), not the tasks' image that `deploy-tasks.sh` builds from it. The Trigger.dev v4.7.6 branch upgrades that image's Debian packages at build (`apt-get -y upgrade`), which fixes the 42 Debian findings that have a fix (12 critical, all Perl, fixed in 5.36.0-7+deb12u4, and 30 high). It leaves npm's bundled packages under `/usr/local/lib/node_modules/npm`, since the overlay copies only `/usr/local/bin/node` (tar 7.5.15's CVE-2026-59873, critical, fixed in 7.5.19, and 12 high, 11 of them with a fix), and the 76 Debian findings without a fix, zlib1g's CVE-2023-45853 among them: the built image would still carry 2 critical and 87 high of the 131 (read with Trivy 0.76.0, 2026-10-23). The scan cannot see the upgrade, so the category keeps alerts for 42 findings the built image no longer has. The scan runs on a GitHub-hosted runner, which cannot read the stack's own registry, so the proposal is to build the image in the scan job as the deploy builds it. The old category, if renamed, has its configuration deleted by hand (T8). |
 | T11 The patch and minor moves that clear findings | (a) 📋 **Proposed**; (b) ⏳ **Owner**; (c) 📋 **Proposed**, after the Alpha (2026-10-23) | Status, 2026-10-23 (the scan triage), read with Trivy 0.76.0 on linux/amd64. (a) **Mailpit v1.32.0**: 0/0, where v1.31.6 has CVE-2026-111943 (Go's `crypto/x509`); after the first invitation, by hand in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts`, which pins the reference by tag and digest and records Mailpit's release check as read at v1.31.6, so that fact is read again at v1.32.0 in the same change. (b) **Stalwart v0.16.27** (Debian 13.7): 0 critical and 47 high, none with a fix, where v0.16.10 has 3/114. The owner's call: `docs/stalwart-integration-fix.md` pins v0.16.10 and says *"DO NOT change the pinned version"* (AGENTS.md puts its decisions in ADR-0022), and every copy moves together: `setup-stalwart.sh`, the fixture's Dockerfile, the Testcontainers setup, the fix doc and the guards that name it. (c) **ClickHouse 26.3** (26.3.59, Ubuntu 22.04): 0/0, where 26.2.19.43 has CVE-2026-45447 and CVE-2026-84782 in openssl. After the Alpha: the owner accepted 26.2 for it on 2026-10-23 (0119 §3 item 9 on the Trigger.dev v4.7.6 branch), and 26.3 is ahead of the 26.2 Trigger.dev's own compose pins, which the pin watch compares with (T8). It moves in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts` together: the guard pins the reference by tag and digest and records the crash-report default as read at `v26.2.19.43-stable`, as `clickhouse-no-crash-reports.xml`'s comment does, so both are read again at 26.3. |
+| T14 The tasks build on the API image's own base, with no package manager | 🔨 **Being built** (2026-10-26) as a draft on branch `claude/ownpace-public-readiness-y7orc6-tasks-trixie-base`, stacked on #1697 | Status, 2026-10-26. `apps/worker/trigger.config.ts` sets the build manifest's `image.base` to `apps/api/Dockerfile`'s FROM image and `image.buildBase` to the CLI's own `-build` image, and one layer installs `ca-certificates` and `dumb-init`, makes the CLI's trust edits and drops every package manager where no `g++` is. On #1708's `node:24.22.1-trixie-slim` the runtime stage reads 0 critical and 43 high, none fixable, where the CLI 4.8.1 base reads 1/83 and 4.7.6's 14/119 (Trivy 0.76.1, amd64 and arm64). #1700 (T10) reads the manifest's base to scan it. Owed: E2E (managed) after #1697 and #1708. |
 
 ## 1. What there is today
 

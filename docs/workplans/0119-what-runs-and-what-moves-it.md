@@ -2,7 +2,30 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-10-25 (update this block at the end of every session)
+## Status — 2026-10-26 (update this block at the end of every session)
+
+**2026-10-26: the tasks build on the API image's own base, a draft stacked on v4.8.1** (0146
+T14, on branch `claude/ownpace-public-readiness-y7orc6-tasks-trixie-base`; 0146's Status entry
+of the same day has the detail and the figures).
+- **What moves the tasks' image.** `apps/worker/trigger.config.ts` builds the tasks on the image
+  `apps/api/Dockerfile` builds FROM, through the build manifest's `image.base`, so the CLI's
+  `triggerdotdev/node:24-bookworm` is in nothing a deploy builds. Dependabot's move of that FROM
+  line is the only way the tasks' Node or Debian moves; #1689's copy of the Node binary is gone.
+- **One new pin, which moves with the CLI.** The build stage names the CLI's own build image,
+  `triggerdotdev/node:24-bookworm-build@sha256:34a3f455…` (trigger.dev 4.8.1's `BUILD_IMAGE`,
+  pushed 2026-10-22). It is needed because the CLI runs `npm i` there, and the runtime stage
+  now has no npm. A Trigger.dev move reads two things from the new CLI's `dist/esm/deploy/` and
+  carries them over by hand:
+  - `buildImage.js`'s `BUILD_IMAGE['node-24']`, into `TASK_BUILD_IMAGE`;
+  - `EMSIGN_COMPROMISE_DISTRUSTED_ROOTS` and `emsignRejectedIntermediates.js`, into the config's
+    `DISTRUSTED_ROOTS` and `apps/worker/task-image/emsign-block/`.
+
+  The version gate pins the CLI 4.8.1 values. Dependabot sees neither, and `trigger-version.sh`
+  does not move them. A stale build image still builds: only `node_modules` and `index.json`
+  leave that stage.
+- **Measured** (Trivy 0.76.1, amd64 and arm64): the tasks' runtime stage on #1708's
+  `node:24.22.1-trixie-slim` reads 0 critical and 43 high, none fixable. The CLI 4.8.1 base
+  reads 1/83, and the 4.7.6 base `main` deploys on reads 14/119.
 
 **2026-10-25: Trigger.dev v4.7.6 → v4.8.1, a draft for alpha.3**, on the branch
 `claude/ownpace-public-readiness-y7orc6-trigger-4-8-1` (issue #1668; the owner chose v4.8.1
@@ -375,13 +398,14 @@ is who moves it after T1.
 
 | Image | Where | Pinned | Newest | Distance | Moves by | Decision |
 |---|---|---|---|---|---|---|
-| `node` (24-slim) | `apps/api`, `apps/web`, `apps/selfhost` Dockerfiles; the Windows payload's node.exe follows `apps/selfhost` | 24.22.1-slim by digest (2026-10-21, the October security release; digest `6f7b03f7…` with no tag at the audit, 24.20.0-slim from T2) | 24.22.1-slim (Node released 2026-10-20); the tag's digest moves as more architectures land (ppc64le at 17:39 UTC on 2026-10-21) and Dependabot offers each move | current: the pin's amd64 and arm64 images are the tag's | Dependabot `docker`, which moves the payload with it since 2026-10-21 | **T2** — and T1 gives it its tag |
+| `node` (24-slim) | `apps/api`, `apps/web`, `apps/selfhost` Dockerfiles; the Windows payload's node.exe follows `apps/selfhost`; the managed tasks build on `apps/api`'s (`apps/worker/trigger.config.ts`, 0146 T14, on a branch) | 24.22.1-slim by digest (2026-10-21, the October security release; digest `6f7b03f7…` with no tag at the audit, 24.20.0-slim from T2) | 24.22.1-slim (Node released 2026-10-20); the tag's digest moves as more architectures land (ppc64le at 17:39 UTC on 2026-10-21) and Dependabot offers each move | current: the pin's amd64 and arm64 images are the tag's | Dependabot `docker`, which moves the payload with it since 2026-10-21 | **T2** — and T1 gives it its tag |
 | `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.27-alpine | 1.30.4-alpine stable, 1.31.5 mainline (2026-09-03) | 1.27 is a 2024 mainline, past its end | Dependabot `docker` for the Dockerfile; `www.yml` by hand after it, and the pin watch (0146 T8) says when the two differ | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows |
 | `postgres` (self-host) | `deploy/selfhost/compose.yml` | digest `9a8afca5…` = 18.4-alpine, no tag | 18.6-alpine (2026-08-15), digest `d3e1620b…` | two patch releases | Dependabot `docker-compose` | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
 | `postgres` (managed ×2, dev) | `managed.yml`, `dev.yml` | 18-alpine, floating | 18.6 | none, it floats within 18 | `docker compose pull` | stays floating; a major (`pg_upgrade`) is ignored in Dependabot and is the owner's |
 | `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
 | `redis` | `managed.yml` | 7.4-bookworm, floating (7.4.11 on Debian 12; 7-alpine, on Alpine 3.21, until 2026-10-21) | 8.8.2-alpine | one major | owner | **§3** — the licence changed at 7.4, which is the line this floats on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
 | `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json` | v4.8.1 (2026-10-25; v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.1 (2026-10-23) | current | `trigger-version.sh` only; the pin watch keeps an issue open while a newer tag is in both images (0146 T8) | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and it reads no file in `deploy/compose` |
+| `triggerdotdev/node` (24-bookworm-build) | `apps/worker/trigger.config.ts` (`TASK_BUILD_IMAGE`, the tasks' build stage; 0146 T14, on a branch) | by digest `34a3f455…`, trigger.dev 4.8.1's `BUILD_IMAGE['node-24']` (pushed 2026-10-22) | what the pinned CLI names | none while they agree | by hand, with each Trigger.dev move, read from the new CLI's `deploy/buildImage.js` (the Status entry of 2026-10-26) | not shipped: only `node_modules` and `index.json` leave the stage, so a stale one still builds |
 | `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8) | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`); 26.2 is out of ClickHouse's support, **accepted for the Alpha** (§3 item 9) |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
 | `tecnativa/docker-socket-proxy` | `managed.yml` | v0.5.0 | v0.5.0 | current | by hand, when the pin watch's summary issue says (0146 T8) | — |

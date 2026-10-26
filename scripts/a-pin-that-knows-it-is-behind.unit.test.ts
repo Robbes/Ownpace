@@ -50,7 +50,7 @@ import {
   COMPOSE_FILES,
   ISSUE_TITLE,
   STALWART_FILES,
-  TASK_OVERLAY,
+  TASK_ON_API_IMAGE,
   TITLES,
   WINDOW_DAYS,
   actionDefault,
@@ -538,7 +538,7 @@ describe("the tasks' Node, against Node's newest security release", () => {
   });
 
   it('is behind on 24.18.0 below 24.22.1, and names the pinned CLI, the newest CLI and the floor', async () => {
-    const row = await taskNodeRow(withFiles({ 'apps/worker/trigger.config.ts': config.replace(TASK_OVERLAY, '') }), net('9.9.9', D24));
+    const row = await taskNodeRow(withFiles({ 'apps/worker/trigger.config.ts': config.replace(TASK_ON_API_IMAGE, '') }), net('9.9.9', D24));
     expect(row).toMatchObject({ pin: '24.18.0', newest: '24.22.1', state: 'behind' });
     expect(row.body).toContain(`trigger.dev ${cli}`);
     expect(row.body).toContain('**24.22.1**');
@@ -546,14 +546,16 @@ describe("the tasks' Node, against Node's newest security release", () => {
   });
 
   it('says a Trigger.dev move fixes it once the newest CLI builds on a Node at the floor', async () => {
-    const row = await taskNodeRow(withFiles({ 'apps/worker/trigger.config.ts': config.replace(TASK_OVERLAY, '') }), net('9.9.9', D24_NEW, '24.22.1'));
+    const row = await taskNodeRow(withFiles({ 'apps/worker/trigger.config.ts': config.replace(TASK_ON_API_IMAGE, '') }), net('9.9.9', D24_NEW, '24.22.1'));
     expect(row.body).toMatch(/trigger\.dev 9\.9\.9, builds on Node 24\.22\.1: moving Trigger\.dev to it/);
   });
 
-  it("stops, and closes its issue, once the tasks copy the API image's Node", async () => {
-    const overlaid = `${config}\n// addLayer({ id: 'task-node', image: { instructions: ['COPY --from=node:24.22.1-slim@sha256:x /usr/local/bin/node /usr/local/bin/node'] } })\n`;
+  it("stops, and closes its issue, once the tasks build on the API image's base", async () => {
+    const bare = config.replace(TASK_ON_API_IMAGE, '');
+    expect(TASK_ON_API_IMAGE.test(bare), 'the vacuity case: without the mark the row reports').toBe(false);
+    const onApiImage = `${bare}\n// manifest.image = { ...manifest.image, base: taskBase.image };\n`;
     const asked = fakeNet();
-    const row = await taskNodeRow(withFiles({ 'apps/worker/trigger.config.ts': overlaid }), asked);
+    const row = await taskNodeRow(withFiles({ 'apps/worker/trigger.config.ts': onApiImage }), asked);
     expect(row.state).toBe('current');
     expect(row.closing).toMatch(/Dependabot moves with `apps\/api\/Dockerfile`/);
     expect(asked.asked).toEqual([]);
