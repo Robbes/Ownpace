@@ -33,6 +33,13 @@ no billing). Container-first per **ADR-0019**; Postgres-backed per **ADR-0023**.
 > ⚠️ **The Postgres data volume must be on a LOCAL filesystem.** Never place it on
 > a network share (SMB/NFS) — Postgres can corrupt on network filesystems. On a
 > NAS, use a local SSD/HDD volume, not a mounted share.
+>
+> The compose file keeps the data in a Docker **named volume**, which needs
+> nothing from you. If you replace it with a directory of the host (a bind
+> mount, `- /some/local/dir:/var/lib/postgresql`), that directory must belong
+> to uid 70, PostgreSQL's own user in the container, before the first start:
+> `sudo chown 70:70 /some/local/dir`. The database runs as that user, never as
+> root (see "Start it" below).
 
 ## 1. Get the compose files
 
@@ -248,8 +255,15 @@ Three optional settings on the source:
 docker compose -f deploy/selfhost/compose.yml up -d
 ```
 
-Postgres comes up and passes its healthcheck → the app applies the ledger
-migrations under an advisory lock → the app becomes healthy. Check it:
+The first start builds the database's image, which takes a few seconds:
+compose pulls the official `postgres:18.6-alpine` image by the digest
+`deploy/selfhost/postgres/Dockerfile` pins, removes gosu from it (the one
+critical finding a scanner reports in that image, which needs gosu only to
+drop from root), and starts it as PostgreSQL's own user, uid 70. No registry
+serves the built image's name, so nothing ever pulls it, and no login is
+needed. Then Postgres comes up and passes its healthcheck → the app applies
+the ledger migrations under an advisory lock → the app becomes healthy. Check
+it:
 
 ```sh
 curl -s http://127.0.0.1:8081/healthz          # {"status":"ok"}
@@ -286,7 +300,8 @@ that matter:
   section below.
 
 The local-disk warning above applies unchanged: the PGlite directory is still
-a Postgres data directory and must not live on a network share.
+a Postgres data directory and must not live on a network share. The variant
+builds no database image either, since it has no database container.
 
 ## 5. Review & confirm
 
@@ -685,7 +700,10 @@ docker compose -f deploy/selfhost/compose.yml exec -T postgres \
   pg_dump -U openmigrate -d openmigrate > openmigrate-$(date +%F).sql
 ```
 
-Keep the dump off the host.
+Keep the dump off the host. `exec` runs as PostgreSQL's own user in the
+container, not root, and the database trusts its own local connections, so
+`pg_dump` and `psql` answer as written here; add `-u 0` for anything that
+needs root in the container.
 
 **Restoring into a fresh volume takes three steps, in this order** (the CI
 drill executes exactly these — `test/e2e/selfhost-backup-restore.e2e.test.ts`):
@@ -759,6 +777,21 @@ docker compose -f deploy/selfhost/compose.yml pull app
 docker compose -f deploy/selfhost/compose.yml up -d
 ```
 
+The database's image is built here, not pulled: `pull app` leaves it alone,
+and its name ends in a hash of `deploy/selfhost/postgres/Dockerfile`. An
+upgrade whose checkout changed that file (a newer PostgreSQL 18 image, say)
+therefore names an image the machine does not have yet, and step 3's `up -d`
+builds it and restarts the database on the same volume. There is nothing to
+do for it. Do not add `--build` to `up`, and build the app by name if you
+build it from source (`… build app`): a bare `build` rebuilds the database's
+image as well, and restarts the database for nothing.
+
+The upgrade that first brought this build (from an appliance that ran the
+official image as root) needs nothing either: the old image's start made the
+data uid 70's on every start, so the database finds it as it left it. Going
+back to an older checkout runs the official image as root again, which starts
+on the same data.
+
 Rules of the road (§22.1):
 
 - **Never run two app versions against one database.** Bring the old one down
@@ -785,6 +818,15 @@ docker compose -f deploy/selfhost/compose.yml down -v       # ALSO delete the DB
   offending path; a source/target auth failure shows up as a domain `lastError`
   in `/status`.
 - **`POSTGRES_PASSWORD` error on `up`:** it's unset in `.env`.
+- **The database exits with `mkdir: can't create directory
+  '/var/lib/postgresql/18/': Permission denied`** (or another *Permission
+  denied* under `/var/lib/postgresql`): its data is a directory of the host,
+  bound in place of the named volume, that uid 70 may not write. The database
+  starts as uid 70, never as root: `sudo chown -R 70:70` that directory and
+  `up -d` again.
+- **The database exits with `exec: gosu: not found`:** something starts the
+  container as root (a `user:` on the `postgres` service, or `-u 0` on `run`).
+  Remove it: the image starts as uid 70 by itself.
 - **Can't reach `/status` from another machine:** it binds to localhost by
   default — set `SELFHOST_BIND=0.0.0.0` (and firewall it).
 - **IMAP authentication keeps failing against O365** (`AUTHENTICATE failed`):

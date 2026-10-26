@@ -434,12 +434,14 @@ jobs:
   # 2026-10-26). A compose file's `localhost/<name>` image is built by compose
   # from `<name>/Dockerfile` beside the file (Postgres without gosu:
   # deploy/compose/postgres, which managed.yml's postgres and trigger-db and
-  # dev.yml's postgres run), so the list gives its leg a `context`. That leg
+  # dev.yml's postgres run, and deploy/selfhost/postgres, the appliance's
+  # since T15b), so the list gives its leg a `context`. That leg
   # checks out this commit under `src/`, builds the directory natively on
   # GitHub's arm64 runner (free on a public repository; ci.yml's integration
   # tests use it) under the reference the compose file runs, and Trivy reads
   # it from that runner's Docker only. The name, and so the category and the
-  # issue, stays the one the pulled image had (`postgres-managed`). The
+  # issue, stays the one the pulled image had (`postgres-managed`,
+  # `postgres-selfhost`). The
   # checkout is never the working directory, which the Trivy step and `trivy
   # convert` share with every other leg: Trivy reads a `.trivyignore` or a
   # `trivy.yaml` there on its own, and one at the repository's root would drop

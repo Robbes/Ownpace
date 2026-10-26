@@ -29,7 +29,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   every script's `psql`, `pg_dump` and `pg_restore` answers as before. Rebuild
   the web or API image by name (`docker compose … build web`, then `up -d
   web`): `up --build` would rebuild the databases' image too and could restart
-  them. The self-hosted appliance keeps the official image.
+  them.
+- **The self-hosted appliance's database starts as PostgreSQL's own user too,
+  from the official image without gosu** (workplan 0146 T15b): gosu was the
+  one critical finding in the appliance's `postgres:18.6-alpine`, and no newer
+  digest of the tag drops it. The first `docker compose -f
+  deploy/selfhost/compose.yml up -d` after the upgrade builds
+  `deploy/selfhost/postgres` and restarts the database once, on the same base
+  and the same data, which is that user's already; nothing else to do. A data
+  directory bound from the host instead of the named volume must belong to uid
+  70 (`chown -R 70:70`) before a new database can start in it. `docker compose
+  exec postgres` runs as that user (`-u 0` for root), and the backup's
+  `pg_dump` and the restore's `psql` answer as before. The PGlite appliance and
+  the Windows appliance run no database server and are unchanged.
 
 ## [0.2.0-alpha.2] - 2026-10-25
 

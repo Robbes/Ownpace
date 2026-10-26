@@ -42,11 +42,13 @@
  * And an image no registry serves cannot be pulled to be scanned (workplan
  * 0146 T15, 2026-10-26). The Postgres of managed.yml and dev.yml is built by
  * compose from `deploy/compose/postgres/Dockerfile`, the official image
- * without gosu, as `localhost/postgres:<tag>`. A compose file's
+ * without gosu, as `localhost/postgres:<tag>`, and the appliance's from
+ * `deploy/selfhost/postgres/Dockerfile` (T15b, the same day). A compose file's
  * `localhost/<name>` image is listed with the directory it is built from, its
  * leg checks this commit out under `src/` and builds that directory on the
- * arm64 runner before Trivy reads it, and its name (`postgres-managed`, the
- * category and the issue) is the one the pulled image had.
+ * arm64 runner before Trivy reads it, and its name (`postgres-managed`,
+ * `postgres-selfhost`, the category and the issue) is the one the pulled
+ * image had.
  *
  * The network is stubbed (the git tags, the Trigger.dev CLI's tarball) and so
  * is `gh`; the compose files and scripts are the real ones.
@@ -257,7 +259,7 @@ describe('which images it scans', () => {
     expect(named.map((i) => i.name)).toEqual(images.map((i) => i.name));
   });
 
-  it('an image a compose file builds here (localhost/<name>) is listed with the directory its leg builds, and refused without a Dockerfile (0146 T15)', async () => {
+  it('an image a compose file builds here (localhost/<name>) is listed with the directory its leg builds, and refused without a Dockerfile (0146 T15, T15b)', async () => {
     const images = await imagesToScan(REAL, fakeNet());
     const postgres = images.find((i) => i.name === 'postgres-managed')!;
     expect(postgres.ref, "managed.yml's Postgres is pulled from a registry again").toMatch(/^localhost\/postgres:/);
@@ -266,12 +268,22 @@ describe('which images it scans', () => {
     expect(postgres.where, "managed.yml's and dev.yml's are one build, so one scan").toBe('deploy/compose/managed.yml, deploy/compose/dev.yml');
     expect(postgres.floating, "its pins are its Dockerfile's").toBe(false);
     expect(REAL.read(`${postgres.context}/Dockerfile`)).toMatch(/^FROM postgres:/m);
-    // Every other image is pulled, and carries no context: the appliance's Postgres among them.
+    // The appliance's is built too, from its own directory, under the name its pulled image had.
+    const appliance = images.find((i) => i.name === 'postgres-selfhost')!;
+    expect(appliance.ref, "the appliance's Postgres is pulled from a registry again").toMatch(/^localhost\/postgres:/);
+    expect(appliance.context).toBe('deploy/selfhost/postgres');
+    expect(appliance.where).toBe('deploy/selfhost/compose.yml');
+    expect(appliance.floating).toBe(false);
+    expect(REAL.read(`${appliance.context}/Dockerfile`)).toMatch(/^FROM postgres:/m);
+    expect(appliance.ref, 'two Dockerfiles on two bases, one name: one leg would scan the other\'s build').not.toBe(postgres.ref);
+    // Every other image is pulled, and carries no context.
     for (const image of images.filter((i) => !i.ref.startsWith(BUILT_HERE))) expect(image.context, image.name).toBeUndefined();
-    expect(images.find((i) => i.name === 'postgres-selfhost')?.context).toBeUndefined();
+    expect(images.filter((i) => i.context).map((i) => i.name).sort()).toEqual(['postgres-managed', 'postgres-selfhost']);
     // A localhost image with nothing to build it from is refused, never left out.
-    const missing: Repo = { read: (rel) => (rel === 'deploy/compose/postgres/Dockerfile' ? null : REAL.read(rel)), list: REAL.list };
-    await expect(imagesToScan(missing, fakeNet())).rejects.toThrow(/deploy\/compose\/postgres\/Dockerfile, which is not in this checkout/);
+    for (const dockerfile of ['deploy/compose/postgres/Dockerfile', 'deploy/selfhost/postgres/Dockerfile']) {
+      const missing: Repo = { read: (rel) => (rel === dockerfile ? null : REAL.read(rel)), list: REAL.list };
+      await expect(imagesToScan(missing, fakeNet())).rejects.toThrow(`${dockerfile}, which is not in this checkout`);
+    }
   });
 
   it("the tasks' base image, as the pinned CLI names it for the runtime trigger.config.ts asks for", async () => {
@@ -343,11 +355,11 @@ describe('which images it scans', () => {
 
   it("keeps both stacks' names when their pins meet on one reference, and when they part again", async () => {
     const selfhostYml = REAL.read('deploy/selfhost/compose.yml')!;
-    const selfhost = readImages(selfhostYml).find((i) => i.repo === 'postgres')!;
-    // The managed stack's postgres everywhere it is named, back on the official
-    // image at the appliance's reference: db-roles.sh's client follows
-    // managed.yml by itself. (It is built here since 0146 T15, a reference the
-    // appliance's can never be, so the two meet only that way.)
+    const selfhost = readImages(selfhostYml).find((i) => i.repo === 'localhost/postgres')!;
+    // The managed stack's postgres everywhere it is named, on the appliance's
+    // reference: db-roles.sh's client follows managed.yml by itself. Both are
+    // builds since 0146 T15 and T15b, whose names meet when the two
+    // Dockerfiles' FROMs do; each stack's leg still builds its own directory.
     const back = (text: string, ref: string) => {
       const moved = text.replaceAll(/^(\s*image:\s*)localhost\/postgres:\S+/gm, `$1${ref}`);
       expect(moved, 'no built postgres line to move').not.toBe(text);
@@ -360,8 +372,10 @@ describe('which images it scans', () => {
     const postgres = (list: ScanImage[]) => list.filter((i) => i.name.startsWith('postgres')).map((i) => [i.name, i.ref]).sort();
     const met = await imagesToScan(withFiles(meet(selfhost.ref)), fakeNet());
     expect(postgres(met)).toEqual([['postgres-managed', selfhost.ref], ['postgres-selfhost', selfhost.ref]]);
-    const parted = await imagesToScan(withFiles({ ...meet(selfhost.ref), 'deploy/selfhost/compose.yml': repin(selfhostYml, 'postgres', 'postgres:99-alpine') }), fakeNet());
-    expect(postgres(parted)).toEqual([['postgres-managed', selfhost.ref], ['postgres-selfhost', 'postgres:99-alpine']]);
+    expect(met.filter((i) => i.name.startsWith('postgres')).map((i) => i.context).sort()).toEqual(['deploy/compose/postgres', 'deploy/selfhost/postgres']);
+    const away = 'localhost/postgres:99-alpine-0123456789ab';
+    const parted = await imagesToScan(withFiles({ ...meet(selfhost.ref), 'deploy/selfhost/compose.yml': repin(selfhostYml, 'localhost/postgres', away) }), fakeNet());
+    expect(postgres(parted)).toEqual([['postgres-managed', selfhost.ref], ['postgres-selfhost', away]]);
     // One stack running two references of one name: the first read keeps the
     // name, the other is named apart by its file, and neither shares a category.
     const split = { 'deploy/compose/dev.yml': back(REAL.read('deploy/compose/dev.yml')!, 'postgres:99-alpine') };

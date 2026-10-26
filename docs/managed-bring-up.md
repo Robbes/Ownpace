@@ -4567,10 +4567,19 @@ the user gosu dropped to, it never does. What that means for you:
   tests start the same FROM. The pin watch reports a newer tag of the FROM,
   and the weekly image scan builds the Dockerfile and scans what it built.
 
-The appliance (`deploy/selfhost/compose.yml`) still runs the official image as
-root, on purpose: its pin is Dependabot's, which moves an image line and not a
-build, and an appliance may keep its data in a bind mount, which a start as
-uid 70 cannot initialise.
+The appliance (`deploy/selfhost/compose.yml`) runs a build of its own since
+workplan 0146 T15b, the same day: `deploy/selfhost/postgres/Dockerfile`, these
+instructions on the appliance's own base digest, which its own Dependabot
+entry moves. The guard holds the two Dockerfiles to the same instructions but
+for the FROM, so a change to `deploy/compose/postgres/Dockerfile` is made to
+both, and moves both names. While the two FROMs differ, the two names do too.
+When they meet, so do the names: E2E (self-hosted), which runs on this
+machine's Docker, then starts the appliance on the image the stacks built, or
+the stacks on the one it built, which is the same content. That is one more
+reason nothing asks for a build of a name the machine has: E2E (self-hosted)
+builds its `app` by name and runs `up` without `--build`. What the change
+means for an appliance's own data, a bind mount of a host directory included,
+is in [selfhost-quickstart.md](./selfhost-quickstart.md).
 
 ### `ownpace-live`: a release tag, with `deploy-live.sh`
 

@@ -616,8 +616,9 @@ const NONE = (what: string): string => `${what} has no telemetry, update check o
 
 /**
  * The official PostgreSQL image built here without gosu, as uid 70 (workplan
- * 0146 T15, deploy/compose/postgres/Dockerfile). A build is `build` to this
- * file, so the row holds the software by the Dockerfile's FROM instead.
+ * 0146 T15, deploy/compose/postgres/Dockerfile; the appliance's since T15b,
+ * deploy/selfhost/postgres/Dockerfile). A build is `build` to this file, so
+ * the row holds the software by the Dockerfile's FROM instead.
  */
 const BUILT_POSTGRES: Row = {
   readAt: 'build',
@@ -681,7 +682,7 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
   },
   'deploy/compose/www.yml:www': { readAt: 'nginx', why: NONE('nginx') },
   'deploy/compose/dev.yml:postgres': BUILT_POSTGRES,
-  'deploy/selfhost/compose.yml:postgres': { readAt: 'postgres', why: NONE('PostgreSQL') },
+  'deploy/selfhost/compose.yml:postgres': BUILT_POSTGRES,
   'deploy/selfhost/compose.yml:app': {
     readAt: 'build',
     why: "Ownpace's own appliance: self-host sends us nothing, the privacy policy's first line",

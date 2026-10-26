@@ -110,6 +110,12 @@ and `persistence` (`postgres` | `pglite` — the latter runs the whole gate on t
 embedded-PGlite shape via `deploy/selfhost/compose.pglite.yml`; both backends are expected to
 agree domain-for-domain, and did at the 0016 close).
 
+On the Postgres backend the appliance's database is the build of
+`deploy/selfhost/postgres/Dockerfile`, started as uid 70 (workplan 0146 T15b). The workflow
+builds `app` by name and runs `up` without `--build`, so the database's image is built only when
+the runner has no image of its name, which is the run after its Dockerfile changed; the backup and
+restore drill then starts it on a new volume, which initialises as uid 70.
+
 ## Testcontainers invariants (enforced by the setup; see stalwart-integration-fix.md for rationale)
 - Exactly **one Stalwart container per data volume at any moment** (RocksDB exclusive lock);
   phase 1 is fully stopped and confirmed gone before phase 2 starts.
@@ -411,9 +417,10 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   configuration behind in code scanning with its alerts open; delete it on the code scanning tool
   status page (the Security tab, Code scanning, Tool status). An image a compose file builds here,
   `localhost/<name>` from `<name>/Dockerfile` beside it (the Postgres of `managed.yml` and
-  `dev.yml`, workplan 0146 T15), has no registry to be read from: its leg checks the commit out
-  under `src/`, builds the directory natively on GitHub's arm64 runner and scans what it built,
-  under the name the pulled image had (`postgres-managed`).
+  `dev.yml`, workplan 0146 T15, and the appliance's, T15b), has no registry to be read from: its
+  leg checks the commit out under `src/`, builds the directory natively on GitHub's arm64 runner
+  and scans what it built, under the name the pulled image had (`postgres-managed`,
+  `postgres-selfhost`).
 - `e2e.yml` — nightly (23:30 UTC on the Postgres stack, 01:30 UTC on PGlite) and on dispatch, on
   `[self-hosted, linux, arm64]` (the Spark); brings up Stalwart via
   `deploy/selfhost/setup-stalwart.sh` (the two-phase recovery→normal bring-up — not a
@@ -473,8 +480,9 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
 - `images.yml` — the three application images: an amd64 build-only check on a pull request that
   touches a Dockerfile, `deploy/` or the workflow; a multi-arch build and publish on `main` and
   on `v*` tags. On such a pull request only, `build (postgres)` also brings up `dev.yml`'s
-  postgres on a runner without its image, so compose builds `deploy/compose/postgres`, and checks
-  it runs as uid 70 without gosu (workplan 0146 T15); it publishes nothing.
+  postgres and then the appliance's on a runner without their images, so compose builds
+  `deploy/compose/postgres` and `deploy/selfhost/postgres`, and checks each runs as uid 70
+  without gosu (workplan 0146 T15, T15b); it publishes nothing.
 - `windows-payload.yml` (dispatch, and on v* tags; builds the Windows appliance payload).
 - `release.yml` — dispatch only, from `main`, on GitHub-hosted runners only; never a required
   check, since it has no pull-request trigger. It cuts a release tag and publishes it in order
