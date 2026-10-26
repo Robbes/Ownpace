@@ -4,6 +4,117 @@
 
 ## Status — 2026-10-26 (update this block at the end of every session)
 
+**2026-10-26, build: T13, the API's runtime on distroless, a draft for alpha.4 or later**, as
+draft #1709 on branch `claude/ownpace-public-readiness-y7orc6-api-distroless`. Its base is #1708's
+branch until #1708 (T12) merges, then #1710's (T13a) until that merges, then `main`; #1687 (T9)
+also changes `apps/api/Dockerfile`. It ships only after #1710 has been on live, in a release
+before it, and merges after E2E (managed) and E2E (self-hosted) have run on it. Rebuilt the same
+day on a merge of #1708 and #1710: the readers below are #1710's, and #1709 itself is the runtime
+switch.
+
+- **What changes.** `apps/api/Dockerfile`'s runtime stage builds FROM
+  `gcr.io/distroless/nodejs24-debian13:nonroot@sha256:cb606325…`: Debian 13.7, fourteen
+  packages (libc6, libssl3t64, libstdc++6, ca-certificates, tzdata and the like) and Node
+  24.22.1, with no shell, coreutils, package manager, perl, util-linux or ncurses. GCR uploaded
+  that index on 2026-10-23 at 23:31 UTC, and it was still the `nonroot` tag's at 23:40 UTC on
+  2026-10-25, read again from the registry; it is three days old, CONTRIBUTING.md's age, at
+  2026-10-26 23:31 UTC. The build stages keep T12's `node:24.22.1-trixie-slim`. The runtime
+  has no RUN (nothing could run one); it copies `/app` as root's (the build stage's last RUN,
+  `chmod -R u=rwX,go=rX /app`, makes it readable by all and writable by root alone), runs as
+  `USER 65532:65532`, starts `ENTRYPOINT ["/nodejs/bin/node"]` with `CMD
+  ["apps/api/src/index.ts"]`, and its HEALTHCHECK is the same fetch, exec form, on
+  `/nodejs/bin/node`. Node is off the image's PATH.
+- **Measured here**, Trivy 0.76.1 (DB of 2026-10-25 19:10 UTC), the remote index on
+  linux/amd64 and linux/arm64 alike: 0 critical and 0 high, 23 medium and 8 low, none with a
+  fix. T12's base under the api reads 0 and 43 and `main`'s `node:24.22.1-slim` 1 and 61.
+  `/nodejs/bin/node`, read out of the distroless layers, is the trixie image's
+  `/usr/local/bin/node` byte for byte: sha256 `e32e2d16081cf644…` on amd64 and
+  `c8c5721679d8d1a0…` on arm64, both read again here from both images' layers.
+- **The exec sites, every one (T13a, #1710).** Seven read a variable with `printenv` in the container
+  (`e2e-managed.yml`'s DIRECT_DATABASE_URL, `deploy-live.sh`'s and `stand-up-live.sh`'s
+  NODE_ENV, and the smoke's JWT_ISSUER, JWT_SECRET, JWT_AUDIENCE and JWT_JWKS_URI); three ran a
+  bare `node -e` (the smoke's minio, docker-proxy and issuer probes); two docs execed
+  `printenv` (`managed-bring-up.md` §8g and the mail section) and one `sh -c`
+  (`ending-the-alpha.md`'s first check), and a third doc line described `deploy-live.sh`'s.
+  Variables are now read from Docker, `docker container inspect`'s `.Config.Env` (the
+  image's ENV with Compose's environment over it, which is what the process got and what
+  `printenv` printed), by `api_env` in the three scripts and in the workflow step, and in the
+  docs, with a new section, *Reading what the api container was started with*. It needs
+  nothing in the image, so it answers the same for an image from before T13: a stack not
+  rebuilt since a pull, and a deploy of an older tag, which `deploy-live.sh` runs from the
+  newer checkout. `container` inspect, because a bare `docker inspect` of a name that is no
+  container answers with the image Compose built under the same name. The probes need Node
+  inside the container's network, so they run it by path: the smoke's preflights find it with
+  `api_node`, `/nodejs/bin/node` and then `/usr/local/bin/node`, and stop when neither runs.
+  `release-verify.mjs`'s `docker exec … node -e` asks the selfhost image, which T13 leaves
+  alone; no scan or SBOM step looks inside the API image for a shell or a path.
+- **The tasks do not change.** `apps/worker/trigger.config.ts` reads the Dockerfile's
+  `FROM node:…@sha256:…` line, which is now the build stage's and is T12's string, so its
+  `COPY --from=` instruction is the same text and the task image the same. Their Node is the
+  API's version, and was the same file on 2026-10-25. The two pins now move apart (Dependabot
+  moves the node tag weekly and the distroless digest when `nonroot` moves), on the one major
+  that `a-gate-on-a-version-nothing-ships` holds, and the smoke's preflights hold the version:
+  `api_node` keeps what the API container's Node says to `--version` and `dockerfile_node`
+  reads the `x.y.z` of the `FROM node:` line, and a difference stops the run with both named
+  (`preflights OK (… /nodejs/bin/node v24.22.1 runs in the API container, the Dockerfile's
+  Node)` otherwise). Nothing else would say it: the `nonroot` tag names no version, and Trivy
+  0.76.1 with `--list-all-pkgs` lists no Node runtime in either image (the distroless index's
+  14 Debian packages; the trixie image's 79 and npm's 146).
+- **The user.** It was a system `appuser`, uid 10001, owning `/app`; it is distroless's
+  `nonroot`, 65532, and owns nothing there: `/app` is root's, mode 0644 for files and 0755 for
+  directories (and for files that were executable), so a compromised API cannot rewrite the code
+  it loads at its next start. The modes are set in the build stage because COPY keeps them, and
+  a checkout made under a umask of 077 has 0600 files. The API writes nothing to disk and the
+  `api` service mounts no volume, so no file outside the image ever had to be 10001's. The
+  review of 2026-10-26 booted the PR head's `/app`, root-owned at those modes, as 65532 in the
+  distroless filesystem: all 59 migrations read, `/health` and `/ready` 200.
+- **Guards.** `scripts/an-api-image-with-nothing-to-exec.unit.test.ts`'s section 1, added here,
+  holds the runtime stage (distroless by digest on the build's Node major and Debian, no RUN, a
+  numeric non-root USER that owns nothing it copies, the stage it copies from ending with the
+  `chmod`, the ENTRYPOINT and the exec-form HEALTHCHECK on `/nodejs/bin/node`), and a compose
+  healthcheck or entrypoint on the API image may name `/nodejs/bin/node` only. Sections 2 to 5
+  are T13a's (#1710): no shell, `printenv` or bare `node` exec'd into the api container in
+  `deploy/`, `scripts/`, `test/`, the workflows and `docs/` (records aside), each script's
+  `api_env` and the smoke's `api_node` and version check against a stub docker, and no
+  `CMD-SHELL` healthcheck on a compose service built from the API image. 21 deliberate
+  regressions each turned it red, among them `printenv` back in one smoke read, `sh -c` back in
+  the doc, a bare `docker inspect`, a prefix match in `api_env`, and a `RUN` in the runtime.
+  `a-base-image-that-carried-what-nothing-runs` keeps the package-manager rule for the selfhost
+  runtime alone; the transpiler, image-scan, identity, verdict and the two live-script guards
+  read the new forms.
+- **What the owner sees change.** `docker compose … exec api sh`, `printenv` or a bare `node`
+  no longer work by hand; `/nodejs/bin/node` does, and the read-backs in `managed-bring-up.md`
+  and `ending-the-alpha.md` read from Docker since T13a. **The first `deploy-live.sh` to the
+  release that carries T13 runs once**, like any other: live's checkout is then of the release
+  before it, which carries T13a, so the script that runs reads `NODE_ENV` from Docker. The one
+  case left is a rollback of live to a tag before T13a (alpha.2 or earlier) and then a deploy
+  forward to a tag with T13: that runs the older tag's script, which asks with `printenv` and
+  says the deploy did not take, though the stack has moved, and a second run from the checkout
+  now at the tag reads from Docker. During the alpha a bad deploy is fixed forward
+  (`docs/release.md` §5), so this is recorded here and in T13a's entry, not in the procedures.
+  Deploying an older tag from a checkout with T13 works as before.
+- **The review of 2026-10-26** (two reviews; no blockers). Both preferred to split T13: the
+  readers one release before the runtime switch, so that no deploy ever meets the distroless API
+  with the older script. Done the same day: the readers are T13a, draft #1710, for alpha.3, and
+  #1709 was rebuilt on a merge of #1708 and #1710 with the switch alone on top, so the two-run
+  step the first round had documented in `managed-bring-up.md`, `release.md`,
+  `ending-the-alpha.md` and the operator runbook, and the guard's check of it, are gone. Fixed
+  in the first round and kept: the Node version check above; `/app` root's; `api_env` in the two
+  live scripts lets Docker's error through and says when Compose names no api container; the
+  guard also reads `test/`. 17 deliberate regressions turned the guard red then (`--chown`
+  back, as the uid or by name; the `chmod` gone, weakened, joined with `||`, or followed by a
+  command or a RUN; an exec of `printenv` in `test/`; `2>/dev/null` back, and the silent empty
+  id; `api_node` without the version; the mismatch not stopping, or comparing majors only; the
+  `FROM` read losing its patch; a missing Dockerfile passing; and two notes since removed).
+- **Not booted here.** No Docker daemon in this session; `images.yml` builds the api image on
+  the pull request (linux/amd64). E2E (managed) has to show the image built on the arm64
+  runner, the container healthy by its own HEALTHCHECK, the smoke's preflights naming
+  `/nodejs/bin/node`, the issuer, minio and docker-proxy probes passing, and the pooler step
+  reading DIRECT_DATABASE_URL; E2E (self-hosted) that the appliance is untouched.
+- **One-way:** none. Reverting the runtime stage restores T12's, and every read above works on
+  both.
+
+
 **2026-10-26, build: T13a, the readers first, a draft for alpha.3**, as draft #1710 on branch
 `claude/ownpace-public-readiness-y7orc6-api-readers`, against `main`. It merges after the alpha.2
 tag, once E2E (managed) has run on it, and ships in alpha.3: a release before T13 (draft #1709),
@@ -1095,6 +1206,7 @@ best given with T0.
 | T11 The patch and minor moves that clear findings | (a) 📋 **Proposed**; (b) ⏳ **Owner**; (c) 📋 **Proposed**, after the Alpha (2026-10-23) | Status, 2026-10-23 (the scan triage), read with Trivy 0.76.0 on linux/amd64. (a) **Mailpit v1.32.0**: 0/0, where v1.31.6 has CVE-2026-111943 (Go's `crypto/x509`); after the first invitation, by hand in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts`, which pins the reference by tag and digest and records Mailpit's release check as read at v1.31.6, so that fact is read again at v1.32.0 in the same change. (b) **Stalwart v0.16.27** (Debian 13.7): 0 critical and 47 high, none with a fix, where v0.16.10 has 3/114. The owner's call: `docs/stalwart-integration-fix.md` pins v0.16.10 and says *"DO NOT change the pinned version"* (AGENTS.md puts its decisions in ADR-0022), and every copy moves together: `setup-stalwart.sh`, the fixture's Dockerfile, the Testcontainers setup, the fix doc and the guards that name it. (c) **ClickHouse 26.3** (26.3.59, Ubuntu 22.04): 0/0, where 26.2.19.43 has CVE-2026-45447 and CVE-2026-84782 in openssl. After the Alpha: the owner accepted 26.2 for it on 2026-10-23 (0119 §3 item 9 on the Trigger.dev v4.7.6 branch), and 26.3 is ahead of the 26.2 Trigger.dev's own compose pins, which the pin watch compares with (T8). It moves in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts` together: the guard pins the reference by tag and digest and records the crash-report default as read at `v26.2.19.43-stable`, as `clickhouse-no-crash-reports.xml`'s comment does, so both are read again at 26.3. |
 | T12 The images' Node base on a named Debian, with no package manager at runtime | 🔨 **Being built** as draft #1708 on branch `claude/ownpace-public-readiness-y7orc6-node-trixie-slim`, for after the alpha.2 tag and #1687 (2026-10-25) | Status, 2026-10-25. The api, selfhost and web images built on `node:24.22.1-slim`, Debian 12.15: 1 critical and 61 high on 2026-10-25. `node:24.22.1-trixie-slim`, Debian 13.7, reads 0/48 with the same Node binary, and 0/43 without npm and corepack, which nothing in the api or selfhost container runs. Done when the three FROM lines name Debian 13 by tag and digest, the two runtime stages carry no package manager, E2E (managed) and E2E (self-hosted) are green on it, and the scan's `-edge` categories read the base's 0/43 (the API's with T9). Distroless `nodejs24-debian13` (0/0) for the API is the next step, after alpha.3, as its own decision. |
 | T13a The readers first | 🔨 **Being built** as draft #1710 on branch `claude/ownpace-public-readiness-y7orc6-api-readers`, for alpha.3 (2026-10-26) | Status, 2026-10-26. The half of T13 (draft #1709) that works before the switch: the smoke, the managed gate, `deploy-live.sh`, `stand-up-live.sh` and the docs read the api container's variables with `docker container inspect` and run Node there by its path, on the Node image and on distroless alike, and the smoke stops when the API's Node is not the version the tasks get. It ships a release before T13, so that no `deploy-live.sh` that asks with `printenv` ever meets the distroless image. Done when E2E (managed) is green on it (the smoke's preflights naming `/usr/local/bin/node v24.22.1`) and live runs alpha.3. |
+| T13 The API's runtime on distroless | 🔨 **Being built** as draft #1709 on branch `claude/ownpace-public-readiness-y7orc6-api-distroless`, after #1708 (T12), #1710 (T13a) and #1687 (T9), for alpha.4 or later (2026-10-26) | Status, 2026-10-26. The API, the container the internet reaches through `/api`, runs on `gcr.io/distroless/nodejs24-debian13:nonroot` by digest: 0 critical and 0 high on amd64 and arm64, against T12's 0/43, with the same Node binary, and no shell, `printenv` or Node on PATH, and `/app` root's. Every script, workflow and doc that exec'd a shell, `printenv` or a bare `node` into it reads from `docker container inspect` or runs Node by its path instead, on old and new images alike, since T13a (#1710), a release earlier. The tasks keep T12's Node line, and the smoke stops when the API's Node is not that line's version. Done when E2E (managed) and E2E (self-hosted) are green on it (the smoke's preflights naming `/nodejs/bin/node v24.22.1`), live runs a tag that carries it, deployed from a checkout that carries T13a, and the scan's `ownpace-api-edge` reads the distroless base's 0/0 (with T9's `--prod` install). |
 
 ## 1. What there is today
 

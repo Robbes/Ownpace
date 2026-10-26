@@ -118,17 +118,16 @@ describe('the smoke can tell a configured issuer from a running container', () =
   });
 
   it('asks with a client the API image actually HAS', () => {
-    // THE IMAGE HAS NO CURL. `apps/api/Dockerfile` builds on a slim Node image
-    // (`node:<x.y.z>-trixie-slim`), and its own HEALTHCHECK is
-    // `node -e "fetch(...)"` for exactly this reason. Asked on the running
-    // stack, through its shell:
+    // THE IMAGE HAS NO CURL. `apps/api/Dockerfile` ran on a slim Node image,
+    // and its own HEALTHCHECK was `node -e "fetch(...)"` for exactly this
+    // reason. Asked on the running stack then, through its shell:
     //
     //   command -v curl  ->  no curl
     //   command -v wget  ->  no wget
     //   command -v node  ->  /usr/local/bin/node
     //
-    // The distroless image of 0146 T13 has no shell to ask at all: Node at
-    // /nodejs/bin/node, off PATH, and nothing else. So the probe runs
+    // Since 0146 T13 it runs on distroless, which has no shell to ask at all:
+    // Node at /nodejs/bin/node, off PATH, and nothing else. So the probe runs
     // `$API_NODE`, the path the smoke's preflights found on either image
     // (`api_node`, 0146 T13a).
     //

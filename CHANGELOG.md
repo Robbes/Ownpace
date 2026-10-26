@@ -16,6 +16,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   the highs, so the base under both reads 0 critical and 43 high, none of
   which Debian has fixed. The managed tasks copy the same Node as before.
   Nothing a stack sets changes.
+- **The managed API runs on a distroless image** (workplan 0146 T13,
+  #1709): its runtime is `gcr.io/distroless/nodejs24-debian13:nonroot` by
+  digest, Debian 13.7 with Node and fourteen packages and no shell, where
+  Trivy reads 0 critical and 0 high on amd64 and arm64, against 0 and 43 on
+  the Debian 13 Node image under it before. The Node is the same binary, and
+  the managed tasks keep theirs; the smoke stops when the API's Node is not
+  the version the tasks get. The container runs as uid 65532 instead of
+  10001 and can no longer write its own code, which is root's; it mounts
+  nothing. Nothing execs a shell or `printenv` into it: the release before
+  this one moved every script and doc to `docker container inspect` and Node
+  by its path (T13a, #1710), so the first deploy to this release runs once,
+  like any other. `docker compose … exec api sh` or `printenv` by hand no
+  longer works; `/nodejs/bin/node` does.
 
 ### Changed
 

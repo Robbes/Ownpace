@@ -1,58 +1,69 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first).
+ * AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and
+ * T13, the switch).
  *
  * The managed API, the one container the internet reaches through the web
- * app's `/api`, runs on a slim Node image: Debian with a shell, coreutils,
- * perl, util-linux and ncurses, and the findings that come with them. Workplan
- * 0146 T13 moves its runtime stage to
+ * app's `/api`, ran on `node:24.22.1-trixie-slim` with its package managers
+ * removed: Debian 13.7 with a shell, coreutils, perl, util-linux and ncurses,
+ * and 43 high findings that Debian has no fix for (Trivy 0.76.1, 2026-10-25,
+ * amd64 and arm64 alike). Its runtime stage is now
  * `gcr.io/distroless/nodejs24-debian13:nonroot` by digest: fourteen Debian
- * packages and Node, 0 critical and 0 high (Trivy 0.76.1, 2026-10-25, amd64
- * and arm64 alike), with no shell, no `printenv`, and Node at
- * `/nodejs/bin/node`, which is not on the image's PATH.
+ * packages and Node, 0 critical and 0 high the same day. Its
+ * `/nodejs/bin/node` was the trixie image's `/usr/local/bin/node`, byte for
+ * byte (sha256 `e32e2d16…` amd64, `c8c57216…` arm64). The tasks copy Node out
+ * of the Dockerfile's `FROM node:` line, and the two pins move apart, so the
+ * smoke holds the API's Node to that line's version on every managed run (5).
  *
- * What that image has not got is what everything around the API used. Before
+ * What the image no longer has is what everything around it used. Before
  * T13a, seven script sites read a variable out of the container with `docker
  * exec … printenv`, three probes ran a bare `node -e` there, and two docs told
  * the operator to `exec … printenv` or `exec … sh -c`. On distroless every one
- * of them fails. A smoke whose first read fails says "cannot read
- * JWT_ISSUER"; a `deploy-live.sh` whose NODE_ENV read fails says the deploy
- * did not take. Neither is about the API. And `deploy-live.sh` runs the copy
- * the checkout had BEFORE it moves to the tag it deploys, so the readers reach
- * live a release before the image does: held here on the Node image there is
- * now, the switch meets no script that asks the old way. Section 1, the
- * runtime stage itself, comes with the switch (T13).
+ * of them fails: there is no shell and no `printenv`, and Node is at
+ * `/nodejs/bin/node`, which is not on the image's PATH. A smoke whose first
+ * read fails says "cannot read JWT_ISSUER"; a `deploy-live.sh` whose NODE_ENV
+ * read fails says the deploy did not take. Neither is about the API. And
+ * `deploy-live.sh` runs the copy the checkout had BEFORE it moves to the tag it
+ * deploys, so the readers (T13a, sections 2 to 5) shipped a release before the
+ * switch (T13, section 1): no deploy meets this image with a copy that asks
+ * the old way.
  *
- * So this file holds, for the Node image and the distroless one alike:
+ * So this file holds:
  *
+ * 1. The API Dockerfile's runtime stage is distroless by digest, on the Node
+ *    major of its build stage, runs as a non-root uid that does NOT own what
+ *    it copies (root does, and the stage it copies from makes every file
+ *    readable by all and writable by root alone, last), has no RUN (nothing
+ *    could run it), starts `/nodejs/bin/node` by its path as ENTRYPOINT, and
+ *    its HEALTHCHECK is exec form on that path. Owning /app, as `appuser` did
+ *    before T13, a compromised API could rewrite the code it loads at its next
+ *    start; it needs no write there, and booted and served without one.
  * 2. Nothing in `deploy/`, `scripts/`, `test/`, the workflows or `docs/`
  *    (records aside: workplans, LESSONS.md, the CHANGELOG, ADR history) execs
  *    into the API container anything but Node by its absolute path
- *    (`/nodejs/bin/node` on distroless, `/usr/local/bin/node` on the Node
- *    image), or a variable holding one: not a shell, not `printenv`, not a
+ *    (`/nodejs/bin/node`, or `/usr/local/bin/node` on the Node image an older
+ *    tag runs), or a variable holding one: not a shell, not `printenv`, not a
  *    bare `node`. A `compose run` of the api starts no shell, `printenv` or
- *    `node` either (the distroless image's ENTRYPOINT is node already).
+ *    `node` either (the image's ENTRYPOINT is node already).
  * 3. A variable the API was started with is read from Docker, `docker
- *    container inspect`'s `.Config.Env`, which answers the same on both images,
- *    and so for a stack rolled back to an older tag. Never a bare `docker
- *    inspect`: given a name that is no container it falls through to the
- *    IMAGE compose built under that name, `<project>-api`, and answers with
- *    the image's ENV alone. The scripts' `api_env` is run here, against a stub
- *    docker, for its three answers; the smoke's `api_node` for each image's
- *    path.
+ *    container inspect`'s `.Config.Env`, which answers the same on this image
+ *    and the Node images before it (a stack rolled back to an older tag). Never
+ *    a bare `docker inspect`: given a name that is no container it falls
+ *    through to the IMAGE compose built under that name, `<project>-api`, and
+ *    answers with the image's ENV alone. The scripts' `api_env` is run here,
+ *    against a stub docker, for its three answers; the smoke's `api_node` for
+ *    each image's path.
  * 4. A compose service built from the API Dockerfile, in every compose file of
  *    its directory, has no `CMD-SHELL` healthcheck, no shell-string one, and
  *    no `command` or `entrypoint` that starts a shell, `printenv` or a bare
- *    `node`.
+ *    `node`; a healthcheck or entrypoint runs `/nodejs/bin/node`.
  * 5. The smoke's preflights ask the API container's Node its version
  *    (`api_node`) and stop unless it is the `x.y.z` of the Dockerfile's `FROM
- *    node:` line (`dockerfile_node`), the Node the managed tasks copy. On the
- *    Node image the two are one; the distroless `nonroot` tag names no Node
- *    version, is pinned by a digest that moves apart from the node tag, and
- *    Trivy lists no Node runtime in it, so nothing else would say that a Node
- *    security release reached the tasks but not the API. Run here against a
- *    stub docker.
+ *    node:` line (`dockerfile_node`). The distroless `nonroot` tag names no
+ *    Node version and Trivy lists no Node runtime in either image, so nothing
+ *    else would say that a Node security release reached the build stage and
+ *    the tasks but not the API. Run here against a stub docker.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -68,8 +79,132 @@ const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
 
 const API_DOCKERFILE = 'apps/api/Dockerfile';
 const NODE_PATH = '/nodejs/bin/node';
-/** Where Node is on the Node image: the API's until T13, and a rollback's past it. */
+/** Where Node is on the images before T13, which a rollback still runs. */
 const OLD_NODE_PATH = '/usr/local/bin/node';
+const DISTROLESS = /^gcr\.io\/distroless\/nodejs(\d+)-debian(\d+):nonroot@sha256:[0-9a-f]{64}$/;
+
+type Instruction = { op: string; args: string };
+type Stage = { name: string; base: string; body: Instruction[] };
+
+/** A Dockerfile's stages, comments dropped before continuations are joined, as Docker reads it. */
+function stagesOf(text: string): Stage[] {
+  const logical = text
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('#'))
+    .join('\n')
+    .replace(/\\\r?\n/g, ' ')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const out: Stage[] = [];
+  for (const line of logical) {
+    const [, keyword = '', args = ''] = /^(\S+)\s*(.*)$/.exec(line) ?? [];
+    const op = keyword.toUpperCase();
+    if (op === 'FROM') {
+      const words = args.split(/\s+/).filter((w) => !w.startsWith('--'));
+      const as = words.findIndex((w) => w.toUpperCase() === 'AS');
+      out.push({ name: as >= 0 ? words[as + 1]! : String(out.length), base: words[0]!, body: [] });
+      continue;
+    }
+    out.at(-1)?.body.push({ op, args });
+  }
+  return out;
+}
+
+/** The exec form's words, or null for the shell form. */
+function execForm(args: string): string[] | null {
+  const t = args.trim();
+  if (!t.startsWith('[')) return null;
+  return JSON.parse(t) as string[];
+}
+
+// ---------------------------------------------------------------------------
+// 1. The image
+// ---------------------------------------------------------------------------
+
+describe('the API runtime is distroless, by digest', () => {
+  const stages = stagesOf(read(API_DOCKERFILE));
+  const runtime = stages.at(-1)!;
+  const one = (op: string) => runtime.body.filter((i) => i.op === op);
+
+  it('its last stage is the runtime, FROM distroless nodejs at the nonroot tag and a digest', () => {
+    expect(runtime.name).toBe('runtime');
+    expect(runtime.base, `${API_DOCKERFILE}: the runtime stage builds FROM ${runtime.base}`).toMatch(DISTROLESS);
+  });
+
+  it("on the Node major and the Debian release of the build stage's Node image", () => {
+    const [, nodeMajor, debian] = DISTROLESS.exec(runtime.base)!;
+    const build = stages.filter((s) => s.base.startsWith('node:'));
+    expect(build.length, 'no FROM node: stage to build on (vacuity)').toBeGreaterThan(0);
+    for (const s of build) {
+      // node:24.22.1-trixie-slim@sha256:… — the major, and trixie is Debian 13.
+      const m = /^node:(\d+)\.\d+\.\d+-([a-z]+)-slim@sha256:[0-9a-f]{64}$/.exec(s.base);
+      expect(m, `${s.base} is not node:<x.y.z>-<codename>-slim@sha256:<digest>`).not.toBeNull();
+      expect(m![1], `the build stage's Node ${m![1]} and the runtime's ${nodeMajor} differ`).toBe(nodeMajor);
+      expect({ trixie: '13' }[m![2]!], `${s.base}: which Debian is ${m![2]}? Name it here with the runtime's`).toBe(debian);
+    }
+  });
+
+  it('has no RUN: there is no shell in it to run one', () => {
+    expect(one('RUN').map((i) => i.args)).toEqual([]);
+  });
+
+  it('copies only into /app, as root\'s, and runs as a uid that is not root and owns none of it', () => {
+    const copies = runtime.body.filter((i) => i.op === 'COPY' || i.op === 'ADD');
+    expect(copies.length, 'nothing copied into the runtime (vacuity)').toBeGreaterThan(0);
+    const user = one('USER');
+    expect(user, 'the runtime names its USER, not inheriting it unsaid').toHaveLength(1);
+    const uid = user[0]!.args.trim().split(':')[0]!;
+    expect(uid, 'USER is a number, so nothing resolves it from a passwd file').toMatch(/^\d+$/);
+    expect(uid).not.toBe('0');
+    for (const c of copies) {
+      expect(c.args.split(/\s+/).at(-1), `${c.op} ${c.args}`).toMatch(/^\/app\/?$/);
+      // Root's, as COPY makes it without --chown: the API reads its code and
+      // writes nothing there, so it is given no way to rewrite what it loads.
+      const chown = /--chown=(\S+)/.exec(c.args)?.[1];
+      expect(chown === undefined || /^(?:0|root)(?::(?:0|root))?$/.test(chown), `${c.op} ${c.args}: /app would be ${chown}'s, which the API runs as or could`).toBe(true);
+      expect(c.args, `${c.op} ${c.args}: a mode for /app is the source stage's, below`).not.toMatch(/--chmod=/);
+    }
+  });
+
+  it('the stage it copies /app from makes it readable by all and writable by root alone, last', () => {
+    // COPY keeps a file's mode, and a checkout made under a umask of 077 has
+    // 0600 files, which a root-owned /app would keep from the API. So the
+    // source stage sets the modes after everything that writes there.
+    const sources = runtime.body.filter((i) => i.op === 'COPY').map((c) => /--from=(\S+)/.exec(c.args)?.[1]);
+    expect(sources.length).toBeGreaterThan(0);
+    for (const from of sources) {
+      expect(from, 'the runtime copies /app out of a stage of this Dockerfile').toBeDefined();
+      const stage = stages.find((s) => s.name === from);
+      expect(stage, `no stage named ${from}`).toBeDefined();
+      const writes = stage!.body.filter((i) => ['RUN', 'COPY', 'ADD'].includes(i.op));
+      const last = writes.at(-1);
+      expect(last?.op, `${from}: its last RUN, COPY or ADD`).toBe('RUN');
+      // Alone, or the last command of that RUN (the install's, so the tree is
+      // not copied up into a second layer).
+      expect(last!.args, `${from}: its last RUN`).toMatch(/(?:^|&&\s*)chmod -R u=rwX,go=rX \/app$/);
+    }
+  });
+
+  it(`starts ${NODE_PATH} by its path, and runs the API's entry with it`, () => {
+    const entrypoint = one('ENTRYPOINT');
+    expect(entrypoint).toHaveLength(1);
+    expect(execForm(entrypoint[0]!.args)).toEqual([NODE_PATH]);
+    const cmd = one('CMD');
+    expect(cmd).toHaveLength(1);
+    expect(execForm(cmd[0]!.args)).toEqual(['apps/api/src/index.ts']);
+  });
+
+  it(`its HEALTHCHECK is exec form, on ${NODE_PATH}`, () => {
+    const hc = one('HEALTHCHECK');
+    expect(hc).toHaveLength(1);
+    const command = /\bCMD\s+(.*)$/.exec(hc[0]!.args)?.[1];
+    expect(command, `HEALTHCHECK ${hc[0]!.args}`).toBeDefined();
+    const words = execForm(command!);
+    expect(words, 'a shell-form HEALTHCHECK needs /bin/sh, which the image has not got').not.toBeNull();
+    expect(words![0]).toBe(NODE_PATH);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // 2. What execs into it
@@ -414,8 +549,8 @@ describe('no compose service built from the API image starts a shell', () => {
     return Object.entries(doc.services ?? {}).map(([name, service]) => ({ file, name, service: service ?? {} }));
   });
   const built = services.filter((s) => s.service.build?.dockerfile === API_DOCKERFILE);
-  // Node by its path on either image; T13 narrows this to the distroless one's.
-  const NODE_PATHS = [NODE_PATH, OLD_NODE_PATH];
+  // Node by the distroless image's path (T13): the image has no other.
+  const NODE_PATHS = [NODE_PATH];
 
   it("finds managed.yml's api (vacuity)", () => {
     expect(built.map((s) => `${s.file}: ${s.name}`)).toEqual(['deploy/compose/managed.yml: api']);

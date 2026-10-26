@@ -2826,10 +2826,10 @@ else
   # The question is only ever "can the thing that verifies tokens reach the keys",
   # so it is asked from there.
   # ASKED WITH THE CLIENT THE API ITSELF USES, because the API image has neither
-  # curl nor wget. Node and little else is in it (a slim Node image, or from
-  # workplan 0146 T13 distroless, with no shell either), which is why the image's
-  # own HEALTHCHECK is `node -e "fetch(...)"` (apps/api/Dockerfile), and why this
-  # runs `$API_NODE`, node by the path the preflights found.
+  # curl nor wget. It is distroless (0146 T13): node and no shell, node at
+  # /nodejs/bin/node and off PATH, which is why the image's own HEALTHCHECK is
+  # `/nodejs/bin/node -e "fetch(...)"` (apps/api/Dockerfile), and why this runs
+  # `$API_NODE`, the path the preflights found.
   #
   # This check used `curl`, with `2>/dev/null || true` around it. So on every run
   # ever made, `sh: 1: curl: not found` became the empty string, the empty string
