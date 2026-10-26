@@ -5,7 +5,7 @@
  * pinned identity provider still had (workplan 0135 T7 (b)).
  *
  * The identity provider is pinned in `managed.yml`, and Dependabot does not
- * move it: it reads no file in `deploy/compose`, and an upgrade moves its
+ * move it: it reads no compose file in `deploy/compose`, and an upgrade moves its
  * schema one way and is the owner's call (0119 §3 item 2). So nothing said
  * when upstream moved on. v4.18.0 fixed GHSA-4hgj-wm6c-q7p2,
  * a rename of any account through login v1, on 2026-09-21, and a week later
@@ -18,7 +18,8 @@
  *
  * EVERY PIN DEPENDABOT CANNOT SEE (workplan 0146 T8, 2026-10-21). The
  * identity provider was not the only one. Dependabot read no file in
- * `deploy/compose` (`a-dependabot-directory-with-nothing-to-read`), so
+ * `deploy/compose` (`a-dependabot-directory-with-nothing-to-read`; since
+ * 0146 T15 it reads one, the databases' Dockerfile, and still no compose file), so
  * pgbouncer fell two releases and two CVEs behind and Trigger.dev four
  * releases; the tasks ran a Node two security releases old, and pnpm sat six
  * releases back. Each was found by somebody reading. The same watch now has
