@@ -1,0 +1,443 @@
+// Copyright 2026 The Ownpace authors (Apache-2.0)
+
+/**
+ * AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first).
+ *
+ * The managed API, the one container the internet reaches through the web
+ * app's `/api`, runs on a slim Node image: Debian with a shell, coreutils,
+ * perl, util-linux and ncurses, and the findings that come with them. Workplan
+ * 0146 T13 moves its runtime stage to
+ * `gcr.io/distroless/nodejs24-debian13:nonroot` by digest: fourteen Debian
+ * packages and Node, 0 critical and 0 high (Trivy 0.76.1, 2026-10-25, amd64
+ * and arm64 alike), with no shell, no `printenv`, and Node at
+ * `/nodejs/bin/node`, which is not on the image's PATH.
+ *
+ * What that image has not got is what everything around the API used. Before
+ * T13a, seven script sites read a variable out of the container with `docker
+ * exec … printenv`, three probes ran a bare `node -e` there, and two docs told
+ * the operator to `exec … printenv` or `exec … sh -c`. On distroless every one
+ * of them fails. A smoke whose first read fails says "cannot read
+ * JWT_ISSUER"; a `deploy-live.sh` whose NODE_ENV read fails says the deploy
+ * did not take. Neither is about the API. And `deploy-live.sh` runs the copy
+ * the checkout had BEFORE it moves to the tag it deploys, so the readers reach
+ * live a release before the image does: held here on the Node image there is
+ * now, the switch meets no script that asks the old way. Section 1, the
+ * runtime stage itself, comes with the switch (T13).
+ *
+ * So this file holds, for the Node image and the distroless one alike:
+ *
+ * 2. Nothing in `deploy/`, `scripts/`, `test/`, the workflows or `docs/`
+ *    (records aside: workplans, LESSONS.md, the CHANGELOG, ADR history) execs
+ *    into the API container anything but Node by its absolute path
+ *    (`/nodejs/bin/node` on distroless, `/usr/local/bin/node` on the Node
+ *    image), or a variable holding one: not a shell, not `printenv`, not a
+ *    bare `node`. A `compose run` of the api starts no shell, `printenv` or
+ *    `node` either (the distroless image's ENTRYPOINT is node already).
+ * 3. A variable the API was started with is read from Docker, `docker
+ *    container inspect`'s `.Config.Env`, which answers the same on both images,
+ *    and so for a stack rolled back to an older tag. Never a bare `docker
+ *    inspect`: given a name that is no container it falls through to the
+ *    IMAGE compose built under that name, `<project>-api`, and answers with
+ *    the image's ENV alone. The scripts' `api_env` is run here, against a stub
+ *    docker, for its three answers; the smoke's `api_node` for each image's
+ *    path.
+ * 4. A compose service built from the API Dockerfile, in every compose file of
+ *    its directory, has no `CMD-SHELL` healthcheck, no shell-string one, and
+ *    no `command` or `entrypoint` that starts a shell, `printenv` or a bare
+ *    `node`.
+ * 5. The smoke's preflights ask the API container's Node its version
+ *    (`api_node`) and stop unless it is the `x.y.z` of the Dockerfile's `FROM
+ *    node:` line (`dockerfile_node`), the Node the managed tasks copy. On the
+ *    Node image the two are one; the distroless `nonroot` tag names no Node
+ *    version, is pinned by a digest that moves apart from the node tag, and
+ *    Trivy lists no Node runtime in it, so nothing else would say that a Node
+ *    security release reached the tasks but not the API. Run here against a
+ *    stub docker.
+ */
+
+import { describe, it, expect } from 'vitest';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, chmodSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
+import { parse as parseYaml } from 'yaml';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
+
+const API_DOCKERFILE = 'apps/api/Dockerfile';
+const NODE_PATH = '/nodejs/bin/node';
+/** Where Node is on the Node image: the API's until T13, and a rollback's past it. */
+const OLD_NODE_PATH = '/usr/local/bin/node';
+
+// ---------------------------------------------------------------------------
+// 2. What execs into it
+// ---------------------------------------------------------------------------
+
+/** The files that run commands, or tell somebody to. Records quote what WAS run, and are left out. */
+function commandFiles(): string[] {
+  const out: string[] = [];
+  const walk = (dir: string, keep: RegExp, skip: (rel: string) => boolean = () => false) => {
+    const abs = join(ROOT, dir);
+    if (!existsSync(abs)) return;
+    for (const name of readdirSync(abs)) {
+      const rel = `${dir}/${name}`;
+      if (name === 'node_modules' || skip(rel)) continue;
+      if (statSync(join(ROOT, rel)).isDirectory()) walk(rel, keep, skip);
+      else if (keep.test(name)) out.push(rel);
+    }
+  };
+  walk('deploy', /\.(sh|ya?ml|ps1)$/);
+  // The guards hold stubs and mutated copies of what they refuse; not commands.
+  walk('scripts', /\.(sh|mjs|ps1)$|^(?!.*\.test\.ts$).*\.ts$/);
+  walk('.github/workflows', /\.ya?ml$/);
+  walk('docs', /\.md$/, (rel) => rel === 'docs/workplans' || rel === 'docs/adr/history' || rel === 'docs/LESSONS.md');
+  // The e2e helpers already exec into other services; one into the api would be
+  // the same failure as anywhere else.
+  walk('test', /\.(?:ts|mjs|sh)$/);
+  for (const f of readdirSync(ROOT)) if (f.endsWith('.md') && f !== 'CHANGELOG.md') out.push(f);
+  return out;
+}
+
+/**
+ * The commands of one file, as lines a reader would type: shell continuations
+ * joined, and in Markdown each paragraph or block as one line, since prose
+ * wraps a command across lines.
+ */
+function logicalLines(file: string, text: string): string[] {
+  const joined = text.replace(/\\\r?\n/g, ' ');
+  if (!file.endsWith('.md')) return joined.split('\n');
+  return joined.split(/\n\s*\n/).map((block) => block.replace(/\n/g, ' '));
+}
+
+/** Flags of `docker exec` and `docker compose exec|run` that take a value as the next word. */
+const VALUE_FLAGS = new Set(['-e', '--env', '-u', '--user', '-w', '--workdir', '--index', '--name', '-l', '--label', '-p', '--publish', '-v', '--volume', '--entrypoint', '--env-file']);
+const word = (t: string) => t.replace(/^[`'"(]+|[`'",;)]+$/g, '');
+const SHELL = /^(?:\/(?:usr\/)?bin\/)?(?:sh|bash|dash|ash|zsh|busybox)$/;
+
+/** The API container, by compose service or by name: `api`, `$API_CONTAINER`, `<project>-api` — never trigger-api. */
+function isApi(target: string): boolean {
+  return target === 'api' || /^\$\{?(?:SMOKE_)?API_CONTAINER\}?$/.test(target) || (/-api$/.test(target) && !/trigger-api$/.test(target));
+}
+
+type Exec = { file: string; how: 'exec' | 'run'; line: string; program: string | undefined };
+
+/** Every `docker exec`, `docker compose … exec` and `docker compose … run` into the API container. */
+function execsIntoTheApi(): Exec[] {
+  const found: Exec[] = [];
+  for (const file of commandFiles()) {
+    for (const line of logicalLines(file, read(file))) {
+      const tokens = line.split(/\s+/).filter(Boolean);
+      tokens.forEach((raw, i) => {
+        const t = word(raw);
+        if (t !== 'exec' && t !== 'run') return;
+        // Back to where this command started, for its docker or compose.
+        const before: string[] = [];
+        for (let j = i - 1; j >= 0; j--) {
+          const tj = tokens[j]!;
+          if (/^(?:\||;|&&|\|\||\$\(|then|do)$/.test(tj) || tj.endsWith(';')) break;
+          // `x="$(docker` starts a command inside the word.
+          const sub = tj.lastIndexOf('$(');
+          if (sub >= 0) {
+            before.unshift(word(tj.slice(sub + 2)));
+            break;
+          }
+          before.unshift(word(tj));
+        }
+        const compose = before.some((b) => b === 'compose' || /COMPOSE/.test(b));
+        const docker = before.includes('docker');
+        if (t === 'run' ? !compose : !(compose || docker)) return;
+        let k = i + 1;
+        while (k < tokens.length && word(tokens[k]!).startsWith('-')) k += VALUE_FLAGS.has(word(tokens[k]!)) ? 2 : 1;
+        const target = tokens[k] === undefined ? '' : word(tokens[k]!);
+        if (!isApi(target)) return;
+        const program = tokens[k + 1] === undefined ? undefined : word(tokens[k + 1]!);
+        found.push({ file, how: t, line: line.trim().slice(0, 240), program });
+      });
+    }
+  }
+  return found;
+}
+
+/** What one exec into the API runs, if it is not something the image has. */
+function refusal(e: Exec): string | null {
+  const p = e.program;
+  if (e.how === 'run') {
+    if (p === undefined) return null;
+    if (SHELL.test(p)) return 'a shell: the distroless image has none';
+    if (/(^|\/)printenv$/.test(p)) return 'printenv: the distroless image has none';
+    if (p === 'node' || p === NODE_PATH || p === OLD_NODE_PATH) return "node again: the distroless image's ENTRYPOINT is node already";
+    return null;
+  }
+  if (p === NODE_PATH || p === OLD_NODE_PATH) return null;
+  if (p !== undefined && /^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$/.test(p)) return null;
+  if (p !== undefined && SHELL.test(p)) return 'a shell: the distroless image has none';
+  if (p !== undefined && /(^|\/)printenv$/.test(p)) return "printenv: the distroless image has none; read the variable with `docker container inspect`'s .Config.Env";
+  if (p === 'node') return `a bare node: it is not on the distroless image's PATH; run ${NODE_PATH} (${OLD_NODE_PATH} on the Node image)`;
+  return `${p ?? 'nothing'}: the distroless image has Node at ${NODE_PATH} and nothing else to run`;
+}
+
+describe('nothing execs into the API container but Node, by its path', () => {
+  const execs = execsIntoTheApi();
+
+  it("finds the smoke's probes and the doc's recipe (vacuity)", () => {
+    const smoke = execs.filter((e) => e.file === 'deploy/compose/smoke-managed.sh');
+    // Three probes through $API_NODE, and api_node trying each path.
+    expect(smoke.filter((e) => e.program === '$API_NODE').length).toBe(3);
+    expect(smoke.some((e) => e.program === '$p')).toBe(true);
+    expect(execs.some((e) => e.file === 'docs/managed-bring-up.md' && [NODE_PATH, OLD_NODE_PATH].includes(e.program ?? ''))).toBe(true);
+    expect(execs.some((e) => e.file === 'docs/TROUBLESHOOTING.md' && e.how === 'run')).toBe(true);
+  });
+
+  it('none runs a shell, printenv, a bare node, or anything else the image has not got', () => {
+    const offenders = execs.flatMap((e) => {
+      const why = refusal(e);
+      return why ? [`${e.file}: ${why}\n    ${e.line}`] : [];
+    });
+    expect(offenders, offenders.join('\n')).toEqual([]);
+  });
+
+  it('the scan refuses the forms T13a removed (the reader still reads them)', () => {
+    const sample = (program: string, how: 'exec' | 'run' = 'exec'): Exec => ({ file: 'x', how, line: '', program });
+    expect(refusal(sample('printenv'))).toMatch(/printenv/);
+    expect(refusal(sample('sh'))).toMatch(/shell/);
+    expect(refusal(sample('/bin/sh'))).toMatch(/shell/);
+    expect(refusal(sample('node'))).toMatch(/bare node/);
+    expect(refusal(sample('true'))).toMatch(/nothing else/);
+    expect(refusal(sample('sh', 'run'))).toMatch(/shell/);
+    expect(isApi('trigger-api')).toBe(false);
+    expect(isApi('$API_CONTAINER')).toBe(true);
+    expect(isApi('ownpace-live-api')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. Reading what it was started with
+// ---------------------------------------------------------------------------
+
+const ENV_READERS = ['deploy/compose/smoke-managed.sh', 'deploy/compose/deploy-live.sh', 'deploy/compose/stand-up-live.sh'];
+
+/** One shell function's text, out of a script. */
+function functionOf(file: string, name: string): string {
+  const m = new RegExp(`^${name}\\(\\) \\{\\n[\\s\\S]*?\\n\\}\\n`, 'm').exec(read(file));
+  if (!m) throw new Error(`${file} defines no ${name}()`);
+  return m[0];
+}
+
+/** A docker on PATH that answers `container inspect`, `compose ps -q api` and `exec`, from the environment. */
+const DOCKER_STUB = `#!/usr/bin/env bash
+if [ "$1" = compose ]; then
+  shift
+  [ "$1" = ps ] && [ "$2" = -q ] && [ "$3" = api ] || { echo "stub: compose $*" >&2; exit 97; }
+  [ -z "\${STUB_NO_API:-}" ] || exit 0
+  echo api-id
+  exit 0
+fi
+if [ "$1" = container ] && [ "$2" = inspect ]; then
+  [ "$3" = --format ] && [ "$4" = '{{range .Config.Env}}{{println .}}{{end}}' ] || { echo "stub: $*" >&2; exit 96; }
+  [ -z "\${STUB_GONE:-}" ] || { echo "Error: No such container: $5" >&2; exit 1; }
+  printf '%s\\n' 'PATH=/usr/local/sbin:/usr/local/bin' 'JWT_ISSUER=' 'DIRECT_DATABASE_URL=postgresql://u:p@postgres:5432/db?sslmode=disable&x=y' 'NODE_ENV=production' ''
+  exit 0
+fi
+if [ "$1" = exec ]; then
+  [ "$4" = --version ] || { echo "stub: exec $*" >&2; exit 95; }
+  [ "$3" = "\${STUB_NODE:-none}" ] || { echo "OCI runtime exec failed: stat $3: no such file or directory" >&2; exit 127; }
+  echo "\${STUB_NODE_VERSION:-v24.22.1}"
+  exit 0
+fi
+echo "stub: $*" >&2
+exit 98
+`;
+
+function withStub<T>(fn: (bin: string) => T): T {
+  const dir = mkdtempSync(join(tmpdir(), 'api-env-'));
+  try {
+    writeFileSync(join(dir, 'docker'), DOCKER_STUB);
+    chmodSync(join(dir, 'docker'), 0o755);
+    return fn(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+function runFn(bin: string, fnText: string, call: string, env: Record<string, string> = {}) {
+  const script = `set -uo pipefail\nAPI_CONTAINER=ownpace-managed-api\nCOMPOSE=(docker compose)\n${fnText}\n${call}\n`;
+  return spawnSync('bash', ['-c', script], { encoding: 'utf8', env: { PATH: `${bin}:${process.env.PATH}`, ...env } });
+}
+
+describe("a variable the API was started with is read from Docker's view of the container", () => {
+  it.each(ENV_READERS)('%s reads it with `docker container inspect`, three answers apart', (file) => {
+    const fn = functionOf(file, 'api_env');
+    expect(fn).toContain("docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}'");
+    withStub((bin) => {
+      const set = runFn(bin, fn, 'api_env DIRECT_DATABASE_URL');
+      expect(set.status, set.stderr).toBe(0);
+      // Everything after the first '=': a URL's own '=' signs stay.
+      expect(set.stdout).toBe('postgresql://u:p@postgres:5432/db?sslmode=disable&x=y\n');
+      const empty = runFn(bin, fn, 'api_env JWT_ISSUER');
+      expect([empty.status, empty.stdout]).toEqual([0, '\n']);
+      const unset = runFn(bin, fn, 'api_env JWT_AUDIENCE');
+      expect([unset.status, unset.stdout]).toEqual([1, '']);
+      // A prefix is not the name.
+      expect(runFn(bin, fn, 'api_env NODE').status).toBe(1);
+      expect(runFn(bin, fn, 'api_env NODE_ENV', { STUB_GONE: '1' }).status).toBe(2);
+    });
+  });
+
+  it('the live scripts find the container through Compose, and no container is not "not set"', () => {
+    for (const file of ['deploy/compose/deploy-live.sh', 'deploy/compose/stand-up-live.sh']) {
+      const fn = functionOf(file, 'api_env');
+      expect(fn).toMatch(/"\$\{COMPOSE\[@\]\}" ps -q api/);
+      withStub((bin) => {
+        // Why it could not, on stderr: "could not be asked" alone sends the
+        // owner looking. Docker's words name containers, never a value.
+        const none = runFn(bin, fn, 'api_env NODE_ENV', { STUB_NO_API: '1' });
+        expect([none.status, none.stdout], file).toEqual([2, '']);
+        expect(none.stderr, file).toMatch(/no api container/);
+        const gone = runFn(bin, fn, 'api_env NODE_ENV', { STUB_GONE: '1' });
+        expect([gone.status, gone.stdout], file).toEqual([2, '']);
+        expect(gone.stderr, file).toMatch(/No such container: api-id/);
+      });
+      expect(fn, `${file}: Docker's errors are thrown away`).not.toMatch(/2>\s*\/dev\/null/);
+    }
+  });
+
+  it('nothing reads a container environment with a bare `docker inspect`', () => {
+    const offenders = commandFiles().filter((f) => /docker inspect\b[^\n]*\.Config\.Env/.test(read(f)));
+    expect(offenders, 'a bare docker inspect answers with the IMAGE when the container is gone').toEqual([]);
+  });
+
+  it('the managed gate reads DIRECT_DATABASE_URL that way too', () => {
+    const wf = read('.github/workflows/e2e-managed.yml');
+    expect(wf).toMatch(/docker container inspect --format '\{\{range \.Config\.Env\}\}\{\{println \.\}\}\{\{end\}\}' "\$api_id"/);
+    expect(wf).toMatch(/sed -n 's\/\^DIRECT_DATABASE_URL=\/\/p' <<<"\$api_env"/);
+  });
+});
+
+describe("the smoke's api_node finds Node on either image, and the version it gives", () => {
+  const fn = functionOf('deploy/compose/smoke-managed.sh', 'api_node');
+
+  it.each([NODE_PATH, OLD_NODE_PATH])('an image with Node at %s', (where) => {
+    withStub((bin) => {
+      const r = runFn(bin, fn, 'api_node', { STUB_NODE: where, STUB_NODE_VERSION: 'v24.99.7' });
+      expect([r.status, r.stdout]).toEqual([0, `${where} v24.99.7\n`]);
+    });
+  });
+
+  it('neither: nothing, and exit 1, which stops the preflights', () => {
+    withStub((bin) => {
+      const r = runFn(bin, fn, 'api_node');
+      expect([r.status, r.stdout]).toEqual([1, '']);
+    });
+    expect(read('deploy/compose/smoke-managed.sh')).toMatch(/API_NODE_FOUND="\$\(api_node\)" \|\| \{\n\s+echo "FATAL:/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. The API's Node is the Dockerfile's FROM node line's
+// ---------------------------------------------------------------------------
+
+describe("the smoke stops when the API's Node is not the FROM node line's version", () => {
+  const SMOKE = 'deploy/compose/smoke-managed.sh';
+  const fns = `${functionOf(SMOKE, 'api_node')}\n${functionOf(SMOKE, 'dockerfile_node')}`;
+  /** The preflights from `api_node` to the line that says they passed. */
+  const block = /^API_NODE_FOUND="\$\(api_node\)"[\s\S]*?^echo "preflights OK[^\n]*\n/m.exec(read(SMOKE))?.[0];
+  const fromNode = /^FROM\s+node:(\d+\.\d+\.\d+)-/m.exec(read(API_DOCKERFILE))?.[1];
+
+  const run = (bin: string, env: Record<string, string>, root = ROOT) =>
+    runFn(bin, `REPO_ROOT='${root}'\n${fns}`, block!, { STUB_NODE: NODE_PATH, ...env });
+
+  it("finds the block and the Dockerfile's version (vacuity)", () => {
+    expect(block, `${SMOKE}: no preflight block from API_NODE_FOUND to "preflights OK"`).toBeDefined();
+    expect(fromNode, `${API_DOCKERFILE}: no FROM node:<x.y.z>- line`).toBeDefined();
+    expect(withStub((bin) => runFn(bin, `REPO_ROOT='${ROOT}'\n${fns}`, 'dockerfile_node').stdout)).toBe(`v${fromNode}\n`);
+  });
+
+  // The Node image the API runs on before T13 (and on a rollback past it), and
+  // the distroless one: the same check, by whichever path runs.
+  it.each([OLD_NODE_PATH, NODE_PATH])('the same version, Node at %s: the preflights pass, and say which', (where) => {
+    withStub((bin) => {
+      const r = run(bin, { STUB_NODE: where, STUB_NODE_VERSION: `v${fromNode}` });
+      expect(r.status, r.stdout + r.stderr).toBe(0);
+      expect(r.stdout).toContain(`${where} v${fromNode} runs in the API container, the Dockerfile's Node`);
+    });
+  });
+
+  it.each([OLD_NODE_PATH, NODE_PATH])('another version, Node at %s: FATAL, with both named, and exit 1', (where) => {
+    withStub((bin) => {
+      const r = run(bin, { STUB_NODE: where, STUB_NODE_VERSION: 'v24.0.0' });
+      expect(r.status).toBe(1);
+      expect(r.stdout).toContain(`FATAL: the API container's ${where} is v24.0.0`);
+      expect(r.stdout).toContain(`is v${fromNode}`);
+      expect(r.stdout).not.toContain('preflights OK');
+    });
+  });
+
+  it('a Dockerfile with no FROM node line: FATAL, never a pass', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'api-dockerfile-'));
+    try {
+      writeFileSync(join(dir, 'Dockerfile'), 'FROM gcr.io/distroless/nodejs24-debian13:nonroot AS runtime\n');
+      withStub((bin) => {
+        const r = runFn(bin, `REPO_ROOT='/nonexistent'\n${fns}`, `dockerfile_node '${join(dir, 'Dockerfile')}'`);
+        expect([r.status, r.stdout]).toEqual([1, '']);
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+    withStub((bin) => {
+      const missing = mkdtempSync(join(tmpdir(), 'api-root-'));
+      try {
+        const r = run(bin, { STUB_NODE_VERSION: `v${fromNode}` }, missing);
+        expect(r.status).toBe(1);
+        expect(r.stdout).not.toContain('preflights OK');
+      } finally {
+        rmSync(missing, { recursive: true, force: true });
+      }
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. Compose
+// ---------------------------------------------------------------------------
+
+describe('no compose service built from the API image starts a shell', () => {
+  type Service = { build?: { dockerfile?: string }; command?: unknown; entrypoint?: unknown; healthcheck?: { test?: unknown } };
+  const files = ['deploy/compose', 'deploy/selfhost'].flatMap((dir) =>
+    readdirSync(join(ROOT, dir))
+      .filter((f) => /\.ya?ml$/.test(f))
+      .map((f) => `${dir}/${f}`),
+  );
+  const services = files.flatMap((file) => {
+    const doc = (parseYaml(read(file), { merge: true, logLevel: 'error' }) ?? {}) as { services?: Record<string, Service | null> };
+    return Object.entries(doc.services ?? {}).map(([name, service]) => ({ file, name, service: service ?? {} }));
+  });
+  const built = services.filter((s) => s.service.build?.dockerfile === API_DOCKERFILE);
+  // Node by its path on either image; T13 narrows this to the distroless one's.
+  const NODE_PATHS = [NODE_PATH, OLD_NODE_PATH];
+
+  it("finds managed.yml's api (vacuity)", () => {
+    expect(built.map((s) => `${s.file}: ${s.name}`)).toEqual(['deploy/compose/managed.yml: api']);
+  });
+
+  it('its healthcheck, command and entrypoint, in every file of its directory', () => {
+    const firstWord = (v: unknown): string => (Array.isArray(v) ? String(v[0]) : (String(v).trim().split(/\s+/)[0] ?? ''));
+    for (const b of built) {
+      for (const s of services.filter((x) => x.name === b.name && dirname(x.file) === dirname(b.file))) {
+        const where = `${s.file}: ${s.name}`;
+        const test = s.service.healthcheck?.test;
+        if (test !== undefined) {
+          expect(Array.isArray(test), `${where}: a string healthcheck runs in /bin/sh`).toBe(true);
+          expect((test as string[])[0], `${where}: CMD-SHELL needs /bin/sh, which the distroless image has not got`).toBe('CMD');
+          expect(NODE_PATHS, `${where}: ${String((test as string[])[1])}, not Node by its path`).toContain((test as string[])[1]);
+        }
+        if (s.service.entrypoint !== undefined) expect(NODE_PATHS, where).toContain(firstWord(s.service.entrypoint));
+        if (s.service.command !== undefined) {
+          const w = firstWord(s.service.command);
+          expect(SHELL.test(w) || /printenv$/.test(w) || w === 'node', `${where}: command ${JSON.stringify(s.service.command)}`).toBe(false);
+        }
+      }
+    }
+  });
+});

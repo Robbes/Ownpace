@@ -319,16 +319,25 @@ case "$1" in
             export POSTGRES_USER=openmigrate POSTGRES_DB=openmigrate
             exec sh -c "$3"
             ;;
-          api)
-            [ "$*" = "printenv NODE_ENV" ] || exit 92
-            echo "\${STUB_NODE_ENV:-production}"
-            exit 0
-            ;;
         esac
+        # Nothing else is exec'd: not the api, whose distroless image (0146
+        # T13) has no shell or printenv (its NODE_ENV is read below, 0146 T13a).
         exit 91
+        ;;
+      ps)
+        # The api container's id, for its NODE_ENV.
+        [ "$2" = -q ] && [ "$3" = api ] || exit 92
+        echo a91e0001
+        exit 0
         ;;
     esac
     exit 96
+    ;;
+  container)
+    # The api container's environment, as Docker holds it (0132 T4, 0146 T13a).
+    [ "$2" = inspect ] && [ "$3" = --format ] && [ "$4" = '{{range .Config.Env}}{{println .}}{{end}}' ] && [ "$5" = a91e0001 ] || exit 89
+    printf '%s\\n' PATH=/usr/local/sbin:/usr/local/bin "NODE_ENV=\${STUB_NODE_ENV:-production}"
+    exit 0
     ;;
 esac
 exit 97
@@ -1800,7 +1809,9 @@ describe('the first bring-up: the stops, the resume, the checks and the first lo
         'curl https://app.ownpace.eu/api/auth/mode',
         'curl https://id.ownpace.eu/.well-known/openid-configuration',
       ]);
-      expect(called(s, 'docker').some((l) => l.endsWith('exec -T api printenv NODE_ENV'))).toBe(true);
+      expect(called(s, 'docker').some((l) => l.endsWith('ps -q api'))).toBe(true);
+      expect(called(s, 'docker').some((l) => l.startsWith("docker container inspect --format {{range .Config.Env}}{{println .}}{{end}} a91e0001"))).toBe(true);
+      expect(called(s, 'docker').some((l) => / exec (-T )?api /.test(l))).toBe(false);
       expect(called(s, 'docker').some((l) => l.startsWith('docker network ls --filter name=ownpace-live_'))).toBe(true);
       // Asked of the machine once, at the end; before that only of recorded lines, for EXPOSURE_ALLOW.
       expect(called(s, 'exposure-check').filter((l) => !l.endsWith(' --from -'))).toEqual([`exposure-check --env-file ${join(s.compose, '.env')}`]);

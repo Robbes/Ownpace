@@ -17,6 +17,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   which Debian has fixed. The managed tasks copy the same Node as before.
   Nothing a stack sets changes.
 
+### Changed
+
+- **Nothing execs a shell or `printenv` into the managed api container any
+  more** (workplan 0146 T13a, #1710): the smoke, the managed gate, `deploy-live.sh`,
+  `stand-up-live.sh` and the docs read its variables with `docker container
+  inspect`, and the smoke runs Node there by its path and stops when that
+  Node is not the version the managed tasks get. It works on today's image and
+  on the distroless one a later release moves the API to, and ships first so
+  that no deploy meets that image with an older `deploy-live.sh`. Nothing a
+  stack sets changes.
+
 ## [0.2.0-alpha.2] - 2026-10-25
 
 The Alpha's texts are final at version 1.0, and testers are asked to accept
