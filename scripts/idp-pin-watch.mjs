@@ -54,7 +54,8 @@
  *                      (`chainguard/minio:latest`, 0146 T7), against the digest
  *                      its registry names for that tag today; an image built
  *                      here (`localhost/postgres`, 0146 T15) by its
- *                      Dockerfile's FROM, the tag its own name starts with; the
+ *                      Dockerfile's FROM, the tag its own name starts with,
+ *                      its line saying that Dependabot reads that one too; the
  *                      busybox copies in the scripts, www.yml's nginx against
  *                      apps/web/Dockerfile's, Stalwart's copies and its newest
  *                      v0.16.x, GoAccess, and the Trivy the Security Scan runs.
@@ -142,6 +143,14 @@ export const COMPARED_ELSEWHERE = {
  */
 export const REBUILD_NOTE =
   'a rebuild of the same tag: move the digest in a pull request of its own, with the image scan of the new one read and E2E (managed) on its branch';
+
+/**
+ * Said beside an image built here that is behind (`localhost/postgres`, 0146
+ * T15): Dependabot reads its Dockerfile too (its entry in
+ * .github/dependabot.yml), so the pull request that moves it is Dependabot's.
+ */
+export const builtNote = (dockerfile) =>
+  `Dependabot reads this one too, in \`${dockerfile}\`: take its pull request, and push to it the \`sed\` its failing test prints for the image lines`;
 
 /** How Stalwart moves, said beside its line in the summary issue: AGENTS.md forbids moving it otherwise. */
 export const STALWART_RULE =
@@ -804,6 +813,7 @@ export async function routineRows(repo, net) {
       if (file === 'deploy/compose/www.yml' && image.repo === 'nginx') continue;
       const key = `${image.repo}:${image.tag}`;
       if (!images.has(key)) images.set(key, { ...image, where: [] });
+      if (built) images.get(key).dockerfile = built.dockerfile;
       for (const where of built ? [built.dockerfile, file] : [file]) {
         if (!images.get(key).where.includes(where)) images.get(key).where.push(where);
       }
@@ -825,7 +835,8 @@ export async function routineRows(repo, net) {
         };
       }
       const newest = newestLike(image.tag, await tagsFor(image.repo));
-      return { pin: image.tag, newest, state: stateOf(image.tag, newest) };
+      const state = stateOf(image.tag, newest);
+      return { pin: image.tag, newest, state, ...(state === 'behind' && image.dockerfile ? { notes: [builtNote(image.dockerfile)] } : {}) };
     }]);
   }
 
@@ -937,7 +948,7 @@ export function summaryOf(rows, status) {
   const behind = rows.filter((r) => r.state === 'behind');
   const failed = rows.filter((r) => r.state === 'error' || r.state === 'ahead');
   const body = [
-    "Dependabot does not read these pins: its compose fetcher reads only files named like `compose.yml`, and no file in `deploy/compose` is (`a-dependabot-directory-with-nothing-to-read`). So this watch reads them, each against its own registry's tags of the same major. Behind:",
+    "Dependabot does not read these pins, but for an image built here, whose line says so: its compose fetcher reads only files named like `compose.yml`, and no file in `deploy/compose` is (`a-dependabot-directory-with-nothing-to-read`). So this watch reads them, each against its own registry's tags of the same major. Behind:",
     '',
     ...behind.map(lineOf),
     '',

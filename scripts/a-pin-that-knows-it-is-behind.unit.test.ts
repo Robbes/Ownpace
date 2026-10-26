@@ -56,6 +56,7 @@ import {
   actionDefault,
   baseImageOf,
   builtImage,
+  builtNote,
   clickhouseRow,
   clickhouseSupport,
   compareTags,
@@ -704,6 +705,13 @@ describe('the routine pins, in one summary issue', () => {
     const postgres = rows.filter((r) => /postgres/.test(r.name ?? ''));
     expect(postgres.map((r) => [r.name, r.pin, r.newest, r.state])).toEqual([['postgres', from, newer, 'behind']]);
     expect(postgres[0]!.where).toBe('deploy/compose/postgres/Dockerfile, deploy/compose/managed.yml, deploy/compose/dev.yml');
+    // Dependabot reads that Dockerfile too, so the issue says whose pull request moves it,
+    // and says it on that line alone: a pulled image's line is Dependabot's blind spot.
+    expect(postgres[0]!.notes).toEqual([builtNote('deploy/compose/postgres/Dockerfile')]);
+    const body = summaryOf(rows, []).body ?? '';
+    expect(body.split('\n').find((l) => l.startsWith('- `postgres`'))).toContain('Dependabot reads this one too, in `deploy/compose/postgres/Dockerfile`');
+    expect(body).toMatch(/^Dependabot does not read these pins, but for an image built here, whose line says so:/);
+    expect(rows.filter((r) => r.notes?.some((n) => n.startsWith('Dependabot reads'))).map((r) => r.name)).toEqual(['postgres']);
     // Without the Dockerfile there is nothing to say what the image is: an error, never "current".
     const without: Repo = { read: (rel) => (rel === 'deploy/compose/postgres/Dockerfile' ? null : REAL.read(rel)), list: REAL.list };
     await expect(routineRows(without, fakeNet(registry()))).rejects.toThrow(/deploy\/compose\/postgres\/Dockerfile, which is not in this checkout/);
