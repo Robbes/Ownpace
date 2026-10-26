@@ -4476,6 +4476,72 @@ fix.
 > PostgreSQL databases take a minor back and forth (a minor never changes the
 > storage format), but the same order keeps them from having to.
 
+**Both PostgreSQL databases run a build of the official image, without gosu,
+as uid 70** (workplan 0146 T15, 2026-10-26). `postgres` and `trigger-db` run
+`localhost/postgres:<base tag>-<12 hex>`, which compose builds from
+`deploy/compose/postgres/Dockerfile`: the pinned `postgres:18.6-alpine` digest
+with `/usr/local/bin/gosu` removed and `USER 70:70`. gosu was the image's one
+critical finding and 25 of its 26 highs (Go 1.24.6's standard library), and the
+entrypoint runs it only when the container starts as root; started as uid 70,
+the user gosu dropped to, it never does. What that means for you:
+
+- **The first `up` builds it, and both databases restart once.** The bring-up's
+  data and trigger phases (`up_wait postgres`, `up_wait trigger-db`) find no
+  image of that name and build it, then recreate the two containers because
+  their image changed: the OTA stack at the E2E (managed) run of the branch or
+  the next nightly gate, live inside `deploy-live.sh`'s hold and drain, from the
+  tag. The build pulls the pinned base when the machine does not have it (as
+  `up` pulled the image before), runs one `rm`, and needs no package mirror.
+  After that compose never builds it again until the Dockerfile changes, which
+  changes the name.
+- **The data stays where it is, and is already uid 70's.** The root entrypoint
+  chowned every file in PGDATA to uid 70 on every start, so the volumes need
+  nothing. To see it before the deploy, on the old containers (their `exec` is
+  root's), each of these prints nothing:
+  `docker compose -f deploy/compose/managed.yml exec -T postgres find /var/lib/postgresql/18/docker ! -user postgres`
+  and the same with `trigger-db`. A new volume takes the image's
+  `/var/lib/postgresql`, uid 70's and mode 1777, and initialises as uid 70.
+  The base is the same Alpine and musl, so the databases' collation is
+  untouched.
+- **`docker compose … exec postgres` (and `trigger-db`) runs as uid 70, not
+  root.** Every command this repository runs there is `psql -U <role>`,
+  `pg_dump`, `pg_dumpall` or `pg_restore`, over the socket the image's
+  `pg_hba.conf` trusts, and answers the same: `trigger-version.sh` (backup and
+  restore drill), `copy-before-update.sh`, `dump-idp.sh`, `db-roles.sh` and
+  `rotate-db-passwords.sh`, the bring-up, `deploy-live.sh`, the smoke and the
+  rows of this document. Add `-u 0` for anything that needs root in the
+  container. An interactive `psql` or shell keeps its history in the
+  container's `/tmp`, as root's was kept in `/root`, never on the data volume
+  (uid 70's home).
+- **The network questions ask with the build.** `db-roles.sh` and
+  `stand-up-live.sh` ask with managed.yml's first postgres image, now the build,
+  which the stack's own `up` made. A checkout pulled ahead of its stack, before
+  any `up`, has no such image yet: the question then ends in docker's own
+  error, which reads as "cannot tell", never as a verdict. Run the bring-up
+  first.
+- **Rolling back to a tag before this runs the official image again, as
+  root.** Its entrypoint finds the volumes uid 70's, as it left them, and
+  starts; the data format is the same PostgreSQL 18.6.
+- **Two failures, and what they mean.** A container that exits with
+  `exec: gosu: not found` was started as root (a `user:` or `-u 0` on the
+  service itself): remove it. One that exits with
+  `mkdir: can't create directory '/var/lib/postgresql/18/': Permission denied`
+  has a bind mount of a host directory instead of the named volume: the stacks
+  here use named volumes only.
+- **Moving the pin** is the Dockerfile's FROM, by tag and digest, and the
+  three `image:` lines that name the build (`managed.yml` twice, `dev.yml`),
+  whose last twelve hex digits are
+  `grep -Ev '^[[:space:]]*(#|$)' deploy/compose/postgres/Dockerfile | sha256sum | cut -c1-12`;
+  `scripts/a-database-started-as-root.unit.test.ts` says what to write. The
+  integration tests start the same FROM. The pin watch reports a newer tag of
+  the FROM, and the weekly image scan builds the Dockerfile and scans what it
+  built.
+
+The appliance (`deploy/selfhost/compose.yml`) still runs the official image as
+root, on purpose: its pin is Dependabot's, which moves an image line and not a
+build, and an appliance may keep its data in a bind mount, which a start as
+uid 70 cannot initialise.
+
 ### `ownpace-live`: a release tag, with `deploy-live.sh`
 
 **The first time is not this:** *Standing up ownpace-live*, above, with

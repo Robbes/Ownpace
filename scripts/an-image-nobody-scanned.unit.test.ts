@@ -39,6 +39,15 @@
  *    runner condition. The new jobs come after it, with names of their own and
  *    a plain `runs-on`.
  *
+ * And an image no registry serves cannot be pulled to be scanned (workplan
+ * 0146 T15, 2026-10-26). The Postgres of managed.yml and dev.yml is built by
+ * compose from `deploy/compose/postgres/Dockerfile`, the official image
+ * without gosu, as `localhost/postgres:<tag>`. A compose file's
+ * `localhost/<name>` image is listed with the directory it is built from, its
+ * leg checks this commit out under `src/` and builds that directory on the
+ * arm64 runner before Trivy reads it, and its name (`postgres-managed`, the
+ * category and the issue) is the one the pulled image had.
+ *
  * The network is stubbed (the git tags, the Trigger.dev CLI's tarball) and so
  * is `gh`; the compose files and scripts are the real ones.
  */
@@ -53,6 +62,7 @@ import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { COMPOSE_FILES, readImages, repoReader, stepsUsing, type Net, type Repo } from './idp-pin-watch.mjs';
 import {
+  BUILT_HERE,
   ISSUE_PREFIX,
   OWNPACE_IMAGES,
   OWNPACE_REGISTRY,
@@ -221,7 +231,7 @@ describe('which images it scans', () => {
     // the script reads it from managed.yml's first postgres line, as
     // stand-up-live.sh does, so it names no literal and is not listed on its
     // own: the one scan of managed.yml's postgres covers it.
-    const managedPostgres = readImages(REAL.read('deploy/compose/managed.yml')!).find((i) => i.repo === 'postgres')!;
+    const managedPostgres = readImages(REAL.read('deploy/compose/managed.yml')!).find((i) => i.repo === 'localhost/postgres')!;
     expect(images.find((i) => i.name === 'postgres-managed')?.ref).toBe(managedPostgres.ref);
     const dbRoles = REAL.read('deploy/compose/db-roles.sh')!;
     expect(
@@ -245,6 +255,23 @@ describe('which images it scans', () => {
     expect(named.find((i) => i.name === 'postgres-managed')?.ref).toBe(managedPostgres.ref);
     expect(named.find((i) => i.name === 'postgres-managed')?.where).toContain('deploy/compose/db-roles.sh');
     expect(named.map((i) => i.name)).toEqual(images.map((i) => i.name));
+  });
+
+  it('an image a compose file builds here (localhost/<name>) is listed with the directory its leg builds, and refused without a Dockerfile (0146 T15)', async () => {
+    const images = await imagesToScan(REAL, fakeNet());
+    const postgres = images.find((i) => i.name === 'postgres-managed')!;
+    expect(postgres.ref, "managed.yml's Postgres is pulled from a registry again").toMatch(/^localhost\/postgres:/);
+    expect(postgres.ref.startsWith(BUILT_HERE)).toBe(true);
+    expect(postgres.context).toBe('deploy/compose/postgres');
+    expect(postgres.where, "managed.yml's and dev.yml's are one build, so one scan").toBe('deploy/compose/managed.yml, deploy/compose/dev.yml');
+    expect(postgres.floating, "its pins are its Dockerfile's").toBe(false);
+    expect(REAL.read(`${postgres.context}/Dockerfile`)).toMatch(/^FROM postgres:/m);
+    // Every other image is pulled, and carries no context: the appliance's Postgres among them.
+    for (const image of images.filter((i) => !i.ref.startsWith(BUILT_HERE))) expect(image.context, image.name).toBeUndefined();
+    expect(images.find((i) => i.name === 'postgres-selfhost')?.context).toBeUndefined();
+    // A localhost image with nothing to build it from is refused, never left out.
+    const missing: Repo = { read: (rel) => (rel === 'deploy/compose/postgres/Dockerfile' ? null : REAL.read(rel)), list: REAL.list };
+    await expect(imagesToScan(missing, fakeNet())).rejects.toThrow(/deploy\/compose\/postgres\/Dockerfile, which is not in this checkout/);
   });
 
   it("the tasks' base image, as the pinned CLI names it for the runtime trigger.config.ts asks for", async () => {
@@ -317,11 +344,18 @@ describe('which images it scans', () => {
   it("keeps both stacks' names when their pins meet on one reference, and when they part again", async () => {
     const selfhostYml = REAL.read('deploy/selfhost/compose.yml')!;
     const selfhost = readImages(selfhostYml).find((i) => i.repo === 'postgres')!;
-    // The managed stack's postgres everywhere it is named, on the appliance's
-    // reference: db-roles.sh's client follows managed.yml by itself.
+    // The managed stack's postgres everywhere it is named, back on the official
+    // image at the appliance's reference: db-roles.sh's client follows
+    // managed.yml by itself. (It is built here since 0146 T15, a reference the
+    // appliance's can never be, so the two meet only that way.)
+    const back = (text: string, ref: string) => {
+      const moved = text.replaceAll(/^(\s*image:\s*)localhost\/postgres:\S+/gm, `$1${ref}`);
+      expect(moved, 'no built postgres line to move').not.toBe(text);
+      return moved;
+    };
     const meet = (ref: string) => ({
-      'deploy/compose/managed.yml': repin(REAL.read('deploy/compose/managed.yml')!, 'postgres', ref),
-      'deploy/compose/dev.yml': repin(REAL.read('deploy/compose/dev.yml')!, 'postgres', ref),
+      'deploy/compose/managed.yml': back(REAL.read('deploy/compose/managed.yml')!, ref),
+      'deploy/compose/dev.yml': back(REAL.read('deploy/compose/dev.yml')!, ref),
     });
     const postgres = (list: ScanImage[]) => list.filter((i) => i.name.startsWith('postgres')).map((i) => [i.name, i.ref]).sort();
     const met = await imagesToScan(withFiles(meet(selfhost.ref)), fakeNet());
@@ -330,9 +364,9 @@ describe('which images it scans', () => {
     expect(postgres(parted)).toEqual([['postgres-managed', selfhost.ref], ['postgres-selfhost', 'postgres:99-alpine']]);
     // One stack running two references of one name: the first read keeps the
     // name, the other is named apart by its file, and neither shares a category.
-    const split = { 'deploy/compose/dev.yml': repin(REAL.read('deploy/compose/dev.yml')!, 'postgres', 'postgres:99-alpine') };
+    const split = { 'deploy/compose/dev.yml': back(REAL.read('deploy/compose/dev.yml')!, 'postgres:99-alpine') };
     const apart = await imagesToScan(withFiles(split), fakeNet());
-    const managedPostgres = readImages(REAL.read('deploy/compose/managed.yml')!).find((i) => i.repo === 'postgres')!;
+    const managedPostgres = readImages(REAL.read('deploy/compose/managed.yml')!).find((i) => i.repo === 'localhost/postgres')!;
     expect(postgres(apart)).toEqual(
       [['postgres-managed', managedPostgres.ref], ['postgres-managed-dev', 'postgres:99-alpine'], ['postgres-selfhost', selfhost.ref]].sort(),
     );
@@ -440,6 +474,18 @@ describe('the report job', () => {
     expect(table).toMatch(/\| `minio` \| `bitnamilegacy\/minio:2025\.5\.24-debian-12-r5@sha256:444444444444…` \| debian 12\.11 \| supported \| 1 \| 0 \| 1 \|/);
   });
 
+  it('says which image was built here, and routes its issue to the Dockerfile rather than to a tag upstream moves', () => {
+    const built: ScanImage = { name: 'postgres-managed', ref: 'localhost/postgres:18.6-alpine-0123456789ab', where: 'deploy/compose/managed.yml', floating: false, context: 'deploy/compose/postgres' };
+    const summary = summarize([built], reports({ 'trivy-image-postgres-managed.json': trivyJson({ Family: 'alpine', Name: '3.24.3' }) }));
+    expect(summary.missing).toEqual([]);
+    expect(summary.lines.join('\n')).toMatch(/\| `postgres-managed` \| `localhost\/postgres:18\.6-alpine-0123456789ab` \(built from `deploy\/compose\/postgres`\) \| alpine 3\.24\.3 \| supported \|/);
+    const issue = eoslIssue(built, readReport(trivyJson({ Family: 'alpine', Name: '3.20.10', EOSL: true })));
+    expect(issue.state).toBe('behind');
+    expect(issue.body).toContain('`deploy/compose/postgres/Dockerfile`');
+    expect(issue.body, 'a built image has no upstream tag of its own to wait for').not.toContain('a newer tag of it once upstream');
+    expect(issue.body).not.toContain('serves today');
+  });
+
   it('reads the image list the list job handed on, and refuses an empty one', () => {
     expect(imagesFromEnv(JSON.stringify(IMAGES))).toEqual(IMAGES);
     expect(() => imagesFromEnv('[]')).toThrow(/no image/);
@@ -538,7 +584,9 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
   });
 
   it('runs on a GitHub-hosted runner, never on the machine whose images it scans', () => {
-    for (const job of [list, scan, report]) expect(job?.['runs-on']).toBe('ubuntu-24.04');
+    for (const job of [list, report]) expect(job?.['runs-on']).toBe('ubuntu-24.04');
+    // A leg that builds its image builds it natively, for the platform scanned.
+    expect(scan?.['runs-on']).toBe("${{ matrix.context && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}");
   });
 
   it('may do what each job needs, and nothing else', () => {
@@ -554,7 +602,29 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
     expect(scan!.needs).toBe('image-list');
     expect(scan!.strategy?.['fail-fast']).toBe(false);
     expect(scan!.strategy?.matrix).toEqual({ include: '${{ fromJSON(needs.image-list.outputs.images) }}' });
-    expect(scan!.env).toEqual({ TRIVY_PLATFORM: 'linux/arm64', TRIVY_IMAGE_SRC: 'remote' });
+    expect(scan!.env).toEqual({ TRIVY_PLATFORM: 'linux/arm64', TRIVY_IMAGE_SRC: "${{ matrix.context && 'docker' || 'remote' }}" });
+  });
+
+  it('builds an image built here on its leg only, before Trivy, from a checkout under src/, under the reference the compose file runs (0146 T15)', () => {
+    const trivy = scan!.steps.findIndex((s) => s.uses?.startsWith('aquasecurity/trivy-action@'));
+    const built = scan!.steps.filter((s) => s.if === 'matrix.context');
+    expect(built, 'no step builds the image of a context leg').toHaveLength(2);
+    for (const step of built) expect(scan!.steps.indexOf(step), 'a build step after the scan').toBeLessThan(trivy);
+    expect(scan!.steps.slice(trivy).some((s) => s.if?.includes('matrix.context')), 'a build step after the scan').toBe(false);
+    expect(built[0]!.uses).toMatch(/^actions\/checkout@[0-9a-f]{40}$/);
+    // Never the working directory, where Trivy would read a .trivyignore or a trivy.yaml on its own.
+    expect(built[0]!.with).toEqual({ 'persist-credentials': false, path: 'src' });
+    expect(built[1]!.id).toBe('build');
+    expect(built[1]!.env).toEqual({ CONTEXT: '${{ matrix.context }}', REF: '${{ matrix.ref }}' });
+    expect(built[1]!.run).toMatch(/^set -euo pipefail$/m);
+    expect(built[1]!.run).toContain('docker build --pull --platform "$TRIVY_PLATFORM" --tag "$REF" "src/$CONTEXT"');
+    expect(built[1]!.run, 'a build here pushes nothing').not.toMatch(/--push|docker push|docker login/);
+    // Every other step runs on every leg.
+    expect(scan!.steps.filter((s) => s.if && s.if !== 'always()' && s !== built[0] && s !== built[1])).toEqual([]);
+    // And a failed build is named by the leg's own check, before the scan it skipped.
+    const check = scan!.steps.at(-1)!;
+    expect(check.env).toMatchObject({ BUILD_OUTCOME: '${{ steps.build.outcome }}' });
+    expect(check.run).toMatch(/case "\$BUILD_OUTCOME" in\n\s+success \| skipped\) ;;/);
   });
 
   it('runs the same pinned trivy-action and the same named Trivy as the existing scan, as JSON, report only', () => {

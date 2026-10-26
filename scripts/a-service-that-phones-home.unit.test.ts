@@ -614,10 +614,27 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
 
 const NONE = (what: string): string => `${what} has no telemetry, update check or error report of any kind`;
 
+/**
+ * The official PostgreSQL image built here without gosu, as uid 70 (workplan
+ * 0146 T15, deploy/compose/postgres/Dockerfile). A build is `build` to this
+ * file, so the row holds the software by the Dockerfile's FROM instead.
+ */
+const BUILT_POSTGRES: Row = {
+  readAt: 'build',
+  why: `${NONE('PostgreSQL')}; built here from the official image, with gosu removed and nothing added that runs`,
+  holds: (svc, entry) => {
+    const build = svc.build as string | { context?: string } | undefined;
+    const context = typeof build === 'string' ? build : build?.context;
+    if (!context) return ['no build context to read the Dockerfile from'];
+    const from = /^FROM\s+(\S+)\s*$/m.exec(read(`${dirname(entry.file)}/${context.replace(/^\.\//, '')}/Dockerfile`))?.[1] ?? '';
+    return /^postgres:[^/]+$/.test(from) ? [] : [`built FROM ${from || 'nothing'}, not the official postgres image`];
+  },
+};
+
 /** Repositories, not tags: a new version of the same software keeps the reason; other software does not. */
 export const NO_SWITCH: Readonly<Record<string, Row>> = {
-  'deploy/compose/managed.yml:postgres': { readAt: 'postgres', why: NONE('PostgreSQL') },
-  'deploy/compose/managed.yml:trigger-db': { readAt: 'postgres', why: NONE('PostgreSQL') },
+  'deploy/compose/managed.yml:postgres': BUILT_POSTGRES,
+  'deploy/compose/managed.yml:trigger-db': BUILT_POSTGRES,
   'deploy/compose/managed.yml:pgbouncer': { readAt: 'edoburu/pgbouncer', why: NONE('PgBouncer') },
   'deploy/compose/managed.yml:trigger-redis': { readAt: 'redis', why: NONE('Redis') },
   'deploy/compose/managed.yml:trigger-registry': {
@@ -663,7 +680,7 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
       'ask our own services and public pages of the providers it watches, and carry nothing about anyone',
   },
   'deploy/compose/www.yml:www': { readAt: 'nginx', why: NONE('nginx') },
-  'deploy/compose/dev.yml:postgres': { readAt: 'postgres', why: NONE('PostgreSQL') },
+  'deploy/compose/dev.yml:postgres': BUILT_POSTGRES,
   'deploy/selfhost/compose.yml:postgres': { readAt: 'postgres', why: NONE('PostgreSQL') },
   'deploy/selfhost/compose.yml:app': {
     readAt: 'build',

@@ -133,9 +133,15 @@
 # the pins move by pull request since 2026-10-22, tag and digest. The reference
 # ends at the first space or `#`, as dump-idp.sh reads its pin, so a comment
 # after it (dev.yml writes its image lines that way) never reaches `docker run`.
+# Since 2026-10-26 that line is the build `localhost/postgres:…`
+# (deploy/compose/postgres, workplan 0146 T15), which the stack's own `up`
+# made; the official `postgres:` is still read, should the line go back. A
+# checkout ahead of its stack, whose build the machine does not have yet, gets
+# docker's own error as the answer, which is "cannot tell", never a verdict.
 # Empty when the file names none, and db_roles_init refuses then.
-# scripts/rotate-db-passwords.unit.test.ts holds it to managed.yml.
-DB_ROLES_CLIENT_IMAGE="$(sed -n '/^[[:space:]]*image:[[:space:]]*postgres:/{s/^[[:space:]]*image:[[:space:]]*\([^[:space:]#]*\).*/\1/p;q;}' "${SCRIPT_DIR}/managed.yml" 2>/dev/null)" ||
+# scripts/rotate-db-passwords.unit.test.ts holds it to managed.yml, and
+# scripts/a-database-started-as-root.unit.test.ts to the build.
+DB_ROLES_CLIENT_IMAGE="$(sed -n '/^[[:space:]]*image:[[:space:]]*\(localhost\/\)\{0,1\}postgres:/{s/^[[:space:]]*image:[[:space:]]*\([^[:space:]#]*\).*/\1/p;q;}' "${SCRIPT_DIR}/managed.yml" 2>/dev/null)" ||
   DB_ROLES_CLIENT_IMAGE=''
 
 # env_value and compose_project, and own_address_redact for db_roles_masked.

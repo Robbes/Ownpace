@@ -19,6 +19,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   older image on it afterwards, and runs with PHP's session upload progress
   off, upstream's mitigation for CVE-2026-115560. `db-roles.sh` runs the
   postgres client `managed.yml` pins.
+- **Both databases of the managed stack start as PostgreSQL's own user, from
+  the official image without gosu** (workplan 0146 T15): the scan's one
+  critical and 25 of its 26 high findings in `postgres:18.6-alpine` were the Go
+  runtime in gosu, which the image ran only to drop from root to that user.
+  Compose builds `deploy/compose/postgres` on the first `up`, and both
+  databases restart once; their data needs nothing, being that user's already.
+  `docker compose exec postgres` now runs as that user (add `-u 0` for root);
+  every script's `psql`, `pg_dump` and `pg_restore` answers as before. The
+  self-hosted appliance keeps the official image.
 
 ## [0.2.0-alpha.2] - 2026-10-25
 

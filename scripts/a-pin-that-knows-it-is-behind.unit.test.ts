@@ -55,6 +55,7 @@ import {
   WINDOW_DAYS,
   actionDefault,
   baseImageOf,
+  builtImage,
   clickhouseRow,
   clickhouseSupport,
   compareTags,
@@ -613,7 +614,9 @@ function registry(newer: Record<string, string> = {}): Stubs {
   const pins = new Map<string, string[]>();
   const digests = new Map<string, string>();
   for (const file of COMPOSE_FILES) {
-    for (const image of readImages(REAL.read(file)!)) {
+    for (const line of readImages(REAL.read(file)!)) {
+      // A built image's registry is its Dockerfile's FROM's: no registry lists its own name.
+      const image = builtImage(REAL, file, line)?.base ?? line;
       pins.set(registryOf(image.repo).name, [...(pins.get(registryOf(image.repo).name) ?? []), image.tag]);
       if (image.digest) digests.set(`${registryOf(image.repo).name}:${image.tag}`, image.digest);
     }
@@ -650,12 +653,13 @@ describe('the routine pins, in one summary issue', () => {
     const { rows } = await routineRows(REAL, fakeNet(registry()));
     const compared = new Set(rows.map((r) => r.name));
     for (const file of COMPOSE_FILES) {
-      for (const image of readImages(REAL.read(file)!)) {
+      for (const line of readImages(REAL.read(file)!)) {
+        const image = builtImage(REAL, file, line)?.base ?? line;
         const covered =
           compared.has(image.repo) ||
           image.repo in COMPARED_ELSEWHERE ||
           (file === 'deploy/compose/www.yml' && image.repo === 'nginx' && compared.has('nginx in www.yml'));
-        expect(covered, `${file}:${image.line} runs ${image.repo}, which nothing compares`).toBe(true);
+        expect(covered, `${file}:${line.line} runs ${image.repo}, which nothing compares`).toBe(true);
       }
     }
     for (const reason of Object.values(COMPARED_ELSEWHERE)) expect(reason.length).toBeGreaterThan(10);
@@ -688,6 +692,21 @@ describe('the routine pins, in one summary issue', () => {
     const { gh, calls } = fakeGh([OTHER]);
     expect(keepIssue(summary, gh, TITLES.routine)).toBe('opened');
     expect(calls).toEqual([['issue', 'create', '--title', TITLES.routine, '--body', summary.body]]);
+  });
+
+  it("compares the Postgres built here by its Dockerfile's FROM, never by a name no registry lists (0146 T15)", async () => {
+    const dockerfile = REAL.read('deploy/compose/postgres/Dockerfile')!;
+    const from = /^FROM postgres:(\S+)@/m.exec(dockerfile)![1]!;
+    expect(readImages(MANAGED).filter((i) => i.repo === 'localhost/postgres').length, 'managed.yml builds no postgres').toBe(2);
+    const [, major, minor, rest] = /^(\d+)\.(\d+)(.*)$/.exec(from)!;
+    const newer = `${major}.${Number(minor) + 1}${rest}`;
+    const { rows } = await routineRows(REAL, fakeNet(registry({ 'library/postgres': newer })));
+    const postgres = rows.filter((r) => /postgres/.test(r.name ?? ''));
+    expect(postgres.map((r) => [r.name, r.pin, r.newest, r.state])).toEqual([['postgres', from, newer, 'behind']]);
+    expect(postgres[0]!.where).toBe('deploy/compose/postgres/Dockerfile, deploy/compose/managed.yml, deploy/compose/dev.yml');
+    // Without the Dockerfile there is nothing to say what the image is: an error, never "current".
+    const without: Repo = { read: (rel) => (rel === 'deploy/compose/postgres/Dockerfile' ? null : REAL.read(rel)), list: REAL.list };
+    await expect(routineRows(without, fakeNet(registry()))).rejects.toThrow(/deploy\/compose\/postgres\/Dockerfile, which is not in this checkout/);
   });
 
   it('holds the copies together: www.yml with the web image, the scripts with the compose busybox, Stalwart with itself', async () => {

@@ -17,6 +17,7 @@ export declare const STACKS: Record<string, string>;
 export declare const OWNPACE_REGISTRY: string;
 export declare const OWNPACE_IMAGES: string[];
 export declare const ISSUE_PREFIX: string;
+export declare const BUILT_HERE: string;
 
 /** One image to scan: one matrix leg, one SARIF category, one artifact, one issue title. */
 export interface ScanImage {
@@ -24,6 +25,8 @@ export interface ScanImage {
   ref: string;
   where: string;
   floating: boolean;
+  /** Set when no registry serves the image: the directory its leg builds it from (`deploy/compose/postgres`). */
+  context?: string;
 }
 
 /** What one Trivy JSON report says. */

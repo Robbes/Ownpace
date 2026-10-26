@@ -59,7 +59,9 @@ pnpm test
 ```bash
 pnpm test:integration
 ```
-Testcontainers manages everything: fresh Postgres, fresh Stalwart (two-phase: recovery-mode
+Testcontainers manages everything: fresh Postgres (the base of the stacks' build,
+`deploy/compose/postgres/Dockerfile`, started as its postgres user, uid 70, as the stacks start it;
+workplan 0146 T15), fresh Stalwart (two-phase: recovery-mode
 provisioning of `dev.local` + `source@dev.local` / `target@dev.local` via `stalwart-cli apply`,
 then a normal-mode container on the same data volume), schema migration, and teardown including
 volume cleanup. Stalwart binds **TLS listeners only** (IMAPS 993, HTTPS 443, SMTPS 465, POP3S 995)
@@ -67,7 +69,9 @@ plus unencrypted management/JMAP HTTP on 8080; there is **no plaintext IMAP 143*
 client connects to 993 with `rejectUnauthorized: false` for the self-signed test certificate.
 
 The optional `deploy/compose/dev.yml` stack (Postgres + Nextcloud) remains available for manual
-exploration, but the integration suite does not depend on it. `dev.yml` does **not** include
+exploration, but the integration suite does not depend on it. Its Postgres is `managed.yml`'s
+build, so its first `up` builds `deploy/compose/postgres` (a few seconds: the official image with
+gosu removed). `dev.yml` does **not** include
 Stalwart — its two-phase startup can't be expressed as one `docker compose` service; bring it up
 with `deploy/selfhost/setup-stalwart.sh` instead (joins `dev.yml`'s `ownpace_dev-network`, so it's
 reachable from anything else on that network too).
@@ -405,7 +409,11 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   stacks run that name, so a pin that moves, or two stacks' pins that meet on one reference, keep
   their names. An image that leaves the stacks, or is renamed, leaves its `trivy-image-<name>`
   configuration behind in code scanning with its alerts open; delete it on the code scanning tool
-  status page (the Security tab, Code scanning, Tool status).
+  status page (the Security tab, Code scanning, Tool status). An image a compose file builds here,
+  `localhost/<name>` from `<name>/Dockerfile` beside it (the Postgres of `managed.yml` and
+  `dev.yml`, workplan 0146 T15), has no registry to be read from: its leg checks the commit out
+  under `src/`, builds the directory natively on GitHub's arm64 runner and scans what it built,
+  under the name the pulled image had (`postgres-managed`).
 - `e2e.yml` — nightly (23:30 UTC on the Postgres stack, 01:30 UTC on PGlite) and on dispatch, on
   `[self-hosted, linux, arm64]` (the Spark); brings up Stalwart via
   `deploy/selfhost/setup-stalwart.sh` (the two-phase recovery→normal bring-up — not a

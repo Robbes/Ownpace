@@ -82,6 +82,9 @@ name: ownpace-managed
 # (scripts/idp-pin-watch.mjs) says when a newer tag is listed, and the weekly image scan
 # (scripts/image-scan.mjs) counts the findings a newer package fixes, which is when a rebuild of
 # the same tag is worth its new digest. db-roles.sh asks with this file's first postgres image.
+# postgres and trigger-db run a build of the official image since 2026-10-26 (workplan 0146 T15):
+# their pin is deploy/compose/postgres/Dockerfile's FROM, by tag and digest, and the name below
+# carries a hash of that file's instructions, so compose builds it again only when it changes.
 # scripts/a-float-nothing-ever-pulled.unit.test.ts refuses a new float; busybox's one-shot
 # chown is the one it names, with its reason.
 #
@@ -108,7 +111,13 @@ x-logging: &logging
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:18.6-alpine@sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5
+    # The official image without gosu, started as its postgres user, uid 70
+    # (workplan 0146 T15): deploy/compose/postgres/Dockerfile says why, what a
+    # start as uid 70 leaves out, and why the name carries the hash of its
+    # instructions. Compose builds it on the first `up` that finds no image of
+    # this name; the base's digest is the Dockerfile's FROM.
+    image: localhost/postgres:18.6-alpine-6b2d97623fb5
+    build: ./postgres
     container_name: ${COMPOSE_PROJECT_NAME}-db
     restart: unless-stopped
     logging: *logging
@@ -221,7 +230,9 @@ services:
 
   # Trigger.dev Backend
   trigger-db:
-    image: postgres:18.6-alpine@sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5
+    # The same build as postgres above.
+    image: localhost/postgres:18.6-alpine-6b2d97623fb5
+    build: ./postgres
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-db
     restart: unless-stopped
     logging: *logging

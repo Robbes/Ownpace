@@ -23,7 +23,12 @@
  *           its tag), never a second compose parser:
  *             - every `image:` line of the compose files the pin watch reads
  *               (managed.yml, dev.yml, www.yml) and the appliance's
- *               deploy/selfhost/compose.yml;
+ *               deploy/selfhost/compose.yml. One named `localhost/<name>`
+ *               is built by compose from `<name>/Dockerfile` beside the file
+ *               (its `build:`), and no registry serves it (Postgres without
+ *               gosu since workplan 0146 T15), so its leg builds that
+ *               directory for linux/arm64 and scans what it built
+ *               (`context`); the Dockerfile must be there;
  *             - every image a script in deploy/compose or deploy/selfhost
  *               names in a literal `…IMAGE=` assignment (GoAccess, Stalwart
  *               for the demo), deduplicated against the compose files of its
@@ -139,6 +144,9 @@ export function newestReleaseTag(lsRemote) {
   return versions.sort(compareSemVer).at(-1);
 }
 
+/** The registry no image is pulled from: an image named under it is built from a Dockerfile here. */
+export const BUILT_HERE = 'localhost/';
+
 /** The images a script names literally, each with its line. */
 function scriptImages(text) {
   const images = [];
@@ -148,6 +156,21 @@ function scriptImages(text) {
     images.push({ line: text.slice(0, m.index).split('\n').length, ...image });
   }
   return images;
+}
+
+/**
+ * Where a `localhost/<name>` image is built from: `<name>/` beside the file
+ * that names it, which must hold a Dockerfile. Any other image is pulled: null.
+ */
+function buildContext(repo, dir, image) {
+  if (!image.repo.startsWith(BUILT_HERE)) return null;
+  const name = image.repo.slice(BUILT_HERE.length);
+  if (!/^[a-z0-9][a-z0-9._-]*$/.test(name)) throw new Error(`${image.ref} names no directory a Dockerfile could be in`);
+  const context = `${dir}/${name}`;
+  if (repo.read(`${context}/Dockerfile`) === null) {
+    throw new Error(`${image.ref} is built from ${context}/Dockerfile, which is not in this checkout: no registry serves it, so nothing could scan it`);
+  }
+  return context;
 }
 
 /**
@@ -161,14 +184,16 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
   // Once per stack and reference: one reference both stacks run is two scans,
   // so neither name moves when two pins converge.
   const byStackRef = new Map();
-  const add = (image, where) => {
+  const add = (image, where, context = null) => {
     if (image.repo.startsWith(ownpace)) return;
     const stack = stackOf(where);
     const key = `${stack}\n${image.ref}`;
-    if (!byStackRef.has(key)) byStackRef.set(key, { ...image, stack, where: [] });
+    if (!byStackRef.has(key)) byStackRef.set(key, { ...image, stack, context, where: [] });
     if (!byStackRef.get(key).where.includes(where)) byStackRef.get(key).where.push(where);
   };
-  for (const file of SCAN_FILES) for (const image of readImages(need(repo, file))) add(image, file);
+  for (const file of SCAN_FILES) {
+    for (const image of readImages(need(repo, file))) add(image, file, buildContext(repo, dirname(file), image));
+  }
   for (const dir of SCRIPT_DIRS) {
     for (const name of repo.list(dir).filter((n) => n.endsWith('.sh')).sort()) {
       for (const image of scriptImages(need(repo, `${dir}/${name}`))) add(image, `${dir}/${name}`);
@@ -188,6 +213,8 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
     const base = stacks.get(short(image)).size > 1 ? `${short(image)}-${image.stack}` : short(image);
     const name = taken.has(base) ? `${base}-${basename(image.where[0]).replace(/\.(ya?ml|sh)$/, '')}` : base;
     taken.add(base);
+    // A built image's pins are its Dockerfile's, so its tag does not float.
+    if (image.context) return { name, ref: image.ref, where: image.where.join(', '), floating: false, context: image.context };
     return { name, ref: image.ref, where: image.where.join(', '), floating: isFloating(image) };
   });
 
@@ -260,7 +287,9 @@ export function eoslIssue(image, report) {
   const body = [
     `\`${image.ref}\` (${image.where}) runs on **${os}**, which its distribution no longer supports: Trivy's report for it says \`EOSL\`, end of service life. Its packages get no more security fixes, so what the scan finds in them from now on stays open whatever else moves.`,
     '',
-    'The way out is the same image on a supported base: a newer tag of it once upstream has moved its base, or another variant of it. The pin watch (`.github/workflows/idp-pin-watch.yml`) says when a newer tag exists. The move goes in a pull request like any pin, with its release notes read; an image of `managed.yml` takes E2E (managed) dispatched on its branch, and live takes it from a release tag. A major is the owner\'s call.',
+    image.context
+      ? `This image is built here, from \`${image.context}/Dockerfile\`, and its base is the \`FROM\` there. The way out is a supported base in that file, by exact tag and digest, moved in a pull request like any pin, with the base's release notes read; an image of \`managed.yml\` takes E2E (managed) dispatched on its branch, and live takes it from a release tag. A major is the owner's call.`
+      : 'The way out is the same image on a supported base: a newer tag of it once upstream has moved its base, or another variant of it. The pin watch (`.github/workflows/idp-pin-watch.yml`) says when a newer tag exists. The move goes in a pull request like any pin, with its release notes read; an image of `managed.yml` takes E2E (managed) dispatched on its branch, and live takes it from a release tag. A major is the owner\'s call.',
     ...(image.floating
       ? ['', 'The tag floats, so this is the image its registry serves today, which need not be the one the box pulled last.']
       : []),
@@ -308,7 +337,7 @@ export function summarize(images, readFile) {
       annotations.push(`::warning::${image.name}: ${shortRef(image.ref)} runs ${report.os}, past its end of life (Trivy: EOSL). An issue is kept open for it.`);
     }
     rows.push(
-      `| \`${image.name}\` | \`${shortRef(image.ref)}\`${image.floating ? ' (floats)' : ''} | ${report.os ?? 'not detected'} | ${report.eosl ? '**past its end of life**' : 'supported'} | ${report.critical} | ${report.high} | ${report.fixable} |`,
+      `| \`${image.name}\` | \`${shortRef(image.ref)}\`${image.floating ? ' (floats)' : ''}${image.context ? ` (built from \`${image.context}\`)` : ''} | ${report.os ?? 'not detected'} | ${report.eosl ? '**past its end of life**' : 'supported'} | ${report.critical} | ${report.high} | ${report.fixable} |`,
     );
   }
   const eosl = read.filter((r) => r.report.eosl).length;
@@ -321,7 +350,7 @@ export function summarize(images, readFile) {
     '|---|---|---|---|---|---|---|',
     ...rows,
     '',
-    'A floating tag is scanned as its registry serves it today, which need not be what the box pulled last. The platform scanned is the one the stacks run on, linux/arm64.',
+    'A floating tag is scanned as its registry serves it today, which need not be what the box pulled last. An image built here is scanned as its Dockerfile builds today, which need not be what the box built last. The platform scanned is the one the stacks run on, linux/arm64.',
   ];
   return { lines, annotations, missing, read };
 }
