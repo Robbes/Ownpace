@@ -62,7 +62,8 @@ import { defineConfig } from '@trigger.dev/sdk';
  * still ships), the eight eMudhra intermediates the CLI rejects, kept in
  * `task-image/emsign-block/` byte for byte, and `NODE_OPTIONS=--use-openssl-ca`
  * with `SSL_CERT_FILE`, which the run controller hands to every task process.
- * The CLI's list is now this repository's to keep: a CLI move compares them.
+ * The CLI's list is now this repository's to keep: a CLI move compares them,
+ * and the version gate fails when the SDK leaves the version they were read at.
  *
  * NO PACKAGE MANAGER AT RUNTIME. The controller and the tasks never run npm,
  * npx, corepack, pnpm or yarn, so the runtime stage drops them all, as the API
@@ -96,8 +97,9 @@ const TASK_BASE = 'task-base';
  * The CLI's own build-stage image for `node-24` at trigger.dev 4.8.1
  * (`BUILD_IMAGE` in `dist/esm/deploy/buildImage.js`; pushed 2026-10-22): its
  * runtime image with python3, make and g++. It moves with the CLI, read from
- * the new version's `buildImage.js` (workplan 0119 §2); a stale one still
- * builds, since only `node_modules` and `index.json` leave the stage.
+ * the new version's `buildImage.js` (workplan 0119 §2; the version gate fails
+ * on a CLI move until it is read again); a stale one still builds, since only
+ * `node_modules` and `index.json` leave the stage.
  */
 const TASK_BUILD_IMAGE =
   'triggerdotdev/node:24-bookworm-build@sha256:34a3f4554d1684e078b104bd2b7ba6743776ad9002ebceef707dee91fa629c41';

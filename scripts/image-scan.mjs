@@ -28,15 +28,23 @@
  *               names in a literal `…IMAGE=` assignment (GoAccess, Stalwart
  *               for the demo, db-roles.sh's client), deduplicated against
  *               the compose files of its stack;
- *             - the base image the pinned Trigger.dev CLI names for the
+ *             - the tasks' base image (`trigger-task-base`): the image
+ *               apps/api/Dockerfile builds FROM, where
+ *               apps/worker/trigger.config.ts builds the tasks on it (the
+ *               pin watch's `TASK_ON_API_IMAGE`, workplan 0146 T14), and
+ *               otherwise the one the pinned Trigger.dev CLI names for the
  *               tasks' runtime, which no file here names (the pin watch's
- *               `cliBaseImage`);
+ *               `cliBaseImage`). The layer the config adds to it at a
+ *               deploy is not built here (0146 T10): the scan reads the base
+ *               alone, so it still reads the npm the layer removes, and not
+ *               the ca-certificates, openssl and dumb-init it installs;
  *             - Ownpace's own three images, at `:edge` (what main publishes,
  *               which the OTA stack builds every night) and at the newest
  *               release tag (what live runs: it builds the tag it deploys).
  *           The FROM bases of apps/*\/Dockerfile (node, nginx) are inside
- *           Ownpace's images and are not scanned twice. www.yml's nginx is,
- *           because the site runs it as it is.
+ *           Ownpace's images and are not scanned twice, except the API's as
+ *           the tasks' base, which is an image of its own. www.yml's nginx
+ *           is, because the site runs it as it is.
  *   report  reads the report each scan wrote, one per image. A missing or
  *           unreadable report is an error and fails the run: a scan that did
  *           not happen must never read like a week without findings. An
@@ -83,7 +91,7 @@ import { appendFileSync, existsSync, readFileSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { COMPOSE_FILES, cliBaseImage, keepIssue, parseRef, readImages, realNet, repoReader, tagsOf } from './idp-pin-watch.mjs';
+import { COMPOSE_FILES, TASK_ON_API_IMAGE, cliBaseImage, keepIssue, parseRef, readImages, realNet, repoReader, tagsOf } from './idp-pin-watch.mjs';
 import { compareSemVer, parseSemVer } from './release-names-agree.mjs';
 
 /** The compose files whose `image:` lines are scanned: the pin watch's, and the appliance's. */
@@ -95,6 +103,14 @@ export const SCRIPT_DIRS = ['deploy/compose', 'deploy/selfhost'];
 /** Where Ownpace's own images are published, and which: images.yml's matrix. */
 export const OWNPACE_REGISTRY = 'ghcr.io/robbes';
 export const OWNPACE_IMAGES = ['api', 'web', 'selfhost'];
+
+/**
+ * The Dockerfile whose FROM image the tasks build on, where trigger.config.ts
+ * says so (0146 T14), and that line as the config reads it: a Node image by
+ * tag and digest.
+ */
+export const API_DOCKERFILE = 'apps/api/Dockerfile';
+const API_FROM = /^FROM\s+(node:\S+@sha256:[0-9a-f]{64})(?:\s|$)/m;
 
 /** Every image issue's title starts with this, and ends with the image's name. */
 export const ISSUE_PREFIX = "An image's operating system is past its end of life: ";
@@ -191,14 +207,29 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
     return { name, ref: image.ref, where: image.where.join(', '), floating: isFloating(image) };
   });
 
-  // The tasks' base image: the CLI names it, for the runtime trigger.config.ts asks for.
+  // The tasks' base image. Where trigger.config.ts builds them on the API
+  // image's own base (0146 T14), the CLI's base image is in nothing a deploy
+  // builds, and the base is the API Dockerfile's FROM image, read as the
+  // config reads it. Otherwise the CLI names it, for the runtime the config
+  // asks for. The name stays, and so does the SARIF category.
   const config = need(repo, 'apps/worker/trigger.config.ts');
-  const runtime = /\bruntime:\s*['"]([^'"]+)['"]/.exec(config)?.[1];
-  if (!runtime) throw new Error('apps/worker/trigger.config.ts names no runtime');
-  const cli = JSON.parse(need(repo, 'apps/worker/package.json')).dependencies?.['@trigger.dev/sdk'];
-  if (!/^\d+\.\d+\.\d+$/.test(cli ?? '')) throw new Error(`apps/worker's @trigger.dev/sdk is ${cli}, not a version`);
-  const base = await cliBaseImage(net, cli, runtime);
-  entries.push({ name: 'trigger-task-base', ref: base, where: `trigger.dev ${cli}'s BASE_IMAGE['${runtime}']`, floating: false });
+  if (TASK_ON_API_IMAGE.test(config)) {
+    const from = API_FROM.exec(need(repo, API_DOCKERFILE))?.[1];
+    if (!from) throw new Error(`${API_DOCKERFILE} has no FROM node:<tag>@sha256:<digest> line, and the tasks build on it`);
+    entries.push({
+      name: 'trigger-task-base',
+      ref: from,
+      where: `${API_DOCKERFILE}'s FROM line, which apps/worker/trigger.config.ts builds the tasks on, without the layer it adds`,
+      floating: false,
+    });
+  } else {
+    const runtime = /\bruntime:\s*['"]([^'"]+)['"]/.exec(config)?.[1];
+    if (!runtime) throw new Error('apps/worker/trigger.config.ts names no runtime');
+    const cli = JSON.parse(need(repo, 'apps/worker/package.json')).dependencies?.['@trigger.dev/sdk'];
+    if (!/^\d+\.\d+\.\d+$/.test(cli ?? '')) throw new Error(`apps/worker's @trigger.dev/sdk is ${cli}, not a version`);
+    const base = await cliBaseImage(net, cli, runtime);
+    entries.push({ name: 'trigger-task-base', ref: base, where: `trigger.dev ${cli}'s BASE_IMAGE['${runtime}']`, floating: false });
+  }
 
   // Ownpace's own: what main publishes, and the newest release.
   const release = newestReleaseTag(await net.lsRemote(upstream));

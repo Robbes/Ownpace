@@ -453,9 +453,11 @@ jobs:
           check-latest: true # the newest 24.x, not the first one in the runner's tool cache
       # The compose files' image lines, read with the pin watch's reader (a
       # `${VAR:-default}` as its default, a digest kept), the images the
-      # scripts name, the tasks' base image as the pinned Trigger.dev CLI names
-      # it, and Ownpace's three at `:edge` and at the newest release tag, which
-      # is what live runs: it builds the tag it deploys. See image-scan.mjs.
+      # scripts name, the tasks' base image (apps/api/Dockerfile's FROM image,
+      # which trigger.config.ts builds them on; the pinned Trigger.dev CLI's
+      # when the config names none), and Ownpace's three at `:edge` and at the
+      # newest release tag, which is what live runs: it builds the tag it
+      # deploys. See image-scan.mjs.
       - name: List every image the stacks run
         id: list
         run: node scripts/image-scan.mjs list >> "$GITHUB_OUTPUT"

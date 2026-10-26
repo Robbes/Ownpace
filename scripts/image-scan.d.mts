@@ -17,6 +17,7 @@ export declare const STACKS: Record<string, string>;
 export declare const OWNPACE_REGISTRY: string;
 export declare const OWNPACE_IMAGES: string[];
 export declare const ISSUE_PREFIX: string;
+export declare const API_DOCKERFILE: string;
 
 /** One image to scan: one matrix leg, one SARIF category, one artifact, one issue title. */
 export interface ScanImage {

@@ -127,7 +127,10 @@
  * trust edits to the CLI 4.8.1 list, the vendored intermediates to the CLI's
  * bytes, and the removal to a stage with no C++ compiler. It checks that
  * `trigger dev`, which builds no image, gets nothing, and that no instance
- * setting (`DEPLOY_BASE_IMAGES`) can override the config's base. And it holds
+ * setting (`DEPLOY_BASE_IMAGES`) can override the config's base. It fails when
+ * the deploying CLI's version leaves the one the build image and the trust
+ * list were read from, naming what to read again: nothing else would say that
+ * a later CLI distrusts more than this keeps. And it holds
  * that the pin watch's `TASK_ON_API_IMAGE` finds the base in the config's text
  * exactly once, because that is how the watch knows to stop reporting the
  * CLI's base image's Node.
@@ -462,6 +465,15 @@ const CLI_REJECT_DIR = '/usr/local/share/ca-certificates/emsign-block';
 const CLI_REJECTED_SHA256 = 'f4b2b13e9429b1beeda72e78bd7c48a13c0556c2c33ab77236eac90d187832ac';
 const REJECTED_DIR = 'apps/worker/task-image/emsign-block';
 
+/**
+ * The trigger.dev version every hand-kept value above, and the config's
+ * `TASK_BUILD_IMAGE`, was read from. The CLI no longer applies its trust edits
+ * on a base of one's own, so a newly distrusted root or rejected intermediate
+ * in a later CLI reaches the tasks only by hand. A Trigger.dev move fails
+ * here until they have been read again.
+ */
+const CLI_READ_AT = '4.8.1';
+
 /** The DER certificate at the head of a `TRUSTED CERTIFICATE` PEM, without OpenSSL's trust settings after it. */
 function certificateOf(pem: string): X509Certificate {
   const der = Buffer.from(pem.split('\n').filter((l) => l && !l.startsWith('-----')).join(''), 'base64');
@@ -568,6 +580,23 @@ describe("the tasks build on the API image's own base", () => {
     );
   });
 
+  it(`a Trigger.dev move reads again what the config keeps of the CLI ${CLI_READ_AT}'s by hand`, () => {
+    // deploy-tasks.sh deploys with the CLI of apps/worker's SDK version.
+    const sdk = (JSON.parse(read('apps/worker/package.json')) as { dependencies?: Record<string, string> }).dependencies?.[
+      '@trigger.dev/sdk'
+    ];
+    expect(
+      sdk,
+      [
+        `apps/worker deploys with trigger.dev ${sdk}, and ${TASK_CONFIG} keeps three things read from ${CLI_READ_AT}'s`,
+        '`dist/esm/deploy/` by hand. Read each again in the new version and carry it over, then set CLI_READ_AT:',
+        "  - `buildImage.js`'s `BUILD_IMAGE['node-24']`, into the config's TASK_BUILD_IMAGE;",
+        "  - `buildImage.js`'s `EMSIGN_COMPROMISE_DISTRUSTED_ROOTS`, into the config's DISTRUSTED_ROOTS and CLI_DISTRUSTED_ROOTS here;",
+        `  - \`emsignRejectedIntermediates.js\`, into ${REJECTED_DIR}/ and CLI_REJECTED_SHA256 here.`,
+      ].join('\n'),
+    ).toBe(CLI_READ_AT);
+  });
+
   it('`trigger dev` builds no image: no layer, and the manifest as it was', async () => {
     const { layers, manifest } = await buildFor('dev');
     expect(layers).toEqual([]);
@@ -576,9 +605,10 @@ describe("the tasks build on the API image's own base", () => {
 
   it("no instance setting overrides the config's base", () => {
     // The CLI lays an instance's DEPLOY_BASE_IMAGES / DEPLOY_BUILD_BASE_IMAGES
-    // over the manifest's `image` (deploy.js, `applyServerBaseImages`), an
-    // absent build base included: the build stage would start FROM the
-    // runtime base, where npm is gone.
+    // over the manifest's `image` key by key (deploy.js, `applyServerBaseImages`;
+    // the webapp sends only the keys it has, `resolveDeployBaseImages`), so a
+    // base named there would replace the config's, and the FROM line would no
+    // longer be the one place the tasks' image moves.
     for (const file of ['deploy/compose/managed.yml', 'deploy/compose/managed.env.example']) {
       expect(read(file), file).not.toMatch(/DEPLOY_(BUILD_)?BASE_IMAGES/);
     }

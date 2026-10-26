@@ -13,10 +13,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   Debian, which Dependabot moves. They keep dumb-init, Debian's CA store and
   the distrust of the compromised eMudhra roots and intermediates that the
   CLI gives its own images, and lose npm, corepack and yarn, which nothing in
-  them runs. On Debian 13 (#1708) the scan reads 0 critical and 43 high
-  findings, none with a fix, where the CLI's v4.8.1 base reads 1 and 83. The
-  first task deploy after this is slow: a new image in both build stages,
-  with the Debian archive reachable.
+  them runs. On Debian 13 (#1708) the tasks' image reads 0 critical and 43
+  high findings, none with a fix, where the one a deploy builds on the CLI's
+  v4.8.1 base reads about 1 and 80. The weekly image scan reads the tasks on
+  that base too. The first task deploy after this is slow: a new image in
+  both build stages, with the Debian archive reachable.
 
 ### Changed
 

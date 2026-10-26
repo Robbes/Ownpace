@@ -39,8 +39,17 @@
  *    runner condition. The new jobs come after it, with names of their own and
  *    a plain `runs-on`.
  *
+ *  - The tasks' base image is the one a deploy builds on. Since workplan 0146
+ *    T14 the deploy config builds the tasks on the image `apps/api/Dockerfile`
+ *    builds FROM, and the CLI's own base image is in nothing a deploy builds;
+ *    a list that kept reading the CLI's would scan an image nothing runs, and
+ *    nothing would scan the one that does. So the config's own extension is
+ *    run here as the CLI runs it, and the scan's reference must be the base
+ *    it leaves in the manifest.
+ *
  * The network is stubbed (the git tags, the Trigger.dev CLI's tarball) and so
- * is `gh`; the compose files and scripts are the real ones.
+ * is `gh`; the compose files, the scripts and the deploy config are the real
+ * ones.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -51,8 +60,10 @@ import { gzipSync } from 'node:zlib';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
-import { COMPOSE_FILES, readImages, repoReader, stepsUsing, type Net, type Repo } from './idp-pin-watch.mjs';
+import type { BuildContext, BuildExtension, BuildLayer } from '@trigger.dev/core/v3/build';
+import { COMPOSE_FILES, TASK_ON_API_IMAGE, readImages, repoReader, stepsUsing, type Net, type Repo } from './idp-pin-watch.mjs';
 import {
+  API_DOCKERFILE,
   ISSUE_PREFIX,
   OWNPACE_IMAGES,
   OWNPACE_REGISTRY,
@@ -68,6 +79,7 @@ import {
   summarize,
   type ScanImage,
 } from './image-scan.mjs';
+import taskConfig from '../apps/worker/trigger.config.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const REAL = repoReader(REPO_ROOT);
@@ -129,6 +141,35 @@ function fakeNet(tags = TAGS): Net & { asked: string[] } {
     probe: refuse,
   };
 }
+
+/**
+ * The base a task deploy builds on: every build extension of the real deploy
+ * config run as the CLI runs them for a deploy (all starts, then all
+ * completes, one manifest handed to each), and the manifest's `image.base`
+ * read back, which is where the CLI takes the Containerfile's first FROM
+ * from. Undefined when the config names none, and the CLI's own base is used.
+ */
+async function deployBase(): Promise<string | undefined> {
+  const context = {
+    target: 'deploy',
+    workingDir: join(REPO_ROOT, 'apps/worker'),
+    addLayer: (_layer: BuildLayer) => undefined,
+  } as unknown as BuildContext;
+  type Manifest = Parameters<NonNullable<BuildExtension['onBuildComplete']>>[1];
+  const manifest = { image: { pkgs: [], instructions: [] } } as unknown as Manifest;
+  const extensions = taskConfig.build?.extensions ?? [];
+  for (const extension of extensions) await extension.onBuildStart?.(context);
+  for (const extension of extensions) await extension.onBuildComplete?.(context, manifest);
+  return manifest.image?.base;
+}
+
+/** The deploy config with the pin watch's mark of a base of its own taken out: a config that names none. */
+const configWithoutBase = (): string => {
+  const config = REAL.read('apps/worker/trigger.config.ts')!;
+  const bare = config.replace(TASK_ON_API_IMAGE, '');
+  expect(TASK_ON_API_IMAGE.test(bare), 'the mark is still in the config, so this case would prove nothing').toBe(false);
+  return bare;
+};
 
 /** The real checkout, with some files replaced. */
 const withFiles = (over: Record<string, string>): Repo => ({
@@ -243,9 +284,27 @@ describe('which images it scans', () => {
     expect(without.find((i) => i.name === 'postgres-managed')?.ref).toBe(managedPostgres.ref);
   });
 
-  it("the tasks' base image, as the pinned CLI names it for the runtime trigger.config.ts asks for", async () => {
+  it("the tasks' base image is the one a deploy builds on: the API image's FROM, where the config names it", async () => {
+    const base = await deployBase();
+    // Vacuity guard: the config names a base of its own (0146 T14), so the
+    // equality below compares two real references, not two undefineds.
+    expect(base, 'the deploy config names no base, so the CLI builds the tasks on its own').toMatch(/^node:\S+@sha256:[0-9a-f]{64}$/);
     const net = fakeNet();
     const images = await imagesToScan(REAL, net);
+    const task = images.find((i) => i.name === 'trigger-task-base');
+    expect(task?.ref, "the scan reads an image no task deploy builds on").toBe(base);
+    expect(task?.ref).toBe(/^FROM\s+(node:\S+)/m.exec(REAL.read(API_DOCKERFILE)!)![1]);
+    expect(task?.where).toContain(API_DOCKERFILE);
+    expect(task?.where).toContain('apps/worker/trigger.config.ts');
+    expect(task?.floating).toBe(false);
+    // The CLI's own base is in nothing a deploy builds, so it is not even read.
+    expect(net.asked.some((url) => url.includes('registry.npmjs.org/trigger.dev/'))).toBe(false);
+    expect(images.some((i) => i.ref === TASK_BASE)).toBe(false);
+  });
+
+  it("where the config names no base of its own, the one the pinned CLI names for the runtime the config asks for", async () => {
+    const net = fakeNet();
+    const images = await imagesToScan(withFiles({ 'apps/worker/trigger.config.ts': configWithoutBase() }), net);
     const cli = JSON.parse(REAL.read('apps/worker/package.json')!).dependencies['@trigger.dev/sdk'] as string;
     expect(images.find((i) => i.name === 'trigger-task-base')).toMatchObject({ ref: TASK_BASE, where: expect.stringContaining(cli) });
     expect(net.asked).toContain(`https://registry.npmjs.org/trigger.dev/-/trigger.dev-${cli}.tgz`);
@@ -275,10 +334,15 @@ describe('which images it scans', () => {
   });
 
   it("leaves out the Dockerfiles' FROM bases, which are inside Ownpace's images, but scans www.yml's nginx, which runs as it is", async () => {
+    // The API's is listed once, as the tasks' base, which is an image of its
+    // own (the case above); under no other name. Without the config's base,
+    // not at all.
     const images = await imagesToScan(REAL, fakeNet());
+    const bare = await imagesToScan(withFiles({ 'apps/worker/trigger.config.ts': configWithoutBase() }), fakeNet());
     for (const dockerfile of ['apps/api/Dockerfile', 'apps/selfhost/Dockerfile']) {
       const from = /^FROM\s+(node:\S+)/m.exec(REAL.read(dockerfile)!)![1]!;
-      expect(images.some((i) => i.ref === from), `${from} is scanned twice`).toBe(false);
+      expect(images.filter((i) => i.ref === from && i.name !== 'trigger-task-base').map((i) => i.name), `${from} is scanned twice`).toEqual([]);
+      expect(bare.some((i) => i.ref === from), `${from} is scanned twice`).toBe(false);
     }
     const www = readImages(REAL.read('deploy/compose/www.yml')!).find((i) => i.repo === 'nginx')!;
     expect(images.find((i) => i.ref === www.ref)?.where).toBe('deploy/compose/www.yml');
@@ -344,9 +408,15 @@ describe('which images it scans', () => {
     expect(isFloating({ tag: '1.12', digest: 'sha256:0' })).toBe(false);
   });
 
-  it('refuses rather than lists less: a CLI it cannot read, or no release tag', async () => {
+  it("refuses rather than lists less: a CLI it cannot read, an API base it cannot read, or no release tag", async () => {
     const broken: Net = { ...fakeNet(), bytes: async () => Promise.reject(new Error('registry.npmjs.org answered 503')) };
-    await expect(imagesToScan(REAL, broken)).rejects.toThrow(/503/);
+    await expect(imagesToScan(withFiles({ 'apps/worker/trigger.config.ts': configWithoutBase() }), broken)).rejects.toThrow(/503/);
+    // A FROM line without a digest is not the reference the config builds
+    // on, and the CLI's base is not what the tasks run: neither is listed.
+    const dockerfile = REAL.read(API_DOCKERFILE)!;
+    const unpinned = dockerfile.replace(/^(FROM\s+node:\S+?)@sha256:[0-9a-f]{64}/m, '$1');
+    expect(unpinned, 'the FROM line kept its digest, so this case would prove nothing').not.toBe(dockerfile);
+    await expect(imagesToScan(withFiles({ [API_DOCKERFILE]: unpinned }), broken)).rejects.toThrow(/has no FROM node:<tag>@sha256:<digest> line/);
     await expect(imagesToScan(REAL, fakeNet(lsRemote('edge')))).rejects.toThrow(/no v\* release tag/);
   });
 });

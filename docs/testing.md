@@ -395,7 +395,9 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   SBOM attached to release tags. On the weekly run (Mondays 06:00 UTC) and on dispatch only, and on
   GitHub-hosted runners, it also scans every container image the stacks run (workplan 0146 T8):
   the `image:` lines of `managed.yml`, `dev.yml`, `www.yml` and the appliance's compose file, the
-  images the scripts name, the tasks' base image the pinned Trigger.dev CLI names, and Ownpace's
+  images the scripts name, the tasks' base image (the image `apps/api/Dockerfile` builds FROM,
+  which `apps/worker/trigger.config.ts` builds them on since workplan 0146 T14; the one the
+  pinned Trigger.dev CLI names when the config names none), and Ownpace's
   three images at `:edge` and at the newest release tag, all as linux/arm64
   (`scripts/image-scan.mjs list`). Report only: each image's findings go to code scanning under
   `trivy-image-<name>` and fail nothing; an image whose operating system Trivy calls past its end

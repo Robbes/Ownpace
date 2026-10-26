@@ -20,12 +20,17 @@ of the same day has the detail and the figures).
   - `EMSIGN_COMPROMISE_DISTRUSTED_ROOTS` and `emsignRejectedIntermediates.js`, into the config's
     `DISTRUSTED_ROOTS` and `apps/worker/task-image/emsign-block/`.
 
-  The version gate pins the CLI 4.8.1 values. Dependabot sees neither, and `trigger-version.sh`
-  does not move them. A stale build image still builds: only `node_modules` and `index.json`
-  leave that stage.
+  The version gate pins the CLI 4.8.1 values, and fails when `apps/worker`'s
+  `@trigger.dev/sdk` leaves 4.8.1, naming those three to read again. Dependabot sees none of
+  them, and `trigger-version.sh` does not move them. A stale build image still builds: only
+  `node_modules` and `index.json` leave that stage.
+- **The weekly image scan follows.** `scripts/image-scan.mjs` lists the API's FROM image as
+  `trigger-task-base` while the config builds the tasks on it, so the 2026-10-25 entry's "reads
+  the base from the pinned CLI" holds only for a config that names no base.
 - **Measured** (Trivy 0.76.1, amd64 and arm64): the tasks' runtime stage on #1708's
-  `node:24.22.1-trixie-slim` reads 0 critical and 43 high, none fixable. The CLI 4.8.1 base
-  reads 1/83, and the 4.7.6 base `main` deploys on reads 14/119.
+  `node:24.22.1-trixie-slim` reads 0 critical and 43 high, none fixable. What a deploy builds
+  on the CLI's base, its layer's upgrade included, reads about 2/88 on `main` (4.7.6) and about
+  1/80 on #1697; the raw bases read 14/119 and 1/83.
 
 **2026-10-25: Trigger.dev v4.7.6 → v4.8.1, a draft for alpha.3**, on the branch
 `claude/ownpace-public-readiness-y7orc6-trigger-4-8-1` (issue #1668; the owner chose v4.8.1

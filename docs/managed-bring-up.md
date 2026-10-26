@@ -4683,9 +4683,9 @@ most weeks: the task image is built on that very image
 (`apps/worker/trigger.config.ts`, workplan 0146 T14), so a task deploy is what
 carries its new Node and Debian to the tasks. The managed gate and
 `deploy-live.sh` run the bring-up from `data`, whose `tasks` phase deploys
-them. That first deploy after the `FROM` line moves (or after a Trigger.dev
-move changes the CLI's build image, which the config names for the build
-stage) is the slow one: it pulls the new image, and the config's one layer runs
+them. That first deploy after the `FROM` line moves (or after
+`TASK_BUILD_IMAGE`, the build image the config names for the build stage, is
+moved by hand) is the slow one: it pulls the new image, and the config's one layer runs
 apt in both stages (an upgrade, `ca-certificates` and `dumb-init`), so it needs
 the Debian archive reachable from this machine (the build runs with
 `--network host`). The builder caches both, so the deploys after it, until the
