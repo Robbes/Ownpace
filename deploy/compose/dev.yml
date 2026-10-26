@@ -39,8 +39,12 @@ services:
   # Its update check, app store, announcements feed and connectivity check are
   # on, Nextcloud's defaults, and not switched off yet, as on managed.yml's
   # (workplan 0139; scripts/a-service-that-phones-home.unit.test.ts).
+  # managed.yml's image, Nextcloud 35 since 2026-10-26 (workplan 0119 T5). The
+  # data is in the image's anonymous volume: a developer's next `up` keeps that
+  # volume and upgrades it from 34, one way; the self-host E2E removes the
+  # container before each run and so installs afresh.
   nextcloud:
-    image: nextcloud:34.0.5-apache@sha256:1f9212adecae32010cdbf137d7e0db78d08c696dc3e77f1eddcbf902d10209b4 # official multi-arch (arm64); base: Debian 13 "Trixie" via php image
+    image: nextcloud:35.0.2-apache@sha256:89af7ee7a96ff5e9668280566209268ae6b2d02327f6ef6d56f6d68228cf9431 # official multi-arch (arm64); base: Debian 13 "Trixie" via php image
     container_name: ownpace-dev-nextcloud # fixed name so provisioning scripts can `docker exec` it deterministically
     environment:
       SQLITE_DATABASE: nextcloud

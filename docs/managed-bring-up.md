@@ -3026,7 +3026,7 @@ refuses a `COMPOSE_FILE` in the shell.
 | `clickhouse` | A report on every crash and logical error to `crash.clickhouse.com` | `clickhouse-no-crash-reports.xml`, mounted into `config.d`, sets both off; the `config.xml` the image ships sets them on. It is the only file ClickHouse merges that speaks of crash reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d` and `conf.d`, in sorted order, so a later one would win | `programs/server/config.xml`, `src/Daemon/CrashWriter.cpp`, `src/Common/Config/ConfigProcessor.cpp` at `v26.2.19.43-stable` |
 | `minio` | A release check to `dl.min.io` at every start, its User-Agent carrying the OS, architecture, version and CPU | `MINIO_UPDATE: "off"`; `MINIO_CALLHOME_ENABLE: "off"` too, which ships off | `cmd/server-main.go`, `cmd/common-main.go`, `cmd/update.go`, `internal/config/callhome/callhome.go` at `chainguard-forks/minio`'s `RELEASE.2026-09-22T19-25-18Z`, Chainguard's build since workplan 0146 T7 (first read at `RELEASE.2025-05-24T17-08-30Z`, the Bitnami image it replaced) |
 | `mailpit` (the test stack's catcher; live runs none) | A release check to GitHub whenever its page asks for the server's info | `MP_DISABLE_VERSION_CHECK: "true"` | `internal/stats/stats.go`, `cmd/root.go` at v1.31.6 |
-| `nextcloud` (the demo's DAV target, on the OTA stack every night; and `dev.yml`'s) | Its version, PHP version and install time to `updates.nextcloud.com`, the app store at `apps.nextcloud.com`, the announcements feed at `pushfeed.nextcloud.com`, and a connectivity check to four public sites | **None yet.** `updatechecker`, `appstoreenabled` and `has_internet_connection` stay on, Nextcloud's defaults; see *What is left on, and where*, below | `config/config.sample.php` and `apps/settings/lib/SetupChecks/InternetConnectivity.php` at `stable34`; `lib/Cron/Crawler.php` in nextcloud_announcements at `stable34` |
+| `nextcloud` (the demo's DAV target, on the OTA stack every night; and `dev.yml`'s) | Its version, PHP version and install time to `updates.nextcloud.com`, the app store at `apps.nextcloud.com`, the announcements feed at `pushfeed.nextcloud.com`, and a connectivity check to four public sites | **None yet.** `updatechecker`, `appstoreenabled` and `has_internet_connection` stay on, Nextcloud's defaults; see *What is left on, and where*, below | `config/config.sample.php` and `apps/settings/lib/SetupChecks/InternetConnectivity.php` at `stable34`, and again at `v35.0.2` when the demo moved to 35 (workplan 0119 T5); `lib/Cron/Crawler.php` in nextcloud_announcements at `stable34` and `stable35` |
 
 The entrypoint's other children do not call out: pnpm 10.33.2 checks for its
 own update only on `install` and `add`, goose v3.27.1 has no network use of its
@@ -4475,6 +4475,116 @@ fix.
 > the next 03:30 UTC nightly; a bad move is fixed forward, never reverted. The
 > PostgreSQL databases take a minor back and forth (a minor never changes the
 > storage format), but the same order keeps them from having to.
+
+### A Nextcloud major on the OTA stack
+
+Written on 2026-10-26 for the move from 34 to 35 (workplan 0119 T5), which
+waits on the owner's OK: a major is the owner's call. Only the OTA stack's
+demo has a Nextcloud whose data lasts. Live has none (both live scripts refuse
+`--with-demo`), the self-host E2E removes `dev.yml`'s container before every
+run and installs afresh, and the integration tests start a new one each time.
+A developer's `dev.yml` keeps the image's anonymous volume, so its next `up`
+upgrades that one too.
+
+**What moves, and when.** The demo keeps its state in two places that move
+together: the `nextcloud_data` volume (the code, `config.php` and the files)
+and the `nextcloud` database in this stack's Postgres (workplan 0150). The
+first start of a newer major copies its code into the volume and runs
+`occ upgrade` against the database before Apache starts, and the older image
+refuses the volume from then on. One major at a time: 35.0.2 upgrades from
+34.0 and nothing older. On this stack that first start is **E2E (managed) on
+the branch that moves the pin**: the gate brings the branch's `managed.yml` up
+in this project (`bootstrap-managed.sh --from data --with-demo`, then
+`up_wait nextcloud`), so that run is the upgrade, not a test before it. Every
+nightly of `main`, and every other branch's E2E, is red at `up_wait nextcloud`
+from then until the branch merges.
+
+**In this order.**
+
+1. The owner's OK.
+2. Not before the release tag the move is not part of, and never between two
+   counted nights: once the volume is on 35, `main`'s nightly cannot start the
+   demo until the branch has merged.
+3. Pause the migrations that write into the demo Nextcloud, and take the way
+   back below. Without it, the only way back is a fresh demo.
+4. Dispatch E2E (managed) on the branch when it is otherwise ready to merge,
+   and merge before the next 03:30 UTC nightly.
+5. Ask whether it took. A healthy container does not say so: `status.php`
+   answers 200 in maintenance mode and with an upgrade still owed.
+
+   ```bash
+   docker compose -f deploy/compose/managed.yml exec -u www-data nextcloud php occ status --output=json
+   ```
+
+   It took when that says `"versionstring":"35.0.2"`, `"maintenance":false`
+   and `"needsDbUpgrade":false`.
+
+**The way back, taken before the run.** A copy of the volume beside it and a
+dump of the database, with the demo stopped so that the two agree. The volume
+holds the files the owner's migrations wrote, so check the disk has room for a
+second copy. The dump holds the demo accounts' password hashes, so it is the
+owner's alone:
+
+```bash
+cd ~/ownpace-managed
+project="$(docker compose -f deploy/compose/managed.yml config --no-interpolate | sed -n 's/^name: //p')"
+docker compose -f deploy/compose/managed.yml stop nextcloud
+docker volume create "${project}_nextcloud_data_34"
+docker run --rm -v "${project}_nextcloud_data":/from:ro -v "${project}_nextcloud_data_34":/to \
+  busybox:1.38 sh -c 'cd /from && cp -a . /to'
+(umask 077 && docker compose -f deploy/compose/managed.yml exec -T postgres \
+  sh -c 'pg_dump -U "$POSTGRES_USER" -Fc nextcloud' > ~/nextcloud-34.dump)
+```
+
+**When the run goes wrong.**
+
+- **`up_wait nextcloud` gave up while the log still shows the upgrade.** The
+  healthcheck allows about five and a half minutes (a 180 s start period, then
+  ten checks 15 s apart), and the upgrade carries on in the container after
+  the wait has given up. When `docker compose -f deploy/compose/managed.yml
+  logs nextcloud` says `Initializing finished`, dispatch the run again.
+- **`occ upgrade` failed.** The entrypoint stops, the container restarts, and
+  since the volume already holds 35's code it does not try again: Nextcloud
+  answers in maintenance mode ("Maintenance mode is kept active"). Read the
+  log, put the cause right, then run the upgrade by hand; it turns maintenance
+  mode off when it succeeds:
+
+  ```bash
+  docker compose -f deploy/compose/managed.yml exec -u www-data nextcloud php occ upgrade
+  ```
+
+- **Back to 34**, when the branch is not going to merge. Both copies,
+  together: a 34 volume over a 35 database, or the reverse, does not start.
+  Then `main`'s next nightly, or `bootstrap-managed.sh --from data
+  --with-demo` from `main`, starts 34.0.5 on them:
+
+  ```bash
+  docker compose -f deploy/compose/managed.yml rm -sf nextcloud
+  docker volume rm "${project}_nextcloud_data"
+  docker volume create "${project}_nextcloud_data"
+  docker run --rm -v "${project}_nextcloud_data_34":/from:ro -v "${project}_nextcloud_data":/to \
+    busybox:1.38 sh -c 'cd /from && cp -a . /to'
+  docker compose -f deploy/compose/managed.yml exec -T postgres \
+    sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --create' < ~/nextcloud-34.dump
+  ```
+
+- **No copies: a fresh demo Nextcloud.** Remove its container and volume and
+  drop its database; the next bring-up with `--with-demo` (the nightly does
+  one) installs whichever major its checkout pins, gives the role `.env`'s
+  `NEXTCLOUD_DB_PASSWORD` since nothing is installed, and its `demo` phase
+  makes the four demo accounts and seeds their content again
+  (`setup-managed-demo.sh`). Everything else in it is lost: the files,
+  calendars and contacts the owner's own migrations wrote there.
+
+  ```bash
+  docker compose -f deploy/compose/managed.yml rm -sf nextcloud
+  docker volume rm "${project}_nextcloud_data"
+  docker compose -f deploy/compose/managed.yml exec -T postgres \
+    sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP DATABASE IF EXISTS nextcloud"'
+  ```
+
+Once the move has held for a night or two, remove the copies:
+`docker volume rm "${project}_nextcloud_data_34"` and `rm ~/nextcloud-34.dump`.
 
 ### `ownpace-live`: a release tag, with `deploy-live.sh`
 

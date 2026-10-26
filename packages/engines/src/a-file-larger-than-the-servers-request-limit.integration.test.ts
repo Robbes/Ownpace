@@ -6,9 +6,10 @@
  *
  * The unit tests (`a-file-too-large-for-one-request`) hold the writer to a
  * fake that keeps the protocol's rules as they were measured. This holds it
- * to the server they were measured on: the integration Nextcloud
- * (nextcloud:34-apache, `testcontainers-setup.ts`; the second-major leg runs
- * this against 35, whose image sets the limit the same way) runs with Apache's
+ * to a real server: the integration Nextcloud (35 since 2026-10-26,
+ * `testcontainers-setup.ts`; the rules were measured on nextcloud:34-apache,
+ * which the second-major leg runs this against, and both images set the limit
+ * the same way) runs with Apache's
  * `LimitRequestBody` at `NEXTCLOUD_BODY_LIMIT_BYTES`, 16 MiB, so a file a few
  * MiB above it stands in for the owner's 1.3 GB video against the demo's
  * 1 GiB, at a size CI can afford.

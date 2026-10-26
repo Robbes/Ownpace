@@ -5914,7 +5914,8 @@ fi
 #
 # THE JOBS THAT CAN MAIL, BY NAME (workplan 0150; the owner, 2026-10-04). A
 # bare cron.php is not a drain. Nextcloud 34 stops asking for jobs once 14
-# minutes have passed (`14 * 60` in core/Service/CronService.php), and this
+# minutes have passed (`14 * 60` in core/Service/CronService.php, the same at
+# v35.0.2, where the five names below are the same jobs too), and this
 # demo's queue, which only the gate runs and the owner's migrations keep
 # filling, outlasted that in E2E (managed) #232 and #233 alike: 841 s each,
 # stopped, not emptied. Named, cron.php runs only these, in seconds, and

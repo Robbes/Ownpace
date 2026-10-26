@@ -6,18 +6,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
-- **The suites that talk to Nextcloud also run against Nextcloud 35** (workplan
-  0119): `.github/workflows/nextcloud-second-major.yml` runs the WebDAV,
-  CalDAV, CardDAV, chunked-upload and share suites against
-  `nextcloud:35.0.2-apache`, pinned by digest, on a push to `main` that
-  touches their code, weekly, and on a pull request that changes the leg
-  itself; not on every pull request. A customer's own Nextcloud may already
-  run 35 while the demo stays on 34 until after the alpha.2 tag, since that
-  move is one way. The run fails when Nextcloud does not start, when the
-  server that answered is not the version the tag names, and when any test
-  skipped. The integration tier also gained its first suite for the share
-  verb against a real server: a user share, the listing that reads it back,
-  and a grantee the server does not know.
+- **The suites that talk to Nextcloud also run against the major the demo
+  does not run** (workplan 0119): `.github/workflows/nextcloud-second-major.yml`
+  runs the WebDAV, CalDAV, CardDAV, chunked-upload and share suites against
+  `nextcloud:34.0.5-apache`, pinned by digest (against `35.0.2-apache` until
+  the demo moved to 35, below), on a push to `main` that touches their code,
+  weekly, and on a pull request that changes the leg itself; not on every pull
+  request. A customer's own Nextcloud may run either major. The run fails when
+  Nextcloud does not start, when the server that answered is not the version
+  the tag names, and when any test skipped. The integration tier also gained
+  its first suite for the share verb against a real server: a user share, the
+  listing that reads it back, and a grantee the server does not know.
 
 ### Changed
 
@@ -34,6 +33,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   older image on it afterwards, and runs with PHP's session upload progress
   off, upstream's mitigation for CVE-2026-115560. `db-roles.sh` runs the
   postgres client `managed.yml` pins.
+- **The demo, development and integration-test Nextcloud move to 35.0.2**
+  (workplan 0119 T5), by digest, from 34.0.5; the second-major leg moves to
+  34.0.5 in their place. Every suite that talks to Nextcloud had passed
+  against 35 first. On the OTA stack the move is one way: the first `up`
+  upgrades the demo's volume and its database in the stack's Postgres
+  (`occ upgrade`), and 34 refuses them afterwards. `docs/managed-bring-up.md`,
+  *A Nextcloud major on the OTA stack*, gives the order and the way back. Live
+  runs no Nextcloud. A developer's `dev.yml` Nextcloud upgrades its volume on
+  the next `up`.
 
 ## [0.2.0-alpha.2] - 2026-10-25
 

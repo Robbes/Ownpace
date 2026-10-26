@@ -397,7 +397,14 @@ describe('the drain reaches the jobs that can mail (0150)', () => {
     return SMOKE_TEXT.slice(s, e + 3);
   })();
 
-  /** The five Nextcloud 34 jobs that can send mail, as the smoke must name them. */
+  /**
+   * The five Nextcloud 34 jobs that can send mail, as the smoke must name them.
+   * Read again when the demo moved to 35 (workplan 0119 T5): dav and
+   * files_sharing at the server's v35.0.2, activity and notifications at their
+   * `stable35`. The same five classes, each still listed as a job in its app's
+   * `info.xml`, and none of the seven jobs 35's shipped apps add (app_api one,
+   * circles four, notifications one, serverinfo one) mails anybody.
+   */
   const MAIL_JOBS = [
     'OCA\\DAV\\BackgroundJob\\EventReminderJob',
     'OCA\\Activity\\BackgroundJob\\EmailNotification',
@@ -501,7 +508,7 @@ printf '{"messages_count":%s}' "\${MAILPIT_COUNT:-0}"
     );
   });
 
-  it('names exactly the jobs that can mail in Nextcloud 34, each as its own word', () => {
+  it('names exactly the jobs that can mail in Nextcloud 34 and 35, each as its own word', () => {
     const run = drain();
     expect(
       run.calls,
