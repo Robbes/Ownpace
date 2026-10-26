@@ -510,6 +510,15 @@ is beside each; none is urgent tonight.
    line is supported, and only the OS under it would not be from 2026-11-01. Both images
    run Redis as uid 999, so the append-only file in `redis_data` carries over, and back
    again if it has to.
+   **2026-10-26: asked again after the scan triage, and the answer is the same: stay on 7.4.**
+   The owner's word: *"Stay on Redis 7.4"*. Measured with Trivy 0.76.1 on 2026-10-25, on
+   arm64 and amd64: `7.4.11-bookworm` (this pin) reads 1 critical and 57 high, none with a
+   Debian fix (the critical is zlib's minizip, which `zlib1g` does not ship and Redis does not
+   use; 48 of the highs are six util-linux CVEs counted once per package); `7.4.11-alpine`
+   reads 0/0 but runs on Alpine 3.21, whose support ends on 2026-11-01, the reason the stack
+   left it; `8.10.2-alpine` reads 0/0 and `8.10.2-trixie` 0/43, both a one-way major under
+   the licence above. Redis is reachable on the compose network only. The revisit trigger
+   is unchanged.
 4. **registry 2 → 3.** The 2 line has had no release since 2.8.3; 3.0 rewrote the
    configuration file. The registry only serves Trigger.dev's deploy images inside the
    stack; moving it is a config rewrite plus a bring-up, not a patch. **Taken
