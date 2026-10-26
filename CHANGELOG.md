@@ -20,7 +20,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   off, upstream's mitigation for CVE-2026-115560. `db-roles.sh` runs the
   postgres client `managed.yml` pins.
 - **Both databases of the managed stack start as PostgreSQL's own user, from
-  the official image without gosu** (workplan 0146 T15): the scan's one
+  the official image without gosu** (workplan 0146 T15, #1717): the scan's one
   critical and 25 of its 26 high findings in `postgres:18.6-alpine` were the Go
   runtime in gosu, which the image ran only to drop from root to that user.
   Compose builds `deploy/compose/postgres` on the first `up`, and both
