@@ -20,12 +20,13 @@
  * Since 2026-10-22 each is pinned by its exact version and its index digest,
  * and moves by a pull request that E2E (managed) proves on its branch; live
  * takes it from a release tag, and `up` pulls a digest the machine does not
- * have. Dependabot reads no file in `deploy/compose`: the weekly pin watch
- * (`scripts/idp-pin-watch.mjs`) says when a newer tag is listed, and the
+ * have. Dependabot reads no compose file in `deploy/compose`: the weekly pin
+ * watch (`scripts/idp-pin-watch.mjs`) says when a newer tag is listed, and the
  * weekly image scan (`scripts/image-scan.mjs`) counts the findings a newer
  * package fixes, which is when a rebuild under the same tag is worth its new
- * digest. Dependabot moves the FROM lines of `apps/web/Dockerfile`, tag and
- * digest. This holds four things:
+ * digest. Dependabot moves the FROM lines of `apps/web/Dockerfile`, and of
+ * `deploy/compose/postgres/Dockerfile` (0146 T15), tag and digest. This holds
+ * four things:
  *
  *  - no image line of `deploy/compose/managed.yml`, `deploy/compose/dev.yml`
  *    or `deploy/compose/www.yml` floats within its line, by the image scan's

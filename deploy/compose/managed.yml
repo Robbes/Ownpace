@@ -83,11 +83,13 @@ name: ownpace-managed
 # (scripts/image-scan.mjs) counts the findings a newer package fixes, which is when a rebuild of
 # the same tag is worth its new digest. db-roles.sh asks with this file's first postgres image.
 # postgres and trigger-db run a build of the official image since 2026-10-26 (workplan 0146 T15):
-# their pin is deploy/compose/postgres/Dockerfile's FROM, by tag and digest, and the name below
-# carries a hash of that file's instructions, so a changed Dockerfile is a name the machine does
-# not have yet. `up` builds it only where that name is missing, and only if nothing asks for a
-# build: `up --build` builds every service in its scope that has a `build:`, dependencies
-# included, so bootstrap-managed.sh builds `api web` by name and runs `up` without it.
+# their pin is deploy/compose/postgres/Dockerfile's FROM, by tag and digest, which Dependabot does
+# read (its own entry), and the name below carries a hash of that file's instructions, so a
+# changed Dockerfile is a name the machine does not have yet, and a pull request that changes one
+# fails a-database-started-as-root until the names move with it (the failure says how). `up`
+# builds it only where that name is missing, and only if nothing asks for a build: `up --build`
+# builds every service in its scope that has a `build:`, dependencies included, so
+# bootstrap-managed.sh builds `api web` by name and runs `up` without it.
 # scripts/a-float-nothing-ever-pulled.unit.test.ts refuses a new float; busybox's one-shot
 # chown is the one it names, with its reason.
 #

@@ -35,10 +35,26 @@
  *    `pull_policy: never` and no `user:` that puts root back. The tag carries
  *    the hash of the Dockerfile's instructions: `up` builds such an image only
  *    when the machine has none of that name, so a name that stayed when the
- *    Dockerfile moved would keep the old build running for good.
+ *    Dockerfile moved would keep the old build running for good, on live and
+ *    the OTA stack alike, and on one daemon the stack that built the new
+ *    content would hand it to the other under the old name.
  *    `pull_policy: never` because no registry serves the name: without it
  *    `docker compose pull` failed on it, and the first `up` asked whatever
  *    answers on the host's own port 443 for it before building;
+ *  - THE NAME IS THE CONTENT, AND NOTHING ELSE IS (asked again on
+ *    2026-10-26). When the instructions change, one failure names every image
+ *    line that still says the old name and the `sed` that writes the new one.
+ *    And nothing the hash does not cover may change what is built: no parser
+ *    directive (`# syntax=`, `# escape=`, `# check=`: a comment to the hash,
+ *    an instruction to the builder), no COPY, ADD or `--mount` (they read
+ *    files or images the hash does not cover), and `build:` is the bare
+ *    directory (args, a target or a Dockerfile of its own would be inputs the
+ *    name does not carry). The context holds the Dockerfile alone, and nothing
+ *    reads it but the builder;
+ *  - Dependabot reads the Dockerfile, in a docker entry of its own that never
+ *    offers a major (pg_upgrade is the owner's): a new digest or 18.x of the
+ *    base arrives as its pull request, which fails here until the three names
+ *    move with it, and says how;
  *  - NOTHING BUILDS IT AGAIN WHILE THE MACHINE HAS IT (the review of #1717,
  *    2026-10-26). `up --build` builds every service in its scope that has a
  *    `build:`, dependencies included (compose 5.1.1, cmd/compose/create.go and
@@ -66,12 +82,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parse as parseYaml } from 'yaml';
-import { COMPOSE_FILES, builtTag, dockerfileBase, parseRef } from './idp-pin-watch.mjs';
+import { LineCounter, parse as parseYaml, parseDocument } from 'yaml';
+import { COMPOSE_FILES, builtTag, dockerfileBase, parseRef, readImages } from './idp-pin-watch.mjs';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(join(REPO_ROOT, rel), 'utf8');
@@ -133,7 +150,45 @@ function dockerfileProblems(text: string): string[] {
       problems.push(`no \`ENV ${name}=/tmp/…\`: uid 70's home is the data volume, where an interactive session would leave its history`);
     }
   }
+  // The name hashes the instruction lines and nothing else (builtTag), so nothing else may change what is built.
+  for (const line of text.split('\n')) {
+    if (!/^\s*#\s*[a-z][a-z0-9]*\s*=/i.test(line)) break;
+    problems.push(`\`${line}\` is a parser directive: it changes the build, and the image's name skips it as a comment. Remove it`);
+  }
+  for (const line of instructions) {
+    if (/^(COPY|ADD)\s/i.test(line) || /--mount\b/i.test(line)) {
+      problems.push(`\`${line}\` reads files or an image the image's name does not hash, so they could change under the same name. Write what it needs into an instruction line`);
+    }
+  }
   return problems;
+}
+
+/** The 1-based line of a service's `image:` in a compose file's text. */
+function imageLine(text: string, service: string): number {
+  const lineCounter = new LineCounter();
+  const node = parseDocument(text, { lineCounter }).getIn(['services', service, 'image'], true) as { range?: [number, number, number] } | undefined;
+  return node?.range ? lineCounter.linePos(node.range[0]).line : 0;
+}
+
+const escapeForSed = (s: string) => s.replace(/[.[\]\\*^$#]/g, '\\$&');
+
+/**
+ * The one failure for a Dockerfile whose instructions moved past the name the
+ * compose files give its build: which lines, and the command that moves them.
+ */
+function staleNames(stale: ReadonlyArray<{ key: string; line: number; image: string }>, want: string): string {
+  const files = [...new Set(stale.map((s) => s.key.split(':')[0]!))];
+  const olds = [...new Set(stale.map((s) => s.image))];
+  return [
+    `${DOCKERFILE}'s instructions changed, so the image it builds is named ${want} now, and ${stale.length} image line(s) still give the old name:`,
+    ...stale.map((s) => `  ${s.key.split(':')[0]}:${s.line} (${s.key.split(':')[1]}): ${s.image}`),
+    'Compose builds an image only where its name is missing, so under the old name every stack that has it keeps running the old build, and on a',
+    "shared daemon one stack's build of the new Dockerfile would be the other's too. Write the new name on those lines, from the repository's root:",
+    `  sed -i ${olds.map((o) => `-e 's#${escapeForSed(o)}#${want}#'`).join(' ')} ${files.join(' ')}`,
+    "Nothing else names it: db-roles.sh and stand-up-live.sh read managed.yml's, and the image scan and the pin watch read the Dockerfile. The twelve",
+    "hex digits are the SHA-256 of the Dockerfile's instruction lines, comments and blank lines left out:",
+    `  grep -Ev '^[[:space:]]*(#|$)' ${DOCKERFILE} | sha256sum | cut -c1-12`,
+  ].join('\n');
 }
 
 /** What is wrong with the Postgres services of the deploy/compose files; empty when they hold. */
@@ -141,6 +196,7 @@ function composeProblems(texts: Readonly<Record<string, string>>, dockerfile: st
   const problems: string[] = [];
   const want = `localhost/postgres:${builtTag(dockerfile)}`;
   const found: string[] = [];
+  const stale: Array<{ key: string; line: number; image: string }> = [];
   for (const [file, text] of Object.entries(texts)) {
     for (const [name, svc] of Object.entries(services(file, text))) {
       const key = `${file}:${name}`;
@@ -151,16 +207,21 @@ function composeProblems(texts: Readonly<Record<string, string>>, dockerfile: st
       }
       if (image?.repo !== 'localhost/postgres') continue;
       found.push(key);
-      if (svc.image !== want) problems.push(`${key} runs ${svc.image}; the Dockerfile builds ${want}`);
-      const context = typeof svc.build === 'string' ? svc.build : svc.build?.context;
-      if (context !== './postgres') problems.push(`${key} is built from ${String(context)}, not ./postgres`);
-      if (typeof svc.build === 'object' && svc.build.dockerfile !== undefined) problems.push(`${key} names a dockerfile of its own`);
+      if (svc.image !== want) stale.push({ key, line: imageLine(text, name), image: svc.image! });
+      if (typeof svc.build === 'object' && svc.build !== null) {
+        problems.push(
+          `${key}'s build: is a mapping (${Object.keys(svc.build).join(', ')}): args, a target or a Dockerfile of its own are inputs the image's name does not carry. Write \`build: ./postgres\``,
+        );
+      } else if (svc.build !== './postgres') {
+        problems.push(`${key} is built from ${String(svc.build)}, not ./postgres`);
+      }
       if (svc.pull_policy !== 'never') {
         problems.push(`${key} has pull_policy ${String(svc.pull_policy)}, not never: no registry serves ${want}, so \`docker compose pull\` fails on it and \`up\` asks the host's own port 443 before it builds`);
       }
       if (svc.user !== undefined && !/^70(:70)?$/.test(String(svc.user))) problems.push(`${key} runs as ${String(svc.user)}, not uid 70`);
     }
   }
+  if (stale.length) problems.push(staleNames(stale, want));
   const missing = BUILT.filter((k) => !found.includes(k));
   const extra = found.filter((k) => !BUILT.includes(k));
   if (missing.length) problems.push(`not built: ${missing.join(', ')}`);
@@ -188,6 +249,13 @@ describe('the Postgres of the deploy/compose stacks starts as uid 70, from an im
     expect(swap(/^ENV PSQL_HISTORY=.*$/m, '')).toEqual([expect.stringContaining('ENV PSQL_HISTORY')]);
     expect(swap(/^FROM postgres:(\d+\.\d+)-alpine@/m, 'FROM postgres:$1-trixie@')).toEqual([expect.stringContaining('on Alpine')]);
     expect(swap(/^FROM (\S+)@sha256:[0-9a-f]{64}$/m, 'FROM $1')).toEqual([expect.stringContaining('carries no tag and digest')]);
+    // What the builder reads and the name does not hash: a parser directive, the context, another image.
+    expect(dockerfileProblems(`# syntax=docker/dockerfile:1\n${real}`)).toEqual([expect.stringContaining('`# syntax=docker/dockerfile:1` is a parser directive')]);
+    expect(dockerfileProblems(`# escape=\`\n${real}`)).toEqual([expect.stringContaining('is a parser directive')]);
+    expect(dockerfileProblems(`${real}\n# check=skip=all\n`), 'a directive below the first line is a comment, to the builder too').toEqual([]);
+    for (const line of ['COPY postgresql.conf /etc/postgresql/', 'ADD https://example.org/x.tar.gz /tmp/', 'COPY --from=busybox:1.37 /bin/busybox /bin/', 'RUN --mount=type=bind,target=/src true']) {
+      expect(dockerfileProblems(real.replace(/^(USER 70:70)$/m, `${line}\n$1`)), line).toEqual([expect.stringContaining(`\`${line}\` reads files or an image`)]);
+    }
     // USER moved above the rm: the build's rm would run as uid 70, and fail.
     const moved = real.replace(/^USER 70:70\n/m, '').replace(/^(RUN rm \/usr\/local\/bin\/gosu)$/m, 'USER 70:70\n$1');
     expect(dockerfileProblems(moved)).toEqual(['USER 70:70 comes before the rm, which needs root']);
@@ -209,14 +277,48 @@ describe('the Postgres of the deploy/compose stacks starts as uid 70, from an im
       'not built: deploy/compose/managed.yml:postgres',
     ]);
     // An instruction changed, and the names did not: compose would keep the old build.
+    // One failure, naming every line and the command that moves them; that command is enough.
     const edited = dockerfile.replace(/^(ENV HISTFILE=\S+)$/m, '$1\nENV LANG=en_US.utf8');
     expect(edited).not.toBe(dockerfile);
-    expect(composeProblems(composeTexts, edited)).toHaveLength(BUILT.length);
+    const [stale, ...more] = composeProblems(composeTexts, edited);
+    expect(more).toEqual([]);
+    const next = `localhost/postgres:${builtTag(edited)}`;
+    expect(stale).toContain(`${DOCKERFILE}'s instructions changed, so the image it builds is named ${next} now, and 3 image line(s) still give the old name:`);
+    const lines = Object.entries(composeTexts).flatMap(([file, text]) =>
+      readImages(text)
+        .filter((i) => i.repo === 'localhost/postgres')
+        .map((i) => `${file}:${i.line} `),
+    );
+    expect(lines).toHaveLength(BUILT.length);
+    for (const at of lines) expect(stale).toContain(at);
+    const sed = /^ {2}(sed -i .*)$/m.exec(stale!)?.[1];
+    expect(sed, 'the failure gives no sed').toBeTruthy();
+    const scratch = mkdtempSync(join(tmpdir(), 'built-name-'));
+    try {
+      mkdirSync(join(scratch, 'deploy/compose'), { recursive: true });
+      for (const [file, text] of Object.entries(composeTexts)) writeFileSync(join(scratch, file), text);
+      const ran = spawnSync('sh', ['-c', sed!], { cwd: scratch, encoding: 'utf8' });
+      expect(ran.status, ran.stderr).toBe(0);
+      const moved = Object.fromEntries(Object.keys(composeTexts).map((file) => [file, readFileSync(join(scratch, file), 'utf8')]));
+      expect(composeProblems(moved, edited), 'the sed the failure gives does not move every name').toEqual([]);
+      for (const file of Object.keys(composeTexts)) {
+        const changed = composeTexts[file]!.split('\n').filter((line, i) => moved[file]!.split('\n')[i] !== line);
+        expect(changed.every((line) => /^\s*image:\s*localhost\/postgres:/.test(line)), `the sed changed more than image lines in ${file}`).toBe(true);
+      }
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
     // A comment is no instruction, and moves no name.
     expect(composeProblems(composeTexts, `${dockerfile}\n# a note\n`)).toEqual([]);
     const elsewhere = managed.replace(/^(\s*build:\s*)\.\/postgres$/m, '$1./postgres-other');
     expect(composeProblems({ ...composeTexts, 'deploy/compose/managed.yml': elsewhere }, dockerfile)).toEqual([
       'deploy/compose/managed.yml:postgres is built from ./postgres-other, not ./postgres',
+    ]);
+    // Args, a target, a Dockerfile of its own: inputs the name does not carry.
+    const mapped = managed.replace(/^(\s*)build:\s*\.\/postgres$/m, '$1build:\n$1  context: ./postgres\n$1  args:\n$1    PG_EXTRA: "1"');
+    expect(mapped).not.toBe(managed);
+    expect(composeProblems({ ...composeTexts, 'deploy/compose/managed.yml': mapped }, dockerfile)).toEqual([
+      expect.stringContaining("deploy/compose/managed.yml:postgres's build: is a mapping (context, args)"),
     ]);
     const rooted = managed.replace(/^(\s*build:\s*\.\/postgres)$/m, '$1\n    user: root');
     expect(composeProblems({ ...composeTexts, 'deploy/compose/managed.yml': rooted }, dockerfile)).toEqual([
@@ -267,6 +369,23 @@ describe('the Postgres of the deploy/compose stacks starts as uid 70, from an im
       expect(asked.status, asked.stderr).toBe(0);
       expect(asked.stdout, `${script} reads no image, or another one, from managed.yml`).toBe(`${want}\n`);
     }
+  });
+});
+
+describe("Dependabot moves the Dockerfile's base", () => {
+  it('in a docker entry of its own, which never offers a major', () => {
+    type Update = { 'package-ecosystem': string; directory?: string; directories?: string[]; ignore?: Array<Record<string, unknown>> };
+    const updates = (parseYaml(read('.github/dependabot.yml')) as { updates: Update[] }).updates;
+    const entries = updates.filter(
+      (u) => u['package-ecosystem'] === 'docker' && [...(u.directories ?? []), ...(u.directory ? [u.directory] : [])].includes('/deploy/compose/postgres'),
+    );
+    expect(entries, `Dependabot does not read ${DOCKERFILE}: nothing opens the pull request that moves its base`).toHaveLength(1);
+    expect(entries[0]!.directories, 'it shares an entry, and its pull request, which fails here until the names move, would hold the others back').toBeUndefined();
+    expect(entries[0]!.directory).toBe('/deploy/compose/postgres');
+    expect(entries[0]!.ignore, "a major is pg_upgrade, and the owner's decision").toContainEqual({
+      'dependency-name': 'postgres',
+      'update-types': ['version-update:semver-major'],
+    });
   });
 });
 

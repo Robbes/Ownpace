@@ -4,6 +4,41 @@
 
 ## Status — 2026-10-26 (update this block at the end of every session)
 
+**2026-10-26, later still: T15, the built image's name asked again, on draft #1717.** The
+question: is `localhost/postgres:18.6-alpine-6b2d97623fb5` tied to what it builds? If not, live
+and the OTA stack, on one daemon and one name, would share whatever was built last, and a stack
+that had the name would never build a moved base.
+- **It is.** `6b2d97623fb5` is neither the Dockerfile's SHA-256 (`c6953866…`) nor the base's
+  digest (`898c60cb…`): it is the first twelve hex digits of the SHA-256 of the Dockerfile's
+  instruction lines, comments and blank lines left out (`builtTag` in `scripts/idp-pin-watch.mjs`;
+  `grep -Ev '^[[:space:]]*(#|$)' deploy/compose/postgres/Dockerfile | sha256sum | cut -c1-12`
+  prints it), and `a-database-started-as-root` has compared the three image lines with it since
+  `d885817b`. So a changed instruction is a name no stack has: the OTA stack builds `main`'s
+  under another name and live keeps its own, and a stack's next `up_wait postgres` finds the new
+  name missing and builds it. Comments are left out on purpose: a comment-only edit would
+  otherwise rename the image and restart both databases of every stack at its next `up`, for no
+  change in what runs.
+- **Compose builds a missing image under `pull_policy: never`.** Read in compose's source at
+  v5.1.1 and v5.6.1: `up` hands build options for every service in its scope to `create` unless
+  `--no-build` (`cmd/compose/up.go`), `build` passes a service by only when its image is present
+  and its policy is not `build` (`pkg/compose/build.go`), and `mustPull` is false for `never`
+  (`pkg/compose/pull.go`). Run: `build (postgres)` on `186440f4` brought up dev.yml's postgres on a
+  runner without the image, every step `success`. Nothing in the bring-up passes `--no-build`.
+- **What was missing, now fixed.** (1) A stale name failed as three lines, each saying the name
+  to write and none how. Now one failure lists every stale line by file and line and prints the
+  `sed` that moves them; the guard runs that `sed` on copies of the compose files and finds them
+  whole after it. Red first: with `ENV HISTFILE` changed in the real Dockerfile and the names
+  left, the guard failed naming `managed.yml:125` (postgres), `managed.yml:241` (trigger-db) and
+  `dev.yml:21`, with the new name `18.6-alpine-d0dcb792c87f`; the printed `sed` applied, it passed
+  but for the Dependabot case below; both restored. (2) Inputs the hash does not cover: a parser
+  directive (`# syntax=`, `# escape=`, a comment to the hash), COPY, ADD or `--mount`, and a
+  `build:` mapping (args, a target) are now refused, each case red with its check removed. The
+  context holds the Dockerfile alone. (3) **Dependabot did not read the Dockerfile**: its
+  `docker` entry lists `/apps/api`, `/apps/web` and `/apps/selfhost`. It now has an entry of its
+  own (`/deploy/compose/postgres`, `chore(postgres)`, no major), the shape #1703 asks of every
+  Dockerfile under `deploy/compose`; its pull request fails the guard until the names move, and
+  the failure says how. The guard holds the entry; it was red until it was added.
+
 **2026-10-26, later: T15 after its review, three findings, all fixed on draft #1717.** No fault
 was found in how the image starts, in the uids, or in any script that execs into a database, and
 the review's own Trivy v0.76.1 runs read the same 1/26 and gosu's 1/25.

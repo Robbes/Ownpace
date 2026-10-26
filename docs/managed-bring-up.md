@@ -4507,9 +4507,11 @@ the user gosu dropped to, it never does. What that means for you:
   included, and api and web depend on both databases; a `build` that names
   no service builds every one. From a pruned build cache that is a
   new image under the same name, and the next `up` that reaches a database
-  recreates it; live and the OTA stack share one Docker daemon and this name,
-  so one stack's rebuild makes the other's next such `up` restart its
-  databases, outside any hold. So the bring-up
+  recreates it; live and the OTA stack share one Docker daemon, and this name
+  while their Dockerfiles' instructions agree, so one stack's rebuild makes
+  the other's next such `up` restart its databases, outside any hold. (A stack
+  on another Dockerfile has another name: the OTA stack's build of `main`'s
+  never becomes the image live runs.) So the bring-up
   builds `api web` by name and runs `up` without `--build`, every command in
   this document does the same, and so should yours:
   `docker compose -f deploy/compose/managed.yml build web`, then
@@ -4552,11 +4554,18 @@ the user gosu dropped to, it never does. What that means for you:
 - **Moving the pin** is the Dockerfile's FROM, by tag and digest, and the
   three `image:` lines that name the build (`managed.yml` twice, `dev.yml`),
   whose last twelve hex digits are
-  `grep -Ev '^[[:space:]]*(#|$)' deploy/compose/postgres/Dockerfile | sha256sum | cut -c1-12`;
-  `scripts/a-database-started-as-root.unit.test.ts` says what to write. The
-  integration tests start the same FROM. The pin watch reports a newer tag of
-  the FROM, and the weekly image scan builds the Dockerfile and scans what it
-  built.
+  `grep -Ev '^[[:space:]]*(#|$)' deploy/compose/postgres/Dockerfile | sha256sum | cut -c1-12`
+  (the SHA-256 of its instruction lines; a comment moves no name). Dependabot
+  opens the pull request that moves the FROM (its own entry in
+  `.github/dependabot.yml`, never a major), and that pull request fails
+  `scripts/a-database-started-as-root.unit.test.ts` until the three lines
+  move too: the failure lists them and prints the `sed` that moves them, to
+  run on the pull request's branch and push. Its E2E (managed) is then
+  dispatched like any pin's. Nothing outside those instruction lines may
+  change what is built, so the same guard refuses a parser directive, a COPY,
+  ADD or `--mount`, and a `build:` with args or a target. The integration
+  tests start the same FROM. The pin watch reports a newer tag of the FROM,
+  and the weekly image scan builds the Dockerfile and scans what it built.
 
 The appliance (`deploy/selfhost/compose.yml`) still runs the official image as
 root, on purpose: its pin is Dependabot's, which moves an image line and not a

@@ -32,20 +32,27 @@
 # THE BASE IS THE OFFICIAL IMAGE, by exact version and index digest, on Alpine.
 # The same Alpine and musl: a Debian base collates text differently, and the
 # indexes of a database made under one are not to be trusted under the other.
-# Its pin moves by a pull request like every image in deploy/compose (the pin
-# watch, scripts/idp-pin-watch.mjs, says when a newer tag is listed; the image
-# scan, scripts/image-scan.mjs, builds this file and scans what it built), and
-# that pull request moves the tag below too.
+# Its pin moves by a pull request: Dependabot opens it (.github/dependabot.yml,
+# this directory's own entry, never a major), the pin watch
+# (scripts/idp-pin-watch.mjs) says when a newer tag is listed, and the image
+# scan (scripts/image-scan.mjs) builds this file and scans what it built. That
+# pull request moves the name below too.
 #
 # THE NAME. managed.yml and dev.yml build this as
 # `localhost/postgres:<base tag>-<12 hex>`, a name no registry serves, so the
 # services say `pull_policy: never`. `up` builds an image only when the machine
 # has none of that name, so the twelve hex digits are the SHA-256 of this
 # file's instruction lines (comments and blank lines do not count), and a
-# changed instruction is a name the machine does not have yet:
+# changed instruction is a name no stack on the machine has yet: live, on its
+# tag's Dockerfile, keeps its own name while the OTA stack builds main's under
+# another, on the same daemon.
 #   grep -Ev '^[[:space:]]*(#|$)' deploy/compose/postgres/Dockerfile | sha256sum | cut -c1-12
-# scripts/a-database-started-as-root.unit.test.ts holds every postgres there to
-# it, and says what to write.
+# scripts/a-database-started-as-root.unit.test.ts holds the three image lines
+# to it, and when an instruction changes its failure prints the `sed` that
+# moves them. Nothing but those lines may change what is built: this file has
+# no parser directive (`# syntax=`, `# escape=`: a comment to the hash, an
+# instruction to the builder) and no COPY, ADD or --mount (they read files the
+# hash does not cover), and `build:` names this directory and nothing more.
 #
 # NOTHING BUILDS IT AGAIN WHILE THE MACHINE HAS IT. `up --build` builds every
 # service in its scope that has a `build:`, dependencies included (api and web
