@@ -90,14 +90,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      # 35.0.1-apache, this digest pushed 2026-10-10, upstream's last build of
-      # that tag: PHP 8.5.11. 35.0.2-apache's current digest (sha256:89af7ee7…,
-      # pushed 2026-10-23 19:50 UTC, also what `35-apache` and `latest` name)
-      # and the 34-apache the integration job pulls (34.0.5, rebuilt 2026-10-23)
-      # carry PHP 8.5.12, which closes CVE-2026-109618 and CVE-2026-109619. It
-      # passes the three-day wait on 2026-10-26 at 19:51 UTC and is the next pin
-      # (workplan 0119, T5).
-      NEXTCLOUD_IMAGE: nextcloud:35.0.1-apache@sha256:8f2f0e93aca5e9457019933936dea1f313052e72c696b4aecb31580a208b859f
+      # 35.0.2-apache by the digest pushed 2026-10-23 19:50 UTC (also what
+      # `35-apache` and `latest` named on 2026-10-26), on PHP 8.5.12, which
+      # closes CVE-2026-109618 and CVE-2026-109619, as the 34-apache the
+      # integration job pulls (34.0.5, rebuilt 2026-10-23) does. Moved from
+      # 35.0.1 (PHP 8.5.11) on 2026-10-26, once 35.0.2's digest had passed the
+      # three-day wait at 19:51 UTC (workplan 0119, T5). By hand: Dependabot
+      # reads no workflow env, and the pin watch reads no workflow file.
+      NEXTCLOUD_IMAGE: nextcloud:35.0.2-apache@sha256:89af7ee7a96ff5e9668280566209268ae6b2d02327f6ef6d56f6d68228cf9431
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

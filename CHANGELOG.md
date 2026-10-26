@@ -9,7 +9,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **The suites that talk to Nextcloud also run against Nextcloud 35** (workplan
   0119): `.github/workflows/nextcloud-second-major.yml` runs the WebDAV,
   CalDAV, CardDAV, chunked-upload and share suites against
-  `nextcloud:35.0.1-apache`, pinned by digest, on a push to `main` that
+  `nextcloud:35.0.2-apache`, pinned by digest, on a push to `main` that
   touches their code, weekly, and on a pull request that changes the leg
   itself; not on every pull request. A customer's own Nextcloud may already
   run 35 while the demo stays on 34 until after the alpha.2 tag, since that

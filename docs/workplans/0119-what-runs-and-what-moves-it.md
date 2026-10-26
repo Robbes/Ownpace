@@ -19,20 +19,17 @@ customer whose own Nextcloud already runs it.
   test setup, Mondays at 05:17 UTC, on demand, and on a pull request that changes the leg itself. Not
   on every pull request, since `ci.yml` already runs every suite against 34 on two architectures.
   Not a required check (`every-pr-check-is-classified` lists it with the reason).
-- **The pin.** `nextcloud:35.0.1-apache@sha256:8f2f0e93…`, that digest pushed 2026-10-10,
-  upstream's last build of that tag, on PHP 8.5.11. 35.0.2-apache's current digest
-  (`sha256:89af7ee7…`, pushed 2026-10-23 at 19:50 UTC, the image rebuild that sets
-  `session.upload_progress.enabled=0`, and the digest `35-apache` and `latest` name) and the
-  `34-apache` the integration job pulls (34.0.5, rebuilt the same day) carry PHP 8.5.12, of
-  2026-10-22, which closes CVE-2026-109618 and CVE-2026-109619 (php-src `NEWS` at `php-8.5.12`). So
-  the pinned build is not the one a customer pulling `nextcloud:35` gets today, and the two legs
-  differ in PHP's patch release as well as in Nextcloud's major. 35.0.2's digest passes the
-  three-day wait on 2026-10-26 at 19:51 UTC, before this branch can merge, and the move to it is
-  the step before the merge (below). Not sooner: the image runs on a throwaway CI runner with no
-  data and nothing that can reach it, so the PHP fixes do not need it before the wait ends; and the
-  newest advisories on nextcloud/security-advisories are of 2026-10-08, before 35.0.2, none of the
-  ten on its first page naming a 35 release. It moves by hand, the workflow line and §2.1's row:
-  Dependabot reads no workflow `env:` and the pin watch reads no workflow file (§4).
+- **The pin.** `nextcloud:35.0.2-apache@sha256:89af7ee7…`, the digest pushed 2026-10-23 at
+  19:50 UTC (the image rebuild that sets `session.upload_progress.enabled=0`, and on 2026-10-26
+  still the digest `35-apache` and `latest` name), on PHP 8.5.12 of 2026-10-22, which closes
+  CVE-2026-109618 and CVE-2026-109619 (php-src `NEWS` at `php-8.5.12`). The `34-apache` the
+  integration job pulls (34.0.5, rebuilt the same day) carries the same PHP, so the two legs now
+  differ in Nextcloud's major only. Moved on 2026-10-26 from `35.0.1-apache@sha256:8f2f0e93…`
+  (pushed 2026-10-10, PHP 8.5.11) once 35.0.2's digest had passed the three-day wait at 19:51 UTC.
+  Not sooner: the image runs on a throwaway CI runner with no data and nothing that can reach it;
+  and the newest advisories on nextcloud/security-advisories are of 2026-10-08, before 35.0.2, none
+  of the ten on its first page naming a 35 release. It moves by hand, the workflow line and §2.1's
+  row: Dependabot reads no workflow `env:` and the pin watch reads no workflow file (§4).
 - **The setup, when `NEXTCLOUD_IMAGE` names an image** (`packages/testing/src/nextcloud-image.ts`):
   a Nextcloud that does not start fails the run, where the default warns and lets the DAV suites
   skip; the version `status.php` reports must be the one the tag names; and the step after the run
@@ -364,7 +361,7 @@ a decision each, §3, for the owner.
 | T2 The safe moves | ✅ Done 2026-09-06 | node 24.20.0-slim (three Dockerfiles), postgres 18.6-alpine (self-host), pgbouncer v1.25.2-p0, mailpit v1.31.1, busybox 1.38 (compose, three scripts, one test, the bring-up doc), nginx 1.30-alpine (web image and www; both on 1.31 since the morning, see the status block); three action version comments set to the tag their SHA is. Stateless, or a fixture, or a patch of a store that upgrades in place. Proved on the branch before merge: **E2E (self-hosted) #189 green** (the postgres and node moves, restart-resume included) and **E2E (managed) #161 green** (pgbouncer in front of the API, mailpit, busybox, nginx behind www), both dispatched at 01:57 UTC; `images.yml` built the three images from the moved FROM lines; the `unit` scripts guards 92 files, 1 567 tests. |
 | T3 The owner's decisions | 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Taken 2026-09-09: Redis (item 3 — **stay on 7.4**, with a revisit trigger) and the release-age gate (item 8 — `minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). Taken 2026-10-23: ClickHouse 26.2 for the Alpha (item 9). The object store (item 5): taken 2026-10-23, *"T7 no, fix already within the alpha"* (0146 T7), and ✅ merged as #1692 on 2026-10-25 (`0029db4a`, E2E (managed) #281 green) — *was:* still the owner's, with a candidate named. |
 | T4 vitest 5 | ✅ Done 2026-09-06 | `vitest` and `@vitest/coverage-v8` 4.1.11 → 5.0.0, every declaring package together. Green on Node 22 (508 files, 6 326 tests) and on Node 24 as CI runs it (509 files, 6 411 tests); the v8 provider loads and reports. Two things the major needed first, found by trying it and landed as their own PR (#810) because they are right under vitest 4 too: the alias map's missing subpath pins — `@openmig/core/archive-reader` and thirteen more, plus a guard — and the exclude patterns in their documented form, since vitest 5 follows pnpm's workspace symlinks when it crawls and a bare `node_modules` matched only the top level. The bump is its own PR, stacked on #810. |
-| T5 The second Nextcloud major in CI | 🔨 In progress | 2026-10-25: `nextcloud-second-major.yml` runs the suites that talk to Nextcloud against 35.0.1 by digest, the setup refuses a Nextcloud that did not start or is not the version named, and the tier has a share suite. Green on its pull request (#1705: 36 tests against 35.0.1, 814 against 34.0.5 on both architectures); a draft, merged after the alpha.2 tag. Reviewed and `main` merged in the same day; before the merge, 35.0.2 by digest once it is three days old and, after the fold (#1706), the CHANGELOG bullet back under `[Unreleased]` (Status). CI only, not one way. |
+| T5 The second Nextcloud major in CI | 🔨 In progress | 2026-10-25: `nextcloud-second-major.yml` runs the suites that talk to Nextcloud against 35.0.1 by digest (35.0.2 since 2026-10-26), the setup refuses a Nextcloud that did not start or is not the version named, and the tier has a share suite. Green on its pull request (#1705: 36 tests against 35.0.1, 814 against 34.0.5 on both architectures); a draft, merged after the alpha.2 tag. Reviewed and `main` merged in the same day; after the fold (#1706), the CHANGELOG bullet back under `[Unreleased]`; on 2026-10-26, once its digest was three days old, 35.0.2 by digest (PHP 8.5.12) (Status). CI only, not one way. |
 
 ## 1. Why this exists
 
@@ -409,7 +406,7 @@ is who moves it after T1.
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.37.0 (2026-10-21) | v5.37.0 (2026-09-24) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
 | `axllent/mailpit` | `managed.yml` | v1.31.6 by digest (2026-10-21; v1.31.1 from T2) | v1.31.6 (2026-10-15), digest `23fe39e8…` | current | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
 | `nextcloud` | `managed.yml`, `dev.yml` | 34-apache, floating (34.0.3) | 34.0.3 (2026-09-02) | current | `docker compose pull` | stays floating; a fixture and a demo target; a major is ignored |
-| `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 35.0.1-apache by digest (PHP 8.5.11) | 35.0.2-apache (PHP 8.5.12; its digest of 2026-10-23 clears the three-day wait on 2026-10-26) | one patch release | by hand; the pin watch reads no workflow file (§4) | a CI fixture: the other major customers may run, never deployed |
+| `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 35.0.2-apache by digest (PHP 8.5.12), since 2026-10-26; 35.0.1 before | 35.0.2-apache | current | by hand; the pin watch reads no workflow file (§4) | a CI fixture: the other major customers may run, never deployed |
 | `ghcr.io/robbes/ownpace-selfhost` | `deploy/selfhost/compose.yml` | `edge` | ours | — | `images.yml` | — |
 
 Ignored by name in the new Dependabot entries, so that a green tick cannot make these
