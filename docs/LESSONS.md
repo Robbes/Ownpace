@@ -1657,6 +1657,7 @@ reading a file drops off its entry by itself.
 
 ### `docs/ending-the-alpha.md`
 
+- [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
 - [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
 - [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
 
@@ -1759,6 +1760,7 @@ reading a file drops off its entry by itself.
 - [a-runbook-for-every-alert](../scripts/a-runbook-for-every-alert.unit.test.ts) — AN ALERT NOBODY KNOWS WHAT TO DO ABOUT IS THE NEXT THING TO BE IGNORED (workplan 0142 T6).
 - [a-search-kept-past-its-year](../scripts/a-search-kept-past-its-year.unit.test.ts) — A SEARCH KEPT PAST ITS YEAR (privacy §4.5 and §9; the owner's privacy-search-records (a), 2026-09-28: 12 months).
 - [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts) — A WAY BACK BEFORE EVERY UPGRADE: the dump an identity provider upgrade needs was four commands pasted from a chat (workplan 0135 T7, *Before an upgrade*).
+- [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 
 ### `docs/release.md`
@@ -1767,6 +1769,7 @@ reading a file drops off its entry by itself.
 - [a-release-page-with-no-sbom](../scripts/a-release-page-with-no-sbom.unit.test.ts) — A RELEASE PAGE WITH NO SBOM: neither release this repository has published is complete, and nothing said so (workplan 0146, Status of 2026-10-23).
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
+- [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
 - [an-upgrade-gate-that-skipped-itself](../scripts/an-upgrade-gate-that-skipped-itself.unit.test.ts) — AN UPGRADE GATE THAT SKIPPED ITSELF: `docs/release.md` asked a person to confirm by eye that the upgrade gate's `skipIf(!HAVE_REF)` cases ran against the previous release, because without the tag they skip and the file still reports gree…
 
 ### `docs/rls-guide.md`
@@ -5294,7 +5297,10 @@ Reads:
 - `deploy/compose/stand-up-live.sh`
 - `docs/LESSONS.md`
 - `docs/TROUBLESHOOTING.md`
+- `docs/ending-the-alpha.md`
 - `docs/managed-bring-up.md`
+- `docs/operator-runbook.md`
+- `docs/release.md`
 
 ### [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts)
 

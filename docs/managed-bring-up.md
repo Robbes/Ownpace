@@ -4555,6 +4555,53 @@ thing. One script moves it:
    daily duties delete it once it is older than six days less an hour
    whatever happens, and fail the day before to remind you.
 
+#### The deploy from alpha.2 to alpha.3 runs twice
+
+The owner's decision of 2026-10-26 (workplan 0146 T13): `v0.2.0-alpha.3`
+carries both the readers (T13a), which read the api container's variables from
+Docker, and the distroless API image (T13), which has no shell and no
+`printenv`. `deploy-live.sh` runs the copy the checkout had before it moved to
+the tag. So a deploy of `v0.2.0-alpha.3`, or a later tag, started from a
+checkout of `v0.2.0-alpha.2` or an earlier tag (`git describe --tags` in
+`~/ownpace-live` names it) runs that older script, and it asks the api
+container its `NODE_ENV` by running `printenv` in it. Every other check
+answers, `/api/version` and `/version.json` naming the new tag's commit and
+version: the stack has moved. Then it ends with this, and exits 3:
+
+```text
+[deploy-live] the deploy did not take: v0.2.0-alpha.3 is checked out, and
+    NODE_ENV: the api container could not be asked (docker compose exec -T api printenv NODE_ENV).
+[deploy-live] The hold stays on. Nothing was lifted. Fix the cause and run this again with v0.2.0-alpha.3, or name another tag; the next deploy is compared with v0.2.0-alpha.3 too.
+```
+
+That run is expected, and it rolled nothing back: the checkout is at the tag
+and the stack runs it, the hold is still on, the copy before the update is
+kept, and `deploys.log` has a `did-not-take` line for the tag. When that
+`NODE_ENV` line is the only one under *the deploy did not take*, run it a
+second time, from `~/ownpace-live`, the hold still on:
+
+```bash
+git status --short                          # apps/worker/package.json, if anything: the task deploy strips its last newline
+git checkout -- apps/worker/package.json    # the second run refuses a tree that is not clean
+./deploy/compose/deploy-live.sh v0.2.0-alpha.3
+```
+
+The checkout is at the tag now, so the tag's own script runs, and it reads
+`NODE_ENV` from Docker. It keeps the copy the first run took (*a copy is here
+already … It is the copy of what ran before, so it is kept, and no second copy
+is taken*), runs the bring-up again over a stack already at the tag, prints
+`NODE_ENV in the api container: production`, and ends with `the deploy took:
+v0.2.0-alpha.3 (<commit>) runs, and answered every check.`, exit 0, and a
+`took` line in `deploys.log`. Then step 5 as usual. With any other line under
+*the deploy did not take*, the first run failed for that reason too: *If a
+check fails*, below.
+
+The same holds for any tag from `v0.2.0-alpha.3` on deployed from a checkout of
+`v0.2.0-alpha.2` or earlier (`ending-the-alpha.md` step 5 allows a newer
+release), and for the first deploy forward after live was rolled back to one. A
+deploy started from a checkout of `v0.2.0-alpha.3` or later runs once, to any
+tag, older ones included.
+
 What `deploy-live.sh` does, in order. It refuses, before the checkout or the
 stack changes, each with its own message: `--with-demo`; a `.env` without live's
 marker (`STACK_KIND=production`, `stack-kind.sh`) or without `WEB_URL`; a
@@ -4620,7 +4667,9 @@ checkout. A refusal exits 1, as in the deploy. Step 3 above is what it is for.
 
 **If a check fails, the deploy did not take.** The script says which check, the
 hold stays on, and it exits 3. The checkout is at the new tag: fix the cause and
-run it again with the same tag, or name another.
+run it again with the same tag, or name another. One such run is expected: the
+deploy from `v0.2.0-alpha.2` or earlier to `v0.2.0-alpha.3` or later (*The
+deploy from alpha.2 to alpha.3 runs twice*, above).
 
 **One-way or reversible.** Before the checkout moves, and again at the end, the
 script says whether the deploy can be undone by deploying a tag this stack has

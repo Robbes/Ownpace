@@ -25,9 +25,11 @@
  * read fails says "cannot read JWT_ISSUER"; a `deploy-live.sh` whose NODE_ENV
  * read fails says the deploy did not take. Neither is about the API. And
  * `deploy-live.sh` runs the copy the checkout had BEFORE it moves to the tag it
- * deploys, so the readers (T13a, sections 2 to 5) shipped a release before the
- * switch (T13, section 1): no deploy meets this image with a copy that asks
- * the old way.
+ * deploys, and the readers (T13a, sections 2 to 5) ship in the same release as
+ * the switch (T13, section 1), alpha.3 (the owner's decision of 2026-10-26).
+ * So the deploy from alpha.2 or earlier meets this image with a copy that asks
+ * the old way: it says the deploy did not take, though the stack has moved,
+ * and is run a second time from the checkout now at the tag (6).
  *
  * So this file holds:
  *
@@ -69,6 +71,12 @@
  *    Node version and Trivy lists no Node runtime in either image, so nothing
  *    else would say that a Node security release reached the build stage and
  *    the tasks but not the API. Run here against a stub docker.
+ * 6. Every procedure that deploys live says the deploy from alpha.2 or earlier
+ *    to alpha.3 or later runs twice: the first run's last words, word for word
+ *    as alpha.2's script prints them, and the two commands of the second
+ *    (`a-deploy-from-a-named-tag` runs both runs). Those last words name the
+ *    old exec, as output; section 2 reads that one line as output and nothing
+ *    else.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -294,9 +302,20 @@ function apiVariables(text: string): Set<string> {
 
 type Exec = { file: string; how: 'exec' | 'run'; line: string; program: string | undefined };
 
-/** Every `docker exec`, `docker compose … exec` and `docker compose … run` into the API container. */
+/**
+ * The last words of the first run of the deploy from alpha.2 or earlier (6):
+ * what alpha.2's `deploy-live.sh` prints when the distroless API cannot be
+ * asked with `printenv`. The procedures quote it so that the owner expects it.
+ */
+const ALPHA2_SAYS = 'NODE_ENV: the api container could not be asked (docker compose exec -T api printenv NODE_ENV).';
+
+/**
+ * Every `docker exec`, `docker compose … exec` and `docker compose … run` into
+ * the API container. In Markdown, the one quoted line above, whole and on one
+ * line, is output the owner reads, not a command; anything else is scanned.
+ */
 function execsIntoTheApi(): Exec[] {
-  return commandFiles().flatMap((file) => execsIn(file, read(file)));
+  return commandFiles().flatMap((file) => execsIn(file, file.endsWith('.md') ? read(file).replaceAll(ALPHA2_SAYS, '') : read(file)));
 }
 
 /**
@@ -648,5 +667,60 @@ describe('no compose service built from the API image starts a shell', () => {
         }
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. The deploy from alpha.2 to alpha.3 runs twice
+// ---------------------------------------------------------------------------
+
+describe('every live-deploy procedure says the deploy from alpha.2 or earlier runs twice (the owner, 2026-10-26)', () => {
+  // T13 ships with T13a in alpha.3, and deploy-live.sh runs the copy the
+  // checkout had before it moved: from alpha.2, that copy asks the api
+  // container with printenv, says the deploy did not take though the stack has
+  // moved, and exits 3. The owner follows these, not the guards, and wants the
+  // first run's words in them so that it is expected; the second run is
+  // refused unless the task deploy's change to apps/worker/package.json is put
+  // back first.
+  const TWICE = /runs\s+(?:`deploy-live\.sh`\s+)?twice/;
+  /** The second run, as a line to type: the same tag, alpha.3's or the placeholder the step uses. */
+  const SECOND_RUN = /^\s*\.\/deploy\/compose\/deploy-live\.sh (?:v0\.2\.0-alpha\.3|<tag>)(?=\s|$)/m;
+  const PUT_BACK = 'git checkout -- apps/worker/package.json';
+  it.each([
+    // file, quotes the first run's last line and types the second run
+    ['docs/managed-bring-up.md', true],
+    ['docs/release.md', true],
+    ['docs/ending-the-alpha.md', true],
+    ['docs/operator-runbook.md', false],
+    ['CHANGELOG.md', false],
+  ])('%s', (file, spellsItOut) => {
+    const text = read(file);
+    const at = text.search(TWICE);
+    expect(at, `${file}: the two-run step`).toBeGreaterThanOrEqual(0);
+    // What the step says, from where it starts: a deploy step before it is not its second run.
+    const step = text.slice(at);
+    const flat = text.replace(/\s+/g, ' ');
+    expect(flat, `${file}: which deploys`).toContain('v0.2.0-alpha.2');
+    expect(flat, file).toMatch(/the owner's decision of 2026-10-26/i);
+    expect(flat, `${file}: the first run's words`).toContain('NODE_ENV: the api container could not be asked');
+    expect(step.replace(/\s+/g, ' '), `${file}: the clean tree the second run needs`).toContain(PUT_BACK);
+    if (spellsItOut) {
+      // Whole, on one line, as the script prints it (and as section 2 reads it).
+      expect(step, `${file}: the first run's last line, word for word`).toContain(`    ${ALPHA2_SAYS}\n`);
+      const second = step.search(SECOND_RUN);
+      expect(second, `${file}: the second run, a line to type`).toBeGreaterThanOrEqual(0);
+      const putBack = step.indexOf(PUT_BACK);
+      expect(putBack, `${file}: put back before the second run`).toBeGreaterThanOrEqual(0);
+      expect(putBack, `${file}: put back before the second run`).toBeLessThan(second);
+      expect(step.indexOf(ALPHA2_SAYS), `${file}: the first run's words before the second run`).toBeLessThan(second);
+    }
+  });
+
+  it('section 2 reads the quoted line as output, and the same exec anywhere else as an exec', () => {
+    const doc = (body: string) => execsIn('docs/x.md', body.replaceAll(ALPHA2_SAYS, '')).map((e) => [e.program, refusal(e)]);
+    expect(doc(`It ends with:\n\n\`\`\`text\n    ${ALPHA2_SAYS}\n\`\`\`\n`)).toEqual([]);
+    expect(doc('Ask it: `docker compose exec -T api printenv NODE_ENV`.\n')).toEqual([['printenv', expect.stringMatching(/printenv/)]]);
+    // Wrapped, it is no longer the line the script prints, and is read as the exec it names.
+    expect(doc(ALPHA2_SAYS.replace('exec -T', 'exec\n-T'))).toEqual([['printenv', expect.stringMatching(/printenv/)]]);
   });
 });

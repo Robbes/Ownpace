@@ -24,13 +24,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   the managed tasks keep theirs; the smoke stops when the API's Node is not
   the version the tasks get. The container runs as uid 65532 instead of
   10001 and can no longer write its own code, which is root's; it mounts
-  nothing. Nothing execs a shell or `printenv` into it: the release before
-  this one moved every script and doc to `docker container inspect` and Node
-  by its path (T13a, #1710), so a deploy to this release from that release
-  or a later one runs once, like any other. From an older tag, deploy that
-  release first: the older tag's script would say the deploy did not take.
-  `docker compose … exec api sh` or `printenv` by hand no longer works;
-  `/nodejs/bin/node` does.
+  nothing. Nothing execs a shell or `printenv` into it: every script and doc
+  reads its variables with `docker container inspect` and runs Node by its
+  path (T13a, #1710, in this release too). **The live deploy from
+  `v0.2.0-alpha.2` or earlier to this release runs `deploy-live.sh` twice**
+  (the owner's decision of 2026-10-26). The first run is the older
+  checkout's script, which asks with `printenv` and ends `NODE_ENV: the api
+  container could not be asked`, exit 3, though live has moved to the tag
+  and nothing was rolled back. Then `git checkout --
+  apps/worker/package.json` and the same `./deploy/compose/deploy-live.sh
+  <tag>` again, which reads from Docker and takes (docs/managed-bring-up.md,
+  *The deploy from alpha.2 to alpha.3 runs twice*). A deploy from this
+  release on runs once. `docker compose … exec api sh` or `printenv` by hand
+  no longer works; `/nodejs/bin/node` does.
 
 ### Changed
 
@@ -38,10 +44,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   more** (workplan 0146 T13a, #1710): the smoke, the managed gate, `deploy-live.sh`,
   `stand-up-live.sh` and the docs read its variables with `docker container
   inspect`, and the smoke runs Node there by its path and stops when that
-  Node is not the version the managed tasks get. It works on today's image and
-  on the distroless one a later release moves the API to, and ships first so
-  that a deploy to that image from this release or later runs a
-  `deploy-live.sh` that reads it this way. Nothing a stack sets changes.
+  Node is not the version the managed tasks get. It works on the Node image
+  and on the distroless one this release moves the API to (T13, #1709, the
+  owner's decision of 2026-10-26), so every deploy started from this release
+  on runs a `deploy-live.sh` that reads it this way; the deploy to this
+  release from an older one runs twice (above). Nothing a stack sets changes.
 
 ## [0.2.0-alpha.2] - 2026-10-25
 

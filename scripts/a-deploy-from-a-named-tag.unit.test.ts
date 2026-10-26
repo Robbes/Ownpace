@@ -322,6 +322,13 @@ case "$1" in
     shift
     [ "$1" = -T ] && shift
     svc="$1"; shift
+    # The api container is distroless (0146 T13): no shell, no printenv. An
+    # exec of either fails as Docker fails it there, which is what a script
+    # from before T13a met (the two-run deploy, below).
+    if [ "$svc" = api ]; then
+      echo "OCI runtime exec failed: exec failed: unable to start container process: exec: \\"$1\\": executable file not found in \\$PATH: unknown" >&2
+      exit 126
+    fi
     if [ "$svc" != postgres ] || [ "$1" != sh ] || [ "$2" != -c ]; then
       echo "docker stub: unexpected exec: $svc $*" >&2; exit 97
     fi
@@ -540,6 +547,8 @@ interface Release {
   realSite?: boolean;
   /** User units this commit carries in deploy/compose/systemd/, by file name. */
   units?: Record<string, string>;
+  /** deploy-live.sh at this commit, in place of the one the commit before it carries. */
+  script?: string;
 }
 
 interface Stage {
@@ -704,6 +713,7 @@ function stage(opts: StageOptions = {}): Stage {
       if (r.siteCheckRefuses) writeFileSync(join(siteDir, 'check-refuses'), `${r.siteCheckRefuses}\n`);
       if (r.noSite) rmSync(join(siteDir, 'build.mjs'));
     }
+    if (r.script !== undefined) writeExec(join(compose, SCRIPT), r.script);
     for (const [unit, text] of Object.entries(r.units ?? {})) {
       mkdirSync(join(compose, 'systemd'), { recursive: true });
       writeFileSync(join(compose, 'systemd', unit), text);
@@ -1531,6 +1541,124 @@ describe('a deploy that did not take keeps the hold and exits non-zero', () => {
       expect(r.status, r.out).not.toBe(0);
       expect(called(s, 'curl')).toEqual([]);
       expect(called(s, 'exposure-check')).toEqual([]);
+    },
+    CASE_MS,
+  );
+});
+
+/**
+ * What deploy-live.sh asked the api container after the bring-up, from 0132 T4
+ * to workplan 0146 T13a: its NODE_ENV, by running `printenv` in it. Word for
+ * word the lines `v0.2.0-alpha.2` and every tag before it carry.
+ */
+const PRINTENV_CHECK = `  local node_env
+  if node_env="$("\${COMPOSE[@]}" exec -T api printenv NODE_ENV 2>/dev/null)"; then
+    if [ "$node_env" = production ]; then
+      say "  NODE_ENV in the api container: production"
+    else
+      failures+=("NODE_ENV in the api container is not production (workplan 0132 T4). Its value is not printed. The .env said production before the checkout. Look for a NODE_ENV line in a form the check does not read (indented, a space before '=', or ':' for '='), with: grep -n NODE_ENV deploy/compose/.env. Or this bring-up did not recreate the api container: docker compose -f deploy/compose/managed.yml ps api says how long it has been up.")
+    fi
+  else
+    failures+=("NODE_ENV: the api container could not be asked (docker compose exec -T api printenv NODE_ENV).")
+  fi
+`;
+
+/** The line that check ends a deploy of the distroless API with: the one the procedures quote. */
+const PRINTENV_FAILURE = 'NODE_ENV: the api container could not be asked (docker compose exec -T api printenv NODE_ENV).';
+
+/**
+ * deploy-live.sh as a tag before T13a carries it: today's, with its NODE_ENV
+ * read from Docker put back to PRINTENV_CHECK. The rest of the script is
+ * `v0.2.0-alpha.2`'s too (T13a changed that check and added `api_env`, which
+ * nothing then calls; checked against the tag's own file on 2026-10-26, and
+ * this case passed the same way on it). Should the script's own words change
+ * later, this case goes red: the procedures still quote alpha.2's, which do
+ * not change, so keep PRINTENV_FAILURE and the frame around it as they are.
+ */
+function scriptBeforeT13a(): string {
+  const now = readFileSync(join(COMPOSE_DIR, SCRIPT), 'utf8');
+  const fromDocker = / {2}# Read from Docker \(api_env, workplan 0146 T13a\)[\s\S]*?\n {2}fi\n(?= {2}# The site \(0139 T10\))/;
+  if (!fromDocker.test(now)) throw new Error(`${SCRIPT}: the NODE_ENV check read from Docker is not where this case puts the old one back`);
+  return now.replace(fromDocker, PRINTENV_CHECK);
+}
+
+describe("from a checkout before T13a to a tag with the distroless API, the deploy runs twice (0146 T13; the owner's decision of 2026-10-26)", () => {
+  // deploy-live.sh runs the copy the checkout had before it moved to the tag
+  // (its header, *Like every step*). T13a (the readers) and T13 (the
+  // distroless API) ship together in alpha.3, so the deploy from alpha.2 runs
+  // alpha.2's script, whose NODE_ENV question the new image cannot answer.
+  // The procedures tell the owner what that run says and what to run next;
+  // this is that run and the next one.
+  const ALPHA2 = { tag: 'v0.2.0-alpha.2', version: '0.2.0-alpha.2' };
+  const ALPHA3 = { tag: 'v0.2.0-alpha.3', version: '0.2.0-alpha.3' };
+
+  it(
+    "the first run says it did not take, with live at the tag and nothing rolled back; the second, the tag's own script, takes",
+    () => {
+      const s = stage({
+        releases: [
+          { ...ALPHA2, script: scriptBeforeT13a() },
+          { ...ALPHA3, script: readFileSync(join(COMPOSE_DIR, SCRIPT), 'utf8') },
+        ],
+        checkout: ALPHA2.tag,
+      });
+      answerAs(s, ALPHA3);
+      const commit = s.commit[ALPHA3.tag]!;
+      // Live runs alpha.2: the last deploy that took.
+      mkdirSync(dirname(s.deployLog), { recursive: true });
+      writeFileSync(s.deployLog, `2026-10-27T10:00:00Z\t${ALPHA2.tag}\t${s.commit[ALPHA2.tag]}\ttook\treversible\n`);
+      const outcomes = () => deployLines(s).map((l) => l.split('\t').slice(1, 5).join(' '));
+
+      // The first run, alpha.2's script. The task deploy leaves a tracked file
+      // changed, as it strips apps/worker/package.json's last newline on live.
+      const first = run(s, [ALPHA3.tag], { STUB_BOOTSTRAP_DIRTIES: '1' });
+      expect(first.status, first.out).toBe(3);
+      // Every other check answered: the stack runs the tag.
+      expect(first.out).toContain(`/api/version: ${commit}, ${ALPHA3.version}`);
+      expect(first.out).toContain(`/version.json: ${commit}, ${ALPHA3.version}`);
+      // The only failure is the question the image cannot answer, word for
+      // word as the procedures quote it.
+      expect(first.out).toContain(
+        `[deploy-live] the deploy did not take: ${ALPHA3.tag} is checked out, and\n    ${PRINTENV_FAILURE}\n[deploy-live] The hold stays on. Nothing was lifted.`,
+      );
+      expect(called(s, 'docker').filter((l) => / exec -T api /.test(l))).toHaveLength(1);
+      // Nothing rolled back: the checkout at the tag, brought up once, the
+      // hold not lifted, a copy taken before the checkout, and logged.
+      expect(head(s)).toBe(commit);
+      expect(called(s, 'bootstrap')).toEqual([`bootstrap --from data head=${commit}`]);
+      expect(called(s, 'copy-before-update')).toEqual([`copy-before-update take ${ALPHA3.tag} head=${s.commit[ALPHA2.tag]}`]);
+      expect(sqlSent(s)).not.toMatch(/\b(UPDATE|INSERT|DELETE)\b/i);
+      expect(outcomes()).toEqual([`${ALPHA2.tag} ${s.commit[ALPHA2.tag]} took reversible`, `${ALPHA3.tag} ${commit} did-not-take reversible`]);
+
+      // Run again as the tree is: refused before anything moves, naming the
+      // file the procedures put back first.
+      const dirty = run(s, [ALPHA3.tag]);
+      expect(dirty.status, dirty.out).toBe(1);
+      expect(dirty.out).toContain('git checkout -- apps/worker/package.json');
+      expect(called(s, 'bootstrap')).toHaveLength(1);
+
+      // Put back what the task deploy changed, then the second run: the
+      // checkout is at the tag, so the tag's script runs, and reads from Docker.
+      git(s.root, s.work, 'checkout', '--', 'RELEASE');
+      const second = run(s, [ALPHA3.tag]);
+      expect(second.status, second.out).toBe(0);
+      expect(second.out).toContain('NODE_ENV in the api container: production');
+      expect(second.out).toContain(`the deploy took: ${ALPHA3.tag} (${commit}) runs, and answered every check.`);
+      expect(called(s, 'docker').filter((l) => / exec -T api /.test(l))).toHaveLength(1);
+      expect(head(s)).toBe(commit);
+      expect(called(s, 'bootstrap')).toEqual([`bootstrap --from data head=${commit}`, `bootstrap --from data head=${commit}`]);
+      // The copy's take is asked again; the real one keeps the copy of alpha.2,
+      // its update not proven (one-copy-before-each-update).
+      expect(called(s, 'copy-before-update')).toEqual([
+        `copy-before-update take ${ALPHA3.tag} head=${s.commit[ALPHA2.tag]}`,
+        `copy-before-update take ${ALPHA3.tag} head=${commit}`,
+      ]);
+      expect(sqlSent(s)).not.toMatch(/\b(UPDATE|INSERT|DELETE)\b/i);
+      expect(outcomes()).toEqual([
+        `${ALPHA2.tag} ${s.commit[ALPHA2.tag]} took reversible`,
+        `${ALPHA3.tag} ${commit} did-not-take reversible`,
+        `${ALPHA3.tag} ${commit} took reversible`,
+      ]);
     },
     CASE_MS,
   );
