@@ -7,10 +7,12 @@
 **2026-10-26: the demo, the dev stack and the integration tier move to Nextcloud 35.0.2, and
 the second-major leg to 34.0.5, in a draft for alpha.3** (T5), on the branch
 `claude/ownpace-public-readiness-y7orc6-nextcloud-35-demo`: #1678's head (`72c6cff6`, every
-floating image pinned) with #1705's (`b09d6f4f`, the leg on 35.0.2) merged in. **It waits on
-the owner's OK.** A major is the owner's call (§2.1's row; the pin watch moves nothing and names the route), the owner
-said the demo stays on 34 for alpha.2, and on the OTA stack the move is one way. This prepares
-the change and decides nothing; `main` is frozen until the alpha.2 tag anyway.
+floating image pinned) with #1705's (`b09d6f4f`, the leg on 35.0.2) merged in, as draft #1720.
+**The owner's OK, 2026-10-26: "Yes, in alpha.3"**, late in the alpha.3 queue, after the riskier
+items, with the copies of *A Nextcloud major on the OTA stack* taken before its E2E (managed).
+A major is the owner's call (§2.1's row; the pin watch moves nothing and names the route); the
+owner had kept the demo on 34 for alpha.2, and on the OTA stack the move is one way. `main` is
+frozen until the alpha.2 tag, so nothing moves before it.
 - **The merge.** Five files conflicted. `testcontainers-setup.ts` took #1705's one-line ternary
   with `dev.yml`'s reference as the literal, the resolution both entries below name; the
   CHANGELOG keeps both bullets under `[Unreleased]` (`### Added` before `### Changed`); this
@@ -641,7 +643,7 @@ is who moves it after T1.
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason | 1.38 (1.38.0) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.37.0 (2026-10-21) | v5.37.0 (2026-09-24) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
 | `axllent/mailpit` | `managed.yml` | v1.31.6 by digest (2026-10-21; v1.31.1 from T2) | v1.31.6 (2026-10-15), digest `23fe39e8…` | current | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
-| `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 35.0.2-apache by digest `89af7ee7…` on the branch `…-nextcloud-35-demo` (2026-10-26, T5; a draft waiting on the owner's OK); before it 34.0.5-apache by digest `1f9212ad…` (2026-10-25, upstream's rebuild of 2026-10-23 with `session.upload_progress.enabled=0`, PHP's mitigation for CVE-2026-115560; `9dbdc711…` from 2026-10-22, `34-apache` floating before, never pulled) | 35.0.2 (2026-10-15) on PHP 8.5.12; 35.0.3 due 2026-11-12 | current | by hand, in its own PR, when the pin watch lists a newer 35.x (34.x before the move) or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and its database and refuses an older image on them, so a bad move is fixed forward or put back from a copy taken before it (`managed-bring-up.md`, *Updating a running deployment* and *A Nextcloud major on the OTA stack*) |
+| `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 35.0.2-apache by digest `89af7ee7…` on the branch `…-nextcloud-35-demo` (2026-10-26, T5; draft #1720, the owner's OK of 2026-10-26 for alpha.3); before it 34.0.5-apache by digest `1f9212ad…` (2026-10-25, upstream's rebuild of 2026-10-23 with `session.upload_progress.enabled=0`, PHP's mitigation for CVE-2026-115560; `9dbdc711…` from 2026-10-22, `34-apache` floating before, never pulled) | 35.0.2 (2026-10-15) on PHP 8.5.12; 35.0.3 due 2026-11-12 | current | by hand, in its own PR, when the pin watch lists a newer 35.x (34.x before the move) or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and its database and refuses an older image on them, so a bad move is fixed forward or put back from a copy taken before it (`managed-bring-up.md`, *Updating a running deployment* and *A Nextcloud major on the OTA stack*) |
 | `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 34.0.5-apache by digest `1f9212ad…` (PHP 8.5.12) on the branch `…-nextcloud-35-demo`, flipped in the pull request that moved the demo (T5, written 2026-10-26); before it 35.0.2-apache by digest `89af7ee7…` from 2026-10-26, 35.0.1 from 2026-10-25 | 34.0.5; 34.0.6 due 2026-11-12 | current | by hand; the pin watch reads no workflow file (§4) | a CI fixture: the other major customers may run (35 while the demo ran 34, 34 since), never deployed |
 | `ghcr.io/robbes/ownpace-selfhost` | `deploy/selfhost/compose.yml` | `edge` | ours | — | `images.yml` | — |
 
