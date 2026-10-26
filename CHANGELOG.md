@@ -4,6 +4,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **The weekly image scan names every critical finding, not only how many.**
+  Below its table, the run's summary lists each critical one by one: the CVE,
+  the package and its version, the version that fixes it or **no fix yet**,
+  and where in the image it sits. A count did not say whether a rebuild, a
+  newer tag or only upstream could clear it, and code scanning's detail is
+  shown only to those with write access.
+
 ## [0.2.0-alpha.2] - 2026-10-25
 
 The Alpha's texts are final at version 1.0, and testers are asked to accept
