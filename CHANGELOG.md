@@ -7,7 +7,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 ### Changed
 
 - **Nothing execs a shell or `printenv` into the managed api container any
-  more** (workplan 0146 T13a): the smoke, the managed gate, `deploy-live.sh`,
+  more** (workplan 0146 T13a, #1710): the smoke, the managed gate, `deploy-live.sh`,
   `stand-up-live.sh` and the docs read its variables with `docker container
   inspect`, and the smoke runs Node there by its path and stops when that
   Node is not the version the managed tasks get. It works on today's image and
