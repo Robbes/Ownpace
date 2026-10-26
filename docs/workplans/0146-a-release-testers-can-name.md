@@ -72,7 +72,9 @@ switch.
   holds the runtime stage (distroless by digest on the build's Node major and Debian, no RUN, a
   numeric non-root USER that owns nothing it copies, the stage it copies from ending with the
   `chmod`, the ENTRYPOINT and the exec-form HEALTHCHECK on `/nodejs/bin/node`), and a compose
-  healthcheck or entrypoint on the API image may name `/nodejs/bin/node` only. Sections 2 to 5
+  healthcheck or entrypoint on the API image, and an exec into the api container that names a
+  path, may name `/nodejs/bin/node` only: `/usr/local/bin/node` by name is refused, and a
+  rolled-back stack is the smoke's `api_node`, which tries both through a variable. Sections 2 to 5
   are T13a's (#1710): no shell, `printenv` or bare `node` exec'd into the api container in
   `deploy/`, `scripts/`, `test/`, the workflows and `docs/` (records aside), each script's
   `api_env` and the smoke's `api_node` and version check against a stub docker, and no
@@ -85,17 +87,20 @@ switch.
 - **What the owner sees change.** `docker compose … exec api sh`, `printenv` or a bare `node`
   no longer work by hand; `/nodejs/bin/node` does, and the read-backs in `managed-bring-up.md`
   and `ending-the-alpha.md` read from Docker since T13a. **The first `deploy-live.sh` to the
-  release that carries T13 runs once**, like any other: live's checkout is then of the release
-  before it, which carries T13a, so the script that runs reads `NODE_ENV` from Docker. The one
-  case left is a rollback of live to a tag before T13a (alpha.2 or earlier) and then a deploy
-  forward to a tag with T13: that runs the older tag's script, which asks with `printenv` and
-  says the deploy did not take, though the stack has moved, and a second run from the checkout
-  now at the tag reads from Docker. During the alpha a bad deploy is fixed forward
-  (`docs/release.md` §5), so this is recorded here and in T13a's entry, not in the procedures.
-  Deploying an older tag from a checkout with T13 works as before.
+  release that carries T13 runs once**, like any other, when live runs alpha.3 or a later
+  release at the time: live's checkout then carries T13a, so the script that runs reads
+  `NODE_ENV` from Docker. Two cases are left. A deploy from a tag before T13a (alpha.2 or
+  earlier) straight to a tag with T13, skipping alpha.3, which `ending-the-alpha.md` step 5
+  allows ("the tag that runs now or a newer release"); and a rollback of live to such a tag,
+  then a deploy forward to a tag with T13. Either runs the older tag's script, which asks with
+  `printenv` and says the deploy did not take, though the stack has moved, and a second run from
+  the checkout now at the tag reads from Docker. Deploying alpha.3 first avoids the skip. During
+  the alpha a bad deploy is fixed forward (`docs/release.md` §5), so both are recorded here and
+  in T13a's entry, not in the procedures. Deploying an older tag from a checkout with T13 works
+  as before.
 - **The review of 2026-10-26** (two reviews; no blockers). Both preferred to split T13: the
-  readers one release before the runtime switch, so that no deploy ever meets the distroless API
-  with the older script. Done the same day: the readers are T13a, draft #1710, for alpha.3, and
+  readers one release before the runtime switch, so that a deploy of the distroless API from
+  that release or later meets no older script. Done the same day: the readers are T13a, draft #1710, for alpha.3, and
   #1709 was rebuilt on a merge of #1708 and #1710 with the switch alone on top, so the two-run
   step the first round had documented in `managed-bring-up.md`, `release.md`,
   `ending-the-alpha.md` and the operator runbook, and the guard's check of it, are gone. Fixed
@@ -105,7 +110,11 @@ switch.
   back, as the uid or by name; the `chmod` gone, weakened, joined with `||`, or followed by a
   command or a RUN; an exec of `printenv` in `test/`; `2>/dev/null` back, and the silent empty
   id; `api_node` without the version; the mismatch not stopping, or comparing majors only; the
-  `FROM` read losing its patch; a missing Dockerfile passing; and two notes since removed).
+  `FROM` read losing its patch; a missing Dockerfile passing; and two notes since removed). The
+  review of the split, the same day, found `/usr/local/bin/node` by name still passing the
+  scan, a `printenv` exec'd by the container's id or a variable holding it passing too (fixed
+  in #1710 and merged here), the skip past alpha.3 unrecorded, and the troubleshooting row's
+  HEALTHCHECK not naming `/nodejs/bin/node`; all four are fixed.
 - **Not booted here.** No Docker daemon in this session; `images.yml` builds the api image on
   the pull request (linux/amd64). E2E (managed) has to show the image built on the arm64
   runner, the container healthy by its own HEALTHCHECK, the smoke's preflights naming

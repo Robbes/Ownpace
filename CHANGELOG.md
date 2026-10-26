@@ -26,9 +26,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   10001 and can no longer write its own code, which is root's; it mounts
   nothing. Nothing execs a shell or `printenv` into it: the release before
   this one moved every script and doc to `docker container inspect` and Node
-  by its path (T13a, #1710), so the first deploy to this release runs once,
-  like any other. `docker compose … exec api sh` or `printenv` by hand no
-  longer works; `/nodejs/bin/node` does.
+  by its path (T13a, #1710), so a deploy to this release from that release
+  or a later one runs once, like any other. From an older tag, deploy that
+  release first: the older tag's script would say the deploy did not take.
+  `docker compose … exec api sh` or `printenv` by hand no longer works;
+  `/nodejs/bin/node` does.
 
 ### Changed
 

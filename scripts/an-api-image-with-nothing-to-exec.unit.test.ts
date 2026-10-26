@@ -41,14 +41,16 @@
  *    start; it needs no write there, and booted and served without one.
  * 2. Nothing in `deploy/`, `scripts/`, `test/`, the workflows or `docs/`
  *    (records aside: workplans, LESSONS.md, the CHANGELOG, ADR history) execs
- *    into the API container anything but Node by its absolute path
- *    (`/nodejs/bin/node`, or `/usr/local/bin/node` on the Node image an older
- *    tag runs), or a variable holding one: not a shell, not `printenv`, not a
- *    bare `node`. A `compose run` of the api starts no shell, `printenv` or
- *    `node` either (the image's ENTRYPOINT is node already). The container is
- *    known by its service, by its name, by the id `"$(docker compose … ps -q
- *    api)"` gives (the form the docs' read-backs teach), and by a variable the
- *    same file sets to that id (the gate's `api_id`, the live scripts' `id`).
+ *    into the API container anything but Node by its absolute path,
+ *    `/nodejs/bin/node`, or a variable holding one (the smoke's `api_node`
+ *    tries `/usr/local/bin/node` too, for a stack rolled back to an older
+ *    tag): not a shell, not `printenv`, not a bare `node`, and not
+ *    `/usr/local/bin/node` by name, which this image has not got. A `compose
+ *    run` of the api starts no shell, `printenv` or `node` either (the
+ *    image's ENTRYPOINT is node already). The container is known by its
+ *    service, by its name, by the id `"$(docker compose … ps -q api)"` gives
+ *    (the form the docs' read-backs teach), and by a variable the same file
+ *    sets to that id (the gate's `api_id`, the live scripts' `id`).
  * 3. A variable the API was started with is read from Docker, `docker
  *    container inspect`'s `.Config.Env`, which answers the same on this image
  *    and the Node images before it (a stack rolled back to an older tag). Never
@@ -355,11 +357,12 @@ function refusal(e: Exec): string | null {
     if (p === 'node' || p === NODE_PATH || p === OLD_NODE_PATH) return "node again: the distroless image's ENTRYPOINT is node already";
     return null;
   }
-  if (p === NODE_PATH || p === OLD_NODE_PATH) return null;
+  if (p === NODE_PATH) return null;
+  if (p === OLD_NODE_PATH) return `${OLD_NODE_PATH}: the distroless image has Node at ${NODE_PATH} only; a rolled-back stack is covered by api_node's $p fallback`;
   if (p !== undefined && /^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$/.test(p)) return null;
   if (p !== undefined && SHELL.test(p)) return 'a shell: the distroless image has none';
   if (p !== undefined && /(^|\/)printenv$/.test(p)) return "printenv: the distroless image has none; read the variable with `docker container inspect`'s .Config.Env";
-  if (p === 'node') return `a bare node: it is not on the distroless image's PATH; run ${NODE_PATH} (${OLD_NODE_PATH} on the Node image)`;
+  if (p === 'node') return `a bare node: it is not on the distroless image's PATH; run ${NODE_PATH}`;
   return `${p ?? 'nothing'}: the distroless image has Node at ${NODE_PATH} and nothing else to run`;
 }
 
@@ -371,7 +374,7 @@ describe('nothing execs into the API container but Node, by its path', () => {
     // Three probes through $API_NODE, and api_node trying each path.
     expect(smoke.filter((e) => e.program === '$API_NODE').length).toBe(3);
     expect(smoke.some((e) => e.program === '$p')).toBe(true);
-    expect(execs.some((e) => e.file === 'docs/managed-bring-up.md' && [NODE_PATH, OLD_NODE_PATH].includes(e.program ?? ''))).toBe(true);
+    expect(execs.some((e) => e.file === 'docs/managed-bring-up.md' && e.program === NODE_PATH)).toBe(true);
     expect(execs.some((e) => e.file === 'docs/TROUBLESHOOTING.md' && e.how === 'run')).toBe(true);
   });
 
@@ -389,6 +392,9 @@ describe('nothing execs into the API container but Node, by its path', () => {
     expect(refusal(sample('sh'))).toMatch(/shell/);
     expect(refusal(sample('/bin/sh'))).toMatch(/shell/);
     expect(refusal(sample('node'))).toMatch(/bare node/);
+    // The Node image's path by name: this image has not got it.
+    expect(refusal(sample(OLD_NODE_PATH))).toMatch(/Node at \/nodejs\/bin\/node only/);
+    expect(refusal(sample(NODE_PATH))).toBeNull();
     expect(refusal(sample('true'))).toMatch(/nothing else/);
     expect(refusal(sample('sh', 'run'))).toMatch(/shell/);
     expect(isApi('trigger-api')).toBe(false);
