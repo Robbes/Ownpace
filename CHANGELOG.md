@@ -7,7 +7,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 ### Security
 
 - **The managed tasks run on the API image's own base, with no package
-  manager** (workplan 0146 T14, #PRNUM): a task deploy builds them on the
+  manager** (workplan 0146 T14, #1716): a task deploy builds them on the
   image `apps/api/Dockerfile` builds FROM instead of Trigger.dev's
   `triggerdotdev/node:24-bookworm`, so they run that image's Node and
   Debian, which Dependabot moves. They keep dumb-init, Debian's CA store and
