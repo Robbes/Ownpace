@@ -41,7 +41,12 @@ which puts the API's runtime on distroless.
   `entrypoint`, on a compose service built from the API image; the version check passing and
   stopping by either path. Section 1, the runtime stage, stays with T13.
   `a-deploy-from-a-named-tag`, `a-first-bring-up-of-live`, `identity-in-the-gate` and
-  `smoke-managed-verdict` read the new forms.
+  `smoke-managed-verdict` read the new forms. The scan knows the container by its service, its
+  name, the id `"$(docker compose … ps -q api)"` gives (read to its own `)`, the form the docs'
+  read-backs teach), and a variable the same file sets to that id (the gate's `api_id`, the
+  live scripts' `id`): the review of the split found a `printenv` exec'd by either id form
+  stayed green, and five deliberate regressions by those forms (the doc, the gate, both live
+  scripts, a bare `node`) now turn it red.
 - **Not run here.** No Docker daemon in this session. E2E (managed) has to show the smoke's
   preflights naming `/usr/local/bin/node v24.22.1`, the minio, docker-proxy and issuer probes
   passing, and the pooler step reading DIRECT_DATABASE_URL.
