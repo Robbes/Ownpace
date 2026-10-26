@@ -59,8 +59,9 @@ services:
       # (corruption risk). See docs/selfhost-quickstart.md.
       # Postgres 18+ expects data at /var/lib/postgresql (not /var/lib/postgresql/data)
       # A named volume: a new one takes the image's directory, uid 70's. A host
-      # directory bound here instead must be uid 70's (`chown 70:70`), or a
-      # start as uid 70 cannot make the data directory in it.
+      # directory bound here instead must be uid 70's (`chown -R 70:70`; under
+      # rootless Docker from inside the container, as the quickstart says), or
+      # a start as uid 70 cannot make the data directory in it.
       - pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-openmigrate} -d ${POSTGRES_DB:-openmigrate}"]

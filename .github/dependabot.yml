@@ -14,7 +14,8 @@
 # The one of those this file sees too is the databases' build, whose pin is the FROM of
 # deploy/compose/postgres/Dockerfile (its entry below). The appliance's PostgreSQL is a build
 # too since 0146 T15b, and its pin, the FROM of deploy/selfhost/postgres/Dockerfile, is this
-# file's alone (its entry below; the pin watch does not read deploy/selfhost).
+# file's alone (its entry below): the pin watch reads neither deploy/selfhost/compose.yml nor
+# that Dockerfile (in deploy/selfhost it reads only setup-stalwart.sh's Stalwart pin).
 version: 2
 updates:
   # npm/pnpm workspace (root manifest + all packages/* and apps/* via the workspace).

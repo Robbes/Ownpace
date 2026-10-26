@@ -73,8 +73,10 @@ SELFHOST_IMAGE=ghcr.io/robbes/ownpace-selfhost@sha256:<digest>
 
 Always **back up the `/data` Postgres volume before upgrading**, and never run
 two app versions against one database (the startup downgrade guard refuses a
-binary older than the DB schema — §22.1). Upgrade = pull the new tag → `up -d` →
-migrations auto-apply under the advisory lock.
+binary older than the DB schema — §22.1). Upgrade = update the checkout (`git
+pull`, or the release's tag; the compose files and the database's Dockerfile
+come from it) → pull the new tag → `up -d` → migrations auto-apply under the
+advisory lock. The quickstart's "Upgrades" has the commands.
 
 > **DB volume must be local.** Never place the Postgres volume on a network
 > filesystem (SMB/NFS) — corruption risk. Use a local disk/SSD on the host.

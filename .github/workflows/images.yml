@@ -267,9 +267,15 @@ jobs:
   #
   # It brings up dev.yml's postgres, then the appliance's, each as compose does
   # on a machine without the image (`pull_policy: never`, so compose builds it
-  # rather than asking a registry), on a new volume, and checks that `exec`,
-  # the server and the data are uid 70 and that gosu is gone. On a pull request
-  # only: on main and on a tag this workflow publishes, and this job has
+  # rather than asking a registry), and checks that `exec`, the server and the
+  # data are uid 70 and that gosu is gone. dev.yml's starts on a new volume,
+  # which initialises as uid 70. The appliance's starts on the volume every
+  # existing appliance has (the review of T15b, 2026-10-26): one the official
+  # image initialised as root, the Dockerfile's own FROM with gosu, which left
+  # PGDATA uid 70's and /var/lib/postgresql/18 above it root's; the build must
+  # start on it and read back the row written there. E2E (self-hosted) and its
+  # backup and restore drill start the appliance on new volumes. On a pull
+  # request only: on main and on a tag this workflow publishes, and this job has
   # nothing to publish. The arm64 builds are the weekly image scan's
   # (security-scan.yml), which counts the findings. Held by
   # scripts/a-database-started-as-root.unit.test.ts.
@@ -338,17 +344,60 @@ jobs:
             '
             docker compose -f "$file" exec -T postgres psql -U "$role" -d "$db" -Atc 'select current_user, version()'
           }
+          # The volume an appliance that ran the official image has: the
+          # Dockerfile's own FROM, gosu and all, started as root on the volume
+          # the compose file mounts, initialises it as every appliance's was,
+          # and leaves a row in it. The labels are the ones compose gives its
+          # own volumes, so `up` takes it as the appliance's and `down -v`
+          # removes it.
+          root_initialised() {
+            local file="$1" role="$2" db="$3"
+            base="$(awk '/^FROM / { print $2 }' "$(dirname "$file")/postgres/Dockerfile")"
+            project="$(docker compose -f "$file" config --format json | jq -r '.name')"
+            volume="$(docker compose -f "$file" config --format json | jq -r '.volumes.pgdata.name')"
+            docker volume create --label "com.docker.compose.project=${project}" --label com.docker.compose.volume=pgdata "$volume"
+            docker run -d --name root-initialised -e POSTGRES_USER="$role" -e POSTGRES_PASSWORD=build-check-only -e POSTGRES_DB="$db" -v "${volume}:/var/lib/postgresql" "$base"
+            # TCP: the entrypoint's temporary server, while it initialises, listens on the socket only.
+            for attempt in $(seq 1 60); do
+              if docker exec root-initialised pg_isready -q -h localhost -U "$role" -d "$db"; then
+                break
+              fi
+              if [ "$attempt" -eq 60 ]; then
+                echo "::error::${base} did not initialise ${volume} as root within a minute"
+                exit 1
+              fi
+              sleep 1
+            done
+            docker exec root-initialised sh -euc 'echo "as root: ${PGDATA} uid $(stat -c %u "$PGDATA"), $(dirname "$PGDATA") uid $(stat -c %u "$(dirname "$PGDATA")")"'
+            docker exec root-initialised psql -v ON_ERROR_STOP=1 -U "$role" -d "$db" -c 'create table before_the_build (note text)' -c "insert into before_the_build values ('written as root')"
+            docker stop root-initialised
+            docker rm root-initialised
+          }
+          # What root_initialised wrote, read by the build that started on its volume.
+          read_back() {
+            local file="$1" role="$2" db="$3"
+            note="$(docker compose -f "$file" exec -T postgres psql -U "$role" -d "$db" -Atc 'select note from before_the_build')"
+            if [ "$note" != "written as root" ]; then
+              echo "::error::${file}'s postgres, started as uid 70 on a volume initialised as root, read '${note}', not the row written there"
+              exit 1
+            fi
+            echo "${file}: the row written as root reads back as uid 70"
+          }
           prove "$COMPOSE_FILE_PATH" ownpace ownpace
+          root_initialised "$SELFHOST_COMPOSE_FILE" openmigrate openmigrate
           prove "$SELFHOST_COMPOSE_FILE" openmigrate openmigrate
+          read_back "$SELFHOST_COMPOSE_FILE" openmigrate openmigrate
 
       - name: The databases' logs, when one did not come up
         if: failure()
         run: |
+          docker logs root-initialised || true
           docker compose -f "$COMPOSE_FILE_PATH" logs --no-color postgres || true
           docker compose -f "$SELFHOST_COMPOSE_FILE" logs --no-color postgres || true
 
       - name: Remove the containers and their volumes
         if: always()
         run: |
+          docker rm -f root-initialised || true
           docker compose -f "$COMPOSE_FILE_PATH" down -v --remove-orphans
           docker compose -f "$SELFHOST_COMPOSE_FILE" down -v --remove-orphans

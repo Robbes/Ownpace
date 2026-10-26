@@ -22,8 +22,9 @@
 #     owner. One the root entrypoint ever started on works, if uid 70 may
 #     enter it: PGDATA in it is uid 70's. A new one owned by root does not:
 #     `mkdir: can't create directory '/var/lib/postgresql/18/': Permission
-#     denied`. `chown -R 70:70` the host directory first
-#     (docs/selfhost-quickstart.md, Troubleshooting).
+#     denied`. `chown -R 70:70` the host directory first, or under rootless
+#     Docker from inside the container (docs/selfhost-quickstart.md, "What
+#     you need" and Troubleshooting).
 #   - `docker compose exec postgres …` runs as uid 70, not root, and the
 #     image's pg_hba.conf trusts local connections as before: the backup's
 #     pg_dump and the restore's psql answer the same. `-u 0` is root.
@@ -36,8 +37,10 @@
 # an appliance's first `up` makes to its database. The managed stacks' newer
 # rebuild of the same tag (898c60cb…, pushed 2026-10-22, past the three-day
 # floor) was weighed and left: a new base is a move of its own, which
-# Dependabot offers for this directory (its own `docker` entry, never a major)
-# with E2E (self-hosted) on its branch, as it moved this pin on 2026-09-24.
+# Dependabot offers for this directory (its own `docker` entry, never a major),
+# as it moved this pin on 2026-09-24. E2E (self-hosted) runs nightly and on
+# dispatch, never on a pull request, so it is dispatched on that pull
+# request's branch before it merges.
 # The same Alpine and musl, so the database's collation is untouched.
 #
 # THE NAME. compose.yml builds this as `localhost/postgres:<base tag>-<12

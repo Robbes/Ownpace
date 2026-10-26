@@ -20,6 +20,12 @@ no billing). Container-first per **ADR-0019**; Postgres-backed per **ADR-0023**.
 
 - A host with **Docker + Docker Compose v2** on a **local disk** (see the warning
   below). ~1 GB RAM free is comfortable.
+  The first start builds one small image, the database's (see "Start it"), so
+  where the host has Docker's **buildx plugin**, Compose wants a current one:
+  Compose v5.6.1 refuses a buildx older than 0.17.0 (`compose build requires
+  buildx 0.17.0 or later`). Docker Desktop and Docker's own packages
+  (`docker-ce` with `docker-buildx-plugin`) ship a current one; an older
+  distribution package may not (see Troubleshooting).
 - Works on:
   - **Linux NAS / mini-PC** (Synology, Unraid, a spare box) — native `amd64`.
   - **Raspberry Pi 4/5 or other arm64 SBC** — the image is multi-arch (`arm64`).
@@ -37,9 +43,17 @@ no billing). Container-first per **ADR-0019**; Postgres-backed per **ADR-0023**.
 > The compose file keeps the data in a Docker **named volume**, which needs
 > nothing from you. If you replace it with a directory of the host (a bind
 > mount, `- /some/local/dir:/var/lib/postgresql`), that directory must belong
-> to uid 70, PostgreSQL's own user in the container, before the first start:
-> `sudo chown 70:70 /some/local/dir`. The database runs as that user, never as
-> root (see "Start it" below).
+> to uid 70, PostgreSQL's own user in the container, before the first start.
+> The database runs as that user, never as root (see "Start it" below). On
+> plain Linux with Docker running as root:
+> `sudo chown -R 70:70 /some/local/dir`. Under rootless Docker the
+> container's uid 70 is another uid on the host, so let the container make the
+> change in its own terms:
+>
+> ```sh
+> docker compose -f deploy/selfhost/compose.yml run --rm --no-deps -u 0 \
+>   --entrypoint chown postgres -R 70:70 /var/lib/postgresql
+> ```
 
 ## 1. Get the compose files
 
@@ -771,26 +785,37 @@ The appliance is safe to upgrade in place:
 
 ```sh
 # 1. BACK UP the volume first (above).
-# 2. Pin/pull the new image (edit SELFHOST_IMAGE in .env, or pull the tag).
+# 2. Update the checkout: the compose files and the database's Dockerfile come
+#    from it, not from the app's image. On `edge`, which follows main:
+git pull --ff-only
+#    On a release (SELFHOST_IMAGE=…:X.Y.Z), the same release's tag instead:
+#    git fetch --tags && git checkout vX.Y.Z
+# 3. Pin/pull the new image (edit SELFHOST_IMAGE in .env, or pull the tag).
 docker compose -f deploy/selfhost/compose.yml pull app
-# 3. Recreate — migrations auto-apply under the advisory lock on startup.
+# 4. Recreate — migrations auto-apply under the advisory lock on startup.
 docker compose -f deploy/selfhost/compose.yml up -d
 ```
 
-The database's image is built here, not pulled: `pull app` leaves it alone,
-and its name ends in a hash of `deploy/selfhost/postgres/Dockerfile`. An
-upgrade whose checkout changed that file (a newer PostgreSQL 18 image, say)
-therefore names an image the machine does not have yet, and step 3's `up -d`
-builds it and restarts the database on the same volume. There is nothing to
-do for it. Do not add `--build` to `up`, and build the app by name if you
-build it from source (`… build app`): a bare `build` rebuilds the database's
-image as well, and restarts the database for nothing.
+`.env` and `config/*.json` are yours and not in the repository, so step 2
+leaves them alone. If you copied `deploy/selfhost/` rather than cloning, copy
+the new one over it, `postgres/` included, and keep your `.env` and
+`config/`.
+
+The database's image follows the checkout, not the app's image: it is built
+here, never pulled, `pull app` leaves it alone, and its name ends in a hash of
+`deploy/selfhost/postgres/Dockerfile`. An upgrade whose checkout changed that
+file (a newer PostgreSQL 18 image, say) therefore names an image the machine
+does not have yet, and step 4's `up -d` builds it and restarts the database on
+the same volume. There is nothing else to do for it. An upgrade that skips
+step 2 keeps the database it had. Do not add `--build` to `up`, and build the
+app by name if you build it from source (`… build app`): a bare `build`
+rebuilds the database's image as well, and restarts the database for nothing.
 
 The upgrade that first brought this build (from an appliance that ran the
-official image as root) needs nothing either: the old image's start made the
-data uid 70's on every start, so the database finds it as it left it. Going
-back to an older checkout runs the official image as root again, which starts
-on the same data.
+official image as root) needs nothing but step 2 either: the old image's start
+made the data uid 70's on every start, so the database finds it as it left
+it. Going back to an older checkout runs the official image as root again,
+which starts on the same data.
 
 Rules of the road (§22.1):
 
@@ -822,11 +847,19 @@ docker compose -f deploy/selfhost/compose.yml down -v       # ALSO delete the DB
   '/var/lib/postgresql/18/': Permission denied`** (or another *Permission
   denied* under `/var/lib/postgresql`): its data is a directory of the host,
   bound in place of the named volume, that uid 70 may not write. The database
-  starts as uid 70, never as root: `sudo chown -R 70:70` that directory and
-  `up -d` again.
+  starts as uid 70, never as root: make that directory uid 70's as the warning
+  under "What you need" says (`sudo chown -R 70:70` it, or under rootless
+  Docker the `docker compose … run … chown` given there), and `up -d` again.
+- **`up` stops with `compose build requires buildx 0.17.0 or later`:** the
+  host's Docker buildx plugin is older than Compose needs to build the
+  database's image. Upgrade it (`docker-buildx-plugin` from Docker's own
+  packages), or run that one `up -d` with `DOCKER_BUILDKIT=0` in front, which
+  builds with the engine's classic builder where the engine still has one:
+  the Dockerfile needs nothing BuildKit adds.
 - **The database exits with `exec: gosu: not found`:** something starts the
-  container as root (a `user:` on the `postgres` service, or `-u 0` on `run`).
-  Remove it: the image starts as uid 70 by itself.
+  database as root (a `user:` on the `postgres` service, or `-u 0` on a `run`
+  that starts the server rather than another command). Remove it: the image
+  starts as uid 70 by itself.
 - **Can't reach `/status` from another machine:** it binds to localhost by
   default — set `SELFHOST_BIND=0.0.0.0` (and firewall it).
 - **IMAP authentication keeps failing against O365** (`AUTHENTICATE failed`):

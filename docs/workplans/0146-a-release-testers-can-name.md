@@ -4,6 +4,57 @@
 
 ## Status — 2026-10-26 (update this block at the end of every session)
 
+**2026-10-26, last of all: T15b after its review, thirteen findings, twelve fixed as found and
+one in a narrower form**, on the same branch. No fault was found in the Dockerfile, its name or its
+Dependabot entry.
+- **The documented upgrade never reached the database** (found twice). Compose.yml and
+  `deploy/selfhost/postgres/Dockerfile` come from the checkout, and the quickstart's upgrade only
+  pulled the app's image, so an appliance upgraded as documented kept the official image, gosu
+  and all, while the CHANGELOG said there was nothing to do. The upgrade now updates the checkout
+  first (`git pull --ff-only` on `edge`, the release's tag on a release; a copied
+  `deploy/selfhost/` is copied again, `postgres/` included), and the quickstart, the README's
+  one-line upgrade and the CHANGELOG say the database's image follows the checkout.
+- **The build needs a current buildx where there is one** (narrower than found). Compose v5.6.1
+  without a buildx plugin builds with the engine's classic builder (run here with the plugin
+  hidden: it went on to the engine), and refuses a buildx older than 0.17.0 with `compose build
+  requires buildx 0.17.0 or later` (run here with a plugin reporting v0.10.4); `DOCKER_BUILDKIT=0`
+  takes it past that to the classic builder. "What you need" and Troubleshooting say so.
+- **No gate started the build on an existing appliance's volume.** `build (postgres)` now starts
+  the appliance's on one: the Dockerfile's own FROM, gosu and all, initialises the compose file's
+  `pgdata` as root (PGDATA uid 70's, `/var/lib/postgresql/18` root's) and writes a row; the build
+  then starts on it and must read the row back. dev.yml's still starts on a new volume, and E2E
+  (self-hosted) and its drill start the appliance on new ones. Run here against a stand-in
+  `docker` for the flow and the failure (no daemon here); the pull request's run is the proof.
+- **The bind-mount advice assumed rootful Docker, and said `chown 70:70` in two places and
+  `chown -R 70:70` in three.** Every place says `-R` now, and the quickstart gives the form
+  that works under rootless Docker too: `docker compose … run --rm --no-deps -u 0 --entrypoint
+  chown postgres -R 70:70 /var/lib/postgresql`, which chowns in the container's own uid mapping.
+- **`an-image-nobody-scanned` failed on a correct Dependabot pull request.** It held the two
+  built names apart, and the records expect them to meet: with the appliance's FROM set to
+  managed's and the printed `sed` applied, two of its tests failed and every other guard passed.
+  It now holds that the names are equal exactly when the two Dockerfiles' hashes are, and its
+  meeting case meets on a made-up name. The same simulation passes all six guards now.
+- **The rebuild guard missed three ways in.** It read neither the appliance's E2E tests, which
+  run `docker compose ${COMPOSE_FILES} up -d postgres` on the runner the managed stacks share,
+  nor `scripts/*.sh` (`upgrade-drill.sh`); and it read a command continued with a backslash one
+  line at a time, so `--build` on the next line went unseen. It reads `test/e2e` and
+  `scripts/*.sh` now, and joins continued lines, keeping the first line's number.
+- **The job check was a text match.** `exit 0` before the appliance's `prove`, an `if false`
+  around it, or `return 0` at the top of `prove()` left every line in place and passed. The
+  guard now reads the step's statements outside its functions as an exact sequence, each
+  function's first statements, and refuses `exit 0`, `return` and a trailing `|| true`; each of
+  those, and the new volume proof taken out or run as uid 70, is a case in the guard.
+- **Three records said what is not so.** `docs/deployment.md` said Dependabot keeps "the three
+  Dockerfiles" and reads nothing in `deploy/compose` (five Dockerfiles since T15 and T15b, two
+  of them the databases'); 0119 and `dependabot.yml` said the pin watch reads nothing in
+  `deploy/selfhost` (it reads `setup-stalwart.sh`'s Stalwart pin); the Dockerfile and the bullet
+  below read as if E2E (self-hosted) ran on Dependabot's pull request by itself (it runs nightly
+  and on dispatch, so it is dispatched on that branch).
+- **Mutation-checked**, each red and then restored: the E2E drill's `up -d postgres` given
+  `--build`; the quickstart's upgrade written as a continued `up -d --build`; `upgrade-drill.sh`
+  building every service; `exit 0` before, and `if false` around, the appliance's proof in
+  images.yml; the root-initialised start removed; the two names equal on two contents.
+
 **2026-10-26, last: T15b, the appliance's PostgreSQL without gosu**, on branch
 `claude/ownpace-public-readiness-y7orc6-appliance-postgres-without-gosu`, stacked on draft #1717
 (whose guard, scan leg and job it extends), for after the alpha.2 tag. No pull request opened yet.
@@ -22,9 +73,10 @@
 - **The base kept, and why.** `898c60cb…`, the managed stacks' rebuild of the same tag, was
   pushed 2026-10-22 and is past the three-day floor; `10a5c69a…` is not. The appliance keeps the
   digest it ran, so removing gosu is the only change an appliance's first `up` makes to its
-  database, and a new base stays a move of its own: Dependabot's, in a pull request with E2E
-  (self-hosted) on its branch, as it moved this pin on 2026-09-24. While the two FROMs differ the
-  two names do too; when they meet, so do the names, which is the same content.
+  database, and a new base stays a move of its own: Dependabot's, as it moved this pin on
+  2026-09-24, with E2E (self-hosted) dispatched on its branch before it merges (it runs nightly
+  and on dispatch, never on a pull request). While the two FROMs differ the two names do too;
+  when they meet, so do the names, which is the same content.
 - **Dependabot.** The pin left the docker-compose entry's view (it moves image lines, and this
   one names a build now) for a `docker` entry of its own, `/deploy/selfhost/postgres`,
   `chore(postgres)`, with the major ignore that entry had. The docker-compose entry would still
@@ -62,20 +114,22 @@
   `a-dependabot-directory-with-nothing-to-read` refuses; `build (postgres)` without the appliance or
   its file; E2E with `up --build` again; `compose.dev.yml` or the quickstart giving a rebuild; the
   managed Dockerfile with an instruction the appliance's lacks).
-- **What an appliance sees.** Its next `up -d` builds the image and recreates the database once,
+- **What an appliance sees.** Once its checkout is updated (the quickstart's upgrade says so
+  since the review below), its next `up -d` builds the image and recreates the database once,
   on the same volume, whose PGDATA the root entrypoint left uid 70's. `docker compose exec
   postgres` is uid 70 (`-u 0` for root); the quickstart's backup and restore commands answer the
   same. A host directory bound in place of the named volume must be uid 70's for a new database;
   no document told anyone to bind one, and the quickstart, compose.yml and the Dockerfile now say
-  how (`chown -R 70:70`). The PGlite appliance and the Windows appliance (ADR-0027) run no
+  how (`chown -R 70:70`, or under rootless Docker a `run … chown` inside the container). The PGlite appliance and the Windows appliance (ADR-0027) run no
   database server and build nothing.
 - **Not proven here, and what proves it.** That the Dockerfile builds and starts (no Docker
   daemon here): `build (postgres)` on the pull request, and E2E (self-hosted) dispatched on the
   branch with `persistence: postgres`, whose backup and restore drill also starts it on a second
-  new volume. That an appliance's existing, root-initialised volume starts as uid 70: no appliance
-  gate starts one (e2e.yml begins with `down -v`); T15's chroot run measured exactly that path of
-  the same entrypoint, and E2E (managed) on #1717's branch proves it on real volumes. The image
-  scan's `postgres-selfhost` on a dispatch with the image scans.
+  new volume. That an appliance's existing, root-initialised volume starts as uid 70:
+  `build (postgres)`, which since the review below starts the appliance's build on a volume the
+  official image initialised as root and reads back the row written there (e2e.yml begins with
+  `down -v`); T15's chroot run measured the same path of the same entrypoint. The image scan's
+  `postgres-selfhost` on a dispatch with the image scans.
 
 **2026-10-26, later still: T15, the built image's name asked again, on draft #1717.** The
 question: is `localhost/postgres:18.6-alpine-6b2d97623fb5` tied to what it builds? If not, live
@@ -1191,7 +1245,7 @@ best given with T0.
 | T10 The image scan reads the tasks' image as it is built | 📋 **Proposed** (2026-10-23) | Status, 2026-10-23 (the scan triage). `scripts/image-scan.mjs` scans the base image the pinned CLI names (`triggerdotdev/node:24-bookworm` by digest, category `trigger-task-base`, 14/117 on 2026-10-23), not the tasks' image that `deploy-tasks.sh` builds from it. The Trigger.dev v4.7.6 branch upgrades that image's Debian packages at build (`apt-get -y upgrade`), which fixes the 42 Debian findings that have a fix (12 critical, all Perl, fixed in 5.36.0-7+deb12u4, and 30 high). It leaves npm's bundled packages under `/usr/local/lib/node_modules/npm`, since the overlay copies only `/usr/local/bin/node` (tar 7.5.15's CVE-2026-59873, critical, fixed in 7.5.19, and 12 high, 11 of them with a fix), and the 76 Debian findings without a fix, zlib1g's CVE-2023-45853 among them: the built image would still carry 2 critical and 87 high of the 131 (read with Trivy 0.76.0, 2026-10-23). The scan cannot see the upgrade, so the category keeps alerts for 42 findings the built image no longer has. The scan runs on a GitHub-hosted runner, which cannot read the stack's own registry, so the proposal is to build the image in the scan job as the deploy builds it. The old category, if renamed, has its configuration deleted by hand (T8). |
 | T11 The patch and minor moves that clear findings | (a) 📋 **Proposed**; (b) ⏳ **Owner**; (c) 📋 **Proposed**, after the Alpha (2026-10-23) | Status, 2026-10-23 (the scan triage), read with Trivy 0.76.0 on linux/amd64. (a) **Mailpit v1.32.0**: 0/0, where v1.31.6 has CVE-2026-111943 (Go's `crypto/x509`); after the first invitation, by hand in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts`, which pins the reference by tag and digest and records Mailpit's release check as read at v1.31.6, so that fact is read again at v1.32.0 in the same change. (b) **Stalwart v0.16.27** (Debian 13.7): 0 critical and 47 high, none with a fix, where v0.16.10 has 3/114. The owner's call: `docs/stalwart-integration-fix.md` pins v0.16.10 and says *"DO NOT change the pinned version"* (AGENTS.md puts its decisions in ADR-0022), and every copy moves together: `setup-stalwart.sh`, the fixture's Dockerfile, the Testcontainers setup, the fix doc and the guards that name it. (c) **ClickHouse 26.3** (26.3.59, Ubuntu 22.04): 0/0, where 26.2.19.43 has CVE-2026-45447 and CVE-2026-84782 in openssl. After the Alpha: the owner accepted 26.2 for it on 2026-10-23 (0119 §3 item 9 on the Trigger.dev v4.7.6 branch), and 26.3 is ahead of the 26.2 Trigger.dev's own compose pins, which the pin watch compares with (T8). It moves in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts` together: the guard pins the reference by tag and digest and records the crash-report default as read at `v26.2.19.43-stable`, as `clickhouse-no-crash-reports.xml`'s comment does, so both are read again at 26.3. |
 | T15 Both databases of the managed stacks start as uid 70, from the official image without gosu | 🔨 **Being built** as draft #1717 on branch `claude/ownpace-public-readiness-y7orc6-postgres-without-gosu`, stacked on #1678, for after the alpha.2 tag (2026-10-26) | Status, 2026-10-26. `postgres:18.6-alpine` reads 1 critical and 26 high (Trivy v0.76.1, arm64 and amd64); the critical and 25 highs are Go's standard library in gosu, which the entrypoint runs only when it starts as root. `deploy/compose/postgres/Dockerfile` removes it and starts as uid 70, the user gosu dropped to; `managed.yml`'s `postgres` and `trigger-db` and `dev.yml`'s run it, and the scan builds and scans it. Done when E2E (managed) is green on the branch (the OTA stack's existing volumes, started as uid 70, and a second bring-up leaving both databases running on the same image ID), `build (postgres)` is green on the pull request, the image scan's `postgres-managed` reads 0 critical and 1 high (brotli-libs, until docker-library rebuilds 18.6-alpine), and live has taken it from a tag. The appliance's Postgres is T15b. |
-| T15b The appliance's Postgres starts as uid 70, from the official image without gosu | 🔨 **Being built** on branch `claude/ownpace-public-readiness-y7orc6-appliance-postgres-without-gosu`, stacked on #1717, for after the alpha.2 tag (2026-10-26) | Status, 2026-10-26, last. The appliance's `postgres:18.6-alpine` (`77f58511…`) reads 1 critical and 26 high (Trivy v0.76.1, arm64); the critical is gosu's Go, and no newer digest drops it. `deploy/selfhost/postgres/Dockerfile` is T15's instructions on the appliance's own base, `deploy/selfhost/compose.yml` runs it as `localhost/postgres:18.6-alpine-b18f51417292` (never pulled), Dependabot moves its FROM in an entry of its own, the scan's `postgres-selfhost` leg builds it, `build (postgres)` proves it on a pull request, and E2E (self-hosted) builds `app` by name. Done when `build (postgres)` is green on the pull request, E2E (self-hosted) is green on the branch with `persistence: postgres`, the image scan's `postgres-selfhost` reads 0 critical, and a release tag carries it. |
+| T15b The appliance's Postgres starts as uid 70, from the official image without gosu | 🔨 **Being built** on branch `claude/ownpace-public-readiness-y7orc6-appliance-postgres-without-gosu`, stacked on #1717, for after the alpha.2 tag (2026-10-26) | Status, 2026-10-26, last. The appliance's `postgres:18.6-alpine` (`77f58511…`) reads 1 critical and 26 high (Trivy v0.76.1, arm64); the critical is gosu's Go, and no newer digest drops it. `deploy/selfhost/postgres/Dockerfile` is T15's instructions on the appliance's own base, `deploy/selfhost/compose.yml` runs it as `localhost/postgres:18.6-alpine-b18f51417292` (never pulled), Dependabot moves its FROM in an entry of its own, the scan's `postgres-selfhost` leg builds it, `build (postgres)` proves it on a pull request, and E2E (self-hosted) builds `app` by name. Done when `build (postgres)` is green on the pull request (the appliance's build started on a volume the official image initialised as root), E2E (self-hosted) is green on the branch with `persistence: postgres`, the image scan's `postgres-selfhost` reads 0 critical, and a release tag carries it. |
 
 ## 1. What there is today
 

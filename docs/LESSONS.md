@@ -2871,6 +2871,7 @@ reading a file drops off its entry by itself.
 
 ### `scripts/upgrade-drill.sh`
 
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts) — The upgrade drill's appliances start with the mapping the drill wrote for them (workplan 0146's Status, 0025 T5).
 
 ### `scripts/workplan-index.mjs`
@@ -3067,6 +3068,7 @@ reading a file drops off its entry by itself.
 
 ### `test/e2e/selfhost-backup-restore.e2e.test.ts`
 
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 
 ### `test/e2e/selfhost-restart-resume.e2e.test.ts`
@@ -3435,6 +3437,8 @@ Reads:
 - `docs/managed-bring-up.md`
 - `docs/selfhost-quickstart.md`
 - `packages/testing/src/testcontainers-setup.ts`
+- `scripts/upgrade-drill.sh`
+- `test/e2e/selfhost-backup-restore.e2e.test.ts`
 
 ### [a-database-that-counts-its-queries](../scripts/a-database-that-counts-its-queries.unit.test.ts)
 

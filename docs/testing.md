@@ -482,7 +482,9 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   on `v*` tags. On such a pull request only, `build (postgres)` also brings up `dev.yml`'s
   postgres and then the appliance's on a runner without their images, so compose builds
   `deploy/compose/postgres` and `deploy/selfhost/postgres`, and checks each runs as uid 70
-  without gosu (workplan 0146 T15, T15b); it publishes nothing.
+  without gosu (workplan 0146 T15, T15b); it publishes nothing. The appliance's starts on the
+  volume an existing appliance has, one the official image initialised as root, and must read
+  back the row written there.
 - `windows-payload.yml` (dispatch, and on v* tags; builds the Windows appliance payload).
 - `release.yml` — dispatch only, from `main`, on GitHub-hosted runners only; never a required
   check, since it has no pull-request trigger. It cuts a release tag and publishes it in order

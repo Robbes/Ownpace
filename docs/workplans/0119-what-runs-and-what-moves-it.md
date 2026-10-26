@@ -13,7 +13,9 @@ gosu, as uid 70. Its pin is that FROM, which Dependabot moves in a `docker` entr
 (`/deploy/selfhost/postgres`, `chore(postgres)`, never a major: the ignore moved there from the
 docker-compose entry). The docker-compose entry for `/deploy/selfhost` stays, reads the app's
 line, and ignores `localhost/postgres` outright, which its parser would otherwise ask Docker Hub
-for. The pin watch still reads nothing in `deploy/selfhost`. 0146's Status has the rest.
+for. The pin watch reads neither `deploy/selfhost/compose.yml` nor
+`deploy/selfhost/postgres/Dockerfile` (in `deploy/selfhost` it reads only `setup-stalwart.sh`'s
+Stalwart pin). 0146's Status has the rest.
 
 **2026-10-26: the managed stacks' Postgres pin moves into a Dockerfile, as a draft for after
 the alpha.2 tag** (0146 T15, draft #1717, branch `claude/ownpace-public-readiness-y7orc6-postgres-without-gosu`,

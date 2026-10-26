@@ -81,13 +81,19 @@
  *    name by its own hash and its own `sed`, its pin by its own Dependabot
  *    entry (the docker-compose entry that moved the old image line ignores
  *    the build's name outright, which it would otherwise ask Docker Hub for),
- *    and built by the same `build (postgres)`. The appliance's override files
- *    may not put root, a pull or another build back on it. And no compose
- *    file under deploy/ runs the official image any more, which this used to
- *    allow for the appliance by name. E2E (self-hosted) builds `app` by name
- *    and runs `up` without `--build`, and no document gives an appliance
- *    command that rebuilds the database's image: that runner's Docker is the
- *    managed stacks' too, and once the two FROMs meet, so do the two names;
+ *    and built by the same `build (postgres)`, which starts it on the volume
+ *    every existing appliance has: one the official image initialised as
+ *    root, with a row the build must read back (the review of T15b, the same
+ *    day). That job is read statement by statement, so an `exit 0`, a
+ *    `return`, an `|| true` or an `if false` cannot leave its lines in place
+ *    and skip a proof. The appliance's override files may not put root, a
+ *    pull or another build back on it. And no compose file under deploy/ runs
+ *    the official image any more, which this used to allow for the appliance
+ *    by name. E2E (self-hosted) builds `app` by name and runs `up` without
+ *    `--build`, and no document, script or appliance E2E test gives a command
+ *    that rebuilds the database's image, a command continued over several
+ *    lines read whole: that runner's Docker is the managed stacks' too, and
+ *    once the two FROMs meet, so do the two names;
  *  - the integration tests start the Dockerfile's base as uid 70, so every
  *    run initialises a new volume the way the stacks now do;
  *  - `db-roles.sh` and `stand-up-live.sh`, which ask the database over the
@@ -654,18 +660,147 @@ function rebuilds(line: string): string[] {
 
 /**
  * The files whose commands somebody runs on a stack: scripts, the compose
- * files' comments, workflows and the documents. Not the records of what was
- * once run (workplans, the ADR history, the design handoffs) and not
+ * files' comments, workflows and the documents, and the E2E tests that drive
+ * the appliance on E2E (self-hosted)'s runner (`docker compose
+ * ${COMPOSE_FILES} up -d postgres` in the backup and restore drill), whose
+ * Docker the managed stacks share (the review of T15b). Not the records of
+ * what was once run (workplans, the ADR history, the design handoffs) and not
  * LESSONS.md, which is generated from these guards' headers.
  */
 function filesWithCommands(): string[] {
-  return execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', 'docs', 'deploy/compose', 'deploy/selfhost', '.github/workflows', 'README.md', 'CONTRIBUTING.md'], {
-    cwd: REPO_ROOT,
-    encoding: 'utf8',
-  })
+  return execFileSync(
+    'git',
+    ['ls-files', '--cached', '--others', '--exclude-standard', 'docs', 'deploy/compose', 'deploy/selfhost', '.github/workflows', 'README.md', 'CONTRIBUTING.md', 'scripts/*.sh', 'test/e2e'],
+    { cwd: REPO_ROOT, encoding: 'utf8' },
+  )
     .split('\n')
-    .filter((f) => /\.(md|sh|ya?ml)$/.test(f))
+    .filter((f) => /\.(md|sh|ya?ml)$/.test(f) || /^test\/e2e\/.*\.(ts|m?js)$/.test(f))
     .filter((f) => !/^docs\/(workplans|adr\/history|design)\//.test(f) && f !== 'docs/LESSONS.md');
+}
+
+/**
+ * A file's lines as the shell reads its commands: a line ending in a
+ * backslash joined to the next (the quickstart writes its multi-file commands
+ * so), each with the number of the line it starts on.
+ */
+function commandLines(text: string): Array<{ n: number; line: string }> {
+  const out: Array<{ n: number; line: string }> = [];
+  let start = 0;
+  let joined = '';
+  text.split('\n').forEach((line, i) => {
+    if (!joined) start = i + 1;
+    if (line.endsWith('\\')) {
+      joined += `${line.slice(0, -1)} `;
+      return;
+    }
+    out.push({ n: start, line: joined + line });
+    joined = '';
+  });
+  if (joined) out.push({ n: start, line: joined });
+  return out;
+}
+
+/** A run's lines outside every `name() { … }`, trimmed, comments and blank lines left out. */
+function topLevel(run: string): string[] {
+  const out: string[] = [];
+  let inside = false;
+  for (const line of run.split('\n')) {
+    if (inside) {
+      if (/^\}\s*$/.test(line)) inside = false;
+      continue;
+    }
+    if (/^\w+\(\) \{\s*$/.test(line)) inside = true;
+    else if (!/^\s*(#|$)/.test(line)) out.push(line.trim());
+  }
+  return out;
+}
+
+/** The lines of `name() { … }` in a run, trimmed, comments and blank lines left out; null when it has none. */
+function functionBody(run: string, name: string): string[] | null {
+  const lines = run.split('\n');
+  const at = lines.indexOf(`${name}() {`);
+  if (at < 0) return null;
+  const end = lines.findIndex((l, i) => i > at && /^\}\s*$/.test(l));
+  return lines
+    .slice(at + 1, end < 0 ? undefined : end)
+    .filter((l) => !/^\s*(#|$)/.test(l))
+    .map((l) => l.trim());
+}
+
+interface ImagesWorkflow {
+  on: { pull_request?: { paths?: string[] } };
+  jobs: Record<string, { if?: string; 'runs-on'?: string; permissions?: unknown; env?: Record<string, string>; steps?: Array<{ run?: string; uses?: string }> }>;
+}
+
+/**
+ * What is wrong with images.yml's `build (postgres)`, in words; empty when it
+ * holds. It must build each database's image the way compose does on a
+ * machine without it, start it, and check uid 70 and no gosu; and the
+ * appliance's must start on a volume the official image initialised as root,
+ * which every existing appliance has, and read back the row written there
+ * (the review of T15b). Its statements are read as statements, not as lines
+ * somewhere in the text: an `exit 0`, a `return`, an `|| true` or an `if
+ * false` around a proof leaves every line in place and proves nothing.
+ */
+function databaseJobProblems(text: string): string[] {
+  const problems: string[] = [];
+  const images = parseYaml(text) as ImagesWorkflow;
+  if (!images.on.pull_request?.paths?.includes('deploy/**')) problems.push('images.yml no longer runs on a pull request that touches deploy/');
+  const job = images.jobs['database'];
+  if (!job) return [...problems, 'images.yml has no `database` job'];
+  if (job.if !== "github.event_name == 'pull_request'") problems.push(`the job runs on ${String(job.if)}, not on a pull request only`);
+  if (!/^ubuntu-/.test(job['runs-on'] ?? '')) problems.push(`the job runs on ${String(job['runs-on'])}, not a GitHub-hosted Ubuntu runner`);
+  if (JSON.stringify(job.permissions) !== JSON.stringify({ contents: 'read' })) problems.push(`the job's permissions are ${JSON.stringify(job.permissions)}, not contents: read`);
+  const steps = job.steps ?? [];
+  if (/docker (?:image )?build\b|\bbuild api\b|compose[^\n]* build\b/.test(steps.map((s) => s.run ?? '').join('\n'))) {
+    problems.push('it builds the image itself, which would hide a compose that does not');
+  }
+  const proving = steps.filter((s) => (s.run ?? '').split('\n').includes('prove() {'));
+  if (proving.length !== 1) return [...problems, `${proving.length} steps define prove(), not one`];
+  const run = proving[0]!.run!;
+  for (const line of run.split('\n')) {
+    if (/^\s*return\b|\bexit 0\b|\|\|\s*(true|:)\s*$/.test(line)) problems.push(`\`${line.trim()}\` can end the step, or a proof, before it proves anything`);
+  }
+  const prove = functionBody(run, 'prove') ?? [];
+  if (prove[0] !== 'local file="$1" role="$2" db="$3"' || prove[1] !== 'docker compose -f "$file" up -d --wait postgres') {
+    problems.push(`prove() does not begin by starting the file's postgres the way compose does, building it where it is missing: ${JSON.stringify(prove.slice(0, 2))}`);
+  }
+  if (!prove.some((l) => l.includes('{{.Config.User}}'))) problems.push('it does not check what built');
+  if (!prove.some((l) => l.includes('/proc/1/status'))) problems.push('it does not check the server and the data are uid 70');
+  if (!prove.some((l) => l.includes('/usr/local/bin/gosu'))) problems.push('it does not check gosu is gone');
+  // The volume every existing appliance has: initialised by the Dockerfile's own base, as root, with a row in it.
+  const root = (functionBody(run, 'root_initialised') ?? []).join('\n');
+  const started = /^docker run -d --name root-initialised (.*) -v "\$\{volume\}:\/var\/lib\/postgresql" "\$base"$/m.exec(root);
+  if (
+    !root.startsWith('local file="$1" role="$2" db="$3"\nbase="$(awk \'/^FROM / { print $2 }\' "$(dirname "$file")/postgres/Dockerfile")"') ||
+    !/^docker volume create .*"\$volume"$/m.test(root) ||
+    !started ||
+    /(^|\s)(-u|--user)\b/.test(started[1]!)
+  ) {
+    problems.push("root_initialised() does not start the Dockerfile's own FROM, as root, on the volume the compose file mounts");
+  }
+  if (!/insert into before_the_build/.test(root)) problems.push('root_initialised() writes no row for the build to read back');
+  if (!/select note from before_the_build/.test((functionBody(run, 'read_back') ?? []).join('\n'))) {
+    problems.push('read_back() does not read the row written as root');
+  }
+  // The step's own statements, in order: dev.yml's on a new volume, the appliance's on a root-initialised one.
+  const env = Object.entries(job.env ?? {});
+  const variable = (file: string) => env.find(([, value]) => value === file)?.[0];
+  const [dev, appliance] = [variable('deploy/compose/dev.yml'), variable('deploy/selfhost/compose.yml')];
+  if (!dev) problems.push('the job names no deploy/compose/dev.yml, so deploy/compose/postgres/Dockerfile is not built on a pull request');
+  if (!appliance) problems.push('the job names no deploy/selfhost/compose.yml, so deploy/selfhost/postgres/Dockerfile is not built on a pull request');
+  if (dev && appliance) {
+    const want = [
+      'set -euo pipefail',
+      `prove "$${dev}" ownpace ownpace`,
+      `root_initialised "$${appliance}" openmigrate openmigrate`,
+      `prove "$${appliance}" openmigrate openmigrate`,
+      `read_back "$${appliance}" openmigrate openmigrate`,
+    ];
+    const got = topLevel(run);
+    if (JSON.stringify(got) !== JSON.stringify(want)) problems.push(`the step's own statements are ${JSON.stringify(got)}, not ${JSON.stringify(want)}`);
+  }
+  return problems;
 }
 
 const bootstrap = read('deploy/compose/bootstrap-managed.sh');
@@ -694,9 +829,17 @@ describe("nothing builds the databases' image again while the machine has it", (
       'docker compose -f deploy/selfhost/compose.yml build',
       'docker compose -f deploy/selfhost/compose.yml build postgres',
       'docker compose ${SELFHOST_COMPOSE_FILES} build --no-cache',
+      // The backup and restore drill's own commands, on E2E (self-hosted)'s runner (the review of T15b).
+      'sh(`docker compose ${COMPOSE_FILES} up -d --build postgres`);',
+      'sh(`docker compose ${COMPOSE_FILES} build postgres`);',
     ]) {
       expect(rebuilds(line), line).not.toEqual([]);
     }
+    // A command continued on the next line is read whole.
+    const continued = 'docker compose -f deploy/selfhost/compose.yml \\\n  -f deploy/selfhost/compose.dev.yml \\\n  up -d --build\necho done';
+    expect(commandLines(continued).map((l) => l.n)).toEqual([1, 4]);
+    expect(commandLines(continued).flatMap((l) => rebuilds(l.line))).toEqual([expect.stringContaining('up -d --build')]);
+    expect(continued.split('\n').flatMap(rebuilds), 'line by line, the continued command hides its --build').toEqual([]);
     for (const line of [
       'GIT_SHA=$(git rev-parse --short HEAD) docker compose -f deploy/compose/managed.yml build api web',
       'docker compose -f deploy/compose/managed.yml up -d --wait api web',
@@ -708,6 +851,8 @@ describe("nothing builds the databases' image again while the machine has it", (
       'docker compose -f deploy/selfhost/compose.yml pull app',
       'docker compose -f deploy/selfhost/compose.yml up -d',
       'docker compose $COMPOSE stop app',
+      'sh(`docker compose ${COMPOSE_FILES} up -d postgres`);',
+      '"${COMPOSE[@]}" up -d --no-build app',
       'docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env up -d --force-recreate',
       '# the app services used to need `--build` and a GIT_SHA',
     ]) {
@@ -726,13 +871,11 @@ describe("nothing builds the databases' image again while the machine has it", (
         '.github/workflows/e2e.yml',
         'deploy/selfhost/compose.dev.yml',
         'docs/selfhost-quickstart.md',
+        'test/e2e/selfhost-backup-restore.e2e.test.ts',
+        'scripts/upgrade-drill.sh',
       ]),
     );
-    const found = files.flatMap((file) =>
-      read(file)
-        .split('\n')
-        .flatMap((line, n) => rebuilds(line).map((problem) => `${file}:${n + 1}: ${problem}`)),
-    );
+    const found = files.flatMap((file) => commandLines(read(file)).flatMap(({ n, line }) => rebuilds(line).map((problem) => `${file}:${n}: ${problem}`)));
     expect(found).toEqual([]);
   });
 
@@ -748,34 +891,49 @@ describe("nothing builds the databases' image again while the machine has it", (
   });
 
   it('a pull request that touches deploy/ builds both Dockerfiles with compose, and starts each result as uid 70', () => {
-    const images = parseYaml(read('.github/workflows/images.yml')) as {
-      on: { pull_request?: { paths?: string[] } };
-      jobs: Record<string, { if?: string; 'runs-on'?: string; permissions?: unknown; env?: Record<string, string>; steps?: Array<{ run?: string; uses?: string }> }>;
-    };
-    expect(images.on.pull_request?.paths, "images.yml no longer runs on a pull request that touches deploy/").toContain('deploy/**');
-    const job = images.jobs['database'];
-    expect(job, 'images.yml has no `database` job').toBeDefined();
-    expect(job!.if).toBe("github.event_name == 'pull_request'");
-    expect(job!['runs-on']).toMatch(/^ubuntu-/);
-    expect(job!.permissions).toEqual({ contents: 'read' });
-    const run = (job!.steps ?? []).map((s) => s.run ?? '').join('\n');
-    expect(run, 'it does not start the database the way dev.yml does, building it where it is missing').toMatch(
-      /docker compose -f "\$file" up -d --wait\b[^\n]*\bpostgres\b/,
-    );
-    expect(run, 'it does not check what built').toContain('{{.Config.User}}');
-    expect(run, 'it does not check the server and the data are uid 70').toMatch(/\/proc\/1\/status/);
-    expect(run, 'it does not check gosu is gone').toContain('/usr/local/bin/gosu');
-    expect(run, 'it builds the image itself, which would hide a compose that does not').not.toMatch(/docker (?:image )?build\b|\bbuild api\b|compose[^\n]* build\b/);
+    expect(databaseJobProblems(read('.github/workflows/images.yml'))).toEqual([]);
     // Each Dockerfile through a compose file that builds it: dev.yml's, and the appliance's (0146 T15b).
-    const env = Object.entries(job!.env ?? {});
     for (const [build, file] of [
       [MANAGED, 'deploy/compose/dev.yml'],
       [APPLIANCE, 'deploy/selfhost/compose.yml'],
     ] as const) {
       expect(build.built.some((k) => k.startsWith(`${file}:`)), `${file} does not run ${build.dockerfile}`).toBe(true);
-      const variable = env.find(([, value]) => value === file)?.[0];
-      expect(variable, `the job names no ${file}, so ${build.dockerfile} is not built on a pull request`).toBeTruthy();
-      expect(run, `the job does not bring up ${file}'s postgres`).toMatch(new RegExp(`^\\s*prove "\\$${variable}" \\w+ \\w+\\s*$`, 'm'));
     }
+  });
+
+  it('refuses a job that skips a proof, starts the appliance on a new volume only, or builds the image itself (the review of T15b)', () => {
+    const real = read('.github/workflows/images.yml');
+    const swap = (from: RegExp, to: string) => {
+      const text = real.replace(from, to);
+      expect(text, `${String(from)} matched nothing`).not.toBe(real);
+      return databaseJobProblems(text);
+    };
+    const APPLIANCE_PROOF = /^( *)(prove "\$SELFHOST_COMPOSE_FILE" openmigrate openmigrate)$/m;
+    // A proof that never runs reads, line by line, like one that does.
+    expect(swap(APPLIANCE_PROOF, '$1exit 0\n$1$2')).toEqual(
+      expect.arrayContaining([expect.stringContaining('`exit 0` can end the step'), expect.stringContaining("the step's own statements are")]),
+    );
+    expect(swap(APPLIANCE_PROOF, '$1if false; then\n$1  $2\n$1fi')).toEqual([expect.stringContaining("the step's own statements are")]);
+    expect(swap(APPLIANCE_PROOF, '$1$2 || true')).toEqual(
+      expect.arrayContaining([expect.stringContaining('`prove "$SELFHOST_COMPOSE_FILE" openmigrate openmigrate || true` can end the step')]),
+    );
+    expect(swap(/^( *)(prove\(\) \{)$/m, '$1$2\n$1  return 0')).toEqual(
+      expect.arrayContaining([expect.stringContaining('`return 0` can end the step'), expect.stringContaining('prove() does not begin')]),
+    );
+    // The appliance's database on a new volume only: the volume every existing appliance has goes unproven.
+    expect(swap(/^ *root_initialised "\$SELFHOST_COMPOSE_FILE" openmigrate openmigrate\n/m, '')).toEqual([expect.stringContaining("the step's own statements are")]);
+    expect(swap(/^ *read_back "\$SELFHOST_COMPOSE_FILE" openmigrate openmigrate\n/m, '')).toEqual([expect.stringContaining("the step's own statements are")]);
+    expect(swap(/(docker run -d --name root-initialised) /, '$1 --user 70:70 ')).toEqual([expect.stringContaining('root_initialised() does not start')]);
+    expect(swap(/(\$\(dirname "\$file"\)\/postgres\/Dockerfile)/, '$1.other')).toEqual([expect.stringContaining('root_initialised() does not start')]);
+    expect(swap(/insert into before_the_build/, 'select 1 from before_the_build')).toEqual([expect.stringContaining('root_initialised() writes no row')]);
+    expect(swap(/select note from before_the_build/, 'select 1')).toEqual([expect.stringContaining('read_back() does not read')]);
+    // The rest of what it held before.
+    expect(swap(/^( *)(docker compose -f "\$file" up -d --wait postgres)$/m, '$1docker build -t x "$(dirname "$file")/postgres"\n$1$2')).toEqual(
+      expect.arrayContaining([expect.stringContaining('builds the image itself')]),
+    );
+    expect(swap(/^( *)SELFHOST_COMPOSE_FILE: deploy\/selfhost\/compose\.yml$/m, '$1SELFHOST_COMPOSE_FILE: deploy/selfhost/compose.pglite.yml')).toEqual(
+      expect.arrayContaining([expect.stringContaining('the job names no deploy/selfhost/compose.yml')]),
+    );
+    expect(swap(/if \[ -e \/usr\/local\/bin\/gosu \]; then[^\n]*\n/, '')).toEqual([expect.stringContaining('does not check gosu is gone')]);
   });
 });
