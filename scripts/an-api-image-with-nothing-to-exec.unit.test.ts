@@ -45,7 +45,10 @@
  *    (`/nodejs/bin/node`, or `/usr/local/bin/node` on the Node image an older
  *    tag runs), or a variable holding one: not a shell, not `printenv`, not a
  *    bare `node`. A `compose run` of the api starts no shell, `printenv` or
- *    `node` either (the image's ENTRYPOINT is node already).
+ *    `node` either (the image's ENTRYPOINT is node already). The container is
+ *    known by its service, by its name, by the id `"$(docker compose … ps -q
+ *    api)"` gives (the form the docs' read-backs teach), and by a variable the
+ *    same file sets to that id (the gate's `api_id`, the live scripts' `id`).
  * 3. A variable the API was started with is read from Docker, `docker
  *    container inspect`'s `.Config.Env`, which answers the same on this image
  *    and the Node images before it (a stack rolled back to an older tag). Never
@@ -256,41 +259,88 @@ function isApi(target: string): boolean {
   return target === 'api' || /^\$\{?(?:SMOKE_)?API_CONTAINER\}?$/.test(target) || (/-api$/.test(target) && !/trigger-api$/.test(target));
 }
 
+/** The command substitution whose `$(` is at `open`: its text, and where its own `)` is. */
+function substitutionAt(text: string, open: number): { inner: string; end: number } | null {
+  let depth = 0;
+  for (let i = open + 1; i < text.length; i++) {
+    if (text[i] === '(') depth++;
+    else if (text[i] === ')' && --depth === 0) return { inner: text.slice(open + 2, i), end: i };
+  }
+  return null;
+}
+
+/** A substitution that asks Compose for the API container: a `ps` of the service `api` (`-q`, `--format '{{.ID}}'`), never trigger-api's. */
+function asksForTheApi(inner: string): boolean {
+  const words = inner.split(/\s+/).map(word);
+  return words.includes('ps') && words.includes('api');
+}
+
+/**
+ * The variables a file sets from such a substitution: `api_id=$(docker compose
+ * … ps --format '{{.ID}}' api)`, `id="$("${COMPOSE[@]}" ps -q api)"`. An exec
+ * into `"$api_id"` there is one into the API.
+ */
+function apiVariables(text: string): Set<string> {
+  const vars = new Set<string>();
+  const joined = text.replace(/\\\r?\n/g, ' ');
+  for (const m of joined.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)=["']?\$\(/g)) {
+    const sub = substitutionAt(joined, m.index + m[0].length - 2);
+    if (sub && asksForTheApi(sub.inner)) vars.add(m[1]!);
+  }
+  return vars;
+}
+
 type Exec = { file: string; how: 'exec' | 'run'; line: string; program: string | undefined };
 
 /** Every `docker exec`, `docker compose … exec` and `docker compose … run` into the API container. */
 function execsIntoTheApi(): Exec[] {
+  return commandFiles().flatMap((file) => execsIn(file, read(file)));
+}
+
+/**
+ * The execs into the API container in one file's text. The container is named
+ * as `isApi` knows it, by the container id the docs teach (`"$(docker compose
+ * -f deploy/compose/managed.yml ps -q api)"`, read to its own `)`, the program
+ * after it), or by a variable the same file sets to that id (`apiVariables`).
+ */
+function execsIn(file: string, text: string): Exec[] {
   const found: Exec[] = [];
-  for (const file of commandFiles()) {
-    for (const line of logicalLines(file, read(file))) {
-      const tokens = line.split(/\s+/).filter(Boolean);
-      tokens.forEach((raw, i) => {
-        const t = word(raw);
-        if (t !== 'exec' && t !== 'run') return;
-        // Back to where this command started, for its docker or compose.
-        const before: string[] = [];
-        for (let j = i - 1; j >= 0; j--) {
-          const tj = tokens[j]!;
-          if (/^(?:\||;|&&|\|\||\$\(|then|do)$/.test(tj) || tj.endsWith(';')) break;
-          // `x="$(docker` starts a command inside the word.
-          const sub = tj.lastIndexOf('$(');
-          if (sub >= 0) {
-            before.unshift(word(tj.slice(sub + 2)));
-            break;
-          }
-          before.unshift(word(tj));
+  const vars = apiVariables(text);
+  for (const line of logicalLines(file, text)) {
+    const tokens = line.split(/\s+/).filter(Boolean);
+    tokens.forEach((raw, i) => {
+      const t = word(raw);
+      if (t !== 'exec' && t !== 'run') return;
+      // Back to where this command started, for its docker or compose.
+      const before: string[] = [];
+      for (let j = i - 1; j >= 0; j--) {
+        const tj = tokens[j]!;
+        if (/^(?:\||;|&&|\|\||\$\(|then|do)$/.test(tj) || tj.endsWith(';')) break;
+        // `x="$(docker` starts a command inside the word.
+        const sub = tj.lastIndexOf('$(');
+        if (sub >= 0) {
+          before.unshift(word(tj.slice(sub + 2)));
+          break;
         }
-        const compose = before.some((b) => b === 'compose' || /COMPOSE/.test(b));
-        const docker = before.includes('docker');
-        if (t === 'run' ? !compose : !(compose || docker)) return;
-        let k = i + 1;
-        while (k < tokens.length && word(tokens[k]!).startsWith('-')) k += VALUE_FLAGS.has(word(tokens[k]!)) ? 2 : 1;
-        const target = tokens[k] === undefined ? '' : word(tokens[k]!);
-        if (!isApi(target)) return;
-        const program = tokens[k + 1] === undefined ? undefined : word(tokens[k + 1]!);
-        found.push({ file, how: t, line: line.trim().slice(0, 240), program });
-      });
-    }
+        before.unshift(word(tj));
+      }
+      const compose = before.some((b) => b === 'compose' || /COMPOSE/.test(b));
+      const docker = before.includes('docker');
+      if (t === 'run' ? !compose : !(compose || docker)) return;
+      let k = i + 1;
+      while (k < tokens.length && word(tokens[k]!).startsWith('-')) k += VALUE_FLAGS.has(word(tokens[k]!)) ? 2 : 1;
+      const target = tokens[k] === undefined ? '' : word(tokens[k]!);
+      let program = tokens[k + 1] === undefined ? undefined : word(tokens[k + 1]!);
+      if (target.startsWith('$(')) {
+        // The id by its substitution: up to its own `)`, whatever it spans.
+        const rest = tokens.slice(k).join(' ');
+        const sub = substitutionAt(rest, rest.indexOf('$('));
+        if (!sub || !asksForTheApi(sub.inner)) return;
+        const next = rest.slice(sub.end + 1).replace(/^\S*/, '').trim().split(/\s+/)[0];
+        program = next ? word(next) : undefined;
+      } else if (!isApi(target) && !vars.has(/^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$/.exec(target)?.[1] ?? '')) return;
+      found.push({ file, how: t, line: line.trim().slice(0, 240), program });
+    });
   }
   return found;
 }
@@ -344,6 +394,24 @@ describe('nothing execs into the API container but Node, by its path', () => {
     expect(isApi('trigger-api')).toBe(false);
     expect(isApi('$API_CONTAINER')).toBe(true);
     expect(isApi('ownpace-live-api')).toBe(true);
+  });
+
+  it('the scan knows the API by the container id the docs and the gate now use, and refuses a reader there', () => {
+    const programs = (file: string, text: string) => execsIn(file, text).map((e) => [e.program, refusal(e)]);
+    // The docs' form, the id by its substitution.
+    expect(programs('docs/x.md', 'Run `docker exec "$(docker compose -f deploy/compose/managed.yml ps -q api)" printenv NODE_ENV` there.\n')).toEqual([
+      ['printenv', expect.stringMatching(/printenv/)],
+    ]);
+    // The gate's and the live scripts' form, a variable set to the id, lines apart.
+    const gate = `api_id=$(docker compose $MANAGED_COMPOSE ps --format '{{.ID}}' api)\necho "$api_id"\ndocker exec "$api_id" printenv NODE_ENV\n`;
+    expect(programs('x.yml', gate)).toEqual([['printenv', expect.stringMatching(/printenv/)]]);
+    const live = `  local id\n  id="$("\${COMPOSE[@]}" ps -q api)" || return 2\n  docker exec "\${id}" sh -c true\n`;
+    expect(programs('x.sh', live)).toEqual([['sh', expect.stringMatching(/shell/)]]);
+    // trigger-api's id, by either form, is not the API's.
+    expect(execsIn('x.sh', 'docker exec "$(docker compose ps -q trigger-api)" sh\nid=$(docker compose ps -q trigger-api)\ndocker exec "$id" sh\n')).toEqual([]);
+    // What the gate and the live scripts set (vacuity: the scan would see their execs).
+    expect(apiVariables(read('.github/workflows/e2e-managed.yml')).has('api_id')).toBe(true);
+    for (const f of ['deploy/compose/deploy-live.sh', 'deploy/compose/stand-up-live.sh']) expect(apiVariables(read(f)).has('id'), f).toBe(true);
   });
 });
 
