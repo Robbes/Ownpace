@@ -224,12 +224,15 @@ const { pgcrypto } = requireFromLedger('@electric-sql/pglite/contrib/pgcrypto') 
 /** The site's project, and the container id the stub gives it once it is up. */
 const SITE_PROJECT = 'ownpace-live-www';
 const SITE_ID = '5173e0001';
+/** The id `compose ps -q api` answers for live's api container. */
+const API_ID = 'a91e0001';
 
 /**
- * docker: `compose config`, `compose exec -T postgres sh -c …`, and for the
+ * docker: `compose config`, `compose exec -T postgres sh -c …`, for the api's
+ * NODE_ENV `compose ps -q api` and `container inspect` of that id, and for the
  * site `ps` of a project's `www` containers (never the whole daemon),
  * `inspect` of the site's container, and `compose -p ownpace-live-www … up`.
- * Nothing else.
+ * Nothing else: an exec into the api is refused (0146 T13a).
  */
 const DOCKER_STUB = `#!/usr/bin/env bash
 printf 'docker %s\\n' "$*" >>"$STUB_LOG"
@@ -268,6 +271,14 @@ case "$1" in
     printf '%s\\n' "\${STUB_SITE_STATE:-running healthy}"
     exit 0
     ;;
+  container)
+    # The api container's environment, read from Docker after the bring-up
+    # (0132 T4; 0146 T13a: the distroless image has no printenv to exec).
+    [ "$2" = inspect ] && [ "$3" = --format ] && [ "$4" = '{{range .Config.Env}}{{println .}}{{end}}' ] && [ "$5" = ${API_ID} ] ||
+      { echo "docker stub: unexpected container call: $*" >&2; exit 93; }
+    printf '%s\\n' PATH=/usr/local/sbin:/usr/local/bin "NODE_ENV=\${STUB_NODE_ENV:-production}"
+    exit 0
+    ;;
   compose) shift ;;
   *) echo "docker stub: unexpected call: $*" >&2; exit 98 ;;
 esac
@@ -301,17 +312,16 @@ case "$1" in
     exit 0
     ;;
   config) printf 'name: %s\\nservices: {}\\n' "$project"; exit 0 ;;
+  ps)
+    # The api container's id, for its NODE_ENV (above); none when it is not running.
+    [ "$2" = -q ] && [ "$3" = api ] || { echo "docker stub: unexpected compose ps: $*" >&2; exit 97; }
+    [ -n "\${STUB_API_NOT_RUNNING:-}" ] || echo ${API_ID}
+    exit 0
+    ;;
   exec)
     shift
     [ "$1" = -T ] && shift
     svc="$1"; shift
-    # The api container's NODE_ENV, asked after the bring-up (0132 T4).
-    if [ "$svc" = api ]; then
-      [ "$*" = "printenv NODE_ENV" ] || { echo "docker stub: unexpected exec: api $*" >&2; exit 97; }
-      [ -z "\${STUB_API_EXEC_FAIL:-}" ] || { echo 'service "api" is not running' >&2; exit 1; }
-      echo "\${STUB_NODE_ENV:-production}"
-      exit 0
-    fi
     if [ "$svc" != postgres ] || [ "$1" != sh ] || [ "$2" != -c ]; then
       echo "docker stub: unexpected exec: $svc $*" >&2; exit 97
     fi
@@ -1471,7 +1481,7 @@ describe('a deploy that did not take keeps the hold and exits non-zero', () => {
     // bring-up sources the .env with `set -a`, which overrides one. A line
     // the check does not read, or a container the bring-up did not recreate.
     ['the api container does not run production', () => ({ STUB_NODE_ENV: 'development' }), /NODE_ENV in the api container is not production[\s\S]*grep -n NODE_ENV/],
-    ['the api container cannot be asked its NODE_ENV', () => ({ STUB_API_EXEC_FAIL: '1' }), /NODE_ENV: the api container could not be asked/],
+    ['the api container cannot be asked its NODE_ENV', () => ({ STUB_API_NOT_RUNNING: '1' }), /NODE_ENV: the api container could not be asked/],
     ['the bring-up fails', () => ({ STUB_BOOTSTRAP_EXIT: '1' }), /bootstrap-managed\.sh/],
     ['the bring-up stops for the owner', () => ({ STUB_BOOTSTRAP_EXIT: '2' }), /bootstrap-managed\.sh/],
     ['the dependencies do not install', () => ({ STUB_PNPM_EXIT: '1' }), /pnpm install/],

@@ -532,6 +532,36 @@ Names keep two stacks apart by configuration. They are not a boundary: each
 stack's `trigger-docker-proxy` holds the host's Docker socket and can start a
 container on any network (workplan 0132 §1).
 
+### Reading what the api container was started with
+
+The API image is a slim Node image or, from workplan 0146 T13, a distroless
+one: Node and the few libraries it needs, with no shell, no `printenv` and no
+package manager, and Node at `/nodejs/bin/node`, which is not on its `PATH`. A
+shell, `printenv` or a bare `node` exec'd into a distroless api container finds
+nothing there. So what the API was started with is read from Docker, from the
+stack's checkout, which answers the same for either image (workplan 0146 T13a):
+
+```bash
+docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$(docker compose -f deploy/compose/managed.yml ps -q api)" | grep '^NODE_ENV='
+```
+
+That is the image's `ENV` with Compose's `environment:` over it, one line per
+name: what the process started with, whichever image a stack runs, rolled
+back to an older tag or not. The list holds the stack's secrets, so `grep` for the name you want and nothing wider. Write
+`docker container inspect`, not `docker inspect`: given a name that is no
+container, the latter falls through to the image Compose built under the same
+name, and answers with the image's `ENV` alone.
+
+To ask something from inside the stack's network, as the smoke does, run Node
+by its path: `docker compose -f deploy/compose/managed.yml exec -T api
+/usr/local/bin/node -e '…'` on the Node image, `/nodejs/bin/node` on the
+distroless one.
+The scripts do both this way (`api_env` and `api_node` in
+`deploy/compose/smoke-managed.sh`, `api_env` in `deploy-live.sh` and
+`stand-up-live.sh`), and `scripts/an-api-image-with-nothing-to-exec.unit.test.ts`
+refuses a shell, `printenv` or a bare `node` exec'd into the api container in
+`deploy/`, the workflows and `docs/`.
+
 ---
 
 ## The long version, phase by phase
@@ -2323,11 +2353,13 @@ duties*), so it is never kept past its seventh day. A stack that keeps no copy
 at all sets `0`, and the sentence then names none; a blank reads as seven days
 whether or not a copy exists. With `OWNPACE_STAGE=alpha` the API refuses to
 start while it is blank, and the refusal names it. `stand-up-live.sh` refuses
-live's `.env` with anything but a whole number above 0. Read it back; on live
-this prints `7`:
+live's `.env` with anything but a whole number above 0. Read it back from the
+api container's own environment (Docker reads it, for either API image: the
+distroless one has no shell or `printenv` to ask, see *Reading what the api
+container was started with*); on live this prints `BACKUP_RETENTION_DAYS=7`:
 
 ```bash
-docker compose -f deploy/compose/managed.yml exec api printenv BACKUP_RETENTION_DAYS
+docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$(docker compose -f deploy/compose/managed.yml ps -q api)" | grep '^BACKUP_RETENTION_DAYS='
 ```
 
 A stack that moves from `0` to a number of days later, because it starts
@@ -3166,7 +3198,7 @@ To see it on a running stack, from its checkout:
 
 ```bash
 # The environment each container was started with, one variable a line.
-env_of() { docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' \
+env_of() { docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}' \
   "$(docker compose -f deploy/compose/managed.yml ps -q "$1")"; }
 
 env_of trigger-api | grep -E '^(TRIGGER_TELEMETRY_DISABLED|POSTHOG_PROJECT_KEY|CHECKPOINT_DISABLE)='
@@ -3247,10 +3279,12 @@ is also indistinguishable from a broken one unless you look here. `.env` files
 copied from an older `managed.env.example` predate these keys entirely, so an
 empty result means "never configured", not "deliberately disabled".
 
-What the containers actually got, which is the only thing that matters:
+What the containers actually got, which is the only thing that matters (the
+first line reads the api container's environment from Docker, see *Reading what
+the api container was started with*):
 
 ```bash
-docker compose -f deploy/compose/managed.yml exec api printenv SMTP_HOST SMTP_PORT NOTIFY_FROM
+docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$(docker compose -f deploy/compose/managed.yml ps -q api)" | grep -E '^(SMTP_HOST|SMTP_PORT|NOTIFY_FROM)='
 ./deploy/compose/setup-zitadel.sh --print
 ```
 
@@ -4427,7 +4461,7 @@ journal of whatever ran it), 2 refused.
 | `[setup-zitadel] FATAL:` a call answered `HTTP 404` with `unable to set instance using origin` / `Instance not found` | **The provider does not serve the origin being presented.** Zitadel resolves which instance a request is for from the request's origin — host AND **port** — and refuses any other. **Check the port before assuming the host is wrong:** `ownpace-idp:8080` and `ownpace-idp:3126` are different origins, and an evening went into concluding that trusted domains cannot work when the real fault was a provider listening on one port and stamping another into its issuer | Nothing to do on a current checkout in the ordinary case: `setup-zitadel.sh` registers `ZITADEL_EXTERNALDOMAIN` as an instance **trusted domain** on every run, which is enough to make an instance answer for an origin it was not initialised with — proved on E2E (managed) #61, on an instance initialised as `localhost` and never re-initialised. It can only do that once it can reach the instance, so if NOTHING the instance knows still resolves, the last resort is to initialise it again; the refusal prints those commands. A provisioning token cannot add an instance *domain*: `POST /admin/v1/domains` answers `404 Not Found` and the System API answers `401 Errors.Token.Invalid` |
 | Sign-in fails at the very first step with `{"error":"invalid_request","error_description":"This client's redirect_uri is http and is not allowed."}` | **The application was provisioned with `devMode:false` against an `http://` WEB_URL.** Zitadel refuses a plaintext redirect URI outright, at `/oauth/v2/authorize`, before any login screen — so the sign-in button could never work, while provisioning reported complete success: project created, application created, client id written to `.env` | Nothing to do on a current checkout: `devMode` is derived from the scheme of `WEB_URL`, and `setup-zitadel.sh` now RECONCILES an application it finds rather than only reading its client id, so an existing stack is put right on the next bring-up |
 | Sign-in completes and then every request is refused with `Missing required claims in token payload` | **The access token carries no email address, and the API requires one.** ADR-0042 narrowed the required claims to `sub` + `email` because invitations are addressed to an email address and a first-time signer-in has no row to look one up in. Zitadel puts user info claims in the ID token and NOT in the access token — measured with `idTokenUserinfoAssertion` both off and on | Nothing to do on a current checkout: the application is provisioned with `idTokenUserinfoAssertion` on, and `apps/web/src/services/oidc.ts` sends the ID token. Its audience is `[client id, project id]` and `JWT_AUDIENCE` is that project id, so the API validates issuer, audience, signature and expiry exactly as it would for an access token |
-| The smoke says `the API cannot reach the issuer at all` on a stack whose issuer is plainly fine | **The check asked with a client the image has not got.** the API's image is `node:24-slim` — no curl, no wget — so `docker exec … curl …` printed `curl: not found`, `\|\| true` swallowed the 127, and the empty string was reported as a verdict about the issuer. The container's own HEALTHCHECK has used `node -e "fetch(...)"` all along | Nothing to do on a current checkout: the smoke asks with node, and keeps "the probe could not run", "the issuer could not be reached" and "the issuer answered X" apart — three facts about three different things (hard rule 10) |
+| The smoke says `the API cannot reach the issuer at all` on a stack whose issuer is plainly fine | **The check asked with a client the image has not got.** the API's image is a slim Node image — no curl, no wget, and from workplan 0146 T13 distroless, with no shell either — so `docker exec … curl …` printed `curl: not found`, `\|\| true` swallowed the 127, and the empty string was reported as a verdict about the issuer. The container's own HEALTHCHECK has used `node -e "fetch(...)"` all along | Nothing to do on a current checkout: the smoke asks with node, by its path in the image (`/usr/local/bin/node` on the Node image, `/nodejs/bin/node` on the distroless one of 0146 T13), and keeps "the probe could not run", "the issuer could not be reached" and "the issuer answered X" apart — three facts about three different things (hard rule 10) |
 | The sign-in screen shows the same provider button several times — nine Google buttons after a week of re-runs | Until 2026-09-02 `configure_idp` looked for an existing provider on the deprecated `/admin/v1/idps/_search` list, which does not list the template kind it creates, so every re-run of the app phase added one more. It now reads `/admin/v1/idps/templates/_search`, keeps the oldest, and reports duplicates by count | `./deploy/compose/setup-zitadel.sh --offer-one Google` keeps the **oldest** button (the one your first sign-ins were linked to) and takes the others off the screen by removing their login-policy links — every provider stays, and so does everyone's link to it. The console's **instance** page does the same (Default settings → Login Behaviour and Security → Identity Providers, the 'available' toggle); an organisation-page toggle is undone by the next bring-up, which resets an organisation's own login policy on purpose. The script never deletes a provider. If a Google sign-in then asks to link the account, accept once |
 | The bring-up stops before the API with `N of M Docker networks lie outside the ranges the rule refuses` and `A Docker network on this machine lies outside the ranges a tester's host is refused in` | A network on this machine, this stack's or another stack's, has a subnet or a gateway outside the ranges the rule for a tester's host refuses (workplan 0136 T1 (b)). A host that resolves there would reach this machine through that network's gateway, and the rule would let it through | The `OUTSIDE` lines above the refusal name each network, its compose project, and the subnet or gateway outside. Set the daemon's `default-address-pools` inside `10.0.0.0/8`, `172.16.0.0/12` or `192.168.0.0/16` and recreate the network, or remove it if nothing uses it. Then `--from app` |
 | `ownpace-api` restarts at start-up, and task runs fail before they connect anywhere, with `OWNPACE_REACHABLE_HOSTS: "<entry>" is not a host name` | The list takes exact host names only: no wildcards, ranges, addresses or ports. A process that cannot read it stops, rather than admit more than the list says | Fix the entry in `.env`, then `docker compose -f deploy/compose/managed.yml up -d api` and `./deploy/compose/set-task-env.sh`. Task variables are read at run start; no redeploy is needed |
@@ -4550,8 +4584,11 @@ origin in `WEB_URL`: `/api/version` names the tag's commit **and** its version,
 and so does `/version.json`, the web app's own build (workplan 0145: a web image
 that did not move beside the API is a deploy that did not take, and a tag cut
 before 0145 has no such file), `/api/ready` answers 200, `/api/auth/mode` answers `managed`,
-`NODE_ENV` is `production` in the api container (asked with `docker compose
-exec -T api printenv NODE_ENV`), and `exposure-check.sh` passes. With `WWW_LIVE=true` in live's
+`NODE_ENV` is `production` in the api container (read from Docker, the
+container's `.Config.Env` through `docker container inspect`, which answers for
+the Node image and for the distroless one of workplan 0146 T13, which has no
+shell or `printenv` to ask: T13a), and
+`exposure-check.sh` passes. With `WWW_LIVE=true` in live's
 `.env` it also builds and serves `www.ownpace.eu` from the tag, before the
 exposure check, and refuses what would stop that before anything moves
 (*`www.ownpace.eu`: live's copy*, under *The public site*); without it, nothing
