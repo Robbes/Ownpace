@@ -2,15 +2,16 @@
 # (workplan 0119, Status of 2026-10-25 and of 2026-10-26).
 #
 # The demo Nextcloud, the dev stack and the integration tier run one major.
-# A customer's own Nextcloud is whatever they run. Until 2026-10-26 that one
-# major was 34 and this ran 35, so that "does the code work against 35" had an
-# answer before the demo moved and before a customer found out: it did, every
-# suite green against 35.0.1 and 35.0.2 (#1705). The demo, the dev stack and
-# the tier move to 35 on the branch that moves them (one way for the demo's
-# data: Nextcloud's data never goes back a version), and this runs 34, which
-# Nextcloud maintains until 2027-06 and which a customer who has not upgraded
-# still runs, so the code stays proven against it. This runs WebDAV, CalDAV,
-# CardDAV, the chunked upload and the OCS share verb, and only those.
+# A customer's own Nextcloud is whatever they run. Until the pull request that
+# moved the demo (workplan 0119 T5), that one major was 34 and this ran 35, so
+# that "does the code work against 35" had an answer before the demo moved and
+# before a customer found out: it did, every suite green against 35.0.1 and
+# 35.0.2 (#1705). The demo, the dev stack and the tier move to 35 on the
+# branch that moves them (one way for the demo's data: Nextcloud's data never
+# goes back a version), and this runs 34, which Nextcloud maintains until
+# 2027-06 and which a customer who has not upgraded still runs, so the code
+# stays proven against it. This runs WebDAV, CalDAV, CardDAV, the chunked
+# upload and the OCS share verb, and only those.
 #
 # WHICH SUITES. Every `*.integration.test.ts` that reads a NEXTCLOUD_ variable,
 # found by scripts/nextcloud-suites.mjs rather than listed here, so the next
@@ -97,10 +98,10 @@ jobs:
       # `34-apache` named on 2026-10-26), the digest the demo, the dev stack and
       # the integration tier pinned before they moved to 35.0.2 (#1678, 0119
       # §4), on PHP 8.5.12 like 35.0.2's. The leg ran 35.0.1 from 2026-10-25
-      # and 35.0.2 from 2026-10-26, and flipped to 34 with the demo's move
-      # (workplan 0119, T5). By hand: Dependabot reads no workflow env, and the
-      # pin watch reads no workflow file, so 34.0.6 (due 2026-11-12) is
-      # nobody's to report until a row reads this line.
+      # and 35.0.2 from 2026-10-26, and flipped to 34 in the pull request that
+      # moved the demo (workplan 0119, T5). By hand: Dependabot reads no
+      # workflow env, and the pin watch reads no workflow file, so 34.0.6 (due
+      # 2026-11-12) is nobody's to report until a row reads this line.
       NEXTCLOUD_IMAGE: nextcloud:34.0.5-apache@sha256:1f9212adecae32010cdbf137d7e0db78d08c696dc3e77f1eddcbf902d10209b4
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

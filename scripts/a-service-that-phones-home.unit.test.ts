@@ -72,12 +72,13 @@
  *  - MAILPIT (v1.31.6, the test stack's catcher; live has none) asks GitHub for
  *    its newest release whenever its web page asks for the server's info,
  *    unless `MP_DISABLE_VERSION_CHECK` says true (`internal/stats/stats.go`).
- *  - NEXTCLOUD (35 since 2026-10-26, 34 before; the demo's DAV target on the
- *    OTA stack every night, and the development one) sends its version, PHP
- *    version and install time to `updates.nextcloud.com`, asks
- *    `apps.nextcloud.com` for the app store, the announcements feed at
- *    `pushfeed.nextcloud.com`, and four public sites for a connectivity check
- *    (`config/config.sample.php` at `stable34`, and again at `v35.0.2`:
+ *  - NEXTCLOUD (35 since the demo's move, workplan 0119 T5, 34 before; the
+ *    demo's DAV target on the OTA stack every night, and the development one)
+ *    sends its version, PHP version and install time to
+ *    `updates.nextcloud.com`, asks `apps.nextcloud.com` for the app store, the
+ *    announcements feed at `pushfeed.nextcloud.com`, and four public sites for
+ *    a connectivity check (`config/config.sample.php` at `stable34`, and again
+ *    at `v35.0.2`:
  *    `updatechecker`, `appstoreenabled` and `has_internet_connection` all
  *    true). `has_internet_connection` false is what the announcements crawler,
  *    the connectivity check and the lookup-server upload each read
@@ -543,7 +544,7 @@ const MAILPIT =
 /**
  * Read at `stable34` (config.sample.php and the two crawlers), so the line, not
  * one patch of it; read again at `v35.0.2` and nextcloud_announcements'
- * `stable35` on 2026-10-26, when the demo moved to 35 (workplan 0119 T5): the
+ * `stable35` on 2026-10-26, for the demo's move to 35 (workplan 0119 T5): the
  * same three defaults, the same four sites, the same feed, and the same three
  * readers of `has_internet_connection` (their diffs against 34 are a blank
  * line, phpseclib 3's namespace and the global-scale check moved behind an

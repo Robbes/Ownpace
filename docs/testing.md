@@ -540,9 +540,10 @@ on the Spark. The Spark runner executes trusted workflows only. Both the `integr
 and `e2e.yml` install `stalwart-cli` as a host binary for their respective provisioning phases.
 
 **The second Nextcloud major** (workplan 0119, Status of 2026-10-25 and of 2026-10-26). The
-integration tier, the dev stack and the demo run Nextcloud 35 since 2026-10-26, and the leg runs
-34, which a customer who has not upgraded still runs; until then they ran 34 and the leg ran 35, so
-that the code was proven against 35 before the demo moved. `nextcloud-second-major.yml`
+integration tier, the dev stack and the demo run Nextcloud 35 from the pull request that moved them
+(T5, written 2026-10-26), and the leg runs 34, which a customer who has not upgraded still runs;
+before it they ran 34 and the leg ran 35, so that the code was proven against 35 before the demo
+moved. `nextcloud-second-major.yml`
 runs the suites that read a `NEXTCLOUD_` variable (found by `scripts/nextcloud-suites.mjs`: WebDAV,
 CalDAV, CardDAV, the DAV sync, the chunked upload and the share verb) against the image its
 `NEXTCLOUD_IMAGE` names, pinned by tag and digest, without Stalwart, on a GitHub-hosted runner: on a

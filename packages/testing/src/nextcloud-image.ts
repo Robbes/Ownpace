@@ -9,7 +9,7 @@
  * (`.github/workflows/nextcloud-second-major.yml`) sets it, to run the suites
  * that talk to Nextcloud against the other major a customer's own server may
  * run: 35 while the demo ran 34, and 34, which a customer who has not upgraded
- * still runs, since the demo moved to 35 (2026-10-26).
+ * still runs, since the demo moved to 35 (workplan 0119 T5).
  *
  * An image asked for by name changes two things in the setup:
  *

@@ -1429,7 +1429,7 @@ phase_data() {
   if [ "$WITH_DEMO" -eq 1 ]; then
     nextcloud_database_ready
     up_wait nextcloud
-    note "nextcloud healthy (demo DAV backend)"
+    nextcloud_upgrade_done
     note_nextcloud_database
   fi
 }
@@ -1508,6 +1508,37 @@ nextcloud_database_ready() {
       *) die "whether the role ${NC_DB_ROLE} opens with .env's value could not be asked: ${NC_DB_WHY}" ;;
     esac
   fi
+}
+
+# A DEMO NEXTCLOUD THAT IS UP BUT NOT UPGRADED (workplan 0119 T5; written
+# 2026-10-26 for the move from 34 to 35). `up_wait nextcloud` waits on the
+# healthcheck, which asks status.php, and status.php answers 200 in
+# maintenance mode and with an upgrade still owed (at v35.0.2 it has no other
+# answer). When a major's `occ upgrade` fails in the image's entrypoint, the
+# container restarts, finds the new code already in the volume, does not try
+# again, and starts Apache with maintenance kept on: healthy to the wait, and
+# 503 to every DAV and OCS call, so the run failed later, in the demo phase or
+# the smoke, on errors that do not name the upgrade. On the OTA stack the run
+# that moves the pin IS the upgrade (docs/managed-bring-up.md, *A Nextcloud
+# major on the OTA stack*), so this asks Nextcloud itself, as
+# nextcloud-to-postgres.sh's start_and_prove does, and stops here with the way
+# on. Nothing from the log is printed: the bring-up's output is public.
+nextcloud_upgrade_done() {
+  local status rc=0 held=''
+  status="$("${COMPOSE[@]}" exec -T -u www-data nextcloud php occ status --output=json 2>/dev/null </dev/null)" || rc=$?
+  if [ "$rc" -ne 0 ] || [[ "$status" != *'"installed":true'* ]]; then
+    die "the demo Nextcloud answers its health check, but occ status does not say it is installed (exit ${rc}). Its log: docker compose -f deploy/compose/managed.yml logs --tail 200 nextcloud"
+  fi
+  NC_VERSIONSTRING="$(sed -n 's/.*"versionstring":"\([^"]*\)".*/\1/p' <<<"$status")"
+  [[ "$status" != *'"maintenance":true'* ]] || held='is in maintenance mode'
+  [[ "$status" != *'"needsDbUpgrade":true'* ]] || held="${held:+${held} and }still owes an upgrade"
+  if [ -n "$held" ]; then
+    echo "!!! the demo Nextcloud ${NC_VERSIONSTRING:-(occ status named no version)} answers its health check but ${held}: an occ upgrade that failed or did not finish leaves it so, and every DAV and OCS call answers 503." >&2
+    echo "!!! Why is in its log: docker compose -f deploy/compose/managed.yml logs --tail 200 nextcloud" >&2
+    echo "!!! What to do, and the way back: docs/managed-bring-up.md, *A Nextcloud major on the OTA stack*, *When the run goes wrong*." >&2
+    exit 1
+  fi
+  note "nextcloud healthy (demo DAV backend): ${NC_VERSIONSTRING:-occ status named no version}, out of maintenance, no upgrade owed"
 }
 
 # Which database the demo Nextcloud uses, said after it is up. A NOTE, not a

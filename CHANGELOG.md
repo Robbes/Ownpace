@@ -22,9 +22,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 - **The managed stack's databases, Redis, dashboard front and demo Nextcloud,
   and the web image's nginx, run by exact version and digest** (workplan 0119
-  §4, #1678): postgres 18.6, redis 7.4.11, caddy 2.11.7, nextcloud 34.0.5 and
-  nginx 1.31.8. They floated within their lines and nothing ever pulled them,
-  so each stack ran whatever copy its machine had pulled first. The next `up`
+  §4, #1678): postgres 18.6, redis 7.4.11, caddy 2.11.7, nextcloud 34.0.5
+  (35.0.2 since, below) and nginx 1.31.8. They floated within their lines and
+  nothing ever pulled them, so each stack ran whatever copy its machine had
+  pulled first. The next `up`
   pulls each digest and recreates its service, so each database restarts
   once; the site's nginx moves only when `www.yml` is brought up again.
   The dashboard's front overrides none of Caddy 2.11.7's new defaults: it
@@ -39,9 +40,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   against 35 first. On the OTA stack the move is one way: the first `up`
   upgrades the demo's volume and its database in the stack's Postgres
   (`occ upgrade`), and 34 refuses them afterwards. `docs/managed-bring-up.md`,
-  *A Nextcloud major on the OTA stack*, gives the order and the way back. Live
-  runs no Nextcloud. A developer's `dev.yml` Nextcloud upgrades its volume on
-  the next `up`.
+  *A Nextcloud major on the OTA stack*, gives the order and the way back, and
+  the bring-up stops when the demo Nextcloud answers its healthcheck but is in
+  maintenance mode or still owes an upgrade, which the healthcheck cannot
+  tell. Live runs no Nextcloud. A developer's `dev.yml` Nextcloud upgrades its
+  volume on the next `up`.
 
 ## [0.2.0-alpha.2] - 2026-10-25
 

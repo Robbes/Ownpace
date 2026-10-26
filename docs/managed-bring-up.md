@@ -4472,14 +4472,16 @@ fix.
 > a branch that moves Nextcloud forward leaves every nightly of `main`, and
 > every other branch's E2E, red at `up_wait nextcloud` until it merges. So such
 > a branch's E2E is dispatched when it is ready to merge, and it merges before
-> the next 03:30 UTC nightly; a bad move is fixed forward, never reverted. The
-> PostgreSQL databases take a minor back and forth (a minor never changes the
-> storage format), but the same order keeps them from having to.
+> the next 03:30 UTC nightly. A bad move is fixed forward, or, for a major,
+> put back from the copies taken before it (*A Nextcloud major on the OTA
+> stack*, below). The PostgreSQL databases take a minor back and forth (a
+> minor never changes the storage format), but the same order keeps them from
+> having to.
 
 ### A Nextcloud major on the OTA stack
 
-Written on 2026-10-26 for the move from 34 to 35 (workplan 0119 T5), which
-waits on the owner's OK: a major is the owner's call. Only the OTA stack's
+Written on 2026-10-26 for the move from 34 to 35 (workplan 0119 T5). A major
+is the owner's call, and on this stack it is one way. Only the OTA stack's
 demo has a Nextcloud whose data lasts. Live has none (both live scripts refuse
 `--with-demo`), the self-host E2E removes `dev.yml`'s container before every
 run and installs afresh, and the integration tests start a new one each time.
@@ -4499,6 +4501,16 @@ in this project (`bootstrap-managed.sh --from data --with-demo`, then
 nightly of `main`, and every other branch's E2E, is red at `up_wait nextcloud`
 from then until the branch merges.
 
+**The apps it upgrades.** The repository enables none: the demo uses apps that
+ship with Nextcloud and are on by default (dav, files, files_sharing,
+sharebymail, provisioning_api), and 35 ships and enables every one of them.
+The app store is left on here, though, so an app somebody installed by hand
+(calendar, contacts, tasks and deck do not ship with the server) is the
+upgrade's to keep: it takes a release for 35 from the app store, or disables
+the app, and the entrypoint prints it under "The following apps have been
+disabled:". So the list of those apps is taken before the run and read again
+after it.
+
 **In this order.**
 
 1. The owner's OK.
@@ -4506,34 +4518,54 @@ from then until the branch merges.
    counted nights: once the volume is on 35, `main`'s nightly cannot start the
    demo until the branch has merged.
 3. Pause the migrations that write into the demo Nextcloud, and take the way
-   back below. Without it, the only way back is a fresh demo.
+   back below, with the list of the apps that do not ship with it. Without the
+   way back, the only way back is a fresh demo.
 4. Dispatch E2E (managed) on the branch when it is otherwise ready to merge,
    and merge before the next 03:30 UTC nightly.
 5. Ask whether it took. A healthy container does not say so: `status.php`
-   answers 200 in maintenance mode and with an upgrade still owed.
+   answers 200 in maintenance mode and with an upgrade still owed. The
+   bring-up asks `occ status` after `up_wait nextcloud` and stops on either
+   (its log says `nextcloud healthy (demo DAV backend): 35.0.2, out of
+   maintenance, no upgrade owed` when neither), and these say it again, with
+   the apps:
 
    ```bash
+   cd ~/ownpace-managed
    docker compose -f deploy/compose/managed.yml exec -u www-data nextcloud php occ status --output=json
+   docker compose -f deploy/compose/managed.yml logs nextcloud | grep -A 20 'The following apps have been disabled'
+   docker compose -f deploy/compose/managed.yml exec -T -u www-data nextcloud php occ app:list --shipped=false \
+     | diff ~/nextcloud-34-apps.txt -
    ```
 
-   It took when that says `"versionstring":"35.0.2"`, `"maintenance":false`
-   and `"needsDbUpgrade":false`.
+   It took when the first says `"versionstring":"35.0.2"`, `"maintenance":false`
+   and `"needsDbUpgrade":false`, the log names no app, and the list differs
+   only in versions. An app gone from `Enabled:` was disabled: take its
+   release for 35 from the app store, or do without it.
 
 **The way back, taken before the run.** A copy of the volume beside it and a
-dump of the database, with the demo stopped so that the two agree. The volume
-holds the files the owner's migrations wrote, so check the disk has room for a
-second copy. The dump holds the demo accounts' password hashes, so it is the
-owner's alone:
+dump of the database, with the demo stopped so that the two agree, and the
+list of the apps that do not ship with Nextcloud, taken while it still runs.
+The volume holds the files the owner's migrations wrote, so check the disk has
+room for a second copy. The dump holds the demo accounts' password hashes, so
+it is the owner's alone. Each block below runs as one: it stops at the first
+command that fails, so a project it could not read never reaches the
+database:
 
 ```bash
-cd ~/ownpace-managed
-project="$(docker compose -f deploy/compose/managed.yml config --no-interpolate | sed -n 's/^name: //p')"
-docker compose -f deploy/compose/managed.yml stop nextcloud
-docker volume create "${project}_nextcloud_data_34"
-docker run --rm -v "${project}_nextcloud_data":/from:ro -v "${project}_nextcloud_data_34":/to \
-  busybox:1.38 sh -c 'cd /from && cp -a . /to'
-(umask 077 && docker compose -f deploy/compose/managed.yml exec -T postgres \
-  sh -c 'pg_dump -U "$POSTGRES_USER" -Fc nextcloud' > ~/nextcloud-34.dump)
+cd ~/ownpace-managed && (
+  set -eu
+  project="$(docker compose -f deploy/compose/managed.yml config --no-interpolate | sed -n 's/^name: //p')"
+  : "${project:?the compose project could not be read}"
+  umask 077
+  docker compose -f deploy/compose/managed.yml exec -T -u www-data nextcloud php occ app:list --shipped=false \
+    > ~/nextcloud-34-apps.txt
+  docker compose -f deploy/compose/managed.yml stop nextcloud
+  docker volume create "${project}_nextcloud_data_34"
+  docker run --rm -v "${project}_nextcloud_data":/from:ro -v "${project}_nextcloud_data_34":/to \
+    busybox:1.38 sh -c 'cd /from && cp -a . /to'
+  docker compose -f deploy/compose/managed.yml exec -T postgres \
+    sh -c 'pg_dump -U "$POSTGRES_USER" -Fc nextcloud' > ~/nextcloud-34.dump
+)
 ```
 
 **When the run goes wrong.**
@@ -4545,27 +4577,50 @@ docker run --rm -v "${project}_nextcloud_data":/from:ro -v "${project}_nextcloud
   logs nextcloud` says `Initializing finished`, dispatch the run again.
 - **`occ upgrade` failed.** The entrypoint stops, the container restarts, and
   since the volume already holds 35's code it does not try again: Nextcloud
-  answers in maintenance mode ("Maintenance mode is kept active"). Read the
-  log, put the cause right, then run the upgrade by hand; it turns maintenance
-  mode off when it succeeds:
+  answers in maintenance mode ("Maintenance mode is kept active"), and the
+  bring-up stops after `up_wait nextcloud` saying so. Read the log and put the
+  cause right. Then turn maintenance mode off **first**: Nextcloud's updater
+  turns it off after a good upgrade only when it was off as that upgrade
+  started, so with it on a good `occ upgrade` leaves the demo in maintenance
+  mode, and when nothing is owed any more `occ upgrade` does not run at all
+  ("Nextcloud is in maintenance mode … call this script again", exit 2;
+  `lib/private/Updater.php` and `core/Command/Upgrade.php` at `v35.0.2`). The
+  upgrade then turns it on and off itself, and `occ status` says whether it
+  took:
 
   ```bash
+  cd ~/ownpace-managed
+  docker compose -f deploy/compose/managed.yml exec -u www-data nextcloud php occ maintenance:mode --off
   docker compose -f deploy/compose/managed.yml exec -u www-data nextcloud php occ upgrade
+  docker compose -f deploy/compose/managed.yml exec -u www-data nextcloud php occ status --output=json
   ```
+
+  When the last says `"maintenance":false` and `"needsDbUpgrade":false`,
+  dispatch the run again.
 
 - **Back to 34**, when the branch is not going to merge. Both copies,
   together: a 34 volume over a 35 database, or the reverse, does not start.
   Then `main`'s next nightly, or `bootstrap-managed.sh --from data
-  --with-demo` from `main`, starts 34.0.5 on them:
+  --with-demo` from `main`, starts `main`'s 34 on them: 34.0.5 by digest once
+  #1678 has merged, and until then `34-apache`, whichever copy the machine
+  pulled first, which refuses the copies if it is older than the 34 they were
+  taken on.
 
   ```bash
-  docker compose -f deploy/compose/managed.yml rm -sf nextcloud
-  docker volume rm "${project}_nextcloud_data"
-  docker volume create "${project}_nextcloud_data"
-  docker run --rm -v "${project}_nextcloud_data_34":/from:ro -v "${project}_nextcloud_data":/to \
-    busybox:1.38 sh -c 'cd /from && cp -a . /to'
-  docker compose -f deploy/compose/managed.yml exec -T postgres \
-    sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --create' < ~/nextcloud-34.dump
+  cd ~/ownpace-managed && (
+    set -eu
+    project="$(docker compose -f deploy/compose/managed.yml config --no-interpolate | sed -n 's/^name: //p')"
+    : "${project:?the compose project could not be read}"
+    docker volume inspect "${project}_nextcloud_data_34" >/dev/null
+    [ -s ~/nextcloud-34.dump ]
+    docker compose -f deploy/compose/managed.yml rm -sf nextcloud
+    docker volume rm "${project}_nextcloud_data"
+    docker volume create "${project}_nextcloud_data"
+    docker run --rm -v "${project}_nextcloud_data_34":/from:ro -v "${project}_nextcloud_data":/to \
+      busybox:1.38 sh -c 'cd /from && cp -a . /to'
+    docker compose -f deploy/compose/managed.yml exec -T postgres \
+      sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --create' < ~/nextcloud-34.dump
+  )
   ```
 
 - **No copies: a fresh demo Nextcloud.** Remove its container and volume and
@@ -4574,17 +4629,32 @@ docker run --rm -v "${project}_nextcloud_data":/from:ro -v "${project}_nextcloud
   `NEXTCLOUD_DB_PASSWORD` since nothing is installed, and its `demo` phase
   makes the four demo accounts and seeds their content again
   (`setup-managed-demo.sh`). Everything else in it is lost: the files,
-  calendars and contacts the owner's own migrations wrote there.
+  calendars and contacts the owner's own migrations wrote there, and any app
+  installed by hand.
 
   ```bash
-  docker compose -f deploy/compose/managed.yml rm -sf nextcloud
-  docker volume rm "${project}_nextcloud_data"
-  docker compose -f deploy/compose/managed.yml exec -T postgres \
-    sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP DATABASE IF EXISTS nextcloud"'
+  cd ~/ownpace-managed && (
+    set -eu
+    project="$(docker compose -f deploy/compose/managed.yml config --no-interpolate | sed -n 's/^name: //p')"
+    : "${project:?the compose project could not be read}"
+    docker compose -f deploy/compose/managed.yml rm -sf nextcloud
+    docker volume rm "${project}_nextcloud_data"
+    docker compose -f deploy/compose/managed.yml exec -T postgres \
+      sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP DATABASE IF EXISTS nextcloud"'
+  )
   ```
 
 Once the move has held for a night or two, remove the copies:
-`docker volume rm "${project}_nextcloud_data_34"` and `rm ~/nextcloud-34.dump`.
+
+```bash
+cd ~/ownpace-managed && (
+  set -eu
+  project="$(docker compose -f deploy/compose/managed.yml config --no-interpolate | sed -n 's/^name: //p')"
+  : "${project:?the compose project could not be read}"
+  docker volume rm "${project}_nextcloud_data_34"
+  rm ~/nextcloud-34.dump ~/nextcloud-34-apps.txt
+)
+```
 
 ### `ownpace-live`: a release tag, with `deploy-live.sh`
 
