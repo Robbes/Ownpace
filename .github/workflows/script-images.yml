@@ -19,10 +19,11 @@
 # read, and the image goes with the runner.
 #
 # A script's image is `localhost/<name>`, built from `<name>/` beside the
-# script (image-scan.mjs, `buildContext`). Every directory with a Dockerfile
-# beside deploy's scripts is in the matrix and in the paths below, and
+# script (image-scan.mjs, `buildContext`). Every directory a script there
+# names that way is in the matrix and in the paths below, and
 # scripts/an-image-nobody-scanned.unit.test.ts holds that, so a second one
-# cannot be left out.
+# cannot be left out. A directory a compose file builds is built on its pull
+# request by images.yml instead.
 name: Images the scripts build
 
 on:

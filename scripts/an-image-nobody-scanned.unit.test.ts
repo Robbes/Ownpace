@@ -753,16 +753,27 @@ describe('an image a script builds is built on the pull request that changes it 
     permissions?: Record<string, string>;
     jobs: Record<string, Job & { 'timeout-minutes'?: number; strategy?: { 'fail-fast'?: boolean; matrix?: { context?: string[] } } }>;
   };
-  // Every directory beside deploy's scripts that holds a Dockerfile: a
-  // `localhost/<name>` image a script there names is built from one.
-  const contexts = SCRIPT_DIRS.flatMap((dir) =>
-    readdirSync(join(REPO_ROOT, dir), { withFileTypes: true })
-      .filter((e) => e.isDirectory() && existsSync(join(REPO_ROOT, dir, e.name, 'Dockerfile')))
-      .map((e) => `${dir}/${e.name}`),
-  ).sort();
+  // Every directory a script beside it builds a `localhost/<name>` image from:
+  // its literal `…IMAGE="localhost/<name>:…"`, the assignment image-scan.mjs
+  // reads. A directory a compose file builds holds a Dockerfile too, and is
+  // built on its pull request by images.yml, not here.
+  const contexts = [
+    ...new Set(
+      SCRIPT_DIRS.flatMap((dir) =>
+        readdirSync(join(REPO_ROOT, dir))
+          .filter((n) => n.endsWith('.sh'))
+          .flatMap((n) =>
+            [...readFileSync(join(REPO_ROOT, dir, n), 'utf8').matchAll(/^\s*(?:readonly\s+|export\s+|local\s+)?(?:[A-Z][A-Z0-9_]*_)?IMAGE=(["'])localhost\/([a-z0-9][a-z0-9._-]*)[:@]/gm)].map(
+              (m) => `${dir}/${m[2]}`,
+            ),
+          ),
+      ),
+    ),
+  ].sort();
 
   it('finds the one there is, so the checks below are not vacuous', () => {
     expect(contexts).toContain('deploy/compose/goaccess');
+    for (const context of contexts) expect(existsSync(join(REPO_ROOT, context, 'Dockerfile')), `${context}/Dockerfile`).toBe(true);
   });
 
   it('runs on a pull request that changes one of them, and on nothing else', () => {
