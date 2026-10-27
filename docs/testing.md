@@ -466,6 +466,10 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   floating `postgres:18-alpine`). It moves nothing: each issue gives the route, and the
   move is the owner's call. A row that cannot read its upstream, or finds its pin ahead of every
   tag listed, fails the run and never closes an issue.
+  The cosign `images.yml` signs with and `release.yml`'s verify job checks with is a routine row
+  too, since both steps name it (`cosign-release:`) and Dependabot moves only the installer: the
+  two copies are held together. Left to cosign-installer's default, it would be a status line
+  in the summary issue and open nothing.
 - `images.yml` — the three application images: an amd64 build-only check on a pull request that
   touches a Dockerfile, `deploy/` or the workflow; a multi-arch build and publish on `main` and
   on `v*` tags.
