@@ -614,7 +614,7 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
     expect(built[0]!.uses).toMatch(/^actions\/checkout@[0-9a-f]{40}$/);
     // Never the working directory, where Trivy would read a .trivyignore or a trivy.yaml on its own.
     expect(built[0]!.with).toEqual({ 'persist-credentials': false, path: 'src' });
-    expect(built[1]!.id).toBe('build');
+    expect(built[1]!.id).toBe('build_context');
     expect(built[1]!.env).toEqual({ CONTEXT: '${{ matrix.context }}', REF: '${{ matrix.ref }}' });
     expect(built[1]!.run).toMatch(/^set -euo pipefail$/m);
     expect(built[1]!.run).toContain('docker build --pull --platform "$TRIVY_PLATFORM" --tag "$REF" "src/$CONTEXT"');
@@ -623,7 +623,7 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
     expect(scan!.steps.filter((s) => s.if && s.if !== 'always()' && s !== built[0] && s !== built[1])).toEqual([]);
     // And a failed build is named by the leg's own check, before the scan it skipped.
     const check = scan!.steps.at(-1)!;
-    expect(check.env).toMatchObject({ BUILD_OUTCOME: '${{ steps.build.outcome }}' });
+    expect(check.env).toMatchObject({ BUILD_OUTCOME: '${{ steps.build_context.outcome }}' });
     expect(check.run).toMatch(/case "\$BUILD_OUTCOME" in\n\s+success \| skipped\) ;;/);
   });
 

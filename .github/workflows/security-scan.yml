@@ -512,7 +512,9 @@ jobs:
           persist-credentials: false
           path: src
       - name: Build the image a compose file builds, from its Dockerfile here
-        id: build
+        # build_context, not build: #1700's build of the tasks' image takes
+        # id: build in this job, and two steps of one id refuse the workflow.
+        id: build_context
         if: matrix.context
         env:
           CONTEXT: ${{ matrix.context }}
@@ -586,7 +588,7 @@ jobs:
           REF: ${{ matrix.ref }}
           JSON: trivy-image-${{ matrix.name }}.json
           SARIF: trivy-image-${{ matrix.name }}.sarif
-          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          BUILD_OUTCOME: ${{ steps.build_context.outcome }}
           TRIVY_OUTCOME: ${{ steps.image_trivy.outcome }}
           UPLOAD_OUTCOME: ${{ steps.image_upload.outcome }}
         run: |
