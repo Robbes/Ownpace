@@ -839,8 +839,8 @@ trigger_moves() {
 
 # trigger_pin <commit> — the Trigger.dev version managed.yml at that commit
 # pins, its `${TRIGGER_IMAGE_TAG:-v…}` defaults read as versions, sorted, or
-# nothing. The version, not the image lines: since workplan 0146 T16 the two
-# services run a build here (`localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v…}-<hash>`)
+# nothing. The version, not the image lines: from workplan 0146 T16 on (alpha.4,
+# #1722), the two services run a build here (`localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v…}-<hash>`)
 # whose hash moves when its Dockerfile does, and what migrates triggerdb is the
 # version, never that build. So a change to the build alone, or ghcr's image
 # replaced by the build at the same version, moves no pin; both forms read the
