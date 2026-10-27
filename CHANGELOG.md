@@ -14,6 +14,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   update may move a few lockfile lines it did not ask for. 11.28.8 differs
   from 11.28.7 only in the Node.js inside the standalone `@pnpm/exe`, which CI
   and the images do not run.
+- **The images are signed with cosign v3.1.4, and the release checks them
+  with the same** (#1671, #1702): `images.yml` and `release.yml`'s verify job name
+  the release, where cosign-installer's default installed v3.0.6, and the pin
+  watch compares it with cosign's newest and holds the two together.
+  Signing stays keyless and by digest, and the `cosign verify` line
+  `deploy/selfhost/README.md` gives does not change.
 
 ## [0.2.0-alpha.2] - 2026-10-25
 
