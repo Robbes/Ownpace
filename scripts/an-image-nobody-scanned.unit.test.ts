@@ -311,7 +311,7 @@ describe('which images it scans', () => {
     expect(REAL.read(`${postgres.context}/Dockerfile`)).toMatch(/^FROM postgres:/m);
     // The two Trigger.dev images built here (0146 T16) keep the names, and so the
     // categories and issues, the pulled images had.
-    for (const [name, context] of [['trigger.dev', 'deploy/compose/trigger.dev'], ['supervisor', 'deploy/compose/supervisor']]) {
+    for (const [name, context] of [['trigger.dev', 'deploy/compose/trigger.dev'], ['supervisor', 'deploy/compose/supervisor']] as const) {
       const built = images.find((i) => i.name === name);
       expect(built?.ref, `${name} is pulled from a registry again`).toMatch(new RegExp(`^localhost/${name.replace('.', '\\.')}:v[\\d.]+-[0-9a-f]{12}$`));
       expect(built?.context).toBe(context);
