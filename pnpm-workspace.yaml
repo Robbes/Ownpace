@@ -136,7 +136,15 @@ overrides:
   # Scoped per major like every entry here: express 5 asks for ^6.14.0, so
   # ^6.16.0 sits inside the range it already accepts and no consumer is forced
   # off its own line.
-  qs@<6.16.0: ^6.16.0
+  #
+  # 2026-10-28. A third MEDIUM advisory, GHSA-6pq8-jhm2-2vcw: qs.stringify with
+  # arrayFormat 'comma' throws an uncaught TypeError on an array element that
+  # carries a non-callable own toString (a denial of service). Fixed in 6.16.1,
+  # published 2026-10-14, outside the cooldown below. The tree carried 6.16.0
+  # under express and superagent, and 6.16.1 already elsewhere. The API only
+  # parses query strings through express, so it is not reachable there, but
+  # the floor moves with the advisory, as every entry here does.
+  qs@<6.16.1: ^6.16.1
   # 2026-09-09. Six HIGH advisories, all DEV-ONLY and all arriving through one
   # package: @cyclonedx/cyclonedx-npm, the SBOM generator this repository runs
   # in security-scan.yml. 6.0.1 is the latest release, so there is no bump to
@@ -278,6 +286,5 @@ minimumReleaseAgeExclude:
   # once the tree moves past 2.4.0.
   - body-parser@2.4.0
   - socket.io-parser@4.2.7
-  - qs@6.16.0
   - js-yaml@4.3.2
   - esbuild@0.25.12
