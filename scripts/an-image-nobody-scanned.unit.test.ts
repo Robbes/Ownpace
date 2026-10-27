@@ -283,7 +283,9 @@ describe('which images it scans', () => {
     expect(appliance.ref === postgres.ref, 'the two legs share a name, and the two Dockerfiles build different content, or the other way round').toBe(sameContent);
     // Every other image is pulled, and carries no context.
     for (const image of images.filter((i) => !i.ref.startsWith(BUILT_HERE))) expect(image.context, image.name).toBeUndefined();
-    expect(images.filter((i) => i.context).map((i) => i.name).sort()).toEqual(['postgres-managed', 'postgres-selfhost']);
+    // And the Postgres images built here are these two. Other images built
+    // here (a script's, #1675) carry a context of their own.
+    expect(images.filter((i) => i.context && i.name.startsWith('postgres')).map((i) => i.name).sort()).toEqual(['postgres-managed', 'postgres-selfhost']);
     // A localhost image with nothing to build it from is refused, never left out.
     for (const dockerfile of ['deploy/compose/postgres/Dockerfile', 'deploy/selfhost/postgres/Dockerfile']) {
       const missing: Repo = { read: (rel) => (rel === dockerfile ? null : REAL.read(rel)), list: REAL.list };
