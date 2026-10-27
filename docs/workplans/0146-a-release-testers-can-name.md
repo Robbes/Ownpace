@@ -172,6 +172,144 @@ v4.8.1 branch (#1697) and is retargeted to `main` after that merges. Not merged.
   - No `DEPLOY_BASE_IMAGES` route, for the reason above.
   - busybox and git are not installed, because nothing runs them.
 
+**2026-10-26, later still: T15, the built image's name asked again, on draft #1717.** The
+question: is `localhost/postgres:18.6-alpine-6b2d97623fb5` tied to what it builds? If not, live
+and the OTA stack, on one daemon and one name, would share whatever was built last, and a stack
+that had the name would never build a moved base.
+- **It is.** `6b2d97623fb5` is neither the Dockerfile's SHA-256 (`c6953866…`) nor the base's
+  digest (`898c60cb…`): it is the first twelve hex digits of the SHA-256 of the Dockerfile's
+  instruction lines, comments and blank lines left out (`builtTag` in `scripts/idp-pin-watch.mjs`;
+  `grep -Ev '^[[:space:]]*(#|$)' deploy/compose/postgres/Dockerfile | sha256sum | cut -c1-12`
+  prints it), and `a-database-started-as-root` has compared the three image lines with it since
+  `d885817b`. So a changed instruction is a name no stack has: the OTA stack builds `main`'s
+  under another name and live keeps its own, and a stack's next `up_wait postgres` finds the new
+  name missing and builds it. Comments are left out on purpose: a comment-only edit would
+  otherwise rename the image and restart both databases of every stack at its next `up`, for no
+  change in what runs.
+- **Compose builds a missing image under `pull_policy: never`.** Read in compose's source at
+  v5.1.1 and v5.6.1: `up` hands build options for every service in its scope to `create` unless
+  `--no-build` (`cmd/compose/up.go`), `build` passes a service by only when its image is present
+  and its policy is not `build` (`pkg/compose/build.go`), and `mustPull` is false for `never`
+  (`pkg/compose/pull.go`). Run: `build (postgres)` on `186440f4` brought up dev.yml's postgres on a
+  runner without the image, every step `success`. Nothing in the bring-up passes `--no-build`.
+- **What was missing, now fixed.** (1) A stale name failed as three lines, each saying the name
+  to write and none how. Now one failure lists every stale line by file and line and prints the
+  `sed` that moves them; the guard runs that `sed` on copies of the compose files and finds them
+  whole after it. Red first: with `ENV HISTFILE` changed in the real Dockerfile and the names
+  left, the guard failed naming `managed.yml:125` (postgres), `managed.yml:241` (trigger-db) and
+  `dev.yml:21`, with the new name `18.6-alpine-d0dcb792c87f`; the printed `sed` applied, it passed
+  but for the Dependabot case below; both restored. (2) Inputs the hash does not cover: a parser
+  directive (`# syntax=`, `# escape=`, a comment to the hash), COPY, ADD or `--mount`, and a
+  `build:` mapping (args, a target) are now refused, each case red with its check removed. The
+  context holds the Dockerfile alone. (3) **Dependabot did not read the Dockerfile**: its
+  `docker` entry lists `/apps/api`, `/apps/web` and `/apps/selfhost`. It now has an entry of its
+  own (`/deploy/compose/postgres`, `chore(postgres)`, no major), the shape #1703 asks of every
+  Dockerfile under `deploy/compose`; its pull request fails the guard until the names move, and
+  the failure says how. The guard holds the entry; it was red until it was added.
+
+**2026-10-26, later: T15 after its review, three findings, all fixed on draft #1717.** No fault
+was found in how the image starts, in the uids, or in any script that execs into a database, and
+the review's own Trivy v0.76.1 runs read the same 1/26 and gosu's 1/25.
+- **Every bring-up rebuilt the databases' image, which could restart live's databases outside a
+  hold.** The entry below said compose builds the image only when the machine has none of its
+  name; that holds for `up`, not for `up --build`, which builds every service in its scope that
+  has a `build:`, dependencies included (compose 5.1.1, `cmd/compose/create.go` and `up.go`,
+  read in its source). The app phase ran `up -d --build --wait` over a list that names both
+  databases, and api and web depend on them. With BuildKit's cache that is the same image ID and
+  nothing restarts; from a pruned cache it is a new ID under the same name, the next `up` that
+  reaches a database recreates it (`mustRecreate` compares the image label), and live and the OTA
+  stack share one daemon. Fixed: the app phase builds `api web` by name (with `GIT_SHA`, and `die`
+  when they do not build) and brings its list up through `up_wait`, without `--build`. Every
+  command that said otherwise was rewritten to build by name: `setup-zitadel.sh`'s closing hint,
+  `setup-managed-demo.sh`'s run order, managed.yml's build comment,
+  `docs/managed-bring-up.md` (the app phase, the identity hint, the stage and support-mail
+  rebuilds, the after-a-pull sequence), `docs/billing-rehearsal-on-ota.md` (twice) and
+  `docs/TROUBLESHOOTING.md` (twice). The Dockerfile, managed.yml's header, the pin watch's
+  `builtTag` and the bring-up doc now say when it is built again and why nothing asks.
+- **`docker compose pull` failed on the build, and the first `up` asked the host's own port 443
+  for it.** No registry serves `localhost/postgres`; compose's default policy pulls a missing
+  image first, and a pull of a buildable image is collected into `pull`'s error
+  (`pkg/compose/pull.go`). Fixed: `pull_policy: never` on the three services. `pull` passes them
+  by, `up` builds a missing one without asking (`build.go` builds when the image is absent,
+  whatever the policy), and `--build` would still override it. `docker compose config` resolves
+  both files with it (compose v5.6.1 here).
+- **No pull request built the Dockerfile.** `images.yml` now has `build (postgres)`, on a pull
+  request only (its paths filter includes `deploy/**`): it brings up dev.yml's postgres on a
+  runner without the image, so compose builds it, waits for TCP, and checks the image's user is
+  `70:70`, that `exec`, the server (PID 1) and PGDATA are uid 70, that gosu is gone, and that
+  `psql` answers. It publishes nothing and is not requirable: `every-pr-check-is-classified`
+  lists it beside `build`, silenced by the same `paths:` filter (docs/testing.md, ci.yml's
+  comment).
+- **Guard.** `scripts/a-database-started-as-root.unit.test.ts` gained four tests and a policy
+  check: 5 of its 11 failed before the fix (the policy, the thirteen commands, phase_app, the
+  missing job). Each regression put back fails it: `--build` on phase_app's `up` (2 tests), no
+  `pull_policy` on trigger-db (2), an `up --build` in a document (1), a bare `build` in the
+  identity hint (1), the job removed, building with `docker build`, or without its gosu check (1
+  each). `identity-in-the-gate.unit.test.ts` now finds the web build by its `build api web`.
+- **For E2E (managed) on the branch, in addition:** a second bring-up's app phase shows
+  `postgres` and `trigger-db` *Running*, not *Recreated*, and `docker image inspect` gives the
+  same ID for `localhost/postgres:18.6-alpine-6b2d97623fb5` before and after it.
+
+**2026-10-26: T15, both PostgreSQL databases of the managed stacks without gosu, built as
+draft #1717** on branch `claude/ownpace-public-readiness-y7orc6-postgres-without-gosu`, stacked on
+#1678 (whose pin it builds on), for after the alpha.2 tag. Main is frozen until then.
+- **What the scan counted.** `postgres:18.6-alpine` at #1678's index digest (`898c60cb…`,
+  built 2026-10-21) reads 1 critical and 26 high with Trivy v0.76.1 on arm64 and on amd64 alike:
+  25 high and the critical (CVE-2025-68121) are Go 1.24.6's standard library in
+  `/usr/local/bin/gosu` (gosu 1.19), and one high is Alpine's brotli-libs 1.2.0-r1
+  (CVE-2026-111497, fixed in 1.2.1-r0, which docker-library has not rebuilt 18.6-alpine with
+  yet). The appliance's digest (`77f58511…`) is the same image line, Dependabot's.
+- **Why gosu can go.** `docker-entrypoint.sh` at that digest runs gosu only when it starts as
+  root: as root it chowns every file in PGDATA and `/var/run/postgresql` that uid 70 does not
+  own, then re-executes itself through gosu as uid 70. Started as uid 70 it skips both.
+- **What was built.** `deploy/compose/postgres/Dockerfile`: that digest, `RUN rm
+  /usr/local/bin/gosu`, `PSQL_HISTORY` and `HISTFILE` in `/tmp`, `USER 70:70`. `managed.yml`'s
+  `postgres` and `trigger-db` and `dev.yml`'s `postgres` run it as
+  `localhost/postgres:18.6-alpine-6b2d97623fb5` with `build: ./postgres`; the twelve hex digits
+  are the SHA-256 of the Dockerfile's instruction lines, because compose builds an image only
+  when the machine has none of its name. The integration tests start the same base with
+  `.withUser('70:70')`. `db-roles.sh` and `stand-up-live.sh` read the build from managed.yml.
+  The image scan builds the directory on GitHub's arm64 runner and scans what it built, under the
+  category the pulled image had (`postgres-managed`); the pin watch compares the Dockerfile's
+  FROM. Guard: `scripts/a-database-started-as-root.unit.test.ts`, with the six it touches.
+- **Measured here, without a Docker daemon.** The base's layers for both platforms, read from
+  Docker Hub by digest, with one layer added holding only the whiteout for
+  `usr/local/bin/gosu` and the config's user set to `70:70` (what the RUN and USER leave),
+  scanned as an OCI layout with Trivy v0.76.1: **0 critical and 1 high on arm64 and on amd64**,
+  brotli-libs alone. The same layout with the whiteout naming another file reads 1/26, gosu
+  included, so the whiteout is what removed it.
+- **Run here, as the stacks will run it.** The amd64 image's own root filesystem, its own
+  `docker-entrypoint.sh` and PostgreSQL 18.6 binaries, in a chroot with private mount, network
+  and PID namespaces, with managed.yml's environment and command: (1) a volume shaped as Docker
+  makes a new one (the image's `/var/lib/postgresql`, uid 70, mode 1777), started as root with
+  gosu, initialised; nothing in PGDATA was left owned by anyone but uid 70, and only
+  `/var/lib/postgresql/18` is root's; (2) gosu removed, the same volume started as uid 70:
+  *"Skipping initialization"*, ready, the server uid 70; (3) a new volume started as uid 70:
+  initdb as uid 70, everything uid 70's; (4) as uid 70, the scripts' own commands: `psql -U`
+  over the socket, `pg_dump --format=custom` and `pg_restore --list` (copy-before-update.sh,
+  dump-idp.sh), `pg_dumpall --roles-only`, `pg_dump --format=plain --no-owner` restored into a
+  new database (trigger-version.sh's drill), `pg_restore --clean --if-exists --create`, a role's
+  password from a psql variable (db-roles.sh), a `PGOPTIONS` session setting, and
+  `pg_stat_statements` loaded; every one answered. And the two failures, as the Dockerfile
+  says: started as root without gosu, *"exec: gosu: not found"*; a root-owned host directory
+  started as uid 70, *"mkdir: can't create directory '/var/lib/postgresql/18/': Permission
+  denied"*. An interactive psql and shell as uid 70 wrote their history into the volume's root
+  without the two variables, and into `/tmp` with them.
+- **Not proven here, and what proves it.** That the Dockerfile builds (no daemon here): E2E
+  (managed) on the branch builds it on the Spark, and a dispatch of Security Scan with the image
+  scans on the branch builds and scans it on arm64. That the stacks' real volumes start as uid
+  70: E2E (managed) runs against the OTA stack's existing volumes, and its first `up` recreates
+  both databases on the build. That a new Docker volume initialises as uid 70: the integration
+  tests, on both runners, on every pull request that runs them.
+- **Decided against, with the reasons in the Dockerfile and `docs/managed-bring-up.md`.** The
+  appliance's Postgres: its pin is Dependabot's, which moves an image line and no build, and an
+  appliance may keep its data in a bind mount, which a start as uid 70 cannot initialise.
+  Building the image in the integration tests: the build only removes gosu, so starting its base
+  as uid 70 runs the same entrypoint path without a build per run. `apk upgrade brotli-libs` in
+  the build: it would reach Alpine's mirrors at every build and make the image a function of the
+  day it was built. A Debian base: it collates text differently from the musl the databases were
+  made under.
+
 **2026-10-25: T7 merged, and alpha.2 is folded.** Chainguard's MinIO merged as #1692 at 11:38 UTC
 (`0029db4a`), after E2E (managed) #281 on its branch was green (11:26 to 11:37 UTC):
 `chainguard/minio` at its index digest came up healthy on the new volume `minio_data_v2`,
@@ -1148,6 +1286,7 @@ best given with T0.
 | T10 The image scan reads the tasks' image as it is built | 📋 **Proposed** (2026-10-23) | Status, 2026-10-23 (the scan triage). `scripts/image-scan.mjs` scans the base image the pinned CLI names (`triggerdotdev/node:24-bookworm` by digest, category `trigger-task-base`, 14/117 on 2026-10-23), not the tasks' image that `deploy-tasks.sh` builds from it. The Trigger.dev v4.7.6 branch upgrades that image's Debian packages at build (`apt-get -y upgrade`), which fixes the 42 Debian findings that have a fix (12 critical, all Perl, fixed in 5.36.0-7+deb12u4, and 30 high). It leaves npm's bundled packages under `/usr/local/lib/node_modules/npm`, since the overlay copies only `/usr/local/bin/node` (tar 7.5.15's CVE-2026-59873, critical, fixed in 7.5.19, and 12 high, 11 of them with a fix), and the 76 Debian findings without a fix, zlib1g's CVE-2023-45853 among them: the built image would still carry 2 critical and 87 high of the 131 (read with Trivy 0.76.0, 2026-10-23). The scan cannot see the upgrade, so the category keeps alerts for 42 findings the built image no longer has. The scan runs on a GitHub-hosted runner, which cannot read the stack's own registry, so the proposal is to build the image in the scan job as the deploy builds it. The old category, if renamed, has its configuration deleted by hand (T8). |
 | T11 The patch and minor moves that clear findings | (a) 📋 **Proposed**; (b) ⏳ **Owner**; (c) 📋 **Proposed**, after the Alpha (2026-10-23) | Status, 2026-10-23 (the scan triage), read with Trivy 0.76.0 on linux/amd64. (a) **Mailpit v1.32.0**: 0/0, where v1.31.6 has CVE-2026-111943 (Go's `crypto/x509`); after the first invitation, by hand in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts`, which pins the reference by tag and digest and records Mailpit's release check as read at v1.31.6, so that fact is read again at v1.32.0 in the same change. (b) **Stalwart v0.16.27** (Debian 13.7): 0 critical and 47 high, none with a fix, where v0.16.10 has 3/114. The owner's call: `docs/stalwart-integration-fix.md` pins v0.16.10 and says *"DO NOT change the pinned version"* (AGENTS.md puts its decisions in ADR-0022), and every copy moves together: `setup-stalwart.sh`, the fixture's Dockerfile, the Testcontainers setup, the fix doc and the guards that name it. (c) **ClickHouse 26.3** (26.3.59, Ubuntu 22.04): 0/0, where 26.2.19.43 has CVE-2026-45447 and CVE-2026-84782 in openssl. After the Alpha: the owner accepted 26.2 for it on 2026-10-23 (0119 §3 item 9 on the Trigger.dev v4.7.6 branch), and 26.3 is ahead of the 26.2 Trigger.dev's own compose pins, which the pin watch compares with (T8). It moves in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts` together: the guard pins the reference by tag and digest and records the crash-report default as read at `v26.2.19.43-stable`, as `clickhouse-no-crash-reports.xml`'s comment does, so both are read again at 26.3. |
 | T14 The tasks build on the API image's own base, with no package manager | 🔨 **Being built** (2026-10-26) as draft #1716 on branch `claude/ownpace-public-readiness-y7orc6-tasks-trixie-base`, stacked on #1697 | Status, 2026-10-26. `apps/worker/trigger.config.ts` sets the build manifest's `image.base` to `apps/api/Dockerfile`'s FROM image and `image.buildBase` to the CLI's own `-build` image, and one layer installs `ca-certificates` and `dumb-init`, makes the CLI's trust edits and drops every package manager where no `g++` is. On #1708's `node:24.22.1-trixie-slim` the runtime stage reads 0 critical and 43 high, none fixable, where the image a deploy builds on the CLI's base reads about 2/88 on `main` (4.7.6) and 1/80 on #1697 (Trivy 0.76.1, amd64 and arm64). The weekly scan lists that base as `trigger-task-base`, and #1700 (T10) builds the layer on it. A Trigger.dev move fails the version gate until the CLI's build image and trust list are read again. Owed: E2E (managed) after #1697 and #1708. |
+| T15 Both databases of the managed stacks start as uid 70, from the official image without gosu | 🔨 **Being built** as draft #1717 on branch `claude/ownpace-public-readiness-y7orc6-postgres-without-gosu`, stacked on #1678, for after the alpha.2 tag (2026-10-26) | Status, 2026-10-26. `postgres:18.6-alpine` reads 1 critical and 26 high (Trivy v0.76.1, arm64 and amd64); the critical and 25 highs are Go's standard library in gosu, which the entrypoint runs only when it starts as root. `deploy/compose/postgres/Dockerfile` removes it and starts as uid 70, the user gosu dropped to; `managed.yml`'s `postgres` and `trigger-db` and `dev.yml`'s run it, and the scan builds and scans it. Done when E2E (managed) is green on the branch (the OTA stack's existing volumes, started as uid 70, and a second bring-up leaving both databases running on the same image ID), `build (postgres)` is green on the pull request, the image scan's `postgres-managed` reads 0 critical and 1 high (brotli-libs, until docker-library rebuilds 18.6-alpine), and live has taken it from a tag. The appliance's Postgres is a decision of its own. |
 
 ## 1. What there is today
 

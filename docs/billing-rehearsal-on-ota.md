@@ -43,7 +43,8 @@ tasks only from `set-task-env.sh`.
 ```bash
 ./deploy/compose/env-upsert.sh deploy/compose/.env OWNPACE_STAGE=
 ./deploy/compose/env-upsert.sh deploy/compose/.env OWNPACE_BILLING_FROM="$(date -u +%Y-%m)"
-GIT_SHA=$(git rev-parse --short HEAD) docker compose -f deploy/compose/managed.yml up -d --build --wait web
+GIT_SHA=$(git rev-parse --short HEAD) docker compose -f deploy/compose/managed.yml build web
+docker compose -f deploy/compose/managed.yml up -d --wait web
 docker compose -f deploy/compose/managed.yml up -d --force-recreate api
 ./deploy/compose/set-task-env.sh   # says: deleted OWNPACE_STAGE
 ```
@@ -140,7 +141,8 @@ time.
 ```bash
 ./deploy/compose/env-upsert.sh deploy/compose/.env OWNPACE_STAGE=alpha
 ./deploy/compose/env-upsert.sh deploy/compose/.env OWNPACE_BILLING_FROM=
-GIT_SHA=$(git rev-parse --short HEAD) docker compose -f deploy/compose/managed.yml up -d --build --wait web
+GIT_SHA=$(git rev-parse --short HEAD) docker compose -f deploy/compose/managed.yml build web
+docker compose -f deploy/compose/managed.yml up -d --wait web
 docker compose -f deploy/compose/managed.yml up -d --force-recreate api
 ./deploy/compose/set-task-env.sh
 ```

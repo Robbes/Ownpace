@@ -5,7 +5,7 @@
  * pinned identity provider still had (workplan 0135 T7 (b)).
  *
  * The identity provider is pinned in `managed.yml`, and Dependabot does not
- * move it: it reads no file in `deploy/compose`, and an upgrade moves its
+ * move it: it reads no compose file in `deploy/compose`, and an upgrade moves its
  * schema one way and is the owner's call (0119 §3 item 2). So nothing said
  * when upstream moved on. v4.18.0 fixed GHSA-4hgj-wm6c-q7p2,
  * a rename of any account through login v1, on 2026-09-21, and a week later
@@ -18,7 +18,8 @@
  *
  * EVERY PIN DEPENDABOT CANNOT SEE (workplan 0146 T8, 2026-10-21). The
  * identity provider was not the only one. Dependabot read no file in
- * `deploy/compose` (`a-dependabot-directory-with-nothing-to-read`), so
+ * `deploy/compose` (`a-dependabot-directory-with-nothing-to-read`; since
+ * 0146 T15 it reads one, the databases' Dockerfile, and still no compose file), so
  * pgbouncer fell two releases and two CVEs behind and Trigger.dev four
  * releases; the tasks ran a Node two security releases old, and pnpm sat six
  * releases back. Each was found by somebody reading. The same watch now has
@@ -55,6 +56,8 @@ import {
   WINDOW_DAYS,
   actionDefault,
   baseImageOf,
+  builtImage,
+  builtNote,
   clickhouseRow,
   clickhouseSupport,
   compareTags,
@@ -615,7 +618,9 @@ function registry(newer: Record<string, string> = {}): Stubs {
   const pins = new Map<string, string[]>();
   const digests = new Map<string, string>();
   for (const file of COMPOSE_FILES) {
-    for (const image of readImages(REAL.read(file)!)) {
+    for (const line of readImages(REAL.read(file)!)) {
+      // A built image's registry is its Dockerfile's FROM's: no registry lists its own name.
+      const image = builtImage(REAL, file, line)?.base ?? line;
       pins.set(registryOf(image.repo).name, [...(pins.get(registryOf(image.repo).name) ?? []), image.tag]);
       if (image.digest) digests.set(`${registryOf(image.repo).name}:${image.tag}`, image.digest);
     }
@@ -652,12 +657,13 @@ describe('the routine pins, in one summary issue', () => {
     const { rows } = await routineRows(REAL, fakeNet(registry()));
     const compared = new Set(rows.map((r) => r.name));
     for (const file of COMPOSE_FILES) {
-      for (const image of readImages(REAL.read(file)!)) {
+      for (const line of readImages(REAL.read(file)!)) {
+        const image = builtImage(REAL, file, line)?.base ?? line;
         const covered =
           compared.has(image.repo) ||
           image.repo in COMPARED_ELSEWHERE ||
           (file === 'deploy/compose/www.yml' && image.repo === 'nginx' && compared.has('nginx in www.yml'));
-        expect(covered, `${file}:${image.line} runs ${image.repo}, which nothing compares`).toBe(true);
+        expect(covered, `${file}:${line.line} runs ${image.repo}, which nothing compares`).toBe(true);
       }
     }
     for (const reason of Object.values(COMPARED_ELSEWHERE)) expect(reason.length).toBeGreaterThan(10);
@@ -690,6 +696,28 @@ describe('the routine pins, in one summary issue', () => {
     const { gh, calls } = fakeGh([OTHER]);
     expect(keepIssue(summary, gh, TITLES.routine)).toBe('opened');
     expect(calls).toEqual([['issue', 'create', '--title', TITLES.routine, '--body', summary.body]]);
+  });
+
+  it("compares the Postgres built here by its Dockerfile's FROM, never by a name no registry lists (0146 T15)", async () => {
+    const dockerfile = REAL.read('deploy/compose/postgres/Dockerfile')!;
+    const from = /^FROM postgres:(\S+)@/m.exec(dockerfile)![1]!;
+    expect(readImages(MANAGED).filter((i) => i.repo === 'localhost/postgres').length, 'managed.yml builds no postgres').toBe(2);
+    const [, major, minor, rest] = /^(\d+)\.(\d+)(.*)$/.exec(from)!;
+    const newer = `${major}.${Number(minor) + 1}${rest}`;
+    const { rows } = await routineRows(REAL, fakeNet(registry({ 'library/postgres': newer })));
+    const postgres = rows.filter((r) => /postgres/.test(r.name ?? ''));
+    expect(postgres.map((r) => [r.name, r.pin, r.newest, r.state])).toEqual([['postgres', from, newer, 'behind']]);
+    expect(postgres[0]!.where).toBe('deploy/compose/postgres/Dockerfile, deploy/compose/managed.yml, deploy/compose/dev.yml');
+    // Dependabot reads that Dockerfile too, so the issue says whose pull request moves it,
+    // and says it on that line alone: a pulled image's line is Dependabot's blind spot.
+    expect(postgres[0]!.notes).toEqual([builtNote('deploy/compose/postgres/Dockerfile')]);
+    const body = summaryOf(rows, []).body ?? '';
+    expect(body.split('\n').find((l) => l.startsWith('- `postgres`'))).toContain('Dependabot reads this one too, in `deploy/compose/postgres/Dockerfile`');
+    expect(body).toMatch(/^Dependabot does not read these pins, but for an image built here, whose line says so:/);
+    expect(rows.filter((r) => r.notes?.some((n) => n.startsWith('Dependabot reads'))).map((r) => r.name)).toEqual(['postgres']);
+    // Without the Dockerfile there is nothing to say what the image is: an error, never "current".
+    const without: Repo = { read: (rel) => (rel === 'deploy/compose/postgres/Dockerfile' ? null : REAL.read(rel)), list: REAL.list };
+    await expect(routineRows(without, fakeNet(registry()))).rejects.toThrow(/deploy\/compose\/postgres\/Dockerfile, which is not in this checkout/);
   });
 
   it('holds the copies together: www.yml with the web image, the scripts with the compose busybox, Stalwart with itself', async () => {

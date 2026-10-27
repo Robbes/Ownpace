@@ -32,6 +32,30 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   CLI's own base image under them is now on 24.22.1 as well, so the first
   task deploy after this one is the slow one. ClickHouse stays on 26.2,
   which Trigger.dev still pins.
+- **The managed stack's databases, Redis, dashboard front and demo Nextcloud,
+  and the web image's nginx, run by exact version and digest** (workplan 0119
+  §4, #1678): postgres 18.6, redis 7.4.11, caddy 2.11.7, nextcloud 34.0.5 and
+  nginx 1.31.8. They floated within their lines and nothing ever pulled them,
+  so each stack ran whatever copy its machine had pulled first. The next `up`
+  pulls each digest and recreates its service, so each database restarts
+  once; the site's nginx moves only when `www.yml` is brought up again.
+  The dashboard's front overrides none of Caddy 2.11.7's new defaults: it
+  answers 431 to request headers over 16 KiB and closes a connection idle for
+  a minute. The demo Nextcloud upgrades its volume to 34.0.5 and refuses an
+  older image on it afterwards, and runs with PHP's session upload progress
+  off, upstream's mitigation for CVE-2026-115560. `db-roles.sh` runs the
+  postgres client `managed.yml` pins.
+- **Both databases of the managed stack start as PostgreSQL's own user, from
+  the official image without gosu** (workplan 0146 T15, #1717): the scan's one
+  critical and 25 of its 26 high findings in `postgres:18.6-alpine` were the Go
+  runtime in gosu, which the image ran only to drop from root to that user.
+  Compose builds `deploy/compose/postgres` on the first `up`, and both
+  databases restart once; their data needs nothing, being that user's already.
+  `docker compose exec postgres` now runs as that user (add `-u 0` for root);
+  every script's `psql`, `pg_dump` and `pg_restore` answers as before. Rebuild
+  the web or API image by name (`docker compose … build web`, then `up -d
+  web`): `up --build` would rebuild the databases' image too and could restart
+  them. The self-hosted appliance keeps the official image.
 
 ## [0.2.0-alpha.2] - 2026-10-25
 
