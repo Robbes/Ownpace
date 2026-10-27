@@ -4,6 +4,23 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **pnpm is 11.28.8** (workplan 0119, issue #1694, #1701): the lockfile is
+  unchanged, and the installs, the images' filtered installs and the advisory
+  gate give what 11.28.6 gave. When pnpm next re-resolves the tree it also
+  records an optional peer that a package's own dependency supplies, and
+  reuses a version the same install already resolved, so the next dependency
+  update may move a few lockfile lines it did not ask for. 11.28.8 differs
+  from 11.28.7 only in the Node.js inside the standalone `@pnpm/exe`, which CI
+  and the images do not run.
+- **The images are signed with cosign v3.1.4, and the release checks them
+  with the same** (#1671, #1702): `images.yml` and `release.yml`'s verify job name
+  the release, where cosign-installer's default installed v3.0.6, and the pin
+  watch compares it with cosign's newest and holds the two together.
+  Signing stays keyless and by digest, and the `cosign verify` line
+  `deploy/selfhost/README.md` gives does not change.
+
 ### Added
 
 - **The suites that talk to Nextcloud also run against Nextcloud 35** (workplan
@@ -18,6 +35,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   skipped. The integration tier also gained its first suite for the share
   verb against a real server: a user share, the listing that reads it back,
   and a grantee the server does not know.
+
+### Fixed
+
+- **qs 6.16.1 closes another denial of service in `qs.stringify`**
+  (GHSA-6pq8-jhm2-2vcw, moderate): with `arrayFormat: 'comma'`, an array
+  element carrying a non-callable own `toString` threw an uncaught TypeError.
+  The override's floor moves from 6.16.0 to 6.16.1 (published 2026-10-14, past
+  the three-day cooldown), which express and the tests' superagent now take.
+  The API only parses query strings through express, so it could not be
+  reached there.
 
 ## [0.2.0-alpha.2] - 2026-10-25
 
