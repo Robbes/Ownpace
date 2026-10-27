@@ -13,6 +13,67 @@ The OTA's Bitnami-era `minio_data` stays on disk until the owner removes it, aft
 `v0.2.0-alpha.2`, after the task runner's drain, starting empty. The CHANGELOG fold, the last
 merge before the two counted nights, carries it.
 
+**2026-10-25, build: the cosign that signs and checks the images is named, v3.1.4, where
+cosign-installer's default gave v3.0.6, a draft for alpha.3**, as draft #1702 on branch
+`claude/ownpace-public-readiness-y7orc6-dependabot-invisible-pins`. Main is frozen from the alpha.2
+fold to its tag; this merges after the tag. #1671 listed it under *Also known*: *"cosign:
+cosign-installer v4.1.2 installs v3.0.6 (its default), and the newest cosign is v3.1.4"*. Its two
+other rows, Mailpit and Stalwart, are T11 (a) and (b), each on its own branch.
+- **The pin.** `cosign-release: 'v3.1.4'` in `images.yml`'s *Install cosign* step, whose cosign
+  signs every published image by digest, and in `release.yml`'s verify job, whose cosign checks
+  those signatures. Nothing would have moved it: v4.1.2 is cosign-installer's newest release and
+  still installs v3.0.6, and its main branch says v3.1.3, unreleased. Dependabot moves the
+  installer, never an input.
+- **The watch.** A named cosign is a pin nothing else moves, as Trivy's is, so
+  `idp-pin-watch.mjs` reads it as a routine row from both files (`COSIGN_FILES`), held together
+  (*the copies disagree* when they do), against cosign's tags of its major. Left to the
+  installer's default it stays the status line it was. Run on the branch,
+  `node scripts/idp-pin-watch.mjs` reads *"cosign v3.1.4 v3.1.4 current"* and prints no status
+  line. `a-pin-that-knows-it-is-behind` gains three cases and changes three; with `release.yml`
+  set back to v3.1.3 six fail.
+- **Read:** cosign's release notes from v3.0.6 to v3.1.4. v3.1.0 was never published and
+  v3.1.1 is identical to it: signing runs through sigstore-go, the protobuf bundle (the default
+  since v3.0) is the format for signing and verifying, and flags for trust material given by
+  hand are deprecated. v3.1.2 deprecates `--payload`; v3.1.3 fixes GHSA-fx35-mq7g-6g98; v3.1.4
+  deprecates `--use-signing-config` and fixes signing and verify bugs. The workflows use
+  `cosign sign --yes` on a digest and `cosign verify` with an identity or identity regexp and
+  the OIDC issuer, and neither form is deprecated. GHSA-fx35-mq7g-6g98 (high, up to v3.1.2) is
+  a bypass of `verify-blob` with a legacy JSON bundle. The advisory says `cosign verify` of a
+  container image and the protobuf bundle are not affected, so this is routine and not a
+  security move here.
+- **What naming the release costs.** Left to its default, cosign-installer checks the v3.0.6
+  binary against a hash its `action.yml` carries. With a release named, it downloads v3.1.4 and
+  checks it with the bootstrap v3.0.6's `verify-blob --bundle`, once keyless and once with
+  `--key` (`action.yml` at the pinned commit). v3.0.6 reads any bundle that is not a protobuf
+  one as a legacy bundle (`checkNewBundle` in `cmd/cosign/cli/verify/verify_bundle.go`), and
+  that is the path GHSA-fx35-mq7g-6g98 covers: a crafted legacy bundle skips the identity
+  check, and its embedded key replaces `--key`. So that check is weaker than the hash, in front
+  of a job that holds `packages: write` and `id-token: write`. What holds it is that v3.1.4 is
+  an immutable release (its page: *"Immutable release. Only release title and notes can be
+  modified."*), so its assets cannot be swapped after publication, and its binary was checked
+  here against `cosign_checksums.txt`. A hash check of our own after the installer was not
+  added: the sign step does not run on a pull request, so a later move of the release that
+  missed the hash would fail only on `main`, after the images are pushed unsigned.
+- **Waited for.** v3.1.4 was published 2026-10-20 at 18:27:42 UTC (the release feed's
+  `updated`; its assets' `Last-Modified` is 18:02 to 18:04 UTC), three days old on 2026-10-23
+  at 18:27 UTC.
+- **Proved here, by hand, the installer's own path for a named release.** The bootstrap v3.0.6
+  binary hashes to the `c956e5df…` v4.1.2 carries; `release/release-cosign.pub` at v3.1.4
+  hashes to its `f4cea466…`; v3.0.6's `verify-blob` reads *"Verified OK"* for v3.1.4's
+  `cosign-linux-amd64` with both its keyless bundle and its KMS-key bundle; the binary's hash
+  is the one in `cosign_checksums.txt`, and it reports `GitVersion: v3.1.4`. The trusted root
+  was sigstore/root-signing's `targets/trusted_root.json`, given as `--trusted-root`, because
+  the session's network refuses the TUF host; on a runner the installer reads it from TUF.
+- **Not proved here.** No signature has been made with v3.1.4, and v3.1.4 has not checked one
+  made with v3.0.6: a signature's bundle is a blob ghcr hands out from a host the session's
+  network refuses, so both versions read *"no signatures found"* here, for that reason alone. The
+  pull request runs neither step. The first signing is `images.yml` on the merge commit, which
+  every push to `main` starts, and its sign step fails loud. The first check is the next
+  release's verify job, or a `verify` dispatch of Release from `main` on alpha.2 after this
+  merges (the owner's call). It cannot be run before: Release refuses a dispatch from any
+  branch but `main` (`dispatchedFromMain` in `release-preflight.mjs`).
+- **One way:** nothing. Going back is the two `cosign-release:` lines.
+
 **2026-10-24: T7 answered and being built.** The owner, on 2026-10-23 at 19:05 UTC: *"T7 no,
 fix already within the alpha"*. The frozen `bitnamilegacy/minio` is not accepted for the Alpha.
 Chainguard's maintained MinIO replaces it on branch
