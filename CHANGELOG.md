@@ -21,6 +21,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   Signing stays keyless and by digest, and the `cosign verify` line
   `deploy/selfhost/README.md` gives does not change.
 
+### Fixed
+
+- **qs 6.16.1 closes another denial of service in `qs.stringify`**
+  (GHSA-6pq8-jhm2-2vcw, moderate): with `arrayFormat: 'comma'`, an array
+  element carrying a non-callable own `toString` threw an uncaught TypeError.
+  The override's floor moves from 6.16.0 to 6.16.1 (published 2026-10-14, past
+  the three-day cooldown), which express and the tests' superagent now take.
+  The API only parses query strings through express, so it could not be
+  reached there.
+
 ## [0.2.0-alpha.2] - 2026-10-25
 
 The Alpha's texts are final at version 1.0, and testers are asked to accept
