@@ -51,6 +51,13 @@
  *    configuration stays upstream's); no `rm -f`, `rm -rf` or `|| true`; and
  *    the proofs in the image (the two packages load without their binary; as
  *    the service's user pnpm starts offline, as the other it does not);
+ *  - READ AT ONE RELEASE: each removing RUN names the release its reasons
+ *    were read in (`read_at`), which must be the FROM's tag, and refuses an
+ *    image of another version; and it pins the entrypoint read there by its
+ *    SHA-256, since who runs pnpm is decided there. A path that did not move
+ *    across releases (depot and esbuild did not, from 4.7.6 to 4.8.1) proves
+ *    nothing about the code that reaches it, so a version move is red until
+ *    someone reads the reasons again;
  *  - REMOVED below, each path with why nothing runs it, equals what the
  *    Dockerfiles remove: read from their text, and from running their RUN
  *    instructions over a stand-in of the image's tree on both platforms, which
@@ -64,12 +71,15 @@
  *  - why each removal is safe stays true: DEPOT_TOKEN stays a third party the
  *    webapp's guard refuses, trigger-api sets no DEPOT_* or ESBUILD_* key, and
  *    its command is the chown and the entrypoint;
- *  - images.yml builds both on both platforms on a pull request, and
- *    Dependabot reads neither directory: Trigger.dev moves by
- *    `trigger-version.sh pin` only.
+ *  - images.yml builds both on both platforms on a pull request, after
+ *    checking the base's user, command and entrypoint are the ones the
+ *    headers read; its step is run here with a stub docker, and each of its
+ *    refusals is seen to stop it. Dependabot reads neither directory:
+ *    Trigger.dev moves by `trigger-version.sh pin` only.
  */
 
 import { describe, it, expect } from 'vitest';
+import { createHash } from 'node:crypto';
 import { linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -105,7 +115,7 @@ const REMOVED: Readonly<Record<Name, readonly Removal[]>> = {
   'trigger.dev': [
     {
       path: `${PNPM}/@depot+cli-$plat@0.0.1-cli.2.80.0/node_modules/@depot/cli-$plat/bin/depot`,
-      why: "depot's Go binary: the webapp runs it only for `depot push`, with DEPOT_TOKEN, DEPOT_ORG_ID and DEPOT_REGION set, none of which trigger-api has",
+      why: "depot's Go binary: the webapp runs it only for `depot push`, with DEPOT_TOKEN and DEPOT_ORG_ID set (DEPOT_REGION has a default), neither of which trigger-api has",
       evidence: 'finalizeDeploymentV2.server.ts and remoteImageBuilder.server.ts at v4.8.1; @depot/cli lib/main.js (depot, depotBinaryPath, generateBinPath)',
     },
     {
@@ -126,20 +136,22 @@ const REMOVED: Readonly<Record<Name, readonly Removal[]>> = {
     {
       path: '/home/node/.cache/node/corepack/v1/pnpm/10.33.2',
       why: "node's copy of pnpm, with tar 7.5.13 in it: trigger-api runs as root (managed.yml), so every pnpm of the entrypoint runs root's copy",
-      evidence: 'docker/Dockerfile and docker/scripts/entrypoint.sh at v4.8.1; managed.yml `user: root`; corepack 0.34.0 getCorepackHomeFolder',
+      evidence: "docker/Dockerfile and docker/scripts/entrypoint.sh at v4.8.1; managed.yml `user: root`; corepack 0.36.0 (Node 24.22.1's) getCorepackHomeFolder and installVersion",
     },
   ],
   supervisor: [
     {
       path: '/root/.cache/node/corepack/v1/pnpm/10.33.2',
       why: "root's copy of pnpm, with tar 7.5.13 in it: trigger-supervisor runs as the image's node (no `user:`), whose copy its CMD runs",
-      evidence: 'apps/supervisor/Containerfile and entrypoint.sh at v4.8.1; managed.yml (no `user:`); corepack 0.34.0 getCorepackHomeFolder',
+      evidence: "apps/supervisor/Containerfile and entrypoint.sh at v4.8.1; managed.yml (no `user:`); corepack 0.36.0 (Node 24.22.1's) getCorepackHomeFolder and installVersion",
     },
   ],
 };
 
 /** The image's own user, where corepack keeps the copy each service runs. */
 const HOME_OF: Readonly<Record<string, string>> = { root: '/root', node: '/home/node' };
+/** The script each image starts through, which decides who runs pnpm; pinned by hash in the removing RUN. */
+const ENTRYPOINT: Readonly<Record<Name, string>> = { 'trigger.dev': '/triggerdotdev/scripts/entrypoint.sh', supervisor: '/app/entrypoint.sh' };
 const COPY = (home: string) => `${home}/.cache/node/corepack/v1/pnpm/10.33.2`;
 
 // ---------------------------------------------------------------------------
@@ -188,7 +200,7 @@ const removingRun = (text: string) => runs(text).find((r) => /(^|[;\s])rm\s/.tes
 /** `name=value` assignments of a RUN, quotes taken off. */
 function assignments(run: string): Map<string, string> {
   const vars = new Map<string, string>();
-  for (const m of run.matchAll(/(?:^|[;\s])([a-z_]+)=("([^"]*)"|[^\s;]+)/g)) vars.set(m[1]!, m[3] ?? m[2]!);
+  for (const m of run.matchAll(/(?:^|[;\s])([a-z_][a-z0-9_]*)=("([^"]*)"|[^\s;]+)/g)) vars.set(m[1]!, m[3] ?? m[2]!);
   return vars;
 }
 
@@ -196,10 +208,10 @@ function assignments(run: string): Map<string, string> {
 function rmTargets(run: string): string[] {
   const vars = assignments(run);
   const resolve = (value: string): string =>
-    value.replace(/\$\{?([a-z_]+)\}?/g, (all, name: string) => (name === 'plat' ? '$plat' : vars.has(name) ? resolve(vars.get(name)!) : all));
+    value.replace(/\$\{?([a-z_][a-z0-9_]*)\}?/g, (all, name: string) => (name === 'plat' ? '$plat' : vars.has(name) ? resolve(vars.get(name)!) : all));
   const targets: string[] = [];
-  for (const m of run.matchAll(/(?:^|[;\s])rm(?:\s+-r)?((?:\s+"\$[a-z_]+")+)\s*;/g)) {
-    for (const v of m[1]!.matchAll(/"\$([a-z_]+)"/g)) targets.push(resolve(`$${v[1]}`));
+  for (const m of run.matchAll(/(?:^|[;\s])rm(?:\s+-r)?((?:\s+"\$[a-z_][a-z0-9_]*")+)\s*;/g)) {
+    for (const v of m[1]!.matchAll(/"\$([a-z_][a-z0-9_]*)"/g)) targets.push(resolve(`$${v[1]}`));
   }
   return targets;
 }
@@ -232,6 +244,28 @@ function shapeProblems(name: Name, text: string): string[] {
   const removing = removingRun(text);
   if (!removing) problems.push('no RUN removes anything');
   else if (removing.user !== 'root') problems.push(`the removing RUN runs as ${removing.user}, not root`);
+  // Read at one release: the FROM's, and the build refuses any other.
+  const vars = assignments(removing?.args ?? '');
+  const readAt = vars.get('read_at');
+  let fromTag: string | null = null;
+  try {
+    fromTag = dockerfileBase(text).tag;
+  } catch {
+    // Said above.
+  }
+  if (!readAt) problems.push('the removing RUN names no read_at, the release its reasons were read in');
+  else if (fromTag !== null && readAt !== fromTag) {
+    problems.push(`read_at is ${readAt}, and the FROM is ${fromTag}: read the header's reasons again at ${fromTag}, then move read_at (trigger-version.sh pin leaves it)`);
+  }
+  const removingArgs = removing?.args ?? '';
+  if (!/\[ "\$core" = "\$read_at" \] \|\| fail /.test(removingArgs) || removingArgs.indexOf('"$read_at" ]') > removingArgs.search(/(^|[;\s])rm\s/)) {
+    problems.push('the removing RUN does not refuse an image of another version than read_at before it removes anything');
+  }
+  if (vars.get('entrypoint') !== ENTRYPOINT[name] || !/^[0-9a-f]{64}$/.test(vars.get('entrypoint_sha256') ?? '')) {
+    problems.push(`the removing RUN does not pin ${ENTRYPOINT[name]} by its SHA-256 (entrypoint=, entrypoint_sha256=): who runs pnpm is decided there`);
+  } else if (!/\[ "\$\(sha256sum "\$entrypoint" \| cut -d' ' -f1\)" = "\$entrypoint_sha256" \] \|\| fail /.test(removingArgs)) {
+    problems.push('the removing RUN names the entrypoint and its hash, and never compares them');
+  }
   for (const run of runs(text)) {
     if (!/^set -eu;/.test(run.args)) problems.push('a RUN does not start with `set -eu;`');
     if (/\brm\s+-\w*f/.test(run.args)) problems.push('a RUN removes with `rm -f` or `rm -rf`, which passes over a path that is not there');
@@ -266,6 +300,14 @@ interface Tree {
   readonly binaries: Array<{ path: string; link?: string }>;
 }
 
+/**
+ * The stand-in's entrypoint. The build compares the real one with the hash the
+ * Dockerfile pins, which only the real image carries, so the stand-in's hash
+ * takes its place in the RUN (`build`, unless told to keep the pinned one).
+ */
+const STAND_IN_ENTRYPOINT = '#!/bin/sh\nexec "$@"\n';
+const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
+
 function treeOf(name: Name, plat: string): Tree {
   const corepack = (home: string): Record<string, string> => ({
     [`${COPY(home)}/.corepack`]: '{"locator":{"name":"pnpm","reference":"10.33.2"}}\n',
@@ -276,6 +318,7 @@ function treeOf(name: Name, plat: string): Tree {
       files: {
         '/app/package.json': '{"packageManager":"pnpm@10.33.2"}\n',
         '/app/packages/core/package.json': '{"version":"4.8.1"}\n',
+        [ENTRYPOINT.supervisor]: STAND_IN_ENTRYPOINT,
         ...corepack('/root'),
         ...corepack('/home/node'),
       },
@@ -287,6 +330,7 @@ function treeOf(name: Name, plat: string): Tree {
     files: {
       '/triggerdotdev/package.json': '{"packageManager":"pnpm@10.33.2"}\n',
       '/triggerdotdev/packages/core/package.json': '{"version":"4.8.1"}\n',
+      [ENTRYPOINT['trigger.dev']]: STAND_IN_ENTRYPOINT,
       ...pkg(`${PNPM}/@depot+cli@0.0.1-cli.2.80.0/node_modules/@depot/cli`),
       ...pkg(`${PNPM}/esbuild@0.23.0/node_modules/esbuild`),
       // pnpm's own shims are scripts, and stay.
@@ -377,15 +421,18 @@ interface Options {
   readonly tag?: string;
   /** Only the RUNs of this user. */
   readonly only?: 'root' | 'node';
+  /** Keep the entrypoint hash the Dockerfile pins, which the stand-in's entrypoint is not. */
+  readonly pinnedEntrypoint?: boolean;
 }
 
 /** Runs a Dockerfile's RUN instructions in order, each as its USER, and stops at the first that fails. */
-function build(text: string, box: Sandbox, { plat = 'linux-arm64', tag = '', only }: Options = {}): Run {
+function build(text: string, box: Sandbox, { plat = 'linux-arm64', tag = '', only, pinnedEntrypoint = false }: Options = {}): Run {
   const [platform, arch] = plat.split('-') as [string, string];
   let out = '';
   for (const run of runs(text)) {
     if (only && run.user !== only) continue;
-    const r = spawnSync('sh', ['-c', rooted(run.args, box.fs)], {
+    const script = pinnedEntrypoint ? run.args : run.args.replace(/(?<=(^|[;\s])entrypoint_sha256=)[0-9a-f]{64}/, sha256(STAND_IN_ENTRYPOINT));
+    const r = spawnSync('sh', ['-c', rooted(script, box.fs)], {
       encoding: 'utf8',
       env: {
         PATH: `${join(box.root, 'bin')}:${process.env.PATH ?? '/usr/bin:/bin'}`,
@@ -451,6 +498,16 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
       expect(shapeProblems('trigger.dev', text), line).toEqual([expect.stringContaining('only FROM, ARG, USER and RUN')]);
     }
     expect(shapeProblems('trigger.dev', `# syntax=docker/dockerfile:1\n${real}`)).toEqual([expect.stringContaining('is a parser directive')]);
+    // Read at one release, the FROM's, and refused before anything is removed at any other.
+    expect(swap(/^ {4}read_at=v[\d.]+; \\\n/m, '')).toEqual(['the removing RUN names no read_at, the release its reasons were read in']);
+    expect(swap(/^( {4}read_at=)v[\d.]+;/m, '$1v4.8.0;')).toEqual([expect.stringContaining('read_at is v4.8.0, and the FROM is v4.8.1')]);
+    // What `trigger-version.sh pin` does: the FROM moves, read_at stays, and this says to read again.
+    expect(swap(/^(FROM \S+:)v[\d.]+@/m, '$1v4.9.0@')).toEqual([expect.stringContaining('read_at is v4.8.1, and the FROM is v4.9.0: read the header')]);
+    expect(swap(/^ {4}\[ "\$core" = "\$read_at" \] \|\| fail [^\n]*\n/m, '')).toEqual([
+      'the removing RUN does not refuse an image of another version than read_at before it removes anything',
+    ]);
+    expect(swap(/^ {4}entrypoint_sha256=[0-9a-f]{64}; \\\n/m, '')).toEqual([expect.stringContaining('does not pin /triggerdotdev/scripts/entrypoint.sh by its SHA-256')]);
+    expect(swap(/^ {4}\[ "\$\(sha256sum [^\n]*\n/m, '')).toEqual(['the removing RUN names the entrypoint and its hash, and never compares them']);
     // The supervisor's proofs go the other way round.
     const sup = dockerfiles.supervisor;
     expect(shapeProblems('supervisor', sup.replace(/\n {4}if \(cd \/app && COREPACK_ENABLE_NETWORK=0[\s\S]*?fi; \\/, ''))).toEqual(['no proof that as root pnpm refuses to start offline']);
@@ -501,6 +558,30 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
     }
   });
 
+  it('an image of another release than read_at, or another entrypoint than the one read, refuses before anything is removed', () => {
+    for (const name of NAMES) {
+      const tree = treeOf(name, 'linux-x64');
+      const core = name === 'trigger.dev' ? '/triggerdotdev/packages/core/package.json' : '/app/packages/core/package.json';
+      // The .env agrees with the image (or names nothing): the release still is not the one read.
+      for (const tag of ['', 'v4.8.2']) {
+        withSandbox({ ...tree, files: { ...tree.files, [core]: '{"version":"4.8.2"}\n' } }, (box) => {
+          const run = build(dockerfiles[name], box, { plat: 'linux-x64', tag });
+          expect(run.status, `${name}, TRIGGER_IMAGE_TAG=${tag}`).not.toBe(0);
+          expect(run.out).toContain(`was read in Trigger.dev v4.8.1's source, and this image is v4.8.2`);
+          expect(run.out).toContain('then move read_at');
+          expect(removedBy(box, run), name).toEqual([]);
+        });
+      }
+      // The pinned hash, which the stand-in's entrypoint is not: a changed entrypoint.
+      withSandbox(tree, (box) => {
+        const run = build(dockerfiles[name], box, { plat: 'linux-x64', pinnedEntrypoint: true });
+        expect(run.status, name).not.toBe(0);
+        expect(run.out).toContain(`${box.fs}${ENTRYPOINT[name]} is not the one read at v4.8.1`);
+        expect(removedBy(box, run), name).toEqual([]);
+      });
+    }
+  });
+
   it('every path it removes or keeps that is not there fails the build by name, before anything is removed', () => {
     const plat = 'linux-arm64';
     /** Each file of the stand-in the build reads, and what its failure names. */
@@ -509,6 +590,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
         ...treeOf('trigger.dev', plat).binaries.flatMap((b) => [b.path, b.link!]).map((p): [string, string] => [p, p]),
         ['/triggerdotdev/package.json', '/triggerdotdev/package.json'],
         ['/triggerdotdev/packages/core/package.json', '/triggerdotdev/packages/core/package.json'],
+        [ENTRYPOINT['trigger.dev'], ENTRYPOINT['trigger.dev']],
         [`${COPY('/home/node')}/.corepack`, `${COPY('/home/node')}/.corepack`],
         [`${COPY('/home/node')}/dist/node_modules/tar/package.json`, `${COPY('/home/node')}/dist/node_modules/tar`],
         [`${COPY('/root')}/.corepack`, `${COPY('/root')}/.corepack`],
@@ -516,6 +598,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
       supervisor: [
         ['/app/package.json', '/app/package.json'],
         ['/app/packages/core/package.json', '/app/packages/core/package.json'],
+        [ENTRYPOINT.supervisor, ENTRYPOINT.supervisor],
         [`${COPY('/root')}/.corepack`, `${COPY('/root')}/.corepack`],
         [`${COPY('/root')}/dist/node_modules/tar/package.json`, `${COPY('/root')}/dist/node_modules/tar`],
         [`${COPY('/home/node')}/.corepack`, `${COPY('/home/node')}/.corepack`],
@@ -803,12 +886,79 @@ describe('each removal stays safe while the stack is as it is', () => {
   });
 });
 
+interface Workflow {
+  on: { pull_request?: { paths?: string[] } };
+  jobs: Record<string, { name?: string; if?: string; 'runs-on'?: string; permissions?: unknown; strategy?: { matrix?: { include?: Array<Record<string, string>> } }; steps?: Array<{ name?: string; run?: string; uses?: string; with?: Record<string, unknown> }> }>;
+}
+
+/**
+ * What `docker` answers in the build step below: upstream's configuration as
+ * the Dockerfiles' headers read it, for the base and the build alike, and a
+ * log of every call. `FAKE_*` changes one answer, as a release or a broken
+ * build would.
+ */
+const DOCKER_STUB = [
+  '#!/usr/bin/env bash',
+  'printf \'%s\\n\' "$*" >> "$DOCKER_LOG"',
+  'case "$1" in pull|build) exit 0 ;; image) ;; *) echo "unexpected: docker $*" >&2; exit 3 ;; esac',
+  'fmt="$4"; ref="$5"',
+  'case "$ref" in localhost/*) side=built ;; *) side=base ;; esac',
+  'user=\'"node"\'',
+  'case "$ref" in',
+  '  *supervisor*) cmd=\'["pnpm","run","--filter","supervisor","start"]\'; ep=\'["/app/entrypoint.sh"]\'; wd=\'"/app"\' ;;',
+  '  *) cmd=\'["./scripts/entrypoint.sh"]\'; ep=\'["docker-entrypoint.sh"]\'; wd=\'"/triggerdotdev"\' ;;',
+  'esac',
+  'if [ -n "${FAKE_BASE_USER:-}" ] && [ "$side" = base ] && [[ "$ref" == *supervisor* ]]; then user="$FAKE_BASE_USER"; fi',
+  'if [ -n "${FAKE_BUILT_USER:-}" ] && [ "$side" = built ]; then user="$FAKE_BUILT_USER"; fi',
+  'case "$fmt" in',
+  '  "{{json .Config.User}} {{json .Config.Cmd}} {{json .Config.Entrypoint}}") echo "$user $cmd $ep" ;;',
+  '  "{{json .Config.User}}") echo "$user" ;;',
+  '  "{{json .Config.Cmd}}") echo "$cmd" ;;',
+  '  "{{json .Config.Entrypoint}}") echo "$ep" ;;',
+  '  "{{json .Config.WorkingDir}}") echo "$wd" ;;',
+  '  "{{.Os}}/{{.Architecture}}") echo "${FAKE_PLATFORM:-linux/$ARCH}" ;;',
+  '  *) echo "sha256:stub, user $user" ;;',
+  'esac',
+  '',
+].join('\n');
+
+interface StepRun {
+  readonly status: number;
+  readonly out: string;
+  /** Every docker call, one per line. */
+  readonly docker: string[];
+}
+
+/** Runs images.yml's build step as GitHub runs it (bash -eo pipefail), in this checkout, with docker stubbed. */
+function runBuildStep(step: string, env: Record<string, string>): StepRun {
+  const dir = mkdtempSync(join(tmpdir(), 'trigger-build-step-'));
+  try {
+    const bin = join(dir, 'bin');
+    mkdirSync(bin);
+    writeFileSync(join(bin, 'docker'), DOCKER_STUB, { mode: 0o755 });
+    // Node itself, unless told what the pin watch's reader would have printed.
+    writeFileSync(join(bin, 'node'), `#!/usr/bin/env bash\nif [ -n "\${FAKE_BUILDS+x}" ]; then printf '%s\\n' "$FAKE_BUILDS"; exit 0; fi\nexec '${process.execPath}' "$@"\n`, { mode: 0o755 });
+    const script = join(dir, 'step.sh');
+    writeFileSync(script, step);
+    const log = join(dir, 'docker.log');
+    writeFileSync(log, '');
+    const r = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', script], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+      env: { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: dir, DOCKER_LOG: log, ...env },
+    });
+    return { status: r.status ?? -1, out: `${r.stdout ?? ''}${r.stderr ?? ''}`, docker: readFileSync(log, 'utf8').split('\n').filter(Boolean) };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const imagesWorkflow = () => parseYaml(read('.github/workflows/images.yml')) as Workflow;
+const buildStep = (wf: Workflow) => (wf.jobs['trigger']?.steps ?? []).find((s) => s.name?.startsWith('Build both Trigger.dev images'))?.run ?? '';
+
 describe('a pull request builds both on both platforms, and Dependabot leaves them to trigger-version.sh', () => {
   it("images.yml's `build (trigger, …)` builds each directory with the version argument, natively on amd64 and arm64", () => {
-    const images = parseYaml(read('.github/workflows/images.yml')) as {
-      on: { pull_request?: { paths?: string[] } };
-      jobs: Record<string, { name?: string; if?: string; 'runs-on'?: string; permissions?: unknown; strategy?: { matrix?: { include?: Array<Record<string, string>> } }; steps?: Array<{ run?: string; uses?: string; with?: Record<string, unknown> }> }>;
-    };
+    const images = imagesWorkflow();
     expect(images.on.pull_request?.paths).toContain('deploy/**');
     const job = images.jobs['trigger'];
     expect(job, 'images.yml has no `trigger` job').toBeDefined();
@@ -826,6 +976,46 @@ describe('a pull request builds both on both platforms, and Dependabot leaves th
     expect(run, 'it does not read the builds with the pin watch').toContain('builtImage(repo, COMPOSE, line)');
     for (const field of ['User', 'Cmd', 'Entrypoint', 'WorkingDir']) expect(run).toContain(field);
     expect(run).toContain('linux/${ARCH}');
+  });
+
+  it('the step, run with a stub docker, builds both with the pin as the version argument, after checking the base is the one read', () => {
+    const step = buildStep(imagesWorkflow());
+    expect(step, 'images.yml has no step "Build both Trigger.dev images…"').not.toBe('');
+    const pin = readTriggerPin(managedText, workerManifest);
+    for (const arch of ['amd64', 'arm64']) {
+      const ok = runBuildStep(step, { ARCH: arch });
+      expect(ok.status, ok.out).toBe(0);
+      const builds = ok.docker.filter((c) => c.startsWith('build '));
+      expect(builds).toEqual([
+        expect.stringMatching(new RegExp(`^build --pull --build-arg TRIGGER_IMAGE_TAG=${pin.replaceAll('.', '\\.')} --tag localhost/trigger\\.dev:${pin.replaceAll('.', '\\.')}-[0-9a-f]{12} deploy/compose/trigger\\.dev$`)),
+        expect.stringMatching(new RegExp(`^build --pull --build-arg TRIGGER_IMAGE_TAG=${pin.replaceAll('.', '\\.')} --tag localhost/supervisor:${pin.replaceAll('.', '\\.')}-[0-9a-f]{12} deploy/compose/supervisor$`)),
+      ]);
+      // Each base's configuration is read before its build.
+      const firstBuild = ok.docker.findIndex((c) => c.startsWith('build '));
+      expect(ok.docker.findIndex((c) => c.includes('{{json .Config.User}} {{json .Config.Cmd}} {{json .Config.Entrypoint}}'))).toBeLessThan(firstBuild);
+    }
+  });
+
+  it('each refusal of the step stops it: a base run another way, a build that changed the user, another platform, a third build', () => {
+    const step = buildStep(imagesWorkflow());
+    // A release that runs the supervisor as root: refused before anything is built.
+    const asRoot = runBuildStep(step, { ARCH: 'amd64', FAKE_BASE_USER: '"root"' });
+    expect(asRoot.status).not.toBe(0);
+    expect(asRoot.out).toMatch(/::error::ghcr\.io\/triggerdotdev\/supervisor:\S+ runs "root" \["pnpm"/);
+    expect(asRoot.docker.filter((c) => c.startsWith('build ') && c.includes('supervisor'))).toEqual([]);
+    // A build that changed the configuration.
+    const changed = runBuildStep(step, { ARCH: 'amd64', FAKE_BUILT_USER: '"root"' });
+    expect(changed.status).not.toBe(0);
+    expect(changed.out).toMatch(/::error::localhost\/trigger\.dev:\S+'s User is "root", and upstream's is "node"/);
+    // A leg that built another platform's paths.
+    const other = runBuildStep(step, { ARCH: 'amd64', FAKE_PLATFORM: 'linux/arm64' });
+    expect(other.status).not.toBe(0);
+    expect(other.out).toContain('is linux/arm64, not linux/amd64');
+    // Not the two builds this job knows.
+    const one = runBuildStep(step, { ARCH: 'amd64', FAKE_BUILDS: 'localhost/trigger.dev:v4.8.1-000000000000 deploy/compose/trigger.dev ghcr.io/triggerdotdev/trigger.dev:v4.8.1' });
+    expect(one.status).not.toBe(0);
+    expect(one.out).toContain('names 1 Trigger.dev builds, not the two');
+    expect(one.docker).toEqual([]);
   });
 
   it('no Dependabot entry reads either directory', () => {

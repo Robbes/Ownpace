@@ -373,7 +373,7 @@ export const WEBAPP_KEYS: Readonly<Record<string, string>> = Object.freeze({
   POSTHOG_PROJECT_KEY: "the switch for the dashboard's PostHog, empty",
   CHECKPOINT_DISABLE: "the switch for Prisma's checkpoint at every start",
   COREPACK_ENABLE_NETWORK:
-    "\"0\" stops corepack fetching pnpm from the npm registry when the build left no copy for the user that runs (corepack.cjs 0.34.0, :22021, before any fetch); it reaches nothing (0146 T16)",
+    "\"0\" stops corepack fetching pnpm from the npm registry when the build left no copy for the user that runs (corepack 0.36.0, Node 24.22.1's: corepack.cjs:13142, before any fetch); it reaches nothing (0146 T16)",
 });
 
 /** Trigger.dev's webapp: both halves of its PostHog and Prisma's checkpoint off, and no key nobody has read. */

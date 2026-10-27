@@ -331,7 +331,7 @@ services:
     # why). `user: root` decides which copy of pnpm the entrypoint runs, and so
     # which one the Dockerfile may delete:
     # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
-    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.1}-72939d99d1b8
+    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.1}-bf7d26468b64
     build:
       context: ./trigger.dev
       args:
@@ -449,7 +449,8 @@ services:
       # runs, corepack downloads pnpm from the npm registry, unannounced and
       # unscanned, at every start; with this it refuses, and the start fails
       # with "Network access disabled by the environment" instead. Corepack
-      # reads it before any fetch (corepack.cjs 0.34.0, Node 24's).
+      # reads it before any fetch (corepack 0.36.0, Node 24.22.1's:
+      # corepack.cjs:13142).
       COREPACK_ENABLE_NETWORK: "0"
     ports:
       # Plain HTTP, and the deploy CLI and its image build ask it on 127.0.0.1
@@ -633,7 +634,7 @@ services:
     # Built here as trigger-api is (deploy/compose/supervisor/Dockerfile):
     # upstream's image without root's copy of pnpm. No `user:`, so it runs as
     # the image's node, whose copy its CMD runs and the Dockerfile keeps.
-    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.1}-8d594a98a98b
+    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.1}-01dbd3d86e94
     build:
       context: ./supervisor
       args:

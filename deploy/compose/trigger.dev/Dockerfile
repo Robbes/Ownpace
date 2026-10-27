@@ -24,9 +24,9 @@
 #     inside depot(...), through depotBinaryPath() and generateBinPath(). The
 #     webapp loads the package when it starts: the two finalize routes import
 #     app/v3/services/finalizeDeploymentV2.server.ts, which imports it. Its one
-#     call is a `depot push`, reached only when DEPOT_TOKEN, DEPOT_ORG_ID and
-#     DEPOT_REGION are all set (remoteBuildsEnabled() in
-#     remoteImageBuilder.server.ts). trigger-api sets none of them, and
+#     call is a `depot push`, reached only when DEPOT_TOKEN and DEPOT_ORG_ID
+#     are set (remoteBuildsEnabled() in remoteImageBuilder.server.ts;
+#     DEPOT_REGION defaults to us-east-1). trigger-api sets neither, and
 #     scripts/a-service-that-phones-home.unit.test.ts refuses DEPOT_TOKEN.
 #     Called anyway, it would throw a JavaScript error into that one request
 #     and start nothing.
@@ -45,7 +45,10 @@
 #     shared volume) and sets no HOME, so HOME is /root, and corepack runs
 #     root's copy for every pnpm in docker/scripts/entrypoint.sh: the
 #     migrations of @trigger.dev/database, the run-ops databases and the
-#     dashboard agent. Nothing execs into trigger-api as node.
+#     dashboard agent. Nothing execs into trigger-api as node. Corepack 0.36.0
+#     (Node 24.22.1's) finds the copy under $HOME/.cache/node/corepack
+#     (getCorepackHomeFolder) and reuses it by its .corepack file alone
+#     (installVersion), never fetching it again while that file is there.
 #
 # TWO NAMES FOR EACH BINARY. The postinstall of each package (install.js,
 # maybeOptimizePackage) hard-links its platform package's binary over its own
@@ -65,12 +68,29 @@
 # refuses to start pnpm rather than fetch it, and an unscanned tar with it,
 # from the npm registry at every start. The last RUN proves that refusal as
 # node. scripts/a-binary-the-stack-never-runs.unit.test.ts fails when the
-# `user:` and this file disagree, and says to move the removal.
+# `user:` and this file disagree, and says to move the removal. Upstream
+# decides the rest of it: the entrypoint runs every pnpm as the container's
+# user, and an entrypoint that dropped to node would run the copy that is gone.
+# So the entrypoint read at read_at is pinned by its SHA-256 below, and
+# images.yml's `build (trigger, …)` checks the base's user, command and
+# entrypoint are the ones read (node, ./scripts/entrypoint.sh, Node's
+# docker-entrypoint.sh, which drops no user).
+#
+# READ AT ONE RELEASE. Why each removal is safe was read in upstream's source
+# at read_at (below): the depot gate, what build/server.js imports, the
+# entrypoint and the copies of pnpm. A release that keeps @depot/cli 0.0.1-cli.2.80.0
+# and esbuild 0.23.0 at the same paths (4.7.6, 4.8.0 and 4.8.1 all do) would
+# pass every path check here while code this stack reaches started to run one
+# of them. So the build refuses any other version than read_at, and
+# `trigger-version.sh pin` leaves read_at where it is: a version move's pull
+# request is red (here, in `build (trigger, …)` and in E2E (managed)) until
+# someone reads the reasons again at the new release and moves read_at, and
+# entrypoint_sha256 with it when the entrypoint changed.
 #
 # IT FAILS LOUDLY WHEN UPSTREAM MOVES. Every path names a version. The build
 # refuses unless the image's @trigger.dev/core is the TRIGGER_IMAGE_TAG it is
-# given (when the .env sets one), its packageManager is pnpm@10.33.2, and it
-# runs on linux-arm64 or linux-x64. Each file is tested before a plain `rm`,
+# given (when the .env sets one) and read_at, its entrypoint is the one read,
+# its packageManager is pnpm@10.33.2, and it runs on linux-arm64 or linux-x64. Each file is tested before a plain `rm`,
 # never `rm -f`, and checked gone after. A Trigger.dev that moves @depot/cli,
 # esbuild or pnpm, or drops one, fails here and names the path: re-read this
 # header against it, and drop the removal upstream fixed. A pull request that
@@ -86,9 +106,11 @@
 #   grep -Ev '^[[:space:]]*(#|$)' deploy/compose/trigger.dev/Dockerfile | sha256sum | cut -c1-12
 # so a changed instruction is a name the machine does not have yet, and compose
 # builds it. TRIGGER_IMAGE_TAG reaches the build as an argument only to refuse
-# a .env that names another version (the bring-up's drift check refuses that
-# first); it changes nothing that is built. `trigger-version.sh pin` moves the
-# FROM, its digest and the name with the version. Nothing builds it again while
+# a .env that names another version than this file builds; it changes nothing
+# that is built. The .env names the version, and it must be this checkout's:
+# to run another, run the checkout that pins it. `trigger-version.sh pin`
+# moves the FROM, its digest and the name with the version (and leaves
+# read_at, above). Nothing builds it again while
 # the machine has the name (managed.yml's header). No parser directive, COPY,
 # ADD, --mount, ENV, CMD, ENTRYPOINT, WORKDIR or LABEL: the hash covers all that
 # is built, and the image's configuration stays upstream's.
@@ -98,7 +120,10 @@
 # to a release that fixed one of these fails its check, delete that removal and
 # its row in the guard's REMOVED table. When none is left, managed.yml runs
 # ghcr's image again and this directory goes (docs/managed-bring-up.md,
-# "Upgrading Trigger.dev").
+# "Upgrading Trigger.dev"). This file is never `pin`ned backwards: its checks
+# hold for read_at only, so going back to an older release means running the
+# checkout that pinned it (a revert of the move, or the older release's tag),
+# whose own Dockerfile and name come with it.
 FROM ghcr.io/triggerdotdev/trigger.dev:v4.8.1@sha256:bcce9e8f5affee747fe0ce208cdf7dcd8815fe84fb44b31f446638fffcb64ebe
 
 # Given by managed.yml from the .env, empty when the .env sets none. It only refuses.
@@ -109,11 +134,17 @@ USER root
 RUN set -eu; \
     me=deploy/compose/trigger.dev/Dockerfile; \
     fail() { echo "$me: $*" >&2; echo "$me: re-read this file's header against the new tag, or drop the removal upstream fixed." >&2; exit 1; }; \
+    read_at=v4.8.1; \
     core="v$(node -p "require('/triggerdotdev/packages/core/package.json').version")"; \
     if [ -n "${TRIGGER_IMAGE_TAG:-}" ] && [ "$TRIGGER_IMAGE_TAG" != "$core" ]; then \
-      echo "$me: the .env names TRIGGER_IMAGE_TAG=$TRIGGER_IMAGE_TAG, and this checkout builds Trigger.dev $core. The bring-up's drift check (0018 T0) says which way to reconcile them." >&2; \
+      echo "$me: the .env names TRIGGER_IMAGE_TAG=$TRIGGER_IMAGE_TAG, and this checkout builds Trigger.dev $core. Either set TRIGGER_IMAGE_TAG=$core in the .env, or run a checkout that pins $TRIGGER_IMAGE_TAG: the release that ran it, or a move to it (trigger-version.sh pin $TRIGGER_IMAGE_TAG, docs/managed-bring-up.md, Upgrading Trigger.dev)." >&2; \
       exit 1; \
     fi; \
+    [ "$core" = "$read_at" ] || fail "why each removal is safe was read in Trigger.dev $read_at's source, and this image is $core. Read the header's reasons again at $core (remoteBuildsEnabled and finalizeDeploymentV2, what build/server.js imports, docker/scripts/entrypoint.sh), then move read_at, and entrypoint_sha256 if the entrypoint changed."; \
+    entrypoint=/triggerdotdev/scripts/entrypoint.sh; \
+    entrypoint_sha256=2c6a49862da08b5d31309cdf908d2fb10f0ef89cb0ee7d54e0ef91e231b3620d; \
+    [ -f "$entrypoint" ] || fail "$entrypoint is not there."; \
+    [ "$(sha256sum "$entrypoint" | cut -d' ' -f1)" = "$entrypoint_sha256" ] || fail "$entrypoint is not the one read at $read_at. Which user runs its pnpm decides which copy this file may delete (THE USER COUPLING): read it, then move entrypoint_sha256."; \
     pm="$(node -p "require('/triggerdotdev/package.json').packageManager")"; \
     [ "$pm" = pnpm@10.33.2 ] || fail "the image names $pm, not pnpm@10.33.2, so corepack keeps pnpm at other paths."; \
     plat="$(node -p 'process.platform + "-" + process.arch')"; \
