@@ -33,24 +33,41 @@ unchanged; #1709's carries it merged, and these records say both ship in alpha.3
   checkout of alpha.2 whose script is today's with alpha.2's NODE_ENV check put back word for
   word (`diff` against the tag's file shows only the uncalled `api_env`), a `deploys.log` whose
   last `took` is alpha.2, the docker stub answering an exec into the api as Docker does on
-  distroless, and the task deploy leaving a tracked file changed. First run: exit 3, those
-  words, the checkout at the tag, one bring-up, one take, `did-not-take`, no write to the
-  database. Run again as the tree is: refused, exit 1, nothing moved. After the put-back: exit 0,
-  `NODE_ENV in the api container: production`, `the deploy took`, a second bring-up and take,
-  `took`. The same case, given alpha.2's own file once, passed the same way.
+  distroless, and the task deploy stripping `apps/worker/package.json`'s last newline. First
+  run: exit 3, ending with did_not_take's five lines word for word, the checkout at the tag, one
+  bring-up, one take, `did-not-take`, no write to the database. Run again as the tree is:
+  refused, exit 1, naming that file, nothing moved. After the procedures' own `git checkout --
+  apps/worker/package.json`, the tree clean: exit 0, `NODE_ENV in the api container:
+  production`, `the deploy took`, a second bring-up and take, `took`. The same case, given
+  alpha.2's own file, passed the same way (again on 2026-10-27, with the five lines).
 - **The procedures say it, word for word**, as the first round of #1709 had: `managed-bring-up.md`
-  gains *The deploy from alpha.2 to alpha.3 runs twice* (the first run's last lines, the second
-  run's commands, and what that run prints), and `release.md` §5, `ending-the-alpha.md` step 5,
-  the operator runbook's *Upgrade* and both CHANGELOG lines carry the step and point at it.
-  `deploy-live.sh`'s `api_env` comment says the same. `an-api-image-with-nothing-to-exec`'s new
-  section 6 holds the five to it: the first run's last line whole and on one line, and the
-  put-back before the second run in the three that spell it out; section 2 reads that one quoted
-  line as output, and the same exec anywhere else, or that line wrapped, as an exec. Fourteen
-  deliberate regressions each turned the two guards red: in the docs, the step gone from the
-  runbook or the CHANGELOG, the quoted line changed, wrapped or missing, the put-back gone or
-  after the second run, the second run gone, the same exec as a command elsewhere, and the
-  runbook not naming alpha.2; in `deploy-live.sh`, `did_not_take` rolling the checkout back,
-  exiting 0, or logging nothing, and the tag's own check back on `printenv`.
+  gains *The deploy from alpha.2 to alpha.3 runs twice* (the first run's last five lines, the
+  second run's commands, and what that run prints), and `release.md` §5, `ending-the-alpha.md`
+  step 5 (with the first run's first three lines), the operator runbook's *Upgrade* and both
+  CHANGELOG lines carry the step and point at it. The second run names `<tag>`, the tag the
+  first run named, so that a deploy of a later tag from alpha.2 is not run a second time to
+  alpha.3. `ending-the-alpha.md` step 6 says its task environment line is in the first run's
+  output: the second finds the stage already deleted and prints none. `deploy-live.sh`'s
+  `api_env` comment says the same. `an-api-image-with-nothing-to-exec`'s new section 6 holds the
+  five to it, in the step that names the deploys: alpha.2 in the words that lead to "runs
+  twice", the decision next to them; in the three that spell it out, the first run's lines as
+  alpha.2's `did_not_take` prints them, the same tag in each, and the put-back before the second
+  run; the pointers to the section by its heading, its anchor and its name; and the CHANGELOG's
+  step above alpha.2's section. Section 2 reads the one quoted failure line as output, and the
+  same exec anywhere else, or that line wrapped, as an exec. Fourteen deliberate regressions
+  each turned the two guards red: in the docs, the step gone from the runbook or the CHANGELOG,
+  the quoted line changed, wrapped or missing, the put-back gone or after the second run, the
+  second run gone, the same exec as a command elsewhere, and the runbook not naming alpha.2; in
+  `deploy-live.sh`, `did_not_take` rolling the checkout back, exiting 0, or logging nothing,
+  and the tag's own check back on `printenv`. The review of that round (2026-10-27) found the
+  check of the step read the whole file, the lines around the failure line and the pointers
+  unheld, and the CHANGELOG's place unchecked; 17 more regressions turned the guard red after
+  the fix (release.md's step not naming alpha.2; a quoted line reworded (the first, the hold
+  line, the log line), dropped (the copy line, the hold line) or given another tag; the failure
+  line wrapped; the heading renamed; each of the four pointers
+  gone; the CHANGELOG's decision gone, or its bullet moved under alpha.2; the put-back after the
+  second run; the second run gone), and three more the two-run case (the copy line reworded, a
+  line after the log line, the stand-in dirtying another file).
 - **Which deploys.** Any tag from alpha.3 on, deployed from a checkout of alpha.2 or earlier,
   and the first deploy forward after a rollback of live to such a tag. A deploy started from
   alpha.3 or later runs once, to any tag.
@@ -290,7 +307,7 @@ after #1687 (T9), which changes the same runtime stage of `apps/api/Dockerfile`,
 - **Left out.** Distroless `nodejs24-debian13` (0/0, Node 24.22.1) for the API alone: no shell
   or `printenv` for seven script sites and four doc lines, Node off `PATH`, no RUN in the
   runtime stage, and no exact version tag to pin beside the digest; a decision of its own after
-  alpha.3. Alpine (0/5): a musl Node, which the tasks' bookworm image cannot take. Chainguard's
+  alpha.3 (since: T13, in alpha.3 with T13a, the owner's decision of 2026-10-26). Alpine (0/5): a musl Node, which the tasks' bookworm image cannot take. Chainguard's
   free `node:latest` is Node 26, a major `engines` and Dependabot's ignore rule refuse. An
   `apt-get upgrade` at build: neither Debian base has an OS finding with a fix today, and it
   would make two builds of one commit differ.
@@ -1271,7 +1288,7 @@ best given with T0.
 | T9 The API image runs without the dev tools | 🔨 **Being built** as a draft on branch `claude/ownpace-public-readiness-y7orc6-api-image-prod-deps`, for after the first invitation (2026-10-23) | Status, 2026-10-23 (the scan triage). `apps/api/Dockerfile`'s runtime stage copies the build stage's whole `/app`, where `pnpm install --filter @openmig/api...` installed the devDependencies too, the root's included, and `CMD` (`node apps/api/src/index.ts`) needs none of them. Their Go binaries are 2 critical and 65 high of the image's 3/125 on 2026-10-23: esbuild 0.25.12 (Go 1.23.12; drizzle-kit's and `@esbuild-kit/esm-loader`'s), counted twice, and TypeScript 7's native compiler (Go 1.26.4). The lockfile itself, dev dependencies included, reads 0/0. Done when the runtime image holds production dependencies only, a dependency it still needs and lacks fails at start, which the managed gate's first `curl $API/health` catches, and the image scan finds the Node base's findings alone. |
 | T10 The image scan reads the tasks' image as it is built | 📋 **Proposed** (2026-10-23) | Status, 2026-10-23 (the scan triage). `scripts/image-scan.mjs` scans the base image the pinned CLI names (`triggerdotdev/node:24-bookworm` by digest, category `trigger-task-base`, 14/117 on 2026-10-23), not the tasks' image that `deploy-tasks.sh` builds from it. The Trigger.dev v4.7.6 branch upgrades that image's Debian packages at build (`apt-get -y upgrade`), which fixes the 42 Debian findings that have a fix (12 critical, all Perl, fixed in 5.36.0-7+deb12u4, and 30 high). It leaves npm's bundled packages under `/usr/local/lib/node_modules/npm`, since the overlay copies only `/usr/local/bin/node` (tar 7.5.15's CVE-2026-59873, critical, fixed in 7.5.19, and 12 high, 11 of them with a fix), and the 76 Debian findings without a fix, zlib1g's CVE-2023-45853 among them: the built image would still carry 2 critical and 87 high of the 131 (read with Trivy 0.76.0, 2026-10-23). The scan cannot see the upgrade, so the category keeps alerts for 42 findings the built image no longer has. The scan runs on a GitHub-hosted runner, which cannot read the stack's own registry, so the proposal is to build the image in the scan job as the deploy builds it. The old category, if renamed, has its configuration deleted by hand (T8). |
 | T11 The patch and minor moves that clear findings | (a) 📋 **Proposed**; (b) ⏳ **Owner**; (c) 📋 **Proposed**, after the Alpha (2026-10-23) | Status, 2026-10-23 (the scan triage), read with Trivy 0.76.0 on linux/amd64. (a) **Mailpit v1.32.0**: 0/0, where v1.31.6 has CVE-2026-111943 (Go's `crypto/x509`); after the first invitation, by hand in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts`, which pins the reference by tag and digest and records Mailpit's release check as read at v1.31.6, so that fact is read again at v1.32.0 in the same change. (b) **Stalwart v0.16.27** (Debian 13.7): 0 critical and 47 high, none with a fix, where v0.16.10 has 3/114. The owner's call: `docs/stalwart-integration-fix.md` pins v0.16.10 and says *"DO NOT change the pinned version"* (AGENTS.md puts its decisions in ADR-0022), and every copy moves together: `setup-stalwart.sh`, the fixture's Dockerfile, the Testcontainers setup, the fix doc and the guards that name it. (c) **ClickHouse 26.3** (26.3.59, Ubuntu 22.04): 0/0, where 26.2.19.43 has CVE-2026-45447 and CVE-2026-84782 in openssl. After the Alpha: the owner accepted 26.2 for it on 2026-10-23 (0119 §3 item 9 on the Trigger.dev v4.7.6 branch), and 26.3 is ahead of the 26.2 Trigger.dev's own compose pins, which the pin watch compares with (T8). It moves in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts` together: the guard pins the reference by tag and digest and records the crash-report default as read at `v26.2.19.43-stable`, as `clickhouse-no-crash-reports.xml`'s comment does, so both are read again at 26.3. |
-| T12 The images' Node base on a named Debian, with no package manager at runtime | 🔨 **Being built** as draft #1708 on branch `claude/ownpace-public-readiness-y7orc6-node-trixie-slim`, for after the alpha.2 tag and #1687 (2026-10-25) | Status, 2026-10-25. The api, selfhost and web images built on `node:24.22.1-slim`, Debian 12.15: 1 critical and 61 high on 2026-10-25. `node:24.22.1-trixie-slim`, Debian 13.7, reads 0/48 with the same Node binary, and 0/43 without npm and corepack, which nothing in the api or selfhost container runs. Done when the three FROM lines name Debian 13 by tag and digest, the two runtime stages carry no package manager, E2E (managed) and E2E (self-hosted) are green on it, and the scan's `-edge` categories read the base's 0/43 (the API's with T9). Distroless `nodejs24-debian13` (0/0) for the API is the next step, after alpha.3, as its own decision. |
+| T12 The images' Node base on a named Debian, with no package manager at runtime | 🔨 **Being built** as draft #1708 on branch `claude/ownpace-public-readiness-y7orc6-node-trixie-slim`, for after the alpha.2 tag and #1687 (2026-10-25) | Status, 2026-10-25. The api, selfhost and web images built on `node:24.22.1-slim`, Debian 12.15: 1 critical and 61 high on 2026-10-25. `node:24.22.1-trixie-slim`, Debian 13.7, reads 0/48 with the same Node binary, and 0/43 without npm and corepack, which nothing in the api or selfhost container runs. Done when the three FROM lines name Debian 13 by tag and digest, the two runtime stages carry no package manager, E2E (managed) and E2E (self-hosted) are green on it, and the scan's `-edge` categories read the base's 0/43 (the API's with T9). Distroless `nodejs24-debian13` (0/0) for the API is T13 (#1709), in alpha.3 with T13a, the owner's decision of 2026-10-26. |
 | T13a The readers first | 🔨 **Being built** as draft #1710 on branch `claude/ownpace-public-readiness-y7orc6-api-readers`, for alpha.3 (2026-10-26) | Status, 2026-10-26. The half of T13 (draft #1709) that works before the switch: the smoke, the managed gate, `deploy-live.sh`, `stand-up-live.sh` and the docs read the api container's variables with `docker container inspect` and run Node there by its path, on the Node image and on distroless alike, and the smoke stops when the API's Node is not the version the tasks get. It ships in alpha.3 with T13, the owner's decision of 2026-10-26: every deploy started from alpha.3 or later runs a `deploy-live.sh` that reads from Docker, and the alpha.2 to alpha.3 live deploy runs twice, its first run alpha.2's script, which asks with `printenv` (Status, 2026-10-26; the procedures say so). Done when E2E (managed) is green on it (the smoke's preflights naming `/usr/local/bin/node v24.22.1`) and live runs alpha.3. |
 | T13 The API's runtime on distroless | 🔨 **Being built** as draft #1709 on branch `claude/ownpace-public-readiness-y7orc6-api-distroless`, after #1708 (T12), #1710 (T13a) and #1687 (T9); alpha.3, with #1710, the owner's decision of 2026-10-26, the alpha.2 to alpha.3 live deploy runs twice | Status, 2026-10-26. The API, the container the internet reaches through `/api`, runs on `gcr.io/distroless/nodejs24-debian13:nonroot` by digest: 0 critical and 0 high on amd64 and arm64, against T12's 0/43, with the same Node binary, and no shell, `printenv` or Node on PATH, and `/app` root's. Every script, workflow and doc that exec'd a shell, `printenv` or a bare `node` into it reads from `docker container inspect` or runs Node by its path instead, on old and new images alike, since T13a (#1710), in the same release. The tasks keep T12's Node line, and the smoke stops when the API's Node is not that line's version. Done when E2E (managed) and E2E (self-hosted) are green on it (the smoke's preflights naming `/nodejs/bin/node v24.22.1`), live runs a tag that carries it (from alpha.2, a deploy run twice, as the procedures say), and the scan's `ownpace-api-edge` reads the distroless base's 0/0 (with T9's `--prod` install). |
 

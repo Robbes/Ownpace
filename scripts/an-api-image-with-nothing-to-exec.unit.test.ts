@@ -72,11 +72,13 @@
  *    else would say that a Node security release reached the build stage and
  *    the tasks but not the API. Run here against a stub docker.
  * 6. Every procedure that deploys live says the deploy from alpha.2 or earlier
- *    to alpha.3 or later runs twice: the first run's last words, word for word
- *    as alpha.2's script prints them, and the two commands of the second
- *    (`a-deploy-from-a-named-tag` runs both runs). Those last words name the
- *    old exec, as output; section 2 reads that one line as output and nothing
- *    else.
+ *    to alpha.3 or later runs twice, in the step that names those deploys:
+ *    the first run's failure line and the lines around it, word for word as
+ *    alpha.2's script prints them, and the two commands of the second
+ *    (`a-deploy-from-a-named-tag` runs both runs). The pointers to the full
+ *    section are held together, and the CHANGELOG's step above alpha.2's
+ *    section. The failure line names the old exec, as output; section 2
+ *    reads that one line as output and nothing else.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -303,11 +305,27 @@ function apiVariables(text: string): Set<string> {
 type Exec = { file: string; how: 'exec' | 'run'; line: string; program: string | undefined };
 
 /**
- * The last words of the first run of the deploy from alpha.2 or earlier (6):
+ * The first run's failure line, of the deploy from alpha.2 or earlier (6):
  * what alpha.2's `deploy-live.sh` prints when the distroless API cannot be
  * asked with `printenv`. The procedures quote it so that the owner expects it.
  */
 const ALPHA2_SAYS = 'NODE_ENV: the api container could not be asked (docker compose exec -T api printenv NODE_ENV).';
+
+/**
+ * The lines of alpha.2's `did_not_take` (`main` at f62bcbe2, the release
+ * commit: its printf strings and `log_deploy`'s `say`), with the tag filled
+ * in, as that first run prints them, in order. They do not change: alpha.2's
+ * script is the one that runs. `a-deploy-from-a-named-tag` runs them.
+ */
+function alpha2DidNotTake(tag: string, home: string): string[] {
+  return [
+    `[deploy-live] the deploy did not take: ${tag} is checked out, and`,
+    `    ${ALPHA2_SAYS}`,
+    `[deploy-live] The hold stays on. Nothing was lifted. Fix the cause and run this again with ${tag}, or name another tag; the next deploy is compared with ${tag} too.`,
+    '[deploy-live] The copy before this update is kept (copy-before-update.sh): it is of what ran before, and the next deploy keeps it too, until its last day, when only the rollback, a deploy of the release it holds, may go. Not proven by day 6: roll back from it (docs/operator-runbook.md, The copy before an update, which starts with copy-before-update.sh since).',
+    `[deploy-live] Logged as did-not-take in ${home}/.persistent/ownpace-live/deploys.log.`,
+  ];
+}
 
 /**
  * Every `docker exec`, `docker compose … exec` and `docker compose … run` into
@@ -686,39 +704,77 @@ describe('every live-deploy procedure says the deploy from alpha.2 or earlier ru
   /** The second run, as a line to type: the same tag, alpha.3's or the placeholder the step uses. */
   const SECOND_RUN = /^\s*\.\/deploy\/compose\/deploy-live\.sh (?:v0\.2\.0-alpha\.3|<tag>)(?=\s|$)/m;
   const PUT_BACK = 'git checkout -- apps/worker/package.json';
+  /** The full section, by its heading: what the others point at. */
+  const SECTION = 'The deploy from alpha.2 to alpha.3 runs twice';
+  const flat = (s: string) => s.replace(/\s+/g, ' ');
+  const literal = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  /**
+   * The first `lines` of alpha.2's did_not_take as a doc quotes them in a
+   * block: every line at the block's indent (the failure line four further in,
+   * as printed), whole and on one line, `<home>` for the home directory.
+   */
+  const quoted = (tag: string, lines: number) =>
+    new RegExp(`^( *)${alpha2DidNotTake(tag, '<home>').slice(0, lines).map(literal).join('\\n\\1')}\\n`, 'm');
+
   it.each([
-    // file, quotes the first run's last line and types the second run
-    ['docs/managed-bring-up.md', true],
-    ['docs/release.md', true],
-    ['docs/ending-the-alpha.md', true],
-    ['docs/operator-runbook.md', false],
-    ['CHANGELOG.md', false],
-  ])('%s', (file, spellsItOut) => {
+    // file, how many of the first run's lines it quotes, and then types the second run (0: neither)
+    ['docs/managed-bring-up.md', 5],
+    ['docs/release.md', 3],
+    ['docs/ending-the-alpha.md', 3],
+    ['docs/operator-runbook.md', 0],
+    ['CHANGELOG.md', 0],
+  ])('%s', (file, quotes) => {
     const text = read(file);
     const at = text.search(TWICE);
     expect(at, `${file}: the two-run step`).toBeGreaterThanOrEqual(0);
+    // The step names the deploys it is for in the words that lead to "runs
+    // twice", and says the rest close by: the same words elsewhere in the file
+    // are not this step's.
+    expect(flat(text.slice(Math.max(0, at - 200), at)), `${file}: the step names the deploys it is for`).toMatch(/\balpha\.2\b/);
+    expect(flat(text.slice(at, at + 200)), `${file}: whose decision, next to it`).toMatch(/the owner's decision of 2026-10-26/i);
+    // A step told in one bullet (the runbook, the CHANGELOG) ends with it.
+    const ends = ['\n- ', '\n\n'].map((s) => text.indexOf(s, at)).filter((i) => i >= 0);
+    const near = flat(text.slice(Math.max(0, at - 200), quotes > 0 ? at + 1500 : Math.min(...ends, text.length)));
+    expect(near, `${file}: which deploys`).toContain('v0.2.0-alpha.2');
+    expect(near, `${file}: the first run's failure line`).toContain('NODE_ENV: the api container could not be asked');
     // What the step says, from where it starts: a deploy step before it is not its second run.
     const step = text.slice(at);
-    const flat = text.replace(/\s+/g, ' ');
-    expect(flat, `${file}: which deploys`).toContain('v0.2.0-alpha.2');
-    expect(flat, file).toMatch(/the owner's decision of 2026-10-26/i);
-    expect(flat, `${file}: the first run's words`).toContain('NODE_ENV: the api container could not be asked');
-    expect(step.replace(/\s+/g, ' '), `${file}: the clean tree the second run needs`).toContain(PUT_BACK);
-    if (spellsItOut) {
-      // Whole, on one line, as the script prints it (and as section 2 reads it).
-      expect(step, `${file}: the first run's last line, word for word`).toContain(`    ${ALPHA2_SAYS}\n`);
+    expect(flat(step), `${file}: the clean tree the second run needs`).toContain(PUT_BACK);
+    if (file === 'CHANGELOG.md') {
+      // In the release that carries T13, never in alpha.2's section or an older
+      // one, where a merge into main can move a branch's bullets unseen.
+      const released = text.indexOf('\n## [0.2.0-alpha.2]');
+      expect(released, "CHANGELOG.md: alpha.2's section").toBeGreaterThan(0);
+      expect(at, "CHANGELOG.md: the step above alpha.2's section").toBeLessThan(released);
+    }
+    if (quotes > 0) {
+      // As the first run prints them, the same tag in every line: alpha.3's,
+      // or the placeholder the step uses.
+      const frame = ['v0.2.0-alpha.3', '<tag>'].map((tag) => quoted(tag, quotes).exec(step)).find((m) => m !== null);
+      expect(frame, `${file}: the first run's ${quotes} lines, word for word`).toBeTruthy();
       const second = step.search(SECOND_RUN);
       expect(second, `${file}: the second run, a line to type`).toBeGreaterThanOrEqual(0);
       const putBack = step.indexOf(PUT_BACK);
       expect(putBack, `${file}: put back before the second run`).toBeGreaterThanOrEqual(0);
       expect(putBack, `${file}: put back before the second run`).toBeLessThan(second);
-      expect(step.indexOf(ALPHA2_SAYS), `${file}: the first run's words before the second run`).toBeLessThan(second);
+      expect(frame!.index, `${file}: the first run's words before the second run`).toBeLessThan(second);
+    }
+  });
+
+  it('the full section is where the others point, by its anchor and by its name', () => {
+    expect(read('docs/managed-bring-up.md').split('\n'), 'docs/managed-bring-up.md: the heading').toContain(`#### ${SECTION}`);
+    // GitHub's anchor for it: lower case, punctuation but '-' dropped, spaces to '-'.
+    const anchor = SECTION.toLowerCase().replace(/[^a-z0-9 -]/g, '').replace(/ /g, '-');
+    expect(read('docs/release.md'), 'docs/release.md: the link').toContain(`(./managed-bring-up.md#${anchor})`);
+    for (const file of ['docs/ending-the-alpha.md', 'docs/operator-runbook.md', 'CHANGELOG.md', 'deploy/compose/deploy-live.sh']) {
+      // Comment markers dropped, as the shell script names it in a comment.
+      expect(flat(read(file).replace(/^[ \t]*#+ ?/gm, '')), `${file}: names the section`).toContain(SECTION);
     }
   });
 
   it('section 2 reads the quoted line as output, and the same exec anywhere else as an exec', () => {
     const doc = (body: string) => execsIn('docs/x.md', body.replaceAll(ALPHA2_SAYS, '')).map((e) => [e.program, refusal(e)]);
-    expect(doc(`It ends with:\n\n\`\`\`text\n    ${ALPHA2_SAYS}\n\`\`\`\n`)).toEqual([]);
+    expect(doc(`It prints:\n\n\`\`\`text\n    ${ALPHA2_SAYS}\n\`\`\`\n`)).toEqual([]);
     expect(doc('Ask it: `docker compose exec -T api printenv NODE_ENV`.\n')).toEqual([['printenv', expect.stringMatching(/printenv/)]]);
     // Wrapped, it is no longer the line the script prints, and is read as the exec it names.
     expect(doc(ALPHA2_SAYS.replace('exec -T', 'exec\n-T'))).toEqual([['printenv', expect.stringMatching(/printenv/)]]);

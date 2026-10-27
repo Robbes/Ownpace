@@ -29,7 +29,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   path (T13a, #1710, in this release too). **The live deploy from
   `v0.2.0-alpha.2` or earlier to this release runs `deploy-live.sh` twice**
   (the owner's decision of 2026-10-26). The first run is the older
-  checkout's script, which asks with `printenv` and ends `NODE_ENV: the api
+  checkout's script, which asks with `printenv` and says `NODE_ENV: the api
   container could not be asked`, exit 3, though live has moved to the tag
   and nothing was rolled back. Then `git checkout --
   apps/worker/package.json` and the same `./deploy/compose/deploy-live.sh

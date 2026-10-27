@@ -4566,33 +4566,41 @@ checkout of `v0.2.0-alpha.2` or an earlier tag (`git describe --tags` in
 `~/ownpace-live` names it) runs that older script, and it asks the api
 container its `NODE_ENV` by running `printenv` in it. Every other check
 answers, `/api/version` and `/version.json` naming the new tag's commit and
-version: the stack has moved. Then it ends with this, and exits 3:
+version: the stack has moved. Then it prints these, its last lines, and exits
+3 (`<home>` is your home directory, written out):
 
 ```text
 [deploy-live] the deploy did not take: v0.2.0-alpha.3 is checked out, and
     NODE_ENV: the api container could not be asked (docker compose exec -T api printenv NODE_ENV).
 [deploy-live] The hold stays on. Nothing was lifted. Fix the cause and run this again with v0.2.0-alpha.3, or name another tag; the next deploy is compared with v0.2.0-alpha.3 too.
+[deploy-live] The copy before this update is kept (copy-before-update.sh): it is of what ran before, and the next deploy keeps it too, until its last day, when only the rollback, a deploy of the release it holds, may go. Not proven by day 6: roll back from it (docs/operator-runbook.md, The copy before an update, which starts with copy-before-update.sh since).
+[deploy-live] Logged as did-not-take in <home>/.persistent/ownpace-live/deploys.log.
 ```
 
 That run is expected, and it rolled nothing back: the checkout is at the tag
 and the stack runs it, the hold is still on, the copy before the update is
 kept, and `deploys.log` has a `did-not-take` line for the tag. When that
 `NODE_ENV` line is the only one under *the deploy did not take*, run it a
-second time, from `~/ownpace-live`, the hold still on:
+second time, from `~/ownpace-live`, the hold still on, naming the tag the first
+run named:
 
 ```bash
 git status --short                          # apps/worker/package.json, if anything: the task deploy strips its last newline
 git checkout -- apps/worker/package.json    # the second run refuses a tree that is not clean
-./deploy/compose/deploy-live.sh v0.2.0-alpha.3
+./deploy/compose/deploy-live.sh <tag>       # the same tag the first run named: v0.2.0-alpha.3 for the alpha.2 to alpha.3 deploy
 ```
 
 The checkout is at the tag now, so the tag's own script runs, and it reads
 `NODE_ENV` from Docker. It keeps the copy the first run took (*a copy is here
 already … It is the copy of what ran before, so it is kept, and no second copy
-is taken*), runs the bring-up again over a stack already at the tag, prints
-`NODE_ENV in the api container: production`, and ends with `the deploy took:
-v0.2.0-alpha.3 (<commit>) runs, and answered every check.`, exit 0, and a
-`took` line in `deploys.log`. Then step 5 as usual. With any other line under
+is taken*), runs the bring-up again over a stack already at the tag, and says
+`NODE_ENV in the api container: production` and `the deploy took:
+v0.2.0-alpha.3 (<commit>) runs, and answered every check.`, then what it says
+after every deploy that took, and exits 0, with a `took` line in
+`deploys.log`. The task environment lines are the first run's: `set-task-env.sh`
+says `[set-task-env] deleted OWNPACE_STAGE: …` only when it deletes the stage,
+and the second run finds it gone and says nothing (`ending-the-alpha.md`
+step 6 reads the first run's). Then step 5 as usual. With any other line under
 *the deploy did not take*, the first run failed for that reason too: *If a
 check fails*, below.
 

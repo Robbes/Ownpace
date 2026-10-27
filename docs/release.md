@@ -313,8 +313,9 @@ in [managed-bring-up.md](./managed-bring-up.md#updating-a-running-deployment),
       later) runs twice** (workplan 0146 T13, the owner's decision of
       2026-10-26). The first run is alpha.2's script, the copy the checkout had
       before it moved, and it asks the api container with `printenv`, which
-      the distroless API has not got. Live moves to the tag, and that run ends
-      with this, exit 3:
+      the distroless API has not got. Live moves to the tag, and that run
+      prints this, then that the copy before this update is kept and that
+      the deploy is logged as `did-not-take`, and exits 3:
 
       ```text
       [deploy-live] the deploy did not take: v0.2.0-alpha.3 is checked out, and
@@ -323,13 +324,13 @@ in [managed-bring-up.md](./managed-bring-up.md#updating-a-running-deployment),
       ```
 
       When that `NODE_ENV` line is the only one under it, run it again, the
-      hold still on; the tag's own script reads `NODE_ENV` from Docker and says
-      the deploy took
+      hold still on, naming the tag the first run named; the tag's own script
+      reads `NODE_ENV` from Docker and says the deploy took
       ([managed-bring-up.md](./managed-bring-up.md#the-deploy-from-alpha2-to-alpha3-runs-twice)):
 
       ```bash
       git checkout -- apps/worker/package.json    # the task deploy strips its last newline; the second run refuses a tree that is not clean
-      ./deploy/compose/deploy-live.sh v0.2.0-alpha.3
+      ./deploy/compose/deploy-live.sh <tag>       # the same tag the first run named: v0.2.0-alpha.3 for the alpha.2 to alpha.3 deploy
       ```
 - [ ] Read whether it called the deploy one-way or reversible before lifting
       the hold, which you do yourself. During the alpha a bad deploy is fixed

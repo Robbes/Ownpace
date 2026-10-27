@@ -424,8 +424,15 @@ exit "\${STUB_PNPM_EXIT:-0}"
 /** The bring-up, as a stand-in committed beside the script: what it was asked, and at which commit. */
 const BOOTSTRAP_STUB = `#!/usr/bin/env bash
 printf 'bootstrap %s head=%s\\n' "$*" "$(git -C "$(dirname "$0")/../.." rev-parse HEAD)" >>"$STUB_LOG"
-# A tracked file changed, as the task deploy changes apps/worker/package.json.
-[ -z "\${STUB_BOOTSTRAP_DIRTIES:-}" ] || printf 'changed by the deploy\\n' >>"$(dirname "$0")/../../RELEASE"
+# A tracked file changed: apps/worker/package.json without its last newline,
+# as the task deploy leaves it on live, when told that file; RELEASE otherwise.
+case "\${STUB_BOOTSTRAP_DIRTIES:-}" in
+  '') ;;
+  apps/worker/package.json)
+    f="$(dirname "$0")/../../apps/worker/package.json"
+    printf '%s' "$(cat "$f")" >"$f.stripped" && mv "$f.stripped" "$f" ;;
+  *) printf 'changed by the deploy\\n' >>"$(dirname "$0")/../../RELEASE" ;;
+esac
 # The deploy log's directory made a file while the deploy runs, so that the
 # line at the end cannot be written, whoever runs this.
 if [ -n "\${STUB_BREAK_LOG_DIR:-}" ]; then
@@ -656,6 +663,9 @@ function stage(opts: StageOptions = {}): Stage {
   // stand-ins. site/dist is ignored, as the repository's .gitignore has it.
   writeFileSync(join(work, '.gitignore'), '.env\nsite/dist/\n');
   writeFileSync(join(work, 'package.json'), packageJson(RUNNING.version));
+  // The file the task deploy changes on live (STUB_BOOTSTRAP_DIRTIES).
+  mkdirSync(join(work, 'apps', 'worker'), { recursive: true });
+  writeFileSync(join(work, 'apps', 'worker', 'package.json'), `${JSON.stringify({ name: '@ownpace/worker', private: true }, null, 2)}\n`);
   mkdirSync(compose, { recursive: true });
   for (const f of [SCRIPT, 'env-read.sh', 'stack-kind.sh', 'own-addresses.sh', 'www-live.sh', 'release-tag.sh']) {
     // A helper the script does not source yet is simply not there.
@@ -1563,8 +1573,25 @@ const PRINTENV_CHECK = `  local node_env
   fi
 `;
 
-/** The line that check ends a deploy of the distroless API with: the one the procedures quote. */
+/** The line that check fails a deploy of the distroless API with: the one the procedures quote. */
 const PRINTENV_FAILURE = 'NODE_ENV: the api container could not be asked (docker compose exec -T api printenv NODE_ENV).';
+
+/**
+ * What alpha.2's `did_not_take` prints last, the tag and the home directory
+ * filled in: its printf strings and `log_deploy`'s line, word for word as
+ * `main` at f62bcbe2 (the release commit) has them. The procedures quote
+ * them; `an-api-image-with-nothing-to-exec` (section 6) holds them to the same
+ * words.
+ */
+function alpha2DidNotTake(tag: string, home: string): string[] {
+  return [
+    `[deploy-live] the deploy did not take: ${tag} is checked out, and`,
+    `    ${PRINTENV_FAILURE}`,
+    `[deploy-live] The hold stays on. Nothing was lifted. Fix the cause and run this again with ${tag}, or name another tag; the next deploy is compared with ${tag} too.`,
+    '[deploy-live] The copy before this update is kept (copy-before-update.sh): it is of what ran before, and the next deploy keeps it too, until its last day, when only the rollback, a deploy of the release it holds, may go. Not proven by day 6: roll back from it (docs/operator-runbook.md, The copy before an update, which starts with copy-before-update.sh since).',
+    `[deploy-live] Logged as did-not-take in ${home}/.persistent/ownpace-live/deploys.log.`,
+  ];
+}
 
 /**
  * deploy-live.sh as a tag before T13a carries it: today's, with its NODE_ENV
@@ -1573,7 +1600,7 @@ const PRINTENV_FAILURE = 'NODE_ENV: the api container could not be asked (docker
  * nothing then calls; checked against the tag's own file on 2026-10-26, and
  * this case passed the same way on it). Should the script's own words change
  * later, this case goes red: the procedures still quote alpha.2's, which do
- * not change, so keep PRINTENV_FAILURE and the frame around it as they are.
+ * not change, so keep PRINTENV_FAILURE and alpha2DidNotTake as they are.
  */
 function scriptBeforeT13a(): string {
   const now = readFileSync(join(COMPOSE_DIR, SCRIPT), 'utf8');
@@ -1609,18 +1636,17 @@ describe("from a checkout before T13a to a tag with the distroless API, the depl
       writeFileSync(s.deployLog, `2026-10-27T10:00:00Z\t${ALPHA2.tag}\t${s.commit[ALPHA2.tag]}\ttook\treversible\n`);
       const outcomes = () => deployLines(s).map((l) => l.split('\t').slice(1, 5).join(' '));
 
-      // The first run, alpha.2's script. The task deploy leaves a tracked file
-      // changed, as it strips apps/worker/package.json's last newline on live.
-      const first = run(s, [ALPHA3.tag], { STUB_BOOTSTRAP_DIRTIES: '1' });
+      // The first run, alpha.2's script. The task deploy strips
+      // apps/worker/package.json's last newline, as it does on live.
+      const first = run(s, [ALPHA3.tag], { STUB_BOOTSTRAP_DIRTIES: 'apps/worker/package.json' });
       expect(first.status, first.out).toBe(3);
       // Every other check answered: the stack runs the tag.
       expect(first.out).toContain(`/api/version: ${commit}, ${ALPHA3.version}`);
       expect(first.out).toContain(`/version.json: ${commit}, ${ALPHA3.version}`);
-      // The only failure is the question the image cannot answer, word for
-      // word as the procedures quote it.
-      expect(first.out).toContain(
-        `[deploy-live] the deploy did not take: ${ALPHA3.tag} is checked out, and\n    ${PRINTENV_FAILURE}\n[deploy-live] The hold stays on. Nothing was lifted.`,
-      );
+      // The only failure is the question the image cannot answer, and these
+      // are the run's last lines, word for word as the procedures quote them
+      // (the home directory is where the docs write <home>).
+      expect(first.out.endsWith(`${alpha2DidNotTake(ALPHA3.tag, s.root).join('\n')}\n`), first.out).toBe(true);
       expect(called(s, 'docker').filter((l) => / exec -T api /.test(l))).toHaveLength(1);
       // Nothing rolled back: the checkout at the tag, brought up once, the
       // hold not lifted, a copy taken before the checkout, and logged.
@@ -1634,12 +1660,15 @@ describe("from a checkout before T13a to a tag with the distroless API, the depl
       // file the procedures put back first.
       const dirty = run(s, [ALPHA3.tag]);
       expect(dirty.status, dirty.out).toBe(1);
+      expect(dirty.out).toContain(' M apps/worker/package.json');
       expect(dirty.out).toContain('git checkout -- apps/worker/package.json');
       expect(called(s, 'bootstrap')).toHaveLength(1);
 
-      // Put back what the task deploy changed, then the second run: the
-      // checkout is at the tag, so the tag's script runs, and reads from Docker.
-      git(s.root, s.work, 'checkout', '--', 'RELEASE');
+      // Put back what the task deploy changed, by the procedures' own command,
+      // and the tree is clean; then the second run: the checkout is at the
+      // tag, so the tag's script runs, and reads from Docker.
+      git(s.root, s.work, 'checkout', '--', 'apps/worker/package.json');
+      expect(git(s.root, s.work, 'status', '--porcelain', '--untracked-files=normal')).toBe('');
       const second = run(s, [ALPHA3.tag]);
       expect(second.status, second.out).toBe(0);
       expect(second.out).toContain('NODE_ENV in the api container: production');

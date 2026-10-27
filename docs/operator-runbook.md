@@ -910,7 +910,7 @@ remedy.
   `docs/managed-bring-up.md`, *Updating a running deployment*, and `docs/release.md` §5. Never
   `git pull` there. **The deploy from `v0.2.0-alpha.2` or earlier to `v0.2.0-alpha.3` or later
   runs twice** (workplan 0146 T13, the owner's decision of 2026-10-26): the first run is the older
-  checkout's script, which ends `NODE_ENV: the api container could not be asked` and exits 3,
+  checkout's script, which says `NODE_ENV: the api container could not be asked` and exits 3,
   though live has moved to the tag; then `git checkout -- apps/worker/package.json` and the same
   `deploy-live.sh <tag>` again, which says it took. The bring-up's section *The deploy from
   alpha.2 to alpha.3 runs twice* has the exact lines. The tag is cut by the Release workflow
