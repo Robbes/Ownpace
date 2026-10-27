@@ -83,7 +83,7 @@ ARG VITE_SUPPORT_EMAIL=
 ENV VITE_SUPPORT_EMAIL=$VITE_SUPPORT_EMAIL
 RUN pnpm --filter @openmig/web build
 
-# nginx's -alpine-slim (workplan 0146 T12): the same nginx package on the same
+# nginx's -alpine-slim (workplan 0146 T12a): the same nginx package on the same
 # base layers as -alpine, without the dynamic modules -alpine adds (njs, xslt,
 # geoip, image-filter, acme) or curl, none of which nginx.conf.template loads.
 # envsubst and the entrypoint's template step are in slim; the health check

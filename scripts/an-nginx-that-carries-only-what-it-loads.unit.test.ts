@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * AN NGINX THAT CARRIES ONLY WHAT IT LOADS (workplan 0146 T12).
+ * AN NGINX THAT CARRIES ONLY WHAT IT LOADS (workplan 0146 T12a).
  *
  * The web image's runtime (`apps/web/Dockerfile`) and the public site
  * (`deploy/compose/www.yml`) ran `nginx:<version>-alpine` until 2026-10-25.

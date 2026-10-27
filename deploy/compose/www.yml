@@ -127,7 +127,7 @@ services:
   www:
     # The web image's nginx, by tag and digest (2026-10-23): Dependabot moves
     # apps/web/Dockerfile's, and the pin watch says when this one differs.
-    # -alpine-slim since 2026-10-25 (workplan 0146 T12): the same nginx package
+    # -alpine-slim since 2026-10-25 (workplan 0146 T12a): the same nginx package
     # on the same base layers as -alpine, without the modules and tools
     # -alpine adds (njs, xslt, geoip, image-filter, acme, curl), which
     # www-nginx.conf never loads. 1.31.8-alpine read 0 critical and 1 high

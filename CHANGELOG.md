@@ -20,7 +20,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   off, upstream's mitigation for CVE-2026-115560. `db-roles.sh` runs the
   postgres client `managed.yml` pins.
 - **The web image and the public site run nginx 1.31.8-alpine-slim** (workplan
-  0146 T12): the same nginx on the same base, without the modules and tools
+  0146 T12a): the same nginx on the same base, without the modules and tools
   the `-alpine` image adds and nothing here loads, 51 packages in all. The
   image scan reads 0 critical and 0 high where `-alpine` reads 1 high
   (brotli-libs, CVE-2026-111497). The site's nginx moves when `www.yml` is
