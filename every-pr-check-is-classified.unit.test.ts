@@ -62,6 +62,15 @@ const NOT_REQUIRABLE = new Map([
     'images.yml carries a `paths:` filter on its pull_request trigger, so on a PR ' +
       'touching none of those paths the workflow never runs and the context is never reported.',
   ],
+  // nextcloud-second-major.yml (workplan 0119, Status of 2026-10-25). It runs on
+  // a pull request only when that pull request changes how it runs, so most
+  // never see it.
+  [
+    'DAV suites on the second Nextcloud major',
+    'nextcloud-second-major.yml carries a `paths:` filter on its pull_request trigger (the leg ' +
+      'itself, the integration setup, the suite finder), so on any other PR it is never reported; ' +
+      'a red run is a finding about the other major, for the owner, not a merge gate.',
+  ],
   // security-scan.yml's image jobs (0146 T8, scan half). Their `if:` runs them on
   // schedule and workflow_dispatch only, so a pull request reports them skipped,
   // the matrix job under its unexpanded name. The scan is report-only by design:

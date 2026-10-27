@@ -33,6 +33,8 @@ export interface ImageReport {
   critical: number;
   high: number;
   fixable: number;
+  /** Each critical finding: its id, package, versions, and where it sits. */
+  criticals: Array<{ id: string; pkg: string; installed: string; fixed: string; where: string }>;
 }
 
 export interface Summary {
