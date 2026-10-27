@@ -322,7 +322,8 @@ services:
     # BUILT HERE, FROM UPSTREAM'S IMAGE WITH FILES DELETED THAT NEVER RUN
     # (workplan 0146 T16, the owner's "Both" of 2026-10-26):
     # deploy/compose/trigger.dev/Dockerfile, whose FROM is the pin, by tag and
-    # digest, takes out the depot and esbuild binaries and node's copy of pnpm,
+    # digest, takes out the depot and esbuild binaries, node's copy of pnpm and
+    # the tar in root's (only pnpm's node-gyp needs it; the owner, 2026-10-27),
     # and says why nothing here runs them. The name is the version (the .env's
     # TRIGGER_IMAGE_TAG, or the default) and the hash of that file's
     # instructions; the build argument only refuses a .env naming another
@@ -331,7 +332,7 @@ services:
     # why). `user: root` decides which copy of pnpm the entrypoint runs, and so
     # which one the Dockerfile may delete:
     # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
-    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.1}-bf7d26468b64
+    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.1}-38e6d59739c6
     build:
       context: ./trigger.dev
       args:
@@ -632,9 +633,10 @@ services:
   # was before 0018: bootstrap env vars with no consumer.
   trigger-supervisor:
     # Built here as trigger-api is (deploy/compose/supervisor/Dockerfile):
-    # upstream's image without root's copy of pnpm. No `user:`, so it runs as
-    # the image's node, whose copy its CMD runs and the Dockerfile keeps.
-    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.1}-01dbd3d86e94
+    # upstream's image without root's copy of pnpm, and without the tar in
+    # node's. No `user:`, so it runs as the image's node, whose copy its CMD
+    # runs and the Dockerfile keeps.
+    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.1}-072042d10128
     build:
       context: ./supervisor
       args:

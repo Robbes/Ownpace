@@ -1,21 +1,23 @@
 # Trigger.dev's webapp as upstream publishes it, by tag and index digest, with
 # files deleted that no process of this stack ever runs (workplan 0146 T16; the
-# owner's decision of 2026-10-26, "Both": an issue upstream, and this build
-# until upstream ships the fixes).
+# owner's decisions of 2026-10-26, "Both": an issue upstream, and this build
+# until upstream ships the fixes, and of 2026-10-27: tar out of the copy of
+# pnpm that runs, too).
 #
 # WHY. Trivy 0.76.1 read 8 critical findings in
-# ghcr.io/triggerdotdev/trigger.dev:v4.8.1 (linux/arm64, 2026-10-26). Five are
+# ghcr.io/triggerdotdev/trigger.dev:v4.8.1 (linux/arm64, 2026-10-26). Six are
 # in files nothing here runs:
 #   - @depot/cli 0.0.1-cli.2.80.0's Go binary, `depot`: CVE-2024-41110 (docker
 #     v24.0.9), CVE-2026-33186 (grpc v1.59.0) and CVE-2025-68121 (Go 1.21.13's
 #     standard library);
 #   - esbuild 0.23.0's Go binary: CVE-2025-68121 (Go 1.22.4);
 #   - tar 7.5.13 (CVE-2026-59873) in the copy of pnpm 10.33.2 that corepack
-#     keeps for the user node.
-# Three stay: zlib1g (CVE-2023-45853, no fix in Debian), dompurify 3.4.13
-# (GHSA-cg2g-xh64-v4q7, which mermaid loads, and the dashboard may run), and
-# tar 7.5.13 in root's copy of pnpm, the one every pnpm of the entrypoint runs
-# here (below). So 8 become 3. The binaries are the same Go builds on amd64.
+#     keeps for the user node, which goes whole;
+#   - the same tar in root's copy of pnpm, the one every pnpm of the
+#     entrypoint runs here (below), which stays without it.
+# Two stay: zlib1g (CVE-2023-45853, no fix in Debian) and dompurify 3.4.13
+# (GHSA-cg2g-xh64-v4q7, which mermaid loads, and the dashboard may run). So 8
+# become 2. The binaries are the same Go builds on amd64.
 #
 # WHAT GOES, AND WHY NOTHING RUNS IT. Read in upstream's source at v4.8.1 and in
 # the published packages, whose sha512 is the one pnpm-lock.yaml names:
@@ -49,6 +51,23 @@
 #     (Node 24.22.1's) finds the copy under $HOME/.cache/node/corepack
 #     (getCorepackHomeFolder) and reuses it by its .corepack file alone
 #     (installVersion), never fetching it again while that file is there.
+#   - tar inside root's copy, the one that runs:
+#     /root/.cache/node/corepack/v1/pnpm/10.33.2/dist/node_modules/tar. Asked
+#     with the risk stated, the owner chose on 2026-10-27 to remove it too.
+#     In pnpm 10.33.2's dist the one require('tar') is the bundled node-gyp's
+#     lib/install.js, which downloads and unpacks Node's headers for a native
+#     build; pnpm.cjs and worker.js name no tar (they bundle tar-stream).
+#     node-gyp runs only when a package script calls it (pnpm puts
+#     dist/node-gyp-bin on a script's PATH, and resolves node-gyp's path in a
+#     try) or an install builds a native add-on. The entrypoint's pnpm runs
+#     three migration scripts (`prisma migrate deploy`, `node
+#     scripts/migrate.mjs deploy`, `node migrate.mjs`) and installs nothing.
+#     Corepack checks no file of the copy but .corepack, so it runs the copy
+#     as it is, never fetching it again. The one risk, accepted: a `pnpm
+#     install` inside this container that builds a native add-on would fail.
+#     The build checks node-gyp's install.js is still the one file that
+#     requires tar, and proves as root that pnpm runs a command in
+#     @trigger.dev/database's package offline, as the migrations do.
 #
 # TWO NAMES FOR EACH BINARY. The postinstall of each package (install.js,
 # maybeOptimizePackage) hard-links its platform package's binary over its own
@@ -156,6 +175,7 @@ RUN set -eu; \
     esbuild_link="$s/esbuild@0.23.0/node_modules/esbuild/bin/esbuild"; \
     unused=/home/node/.cache/node/corepack/v1/pnpm/10.33.2; \
     kept=/root/.cache/node/corepack/v1/pnpm/10.33.2; \
+    kept_tar="$kept/dist/node_modules/tar"; \
     for f in "$depot_bin" "$depot_link" "$esbuild_bin" "$esbuild_link"; do \
       [ -f "$f" ] || fail "$f is not there."; \
       magic="$(head -c4 "$f" | od -An -tx1 | tr -d ' \n')"; \
@@ -165,15 +185,20 @@ RUN set -eu; \
     [ -f "$unused/.corepack" ] || fail "$unused/.corepack is not there: node's copy of pnpm is not where it was."; \
     [ -d "$unused/dist/node_modules/tar" ] || fail "$unused/dist/node_modules/tar is not there: node's copy of pnpm no longer carries tar."; \
     [ -f "$kept/.corepack" ] || fail "$kept/.corepack is not there: root's copy of pnpm, which trigger-api runs, is not where it was."; \
+    [ -d "$kept_tar" ] || fail "$kept_tar is not there: root's copy of pnpm no longer carries tar where pnpm 10.33.2 did."; \
+    users="$(find "$kept/dist" -path "$kept_tar" -prune -o -type f -exec sh -c 'for f; do ! grep -qE "(require\(|from ).tar[^a-z_-]" "$f" || echo "$f"; done' sh {} +)"; \
+    [ "$users" = "$kept/dist/node_modules/node-gyp/lib/install.js" ] || fail "in $kept/dist, tar is required by: ${users:-nothing}, not by node-gyp's lib/install.js alone, which the removal of $kept_tar was read for."; \
     rm "$depot_bin" "$depot_link" "$esbuild_bin" "$esbuild_link"; \
-    rm -r "$unused"; \
+    rm -r "$unused" "$kept_tar"; \
     left="$(find "$s" -type f \( -name depot -o -name esbuild \) -exec sh -c 'for f; do [ "$(head -c4 "$f" | od -An -tx1 | tr -d " \n")" != 7f454c46 ] || echo "$f"; done' sh {} +)"; \
     [ -z "$left" ] || fail "a depot or esbuild binary is still there: $left"; \
     [ ! -e "$unused" ] || fail "$unused is still there."; \
+    [ ! -e "$kept_tar" ] || fail "$kept_tar is still there."; \
     [ -f "$kept/.corepack" ] || fail "$kept/.corepack went with the removal."; \
     node -e "require('$s/@depot+cli@0.0.1-cli.2.80.0/node_modules/@depot/cli'); require('$s/esbuild@0.23.0/node_modules/esbuild')" || fail "@depot/cli or esbuild no longer loads without its binary."; \
     [ "$(cd /triggerdotdev && COREPACK_ENABLE_NETWORK=0 pnpm --version)" = 10.33.2 ] || fail "as root, the user trigger-api runs as, pnpm does not start offline."; \
-    echo "$me: removed both names of depot and esbuild, and node's copy of pnpm; as root, pnpm 10.33.2 starts offline."
+    (cd /triggerdotdev && COREPACK_ENABLE_NETWORK=0 pnpm --fail-if-no-match --filter @trigger.dev/database exec node -e 0) || fail "as root, pnpm without tar does not run a command in @trigger.dev/database offline, as the entrypoint's migrations need."; \
+    echo "$me: removed both names of depot and esbuild, node's copy of pnpm and tar from root's; as root, pnpm 10.33.2 starts and runs a workspace command offline."
 
 # Upstream's own user, which this image keeps.
 USER node

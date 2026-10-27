@@ -14,6 +14,11 @@
  * 7.5.13 inside a copy of pnpm 10.33.2 that corepack keeps for a user the
  * service does not run as. The owner chose "Both" on 2026-10-26: an issue
  * upstream, and until it ships, a build here that deletes only those files.
+ * On 2026-10-27, asked with the risk stated, the owner chose to delete tar
+ * from the copy each service does run too (one more in each): in pnpm
+ * 10.33.2 only the bundled node-gyp requires it, to unpack Node's headers for
+ * a native build, and these containers run scripts and install nothing. The
+ * one risk is a `pnpm install` there that builds a native add-on.
  * So `deploy/compose/trigger.dev/Dockerfile` and
  * `deploy/compose/supervisor/Dockerfile` build on upstream's images by tag and
  * index digest, and their headers say why each file is safe to delete.
@@ -50,7 +55,10 @@
  *    only (the name hashes the instruction lines, and the image's
  *    configuration stays upstream's); no `rm -f`, `rm -rf` or `|| true`; and
  *    the proofs in the image (the two packages load without their binary; as
- *    the service's user pnpm starts offline, as the other it does not);
+ *    the service's user pnpm starts offline and, without its tar, runs a
+ *    command in the package the service's own pnpm runs; as the other user
+ *    it does not start), and the check that node-gyp's lib/install.js is the
+ *    one file of the copy that requires tar;
  *  - READ AT ONE RELEASE: each removing RUN names the release its reasons
  *    were read in (`read_at`), which must be the FROM's tag, and refuses an
  *    image of another version; and it pins the entrypoint read there by its
@@ -134,6 +142,11 @@ const REMOVED: Readonly<Record<Name, readonly Removal[]>> = {
       evidence: 'esbuild 0.23.0 install.js (maybeOptimizePackage); trivy v0.76.1 pkg/fanal/walker/tar.go',
     },
     {
+      path: '/root/.cache/node/corepack/v1/pnpm/10.33.2/dist/node_modules/tar',
+      why: "tar 7.5.13 in the copy of pnpm trigger-api runs: only pnpm's bundled node-gyp requires it (to unpack Node's headers for a native build), and the entrypoint's pnpm runs three migration scripts and installs nothing (the owner, 2026-10-27)",
+      evidence: 'pnpm 10.33.2 dist: require(\'tar\') only in node_modules/node-gyp/lib/install.js, none in pnpm.cjs or worker.js; docker/scripts/entrypoint.sh at v4.8.1; corepack 0.36.0 installVersion reads .corepack only',
+    },
+    {
       path: '/home/node/.cache/node/corepack/v1/pnpm/10.33.2',
       why: "node's copy of pnpm, with tar 7.5.13 in it: trigger-api runs as root (managed.yml), so every pnpm of the entrypoint runs root's copy",
       evidence: "docker/Dockerfile and docker/scripts/entrypoint.sh at v4.8.1; managed.yml `user: root`; corepack 0.36.0 (Node 24.22.1's) getCorepackHomeFolder and installVersion",
@@ -144,6 +157,11 @@ const REMOVED: Readonly<Record<Name, readonly Removal[]>> = {
       path: '/root/.cache/node/corepack/v1/pnpm/10.33.2',
       why: "root's copy of pnpm, with tar 7.5.13 in it: trigger-supervisor runs as the image's node (no `user:`), whose copy its CMD runs",
       evidence: "apps/supervisor/Containerfile and entrypoint.sh at v4.8.1; managed.yml (no `user:`); corepack 0.36.0 (Node 24.22.1's) getCorepackHomeFolder and installVersion",
+    },
+    {
+      path: '/home/node/.cache/node/corepack/v1/pnpm/10.33.2/dist/node_modules/tar',
+      why: "tar 7.5.13 in the copy of pnpm the supervisor runs: only pnpm's bundled node-gyp requires it (to unpack Node's headers for a native build), and the CMD runs `node dist/index.js` through pnpm and installs nothing (the owner, 2026-10-27)",
+      evidence: "pnpm 10.33.2 dist: require('tar') only in node_modules/node-gyp/lib/install.js, none in pnpm.cjs or worker.js; apps/supervisor/package.json's start at v4.8.1; corepack 0.36.0 installVersion reads .corepack only",
     },
   ],
 };
@@ -275,9 +293,16 @@ function shapeProblems(name: Name, text: string): string[] {
   const root = runs(text).filter((r) => r.user === 'root').map((r) => r.args).join('\n');
   const node = runs(text).filter((r) => r.user === 'node').map((r) => r.args).join('\n');
   const asUser = (body: string) => /COREPACK_ENABLE_NETWORK=0 pnpm --version\)" = 10\.33\.2 \]/.test(body);
+  /** pnpm, without its tar, runs a command in the package the service's own pnpm runs, offline. */
+  const runsWithoutTar = (body: string, filter: string) =>
+    new RegExp(`\\(cd \\S+ && COREPACK_ENABLE_NETWORK=0 pnpm --fail-if-no-match --filter ${filter.replace(/[.@/]/g, '\\$&')} exec node -e 0\\) \\|\\|`).test(body);
+  if (!/users="\$\(find "\$kept\/dist" -path "\$kept_tar" -prune/.test(removing?.args ?? '') || !/\[ "\$users" = "\$kept\/dist\/node_modules\/node-gyp\/lib\/install\.js" \] \|\| fail /.test(removing?.args ?? '')) {
+    problems.push("no check that node-gyp's lib/install.js is the one file of the kept copy that requires tar");
+  }
   const refused = (body: string) => /if \(cd \S+ && COREPACK_ENABLE_NETWORK=0 pnpm --version\) >\/dev\/null 2>&1; then/.test(body);
   if (name === 'trigger.dev') {
     if (!asUser(root)) problems.push('no proof that pnpm starts offline as root, the user trigger-api runs as');
+    if (!runsWithoutTar(root, '@trigger.dev/database')) problems.push('no proof that, without its tar, pnpm runs a command in @trigger.dev/database offline as root, the user trigger-api runs as');
     if (!refused(node)) problems.push('no proof that as node pnpm refuses to start offline');
     if (!/node -e "require\('\$s\/@depot\+cli@[^']+\/node_modules\/@depot\/cli'\); require\('\$s\/esbuild@[^']+\/node_modules\/esbuild'\)"/.test(root)) {
       problems.push('no proof that @depot/cli and esbuild still load without their binary');
@@ -285,6 +310,7 @@ function shapeProblems(name: Name, text: string): string[] {
     if (!/7f454c46/.test(root) || !/stat -c/.test(root)) problems.push('no check that each name is an ELF binary, and no link count in the log');
   } else {
     if (!asUser(node)) problems.push('no proof that pnpm starts offline as node, the user trigger-supervisor runs as');
+    if (!runsWithoutTar(node, 'supervisor')) problems.push('no proof that, without its tar, pnpm runs a command in the supervisor offline as node, the user trigger-supervisor runs as');
     if (!refused(root)) problems.push('no proof that as root pnpm refuses to start offline');
   }
   return problems;
@@ -312,6 +338,10 @@ function treeOf(name: Name, plat: string): Tree {
   const corepack = (home: string): Record<string, string> => ({
     [`${COPY(home)}/.corepack`]: '{"locator":{"name":"pnpm","reference":"10.33.2"}}\n',
     [`${COPY(home)}/dist/node_modules/tar/package.json`]: '{"name":"tar","version":"7.5.13"}\n',
+    [`${COPY(home)}/dist/node_modules/tar/index.js`]: "module.exports = require('tar/lib');\n",
+    // pnpm 10.33.2's one require('tar'), and its bundle, which names tar-stream and no tar.
+    [`${COPY(home)}/dist/node_modules/node-gyp/lib/install.js`]: "'use strict'\n\nconst fs = require('graceful-fs')\nconst tar = require('tar')\n",
+    [`${COPY(home)}/dist/pnpm.cjs`]: 'var extract = require("tar-stream").extract;\n',
   });
   if (name === 'supervisor') {
     return {
@@ -354,7 +384,11 @@ function treeOf(name: Name, plat: string): Tree {
 /** What corepack does here, as far as these RUNs ask: its copy under HOME, or a refusal offline. */
 const PNPM_STUB = [
   '#!/bin/sh',
-  'if [ -f "$HOME/.cache/node/corepack/v1/pnpm/10.33.2/.corepack" ]; then echo 10.33.2; exit 0; fi',
+  'printf \'%s|%s|%s\\n\' "$HOME" "${COREPACK_ENABLE_NETWORK:-}" "$*" >> "$PNPM_LOG"',
+  'if [ -f "$HOME/.cache/node/corepack/v1/pnpm/10.33.2/.corepack" ]; then',
+  '  case "$1" in --version) echo 10.33.2 ;; esac',
+  '  exit 0',
+  'fi',
   'if [ "${COREPACK_ENABLE_NETWORK:-1}" = 0 ]; then echo "Usage Error: Network access disabled by the environment" >&2; exit 1; fi',
   'echo "corepack would download pnpm here" >&2',
   'exit 2',
@@ -366,6 +400,8 @@ interface Run {
   readonly out: string;
   /** Every path left under the stand-in's root, as image paths. */
   readonly left: string[];
+  /** Every pnpm the RUNs started: the home it ran under (an image path), COREPACK_ENABLE_NETWORK, and its arguments. */
+  readonly pnpm: Array<{ home: string; network: string; args: string }>;
 }
 
 interface Sandbox {
@@ -440,13 +476,30 @@ function build(text: string, box: Sandbox, { plat = 'linux-arm64', tag = '', onl
         TRIGGER_IMAGE_TAG: tag,
         FAKE_PLATFORM: platform,
         FAKE_ARCH: arch,
+        PNPM_LOG: join(box.root, 'pnpm.log'),
         LANG: 'C',
       },
     });
     out += `${r.stdout ?? ''}${r.stderr ?? ''}`;
-    if (r.status !== 0) return { status: r.status ?? -1, out, left: walk(box.fs, box.fs) };
+    if (r.status !== 0) return { status: r.status ?? -1, out, left: walk(box.fs, box.fs), pnpm: pnpmCalls(box) };
   }
-  return { status: 0, out, left: walk(box.fs, box.fs) };
+  return { status: 0, out, left: walk(box.fs, box.fs), pnpm: pnpmCalls(box) };
+}
+
+function pnpmCalls(box: Sandbox): Run['pnpm'] {
+  let log: string;
+  try {
+    log = readFileSync(join(box.root, 'pnpm.log'), 'utf8');
+  } catch {
+    return [];
+  }
+  return log
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const [home = '', network = '', ...args] = line.split('|');
+      return { home: home.slice(box.fs.length), network, args: args.join('|') };
+    });
 }
 
 /** What a run removed: the topmost paths that were there before and are not now. */
@@ -491,7 +544,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
       'no proof that as node pnpm refuses to start offline',
     ]);
     expect(swap(/rm -r "\$unused"/, 'rm -rf "$unused"')).toEqual([expect.stringContaining('`rm -f` or `rm -rf`')]);
-    expect(swap(/rm -r "\$unused";/, 'rm -r "$unused" || true;')).toEqual([expect.stringContaining('`|| true`')]);
+    expect(swap(/rm -r "\$unused" "\$kept_tar";/, 'rm -r "$unused" "$kept_tar" || true;')).toEqual([expect.stringContaining('`|| true`')]);
     expect(swap(/\s+node -e "require[^\n]*\n/, '\n')).toEqual(['no proof that @depot/cli and esbuild still load without their binary']);
     for (const line of ['ENV COREPACK_HOME=/tmp/corepack', 'COPY pnpm /usr/local/bin/', 'WORKDIR /tmp', 'LABEL x=y', 'CMD ["sh"]']) {
       const text = real.replace(/^(USER root)$/m, `${line}\n$1`);
@@ -508,9 +561,24 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
     ]);
     expect(swap(/^ {4}entrypoint_sha256=[0-9a-f]{64}; \\\n/m, '')).toEqual([expect.stringContaining('does not pin /triggerdotdev/scripts/entrypoint.sh by its SHA-256')]);
     expect(swap(/^ {4}\[ "\$\(sha256sum [^\n]*\n/m, '')).toEqual(['the removing RUN names the entrypoint and its hash, and never compares them']);
+    // Tar out of the copy that runs: the check of who requires it, and the proof as root.
+    expect(swap(/^ {4}\[ "\$users" = [^\n]*\n/m, '')).toEqual(["no check that node-gyp's lib/install.js is the one file of the kept copy that requires tar"]);
+    const proof = /^ {4}\(cd \/triggerdotdev && COREPACK_ENABLE_NETWORK=0 pnpm --fail-if-no-match --filter @trigger\.dev\/database exec node -e 0\) \|\| fail [^\n]*\n/m;
+    const noProof = ['no proof that, without its tar, pnpm runs a command in @trigger.dev/database offline as root, the user trigger-api runs as'];
+    expect(swap(proof, '')).toEqual(noProof);
+    // The same proof run as node, which has no copy: no proof of the user that runs.
+    const line = proof.exec(real)![0];
+    const asNode = real.replace(proof, '').replace(/(me=deploy\/compose\/trigger\.dev\/Dockerfile; \\\n)( {4}if \(cd \/triggerdotdev && COREPACK_ENABLE_NETWORK=0 pnpm --version\))/, `$1${line}$2`);
+    expect(runs(asNode).filter((r) => r.user === 'node').map((r) => r.args).join('\n')).toContain('--filter @trigger.dev/database exec');
+    expect(shapeProblems('trigger.dev', asNode)).toEqual(noProof);
     // The supervisor's proofs go the other way round.
     const sup = dockerfiles.supervisor;
     expect(shapeProblems('supervisor', sup.replace(/\n {4}if \(cd \/app && COREPACK_ENABLE_NETWORK=0[\s\S]*?fi; \\/, ''))).toEqual(['no proof that as root pnpm refuses to start offline']);
+    const supProof = /^ {4}\(cd \/app && COREPACK_ENABLE_NETWORK=0 pnpm --fail-if-no-match --filter supervisor exec node -e 0\) \|\| [^\n]*\n/m;
+    expect(sup.replace(supProof, '')).not.toBe(sup);
+    expect(shapeProblems('supervisor', sup.replace(supProof, ''))).toEqual([
+      'no proof that, without its tar, pnpm runs a command in the supervisor offline as node, the user trigger-supervisor runs as',
+    ]);
   });
 
   it('REMOVED says why each path never runs, and is exactly what the RUNs name', () => {
@@ -532,8 +600,13 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
           const run = build(dockerfiles[name], box, { plat, tag: 'v4.8.1' });
           expect(run.status, run.out).toBe(0);
           expect(removedBy(box, run)).toEqual(REMOVED[name].map((r) => expand(r.path, plat)).sort());
-          const kept = COPY(name === 'trigger.dev' ? '/root' : '/home/node');
+          const home = name === 'trigger.dev' ? '/root' : '/home/node';
+          const kept = COPY(home);
           expect(run.left).toContain(`${kept}/.corepack`);
+          // The copy that runs, without its tar, ran a command offline as the service's user.
+          expect(run.left).toContain(`${kept}/dist/node_modules/node-gyp/lib/install.js`);
+          const filter = name === 'trigger.dev' ? '@trigger.dev/database' : 'supervisor';
+          expect(run.pnpm).toContainEqual({ home, network: '0', args: `--fail-if-no-match --filter ${filter} exec node -e 0` });
           if (name === 'trigger.dev') {
             // Both names of each binary were found linked, and the log says so.
             expect(run.out.match(/^2 link\(s\), inode \d+, \d+ bytes: /gm), run.out).toHaveLength(4);
@@ -592,23 +665,28 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
         ['/triggerdotdev/packages/core/package.json', '/triggerdotdev/packages/core/package.json'],
         [ENTRYPOINT['trigger.dev'], ENTRYPOINT['trigger.dev']],
         [`${COPY('/home/node')}/.corepack`, `${COPY('/home/node')}/.corepack`],
-        [`${COPY('/home/node')}/dist/node_modules/tar/package.json`, `${COPY('/home/node')}/dist/node_modules/tar`],
+        [`${COPY('/home/node')}/dist/node_modules/tar`, `${COPY('/home/node')}/dist/node_modules/tar`],
         [`${COPY('/root')}/.corepack`, `${COPY('/root')}/.corepack`],
+        [`${COPY('/root')}/dist/node_modules/tar`, `${COPY('/root')}/dist/node_modules/tar`],
+        [`${COPY('/root')}/dist/node_modules/node-gyp/lib/install.js`, `${COPY('/root')}/dist, tar is required by: nothing`],
       ],
       supervisor: [
         ['/app/package.json', '/app/package.json'],
         ['/app/packages/core/package.json', '/app/packages/core/package.json'],
         [ENTRYPOINT.supervisor, ENTRYPOINT.supervisor],
         [`${COPY('/root')}/.corepack`, `${COPY('/root')}/.corepack`],
-        [`${COPY('/root')}/dist/node_modules/tar/package.json`, `${COPY('/root')}/dist/node_modules/tar`],
+        [`${COPY('/root')}/dist/node_modules/tar`, `${COPY('/root')}/dist/node_modules/tar`],
         [`${COPY('/home/node')}/.corepack`, `${COPY('/home/node')}/.corepack`],
+        [`${COPY('/home/node')}/dist/node_modules/tar`, `${COPY('/home/node')}/dist/node_modules/tar`],
+        [`${COPY('/home/node')}/dist/node_modules/node-gyp/lib/install.js`, `${COPY('/home/node')}/dist, tar is required by: nothing`],
       ],
     };
     for (const name of NAMES) {
       const tree = treeOf(name, plat);
       for (const [path, named] of NEEDED[name]) {
         const without: Tree = {
-          files: Object.fromEntries(Object.entries(tree.files).filter(([p]) => p !== path)),
+          // A file, or a directory with all that is in it.
+          files: Object.fromEntries(Object.entries(tree.files).filter(([p]) => p !== path && !p.startsWith(`${path}/`))),
           binaries: tree.binaries.filter((b) => b.path !== path).map((b) => (b.link === path ? { path: b.path } : b)),
         };
         expect(JSON.stringify(without), `${path} is not in the stand-in`).not.toBe(JSON.stringify(tree));
@@ -659,6 +737,20 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
       expect(run.status).not.toBe(0);
       expect(run.out).toContain(`a depot or esbuild binary is still there: ${box.fs}${other}`);
     });
+  });
+
+  it("tar required by another file of the copy that runs than node-gyp's install.js fails it, before anything is removed", () => {
+    for (const name of NAMES) {
+      const tree = treeOf(name, 'linux-arm64');
+      const worker = `${COPY(name === 'trigger.dev' ? '/root' : '/home/node')}/dist/worker.js`;
+      withSandbox({ ...tree, files: { ...tree.files, [worker]: 'const tar = require("tar");\n' } }, (box) => {
+        const run = build(dockerfiles[name], box, { tag: 'v4.8.1' });
+        expect(run.status, name).not.toBe(0);
+        expect(run.out).toContain(`${box.fs}${worker}`);
+        expect(run.out).toContain("not by node-gyp's lib/install.js alone");
+        expect(removedBy(box, run), name).toEqual([]);
+      });
+    }
   });
 
   it("the proof as the other user fails while that user's copy is there: a start as it would reach for the registry", () => {

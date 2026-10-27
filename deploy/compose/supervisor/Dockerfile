@@ -1,9 +1,10 @@
 # Trigger.dev's supervisor as upstream publishes it, by tag and index digest,
-# with root's copy of pnpm deleted, which never runs in this stack (workplan
-# 0146 T16; the owner's decision of 2026-10-26, "Both"). The header of
-# deploy/compose/trigger.dev/Dockerfile says the rest, and all of it holds
-# here: the name and its hash, the version argument, read_at, what may not be
-# in this file, how it fails when upstream moves, and the way out.
+# with root's copy of pnpm deleted, which never runs in this stack, and tar
+# deleted from node's, which runs (workplan 0146 T16; the owner's decisions of
+# 2026-10-26, "Both", and of 2026-10-27, tar out of the copy that runs). The
+# header of deploy/compose/trigger.dev/Dockerfile says the rest, and all of it
+# holds here: the name and its hash, the version argument, read_at, what may
+# not be in this file, how it fails when upstream moves, and the way out.
 #
 # WHY. Trivy 0.76.1 read 2 critical findings in
 # ghcr.io/triggerdotdev/supervisor:v4.8.1 (linux/arm64, 2026-10-26), both tar
@@ -13,7 +14,13 @@
 # --filter supervisor start`, runs node's copy. Root's copy, left by the base
 # stage's `corepack prepare` (apps/supervisor/Containerfile), runs nowhere: the
 # entrypoint only sets NODE_OPTIONS and execs dumb-init, the healthcheck is
-# `node -e fetch`, and nothing execs into the container. So 2 become 1.
+# `node -e fetch`, and nothing execs into the container. Node's copy keeps
+# running without its tar, as the webapp's header says of root's copy there:
+# only pnpm's bundled node-gyp requires tar (lib/install.js, for Node's
+# headers in a native build), and the CMD runs one script, `node
+# dist/index.js`, and installs nothing. The one risk, accepted by the owner
+# on 2026-10-27: a `pnpm install` inside this container that builds a native
+# add-on would fail. So 2 become 0.
 #
 # THE USER COUPLING, the webapp's the other way round. No `user:` here, so this
 # removes root's copy and proves node's starts offline. Upstream's own compose
@@ -53,22 +60,29 @@ RUN set -eu; \
     [ "$pm" = pnpm@10.33.2 ] || fail "the image names $pm, not pnpm@10.33.2, so corepack keeps pnpm at other paths."; \
     unused=/root/.cache/node/corepack/v1/pnpm/10.33.2; \
     kept=/home/node/.cache/node/corepack/v1/pnpm/10.33.2; \
+    kept_tar="$kept/dist/node_modules/tar"; \
     [ -f "$unused/.corepack" ] || fail "$unused/.corepack is not there: root's copy of pnpm is not where it was."; \
     [ -d "$unused/dist/node_modules/tar" ] || fail "$unused/dist/node_modules/tar is not there: root's copy of pnpm no longer carries tar."; \
     [ -f "$kept/.corepack" ] || fail "$kept/.corepack is not there: node's copy of pnpm, which the supervisor runs, is not where it was."; \
-    rm -r "$unused"; \
+    [ -d "$kept_tar" ] || fail "$kept_tar is not there: node's copy of pnpm no longer carries tar where pnpm 10.33.2 did."; \
+    users="$(find "$kept/dist" -path "$kept_tar" -prune -o -type f -exec sh -c 'for f; do ! grep -qE "(require\(|from ).tar[^a-z_-]" "$f" || echo "$f"; done' sh {} +)"; \
+    [ "$users" = "$kept/dist/node_modules/node-gyp/lib/install.js" ] || fail "in $kept/dist, tar is required by: ${users:-nothing}, not by node-gyp's lib/install.js alone, which the removal of $kept_tar was read for."; \
+    rm -r "$unused" "$kept_tar"; \
     [ ! -e "$unused" ] || fail "$unused is still there."; \
+    [ ! -e "$kept_tar" ] || fail "$kept_tar is still there."; \
     [ -f "$kept/.corepack" ] || fail "$kept/.corepack went with the removal."; \
     if (cd /app && COREPACK_ENABLE_NETWORK=0 pnpm --version) >/dev/null 2>&1; then \
       fail "as root, pnpm still starts offline, so a copy is left that this file removes, or corepack reads another home."; \
     fi; \
-    echo "$me: removed root's copy of pnpm; as root, pnpm does not start offline, as it should not: the supervisor runs as node."
+    echo "$me: removed root's copy of pnpm and tar from node's; as root, pnpm does not start offline, as it should not: the supervisor runs as node."
 
 # Upstream's own user, which this image keeps.
 USER node
 
-# As node, the user the supervisor runs as, the kept copy starts offline.
+# As node, the user the supervisor runs as, the kept copy starts offline and,
+# without its tar, runs a command in the supervisor's package as the CMD does.
 RUN set -eu; \
     me=deploy/compose/supervisor/Dockerfile; \
     [ "$(cd /app && COREPACK_ENABLE_NETWORK=0 pnpm --version)" = 10.33.2 ] || { echo "$me: as node, the user trigger-supervisor runs as, pnpm 10.33.2 does not start offline." >&2; exit 1; }; \
-    echo "$me: as node, pnpm 10.33.2 starts offline."
+    (cd /app && COREPACK_ENABLE_NETWORK=0 pnpm --fail-if-no-match --filter supervisor exec node -e 0) || { echo "$me: as node, pnpm without tar does not run a command in the supervisor's package offline, as its CMD needs." >&2; exit 1; }; \
+    echo "$me: as node, pnpm 10.33.2 starts and runs a workspace command offline."
