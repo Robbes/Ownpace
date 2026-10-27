@@ -604,11 +604,16 @@ function packageJson(version: string): string {
   return `${JSON.stringify({ name: 'ownpace', version, private: true }, null, 2)}\n`;
 }
 
-/** managed.yml with one of its pins moved. Fails the case if the pin was not found. */
+/**
+ * managed.yml with one of its pins moved. Fails the case if the pin was not
+ * found. Trigger.dev's is the version default, in either form its image lines
+ * have had: ghcr's image, or the build here since 0146 T16
+ * (`localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v…}-<hash>`).
+ */
 function movePin(yml: string, which: 'trigger' | 'zitadel', to: string): string {
   const moved =
     which === 'trigger'
-      ? yml.replace(/(ghcr\.io\/triggerdotdev\/(?:trigger\.dev|supervisor):\$\{TRIGGER_IMAGE_TAG:-)v[0-9.]+\}/g, `$1${to}}`)
+      ? yml.replace(/((?:ghcr\.io\/triggerdotdev|localhost)\/(?:trigger\.dev|supervisor):\$\{TRIGGER_IMAGE_TAG:-)v[0-9.]+\}/g, `$1${to}}`)
       : yml.replace(/(ghcr\.io\/zitadel\/zitadel:)v[0-9.]+/g, `$1${to}`);
   if (moved === yml) throw new Error(`managed.yml carries no ${which} pin this fixture knows how to move`);
   return moved;
@@ -672,7 +677,8 @@ function stage(opts: StageOptions = {}): Stage {
     if (r.trigger) yml = movePin(yml, 'trigger', r.trigger);
     if (r.zitadel) yml = movePin(yml, 'zitadel', r.zitadel);
     if (r.noTriggerPin) {
-      const unpinned = yml.replace(/^[ \t]*image:.*triggerdotdev\/.*\n/gm, '');
+      // Every image line that carries the version default, in either form.
+      const unpinned = yml.replace(/^[ \t]*image:.*\$\{TRIGGER_IMAGE_TAG:-v[^}]*\}.*\n/gm, '');
       if (unpinned === yml) throw new Error('managed.yml carries no Trigger.dev image line this fixture knows how to take out');
       yml = unpinned;
     }
