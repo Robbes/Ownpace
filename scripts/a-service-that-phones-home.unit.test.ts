@@ -372,6 +372,8 @@ export const WEBAPP_KEYS: Readonly<Record<string, string>> = Object.freeze({
   TRIGGER_TELEMETRY_DISABLED: "the switch for the server's PostHog",
   POSTHOG_PROJECT_KEY: "the switch for the dashboard's PostHog, empty",
   CHECKPOINT_DISABLE: "the switch for Prisma's checkpoint at every start",
+  COREPACK_ENABLE_NETWORK:
+    "\"0\" stops corepack fetching pnpm from the npm registry when the build left no copy for the user that runs (corepack.cjs 0.34.0, :22021, before any fetch); it reaches nothing (0146 T16)",
 });
 
 /** Trigger.dev's webapp: both halves of its PostHog and Prisma's checkpoint off, and no key nobody has read. */
@@ -529,7 +531,14 @@ interface Row {
   readonly holds?: (svc: Service, entry: Entry) => string[];
 }
 
-const TRIGGER_WEBAPP = 'ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.1}';
+/**
+ * The webapp's version its defaults were read at. trigger-api runs a build
+ * here since 0146 T16 (deploy/compose/trigger.dev/Dockerfile, upstream's image
+ * with files deleted that never run), so the row reads `build`, and this is
+ * held to the Dockerfile's FROM, without its digest: a version move is still
+ * a re-read.
+ */
+const TRIGGER_WEBAPP = 'ghcr.io/triggerdotdev/trigger.dev:v4.8.1';
 const ZITADEL = 'ghcr.io/zitadel/zitadel:v4.20.0';
 const CLICKHOUSE =
   'clickhouse/clickhouse-server:26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd';
@@ -563,15 +572,34 @@ const NEXTCLOUD_PHONES =
   'updatechecker, appstoreenabled and has_internet_connection are not switched off yet: a hook that set them false made ' +
   "the demo's first CalDAV write answer 500 in E2E (managed) #215, and it holds fixtures, never a tester's data";
 
+/**
+ * The FROM of the Dockerfile a service's `build:` names, without its digest,
+ * or a problem when there is none to read.
+ */
+function builtFrom(svc: Service, entry: Entry): { from?: string; problems: string[] } {
+  const build = svc.build as string | { context?: string } | undefined;
+  const context = typeof build === 'string' ? build : build?.context;
+  if (!context) return { problems: ['no build context to read the Dockerfile from'] };
+  const from = /^FROM\s+(\S+)\s*$/m.exec(read(`${dirname(entry.file)}/${context.replace(/^\.\//, '')}/Dockerfile`))?.[1];
+  if (!from) return { problems: [`${context}/Dockerfile has no FROM to read`] };
+  return { from: from.replace(/@sha256:[0-9a-f]{64}$/, ''), problems: [] };
+}
+
 export const SWITCHED: Readonly<Record<string, Row>> = {
   'deploy/compose/managed.yml:trigger-api': {
-    readAt: TRIGGER_WEBAPP,
+    readAt: 'build',
     why:
       "PostHog from the server at every sign-in (id, email, name) and on user, organisation and project creation, PostHog in " +
       "the dashboard's browser with the signed-in user's id and email, and Prisma's checkpoint to checkpoint.prisma.io at every " +
       'start (telemetry.server.ts, postAuth.server.ts, usePostHog.ts, env.server.ts, docker/scripts/entrypoint.sh at v4.7.2, v4.7.6 and v4.8.1; ' +
-      'prisma 6.14.0 CLI.ts and utils/checkpoint.ts)',
-    holds: (svc) => webappProblems(environmentOf(svc)),
+      'prisma 6.14.0 CLI.ts and utils/checkpoint.ts); built here from that image, with files deleted and nothing added that runs',
+    holds: (svc, entry) => {
+      const { from, problems } = builtFrom(svc, entry);
+      if (from !== undefined && from !== TRIGGER_WEBAPP) {
+        problems.push(`built FROM ${from}, and its defaults were read at ${TRIGGER_WEBAPP}: re-read what the new version sends by default, then move TRIGGER_WEBAPP`);
+      }
+      return [...problems, ...webappProblems(environmentOf(svc))];
+    },
   },
   'deploy/compose/managed.yml:zitadel': {
     readAt: ZITADEL,
@@ -654,16 +682,21 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
     why: 'HAProxy in front of the Docker socket: it answers the supervisor and calls nothing',
   },
   'deploy/compose/managed.yml:trigger-supervisor': {
-    readAt: 'ghcr.io/triggerdotdev/supervisor',
+    readAt: 'build',
     why:
       "its settings at v4.7.2, v4.7.6 and v4.8.1 (apps/supervisor/src/env.ts; the entrypoint.sh it has since v4.7.7 only preloads " +
       "the local distrust-cas.cjs) have no analytics or error report; it sends its traces to the webapp's " +
-      'own /otel and serves its metrics on its own loopback',
-    holds: (svc) => {
+      'own /otel and serves its metrics on its own loopback; built here from ghcr.io/triggerdotdev/supervisor with a copy of pnpm deleted (0146 T16)',
+    holds: (svc, entry) => {
+      const { from, problems } = builtFrom(svc, entry);
+      if (from !== undefined && repositoryOf(from) !== 'ghcr.io/triggerdotdev/supervisor') {
+        problems.push(`built FROM ${from}, not Trigger.dev's supervisor: read what it sends by default`);
+      }
       const otel = environmentOf(svc)['OTEL_EXPORTER_OTLP_ENDPOINT'];
-      return otel !== undefined && /^http:\/\/trigger-api:\d+\/otel$/.test(otel)
-        ? []
-        : [`OTEL_EXPORTER_OTLP_ENDPOINT is ${otel ?? 'not set'}; it must be the webapp's own http://trigger-api:<port>/otel`];
+      if (otel === undefined || !/^http:\/\/trigger-api:\d+\/otel$/.test(otel)) {
+        problems.push(`OTEL_EXPORTER_OTLP_ENDPOINT is ${otel ?? 'not set'}; it must be the webapp's own http://trigger-api:<port>/otel`);
+      }
+      return problems;
     },
   },
   'deploy/compose/managed.yml:zitadel-machinekey': { readAt: 'busybox', why: 'a one-shot chown of a volume, with no network use' },

@@ -100,6 +100,10 @@ export declare function dockerfileBase(text: string): Omit<Image, 'line'>;
 /** `<base tag>-<12 hex of the SHA-256 of the instruction lines>`: the tag a compose file gives the image it builds. */
 export declare function builtTag(text: string): string;
 /** A compose file's `localhost/<name>` image, built from `<name>/Dockerfile` beside it; null for a pulled one. */
+/** The Trigger.dev images built here (0146 T16), each with the ghcr image its Dockerfile builds on. */
+export declare const TRIGGER_BUILDS: Record<string, string>;
+/** Throws unless each built Trigger.dev image's FROM is its ghcr image at the pin. */
+export declare function triggerBuildsAt(repo: Repo, pin: string): void;
 export declare function builtImage(
   repo: Repo,
   file: string,

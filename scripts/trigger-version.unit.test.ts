@@ -36,6 +36,7 @@ import { gzipSync } from 'node:zlib';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { builtTag } from './idp-pin-watch.mjs';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = join(REPO_ROOT, 'deploy/compose/trigger-version.sh');
@@ -226,19 +227,25 @@ describe('pin moves every place the CI guard compares', () => {
     expect(manifests.filter(declaresTrigger).length).toBeGreaterThan(2);
   });
 
+  /** The digests `tag_digest` would have read, before the slice; stubbed, since that asks ghcr. */
+  const DIGESTS = { webapp_digest: `sha256:${'a'.repeat(64)}`, supervisor_digest: `sha256:${'b'.repeat(64)}` };
+  const BUILDS = ['trigger.dev', 'supervisor'] as const;
+  const copy = (rel: string) => {
+    mkdirSync(join(dir, dirname(rel)), { recursive: true });
+    writeFileSync(join(dir, rel), readFileSync(join(REPO_ROOT, rel)));
+  };
+  /** Runs the slice inside a function, as in the script: the block may declare `local`s. */
+  const runRewrite = (want: string) =>
+    spawnSync('bash', ['-c', `set -euo pipefail\nsay() { :; }\ndie() { echo "DIE: $*" >&2; exit 1; }\nrewrite() {\n${rewrite}\n}\nrewrite`], {
+      encoding: 'utf8',
+      env: { ...process.env, want, SCRIPT_DIR: join(dir, 'deploy/compose'), REPO_ROOT: dir, ...DIGESTS },
+    });
+
   it('every @trigger.dev dependency, both compose defaults and the example, and nothing else', () => {
-    const copy = (rel: string) => {
-      mkdirSync(join(dir, dirname(rel)), { recursive: true });
-      writeFileSync(join(dir, rel), readFileSync(join(REPO_ROOT, rel)));
-    };
-    const files = ['deploy/compose/managed.yml', 'deploy/compose/managed.env.example', ...manifests];
+    const files = ['deploy/compose/managed.yml', 'deploy/compose/managed.env.example', ...manifests, ...BUILDS.map((b) => `deploy/compose/${b}/Dockerfile`)];
     files.forEach(copy);
 
-    // Inside a function, as in the script: the block may declare `local`s.
-    const r = spawnSync('bash', ['-c', `set -euo pipefail\nsay() { :; }\nrewrite() {\n${rewrite}\n}\nrewrite`], {
-      encoding: 'utf8',
-      env: { ...process.env, want: 'v9.8.7', SCRIPT_DIR: join(dir, 'deploy/compose'), REPO_ROOT: dir },
-    });
+    const r = runRewrite('v9.8.7');
     expect(r.status, r.stderr).toBe(0);
 
     for (const rel of manifests) {
@@ -253,6 +260,116 @@ describe('pin moves every place the CI guard compares', () => {
     expect(readFileSync(join(dir, 'deploy/compose/managed.env.example'), 'utf8')).toMatch(
       /^TRIGGER_IMAGE_TAG=v9\.8\.7$/m,
     );
+  });
+
+  it("moves each build's FROM to the tag and its digest, and its name to the new hash, which is the pin watch's (0146 T16)", () => {
+    ['deploy/compose/managed.yml', 'deploy/compose/managed.env.example', ...manifests, ...BUILDS.map((b) => `deploy/compose/${b}/Dockerfile`)].forEach(copy);
+    const r = runRewrite('v9.8.7');
+    expect(r.status, r.stderr).toBe(0);
+    const before = readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8').split('\n');
+    const after = readFileSync(join(dir, 'deploy/compose/managed.yml'), 'utf8').split('\n');
+    const changed = after.filter((line, i) => line !== before[i]);
+    const want: string[] = [];
+    for (const [i, name] of BUILDS.entries()) {
+      const dockerfile = readFileSync(join(dir, `deploy/compose/${name}/Dockerfile`), 'utf8');
+      const digest = i === 0 ? DIGESTS.webapp_digest : DIGESTS.supervisor_digest;
+      expect(dockerfile, name).toMatch(new RegExp(`^FROM ghcr\\.io/triggerdotdev/${name.replace('.', '\\.')}:v9\\.8\\.7@${digest}$`, 'm'));
+      // Only the FROM line moved in the Dockerfile.
+      const real = readFileSync(join(REPO_ROOT, `deploy/compose/${name}/Dockerfile`), 'utf8').split('\n');
+      expect(dockerfile.split('\n').filter((line, n) => line !== real[n]), name).toHaveLength(1);
+      // The shell's hash and the JS one agree on the rewritten file.
+      const hex = builtTag(dockerfile).slice('v9.8.7-'.length);
+      want.push(`    image: localhost/${name}:\${TRIGGER_IMAGE_TAG:-v9.8.7}-${hex}`);
+    }
+    expect(changed).toEqual(want);
+  });
+
+  it('pins the same version again to take the digest it has today, and skips a build whose directory is gone', () => {
+    ['deploy/compose/managed.yml', 'deploy/compose/managed.env.example', ...manifests, 'deploy/compose/trigger.dev/Dockerfile'].forEach(copy);
+    // The supervisor's patch dropped: its line is ghcr's image again, and its directory is gone.
+    const compose = join(dir, 'deploy/compose/managed.yml');
+    const dropped = readFileSync(compose, 'utf8').replace(/localhost\/supervisor:(\$\{TRIGGER_IMAGE_TAG:-v[\d.]+\})-[0-9a-f]{12}/, 'ghcr.io/triggerdotdev/supervisor:$1');
+    writeFileSync(compose, dropped);
+    const pin = /\$\{TRIGGER_IMAGE_TAG:-(v[^}]+)\}/.exec(dropped)![1]!;
+    const r = runRewrite(pin);
+    expect(r.status, r.stderr).toBe(0);
+    const after = readFileSync(compose, 'utf8');
+    expect(after).toContain(`image: ghcr.io/triggerdotdev/supervisor:\${TRIGGER_IMAGE_TAG:-${pin}}\n`);
+    expect(readFileSync(join(dir, 'deploy/compose/trigger.dev/Dockerfile'), 'utf8')).toMatch(new RegExp(`^FROM ghcr\\.io/triggerdotdev/trigger\\.dev:${pin.replaceAll('.', '\\.')}@${DIGESTS.webapp_digest}$`, 'm'));
+    const hex = builtTag(readFileSync(join(dir, 'deploy/compose/trigger.dev/Dockerfile'), 'utf8')).slice(pin.length + 1);
+    expect(after).toContain(`    image: localhost/trigger.dev:\${TRIGGER_IMAGE_TAG:-${pin}}-${hex}\n`);
+  });
+
+  it('refuses a Dockerfile whose FROM it cannot move, rather than leaving the build on the old version', () => {
+    ['deploy/compose/managed.yml', 'deploy/compose/managed.env.example', ...manifests, ...BUILDS.map((b) => `deploy/compose/${b}/Dockerfile`)].forEach(copy);
+    const file = join(dir, 'deploy/compose/supervisor/Dockerfile');
+    writeFileSync(file, readFileSync(file, 'utf8').replace(/^FROM (\S+)@sha256:[0-9a-f]{64}$/m, 'FROM $1'));
+    const r = runRewrite('v9.8.7');
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('has no FROM ghcr.io/triggerdotdev/supervisor:<tag>@<digest> line to move');
+  });
+});
+
+describe('the builds here, read and asked for as trigger-version.sh does (0146 T16)', () => {
+  const fn = (name: string) => new RegExp(`^${name}\\(\\) \\{[\\s\\S]*?\\n\\}`, 'm').exec(script)?.[0] ?? '';
+
+  it('`list` reads the running tag without the hash a build ends its name in', () => {
+    expect(fn('running_tag')).toContain('docker inspect');
+    const bin = join(dir, 'bin');
+    mkdirSync(bin, { recursive: true });
+    for (const [image, want] of [
+      ['localhost/trigger.dev:v4.8.1-72939d99d1b8', 'v4.8.1'],
+      ['ghcr.io/triggerdotdev/trigger.dev:v4.8.1', 'v4.8.1'],
+    ] as const) {
+      writeFileSync(join(bin, 'docker'), `#!/usr/bin/env bash\necho '${image}'\n`, { mode: 0o755 });
+      const r = spawnSync('bash', ['-c', `set -euo pipefail\nAPI_CONTAINER=x\n${fn('running_tag')}\nrunning_tag`], {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}` },
+      });
+      expect(r.stdout, image).toBe(`${want}\n`);
+    }
+  });
+
+  /** `tag_digest` against a stubbed ghcr, whose headers come after a proxy's own answer to CONNECT. */
+  function digestOf(type: string, digest: string) {
+    const bin = join(dir, 'bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(
+      join(bin, 'curl'),
+      [
+        '#!/usr/bin/env bash',
+        'url="${@: -1}"',
+        'case "$url" in',
+        `  *'/token?'*) echo '{"token":"t"}' ;;`,
+        `  *) printf 'HTTP/1.1 200 Connection Established\r\n\r\nHTTP/2 200 \r\ncontent-type: %s\r\ndocker-content-digest: %s\r\n\r\n' '${type}' '${digest}' ;;`,
+        'esac',
+        '',
+      ].join('\n'),
+      { mode: 0o755 },
+    );
+    const body = ['set -euo pipefail', 'die() { echo "DIE: $*" >&2; exit 1; }', 'TOKEN_trigger_dev=""; TOKEN_supervisor=""', fn('ghcr_token'), fn('tag_digest'), 'tag_digest supervisor v9.8.7'].join('\n');
+    return spawnSync('bash', ['-c', body], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}` } });
+  }
+
+  it("reads an index's digest, and refuses a one-platform manifest or a missing digest", () => {
+    const ok = digestOf('application/vnd.oci.image.index.v1+json', `sha256:${'c'.repeat(64)}`);
+    expect(ok.stderr).toBe('');
+    expect(ok.stdout).toBe(`sha256:${'c'.repeat(64)}\n`);
+    expect(digestOf('application/vnd.docker.distribution.manifest.list.v2+json', `sha256:${'d'.repeat(64)}`).stdout).toBe(`sha256:${'d'.repeat(64)}\n`);
+    const one = digestOf('application/vnd.oci.image.manifest.v1+json', `sha256:${'c'.repeat(64)}`);
+    expect(one.status).not.toBe(0);
+    expect(one.stderr).toContain('not an index of platforms');
+    const none = digestOf('application/vnd.oci.image.index.v1+json', 'sha256:short');
+    expect(none.status).not.toBe(0);
+    expect(none.stderr).toContain('gave no digest');
+  });
+
+  it('pin asks both digests after both tags answer and before anything moves', () => {
+    const pin = fn('cmd_pin');
+    const asked = pin.indexOf('webapp_digest="$(tag_digest trigger.dev "$want")"');
+    expect(asked).toBeGreaterThan(pin.indexOf('tag_exists supervisor'));
+    expect(pin.indexOf('supervisor_digest="$(tag_digest supervisor "$want")"')).toBeGreaterThan(asked);
+    expect(pin.indexOf('bare="${want#v}"')).toBeGreaterThan(asked);
   });
 });
 

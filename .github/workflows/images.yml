@@ -329,3 +329,94 @@ jobs:
       - name: Remove the container and its volume
         if: always()
         run: docker compose -f "$COMPOSE_FILE_PATH" down -v --remove-orphans
+
+  # THE TRIGGER.DEV IMAGES BUILT HERE, ON BOTH PLATFORMS, ON A PULL REQUEST
+  # (workplan 0146 T16). managed.yml's trigger-api and trigger-supervisor run
+  # `localhost/trigger.dev:…` and `localhost/supervisor:…`, which compose
+  # builds on the machine from deploy/compose/trigger.dev and
+  # deploy/compose/supervisor: upstream's image by tag and digest, with files
+  # deleted that never run here. Each removal names a version-locked path and
+  # fails the build by name when the path is not there, so a Trigger.dev move
+  # (`trigger-version.sh pin`) is red here until the Dockerfiles are read
+  # again. The paths differ by platform (@depot/cli-linux-x64 or -arm64), so
+  # both build, natively: the box is arm64, GitHub's runners amd64, and this
+  # is the one place the amd64 paths are proven.
+  #
+  # Built with `docker build`, not compose: managed.yml refuses to load
+  # without the stack's secrets (its `:?` variables). The reference, the
+  # directory and the base are read with the pin watch's own reader, and the
+  # version argument is managed.yml's default, so the build's version check
+  # runs. No Trivy here: Trivy does not see a hard-linked second name (the
+  # Dockerfile's header), so the build's own check that no depot or esbuild
+  # binary is left is the stronger proof; the weekly and dispatched image
+  # scan counts what is left, on arm64. On a pull request only, publishing
+  # nothing. Held by scripts/a-binary-the-stack-never-runs.unit.test.ts.
+  trigger:
+    name: build (trigger, ${{ matrix.arch }})
+    if: github.event_name == 'pull_request'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+
+      - name: Build both Trigger.dev images as managed.yml names them, and keep upstream's configuration
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          # The pin, read as trigger-version.sh's repo_tag reads it.
+          all="$(grep -oE '\$\{TRIGGER_IMAGE_TAG:-v[^}]+\}' deploy/compose/managed.yml)"
+          pin="$(sed 's/.*:-//;s/}//' <<<"$(head -1 <<<"$all")")"
+          # Each build's reference, directory and FROM, by the pin watch's reader.
+          builds="$(node -e '
+            import("./scripts/idp-pin-watch.mjs").then(({ COMPOSE, TRIGGER_BUILDS, builtImage, readImages, repoReader }) => {
+              const repo = repoReader(".");
+              for (const line of readImages(repo.read(COMPOSE))) {
+                if (!(line.repo in TRIGGER_BUILDS)) continue;
+                const built = builtImage(repo, COMPOSE, line);
+                console.log([line.ref, built.context, built.base.ref].join(" "));
+              }
+            });
+          ')"
+          count="$(grep -c . <<<"$builds" || true)"
+          if [ "$count" != 2 ]; then
+            echo "::error::managed.yml names ${count} Trigger.dev builds, not the two this job builds: ${builds}"
+            exit 1
+          fi
+          while read -r ref context base; do
+            echo "::group::${ref}: ${context} on ${base}, TRIGGER_IMAGE_TAG=${pin}"
+            docker pull --quiet "$base"
+            docker build --pull --build-arg "TRIGGER_IMAGE_TAG=${pin}" --tag "$ref" "$context"
+            echo "::endgroup::"
+            for field in User Cmd Entrypoint WorkingDir; do
+              built="$(docker image inspect --format "{{json .Config.${field}}}" "$ref")"
+              upstream="$(docker image inspect --format "{{json .Config.${field}}}" "$base")"
+              if [ "$built" != "$upstream" ]; then
+                echo "::error::${ref}'s ${field} is ${built}, and upstream's is ${upstream}: the build must keep the image's configuration"
+                exit 1
+              fi
+            done
+            platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$ref")"
+            if [ "$platform" != "linux/${ARCH}" ]; then
+              echo "::error::${ref} is ${platform}, not linux/${ARCH}: this leg did not build its own platform's paths"
+              exit 1
+            fi
+            echo "${ref}: ${platform}, $(docker image inspect --format '{{.Id}}, user {{.Config.User}}' "$ref")"
+          done <<<"$builds"

@@ -477,7 +477,12 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   touches a Dockerfile, `deploy/` or the workflow; a multi-arch build and publish on `main` and
   on `v*` tags. On such a pull request only, `build (postgres)` also brings up `dev.yml`'s
   postgres on a runner without its image, so compose builds `deploy/compose/postgres`, and checks
-  it runs as uid 70 without gosu (workplan 0146 T15); it publishes nothing.
+  it runs as uid 70 without gosu (workplan 0146 T15); it publishes nothing. And
+  `build (trigger, amd64)` and `build (trigger, arm64)` build `deploy/compose/trigger.dev` and
+  `deploy/compose/supervisor`, upstream's Trigger.dev images with files deleted that never run here,
+  natively on each platform, and check the result keeps upstream's user, command, entrypoint and
+  working directory (workplan 0146 T16). Each removal fails the build by name when its path is not
+  there, so the pull request of a Trigger.dev move is red there until the Dockerfiles are read again.
 - `windows-payload.yml` (dispatch, and on v* tags; builds the Windows appliance payload).
 - `release.yml` — dispatch only, from `main`, on GitHub-hosted runners only; never a required
   check, since it has no pull-request trigger. It cuts a release tag and publishes it in order
@@ -519,7 +524,7 @@ against the runs recorded that evening, recorded green runs, and every event and
 red when the two disagree.
 
 Do **not** require `integration-tests (ubuntu-24.04)` / `(ubuntu-24.04-arm)`, nor
-`build (api|web|selfhost)` or `build (postgres)` from `images.yml`. Neither is reported at all on some pull requests —
+`build (api|web|selfhost)`, `build (postgres)` or `build (trigger, amd64|arm64)` from `images.yml`. Neither is reported at all on some pull requests —
 a skipped matrix job reports once under the literal `integration-tests (${{ matrix.runner }})`,
 and `images.yml` has a `paths:` filter — so a docs-only PR blocks forever on "Expected — waiting
 for status to be reported", with nothing queued in Actions to explain it. Full rationale is the

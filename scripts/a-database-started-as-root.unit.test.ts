@@ -66,7 +66,8 @@
  *    `api web` by name and runs `up` without `--build`, and no script, compose
  *    comment or document gives a command that builds the databases' image:
  *    no `up --build` on managed.yml or dev.yml, no `build` naming no service
- *    or a database;
+ *    or a database, nor any other service whose image is built here, read
+ *    from the files (trigger-api and trigger-supervisor since 0146 T16);
  *  - a pull request that touches deploy/ builds the Dockerfile and starts the
  *    result (images.yml, `build (postgres)`), so a FROM that does not resolve,
  *    or a base without gosu, is found there and not first by E2E (managed);
@@ -400,6 +401,20 @@ const BUILD_OPTIONS_WITH_VALUE = new Set(['--build-arg', '--builder', '-m', '--m
 const BUILDS_THE_DATABASES = /(^|\/)(managed|dev)\.yml$/;
 
 /**
+ * Every service of managed.yml and dev.yml that runs an image built here
+ * (`localhost/…`), read from the files: the two databases (0146 T15), and
+ * trigger-api and trigger-supervisor since 0146 T16. None may be built by
+ * name: each is built where its name is missing, and only then.
+ */
+const BUILT_HERE_SERVICES: ReadonlySet<string> = new Set(
+  ['deploy/compose/managed.yml', 'deploy/compose/dev.yml'].flatMap((file) =>
+    Object.entries(services(file))
+      .filter(([, svc]) => typeof svc.image === 'string' && svc.image.startsWith('localhost/'))
+      .map(([name]) => name),
+  ),
+);
+
+/**
  * What is wrong with one line's compose commands, in words; empty when none
  * builds the databases' image. A command is `docker compose …` or the bring-up's
  * `"${COMPOSE[@]}" …`, up to the end of the line, a backtick, `&&`, `||`, `;`,
@@ -432,8 +447,8 @@ function rebuilds(line: string): string[] {
         else if (!rest[j]!.startsWith('-')) named.push(rest[j]!);
       }
       if (named.length === 0) problems.push(`\`${said}\` builds every service, the databases' image among them: name the services (\`build api web\`)`);
-      for (const db of named.filter((n) => n === 'postgres' || n === 'trigger-db')) {
-        problems.push(`\`${said}\` builds ${db}'s image although the machine has it: it is built when its name is missing, and only then`);
+      for (const db of named.filter((n) => BUILT_HERE_SERVICES.has(n))) {
+        problems.push(`\`${said}\` builds ${db}'s image although the machine has it: an image built here is built when its name is missing, and only then`);
       }
     }
   }
@@ -463,6 +478,10 @@ const lift = (name: string): string => {
 };
 
 describe("nothing builds the databases' image again while the machine has it", () => {
+  it('knows every service that runs an image built here, from the compose files', () => {
+    expect([...BUILT_HERE_SERVICES].sort()).toEqual(['postgres', 'trigger-api', 'trigger-db', 'trigger-supervisor']);
+  });
+
   it('reads the commands it means, and refuses each way of rebuilding it', () => {
     for (const line of [
       'docker compose -f deploy/compose/managed.yml up -d --build web',
@@ -473,6 +492,9 @@ describe("nothing builds the databases' image again while the machine has it", (
       'docker compose build --no-cache',
       'docker compose -f deploy/compose/managed.yml build postgres',
       'docker compose -f deploy/compose/managed.yml build --build-arg GIT_SHA=x trigger-db api',
+      // The Trigger.dev builds (0146 T16) are built where missing, and never by name either.
+      'docker compose -f deploy/compose/managed.yml build trigger-api',
+      '"${COMPOSE[@]}" build trigger-supervisor',
       'run `docker compose -f deploy/compose/managed.yml -f override.yml up -d --build` first',
     ]) {
       expect(rebuilds(line), line).not.toEqual([]);

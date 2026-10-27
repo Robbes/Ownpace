@@ -255,8 +255,10 @@ describe('which images it scans', () => {
       }
     }
     // The reader's resolution and digests, on the real lines.
-    const trigger = readImages(REAL.read('deploy/compose/managed.yml')!).find((i) => i.repo === 'ghcr.io/triggerdotdev/trigger.dev')!;
-    expect(refs.has(`ghcr.io/triggerdotdev/trigger.dev:${trigger.tag}`)).toBe(true);
+    // A `${VAR:-default}` inside a tag, as the Trigger.dev builds name theirs (0146 T16).
+    const trigger = readImages(REAL.read('deploy/compose/managed.yml')!).find((i) => i.repo === 'localhost/trigger.dev')!;
+    expect(trigger.tag, "managed.yml's trigger-api image no longer carries the version default").toMatch(/^v\d+\.\d+\.\d+-[0-9a-f]{12}$/);
+    expect(refs.has(`localhost/trigger.dev:${trigger.tag}`)).toBe(true);
     const pinned = SCAN_FILES.flatMap((file) => readImages(REAL.read(file)!)).filter((i) => i.digest);
     expect(pinned.length, 'no image line is pinned by digest, so nothing here shows a digest is kept').toBeGreaterThan(0);
     for (const image of pinned) expect(refs.has(`${image.repo}${image.tag ? `:${image.tag}` : ''}@${image.digest}`)).toBe(true);
@@ -307,6 +309,15 @@ describe('which images it scans', () => {
     expect(postgres.where, "managed.yml's and dev.yml's are one build, so one scan").toBe('deploy/compose/managed.yml, deploy/compose/dev.yml');
     expect(postgres.floating, "its pins are its Dockerfile's").toBe(false);
     expect(REAL.read(`${postgres.context}/Dockerfile`)).toMatch(/^FROM postgres:/m);
+    // The two Trigger.dev images built here (0146 T16) keep the names, and so the
+    // categories and issues, the pulled images had.
+    for (const [name, context] of [['trigger.dev', 'deploy/compose/trigger.dev'], ['supervisor', 'deploy/compose/supervisor']]) {
+      const built = images.find((i) => i.name === name);
+      expect(built?.ref, `${name} is pulled from a registry again`).toMatch(new RegExp(`^localhost/${name.replace('.', '\\.')}:v[\\d.]+-[0-9a-f]{12}$`));
+      expect(built?.context).toBe(context);
+      expect(built?.where).toBe('deploy/compose/managed.yml');
+      expect(REAL.read(`${context}/Dockerfile`)).toMatch(new RegExp(`^FROM ghcr\\.io/triggerdotdev/${name.replace('.', '\\.')}:`, 'm'));
+    }
     // Every other image is pulled, and carries no context: the appliance's Postgres among them.
     for (const image of images.filter((i) => !i.ref.startsWith(BUILT_HERE))) expect(image.context, image.name).toBeUndefined();
     expect(images.find((i) => i.name === 'postgres-selfhost')?.context).toBeUndefined();

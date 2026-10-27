@@ -516,6 +516,10 @@ interface Release {
   omit?: string[];
   /** Take the Trigger.dev image lines out of managed.yml at this commit, so its pin cannot be read. */
   noTriggerPin?: boolean;
+  /** Change the hash in the Trigger.dev builds' names at this commit, the version kept: a change to their Dockerfiles alone (0146 T16). */
+  triggerBuild?: boolean;
+  /** Start this commit's managed.yml from the real file, whose Trigger.dev images are built here, after a running release that pulled them. */
+  builtTrigger?: boolean;
   /** The count of unfilled placeholders the site at this commit has (default 0). */
   siteDrafts?: number;
   /** What the site's `--public` build at this commit refuses with, beyond the count (its `--check` passes). */
@@ -619,8 +623,24 @@ function movePin(yml: string, which: 'trigger' | 'zitadel', to: string): string 
   return moved;
 }
 
+/** managed.yml as alpha.3 has it: Trigger.dev pulled from ghcr at the same version default, before 0146 T16. */
+function ghcrTrigger(yml: string): string {
+  const back = yml.replace(/localhost\/(trigger\.dev|supervisor):(\$\{TRIGGER_IMAGE_TAG:-v[0-9.]+\})-[0-9a-f]{12}/g, 'ghcr.io/triggerdotdev/$1:$2');
+  if (back === yml) throw new Error('managed.yml runs no Trigger.dev build this fixture knows how to turn back into the pulled image');
+  return back;
+}
+
+/** managed.yml with another hash in the Trigger.dev builds' names: their Dockerfiles changed, the version did not. */
+function moveTriggerBuild(yml: string): string {
+  const moved = yml.replace(/(localhost\/(?:trigger\.dev|supervisor):\$\{TRIGGER_IMAGE_TAG:-v[0-9.]+\})-[0-9a-f]{12}/g, '$1-0123456789ab');
+  if (moved === yml) throw new Error('managed.yml runs no Trigger.dev build whose name this fixture knows how to move');
+  return moved;
+}
+
 interface StageOptions {
   releases?: Release[];
+  /** The running release pulls Trigger.dev from ghcr, as alpha.3 does, instead of building it (0146 T16). */
+  runningGhcrTrigger?: boolean;
   /** Which tag the checkout holds when the script starts (default the running one). */
   checkout?: string;
   dotEnv?: string;
@@ -650,6 +670,7 @@ function stage(opts: StageOptions = {}): Stage {
     chmodSync(join(compose, f), 0o755);
   }
   copyFileSync(join(COMPOSE_DIR, 'managed.yml'), join(compose, 'managed.yml'));
+  if (opts.runningGhcrTrigger) writeFileSync(join(compose, 'managed.yml'), ghcrTrigger(readFileSync(join(compose, 'managed.yml'), 'utf8')));
   writeFileSync(join(compose, 'www.yml'), wwwYml());
   writeExec(join(compose, 'bootstrap-managed.sh'), BOOTSTRAP_STUB);
   writeExec(join(compose, 'exposure-check.sh'), EXPOSURE_STUB);
@@ -673,9 +694,10 @@ function stage(opts: StageOptions = {}): Stage {
     writeFileSync(join(work, 'package.json'), packageJson(r.version ?? r.tag.replace(/^v/, '')));
     if (r.ledger) writeFileSync(join(work, 'packages', 'ledger', 'migrations', r.ledger), 'SELECT 2;\n');
     if (r.managed) writeFileSync(join(work, 'packages', 'managed', 'migrations', r.managed), 'SELECT 2;\n');
-    let yml = readFileSync(join(compose, 'managed.yml'), 'utf8');
+    let yml = readFileSync(join(r.builtTrigger ? COMPOSE_DIR : compose, 'managed.yml'), 'utf8');
     if (r.trigger) yml = movePin(yml, 'trigger', r.trigger);
     if (r.zitadel) yml = movePin(yml, 'zitadel', r.zitadel);
+    if (r.triggerBuild) yml = moveTriggerBuild(yml);
     if (r.noTriggerPin) {
       // Every image line that carries the version default, in either form.
       const unpinned = yml.replace(/^[ \t]*image:.*\$\{TRIGGER_IMAGE_TAG:-v[^}]*\}.*\n/gm, '');
@@ -2040,6 +2062,52 @@ describe('a copy is made before the update: copy-before-update.sh, right before 
       writeFileSync(s.deployLog, `2026-09-27T10:00:00Z\t${OTHER.tag}\t${s.commit[OTHER.tag]}\ttook\tone-way\n`);
       const r = run(s, [NEXT.tag]);
       expect(r.status, r.out).toBe(0);
+      expect(copies(s)).toEqual([`copy-before-update take --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+    },
+    CASE_MS,
+  );
+
+  // THE PIN IS THE VERSION, NOT THE IMAGE LINE (0146 T16). What migrates
+  // triggerdb is the Trigger.dev version; the build here changes no schema.
+  it(
+    'a change to the Trigger.dev builds alone, the version kept: reversible, and no --trigger',
+    () => {
+      const s = stage({ releases: [{ ...NEXT, triggerBuild: true }] });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/reversible/);
+      expect(r.out).not.toMatch(/one-way/);
+      expect(copies(s)).toEqual([`copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "ghcr's images replaced by the builds at the same version, as alpha.3 to alpha.4: reversible, and no --trigger",
+    () => {
+      const s = stage({ runningGhcrTrigger: true, releases: [{ ...NEXT, builtTrigger: true }] });
+      expect(git(s.root, s.work, 'show', `${RUNNING.tag}:deploy/compose/managed.yml`)).toContain(
+        'image: ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-',
+      );
+      expect(git(s.root, s.work, 'show', `${NEXT.tag}:deploy/compose/managed.yml`)).toContain('image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-');
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/reversible/);
+      expect(r.out).not.toMatch(/one-way/);
+      expect(copies(s)).toEqual([`copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "ghcr's images replaced by the builds at a new version: one-way, and --trigger",
+    () => {
+      const s = stage({ runningGhcrTrigger: true, releases: [{ ...NEXT, builtTrigger: true, trigger: 'v4.9.99' }] });
+      expect(git(s.root, s.work, 'show', `${NEXT.tag}:deploy/compose/managed.yml`)).toContain('image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.9.99}-');
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/one-way/);
+      expect(r.out).toMatch(/moves the Trigger\.dev pin in managed\.yml: v[0-9.]+ -> v4\.9\.99/);
       expect(copies(s)).toEqual([`copy-before-update take --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
     },
     CASE_MS,

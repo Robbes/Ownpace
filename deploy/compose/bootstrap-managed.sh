@@ -1630,6 +1630,11 @@ phase_trigger() {
     exit 1
   fi
   note "Trigger.dev images and SDK agree at ${sdk_version}"
+  # trigger-api and trigger-supervisor run builds of upstream's images with
+  # files deleted that never run here (workplan 0146 T16), named after the
+  # version and the hash of their Dockerfiles. The up_wait calls below build
+  # each where its name is missing, and nothing else: never `up --build`.
+  note "trigger-api and trigger-supervisor are local builds of upstream's ${tag_version} (deploy/compose/trigger.dev, deploy/compose/supervisor), built where the machine does not have them yet"
   # THE SUPERVISOR COMES UP LAST, AND NOT ONLY FOR ORDERING.
   #
   # trigger-api bootstraps a worker group and writes its token into the SHARED

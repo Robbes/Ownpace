@@ -124,7 +124,10 @@ repo_tag() {
 }
 
 running_tag() { # what is ACTUALLY running, which is the only thing that is not a claim
-  docker inspect --format '{{.Config.Image}}' "$API_CONTAINER" 2>/dev/null | sed 's/.*://' || true
+  # The tag, without the twelve hex digits a build here ends its name in
+  # (`localhost/trigger.dev:v4.8.1-<hash>`, workplan 0146 T16): they are the
+  # Dockerfile's, not the version's, and left on they read as a disagreement.
+  docker inspect --format '{{.Config.Image}}' "$API_CONTAINER" 2>/dev/null | sed 's/.*://; s/-[0-9a-f]\{12\}$//' || true
 }
 
 # ------------------------------------------------------------------ list --
@@ -173,6 +176,33 @@ tag_exists() { # tag_exists <image> <tag>
     die "ghcr.io answered ${code:-nothing} for triggerdotdev/${image}:${tag}, which says neither that the tag is there nor that it is not. Nothing newer can be called current."
   fi
   return 1
+}
+
+# THE INDEX DIGEST A TAG HAS TODAY, for the FROM of the builds here (workplan
+# 0146 T16: deploy/compose/trigger.dev and deploy/compose/supervisor build on
+# upstream's images by tag and digest). The question tag_exists asks, read for
+# its headers. Only an index (OCI) or a manifest list (Docker) is taken: the
+# FROM serves amd64 and arm64 both, and a one-platform manifest would build on
+# one of them only.
+tag_digest() { # tag_digest <image> <tag>
+  local image="$1" tag="$2" headers type digest
+  headers="$(curl -sS --max-time 20 -I \
+    -H "Authorization: Bearer $(ghcr_token "$image")" \
+    -H 'Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json' \
+    "https://ghcr.io/v2/triggerdotdev/${image}/manifests/${tag}")" ||
+    die "ghcr.io did not answer for triggerdotdev/${image}:${tag}, so its digest is not known. Nothing was moved."
+  headers="$(tr -d '\r' <<<"$headers")"
+  # The last of each: a proxy's own answer to CONNECT can come first.
+  type="$(sed -n 's/^[Cc]ontent-[Tt]ype:[[:space:]]*//p' <<<"$headers" | tail -n 1)"
+  type="${type%%;*}"
+  digest="$(sed -n 's/^[Dd]ocker-[Cc]ontent-[Dd]igest:[[:space:]]*//p' <<<"$headers" | tail -n 1)"
+  case "$type" in
+    application/vnd.oci.image.index.v1+json | application/vnd.docker.distribution.manifest.list.v2+json) ;;
+    *) die "ghcr.io/triggerdotdev/${image}:${tag} is '${type:-nothing}', not an index of platforms, so no FROM can name it for both. Nothing was moved." ;;
+  esac
+  [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] ||
+    die "ghcr.io gave no digest for triggerdotdev/${image}:${tag} ('${digest}'). Nothing was moved."
+  printf '%s\n' "$digest"
 }
 
 # BOTH images or neither: the webapp and the supervisor run one tag by
@@ -476,10 +506,33 @@ cmd_pin() {
   tag_exists trigger.dev "$want" || die "ghcr.io/triggerdotdev/trigger.dev:${want} is not published."
   tag_exists supervisor  "$want" || die "ghcr.io/triggerdotdev/supervisor:${want} is not published — the
 webapp and the supervisor run ONE tag, so a half-published version is not usable."
+  # What the FROM of each build here names (0146 T16), asked before anything moves.
+  local webapp_digest supervisor_digest
+  webapp_digest="$(tag_digest trigger.dev "$want")"
+  supervisor_digest="$(tag_digest supervisor "$want")"
 
   bare="${want#v}"
   say "moving every place to ${want}"
   sed -i -E "s|\\\$\\{TRIGGER_IMAGE_TAG:-v[0-9]+\.[0-9]+\.[0-9]+\\}|\${TRIGGER_IMAGE_TAG:-${want}}|g" "${SCRIPT_DIR}/managed.yml"
+  # THE BUILDS HERE (workplan 0146 T16). Each Dockerfile's FROM moves to the
+  # tag and the digest it has today, and the name managed.yml gives the build
+  # to that file's new hash, the SHA-256 of its instruction lines (the
+  # Dockerfile's header). A directory that is gone is skipped: the patch was
+  # dropped, and its service runs ghcr's image again.
+  local name esc digest dockerfile hex
+  for name in trigger.dev supervisor; do
+    dockerfile="${SCRIPT_DIR}/${name}/Dockerfile"
+    [ -f "$dockerfile" ] || continue
+    esc="${name//./\\.}"
+    if [ "$name" = trigger.dev ]; then digest="$webapp_digest"; else digest="$supervisor_digest"; fi
+    sed -i -E "s|^FROM ghcr\.io/triggerdotdev/${esc}:v[0-9]+\.[0-9]+\.[0-9]+@sha256:[0-9a-f]{64}\$|FROM ghcr.io/triggerdotdev/${name}:${want}@${digest}|" "$dockerfile"
+    grep -qxF "FROM ghcr.io/triggerdotdev/${name}:${want}@${digest}" "$dockerfile" ||
+      die "${dockerfile} has no FROM ghcr.io/triggerdotdev/${name}:<tag>@<digest> line to move, so its build would not follow ${want}. Read it."
+    hex="$(grep -Ev '^[[:space:]]*(#|$)' "$dockerfile" | sha256sum | cut -c1-12)"
+    sed -i -E "s|^([[:space:]]*image: localhost/${esc}:\\\$\\{TRIGGER_IMAGE_TAG:-${want//./\\.}\\})-[0-9a-f]{12}\$|\\1-${hex}|" "${SCRIPT_DIR}/managed.yml"
+    [ "$(grep -cxF "    image: localhost/${name}:\${TRIGGER_IMAGE_TAG:-${want}}-${hex}" "${SCRIPT_DIR}/managed.yml")" = 1 ] ||
+      die "managed.yml does not name the build of ${dockerfile} once as localhost/${name}:\${TRIGGER_IMAGE_TAG:-${want}}-${hex}. Read it."
+  done
   sed -i -E "s|^TRIGGER_IMAGE_TAG=v[0-9]+\.[0-9]+\.[0-9]+$|TRIGGER_IMAGE_TAG=${want}|" "${SCRIPT_DIR}/managed.env.example"
   # EVERY MANIFEST THE CI GUARD COMPARES, not a list of them. This moved
   # apps/worker's SDK alone and left the root package.json (sdk AND core) and
@@ -498,8 +551,13 @@ webapp and the supervisor run ONE tag, so a half-published version is not usable
 files, nothing running. What remains, in this order:
 
   1. pnpm install                      # the lockfile has to follow the SDK
-  2. git diff                          # managed.yml x2, managed.env.example and
-                                       # every @trigger.dev/* manifest line, no more
+  2. git diff                          # managed.yml x2, managed.env.example,
+                                       # every @trigger.dev/* manifest line, and
+                                       # the FROM of trigger.dev/ and supervisor/'s
+                                       # Dockerfile with the hash in their names
+     The pull request's build (trigger) jobs (images.yml) prove every removal
+     in those Dockerfiles again at ${want}: one whose path moved fails there by
+     name. Read it again, or drop it if ${want} fixed what it removed.
   3. $0 backup before-${want}          # the schema migration is ONE WAY
   4. read docs/managed-bring-up.md's upgrade order — do NOT upgrade with runs
      in flight; drain EXECUTING first, or every run loops on

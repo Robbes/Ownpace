@@ -34,8 +34,11 @@
  *   Trigger.dev        managed.yml's default against the newest tag BOTH ghcr
  *                      images carry, by `trigger-version.sh probe`, the probe
  *                      `list` runs, which asks manifests because ghcr's tag
- *                      list is incomplete. Its own issue.
- *   ClickHouse         managed.yml's image against the one Trigger.dev's own
+ *                      list is incomplete. Its own issue. The two images
+ *                      run a build here since 0146 T16, whose Dockerfiles'
+ *                      FROM must name the pin: a run that finds one at
+ *                      another version fails, and never says current.
+ *   ClickHouse        managed.yml's image against the one Trigger.dev's own
  *                      `docker/docker-compose.yml` pins at that newest tag,
  *                      with the line's row in ClickHouse's SECURITY.md as
  *                      text. Its own issue, while the two differ.
@@ -570,6 +573,30 @@ export function readTriggerPin(compose, workerManifest) {
   return pin;
 }
 
+/**
+ * The two Trigger.dev services, which run a build here since 0146 T16
+ * (`localhost/trigger.dev`, `localhost/supervisor`), each from its directory's
+ * Dockerfile, whose FROM is ghcr's image of the same name.
+ */
+export const TRIGGER_BUILDS = { 'localhost/trigger.dev': 'ghcr.io/triggerdotdev/trigger.dev', 'localhost/supervisor': 'ghcr.io/triggerdotdev/supervisor' };
+
+/**
+ * Each built Trigger.dev image's FROM, held to the pin: a Dockerfile left at
+ * another version than the defaults would build what the bring-up's drift
+ * check does not see. An image line that is ghcr's own (the patch dropped)
+ * has nothing to check.
+ */
+export function triggerBuildsAt(repo, pin) {
+  for (const line of readImages(need(repo, COMPOSE))) {
+    if (!(line.repo in TRIGGER_BUILDS)) continue;
+    const built = builtImage(repo, COMPOSE, line);
+    const want = TRIGGER_BUILDS[line.repo];
+    if (built.base.repo !== want || built.base.tag !== pin) {
+      throw new Error(`${built.dockerfile} builds on ${built.base.repo}:${built.base.tag}, and ${COMPOSE} pins ${want}:${pin}; trigger-version.sh pin moves both`);
+    }
+  }
+}
+
 export function triggerBody({ pin, newest }) {
   return [
     `The Trigger.dev webapp and supervisor run **${pin}** (\`${COMPOSE}\`, with the \`@trigger.dev/*\` manifests), and the newest tag both images carry on ghcr is **${newest}**.`,
@@ -583,12 +610,15 @@ export function triggerBody({ pin, newest }) {
     '5. E2E (managed) dispatched on that branch, which applies it to the OTA instance, one way. Dispatch it only when the branch can merge within the hour.',
     '6. Live takes it from a release tag.',
     '',
+    "Both images run a build here, upstream's image with files deleted that never run in this stack (`deploy/compose/trigger.dev/Dockerfile`, `deploy/compose/supervisor/Dockerfile`, workplan 0146 T16). Step 3's `pin` moves their FROM and the hash in their names. The pull request's `build (trigger, amd64|arm64)` jobs (`images.yml`) say whether the new tag still carries each path: one that moved fails there by name. Read it again, and drop the removal the new release fixed.",
+    '',
     'This issue is kept by `.github/workflows/idp-pin-watch.yml`. It is updated while the two differ, and closed when the pin catches up.',
   ].join('\n');
 }
 
 export async function triggerRow(repo, net) {
   const pin = readTriggerPin(need(repo, COMPOSE), need(repo, 'apps/worker/package.json'));
+  triggerBuildsAt(repo, pin);
   const listed = (await net.probe(pin))
     .split('\n')
     .map((line) => line.trim())
