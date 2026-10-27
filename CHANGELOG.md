@@ -20,16 +20,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   both build stages, with the Debian archive reachable.
 - **The Trigger.dev webapp and supervisor run without files nothing here
   runs** (workplan 0146 T16): both are built on the machine from upstream's
-  v4.8.1 images, by tag and digest, without depot's and esbuild's Go binaries
-  and without the copy of pnpm their user does not run. Those held 5 of the 8
-  critical findings the image scan read in the webapp on 2026-10-26, and 1 of
-  the supervisor's 2; the zlib1g, dompurify and pnpm tar findings in what does
-  run stay until upstream moves. The first bring-up after this builds both
-  images where the machine lacks them, pulling upstream's from ghcr as before,
-  and `.env` needs nothing new: `TRIGGER_IMAGE_TAG` still names the version.
-  Both services set `COREPACK_ENABLE_NETWORK: "0"`, so a start never fetches
-  pnpm from the npm registry. `trigger-version.sh pin` moves the builds with
-  the version, and the pull request of a move rebuilds them on amd64 and arm64.
+  v4.8.1 images, by tag and digest, without depot's and esbuild's Go binaries,
+  without the copy of pnpm their user does not run, and without the tar inside
+  the copy it does run (the owner's decision of 2026-10-27: only pnpm's
+  bundled node-gyp needs it, to build a native add-on, and nothing in these
+  containers installs; such an install there would now fail). Those held 6 of
+  the 8 critical findings the image scan read in the webapp on 2026-10-26, and
+  both of the supervisor's; the zlib1g and dompurify findings stay until
+  Debian and upstream move. The first bring-up after this builds both images
+  where the machine lacks them, pulling upstream's from ghcr as before, and
+  `.env` needs nothing new: `TRIGGER_IMAGE_TAG` names the version, and must be
+  the checkout's (the build refuses another). Both services set
+  `COREPACK_ENABLE_NETWORK: "0"`, so a start never fetches pnpm from the npm
+  registry. `trigger-version.sh pin` moves the builds with the version; the
+  builds refuse a release nobody has read them against, so the pull request
+  of a move reads them again and rebuilds them on amd64 and arm64 before the
+  window. Rolling back runs the checkout that pinned the older version.
 
 ### Changed
 

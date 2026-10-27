@@ -480,9 +480,11 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   it runs as uid 70 without gosu (workplan 0146 T15); it publishes nothing. And
   `build (trigger, amd64)` and `build (trigger, arm64)` build `deploy/compose/trigger.dev` and
   `deploy/compose/supervisor`, upstream's Trigger.dev images with files deleted that never run here,
-  natively on each platform, and check the result keeps upstream's user, command, entrypoint and
-  working directory (workplan 0146 T16). Each removal fails the build by name when its path is not
-  there, so the pull request of a Trigger.dev move is red there until the Dockerfiles are read again.
+  natively on each platform, after checking the base's user, command and entrypoint are the ones the
+  Dockerfiles read, and check the result keeps upstream's user, command, entrypoint and working
+  directory (workplan 0146 T16). Each removal fails the build by name when its path is not there,
+  and each Dockerfile refuses another release than its `read_at`, so the pull request of a
+  Trigger.dev move is red there until the Dockerfiles are read again.
 - `windows-payload.yml` (dispatch, and on v* tags; builds the Windows appliance payload).
 - `release.yml` — dispatch only, from `main`, on GitHub-hosted runners only; never a required
   check, since it has no pull-request trigger. It cuts a release tag and publishes it in order

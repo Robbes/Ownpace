@@ -95,12 +95,12 @@
 # entrypoint are the ones read (node, ./scripts/entrypoint.sh, Node's
 # docker-entrypoint.sh, which drops no user).
 #
-# READ AT ONE RELEASE. Why each removal is safe was read in upstream's source
-# at read_at (below): the depot gate, what build/server.js imports, the
-# entrypoint and the copies of pnpm. A release that keeps @depot/cli 0.0.1-cli.2.80.0
-# and esbuild 0.23.0 at the same paths (4.7.6, 4.8.0 and 4.8.1 all do) would
-# pass every path check here while code this stack reaches started to run one
-# of them. So the build refuses any other version than read_at, and
+# READ AT ONE RELEASE. Why each removal is safe was read in upstream's source at
+# read_at (below): the depot gate, what build/server.js imports, the entrypoint
+# and the copies of pnpm. A release that keeps @depot/cli 0.0.1-cli.2.80.0 and
+# esbuild 0.23.0 at the same paths (4.7.6, 4.8.0 and 4.8.1 all do) would pass
+# every path check here while code this stack reaches started to run one of
+# them. So the build refuses any other version than read_at, and
 # `trigger-version.sh pin` leaves read_at where it is: a version move's pull
 # request is red (here, in `build (trigger, …)` and in E2E (managed)) until
 # someone reads the reasons again at the new release and moves read_at, and
@@ -109,13 +109,13 @@
 # IT FAILS LOUDLY WHEN UPSTREAM MOVES. Every path names a version. The build
 # refuses unless the image's @trigger.dev/core is the TRIGGER_IMAGE_TAG it is
 # given (when the .env sets one) and read_at, its entrypoint is the one read,
-# its packageManager is pnpm@10.33.2, and it runs on linux-arm64 or linux-x64. Each file is tested before a plain `rm`,
-# never `rm -f`, and checked gone after. A Trigger.dev that moves @depot/cli,
-# esbuild or pnpm, or drops one, fails here and names the path: re-read this
-# header against it, and drop the removal upstream fixed. A pull request that
-# touches deploy/ runs this on both platforms (images.yml, `build (trigger,
-# amd64|arm64)`); the weekly image scan builds it on arm64 and counts what is
-# left.
+# its packageManager is pnpm@10.33.2, and it runs on linux-arm64 or linux-x64.
+# Each file is tested before a plain `rm`, never `rm -f`, and checked gone
+# after. A Trigger.dev that moves @depot/cli, esbuild or pnpm, or drops one,
+# fails here and names the path: re-read this header against it, and drop the
+# removal upstream fixed. A pull request that touches deploy/ runs this on both
+# platforms (images.yml, `build (trigger, amd64|arm64)`); the weekly image scan
+# builds it on arm64 and counts what is left.
 #
 # THE BASE AND THE NAME. The FROM is the pin, by tag and index digest, as in
 # deploy/compose/postgres/Dockerfile. managed.yml builds this as
@@ -124,15 +124,15 @@
 # comments and blank lines left out,
 #   grep -Ev '^[[:space:]]*(#|$)' deploy/compose/trigger.dev/Dockerfile | sha256sum | cut -c1-12
 # so a changed instruction is a name the machine does not have yet, and compose
-# builds it. TRIGGER_IMAGE_TAG reaches the build as an argument only to refuse
-# a .env that names another version than this file builds; it changes nothing
-# that is built. The .env names the version, and it must be this checkout's:
-# to run another, run the checkout that pins it. `trigger-version.sh pin`
-# moves the FROM, its digest and the name with the version (and leaves
-# read_at, above). Nothing builds it again while
-# the machine has the name (managed.yml's header). No parser directive, COPY,
-# ADD, --mount, ENV, CMD, ENTRYPOINT, WORKDIR or LABEL: the hash covers all that
-# is built, and the image's configuration stays upstream's.
+# builds it. TRIGGER_IMAGE_TAG reaches the build as an argument only to refuse a
+# .env that names another version than this file builds; it changes nothing that
+# is built. The .env names the version, and it must be this checkout's: to run
+# another, run the checkout that pins it. `trigger-version.sh pin` moves the
+# FROM, its digest and the name with the version (and leaves read_at, above).
+# Nothing builds it again while the machine has the name (managed.yml's header).
+# No parser directive, COPY, ADD, --mount, ENV, CMD, ENTRYPOINT, WORKDIR or
+# LABEL: the hash covers all that is built, and the image's configuration stays
+# upstream's.
 #
 # THE WAY OUT. The issue that asks upstream for these fixes is filed by the
 # owner (workplan 0146 T16); its address goes here once it exists. When a `pin`

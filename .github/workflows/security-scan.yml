@@ -439,7 +439,13 @@ jobs:
   # GitHub's arm64 runner (free on a public repository; ci.yml's integration
   # tests use it) under the reference the compose file runs, and Trivy reads
   # it from that runner's Docker only. The name, and so the category and the
-  # issue, stays the one the pulled image had (`postgres-managed`). The
+  # issue, stays the one the pulled image had (`postgres-managed`). Since
+  # 0146 T16 managed.yml's trigger-api and trigger-supervisor are such builds
+  # too (deploy/compose/trigger.dev and deploy/compose/supervisor), scanned as
+  # built under the names the pulled images had (`trigger.dev`,
+  # `supervisor`); their removals and read_at fail the leg's build by name
+  # when a pin moves a path or the release, and the webapp's build has to fit
+  # in the leg's 30 minutes with its scan. The
   # checkout is never the working directory, which the Trivy step and `trivy
   # convert` share with every other leg: Trivy reads a `.trivyignore` or a
   # `trivy.yaml` there on its own, and one at the repository's root would drop

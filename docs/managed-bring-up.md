@@ -3040,7 +3040,8 @@ own update only on `install` and `add`, goose v3.27.1 has no network use of its
 own, and the dashboard agent's migration is plain drizzle-orm. Nor does
 corepack, which starts every `pnpm`: `trigger-api` and `trigger-supervisor` set
 `COREPACK_ENABLE_NETWORK: "0"` (workplan 0146 T16), because their builds delete
-the copy of pnpm the other user would run (*Upgrading Trigger.dev*, below).
+the copy of pnpm the other user would run, and tar from the copy theirs runs
+(*Upgrading Trigger.dev*, below).
 Without a copy for the user that runs, corepack would download pnpm from the
 npm registry at every start, unannounced; with it, the start fails and says
 "Network access disabled by the environment". At v4.7.6 it also
@@ -5084,8 +5085,9 @@ must agree: the two `${TRIGGER_IMAGE_TAG:-…}` defaults in `managed.yml`,
 `TRIGGER_IMAGE_TAG` in `managed.env.example`, the FROM of the two Dockerfiles
 the images are built from (below), and every `@trigger.dev/*`
 dependency in the root, `apps/worker` and `packages/scheduler` manifests
-(`.env`'s `TRIGGER_IMAGE_TAG`, when set, overrides the compose default on that
-machine). `--from trigger` refuses at bring-up when they disagree, and
+(`.env`'s `TRIGGER_IMAGE_TAG`, when set, names the version on that machine,
+and must be the checkout's: the builds refuse another). `--from trigger`
+refuses at bring-up when they disagree, and
 `bootstrap-managed.unit.test.ts` refuses in CI — added after dependabot moved
 the SDK alone, passed all seventeen checks and broke the managed gate.
 
@@ -5096,31 +5098,56 @@ and `deploy/compose/supervisor/Dockerfile` build on
 `ghcr.io/triggerdotdev/trigger.dev` and `…/supervisor` by tag and index digest,
 and delete only files no process of this stack runs: depot's and esbuild's Go
 binaries (each under both of its names) and node's copy of pnpm in the webapp,
-root's copy of pnpm in the supervisor. The image scan's critical findings go
-from 8 to 3 and from 2 to 1. Each Dockerfile's header says why each file is
-safe to delete, and why the webapp keeps root's copy of pnpm and the supervisor
-node's: `trigger-api` runs `user: root`, `trigger-supervisor` as the image's
-node. `managed.yml` names them `localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v…}-<hash>`
-and `localhost/supervisor:…`: the version as before, then the hash of the
-Dockerfile's instructions, so `.env`'s `TRIGGER_IMAGE_TAG` still chooses the
-version, the drift check below still holds it to the SDK, and the build refuses
-a `.env` that names another version than its FROM. `up` builds each name where
-the machine does not have it, pulling upstream's image from ghcr as it pulled it
-before, and never again while the name is there: never `up --build`, never
-`build trigger-api`.
+root's copy of pnpm in the supervisor, and, the owner's decision of
+2026-10-27, tar from the copy each service does run (only pnpm's bundled
+node-gyp requires it, to build a native add-on, and these containers install
+nothing). The image scan's critical findings go from 8 to 2 and from 2 to 0.
+The one risk accepted: a `pnpm install` inside `trigger-api` or
+`trigger-supervisor` that builds a native add-on would fail. Each Dockerfile's
+header says why each file is safe to delete, and why the webapp keeps root's
+copy of pnpm and the supervisor node's: `trigger-api` runs `user: root`,
+`trigger-supervisor` as the image's node. `managed.yml` names them
+`localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v…}-<hash>` and
+`localhost/supervisor:…`: the version as before, then the hash of the
+Dockerfile's instructions. The checkout's FROM chooses the version; `.env`'s
+`TRIGGER_IMAGE_TAG` names it, and must name the same one: the drift check below
+holds it to the SDK, and the build refuses a `.env` that names another version
+than its FROM. To run another version, run the checkout that pins it (a
+release tag, or a move to it with `trigger-version.sh pin`). `up` builds each
+name where the machine does not have it, pulling upstream's image from ghcr as
+it pulled it before, and never again while the name is there: never `up
+--build`, never `build trigger-api`.
 
 - **`trigger-version.sh pin` moves them.** It asks ghcr for both tags' index
-  digests, writes them into the two FROMs, and writes the new hash into both
-  names, with everything else it moves.
-- **A move's pull request re-proves every removal.** `build (trigger, amd64)`
-  and `build (trigger, arm64)` (`images.yml`) build both Dockerfiles at the new
-  tag. Each removal names a version-locked path and fails the build by name
-  when the path is not there: read that Dockerfile's header against the new
-  release, and drop the removal the release fixed.
-- **Rolling back** to the release before the builds is reversible at the same
+  digests, checks every line it will move is there (or moves nothing), writes
+  the digests into the two FROMs, and writes the new hash into both names,
+  with everything else it moves. It leaves each Dockerfile's `read_at`, the
+  release its reasons were read in.
+- **A move's pull request re-proves every removal, before any window.** Both
+  builds refuse a release other than their `read_at`: read each Dockerfile's
+  header again at the new release (the depot gate, what `build/server.js`
+  imports, the entrypoint, the copies of pnpm), move `read_at` (and
+  `entrypoint_sha256` when the entrypoint changed), drop a removal the release
+  fixed, and move the names with the `sed` the guard prints. Then
+  `build (trigger, amd64)` and `build (trigger, arm64)` (`images.yml`) build
+  both at the new tag: each removal names a version-locked path and fails by
+  name when it is not there, and the base's user, command and entrypoint must
+  be the ones read. Wait for both to be green before the drain, the backup and
+  any `.env` change.
+- **Rolling back** is running the checkout that pinned the old version: a
+  revert of the move's commit, or on live the release tag before it
+  (`docs/operator-runbook.md`, *Rolling back from it*), whose Dockerfiles and
+  names come with it and whose images are still on the machine. Never
+  `trigger-version.sh pin` backwards: that keeps the current removals and
+  `read_at`, builds a name nobody proved, and fails once a removal was
+  dropped. To the release before the builds it is reversible at the same
   version (`deploy-live.sh` compares the Trigger.dev version, not the image
   line); the pulled image that release ran is still on the machine unless it
-  was pruned, and `up` pulls it again if it was.
+  was pruned, and `up` pulls it again if it was. When a build misbehaves at
+  runtime at a version that has no release before it to go back to, the way
+  out is the *Dropping them* edit below for that service (ghcr's image line
+  back, no `build:` or `pull_policy:`), as its own pull request with E2E
+  (managed) and a tag.
 - **Dropping them**, once upstream ships the fixes: delete each removal as a
   `pin` to a release that fixed it fails it, with its row in
   `scripts/a-binary-the-stack-never-runs.unit.test.ts`. When none is left, put
@@ -5196,18 +5223,25 @@ never reads as "nothing newer", nor as an older newest.
 >
 > The order that avoids it:
 >
+> 0. Before any window: `trigger-version.sh pin <version>` and `pnpm install`,
+>    the two Dockerfiles read again and their `read_at` moved (above), and the
+>    pull request open with `build (trigger, amd64)` and `build (trigger,
+>    arm64)` green.
 > 1. Stop the schedule producing work, or accept a backlog you will cancel.
 > 2. Wait for `TaskRun` to have nothing in `EXECUTING`.
-> 3. Change the tag AND the SDK together, `pnpm install`.
+> 3. Back up `triggerdb`, set `.env`'s `TRIGGER_IMAGE_TAG` (where it is set)
+>    to the new version, and run the pull request's checkout: on the OTA
+>    stack, E2E (managed) on its branch does this.
 > 4. `--from trigger`, then **redeploy the tasks** — an image built by one CLI
 >    version and run by another platform version is the same drift by a
 >    different route.
 > 5. Watch the first few runs reach `COMPLETED_SUCCESSFULLY` before walking
 >    away.
 >
-> Rolling back is the same procedure in reverse, and is the right first move
-> when an upgrade goes wrong: the older version has run history behind it and
-> the newer one does not.
+> Rolling back is the same procedure in reverse with the checkout that
+> pinned the older version (*Rolling back*, above), never a `pin` backwards,
+> and is the right first move when an upgrade goes wrong: the older version
+> has run history behind it and the newer one does not.
 
 > ⚠️ **The four places are not the only thing an upgrade depends on.** The
 > v4.5.12 attempt did all of the above — verified backup, drained queue, all
