@@ -26,6 +26,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   and where in the image it sits. A count did not say whether a rebuild, a
   newer tag or only upstream could clear it, and code scanning's detail is
   shown only to those with write access.
+- **A live deploy judges a Trigger.dev move by its version, not by how its
+  image lines are written.** `deploy-live.sh` says whether a deploy is one way
+  or reversible, and whether the copy taken before it must hold the task
+  runner's database, by comparing the Trigger.dev versions the two releases
+  pin. It no longer compares their image lines. The verdicts are unchanged for
+  today's lines. It ships ahead of alpha.4's Trigger.dev images built here,
+  whose lines name no upstream image: a deploy of those is judged by the
+  script that runs before it.
 
 ### Added
 
