@@ -6,6 +6,34 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **pnpm is 11.28.8** (workplan 0119, issue #1694, #1701): the lockfile is
+  unchanged, and the installs, the images' filtered installs and the advisory
+  gate give what 11.28.6 gave. When pnpm next re-resolves the tree it also
+  records an optional peer that a package's own dependency supplies, and
+  reuses a version the same install already resolved, so the next dependency
+  update may move a few lockfile lines it did not ask for. 11.28.8 differs
+  from 11.28.7 only in the Node.js inside the standalone `@pnpm/exe`, which CI
+  and the images do not run.
+- **The images are signed with cosign v3.1.4, and the release checks them
+  with the same** (#1671, #1702): `images.yml` and `release.yml`'s verify job name
+  the release, where cosign-installer's default installed v3.0.6, and the pin
+  watch compares it with cosign's newest and holds the two together.
+  Signing stays keyless and by digest, and the `cosign verify` line
+  `deploy/selfhost/README.md` gives does not change.
+- **The weekly image scan names every critical finding, not only how many.**
+  Below its table, the run's summary lists each critical one by one: the CVE,
+  the package and its version, the version that fixes it or **no fix yet**,
+  and where in the image it sits. A count did not say whether a rebuild, a
+  newer tag or only upstream could clear it, and code scanning's detail is
+  shown only to those with write access.
+- **A live deploy judges a Trigger.dev move by its version, not by how its
+  image lines are written.** `deploy-live.sh` says whether a deploy is one way
+  or reversible, and whether the copy taken before it must hold the task
+  runner's database, by comparing the Trigger.dev versions the two releases
+  pin. It no longer compares their image lines. The verdicts are unchanged for
+  today's lines. It ships ahead of alpha.4's Trigger.dev images built here,
+  whose lines name no upstream image: a deploy of those is judged by the
+  script that runs before it.
 - **The site's visit count builds GoAccess 1.12 on Alpine 3.24, because
   upstream's image is on Alpine 3.20, past its end of life** (workplan 0152,
   #1675): no upstream release has moved off 3.20, and Alpine's own package is
@@ -25,6 +53,39 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   request's branch reports what it found and opens or closes no issue. The
   pin watch compares the GoAccess release it builds with upstream's tags, a
   three-part patch release included.
+
+### Added
+
+- **The suites that talk to Nextcloud also run against Nextcloud 35** (workplan
+  0119): `.github/workflows/nextcloud-second-major.yml` runs the WebDAV,
+  CalDAV, CardDAV, chunked-upload and share suites against
+  `nextcloud:35.0.2-apache`, pinned by digest, on a push to `main` that
+  touches their code, weekly, and on a pull request that changes the leg
+  itself; not on every pull request. A customer's own Nextcloud may already
+  run 35 while the demo stays on 34 until after the alpha.2 tag, since that
+  move is one way. The run fails when Nextcloud does not start, when the
+  server that answered is not the version the tag names, and when any test
+  skipped. The integration tier also gained its first suite for the share
+  verb against a real server: a user share, the listing that reads it back,
+  and a grantee the server does not know.
+
+### Fixed
+
+- **qs 6.16.1 closes another denial of service in `qs.stringify`**
+  (GHSA-6pq8-jhm2-2vcw, moderate): with `arrayFormat: 'comma'`, an array
+  element carrying a non-callable own `toString` threw an uncaught TypeError.
+  The override's floor moves from 6.16.0 to 6.16.1 (published 2026-10-14, past
+  the three-day cooldown), which express and the tests' superagent now take.
+  The API only parses query strings through express, so it could not be
+  reached there.
+- **The weekly image scan reads the tasks' image as a task deploy builds it**
+  (workplan 0146 T10, #1700): it read only the base image Trigger.dev's CLI
+  names, while every deploy copies the API image's Node over that base and
+  upgrades its Debian packages, so the alerts for what the upgrade fixes could
+  never close. The scan now builds that stage itself, from the deploy config,
+  and reports it under the same code-scanning category and alert location, so
+  the first scan on `main` after this closes them, and the alerts it still has
+  keep their numbers.
 
 ## [0.2.0-alpha.2] - 2026-10-25
 

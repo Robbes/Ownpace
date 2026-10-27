@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFile, execFileSync, execSync } from 'node:child_process';
 import { promisify } from 'node:util';
+import { nextcloudImageAsked, versionstringOf, wrongServer } from './nextcloud-image.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -319,10 +320,18 @@ async function startNextcloud(): Promise<{
   password: string;
   container: StartedTestContainer;
 }> {
-  console.log('[NextcloudSetup] Starting Nextcloud container...');
+  // NEXTCLOUD_IMAGE asks for another image than the default: the second-major
+  // leg (.github/workflows/nextcloud-second-major.yml) sets it. See
+  // nextcloud-image.ts for what an image asked for by name changes. The default
+  // stays a literal call of its own, so the line that names the demo's major is
+  // one a reader, and a guard, can find by its text.
+  const asked = nextcloudImageAsked();
+  console.log(
+    `[NextcloudSetup] Starting Nextcloud container (${asked ? `NEXTCLOUD_IMAGE: ${asked}` : 'the default image'})...`,
+  );
 
   // Start container WITHOUT HTTP wait strategy - we'll use internal readiness check instead
-  const nextcloudContainer = await new GenericContainer('nextcloud:34-apache')
+  const nextcloudContainer = await (asked ? new GenericContainer(asked) : new GenericContainer('nextcloud:34-apache'))
     .withEnvironment({
       SQLITE_DATABASE: 'nextcloud',
       NEXTCLOUD_ADMIN_USER: 'testadmin',
@@ -457,6 +466,16 @@ async function startNextcloud(): Promise<{
     const errorMsg = `Nextcloud DAV not ready: PROPFIND did not return 207 after ${maxPropfindAttempts} attempts. Last status: ${lastStatus}. Response body (first 200 chars): ${lastBody}. status.php body: ${statusBody.slice(0, 200)}`;
     console.error(`[NextcloudSetup] ${errorMsg}`);
     throw new Error(errorMsg);
+  }
+
+  // Which server answered, in its own words, so a run's log says which major
+  // its DAV suites ran against; and, for an image asked for by name, a refusal
+  // when it is not the version the tag names.
+  console.log(`[NextcloudSetup] Nextcloud ${versionstringOf(statusBody) ?? '(status.php said no version)'} answered`);
+  const notAsked = wrongServer(asked, statusBody);
+  if (notAsked) {
+    console.error(`[NextcloudSetup] ${notAsked}`);
+    throw new Error(notAsked);
   }
 
   console.log(`[NextcloudSetup] Nextcloud DAV fully ready at ${webdavUrl}`);
@@ -952,6 +971,12 @@ export async function startTestEnvironment(skipStalwart: boolean = false, skipNe
       console.log(`[NextcloudSetup] Nextcloud ready - WebDAV: ${nextcloud.webdavUrl}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      // A run that names its Nextcloud exists for that Nextcloud: without it
+      // every DAV suite would skip and the run would be green over nothing.
+      const asked = nextcloudImageAsked();
+      if (asked) {
+        throw new Error(`NEXTCLOUD_IMAGE asks for ${asked}, and that Nextcloud did not start: ${msg}`, { cause: err });
+      }
       console.warn(`[Testcontainers] Warning: Could not start Nextcloud: ${msg}`);
       console.warn('[Testcontainers] Continuing without Nextcloud - WebDAV tests will be skipped.');
     }

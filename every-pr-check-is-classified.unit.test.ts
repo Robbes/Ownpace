@@ -62,6 +62,15 @@ const NOT_REQUIRABLE = new Map([
     'images.yml carries a `paths:` filter on its pull_request trigger, so on a PR ' +
       'touching none of those paths the workflow never runs and the context is never reported.',
   ],
+  // nextcloud-second-major.yml (workplan 0119, Status of 2026-10-25). It runs on
+  // a pull request only when that pull request changes how it runs, so most
+  // never see it.
+  [
+    'DAV suites on the second Nextcloud major',
+    'nextcloud-second-major.yml carries a `paths:` filter on its pull_request trigger (the leg ' +
+      'itself, the integration setup, the suite finder), so on any other PR it is never reported; ' +
+      'a red run is a finding about the other major, for the owner, not a merge gate.',
+  ],
   // script-images.yml (#1675): builds an image a script builds for itself, on a
   // pull request that changes its directory, and on no other.
   [

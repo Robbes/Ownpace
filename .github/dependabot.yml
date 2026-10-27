@@ -9,8 +9,10 @@
 #
 # WHAT THIS FILE DOES NOT SEE is scripts/idp-pin-watch.mjs's (workplan 0146 T8): every image
 # line of deploy/compose's managed.yml, dev.yml and www.yml, the busybox and GoAccess copies in
-# its scripts, Trigger.dev, the tasks' Node, `packageManager`, the Trivy the scan runs, and the
-# TypeScript split. It runs on Mondays after this, and keeps an issue open while one is behind.
+# its scripts, Trigger.dev, the tasks' Node, `packageManager`, the Trivy the scan runs, the
+# cosign images.yml and release.yml name, and the TypeScript split. It runs on Mondays after
+# this, and keeps an issue open while one is behind. This file moves cosign-installer, and the
+# cosign it installs only while no step names one.
 version: 2
 updates:
   # npm/pnpm workspace (root manifest + all packages/* and apps/* via the workspace).
