@@ -4,6 +4,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **pnpm is 11.28.8** (workplan 0119, issue #1694, #1701): the lockfile is
+  unchanged, and the installs, the images' filtered installs and the advisory
+  gate give what 11.28.6 gave. When pnpm next re-resolves the tree it also
+  records an optional peer that a package's own dependency supplies, and
+  reuses a version the same install already resolved, so the next dependency
+  update may move a few lockfile lines it did not ask for. 11.28.8 differs
+  from 11.28.7 only in the Node.js inside the standalone `@pnpm/exe`, which CI
+  and the images do not run.
+
 ## [0.2.0-alpha.2] - 2026-10-25
 
 The Alpha's texts are final at version 1.0, and testers are asked to accept
