@@ -463,6 +463,11 @@ describe('Trigger.dev, against the newest tag both images carry', () => {
     expect(row.body).toMatch(/Its own pull request/);
     expect(row.body).toMatch(/E2E \(managed\) dispatched on that branch/);
     expect(row.body).toMatch(/Live takes it from a release tag/);
+    // The builds are proven at the new tag before the drain, the backup and the window (0146 T16).
+    const order = ['trigger-version.sh pin v4.99.2', 'build (trigger, amd64)', 'Drain first', 'backup before-v4.99.2', 'E2E (managed) dispatched'].map((s) => row.body.indexOf(s));
+    expect(order.every((i) => i >= 0), JSON.stringify(order)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(row.body).toContain('`read_at`');
   });
 
   it("reads the two images built here (0146 T16) by their Dockerfiles' FROM, which must name the pin", async () => {

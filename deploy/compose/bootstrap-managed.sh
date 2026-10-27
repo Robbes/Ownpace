@@ -1624,9 +1624,12 @@ phase_trigger() {
     echo "!!! These run the same protocol and are only compatible by coincidence when they differ." >&2
     echo "!!! Reconcile, in whichever direction you mean:" >&2
     echo "!!!   ./deploy/compose/env-upsert.sh ${ENV_FILE} TRIGGER_IMAGE_TAG=v${sdk_version}" >&2
-    echo "!!!     then re-run this phase — the webapp and supervisor are recreated at the new tag" >&2
-    echo "!!!   or pin @trigger.dev/sdk back to ${tag_version#v} in apps/worker/package.json" >&2
-    echo "!!!     and pnpm install --frozen-lockfile" >&2
+    echo "!!!     then re-run this phase — the webapp and supervisor are recreated at this checkout's version" >&2
+    echo "!!!   or run a checkout that pins ${tag_version}: the release that pinned it, or a move to it," >&2
+    echo "!!!     ./deploy/compose/trigger-version.sh pin ${tag_version}, then pnpm install and the pull" >&2
+    echo "!!!     request docs/managed-bring-up.md describes (Upgrading Trigger.dev). Not the SDK alone:" >&2
+    echo "!!!     both images are built from this checkout's Dockerfiles (workplan 0146 T16), whose" >&2
+    echo "!!!     FROM is this checkout's version, and they refuse to build another." >&2
     exit 1
   fi
   note "Trigger.dev images and SDK agree at ${sdk_version}"

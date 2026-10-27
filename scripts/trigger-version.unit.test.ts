@@ -119,6 +119,25 @@ describe('a restore refuses before it can destroy anything', () => {
     expect(r.stderr).toContain('stop trigger-api trigger-supervisor');
     expect(r.stderr).toContain('--yes');
   });
+
+  it('after a restore, says to run the checkout that pinned the old version, never the old tag alone or a pin backwards (0146 T16)', () => {
+    // The images are built from this checkout's Dockerfiles, which refuse another version
+    // than their own: the old tag in .env alone builds nothing that runs.
+    const bin = join(dir, 'bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, 'docker'), '#!/usr/bin/env bash\ncase "$1" in inspect) echo false ;; exec) cat >/dev/null ;; esac\nexit 0\n', { mode: 0o755 });
+    const f = join(backups, 'triggerdb-20260824T000003Z.sql.gz');
+    writeFileSync(f, looksLikeADump());
+    const r = run(['restore', f, '--yes'], { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}` });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stderr).toContain('restored. Now run what that dump');
+    expect(r.stderr).toContain('the checkout that pinned it');
+    expect(r.stderr).toContain('Rolling back from it, step 9');
+    expect(r.stderr).toContain('git checkout <the release before the move>');
+    expect(r.stderr).toMatch(/up -d trigger-api trigger-supervisor/);
+    expect(r.stderr).toContain('Not `');
+    expect(r.stderr).not.toContain('Put TRIGGER_IMAGE_TAG and the SDK back');
+  });
 });
 
 describe('pin refuses what it cannot pin', () => {
@@ -300,13 +319,40 @@ describe('pin moves every place the CI guard compares', () => {
     expect(after).toContain(`    image: localhost/trigger.dev:\${TRIGGER_IMAGE_TAG:-${pin}}-${hex}\n`);
   });
 
-  it('refuses a Dockerfile whose FROM it cannot move, rather than leaving the build on the old version', () => {
-    ['deploy/compose/managed.yml', 'deploy/compose/managed.env.example', ...manifests, ...BUILDS.map((b) => `deploy/compose/${b}/Dockerfile`)].forEach(copy);
+  it('refuses a Dockerfile whose FROM it cannot move, or a build line it cannot find, before it moves anything', () => {
+    const files = ['deploy/compose/managed.yml', 'deploy/compose/managed.env.example', ...manifests, ...BUILDS.map((b) => `deploy/compose/${b}/Dockerfile`)];
+    const snapshot = () => Object.fromEntries(files.map((rel) => [rel, readFileSync(join(dir, rel), 'utf8')]));
+    files.forEach(copy);
     const file = join(dir, 'deploy/compose/supervisor/Dockerfile');
     writeFileSync(file, readFileSync(file, 'utf8').replace(/^FROM (\S+)@sha256:[0-9a-f]{64}$/m, 'FROM $1'));
-    const r = runRewrite('v9.8.7');
+    let before = snapshot();
+    let r = runRewrite('v9.8.7');
     expect(r.status).not.toBe(0);
     expect(r.stderr).toContain('has no FROM ghcr.io/triggerdotdev/supervisor:<tag>@<digest> line to move');
+    expect(r.stderr).toContain('Nothing was moved.');
+    // The webapp's FROM and name, managed.yml's defaults, the example and every manifest are as they were.
+    expect(snapshot()).toEqual(before);
+    // The supervisor's name line gone from managed.yml: the same.
+    files.forEach(copy);
+    const compose = join(dir, 'deploy/compose/managed.yml');
+    writeFileSync(compose, readFileSync(compose, 'utf8').replace(/^ {4}image: localhost\/supervisor:.*$/m, '    image: localhost/supervisor:latest'));
+    before = snapshot();
+    r = runRewrite('v9.8.7');
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('managed.yml does not name the build of');
+    expect(r.stderr).toContain('Nothing was moved.');
+    expect(snapshot()).toEqual(before);
+  });
+
+  it("says to read the Dockerfiles again and wait for both builds before the backup and the drain, and never to pin backwards", () => {
+    const text = pin.slice(pin.indexOf('  cat <<EOF'));
+    const order = ['read_at', 'build (trigger, amd64) and build (trigger, arm64)', 'backup before-', 'drain EXECUTING first', 'E2E (managed)'].map((s) => text.indexOf(s));
+    expect(order.every((i) => i > 0), JSON.stringify(order)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(text).toContain('Never pin\nbackwards');
+    expect(text).not.toContain('and pinning the old version');
+    // An unquoted heredoc runs anything in backticks: none in it.
+    expect(text).not.toContain('`');
   });
 });
 
@@ -328,6 +374,34 @@ describe('the builds here, read and asked for as trigger-version.sh does (0146 T
       });
       expect(r.stdout, image).toBe(`${want}\n`);
     }
+  });
+
+  it('`list` prints the image trigger-api runs in full and the build this checkout names, and says when they differ', () => {
+    const compose = readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8');
+    const named = /localhost\/trigger\.dev:\$\{TRIGGER_IMAGE_TAG:-(v[^}]+)\}-([0-9a-f]{12})/.exec(compose)!;
+    const [, pin, hex] = named;
+    const stack = join(dir, 'compose');
+    mkdirSync(stack, { recursive: true });
+    writeFileSync(join(stack, 'managed.yml'), compose);
+    const bin = join(dir, 'bin');
+    mkdirSync(bin, { recursive: true });
+    const lines = (running: string, env?: string) => {
+      writeFileSync(join(bin, 'docker'), `#!/usr/bin/env bash\necho '${running}'\n`, { mode: 0o755 });
+      if (env === undefined) rmSync(join(stack, '.env'), { force: true });
+      else writeFileSync(join(stack, '.env'), env);
+      const body = ['set -euo pipefail', `. '${join(REPO_ROOT, 'deploy/compose/env-read.sh')}'`, `SCRIPT_DIR='${stack}'`, `ENV_FILE='${stack}/.env'`, 'API_CONTAINER=x', fn('repo_tag'), fn('checkout_image'), fn('build_lines'), 'build_lines'].join('\n');
+      const r = spawnSync('bash', ['-c', body], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}` } });
+      expect(r.status, r.stderr).toBe(0);
+      return r.stdout;
+    };
+    const same = lines(`localhost/trigger.dev:${pin}-${hex}`);
+    expect(same).toContain(`  image     localhost/trigger.dev:${pin}-${hex}\n`);
+    expect(same).toContain(`  builds    localhost/trigger.dev:${pin}-${hex}`);
+    expect(same).not.toContain('NOTE');
+    // Another build of the same version: the version reads the same, the build does not.
+    expect(lines(`localhost/trigger.dev:${pin}-000000000000`)).toContain('NOTE      trigger-api runs another image than this checkout names');
+    // The .env's version names the build.
+    expect(lines(`localhost/trigger.dev:v9.9.9-${hex}`, "TRIGGER_IMAGE_TAG='v9.9.9'\n")).not.toContain('NOTE');
   });
 
   /** `tag_digest` against a stubbed ghcr, whose headers come after a proxy's own answer to CONNECT. */
