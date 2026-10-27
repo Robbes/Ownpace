@@ -59,6 +59,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   the three-day cooldown), which express and the tests' superagent now take.
   The API only parses query strings through express, so it could not be
   reached there.
+- **The weekly image scan reads the tasks' image as a task deploy builds it**
+  (workplan 0146 T10, #1700): it read only the base image Trigger.dev's CLI
+  names, while every deploy copies the API image's Node over that base and
+  upgrades its Debian packages, so the alerts for what the upgrade fixes could
+  never close. The scan now builds that stage itself, from the deploy config,
+  and reports it under the same code-scanning category and alert location, so
+  the first scan on `main` after this closes them, and the alerts it still has
+  keep their numbers.
 
 ## [0.2.0-alpha.2] - 2026-10-25
 

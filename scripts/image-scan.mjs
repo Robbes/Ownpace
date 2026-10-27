@@ -14,8 +14,8 @@
  * watch (`idp-pin-watch.mjs`) says when a newer TAG exists; this says what is
  * inside the one that runs.
  *
- * TWO HALVES, both run by `.github/workflows/security-scan.yml` on its weekly
- * schedule and on dispatch, on GitHub-hosted runners only:
+ * THREE COMMANDS, all run by `.github/workflows/security-scan.yml` on its
+ * weekly schedule and on dispatch, on GitHub-hosted runners only:
  *
  *   list    every image the stacks run, as the matrix of the scan job. Read
  *           with the pin watch's reader (`readImages`, which resolves
@@ -28,9 +28,10 @@
  *               names in a literal `…IMAGE=` assignment (GoAccess, Stalwart
  *               for the demo, db-roles.sh's client), deduplicated against
  *               the compose files of its stack;
- *             - the base image the pinned Trigger.dev CLI names for the
- *               tasks' runtime, which no file here names (the pin watch's
- *               `cliBaseImage`);
+ *             - the tasks' image, which no file here names: the base image
+ *               the pinned Trigger.dev CLI names for the tasks' runtime (the
+ *               pin watch's `cliBaseImage`), with the layers a deploy adds
+ *               to it, BUILT in the scan job (see `containerfile` below);
  *             - Ownpace's own three images, at `:edge` (what main publishes,
  *               which the OTA stack builds every night) and at the newest
  *               release tag (what live runs: it builds the tag it deploys).
@@ -47,6 +48,17 @@
  *           Findings fail nothing: a CVE published upstream on a Sunday
  *           cannot turn main red. They go to code scanning as SARIF, one
  *           category per image.
+ *   containerfile <base>
+ *           the tasks' image as `trigger.dev deploy` builds it, up to the
+ *           task code: the `base` stage of the Containerfile the CLI writes,
+ *           on the base image the list named. It runs the build extensions
+ *           of `apps/worker/trigger.config.ts`, as the CLI does, and writes
+ *           the instructions of every layer they add. So this one command
+ *           needs the workspace installed; the list and the report do not.
+ *           Workplan 0146 T10: until 2026-10-25 the scan read the base image
+ *           alone, while every deploy copies the API image's Node over it
+ *           and upgrades its Debian packages, so findings the deploy fixes
+ *           stayed open in code scanning for good.
  *
  * Names are kept as steady as they can be, because a SARIF category that
  * stops being uploaded leaves its alerts open in code scanning for good. An
@@ -70,11 +82,45 @@
  * Code scanning, Tool status). Its issue, if it had one, the report job
  * closes itself.
  *
+ * THE TASKS' IMAGE KEEPS THE NAME IT HAD, `trigger-task-base`, which now
+ * names the `base` stage it is: the stage of the CLI's Containerfile that
+ * every later one starts from, the runtime's included, before the task code,
+ * its `node_modules` and its index are copied in. Keeping it keeps the SARIF
+ * category, so the first scan on `main` that reads the built stage closes the
+ * alerts the deploy's layers fixed, with nothing to delete by hand.
+ *
+ * AND ITS ALERTS KEEP THEIR NUMBERS: the leg builds under the base's own
+ * repository (`taskBuildTag`), never under a name of its own. Trivy's SARIF
+ * gives an operating-system package's finding the image's repository as its
+ * location (`ToPathUri` in its `pkg/report/sarif.go`, read at v0.76.1:
+ * `triggerdotdev/node` for the base, by tag and digest or not), and writes no
+ * fingerprint, so code scanning tells one alert from another by rule and
+ * location. Built as `trigger-task-base:built`, the location would have been
+ * `library/trigger-task-base`: every Debian alert would close on the first
+ * scan, fixed or not, and the ones without a fix would open again under new
+ * numbers, their triage left on the closed ones. The tag is local: Trivy reads
+ * that leg's image from the runner's Docker alone, and nothing pushes it.
+ *
+ * What the built stage leaves out is npm packages only: the bundled task
+ * code, and the externals the CLI installs with `npm i` at a deploy (`pg`,
+ * `@electric-sql/pglite`). Their own versions are the ones installed here, so
+ * the repository scan of the lockfile reads them; the packages npm resolves
+ * under them, with no lockfile, neither scan reads. And it is built on the
+ * CLI's own base: a Trigger.dev instance can name other base images for its
+ * deploys (the webapp's `DEPLOY_BASE_IMAGES` and `DEPLOY_BUILD_BASE_IMAGES`,
+ * which the CLI builds on when the instance sends them, `applyServerBaseImages`
+ * read at 4.7.6), and `managed.yml`, which hands its Trigger.dev services only
+ * the keys it lists, sets neither. The guard holds that.
+ *
  * A floating tag (`redis:7-alpine`) is scanned as the registry serves it
  * today, which need not be what the box pulled last. The summary says which.
+ * A built image is the same kind of reading: its packages are Debian's on the
+ * day of the scan, while a deploy that the CLI's builder serves from its cache
+ * keeps the packages of the build that filled it (the comment above
+ * `defineConfig` in `trigger.config.ts`).
  *
  * `.mjs` for the reason `idp-pin-watch.mjs` gives: a CI step on a bare
- * checkout, no `node_modules`. Its guard,
+ * checkout, no `node_modules` (except `containerfile`, above). Its guard,
  * `scripts/an-image-nobody-scanned.unit.test.ts`, runs it on the real
  * checkout with a stubbed network and a fake `gh`.
  */
@@ -82,7 +128,7 @@
 import { appendFileSync, existsSync, readFileSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { basename, dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { COMPOSE_FILES, cliBaseImage, keepIssue, parseRef, readImages, realNet, repoReader, tagsOf } from './idp-pin-watch.mjs';
 import { compareSemVer, parseSemVer } from './release-names-agree.mjs';
 
@@ -95,6 +141,13 @@ export const SCRIPT_DIRS = ['deploy/compose', 'deploy/selfhost'];
 /** Where Ownpace's own images are published, and which: images.yml's matrix. */
 export const OWNPACE_REGISTRY = 'ghcr.io/robbes';
 export const OWNPACE_IMAGES = ['api', 'web', 'selfhost'];
+
+/**
+ * The tasks' image: its name (and so its SARIF category, `trivy-image-trigger-task-base`,
+ * unchanged since 2026-10-22), and the deploy config whose layers are built on its base.
+ */
+export const TASK_IMAGE = 'trigger-task-base';
+export const TASK_CONFIG = 'apps/worker/trigger.config.ts';
 
 /** Every image issue's title starts with this, and ends with the image's name. */
 export const ISSUE_PREFIX = "An image's operating system is past its end of life: ";
@@ -154,7 +207,8 @@ function scriptImages(text) {
  * Every image the stacks run, once each, in a stable order: the compose files,
  * the scripts, the tasks' base image, and Ownpace's own. Each has the name its
  * scan, its SARIF category, its artifact and its issue carry, the reference
- * Trivy pulls, and where it comes from.
+ * Trivy pulls (or, for the one with `build`, the base its leg builds on and
+ * the local tag it builds under), and where it comes from.
  */
 export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
   const ownpace = `${OWNPACE_REGISTRY}/ownpace-`;
@@ -192,13 +246,21 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
   });
 
   // The tasks' base image: the CLI names it, for the runtime trigger.config.ts asks for.
-  const config = need(repo, 'apps/worker/trigger.config.ts');
+  const config = need(repo, TASK_CONFIG);
   const runtime = /\bruntime:\s*['"]([^'"]+)['"]/.exec(config)?.[1];
-  if (!runtime) throw new Error('apps/worker/trigger.config.ts names no runtime');
+  if (!runtime) throw new Error(`${TASK_CONFIG} names no runtime`);
   const cli = JSON.parse(need(repo, 'apps/worker/package.json')).dependencies?.['@trigger.dev/sdk'];
   if (!/^\d+\.\d+\.\d+$/.test(cli ?? '')) throw new Error(`apps/worker's @trigger.dev/sdk is ${cli}, not a version`);
+  // Scanned as a deploy builds on it: the leg builds its `base` stage
+  // (`containerfile`) under `build` and scans that, not the reference.
   const base = await cliBaseImage(net, cli, runtime);
-  entries.push({ name: 'trigger-task-base', ref: base, where: `trigger.dev ${cli}'s BASE_IMAGE['${runtime}']`, floating: false });
+  entries.push({
+    name: TASK_IMAGE,
+    ref: base,
+    where: `trigger.dev ${cli}'s BASE_IMAGE['${runtime}'], with the layers ${TASK_CONFIG} adds at a deploy`,
+    floating: false,
+    build: taskBuildTag(base),
+  });
 
   // Ownpace's own: what main publishes, and the newest release.
   const release = newestReleaseTag(await net.lsRemote(upstream));
@@ -216,6 +278,79 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
     seen.set(name, ref);
   }
   return entries;
+}
+
+// ------------------------------------------------------ the tasks' image ---
+
+/** An image reference as the list writes one: no space, no newline, nothing a Containerfile would read as a second instruction. */
+const IMAGE_REF = /^[a-z0-9][a-z0-9._/-]*(?::[A-Za-z0-9._-]+)?(?:@sha256:[0-9a-f]{64})?$/;
+
+/**
+ * The local tag the tasks' leg builds under: the base's repository, so the
+ * SARIF location of every operating-system finding, and so the identity of
+ * its alert, is the one the base's scans opened it at (the file's header).
+ */
+export function taskBuildTag(base) {
+  if (typeof base !== 'string' || !IMAGE_REF.test(base)) {
+    throw new Error(`the tasks' base image must be an image reference, not ${JSON.stringify(base)}`);
+  }
+  return `${parseRef(base).repo}:${TASK_IMAGE}-built`;
+}
+
+/**
+ * THE TASKS' IMAGE AS `trigger.dev deploy` BUILDS IT, up to the task code
+ * (workplan 0146 T10): the `base` stage of the Containerfile the CLI writes
+ * (`generateNodeContainerfile` in its `deploy/buildImage.js`, read at 4.7.6),
+ * which every later stage, the runtime's included, starts from.
+ *
+ * The CLI calls every build extension's `onBuildStart`, then every one's
+ * `onBuildComplete`, with a context whose `target` is `deploy`, and puts the
+ * `image.instructions` of each layer they add into that stage, in order, as
+ * root, after `ENV DEBIAN_FRONTEND=noninteractive`. This does the same with
+ * the config itself, so whatever the config adds is what gets scanned, and no
+ * instruction or version is written here a second time.
+ *
+ * Two of the CLI's steps after the layers are left out because they install
+ * nothing a scan reads: an `apt-get --fix-broken install` that repairs dpkg
+ * state an instruction left broken, and the edits to the CA trust store. A
+ * layer's `image.pkgs` is refused rather than left out, since the CLI installs
+ * those with apt in this stage: the scan would read less than the deploy
+ * builds. The CLI logs a throw in `onBuildComplete` and deploys without that
+ * layer; here any throw stops the scan, so a base read without its layers can
+ * never pass for the image a deploy built.
+ */
+export async function taskBaseStage(config, { base, workingDir }) {
+  if (typeof base !== 'string' || !IMAGE_REF.test(base)) {
+    throw new Error(`the tasks' base image must be an image reference, not ${JSON.stringify(base)}`);
+  }
+  const layers = [];
+  const context = { target: 'deploy', config, workingDir, addLayer: (layer) => layers.push(layer) };
+  const extensions = config?.build?.extensions ?? [];
+  for (const extension of extensions) await extension.onBuildStart?.(context);
+  for (const extension of extensions) await extension.onBuildComplete?.(context, {});
+  const instructions = [];
+  for (const layer of layers) {
+    if ((layer.image?.pkgs ?? []).length > 0) {
+      throw new Error(
+        `the layer ${layer.id} installs ${layer.image.pkgs.join(', ')} with apt, which the deploy's base stage carries and this does not build: the scan would read less than the deploy builds`,
+      );
+    }
+    instructions.push(...(layer.image?.instructions ?? []));
+  }
+  // No `# syntax=` line, though the CLI writes one: it would pull the floating
+  // `docker/dockerfile:1` frontend on every scan, and FROM, ENV, COPY --from
+  // and RUN need nothing beyond the builder's own.
+  return [
+    `# The tasks' image up to the task code: the base stage of the Containerfile a`,
+    `# task deploy builds, as scripts/image-scan.mjs containerfile writes it from`,
+    `# ${TASK_CONFIG} (workplan 0146 T10). Built and scanned, never pushed.`,
+    `FROM ${base} AS base`,
+    '',
+    'ENV DEBIAN_FRONTEND=noninteractive',
+    '',
+    ...instructions,
+    '',
+  ].join('\n');
 }
 
 // ------------------------------------------------------------ reports ----
@@ -330,7 +465,7 @@ export function summarize(images, readFile) {
       annotations.push(`::warning::${image.name}: ${shortRef(image.ref)} runs ${report.os}, past its end of life (Trivy: EOSL). An issue is kept open for it.`);
     }
     rows.push(
-      `| \`${image.name}\` | \`${shortRef(image.ref)}\`${image.floating ? ' (floats)' : ''} | ${report.os ?? 'not detected'} | ${report.eosl ? '**past its end of life**' : 'supported'} | ${report.critical} | ${report.high} | ${report.fixable} |`,
+      `| \`${image.name}\` | \`${shortRef(image.ref)}\`${image.floating ? ' (floats)' : ''}${image.build ? ' (built on)' : ''} | ${report.os ?? 'not detected'} | ${report.eosl ? '**past its end of life**' : 'supported'} | ${report.critical} | ${report.high} | ${report.fixable} |`,
     );
   }
   const eosl = read.filter((r) => r.report.eosl).length;
@@ -344,6 +479,12 @@ export function summarize(images, readFile) {
     ...rows,
     '',
     'A floating tag is scanned as its registry serves it today, which need not be what the box pulled last. The platform scanned is the one the stacks run on, linux/arm64.',
+    ...(images.some((i) => i.build)
+      ? [
+          '',
+          "An image marked *built on* is scanned as a deploy builds on that reference, built in this run (`image-scan.mjs containerfile`): with today's Debian packages, where a deploy served from the CLI's build cache keeps those of the build that filled it.",
+        ]
+      : []),
   ];
   const criticals = read.flatMap(({ image, report }) => report.criticals.map((c) => criticalLine(image.name, c)));
   if (criticals.length) {
@@ -408,6 +549,13 @@ async function main(argv, env) {
     console.log(`images=${JSON.stringify(images)}`);
     return 0;
   }
+  if (command === 'containerfile') {
+    // Imported here and only here: the config needs the workspace installed,
+    // and the list and the report run on a bare checkout. Node strips its types.
+    const { default: config } = await import(pathToFileURL(join(root, TASK_CONFIG)).href);
+    process.stdout.write(await taskBaseStage(config, { base: rest[0], workingDir: join(root, dirname(TASK_CONFIG)) }));
+    return 0;
+  }
   if (command === 'report') {
     const dir = rest.find((a) => !a.startsWith('--'));
     if (!dir) throw new Error('report needs the directory the reports were downloaded to');
@@ -432,7 +580,7 @@ async function main(argv, env) {
     }
     return failed ? 1 : 0;
   }
-  throw new Error('usage: image-scan.mjs list | report <dir> [--issue]');
+  throw new Error('usage: image-scan.mjs list | report <dir> [--issue] | containerfile <base image>');
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
