@@ -20,6 +20,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   watch compares it with cosign's newest and holds the two together.
   Signing stays keyless and by digest, and the `cosign verify` line
   `deploy/selfhost/README.md` gives does not change.
+- **The weekly image scan names every critical finding, not only how many.**
+  Below its table, the run's summary lists each critical one by one: the CVE,
+  the package and its version, the version that fixes it or **no fix yet**,
+  and where in the image it sits. A count did not say whether a rebuild, a
+  newer tag or only upstream could clear it, and code scanning's detail is
+  shown only to those with write access.
 
 ### Added
 

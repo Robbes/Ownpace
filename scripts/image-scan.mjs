@@ -225,6 +225,12 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
  * distribution still supports it, and how many findings of each severity, and
  * how many of those a newer package fixes. Anything that is not a Trivy image
  * report is an error, never "nothing found".
+ *
+ * The critical findings are also listed one by one (2026-10-26): a count says
+ * how many, and not whether a rebuild, a newer tag or only upstream can clear
+ * them. Code scanning has the detail, but only for those with write access;
+ * the run's summary is read by anyone who reads the run. A CVE counted once per
+ * binary package of one source (util-linux's, say) is listed once per package.
  */
 export function readReport(text) {
   let report;
@@ -239,10 +245,21 @@ export function readReport(text) {
   const os = report.Metadata?.OS;
   const counts = Object.fromEntries(SEVERITIES.map((s) => [s, 0]));
   let fixable = 0;
+  const criticals = [];
   for (const result of report.Results ?? []) {
     for (const vuln of result.Vulnerabilities ?? []) {
       if (vuln.Severity in counts) counts[vuln.Severity] += 1;
       if (vuln.FixedVersion) fixable += 1;
+      if (vuln.Severity === 'CRITICAL') {
+        criticals.push({
+          id: vuln.VulnerabilityID ?? 'an unnamed finding',
+          pkg: vuln.PkgName ?? 'an unnamed package',
+          installed: vuln.InstalledVersion ?? '',
+          fixed: vuln.FixedVersion ?? '',
+          // An OS package is the image's; anything else is named by its path.
+          where: result.Class === 'os-pkgs' ? 'the OS packages' : (vuln.PkgPath ?? result.Target ?? 'the image'),
+        });
+      }
     }
   }
   return {
@@ -251,8 +268,13 @@ export function readReport(text) {
     critical: counts.CRITICAL,
     high: counts.HIGH,
     fixable,
+    criticals,
   };
 }
+
+/** One critical finding as a line of the summary. */
+const criticalLine = (name, c) =>
+  `- \`${name}\`: ${c.id} in \`${c.pkg}\`${c.installed ? ` ${c.installed}` : ''}, ${c.fixed ? `fixed in ${c.fixed}` : '**no fix yet**'} (${c.where})`;
 
 /** The issue for one image past its end of life, as `keepIssue` keeps it. */
 export function eoslIssue(image, report) {
@@ -323,6 +345,17 @@ export function summarize(images, readFile) {
     '',
     'A floating tag is scanned as its registry serves it today, which need not be what the box pulled last. The platform scanned is the one the stacks run on, linux/arm64.',
   ];
+  const criticals = read.flatMap(({ image, report }) => report.criticals.map((c) => criticalLine(image.name, c)));
+  if (criticals.length) {
+    lines.push(
+      '',
+      '### The critical findings, one by one',
+      '',
+      'Where a fixed version is named, the fix exists: a newer tag, or a rebuild of the image (upstream\'s, or one made here), clears the finding. **No fix yet** waits on upstream.',
+      '',
+      ...criticals,
+    );
+  }
   return { lines, annotations, missing, read };
 }
 

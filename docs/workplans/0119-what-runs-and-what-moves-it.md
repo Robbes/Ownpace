@@ -947,6 +947,39 @@ is beside each; none is urgent tonight.
    it also moves `scripts/a-service-that-phones-home.unit.test.ts`'s ClickHouse row and the
    reading behind `clickhouse-no-crash-reports.xml`.
 
+
+10. **Hardened images (Docker Hardened Images, Chainguard, distroless) — NOT NOW, 2026-10-26.**
+    The owner asked whether the stacks already run hardened images. They do in one place:
+    `chainguard/minio` since #1692 (0146 T7). The API's distroless runtime is draft #1709, which
+    the owner moved into alpha.3 the same day. Everything else runs the official or upstream
+    image, trimmed by the queued drafts (no gosu, no npm or corepack, slim variants). A survey
+    on 2026-10-26 compared every image the stacks run with Docker Hardened Images (DHI), free
+    under Apache 2.0 since 2025-12-17, with Chainguard's free tier (`latest` only) and with
+    distroless. It read Docker's docs source, the DHI catalog's definitions and Docker Hub's
+    catalog pages, and scanned the Docker Hub candidates with Trivy 0.76.1 on linux/arm64.
+    `dhi.io` itself could not be reached from the session, so no DHI image was pulled or
+    scanned here; Docker Scout's counts are Docker's.
+
+    - **Every DHI pull needs `docker login dhi.io`**: on the OTA box, on live, in CI (a
+      Dependabot secret too, since Dependabot's pull requests get no others), and on every
+      self-hoster's machine for the appliance, unless the image is republished.
+    - **Postgres cannot simply switch.** DHI keeps data in `18/data` where ours is
+      `18/docker`, so it would start an empty cluster on our volumes. Most hardened Postgres
+      images run glibc, and ours is Alpine (musl). Measured with the official `18.6-trixie`
+      (glibc 2.41) on data made under musl: no warning at start, then amcheck reports an order
+      violation, primary keys accept duplicates, and REINDEX fails once they exist. A move is a
+      dump and restore in a window. `scripts/a-database-started-as-root.unit.test.ts` (0146
+      T15) already holds both Postgres builds to the official `-alpine` image.
+    - **Redis.** DHI offers 7.4 only as 7.4.12 on Debian 13, with an end of life of
+      2026-11-30; Chainguard's free Redis is 8.x (AGPLv3). Item 3 stands.
+    - **Where DHI would help:** Caddy, the registry and Redis, by Docker Scout's counts (not
+      reproduced). Each would also need its volume chowned to uid 65532.
+
+    **The owner's decision: not now.** No `dhi.io` credential on the boxes or in CI before the
+    Alpha. The queued drafts already bring this repository's own images to 0 critical.
+    **Revisit** after the Alpha, starting with Caddy and the registry; and whenever a DHI image
+    would clear a critical that no other move can.
+
 ## 4. Not done, honestly
 
 - **The floating tags stay floating.** `postgres:18-alpine`, `redis:7.4-bookworm` (`redis:7-alpine`
