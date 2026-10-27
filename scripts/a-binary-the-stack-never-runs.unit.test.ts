@@ -289,9 +289,18 @@ function shapeProblems(name: Name, text: string): string[] {
     if (/\brm\s+-\w*f/.test(run.args)) problems.push('a RUN removes with `rm -f` or `rm -rf`, which passes over a path that is not there');
     if (/\|\|\s*true\b/.test(run.args)) problems.push('a RUN has `|| true`, which turns a failure into nothing');
   }
-  // The proofs in the image.
-  const root = runs(text).filter((r) => r.user === 'root').map((r) => r.args).join('\n');
-  const node = runs(text).filter((r) => r.user === 'node').map((r) => r.args).join('\n');
+  // The proofs in the image count only after the removal: one run while tar is
+  // still there proves nothing (the review of 2026-10-27). So each user's text
+  // is the removing RUN from its last `rm` on, and every RUN after it.
+  const all_ = runs(text);
+  const at = all_.findIndex((r) => /(^|[;\s])rm\s/.test(r.args));
+  /** Where the RUN's last `rm` starts: the proofs come after every removal. */
+  const lastRm = (args: string) => Math.max(0, ...[...args.matchAll(/(^|[;\s])rm\s/g)].map((m) => m.index!));
+  const after = at < 0 ? [] : all_.slice(at).map((r, i) => ({ user: r.user, args: i === 0 ? r.args.slice(lastRm(r.args)) : r.args }));
+  const root = after.filter((r) => r.user === 'root').map((r) => r.args).join('\n');
+  const node = after.filter((r) => r.user === 'node').map((r) => r.args).join('\n');
+  /** All of root's RUNs: the ELF check belongs before the removal. */
+  const rootAll = all_.filter((r) => r.user === 'root').map((r) => r.args).join('\n');
   const asUser = (body: string) => /COREPACK_ENABLE_NETWORK=0 pnpm --version\)" = 10\.33\.2 \]/.test(body);
   /** pnpm, without its tar, runs a command in the package the service's own pnpm runs, offline. */
   const runsWithoutTar = (body: string, filter: string) =>
@@ -307,7 +316,7 @@ function shapeProblems(name: Name, text: string): string[] {
     if (!/node -e "require\('\$s\/@depot\+cli@[^']+\/node_modules\/@depot\/cli'\); require\('\$s\/esbuild@[^']+\/node_modules\/esbuild'\)"/.test(root)) {
       problems.push('no proof that @depot/cli and esbuild still load without their binary');
     }
-    if (!/7f454c46/.test(root) || !/stat -c/.test(root)) problems.push('no check that each name is an ELF binary, and no link count in the log');
+    if (!/7f454c46/.test(rootAll) || !/stat -c/.test(rootAll)) problems.push('no check that each name is an ELF binary, and no link count in the log');
   } else {
     if (!asUser(node)) problems.push('no proof that pnpm starts offline as node, the user trigger-supervisor runs as');
     if (!runsWithoutTar(node, 'supervisor')) problems.push('no proof that, without its tar, pnpm runs a command in the supervisor offline as node, the user trigger-supervisor runs as');
@@ -571,6 +580,15 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
     const asNode = real.replace(proof, '').replace(/(me=deploy\/compose\/trigger\.dev\/Dockerfile; \\\n)( {4}if \(cd \/triggerdotdev && COREPACK_ENABLE_NETWORK=0 pnpm --version\))/, `$1${line}$2`);
     expect(runs(asNode).filter((r) => r.user === 'node').map((r) => r.args).join('\n')).toContain('--filter @trigger.dev/database exec');
     expect(shapeProblems('trigger.dev', asNode)).toEqual(noProof);
+    // A proof moved above the removal, in the same RUN, proves nothing.
+    const proofs = /^ {4}\[ "\$\(cd \/triggerdotdev && COREPACK_ENABLE_NETWORK=0 pnpm --version\)" = 10\.33\.2 \] [^\n]*\n {4}\(cd \/triggerdotdev [^\n]*\n/m;
+    const both = proofs.exec(real)![0];
+    const early = real.replace(proofs, '').replace(/^( {4}rm -r "\$unused" "\$kept_tar"; \\\n)/m, `${both}$1`);
+    expect(early).not.toBe(real);
+    expect(shapeProblems('trigger.dev', early)).toEqual([
+      'no proof that pnpm starts offline as root, the user trigger-api runs as',
+      ...noProof,
+    ]);
     // The supervisor's proofs go the other way round.
     const sup = dockerfiles.supervisor;
     expect(shapeProblems('supervisor', sup.replace(/\n {4}if \(cd \/app && COREPACK_ENABLE_NETWORK=0[\s\S]*?fi; \\/, ''))).toEqual(['no proof that as root pnpm refuses to start offline']);

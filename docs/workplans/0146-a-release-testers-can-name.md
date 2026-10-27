@@ -105,9 +105,10 @@ way #1717 builds the managed Postgres. Not merged; the draft pull request names 
   refuses another packageManager than `pnpm@10.33.2` or a platform other than linux-arm64 or
   linux-x64, tests each path before a plain `rm`, fails if any `depot` or `esbuild` under
   `node_modules/.pnpm` is still an ELF, proves both packages still load, and proves pnpm
-  starts offline as the service's user and refuses as the other. `managed.yml` runs
+  starts offline as the service's user and refuses as the other. `managed.yml` then ran
   `localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.1}-72939d99d1b8` and
-  `localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.1}-8d594a98a98b` (#1717's hash rule), built
+  `localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.1}-8d594a98a98b` (-38e6d59739c6 and
+  -072042d10128 since the later entry, whose removals changed the instructions) (#1717's hash rule), built
   from `./trigger.dev` and `./supervisor` with the version as their one argument,
   `pull_policy: never`. Checked with compose 5.6.1's `config`: unset, `v4.8.1` and `v4.9.0`
   in `.env` give the names and arguments meant.
