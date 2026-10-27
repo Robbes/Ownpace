@@ -159,7 +159,10 @@ function repin(text: string, repo: string, ref: string): string {
 }
 
 /** A Trivy image report, as `trivy image --format json` writes one. */
-function trivyJson(os: Record<string, unknown> | null, vulns: Array<{ Severity: string; FixedVersion?: string }> = []) {
+function trivyJson(
+  os: Record<string, unknown> | null,
+  vulns: Array<{ Severity: string; FixedVersion?: string; PkgName?: string; InstalledVersion?: string }> = [],
+) {
   return JSON.stringify({
     SchemaVersion: 2,
     ArtifactName: 'example',
@@ -364,12 +367,59 @@ describe('what a report says', () => {
   it('counts the findings of each severity, and those a newer package fixes', () => {
     const report = readReport(
       trivyJson({ Family: 'debian', Name: '12.11' }, [
-        { Severity: 'CRITICAL', FixedVersion: '1.2' },
+        { Severity: 'CRITICAL', FixedVersion: '1.2', PkgName: 'zlib1g', InstalledVersion: '1.1' },
         { Severity: 'HIGH' },
         { Severity: 'HIGH', FixedVersion: '3.4' },
       ]),
     );
-    expect(report).toEqual({ os: 'debian 12.11', eosl: false, critical: 1, high: 2, fixable: 2 });
+    expect(report).toEqual({
+      os: 'debian 12.11',
+      eosl: false,
+      critical: 1,
+      high: 2,
+      fixable: 2,
+      criticals: [{ id: 'CVE-0-0', pkg: 'zlib1g', installed: '1.1', fixed: '1.2', where: 'the OS packages' }],
+    });
+  });
+
+  it('lists each critical finding in the summary, with its fix or none, and where it sits (2026-10-26)', () => {
+    // An OS package with no fix, and a Go binary's standard library with one:
+    // the two cases the 2026-10-26 scan's 51 criticals came in.
+    const mixed = JSON.stringify({
+      SchemaVersion: 2,
+      ArtifactName: 'example',
+      ArtifactType: 'container_image',
+      Metadata: { OS: { Family: 'alpine', Name: '3.24.2' }, ImageID: 'sha256:0' },
+      Results: [
+        {
+          Target: 'example (alpine 3.24.2)',
+          Class: 'os-pkgs',
+          Vulnerabilities: [
+            { VulnerabilityID: 'CVE-2023-45853', Severity: 'CRITICAL', PkgName: 'zlib', InstalledVersion: '1.3.1-r2' },
+            { VulnerabilityID: 'CVE-2026-1', Severity: 'HIGH', PkgName: 'busybox', InstalledVersion: '1.37.0-r20', FixedVersion: '1.37.0-r21' },
+          ],
+        },
+        {
+          Target: 'usr/local/bin/gosu',
+          Class: 'lang-pkgs',
+          Vulnerabilities: [
+            { VulnerabilityID: 'CVE-2025-68121', Severity: 'CRITICAL', PkgName: 'stdlib', InstalledVersion: 'v1.24.6', FixedVersion: '1.24.13, 1.25.7' },
+          ],
+        },
+      ],
+    });
+    const summary = summarize(IMAGES, reports({ 'trivy-image-redis.json': mixed, 'trivy-image-minio.json': trivyJson(null), 'trivy-image-caddy.json': trivyJson(null) }));
+    const text = summary.lines.join('\n');
+    expect(summary.lines.filter((l) => l.startsWith('- `'))).toEqual([
+      '- `redis`: CVE-2023-45853 in `zlib` 1.3.1-r2, **no fix yet** (the OS packages)',
+      '- `redis`: CVE-2025-68121 in `stdlib` v1.24.6, fixed in 1.24.13, 1.25.7 (usr/local/bin/gosu)',
+    ]);
+    expect(text).toContain('### The critical findings, one by one');
+    // A high is counted in the table and never listed.
+    expect(text).not.toContain('CVE-2026-1');
+    // No critical anywhere: no section, not an empty one.
+    const none = summarize(IMAGES, reports(Object.fromEntries(IMAGES.map((i) => [`trivy-image-${i.name}.json`, trivyJson(null)]))));
+    expect(none.lines.join('\n')).not.toContain('critical findings, one by one');
   });
 
   it('never reads something that is not a Trivy image report as one without findings', () => {
