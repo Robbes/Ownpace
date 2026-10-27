@@ -474,7 +474,7 @@ describe('the report job', () => {
     expect(table).toMatch(/\| `minio` \| `bitnamilegacy\/minio:2025\.5\.24-debian-12-r5@sha256:444444444444…` \| debian 12\.11 \| supported \| 1 \| 0 \| 1 \|/);
   });
 
-  it('says which image was built here, and routes its issue to the Dockerfile rather than to a tag upstream moves (a compose file's Postgres, 0146 T15)', () => {
+  it("says which image was built here, and routes its issue to the Dockerfile rather than to a tag upstream moves (a compose file's Postgres, 0146 T15)", () => {
     const built: ScanImage = { name: 'postgres-managed', ref: 'localhost/postgres:18.6-alpine-0123456789ab', where: 'deploy/compose/managed.yml', floating: false, context: 'deploy/compose/postgres' };
     const summary = summarize([built], reports({ 'trivy-image-postgres-managed.json': trivyJson({ Family: 'alpine', Name: '3.24.3' }) }));
     expect(summary.missing).toEqual([]);
