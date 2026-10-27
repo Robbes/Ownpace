@@ -18,6 +18,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   v4.8.1 base reads about 1 and 80. The weekly image scan reads the tasks on
   that base too. The first task deploy after this is slow: a new image in
   both build stages, with the Debian archive reachable.
+- **The Trigger.dev webapp and supervisor run without files nothing here
+  runs** (workplan 0146 T16): both are built on the machine from upstream's
+  v4.8.1 images, by tag and digest, without depot's and esbuild's Go binaries
+  and without the copy of pnpm their user does not run. Those held 5 of the 8
+  critical findings the image scan read in the webapp on 2026-10-26, and 1 of
+  the supervisor's 2; the zlib1g, dompurify and pnpm tar findings in what does
+  run stay until upstream moves. The first bring-up after this builds both
+  images where the machine lacks them, pulling upstream's from ghcr as before,
+  and `.env` needs nothing new: `TRIGGER_IMAGE_TAG` still names the version.
+  Both services set `COREPACK_ENABLE_NETWORK: "0"`, so a start never fetches
+  pnpm from the npm registry. `trigger-version.sh pin` moves the builds with
+  the version, and the pull request of a move rebuilds them on amd64 and arm64.
 
 ### Changed
 

@@ -3037,7 +3037,13 @@ refuses a `COMPOSE_FILE` in the shell.
 
 The entrypoint's other children do not call out: pnpm 10.33.2 checks for its
 own update only on `install` and `add`, goose v3.27.1 has no network use of its
-own, and the dashboard agent's migration is plain drizzle-orm. At v4.7.6 it also
+own, and the dashboard agent's migration is plain drizzle-orm. Nor does
+corepack, which starts every `pnpm`: `trigger-api` and `trigger-supervisor` set
+`COREPACK_ENABLE_NETWORK: "0"` (workplan 0146 T16), because their builds delete
+the copy of pnpm the other user would run (*Upgrading Trigger.dev*, below).
+Without a copy for the user that runs, corepack would download pnpm from the
+npm registry at every start, unannounced; with it, the start fails and says
+"Network access disabled by the environment". At v4.7.6 it also
 preloads `distrust-cas.cjs`, which drops the compromised eMudhra roots from
 Node's own list and calls nothing; the webapp's two new server-side events go
 through the PostHog client `TRIGGER_TELEMETRY_DISABLED` leaves unmade; and its
@@ -5075,12 +5081,52 @@ new instance's own.
 
 **Upgrading Trigger.dev** is one number in every place that names it, and they
 must agree: the two `${TRIGGER_IMAGE_TAG:-…}` defaults in `managed.yml`,
-`TRIGGER_IMAGE_TAG` in `managed.env.example`, and every `@trigger.dev/*`
+`TRIGGER_IMAGE_TAG` in `managed.env.example`, the FROM of the two Dockerfiles
+the images are built from (below), and every `@trigger.dev/*`
 dependency in the root, `apps/worker` and `packages/scheduler` manifests
 (`.env`'s `TRIGGER_IMAGE_TAG`, when set, overrides the compose default on that
 machine). `--from trigger` refuses at bring-up when they disagree, and
 `bootstrap-managed.unit.test.ts` refuses in CI — added after dependabot moved
 the SDK alone, passed all seventeen checks and broke the managed gate.
+
+**Both Trigger.dev images are built here, from upstream's** (workplan 0146
+T16; the owner's decision of 2026-10-26, "Both": an issue upstream, and this
+build until upstream ships the fixes). `deploy/compose/trigger.dev/Dockerfile`
+and `deploy/compose/supervisor/Dockerfile` build on
+`ghcr.io/triggerdotdev/trigger.dev` and `…/supervisor` by tag and index digest,
+and delete only files no process of this stack runs: depot's and esbuild's Go
+binaries (each under both of its names) and node's copy of pnpm in the webapp,
+root's copy of pnpm in the supervisor. The image scan's critical findings go
+from 8 to 3 and from 2 to 1. Each Dockerfile's header says why each file is
+safe to delete, and why the webapp keeps root's copy of pnpm and the supervisor
+node's: `trigger-api` runs `user: root`, `trigger-supervisor` as the image's
+node. `managed.yml` names them `localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v…}-<hash>`
+and `localhost/supervisor:…`: the version as before, then the hash of the
+Dockerfile's instructions, so `.env`'s `TRIGGER_IMAGE_TAG` still chooses the
+version, the drift check below still holds it to the SDK, and the build refuses
+a `.env` that names another version than its FROM. `up` builds each name where
+the machine does not have it, pulling upstream's image from ghcr as it pulled it
+before, and never again while the name is there: never `up --build`, never
+`build trigger-api`.
+
+- **`trigger-version.sh pin` moves them.** It asks ghcr for both tags' index
+  digests, writes them into the two FROMs, and writes the new hash into both
+  names, with everything else it moves.
+- **A move's pull request re-proves every removal.** `build (trigger, amd64)`
+  and `build (trigger, arm64)` (`images.yml`) build both Dockerfiles at the new
+  tag. Each removal names a version-locked path and fails the build by name
+  when the path is not there: read that Dockerfile's header against the new
+  release, and drop the removal the release fixed.
+- **Rolling back** to the release before the builds is reversible at the same
+  version (`deploy-live.sh` compares the Trigger.dev version, not the image
+  line); the pulled image that release ran is still on the machine unless it
+  was pruned, and `up` pulls it again if it was.
+- **Dropping them**, once upstream ships the fixes: delete each removal as a
+  `pin` to a release that fixed it fails it, with its row in
+  `scripts/a-binary-the-stack-never-runs.unit.test.ts`. When none is left, put
+  `image: ghcr.io/triggerdotdev/<image>:${TRIGGER_IMAGE_TAG:-v…}` back without
+  `build:` and `pull_policy:`, and delete both directories and that guard.
+  Keep `COREPACK_ENABLE_NETWORK`.
 
 **A `.env` that sets `TRIGGER_IMAGE_TAG` moves by hand, on each stack.** Live's
 was copied from `managed.env.example`, so it names the pin of the day it was
