@@ -20,6 +20,27 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   watch compares it with cosign's newest and holds the two together.
   Signing stays keyless and by digest, and the `cosign verify` line
   `deploy/selfhost/README.md` gives does not change.
+- **The weekly image scan names every critical finding, not only how many.**
+  Below its table, the run's summary lists each critical one by one: the CVE,
+  the package and its version, the version that fixes it or **no fix yet**,
+  and where in the image it sits. A count did not say whether a rebuild, a
+  newer tag or only upstream could clear it, and code scanning's detail is
+  shown only to those with write access.
+
+### Added
+
+- **The suites that talk to Nextcloud also run against Nextcloud 35** (workplan
+  0119): `.github/workflows/nextcloud-second-major.yml` runs the WebDAV,
+  CalDAV, CardDAV, chunked-upload and share suites against
+  `nextcloud:35.0.2-apache`, pinned by digest, on a push to `main` that
+  touches their code, weekly, and on a pull request that changes the leg
+  itself; not on every pull request. A customer's own Nextcloud may already
+  run 35 while the demo stays on 34 until after the alpha.2 tag, since that
+  move is one way. The run fails when Nextcloud does not start, when the
+  server that answered is not the version the tag names, and when any test
+  skipped. The integration tier also gained its first suite for the share
+  verb against a real server: a user share, the listing that reads it back,
+  and a grantee the server does not know.
 
 ### Fixed
 
