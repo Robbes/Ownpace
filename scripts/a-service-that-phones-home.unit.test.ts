@@ -152,8 +152,11 @@
  * panel, which the script ignores) and its WebSocket server (`src/websocket.c`,
  * only with `--real-time-html`, which it never passes). And it runs with
  * `--network none`, so nothing could leave if a later version added
- * something. The image is pinned by digest, and the row below fails on
- * another pin or on a run that has a network.
+ * something. Its image is built from that commit by
+ * `deploy/compose/goaccess/Dockerfile` (#1675: upstream's image is on an
+ * Alpine past its end of life) and run with `--pull never`, and the row below
+ * fails on another commit, on a base not pinned by digest, or on a run that
+ * has a network or may pull.
  *
  * WHAT THIS CANNOT SEE. A running container, or a machine's `.env`: live's own
  * `TRIGGER_IMAGE_TAG` would run another webapp than the default read here, which
@@ -544,13 +547,13 @@ const NEXTCLOUD = 'nextcloud:34';
 const STALWART = 'stalwartlabs/stalwart:v0.16.10';
 /**
  * The site's visit count, outside every compose file (`site-visits.sh`); read
- * at the tag `v1.12` (`ef3c4f3c`). The digest is Docker Hub's index for the tag
- * `1.12` (amd64 and arm64), read from its listing on 2026-10-05 and read back
- * from the registry on 2026-10-06 (a HEAD of the tag returns it); not pulled
- * through Docker here.
+ * at the tag `v1.12` (`ef3c4f3c`), and since 2026-10-25 (#1675) built from that
+ * commit by `deploy/compose/goaccess/Dockerfile`, under a name no registry
+ * serves. Until then it was Docker Hub's `allinurl/goaccess:1.12`, on Alpine
+ * 3.20.
  */
-const GOACCESS =
-  'allinurl/goaccess:1.12@sha256:9e6dfd4abce94bd7c2907c1840b7b35f666587d56b24ffbb930b4782a87ea172';
+const GOACCESS = 'localhost/goaccess:1.12';
+const GOACCESS_COMMIT = 'ef3c4f3c3e42b378e705fb3a1a5ef1c2e72e6348';
 
 const NEXTCLOUD_PHONES =
   'its version and PHP version to updates.nextcloud.com, the app store at apps.nextcloud.com, the announcements feed and a ' +
@@ -870,14 +873,19 @@ describe('what runs outside every compose file is named, at the version it was r
     }
   });
 
-  it("the site's visit count (site-visits.sh, docker run) is GoAccess at the version read, pinned by digest, with no network", () => {
+  it("the site's visit count (site-visits.sh, docker run) is GoAccess built from the commit read, on bases pinned by digest, never pulled, with no network", () => {
     const script = read('deploy/compose/site-visits.sh');
     const image = /^GOACCESS_IMAGE="([^"]+)"$/m.exec(script)?.[1];
+    expect(image, 'the image this checkout builds, under a name no registry serves (#1675)').toBe(GOACCESS);
+    const dockerfile = read('deploy/compose/goaccess/Dockerfile');
     expect(
-      image,
-      'GoAccess was read at 1.12 for what it sends (nothing: no telemetry, update check or report). Re-read src/gdns.c and src/websocket.c at the new pin',
-    ).toBe(GOACCESS);
-    expect(image, 'pinned by digest, as the images in managed.yml are').toMatch(/^[^@]+:[^@]+@sha256:[0-9a-f]{64}$/);
+      /^ARG GOACCESS_COMMIT=([0-9a-f]{40})$/m.exec(dockerfile)?.[1],
+      'GoAccess was read at v1.12 (ef3c4f3c) for what it sends (nothing: no telemetry, update check or report). Re-read src/gdns.c and src/websocket.c at the new commit',
+    ).toBe(GOACCESS_COMMIT);
+    expect(dockerfile, 'the source is checked against the commit it was read at').toMatch(/test "\$\(git rev-parse HEAD\)" = "\$GOACCESS_COMMIT"/);
+    const froms = [...dockerfile.matchAll(/^FROM\s+(\S+)/gm)].map((m) => m[1]!);
+    expect(froms.length, 'the Dockerfile builds FROM nothing').toBeGreaterThan(0);
+    for (const from of froms) expect(from, 'pinned by tag and digest, as the images in managed.yml are').toMatch(/^[^@\s]+:[^@\s]+@sha256:[0-9a-f]{64}$/);
     const code = script
       .split('\n')
       .filter((l) => !/^\s*#/.test(l))
@@ -885,6 +893,9 @@ describe('what runs outside every compose file is named, at the version it was r
     expect(code, 'site-visits.sh no longer runs its image').toMatch(/\bdocker run\b/);
     expect(code, 'site-visits.sh no longer runs its image').toMatch(/"\$\{?GOACCESS_IMAGE\}?"/);
     expect(code, 'GoAccess runs with a network: nothing it might send could be stopped').toMatch(/--network none\b/);
+    expect(code, 'an image missing on the machine would be pulled under its name').toMatch(/docker run [^\n]*--pull never\b/);
+    expect(code, 'site-visits.sh no longer builds its image from goaccess/').toMatch(/docker build [^\n]*"\$\{?GOACCESS_IMAGE\}?" "\$\{?GOACCESS_CONTEXT\}?"/);
+    expect(script).toMatch(/^GOACCESS_CONTEXT="\$\{SCRIPT_DIR\}\/goaccess"$/m);
     const doc = read('docs/managed-bring-up.md');
     const section = /^## Nothing phones home\n([\s\S]*?)^## /m.exec(doc)?.[1] ?? '';
     expect(section, 'Nothing phones home no longer names the visit count').toContain('allinurl/goaccess');
