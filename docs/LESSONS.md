@@ -29,6 +29,7 @@ reading a file drops off its entry by itself.
 
 ### `.github/dependabot.yml`
 
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-dependabot-directory-with-nothing-to-read](../scripts/a-dependabot-directory-with-nothing-to-read.unit.test.ts) — A DEPENDABOT DIRECTORY WITH NOTHING TO READ: `.github/dependabot.yml` listed `/deploy/compose` for its `docker-compose` updater from 2026-09-06, and in seven weeks of Mondays it never moved one image there (workplan 0146 T8).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
@@ -103,6 +104,7 @@ reading a file drops off its entry by itself.
 
 ### `.github/workflows/images.yml`
 
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-dispatch-that-waited-for-the-wrong-run](../scripts/a-dispatch-that-waited-for-the-wrong-run.unit.test.ts) — A DISPATCH THAT WAITED FOR THE WRONG RUN: a workflow dispatch takes a branch or a tag and never a commit, answers without saying which run it started unless asked, and a dispatch sent twice starts two publishers on one tag (the design re…
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
@@ -159,6 +161,7 @@ reading a file drops off its entry by itself.
 ### `CONTRIBUTING.md`
 
 - [a-convention-two-of-two-hundred-commits-followed](../scripts/a-convention-two-of-two-hundred-commits-followed.unit.test.ts) — THE CONVENTION NOTHING ENFORCED.
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
 
 ### `SECURITY.md`
@@ -824,6 +827,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/bootstrap-managed.sh`
 
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-database-that-counts-its-queries](../scripts/a-database-that-counts-its-queries.unit.test.ts) — A DATABASE THAT COUNTS ITS QUERIES (workplan 0143 T8).
 - [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
 - [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
@@ -900,6 +904,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/db-roles.sh`
 
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
@@ -944,6 +949,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/dev.yml`
 
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-dependabot-directory-with-nothing-to-read](../scripts/a-dependabot-directory-with-nothing-to-read.unit.test.ts) — A DEPENDABOT DIRECTORY WITH NOTHING TO READ: `.github/dependabot.yml` listed `/deploy/compose` for its `docker-compose` updater from 2026-09-06, and in seven weeks of Mondays it never moved one image there (workplan 0146 T8).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
@@ -1110,6 +1116,7 @@ reading a file drops off its entry by itself.
 - [a-build-that-reached-for-the-lan](../scripts/a-build-that-reached-for-the-lan.unit.test.ts) — A BUILD THAT REACHED FOR THE LAN (workplan 0132 T3 (a); E2E (managed) #201).
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-database-that-counts-its-queries](../scripts/a-database-that-counts-its-queries.unit.test.ts) — A DATABASE THAT COUNTS ITS QUERIES (workplan 0143 T8).
 - [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
 - [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
@@ -1238,6 +1245,13 @@ reading a file drops off its entry by itself.
 
 - [a-plane-token-the-dead-worker-left](../scripts/a-plane-token-the-dead-worker-left.unit.test.ts) — THE PLANE'S TOKENS (workplan 0143 T1 step 3's plane half, the half plane-limit.sh cannot fix).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
+
+### `deploy/compose/postgres/Dockerfile`
+
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
+- [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
+- [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
 ### `deploy/compose/redact-evidence.sh`
 
@@ -1440,6 +1454,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/stand-up-live.sh`
 
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts) — A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
@@ -1514,6 +1529,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/www.yml`
 
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-dependabot-directory-with-nothing-to-read](../scripts/a-dependabot-directory-with-nothing-to-read.unit.test.ts) — A DEPENDABOT DIRECTORY WITH NOTHING TO READ: `.github/dependabot.yml` listed `/deploy/compose` for its `docker-compose` updater from 2026-09-06, and in seven weeks of Mondays it never moved one image there (workplan 0146 T8).
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
@@ -1610,6 +1626,7 @@ reading a file drops off its entry by itself.
 
 - [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 - [a-count-every-merge-made-stale](../scripts/a-count-every-merge-made-stale.unit.test.ts) — A COUNT EVERY MERGE MADE STALE: both generated indexes opened with a total across every plan or guard, so every merge changed a line that every other open pull request carried too (workplan 0147, 2026-09-28).
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
 
@@ -1722,6 +1739,7 @@ reading a file drops off its entry by itself.
 
 - [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts) — A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
 - [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
@@ -2538,6 +2556,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/testing/src/testcontainers-setup.ts`
 
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts) — A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may be on 35 while every suite here ran against 34 (workplan 0119, Status of 2026-10-25).
 
@@ -3439,6 +3458,26 @@ Reads:
 
 A cutover the gate never pressed.
 
+### [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts)
+
+A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
+
+Reads:
+
+- `.github/dependabot.yml`
+- `.github/workflows/images.yml`
+- `CONTRIBUTING.md`
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/db-roles.sh`
+- `deploy/compose/dev.yml`
+- `deploy/compose/managed.yml`
+- `deploy/compose/postgres/Dockerfile`
+- `deploy/compose/stand-up-live.sh`
+- `deploy/compose/www.yml`
+- `docs/LESSONS.md`
+- `docs/managed-bring-up.md`
+- `packages/testing/src/testcontainers-setup.ts`
+
 ### [a-database-that-counts-its-queries](../scripts/a-database-that-counts-its-queries.unit.test.ts)
 
 A DATABASE THAT COUNTS ITS QUERIES (workplan 0143 T8).
@@ -3806,6 +3845,7 @@ Reads:
 - `deploy/compose/deploy-live.sh`
 - `deploy/compose/dev.yml`
 - `deploy/compose/managed.yml`
+- `deploy/compose/postgres/Dockerfile`
 - `deploy/compose/stand-up-live.sh`
 - `deploy/compose/www.yml`
 - `packages/testing/src/testcontainers-setup.ts`
@@ -4295,6 +4335,7 @@ Reads:
 - `deploy/compose/dump-idp.sh`
 - `deploy/compose/goaccess/Dockerfile`
 - `deploy/compose/managed.yml`
+- `deploy/compose/postgres/Dockerfile`
 - `deploy/compose/site-visits.sh`
 - `deploy/compose/smoke-managed.sh`
 - `deploy/compose/trigger-version.sh`
@@ -5419,6 +5460,7 @@ Reads:
 - `deploy/compose/dev.yml`
 - `deploy/compose/goaccess/Dockerfile`
 - `deploy/compose/managed.yml`
+- `deploy/compose/postgres/Dockerfile`
 - `deploy/compose/site-visits.sh`
 - `deploy/compose/www.yml`
 - `deploy/selfhost/compose.yml`

@@ -23,7 +23,12 @@
  *           its tag), never a second compose parser:
  *             - every `image:` line of the compose files the pin watch reads
  *               (managed.yml, dev.yml, www.yml) and the appliance's
- *               deploy/selfhost/compose.yml;
+ *               deploy/selfhost/compose.yml. One named `localhost/<name>`
+ *               is built by compose from `<name>/Dockerfile` beside the file
+ *               (its `build:`), and no registry serves it (Postgres without
+ *               gosu since workplan 0146 T15), so its leg builds that
+ *               directory for linux/arm64 and scans what it built
+ *               (`context`); the Dockerfile must be there;
  *             - every image a script in deploy/compose or deploy/selfhost
  *               names in a literal `…IMAGE=` assignment (GoAccess, Stalwart
  *               for the demo), deduplicated against the compose files of its
@@ -211,7 +216,7 @@ export function newestReleaseTag(lsRemote) {
   return versions.sort(compareSemVer).at(-1);
 }
 
-/** The registry no image is pulled from: a script's image named under it is built from a Dockerfile here. */
+/** The registry no image is pulled from: an image named under it is built from a Dockerfile here. */
 export const BUILT_HERE = 'localhost/';
 
 /** The images a script names literally, each with its line. */
@@ -226,8 +231,8 @@ function scriptImages(text) {
 }
 
 /**
- * Where a script's `localhost/<name>` image is built from: `<name>/` beside the
- * script, which must hold a Dockerfile. Any other image is pulled: null.
+ * Where a `localhost/<name>` image is built from: `<name>/` beside the file
+ * that names it, which must hold a Dockerfile. Any other image is pulled: null.
  */
 function buildContext(repo, dir, image) {
   if (!image.repo.startsWith(BUILT_HERE)) return null;
@@ -259,7 +264,9 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
     if (!byStackRef.has(key)) byStackRef.set(key, { ...image, stack, context, where: [] });
     if (!byStackRef.get(key).where.includes(where)) byStackRef.get(key).where.push(where);
   };
-  for (const file of SCAN_FILES) for (const image of readImages(need(repo, file))) add(image, file);
+  for (const file of SCAN_FILES) {
+    for (const image of readImages(need(repo, file))) add(image, file, buildContext(repo, dirname(file), image));
+  }
   for (const dir of SCRIPT_DIRS) {
     for (const name of repo.list(dir).filter((n) => n.endsWith('.sh')).sort()) {
       for (const image of scriptImages(need(repo, `${dir}/${name}`))) add(image, `${dir}/${name}`, buildContext(repo, dir, image));
@@ -457,7 +464,7 @@ export function eoslIssue(image, report) {
     `\`${image.ref}\` (${image.where}) runs on **${os}**, which its distribution no longer supports: Trivy's report for it says \`EOSL\`, end of service life. Its packages get no more security fixes, so what the scan finds in them from now on stays open whatever else moves.`,
     '',
     image.context
-      ? `This image is built here, from \`${image.context}/Dockerfile\`, and its base is the \`FROM\` there. The way out is a supported base in that file, by exact tag and digest. Dependabot moves that pin, a new line of the base included, in a pull request of its own (\`.github/dependabot.yml\`), and the pull request's checks build the image; read the base's release notes before merging it. Live takes it from a release tag. A major is the owner's call.`
+      ? `This image is built here, from \`${image.context}/Dockerfile\`, and its base is the \`FROM\` there. The way out is a supported base in that file, by exact tag and digest. Dependabot moves that pin, a new line of the base included, in a pull request of its own (\`.github/dependabot.yml\`), and the pull request's checks build the image; read the base's release notes before merging it. An image of \`managed.yml\` takes E2E (managed) dispatched on its branch, and live takes it from a release tag. A major is the owner's call.`
       : 'The way out is the same image on a supported base: a newer tag of it once upstream has moved its base, or another variant of it. The pin watch (`.github/workflows/idp-pin-watch.yml`) says when a newer tag exists. The move goes in a pull request like any pin, with its release notes read; an image of `managed.yml` takes E2E (managed) dispatched on its branch, and live takes it from a release tag. A major is the owner\'s call.',
     ...(image.floating
       ? ['', 'The tag floats, so this is the image its registry serves today, which need not be the one the box pulled last.']
