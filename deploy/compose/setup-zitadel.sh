@@ -1370,7 +1370,7 @@ silently as no provider at all, which is the failure this configures away."
     # only the test verb that has no modern implementation yet.
     #
     # AND IT IS NOT FATAL, which matters more than the path. `api` dies on any
-    # non-2xx, so that 404 exited the script MID-PHASE — before `up -d --build`
+    # non-2xx, so that 404 exited the script MID-PHASE — before the app phase
     # had built api and web, which is what `phase_app` exists to do. A check on
     # the mail channel took down the whole bring-up: the shape of a healthcheck
     # that kills the service it is watching. Delivery is REPORTED here and
@@ -2836,9 +2836,11 @@ that moment on:
 
   docker compose -f deploy/compose/managed.yml up -d --force-recreate api
 
-The web app bakes VITE_OIDC_* in at BUILD time, so it needs rebuilding:
+The web app bakes VITE_OIDC_* in at BUILD time, so it needs rebuilding, by
+name: up --build would rebuild the databases' image too, which can restart them:
 
-  docker compose -f deploy/compose/managed.yml up -d --build web
+  docker compose -f deploy/compose/managed.yml build web
+  docker compose -f deploy/compose/managed.yml up -d web
 
 EOF
 

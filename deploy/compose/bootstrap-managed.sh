@@ -846,8 +846,10 @@ assert_zitadel_role_password() {
 
 
 # The diagnosis half, separated from the `up` half so that a bring-up which
-# cannot go through `up_wait` — the app services need `--build` and a GIT_SHA —
-# can still reach it. It used to be inlined here, and the two calls that could
+# cannot go through `up_wait` — the provider's `up -d` below, which has no
+# healthcheck to wait on — can still reach it. (The app services were the other
+# such call, with `up --build` and a GIT_SHA, until 2026-10-26: they are built
+# by name now, and come up through `up_wait` like the rest.) It used to be inlined here, and the two calls that could
 # not use the wrapper therefore had no diagnosis at all: E2E (managed) #39
 # reported `ownpace-idp Restarting (1)` and not one word about why, because the
 # zitadel bring-up added in #504 called compose directly.
@@ -1044,7 +1046,7 @@ phase_preflight() {
     die "dependencies are not installed — run: pnpm install --frozen-lockfile"
 
   # Disk. A managed stack is roughly ten images plus ClickHouse and MinIO
-  # volumes; running out halfway through `up --build` leaves a stack that is
+  # volumes; running out halfway through the build and the `up` leaves a stack that is
   # partly built and wholly confusing.
   local free_gb
   free_gb="$(df -Pk "${REPO_ROOT}" | awk 'NR==2 {print int($4/1024/1024)}')"
@@ -2135,7 +2137,6 @@ phase_app() {
     note_catcher_left_running
   fi
 
-  # GIT_SHA so `GET /version` answers with a commit rather than "unknown".
   # THE IDENTITY PROVIDER IS PROVISIONED BEFORE `web` IS BUILT, and the order is
   # the whole point.
   #
@@ -2194,12 +2195,21 @@ phase_app() {
   # VITE_ values, and the build below has to see them.
   load_env
 
-  # `|| explain_failure` because this one cannot go through `up_wait`: it needs
-  # `--build` and a GIT_SHA in the environment. Without it, a web or api image
-  # that starts and dies reports one line naming the service and nothing about
-  # the cause — the same blindness as the zitadel call above.
+  # THE TWO IMAGES THAT CARRY CODE ARE BUILT BY NAME, AND `up` IS NOT GIVEN
+  # `--build` (the review of #1717, 2026-10-26). `up --build` builds every
+  # service in its scope that has a `build:`, dependencies included, and since
+  # workplan 0146 T15 the two databases have one (deploy/compose/postgres).
+  # This `up` used to carry `--build`, so every bring-up rebuilt their
+  # image: the same image ID while BuildKit kept its cache, a new one under the
+  # same name after a prune, and then the next `up` that reached a database
+  # recreated it — on the shared daemon live's too, outside any hold. Built by
+  # name here, the databases' image is built only where its name is missing.
+  # GIT_SHA so `GET /version` answers with a commit rather than "unknown"; it
+  # is a build argument only, so the `up` below needs none.
+  # scripts/a-database-started-as-root.unit.test.ts holds this.
   GIT_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)" \
-    "${COMPOSE[@]}" up -d --build --wait "${services[@]}" || explain_failure "${services[@]}"
+    "${COMPOSE[@]}" build api web || die "the api and web images did not build (compose's words are above); nothing was started or recreated."
+  up_wait "${services[@]}"
   note "up and healthy: ${services[*]}"
   note "api: ${API_URL:-http://localhost:3001}   web: ${WEB_URL:-http://localhost:3123}"
   # What the rule for a host a tenant gives us admits by name (workplan 0136

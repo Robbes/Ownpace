@@ -20,12 +20,13 @@
  * Since 2026-10-22 each is pinned by its exact version and its index digest,
  * and moves by a pull request that E2E (managed) proves on its branch; live
  * takes it from a release tag, and `up` pulls a digest the machine does not
- * have. Dependabot reads no file in `deploy/compose`: the weekly pin watch
- * (`scripts/idp-pin-watch.mjs`) says when a newer tag is listed, and the
+ * have. Dependabot reads no compose file in `deploy/compose`: the weekly pin
+ * watch (`scripts/idp-pin-watch.mjs`) says when a newer tag is listed, and the
  * weekly image scan (`scripts/image-scan.mjs`) counts the findings a newer
  * package fixes, which is when a rebuild under the same tag is worth its new
- * digest. Dependabot moves the FROM lines of `apps/web/Dockerfile`, tag and
- * digest. This holds four things:
+ * digest. Dependabot moves the FROM lines of `apps/web/Dockerfile`, and of
+ * `deploy/compose/postgres/Dockerfile` (0146 T15), tag and digest. This holds
+ * four things:
  *
  *  - no image line of `deploy/compose/managed.yml`, `deploy/compose/dev.yml`
  *    or `deploy/compose/www.yml` floats within its line, by the image scan's
@@ -43,6 +44,10 @@
  *    tags, not digests, so a rebuild moved in `managed.yml` and missed in
  *    `dev.yml` would leave the dev stack and the integration tests on the old
  *    build with nothing to say so; Nextcloud's move of 2026-10-25 was one;
+ *  - a Postgres built here (`localhost/postgres`, workplan 0146 T15) is held
+ *    by its Dockerfile's FROM, `deploy/compose/postgres/Dockerfile`, which
+ *    carries the official image's exact version and index digest: the lines
+ *    above are read through it, and the integration tests start that base;
  *  - `managed.yml`'s postgres lines end at the reference. `stand-up-live.sh`
  *    takes everything after `image:` on the first of them as the image it asks
  *    live's database with, so a `# comment` there, the way `dev.yml` writes
@@ -58,11 +63,14 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { COMPOSE_FILES, parseRef, readImages } from './idp-pin-watch.mjs';
+import { COMPOSE_FILES, builtImage, parseRef, readImages, repoReader } from './idp-pin-watch.mjs';
 import { isFloating } from './image-scan.mjs';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(join(REPO_ROOT, rel), 'utf8');
+const REPO = repoReader(REPO_ROOT);
+/** An image line as its pins are: a build's are its Dockerfile's FROM (`localhost/postgres`). */
+const pinned = (file: string, image: ReturnType<typeof readImages>[number]) => ({ ...(builtImage(REPO, file, image)?.base ?? image), line: image.line });
 
 /**
  * Lines that still float, by repository, each with the reason it is not
@@ -79,7 +87,7 @@ const NAMED_FLOATS: Readonly<Record<string, string>> = {
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
 
 describe('no image line of the deploy/compose stacks floats within its line', () => {
-  const lines = COMPOSE_FILES.flatMap((file) => readImages(read(file)).map((image) => ({ file, ...image })));
+  const lines = COMPOSE_FILES.flatMap((file) => readImages(read(file)).map((image) => ({ file, ...pinned(file, image) })));
 
   it('read the image lines of the three files the pin watch reads', () => {
     // A reader that matches nothing passes everything below.
@@ -104,7 +112,7 @@ describe('no image line of the deploy/compose stacks floats within its line', ()
     const postgres = read('deploy/compose/managed.yml')
       .split('\n')
       .map((text, i) => ({ text, line: i + 1 }))
-      .filter((l) => /^\s*image:\s*postgres:/.test(l.text));
+      .filter((l) => /^\s*image:\s*(?:localhost\/)?postgres:/.test(l.text));
     expect(postgres.length, 'managed.yml names no postgres image').toBeGreaterThan(0);
     for (const { text, line } of postgres) {
       expect(text, `managed.yml:${line} carries more than the reference after image:`).toMatch(/^\s*image:\s*\S+\s*$/);
@@ -160,7 +168,8 @@ describe("the dev stack runs managed.yml's Postgres and Nextcloud", () => {
   const managed = readImages(read('deploy/compose/managed.yml'));
   const dev = readImages(read('deploy/compose/dev.yml'));
 
-  for (const repo of ['postgres', 'nextcloud']) {
+  // Postgres is built here since 0146 T15: the same name, and so the same Dockerfile.
+  for (const repo of ['localhost/postgres', 'nextcloud']) {
     it(repo, () => {
       const refs = [...new Set(managed.filter((i) => i.repo === repo).map((i) => i.ref))];
       expect(
@@ -180,7 +189,8 @@ describe("the dev stack runs managed.yml's Postgres and Nextcloud", () => {
 
 describe("the integration tests run the dev stack's Postgres and Nextcloud", () => {
   const setup = read('packages/testing/src/testcontainers-setup.ts');
-  const dev = readImages(read('deploy/compose/dev.yml'));
+  // dev.yml's Postgres is built (0146 T15): the integration tests start its base.
+  const dev = readImages(read('deploy/compose/dev.yml')).map((image) => ({ ...pinned('deploy/compose/dev.yml', image), ref: builtImage(REPO, 'deploy/compose/dev.yml', image)?.base.ref ?? image.ref }));
 
   for (const repo of ['postgres', 'nextcloud']) {
     it(repo, () => {

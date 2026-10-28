@@ -18,6 +18,7 @@ export declare const COMPOSE_FILES: string[];
 export declare const COMPARED_ELSEWHERE: Record<string, string>;
 export declare const STALWART_RULE: string;
 export declare const REBUILD_NOTE: string;
+export declare function builtNote(dockerfile: string): string;
 export declare const STALWART_FILES: string[];
 export declare const GOACCESS_DOCKERFILE: string;
 export declare const TASK_OVERLAY: RegExp;
@@ -96,6 +97,16 @@ export declare function newestLike(pin: string, tags: string[], keep?: number): 
 export declare function stateOf(pin: string, newest: string): PinResult['state'];
 export declare function parseRef(ref: string): Omit<Image, 'line'>;
 export declare function readImages(text: string): Image[];
+/** The one FROM of a Dockerfile built beside a compose file, which carries a tag and a digest. */
+export declare function dockerfileBase(text: string): Omit<Image, 'line'>;
+/** `<base tag>-<12 hex of the SHA-256 of the instruction lines>`: the tag a compose file gives the image it builds. */
+export declare function builtTag(text: string): string;
+/** A compose file's `localhost/<name>` image, built from `<name>/Dockerfile` beside it; null for a pulled one. */
+export declare function builtImage(
+  repo: Repo,
+  file: string,
+  image: Pick<Image, 'ref' | 'repo'>,
+): { context: string; dockerfile: string; base: Omit<Image, 'line'>; tag: string } | null;
 export declare function registryOf(repo: string): { host: string; name: string };
 export declare function registryTags(net: Net, repo: string): Promise<string[]>;
 export declare function nodeVersionOf(net: Net, image: string): Promise<string>;
