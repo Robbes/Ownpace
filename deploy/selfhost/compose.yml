@@ -1,7 +1,8 @@
 # Self-host appliance stack (workplan 0010 T3).
 #
 # Two services: a small bundled Postgres and the single-tenant app. Bring it up
-# on a NAS / mini-PC / Pi with:
+# on a NAS / mini-PC / Pi with (the first `up` also builds the database's
+# image, the official one without gosu, from ./postgres):
 #
 #   cp deploy/selfhost/selfhost.env.example deploy/selfhost/.env   # then edit
 #   cp deploy/selfhost/config/mapping.json.example \
@@ -34,7 +35,18 @@ x-logging: &logging
 
 services:
   postgres:
-    image: postgres:18.6-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+    # The official image without gosu, started as its postgres user, uid 70
+    # (workplan 0146 T15b, 2026-10-26): ./postgres/Dockerfile says why, what a
+    # start as uid 70 means for an appliance's data, and why the name carries
+    # the hash of its instructions. Compose builds it on the first `up` that
+    # finds no image of this name, so an upgrade whose Dockerfile changed builds
+    # the new one at its `up -d`; the base's digest is the Dockerfile's FROM,
+    # which Dependabot moves (its own `docker` entry). `never`: no registry
+    # serves this name, so `docker compose pull` passes it by, and `up` builds
+    # it when it is missing without asking one.
+    image: localhost/postgres:18.6-alpine-b18f51417292
+    build: ./postgres
+    pull_policy: never
     container_name: ownpace-selfhost-db
     restart: unless-stopped
     logging: *logging
@@ -46,6 +58,10 @@ services:
       # Local volume ONLY — never a network filesystem (SMB/NFS) for the DB
       # (corruption risk). See docs/selfhost-quickstart.md.
       # Postgres 18+ expects data at /var/lib/postgresql (not /var/lib/postgresql/data)
+      # A named volume: a new one takes the image's directory, uid 70's. A host
+      # directory bound here instead must be uid 70's (`chown -R 70:70`; under
+      # rootless Docker from inside the container, as the quickstart says), or
+      # a start as uid 70 cannot make the data directory in it.
       - pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-openmigrate} -d ${POSTGRES_DB:-openmigrate}"]

@@ -260,22 +260,32 @@ jobs:
           echo "::error::cosign sign failed three times — ${ref} is PUBLISHED AND UNSIGNED. Re-run this job once Sigstore is healthy (https://status.sigstore.dev); the digest is stable, so a later run signs the same image."
           exit 1
 
-  # THE DATABASES' IMAGE, BUILT AND STARTED ON A PULL REQUEST (workplan 0146
-  # T15; the review of #1717, 2026-10-26). managed.yml's postgres and
-  # trigger-db, and dev.yml's postgres, run `localhost/postgres:<tag>`, which
-  # compose builds on the machine from deploy/compose/postgres/Dockerfile and
-  # nothing publishes, so the matrix above never builds it. Before this job
-  # the first build of a pull request that moved its FROM was the branch's
-  # E2E (managed): a digest that does not resolve, or a base that no longer
-  # ships gosu (the plain `rm` fails the build on purpose), was found there.
+  # THE DATABASES' IMAGES, BUILT AND STARTED ON A PULL REQUEST (workplan 0146
+  # T15; the review of #1717, 2026-10-26; the appliance's since T15b, the same
+  # day). managed.yml's postgres and trigger-db, and dev.yml's postgres, run
+  # `localhost/postgres:<tag>`, which compose builds on the machine from
+  # deploy/compose/postgres/Dockerfile; the appliance's postgres
+  # (deploy/selfhost/compose.yml) runs its own, from
+  # deploy/selfhost/postgres/Dockerfile. Nothing publishes either, so the
+  # matrix above never builds them. Before this job the first build of a pull
+  # request that moved a FROM was the branch's E2E: a digest that does not
+  # resolve, or a base that no longer ships gosu (the plain `rm` fails the
+  # build on purpose), was found there.
   #
-  # It brings up dev.yml's postgres as compose does on a machine without the
-  # image (`pull_policy: never`, so compose builds it rather than asking a
-  # registry), on a new volume, and checks that `exec`, the server and the data
-  # are uid 70 and that gosu is gone. On a pull request only: on main and on a
-  # tag this workflow publishes, and this job has nothing to publish. The
-  # arm64 build is the weekly image scan's (security-scan.yml), which counts
-  # the findings. Held by scripts/a-database-started-as-root.unit.test.ts.
+  # It brings up dev.yml's postgres, then the appliance's, each as compose does
+  # on a machine without the image (`pull_policy: never`, so compose builds it
+  # rather than asking a registry), and checks that `exec`, the server and the
+  # data are uid 70 and that gosu is gone. dev.yml's starts on a new volume,
+  # which initialises as uid 70. The appliance's starts on the volume every
+  # existing appliance has (the review of T15b, 2026-10-26): one the official
+  # image initialised as root, the Dockerfile's own FROM with gosu, which left
+  # PGDATA uid 70's and /var/lib/postgresql/18 above it root's; the build must
+  # start on it and read back the row written there. E2E (self-hosted) and its
+  # backup and restore drill start the appliance on new volumes. On a pull
+  # request only: on main and on a tag this workflow publishes, and this job has
+  # nothing to publish. The arm64 builds are the weekly image scan's
+  # (security-scan.yml), which counts the findings. Held by
+  # scripts/a-database-started-as-root.unit.test.ts.
   database:
     name: build (postgres)
     if: github.event_name == 'pull_request'
@@ -287,52 +297,114 @@ jobs:
       COMPOSE_FILE_PATH: deploy/compose/dev.yml
       # dev.yml's published port, moved off anything the runner has on 5433.
       DEV_POSTGRES_PORT: '55433'
+      # The appliance's, which publishes no database port.
+      SELFHOST_COMPOSE_FILE: deploy/selfhost/compose.yml
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Compose builds the databases' image where it is missing, and Postgres starts as uid 70
+      # The appliance's file refuses an unset POSTGRES_PASSWORD, and its app
+      # names deploy/selfhost/.env as an env_file, without which compose will
+      # not load the file at all, even for postgres alone (`env file … not
+      # found`, compose v5.6.1, 2026-10-26). A throwaway for this runner gives
+      # both, as scripts/upgrade-drill.sh does for its run.
+      - name: A throwaway .env for the appliance's compose file
+        run: printf 'POSTGRES_PASSWORD=build-check-only\n' > deploy/selfhost/.env
+
+      - name: Compose builds each database's image where it is missing, and Postgres starts as uid 70
         run: |
           set -euo pipefail
-          file="$COMPOSE_FILE_PATH"
-          docker compose -f "$file" up -d --wait postgres
-          cid="$(docker compose -f "$file" ps -q postgres)"
-          image="$(docker inspect --format '{{.Config.Image}}' "$cid")"
-          user="$(docker image inspect --format '{{.Config.User}}' "$image")"
-          echo "built and started ${image}, whose user is '${user}'"
-          if [ "$user" != "70:70" ]; then
-            echo "::error::${image} runs as '${user}', not 70:70"
-            exit 1
-          fi
-          # The healthcheck asks the socket, which the entrypoint's first,
-          # temporary server answers too while it initialises the new volume.
-          # TCP is the server that stays.
-          for attempt in $(seq 1 60); do
-            if docker compose -f "$file" exec -T postgres pg_isready -q -h localhost -U ownpace -d ownpace; then
-              break
-            fi
-            if [ "$attempt" -eq 60 ]; then
-              echo "::error::Postgres did not listen on TCP within a minute of being healthy"
+          # One compose file's postgres, asked as its own role and database.
+          prove() {
+            local file="$1" role="$2" db="$3"
+            docker compose -f "$file" up -d --wait postgres
+            cid="$(docker compose -f "$file" ps -q postgres)"
+            image="$(docker inspect --format '{{.Config.Image}}' "$cid")"
+            user="$(docker image inspect --format '{{.Config.User}}' "$image")"
+            echo "${file}: built and started ${image}, whose user is '${user}'"
+            if [ "$user" != "70:70" ]; then
+              echo "::error::${image} (${file}) runs as '${user}', not 70:70"
               exit 1
             fi
-            sleep 1
-          done
-          docker compose -f "$file" exec -T postgres sh -euc '
-            server="$(awk "/^Uid:/ { print \$2 }" /proc/1/status)"
-            data="$(stat -c %u "$PGDATA")"
-            echo "exec: uid $(id -u); server: uid ${server}; ${PGDATA}: uid ${data}"
-            if [ "$(id -u)" != 70 ]; then echo "exec runs as uid $(id -u), not 70" >&2; exit 1; fi
-            if [ "$server" != 70 ]; then echo "the server runs as uid ${server}, not 70" >&2; exit 1; fi
-            if [ "$data" != 70 ]; then echo "${PGDATA} belongs to uid ${data}, not 70" >&2; exit 1; fi
-            if [ -e /usr/local/bin/gosu ]; then echo "/usr/local/bin/gosu is still in the image" >&2; exit 1; fi
-          '
-          docker compose -f "$file" exec -T postgres psql -U ownpace -d ownpace -Atc 'select current_user, version()'
+            # The healthcheck asks the socket, which the entrypoint's first,
+            # temporary server answers too while it initialises the new volume.
+            # TCP is the server that stays.
+            for attempt in $(seq 1 60); do
+              if docker compose -f "$file" exec -T postgres pg_isready -q -h localhost -U "$role" -d "$db"; then
+                break
+              fi
+              if [ "$attempt" -eq 60 ]; then
+                echo "::error::${file}'s Postgres did not listen on TCP within a minute of being healthy"
+                exit 1
+              fi
+              sleep 1
+            done
+            docker compose -f "$file" exec -T postgres sh -euc '
+              server="$(awk "/^Uid:/ { print \$2 }" /proc/1/status)"
+              data="$(stat -c %u "$PGDATA")"
+              echo "exec: uid $(id -u); server: uid ${server}; ${PGDATA}: uid ${data}"
+              if [ "$(id -u)" != 70 ]; then echo "exec runs as uid $(id -u), not 70" >&2; exit 1; fi
+              if [ "$server" != 70 ]; then echo "the server runs as uid ${server}, not 70" >&2; exit 1; fi
+              if [ "$data" != 70 ]; then echo "${PGDATA} belongs to uid ${data}, not 70" >&2; exit 1; fi
+              if [ -e /usr/local/bin/gosu ]; then echo "/usr/local/bin/gosu is still in the image" >&2; exit 1; fi
+            '
+            docker compose -f "$file" exec -T postgres psql -U "$role" -d "$db" -Atc 'select current_user, version()'
+          }
+          # The volume an appliance that ran the official image has: the
+          # Dockerfile's own FROM, gosu and all, started as root on the volume
+          # the compose file mounts, initialises it as every appliance's was,
+          # and leaves a row in it. The labels are the ones compose gives its
+          # own volumes, so `up` takes it as the appliance's and `down -v`
+          # removes it.
+          root_initialised() {
+            local file="$1" role="$2" db="$3"
+            base="$(awk '/^FROM / { print $2 }' "$(dirname "$file")/postgres/Dockerfile")"
+            project="$(docker compose -f "$file" config --format json | jq -r '.name')"
+            volume="$(docker compose -f "$file" config --format json | jq -r '.volumes.pgdata.name')"
+            docker volume create --label "com.docker.compose.project=${project}" --label com.docker.compose.volume=pgdata "$volume"
+            docker run -d --name root-initialised -e POSTGRES_USER="$role" -e POSTGRES_PASSWORD=build-check-only -e POSTGRES_DB="$db" -v "${volume}:/var/lib/postgresql" "$base"
+            # TCP: the entrypoint's temporary server, while it initialises, listens on the socket only.
+            for attempt in $(seq 1 60); do
+              if docker exec root-initialised pg_isready -q -h localhost -U "$role" -d "$db"; then
+                break
+              fi
+              if [ "$attempt" -eq 60 ]; then
+                echo "::error::${base} did not initialise ${volume} as root within a minute"
+                exit 1
+              fi
+              sleep 1
+            done
+            docker exec root-initialised sh -euc 'echo "as root: ${PGDATA} uid $(stat -c %u "$PGDATA"), $(dirname "$PGDATA") uid $(stat -c %u "$(dirname "$PGDATA")")"'
+            docker exec root-initialised psql -v ON_ERROR_STOP=1 -U "$role" -d "$db" -c 'create table before_the_build (note text)' -c "insert into before_the_build values ('written as root')"
+            docker stop root-initialised
+            docker rm root-initialised
+          }
+          # What root_initialised wrote, read by the build that started on its volume.
+          read_back() {
+            local file="$1" role="$2" db="$3"
+            note="$(docker compose -f "$file" exec -T postgres psql -U "$role" -d "$db" -Atc 'select note from before_the_build')"
+            if [ "$note" != "written as root" ]; then
+              echo "::error::${file}'s postgres, started as uid 70 on a volume initialised as root, read '${note}', not the row written there"
+              exit 1
+            fi
+            echo "${file}: the row written as root reads back as uid 70"
+          }
+          prove "$COMPOSE_FILE_PATH" ownpace ownpace
+          root_initialised "$SELFHOST_COMPOSE_FILE" openmigrate openmigrate
+          prove "$SELFHOST_COMPOSE_FILE" openmigrate openmigrate
+          read_back "$SELFHOST_COMPOSE_FILE" openmigrate openmigrate
 
-      - name: The database's log, when it did not come up
+      - name: The databases' logs, when one did not come up
         if: failure()
-        run: docker compose -f "$COMPOSE_FILE_PATH" logs --no-color postgres
+        run: |
+          docker logs root-initialised || true
+          docker compose -f "$COMPOSE_FILE_PATH" logs --no-color postgres || true
+          docker compose -f "$SELFHOST_COMPOSE_FILE" logs --no-color postgres || true
 
-      - name: Remove the container and its volume
+      - name: Remove the containers and their volumes
         if: always()
-        run: docker compose -f "$COMPOSE_FILE_PATH" down -v --remove-orphans
+        run: |
+          docker rm -f root-initialised || true
+          docker compose -f "$COMPOSE_FILE_PATH" down -v --remove-orphans
+          docker compose -f "$SELFHOST_COMPOSE_FILE" down -v --remove-orphans

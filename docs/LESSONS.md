@@ -82,6 +82,7 @@ reading a file drops off its entry by itself.
 
 ### `.github/workflows/e2e.yml`
 
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-domain-the-self-hosted-gate-never-sees](../scripts/a-domain-the-self-hosted-gate-never-sees.unit.test.ts) — The self-hosted gate seeds every domain the appliance it starts is configured to sync (workplan 0113 T8).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
@@ -1573,6 +1574,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/selfhost/compose.dev.yml`
 
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
@@ -1580,6 +1582,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/selfhost/compose.drill.yml`
 
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts) — The upgrade drill's appliances start with the mapping the drill wrote for them (workplan 0146's Status, 0025 T5).
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
@@ -1587,6 +1590,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/selfhost/compose.pglite.yml`
 
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-dependabot-directory-with-nothing-to-read](../scripts/a-dependabot-directory-with-nothing-to-read.unit.test.ts) — A DEPENDABOT DIRECTORY WITH NOTHING TO READ: `.github/dependabot.yml` listed `/deploy/compose` for its `docker-compose` updater from 2026-09-06, and in seven weeks of Mondays it never moved one image there (workplan 0146 T8).
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
@@ -1595,6 +1599,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/selfhost/compose.yml`
 
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-dependabot-directory-with-nothing-to-read](../scripts/a-dependabot-directory-with-nothing-to-read.unit.test.ts) — A DEPENDABOT DIRECTORY WITH NOTHING TO READ: `.github/dependabot.yml` listed `/deploy/compose` for its `docker-compose` updater from 2026-09-06, and in seven weeks of Mondays it never moved one image there (workplan 0146 T8).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
@@ -1607,6 +1612,11 @@ reading a file drops off its entry by itself.
 ### `deploy/selfhost/config/mapping.json.example`
 
 - [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts) — The upgrade drill's appliances start with the mapping the drill wrote for them (workplan 0146's Status, 0025 T5).
+
+### `deploy/selfhost/postgres/Dockerfile`
+
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
+- [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
 ### `deploy/selfhost/selfhost.env.example`
 
@@ -1820,6 +1830,7 @@ reading a file drops off its entry by itself.
 
 ### `docs/selfhost-quickstart.md`
 
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts) — A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
 
@@ -2928,6 +2939,7 @@ reading a file drops off its entry by itself.
 
 ### `scripts/upgrade-drill.sh`
 
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts) — The upgrade drill's appliances start with the mapping the drill wrote for them (workplan 0146's Status, 0025 T5).
 
 ### `scripts/workplan-index.mjs`
@@ -3124,6 +3136,7 @@ reading a file drops off its entry by itself.
 
 ### `test/e2e/selfhost-backup-restore.e2e.test.ts`
 
+- [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 
 ### `test/e2e/selfhost-restart-resume.e2e.test.ts`
@@ -3474,6 +3487,7 @@ A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED
 Reads:
 
 - `.github/dependabot.yml`
+- `.github/workflows/e2e.yml`
 - `.github/workflows/images.yml`
 - `CONTRIBUTING.md`
 - `deploy/compose/bootstrap-managed.sh`
@@ -3483,9 +3497,17 @@ Reads:
 - `deploy/compose/postgres/Dockerfile`
 - `deploy/compose/stand-up-live.sh`
 - `deploy/compose/www.yml`
+- `deploy/selfhost/compose.dev.yml`
+- `deploy/selfhost/compose.drill.yml`
+- `deploy/selfhost/compose.pglite.yml`
+- `deploy/selfhost/compose.yml`
+- `deploy/selfhost/postgres/Dockerfile`
 - `docs/LESSONS.md`
 - `docs/managed-bring-up.md`
+- `docs/selfhost-quickstart.md`
 - `packages/testing/src/testcontainers-setup.ts`
+- `scripts/upgrade-drill.sh`
+- `test/e2e/selfhost-backup-restore.e2e.test.ts`
 
 ### [a-database-that-counts-its-queries](../scripts/a-database-that-counts-its-queries.unit.test.ts)
 
@@ -5473,6 +5495,7 @@ Reads:
 - `deploy/compose/site-visits.sh`
 - `deploy/compose/www.yml`
 - `deploy/selfhost/compose.yml`
+- `deploy/selfhost/postgres/Dockerfile`
 - `deploy/selfhost/setup-stalwart.sh`
 - `scripts/idp-pin-watch.mjs`
 - `scripts/image-scan.mjs`

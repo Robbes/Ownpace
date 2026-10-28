@@ -79,7 +79,24 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   every script's `psql`, `pg_dump` and `pg_restore` answers as before. Rebuild
   the web or API image by name (`docker compose … build web`, then `up -d
   web`): `up --build` would rebuild the databases' image too and could restart
-  them. The self-hosted appliance keeps the official image.
+  them.
+- **The self-hosted appliance's database starts as PostgreSQL's own user too,
+  from the official image without gosu** (workplan 0146 T15b): gosu was the
+  one critical finding in the appliance's `postgres:18.6-alpine`, and no newer
+  digest of the tag drops it. The database's image follows the checkout, not
+  the app's image: after updating the checkout (`git pull`, or the release's
+  tag), the first `docker compose -f deploy/selfhost/compose.yml up -d` builds
+  `deploy/selfhost/postgres` and restarts the database once, on the same base
+  and the same data, which is that user's already; nothing else to do. An
+  appliance upgraded by `pull app` alone keeps the official image, gosu
+  included; the quickstart's upgrade now updates the checkout first. That
+  build needs a buildx plugin of 0.17.0 or later where the host has one. A
+  data directory bound from the host instead of the named volume must belong
+  to uid 70 (`chown -R 70:70`, or the quickstart's `run … chown` under rootless
+  Docker) before a new database can start in it. `docker compose exec
+  postgres` runs as that user (`-u 0` for root), and the backup's `pg_dump` and
+  the restore's `psql` answer as before. The PGlite appliance and the Windows
+  appliance run no database server and are unchanged.
 - **The web image and the public site run nginx 1.31.8-alpine-slim** (workplan
   0146 T12a): the same nginx on the same base, without the modules and tools
   the `-alpine` image adds and nothing here loads, 51 packages in all. The

@@ -26,9 +26,10 @@
  *               deploy/selfhost/compose.yml. One named `localhost/<name>`
  *               is built by compose from `<name>/Dockerfile` beside the file
  *               (its `build:`), and no registry serves it (Postgres without
- *               gosu since workplan 0146 T15), so its leg builds that
- *               directory for linux/arm64 and scans what it built
- *               (`context`); the Dockerfile must be there;
+ *               gosu since workplan 0146 T15, deploy/compose/postgres, and
+ *               the appliance's since T15b, deploy/selfhost/postgres), so its
+ *               leg builds that directory for linux/arm64 and scans what it
+ *               built (`context`); the Dockerfile must be there;
  *             - every image a script in deploy/compose or deploy/selfhost
  *               names in a literal `…IMAGE=` assignment (GoAccess, Stalwart
  *               for the demo), deduplicated against the compose files of its

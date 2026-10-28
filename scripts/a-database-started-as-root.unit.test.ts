@@ -70,9 +70,30 @@
  *  - a pull request that touches deploy/ builds the Dockerfile and starts the
  *    result (images.yml, `build (postgres)`), so a FROM that does not resolve,
  *    or a base without gosu, is found there and not first by E2E (managed);
- *  - the appliance's Postgres (deploy/selfhost/compose.yml) still starts as
- *    root on the official image, named below with its reason, so the list
- *    cannot rot in either direction;
+ *  - THE APPLIANCE'S POSTGRES TOO (workplan 0146 T15b, 2026-10-26). Its image
+ *    carried the same gosu: Trivy v0.76.1 read 1 critical (CVE-2025-68121) and
+ *    26 highs in `postgres:18.6-alpine@sha256:77f58511…` on arm64, and the
+ *    newest digest of the tag ships the same gosu. So
+ *    `deploy/selfhost/compose.yml`'s postgres runs a build of its own,
+ *    `deploy/selfhost/postgres/Dockerfile` (compose builds `localhost/<name>`
+ *    from `<name>/Dockerfile` beside the file): the managed Dockerfile's
+ *    instructions on the appliance's own base, held by every rule above, its
+ *    name by its own hash and its own `sed`, its pin by its own Dependabot
+ *    entry (the docker-compose entry that moved the old image line ignores
+ *    the build's name outright, which it would otherwise ask Docker Hub for),
+ *    and built by the same `build (postgres)`, which starts it on the volume
+ *    every existing appliance has: one the official image initialised as
+ *    root, with a row the build must read back (the review of T15b, the same
+ *    day). That job is read statement by statement, so an `exit 0`, a
+ *    `return`, an `|| true` or an `if false` cannot leave its lines in place
+ *    and skip a proof. The appliance's override files may not put root, a
+ *    pull or another build back on it. And no compose file under deploy/ runs
+ *    the official image any more, which this used to allow for the appliance
+ *    by name. E2E (self-hosted) builds `app` by name and runs `up` without
+ *    `--build`, and no document, script or appliance E2E test gives a command
+ *    that rebuilds the database's image, a command continued over several
+ *    lines read whole: that runner's Docker is the managed stacks' too, and
+ *    once the two FROMs meet, so do the two names;
  *  - the integration tests start the Dockerfile's base as uid 70, so every
  *    run initialises a new volume the way the stacks now do;
  *  - `db-roles.sh` and `stand-up-live.sh`, which ask the database over the
@@ -82,7 +103,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
@@ -94,20 +115,41 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(join(REPO_ROOT, rel), 'utf8');
 
 const DOCKERFILE = 'deploy/compose/postgres/Dockerfile';
+/** The appliance's (0146 T15b): the same instructions on the appliance's own base. */
+const APPLIANCE_DOCKERFILE = 'deploy/selfhost/postgres/Dockerfile';
 
 /** Every Postgres service of the deploy/compose files, which run the build. */
 const BUILT = ['deploy/compose/managed.yml:postgres', 'deploy/compose/managed.yml:trigger-db', 'deploy/compose/dev.yml:postgres'];
 
 /**
- * A Postgres that still starts as root, on the official image, with its reason.
- * A listed one that runs the build since fails too.
+ * The appliance's compose files: `compose.yml` and every override layered on
+ * it (`compose.dev.yml`, `compose.pglite.yml`, `compose.drill.yml`), read
+ * from the directory, so a new override is read too.
  */
-const NAMED_ROOT_STARTS: Readonly<Record<string, string>> = {
-  'deploy/selfhost/compose.yml:postgres':
-    "the appliance's pin is Dependabot's (.github/dependabot.yml, deploy/selfhost), which moves an image line and " +
-    'no build; an appliance may keep its data in a bind mount of a host directory, which the root entrypoint made ' +
-    "uid 70's and a start as uid 70 cannot (`mkdir: can't create directory '/var/lib/postgresql/18/': Permission " +
-    "denied`); and it publishes no database port. Its turn is a decision of its own (workplan 0146 T15)",
+const APPLIANCE_FILES = readdirSync(join(REPO_ROOT, 'deploy/selfhost'))
+  .filter((name) => /^compose(\.[\w-]+)?\.ya?ml$/.test(name))
+  .sort()
+  .map((name) => `deploy/selfhost/${name}`);
+
+/** One build: its Dockerfile, the services that run it, and what else reads its name. */
+interface Build {
+  readonly dockerfile: string;
+  readonly built: readonly string[];
+  /** Said at the end of a stale-name failure: who else names the image, so the `sed` is all there is to do. */
+  readonly readers: string;
+}
+
+const MANAGED: Build = {
+  dockerfile: DOCKERFILE,
+  built: BUILT,
+  readers: "Nothing else names it: db-roles.sh and stand-up-live.sh read managed.yml's, and the image scan and the pin watch read the Dockerfile.",
+};
+
+const APPLIANCE: Build = {
+  dockerfile: APPLIANCE_DOCKERFILE,
+  built: ['deploy/selfhost/compose.yml:postgres'],
+  readers:
+    "Nothing else names it: the image scan reads the Dockerfile, and an appliance's next `up -d` builds the new name. Dispatch E2E (self-hosted) on the branch.",
 };
 
 interface Service {
@@ -117,8 +159,9 @@ interface Service {
   user?: string | number;
 }
 
+/** A compose file's services. `logLevel: 'error'`: compose.pglite.yml carries Compose's own `!reset` tag, unknown to YAML. */
 function services(file: string, text = read(file)): Record<string, Service> {
-  return ((parseYaml(text) as { services?: Record<string, Service | null> }).services ?? {}) as Record<string, Service>;
+  return ((parseYaml(text, { logLevel: 'error' }) as { services?: Record<string, Service | null> }).services ?? {}) as Record<string, Service>;
 }
 
 /** What is wrong with the Dockerfile, in words; empty when it holds. */
@@ -176,33 +219,46 @@ const escapeForSed = (s: string) => s.replace(/[.[\]\\*^$#]/g, '\\$&');
  * The one failure for a Dockerfile whose instructions moved past the name the
  * compose files give its build: which lines, and the command that moves them.
  */
-function staleNames(stale: ReadonlyArray<{ key: string; line: number; image: string }>, want: string): string {
+function staleNames(stale: ReadonlyArray<{ key: string; line: number; image: string }>, want: string, build: Build): string {
   const files = [...new Set(stale.map((s) => s.key.split(':')[0]!))];
   const olds = [...new Set(stale.map((s) => s.image))];
   return [
-    `${DOCKERFILE}'s instructions changed, so the image it builds is named ${want} now, and ${stale.length} image line(s) still give the old name:`,
+    `${build.dockerfile}'s instructions changed, so the image it builds is named ${want} now, and ${stale.length} image line(s) still give the old name:`,
     ...stale.map((s) => `  ${s.key.split(':')[0]}:${s.line} (${s.key.split(':')[1]}): ${s.image}`),
     'Compose builds an image only where its name is missing, so under the old name every stack that has it keeps running the old build, and on a',
     "shared daemon one stack's build of the new Dockerfile would be the other's too. Write the new name on those lines, from the repository's root:",
     `  sed -i ${olds.map((o) => `-e 's#${escapeForSed(o)}#${want}#'`).join(' ')} ${files.join(' ')}`,
-    "Nothing else names it: db-roles.sh and stand-up-live.sh read managed.yml's, and the image scan and the pin watch read the Dockerfile. The twelve",
-    "hex digits are the SHA-256 of the Dockerfile's instruction lines, comments and blank lines left out:",
-    `  grep -Ev '^[[:space:]]*(#|$)' ${DOCKERFILE} | sha256sum | cut -c1-12`,
+    build.readers,
+    "The twelve hex digits are the SHA-256 of the Dockerfile's instruction lines, comments and blank lines left out:",
+    `  grep -Ev '^[[:space:]]*(#|$)' ${build.dockerfile} | sha256sum | cut -c1-12`,
   ].join('\n');
 }
 
-/** What is wrong with the Postgres services of the deploy/compose files; empty when they hold. */
-function composeProblems(texts: Readonly<Record<string, string>>, dockerfile: string): string[] {
+/**
+ * What is wrong with the Postgres services of one build's compose files (the
+ * deploy/compose stacks', or the appliance's with `APPLIANCE`); empty when
+ * they hold.
+ */
+function composeProblems(texts: Readonly<Record<string, string>>, dockerfile: string, build: Build = MANAGED): string[] {
   const problems: string[] = [];
   const want = `localhost/postgres:${builtTag(dockerfile)}`;
   const found: string[] = [];
   const stale: Array<{ key: string; line: number; image: string }> = [];
+  // An override layered on a built service names no image of its own (compose.pglite.yml's
+  // `profiles`), and may not put back what the build's name and USER stand for.
+  const builtNames = new Set(build.built.map((k) => k.split(':')[1]!));
   for (const [file, text] of Object.entries(texts)) {
     for (const [name, svc] of Object.entries(services(file, text))) {
       const key = `${file}:${name}`;
       const image = svc.image ? parseRef(svc.image) : null;
       if (image?.repo === 'postgres') {
         problems.push(`${key} runs ${svc.image}, which starts as root and carries gosu: run ${want}, built from ./postgres`);
+        continue;
+      }
+      if (!image && builtNames.has(name) && svc) {
+        if (svc.user !== undefined && !/^70(:70)?$/.test(String(svc.user))) problems.push(`${key}, an override, runs ${name} as ${String(svc.user)}, not uid 70`);
+        if (svc.build !== undefined) problems.push(`${key}, an override, gives ${name} a build of its own, which the name ${want} does not carry`);
+        if (svc.pull_policy !== undefined) problems.push(`${key}, an override, sets ${name}'s pull_policy to ${String(svc.pull_policy)}: no registry serves ${want}`);
         continue;
       }
       if (image?.repo !== 'localhost/postgres') continue;
@@ -221,15 +277,16 @@ function composeProblems(texts: Readonly<Record<string, string>>, dockerfile: st
       if (svc.user !== undefined && !/^70(:70)?$/.test(String(svc.user))) problems.push(`${key} runs as ${String(svc.user)}, not uid 70`);
     }
   }
-  if (stale.length) problems.push(staleNames(stale, want));
-  const missing = BUILT.filter((k) => !found.includes(k));
-  const extra = found.filter((k) => !BUILT.includes(k));
+  if (stale.length) problems.push(staleNames(stale, want, build));
+  const missing = build.built.filter((k) => !found.includes(k));
+  const extra = found.filter((k) => !build.built.includes(k));
   if (missing.length) problems.push(`not built: ${missing.join(', ')}`);
   if (extra.length) problems.push(`built, and not in this guard's list: ${extra.join(', ')}`);
   return problems;
 }
 
 const composeTexts = Object.fromEntries(COMPOSE_FILES.map((f) => [f, read(f)]));
+const applianceTexts = Object.fromEntries(APPLIANCE_FILES.map((f) => [f, read(f)]));
 
 describe('the Postgres of the deploy/compose stacks starts as uid 70, from an image without gosu', () => {
   it('the Dockerfile builds the official image by digest, without gosu, as uid 70', () => {
@@ -338,15 +395,17 @@ describe('the Postgres of the deploy/compose stacks starts as uid 70, from an im
     ]);
   });
 
-  it('the Postgres that still starts as root is named, with its reason, and is still the official image', () => {
-    for (const [key, reason] of Object.entries(NAMED_ROOT_STARTS)) {
-      const [file, name] = key.split(':') as [string, string];
-      const svc = services(file)[name];
-      expect(svc, `${key} is gone: remove it from NAMED_ROOT_STARTS`).toBeDefined();
-      expect(svc!.build, `${key} is built now: remove it from NAMED_ROOT_STARTS, and hold it with the others`).toBeUndefined();
-      expect(parseRef(svc!.image ?? '').repo).toBe('postgres');
-      expect(reason.length, `${key} gives no reason`).toBeGreaterThan(60);
-    }
+  it('no compose file under deploy/ runs the official image, which starts as root and carries gosu (the appliance since 0146 T15b)', () => {
+    const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', 'deploy'], { cwd: REPO_ROOT, encoding: 'utf8' })
+      .split('\n')
+      .filter((f) => /\.ya?ml$/.test(f));
+    expect(files, 'the listing found none of the compose files').toEqual(expect.arrayContaining([...COMPOSE_FILES, ...APPLIANCE_FILES]));
+    const official = files.flatMap((file) =>
+      Object.entries(services(file))
+        .filter(([, svc]) => typeof svc?.image === 'string' && parseRef(svc.image).repo === 'postgres')
+        .map(([name, svc]) => `${file}:${name} runs ${svc.image}`),
+    );
+    expect(official).toEqual([]);
   });
 
   it("the integration tests start the Dockerfile's base as uid 70", () => {
@@ -372,20 +431,166 @@ describe('the Postgres of the deploy/compose stacks starts as uid 70, from an im
   });
 });
 
-describe("Dependabot moves the Dockerfile's base", () => {
-  it('in a docker entry of its own, which never offers a major', () => {
-    type Update = { 'package-ecosystem': string; directory?: string; directories?: string[]; ignore?: Array<Record<string, unknown>> };
-    const updates = (parseYaml(read('.github/dependabot.yml')) as { updates: Update[] }).updates;
-    const entries = updates.filter(
-      (u) => u['package-ecosystem'] === 'docker' && [...(u.directories ?? []), ...(u.directory ? [u.directory] : [])].includes('/deploy/compose/postgres'),
+/** The instruction lines of a Dockerfile but its FROM, in order. */
+const besidesFrom = (text: string) => text.split('\n').filter((l) => !/^\s*(#|$)/.test(l) && !/^FROM\s/i.test(l));
+
+/**
+ * What differs between the two Dockerfiles but their FROM; empty when nothing
+ * does. One change made in one of them and not the other would leave a stack
+ * on an image the other has stopped running, with nothing to say so.
+ */
+function driftProblems(managed: string, appliance: string): string[] {
+  const [a, b] = [besidesFrom(managed), besidesFrom(appliance)];
+  if (JSON.stringify(a) === JSON.stringify(b)) return [];
+  return [
+    `${APPLIANCE_DOCKERFILE}'s instructions are not ${DOCKERFILE}'s but for the FROM. Only in ${DOCKERFILE}: ${JSON.stringify(a.filter((l) => !b.includes(l)))}; ` +
+      `only in ${APPLIANCE_DOCKERFILE}: ${JSON.stringify(b.filter((l) => !a.includes(l)))}${a.filter((l) => b.includes(l)).length === a.length && a.length === b.length ? ' (the same lines, in another order)' : ''}. ` +
+      'Make the change in both: each moves its own image name, and this failure then prints the sed for each.',
+  ];
+}
+
+describe("the appliance's Postgres starts as uid 70, from a build of its own without gosu (0146 T15b)", () => {
+  it('reads the appliance\'s compose file and every override layered on it', () => {
+    expect(APPLIANCE_FILES).toEqual(
+      expect.arrayContaining(['deploy/selfhost/compose.yml', 'deploy/selfhost/compose.dev.yml', 'deploy/selfhost/compose.pglite.yml', 'deploy/selfhost/compose.drill.yml']),
     );
-    expect(entries, `Dependabot does not read ${DOCKERFILE}: nothing opens the pull request that moves its base`).toHaveLength(1);
-    expect(entries[0]!.directories, 'it shares an entry, and its pull request, which fails here until the names move, would hold the others back').toBeUndefined();
-    expect(entries[0]!.directory).toBe('/deploy/compose/postgres');
-    expect(entries[0]!.ignore, "a major is pg_upgrade, and the owner's decision").toContainEqual({
-      'dependency-name': 'postgres',
-      'update-types': ['version-update:semver-major'],
+  });
+
+  it("its Dockerfile builds the official image by digest, without gosu, as uid 70, and is the managed one's but for the FROM", () => {
+    const appliance = read(APPLIANCE_DOCKERFILE);
+    expect(dockerfileProblems(appliance)).toEqual([]);
+    expect(driftProblems(read(DOCKERFILE), appliance)).toEqual([]);
+    expect(besidesFrom(appliance), 'nothing to compare').toContain('USER 70:70');
+  });
+
+  it('refuses an appliance Dockerfile that goes back, or drifts from the managed one', () => {
+    const real = read(APPLIANCE_DOCKERFILE);
+    const swap = (from: RegExp, to: string) => {
+      const text = real.replace(from, to);
+      expect(text, `${String(from)} matched nothing`).not.toBe(real);
+      return text;
+    };
+    expect(dockerfileProblems(swap(/^RUN rm \/usr\/local\/bin\/gosu$/m, 'RUN true'))).toEqual([expect.stringContaining('RUN rm /usr/local/bin/gosu')]);
+    expect(dockerfileProblems(swap(/^USER 70:70$/m, 'USER 0'))).toEqual([expect.stringContaining('not one `USER 70:70`')]);
+    expect(dockerfileProblems(swap(/^FROM (\S+)@sha256:[0-9a-f]{64}$/m, 'FROM $1'))).toEqual([expect.stringContaining('carries no tag and digest')]);
+    const managed = read(DOCKERFILE);
+    // One instruction more in one file: the stacks would part with nothing to say so.
+    expect(driftProblems(managed, swap(/^(ENV HISTFILE=\S+)$/m, '$1\nENV LANG=en_US.utf8'))).toEqual([
+      expect.stringContaining('Only in deploy/compose/postgres/Dockerfile: []; only in deploy/selfhost/postgres/Dockerfile: ["ENV LANG=en_US.utf8"]'),
+    ]);
+    expect(driftProblems(managed, swap(/^ENV PSQL_HISTORY=.*\n/m, ''))).toEqual([expect.stringContaining('Only in deploy/compose/postgres/Dockerfile: ["ENV PSQL_HISTORY=')]);
+    const reordered = real.replace(/^(ENV PSQL_HISTORY=\S+)\n(ENV HISTFILE=\S+)$/m, '$2\n$1');
+    expect(reordered).not.toBe(real);
+    expect(driftProblems(managed, reordered)).toEqual([expect.stringContaining('(the same lines, in another order)')]);
+    // Another FROM alone is the point of two files.
+    expect(driftProblems(managed, swap(/@sha256:[0-9a-f]{64}$/m, `@sha256:${'0'.repeat(64)}`))).toEqual([]);
+  });
+
+  it('compose.yml runs that build, by the name its instructions give it, never pulled, as uid 70', () => {
+    expect(composeProblems(applianceTexts, read(APPLIANCE_DOCKERFILE), APPLIANCE)).toEqual([]);
+    const postgres = services('deploy/selfhost/compose.yml')['postgres']!;
+    expect(postgres.image).toBe(`localhost/postgres:${builtTag(read(APPLIANCE_DOCKERFILE))}`);
+  });
+
+  it('refuses the official image back, a name the Dockerfile moved past, a pull, root, and an override that puts any of them back', () => {
+    const dockerfile = read(APPLIANCE_DOCKERFILE);
+    const file = 'deploy/selfhost/compose.yml';
+    const compose = applianceTexts[file]!;
+    const check = (text: string, at = file, from = dockerfile) => composeProblems({ ...applianceTexts, [at]: text }, from, APPLIANCE);
+    const back = compose.replace(/^(\s*image:\s*)localhost\/postgres:\S+\n(\s*build:\s*\.\/postgres\n)/m, `$1${dockerfileBase(dockerfile).ref}\n`);
+    expect(back).not.toBe(compose);
+    expect(check(back)).toEqual([expect.stringContaining(`${file}:postgres runs postgres:18`), `not built: ${file}:postgres`]);
+    // An instruction changed, and the name did not: an appliance would keep the old build for good.
+    const edited = dockerfile.replace(/^(ENV HISTFILE=\S+)$/m, '$1\nENV LANG=en_US.utf8');
+    const [stale, ...more] = composeProblems(applianceTexts, edited, APPLIANCE);
+    expect(more).toEqual([]);
+    const next = `localhost/postgres:${builtTag(edited)}`;
+    expect(stale).toContain(`${APPLIANCE_DOCKERFILE}'s instructions changed, so the image it builds is named ${next} now, and 1 image line(s) still give the old name:`);
+    const line = readImages(compose).find((i) => i.repo === 'localhost/postgres')!.line;
+    expect(stale).toContain(`  ${file}:${line} (postgres): `);
+    expect(stale).toContain(`grep -Ev '^[[:space:]]*(#|$)' ${APPLIANCE_DOCKERFILE} | sha256sum | cut -c1-12`);
+    const sed = /^ {2}(sed -i .*)$/m.exec(stale!)?.[1];
+    expect(sed, 'the failure gives no sed').toBeTruthy();
+    expect(sed).toMatch(/ deploy\/selfhost\/compose\.yml$/);
+    const scratch = mkdtempSync(join(tmpdir(), 'built-name-'));
+    try {
+      mkdirSync(join(scratch, 'deploy/selfhost'), { recursive: true });
+      for (const [at, text] of Object.entries(applianceTexts)) writeFileSync(join(scratch, at), text);
+      const ran = spawnSync('sh', ['-c', sed!], { cwd: scratch, encoding: 'utf8' });
+      expect(ran.status, ran.stderr).toBe(0);
+      const moved = Object.fromEntries(Object.keys(applianceTexts).map((at) => [at, readFileSync(join(scratch, at), 'utf8')]));
+      expect(composeProblems(moved, edited, APPLIANCE), 'the sed the failure gives does not move the name').toEqual([]);
+      const changed = compose.split('\n').filter((l, i) => moved[file]!.split('\n')[i] !== l);
+      expect(changed).toHaveLength(1);
+      expect(changed[0]).toMatch(/^\s*image:\s*localhost\/postgres:/);
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+    // Pulled, or pulled when missing (compose's default), or as root.
+    for (const policy of ['missing', 'always']) {
+      expect(check(compose.replace(/^(\s*pull_policy:\s*)never$/m, `$1${policy}`))).toEqual([expect.stringContaining(`${file}:postgres has pull_policy ${policy}, not never`)]);
+    }
+    expect(check(compose.replace(/^\s*pull_policy:\s*never\n/m, ''))).toEqual([expect.stringContaining(`${file}:postgres has pull_policy undefined, not never`)]);
+    expect(check(compose.replace(/^(\s*pull_policy:\s*never)$/m, '$1\n    user: "0:0"'))).toEqual([`${file}:postgres runs as 0:0, not uid 70`]);
+    expect(check(compose.replace(/^(\s*build:\s*)\.\/postgres$/m, '$1../compose/postgres'))).toEqual([`${file}:postgres is built from ../compose/postgres, not ./postgres`]);
+    // The overrides are merged onto it: none may put root, a pull or another build back.
+    const override = 'deploy/selfhost/compose.dev.yml';
+    const dev = applianceTexts[override]!;
+    const layered = (lines: string) => dev.replace(/^services:\n/m, `services:\n  postgres:\n${lines}`);
+    expect(check(layered('    user: root\n'), override)).toEqual([`${override}:postgres, an override, runs postgres as root, not uid 70`]);
+    expect(check(layered('    pull_policy: always\n'), override)).toEqual([expect.stringContaining(`${override}:postgres, an override, sets postgres's pull_policy to always`)]);
+    expect(check(layered('    build:\n      context: ./postgres\n      args:\n        X: "1"\n'), override)).toEqual([
+      expect.stringContaining(`${override}:postgres, an override, gives postgres a build of its own`),
+    ]);
+    expect(check(layered(`    image: ${dockerfileBase(dockerfile).ref}\n`), override)).toEqual([expect.stringContaining(`${override}:postgres runs postgres:18`)]);
+    expect(check(layered('    user: "70:70"\n'), override), 'uid 70 is what the image runs as anyway').toEqual([]);
+    // compose.pglite.yml's postgres sets profiles alone, which is no override of these.
+    expect(services('deploy/selfhost/compose.pglite.yml')['postgres']).toEqual({ profiles: ['never'] });
+  });
+
+  it('E2E (self-hosted) builds the app by name before its `up`, which builds the database only where its name is missing', () => {
+    const e2e = parseYaml(read('.github/workflows/e2e.yml')) as { jobs: Record<string, { steps?: Array<{ name?: string; run?: string }> }> };
+    const step = Object.values(e2e.jobs)
+      .flatMap((j) => j.steps ?? [])
+      .find((s) => s.name === 'Build + start the self-host appliance');
+    expect(step, 'e2e.yml has no step that brings the appliance up').toBeDefined();
+    const run = step!.run ?? '';
+    const build = run.search(/^\s*docker compose \$SELFHOST_COMPOSE_FILES build app\s*$/m);
+    const up = run.search(/^\s*docker compose \$SELFHOST_COMPOSE_FILES up -d --force-recreate --wait\b/m);
+    expect(build, 'the app is not built by name').toBeGreaterThan(-1);
+    expect(up, 'the appliance is not brought up without --build').toBeGreaterThan(-1);
+    expect(build).toBeLessThan(up);
+    expect(run.split('\n').flatMap(rebuilds)).toEqual([]);
+  });
+});
+
+type Update = { 'package-ecosystem': string; directory?: string; directories?: string[]; ignore?: Array<Record<string, unknown>> };
+const updates = (parseYaml(read('.github/dependabot.yml')) as { updates: Update[] }).updates;
+const directoriesOf = (u: Update) => [...(u.directories ?? []), ...(u.directory ? [u.directory] : [])];
+
+describe("Dependabot moves the Dockerfile's base", () => {
+  for (const dockerfile of [DOCKERFILE, APPLIANCE_DOCKERFILE]) {
+    const directory = `/${dirname(dockerfile)}`;
+    it(`${dockerfile}: in a docker entry of its own, which never offers a major`, () => {
+      const entries = updates.filter((u) => u['package-ecosystem'] === 'docker' && directoriesOf(u).includes(directory));
+      expect(entries, `Dependabot does not read ${dockerfile}: nothing opens the pull request that moves its base`).toHaveLength(1);
+      expect(entries[0]!.directories, 'it shares an entry, and its pull request, which fails here until the names move, would hold the others back').toBeUndefined();
+      expect(entries[0]!.directory).toBe(directory);
+      expect(entries[0]!.ignore, "a major is pg_upgrade, and the owner's decision").toContainEqual({
+        'dependency-name': 'postgres',
+        'update-types': ['version-update:semver-major'],
+      });
     });
+  }
+
+  it("the docker-compose entry that reads the appliance's compose.yml never asks a registry for the build's name (0146 T15b)", () => {
+    // Its parser takes a registry only from a host with a dot in it, so it reads
+    // `localhost/postgres` as a Docker Hub repository; an ignore that names no
+    // versions or update types is a dependency the updater never checks at all.
+    const compose = updates.filter((u) => u['package-ecosystem'] === 'docker-compose' && directoriesOf(u).includes('/deploy/selfhost'));
+    expect(compose).toHaveLength(1);
+    expect(readImages(read('deploy/selfhost/compose.yml')).map((i) => i.repo)).toContain('localhost/postgres');
+    expect(compose[0]!.ignore, 'Dependabot would ask Docker Hub for localhost/postgres every Monday').toContainEqual({ 'dependency-name': 'localhost/postgres' });
   });
 });
 
@@ -396,8 +601,19 @@ describe("Dependabot moves the Dockerfile's base", () => {
 const COMPOSE_OPTIONS_WITH_VALUE = new Set(['-f', '--file', '-p', '--project-name', '--env-file', '--profile', '--project-directory', '--ansi', '--progress', '--parallel']);
 /** Options of `docker compose build` that take a value as the next word. */
 const BUILD_OPTIONS_WITH_VALUE = new Set(['--build-arg', '--builder', '-m', '--memory', '--progress', '--ssh', '--provenance', '--sbom']);
-/** The compose files whose Postgres is the build; a command naming only other files is not this guard's. */
-const BUILDS_THE_DATABASES = /(^|\/)(managed|dev)\.yml$/;
+/**
+ * The compose files whose Postgres is a build: managed.yml and dev.yml, and
+ * the appliance's compose.yml since 0146 T15b. A command naming only other
+ * files is not this guard's.
+ */
+const BUILDS_THE_DATABASES = /(^|\/)(managed|dev)\.yml$|(^|\/)deploy\/selfhost\/compose\.yml$/;
+/**
+ * A word that expands to compose's options: E2E (self-hosted)'s
+ * `$SELFHOST_COMPOSE_FILES` (the appliance's compose.yml and its overrides),
+ * the quickstart's `$COMPOSE`. What it holds cannot be read here, so a command
+ * that carries one is read as if it named a database's file.
+ */
+const COMPOSE_VARIABLE = /^"?\$\{?[A-Z_]*COMPOSE[A-Z_]*\}?"?$/;
 
 /**
  * What is wrong with one line's compose commands, in words; empty when none
@@ -412,14 +628,16 @@ function rebuilds(line: string): string[] {
   for (const m of line.matchAll(/(?:docker compose|docker-compose|"\$\{COMPOSE\[@\]\}")((?:[^`&|;)#\n]|#(?!\s))*)/g)) {
     const words = m[1]!.trim().split(/\s+/).filter((w) => w && w !== '\\');
     const files: string[] = [];
+    let unread = false;
     let i = 0;
-    while (i < words.length && words[i]!.startsWith('-')) {
+    while (i < words.length && (words[i]!.startsWith('-') || COMPOSE_VARIABLE.test(words[i]!))) {
       const word = words[i]!;
-      if (word === '-f' || word === '--file') files.push(words[i + 1] ?? '');
+      if (COMPOSE_VARIABLE.test(word)) unread = true;
+      else if (word === '-f' || word === '--file') files.push(words[i + 1] ?? '');
       else if (word.startsWith('--file=')) files.push(word.slice('--file='.length));
       i += COMPOSE_OPTIONS_WITH_VALUE.has(word) ? 2 : 1;
     }
-    if (files.length > 0 && !files.some((f) => BUILDS_THE_DATABASES.test(f))) continue;
+    if (!unread && files.length > 0 && !files.some((f) => BUILDS_THE_DATABASES.test(f))) continue;
     const [command, ...rest] = words.slice(i);
     const said = m[0]!.trim();
     if (command === 'up' && rest.includes('--build')) {
@@ -442,18 +660,147 @@ function rebuilds(line: string): string[] {
 
 /**
  * The files whose commands somebody runs on a stack: scripts, the compose
- * files' comments, workflows and the documents. Not the records of what was
- * once run (workplans, the ADR history, the design handoffs) and not
+ * files' comments, workflows and the documents, and the E2E tests that drive
+ * the appliance on E2E (self-hosted)'s runner (`docker compose
+ * ${COMPOSE_FILES} up -d postgres` in the backup and restore drill), whose
+ * Docker the managed stacks share (the review of T15b). Not the records of
+ * what was once run (workplans, the ADR history, the design handoffs) and not
  * LESSONS.md, which is generated from these guards' headers.
  */
 function filesWithCommands(): string[] {
-  return execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', 'docs', 'deploy/compose', '.github/workflows', 'README.md', 'CONTRIBUTING.md'], {
-    cwd: REPO_ROOT,
-    encoding: 'utf8',
-  })
+  return execFileSync(
+    'git',
+    ['ls-files', '--cached', '--others', '--exclude-standard', 'docs', 'deploy/compose', 'deploy/selfhost', '.github/workflows', 'README.md', 'CONTRIBUTING.md', 'scripts/*.sh', 'test/e2e'],
+    { cwd: REPO_ROOT, encoding: 'utf8' },
+  )
     .split('\n')
-    .filter((f) => /\.(md|sh|ya?ml)$/.test(f))
+    .filter((f) => /\.(md|sh|ya?ml)$/.test(f) || /^test\/e2e\/.*\.(ts|m?js)$/.test(f))
     .filter((f) => !/^docs\/(workplans|adr\/history|design)\//.test(f) && f !== 'docs/LESSONS.md');
+}
+
+/**
+ * A file's lines as the shell reads its commands: a line ending in a
+ * backslash joined to the next (the quickstart writes its multi-file commands
+ * so), each with the number of the line it starts on.
+ */
+function commandLines(text: string): Array<{ n: number; line: string }> {
+  const out: Array<{ n: number; line: string }> = [];
+  let start = 0;
+  let joined = '';
+  text.split('\n').forEach((line, i) => {
+    if (!joined) start = i + 1;
+    if (line.endsWith('\\')) {
+      joined += `${line.slice(0, -1)} `;
+      return;
+    }
+    out.push({ n: start, line: joined + line });
+    joined = '';
+  });
+  if (joined) out.push({ n: start, line: joined });
+  return out;
+}
+
+/** A run's lines outside every `name() { … }`, trimmed, comments and blank lines left out. */
+function topLevel(run: string): string[] {
+  const out: string[] = [];
+  let inside = false;
+  for (const line of run.split('\n')) {
+    if (inside) {
+      if (/^\}\s*$/.test(line)) inside = false;
+      continue;
+    }
+    if (/^\w+\(\) \{\s*$/.test(line)) inside = true;
+    else if (!/^\s*(#|$)/.test(line)) out.push(line.trim());
+  }
+  return out;
+}
+
+/** The lines of `name() { … }` in a run, trimmed, comments and blank lines left out; null when it has none. */
+function functionBody(run: string, name: string): string[] | null {
+  const lines = run.split('\n');
+  const at = lines.indexOf(`${name}() {`);
+  if (at < 0) return null;
+  const end = lines.findIndex((l, i) => i > at && /^\}\s*$/.test(l));
+  return lines
+    .slice(at + 1, end < 0 ? undefined : end)
+    .filter((l) => !/^\s*(#|$)/.test(l))
+    .map((l) => l.trim());
+}
+
+interface ImagesWorkflow {
+  on: { pull_request?: { paths?: string[] } };
+  jobs: Record<string, { if?: string; 'runs-on'?: string; permissions?: unknown; env?: Record<string, string>; steps?: Array<{ run?: string; uses?: string }> }>;
+}
+
+/**
+ * What is wrong with images.yml's `build (postgres)`, in words; empty when it
+ * holds. It must build each database's image the way compose does on a
+ * machine without it, start it, and check uid 70 and no gosu; and the
+ * appliance's must start on a volume the official image initialised as root,
+ * which every existing appliance has, and read back the row written there
+ * (the review of T15b). Its statements are read as statements, not as lines
+ * somewhere in the text: an `exit 0`, a `return`, an `|| true` or an `if
+ * false` around a proof leaves every line in place and proves nothing.
+ */
+function databaseJobProblems(text: string): string[] {
+  const problems: string[] = [];
+  const images = parseYaml(text) as ImagesWorkflow;
+  if (!images.on.pull_request?.paths?.includes('deploy/**')) problems.push('images.yml no longer runs on a pull request that touches deploy/');
+  const job = images.jobs['database'];
+  if (!job) return [...problems, 'images.yml has no `database` job'];
+  if (job.if !== "github.event_name == 'pull_request'") problems.push(`the job runs on ${String(job.if)}, not on a pull request only`);
+  if (!/^ubuntu-/.test(job['runs-on'] ?? '')) problems.push(`the job runs on ${String(job['runs-on'])}, not a GitHub-hosted Ubuntu runner`);
+  if (JSON.stringify(job.permissions) !== JSON.stringify({ contents: 'read' })) problems.push(`the job's permissions are ${JSON.stringify(job.permissions)}, not contents: read`);
+  const steps = job.steps ?? [];
+  if (/docker (?:image )?build\b|\bbuild api\b|compose[^\n]* build\b/.test(steps.map((s) => s.run ?? '').join('\n'))) {
+    problems.push('it builds the image itself, which would hide a compose that does not');
+  }
+  const proving = steps.filter((s) => (s.run ?? '').split('\n').includes('prove() {'));
+  if (proving.length !== 1) return [...problems, `${proving.length} steps define prove(), not one`];
+  const run = proving[0]!.run!;
+  for (const line of run.split('\n')) {
+    if (/^\s*return\b|\bexit 0\b|\|\|\s*(true|:)\s*$/.test(line)) problems.push(`\`${line.trim()}\` can end the step, or a proof, before it proves anything`);
+  }
+  const prove = functionBody(run, 'prove') ?? [];
+  if (prove[0] !== 'local file="$1" role="$2" db="$3"' || prove[1] !== 'docker compose -f "$file" up -d --wait postgres') {
+    problems.push(`prove() does not begin by starting the file's postgres the way compose does, building it where it is missing: ${JSON.stringify(prove.slice(0, 2))}`);
+  }
+  if (!prove.some((l) => l.includes('{{.Config.User}}'))) problems.push('it does not check what built');
+  if (!prove.some((l) => l.includes('/proc/1/status'))) problems.push('it does not check the server and the data are uid 70');
+  if (!prove.some((l) => l.includes('/usr/local/bin/gosu'))) problems.push('it does not check gosu is gone');
+  // The volume every existing appliance has: initialised by the Dockerfile's own base, as root, with a row in it.
+  const root = (functionBody(run, 'root_initialised') ?? []).join('\n');
+  const started = /^docker run -d --name root-initialised (.*) -v "\$\{volume\}:\/var\/lib\/postgresql" "\$base"$/m.exec(root);
+  if (
+    !root.startsWith('local file="$1" role="$2" db="$3"\nbase="$(awk \'/^FROM / { print $2 }\' "$(dirname "$file")/postgres/Dockerfile")"') ||
+    !/^docker volume create .*"\$volume"$/m.test(root) ||
+    !started ||
+    /(^|\s)(-u|--user)\b/.test(started[1]!)
+  ) {
+    problems.push("root_initialised() does not start the Dockerfile's own FROM, as root, on the volume the compose file mounts");
+  }
+  if (!/insert into before_the_build/.test(root)) problems.push('root_initialised() writes no row for the build to read back');
+  if (!/select note from before_the_build/.test((functionBody(run, 'read_back') ?? []).join('\n'))) {
+    problems.push('read_back() does not read the row written as root');
+  }
+  // The step's own statements, in order: dev.yml's on a new volume, the appliance's on a root-initialised one.
+  const env = Object.entries(job.env ?? {});
+  const variable = (file: string) => env.find(([, value]) => value === file)?.[0];
+  const [dev, appliance] = [variable('deploy/compose/dev.yml'), variable('deploy/selfhost/compose.yml')];
+  if (!dev) problems.push('the job names no deploy/compose/dev.yml, so deploy/compose/postgres/Dockerfile is not built on a pull request');
+  if (!appliance) problems.push('the job names no deploy/selfhost/compose.yml, so deploy/selfhost/postgres/Dockerfile is not built on a pull request');
+  if (dev && appliance) {
+    const want = [
+      'set -euo pipefail',
+      `prove "$${dev}" ownpace ownpace`,
+      `root_initialised "$${appliance}" openmigrate openmigrate`,
+      `prove "$${appliance}" openmigrate openmigrate`,
+      `read_back "$${appliance}" openmigrate openmigrate`,
+    ];
+    const got = topLevel(run);
+    if (JSON.stringify(got) !== JSON.stringify(want)) problems.push(`the step's own statements are ${JSON.stringify(got)}, not ${JSON.stringify(want)}`);
+  }
+  return problems;
 }
 
 const bootstrap = read('deploy/compose/bootstrap-managed.sh');
@@ -474,16 +821,38 @@ describe("nothing builds the databases' image again while the machine has it", (
       'docker compose -f deploy/compose/managed.yml build postgres',
       'docker compose -f deploy/compose/managed.yml build --build-arg GIT_SHA=x trigger-db api',
       'run `docker compose -f deploy/compose/managed.yml -f override.yml up -d --build` first',
+      // The appliance's database is a build too since 0146 T15b, and E2E (self-hosted) runs on a
+      // Docker the managed stacks share.
+      '          docker compose $SELFHOST_COMPOSE_FILES up -d --build --force-recreate --wait || \\',
+      'docker compose -f deploy/selfhost/compose.yml up -d --build',
+      'docker compose -f deploy/selfhost/compose.yml -f deploy/selfhost/compose.dev.yml up -d --build --force-recreate',
+      'docker compose -f deploy/selfhost/compose.yml build',
+      'docker compose -f deploy/selfhost/compose.yml build postgres',
+      'docker compose ${SELFHOST_COMPOSE_FILES} build --no-cache',
+      // The backup and restore drill's own commands, on E2E (self-hosted)'s runner (the review of T15b).
+      'sh(`docker compose ${COMPOSE_FILES} up -d --build postgres`);',
+      'sh(`docker compose ${COMPOSE_FILES} build postgres`);',
     ]) {
       expect(rebuilds(line), line).not.toEqual([]);
     }
+    // A command continued on the next line is read whole.
+    const continued = 'docker compose -f deploy/selfhost/compose.yml \\\n  -f deploy/selfhost/compose.dev.yml \\\n  up -d --build\necho done';
+    expect(commandLines(continued).map((l) => l.n)).toEqual([1, 4]);
+    expect(commandLines(continued).flatMap((l) => rebuilds(l.line))).toEqual([expect.stringContaining('up -d --build')]);
+    expect(continued.split('\n').flatMap(rebuilds), 'line by line, the continued command hides its --build').toEqual([]);
     for (const line of [
       'GIT_SHA=$(git rev-parse --short HEAD) docker compose -f deploy/compose/managed.yml build api web',
       'docker compose -f deploy/compose/managed.yml up -d --wait api web',
       'docker compose -f deploy/compose/managed.yml build --build-arg GIT_SHA=x --no-cache web && docker compose -f deploy/compose/managed.yml up -d web',
       'docker compose -f deploy/compose/managed.yml up -d --no-deps --no-build api',
-      '          docker compose $SELFHOST_COMPOSE_FILES up -d --build --force-recreate --wait || \\',
-      'docker compose -f deploy/selfhost/compose.yml up -d --build',
+      '          docker compose $SELFHOST_COMPOSE_FILES build app',
+      '          docker compose $SELFHOST_COMPOSE_FILES up -d --force-recreate --wait || \\',
+      'docker compose -f deploy/selfhost/compose.yml -f deploy/selfhost/compose.dev.yml build app',
+      'docker compose -f deploy/selfhost/compose.yml pull app',
+      'docker compose -f deploy/selfhost/compose.yml up -d',
+      'docker compose $COMPOSE stop app',
+      'sh(`docker compose ${COMPOSE_FILES} up -d postgres`);',
+      '"${COMPOSE[@]}" up -d --no-build app',
       'docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env up -d --force-recreate',
       '# the app services used to need `--build` and a GIT_SHA',
     ]) {
@@ -494,13 +863,19 @@ describe("nothing builds the databases' image again while the machine has it", (
   it('no script, compose file, workflow or document gives such a command', () => {
     const files = filesWithCommands();
     expect(files, 'the listing found none of the files it reads').toEqual(
-      expect.arrayContaining(['deploy/compose/bootstrap-managed.sh', 'deploy/compose/managed.yml', 'docs/managed-bring-up.md', '.github/workflows/images.yml']),
+      expect.arrayContaining([
+        'deploy/compose/bootstrap-managed.sh',
+        'deploy/compose/managed.yml',
+        'docs/managed-bring-up.md',
+        '.github/workflows/images.yml',
+        '.github/workflows/e2e.yml',
+        'deploy/selfhost/compose.dev.yml',
+        'docs/selfhost-quickstart.md',
+        'test/e2e/selfhost-backup-restore.e2e.test.ts',
+        'scripts/upgrade-drill.sh',
+      ]),
     );
-    const found = files.flatMap((file) =>
-      read(file)
-        .split('\n')
-        .flatMap((line, n) => rebuilds(line).map((problem) => `${file}:${n + 1}: ${problem}`)),
-    );
+    const found = files.flatMap((file) => commandLines(read(file)).flatMap(({ n, line }) => rebuilds(line).map((problem) => `${file}:${n}: ${problem}`)));
     expect(found).toEqual([]);
   });
 
@@ -515,24 +890,50 @@ describe("nothing builds the databases' image again while the machine has it", (
     expect(lift('up_wait'), 'up_wait builds what its services need').toMatch(/"\$\{COMPOSE\[@\]\}" up -d --wait "\$@"/);
   });
 
-  it('a pull request that touches deploy/ builds the Dockerfile with compose, and starts the result as uid 70', () => {
-    const images = parseYaml(read('.github/workflows/images.yml')) as {
-      on: { pull_request?: { paths?: string[] } };
-      jobs: Record<string, { if?: string; 'runs-on'?: string; permissions?: unknown; steps?: Array<{ run?: string; uses?: string }> }>;
+  it('a pull request that touches deploy/ builds both Dockerfiles with compose, and starts each result as uid 70', () => {
+    expect(databaseJobProblems(read('.github/workflows/images.yml'))).toEqual([]);
+    // Each Dockerfile through a compose file that builds it: dev.yml's, and the appliance's (0146 T15b).
+    for (const [build, file] of [
+      [MANAGED, 'deploy/compose/dev.yml'],
+      [APPLIANCE, 'deploy/selfhost/compose.yml'],
+    ] as const) {
+      expect(build.built.some((k) => k.startsWith(`${file}:`)), `${file} does not run ${build.dockerfile}`).toBe(true);
+    }
+  });
+
+  it('refuses a job that skips a proof, starts the appliance on a new volume only, or builds the image itself (the review of T15b)', () => {
+    const real = read('.github/workflows/images.yml');
+    const swap = (from: RegExp, to: string) => {
+      const text = real.replace(from, to);
+      expect(text, `${String(from)} matched nothing`).not.toBe(real);
+      return databaseJobProblems(text);
     };
-    expect(images.on.pull_request?.paths, "images.yml no longer runs on a pull request that touches deploy/").toContain('deploy/**');
-    const job = images.jobs['database'];
-    expect(job, 'images.yml has no `database` job').toBeDefined();
-    expect(job!.if).toBe("github.event_name == 'pull_request'");
-    expect(job!['runs-on']).toMatch(/^ubuntu-/);
-    expect(job!.permissions).toEqual({ contents: 'read' });
-    const run = (job!.steps ?? []).map((s) => s.run ?? '').join('\n');
-    expect(run, 'it does not start the database the way dev.yml does, building it where it is missing').toMatch(
-      /docker compose -f "\$file" up -d --wait\b[^\n]*\bpostgres\b/,
+    const APPLIANCE_PROOF = /^( *)(prove "\$SELFHOST_COMPOSE_FILE" openmigrate openmigrate)$/m;
+    // A proof that never runs reads, line by line, like one that does.
+    expect(swap(APPLIANCE_PROOF, '$1exit 0\n$1$2')).toEqual(
+      expect.arrayContaining([expect.stringContaining('`exit 0` can end the step'), expect.stringContaining("the step's own statements are")]),
     );
-    expect(run, 'it does not check what built').toContain('{{.Config.User}}');
-    expect(run, 'it does not check the server and the data are uid 70').toMatch(/\/proc\/1\/status/);
-    expect(run, 'it does not check gosu is gone').toContain('/usr/local/bin/gosu');
-    expect(run, 'it builds the image itself, which would hide a compose that does not').not.toMatch(/docker (?:image )?build\b|\bbuild api\b|compose[^\n]* build\b/);
+    expect(swap(APPLIANCE_PROOF, '$1if false; then\n$1  $2\n$1fi')).toEqual([expect.stringContaining("the step's own statements are")]);
+    expect(swap(APPLIANCE_PROOF, '$1$2 || true')).toEqual(
+      expect.arrayContaining([expect.stringContaining('`prove "$SELFHOST_COMPOSE_FILE" openmigrate openmigrate || true` can end the step')]),
+    );
+    expect(swap(/^( *)(prove\(\) \{)$/m, '$1$2\n$1  return 0')).toEqual(
+      expect.arrayContaining([expect.stringContaining('`return 0` can end the step'), expect.stringContaining('prove() does not begin')]),
+    );
+    // The appliance's database on a new volume only: the volume every existing appliance has goes unproven.
+    expect(swap(/^ *root_initialised "\$SELFHOST_COMPOSE_FILE" openmigrate openmigrate\n/m, '')).toEqual([expect.stringContaining("the step's own statements are")]);
+    expect(swap(/^ *read_back "\$SELFHOST_COMPOSE_FILE" openmigrate openmigrate\n/m, '')).toEqual([expect.stringContaining("the step's own statements are")]);
+    expect(swap(/(docker run -d --name root-initialised) /, '$1 --user 70:70 ')).toEqual([expect.stringContaining('root_initialised() does not start')]);
+    expect(swap(/(\$\(dirname "\$file"\)\/postgres\/Dockerfile)/, '$1.other')).toEqual([expect.stringContaining('root_initialised() does not start')]);
+    expect(swap(/insert into before_the_build/, 'select 1 from before_the_build')).toEqual([expect.stringContaining('root_initialised() writes no row')]);
+    expect(swap(/select note from before_the_build/, 'select 1')).toEqual([expect.stringContaining('read_back() does not read')]);
+    // The rest of what it held before.
+    expect(swap(/^( *)(docker compose -f "\$file" up -d --wait postgres)$/m, '$1docker build -t x "$(dirname "$file")/postgres"\n$1$2')).toEqual(
+      expect.arrayContaining([expect.stringContaining('builds the image itself')]),
+    );
+    expect(swap(/^( *)SELFHOST_COMPOSE_FILE: deploy\/selfhost\/compose\.yml$/m, '$1SELFHOST_COMPOSE_FILE: deploy/selfhost/compose.pglite.yml')).toEqual(
+      expect.arrayContaining([expect.stringContaining('the job names no deploy/selfhost/compose.yml')]),
+    );
+    expect(swap(/if \[ -e \/usr\/local\/bin\/gosu \]; then[^\n]*\n/, '')).toEqual([expect.stringContaining('does not check gosu is gone')]);
   });
 });
