@@ -43,6 +43,8 @@
  *     and would then report a stranger's pass as this one's. The worker side
  *     is read from its own source rather than retyped, so a rename there fails
  *     this guard instead of silently making the poll match nothing for ever.
+ *     The route's enqueue moved into `pressSyncNow` (`sync-now.ts`, workplan
+ *     0132 T9), and the route answers with the run that hands back.
  *  5. **It never fails the run on its own.** The verify below is the gate and
  *     is about to ask the real question; this phase only removes a wait. A
  *     refusal here (a paused mapping answers 409) has to read as itself and
@@ -77,6 +79,8 @@ const WORKER_PATH = 'apps/worker/src/jobs/run-delta-sync.ts';
 const ROUTE_PATH = 'apps/api/src/routes/migrations/index.ts';
 /** The one function every enqueue in the API goes through (workplan 0132 T6 (b)). */
 const ENQUEUE_PATH = 'apps/api/src/enqueue-unless-held.ts';
+/** *Sync now*'s gates and its enqueue, which the route calls (workplan 0132 T9). */
+const SYNC_NOW_PATH = 'apps/api/src/routes/migrations/sync-now.ts';
 
 const smoke = read(SMOKE_PATH);
 const seeder = read(SEEDER_PATH);
@@ -262,7 +266,9 @@ describe('it waits for the pass, rather than enqueuing and hoping', () => {
     // every run, silently, and reported as "still running".
     // The route's `run` is what the one enqueue hands back, and that is the
     // SDK's own trigger: the orchestrator's run handle, not a copy of it.
-    expect(syncRoute).toContain('const run = await enqueue(');
+    expect(syncRoute).toContain('await pressSyncNow(');
+    expect(read(SYNC_NOW_PATH)).toContain('const run = await enqueue(');
+    expect(read(SYNC_NOW_PATH)).toContain('return { run, taskId }');
     expect(read(ENQUEUE_PATH)).toContain('getTriggerClient().tasks.trigger(');
     expect(syncRoute).toContain('runId: run.id');
     expect(startRunCall).toContain('orchestratorRef');

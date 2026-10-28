@@ -187,6 +187,11 @@ describe('the folder press, pressed', () => {
  * shows it, workplan 0104). The gate's log could not say: it printed the first six
  * lines of the refused JSON, and the status sits at the end of each reason.
  *
+ * Since then the press stops at the first 429 and lists the rows from there
+ * apart, in `waitingForLimit`, with one sentence in `limit` (workplan 0104,
+ * the product half, after the launch): the gate prints those too, a row to a
+ * line, and says when this run's own row is among them.
+ *
  * Pinned here: the refused list is printed whole, a row to a line, and never
  * the body, whose applied rows carry the source's share verbatim; the balance
  * fails when a press said it applied this run's rows and one is still open,
@@ -252,6 +257,32 @@ describe('the press that ran out of shares (E2E (managed) #277, 2026-10-25)', ()
     expect(helper, 'a 429 is no longer told apart').toMatch(/grep -q 'status 429'/);
     expect(helper, "the 429 sentence no longer names Nextcloud's limit").toMatch(
       /20 new shares in 10 minutes[\s\S]{0,200}another run's press/,
+    );
+  });
+
+  it('prints the rows a press stopped before at the limit, apart from the refused, and the limit (0104)', () => {
+    expect(
+      helper,
+      'the rows a press left untried at the target\'s limit are no longer printed. They are not in\n' +
+        '`refused` any more, so without this a press that met the limit reads as one that tried nothing.',
+    ).toMatch(/\.waitingForLimit\[\] \| "[^"\n]*\\\(\.on\)/);
+    expect(helper, "the limit's sentence, which says when to press again, is no longer printed").toMatch(
+      /\\\(\.limit\.reason \/\/ /,
+    );
+    const b = branch('the press applied nothing:');
+    expect(b, "the apply-all branch no longer says when this run's own row waits for the limit").toMatch(
+      /elif jq -e --arg on "\$own_row" 'any\(\.waitingForLimit\[\]\?; \.on == \$on\)'[\s\S]*not tried/,
+    );
+    // Both presses applied, and this run's own row is open: apply-all applied
+    // an older open row and met the limit before this run's. Only the press
+    // bodies say so, in `waitingForLimit`; the branch printed neither.
+    const own = branch("both presses reported success, yet this run's own");
+    expect(own, 'the branch for an own row left open after both presses is gone').not.toEqual('');
+    expect(own, 'the own-row branch no longer prints what the folder press answered').toMatch(
+      /refused_rows "\$\{fpress_out%/,
+    );
+    expect(own, 'the own-row branch no longer prints what the one-go press answered').toMatch(
+      /refused_rows "\$\{press_out%/,
     );
   });
 

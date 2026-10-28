@@ -30,6 +30,7 @@ The full NAS/Pi/WSL2 walkthrough, backup (different on PGlite — no
 | Path | What |
 |---|---|
 | `compose.yml` | The two-service stack (bundled Postgres + app). |
+| `postgres/Dockerfile` | The bundled Postgres: the official image without gosu, started as its own user (uid 70, never root). The first `up` builds it; nothing pulls it (workplan 0146 T15b). |
 | `compose.pglite.yml` | Override: drops the Postgres service, `SELFHOST_PERSISTENCE=pglite` — the single-container shape (and what the future native installer ships, workplan 0015). |
 | `compose.dev.yml` | Dev conveniences (source mounts); not for production. |
 | `selfhost.env.example` | Env template — copy to `.env`, `chmod 600`. |
@@ -72,8 +73,10 @@ SELFHOST_IMAGE=ghcr.io/robbes/ownpace-selfhost@sha256:<digest>
 
 Always **back up the `/data` Postgres volume before upgrading**, and never run
 two app versions against one database (the startup downgrade guard refuses a
-binary older than the DB schema — §22.1). Upgrade = pull the new tag → `up -d` →
-migrations auto-apply under the advisory lock.
+binary older than the DB schema — §22.1). Upgrade = update the checkout (`git
+pull`, or the release's tag; the compose files and the database's Dockerfile
+come from it) → pull the new tag → `up -d` → migrations auto-apply under the
+advisory lock. The quickstart's "Upgrades" has the commands.
 
 > **DB volume must be local.** Never place the Postgres volume on a network
 > filesystem (SMB/NFS) — corruption risk. Use a local disk/SSD on the host.

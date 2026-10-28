@@ -604,7 +604,10 @@ const THE_ENQUEUE = 'enqueue-unless-held.ts';
  * stored-access sweep below, and each door's row in the tables above.
  */
 const CHECKS_BY_FILE: Readonly<Record<string, number>> = {
-  'routes/migrations/index.ts': 7,
+  'routes/migrations/index.ts': 6,
+  // *Sync now*'s own check, moved with its gates into `pressSyncNow`, which the
+  // route and the machine's press for live's pass check both call (0132 T9).
+  'routes/migrations/sync-now.ts': 1,
   'routes/migrations/operating-routes.ts': 4,
   // One more since *Only one folder*'s Browse lists a saved account's folders
   // (0153 open question 5, item 4).

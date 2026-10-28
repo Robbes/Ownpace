@@ -46,8 +46,9 @@ const PG_MAJOR_REQUIRING_THE_FIX = 18;
 const zitadelTag = /image:\s*ghcr\.io\/zitadel\/zitadel:v(\d+)\.(\d+)\.(\d+)/.exec(COMPOSE);
 // `18-alpine`, `18.6-alpine` and `18.6-alpine@sha256:…` alike: the major is the
 // first number, whatever follows it (a-gate-on-a-version-nothing-ships reads it
-// the same way).
-const pgMajors = [...COMPOSE.matchAll(/image:\s*postgres:(\d+)[.\-@]/g)].map((m) => Number(m[1]));
+// the same way). The build both databases run since 0146 T15,
+// `localhost/postgres:18.6-alpine-<hash>`, starts with its base's tag.
+const pgMajors = [...COMPOSE.matchAll(/image:\s*(?:localhost\/)?postgres:(\d+)[.\-@]/g)].map((m) => Number(m[1]));
 
 const cmp = (a: readonly number[], b: readonly number[]) =>
   a[0]! - b[0]! || a[1]! - b[1]! || a[2]! - b[2]!;

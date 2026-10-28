@@ -754,7 +754,9 @@ describe('the shipped Windows payload carries its own Node', () => {
     const dockerfile = readFileSync(join(REPO, 'apps/selfhost/Dockerfile'), 'utf-8');
     const version = nodeRuntimeVersion(dockerfile);
     expect(version).toMatch(/^v\d+\.\d+\.\d+$/);
-    expect(dockerfile).toContain(`FROM node:${version.slice(1)}-slim@sha256:`);
+    // Any variant: the version is what the packager reads, and the Debian
+    // release under it (`-trixie-slim` since 2026-10-25) is another guard's.
+    expect(dockerfile).toMatch(new RegExp(`^FROM node:${version.slice(1).replaceAll('.', '\\.')}-\\S+@sha256:[0-9a-f]{64}\\s`, 'm'));
   });
 
   it('refuses a Dockerfile that names no exact Node version, rather than guessing one', () => {

@@ -2,14 +2,20 @@
 # against deploy/selfhost/setup-stalwart.sh's Stalwart instead of a real source/target:
 #
 #   ./deploy/selfhost/setup-stalwart.sh
-#   docker compose -f deploy/selfhost/compose.yml -f deploy/selfhost/compose.dev.yml up -d --build --force-recreate
+#   docker compose -f deploy/selfhost/compose.yml -f deploy/selfhost/compose.dev.yml build app
+#   docker compose -f deploy/selfhost/compose.yml -f deploy/selfhost/compose.dev.yml up -d --force-recreate
 #
-# ITERATING ON SOURCE: always pass `--build --force-recreate`. The app image ships the TS
+# ITERATING ON SOURCE: always `build app`, then `up -d --force-recreate`. The app image ships the TS
 # source (Node erases the types at load, no JS build step), so a source edit only reaches the running
 # container after a rebuild. `docker compose restart app` deliberately does NOT rebuild —
 # that's the operator upgrade model (pull a new image tag, §22.1), not a source-edit loop —
 # and a bare `up -d` may reuse the existing container/image. If your edit "isn't taking
 # effect", you almost certainly rebuilt without recreating, or restarted without rebuilding.
+# The app BY NAME, never `up --build` or a bare `build` (workplan 0146 T15b): those build
+# every service with a `build:`, and the database's image is one since 2026-10-26
+# (./postgres). `up` builds that image only where its name is missing, and a rebuild of a
+# name the machine has can give it a new ID, which recreates the database at the next `up`;
+# on a Docker the managed stacks share, their database's too when the two names meet.
 #
 # NEVER used by real self-host operators — deploy/selfhost/compose.yml alone is the
 # product. This file exists only for workplan 0010 T5 and local dev against a Stalwart

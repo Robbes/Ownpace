@@ -82,6 +82,14 @@ name: ownpace-managed
 # (scripts/idp-pin-watch.mjs) says when a newer tag is listed, and the weekly image scan
 # (scripts/image-scan.mjs) counts the findings a newer package fixes, which is when a rebuild of
 # the same tag is worth its new digest. db-roles.sh asks with this file's first postgres image.
+# postgres and trigger-db run a build of the official image since 2026-10-26 (workplan 0146 T15):
+# their pin is deploy/compose/postgres/Dockerfile's FROM, by tag and digest, which Dependabot does
+# read (its own entry), and the name below carries a hash of that file's instructions, so a
+# changed Dockerfile is a name the machine does not have yet, and a pull request that changes one
+# fails a-database-started-as-root until the names move with it (the failure says how). `up`
+# builds it only where that name is missing, and only if nothing asks for a build: `up --build`
+# builds every service in its scope that has a `build:`, dependencies included, so
+# bootstrap-managed.sh builds `api web` by name and runs `up` without it.
 # scripts/a-float-nothing-ever-pulled.unit.test.ts refuses a new float; busybox's one-shot
 # chown is the one it names, with its reason.
 #
@@ -108,7 +116,17 @@ x-logging: &logging
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:18.6-alpine@sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5
+    # The official image without gosu, started as its postgres user, uid 70
+    # (workplan 0146 T15): deploy/compose/postgres/Dockerfile says why, what a
+    # start as uid 70 leaves out, and why the name carries the hash of its
+    # instructions. Compose builds it on the first `up` that finds no image of
+    # this name; the base's digest is the Dockerfile's FROM. `never`: no
+    # registry serves this name, so `docker compose pull` passes it by rather
+    # than failing on it, and `up` builds it when it is missing without first
+    # asking whatever answers on this host's port 443 for it.
+    image: localhost/postgres:18.6-alpine-6b2d97623fb5
+    build: ./postgres
+    pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-db
     restart: unless-stopped
     logging: *logging
@@ -221,7 +239,10 @@ services:
 
   # Trigger.dev Backend
   trigger-db:
-    image: postgres:18.6-alpine@sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5
+    # The same build as postgres above.
+    image: localhost/postgres:18.6-alpine-6b2d97623fb5
+    build: ./postgres
+    pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-db
     restart: unless-stopped
     logging: *logging
@@ -290,7 +311,7 @@ services:
     # deploy story). The old hardcoded v4.5.4 pin claimed to match an SDK that
     # had moved to 4.5.7 — and the v4.5.7 pin then repeated the same drift
     # when the SDK moved to 4.5.9.
-    image: ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.7.6}
+    image: ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.1}
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-api
     restart: unless-stopped
     logging: *logging
@@ -576,7 +597,7 @@ services:
   # deployed task is dequeued by nobody — which is exactly what this stack
   # was before 0018: bootstrap env vars with no consumer.
   trigger-supervisor:
-    image: ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.7.6}
+    image: ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.1}
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-supervisor
     restart: unless-stopped
     logging: *logging
@@ -1284,7 +1305,8 @@ services:
         # GET /version reports this commit (build-identity.ts). CI passes it
         # (images.yml); a hand-built stack must pass it too or the endpoint
         # answers commit "unknown" — build with:
-        #   GIT_SHA=$(git rev-parse HEAD) docker compose -f managed.yml build
+        #   GIT_SHA=$(git rev-parse HEAD) docker compose -f managed.yml build api web
+        # by name: a bare `build` builds the databases' image too.
         GIT_SHA: ${GIT_SHA:-unknown}
     container_name: ${COMPOSE_PROJECT_NAME}-api
     restart: unless-stopped
@@ -1765,8 +1787,22 @@ services:
   #
   # SMTP stays on the compose network: 1025 is not published, because the only
   # things that should reach it are services in this stack. The web UI is.
+  #
+  # v1.32.0 (pushed 2026-10-22T22:13Z, workplan 0146 T11 (a)) closes
+  # GHSA-379p-g4f4-hq5h (high, every version to v1.31.6): an image attachment
+  # whose EXIF directories point at each other held the thumbnail endpoint in
+  # a loop, a core busy and memory growing until the process was killed. Here
+  # that took a mail from this stack's own services or a caller of the web
+  # port below, which is loopback unless MAILPIT_BIND names another address.
+  # It is also built with Go 1.27.3, which fixes CVE-2026-111943 in
+  # `crypto/x509`; v1.31.6 was built with Go 1.27.2. Its first start on the
+  # kept volume applies one schema step to mailpit.db
+  # (`internal/storage/schemas/1.32.0.sql`: the index on message_tags is
+  # rebuilt on (ID, TagID)). v1.31.6 opens that file unchanged if this is
+  # rolled back: it applies only the steps it carries and ignores the newer
+  # row in its `schemas` table.
   mailpit:
-    image: axllent/mailpit:v1.31.6@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387
+    image: axllent/mailpit:v1.32.0@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498
     container_name: ${COMPOSE_PROJECT_NAME}-mailpit
     restart: unless-stopped
     logging: *logging
@@ -1803,9 +1839,10 @@ services:
       # which is the boundary that was argued out there and still holds.
       MP_DATABASE: /data/mailpit.db
       # NO RELEASE CHECK (workplan 0139, 2026-09-28). Whenever its page asks
-      # for the server's info, Mailpit (v1.31.6, internal/stats/stats.go) asks
-      # GitHub for its newest release. Live runs no catcher; this is the test
-      # stack's. `scripts/a-service-that-phones-home.unit.test.ts`.
+      # for the server's info, Mailpit (internal/stats/stats.go, read at v1.31.6
+      # and again at v1.32.0) asks GitHub for its newest release. Live runs no
+      # catcher; this is the test stack's.
+      # `scripts/a-service-that-phones-home.unit.test.ts`.
       MP_DISABLE_VERSION_CHECK: "true"
     ports:
       # 127.0.0.1, LIKE THE REGISTRY AND FOR A SHARPER REASON. Mailpit has no

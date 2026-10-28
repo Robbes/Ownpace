@@ -418,13 +418,19 @@ describe('the provisioning token can actually be written (E2E managed #44)', () 
       not.toMatch(/config --images/);
   });
 
-  it('pulls before it inspects, because inspect reads the LOCAL image', () => {
-    // On a fresh machine the image arrives with `up`, which is after this.
-    const pull = prepare.indexOf('pull -q zitadel');
-    const inspect = prepare.indexOf('docker image inspect');
+  it('pulls an image that is not here before it reads the user off it, because inspect reads the LOCAL image', () => {
+    // On a fresh machine the image arrives with `up`, which is after this. An
+    // image already here is not pulled again (live's deploy of alpha.2 waited
+    // sixteen minutes on that no-op, 2026-10-28); a-pull-that-never-came-back
+    // runs the three cases.
+    const code = prepare.replace(/^\s*#.*$/gm, '');
+    const here = code.indexOf('if ! docker image inspect "$image" >/dev/null 2>&1; then');
+    const pull = code.indexOf('pull -q zitadel');
+    const user = code.indexOf(`docker image inspect "$image" --format '{{.Config.User}}'`);
+    expect(here, 'the pull no longer asks whether the image is here first').toBeGreaterThan(-1);
     expect(pull, 'inspect on a machine that has never pulled reports nothing').
-      toBeGreaterThan(-1);
-    expect(pull).toBeLessThan(inspect);
+      toBeGreaterThan(here);
+    expect(pull).toBeLessThan(user);
   });
 
   it('treats "no USER" as root rather than substituting a guess', () => {

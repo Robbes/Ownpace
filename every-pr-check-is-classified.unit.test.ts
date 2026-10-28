@@ -71,6 +71,23 @@ const NOT_REQUIRABLE = new Map([
       'itself, the integration setup, the suite finder), so on any other PR it is never reported; ' +
       'a red run is a finding about the other major, for the owner, not a merge gate.',
   ],
+  // script-images.yml (#1675): builds an image a script builds for itself, on a
+  // pull request that changes its directory, and on no other.
+  [
+    'Build (${{ matrix.context }})',
+    'script-images.yml carries a `paths:` filter on its pull_request trigger (the directories ' +
+      'of the images the scripts build), so on a PR touching none of them the workflow never ' +
+      'runs and the context is never reported.',
+  ],
+  // images.yml's build of deploy/compose/postgres (0146 T15, the review of
+  // #1717), and of deploy/selfhost/postgres in the same job (T15b): the same
+  // workflow, so the same `paths:` filter silences it.
+  [
+    'build (postgres)',
+    'images.yml carries a `paths:` filter on its pull_request trigger (deploy/** among them), so on a ' +
+      "PR touching none of those paths the workflow never runs and the context is never reported. A PR " +
+      "that moves either database's Dockerfile does run it, and E2E (managed) or E2E (self-hosted) builds the image anyway.",
+  ],
   // security-scan.yml's image jobs (0146 T8, scan half). Their `if:` runs them on
   // schedule and workflow_dispatch only, so a pull request reports them skipped,
   // the matrix job under its unexpanded name. The scan is report-only by design:

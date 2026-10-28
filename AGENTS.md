@@ -2,7 +2,7 @@
 
 Agent guidance for this repo (Claude Code via `CLAUDE.md` pointer, OpenHands, others). **Read `docs/architecture/solution-architecture.md` first — the source of truth.** This file is the operational contract. Detail lives in the docs it points to (progressive disclosure), not here.
 
-Before any Stalwart or integration-test work: read `docs/stalwart-integration-fix.md` in full and do not deviate (decisions in ADR-0022). Never change the pinned Stalwart version; never put accounts/domains/listeners in config.json; never skip the shadow-pass tests.
+Before any Stalwart or integration-test work: read `docs/stalwart-integration-fix.md` in full and do not deviate (decisions in ADR-0022). Change the pinned Stalwart version only on the owner's decision, recorded in ADR-0022, and every copy in the same change (the fix doc's "Moving the pin" lists them); never put accounts/domains/listeners in config.json; never skip the shadow-pass tests.
 
 ## Session protocol (mandatory)
 1. **Start:** read the arch doc, then the active workplan in `docs/workplans/` — its top **Status block** is ground truth for done/open. Trust it; never redo completed tasks. To find which plan covers something, scan the generated index in [`docs/workplans/README.md`](docs/workplans/README.md): one row per plan, with its one-line summary and the markers its task table carries.

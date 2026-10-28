@@ -80,6 +80,7 @@ import { cutoverBeginRefusal, prepareTransition } from '@openmig/core/cutover-st
 import { enqueueUnlessHeld } from '../../enqueue-unless-held.ts';
 import { freePaceRefusal, paceFor, paceOfOrganisation, scheduleRefusalAtPace } from './free-pace.ts';
 import { recordVisit } from './visits.ts';
+import { pressSyncNow } from './sync-now.ts';
 import { refusedAsClosed } from '../../closed-organisation.ts';
 import { refusedUntilAccepted } from '../../conditions-not-accepted.ts';
 import type {
@@ -3617,7 +3618,7 @@ router.delete(
 );
 
 /**
- * POST /api/mappings/:mappingId/sync
+ * POST /api/migrations/:mappingId/sync
  * 
  * Trigger a sync for a mapping
  */
@@ -3642,79 +3643,12 @@ router.post(
         return;
       }
 
-      // Verify mapping exists and belongs to tenant (RLS enforced via withTenantDb)
+      // Sync now's gates and its one enqueue (`sync-now.ts`), shared with the
+      // machine's press for live's pass check (workplan 0132 T9).
       const pool = getSharedPool();
-      const mappings = await withTenantDb(tenantId, pool, async (db) => {
-        return await db
-          .select()
-          .from(schema.mailboxMapping)
-          .where(
-            and(
-              eq(schema.mailboxMapping.id, mappingId),
-              eq(schema.mailboxMapping.tenantId, tenantId)
-            )
-          );
-      });
-
-      if (mappings.length === 0) {
-        res.status(404).json({
-          error: 'Not found',
-          message: 'Mapping not found',
-        });
-        return;
-      }
-
-      // A closed organisation first (0085 T2): the paused and withdrawn
-      // sentences below would send the owner to a press that is refused too.
-      // `enqueueUnlessHeld` reads the close again; the other doors that
-      // enqueue rely on that read alone.
-      if (await refusedAsClosed(res, tenantId, pool)) return;
-
-      // 0013 T5: a paused (draft) mapping must not sync until the owner green-lights it
-      // via POST …/start. Refuse rather than silently kicking off a pass.
-      if (mappings[0]?.status === 'paused') {
-        res.status(409).json({
-          error: 'Conflict',
-          message: 'Mapping is paused — review the discovery counts and start it first (POST /start).',
-        });
-        return;
-      }
-      // A grant the person took back (0108 T8 (c)): nothing reads their account
-      // until they grant it again, so a pass enqueued now would only be refused
-      // by the builder. Said here, where the owner pressed the button.
-      const withdrawnAt = mappings[0]?.grantWithdrawnAt;
-      if (withdrawnAt) {
-        const withdrawn = grantWithdrawnRefusal(withdrawnAt).en;
-        res.status(409).json({ error: 'grant_withdrawn', message: withdrawn, reason: withdrawn });
-        return;
-      }
-
-      // Free's pace holds for a press too (workplan 0157 T2): one pass a day,
-      // so a press inside the day is refused with the time of the next one.
-      // Never the final pass before the switch, nor in the alpha (`free-pace.ts`).
-      if (!body.final) {
-        const pace = await freePaceRefusal(tenantId, mappingId, pool);
-        if (pace) {
-          res.status(409).json(pace);
-          return;
-        }
-      }
-
-      // An operator hold stops this press as it stops the tick (0132 T6 (b)).
-      const enqueue = await enqueueUnlessHeld(res, tenantId, pool);
-      if (!enqueue) return;
-
-      // Enqueue the real Trigger.dev task with an id-only, tenant-scoped payload
-      // (the mapping was just verified to belong to this tenant above).
-      const { taskId, payload } = resolveSyncJob(tenantId, mappingId, body);
-      const run = await enqueue(taskId, payload, {
-        // One running pass per mapping: the partition run-delta-sync's queue
-        // relies on, and the one the sync tick and /start set. Without it this
-        // run lands on the base `delta-sync` queue (limit 1, shared by every
-        // tenant) and does not wait for the mapping's scheduled pass.
-        concurrencyKey: mappingId,
-        tags: [`tenant:${tenantId}`, `mapping:${mappingId}`],
-      });
+      const pressed = await pressSyncNow(res, tenantId, mappingId, body, pool);
+      if (!pressed) return;
+      const { run, taskId } = pressed;
 
       // A press is a visit (workplan 0157 T7, `visits.ts`): somebody checking
       // gets the hour back. After the pass is enqueued and never in its way: a

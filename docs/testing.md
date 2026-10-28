@@ -28,7 +28,7 @@ convention that is already half-abandoned.
   mapping, Pattern S/D resolution. No I/O.
 - **Connector contract tests**: each source/target adapter against a recorded/standard contract.
 - **Integration** (Testcontainers for Node): the global setup spins up the full stack
-  programmatically — **Postgres**, **Stalwart v0.16.10 (official image, two-phase
+  programmatically — **Postgres**, **Stalwart v0.16.27 (official image, two-phase
   startup: recovery-mode provisioning, then normal serving)**, and **Nextcloud** (CalDAV/CardDAV/
   WebDAV target). No env vars or pre-running dev stack required; ports are dynamic. Tests exercise
   the ledger, the IMAP/JMAP/imap-dav mail path, and — since issue #114 — the CalDAV/CardDAV/WebDAV
@@ -59,15 +59,21 @@ pnpm test
 ```bash
 pnpm test:integration
 ```
-Testcontainers manages everything: fresh Postgres, fresh Stalwart (two-phase: recovery-mode
+Testcontainers manages everything: fresh Postgres (the base of the stacks' build,
+`deploy/compose/postgres/Dockerfile`, started as its postgres user, uid 70, as the stacks start it;
+workplan 0146 T15), fresh Stalwart (two-phase: recovery-mode
 provisioning of `dev.local` + `source@dev.local` / `target@dev.local` via `stalwart-cli apply`,
 then a normal-mode container on the same data volume), schema migration, and teardown including
-volume cleanup. Stalwart binds **TLS listeners only** (IMAPS 993, HTTPS 443, SMTPS 465, POP3S 995)
-plus unencrypted management/JMAP HTTP on 8080; there is **no plaintext IMAP 143** — the IMAP
-client connects to 993 with `rejectUnauthorized: false` for the self-signed test certificate.
+volume cleanup. In normal mode Stalwart binds IMAPS 993, HTTPS 443, SMTPS 465 and POP3S 995,
+unencrypted management/JMAP HTTP on 8080, and plain SMTP on 25 and ManageSieve on 4190; it does
+not bind IMAP 143, POP3 110 or submission 587, so there is **no plaintext IMAP**. The tests
+publish only 8080, 993 and 465, and the IMAP client connects to 993 with
+`rejectUnauthorized: false` for the self-signed test certificate.
 
 The optional `deploy/compose/dev.yml` stack (Postgres + Nextcloud) remains available for manual
-exploration, but the integration suite does not depend on it. `dev.yml` does **not** include
+exploration, but the integration suite does not depend on it. Its Postgres is `managed.yml`'s
+build, so its first `up` builds `deploy/compose/postgres` (a few seconds: the official image with
+gosu removed). `dev.yml` does **not** include
 Stalwart — its two-phase startup can't be expressed as one `docker compose` service; bring it up
 with `deploy/selfhost/setup-stalwart.sh` instead (joins `dev.yml`'s `ownpace_dev-network`, so it's
 reachable from anything else on that network too).
@@ -105,6 +111,12 @@ The workflow takes two **dispatch inputs**: `seed_count` (items seeded per domai
 and `persistence` (`postgres` | `pglite` — the latter runs the whole gate on the appliance's
 embedded-PGlite shape via `deploy/selfhost/compose.pglite.yml`; both backends are expected to
 agree domain-for-domain, and did at the 0016 close).
+
+On the Postgres backend the appliance's database is the build of
+`deploy/selfhost/postgres/Dockerfile`, started as uid 70 (workplan 0146 T15b). The workflow
+builds `app` by name and runs `up` without `--build`, so the database's image is built only when
+the runner has no image of its name, which is the run after its Dockerfile changed; the backup and
+restore drill then starts it on a new volume, which initialises as uid 70.
 
 ## Testcontainers invariants (enforced by the setup; see stalwart-integration-fix.md for rationale)
 - Exactly **one Stalwart container per data volume at any moment** (RocksDB exclusive lock);
@@ -395,9 +407,17 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   SBOM attached to release tags. On the weekly run (Mondays 06:00 UTC) and on dispatch only, and on
   GitHub-hosted runners, it also scans every container image the stacks run (workplan 0146 T8):
   the `image:` lines of `managed.yml`, `dev.yml`, `www.yml` and the appliance's compose file, the
-  images the scripts name, the tasks' base image the pinned Trigger.dev CLI names, and Ownpace's
-  three images at `:edge` and at the newest release tag, all as linux/arm64
-  (`scripts/image-scan.mjs list`). Report only: each image's findings go to code scanning under
+  images the scripts name, the tasks' image, and Ownpace's three images at `:edge` and at the
+  newest release tag, all as linux/arm64 (`scripts/image-scan.mjs list`). The tasks' image is
+  built in its leg, not pulled (workplan 0146 T10): the leg installs the workspace, writes the
+  `base` stage a task deploy builds (`image-scan.mjs containerfile`, which runs
+  `apps/worker/trigger.config.ts`'s own build extensions) on the image `apps/api/Dockerfile`
+  builds FROM, which the config builds the tasks on since workplan 0146 T14 (on the base image
+  the pinned Trigger.dev CLI names when the config names none), builds it natively on
+  `ubuntu-24.04-arm` under a local tag in that base's repository, and Trivy reads it from that
+  runner's Docker alone. That checkout is under `src/`: Trivy reads a `.trivyignore` and a
+  `trivy.yaml` from its working directory unless told otherwise, so on this leg too it reads none
+  of the repository's, and a file at the root can never drop a finding from code scanning. Report only: each image's findings go to code scanning under
   `trivy-image-<name>` and fail nothing; an image whose operating system Trivy calls past its end
   of life gets a warning, a line in the run's summary and one issue, closed when that ends. A scan
   that left no report fails the run. An image is named after its repository's last part, with
@@ -405,7 +425,12 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   stacks run that name, so a pin that moves, or two stacks' pins that meet on one reference, keep
   their names. An image that leaves the stacks, or is renamed, leaves its `trivy-image-<name>`
   configuration behind in code scanning with its alerts open; delete it on the code scanning tool
-  status page (the Security tab, Code scanning, Tool status).
+  status page (the Security tab, Code scanning, Tool status). An image a compose file builds here,
+  `localhost/<name>` from `<name>/Dockerfile` beside it (the Postgres of `managed.yml` and
+  `dev.yml`, workplan 0146 T15, and the appliance's, T15b), has no registry to be read from: its
+  leg checks the commit out under `src/`, builds the directory natively on GitHub's arm64 runner
+  and scans what it built, under the name the pulled image had (`postgres-managed`,
+  `postgres-selfhost`).
 - `e2e.yml` — nightly (23:30 UTC on the Postgres stack, 01:30 UTC on PGlite) and on dispatch, on
   `[self-hosted, linux, arm64]` (the Spark); brings up Stalwart via
   `deploy/selfhost/setup-stalwart.sh` (the two-phase recovery→normal bring-up — not a
@@ -449,8 +474,9 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   identity provider's pin in `managed.yml` against upstream's newest release of the same major;
   Trigger.dev against the newest tag both its images carry (`trigger-version.sh probe`);
   ClickHouse against the one Trigger.dev's own compose file pins; the tasks' Node against Node's
-  newest security release, until `trigger.config.ts` copies the API image's Node (it does since
-  issue #1669, so that row reports current); `packageManager` against the newest pnpm of its major; and the
+  newest security release, until `trigger.config.ts` builds the tasks on the API image's own base
+  (it took that image's Node from issue #1669 and builds on the image from 0146 T14, so that row
+  reports current); `packageManager` against the newest pnpm of its major; and the
   TypeScript split's exit. Each of those keeps one issue open while it is behind, says a newer
   release in a comment, and closes the issue when the pin catches up. Every other image line of
   `managed.yml`, `dev.yml` and `www.yml` (Dependabot reads no file in `deploy/compose`), the
@@ -462,13 +488,26 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   the web image's base lists `www.yml` too. It moves nothing: each issue gives the route, and the
   move is the owner's call. A row that cannot read its upstream, or finds its pin ahead of every
   tag listed, fails the run and never closes an issue.
+  The cosign `images.yml` signs with and `release.yml`'s verify job checks with is a routine row
+  too, since both steps name it (`cosign-release:`) and Dependabot moves only the installer: the
+  two copies are held together. Left to cosign-installer's default, it would be a status line
+  in the summary issue and open nothing.
 - `nextcloud-second-major.yml` — Mondays 05:17 UTC, on a push to `main` that touches the code
   the Nextcloud suites exercise, on a pull request that changes the leg, and on dispatch; on a
   GitHub-hosted runner, never a required check: the suites that talk to Nextcloud against the
   major the demo does not run (see "The second Nextcloud major" below).
 - `images.yml` — the three application images: an amd64 build-only check on a pull request that
   touches a Dockerfile, `deploy/` or the workflow; a multi-arch build and publish on `main` and
-  on `v*` tags.
+  on `v*` tags. On such a pull request only, `build (postgres)` also brings up `dev.yml`'s
+  postgres and then the appliance's on a runner without their images, so compose builds
+  `deploy/compose/postgres` and `deploy/selfhost/postgres`, and checks each runs as uid 70
+  without gosu (workplan 0146 T15, T15b); it publishes nothing. The appliance's starts on the
+  volume an existing appliance has, one the official image initialised as root, and must read
+  back the row written there.
+- `script-images.yml` — the images a script builds for itself (today GoAccess, which
+  `deploy/compose/site-visits.sh` builds from `deploy/compose/goaccess/Dockerfile`, #1675): an
+  arm64 build-only check, `Build (<directory>)`, on a pull request that touches that directory or
+  the workflow, Dependabot's move of its Alpine pin included. It pushes nothing.
 - `windows-payload.yml` (dispatch, and on v* tags; builds the Windows appliance payload).
 - `release.yml` — dispatch only, from `main`, on GitHub-hosted runners only; never a required
   check, since it has no pull-request trigger. It cuts a release tag and publishes it in order
@@ -510,10 +549,11 @@ against the runs recorded that evening, recorded green runs, and every event and
 red when the two disagree.
 
 Do **not** require `integration-tests (ubuntu-24.04)` / `(ubuntu-24.04-arm)`, nor
-`build (api|web|selfhost)` from `images.yml`, nor `DAV suites on the second Nextcloud major` from
-`nextcloud-second-major.yml`. None is reported at all on some pull requests —
+`build (api|web|selfhost)` or `build (postgres)` from `images.yml`, nor `DAV suites on the second
+Nextcloud major` from `nextcloud-second-major.yml`, nor `Build (deploy/compose/goaccess)` from
+`script-images.yml`. None is reported at all on some pull requests —
 a skipped matrix job reports once under the literal `integration-tests (${{ matrix.runner }})`,
-and the other two workflows have a `paths:` filter — so a docs-only PR blocks forever on "Expected — waiting
+and the other three workflows have a `paths:` filter — so a docs-only PR blocks forever on "Expected — waiting
 for status to be reported", with nothing queued in Actions to explain it. Full rationale is the
 `SCOPE:` comment above `ci-complete` in `ci.yml`.
 

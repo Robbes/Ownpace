@@ -26,7 +26,7 @@ name: E2E (self-hosted)
 #      files sync is proven ACROSS accounts, the real-world shape, not within one
 #      shared admin account like the source-only DAV integration tests use.
 #   2. SEED the source mailbox over IMAPS (the gate is only meaningful against a
-#      non-zero source; v0.16.10 doesn't bind plaintext IMAP in normal mode, so
+#      non-zero source; v0.16.27 doesn't bind plaintext IMAP in normal mode, so
 #      this — like the rest of the repo — uses TLS, not port 143) AND seed calendar
 #      events + TASKS + contacts + files into the e2e-source Nextcloud account
 #      (test/e2e/seed-dav-source.mjs). The tasks go into a collection of their
@@ -425,8 +425,19 @@ jobs:
           # image must actually replace the running container — belt-and-suspenders against
           # a stale container surviving the rebuild. pgdata/appdata are named volumes and
           # persist across the recreate, so this doesn't reset any state the T5 gate needs.
-          docker compose $SELFHOST_COMPOSE_FILES up -d --build --force-recreate --wait || \
-            { docker compose $SELFHOST_COMPOSE_FILES logs app; exit 1; }
+          #
+          # THE APP IS BUILT BY NAME, AND `up` IS NOT GIVEN `--build` (workplan 0146 T15b,
+          # 2026-10-26). The appliance's database is a build since then too
+          # (deploy/selfhost/postgres/Dockerfile, the official image without gosu, as uid 70),
+          # and `up --build` builds every service that has a `build:`. `up` builds that image
+          # by itself where its name is missing: on this runner's first run of a changed
+          # Dockerfile, which is the run that proves it. A rebuild of a name the runner has
+          # can give it a new image ID, and this Docker is the managed stacks' too; their
+          # databases' image takes the same name once the two Dockerfiles' FROMs meet.
+          # scripts/a-database-started-as-root.unit.test.ts holds this.
+          docker compose $SELFHOST_COMPOSE_FILES build app
+          docker compose $SELFHOST_COMPOSE_FILES up -d --force-recreate --wait || \
+            { docker compose $SELFHOST_COMPOSE_FILES logs --no-color; exit 1; }
           # No PORTS column, as in every job on this machine: a publish names
           # an address, and this log is public. The ports are the ones picked
           # above.
