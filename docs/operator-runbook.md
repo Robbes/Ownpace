@@ -908,8 +908,13 @@ remedy.
   `./deploy/compose/deploy-live.sh <tag>` from `~/ownpace-live`: the hold, the drain, the tag, the
   bring-up without the demo, the checks, and then you lift the hold. The steps are in
   `docs/managed-bring-up.md`, *Updating a running deployment*, and `docs/release.md` §5. Never
-  `git pull` there. The tag is cut by the Release workflow (`docs/release.md` §2), dispatched
-  from the Actions tab: it reads the nights and the gates, waits for your approval, tags, publishes
+  `git pull` there. **The deploy from `v0.2.0-alpha.2` or earlier to `v0.2.0-alpha.3` or later
+  runs twice** (workplan 0146 T13, the owner's decision of 2026-10-26): the first run is the older
+  checkout's script, which says `NODE_ENV: the api container could not be asked` and exits 3,
+  though live has moved to the tag; then `git checkout -- apps/worker/package.json` and the same
+  `deploy-live.sh <tag>` again, which says it took. The bring-up's section *The deploy from
+  alpha.2 to alpha.3 runs twice* has the exact lines. The tag is cut by the Release workflow
+  (`docs/release.md` §2), dispatched from the Actions tab: it reads the nights and the gates, waits for your approval, tags, publishes
   in order and verifies, all on GitHub's runners and never on this box. Its message names the run
   that proved it, for the deploy log. Pushing a tag by hand is the break-glass path.
 - **The OTA stack** (`~/ownpace-managed`) is deployed by the nightly gate, from `main`. By hand, the

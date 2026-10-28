@@ -759,9 +759,13 @@ json_string() {
 # Docker rather than from inside the container (workplan 0146 T13a, the readers
 # first). The distroless API image of T13 has no shell and no `printenv`; a tag
 # before T13 brings up a Node image, which has both, and this answers the same
-# for either, so this script asks alike whichever tag it deploys. It ships a
-# release before T13 does, so that no deploy meets the distroless image with a
-# copy of this script that asks with `printenv`. `docker container
+# for either, so this script asks alike whichever tag it deploys. It ships in
+# the release T13 ships in (alpha.3; the owner's decision of 2026-10-26), so a
+# deploy to that release from alpha.2 or earlier runs the older copy of this
+# script, which asks with `printenv`, says the deploy did not take though the
+# stack has moved, and is run a second time from the checkout now at the tag
+# (docs/managed-bring-up.md, *The deploy from alpha.2 to alpha.3 runs twice*).
+# A deploy started from a checkout with this function runs once. `docker container
 # inspect`'s `.Config.Env` is the image's ENV with compose's `environment:` over
 # it, one entry per name: what the process started with. Exit 0 set, 1 not set,
 # 2 no running api container, or none Docker could read. Why it could not is on

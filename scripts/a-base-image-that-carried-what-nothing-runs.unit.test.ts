@@ -18,7 +18,8 @@
  *   bundled undici, brace-expansion and http-cache-semantics, under
  *   `/usr/local/lib/node_modules/npm`. Nothing in the api or selfhost container
  *   runs a package manager: CMD and the HEALTHCHECK are `node`, the smoke
- *   gate's `docker exec` probes are `printenv` and `node -e`, and no script or
+ *   gate's `docker exec` probes were `printenv` and `node -e` (until 0146 T13,
+ *   which reads the variables from Docker instead), and no script or
  *   doc execs npm, npx, pnpm, yarn or corepack into either. Removed, the base
  *   reads 0/43 (the trixie image with a layer of the same removals, scanned
  *   from an OCI layout, both architectures), and none of the 43 has a Debian
@@ -35,15 +36,20 @@
  * 2. That string names its Debian release (`-<codename>-slim`), and the release
  *    is not bookworm. Dependabot keeps the suffix when it moves the tag, so a
  *    new Debian is an edit somebody makes.
- * 3. The api and selfhost runtime stages remove every package manager the base
+ * 3. The selfhost runtime stage removes every package manager the base
  *    image and the base stage's `corepack enable` put there, in one RUN before
  *    `USER` (as root, which owns them), and nothing after it puts one back.
- * 4. What runs in those containers runs `node` and no package manager: the
+ * 4. What runs in that container runs `node` and no package manager: the
  *    stage's CMD, HEALTHCHECK and ENTRYPOINT, and the `command`, `entrypoint`
- *    and `healthcheck` of every compose service built from either Dockerfile
- *    (`deploy/compose/managed.yml`'s `api`, `deploy/selfhost/compose.yml`'s
- *    `app`), in every compose file of its directory, overrides included.
- *    That is what makes 3 safe.
+ *    and `healthcheck` of every compose service built from its Dockerfile
+ *    (`deploy/selfhost/compose.yml`'s `app`), in every compose file of its
+ *    directory, overrides included. That is what makes 3 safe.
+ *
+ * The api's runtime stage did the same until 0146 T13 put it on distroless
+ * (`gcr.io/distroless/nodejs24-debian13:nonroot`), which carries Node and no
+ * package manager at all, nor a shell to run a RUN with; its build stage still
+ * builds FROM the Node line held by 1 and 2, and
+ * `scripts/an-api-image-with-nothing-to-exec.unit.test.ts` holds the rest.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -55,8 +61,12 @@ import { parse as parseYaml } from 'yaml';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
 
-/** The images whose runtime stage runs Node, and so must carry no package manager. */
-const NODE_RUNTIMES = ['apps/api/Dockerfile', 'apps/selfhost/Dockerfile'];
+/**
+ * The images whose runtime stage runs on the Node image, and so must remove its
+ * package managers. The api's runtime is distroless since 0146 T13, with none
+ * to remove (scripts/an-api-image-with-nothing-to-exec.unit.test.ts).
+ */
+const NODE_RUNTIMES = ['apps/selfhost/Dockerfile'];
 
 /**
  * What the base image and `corepack enable` install that runs a package manager.
@@ -240,7 +250,7 @@ describe('no compose service built from those images runs a package manager', ()
   // names the same service in the same directory without a build.
   const built = services.filter((s) => NODE_RUNTIMES.includes(s.service.build?.dockerfile ?? ''));
 
-  it('finds the api and selfhost services (vacuity)', () => {
+  it('finds the selfhost service (vacuity)', () => {
     expect(built.map((s) => s.service.build!.dockerfile).sort()).toEqual([...NODE_RUNTIMES].sort());
   });
 

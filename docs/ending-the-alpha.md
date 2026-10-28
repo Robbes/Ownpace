@@ -245,9 +245,34 @@ hold (step 3), because the privacy policy promises it for the end of the Alpha.
    ./deploy/compose/deploy-live.sh <tag>
    ```
 
+   **From `v0.2.0-alpha.2` or earlier to `v0.2.0-alpha.3` or later, the deploy runs twice**
+   (workplan 0146 T13, the owner's decision of 2026-10-26). When live's checkout is of
+   `v0.2.0-alpha.2` or an earlier tag (`git describe --tags` names it) and the tag named here is
+   `v0.2.0-alpha.3` or later, the first run is the older script, which asks the api container
+   with `printenv`, and the distroless API has none. The stack moves to the tag, and that run
+   prints this, then that the copy before this update is kept and that the deploy is logged as
+   `did-not-take`, and exits 3:
+
+   ```text
+   [deploy-live] the deploy did not take: <tag> is checked out, and
+       NODE_ENV: the api container could not be asked (docker compose exec -T api printenv NODE_ENV).
+   [deploy-live] The hold stays on. Nothing was lifted. Fix the cause and run this again with <tag>, or name another tag; the next deploy is compared with <tag> too.
+   ```
+
+   When that `NODE_ENV` line is the only one under it, run the deploy again, the hold still on;
+   the tag's own script reads from Docker and says the deploy took (docs/managed-bring-up.md,
+   *The deploy from alpha.2 to alpha.3 runs twice*):
+
+   ```bash
+   git checkout -- apps/worker/package.json    # the task deploy strips its last newline; the second run refuses a tree that is not clean
+   ./deploy/compose/deploy-live.sh <tag>       # the same tag
+   ```
+
 6. **Read its output for the task environment line:**
    `[set-task-env] deleted OWNPACE_STAGE: no stage is set, so the hold at the data ceiling is on`.
-   Without it, the tasks still hold the alpha: see *If a check fails*.
+   Without it, the tasks still hold the alpha: see *If a check fails*. When step 5 ran twice, the
+   line is in the first run's output: the second run finds the stage already deleted and prints
+   no such line.
 7. **Run the checks below, then lift the hold yourself.** Then delete the copy before the update
    once the update is proven, as after every deploy.
 
