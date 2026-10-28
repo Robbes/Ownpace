@@ -101,7 +101,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   script that runs before it.
 - **The site's visit count builds GoAccess 1.12 on Alpine 3.24, because
   upstream's image is on Alpine 3.20, past its end of life** (workplan 0152,
-  #1675): no upstream release has moved off 3.20, and Alpine's own package is
+  #1675, #1703): no upstream release has moved off 3.20, and Alpine's own package is
   1.10.2. `site-visits.sh` now builds `deploy/compose/goaccess/Dockerfile`,
   upstream's own at `v1.12` on `alpine:3.24.3` by tag and digest, from the
   commit the tag names and with only the libraries GoAccess loads, as
@@ -147,7 +147,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   web`): `up --build` would rebuild the databases' image too and could restart
   them.
 - **The self-hosted appliance's database starts as PostgreSQL's own user too,
-  from the official image without gosu** (workplan 0146 T15b): gosu was the
+  from the official image without gosu** (workplan 0146 T15b, #1719): gosu was the
   one critical finding in the appliance's `postgres:18.6-alpine`, and no newer
   digest of the tag drops it. The database's image follows the checkout, not
   the app's image: after updating the checkout (`git pull`, or the release's
@@ -164,7 +164,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   the restore's `psql` answer as before. The PGlite appliance and the Windows
   appliance run no database server and are unchanged.
 - **The web image and the public site run nginx 1.31.8-alpine-slim** (workplan
-  0146 T12a): the same nginx on the same base, without the modules and tools
+  0146 T12a, #1707): the same nginx on the same base, without the modules and tools
   the `-alpine` image adds and nothing here loads, 51 packages in all. The
   image scan reads 0 critical and 0 high where `-alpine` reads 1 high
   (brotli-libs, CVE-2026-111497). The site's nginx moves when `www.yml` is
@@ -201,8 +201,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   on runs a `deploy-live.sh` that reads it this way; the deploy to this
   release from an older one runs twice (above). Nothing a stack sets changes.
 - **Trigger.dev's object store runs Chainguard's MinIO build of 2026-10-25**
-  (workplan 0146 T7): `latest` by the digest it had that day, taken once three
-  days old. Its server is the fork's RELEASE.2026-10-23T20-06-51Z, which moves
+  (workplan 0146 T7, #1726): `latest` by the digest it had that day, taken once
+  three days old. Its server is the fork's RELEASE.2026-10-23T20-06-51Z, which moves
   nine Go modules, golang.org/x/net, x/crypto and klauspost/compress among
   them, and changes no MinIO code; Trivy reads no finding in it, as in the
   build before. Nothing a stack sets changes; the next bring-up pulls it.
@@ -218,7 +218,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   the slow one. ClickHouse stays on 26.2,
   which Trigger.dev still pins.
 - **The demo, development and integration-test Nextcloud move to 35.0.2**
-  (workplan 0119 T5), by digest, from 34.0.5; the second-major leg moves to
+  (workplan 0119 T5, #1720), by digest, from 34.0.5; the second-major leg moves to
   34.0.5 in their place. Every suite that talks to Nextcloud had passed
   against 35 first. On the OTA stack the move is one way: the first `up`
   upgrades the demo's volume and its database in the stack's Postgres
@@ -258,7 +258,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 ### Fixed
 
 - **qs 6.16.1 closes another denial of service in `qs.stringify`**
-  (GHSA-6pq8-jhm2-2vcw, moderate): with `arrayFormat: 'comma'`, an array
+  (GHSA-6pq8-jhm2-2vcw, moderate, #1723): with `arrayFormat: 'comma'`, an array
   element carrying a non-callable own `toString` threw an uncaught TypeError.
   The override's floor moves from 6.16.0 to 6.16.1 (published 2026-10-14, past
   the three-day cooldown), which express and the tests' superagent now take.
@@ -298,7 +298,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   they used to find among the root's devDependencies. Nothing a stack sets
   changes.
 - **A deploy no longer waits without end on a compose step** (live's deploy of
-  alpha.2, 2026-10-28): the bring-up asked compose to pull the identity
+  alpha.2, 2026-10-28, #1725): the bring-up asked compose to pull the identity
   provider's image before reading its user, even when the machine had it, and
   on live that pull printed "Pulled" and never returned, so the deploy waited
   sixteen minutes, until the pull was killed, and then did not take. Compose
@@ -309,6 +309,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   the machine lacks it, and a pull that does not end is stopped after
   `ZITADEL_PULL_TIMEOUT` (600 seconds) with a sentence saying what to do. The
   operator runbook says how to end such a step and go on.
+- **systeminformation 5.33.16 closes two advisories in `networkStats()`**
+  (GHSA-4vjg-vx72-qq4g, low, and GHSA-7648-jmwf-vw7j, moderate), which
+  Trigger.dev's SDK carries through `@opentelemetry/host-metrics`. On Linux an
+  interface name could reach a file outside `/sys/class/net` through a symlink,
+  which needs a local user and a caller that passes it untrusted input; the
+  prototype pollution affects the BSDs only. A floor at 5.33.14, the Linux fix
+  (published 2026-09-28, past the three-day cooldown), takes the tree from
+  5.33.1 to 5.33.16.
 
 ## [0.2.0-alpha.2] - 2026-10-25
 
