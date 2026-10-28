@@ -2,7 +2,7 @@
 // Testcontainers setup for integration tests.
 // Spins up Postgres and Stalwart programmatically.
 //
-// IMPORTANT: Stalwart v0.16.10 requires a two-phase startup:
+// IMPORTANT: Stalwart v0.16.27 requires a two-phase startup:
 //   Phase 1: Recovery mode container - provisions accounts via stalwart-cli
 //   Phase 2: Normal mode container - starts with mail listeners enabled
 // Both phases share the same Docker named volume for data persistence.
@@ -549,7 +549,7 @@ async function startStalwart(): Promise<{
   // Use Docker-managed NAMED VOLUME (not host bind mount) for consistent UID/permissions
   // The source is the Docker volume name, which Docker handles with proper permissions
   // CRITICAL: Attach log consumer BEFORE start() to capture ALL logs from container creation
-  const containerA = await new GenericContainer('stalwartlabs/stalwart:v0.16.10')
+  const containerA = await new GenericContainer('stalwartlabs/stalwart:v0.16.27')
     .withBindMounts([
       { source: STALWART_DATA_VOLUME, target: '/opt/stalwart/data' },
     ])
@@ -763,7 +763,7 @@ async function startStalwart(): Promise<{
   // Phase 2: Normal mode container (no recovery mode env vars)
   // Uses SAME bind mount approach as Phase 1 (host path -> container path)
   // withUser('root') sidesteps any UID/permission issues with the bind-mounted directory
-  const containerBBuilder = new GenericContainer('stalwartlabs/stalwart:v0.16.10')
+  const containerBBuilder = new GenericContainer('stalwartlabs/stalwart:v0.16.27')
     .withBindMounts([
       { source: STALWART_DATA_VOLUME, target: '/opt/stalwart/data' },
     ])
@@ -773,9 +773,12 @@ async function startStalwart(): Promise<{
     .withEnvironment({
       STALWART_HOSTNAME: 'localhost',
     })
-    // 465 = SMTPS. Stalwart v0.16.10 auto-binds TLS listeners only, so there is
-    // no plaintext 25/587 to reach. Published so 0043 T1 can prove this product
-    // actually sends an email rather than proving its digest logic in isolation.
+    // 465 = SMTPS. Stalwart binds 25, 443, 465, 993, 995, 4190 and 8080 here, and
+    // not 143, 110 or 587 (docs/stalwart-integration-fix.md, "TLS Ports"); only
+    // 8080, 993 and 465 are published, so plain SMTP on 25 and ManageSieve on
+    // 4190 stay unreachable from the tests. 465 is published so 0043 T1 can prove
+    // this product actually sends an email rather than proving its digest logic
+    // in isolation.
     .withExposedPorts(8080, 993, 465)
     .withStartupTimeout(180000)
     .withUser('root')
@@ -783,7 +786,7 @@ async function startStalwart(): Promise<{
     // Attach log consumer BEFORE start() to capture ALL logs including startup failures
     .withLogConsumer(createFileLogConsumer('stalwart-phase2.log'))
     // Wait for both HTTP (8080) and IMAPS (993) ports to be listening
-    // Note: Stalwart v0.16.10 auto-binds TLS listeners (993/995) but NOT plaintext (143/110)
+    // Note: Stalwart binds IMAPS and POP3S (993/995) but NOT plaintext IMAP or POP3 (143/110)
     .withWaitStrategy(Wait.forListeningPorts());
 
   // Start the container with retry logic for RocksDB lock race condition

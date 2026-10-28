@@ -28,7 +28,7 @@ convention that is already half-abandoned.
   mapping, Pattern S/D resolution. No I/O.
 - **Connector contract tests**: each source/target adapter against a recorded/standard contract.
 - **Integration** (Testcontainers for Node): the global setup spins up the full stack
-  programmatically — **Postgres**, **Stalwart v0.16.10 (official image, two-phase
+  programmatically — **Postgres**, **Stalwart v0.16.27 (official image, two-phase
   startup: recovery-mode provisioning, then normal serving)**, and **Nextcloud** (CalDAV/CardDAV/
   WebDAV target). No env vars or pre-running dev stack required; ports are dynamic. Tests exercise
   the ledger, the IMAP/JMAP/imap-dav mail path, and — since issue #114 — the CalDAV/CardDAV/WebDAV
@@ -64,9 +64,11 @@ Testcontainers manages everything: fresh Postgres (the base of the stacks' build
 workplan 0146 T15), fresh Stalwart (two-phase: recovery-mode
 provisioning of `dev.local` + `source@dev.local` / `target@dev.local` via `stalwart-cli apply`,
 then a normal-mode container on the same data volume), schema migration, and teardown including
-volume cleanup. Stalwart binds **TLS listeners only** (IMAPS 993, HTTPS 443, SMTPS 465, POP3S 995)
-plus unencrypted management/JMAP HTTP on 8080; there is **no plaintext IMAP 143** — the IMAP
-client connects to 993 with `rejectUnauthorized: false` for the self-signed test certificate.
+volume cleanup. In normal mode Stalwart binds IMAPS 993, HTTPS 443, SMTPS 465 and POP3S 995,
+unencrypted management/JMAP HTTP on 8080, and plain SMTP on 25 and ManageSieve on 4190; it does
+not bind IMAP 143, POP3 110 or submission 587, so there is **no plaintext IMAP**. The tests
+publish only 8080, 993 and 465, and the IMAP client connects to 993 with
+`rejectUnauthorized: false` for the self-signed test certificate.
 
 The optional `deploy/compose/dev.yml` stack (Postgres + Nextcloud) remains available for manual
 exploration, but the integration suite does not depend on it. Its Postgres is `managed.yml`'s
