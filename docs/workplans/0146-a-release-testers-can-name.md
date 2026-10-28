@@ -5,9 +5,9 @@
 ## Status — 2026-10-28 (update this block at the end of every session)
 
 **2026-10-28: alpha.3's work landed on main, T9 to T15b, T7's digest and the cosign, each
-after its own proof.** After the alpha.2 tag (`v0.2.0-alpha.2`, `f62bcbe2`), 27 pull requests
-merged to `main` between 2026-10-27 21:58 UTC and 2026-10-28 21:54 UTC, one at a time: 9 after
-CI, and 18 after a green E2E on the branch as well. `main` is at `3d2f129e`. Times below are UTC
+after its own proof.** After the alpha.2 tag (`v0.2.0-alpha.2`, `f62bcbe2`), 28 pull requests
+merged to `main` between 2026-10-27 21:58 UTC and 2026-10-28 22:38 UTC, one at a time: 9 after
+CI, and 19 after a green E2E on the branch as well. `main` is at `9a58872c`. Times below are UTC
 on 2026-10-28 unless dated.
 
 - **This plan's, on CI:** the cosign v3.1.4 (#1702, 2026-10-27 22:22, `3188e9e1`); T16a,
@@ -43,8 +43,9 @@ on 2026-10-28 unless dated.
   critical (`86de86d3`), #1705 the Nextcloud suites against 35 (`d6acd430`, 0119 T5) and #1703
   GoAccess 1.12 on Alpine 3.24 (`fcb3d50f`). After E2E: #1678 the floating images by exact tag
   and digest (`afe17fef`, 0119), #1704 (`3fb0dc29`, 0104 T5), #1712 fifteen npm bumps
-  (`f8f8e289`), #1725 plain compose progress (`719fdc67`), #1724 (`24864dcc`, 0132 T9) and
-  #1720 the demo, dev and test Nextcloud on 35.0.2 (`3d2f129e`, 0119 T5).
+  (`f8f8e289`), #1725 plain compose progress (`719fdc67`), #1724 (`24864dcc`, 0132 T9),
+  #1720 the demo, dev and test Nextcloud on 35.0.2 (`3d2f129e`, 0119 T5) and, last, #1727
+  systeminformation 5.33.16 (`9a58872c`, 22:38), which closed Dependabot alerts 6 and 7.
 - **Left for alpha.3: Redis 7.4.12** (the owner's decision of 2026-10-28: alpha.3 waits for it).
   Docker Hub re-pushed the tag on 2026-10-28, so its three-day floor ends 2026-10-31 06:05 UTC.
   Then the CHANGELOG fold and two counted nights on it. Live runs alpha.2 since the owner's

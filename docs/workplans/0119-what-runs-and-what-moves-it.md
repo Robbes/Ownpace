@@ -4,9 +4,9 @@
 
 ## Status — 2026-10-28 (update this block at the end of every session)
 
-**2026-10-28: alpha.3's work landed on main, the demo's Nextcloud 35 last.** Twenty-seven pull
-requests merged after the alpha.2 tag (`f62bcbe2`), from 2026-10-27 21:58 to 2026-10-28 21:54 UTC;
-`main`'s head is `3d2f129e`. This plan's and 0146's, with what proved each before its merge:
+**2026-10-28: alpha.3's work landed on main, the demo's Nextcloud 35 last.** Twenty-eight pull
+requests merged after the alpha.2 tag (`f62bcbe2`), from 2026-10-27 21:58 to 2026-10-28 22:38 UTC;
+`main`'s head is `9a58872c`. This plan's and 0146's, with what proved each before its merge:
 - **On CI:** pnpm 11.28.8 (#1701, `4cd87405`), cosign v3.1.4 (#1671; #1702, `3188e9e1`), qs
   6.16.1 (#1723, `01073963`), the actions group (#1711, `145ca694`), the weekly scan naming every
   critical (#1718, `86de86d3`, with §3 item 10), the suites against Nextcloud 35 in CI (T5; #1705,
@@ -32,6 +32,10 @@ requests merged after the alpha.2 tag (`f62bcbe2`), from 2026-10-27 21:58 to 202
   `3d2f129e`), on the owner's OK of 2026-10-26: the owner took the way back first (the volume
   copied, the database dumped), and E2E (managed) 40774398411, 21:44–21:52 UTC, was the OTA
   demo's upgrade to 35 (`nextcloud:35.0.2` healthy). The merge followed at 21:54 UTC.
+- **Then systeminformation 5.33.16** (#1727, `9a58872c`, 22:38 UTC): Dependabot alerts 6 and 7,
+  GHSA-4vjg-vx72-qq4g (low) and GHSA-7648-jmwf-vw7j (moderate), both published that day, in the
+  copy Trigger.dev's SDK carries through `@opentelemetry/host-metrics`. A floor at 5.33.14 in
+  `pnpm-workspace.yaml`; E2E (managed) 40778814997, 22:17–22:37 UTC.
 - The other three, #1704 (0104 T5), #1724 (0132 T9) and #1725, are neither plan's. Live runs
   alpha.2 since the owner's deploy (checklist T21–T25).
 - **Still for alpha.3:** Redis 7.4.12. The owner decided on 2026-10-28 that alpha.3 waits for
