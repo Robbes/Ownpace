@@ -177,11 +177,10 @@ hold (step 3), because the privacy policy promises it for the end of the Alpha.
    ```
 
    MinIO's store has been `ownpace-live_minio_data_v2` since the release that carries workplan
-   0146 T7, Chainguard's build (alpha.2, if its merge made that release's fold; otherwise the
-   first release after the launch). The Bitnami-era `ownpace-live_minio_data` is the owner's to
-   remove after that release's deploy; if `docker volume ls` still lists it here, it holds the
-   packets of the weeks before that release, so remove it in this step too, with
-   `docker volume rm ownpace-live_minio_data`.
+   0146 T7, Chainguard's build: alpha.2, whose fold carried its merge (#1692, `0029db4a`). The
+   Bitnami-era `ownpace-live_minio_data` is the owner's to remove after that release's deploy; if
+   `docker volume ls` still lists it here, it holds the packets of the weeks before that release,
+   so remove it in this step too, with `docker volume rm ownpace-live_minio_data`.
 
    A volume `docker volume rm` refuses is one something still holds: see *If a check fails*. The
    bring-up starts the task runner and its stores empty (`trigger-api` applies ClickHouse's

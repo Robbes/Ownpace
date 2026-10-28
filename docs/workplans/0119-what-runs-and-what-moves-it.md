@@ -4,15 +4,55 @@
 
 ## Status — 2026-10-28 (update this block at the end of every session)
 
+**2026-10-28: alpha.3's work landed on main, the demo's Nextcloud 35 last.** Twenty-eight pull
+requests merged after the alpha.2 tag (`f62bcbe2`), from 2026-10-27 21:58 to 2026-10-28 22:38 UTC;
+`main`'s head is `9a58872c`. This plan's and 0146's, with what proved each before its merge:
+- **On CI:** pnpm 11.28.8 (#1701, `4cd87405`), cosign v3.1.4 (#1671; #1702, `3188e9e1`), qs
+  6.16.1 (#1723, `01073963`), the actions group (#1711, `145ca694`), the weekly scan naming every
+  critical (#1718, `86de86d3`, with §3 item 10), the suites against Nextcloud 35 in CI (T5; #1705,
+  `d6acd430`), 0146 T16a (#1721, `991bd21c`) and T10 (#1700, `ee9be30f`), and GoAccess 1.12 on
+  Alpine 3.24 (#1675; #1703, `fcb3d50f`).
+- **One E2E at a time** (E2E (managed) runs, the self-hosted ones marked): the floating images
+  by exact tag and digest (#1678, `afe17fef`; 40610883300, self-hosted 40614623319); 0146 T15
+  (#1717, `6f9af7f2`; 40616652331) and T15b (#1719, `fb0fea2e`; self-hosted 40621523504); T12a,
+  nginx 1.31.8-alpine-slim (#1707, `53fb6453`; 40626664067); T11 (a), Mailpit v1.32.0 (#1699,
+  `e33d7902`; 40631369534), and (b), Stalwart v0.16.27 (#1698, `29d1d7e0`; 40635727901); the 15
+  npm minor and patch bumps (#1712, `f8f8e289`; 40648562117, self-hosted 40654078776); T9 (#1687,
+  `9480e898`; 40656320601, self-hosted 40661756633); T12 (#1708, `13e2300e`; 40663045583,
+  self-hosted 40669572838; Dependabot's #1713, #1714 and #1715 closed as superseded by it); T13a
+  (#1710, `f34588e6`; 40671926123) and T13 (#1709, `b13d303e`; 40673664905, self-hosted
+  40679655003); T7, MinIO's digest `268d68a2…` (#1726, `0f3fda25`; 40706723499).
+  The scheduled E2E (managed) of 2026-10-28 ran on `9480e898`, 09:54–10:15 UTC, green
+  (40667933035).
+- **Trigger.dev v4.8.1** (#1668; #1697, `f387b175`): the owner moved the OTA stack's `.env` to
+  v4.8.1 first (checklist T35), the backup `before-v4.8.1` verified; E2E (managed) 40756746457,
+  19:42–19:55 UTC. Then 0146 T14, the tasks on the API image's own base (#1716, `98802571`;
+  40758865207).
+- **Nextcloud 35.0.2 for the demo, the dev stack and the tier, the leg on 34.0.5** (T5; #1720,
+  `3d2f129e`), on the owner's OK of 2026-10-26: the owner took the way back first (the volume
+  copied, the database dumped), and E2E (managed) 40774398411, 21:44–21:52 UTC, was the OTA
+  demo's upgrade to 35 (`nextcloud:35.0.2` healthy). The merge followed at 21:54 UTC.
+- **Then systeminformation 5.33.16** (#1727, `9a58872c`, 22:38 UTC): Dependabot alerts 6 and 7,
+  GHSA-4vjg-vx72-qq4g (low) and GHSA-7648-jmwf-vw7j (moderate), both published that day, in the
+  copy Trigger.dev's SDK carries through `@opentelemetry/host-metrics`. A floor at 5.33.14 in
+  `pnpm-workspace.yaml`; E2E (managed) 40778814997, 22:17–22:37 UTC.
+- The other three, #1704 (0104 T5), #1724 (0132 T9) and #1725, are neither plan's. Live runs
+  alpha.2 since the owner's deploy (checklist T21–T25).
+- **Still for alpha.3:** Redis 7.4.12. The owner decided on 2026-10-28 that alpha.3 waits for
+  it; Docker Hub pushed the tag again that day, so its three-day floor ends 2026-10-31 06:05 UTC.
+  Then the CHANGELOG fold and two counted nights.
+- **For alpha.4:** #1722 (0146 T16, the Trigger.dev images built here), a draft whose stacked
+  work is now on `main`'s base.
+
 **2026-10-26: the demo, the dev stack and the integration tier move to Nextcloud 35.0.2, and
-the second-major leg to 34.0.5, in a draft for alpha.3** (T5), on the branch
+the second-major leg to 34.0.5, in alpha.3, merged 2026-10-28** (T5, `3d2f129e`), on the branch
 `claude/ownpace-public-readiness-y7orc6-nextcloud-35-demo`: #1678's head (`72c6cff6`, every
-floating image pinned) with #1705's (`b09d6f4f`, the leg on 35.0.2) merged in, as draft #1720.
+floating image pinned) with #1705's (`b09d6f4f`, the leg on 35.0.2) merged in, as #1720.
 **The owner's OK, 2026-10-26: "Yes, in alpha.3"**, late in the alpha.3 queue, after the riskier
 items, with the copies of *A Nextcloud major on the OTA stack* taken before its E2E (managed).
 A major is the owner's call (§2.1's row; the pin watch moves nothing and names the route); the
-owner had kept the demo on 34 for alpha.2, and on the OTA stack the move is one way. `main` is
-frozen until the alpha.2 tag, so nothing moves before it.
+owner had kept the demo on 34 for alpha.2, and on the OTA stack the move is one way. `main` was
+frozen until the alpha.2 tag (`f62bcbe2`), so nothing moved before it.
 - **The merge.** Five files conflicted. `testcontainers-setup.ts` took #1705's one-line ternary
   with `dev.yml`'s reference as the literal, the resolution both entries below name; the
   CHANGELOG keeps both bullets under `[Unreleased]` (`### Added` before `### Changed`); this
@@ -78,7 +118,8 @@ frozen until the alpha.2 tag, so nothing moves before it.
   on this branch is the first thing that upgrades the OTA volume**: the gate brings the branch's
   `managed.yml` up in the OTA project (`bootstrap-managed.sh --from data --with-demo`, then
   `up_wait nextcloud`), so that run is the upgrade, not a test before it, and every nightly of
-  `main` is red at `up_wait nextcloud` from then until this merges.
+  `main` is red at `up_wait nextcloud` from then until this merges. That run, 40774398411, ended
+  at 21:52 UTC on 2026-10-28, and #1720 merged at 21:54 UTC, before the next nightly.
 - **The way back, written for the owner**, in `docs/managed-bring-up.md`, *A Nextcloud major on
   the OTA stack*: the order (the OK; after the alpha.2 tag and never between counted nights; the
   migrations paused a few minutes before the copies and until the branch merges; the room checked
@@ -113,7 +154,10 @@ frozen until the alpha.2 tag, so nothing moves before it.
   T5's row and §2.1's two `nextcloud` rows the merge's date and the E2E (managed) run that
   upgraded the OTA volume, in place of "on the branch …" and "a draft waiting on the owner's
   OK"; this entry the date of the OK. The comments elsewhere name the move by its pull request
-  and T5, not by the day it was written, and need no new date.
+  and T5, not by the day it was written, and need no new date. Done on 2026-10-28: the owner took
+  the way back's copies (the volume copied, the database dumped), E2E (managed) on the branch ran
+  as 40774398411, 21:44–21:52 UTC (`nextcloud:35.0.2` healthy), and #1720 merged at 21:54 UTC
+  (`3d2f129e`).
 - **Review of `48dff04e`, the same evening** (eleven findings, every one held). The failed
   `occ upgrade` recovery was wrong: with maintenance mode kept on, Nextcloud's updater leaves it
   on after a good upgrade (it turns it off only when it was off as the upgrade started,
@@ -131,11 +175,12 @@ frozen until the alpha.2 tag, so nothing moves before it.
   request and T5 (the day the draft was written is not the day it lands, and the OTA demo moves
   at E2E (managed) on the branch); the guard's title reads either way; the one-way note in
   *Updating a running deployment* names the way back for a major; "Back to 34" names `main`'s
-  34 pin, floating `34-apache` until #1678 merges; #1678's CHANGELOG bullet points at 35.0.2.
+  34 pin, floating `34-apache` until #1678 merged (2026-10-28, `afe17fef`); #1678's CHANGELOG
+  bullet points at 35.0.2.
 
-**2026-10-26: the tasks build on the API image's own base, a draft stacked on v4.8.1** (0146
-T14, draft #1716 on branch `claude/ownpace-public-readiness-y7orc6-tasks-trixie-base`; 0146's Status entry
-of the same day has the detail and the figures).
+**2026-10-26: the tasks build on the API image's own base, stacked on v4.8.1** (0146
+T14, #1716 from branch `claude/ownpace-public-readiness-y7orc6-tasks-trixie-base`, merged
+2026-10-28 (`98802571`); 0146's Status entry of the same day has the detail and the figures).
 - **What moves the tasks' image.** `apps/worker/trigger.config.ts` builds the tasks on the image
   `apps/api/Dockerfile` builds FROM, through the build manifest's `image.base`, so the CLI's
   `triggerdotdev/node:24-bookworm` is in nothing a deploy builds. Dependabot's move of that FROM
@@ -161,10 +206,10 @@ of the same day has the detail and the figures).
   on the CLI's base, its layer's upgrade included, reads about 2/88 on `main` (4.7.6) and about
   1/80 on #1697; the raw bases read 14/119 and 1/83.
 
-**2026-10-25: Trigger.dev v4.7.6 → v4.8.1, a draft for alpha.3**, on the branch
+**2026-10-25: Trigger.dev v4.7.6 → v4.8.1, in alpha.3**, on the branch
 `claude/ownpace-public-readiness-y7orc6-trigger-4-8-1` (issue #1668; the owner chose v4.8.1
-directly on 2026-10-25). Main is frozen from the alpha.2 fold to its tag; this merges after the
-tag.
+directly on 2026-10-25). Main was frozen from the alpha.2 fold to its tag; this merged after the
+tag, as #1697 on 2026-10-28 (`f387b175`).
 - **`trigger-version.sh pin v4.8.1`** in every place. It found the tag in both images on ghcr by
   manifest (index digests `trigger.dev` `sha256:bcce9e8f…`, `supervisor` `sha256:9907be3e…`).
   The lockfile moves `@trigger.dev/core` and `@trigger.dev/sdk` only; their dependency ranges
@@ -248,7 +293,9 @@ tag.
   `TRIGGER_IMAGE_TAG=v4.8.1` in its `.env`. `deploy-live.sh --dry-run` will call that tag one-way
   over alpha.2 for this move alone, although v4.8.1 adds no migration: it counts any move of the
   Trigger.dev pin in `managed.yml` as one-way (`differences()`), and the way back is then the copy
-  before the update, as for any one-way deploy.
+  before the update, as for any one-way deploy. Done on 2026-10-28: the owner moved the OTA stack's
+  `.env` to v4.8.1 (checklist T35), the backup `before-v4.8.1` verified; then E2E (managed) run
+  40756746457 on the branch, 19:42–19:55 UTC, and the merge at 19:55 UTC (#1697, `f387b175`).
 
 **2026-10-28: MinIO's digest moves to Chainguard's build of 2026-10-25 (0146 T7).**
 `chainguard/minio:latest` by the index digest `268d68a2…` (linux/amd64 and linux/arm64),
@@ -261,10 +308,11 @@ to 0.60.0, x/crypto to 0.57.0 and klauspost/compress to 1.18.7 among them) and t
 VulnCheck workflow, and change nothing under `cmd/` or `internal/`, so the release check and call-home that `a-service-that-phones-home` holds off
 are the code read at the earlier tag. Trivy 0.76.1 read no finding of any severity in it
 on 2026-10-28, on both architectures, as in `d88920d6…`. Nothing a stack sets changes; the
-next bring-up pulls it.
+next bring-up pulls it. Merged 2026-10-28 as #1726 (`0f3fda25`), after E2E (managed) run
+40706723499 on the branch (14:31–14:39 UTC).
 
-**2026-10-26: the API runs on distroless, built on a branch, not merged (0146 T13, draft
-#1709).** A new
+**2026-10-26: the API runs on distroless, built on a branch, merged 2026-10-28 (0146 T13,
+#1709, `b13d303e`).** A new
 row, `gcr.io/distroless/nodejs24-debian13`, at its `nonroot` tag by index digest
 `cb606325…` (Debian 13.7, Node 24.22.1), is the API's runtime stage; the `node` row stays the
 API's build stage and the web and selfhost images' base, and the tasks' Node. Dependabot
@@ -276,10 +324,10 @@ row's `x.y.z`, so a move of one without the other goes red on its E2E (managed).
 Status entry of 2026-10-26 has the measurements: 0 critical and 0 high on both architectures,
 against T12's 0 and 43, with the same Node binary.
 
-**2026-10-25: the images' Node base names its Debian, built on a branch, not merged (0146
-T12).** The `node` row's pin moves from `24.22.1-slim` (Debian 12.15) to
+**2026-10-25: the images' Node base names its Debian, built on a branch, merged 2026-10-28
+(0146 T12, #1708, `13e2300e`).** The `node` row's pin moves from `24.22.1-slim` (Debian 12.15) to
 `24.22.1-trixie-slim` (Debian 13.7) by index digest `43b9ba11…`, the same Node 24.22.1, on
-draft #1708 from branch `claude/ownpace-public-readiness-y7orc6-node-trixie-slim`, for after the
+#1708 from branch `claude/ownpace-public-readiness-y7orc6-node-trixie-slim`, merged after the
 alpha.2 tag and #1687. Dependabot `docker` keeps the `-trixie-slim` suffix when it moves the
 tag, so the Node patch still moves weekly and the Debian release only by hand; a guard holds
 the three `FROM node` lines to one string on a named release. The api and selfhost runtimes
@@ -288,7 +336,7 @@ the measurements: the base from 1 critical and 61 high to 0 and 43, with the sam
 
 **2026-10-26, later: the appliance's Postgres pin moves into a Dockerfile too** (0146 T15b,
 branch `claude/ownpace-public-readiness-y7orc6-appliance-postgres-without-gosu`, stacked on
-#1717). `deploy/selfhost/compose.yml`'s `postgres` runs
+#1717; merged 2026-10-28 as #1719, `fb0fea2e`). `deploy/selfhost/compose.yml`'s `postgres` runs
 `localhost/postgres:18.6-alpine-b18f51417292`, built from `deploy/selfhost/postgres/Dockerfile`:
 the appliance's own digest (`77f58511…`, kept, so that removing gosu is the only change) without
 gosu, as uid 70. Its pin is that FROM, which Dependabot moves in a `docker` entry of its own
@@ -299,9 +347,10 @@ for. The pin watch reads neither `deploy/selfhost/compose.yml` nor
 `deploy/selfhost/postgres/Dockerfile` (in `deploy/selfhost` it reads only `setup-stalwart.sh`'s
 Stalwart pin). 0146's Status has the rest.
 
-**2026-10-26: the managed stacks' Postgres pin moves into a Dockerfile, as a draft for after
-the alpha.2 tag** (0146 T15, draft #1717, branch `claude/ownpace-public-readiness-y7orc6-postgres-without-gosu`,
-stacked on #1678). `managed.yml`'s `postgres` and `trigger-db` and `dev.yml`'s `postgres` run
+**2026-10-26: the managed stacks' Postgres pin moves into a Dockerfile, for after
+the alpha.2 tag** (0146 T15, #1717, merged 2026-10-28 as `6f9af7f2`, branch
+`claude/ownpace-public-readiness-y7orc6-postgres-without-gosu`, stacked on #1678). `managed.yml`'s
+`postgres` and `trigger-db` and `dev.yml`'s `postgres` run
 `localhost/postgres:18.6-alpine-6b2d97623fb5`, built by compose from
 `deploy/compose/postgres/Dockerfile`: #1678's `postgres:18.6-alpine` digest (`898c60cb…`)
 without gosu, as uid 70. The pin is the Dockerfile's FROM, by tag and digest; the twelve hex
@@ -320,8 +369,8 @@ now, in a `docker` entry of its own with no major, and its pull request fails
 Status has the rest).
 
 **2026-10-25, evening: the web image and www run nginx 1.31.8-alpine-slim (0146 T12a)**, on
-the branch `claude/ownpace-public-readiness-y7orc6-nginx-alpine-slim`, a draft based on #1678's
-branch, because both change the same two lines. It merges after #1678, after the alpha.2 tag,
+the branch `claude/ownpace-public-readiness-y7orc6-nginx-alpine-slim`, #1707, based on #1678's
+branch, because both change the same two lines. It merged after #1678, after the alpha.2 tag,
 and not before 19:51 UTC on 2026-10-27, three days after Docker Hub pushed the slim tag's index,
 `f45171d3…`. That push added the riscv64 image (built 16:24 UTC on 2026-10-24); the amd64 and
 arm64 images under it, `f9238a4a…` and `0e0bc470…`, were built at 22:47 and 23:13 UTC on
@@ -354,12 +403,14 @@ arm64 images under it, `f9238a4a…` and `0e0bc470…`, were built at 22:47 and 
   tried: a curl health check in `www.yml` or the Dockerfile, -alpine in either file, a
   `js_import` in `www-nginx.conf`, a curl in the incident runbook's look. Owed: the pull
   request's image build, E2E (managed) on the branch once #1678 is in it, and the OTA site
-  recreated by hand after the merge (no workflow runs `www.yml`).
+  recreated by hand after the merge (no workflow runs `www.yml`). Merged 2026-10-28 as #1707
+  (`53fb6453`), after E2E (managed) run 40626664067 on the branch (03:26–04:05 UTC).
 
 **2026-10-25: the five pins read again with `main` merged in, and Nextcloud's moved to
 upstream's rebuild of 2026-10-23**, on the branch
-`claude/ownpace-public-readiness-y7orc6-floating-images-pinned` (#1678, a draft). Main is
-frozen from the alpha.2 fold to its tag; this merges after the tag, for alpha.3.
+`claude/ownpace-public-readiness-y7orc6-floating-images-pinned` (#1678). Main was
+frozen from the alpha.2 fold to its tag; this merged after the tag, for alpha.3, on 2026-10-28
+(`afe17fef`).
 - **Read at 10:47 UTC:** Docker Hub's tag API for each exact tag (digest, push time, the
   images under it), and both Nextcloud indexes and their arm64 images' configs through
   `mirror.gcr.io`, because Docker Hub's registry had stopped answering anonymous pulls for the
@@ -384,7 +435,7 @@ frozen from the alpha.2 fold to its tag; this merges after the tag, for alpha.3.
   the demo's volume stays at 34.0.5 under either.
 - **The three-day floor.** postgres passes it at 13:08 UTC today, nginx at 16:51 and caddy at
   17:52; Nextcloud's new build at 17:17 UTC on 2026-10-26. It is taken before then as a
-  security fix, the floor's one exception, and the merge waits for the alpha.2 tag anyway.
+  security fix, the floor's one exception, and the merge waited for the alpha.2 tag anyway.
 - **The OTA machine retags once, before the fold.** The release checklist's T17 points
   `main`'s floating tags at these five digests tonight, at 18:00 UTC or later and before the
   fold merges, so that the E2E on `main` before the fold, the two counted nights and this
@@ -393,7 +444,7 @@ frozen from the alpha.2 fold to its tag; this merges after the tag, for alpha.3.
   let this pull request move it after the tag. Never a retag between the two counted nights:
   they would run two Nextcloud builds on one commit. Both builds are 34.0.5, so neither
   choice is one way.
-- **Ordering with #1705** (Nextcloud 35 in CI, a draft). Both change the line of the
+- **Ordering with #1705** (Nextcloud 35 in CI, merged 2026-10-27). Both change the line of the
   Testcontainers setup that starts Nextcloud. Whichever merges second resolves it to #1705's
   one-line `(asked ? new GenericContainer(asked) : new GenericContainer('…'))` with `dev.yml`'s
   reference, this branch's digest, as the literal. Tried in a scratch merge of the two: that
@@ -412,10 +463,12 @@ frozen from the alpha.2 fold to its tag; this merges after the tag, for alpha.3.
   CI on `0b581fdc`, integration on amd64 and arm64 among it. Owed before merge: E2E (managed)
   and E2E (self-hosted) on the branch; after the fold, `main` merged in once more, so that
   the CHANGELOG line lands in the new `[Unreleased]` and not in alpha.2's section, and CI
-  again on that merge.
+  again on that merge. Done before the merge of 2026-10-28: E2E (managed) run 40610883300
+  (00:46–01:21 UTC, on `9586a8c8`) and E2E (self-hosted) run 40614623319; on `main` the line
+  sits under `[Unreleased]`.
 
 **2026-10-25: the suites that talk to Nextcloud run against 35 too, in CI only**, on the branch
-`claude/ownpace-public-readiness-y7orc6-nextcloud-35-ci` (T5), a draft to merge after the alpha.2
+`claude/ownpace-public-readiness-y7orc6-nextcloud-35-ci` (T5), merged after the alpha.2
 tag. Nothing on either stack moves and nothing here is one way: the demo, the dev stack and the
 integration tier stay on 34 for alpha.2, and the demo's move to 35, which is one way (Nextcloud's
 data never goes back a version), is a decision for after the tag. What this gives that decision is
@@ -495,7 +548,8 @@ customer whose own Nextcloud already runs it.
   `new GenericContainer('nextcloud:…')`. This keeps the default a literal call of its own, so that
   guard still finds it; whichever merges second resolves the one line. When the demo and the tier
   move to 35, this guard fails until the leg names another major, most likely 34, which customers
-  will still run: the pull request that moves the demo makes that choice.
+  will still run: the pull request that moves the demo makes that choice. #1720 chose 34.0.5
+  (merged 2026-10-28, `3d2f129e`).
 - **Reviewed the same day, and `main` merged in** (`0029db4a`, the 2026-10-24 entry below kept
   under this heading). The review's two findings that hold until the merge: after the fold of
   `[Unreleased]` into alpha.2 (#1706) lands on `main`, a merge of `main` into this branch carries
@@ -514,16 +568,19 @@ customer whose own Nextcloud already runs it.
   re-run on the pull request (the workflow changed, so it does); if upstream pushed a newer digest,
   that one waits its own three days. (2) After #1706 has merged, merge `main` in and move the
   CHANGELOG bullet under `[Unreleased]`. (3) After #1678, if it merges first, resolve the one line
-  of `testcontainers-setup.ts` (Ordering, above).
+  of `testcontainers-setup.ts` (Ordering, above). (1) and (2) were done before the merge (T5's
+  row). #1705 merged first, on 2026-10-27 (`d6acd430`), so #1678's merge of 2026-10-28
+  (`afe17fef`) resolved the line, to #1705's ternary with `dev.yml`'s reference as the literal.
 
 **2026-10-25, 22:13 UTC: 11.28.8, the one `packageManager` line.** It passed the three-day floor
 at 22:09 UTC (npm dates it 2026-10-22 22:08 UTC). Under it, `pnpm install --frozen-lockfile`
 leaves `pnpm-lock.yaml` byte-identical and `pnpm audit` reads no advisory at any severity. #1694
 closes with this pull request. The entry below, written for 11.28.7 earlier the same day, holds
-for 11.28.8: the two differ only in the Node.js the standalone `@pnpm/exe` embeds.
+for 11.28.8: the two differ only in the Node.js the standalone `@pnpm/exe` embeds. Merged
+2026-10-27 as #1701 (`4cd87405`).
 
 **2026-10-25: pnpm 11.28.7, on the branch `claude/ownpace-public-readiness-y7orc6-pnpm-pin`**
-(issue #1694 is the pin watch's record). Its entry stays on its branch until it merges, after
+(issue #1694 is the pin watch's record). Its entry stayed on its branch until it merged, after
 the alpha.2 tag. `packageManager` moves from 11.28.6 to 11.28.7, the newest pnpm 11 past the
 three-day floor today: npm dates it 2026-10-21 11:14 UTC. `latest-11` is 11.28.8, dated
 2026-10-22 22:08 UTC, which passes the floor at 2026-10-25 22:09 UTC; this pull request's CI
@@ -574,9 +631,11 @@ replaces; `readlink -f "$(command -v pnpm)"` names a path under `@pnpm/exe` or
   `## [Unreleased]` and the `### Changed` this entry sits under, so a merge raises no conflict
   and moves the entry into the release: tried on 2026-10-25 with `git merge-file` against the
   fold's head, 841d63c0, the entry landed under `## [0.2.0-alpha.2]`. No guard catches it.
+  Done: CI on the pull request, and #1701 merged 2026-10-27 (`4cd87405`); on `main` that `awk`
+  prints `## [Unreleased]`.
 
-**2026-10-24: the object store moves to Chainguard's MinIO, built on a branch, not merged
-(0146 T7).** The owner's answer of 2026-10-23, 19:05 UTC, on the recommendation to accept the
+**2026-10-24: the object store moves to Chainguard's MinIO, built on a branch, merged 2026-10-25
+(0146 T7, #1692).** The owner's answer of 2026-10-23, 19:05 UTC, on the recommendation to accept the
 frozen image for the Alpha: *"T7 no, fix already within the alpha"*. Branch
 `claude/ownpace-public-readiness-y7orc6-object-store-swap` runs `chainguard/minio:latest` by
 the index digest it had on 2026-10-22, `d88920d6a50b…` (linux/amd64 and linux/arm64): the
@@ -681,12 +740,12 @@ unchanged. §3 item 5 has the read and a recommendation. The question stays the 
 
 **2026-10-22: the floating tags' pull request opened as a draft**, #1678 (head `b900ccf3`, with
 `main` merged in): postgres, redis, caddy, nextcloud and nginx by exact tag and digest. Its
-entry stays on its branch until it merges. No E2E on the branch before 2026-10-25 18:00 UTC,
+entry stayed on its branch until it merged. No E2E on the branch before 2026-10-25 18:00 UTC,
 when the three same-tag rebuilds of 2026-10-22 it pins are three days old. Nextcloud's data
 never goes back a version, so either the floating tags `main`'s nightly uses are first pointed
 at the pinned digests, or the branch E2E runs only when it is ready to merge and it merges
 before the next nightly. The plan is to merge it after the Alpha launch and before PostgreSQL
-18.7 (2026-11-12).
+18.7 (2026-11-12). It merged on 2026-10-28 (`afe17fef`), in alpha.3.
 
 **2026-10-22, recorded: the four pins and Redis merged** as #1657 on 2026-10-22 (`cead33f6`):
 the 2026-10-21 entry on PgBouncer, Mailpit, Gatus, the registry and Redis, below. E2E (managed)
@@ -725,7 +784,8 @@ before merge: E2E (managed) and E2E (self-hosted) on the branch, and integration
 merge the OTA stack recreates postgres, trigger-db, trigger-redis, trigger-tls and nextcloud at
 its next nightly gate and builds web on the pinned base; live takes them at its next
 `deploy-live.sh`; the OTA site when somebody runs `docker compose -f deploy/compose/www.yml up
--d` in its checkout.
+-d` in its checkout. The owed E2E ran before #1678 merged on 2026-10-28 (`afe17fef`): E2E (managed)
+40610883300 and E2E (self-hosted) 40614623319.
 
 **Before E2E (managed) runs on that branch (the review, 2026-10-22).** The run recreates the
 OTA stack's demo Nextcloud from 34.0.5, and the image upgrades the `nextcloud_data` volume to
@@ -883,7 +943,7 @@ a decision each, §3, for the owner.
 | T2 The safe moves | ✅ Done 2026-09-06 | node 24.20.0-slim (three Dockerfiles), postgres 18.6-alpine (self-host), pgbouncer v1.25.2-p0, mailpit v1.31.1, busybox 1.38 (compose, three scripts, one test, the bring-up doc), nginx 1.30-alpine (web image and www; both on 1.31 since the morning, see the status block); three action version comments set to the tag their SHA is. Stateless, or a fixture, or a patch of a store that upgrades in place. Proved on the branch before merge: **E2E (self-hosted) #189 green** (the postgres and node moves, restart-resume included) and **E2E (managed) #161 green** (pgbouncer in front of the API, mailpit, busybox, nginx behind www), both dispatched at 01:57 UTC; `images.yml` built the three images from the moved FROM lines; the `unit` scripts guards 92 files, 1 567 tests. |
 | T3 The owner's decisions | 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Taken 2026-09-09: Redis (item 3 — **stay on 7.4**, with a revisit trigger) and the release-age gate (item 8 — `minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). Taken 2026-10-23: ClickHouse 26.2 for the Alpha (item 9). The object store (item 5): taken 2026-10-23, *"T7 no, fix already within the alpha"* (0146 T7), and ✅ merged as #1692 on 2026-10-25 (`0029db4a`, E2E (managed) #281 green) — *was:* still the owner's, with a candidate named. |
 | T4 vitest 5 | ✅ Done 2026-09-06 | `vitest` and `@vitest/coverage-v8` 4.1.11 → 5.0.0, every declaring package together. Green on Node 22 (508 files, 6 326 tests) and on Node 24 as CI runs it (509 files, 6 411 tests); the v8 provider loads and reports. Two things the major needed first, found by trying it and landed as their own PR (#810) because they are right under vitest 4 too: the alias map's missing subpath pins — `@openmig/core/archive-reader` and thirteen more, plus a guard — and the exclude patterns in their documented form, since vitest 5 follows pnpm's workspace symlinks when it crawls and a bare `node_modules` matched only the top level. The bump is its own PR, stacked on #810. |
-| T5 The second Nextcloud major in CI | 🔨 In progress | 2026-10-25: `nextcloud-second-major.yml` runs the suites that talk to Nextcloud against 35.0.1 by digest (35.0.2 since 2026-10-26), the setup refuses a Nextcloud that did not start or is not the version named, and the tier has a share suite. Green on its pull request (#1705: 36 tests against 35.0.1, 814 against 34.0.5 on both architectures); a draft, merged after the alpha.2 tag. Reviewed and `main` merged in the same day; after the fold (#1706), the CHANGELOG bullet back under `[Unreleased]`; on 2026-10-26, once its digest was three days old, 35.0.2 by digest (PHP 8.5.12) (Status). CI only, not one way. 2026-10-26, a draft for alpha.3 on `…-nextcloud-35-demo` (#1678 and #1705 merged): the demo, the dev stack and the tier to 35.0.2 by digest and the leg to 34.0.5, the major customers who have not upgraded still run; **the owner's OK came on 2026-10-26** ("Yes, in alpha.3", Status), and E2E (managed) on it is the OTA demo's one-way upgrade, after the copies (Status of 2026-10-26; the way back in `managed-bring-up.md`). |
+| T5 The second Nextcloud major in CI | ✅ Done 2026-10-28 | 2026-10-25: `nextcloud-second-major.yml` runs the suites that talk to Nextcloud against 35.0.1 by digest (35.0.2 since 2026-10-26), the setup refuses a Nextcloud that did not start or is not the version named, and the tier has a share suite. Green on its pull request (#1705: 36 tests against 35.0.1, 814 against 34.0.5 on both architectures); merged after the alpha.2 tag, on 2026-10-27 as #1705 (`d6acd430`). Reviewed and `main` merged in the same day; after the fold (#1706), the CHANGELOG bullet back under `[Unreleased]`; on 2026-10-26, once its digest was three days old, 35.0.2 by digest (PHP 8.5.12) (Status). CI only, not one way. 2026-10-26, for alpha.3 on `…-nextcloud-35-demo` (#1678 and #1705 merged), merged 2026-10-28 as #1720 (`3d2f129e`): the demo, the dev stack and the tier to 35.0.2 by digest and the leg to 34.0.5, the major customers who have not upgraded still run; **the owner's OK came on 2026-10-26** ("Yes, in alpha.3", Status), and E2E (managed) run 40774398411 on it (2026-10-28, 21:44–21:52 UTC, `nextcloud:35.0.2` healthy) was the OTA demo's one-way upgrade, after the copies (Status of 2026-10-26; the way back in `managed-bring-up.md`). |
 
 ## 1. Why this exists
 
@@ -914,8 +974,8 @@ is who moves it after T1.
 | `node` (24-trixie-slim; 24-slim until 0146 T12) | `apps/api` (its build stage only, since 0146 T13), `apps/web`, `apps/selfhost` Dockerfiles; the managed tasks, which build on it (`apps/worker/trigger.config.ts`, 0146 T14, #1716); the Windows payload's node.exe follows `apps/selfhost` | 24.22.1-trixie-slim by index digest `43b9ba11…`, Debian 13.7 (0146 T12, 2026-10-25; 24.22.1-slim, Debian 12.15, from 2026-10-21, the October security release; digest `6f7b03f7…` with no tag at the audit, 24.20.0-slim from T2) | 24.22.1-trixie-slim (Node released 2026-10-20); the tag's digest moves as more architectures land (ppc64le at 17:39 UTC on 2026-10-21) and Dependabot offers each move | current: the pin is the tag's index | Dependabot `docker`, which keeps the `-trixie-slim` suffix and moves the payload with it since 2026-10-21; the Debian release by hand | **T2** — and T1 gives it its tag; Debian 13, and no package manager in the api and selfhost runtimes, from 0146 T12 |
 | `gcr.io/distroless/nodejs24-debian13` (`nonroot`) | `apps/api/Dockerfile`'s runtime stage, since 0146 T13 | the `nonroot` tag by index digest `cb606325…`, Debian 13.7 and Node 24.22.1 (uploaded 2026-10-23 23:31 UTC) | the tag's index, as read 2026-10-25 23:40 UTC | current | Dependabot `docker`, digest moves only (the tag names no version); a new Node major or Debian is a new image name, by hand. Its Node version must be the `node` row's: the managed smoke stops otherwise | **0146 T13**: no shell, `printenv` or package manager, Node at `/nodejs/bin/node` off PATH; 0 critical and 0 high (Trivy 0.76.1, 2026-10-25) |
 | `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.31.8-alpine-slim by digest `f45171d3…` (2026-10-25, 0146 T12a: the same nginx package and base layers as -alpine, without its dynamic modules, curl and the 51 packages they bring; 1.31.8-alpine `1ef7ca94…` from 2026-10-23, 1.31.7-alpine `892bb215…` the day before that, 1.27-alpine at the audit, 1.30-alpine from T2, `1.31-alpine` floating from #813, which no build or `up` ever pulled again) | 1.31.8-alpine-slim, its index pushed 2026-10-24 19:51 UTC to add riscv64 over the amd64 and arm64 images pushed 2026-10-22 01:50 UTC; 1.31.8 itself: four bug fixes and one change (changes.xml, 2026-10-21) on Alpine 3.24.3, which fixes the two high CVEs 1.31.7's image carries on 3.24.2 (libexpat CVE-2026-77214, libx11 CVE-2026-88806); 1.31.7 (2026-10-14) fixed five: CVE-2026-15176, CVE-2026-93479, CVE-2026-95101, CVE-2026-97629 and CVE-2026-97205 | current | Dependabot `docker` for the Dockerfile; `www.yml` by hand after it, and the pin watch (0146 T8) says when the two differ | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows; -alpine-slim since 2026-10-25 (0146 T12a), because nothing here loads what -alpine adds and the scan counts it |
-| `postgres` (self-host) | `deploy/selfhost/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `deploy/selfhost/compose.yml` since 0146 T15b (2026-10-26: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing) | 18.6-alpine by digest `77f58511…` (Dependabot's move of 2026-09-24 to a rebuild of the tag; `d3e1620b…` from T2, digest `9a8afca5…` = 18.4-alpine with no tag at the audit) | 18.6-alpine, rebuilt 2026-10-22 as `898c60cb…`, which the managed stacks pin, and again 2026-10-26 as `10a5c69a…` (inside the three-day floor) | the same release; Dependabot offers the rebuild | Dependabot `docker` on `/deploy/selfhost/postgres` (its own entry, no major; `docker-compose` before T15b, which now ignores `localhost/postgres`), whose PR fails `a-database-started-as-root` until compose.yml's image line moves, and prints the `sed` that moves it | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
-| `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (draft #1717, 2026-10-26: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.6-alpine by digest `898c60cb…` (2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13); 18.7 is due 2026-11-12 | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and prints the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8) | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
+| `postgres` (self-host) | `deploy/selfhost/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `deploy/selfhost/compose.yml` since 0146 T15b (#1719, merged 2026-10-28, `fb0fea2e`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing) | 18.6-alpine by digest `77f58511…` (Dependabot's move of 2026-09-24 to a rebuild of the tag; `d3e1620b…` from T2, digest `9a8afca5…` = 18.4-alpine with no tag at the audit) | 18.6-alpine, rebuilt 2026-10-22 as `898c60cb…`, which the managed stacks pin, and again 2026-10-26 as `10a5c69a…` (inside the three-day floor) | the same release; Dependabot offers the rebuild | Dependabot `docker` on `/deploy/selfhost/postgres` (its own entry, no major; `docker-compose` before T15b, which now ignores `localhost/postgres`), whose PR fails `a-database-started-as-root` until compose.yml's image line moves, and prints the `sed` that moves it | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
+| `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (#1717, merged 2026-10-28, `6f9af7f2`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.6-alpine by digest `898c60cb…` (2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13); 18.7 is due 2026-11-12 | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and prints the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8) | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
 | `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
 | `redis` | `managed.yml` | 7.4.11-bookworm by digest `44960b31…` (2026-10-22; `7.4-bookworm` floating from 2026-10-21, `7-alpine` on Alpine 3.21 before) | 8.8.2-alpine | one major | owner for a major; a 7.4 patch by hand when the pin watch lists it | **§3** — the licence changed at 7.4, which is the line this is pinned on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
 | `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json` | v4.8.1 (2026-10-25; v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.1 (2026-10-23) | current | `trigger-version.sh` only; the pin watch keeps an issue open while a newer tag is in both images (0146 T8) | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and it reads no file in `deploy/compose` |
@@ -929,8 +989,8 @@ is who moves it after T1.
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason | 1.38 (1.38.0) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.37.0 (2026-10-21) | v5.37.0 (2026-09-24) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
 | `axllent/mailpit` | `managed.yml` | v1.32.0 by digest (2026-10-25, for CVE-2026-111943 in v1.31.6's Go, 0146 T11 (a); v1.31.6 from 2026-10-21, v1.31.1 from T2) | v1.32.0 (2026-10-22), digest `0790692b…` | current | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
-| `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 35.0.2-apache by digest `89af7ee7…` on the branch `…-nextcloud-35-demo` (2026-10-26, T5; draft #1720, the owner's OK of 2026-10-26 for alpha.3); before it 34.0.5-apache by digest `1f9212ad…` (2026-10-25, upstream's rebuild of 2026-10-23 with `session.upload_progress.enabled=0`, PHP's mitigation for CVE-2026-115560; `9dbdc711…` from 2026-10-22, `34-apache` floating before, never pulled) | 35.0.2 (2026-10-15) on PHP 8.5.12; 35.0.3 due 2026-11-12 | current | by hand, in its own PR, when the pin watch lists a newer 35.x (34.x before the move) or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and its database and refuses an older image on them, so a bad move is fixed forward or put back from a copy taken before it (`managed-bring-up.md`, *Updating a running deployment* and *A Nextcloud major on the OTA stack*) |
-| `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 34.0.5-apache by digest `1f9212ad…` (PHP 8.5.12) on the branch `…-nextcloud-35-demo`, flipped in the pull request that moved the demo (T5, written 2026-10-26); before it 35.0.2-apache by digest `89af7ee7…` from 2026-10-26, 35.0.1 from 2026-10-25 | 34.0.5; 34.0.6 due 2026-11-12 | current | by hand; the pin watch reads no workflow file (§4) | a CI fixture: the other major customers may run (35 while the demo ran 34, 34 since), never deployed |
+| `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 35.0.2-apache by digest `89af7ee7…` since 2026-10-28 (T5; #1720, `3d2f129e`, the owner's OK of 2026-10-26 for alpha.3; the OTA volume upgraded by E2E (managed) run 40774398411); before it 34.0.5-apache by digest `1f9212ad…` (2026-10-25, upstream's rebuild of 2026-10-23 with `session.upload_progress.enabled=0`, PHP's mitigation for CVE-2026-115560; `9dbdc711…` from 2026-10-22, `34-apache` floating before, never pulled) | 35.0.2 (2026-10-15) on PHP 8.5.12; 35.0.3 due 2026-11-12 | current | by hand, in its own PR, when the pin watch lists a newer 35.x (34.x before the move) or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and its database and refuses an older image on them, so a bad move is fixed forward or put back from a copy taken before it (`managed-bring-up.md`, *Updating a running deployment* and *A Nextcloud major on the OTA stack*) |
+| `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 34.0.5-apache by digest `1f9212ad…` (PHP 8.5.12) since 2026-10-28, flipped in the pull request that moved the demo (T5; #1720, `3d2f129e`, after E2E (managed) run 40774398411 upgraded the OTA volume); before it 35.0.2-apache by digest `89af7ee7…` from 2026-10-26, 35.0.1 from 2026-10-25 | 34.0.5; 34.0.6 due 2026-11-12 | current | by hand; the pin watch reads no workflow file (§4) | a CI fixture: the other major customers may run (35 while the demo ran 34, 34 since), never deployed |
 | `ghcr.io/robbes/ownpace-selfhost` | `deploy/selfhost/compose.yml` | `edge` | ours | — | `images.yml` | — |
 
 Ignored by name in the new Dependabot entries, so that a green tick cannot make these
@@ -1261,8 +1321,9 @@ is beside each; none is urgent tonight.
    that it runs v4.7.6 like `main`'s nightly and not v4.7.2 on a `triggerdb` already migrated
    past it (0146 §3 T7, step 1), and the merge before alpha.2's
    changelog fold (2026-10-25 23:30 UTC) if it is green; otherwise it rides the first release
-   after the launch. Live takes it from the tag that carries it (alpha.2's deploy is planned
-   for 2026-10-28), after the drain that deploy needs anyway, on a store that starts empty.
+   after the launch. Live takes it from the tag that carries it (alpha.2, which live runs since
+   the owner's deploy, checklist T21–T25), after the drain that deploy needs anyway, on a store
+   that starts empty.
    Live has had no testers on alpha.1, so what it loses is nothing a tester sent.
 
    **Built 2026-10-24, on branch `claude/ownpace-public-readiness-y7orc6-object-store-swap`;
@@ -1425,9 +1486,10 @@ is beside each; none is urgent tonight.
 
 10. **Hardened images (Docker Hardened Images, Chainguard, distroless) — NOT NOW, 2026-10-26.**
     The owner asked whether the stacks already run hardened images. They do in one place:
-    `chainguard/minio` since #1692 (0146 T7). The API's distroless runtime is draft #1709, which
-    the owner moved into alpha.3 the same day. Everything else runs the official or upstream
-    image, trimmed by the queued drafts (no gosu, no npm or corepack, slim variants). A survey
+    `chainguard/minio` since #1692 (0146 T7). The API's distroless runtime is #1709, which
+    the owner moved into alpha.3 the same day; it merged 2026-10-28 (`b13d303e`). Everything
+    else runs the official or upstream image, trimmed by the drafts then queued (no gosu, no npm
+    or corepack, slim variants), merged 2026-10-28 too. A survey
     on 2026-10-26 compared every image the stacks run with Docker Hardened Images (DHI), free
     under Apache 2.0 since 2025-12-17, with Chainguard's free tier (`latest` only) and with
     distroless. It read Docker's docs source, the DHI catalog's definitions and Docker Hub's
