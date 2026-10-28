@@ -427,10 +427,11 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   configuration behind in code scanning with its alerts open; delete it on the code scanning tool
   status page (the Security tab, Code scanning, Tool status). An image a compose file builds here,
   `localhost/<name>` from `<name>/Dockerfile` beside it (the Postgres of `managed.yml` and
-  `dev.yml`, workplan 0146 T15, and the appliance's, T15b), has no registry to be read from: its
-  leg checks the commit out under `src/`, builds the directory natively on GitHub's arm64 runner
-  and scans what it built, under the name the pulled image had (`postgres-managed`,
-  `postgres-selfhost`).
+  `dev.yml`, workplan 0146 T15, the appliance's, T15b, and Trigger.dev's webapp and supervisor in
+  `managed.yml`, T16), has no registry to be read from: its leg checks the commit out under
+  `src/`, builds the directory natively on GitHub's arm64 runner and scans what it built, under
+  the name the pulled image had (`postgres-managed`, `postgres-selfhost`, `trigger.dev`,
+  `supervisor`).
 - `e2e.yml` — nightly (23:30 UTC on the Postgres stack, 01:30 UTC on PGlite) and on dispatch, on
   `[self-hosted, linux, arm64]` (the Spark); brings up Stalwart via
   `deploy/selfhost/setup-stalwart.sh` (the two-phase recovery→normal bring-up — not a

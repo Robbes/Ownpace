@@ -172,10 +172,12 @@
  * fails on another commit, on a base not pinned by digest, or on a run that
  * has a network or may pull.
  *
- * WHAT THIS CANNOT SEE. A running container, or a machine's `.env`: live's own
- * `TRIGGER_IMAGE_TAG` would run another webapp than the default read here, which
- * is why `docs/managed-bring-up.md`, *Nothing phones home*, has the check to run
- * on the machine. The deploy CLI, which runs on the host: at 4.7.2, 4.7.6 and 4.8.1
+ * WHAT THIS CANNOT SEE. A running container. Since 0146 T16 a machine's `.env`
+ * naming another `TRIGGER_IMAGE_TAG` runs no other webapp (trigger-api's and
+ * trigger-supervisor's builds refuse it), but a container keeps the environment
+ * it was started with until a deploy recreates it, which is why
+ * `docs/managed-bring-up.md`, *Nothing phones home*, has the check to run on the
+ * machine. The deploy CLI, which runs on the host: at 4.7.2, 4.7.6 and 4.8.1
  * `packages/cli-v3/src/telemetry/tracing.ts` is gone, and `handleTelemetry` in
  * `src/cli/common.ts` only runs the command, so no exporter of its own was
  * found; its one PostHog client is the MCP server's feedback tool

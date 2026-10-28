@@ -10,8 +10,8 @@
  * deployed-task records (deploy-tasks.sh's ONE-TIME prerequisites need a
  * browser and a magic link). The webapp applies its own schema migrations on
  * boot and Prisma has no down-migrations, so a version bump is ONE WAY: the
- * documented rollback puts the old image tag back, which restores the IMAGES
- * and not the schema they migrated.
+ * documented rollback runs the checkout that pinned the old version, which
+ * restores the IMAGES and not the schema they migrated.
  *
  * Nothing backed that database up. `trigger-version.sh` does — and the tests
  * below are mostly about the parts that DESTROY things, because a restore is

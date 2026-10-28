@@ -938,6 +938,17 @@ describe('the Trigger.dev images and the SDK that builds the tasks agree', () =>
     expect(r.stderr).toContain('env-upsert.sh /x/.env TRIGGER_IMAGE_TAG=v4.8.1');
     expect(r.stderr).toContain('./deploy/compose/trigger-version.sh pin v4.9.0');
     expect(r.stderr).not.toMatch(/pin @trigger\.dev\/sdk back/);
+    // An .env OLDER than the checkout (live at v4.7.6 against v4.8.1) is the
+    // checkout that pinned it, never a pin backwards: that keeps this
+    // version's removals and read_at, and its build refuses.
+    const back = spawnSync('bash', ['-c', `set -euo pipefail\nENV_FILE=/x/.env\nsdk_version=4.8.1\ntag_version=v4.7.6\n${check}`], { encoding: 'utf8' });
+    expect(back.status).toBe(1);
+    expect(back.stderr).toContain('env-upsert.sh /x/.env TRIGGER_IMAGE_TAG=v4.8.1');
+    expect(back.stderr).toContain('run the checkout that pinned v4.7.6');
+    expect(back.stderr).not.toContain('trigger-version.sh pin v4.7.6');
+    // A patch number of two digits is newer, not older (sort -V, not a string compare).
+    const ten = spawnSync('bash', ['-c', `set -euo pipefail\nENV_FILE=/x/.env\nsdk_version=4.8.9\ntag_version=v4.8.10\n${check}`], { encoding: 'utf8' });
+    expect(ten.stderr).toContain('./deploy/compose/trigger-version.sh pin v4.8.10');
   });
 
   it('a managed.yml with no default to fall back to is named, not a silent exit', () => {
