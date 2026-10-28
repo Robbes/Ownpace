@@ -145,6 +145,18 @@ overrides:
   # parses query strings through express, so it is not reachable there, but
   # the floor moves with the advisory, as every entry here does.
   qs@<6.16.1: ^6.16.1
+  # 2026-10-28. systeminformation, two advisories in networkStats(), Dependabot
+  # alerts 6 and 7 on main. PRODUCTION, via @trigger.dev/core's
+  # @opentelemetry/host-metrics (^5.31.1), in the tasks and the API.
+  #   GHSA-4vjg-vx72-qq4g (LOW, CVE-2026-116673) Linux: a symlink outside
+  #     /sys/class/net discloses a file through the interface name; needs a
+  #     local user and a caller that passes untrusted input    — fixed 5.33.14
+  #   GHSA-7648-jmwf-vw7j (MODERATE, CVE-2026-116674) prototype pollution through
+  #     the interface name, FreeBSD, OpenBSD and NetBSD only    — fixed 5.33.13
+  # The tree carried 5.33.1. 5.33.14 was published 2026-09-28, outside the
+  # cooldown below, so the floor is the Linux fix and resolves to the newest
+  # 5.33 release past the cooldown.
+  systeminformation@<5.33.14: ^5.33.14
   # 2026-09-09. Six HIGH advisories, all DEV-ONLY and all arriving through one
   # package: @cyclonedx/cyclonedx-npm, the SBOM generator this repository runs
   # in security-scan.yml. 6.0.1 is the latest release, so there is no bump to
