@@ -4574,6 +4574,104 @@ fix.
 > minor never changes the storage format), but the same order keeps them from
 > having to.
 
+**Both PostgreSQL databases run a build of the official image, without gosu,
+as uid 70** (workplan 0146 T15, 2026-10-26). `postgres` and `trigger-db` run
+`localhost/postgres:<base tag>-<12 hex>`, which compose builds from
+`deploy/compose/postgres/Dockerfile`: the pinned `postgres:18.6-alpine` digest
+with `/usr/local/bin/gosu` removed and `USER 70:70`. gosu was the image's one
+critical finding and 25 of its 26 highs (Go 1.24.6's standard library), and the
+entrypoint runs it only when the container starts as root; started as uid 70,
+the user gosu dropped to, it never does. What that means for you:
+
+- **The first `up` builds it, and both databases restart once.** The bring-up's
+  data and trigger phases (`up_wait postgres`, `up_wait trigger-db`) find no
+  image of that name and build it, then recreate the two containers because
+  their image changed: the OTA stack at the E2E (managed) run of the branch or
+  the next nightly gate, live inside `deploy-live.sh`'s hold and drain, from the
+  tag. The build pulls the pinned base when the machine does not have it (as
+  `up` pulled the image before), runs one `rm`, and needs no package mirror.
+  The services say `pull_policy: never`, since no registry serves the name:
+  `docker compose pull` passes them by, and `up` builds without asking one.
+- **After that it is built again only when the Dockerfile changes**, which
+  changes the name, **as long as nothing asks for a build.** `up --build`
+  builds every service in its scope that has a `build:`, dependencies
+  included, and api and web depend on both databases; a `build` that names
+  no service builds every one. From a pruned build cache that is a
+  new image under the same name, and the next `up` that reaches a database
+  recreates it; live and the OTA stack share one Docker daemon, and this name
+  while their Dockerfiles' instructions agree, so one stack's rebuild makes
+  the other's next such `up` restart its databases, outside any hold. (A stack
+  on another Dockerfile has another name: the OTA stack's build of `main`'s
+  never becomes the image live runs.) So the bring-up
+  builds `api web` by name and runs `up` without `--build`, every command in
+  this document does the same, and so should yours:
+  `docker compose -f deploy/compose/managed.yml build web`, then
+  `up -d web`. `scripts/a-database-started-as-root.unit.test.ts` refuses a
+  script or document that says otherwise.
+- **The data stays where it is, and is already uid 70's.** The root entrypoint
+  chowned every file in PGDATA to uid 70 on every start, so the volumes need
+  nothing. To see it before the deploy, on the old containers (their `exec` is
+  root's), each of these prints nothing:
+  `docker compose -f deploy/compose/managed.yml exec -T postgres find /var/lib/postgresql/18/docker ! -user postgres`
+  and the same with `trigger-db`. A new volume takes the image's
+  `/var/lib/postgresql`, uid 70's and mode 1777, and initialises as uid 70.
+  The base is the same Alpine and musl, so the databases' collation is
+  untouched.
+- **`docker compose … exec postgres` (and `trigger-db`) runs as uid 70, not
+  root.** Every command this repository runs there is `psql -U <role>`,
+  `pg_dump`, `pg_dumpall` or `pg_restore`, over the socket the image's
+  `pg_hba.conf` trusts, and answers the same: `trigger-version.sh` (backup and
+  restore drill), `copy-before-update.sh`, `dump-idp.sh`, `db-roles.sh` and
+  `rotate-db-passwords.sh`, the bring-up, `deploy-live.sh`, the smoke and the
+  rows of this document. Add `-u 0` for anything that needs root in the
+  container. An interactive `psql` or shell keeps its history in the
+  container's `/tmp`, as root's was kept in `/root`, never on the data volume
+  (uid 70's home).
+- **The network questions ask with the build.** `db-roles.sh` and
+  `stand-up-live.sh` ask with managed.yml's first postgres image, now the build,
+  which the stack's own `up` made. A checkout pulled ahead of its stack, before
+  any `up`, has no such image yet: the question then ends in docker's own
+  error, which reads as "cannot tell", never as a verdict. Run the bring-up
+  first.
+- **Rolling back to a tag before this runs the official image again, as
+  root.** Its entrypoint finds the volumes uid 70's, as it left them, and
+  starts; the data format is the same PostgreSQL 18.6.
+- **Two failures, and what they mean.** A container that exits with
+  `exec: gosu: not found` was started as root (a `user:` or `-u 0` on the
+  service itself): remove it. One that exits with
+  `mkdir: can't create directory '/var/lib/postgresql/18/': Permission denied`
+  has a bind mount of a host directory instead of the named volume: the stacks
+  here use named volumes only.
+- **Moving the pin** is the Dockerfile's FROM, by tag and digest, and the
+  three `image:` lines that name the build (`managed.yml` twice, `dev.yml`),
+  whose last twelve hex digits are
+  `grep -Ev '^[[:space:]]*(#|$)' deploy/compose/postgres/Dockerfile | sha256sum | cut -c1-12`
+  (the SHA-256 of its instruction lines; a comment moves no name). Dependabot
+  opens the pull request that moves the FROM (its own entry in
+  `.github/dependabot.yml`, never a major), and that pull request fails
+  `scripts/a-database-started-as-root.unit.test.ts` until the three lines
+  move too: the failure lists them and prints the `sed` that moves them, to
+  run on the pull request's branch and push. Its E2E (managed) is then
+  dispatched like any pin's. Nothing outside those instruction lines may
+  change what is built, so the same guard refuses a parser directive, a COPY,
+  ADD or `--mount`, and a `build:` with args or a target. The integration
+  tests start the same FROM. The pin watch reports a newer tag of the FROM,
+  and the weekly image scan builds the Dockerfile and scans what it built.
+
+The appliance (`deploy/selfhost/compose.yml`) runs a build of its own since
+workplan 0146 T15b, the same day: `deploy/selfhost/postgres/Dockerfile`, these
+instructions on the appliance's own base digest, which its own Dependabot
+entry moves. The guard holds the two Dockerfiles to the same instructions but
+for the FROM, so a change to `deploy/compose/postgres/Dockerfile` is made to
+both, and moves both names. While the two FROMs differ, the two names do too.
+When they meet, so do the names: E2E (self-hosted), which runs on this
+machine's Docker, then starts the appliance on the image the stacks built, or
+the stacks on the one it built, which is the same content. That is one more
+reason nothing asks for a build of a name the machine has: E2E (self-hosted)
+builds its `app` by name and runs `up` without `--build`. What the change
+means for an appliance's own data, a bind mount of a host directory included,
+is in [selfhost-quickstart.md](./selfhost-quickstart.md).
+
 ### A Nextcloud major on the OTA stack
 
 Written on 2026-10-26 for the move from 34 to 35 (workplan 0119 T5). A major
@@ -4697,10 +4795,8 @@ cd ~/ownpace-managed && (
 - **Back to 34**, when the branch is not going to merge. Both copies,
   together: a 34 volume over a 35 database, or the reverse, does not start.
   Then `main`'s next nightly, or `bootstrap-managed.sh --from data
-  --with-demo` from `main`, starts `main`'s 34 on them: 34.0.5 by digest once
-  #1678 has merged, and until then `34-apache`, whichever copy the machine
-  pulled first, which refuses the copies if it is older than the 34 they were
-  taken on.
+  --with-demo` from `main`, starts `main`'s 34 on them: 34.0.5 by digest
+  (#1678), the 34 the OTA demo ran when they were taken.
 
   ```bash
   cd ~/ownpace-managed && (
@@ -4751,104 +4847,6 @@ cd ~/ownpace-managed && (
   rm ~/nextcloud-34.dump ~/nextcloud-34-apps.txt
 )
 ```
-
-**Both PostgreSQL databases run a build of the official image, without gosu,
-as uid 70** (workplan 0146 T15, 2026-10-26). `postgres` and `trigger-db` run
-`localhost/postgres:<base tag>-<12 hex>`, which compose builds from
-`deploy/compose/postgres/Dockerfile`: the pinned `postgres:18.6-alpine` digest
-with `/usr/local/bin/gosu` removed and `USER 70:70`. gosu was the image's one
-critical finding and 25 of its 26 highs (Go 1.24.6's standard library), and the
-entrypoint runs it only when the container starts as root; started as uid 70,
-the user gosu dropped to, it never does. What that means for you:
-
-- **The first `up` builds it, and both databases restart once.** The bring-up's
-  data and trigger phases (`up_wait postgres`, `up_wait trigger-db`) find no
-  image of that name and build it, then recreate the two containers because
-  their image changed: the OTA stack at the E2E (managed) run of the branch or
-  the next nightly gate, live inside `deploy-live.sh`'s hold and drain, from the
-  tag. The build pulls the pinned base when the machine does not have it (as
-  `up` pulled the image before), runs one `rm`, and needs no package mirror.
-  The services say `pull_policy: never`, since no registry serves the name:
-  `docker compose pull` passes them by, and `up` builds without asking one.
-- **After that it is built again only when the Dockerfile changes**, which
-  changes the name, **as long as nothing asks for a build.** `up --build`
-  builds every service in its scope that has a `build:`, dependencies
-  included, and api and web depend on both databases; a `build` that names
-  no service builds every one. From a pruned build cache that is a
-  new image under the same name, and the next `up` that reaches a database
-  recreates it; live and the OTA stack share one Docker daemon, and this name
-  while their Dockerfiles' instructions agree, so one stack's rebuild makes
-  the other's next such `up` restart its databases, outside any hold. (A stack
-  on another Dockerfile has another name: the OTA stack's build of `main`'s
-  never becomes the image live runs.) So the bring-up
-  builds `api web` by name and runs `up` without `--build`, every command in
-  this document does the same, and so should yours:
-  `docker compose -f deploy/compose/managed.yml build web`, then
-  `up -d web`. `scripts/a-database-started-as-root.unit.test.ts` refuses a
-  script or document that says otherwise.
-- **The data stays where it is, and is already uid 70's.** The root entrypoint
-  chowned every file in PGDATA to uid 70 on every start, so the volumes need
-  nothing. To see it before the deploy, on the old containers (their `exec` is
-  root's), each of these prints nothing:
-  `docker compose -f deploy/compose/managed.yml exec -T postgres find /var/lib/postgresql/18/docker ! -user postgres`
-  and the same with `trigger-db`. A new volume takes the image's
-  `/var/lib/postgresql`, uid 70's and mode 1777, and initialises as uid 70.
-  The base is the same Alpine and musl, so the databases' collation is
-  untouched.
-- **`docker compose … exec postgres` (and `trigger-db`) runs as uid 70, not
-  root.** Every command this repository runs there is `psql -U <role>`,
-  `pg_dump`, `pg_dumpall` or `pg_restore`, over the socket the image's
-  `pg_hba.conf` trusts, and answers the same: `trigger-version.sh` (backup and
-  restore drill), `copy-before-update.sh`, `dump-idp.sh`, `db-roles.sh` and
-  `rotate-db-passwords.sh`, the bring-up, `deploy-live.sh`, the smoke and the
-  rows of this document. Add `-u 0` for anything that needs root in the
-  container. An interactive `psql` or shell keeps its history in the
-  container's `/tmp`, as root's was kept in `/root`, never on the data volume
-  (uid 70's home).
-- **The network questions ask with the build.** `db-roles.sh` and
-  `stand-up-live.sh` ask with managed.yml's first postgres image, now the build,
-  which the stack's own `up` made. A checkout pulled ahead of its stack, before
-  any `up`, has no such image yet: the question then ends in docker's own
-  error, which reads as "cannot tell", never as a verdict. Run the bring-up
-  first.
-- **Rolling back to a tag before this runs the official image again, as
-  root.** Its entrypoint finds the volumes uid 70's, as it left them, and
-  starts; the data format is the same PostgreSQL 18.6.
-- **Two failures, and what they mean.** A container that exits with
-  `exec: gosu: not found` was started as root (a `user:` or `-u 0` on the
-  service itself): remove it. One that exits with
-  `mkdir: can't create directory '/var/lib/postgresql/18/': Permission denied`
-  has a bind mount of a host directory instead of the named volume: the stacks
-  here use named volumes only.
-- **Moving the pin** is the Dockerfile's FROM, by tag and digest, and the
-  three `image:` lines that name the build (`managed.yml` twice, `dev.yml`),
-  whose last twelve hex digits are
-  `grep -Ev '^[[:space:]]*(#|$)' deploy/compose/postgres/Dockerfile | sha256sum | cut -c1-12`
-  (the SHA-256 of its instruction lines; a comment moves no name). Dependabot
-  opens the pull request that moves the FROM (its own entry in
-  `.github/dependabot.yml`, never a major), and that pull request fails
-  `scripts/a-database-started-as-root.unit.test.ts` until the three lines
-  move too: the failure lists them and prints the `sed` that moves them, to
-  run on the pull request's branch and push. Its E2E (managed) is then
-  dispatched like any pin's. Nothing outside those instruction lines may
-  change what is built, so the same guard refuses a parser directive, a COPY,
-  ADD or `--mount`, and a `build:` with args or a target. The integration
-  tests start the same FROM. The pin watch reports a newer tag of the FROM,
-  and the weekly image scan builds the Dockerfile and scans what it built.
-
-The appliance (`deploy/selfhost/compose.yml`) runs a build of its own since
-workplan 0146 T15b, the same day: `deploy/selfhost/postgres/Dockerfile`, these
-instructions on the appliance's own base digest, which its own Dependabot
-entry moves. The guard holds the two Dockerfiles to the same instructions but
-for the FROM, so a change to `deploy/compose/postgres/Dockerfile` is made to
-both, and moves both names. While the two FROMs differ, the two names do too.
-When they meet, so do the names: E2E (self-hosted), which runs on this
-machine's Docker, then starts the appliance on the image the stacks built, or
-the stacks on the one it built, which is the same content. That is one more
-reason nothing asks for a build of a name the machine has: E2E (self-hosted)
-builds its `app` by name and runs `up` without `--build`. What the change
-means for an appliance's own data, a bind mount of a host directory included,
-is in [selfhost-quickstart.md](./selfhost-quickstart.md).
 
 ### `ownpace-live`: a release tag, with `deploy-live.sh`
 

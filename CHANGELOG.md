@@ -211,7 +211,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   does not run** (workplan 0119): `.github/workflows/nextcloud-second-major.yml`
   runs the WebDAV, CalDAV, CardDAV, chunked-upload and share suites against
   `nextcloud:34.0.5-apache`, pinned by digest (against `35.0.2-apache` until
-  the demo moved to 35, below), on a push to `main` that touches their code,
+  the demo moved to 35, above), on a push to `main` that touches their code,
   weekly, and on a pull request that changes the leg itself; not on every pull
   request. A customer's own Nextcloud may run either major. The run fails when
   Nextcloud does not start, when the server that answered is not the version
