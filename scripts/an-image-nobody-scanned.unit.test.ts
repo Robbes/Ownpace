@@ -459,8 +459,11 @@ describe('which images it scans', () => {
   it("leaves out the Dockerfiles' FROM bases, which are inside Ownpace's images, but scans www.yml's nginx, which runs as it is", async () => {
     const images = await imagesToScan(REAL, fakeNet());
     for (const dockerfile of ['apps/api/Dockerfile', 'apps/selfhost/Dockerfile']) {
-      const from = /^FROM\s+(node:\S+)/m.exec(REAL.read(dockerfile)!)![1]!;
-      expect(images.some((i) => i.ref === from), `${from} is scanned twice`).toBe(false);
+      // Every image a stage builds FROM: the API's are the Node image it builds
+      // on and the distroless one it runs on (0146 T13), both inside ownpace-api.
+      const froms = [...REAL.read(dockerfile)!.matchAll(/^FROM\s+(\S+[:@]\S+)/gm)].map((m) => m[1]!);
+      expect(froms.length, `${dockerfile} builds FROM no image`).toBeGreaterThan(0);
+      for (const from of froms) expect(images.some((i) => i.ref === from), `${from} is scanned twice`).toBe(false);
     }
     const www = readImages(REAL.read('deploy/compose/www.yml')!).find((i) => i.repo === 'nginx')!;
     expect(images.find((i) => i.ref === www.ref)?.where).toBe('deploy/compose/www.yml');
