@@ -158,6 +158,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   and reports it under the same code-scanning category and alert location, so
   the first scan on `main` after this closes them, and the alerts it still has
   keep their numbers.
+- **A share press stops at the new system's limit on new shares, and says
+  when to apply again** (workplan 0104 T5, #1704): Nextcloud 31 to 35 let one
+  account create 20 shares in 10 minutes and answer the next one 429, and a
+  press asks twice for each person without an account there, so a one-go
+  press over more than about ten of them reported every row after the limit
+  as refused, under the generic sentence. A 429 now has its own sentence, in
+  English and Dutch, on both editions, with what `Retry-After` asked, up to a
+  day, or Nextcloud's ten minutes. `apply-all` and `apply-folder` stop at the
+  first one and list that row and the rows after it as `waitingForLimit`,
+  open and untried, apart from `refused`, with the sentence as `limit`; the
+  Sharing page says them under the folder as waiting, with the time to apply
+  again on the reader's clock. A refused row stays open and is asked for
+  again first, at the same cost, so a press that met the limit after
+  refusals says to settle those rows first, and to check the password first
+  when the sign-in was refused. A grantee that looks like an e-mail address
+  still gets the user share first: a Nextcloud login may be an address.
 
 ## [0.2.0-alpha.2] - 2026-10-25
 

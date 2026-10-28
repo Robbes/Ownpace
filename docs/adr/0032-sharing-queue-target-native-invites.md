@@ -252,6 +252,30 @@ announcement: `packages/core/src/the-announcement-per-data-type.unit.test.ts` (t
 `apps/api/src/routes/migrations/each-data-type-announced-once.integration.test.ts` and
 `apps/selfhost/src/each-data-type-announced-once-on-the-appliance.unit.test.ts`.
 
+## Build record (2026-10-25: a press meets the target's limit on new shares, workplan 0104 T5)
+
+The amendment of 2026-09-26 says the one-go press is "one wave per data type, never a trickle".
+On a Nextcloud target a wave has a size. Nextcloud lets one account create a set number of shares
+in ten minutes (20 on Nextcloud 31 to 35; 60 on its main branch, for 36), failed attempts
+included, and answers the next one 429. A row whose grantee has no account there costs two calls,
+so a press over more than about ten such rows meets the limit.
+
+A refusal on one row still never stops the next. The limit does: both presses stop at the first
+429, and that row and every row after it stay open and untried, answered as `waitingForLimit`,
+never as refused, with a sentence saying when to press again (`ShareLimit`, `@openmig/shared`). A
+press after the wait tries the open rows in the same order, so it goes on from there only when
+nothing was refused before the limit: a refused row stays open and unchanged, is asked for again
+first, and its attempt counts toward the same limit. A press that met the limit after refusals
+says so, and to correct, skip or mark those rows done before pressing again
+(`limitAfterRefusals`); ten refused outsiders spend Nextcloud's twenty calls on every press. So on
+such a target a large wave arrives in parts, each still pressed by a person: §2 is unchanged, and
+no press is ever repeated by the machine on its own.
+
+Gates: `packages/core/src/share-queue.unit.test.ts` (both presses stop),
+`packages/shared/src/share-refusals.unit.test.ts` (the sentence), and the doors,
+`apps/api/src/routes/migrations/a-press-that-meets-the-share-limit.unit.test.ts` and
+`apps/selfhost/src/a-press-that-meets-the-share-limit-on-the-appliance.unit.test.ts`.
+
 ## What this ADR does not decide
 
 Group shares (needs the target's group model — Pattern D covers discovery), DAV ACLs
@@ -275,3 +299,7 @@ announcement's job to say).
   carried by hand are announced once per data type, at its cutover (workplan 0128 T5, slice 6,
   the owner's D8); see the amendment at the end. Record: *Amendment, 2026-09-26: each share at
   its own data type's cutover (workplan 0128 T5, slice 6)*.
+- **2026-10-25** — Built: a press stops at the target's limit on new shares and leaves the rows
+  from there open, untried and not refused, for a press after the wait (workplan 0104 T5, #1704).
+  Record: *Build record (2026-10-25: a press meets the target's limit on new shares, workplan 0104
+  T5)*.
