@@ -859,6 +859,7 @@ reading a file drops off its entry by itself.
 - [a-plane-token-the-dead-worker-left](../scripts/a-plane-token-the-dead-worker-left.unit.test.ts) — THE PLANE'S TOKENS (workplan 0143 T1 step 3's plane half, the half plane-limit.sh cannot fix).
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
+- [a-pull-that-never-came-back](../scripts/a-pull-that-never-came-back.unit.test.ts) — A PULL THAT NEVER CAME BACK (live's deploy of alpha.2, 2026-10-28).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
@@ -938,6 +939,7 @@ reading a file drops off its entry by itself.
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
+- [a-pull-that-never-came-back](../scripts/a-pull-that-never-came-back.unit.test.ts) — A PULL THAT NEVER CAME BACK (live's deploy of alpha.2, 2026-10-28).
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
@@ -4598,6 +4600,15 @@ Reads:
 - `deploy/compose/managed.yml`
 - `deploy/compose/setup-managed-demo.sh`
 - `deploy/compose/smoke-managed.sh`
+
+### [a-pull-that-never-came-back](../scripts/a-pull-that-never-came-back.unit.test.ts)
+
+A PULL THAT NEVER CAME BACK (live's deploy of alpha.2, 2026-10-28).
+
+Reads:
+
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/deploy-live.sh`
 
 ### [a-rate-that-must-not-spread](../scripts/a-rate-that-must-not-spread.unit.test.ts)
 

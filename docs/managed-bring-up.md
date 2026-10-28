@@ -4742,6 +4742,12 @@ version: the stack has moved. Then it prints these, its last lines, and exits
 [deploy-live] Logged as did-not-take in <home>/.persistent/ownpace-live/deploys.log.
 ```
 
+Start the first run with plain progress, from `~/ownpace-live`:
+`COMPOSE_PROGRESS=plain ./deploy/compose/deploy-live.sh v0.2.0-alpha.3`.
+alpha.2's script does not ask compose for it, and a compose step can then
+wait without end (`docs/operator-runbook.md`, *Upgrade*, item 6); the
+second run is the tag's own script, which does.
+
 That run is expected, and it rolled nothing back: the checkout is at the tag
 and the stack runs it, the hold is still on, the copy before the update is
 kept, and `deploys.log` has a `did-not-take` line for the tag. When that

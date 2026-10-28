@@ -281,6 +281,10 @@ ENV_FILE="${SCRIPT_DIR}/.env"
 . "${SCRIPT_DIR}/release-tag.sh"
 # The .env named to Compose, so that it reads the file checked below.
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml" --env-file "${ENV_FILE}")
+# Plain progress for every compose call here and in the bring-up it starts:
+# compose v5.0.x's terminal progress can deadlock at the end of a command
+# (docker/compose#13639), as it did on live's deploy of alpha.2 (2026-10-28).
+export COMPOSE_PROGRESS=plain
 # Live's copy of the site: its project, and Compose under it, never live's
 # (0139 T10). Set by main from the project, with the reader's answer.
 WWW_LIVE_PROJECT=''

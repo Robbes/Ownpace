@@ -226,6 +226,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   `packages/orchestration` declare the drizzle-orm and pg they load, which
   they used to find among the root's devDependencies. Nothing a stack sets
   changes.
+- **A deploy no longer waits without end on a compose step** (live's deploy of
+  alpha.2, 2026-10-28): the bring-up asked compose to pull the identity
+  provider's image before reading its user, even when the machine had it, and
+  on live that pull printed "Pulled" and never returned, so the deploy waited
+  sixteen minutes, until the pull was killed, and then did not take. Compose
+  v5.0.x's progress, drawn in a terminal, can deadlock at the end of a command
+  (docker/compose#13639); the nights run without a terminal and never met it.
+  `bootstrap-managed.sh` and `deploy-live.sh` now ask compose for plain
+  progress (`COMPOSE_PROGRESS=plain`), the bring-up pulls that image only when
+  the machine lacks it, and a pull that does not end is stopped after
+  `ZITADEL_PULL_TIMEOUT` (600 seconds) with a sentence saying what to do. The
+  operator runbook says how to end such a step and go on.
 
 ## [0.2.0-alpha.2] - 2026-10-25
 

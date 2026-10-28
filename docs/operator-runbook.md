@@ -946,6 +946,23 @@ On either, this is what an upgrade does and does not do:
    switches them off with a check that the demo's DAV writes still work.
    `docs/managed-bring-up.md`, *Nothing phones home*, has each switch, where it was read, the
    command that applies it to a running stack, and the check to run after the upgrade.
+6. A deploy that sits on one line for more than ten minutes (live, 2026-10-28: a `docker compose
+   pull -q zitadel` printed "Pulled" in 0.6s and never returned). Compose v5.0.x's progress, drawn
+   in a terminal, can deadlock at the end of a command
+   ([docker/compose#13639](https://github.com/docker/compose/issues/13639)), and the nights, with
+   no terminal, never meet it. `bootstrap-managed.sh` and `deploy-live.sh` now set
+   `COMPOSE_PROGRESS=plain`, and the bring-up pulls that image only when the machine lacks it,
+   stopping a pull after `ZITADEL_PULL_TIMEOUT` (600s). A deploy is started by the script of the
+   tag live runs, so until that tag has this, start a deploy as
+   `COMPOSE_PROGRESS=plain ./deploy/compose/deploy-live.sh <tag>`. If one sits anyway, find what
+   it waits on from a second terminal, reading only:
+   `pgrep -af 'docker[ -](compose|run|create|cp|image)'`. End compose's own process, the line
+   `…/cli-plugins/docker-compose compose …` (the `docker compose …` line in front of it passes no
+   signal on while its output is a terminal), with `kill -TERM <its pid>`, and once more if it
+   is still there five seconds later: a stuck compose may not act on the first
+   ([#14114](https://github.com/docker/compose/issues/14114)). The bring-up then stops,
+   `deploy-live.sh` says the deploy did not take and logs it, the hold stays on and the copy is
+   kept, and the same `deploy-live.sh <tag>` run again goes forward from the checkout it left.
 
 ## Grant links: who granted what
 
