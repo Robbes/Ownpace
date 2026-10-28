@@ -4782,12 +4782,6 @@ thing. One script moves it:
 
 #### The deploy from alpha.2 to alpha.3 runs twice
 
-Before the first run, set `TRIGGER_IMAGE_TAG=v4.8.1` in live's persisted
-`.env` (*A `.env` that sets `TRIGGER_IMAGE_TAG` moves by hand*, below):
-`v0.2.0-alpha.3` pins Trigger.dev 4.8.1 (#1697), and with v4.7.6 still there
-the first run's bring-up stops on the version drift, before the checks this
-section expects.
-
 The owner's decision of 2026-10-26 (workplan 0146 T13): `v0.2.0-alpha.3`
 carries both the readers (T13a), which read the api container's variables from
 Docker, and the distroless API image (T13), which has no shell and no
@@ -4807,6 +4801,12 @@ version: the stack has moved. Then it prints these, its last lines, and exits
 [deploy-live] The copy before this update is kept (copy-before-update.sh): it is of what ran before, and the next deploy keeps it too, until its last day, when only the rollback, a deploy of the release it holds, may go. Not proven by day 6: roll back from it (docs/operator-runbook.md, The copy before an update, which starts with copy-before-update.sh since).
 [deploy-live] Logged as did-not-take in <home>/.persistent/ownpace-live/deploys.log.
 ```
+
+Before the first run, set `TRIGGER_IMAGE_TAG=v4.8.1` in live's persisted
+`.env` (*A `.env` that sets `TRIGGER_IMAGE_TAG` moves by hand*, below):
+`v0.2.0-alpha.3` pins Trigger.dev 4.8.1 (#1697), and with v4.7.6 still there
+the first run's bring-up stops on the version drift instead, before the
+checks that print the lines above.
 
 That run is expected, and it rolled nothing back: the checkout is at the tag
 and the stack runs it, the hold is still on, the copy before the update is
