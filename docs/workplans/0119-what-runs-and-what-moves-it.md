@@ -81,16 +81,18 @@ frozen until the alpha.2 tag, so nothing moves before it.
   `main` is red at `up_wait nextcloud` from then until this merges.
 - **The way back, written for the owner**, in `docs/managed-bring-up.md`, *A Nextcloud major on
   the OTA stack*: the order (the OK; after the alpha.2 tag and never between counted nights; the
-  migrations paused; the apps that do not ship listed, then the volume copied and the database
-  dumped, with the demo stopped; E2E (managed) dispatched when the branch is otherwise ready,
-  and merged before 03:30 UTC; `occ status`, the entrypoint's disabled-apps line and the app
-  list asked), and what to do when the run goes wrong: a wait that gave up while the upgrade
-  ran on (dispatch again), a failed `occ upgrade` (put the cause right, then maintenance mode
-  off, `occ upgrade` by hand, `occ status`), back to 34 (both copies together), and with no
-  copies a fresh demo (drop the volume and the database; the next bring-up installs it and
-  makes the four accounts and their seed again, and what the owner's own migrations wrote there
-  is lost). Each block runs as one subshell under `set -eu`, so a pasted block stops at its
-  first failure.
+  migrations paused a few minutes before the copies and until the branch merges; the room checked
+  against live's disk floor; the apps that do not ship listed, then the volume copied and the
+  database dumped, with the demo stopped, by a block that refuses an earlier try's leftovers and
+  ends with a line that says it is done, and a block that puts the demo back when it stops
+  partway; E2E (managed) dispatched when the branch is otherwise ready, and merged before the next
+  nightly is created, 03:30 UTC; `occ status`, the entrypoint's disabled-apps line and the app
+  list asked), and what to do when the run goes wrong: a wait that gave up while the upgrade ran
+  on (dispatch again), a failed `occ upgrade` (put the cause right, then maintenance mode off,
+  `occ upgrade` by hand, `occ status`), back to 34 (both copies together), and with no copies a
+  fresh demo (drop the volume and the database; the next bring-up installs it and makes the four
+  accounts and their seed again, and what the owner's own migrations wrote there is lost). Each
+  block runs as one subshell under `set -eu`, so a pasted block stops at its first failure.
 - **Not re-proven on 35:** `nextcloud-to-postgres.sh --convert` and `nextcloud-counters.sql`,
   shown on 34.0.4 for an install still on SQLite. None is known: the OTA demo has been on
   Postgres since 2026-09-29 and a fresh install starts there.

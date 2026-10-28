@@ -4711,11 +4711,19 @@ after it.
 2. Not before the release tag the move is not part of, and never between two
    counted nights: once the volume is on 35, `main`'s nightly cannot start the
    demo until the branch has merged.
-3. Pause the migrations that write into the demo Nextcloud, and take the way
-   back below, with the list of the apps that do not ship with it. Without the
-   way back, the only way back is a fresh demo.
+3. Pause the migrations that write into the demo Nextcloud, a few minutes
+   before the way back below is taken, with the list of the apps that do not
+   ship with it. Without the way back, the only way back is a fresh demo. A
+   pass stops starting new items within `PASS_REREAD_EVERY_MS` (15 s) of a
+   Pause but finishes the ones it has begun, and a large upload can take
+   longer. Keep them paused until the branch has merged: once they write
+   again, going back to 34 throws away what they wrote since the copies, while
+   the app still counts those items as copied, so they are not copied again.
 4. Dispatch E2E (managed) on the branch when it is otherwise ready to merge,
-   and merge before the next 03:30 UTC nightly.
+   and merge before the next nightly is created. Its schedule is 03:30 UTC,
+   and GitHub has often started it hours late, but that delay is not to be
+   counted on; a nightly created before the merge keeps the commit `main` had
+   then, even when it starts after the merge.
 5. Ask whether it took. A healthy container does not say so: `status.php`
    answers 200 in maintenance mode and with an upgrade still owed. The
    bring-up asks `occ status` after `up_wait nextcloud` and stops on either
@@ -4739,17 +4747,42 @@ after it.
 **The way back, taken before the run.** A copy of the volume beside it and a
 dump of the database, with the demo stopped so that the two agree, and the
 list of the apps that do not ship with Nextcloud, taken while it still runs.
-The volume holds the files the owner's migrations wrote, so check the disk has
-room for a second copy. The dump holds the demo accounts' password hashes, so
-it is the owner's alone. Each block below runs as one: it stops at the first
-command that fails, so a project it could not read never reaches the
-database:
+The dump holds the demo accounts' password hashes, so it is the owner's alone.
+Each block below runs as one: it stops at the first command that fails, so a
+project it could not read never reaches the database.
+
+The volume holds the files the owner's migrations wrote, so first check the
+disk has room for a second copy (this changes nothing):
 
 ```bash
 cd ~/ownpace-managed && (
   set -eu
   project="$(docker compose -f deploy/compose/managed.yml config --no-interpolate | sed -n 's/^name: //p')"
   : "${project:?the compose project could not be read}"
+  docker run --rm -v "${project}_nextcloud_data":/v:ro busybox:1.38 du -sh /v   # the size of one copy
+  df -h "$(docker info -f '{{.DockerRootDir}}')" ~                               # Docker's data root, then the home the dump goes to
+)
+```
+
+There is room when Docker's data root keeps more than live's disk floor after
+one more copy, with a few GB to spare: live runs on the same disk, and
+`box-checks.sh` mails "Disk below the floor" under `ALERT_DISK_FREE_GB` in
+live's `.env` (15 GB without it). The run then pulls Nextcloud 35 and builds
+the api and web images there, and its bring-up runs `--from data`, so
+preflight's own disk check does not run. The home needs room for the dump.
+Where either falls short, free space first, and prune nothing of live's.
+
+Then the copies. The block does nothing when a copy from an earlier try is
+still there, and its last line says it is done:
+
+```bash
+cd ~/ownpace-managed && (
+  set -eu
+  project="$(docker compose -f deploy/compose/managed.yml config --no-interpolate | sed -n 's/^name: //p')"
+  : "${project:?the compose project could not be read}"
+  if docker volume inspect "${project}_nextcloud_data_34" >/dev/null 2>&1 || [ -e ~/nextcloud-34.dump ]; then
+    echo "STOP: a copy from an earlier try is still there" >&2; exit 1
+  fi
   umask 077
   docker compose -f deploy/compose/managed.yml exec -T -u www-data nextcloud php occ app:list --shipped=false \
     > ~/nextcloud-34-apps.txt
@@ -4759,6 +4792,33 @@ cd ~/ownpace-managed && (
     busybox:1.38 sh -c 'cd /from && cp -a . /to'
   docker compose -f deploy/compose/managed.yml exec -T postgres \
     sh -c 'pg_dump -U "$POSTGRES_USER" -Fc nextcloud' > ~/nextcloud-34.dump
+  echo "the way back is taken"
+)
+ls -la ~/nextcloud-34.dump ~/nextcloud-34-apps.txt
+```
+
+It is taken when the block's last line is `the way back is taken` and both
+files are `-rw-------`, the dump not empty. Only then is the run dispatched.
+
+If the block stops before that line (an error, or `STOP`), it is not run again
+as it is: a second run can empty `~/nextcloud-34-apps.txt` and then fail,
+because Nextcloud is stopped. A `pg_dump` that died partway has also left a
+dump that is not empty. While the demo is still on 34, this puts it back as it
+was; then the cause is put right (for a full disk, space freed and the room
+checked again) and the copies are taken again. After the run has started, a
+`STOP` means the copies are there, and they are the way back: leave them.
+
+```bash
+cd ~/ownpace-managed && (
+  set -eu
+  project="$(docker compose -f deploy/compose/managed.yml config --no-interpolate | sed -n 's/^name: //p')"
+  : "${project:?the compose project could not be read}"
+  if docker volume inspect "${project}_nextcloud_data_34" >/dev/null 2>&1; then
+    docker volume rm "${project}_nextcloud_data_34"
+  fi
+  rm -f ~/nextcloud-34.dump ~/nextcloud-34-apps.txt
+  docker compose -f deploy/compose/managed.yml start nextcloud
+  docker compose -f deploy/compose/managed.yml ps nextcloud
 )
 ```
 
