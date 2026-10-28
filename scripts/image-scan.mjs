@@ -113,7 +113,8 @@
  * repository (`taskBuildTag`), never under a name of its own. Trivy's SARIF
  * gives an operating-system package's finding the image's repository as its
  * location (`ToPathUri` in its `pkg/report/sarif.go`, read at v0.76.1:
- * `triggerdotdev/node` for the base, by tag and digest or not), and writes no
+ * `node` for the API image's base since T14, `triggerdotdev/node` for the
+ * CLI's before it, by tag and digest or not), and writes no
  * fingerprint, so code scanning tells one alert from another by rule and
  * location. Built as `trigger-task-base:built`, the location would have been
  * `library/trigger-task-base`: every Debian alert would close on the first
@@ -126,11 +127,13 @@
  * `@electric-sql/pglite`). Their own versions are the ones installed here, so
  * the repository scan of the lockfile reads them; the packages npm resolves
  * under them, with no lockfile, neither scan reads. And it is built on the
- * CLI's own base: a Trigger.dev instance can name other base images for its
- * deploys (the webapp's `DEPLOY_BASE_IMAGES` and `DEPLOY_BUILD_BASE_IMAGES`,
- * which the CLI builds on when the instance sends them, `applyServerBaseImages`
- * read at 4.7.6), and `managed.yml`, which hands its Trigger.dev services only
- * the keys it lists, sets neither. The guard holds that.
+ * base the deploy config names (apps/api/Dockerfile's FROM image since
+ * workplan 0146 T14), or else on the CLI's own: a Trigger.dev instance can
+ * name other base images for its deploys (the webapp's `DEPLOY_BASE_IMAGES`
+ * and `DEPLOY_BUILD_BASE_IMAGES`, which the CLI builds on when the instance
+ * sends them, `applyServerBaseImages` read at 4.7.6), and `managed.yml`, which
+ * hands its Trigger.dev services only the keys it lists, sets neither. The
+ * guard holds that.
  *
  * A floating tag (`busybox:1.38`) is scanned as the registry serves it
  * today, which need not be what the box pulled last. The summary says which.

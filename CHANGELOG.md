@@ -189,9 +189,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   webapp has since v4.7.6. It carries no database or ClickHouse migration,
   but a stack whose `.env` sets `TRIGGER_IMAGE_TAG` sets `v4.8.1` there
   first, with no run executing and after the backup, or its bring-up stops
-  at the `trigger` phase. The tasks still take the API image's Node; the
-  CLI's own base image under them is now on 24.22.1 as well, so the first
-  task deploy after this one is the slow one. ClickHouse stays on 26.2,
+  at the `trigger` phase. The tasks build on the API image's own base (T14,
+  #1716, in this release too), so the first task deploy after this one is
+  the slow one. ClickHouse stays on 26.2,
   which Trigger.dev still pins.
 - **The demo, development and integration-test Nextcloud move to 35.0.2**
   (workplan 0119 T5), by digest, from 34.0.5; the second-major leg moves to
