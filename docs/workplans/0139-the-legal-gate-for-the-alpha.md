@@ -2,11 +2,11 @@
 
 > **In one line:** Legal gate for the alpha: `site/legal` placeholders filled and published, a lawyer's pass, alpha conditions, acceptance recorded at first sign-in, notices where data is collected, sub-processors, retention, account closure, breach procedure, `SECURITY.md`.
 
-## Status — 2026-10-27 (update this block at the end of every session)
+## Status — 2026-10-28 (update this block at the end of every session)
 
 **2026-10-27: who deletes the copy, settled** (the owner, 2026-10-28; 0132 T9). Built on branch
-`claude/ownpace-public-readiness-y7orc6-live-pass-check`, not merged; it reaches live with the
-alpha.3 tag.
+`claude/ownpace-public-readiness-y7orc6-live-pass-check`, merged as #1724 on 2026-10-28
+(`24864dcc`); it reaches live with the alpha.3 tag.
 
 - **The rule is rec-copies (a)'s, unchanged:** one copy of live's databases right before each
   update, deleted once that update is proven, never kept past day 7 (privacy §9, Alpha

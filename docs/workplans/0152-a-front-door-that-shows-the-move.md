@@ -2,7 +2,7 @@
 
 > **In one line:** The public site explains a move at a glance: old account and new home in one picture, the destinations named, the alpha said, a shorter menu, a calculator that ends in a button, monthly and yearly prices (a year costs six months), and a page per provider a person leaves.
 
-## Status — 2026-10-25 (update this block at the end of every session)
+## Status — 2026-10-28 (update this block at the end of every session)
 
 **2026-10-25, after review: issues are kept from main only, the pull request builds the image,
 and Dependabot moves its base in a pull request of its own** ([#1675](https://github.com/Robbes/Ownpace/issues/1675)).
@@ -67,8 +67,8 @@ upstream's next release turned out to be on 3.20 too, or the scan found a HIGH o
 and then an image of our own. Neither has happened: 1.12 is still upstream's newest release. The
 move is made now because the owner asked on 2026-10-25 for every vulnerability fixed and the
 lifecycle upgrades done, and because upstream's Dockerfile at `master` is still on 3.20, so no
-upstream image on a supported base is in sight. A draft pull request for alpha.3; main is frozen
-until the alpha.2 tag (Tuesday 2026-10-27), which still carries upstream's image.
+upstream image on a supported base is in sight. Merged as #1703 on 2026-10-28 (`fcb3d50f`), for
+alpha.3, after the alpha.2 tag (Tuesday 2026-10-27), which still carries upstream's image.
 - **Read today, and what it showed:**
   - upstream's tags (`git ls-remote`): `v1.12` (`ef3c4f3c`) is still the newest release;
   - upstream's `Dockerfile` at `master` and at `v1.12`: identical, `FROM alpine:3.20` in both
