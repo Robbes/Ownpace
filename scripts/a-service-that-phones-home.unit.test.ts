@@ -65,7 +65,8 @@
  *    and `conf.d`, in sorted order, so a later one wins
  *    (`src/Common/Config/ConfigProcessor.cpp`, `getConfigMergeFiles`).
  *  - MINIO (Chainguard's build since 0146 T7, the fork's
- *    `RELEASE.2026-09-22T19-25-18Z`; read first at Bitnami's 2025.5.24) asks
+ *    `RELEASE.2026-10-23T20-06-51Z`, read at `RELEASE.2026-09-22T19-25-18Z`,
+ *    whose code it shares; read first at Bitnami's 2025.5.24) asks
  *    `dl.min.io` for the newest release at every start, with a User-Agent that
  *    carries the OS, the architecture, `docker`, its version and the CPU's
  *    count, vendor and model (`cmd/server-main.go`, `cmd/common-main.go`,
@@ -74,9 +75,15 @@
  *    here too. Its one-shot `minio-init` runs `mc mb`, and mc asks `dl.min.io`
  *    only when it is run with no command (`cmd/main.go` at mc's
  *    `RELEASE.2025-08-13T08-35-41Z`).
- *  - MAILPIT (v1.31.6, the test stack's catcher; live has none) asks GitHub for
- *    its newest release whenever its web page asks for the server's info,
- *    unless `MP_DISABLE_VERSION_CHECK` says true (`internal/stats/stats.go`).
+ *  - MAILPIT (v1.31.6, and again at v1.32.0 on 2026-10-25; the test stack's
+ *    catcher, live has none) asks GitHub for its newest release whenever its
+ *    web page asks for the server's info, unless `MP_DISABLE_VERSION_CHECK`
+ *    says true (`internal/stats/stats.go`, the variable read in `cmd/root.go`
+ *    as `1`, `true` or `yes`). Neither file changed between the two tags.
+ *    None of its other requests goes to its maker: a webhook goes out only
+ *    when one is configured, and the HTML check, link check and screenshot
+ *    proxy fetch what a caught message names only when its API is asked for
+ *    them; none of those files changed either.
  *  - NEXTCLOUD (34, the demo's DAV target on the OTA stack every night, and the
  *    development one) sends its version, PHP version and install time to
  *    `updates.nextcloud.com`, asks `apps.nextcloud.com` for the app store, the
@@ -131,15 +138,17 @@
  * follow-up switches them off with a check that the demo's DAV writes still
  * work.
  *
- * And the demo's Stalwart (v0.16.10), which
+ * And the demo's Stalwart (v0.16.27), which
  * `setup-stalwart.sh` starts with `docker run`, outside every compose file, on
  * the OTA stack every night, in the self-host end-to-end run and on a
- * developer's machine. In normal mode
- * it fetches its WebUI from `github.com/stalwartlabs/webui/releases/latest` on
- * first start and every 30 days, its spam-filter rules from
+ * developer's machine. It fetches its WebUI from
+ * `github.com/stalwartlabs/webui/releases/download/v1.0.11` on first start and
+ * every 30 days, its spam-filter rules from
  * `github.com/stalwartlabs/spam-filter/releases/latest`, and an ASN and country
- * database from `cdn.jsdelivr.net` every day
- * (`crates/common/src/manager/defaults.rs`, `SpamSettings` in
+ * database every day, from `github.com/sapics/ip-location-db` on a database it
+ * made and from `cdn.jsdelivr.net` on one v0.16.10 made, which keeps the
+ * addresses it was given (`crates/common/src/manager/defaults.rs` and
+ * `application.rs`, `SpamSettings` in
  * `crates/registry/src/schema/structs_impl.rs`). Each is an object in its
  * database, not in its one-line file on disk, so switching it off is new
  * objects in the provisioning plan, and Stalwart settings written without
@@ -157,8 +166,11 @@
  * panel, which the script ignores) and its WebSocket server (`src/websocket.c`,
  * only with `--real-time-html`, which it never passes). And it runs with
  * `--network none`, so nothing could leave if a later version added
- * something. The image is pinned by digest, and the row below fails on
- * another pin or on a run that has a network.
+ * something. Its image is built from that commit by
+ * `deploy/compose/goaccess/Dockerfile` (#1675: upstream's image is on an
+ * Alpine past its end of life) and run with `--pull never`, and the row below
+ * fails on another commit, on a base not pinned by digest, or on a run that
+ * has a network or may pull.
  *
  * WHAT THIS CANNOT SEE. A running container, or a machine's `.env`: live's own
  * `TRIGGER_IMAGE_TAG` would run another webapp than the default read here, which
@@ -543,28 +555,30 @@ const ZITADEL = 'ghcr.io/zitadel/zitadel:v4.20.0';
 const CLICKHOUSE =
   'clickhouse/clickhouse-server:26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd';
 /**
- * Chainguard's MinIO (0146 T7): `latest` by the index digest it had from
- * 2026-10-22 to 2026-10-23, read on 2026-10-24. Its server is the fork's
- * `RELEASE.2026-09-22T19-25-18Z`, read at that tag of `chainguard-forks/minio`;
- * its mc is `RELEASE.2025-08-13T08-35-41Z`.
+ * Chainguard's MinIO (0146 T7): `latest` by the index digest it had on
+ * 2026-10-25, taken 2026-10-28. Its server is the fork's
+ * `RELEASE.2026-10-23T20-06-51Z`, whose cmd/ and internal/ are those of
+ * `RELEASE.2026-09-22T19-25-18Z`, read at that tag of `chainguard-forks/minio`
+ * (the two differ in go.mod, go.sum and a CI workflow alone); its mc is
+ * `RELEASE.2025-08-13T08-35-41Z`.
  */
 const MINIO =
-  'chainguard/minio:latest@sha256:d88920d6a50bd0b088223b688be3b76c63e6205dbe494437f67ba1240ea12880';
+  'chainguard/minio:latest@sha256:268d68a2a3b6fc65f905a61f84d7eab6345ce6bff14f551e2b028ec31e6a1341';
 const MAILPIT =
-  'axllent/mailpit:v1.31.6@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387';
+  'axllent/mailpit:v1.32.0@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498';
 /** Read at `stable34` (config.sample.php and the two crawlers), so the line, not one patch of it. */
 const NEXTCLOUD = 'nextcloud:34';
 /** The demo's Stalwart, outside every compose file; its fetches were read at this tag. */
-const STALWART = 'stalwartlabs/stalwart:v0.16.10';
+const STALWART = 'stalwartlabs/stalwart:v0.16.27';
 /**
  * The site's visit count, outside every compose file (`site-visits.sh`); read
- * at the tag `v1.12` (`ef3c4f3c`). The digest is Docker Hub's index for the tag
- * `1.12` (amd64 and arm64), read from its listing on 2026-10-05 and read back
- * from the registry on 2026-10-06 (a HEAD of the tag returns it); not pulled
- * through Docker here.
+ * at the tag `v1.12` (`ef3c4f3c`), and since 2026-10-25 (#1675) built from that
+ * commit by `deploy/compose/goaccess/Dockerfile`, under a name no registry
+ * serves. Until then it was Docker Hub's `allinurl/goaccess:1.12`, on Alpine
+ * 3.20.
  */
-const GOACCESS =
-  'allinurl/goaccess:1.12@sha256:9e6dfd4abce94bd7c2907c1840b7b35f666587d56b24ffbb930b4782a87ea172';
+const GOACCESS = 'localhost/goaccess:1.12';
+const GOACCESS_COMMIT = 'ef3c4f3c3e42b378e705fb3a1a5ef1c2e72e6348';
 
 const NEXTCLOUD_PHONES =
   'its version and PHP version to updates.nextcloud.com, the app store at apps.nextcloud.com, the announcements feed and a ' +
@@ -618,7 +632,8 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
     readAt: MINIO,
     why:
       'a release check to dl.min.io at every start, its User-Agent carrying OS, architecture, version and CPU ' +
-      "(cmd/server-main.go, cmd/update.go, cmd/common-main.go at chainguard-forks/minio's RELEASE.2026-09-22T19-25-18Z; " +
+      "(cmd/server-main.go, cmd/update.go, cmd/common-main.go at chainguard-forks/minio's RELEASE.2026-09-22T19-25-18Z, " +
+      'the same files at RELEASE.2026-10-23T20-06-51Z; ' +
       'first read at RELEASE.2025-05-24T17-08-30Z, the Bitnami image this replaced)',
     holds: (svc) => {
       const env = environmentOf(svc);
@@ -627,7 +642,7 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
   },
   'deploy/compose/managed.yml:mailpit': {
     readAt: MAILPIT,
-    why: "a release check to GitHub when its web page asks for the server's info (internal/stats/stats.go at v1.31.6)",
+    why: "a release check to GitHub when its web page asks for the server's info (internal/stats/stats.go at v1.31.6, unchanged at v1.32.0)",
     holds: (svc) => exactly(environmentOf(svc), 'MP_DISABLE_VERSION_CHECK', 'true'),
   },
   'deploy/compose/managed.yml:trigger-tls': {
@@ -649,8 +664,9 @@ const NONE = (what: string): string => `${what} has no telemetry, update check o
 
 /**
  * The official PostgreSQL image built here without gosu, as uid 70 (workplan
- * 0146 T15, deploy/compose/postgres/Dockerfile). A build is `build` to this
- * file, so the row holds the software by the Dockerfile's FROM instead.
+ * 0146 T15, deploy/compose/postgres/Dockerfile; the appliance's since T15b,
+ * deploy/selfhost/postgres/Dockerfile). A build is `build` to this file, so
+ * the row holds the software by the Dockerfile's FROM instead.
  */
 const BUILT_POSTGRES: Row = {
   readAt: 'build',
@@ -720,7 +736,7 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
   },
   'deploy/compose/www.yml:www': { readAt: 'nginx', why: NONE('nginx') },
   'deploy/compose/dev.yml:postgres': BUILT_POSTGRES,
-  'deploy/selfhost/compose.yml:postgres': { readAt: 'postgres', why: NONE('PostgreSQL') },
+  'deploy/selfhost/compose.yml:postgres': BUILT_POSTGRES,
   'deploy/selfhost/compose.yml:app': {
     readAt: 'build',
     why: "Ownpace's own appliance: self-host sends us nothing, the privacy policy's first line",
@@ -919,21 +935,31 @@ describe('an overlay runs its base image and switches nothing back on', () => {
 describe('what runs outside every compose file is named, at the version it was read at', () => {
   it("the demo's Stalwart (setup-stalwart.sh, docker run) is the one whose fetches docs/managed-bring-up.md names", () => {
     const image = /^IMAGE="([^"]+)"$/m.exec(read('deploy/selfhost/setup-stalwart.sh'))?.[1];
-    expect(image, "Stalwart's WebUI, spam-rule and ASN fetches were read at v0.16.10; re-read defaults.rs at the new pin").toBe(STALWART);
+    expect(image, "Stalwart's WebUI, spam-rule and ASN fetches were read at v0.16.27; re-read defaults.rs at the new pin").toBe(STALWART);
     const doc = read('docs/managed-bring-up.md');
-    for (const host of ['github.com/stalwartlabs/webui', 'github.com/stalwartlabs/spam-filter', 'cdn.jsdelivr.net']) {
+    for (const host of [
+      'github.com/stalwartlabs/webui',
+      'github.com/stalwartlabs/spam-filter',
+      'github.com/sapics/ip-location-db',
+      'cdn.jsdelivr.net',
+    ]) {
       expect(doc, `Nothing phones home no longer names Stalwart's ${host}`).toContain(host);
     }
   });
 
-  it("the site's visit count (site-visits.sh, docker run) is GoAccess at the version read, pinned by digest, with no network", () => {
+  it("the site's visit count (site-visits.sh, docker run) is GoAccess built from the commit read, on bases pinned by digest, never pulled, with no network", () => {
     const script = read('deploy/compose/site-visits.sh');
     const image = /^GOACCESS_IMAGE="([^"]+)"$/m.exec(script)?.[1];
+    expect(image, 'the image this checkout builds, under a name no registry serves (#1675)').toBe(GOACCESS);
+    const dockerfile = read('deploy/compose/goaccess/Dockerfile');
     expect(
-      image,
-      'GoAccess was read at 1.12 for what it sends (nothing: no telemetry, update check or report). Re-read src/gdns.c and src/websocket.c at the new pin',
-    ).toBe(GOACCESS);
-    expect(image, 'pinned by digest, as the images in managed.yml are').toMatch(/^[^@]+:[^@]+@sha256:[0-9a-f]{64}$/);
+      /^ARG GOACCESS_COMMIT=([0-9a-f]{40})$/m.exec(dockerfile)?.[1],
+      'GoAccess was read at v1.12 (ef3c4f3c) for what it sends (nothing: no telemetry, update check or report). Re-read src/gdns.c and src/websocket.c at the new commit',
+    ).toBe(GOACCESS_COMMIT);
+    expect(dockerfile, 'the source is checked against the commit it was read at').toMatch(/test "\$\(git rev-parse HEAD\)" = "\$GOACCESS_COMMIT"/);
+    const froms = [...dockerfile.matchAll(/^FROM\s+(\S+)/gm)].map((m) => m[1]!);
+    expect(froms.length, 'the Dockerfile builds FROM nothing').toBeGreaterThan(0);
+    for (const from of froms) expect(from, 'pinned by tag and digest, as the images in managed.yml are').toMatch(/^[^@\s]+:[^@\s]+@sha256:[0-9a-f]{64}$/);
     const code = script
       .split('\n')
       .filter((l) => !/^\s*#/.test(l))
@@ -941,6 +967,9 @@ describe('what runs outside every compose file is named, at the version it was r
     expect(code, 'site-visits.sh no longer runs its image').toMatch(/\bdocker run\b/);
     expect(code, 'site-visits.sh no longer runs its image').toMatch(/"\$\{?GOACCESS_IMAGE\}?"/);
     expect(code, 'GoAccess runs with a network: nothing it might send could be stopped').toMatch(/--network none\b/);
+    expect(code, 'an image missing on the machine would be pulled under its name').toMatch(/docker run [^\n]*--pull never\b/);
+    expect(code, 'site-visits.sh no longer builds its image from goaccess/').toMatch(/docker build [^\n]*"\$\{?GOACCESS_IMAGE\}?" "\$\{?GOACCESS_CONTEXT\}?"/);
+    expect(script).toMatch(/^GOACCESS_CONTEXT="\$\{SCRIPT_DIR\}\/goaccess"$/m);
     const doc = read('docs/managed-bring-up.md');
     const section = /^## Nothing phones home\n([\s\S]*?)^## /m.exec(doc)?.[1] ?? '';
     expect(section, 'Nothing phones home no longer names the visit count').toContain('allinurl/goaccess');

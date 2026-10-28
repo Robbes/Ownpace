@@ -439,11 +439,12 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   `deploy/compose/copy-before-update.sh`, one directory,
   `~/.persistent/ownpace-live/copy-before-update`: `deploy-live.sh` takes the copy right before
   its checkout (the app's database, the sign-in service's database and the roles, and the task
-  runner's database before a Trigger.dev upgrade); `copy-before-update.sh delete` removes it
-  once the update is proven (the last deploy since the copy took, its hold lifted, a pass since
-  completed) and refuses before; the daily duties delete it once it is older than 6 days less
-  an hour; `dump-idp.sh` and `trigger-version.sh` write only there on live. A rollback by day 6
-  starts with `copy-before-update.sh since`, which does again after the restore what was
+  runner's database before a Trigger.dev upgrade); `copy-before-update.sh delete`, or live's box
+  checks every ten minutes by the same rule and stricter (`delete-if-proven`, 0132 T9), removes
+  it once the update is proven (the last deploy since the copy took, its hold lifted, a pass
+  since completed) and refuses before; the daily duties delete it once it is older than 6 days
+  less an hour; `dump-idp.sh` and `trigger-version.sh` write only there on live. A rollback by
+  day 6 starts with `copy-before-update.sh since`, which does again after the restore what was
   erased, closed or deleted after the copy (the operator runbook, *The copy before an update*).
   **Still to do:** live runs a tag that carries it, with the daily duties' timer installed
   (`take` refuses without it); the rollback run once on the test stack.

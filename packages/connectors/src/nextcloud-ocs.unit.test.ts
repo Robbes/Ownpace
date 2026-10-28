@@ -13,6 +13,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { shareLimitOf, shareRefusalSaid } from '@openmig/shared';
 import type { HttpClient, HttpRequestOptions } from './dav-http.types.ts';
 import {
   createNextcloudShare,
@@ -341,5 +342,113 @@ describe('createNextcloudShare: a refusal carries its parts', () => {
     );
     expect(result).toMatchObject({ ok: false, said: { kind: 'answered', status: 400, ocs: true } });
     expect(result.ok ? undefined : (result.said as { ocsStatus?: number }).ocsStatus).toBeUndefined();
+  });
+});
+
+/**
+ * THE TARGET'S LIMIT ON NEW SHARES (workplan 0104, Status of 2026-10-25).
+ *
+ * Nextcloud 31 to 35 put `#[UserRateLimit(limit: 20, period: 600)]` on
+ * `ShareAPIController::createShare`: 20 calls per account in ten minutes,
+ * failed ones included, and the 21st is answered 429 by
+ * `RateLimitingMiddleware` with an empty OCS reply and no `Retry-After`. The
+ * fake below answers as that does. What these pin: a 429 is carried as its
+ * parts, with the wait the server asked for when it asked; a 429 on the user
+ * attempt does not spend a second call on the mail attempt; and a grantee
+ * that looks like an address still gets the user attempt first.
+ */
+describe("createNextcloudShare: the target's limit on new shares", () => {
+  type Reply = { status: number; body: string; headers?: Record<string, string> };
+  function nextcloud(replies: ReadonlyArray<Reply>) {
+    const calls: HttpRequestOptions[] = [];
+    const httpClient: HttpClient = {
+      async request(options) {
+        calls.push(options);
+        const r = replies[Math.min(calls.length - 1, replies.length - 1)]!;
+        return { status: r.status, body: r.body, headers: r.headers ?? {} };
+      },
+    };
+    return { httpClient, calls };
+  }
+  /** What `RateLimitingMiddleware` answers through OCS v2: status 429, no words. */
+  const LIMITED = JSON.stringify({ ocs: { meta: { status: 'failure', statuscode: 429, message: '' }, data: [] } });
+  const NO_SUCH_ACCOUNT = JSON.stringify({
+    ocs: { meta: { status: 'failure', statuscode: 404, message: 'Please specify a valid account to share with' } },
+  });
+  const REQUEST = { path: 'a.txt', shareWith: 'anna@example.nl', role: 'reader' };
+
+  it('a 429 on the user attempt is the limit: one call, no second door, nothing it asked for', async () => {
+    const { httpClient, calls } = nextcloud([{ status: 429, body: LIMITED }]);
+    const result = await createNextcloudShare(OPTIONS(httpClient), REQUEST);
+    expect(result).toMatchObject({ ok: false, said: { kind: 'answered', status: 429, ocsStatus: 429, ocs: true } });
+    expect(result.ok ? undefined : shareLimitOf(result.said)).toEqual({});
+    // The share by mail would only spend the same limit again.
+    expect(calls).toHaveLength(1);
+  });
+
+  it('a 429 on the share by mail, after no such account, is the limit, with the wait it asked for', async () => {
+    const { httpClient, calls } = nextcloud([
+      { status: 404, body: NO_SUCH_ACCOUNT },
+      { status: 429, body: LIMITED, headers: { 'Retry-After': '90' } },
+    ]);
+    const result = await createNextcloudShare(OPTIONS(httpClient), REQUEST);
+    expect(result).toMatchObject({
+      ok: false,
+      said: { kind: 'notAnAccount', byMail: { status: 429, ocsStatus: 429, ocs: true, retryAfterSeconds: 90 } },
+    });
+    expect(result.ok ? undefined : shareLimitOf(result.said)).toEqual({ retryAfterSeconds: 90 });
+    expect(calls).toHaveLength(2);
+  });
+
+  it('reads a Retry-After whatever case the client kept, and an HTTP date', async () => {
+    const at = new Date(Date.now() + 5 * 60_000).toUTCString();
+    const { httpClient } = nextcloud([{ status: 429, body: LIMITED, headers: { 'retry-after': at } }]);
+    const result = await createNextcloudShare(OPTIONS(httpClient), REQUEST);
+    const seconds = result.ok ? undefined : shareLimitOf(result.said)?.retryAfterSeconds;
+    expect(seconds).toBeGreaterThan(290);
+    expect(seconds).toBeLessThanOrEqual(300);
+  });
+
+  it('a Retry-After it does not believe is carried as asked-for, not as no header at all', async () => {
+    for (const header of ['May 5', '86401']) {
+      const { httpClient } = nextcloud([{ status: 429, body: LIMITED, headers: { 'Retry-After': header } }]);
+      const result = await createNextcloudShare(OPTIONS(httpClient), REQUEST);
+      expect(result, header).toMatchObject({ ok: false, said: { kind: 'answered', status: 429, retryAfterNotBelieved: true } });
+      expect(result.ok ? undefined : (result.said as { retryAfterSeconds?: number }).retryAfterSeconds).toBeUndefined();
+      expect(result.ok ? undefined : shareRefusalSaid(result.said).en, header).toContain('apply again later, as the new system asked');
+    }
+    // No header, or an empty one, is no wait asked for: Nextcloud's own ten minutes.
+    for (const headers of [{}, { 'Retry-After': '  ' }] as Array<Record<string, string>>) {
+      const { httpClient } = nextcloud([{ status: 429, body: LIMITED, headers }]);
+      const result = await createNextcloudShare(OPTIONS(httpClient), REQUEST);
+      expect(result.ok ? undefined : result.said).not.toHaveProperty('retryAfterNotBelieved');
+      expect(result.ok ? undefined : shareRefusalSaid(result.said).en).toContain('apply again in ten minutes');
+    }
+  });
+
+  it('a refusal of another kind carries no wait, even with a Retry-After beside it', async () => {
+    const { httpClient } = nextcloud([
+      {
+        status: 403,
+        body: JSON.stringify({ ocs: { meta: { status: 'failure', statuscode: 403, message: 'no' } } }),
+        headers: { 'Retry-After': '30' },
+      },
+    ]);
+    const result = await createNextcloudShare(OPTIONS(httpClient), REQUEST);
+    expect(result.ok ? undefined : shareLimitOf(result.said)).toBeUndefined();
+  });
+
+  it('an address-shaped grantee still gets the user attempt first: a Nextcloud login may be an address', async () => {
+    // Not saved, on purpose (workplan 0104, Status of 2026-10-25): a login may
+    // hold `@` and `.`, the user share looks `shareWith` up as a user id, and
+    // an install behind LDAP or user_oidc can name its accounts by address.
+    // Going to the share by mail first would hand such a person a link
+    // outside the account they have.
+    const { httpClient, calls } = nextcloud([{ status: 200, body: OK_ENVELOPE }]);
+    const result = await createNextcloudShare(OPTIONS(httpClient), REQUEST);
+    expect(result).toEqual({ ok: true, via: 'user' });
+    expect(calls).toHaveLength(1);
+    expect(String(calls[0]!.body)).toContain('shareType=0');
+    expect(String(calls[0]!.body)).toContain('shareWith=anna%40example.nl');
   });
 });

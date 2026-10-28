@@ -9,10 +9,15 @@
 #
 # WHAT THIS FILE DOES NOT SEE is scripts/idp-pin-watch.mjs's (workplan 0146 T8): every image
 # line of deploy/compose's managed.yml, dev.yml and www.yml, the busybox and GoAccess copies in
-# its scripts, Trigger.dev, the tasks' Node, `packageManager`, the Trivy the scan runs, and the
-# TypeScript split. It runs on Mondays after this, and keeps an issue open while one is behind.
+# its scripts, Trigger.dev, the tasks' Node, `packageManager`, the Trivy the scan runs, the
+# cosign images.yml and release.yml name, and the TypeScript split. It runs on Mondays after
+# this, and keeps an issue open while one is behind. This file moves cosign-installer, and the
+# cosign it installs only while no step names one.
 # The one of those this file sees too is the databases' build, whose pin is the FROM of
-# deploy/compose/postgres/Dockerfile (its entry below).
+# deploy/compose/postgres/Dockerfile (its entry below). The appliance's PostgreSQL is a build
+# too since 0146 T15b, and its pin, the FROM of deploy/selfhost/postgres/Dockerfile, is this
+# file's alone (its entry below): the pin watch reads neither deploy/selfhost/compose.yml nor
+# that Dockerfile (in deploy/selfhost it reads only setup-stalwart.sh's Stalwart pin).
 version: 2
 updates:
   # npm/pnpm workspace (root manifest + all packages/* and apps/* via the workspace).
@@ -101,6 +106,26 @@ updates:
     commit-message:
       prefix: chore(images)
 
+  # The visit count's GoAccess (deploy/compose/goaccess/Dockerfile), built on
+  # Alpine because upstream's image is on one past its end of life (#1675). An
+  # entry of its own, so its pull request carries nothing else: the block
+  # above groups minor and patch across its directories, and its pull
+  # request's checks build the apps' images, never this one. This pull
+  # request's checks build it (.github/workflows/script-images.yml), on arm64
+  # as live's daily duty `visits` does from the tag that carries it. A new
+  # Alpine line (3.24 to 3.25) is a minor and comes here too: read Alpine's
+  # release notes for it before merging.
+  - package-ecosystem: docker
+    directory: "/deploy/compose/goaccess"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: chore(goaccess)
+
   # The managed stacks' PostgreSQL (deploy/compose/postgres/Dockerfile, workplan
   # 0146 T15): the official image without gosu, which managed.yml and dev.yml
   # build as `localhost/postgres:<tag>-<12 hex>`, the hex being the hash of the
@@ -124,6 +149,32 @@ updates:
     commit-message:
       prefix: chore(postgres)
 
+  # The appliance's PostgreSQL (deploy/selfhost/postgres/Dockerfile, workplan
+  # 0146 T15b): the official image without gosu, on the appliance's own base,
+  # which deploy/selfhost/compose.yml builds as `localhost/postgres:<tag>-<12
+  # hex>` like the managed stacks' above. Until 2026-10-26 compose.yml named
+  # the official image itself and the docker-compose entry below moved it; that
+  # entry cannot move a build's base, so the pin moved here, and with it the
+  # ignore of a major. This pull request, a new digest or 18.x in the FROM,
+  # fails scripts/a-database-started-as-root.unit.test.ts until compose.yml's
+  # image line moves too; the failure prints the `sed` that moves it. Push that
+  # to the pull request's branch, and dispatch E2E (self-hosted) on it. An
+  # entry of its own, so that pull request holds no other image back. A major
+  # is pg_upgrade on somebody's machine, and the owner's (0119 §2.1).
+  - package-ecosystem: docker
+    directory: "/deploy/selfhost/postgres"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: chore(postgres)
+
   # The self-host stack's images (workplan 0119 T1). Dependabot's compose fetcher
   # reads only the files directly in a directory whose names match
   # `(docker-)?compose(-\w+)?(\.[\w-]+)?\.ya?ml`, so `deploy/compose` is not
@@ -132,7 +183,10 @@ updates:
   # compares those images instead, and
   # scripts/a-dependabot-directory-with-nothing-to-read.unit.test.ts holds
   # that every directory listed here has a file Dependabot reads, and that
-  # every ignore names an image one of those files runs.
+  # every ignore names an image one of those files runs. Since 0146 T15b the
+  # appliance's database is a build (ignored below), so what is left for this
+  # entry is the app's line, Ownpace's own `edge`; it stays, so that an image
+  # the appliance pulls is read the Monday it is added.
   - package-ecosystem: docker-compose
     directories:
       - "/deploy/selfhost"
@@ -143,9 +197,14 @@ updates:
       timezone: Etc/UTC
     open-pull-requests-limit: 5
     ignore:
-      # A major is pg_upgrade, and the owner's decision (0119 §2.1).
-      - dependency-name: postgres
-        update-types: ["version-update:semver-major"]
+      # The appliance's database, built here since 0146 T15b: its pin is the
+      # FROM of deploy/selfhost/postgres/Dockerfile (the `docker` entry above,
+      # with the major ignore this entry had), and its image line is a name no
+      # registry serves. Dependabot reads `localhost/postgres` as a Docker Hub
+      # repository (a registry needs a dot in its host to be one), so it would
+      # ask Docker Hub for its tags every Monday and fail, or worse, find some.
+      # An ignore with no versions is a dependency the updater never checks.
+      - dependency-name: localhost/postgres
     groups:
       images:
         update-types:

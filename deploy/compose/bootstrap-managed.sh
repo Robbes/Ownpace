@@ -68,6 +68,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
+# PLAIN PROGRESS, ALWAYS (live's deploy of alpha.2, 2026-10-28). Compose v5.0.x
+# draws its progress in a terminal with a writer that can deadlock at the end
+# of a command: it prints its last line ("Pulled 0.6s") and never returns
+# (docker/compose#13639, fixed upstream by #13640; a second path after a cancel,
+# #14114). Live's bring-up met it from a terminal; the nights, with none, never
+# did. Plain progress has no such writer. Exported, so setup-zitadel.sh and
+# every script this starts write plain lines too.
+export COMPOSE_PROGRESS=plain
 # The compose project this checkout drives: COMPOSE_PROJECT_NAME, else
 # managed.yml's `name:`. Two stacks share the reference machine's Docker daemon
 # (workplan 0132 D7), so every volume name or persisted path this prints is
@@ -77,6 +85,9 @@ COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")"
 # applies every migration from scratch; #47 took roughly two minutes on the
 # Spark, and a machine with slower disk will take longer.
 IDP_READY_TIMEOUT="${IDP_READY_TIMEOUT:-300}"
+# How long a pull of the identity provider's image may take, when it is not on
+# the machine yet (prepare_machinekey_volume). A new tag is a few hundred MB.
+ZITADEL_PULL_TIMEOUT="${ZITADEL_PULL_TIMEOUT:-600}"
 
 # What a log line looks like when it is reporting that something FAILED, across
 # every image this stack runs: logfmt (Zitadel, Trigger.dev, Caddy), JSON, bare
@@ -1342,7 +1353,12 @@ phase_data() {
   say data "postgres, the two roles set to .env, the pooler's lookup role, pgbouncer"
   load_env
 
+  # Which postgres container ran before this `up`, so that a replaced one is
+  # seen below (A POOLER THAT OUTLIVED ITS DATABASE).
+  local db_before db_after
+  db_before="$("${COMPOSE[@]}" ps -q postgres 2>/dev/null | awk 'NR==1')" || db_before=''
   up_wait postgres
+  db_after="$("${COMPOSE[@]}" ps -q postgres 2>/dev/null | awk 'NR==1')" || db_after=''
   note "postgres healthy"
 
   # Before anything migrates: the API's first start applies 0001, which makes
@@ -1415,10 +1431,26 @@ phase_data() {
   # before — which is exactly what happened on the Spark, 2026-08-18, and cost a
   # round trip.
   #
-  # Only when it is unhealthy: a pooler that is serving is left alone, because
-  # recreating it drops every client connection for no reason.
+  # Only when it is unhealthy, or its database was replaced (below): a pooler
+  # that is serving is left alone, because recreating it drops every client
+  # connection for no reason.
+  #
+  # A POOLER THAT OUTLIVED ITS DATABASE is recreated too. When this run's `up`
+  # replaced the postgres container (a new image or digest in managed.yml),
+  # PgBouncer kept running, and every pool that logged in while the old server
+  # shut down got "the database system is shutting down". PgBouncer caches
+  # such a failed login for server_login_retry (15 seconds by default) and
+  # refuses every client of that pool meanwhile with "server login has been
+  # failing, cached error". The proof below then failed on app_user through
+  # the pooler: E2E (managed) #285 on 2026-10-28, the first run with postgres
+  # pinned by digest (#1678), and so also the alpha.3 deploy of live. Its
+  # server connections died with the old container anyway, so this drops
+  # nothing a serving pooler still had.
   if [ "$("${COMPOSE[@]}" ps --format '{{.Health}}' pgbouncer 2>/dev/null | tail -1)" = "unhealthy" ]; then
     note "pgbouncer is running but unhealthy — recreating it so it re-reads pgbouncer.ini"
+    "${COMPOSE[@]}" up -d --force-recreate --no-deps pgbouncer >/dev/null
+  elif [ -n "$db_before" ] && [ "$db_after" != "$db_before" ]; then
+    note "postgres was replaced by this run — recreating pgbouncer, so no pool keeps a login that failed while the old one shut down"
     "${COMPOSE[@]}" up -d --force-recreate --no-deps pgbouncer >/dev/null
   fi
 
@@ -1899,10 +1931,6 @@ resolve_image_uid() { # resolve_image_uid <image> <user-from-config>
 }
 
 prepare_machinekey_volume() {
-  # Explicit pull first: `inspect` reads the LOCAL image, and on a fresh machine
-  # the image arrives with `up` — which is after this. Cached, this is a no-op.
-  "${COMPOSE[@]}" pull -q zitadel
-
   # ASKED BY NAME, not by position. `config --images zitadel` looks like the
   # obvious call and is a trap: it prints the service's DEPENDENCIES too —
   # `postgres:18-alpine` came back on the second line here — so taking the first
@@ -1913,6 +1941,40 @@ prepare_machinekey_volume() {
   local image user
   image="$("${COMPOSE[@]}" config --format json | jq -r '.services.zitadel.image // empty')"
   [ -n "$image" ] || die "compose could not name the zitadel image — cannot tell what user it runs as."
+
+  # PULLED ONLY WHEN IT IS NOT HERE, AND NEVER WITHOUT AN END (live's deploy of
+  # alpha.2, 2026-10-28). `inspect` below reads the LOCAL image, and on a fresh
+  # machine the image arrives with `up`, which is after this, so a missing one
+  # is pulled first. One that is here is not asked for again: on live, a pull of
+  # an image already present printed "Pulled" and then never returned (compose
+  # v5.0.2's terminal progress, docker/compose#13639; COMPOSE_PROGRESS above now
+  # keeps every call here off it), and the deploy waited sixteen minutes on a
+  # no-op until the pull was killed and the deploy did not take. A pull that is
+  # needed is bounded: ZITADEL_PULL_TIMEOUT seconds, then a refusal that says
+  # what to do. `--foreground` keeps it in the terminal's own process group, so
+  # Ctrl-C still reaches it; its output goes to a file, never a pipe, so nothing
+  # it leaves behind can hold the bring-up open.
+  if ! docker image inspect "$image" >/dev/null 2>&1; then
+    local pull_rc=0 pull_log
+    pull_log="$(mktemp)"
+    timeout --foreground --kill-after=30 "$ZITADEL_PULL_TIMEOUT" "${COMPOSE[@]}" pull -q zitadel </dev/null >"$pull_log" 2>&1 ||
+      pull_rc=$?
+    sed 's/^/    /' "$pull_log"
+    rm -f "$pull_log"
+    case "$pull_rc" in
+      0) ;;
+      124)
+        die "the pull of ${image} did not end within ${ZITADEL_PULL_TIMEOUT}s, so it was stopped; nothing after it ran.
+    Run the same command again. If it stops here again, pull it by hand
+    (docker pull ${image}) and see what it waits on." ;;
+      130) die "the pull of ${image} was interrupted; nothing after it ran." ;;
+      137)
+        die "the pull of ${image} was killed (exit 137): by the limit of ${ZITADEL_PULL_TIMEOUT}s and 30 more, or by something else on this machine; nothing after it ran.
+    Run the same command again. If it stops here again, pull it by hand
+    (docker pull ${image}) and see what it waits on." ;;
+      *) die "the pull of ${image} failed (exit ${pull_rc}, above)." ;;
+    esac
+  fi
 
   user="$(docker image inspect "$image" --format '{{.Config.User}}')"
 

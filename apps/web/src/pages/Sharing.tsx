@@ -50,9 +50,12 @@ import {
   decideSharing,
   fetchSharing,
   rescanSharing,
+  type ShareLimitReached,
   type ShareRowRefused,
+  type ShareRowWaiting,
 } from '../services/operating-service.ts';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
+import { formatDateTime } from '../i18n/datetime.ts';
 import { serverMessage } from '../services/api.ts';
 import { Hint } from '../components/Hint.tsx';
 
@@ -140,6 +143,56 @@ const NotShared: React.FC<{ refused: ReadonlyArray<ShareRowRefused> }> = ({ refu
           );
         })}
       </ul>
+    </div>
+  );
+};
+
+/** The rows a folder press stopped before at the new system's limit, that limit, and when it answered. */
+interface WaitingRows {
+  readonly rows: ReadonlyArray<ShareRowWaiting>;
+  readonly limit: ShareLimitReached;
+  /** When the press's answer came: the line stays until the folder is pressed again. */
+  readonly at: Date;
+}
+
+/**
+ * WHAT A FOLDER PRESS STOPPED BEFORE (workplan 0104, Status of 2026-10-25).
+ *
+ * Nextcloud lets one account create a limited number of shares in ten
+ * minutes and answers the next one 429. The press stops there, and the rows
+ * from there on were not refused and were not tried: they wait for the
+ * limit. So they are not said under *did not work*, which a person reads as a
+ * share to correct, but here, with when to apply again.
+ *
+ * The line stays on the page until this folder is pressed again, so *in ten
+ * minutes* soon counts from nothing anybody can see: it ends with the moment,
+ * on the reader's clock, to apply again after when the new system named a
+ * wait, and the moment it answered otherwise.
+ */
+const WaitingForLimit: React.FC<{ waiting: WaitingRows }> = ({ waiting }) => {
+  const { t, locale } = useLocale();
+  const count = waiting.rows.length;
+  const nl = locale === 'nl' && waiting.limit.reasonNl !== undefined;
+  const wait = waiting.limit.retryAfterSeconds;
+  const clock = (at: Date) => formatDateTime(at, locale, { dateStyle: undefined });
+  return (
+    <div className="p-2 rounded border border-sky-200 bg-sky-50">
+      <p className="text-xs font-medium text-sky-900">
+        {count === 1
+          ? t('sharing.group.waitingForLimit.one')
+          : t('sharing.group.waitingForLimit.many', { count: String(count) })}
+      </p>
+      <p className="mt-1 text-xs text-sky-800" lang={locale === 'nl' && !nl ? 'en' : undefined}>
+        {nl ? waiting.limit.reasonNl : waiting.limit.reason}
+      </p>
+      <p className="mt-1 text-xs text-sky-800">
+        {wait === undefined
+          ? t('sharing.group.waitingForLimit.answeredAt', { time: clock(waiting.at) })
+          : // Up to the next whole minute, since the clock shows no seconds.
+            t('sharing.group.waitingForLimit.after', {
+              time: clock(new Date(Math.ceil((waiting.at.getTime() + wait * 1000) / 60_000) * 60_000)),
+            })}
+      </p>
     </div>
   );
 };
@@ -355,8 +408,10 @@ const GroupCard: React.FC<{
   refusal?: string;
   /** The rows the last folder press here went ahead without (the 200's `refused`). */
   notShared?: ReadonlyArray<ShareRowRefused>;
+  /** The rows the last folder press here stopped before at the new system's limit. */
+  waiting?: WaitingRows;
   children: React.ReactNode;
-}> = ({ group, rows, busy, onDecideMany, confirmed, onConfirm, onApplyFolder, refusal, notShared, children }) => {
+}> = ({ group, rows, busy, onDecideMany, confirmed, onConfirm, onApplyFolder, refusal, notShared, waiting, children }) => {
   const t = useT();
   const grantText = useGrantText();
   const [open, setOpen] = React.useState(false);
@@ -367,6 +422,7 @@ const GroupCard: React.FC<{
   // longer stays open, and the heading would say it does.
   const stillOpen = new Set(openRows.map((r) => r.id));
   const notSharedOpen = (notShared ?? []).filter((r) => stillOpen.has(r.id));
+  const waitingOpen = waiting && { ...waiting, rows: waiting.rows.filter((r) => stillOpen.has(r.id)) };
   const sharedWith = group.grants.map((g) => grantText(g)).join(', ');
 
   // EVERYONE ONE PRESS OVER THIS FOLDER WOULD INVITE. A link has no
@@ -535,6 +591,11 @@ const GroupCard: React.FC<{
             <NotShared refused={notSharedOpen} />
           </div>
         )}
+        {waitingOpen && waitingOpen.rows.length > 0 && (
+          <div className="px-3 pb-3">
+            <WaitingForLimit waiting={waitingOpen} />
+          </div>
+        )}
       </div>
       {open && <ul className="px-3 pb-3 space-y-2">{children}</ul>}
     </li>
@@ -588,6 +649,9 @@ const Sharing: React.FC = () => {
   const [folderNotShared, setFolderNotShared] = React.useState<
     Record<string, ReadonlyArray<ShareRowRefused>>
   >({});
+  // The rows a folder press stopped before at the new system's limit on new
+  // shares (workplan 0104), and when to apply again. Kept raw like the above.
+  const [folderWaiting, setFolderWaiting] = React.useState<Record<string, WaitingRows | undefined>>({});
   const [busyFolder, setBusyFolder] = React.useState<string | null>(null);
   const [rescanning, setRescanning] = React.useState(false);
   // Both lists the rescan answered with, so the page follows a language switch
@@ -699,6 +763,7 @@ const Sharing: React.FC = () => {
     setBusyFolder(group.parentKey);
     setFolderRefusals((r) => ({ ...r, [group.parentKey]: '' }));
     setFolderNotShared((r) => ({ ...r, [group.parentKey]: [] }));
+    setFolderWaiting((r) => ({ ...r, [group.parentKey]: undefined }));
     // ONLY THIS FOLDER'S PEOPLE. The session may hold confirmations for
     // grantees in other folders; sending those would put addresses on the wire
     // that this press has no business with (§17, least disclosure) — and would
@@ -711,12 +776,19 @@ const Sharing: React.FC = () => {
     applyShareFolder(mappingId, group.parentKey, confirmed)
       .then((outcome) => {
         const refused = outcome.refused ?? [];
-        // The press's answer is the newest word on every row it shared or
-        // refused, so what a row's own earlier press was told goes. A row it
-        // did not reach (a link, a manual row) keeps its own answer.
-        const answered = new Set([...(outcome.applied ?? []), ...refused].map((r) => r.id));
+        const waiting = outcome.waitingForLimit ?? [];
+        // The press's answer is the newest word on every row it shared,
+        // refused or stopped before, so what a row's own earlier press was
+        // told goes. A row it did not reach (a link, a manual row) keeps its
+        // own answer.
+        const answered = new Set([...(outcome.applied ?? []), ...refused, ...waiting].map((r) => r.id));
         setRefusals((r) => Object.fromEntries(Object.entries(r).filter(([id]) => !answered.has(id))));
         setFolderNotShared((r) => ({ ...r, [group.parentKey]: refused }));
+        const limit = outcome.limit;
+        setFolderWaiting((r) => ({
+          ...r,
+          [group.parentKey]: waiting.length > 0 && limit ? { rows: waiting, limit, at: new Date() } : undefined,
+        }));
         refresh();
       })
       .catch((err: unknown) => {
@@ -873,6 +945,7 @@ const Sharing: React.FC = () => {
               onApplyFolder={onApplyFolder}
               refusal={folderRefusals[g.parentKey] || undefined}
               notShared={folderNotShared[g.parentKey]}
+              waiting={folderWaiting[g.parentKey]}
             >
               {g.rowIds.map(rowById).filter(isRow).map((r) => renderRow(r))}
             </GroupCard>

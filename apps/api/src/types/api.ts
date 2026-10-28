@@ -84,6 +84,15 @@ export interface PersonLinkRequest extends MappingLinkRequest {
   };
 }
 
+/**
+ * What a refusal is written to: an express `Response`, or the recorder
+ * `scripts/live-pass.ts` answers into when *Sync now* is pressed at the machine
+ * for live's pass check (workplan 0132 T9). A `Response` is one as it stands.
+ */
+export interface Answerable {
+  status(code: number): { json(body: unknown): unknown };
+}
+
 // JwtPayload lives in ../middleware/auth.ts, next to the code that verifies it.
 // It was declared here too, with `tenantId` and `role` REQUIRED, which stopped
 // being true at ADR-0042 — and a duplicate that contradicts the real one is

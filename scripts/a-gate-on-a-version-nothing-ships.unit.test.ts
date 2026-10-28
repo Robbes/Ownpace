@@ -11,7 +11,7 @@
  *
  * ## Node: every `actions/setup-node` asks for the major the images run
  *
- * The api, web and selfhost images build `FROM node:24.x-slim`, `package.json`
+ * The three app images build `FROM node:24.x-trixie-slim`, `package.json`
  * declares `"engines": { "node": ">=24" }`, and eight `setup-node` steps asked
  * for `'24'`. The managed gate (`e2e-managed.yml`) and the live-target lane
  * (`e2e-live-target.yml`) asked for `22` — found 2026-09-24. The managed gate
@@ -110,8 +110,14 @@
  * 0146 T14 it builds the tasks on that image itself: for every target but
  * `trigger dev`, its extension sets the build manifest's `image.base` to the
  * FROM line's image, so the tasks run that image's own Node and Debian, and
- * Dependabot's move of the line is the only way either moves. On a base of
- * its own the CLI adds nothing to the image, so the extension's one layer
+ * Dependabot's move of the line is the only way either moves. (Since 0146
+ * T13 that FROM line is the API's BUILD stage: the API runs on distroless,
+ * whose `/nodejs/bin/node` was the same file, byte for byte, on both
+ * architectures when T13 pinned it. The two pins move separately, the Node
+ * tag and the distroless digest, on the one major the next block holds, and
+ * the managed smoke's preflights stop when the API container's Node is not
+ * this line's x.y.z: `an-api-image-with-nothing-to-exec`, section 5.) On a
+ * base of its own the CLI adds nothing to the image, so the extension's one layer
  * brings what the runtime uses: dumb-init (the image's ENTRYPOINT) and
  * Debian's `ca-certificates`, with the trust edits the CLI makes to its own
  * images (four roots distrusted, eight intermediates rejected, Node on the
@@ -165,13 +171,17 @@ const read = (p: string) => readFileSync(join(REPO_ROOT, p), 'utf8');
 type Step = { uses?: string; with?: Record<string, unknown> };
 type Workflow = { jobs?: Record<string, { steps?: Step[] }> };
 
-/** Every `FROM node:<major>…` line in every app image, found rather than listed. */
+/**
+ * Every `FROM node:<major>…` line in every app image, found rather than listed,
+ * and every `FROM gcr.io/distroless/nodejs<major>-…` line: the API's runtime
+ * stage since 0146 T13, which names its Node major in the image's name.
+ */
 function imageNodeMajors(): ReadonlyArray<{ image: string; major: number }> {
   return readdirSync(join(REPO_ROOT, 'apps'))
     .map((app) => `apps/${app}/Dockerfile`)
     .filter((p) => existsSync(join(REPO_ROOT, p)))
     .flatMap((image) =>
-      [...read(image).matchAll(/^FROM\s+node:(\d+)[.\-@\s]/gm)].map((m) => ({ image, major: Number(m[1]) })),
+      [...read(image).matchAll(/^FROM\s+(?:node:|gcr\.io\/distroless\/nodejs)(\d+)[.\-@\s]/gm)].map((m) => ({ image, major: Number(m[1]) })),
     );
 }
 
@@ -239,6 +249,9 @@ describe('every gate runs the Node major the images ship', () => {
     expect(images.map((i) => i.image)).toEqual(
       expect.arrayContaining(['apps/api/Dockerfile', 'apps/selfhost/Dockerfile']),
     );
+    // The API's two: the Node image it builds on, and the distroless one it
+    // runs on (0146 T13). Both are held to the one major below.
+    expect(images.filter((i) => i.image === 'apps/api/Dockerfile')).toHaveLength(2);
     for (const anchor of ANCHORS) {
       expect(
         steps.some((s) => s.where.startsWith(`${anchor} `)),

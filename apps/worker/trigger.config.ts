@@ -41,6 +41,12 @@ import { defineConfig } from '@trigger.dev/sdk';
  * #1708 puts that line), the runtime stage reads 0 critical and 43 high, none
  * with a fix (the same scan; 0146 T14 has the figures).
  *
+ * Since workplan 0146 T13 that line is the API's BUILD stage: the API runs on
+ * distroless, with a Node of its own pinned by a digest that moves apart from
+ * the tag. Same Node version as this line, checked, not assumed: the managed
+ * smoke's preflights stop when the API container's Node is not this line's
+ * x.y.z (deploy/compose/smoke-managed.sh, `dockerfile_node`).
+ *
  * The manifest is where the CLI keeps a custom base. 4.8.1's documented way to
  * fill it is an instance setting, `DEPLOY_BASE_IMAGES` on the webapp, which
  * would name the image in `managed.yml` too, a second place for it to move;
@@ -66,8 +72,9 @@ import { defineConfig } from '@trigger.dev/sdk';
  * and the version gate fails when the SDK leaves the version they were read at.
  *
  * NO PACKAGE MANAGER AT RUNTIME. The controller and the tasks never run npm,
- * npx, corepack, pnpm or yarn, so the runtime stage drops them all, as the API
- * image's runtime stage does (0146 T12), and with them npm's bundled undici,
+ * npx, corepack, pnpm or yarn, so the runtime stage drops them all, as the
+ * selfhost image's runtime stage does (0146 T12; the API's distroless runtime
+ * has none to drop since T13), and with them npm's bundled undici,
  * brace-expansion and http-cache-semantics, the base's 5 Node.js findings.
  * The CLI's build stage does run `npm i` (the externals below), and with a
  * layer and no build base named it builds that stage FROM the runtime base,
@@ -111,7 +118,7 @@ const DISTRUSTED_ROOTS = ['emSign_ECC_Root_CA_-_G3', 'emSign_Root_CA_-_C1', 'emS
 const REJECT_DIR = '/usr/local/share/ca-certificates/emsign-block';
 const REJECTED = join('task-image', 'emsign-block');
 
-/** Every package manager the Node image ships, as `apps/api/Dockerfile`'s runtime stage removes them (0146 T12). */
+/** Every package manager the Node image ships, as `apps/selfhost/Dockerfile`'s runtime stage removes them (0146 T12; `apps/api/Dockerfile`'s did until T13). */
 const PACKAGE_MANAGERS = [
   '/usr/local/lib/node_modules',
   '/usr/local/bin/npm',

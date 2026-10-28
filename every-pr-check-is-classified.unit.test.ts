@@ -62,13 +62,31 @@ const NOT_REQUIRABLE = new Map([
     'images.yml carries a `paths:` filter on its pull_request trigger, so on a PR ' +
       'touching none of those paths the workflow never runs and the context is never reported.',
   ],
+  // nextcloud-second-major.yml (workplan 0119, Status of 2026-10-25). It runs on
+  // a pull request only when that pull request changes how it runs, so most
+  // never see it.
+  [
+    'DAV suites on the second Nextcloud major',
+    'nextcloud-second-major.yml carries a `paths:` filter on its pull_request trigger (the leg ' +
+      'itself, the integration setup, the suite finder), so on any other PR it is never reported; ' +
+      'a red run is a finding about the other major, for the owner, not a merge gate.',
+  ],
+  // script-images.yml (#1675): builds an image a script builds for itself, on a
+  // pull request that changes its directory, and on no other.
+  [
+    'Build (${{ matrix.context }})',
+    'script-images.yml carries a `paths:` filter on its pull_request trigger (the directories ' +
+      'of the images the scripts build), so on a PR touching none of them the workflow never ' +
+      'runs and the context is never reported.',
+  ],
   // images.yml's build of deploy/compose/postgres (0146 T15, the review of
-  // #1717): the same workflow, so the same `paths:` filter silences it.
+  // #1717), and of deploy/selfhost/postgres in the same job (T15b): the same
+  // workflow, so the same `paths:` filter silences it.
   [
     'build (postgres)',
     'images.yml carries a `paths:` filter on its pull_request trigger (deploy/** among them), so on a ' +
       "PR touching none of those paths the workflow never runs and the context is never reported. A PR " +
-      "that moves the databases' Dockerfile does run it, and E2E (managed) builds the image anyway.",
+      "that moves either database's Dockerfile does run it, and E2E (managed) or E2E (self-hosted) builds the image anyway.",
   ],
   // images.yml's builds of deploy/compose/trigger.dev and supervisor (0146
   // T16), on both platforms: the same workflow and filter, and a matrix job,
