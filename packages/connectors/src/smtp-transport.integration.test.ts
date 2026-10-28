@@ -22,10 +22,11 @@
  * message is read back off the server and its CONTENTS checked, so the claim is
  * "the digest reached the mailbox", not "no exception was thrown".
  *
- * THE TLS SETTING. Stalwart binds TLS listeners only and presents a self-signed
- * certificate, so this needs `allowSelfSignedCertificate`. That switch is
- * refused outright in production by `readNotifierConfig` — see its comment on
- * `SmtpSettings`. It exists so this test can exist.
+ * THE TLS SETTING. The harness publishes Stalwart's SMTP only as SMTPS on 465,
+ * which presents a self-signed certificate, so this needs
+ * `allowSelfSignedCertificate`. That switch is refused outright in production
+ * by `readNotifierConfig` — see its comment on `SmtpSettings`. It exists so
+ * this test can exist.
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';

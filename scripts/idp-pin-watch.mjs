@@ -297,7 +297,7 @@ export function stateOf(pin, newest) {
 
 // ----------------------------------------------------------- images ------
 
-/** An image reference in its three parts: `axllent/mailpit:v1.31.6@sha256:…`. */
+/** An image reference in its three parts: `axllent/mailpit:v1.32.0@sha256:…`. */
 export function parseRef(ref) {
   const at = ref.indexOf('@');
   const digest = at >= 0 ? ref.slice(at + 1) : '';
@@ -886,8 +886,9 @@ export async function routineRows(repo, net) {
     const pin = [...pins].sort(compareParts);
     const newest = newestLike(pin[0], await tagsFor('stalwartlabs/stalwart'), 2);
     const state = pin.length > 1 ? 'behind' : stateOf(pin[0], newest);
-    // AGENTS.md: "Never change the pinned Stalwart version". An agent reading
-    // the summary issue is told whose call it is, and by which document.
+    // AGENTS.md: "Change the pinned Stalwart version only on the owner's
+    // decision, recorded in ADR-0022". An agent reading the summary issue is
+    // told whose call it is, and by which document.
     const notes = [...(pin.length > 1 ? ['the copies disagree'] : []), ...(state === 'behind' ? [STALWART_RULE] : [])];
     return { pin: pin.join(' / '), newest, state, notes };
   }]);

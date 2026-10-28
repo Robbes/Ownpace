@@ -97,6 +97,34 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   postgres` runs as that user (`-u 0` for root), and the backup's `pg_dump` and
   the restore's `psql` answer as before. The PGlite appliance and the Windows
   appliance run no database server and are unchanged.
+- **The web image and the public site run nginx 1.31.8-alpine-slim** (workplan
+  0146 T12a): the same nginx on the same base, without the modules and tools
+  the `-alpine` image adds and nothing here loads, 51 packages in all. The
+  image scan reads 0 critical and 0 high where `-alpine` reads 1 high
+  (brotli-libs, CVE-2026-111497). The site's nginx moves when `www.yml` is
+  brought up again.
+- **The test stack's mail catcher is Mailpit v1.32.0** (workplan 0146 T11,
+  #1699): it closes GHSA-379p-g4f4-hq5h (high), in which an image
+  attachment whose EXIF directories point at each other held Mailpit's
+  thumbnail endpoint in a loop, a core busy and memory growing until the
+  process was killed, and it is built with Go 1.27.3, which fixes
+  CVE-2026-111943 in `crypto/x509` that v1.31.6's Go 1.27.2 has. It also
+  strips `<base>` and refresh tags from a message's HTML view. The stack's
+  exposure to the loop was small: SMTP is reachable only from the stack's
+  own services, and the web page and its API only on the address
+  `MAILPIT_BIND` names, loopback by default. Its release check is still
+  off, read again at v1.32.0. The first start rebuilds one index in the kept
+  `mailpit.db`; v1.31.6 still opens that file. Live runs no catcher.
+- **The Stalwart the tests and the demo start is v0.16.27** (workplan 0146
+  T11 (b), ADR-0022, #1698): the integration tests, the self-hosted
+  end-to-end run and the OTA demo run it, live never does. v0.16.10's image
+  carried 3 critical and 114 high findings, v0.16.27's carries no critical
+  and 47 high, none with a fix. On x86_64 its image needs a CPU with
+  x86-64-v2, so a virtual machine with a generic CPU model refuses to start
+  it. Its WebUI now comes from release v1.0.11, in recovery mode too, and a
+  new database fetches its ASN lists from GitHub instead of jsDelivr. A data
+  volume v0.16.10 made works under v0.16.27 and back again. The pin moves
+  only on the owner's decision, recorded in ADR-0022, every copy together.
 
 ### Added
 
@@ -130,6 +158,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   and reports it under the same code-scanning category and alert location, so
   the first scan on `main` after this closes them, and the alerts it still has
   keep their numbers.
+- **A share press stops at the new system's limit on new shares, and says
+  when to apply again** (workplan 0104 T5, #1704): Nextcloud 31 to 35 let one
+  account create 20 shares in 10 minutes and answer the next one 429, and a
+  press asks twice for each person without an account there, so a one-go
+  press over more than about ten of them reported every row after the limit
+  as refused, under the generic sentence. A 429 now has its own sentence, in
+  English and Dutch, on both editions, with what `Retry-After` asked, up to a
+  day, or Nextcloud's ten minutes. `apply-all` and `apply-folder` stop at the
+  first one and list that row and the rows after it as `waitingForLimit`,
+  open and untried, apart from `refused`, with the sentence as `limit`; the
+  Sharing page says them under the folder as waiting, with the time to apply
+  again on the reader's clock. A refused row stays open and is asked for
+  again first, at the same cost, so a press that met the limit after
+  refusals says to settle those rows first, and to check the password first
+  when the sign-in was refused. A grantee that looks like an e-mail address
+  still gets the user share first: a Nextcloud login may be an address.
 
 ## [0.2.0-alpha.2] - 2026-10-25
 

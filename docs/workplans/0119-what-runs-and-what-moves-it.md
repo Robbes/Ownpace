@@ -37,6 +37,43 @@ now, in a `docker` entry of its own with no major, and its pull request fails
 `a-database-started-as-root` until the three names move, with the `sed` that moves them (0146's
 Status has the rest).
 
+**2026-10-25, evening: the web image and www run nginx 1.31.8-alpine-slim (0146 T12a)**, on
+the branch `claude/ownpace-public-readiness-y7orc6-nginx-alpine-slim`, a draft based on #1678's
+branch, because both change the same two lines. It merges after #1678, after the alpha.2 tag,
+and not before 19:51 UTC on 2026-10-27, three days after Docker Hub pushed the slim tag's index,
+`f45171d3…`. That push added the riscv64 image (built 16:24 UTC on 2026-10-24); the amd64 and
+arm64 images under it, `f9238a4a…` and `0e0bc470…`, were built at 22:47 and 23:13 UTC on
+2026-10-21 and pushed at 01:50 UTC on 2026-10-22, the same hour as -alpine's.
+- **Read with Trivy 0.76.1** (database of 19:10 UTC today), remote image source, critical and
+  high, on linux/arm64 and linux/amd64: 1.31.8-alpine `1ef7ca94…` reads 0/1 on both, brotli-libs
+  1.2.0-r1, CVE-2026-111497, fixed in 1.2.1-r0; 1.31.8-alpine-slim reads 0/0 on both. The
+  stable line's 1.30.6-alpine reads 0/1 too (arm64), so moving lines would gain nothing.
+- **What slim leaves out.** Slim has 21 packages and -alpine 72; slim's 21 are among -alpine's
+  at the same versions (nginx 1.31.8-r1 on Alpine 3.24.3, busybox, gettext-envsubst, tzdata).
+  -alpine adds 51: curl, ca-certificates, brotli-libs, libxml2, libxslt, libexpat, libx11,
+  libgd, tiff, libwebp, libavif, geoip, `nginx-module-{njs,xslt,geoip,image-filter,acme}` and
+  their libraries. libexpat and libx11 were 1.31.7-alpine's two highs (0146's Status of
+  2026-10-23); slim ships neither. Each architecture's slim manifest is the first seven of
+  -alpine's eight layers, the same digests, read from the registry: -alpine is slim plus one
+  layer, so the entrypoint's template step and its envsubst are the ones the web image has run.
+- **Nothing here uses what it drops:** no `load_module`, `js_`, `xslt`, `geoip`,
+  `image_filter` or `proxy_ssl` in `apps/web/nginx.conf.template` or
+  `deploy/compose/www-nginx.conf`; the API upstream is plain `http://api:3001`; both health
+  checks and the incident runbook's look from inside the web container are busybox's `wget`;
+  nothing in `deploy/`, `scripts/` or `.github/` runs curl in either container.
+- **Held by `scripts/an-nginx-that-carries-only-what-it-loads.unit.test.ts`** (the review):
+  both references are -alpine-slim by tag and digest, neither config names a directive of the
+  modules slim lacks, and no health check of a container running it, nor a runbook's look
+  from inside the web or www container, asks with curl, which slim does not have. Nothing
+  else would see a curl check on `www.yml`: no workflow brings it up.
+- Proved here: the 31 unit guards that read `apps/web/Dockerfile`, `www.yml` or
+  `scripts/nginx-on-this-machine.ts` (the two that run a real nginx skip without one, as on
+  any machine without it; CI runs them), and the new guard, which fails on each mutation
+  tried: a curl health check in `www.yml` or the Dockerfile, -alpine in either file, a
+  `js_import` in `www-nginx.conf`, a curl in the incident runbook's look. Owed: the pull
+  request's image build, E2E (managed) on the branch once #1678 is in it, and the OTA site
+  recreated by hand after the merge (no workflow runs `www.yml`).
+
 **2026-10-25: the five pins read again with `main` merged in, and Nextcloud's moved to
 upstream's rebuild of 2026-10-23**, on the branch
 `claude/ownpace-public-readiness-y7orc6-floating-images-pinned` (#1678, a draft). Main is
@@ -593,7 +630,7 @@ is who moves it after T1.
 | Image | Where | Pinned | Newest | Distance | Moves by | Decision |
 |---|---|---|---|---|---|---|
 | `node` (24-slim) | `apps/api`, `apps/web`, `apps/selfhost` Dockerfiles; the Windows payload's node.exe follows `apps/selfhost` | 24.22.1-slim by digest (2026-10-21, the October security release; digest `6f7b03f7…` with no tag at the audit, 24.20.0-slim from T2) | 24.22.1-slim (Node released 2026-10-20); the tag's digest moves as more architectures land (ppc64le at 17:39 UTC on 2026-10-21) and Dependabot offers each move | current: the pin's amd64 and arm64 images are the tag's | Dependabot `docker`, which moves the payload with it since 2026-10-21 | **T2** — and T1 gives it its tag |
-| `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.31.8-alpine by digest `1ef7ca94…` (2026-10-23; 1.31.7-alpine `892bb215…` the day before, 1.27-alpine at the audit, 1.30-alpine from T2, `1.31-alpine` floating from #813, which no build or `up` ever pulled again) | 1.31.8-alpine, pushed 2026-10-22 16:51 UTC: four bug fixes and one change (changes.xml, 2026-10-21) on Alpine 3.24.3, which fixes the two high CVEs 1.31.7's image carries on 3.24.2 (libexpat CVE-2026-77214, libx11 CVE-2026-88806); 1.31.7 (2026-10-14) fixed five: CVE-2026-15176, CVE-2026-93479, CVE-2026-95101, CVE-2026-97629 and CVE-2026-97205 | current | Dependabot `docker` for the Dockerfile; `www.yml` by hand after it, and the pin watch (0146 T8) says when the two differ | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows |
+| `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.31.8-alpine-slim by digest `f45171d3…` (2026-10-25, 0146 T12a: the same nginx package and base layers as -alpine, without its dynamic modules, curl and the 51 packages they bring; 1.31.8-alpine `1ef7ca94…` from 2026-10-23, 1.31.7-alpine `892bb215…` the day before that, 1.27-alpine at the audit, 1.30-alpine from T2, `1.31-alpine` floating from #813, which no build or `up` ever pulled again) | 1.31.8-alpine-slim, its index pushed 2026-10-24 19:51 UTC to add riscv64 over the amd64 and arm64 images pushed 2026-10-22 01:50 UTC; 1.31.8 itself: four bug fixes and one change (changes.xml, 2026-10-21) on Alpine 3.24.3, which fixes the two high CVEs 1.31.7's image carries on 3.24.2 (libexpat CVE-2026-77214, libx11 CVE-2026-88806); 1.31.7 (2026-10-14) fixed five: CVE-2026-15176, CVE-2026-93479, CVE-2026-95101, CVE-2026-97629 and CVE-2026-97205 | current | Dependabot `docker` for the Dockerfile; `www.yml` by hand after it, and the pin watch (0146 T8) says when the two differ | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows; -alpine-slim since 2026-10-25 (0146 T12a), because nothing here loads what -alpine adds and the scan counts it |
 | `postgres` (self-host) | `deploy/selfhost/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `deploy/selfhost/compose.yml` since 0146 T15b (2026-10-26: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing) | 18.6-alpine by digest `77f58511…` (Dependabot's move of 2026-09-24 to a rebuild of the tag; `d3e1620b…` from T2, digest `9a8afca5…` = 18.4-alpine with no tag at the audit) | 18.6-alpine, rebuilt 2026-10-22 as `898c60cb…`, which the managed stacks pin, and again 2026-10-26 as `10a5c69a…` (inside the three-day floor) | the same release; Dependabot offers the rebuild | Dependabot `docker` on `/deploy/selfhost/postgres` (its own entry, no major; `docker-compose` before T15b, which now ignores `localhost/postgres`), whose PR fails `a-database-started-as-root` until compose.yml's image line moves, and prints the `sed` that moves it | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
 | `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (draft #1717, 2026-10-26: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.6-alpine by digest `898c60cb…` (2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13); 18.7 is due 2026-11-12 | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and prints the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8) | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
 | `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
@@ -607,7 +644,7 @@ is who moves it after T1.
 | `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.19.2 (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.19.2 | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason | 1.38 (1.38.0) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.37.0 (2026-10-21) | v5.37.0 (2026-09-24) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
-| `axllent/mailpit` | `managed.yml` | v1.31.6 by digest (2026-10-21; v1.31.1 from T2) | v1.31.6 (2026-10-15), digest `23fe39e8…` | current | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
+| `axllent/mailpit` | `managed.yml` | v1.32.0 by digest (2026-10-25, for CVE-2026-111943 in v1.31.6's Go, 0146 T11 (a); v1.31.6 from 2026-10-21, v1.31.1 from T2) | v1.32.0 (2026-10-22), digest `0790692b…` | current | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
 | `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 34.0.5-apache by digest `1f9212ad…` (2026-10-25, upstream's rebuild of 2026-10-23 with `session.upload_progress.enabled=0`, PHP's mitigation for CVE-2026-115560; `9dbdc711…` from 2026-10-22, `34-apache` floating before, never pulled) | 34.0.5 (2026-10-15) on PHP 8.5.12 | current | by hand, in its own PR, when the pin watch lists a newer 34.x or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and refuses an older image on it, so a bad move is fixed forward (`managed-bring-up.md`, *Updating a running deployment*) |
 | `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 35.0.2-apache by digest (PHP 8.5.12), since 2026-10-26; 35.0.1 before | 35.0.2-apache | current | by hand; the pin watch reads no workflow file (§4) | a CI fixture: the other major customers may run, never deployed |
 | `ghcr.io/robbes/ownpace-selfhost` | `deploy/selfhost/compose.yml` | `edge` | ours | — | `images.yml` | — |

@@ -114,7 +114,12 @@ of* it.
    page). A refusal of our own gates has no Dutch half. From a folder press
    it is shown in English, marked `lang="en"` under a Dutch page, under the
    folder and in the row's card; a row's own press shows it unmarked. The
-   appliance answers with the target's words, as served.
+   appliance answers with the target's words, as served, except for the
+   target's limit on new shares (a 429, workplan 0104): Nextcloud's says
+   nothing, so both editions say ours, as `reason` and `reasonNl`, with when
+   to apply again. A press that meets it stops, and its answer lists the rows
+   from there as `waitingForLimit`, with that sentence as `limit`; the
+   Sharing page says them under the folder as waiting, not as refused.
 
    **The queues' guidance is the fifth** (the owner, 2026-10-18, option A of
    the UX sweep's word choices). *What this means and what you can do* on

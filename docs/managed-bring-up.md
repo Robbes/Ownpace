@@ -3062,7 +3062,7 @@ refuses a `COMPOSE_FILE` in the shell.
 | `zitadel` | A "service ping" once a day to `zitadel.com`: the version, each instance's id, creation date and domains, and its count of users, organisations and projects | `ZITADEL_SERVICEPING_ENABLED: "false"`; `ZITADEL_TELEMETRY_ENABLED: "false"` too, which ships off | `cmd/defaults.yaml` at v4.19.2 (*"It's enabled by default"*) |
 | `clickhouse` | A report on every crash and logical error to `crash.clickhouse.com` | `clickhouse-no-crash-reports.xml`, mounted into `config.d`, sets both off; the `config.xml` the image ships sets them on. It is the only file ClickHouse merges that speaks of crash reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d` and `conf.d`, in sorted order, so a later one would win | `programs/server/config.xml`, `src/Daemon/CrashWriter.cpp`, `src/Common/Config/ConfigProcessor.cpp` at `v26.2.19.43-stable` |
 | `minio` | A release check to `dl.min.io` at every start, its User-Agent carrying the OS, architecture, version and CPU | `MINIO_UPDATE: "off"`; `MINIO_CALLHOME_ENABLE: "off"` too, which ships off | `cmd/server-main.go`, `cmd/common-main.go`, `cmd/update.go`, `internal/config/callhome/callhome.go` at `chainguard-forks/minio`'s `RELEASE.2026-09-22T19-25-18Z`, Chainguard's build since workplan 0146 T7 (first read at `RELEASE.2025-05-24T17-08-30Z`, the Bitnami image it replaced) |
-| `mailpit` (the test stack's catcher; live runs none) | A release check to GitHub whenever its page asks for the server's info | `MP_DISABLE_VERSION_CHECK: "true"` | `internal/stats/stats.go`, `cmd/root.go` at v1.31.6 |
+| `mailpit` (the test stack's catcher; live runs none) | A release check to GitHub whenever its page asks for the server's info | `MP_DISABLE_VERSION_CHECK: "true"` | `internal/stats/stats.go`, `cmd/root.go` at v1.31.6, and again at v1.32.0 |
 | `nextcloud` (the demo's DAV target, on the OTA stack every night; and `dev.yml`'s) | Its version, PHP version and install time to `updates.nextcloud.com`, the app store at `apps.nextcloud.com`, the announcements feed at `pushfeed.nextcloud.com`, and a connectivity check to four public sites | **None yet.** `updatechecker`, `appstoreenabled` and `has_internet_connection` stay on, Nextcloud's defaults; see *What is left on, and where*, below | `config/config.sample.php` and `apps/settings/lib/SetupChecks/InternetConnectivity.php` at `stable34`; `lib/Cron/Crawler.php` in nextcloud_announcements at `stable34` |
 
 The entrypoint's other children do not call out: pnpm 10.33.2 checks for its
@@ -3105,16 +3105,20 @@ them, which is what points the demo's Nextcloud at the catcher (0103). And as
 booleans: `--value=false` alone stores the string `"false"`, which PHP reads as
 true.
 
-The demo's Stalwart (v0.16.10), which
+The demo's Stalwart (v0.16.27), which
 `setup-stalwart.sh` starts with `docker run`, outside every compose file, on
 the OTA stack every night, in the self-host end-to-end run, and on a
-developer's machine beside `deploy/compose/dev.yml`. In normal mode
-it downloads its WebUI from `github.com/stalwartlabs/webui/releases/latest` on
-first start and every 30 days, its spam-filter rules from
+developer's machine beside `deploy/compose/dev.yml`. It downloads its WebUI
+from `github.com/stalwartlabs/webui/releases/download/v1.0.11` on first start
+and every 30 days, in recovery mode too, its spam-filter rules from
 `github.com/stalwartlabs/spam-filter/releases/latest`, and an ASN and country
-database from `cdn.jsdelivr.net` daily (`crates/common/src/manager/defaults.rs`,
-and `SpamSettings` in `crates/registry/src/schema/structs_impl.rs`, at
-v0.16.10). They are downloads rather than reports about anybody. They are
+database daily: from `github.com/sapics/ip-location-db` on a database it made,
+and from `cdn.jsdelivr.net` on one an older version made, which keeps the
+addresses it was given (the OTA demo's, made at v0.16.10)
+(`crates/common/src/manager/defaults.rs` and `application.rs`, and
+`SpamSettings` in `crates/registry/src/schema/structs_impl.rs`, at v0.16.27;
+the stored addresses read back with `stalwart-cli snapshot` on 2026-10-25).
+They are downloads rather than reports about anybody. They are
 objects in its database, not in `config.json`, so switching them off is new
 objects in the provisioning plan, a change that has to be run and watched on
 the machine (`docs/stalwart-integration-fix.md`). **Left on, as the owner
