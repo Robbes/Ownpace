@@ -4,6 +4,95 @@
 
 ## Status — 2026-10-28 (update this block at the end of every session)
 
+**2026-10-25: Trigger.dev v4.7.6 → v4.8.1, a draft for alpha.3**, on the branch
+`claude/ownpace-public-readiness-y7orc6-trigger-4-8-1` (issue #1668; the owner chose v4.8.1
+directly on 2026-10-25). Main is frozen from the alpha.2 fold to its tag; this merges after the
+tag.
+- **`trigger-version.sh pin v4.8.1`** in every place. It found the tag in both images on ghcr by
+  manifest (index digests `trigger.dev` `sha256:bcce9e8f…`, `supervisor` `sha256:9907be3e…`).
+  The lockfile moves `@trigger.dev/core` and `@trigger.dev/sdk` only; their dependency ranges
+  did not change (`npm view` of both versions).
+- **Read:** the release commits of v4.7.7, v4.8.0 and v4.8.1 (the notes GitHub shows, and their
+  `.server-changes`), and `git diff v4.7.6 v4.8.1` (51 commits). v4.7.7 was cut on upstream's
+  hotfix branch and is not an ancestor of v4.8.0; everything it carries is in v4.8.0 too.
+  **No database or ClickHouse migration:** `internal-packages/database/prisma/migrations` and
+  `internal-packages/clickhouse/schema` are the same at both tags (the newest still
+  `20261020120002_drop_oidc_signing_key_status_live_key` and 054), and so are the entrypoint
+  and the dashboard agent's database. So, unlike v4.7.6, this move does not move the schema;
+  the backup before it is taken anyway, as for every move. **No new required setting:**
+  `env.server.ts` adds `RUN_ENGINE_SNAPSHOT_STORE_COMPLETED_TTL_MS` (inert without a
+  snapshot-store Redis, which these stacks do not configure), renames `ALERT_QUERY_CONCURRENCY`
+  to `ALERTS_QUERY_CONCURRENCY_LIMIT` and drops the two webhook endpoint cache keys, none of
+  which `managed.yml` sets; the supervisor adds `KUBERNETES_POD_RESERVED_SOURCE_PORTS`, for
+  Kubernetes only. The features (hosted webhooks, `chat.agent` channels for Slack and Linear,
+  alerts on query results checked every minute) are unused here, and the routing of runs
+  without a compute template concerns Trigger.dev's own compute worker groups, not a Docker
+  supervisor.
+- **What it fixes.** The webapp and supervisor images run Node 24.22.1, where v4.7.6 ran
+  24.18.0 (`docker/Dockerfile`, `apps/supervisor/Containerfile`): Node's October 2026 security
+  releases, which upstream's v4.7.7 notes say fix CVE-2026-111497 (an out-of-bounds write in the
+  Brotli decoder) and several TLS hostname verification bypasses. Goose is built with Go
+  1.26.10, and the supervisor distrusts the compromised emSign roots and the Sectigo AAA
+  cross-sign through a new entrypoint that preloads `distrust-cas.cjs`; `managed.yml` sets no
+  `entrypoint` or `command` for it, so that runs as shipped. Upstream's advisories page lists
+  none published after 2026-10-20; GHSA-65rr-73jq-6qhf of that day (a CLI login reactivating a
+  revoked personal access token) is fixed from v4.7.4.
+- **The tasks' Node (#1669).** CLI 4.8.1 names `triggerdotdev/node:24-bookworm@sha256:3cdc8242…`
+  for `node-24`, rebuilt on `node:24.22.1-bookworm-slim` (upstream's `base-images/images.json`),
+  where 4.7.6 named `…@sha256:d2d0c018…` on 24.18.0. The layer #1689 added still copies the API
+  image's Node over it (24.22.1 today, the same version), so the tasks keep running the API
+  image's Node and move with Dependabot's FROM line; v4.8.1 changes the base under that, not
+  the rule. A new base digest misses the builder's cache, so the first task deploy after this
+  is the slow one (apt in both stages, the Debian archive reachable), as *Re-deploy the tasks*
+  in `managed-bring-up.md` says for a move of the CLI's base image. The one CLI fix in v4.8.1
+  (stages on a custom base image keep that image's trust store) does not reach this config,
+  which names no custom image: the tasks keep `--use-openssl-ca` on Debian's store.
+  `scripts/image-scan.mjs` reads the base from the pinned CLI, so `trigger-task-base` (0146 T10)
+  is scanned at the new digest by the first Security Scan that runs its image legs on a tree
+  carrying this change. A pull request's run is not one: those legs run only on the Monday
+  schedule and on a dispatch that leaves `image_scans` on (`security-scan.yml`, the
+  `image-list`, `image-scan` and `image-scan-report` jobs), and on this branch's runs all three
+  are skipped. So the counts for the new base and the two v4.8.1 images were not read here
+  (no Trivy in this session, the registry blobs behind its proxy); they come from the first
+  Monday scan after the merge, or before it from a hand dispatch on this branch.
+- **Upstream's compose at v4.8.1** (`docker/docker-compose.yml`, `hosting/docker/`, the same as
+  at v4.7.6): ClickHouse `26.2.19.43@sha256:c2f26055…` (`26.2` in `hosting/`), Redis 7,
+  Postgres 14, MinIO as `chainguard/minio` by digest (development) and `bitnamilegacy/minio`
+  (`hosting/`), registry 2. ClickHouse did not move, so it stays on 26.2 here (§3 item 9);
+  0146 T11 (c)'s 26.3 waits for upstream to move. The other stores are this repository's own
+  choices and do not follow upstream's.
+- **The telemetry, re-read at v4.8.1:** of the files read at v4.7.6 only `env.server.ts` and
+  `root.tsx` (one line, `publicAppOrigin`) changed, no new key switches a third party on, and
+  prisma 6.14.0, pnpm 10.33.2 and goose v3.27.1 are unchanged. The CLI's `environment.ts` did not
+  change, so `deploy-tasks.sh`'s `--env` note holds.
+- **The three-day floor.** pnpm dates `@trigger.dev/core` and `@trigger.dev/sdk` 4.8.1 at
+  2026-10-23 14:28:03 and 14:28:06 UTC, the signing times of their provenance, so every frozen
+  install refuses this branch's lockfile (`ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`, seen here,
+  with those two dates) until about 14:29 UTC on 2026-10-26, and accepts it after with nothing
+  changed. `npm view … time` dates them later, 14:29:05 (sdk) and 14:29:45 (core), when they
+  reached the registry; the floor goes by pnpm's dates, not those. The npm packages carry no
+  security fix, so no exclude entry; the lockfile was written with the floor lifted for that one
+  command only. The deploy CLI is fetched by `npx`, which the floor does not cover;
+  `trigger.dev@4.8.1` is of the same day.
+- Proved here: the unit guards that read these files, `a-service-that-phones-home` red on the old
+  tag first. Done on 2026-10-25: main merged in after the fold (#1706, `7c8226a3`), with this
+  change's CHANGELOG line under `## [Unreleased]` (the fold renames that heading to
+  `## [0.2.0-alpha.2]`, and git leaves the line beneath it, in a conflict or without one). Owed
+  before merge, after the alpha.2 tag and never during the counted nights: checklist T15 on the OTA
+  stack (the hold, nothing `EXECUTING`, `trigger-version.sh backup before-v4.8.1`,
+  `TRIGGER_IMAGE_TAG=v4.8.1` in its persisted `.env`), then E2E (managed) on the branch, merged
+  within the hour. **That is one window, with no other E2E (managed) in it and the scheduled nightly
+  outside it** (its cron says 03:30 UTC, but GitHub has started it between about 08:10 and 09:10
+  UTC; the window ends before 08:00 UTC): once the persisted `.env` names v4.8.1,
+  `bootstrap-managed.sh` stops at the `trigger` phase (exit 1, on the drift from the SDK) for every
+  tree whose `apps/worker` still pins 4.7.6, main and every other branch. If the merge does not
+  follow, the tag goes back to v4.7.6 before anything else runs; after it, other branches merge main
+  before their own E2E (managed). Live takes it from the alpha.3 tag, after
+  `TRIGGER_IMAGE_TAG=v4.8.1` in its `.env`. `deploy-live.sh --dry-run` will call that tag one-way
+  over alpha.2 for this move alone, although v4.8.1 adds no migration: it counts any move of the
+  Trigger.dev pin in `managed.yml` as one-way (`differences()`), and the way back is then the copy
+  before the update, as for any one-way deploy.
+
 **2026-10-28: MinIO's digest moves to Chainguard's build of 2026-10-25 (0146 T7).**
 `chainguard/minio:latest` by the index digest `268d68a2…` (linux/amd64 and linux/arm64),
 built 2026-10-25 01:49 UTC and pushed as `latest` at 14:29 UTC, so three days old at
@@ -672,7 +761,7 @@ is who moves it after T1.
 | `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (draft #1717, 2026-10-26: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.6-alpine by digest `898c60cb…` (2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13); 18.7 is due 2026-11-12 | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and prints the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8) | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
 | `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
 | `redis` | `managed.yml` | 7.4.11-bookworm by digest `44960b31…` (2026-10-22; `7.4-bookworm` floating from 2026-10-21, `7-alpine` on Alpine 3.21 before) | 8.8.2-alpine | one major | owner for a major; a 7.4 patch by hand when the pin watch lists it | **§3** — the licence changed at 7.4, which is the line this is pinned on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
-| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, `apps/worker/package.json` | v4.7.6 (2026-10-23; v4.7.2 before it, v4.5.12 at the audit) | v4.7.7 (2026-10-22), past the three-day floor on 2026-10-25 | one patch release | `trigger-version.sh` only; the pin watch keeps an issue open while a newer tag is in both images (0146 T8) | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave all four places alone |
+| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json` | v4.8.1 (2026-10-25; v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.1 (2026-10-23) | current | `trigger-version.sh` only; the pin watch keeps an issue open while a newer tag is in both images (0146 T8) | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and it reads no file in `deploy/compose` |
 | `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8) | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`); 26.2 is out of ClickHouse's support, **accepted for the Alpha** (§3 item 9) |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
 | `tecnativa/docker-socket-proxy` | `managed.yml` | v0.5.0 | v0.5.0 | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
@@ -1143,7 +1232,7 @@ is beside each; none is urgent tonight.
 9. **ClickHouse 26.2, out of support since 2026-05-21 — ACCEPTED FOR THE ALPHA, 2026-10-23.**
    ClickHouse's `SECURITY.md` (read 2026-10-23) supports 26.9, 26.8, 26.7 and 26.3, and not
    26.2; 26.2.19.43 (2026-05-21) is that line's last patch. Trigger.dev pins exactly that, by
-   the same digest, in `docker/docker-compose.yml` at v4.7.2, v4.7.6 and v4.7.7 (`26.2` in
+   the same digest, in `docker/docker-compose.yml` at v4.7.2, v4.7.6, v4.7.7 and v4.8.1 (`26.2` in
    `hosting/docker/webapp/docker-compose.yml`; its Helm values state a floor, "requires
    ClickHouse >= 25.8", and its test containers run 26.2.19.43). This stack follows that pin
    because the one ClickHouse it ran that upstream had not tested crash-looped the v4.5.12

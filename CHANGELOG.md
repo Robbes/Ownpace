@@ -174,6 +174,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   nine Go modules, golang.org/x/net, x/crypto and klauspost/compress among
   them, and changes no MinIO code; Trivy reads no finding in it, as in the
   build before. Nothing a stack sets changes; the next bring-up pulls it.
+- **Trigger.dev is v4.8.1** (workplan 0119, issue #1668, #1697): the webapp
+  and the supervisor run on Node 24.22.1, October's security release, where
+  they ran 24.18.0, and the supervisor now distrusts the roots behind the
+  compromised eMudhra intermediates and the Sectigo AAA cross-sign, as the
+  webapp has since v4.7.6. It carries no database or ClickHouse migration,
+  but a stack whose `.env` sets `TRIGGER_IMAGE_TAG` sets `v4.8.1` there
+  first, with no run executing and after the backup, or its bring-up stops
+  at the `trigger` phase. The tasks still take the API image's Node; the
+  CLI's own base image under them is now on 24.22.1 as well, so the first
+  task deploy after this one is the slow one. ClickHouse stays on 26.2,
+  which Trigger.dev still pins.
 
 ### Added
 

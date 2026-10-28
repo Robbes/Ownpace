@@ -145,7 +145,8 @@ hold (step 3), because the privacy policy promises it for the end of the Alpha.
    the end of the Alpha at the latest: then the background tasks start with an empty history."*
    That history is in every store the task runner writes, not in its own database alone
    (as read at Trigger.dev v4.7.2; not read again at v4.7.6, so its ClickHouse migrations 049 to
-   054, webhook tables among them, are not checked against this list):
+   054, webhook tables among them, are not checked against this list; v4.8.1 adds no migration of
+   either kind):
    - **`triggerdb`**, its database: the runs, their payloads, outputs and errors, and their log
      events (`EVENT_REPOSITORY_DEFAULT_STORE` is not set, so they are kept there).
    - **ClickHouse**, although runs are not copied there (`RUN_REPLICATION_ENABLED` is not set,
