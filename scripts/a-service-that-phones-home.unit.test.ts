@@ -69,9 +69,15 @@
  *    here too. Its one-shot `minio-init` runs `mc mb`, and mc asks `dl.min.io`
  *    only when it is run with no command (`cmd/main.go` at mc's
  *    `RELEASE.2025-08-13T08-35-41Z`).
- *  - MAILPIT (v1.31.6, the test stack's catcher; live has none) asks GitHub for
- *    its newest release whenever its web page asks for the server's info,
- *    unless `MP_DISABLE_VERSION_CHECK` says true (`internal/stats/stats.go`).
+ *  - MAILPIT (v1.31.6, and again at v1.32.0 on 2026-10-25; the test stack's
+ *    catcher, live has none) asks GitHub for its newest release whenever its
+ *    web page asks for the server's info, unless `MP_DISABLE_VERSION_CHECK`
+ *    says true (`internal/stats/stats.go`, the variable read in `cmd/root.go`
+ *    as `1`, `true` or `yes`). Neither file changed between the two tags.
+ *    None of its other requests goes to its maker: a webhook goes out only
+ *    when one is configured, and the HTML check, link check and screenshot
+ *    proxy fetch what a caught message names only when its API is asked for
+ *    them; none of those files changed either.
  *  - NEXTCLOUD (34, the demo's DAV target on the OTA stack every night, and the
  *    development one) sends its version, PHP version and install time to
  *    `updates.nextcloud.com`, asks `apps.nextcloud.com` for the app store, the
@@ -126,15 +132,17 @@
  * follow-up switches them off with a check that the demo's DAV writes still
  * work.
  *
- * And the demo's Stalwart (v0.16.10), which
+ * And the demo's Stalwart (v0.16.27), which
  * `setup-stalwart.sh` starts with `docker run`, outside every compose file, on
  * the OTA stack every night, in the self-host end-to-end run and on a
- * developer's machine. In normal mode
- * it fetches its WebUI from `github.com/stalwartlabs/webui/releases/latest` on
- * first start and every 30 days, its spam-filter rules from
+ * developer's machine. It fetches its WebUI from
+ * `github.com/stalwartlabs/webui/releases/download/v1.0.11` on first start and
+ * every 30 days, its spam-filter rules from
  * `github.com/stalwartlabs/spam-filter/releases/latest`, and an ASN and country
- * database from `cdn.jsdelivr.net` every day
- * (`crates/common/src/manager/defaults.rs`, `SpamSettings` in
+ * database every day, from `github.com/sapics/ip-location-db` on a database it
+ * made and from `cdn.jsdelivr.net` on one v0.16.10 made, which keeps the
+ * addresses it was given (`crates/common/src/manager/defaults.rs` and
+ * `application.rs`, `SpamSettings` in
  * `crates/registry/src/schema/structs_impl.rs`). Each is an object in its
  * database, not in its one-line file on disk, so switching it off is new
  * objects in the provisioning plan, and Stalwart settings written without
@@ -540,11 +548,11 @@ const CLICKHOUSE =
 const MINIO =
   'chainguard/minio:latest@sha256:d88920d6a50bd0b088223b688be3b76c63e6205dbe494437f67ba1240ea12880';
 const MAILPIT =
-  'axllent/mailpit:v1.31.6@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387';
+  'axllent/mailpit:v1.32.0@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498';
 /** Read at `stable34` (config.sample.php and the two crawlers), so the line, not one patch of it. */
 const NEXTCLOUD = 'nextcloud:34';
 /** The demo's Stalwart, outside every compose file; its fetches were read at this tag. */
-const STALWART = 'stalwartlabs/stalwart:v0.16.10';
+const STALWART = 'stalwartlabs/stalwart:v0.16.27';
 /**
  * The site's visit count, outside every compose file (`site-visits.sh`); read
  * at the tag `v1.12` (`ef3c4f3c`), and since 2026-10-25 (#1675) built from that
@@ -597,7 +605,7 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
   },
   'deploy/compose/managed.yml:mailpit': {
     readAt: MAILPIT,
-    why: "a release check to GitHub when its web page asks for the server's info (internal/stats/stats.go at v1.31.6)",
+    why: "a release check to GitHub when its web page asks for the server's info (internal/stats/stats.go at v1.31.6, unchanged at v1.32.0)",
     holds: (svc) => exactly(environmentOf(svc), 'MP_DISABLE_VERSION_CHECK', 'true'),
   },
   'deploy/compose/managed.yml:trigger-tls': {
@@ -617,10 +625,28 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
 
 const NONE = (what: string): string => `${what} has no telemetry, update check or error report of any kind`;
 
+/**
+ * The official PostgreSQL image built here without gosu, as uid 70 (workplan
+ * 0146 T15, deploy/compose/postgres/Dockerfile; the appliance's since T15b,
+ * deploy/selfhost/postgres/Dockerfile). A build is `build` to this file, so
+ * the row holds the software by the Dockerfile's FROM instead.
+ */
+const BUILT_POSTGRES: Row = {
+  readAt: 'build',
+  why: `${NONE('PostgreSQL')}; built here from the official image, with gosu removed and nothing added that runs`,
+  holds: (svc, entry) => {
+    const build = svc.build as string | { context?: string } | undefined;
+    const context = typeof build === 'string' ? build : build?.context;
+    if (!context) return ['no build context to read the Dockerfile from'];
+    const from = /^FROM\s+(\S+)\s*$/m.exec(read(`${dirname(entry.file)}/${context.replace(/^\.\//, '')}/Dockerfile`))?.[1] ?? '';
+    return /^postgres:[^/]+$/.test(from) ? [] : [`built FROM ${from || 'nothing'}, not the official postgres image`];
+  },
+};
+
 /** Repositories, not tags: a new version of the same software keeps the reason; other software does not. */
 export const NO_SWITCH: Readonly<Record<string, Row>> = {
-  'deploy/compose/managed.yml:postgres': { readAt: 'postgres', why: NONE('PostgreSQL') },
-  'deploy/compose/managed.yml:trigger-db': { readAt: 'postgres', why: NONE('PostgreSQL') },
+  'deploy/compose/managed.yml:postgres': BUILT_POSTGRES,
+  'deploy/compose/managed.yml:trigger-db': BUILT_POSTGRES,
   'deploy/compose/managed.yml:pgbouncer': { readAt: 'edoburu/pgbouncer', why: NONE('PgBouncer') },
   'deploy/compose/managed.yml:trigger-redis': { readAt: 'redis', why: NONE('Redis') },
   'deploy/compose/managed.yml:trigger-registry': {
@@ -666,8 +692,8 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
       'ask our own services and public pages of the providers it watches, and carry nothing about anyone',
   },
   'deploy/compose/www.yml:www': { readAt: 'nginx', why: NONE('nginx') },
-  'deploy/compose/dev.yml:postgres': { readAt: 'postgres', why: NONE('PostgreSQL') },
-  'deploy/selfhost/compose.yml:postgres': { readAt: 'postgres', why: NONE('PostgreSQL') },
+  'deploy/compose/dev.yml:postgres': BUILT_POSTGRES,
+  'deploy/selfhost/compose.yml:postgres': BUILT_POSTGRES,
   'deploy/selfhost/compose.yml:app': {
     readAt: 'build',
     why: "Ownpace's own appliance: self-host sends us nothing, the privacy policy's first line",
@@ -866,9 +892,14 @@ describe('an overlay runs its base image and switches nothing back on', () => {
 describe('what runs outside every compose file is named, at the version it was read at', () => {
   it("the demo's Stalwart (setup-stalwart.sh, docker run) is the one whose fetches docs/managed-bring-up.md names", () => {
     const image = /^IMAGE="([^"]+)"$/m.exec(read('deploy/selfhost/setup-stalwart.sh'))?.[1];
-    expect(image, "Stalwart's WebUI, spam-rule and ASN fetches were read at v0.16.10; re-read defaults.rs at the new pin").toBe(STALWART);
+    expect(image, "Stalwart's WebUI, spam-rule and ASN fetches were read at v0.16.27; re-read defaults.rs at the new pin").toBe(STALWART);
     const doc = read('docs/managed-bring-up.md');
-    for (const host of ['github.com/stalwartlabs/webui', 'github.com/stalwartlabs/spam-filter', 'cdn.jsdelivr.net']) {
+    for (const host of [
+      'github.com/stalwartlabs/webui',
+      'github.com/stalwartlabs/spam-filter',
+      'github.com/sapics/ip-location-db',
+      'cdn.jsdelivr.net',
+    ]) {
       expect(doc, `Nothing phones home no longer names Stalwart's ${host}`).toContain(host);
     }
   });

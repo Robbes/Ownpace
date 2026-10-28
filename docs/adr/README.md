@@ -53,7 +53,7 @@ first.
 | [0019](./0019-packaging-runtime-targets.md) | Packaging & runtime targets — container-first, optional Tauri tray, prefer JS-native engines for portability | Accepted — Tauri deferred by 0027; no shell-out engines since 2026-07-30 |
 | [0020](./0020-ledger-rebuildable-cache-recovery.md) | The ledger is a rebuildable cache — recovery via target reindex (natural-key adoption) | Accepted; amended 2026-09-27 (the reindex is run by hand) and 2026-10-03 (mail without a Message-ID is keyed by a hash of the message normalised, with a lookup by its old key) |
 | [0021](./0021-knowledge-enrichment-okf-addin.md) | Optional knowledge-enrichment add-in (OKF) — a parallel, opt-in `KnowledgeSink` | **Retracted 2026-08-05** (never built) |
-| [0022](./0022-imap-dependency-security-strategy.md) | IMAP Dependency Security Strategy | Accepted — the vulnerable chain removed 2026-08-06; the override stays |
+| [0022](./0022-imap-dependency-security-strategy.md) | IMAP Dependency Security Strategy | Accepted — the vulnerable chain removed 2026-08-06; the override stays; records the Stalwart pin's moves since 2026-10-25 (v0.16.27) |
 | [0023](./0023-persistence-postgres-only.md) | Persistence — Postgres-only across both editions | Accepted — amended by 0028 (PGlite appliance engine) |
 | [0024](./0024-explicit-owner-deletion-apply.md) | `apply` — an explicit, gated exception to non-destructiveness | Accepted |
 | [0025](./0025-proton-drive-target-deferred.md) | Proton Drive as a files target — deferred on authentication, not on effort | Accepted (deferred) — extended 2026-08-02 to the whole Proton destination |
@@ -103,4 +103,5 @@ first.
 list bullet, and its row above is maintained from that line. The decision itself (a pnpm override for the `semver` chain rather than migrating off
 `imap-simple`) has since been overtaken: [workplan 0032](../workplans/0032-imapflow-migration.md)
 did the migration, and the vulnerable chain is absent from the lockfile rather than overridden.
-The `semver` override remains in `pnpm-workspace.yaml`.
+The `semver` override remains in `pnpm-workspace.yaml`. Since 2026-10-25 ADR-0022 also records
+the owner's decisions on the Stalwart test fixture's pin, which AGENTS.md has long sent here.

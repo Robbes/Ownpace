@@ -1098,7 +1098,10 @@ db_opens() {
 check_db_passwords() {
   local owner owner_pw app_pw u label k control_failed='' opened=''
   local -a lines=() users=()
-  PG_CHECK_IMAGE="$(sed -n '/^[[:space:]]*image:[[:space:]]*postgres:/{s/^[[:space:]]*image:[[:space:]]*//p;q}' "${SCRIPT_DIR}/managed.yml")"
+  # managed.yml's first postgres line: the build (deploy/compose/postgres) since
+  # 2026-10-26, which `--only data` built before this asks; the official image
+  # is still read, should the line go back.
+  PG_CHECK_IMAGE="$(sed -n '/^[[:space:]]*image:[[:space:]]*\(localhost\/\)\{0,1\}postgres:/{s/^[[:space:]]*image:[[:space:]]*//p;q}' "${SCRIPT_DIR}/managed.yml")"
   [ -n "$PG_CHECK_IMAGE" ] || stopped "managed.yml names no postgres image to ask the database with."
   PG_CHECK_DB="$(env_value "$ENV_FILE" POSTGRES_DB openmigrate)"
   owner="$(env_value "$ENV_FILE" POSTGRES_USER openmigrate)"
@@ -1201,6 +1204,29 @@ json_string() {
     });' "$1"
 }
 
+# api_env <name> — a variable the api container was started with, read from
+# Docker rather than from inside the container (workplan 0146 T13a, the readers
+# first). The distroless API image of T13 has no shell and no `printenv`; a tag
+# before T13 brings up a Node image, which has both, and this answers the same
+# for either, as deploy-live.sh asks it (the same function there). `docker container inspect`'s `.Config.Env`
+# is the image's ENV with compose's `environment:` over it, one entry per name:
+# what the process started with. Exit 0 set, 1 not set, 2 no running api
+# container, or none Docker could read. Why it could not is on stderr, in
+# Docker's words: they name containers and variables, never a value.
+api_env() {
+  local id env line
+  id="$("${COMPOSE[@]}" ps -q api)" || return 2
+  [ -n "$id" ] || { echo "docker compose ps -q api: no api container in this project" >&2; return 2; }
+  env="$(docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$id")" || return 2
+  while IFS= read -r line; do
+    if [[ "$line" == "$1="* ]]; then
+      printf '%s\n' "${line#*=}"
+      return 0
+    fi
+  done <<<"$env"
+  return 1
+}
+
 # run_checks <failures-array> <commit> <version> — T0 step 5 and T6 step 7,
 # every one, whatever the one before it said.
 run_checks() {
@@ -1227,11 +1253,13 @@ run_checks() {
   else
     _f+=("/api/auth/mode at ${LIVE_APP}: ${code}.")
   fi
-  if node_env="$("${COMPOSE[@]}" exec -T api printenv NODE_ENV 2>/dev/null)"; then
-    if [ "$node_env" = production ]; then say "  NODE_ENV in the api container: production"; else _f+=("NODE_ENV in the api container is '${node_env:-empty}', not production (T4)."); fi
-  else
-    _f+=("NODE_ENV: the api container could not be asked.")
-  fi
+  local env_rc=0
+  node_env="$(api_env NODE_ENV)" || env_rc=$?
+  case "$env_rc" in
+    0) if [ "$node_env" = production ]; then say "  NODE_ENV in the api container: production"; else _f+=("NODE_ENV in the api container is '${node_env:-empty}', not production (T4)."); fi ;;
+    1) _f+=("NODE_ENV: the api container was started without one (T4).") ;;
+    *) _f+=("NODE_ENV: the api container could not be asked (docker compose ps -q api, then docker container inspect; why is above).") ;;
+  esac
   if http_get "https://${LIVE_IDP}" /.well-known/openid-configuration body code; then
     got="$(json_string issuer <<<"$body")"
     if [ "$got" = "https://${LIVE_IDP}" ]; then

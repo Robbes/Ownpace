@@ -28,7 +28,7 @@ convention that is already half-abandoned.
   mapping, Pattern S/D resolution. No I/O.
 - **Connector contract tests**: each source/target adapter against a recorded/standard contract.
 - **Integration** (Testcontainers for Node): the global setup spins up the full stack
-  programmatically — **Postgres**, **Stalwart v0.16.10 (official image, two-phase
+  programmatically — **Postgres**, **Stalwart v0.16.27 (official image, two-phase
   startup: recovery-mode provisioning, then normal serving)**, and **Nextcloud** (CalDAV/CardDAV/
   WebDAV target). No env vars or pre-running dev stack required; ports are dynamic. Tests exercise
   the ledger, the IMAP/JMAP/imap-dav mail path, and — since issue #114 — the CalDAV/CardDAV/WebDAV
@@ -59,15 +59,21 @@ pnpm test
 ```bash
 pnpm test:integration
 ```
-Testcontainers manages everything: fresh Postgres, fresh Stalwart (two-phase: recovery-mode
+Testcontainers manages everything: fresh Postgres (the base of the stacks' build,
+`deploy/compose/postgres/Dockerfile`, started as its postgres user, uid 70, as the stacks start it;
+workplan 0146 T15), fresh Stalwart (two-phase: recovery-mode
 provisioning of `dev.local` + `source@dev.local` / `target@dev.local` via `stalwart-cli apply`,
 then a normal-mode container on the same data volume), schema migration, and teardown including
-volume cleanup. Stalwart binds **TLS listeners only** (IMAPS 993, HTTPS 443, SMTPS 465, POP3S 995)
-plus unencrypted management/JMAP HTTP on 8080; there is **no plaintext IMAP 143** — the IMAP
-client connects to 993 with `rejectUnauthorized: false` for the self-signed test certificate.
+volume cleanup. In normal mode Stalwart binds IMAPS 993, HTTPS 443, SMTPS 465 and POP3S 995,
+unencrypted management/JMAP HTTP on 8080, and plain SMTP on 25 and ManageSieve on 4190; it does
+not bind IMAP 143, POP3 110 or submission 587, so there is **no plaintext IMAP**. The tests
+publish only 8080, 993 and 465, and the IMAP client connects to 993 with
+`rejectUnauthorized: false` for the self-signed test certificate.
 
 The optional `deploy/compose/dev.yml` stack (Postgres + Nextcloud) remains available for manual
-exploration, but the integration suite does not depend on it. `dev.yml` does **not** include
+exploration, but the integration suite does not depend on it. Its Postgres is `managed.yml`'s
+build, so its first `up` builds `deploy/compose/postgres` (a few seconds: the official image with
+gosu removed). `dev.yml` does **not** include
 Stalwart — its two-phase startup can't be expressed as one `docker compose` service; bring it up
 with `deploy/selfhost/setup-stalwart.sh` instead (joins `dev.yml`'s `ownpace_dev-network`, so it's
 reachable from anything else on that network too).
@@ -105,6 +111,12 @@ The workflow takes two **dispatch inputs**: `seed_count` (items seeded per domai
 and `persistence` (`postgres` | `pglite` — the latter runs the whole gate on the appliance's
 embedded-PGlite shape via `deploy/selfhost/compose.pglite.yml`; both backends are expected to
 agree domain-for-domain, and did at the 0016 close).
+
+On the Postgres backend the appliance's database is the build of
+`deploy/selfhost/postgres/Dockerfile`, started as uid 70 (workplan 0146 T15b). The workflow
+builds `app` by name and runs `up` without `--build`, so the database's image is built only when
+the runner has no image of its name, which is the run after its Dockerfile changed; the backup and
+restore drill then starts it on a new volume, which initialises as uid 70.
 
 ## Testcontainers invariants (enforced by the setup; see stalwart-integration-fix.md for rationale)
 - Exactly **one Stalwart container per data volume at any moment** (RocksDB exclusive lock);
@@ -412,7 +424,12 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   stacks run that name, so a pin that moves, or two stacks' pins that meet on one reference, keep
   their names. An image that leaves the stacks, or is renamed, leaves its `trivy-image-<name>`
   configuration behind in code scanning with its alerts open; delete it on the code scanning tool
-  status page (the Security tab, Code scanning, Tool status).
+  status page (the Security tab, Code scanning, Tool status). An image a compose file builds here,
+  `localhost/<name>` from `<name>/Dockerfile` beside it (the Postgres of `managed.yml` and
+  `dev.yml`, workplan 0146 T15, and the appliance's, T15b), has no registry to be read from: its
+  leg checks the commit out under `src/`, builds the directory natively on GitHub's arm64 runner
+  and scans what it built, under the name the pulled image had (`postgres-managed`,
+  `postgres-selfhost`).
 - `e2e.yml` — nightly (23:30 UTC on the Postgres stack, 01:30 UTC on PGlite) and on dispatch, on
   `[self-hosted, linux, arm64]` (the Spark); brings up Stalwart via
   `deploy/selfhost/setup-stalwart.sh` (the two-phase recovery→normal bring-up — not a
@@ -479,7 +496,12 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   major the demo does not run (see "The second Nextcloud major" below).
 - `images.yml` — the three application images: an amd64 build-only check on a pull request that
   touches a Dockerfile, `deploy/` or the workflow; a multi-arch build and publish on `main` and
-  on `v*` tags.
+  on `v*` tags. On such a pull request only, `build (postgres)` also brings up `dev.yml`'s
+  postgres and then the appliance's on a runner without their images, so compose builds
+  `deploy/compose/postgres` and `deploy/selfhost/postgres`, and checks each runs as uid 70
+  without gosu (workplan 0146 T15, T15b); it publishes nothing. The appliance's starts on the
+  volume an existing appliance has, one the official image initialised as root, and must read
+  back the row written there.
 - `script-images.yml` — the images a script builds for itself (today GoAccess, which
   `deploy/compose/site-visits.sh` builds from `deploy/compose/goaccess/Dockerfile`, #1675): an
   arm64 build-only check, `Build (<directory>)`, on a pull request that touches that directory or
@@ -525,9 +547,9 @@ against the runs recorded that evening, recorded green runs, and every event and
 red when the two disagree.
 
 Do **not** require `integration-tests (ubuntu-24.04)` / `(ubuntu-24.04-arm)`, nor
-`build (api|web|selfhost)` from `images.yml`, nor `DAV suites on the second Nextcloud major` from
-`nextcloud-second-major.yml`, nor `Build (deploy/compose/goaccess)` from `script-images.yml`.
-None is reported at all on some pull requests —
+`build (api|web|selfhost)` or `build (postgres)` from `images.yml`, nor `DAV suites on the second
+Nextcloud major` from `nextcloud-second-major.yml`, nor `Build (deploy/compose/goaccess)` from
+`script-images.yml`. None is reported at all on some pull requests —
 a skipped matrix job reports once under the literal `integration-tests (${{ matrix.runner }})`,
 and the other three workflows have a `paths:` filter — so a docs-only PR blocks forever on "Expected — waiting
 for status to be reported", with nothing queued in Actions to explain it. Full rationale is the

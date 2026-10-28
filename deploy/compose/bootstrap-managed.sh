@@ -68,6 +68,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
+# PLAIN PROGRESS, ALWAYS (live's deploy of alpha.2, 2026-10-28). Compose v5.0.x
+# draws its progress in a terminal with a writer that can deadlock at the end
+# of a command: it prints its last line ("Pulled 0.6s") and never returns
+# (docker/compose#13639, fixed upstream by #13640; a second path after a cancel,
+# #14114). Live's bring-up met it from a terminal; the nights, with none, never
+# did. Plain progress has no such writer. Exported, so setup-zitadel.sh and
+# every script this starts write plain lines too.
+export COMPOSE_PROGRESS=plain
 # The compose project this checkout drives: COMPOSE_PROJECT_NAME, else
 # managed.yml's `name:`. Two stacks share the reference machine's Docker daemon
 # (workplan 0132 D7), so every volume name or persisted path this prints is
@@ -77,6 +85,9 @@ COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")"
 # applies every migration from scratch; #47 took roughly two minutes on the
 # Spark, and a machine with slower disk will take longer.
 IDP_READY_TIMEOUT="${IDP_READY_TIMEOUT:-300}"
+# How long a pull of the identity provider's image may take, when it is not on
+# the machine yet (prepare_machinekey_volume). A new tag is a few hundred MB.
+ZITADEL_PULL_TIMEOUT="${ZITADEL_PULL_TIMEOUT:-600}"
 
 # What a log line looks like when it is reporting that something FAILED, across
 # every image this stack runs: logfmt (Zitadel, Trigger.dev, Caddy), JSON, bare
@@ -846,8 +857,10 @@ assert_zitadel_role_password() {
 
 
 # The diagnosis half, separated from the `up` half so that a bring-up which
-# cannot go through `up_wait` — the app services need `--build` and a GIT_SHA —
-# can still reach it. It used to be inlined here, and the two calls that could
+# cannot go through `up_wait` — the provider's `up -d` below, which has no
+# healthcheck to wait on — can still reach it. (The app services were the other
+# such call, with `up --build` and a GIT_SHA, until 2026-10-26: they are built
+# by name now, and come up through `up_wait` like the rest.) It used to be inlined here, and the two calls that could
 # not use the wrapper therefore had no diagnosis at all: E2E (managed) #39
 # reported `ownpace-idp Restarting (1)` and not one word about why, because the
 # zitadel bring-up added in #504 called compose directly.
@@ -1044,7 +1057,7 @@ phase_preflight() {
     die "dependencies are not installed — run: pnpm install --frozen-lockfile"
 
   # Disk. A managed stack is roughly ten images plus ClickHouse and MinIO
-  # volumes; running out halfway through `up --build` leaves a stack that is
+  # volumes; running out halfway through the build and the `up` leaves a stack that is
   # partly built and wholly confusing.
   local free_gb
   free_gb="$(df -Pk "${REPO_ROOT}" | awk 'NR==2 {print int($4/1024/1024)}')"
@@ -1910,10 +1923,6 @@ resolve_image_uid() { # resolve_image_uid <image> <user-from-config>
 }
 
 prepare_machinekey_volume() {
-  # Explicit pull first: `inspect` reads the LOCAL image, and on a fresh machine
-  # the image arrives with `up` — which is after this. Cached, this is a no-op.
-  "${COMPOSE[@]}" pull -q zitadel
-
   # ASKED BY NAME, not by position. `config --images zitadel` looks like the
   # obvious call and is a trap: it prints the service's DEPENDENCIES too —
   # `postgres:18-alpine` came back on the second line here — so taking the first
@@ -1924,6 +1933,40 @@ prepare_machinekey_volume() {
   local image user
   image="$("${COMPOSE[@]}" config --format json | jq -r '.services.zitadel.image // empty')"
   [ -n "$image" ] || die "compose could not name the zitadel image — cannot tell what user it runs as."
+
+  # PULLED ONLY WHEN IT IS NOT HERE, AND NEVER WITHOUT AN END (live's deploy of
+  # alpha.2, 2026-10-28). `inspect` below reads the LOCAL image, and on a fresh
+  # machine the image arrives with `up`, which is after this, so a missing one
+  # is pulled first. One that is here is not asked for again: on live, a pull of
+  # an image already present printed "Pulled" and then never returned (compose
+  # v5.0.2's terminal progress, docker/compose#13639; COMPOSE_PROGRESS above now
+  # keeps every call here off it), and the deploy waited sixteen minutes on a
+  # no-op until the pull was killed and the deploy did not take. A pull that is
+  # needed is bounded: ZITADEL_PULL_TIMEOUT seconds, then a refusal that says
+  # what to do. `--foreground` keeps it in the terminal's own process group, so
+  # Ctrl-C still reaches it; its output goes to a file, never a pipe, so nothing
+  # it leaves behind can hold the bring-up open.
+  if ! docker image inspect "$image" >/dev/null 2>&1; then
+    local pull_rc=0 pull_log
+    pull_log="$(mktemp)"
+    timeout --foreground --kill-after=30 "$ZITADEL_PULL_TIMEOUT" "${COMPOSE[@]}" pull -q zitadel </dev/null >"$pull_log" 2>&1 ||
+      pull_rc=$?
+    sed 's/^/    /' "$pull_log"
+    rm -f "$pull_log"
+    case "$pull_rc" in
+      0) ;;
+      124)
+        die "the pull of ${image} did not end within ${ZITADEL_PULL_TIMEOUT}s, so it was stopped; nothing after it ran.
+    Run the same command again. If it stops here again, pull it by hand
+    (docker pull ${image}) and see what it waits on." ;;
+      130) die "the pull of ${image} was interrupted; nothing after it ran." ;;
+      137)
+        die "the pull of ${image} was killed (exit 137): by the limit of ${ZITADEL_PULL_TIMEOUT}s and 30 more, or by something else on this machine; nothing after it ran.
+    Run the same command again. If it stops here again, pull it by hand
+    (docker pull ${image}) and see what it waits on." ;;
+      *) die "the pull of ${image} failed (exit ${pull_rc}, above)." ;;
+    esac
+  fi
 
   user="$(docker image inspect "$image" --format '{{.Config.User}}')"
 
@@ -2135,7 +2178,6 @@ phase_app() {
     note_catcher_left_running
   fi
 
-  # GIT_SHA so `GET /version` answers with a commit rather than "unknown".
   # THE IDENTITY PROVIDER IS PROVISIONED BEFORE `web` IS BUILT, and the order is
   # the whole point.
   #
@@ -2194,12 +2236,21 @@ phase_app() {
   # VITE_ values, and the build below has to see them.
   load_env
 
-  # `|| explain_failure` because this one cannot go through `up_wait`: it needs
-  # `--build` and a GIT_SHA in the environment. Without it, a web or api image
-  # that starts and dies reports one line naming the service and nothing about
-  # the cause — the same blindness as the zitadel call above.
+  # THE TWO IMAGES THAT CARRY CODE ARE BUILT BY NAME, AND `up` IS NOT GIVEN
+  # `--build` (the review of #1717, 2026-10-26). `up --build` builds every
+  # service in its scope that has a `build:`, dependencies included, and since
+  # workplan 0146 T15 the two databases have one (deploy/compose/postgres).
+  # This `up` used to carry `--build`, so every bring-up rebuilt their
+  # image: the same image ID while BuildKit kept its cache, a new one under the
+  # same name after a prune, and then the next `up` that reached a database
+  # recreated it — on the shared daemon live's too, outside any hold. Built by
+  # name here, the databases' image is built only where its name is missing.
+  # GIT_SHA so `GET /version` answers with a commit rather than "unknown"; it
+  # is a build argument only, so the `up` below needs none.
+  # scripts/a-database-started-as-root.unit.test.ts holds this.
   GIT_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)" \
-    "${COMPOSE[@]}" up -d --build --wait "${services[@]}" || explain_failure "${services[@]}"
+    "${COMPOSE[@]}" build api web || die "the api and web images did not build (compose's words are above); nothing was started or recreated."
+  up_wait "${services[@]}"
   note "up and healthy: ${services[*]}"
   note "api: ${API_URL:-http://localhost:3001}   web: ${WEB_URL:-http://localhost:3123}"
   # What the rule for a host a tenant gives us admits by name (workplan 0136

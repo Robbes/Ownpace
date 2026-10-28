@@ -173,6 +173,7 @@ live in [README.md](./README.md), the register.
 
 - The vulnerable chain is **gone, not overridden**: `imap-simple`→`utf7`→`semver@5.3.0` left the lockfile with the imapflow migration (workplan 0032).
 - The `semver` pnpm override **stays** — it was never only about that chain; removing it is a separate decision with its own blast radius. Since 2026-10-21 it is one scoped entry per fixed line (5.7.2, 6.3.1, 7.5.2): a 5.x, 6.x or 7.x below its fix is lifted within its major, and nothing is moved to 7.
+- The Stalwart test fixture is pinned at **v0.16.27** (2026-10-25). It moves only on the owner's decision, recorded here as a dated update, with every copy in one change, as `docs/stalwart-integration-fix.md`, "Moving the pin", lists.
 
 ## [ADR-0023: Persistence — Postgres-only across both editions](./0023-persistence-postgres-only.md)
 

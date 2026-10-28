@@ -459,6 +459,23 @@ jobs:
   # and Trivy reads it from that runner's Docker only. The name, and so the
   # category and the issue, stays the image's short name (`goaccess`).
   #
+  # AN IMAGE NO REGISTRY SERVES IS BUILT, NOT PULLED (workplan 0146 T15,
+  # 2026-10-26). A compose file's `localhost/<name>` image is built by compose
+  # from `<name>/Dockerfile` beside the file (Postgres without gosu:
+  # deploy/compose/postgres, which managed.yml's postgres and trigger-db and
+  # dev.yml's postgres run, and deploy/selfhost/postgres, the appliance's
+  # since T15b), so the list gives its leg a `context`. That leg
+  # checks out this commit under `src/`, builds the directory natively on
+  # GitHub's arm64 runner (free on a public repository; ci.yml's integration
+  # tests use it) under the reference the compose file runs, and Trivy reads
+  # it from that runner's Docker only. The name, and so the category and the
+  # issue, stays the one the pulled image had (`postgres-managed`,
+  # `postgres-selfhost`). The
+  # checkout is never the working directory, which the Trivy step and `trivy
+  # convert` share with every other leg: Trivy reads a `.trivyignore` or a
+  # `trivy.yaml` there on its own, and one at the repository's root would drop
+  # findings from this leg's SARIF alone.
+  #
   # Step names differ from the job above on purpose: its guard finds them by
   # `indexOf`, and reads the first `runs-on:` expression in this file as the
   # runner condition, so these jobs come after it and name GitHub-hosted
@@ -485,8 +502,8 @@ jobs:
       # scripts name, the tasks' base image as the pinned Trigger.dev CLI names
       # it (with `build`, the tag its leg builds the deploy's stage under),
       # and Ownpace's three at `:edge` and at the newest release tag, which
-      # is what live runs: it builds the tag it deploys; an image a script
-      # builds here carries its `context`. See image-scan.mjs.
+      # is what live runs: it builds the tag it deploys; an image a script or
+      # a compose file builds here carries its `context`. See image-scan.mjs.
       - name: List every image the stacks run
         id: list
         run: node scripts/image-scan.mjs list >> "$GITHUB_OUTPUT"
@@ -495,11 +512,11 @@ jobs:
     name: Image scan (${{ matrix.name }})
     needs: image-list
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.image_scans)
-    # A leg that builds its image (the tasks' `build`, a script's `context`)
-    # builds it for the platform scanned, on GitHub's arm64 runner (free on a
-    # public repository, as ci.yml's integration tests use it): no emulation,
-    # no setup actions. Every other leg reads its image from the registry,
-    # from amd64.
+    # A leg that builds its image (the tasks' `build`, the `context` of an
+    # image a script or a compose file builds) builds it for the platform
+    # scanned, on GitHub's arm64 runner (free on a public repository, as
+    # ci.yml's integration tests use it): no emulation, no setup actions.
+    # Every other leg reads its image from the registry, from amd64.
     runs-on: ${{ (matrix.build || matrix.context) && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     timeout-minutes: 30
     permissions:
@@ -520,17 +537,17 @@ jobs:
       TRIVY_PLATFORM: linux/arm64
       TRIVY_IMAGE_SRC: ${{ (matrix.build || matrix.context) && 'docker' || 'remote' }}
     steps:
-      # THE TASKS' IMAGE, BUILT AS A DEPLOY BUILDS IT, AND AN IMAGE ITS SCRIPT
-      # BUILDS (the two comments above image-list). The checkout runs on both
+      # THE TASKS' IMAGE, BUILT AS A DEPLOY BUILDS IT, AND AN IMAGE BUILT HERE
+      # (the comments above image-list). The checkout runs on both
       # kinds of leg; the next four steps on the tasks' leg only, the last one
-      # before the scan on a script's leg only. The workspace is installed
+      # before the scan on a `context` leg only. The workspace is installed
       # because the Containerfile comes from running the deploy config's own
       # build extensions, as the CLI does, so nothing here repeats an
       # instruction or a version. The tasks' build pulls the base by its digest
       # and the API image's Node image by its digest, and reaches Debian's
-      # archive; a script's build pulls its Dockerfile's bases by their digests
+      # archive; a `context` build pulls its Dockerfile's bases by their digests
       # and reaches the package mirrors and the source it names, as the
-      # script's own build does on the machine.
+      # script's or compose's own build does on the machine; it pushes nothing.
       #
       # The checkout goes to `src/`, never to the working directory, which the
       # Trivy step and `trivy convert` share with every other leg: there Trivy
@@ -571,16 +588,16 @@ jobs:
           cat "$context/Containerfile"
           docker build --pull --platform "$TRIVY_PLATFORM" --tag "$TAG" --file "$context/Containerfile" "$context"
           docker image inspect --format '{{.Os}}/{{.Architecture}} {{.Id}}' "$TAG"
-      - name: Build the image its script builds, from its Dockerfile here
+      - name: Build the image a script or a compose file builds, from its Dockerfile here
+        id: build_context
         if: matrix.context
-        working-directory: src
         env:
           CONTEXT: ${{ matrix.context }}
           REF: ${{ matrix.ref }}
         run: |
           set -euo pipefail
-          docker build --pull --platform "$TRIVY_PLATFORM" --tag "$REF" "$CONTEXT"
-          docker image inspect --format '{{.Os}}/{{.Architecture}} {{.Id}}' "$REF"
+          docker build --pull --platform "$TRIVY_PLATFORM" --tag "$REF" "src/$CONTEXT"
+          docker image inspect --format '{{.Os}}/{{.Architecture}} {{.Id}} {{.Config.User}}' "$REF"
 
       - name: Scan the image with Trivy (JSON)
         id: image_trivy
@@ -651,6 +668,7 @@ jobs:
           SARIF: trivy-image-${{ matrix.name }}.sarif
           INSTALL_OUTCOME: ${{ steps.install.outcome }}
           BUILD_OUTCOME: ${{ steps.build.outcome }}
+          CONTEXT_BUILD_OUTCOME: ${{ steps.build_context.outcome }}
           TRIVY_OUTCOME: ${{ steps.image_trivy.outcome }}
           UPLOAD_OUTCOME: ${{ steps.image_upload.outcome }}
         run: |
@@ -661,6 +679,13 @@ jobs:
           esac
           case "$BUILD_OUTCOME" in
             failure|cancelled) problems="${problems:+$problems; }the build of the tasks' stage ended '$BUILD_OUTCOME'" ;;
+          esac
+          # On a leg that builds its image from a Dockerfile here, a failed
+          # build is named first: it skips every step after it. Elsewhere the
+          # build reads 'skipped'.
+          case "$CONTEXT_BUILD_OUTCOME" in
+            success | skipped) ;;
+            *) problems="${problems:+$problems; }the build of ${REF} ended '${CONTEXT_BUILD_OUTCOME}', so there was nothing to scan" ;;
           esac
           [ "$TRIVY_OUTCOME" = "success" ] || problems="${problems:+$problems; }the Trivy step ended '$TRIVY_OUTCOME'"
           if [ ! -s "$JSON" ]; then

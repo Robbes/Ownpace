@@ -916,8 +916,13 @@ remedy.
   `./deploy/compose/deploy-live.sh <tag>` from `~/ownpace-live`: the hold, the drain, the tag, the
   bring-up without the demo, the checks, and then you lift the hold. The steps are in
   `docs/managed-bring-up.md`, *Updating a running deployment*, and `docs/release.md` §5. Never
-  `git pull` there. The tag is cut by the Release workflow (`docs/release.md` §2), dispatched
-  from the Actions tab: it reads the nights and the gates, waits for your approval, tags, publishes
+  `git pull` there. **The deploy from `v0.2.0-alpha.2` or earlier to `v0.2.0-alpha.3` or later
+  runs twice** (workplan 0146 T13, the owner's decision of 2026-10-26): the first run is the older
+  checkout's script, which says `NODE_ENV: the api container could not be asked` and exits 3,
+  though live has moved to the tag; then `git checkout -- apps/worker/package.json` and the same
+  `deploy-live.sh <tag>` again, which says it took. The bring-up's section *The deploy from
+  alpha.2 to alpha.3 runs twice* has the exact lines. The tag is cut by the Release workflow
+  (`docs/release.md` §2), dispatched from the Actions tab: it reads the nights and the gates, waits for your approval, tags, publishes
   in order and verifies, all on GitHub's runners and never on this box. Its message names the run
   that proved it, for the deploy log. Pushing a tag by hand is the break-glass path.
 - **The OTA stack** (`~/ownpace-managed`) is deployed by the nightly gate, from `main`. By hand, the
@@ -949,6 +954,23 @@ On either, this is what an upgrade does and does not do:
    switches them off with a check that the demo's DAV writes still work.
    `docs/managed-bring-up.md`, *Nothing phones home*, has each switch, where it was read, the
    command that applies it to a running stack, and the check to run after the upgrade.
+6. A deploy that sits on one line for more than ten minutes (live, 2026-10-28: a `docker compose
+   pull -q zitadel` printed "Pulled" in 0.6s and never returned). Compose v5.0.x's progress, drawn
+   in a terminal, can deadlock at the end of a command
+   ([docker/compose#13639](https://github.com/docker/compose/issues/13639)), and the nights, with
+   no terminal, never meet it. `bootstrap-managed.sh` and `deploy-live.sh` now set
+   `COMPOSE_PROGRESS=plain`, and the bring-up pulls that image only when the machine lacks it,
+   stopping a pull after `ZITADEL_PULL_TIMEOUT` (600s). A deploy is started by the script of the
+   tag live runs, so until that tag has this, start a deploy as
+   `COMPOSE_PROGRESS=plain ./deploy/compose/deploy-live.sh <tag>`. If one sits anyway, find what
+   it waits on from a second terminal, reading only:
+   `pgrep -af 'docker[ -](compose|run|create|cp|image)'`. End compose's own process, the line
+   `…/cli-plugins/docker-compose compose …` (the `docker compose …` line in front of it passes no
+   signal on while its output is a terminal), with `kill -TERM <its pid>`, and once more if it
+   is still there five seconds later: a stuck compose may not act on the first
+   ([#14114](https://github.com/docker/compose/issues/14114)). The bring-up then stops,
+   `deploy-live.sh` says the deploy did not take and logs it, the hold stays on and the copy is
+   kept, and the same `deploy-live.sh <tag>` run again goes forward from the checkout it left.
 
 ## Grant links: who granted what
 

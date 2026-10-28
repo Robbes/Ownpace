@@ -20,7 +20,8 @@ you have `deploy/selfhost/` + the appliance image + the T1/T2 entrypoint).
 - `docs/workplans/0010-selfhost-edition.md` — the plan (Definition of Done, T3/T5).
 - `AGENTS.md` — hard rule 5 (no managed leakage) + Docker hygiene (Stalwart cleanup).
 - `docs/stalwart-integration-fix.md` — the **authoritative** Stalwart harness
-  (pinned `stalwartlabs/stalwart:v0.16.10`, two-phase startup). Do not deviate.
+  (two-phase startup; the pinned tag is in its header, `v0.16.10` when this was written).
+  Do not deviate.
 - ADR-0023 (Postgres-only, both editions) — do **not** reintroduce SQLite.
 
 ## What already exists (don't rebuild)

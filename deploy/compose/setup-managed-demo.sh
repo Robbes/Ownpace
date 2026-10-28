@@ -20,7 +20,9 @@ set -euo pipefail
 #      wraps `pnpm --filter @openmig/api seed:managed`, which on its own cannot
 #      find DATABASE_URL/JWT_SECRET/SECRET_ENCRYPTION_KEY — it runs on the host
 #      and inherits nothing)
-#   4. docker compose -f deploy/compose/managed.yml up -d --build (rest of the stack)
+#   4. docker compose -f deploy/compose/managed.yml build api web
+#      docker compose -f deploy/compose/managed.yml up -d (rest of the stack; never
+#      `up --build`, which rebuilds the databases' image too: managed.yml's postgres)
 #   5. ./deploy/compose/deploy-tasks.sh          (Trigger.dev tasks — needed for
 #      verify/apply's job loop; one-time dashboard steps in that script's header)
 #

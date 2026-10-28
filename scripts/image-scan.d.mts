@@ -31,7 +31,7 @@ export interface ScanImage {
   floating: boolean;
   /** Set for an image the leg builds before it scans it: the local tag it builds under (workplan 0146 T10). */
   build?: string;
-  /** Set when no registry serves the image: the directory its leg builds it from (`deploy/compose/goaccess`). */
+  /** Set when no registry serves the image: the directory its leg builds it from (`deploy/compose/goaccess`, `deploy/compose/postgres`). */
   context?: string;
 }
 
