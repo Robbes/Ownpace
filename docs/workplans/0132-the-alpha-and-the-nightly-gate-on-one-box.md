@@ -102,8 +102,11 @@ proven without the owner waiting for a pass, and its copy goes without the owner
      (its id is the last part of its page's address), from live's checkout:
      `./deploy/compose/env-upsert.sh deploy/compose/.env LIVE_PASS_CHECK_MIGRATION=<the id>`.
      Only to keep deleting the copy yourself: `COPY_DELETE_WHEN_PROVEN=false` the same way.
-  4. Deploy alpha.3 as usual. No unit needs copying. Its closing words are still alpha.2's and
-     tell you to delete the copy by hand, which you may skip.
+  4. Deploy alpha.3 as the bring-up guide's *The deploy from alpha.2 to alpha.3 runs twice*
+     says. No unit needs copying. The first run, alpha.2's script, exits 3 on `NODE_ENV: the api
+     container could not be asked` and keeps the copy; after `git checkout --
+     apps/worker/package.json`, the second, alpha.3's own script, takes, and its closing words
+     already name `./deploy/compose/live-pass-check.sh` and the box checks' delete of the copy.
   5. Lift the hold after looking; starting it again within the hour keeps the copy. Then
      `./deploy/compose/live-pass-check.sh`: `verdict: succeeded` and exit 0 within 15 minutes. 3:
      the hold is still on. 4: run it again once a pass ends. 5: the pass goes on. 1 or 6: the run
