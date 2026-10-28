@@ -462,8 +462,11 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   release in a comment, and closes the issue when the pin catches up. Every other image line of
   `managed.yml`, `dev.yml` and `www.yml` (Dependabot reads no file in `deploy/compose`), the
   busybox copies in its scripts, Stalwart's copies, GoAccess and the Trivy the scan runs share one
-  summary issue; another image a script there runs is not compared (today only `db-roles.sh`'s
-  floating `postgres:18-alpine`). It moves nothing: each issue gives the route, and the
+  summary issue; another image a script there runs is not compared (none today: `db-roles.sh`
+  reads its client from `managed.yml`). Against a registry a tag is compared, never a digest: a
+  rebuild under the same tag is the image scan's to report. The exception is `www.yml`'s nginx,
+  which is compared with `apps/web/Dockerfile`'s FROM by tag and digest, so a digest-only move of
+  the web image's base lists `www.yml` too. It moves nothing: each issue gives the route, and the
   move is the owner's call. A row that cannot read its upstream, or finds its pin ahead of every
   tag listed, fails the run and never closes an issue.
   The cosign `images.yml` signs with and `release.yml`'s verify job checks with is a routine row

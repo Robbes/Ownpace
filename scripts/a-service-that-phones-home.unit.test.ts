@@ -96,7 +96,12 @@
  *    machine this cannot see). The row records the image the default was read
  *    at, and a different image in the file fails here until somebody re-reads
  *    the default at the new version and moves the row. A new release is exactly
- *    where a new report appears: Zitadel's ping arrived with v4. A switched
+ *    where a new report appears: Zitadel's ping arrived with v4. A row whose
+ *    fact was read for a whole major line records that line instead, and is
+ *    compared by repository and major: Caddy's (Caddy 2 has no telemetry) and
+ *    Nextcloud's (read at `stable34`), whose images are pinned by tag and
+ *    digest since 2026-10-22, so that a patch or a rebuild the pin watch asks
+ *    for does not fail here, and another major still does. A switched
  *    service takes nothing from `env_file` or `extends`, and no overlay, since
  *    neither is read here.
  *  - NO SWITCH: nothing in it reports home, and the row says why. It records the
@@ -504,8 +509,18 @@ export function caddyProblems(caddyfile: string): string[] {
 }
 
 interface Row {
-  /** Exactly the `image:` the file writes, as the default was read at; `build` for our own. */
+  /**
+   * Exactly the `image:` the file writes, as the default was read at; `build`
+   * for our own; or, with `line`, the repository and major line it was read
+   * for (`caddy:2`).
+   */
   readonly readAt: string;
+  /**
+   * The fact holds for the whole major line, so the row compares the
+   * repository and the tag's first number: a patch or a rebuild keeps the
+   * reason, another major is a new question.
+   */
+  readonly line?: true;
   /** What it sends by default and where that was read, or why it needs no switch. */
   readonly why: string;
   /** Problems with the switch, or with the fact the row rests on; empty when it holds. */
@@ -526,7 +541,8 @@ const MINIO =
   'chainguard/minio:latest@sha256:d88920d6a50bd0b088223b688be3b76c63e6205dbe494437f67ba1240ea12880';
 const MAILPIT =
   'axllent/mailpit:v1.31.6@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387';
-const NEXTCLOUD = 'nextcloud:34-apache';
+/** Read at `stable34` (config.sample.php and the two crawlers), so the line, not one patch of it. */
+const NEXTCLOUD = 'nextcloud:34';
 /** The demo's Stalwart, outside every compose file; its fetches were read at this tag. */
 const STALWART = 'stalwartlabs/stalwart:v0.16.10';
 /**
@@ -585,7 +601,8 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
     holds: (svc) => exactly(environmentOf(svc), 'MP_DISABLE_VERSION_CHECK', 'true'),
   },
   'deploy/compose/managed.yml:trigger-tls': {
-    readAt: 'caddy:2-alpine',
+    readAt: 'caddy:2',
+    line: true,
     why:
       'Caddy 2 has no telemetry (its repository names it only for the opt-in `tracing` directive), and its one ' +
       'default that leaves the machine is automatic HTTPS, which asks a public certificate authority; `tls internal` ' +
@@ -691,6 +708,7 @@ const MANAGED_SCRIPTS = Object.freeze(['bootstrap-managed.sh', ...LIVE_SCRIPTS])
 export const LEFT_ON: Readonly<Record<string, Row>> = {
   'deploy/compose/managed.yml:nextcloud': {
     readAt: NEXTCLOUD,
+    line: true,
     why: `${NEXTCLOUD_PHONES}; the demo's DAV target, on the OTA stack every night, started only with --with-demo, which both live scripts refuse`,
     holds: () =>
       bringUpProblems(
@@ -700,6 +718,7 @@ export const LEFT_ON: Readonly<Record<string, Row>> = {
   },
   'deploy/compose/dev.yml:nextcloud': {
     readAt: NEXTCLOUD,
+    line: true,
     why: `${NEXTCLOUD_PHONES}; the development and self-host end-to-end DAV target, which no managed bring-up starts`,
     holds: () =>
       MANAGED_SCRIPTS.filter((s) => read(`deploy/compose/${s}`).includes('dev.yml')).map(
@@ -733,6 +752,14 @@ function repositoryOf(image: string): string {
   const colon = noDigest.indexOf(':', slash + 1);
   return colon === -1 ? noDigest : noDigest.slice(0, colon);
 }
+/** `caddy:2` for `caddy:2.11.7-alpine@sha256:…`: the repository and its tag's first number. */
+function lineOf(image: string): string {
+  const repository = repositoryOf(image);
+  const major = /^:v?(\d+)/.exec(image.slice(repository.length))?.[1];
+  return major === undefined ? image : `${repository}:${major}`;
+}
+/** The image as a row compares it: whole, or by its line when the row says the fact holds for one. */
+const asRead = (row: Row, svc: Service): string => (row.line ? lineOf(imageOf(svc)) : imageOf(svc));
 
 const files = composeFiles();
 const entries: Entry[] = files.flatMap((file) => {
@@ -789,7 +816,7 @@ describe('a switched service runs the version its default was read at, with the 
       const entry = running.find((e) => e.key === key);
       expect(entry, `${key} is gone`).toBeDefined();
       expect(
-        imageOf(entry!.service),
+        asRead(row, entry!.service),
         `${key}'s default was read at ${row.readAt}. Re-read what the new version sends by default, then move this row.`,
       ).toBe(row.readAt);
       const unread = (['env_file', 'extends'] as const).filter((k) => entry!.service[k] !== undefined);
@@ -815,7 +842,7 @@ describe('what is left on is left on where no tester is', () => {
     it(key, () => {
       const entry = running.find((e) => e.key === key)!;
       expect(entry, `${key} is gone`).toBeDefined();
-      expect(imageOf(entry.service), `${key}'s defaults were read at ${row.readAt}; re-read them at the new pin`).toBe(row.readAt);
+      expect(asRead(row, entry.service), `${key}'s defaults were read at ${row.readAt}; re-read them at the new pin`).toBe(row.readAt);
       expect(row.holds!(entry.service, entry), `${key}: ${row.why}`).toEqual([]);
     });
   }

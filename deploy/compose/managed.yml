@@ -72,6 +72,19 @@
 # in docs/managed-bring-up.md, "Which address a port answers on".
 name: ownpace-managed
 #
+# THE STORES AND THE TLS FRONT BY EXACT VERSION AND DIGEST (2026-10-22, workplan 0119 §4).
+# postgres, trigger-db, trigger-redis, trigger-tls and nextcloud floated within their lines until
+# then (`postgres:18-alpine`, `caddy:2-alpine`, ...), so that they would take their patches, and
+# nothing ever pulled them: Compose pulls only an image the machine does not have, so both
+# stacks ran whatever copy was pulled first, and nothing said which. Each now moves by a
+# pull request, proven by E2E (managed) on its branch, and live takes it from a release tag; `up`
+# pulls a digest the machine does not have. Dependabot reads no file here: the weekly pin watch
+# (scripts/idp-pin-watch.mjs) says when a newer tag is listed, and the weekly image scan
+# (scripts/image-scan.mjs) counts the findings a newer package fixes, which is when a rebuild of
+# the same tag is worth its new digest. db-roles.sh asks with this file's first postgres image.
+# scripts/a-float-nothing-ever-pulled.unit.test.ts refuses a new float; busybox's one-shot
+# chown is the one it names, with its reason.
+#
 # CONTAINER OUTPUT, CAPPED BY SIZE (2026-10-21). Docker's default driver,
 # json-file, keeps everything a container writes, with no limit of age or size,
 # until the container is removed, and a service whose image and settings do not
@@ -95,7 +108,7 @@ x-logging: &logging
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:18-alpine
+    image: postgres:18.6-alpine@sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5
     container_name: ${COMPOSE_PROJECT_NAME}-db
     restart: unless-stopped
     logging: *logging
@@ -208,7 +221,7 @@ services:
 
   # Trigger.dev Backend
   trigger-db:
-    image: postgres:18-alpine
+    image: postgres:18.6-alpine@sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-db
     restart: unless-stopped
     logging: *logging
@@ -245,15 +258,17 @@ services:
   # Trigger.dev's queues and locks, on Redis 7.4, the line the owner chose
   # (workplan 0119 §3 item 3). On Debian 12 since 2026-10-21, not Alpine: the
   # 7.4 Alpine images are built on Alpine 3.21, whose security support ends on
-  # 2026-11-01, and Debian 12's LTS runs to 2028-06-30. The tag floats within
-  # 7.4 so that a `docker compose pull trigger-redis` takes upstream's rebuilds
-  # of it as Debian ships fixes; nothing pulls it on its own, so that pull is a
-  # person's (0119 §4). Both images run Redis as uid 999 and the append-only
-  # file is that user's alone, so redis_data carries over in either direction.
+  # 2026-11-01, and Debian 12's LTS runs to 2028-06-30. Pinned by tag and
+  # digest since 2026-10-22 (0119 §4): it floated within 7.4, and nothing pulled
+  # it. 7.4's next patch comes in a pull request when the pin watch lists it, and
+  # a rebuild of this tag as Debian ships fixes when the weekly image scan counts
+  # findings a newer package fixes. Both images run Redis as uid 999 and the
+  # append-only file is that user's alone, so redis_data carries over in either
+  # direction.
   # It holds the run queues: on live it changes only at a deploy, and
   # deploy-live.sh refuses one without the hold or with a pass still in flight.
   trigger-redis:
-    image: redis:7.4-bookworm
+    image: redis:7.4.11-bookworm@sha256:44960b3100c48159a66d28c18b0588c193492e25f7551d60e51dd464fc3eca5b
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-redis
     restart: unless-stopped
     logging: *logging
@@ -766,7 +781,7 @@ services:
   # (IP-connecting browsers send no SNI). Set TRIGGER_TLS_HOST in .env to the
   # address browsers actually use (e.g. the machine's VPN IP).
   trigger-tls:
-    image: caddy:2-alpine
+    image: caddy:2.11.7-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls
     restart: unless-stopped
     logging: *logging
@@ -1846,7 +1861,7 @@ services:
   # 0139, 2026-09-29). It holds fixtures, never a tester's data.
   # `scripts/a-service-that-phones-home.unit.test.ts` lists it as left on.
   nextcloud:
-    image: nextcloud:34-apache
+    image: nextcloud:34.0.5-apache@sha256:1f9212adecae32010cdbf137d7e0db78d08c696dc3e77f1eddcbf902d10209b4
     container_name: ${COMPOSE_PROJECT_NAME}-nextcloud
     restart: unless-stopped
     logging: *logging

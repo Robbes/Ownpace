@@ -26,8 +26,8 @@
  *               deploy/selfhost/compose.yml;
  *             - every image a script in deploy/compose or deploy/selfhost
  *               names in a literal `…IMAGE=` assignment (GoAccess, Stalwart
- *               for the demo, db-roles.sh's client), deduplicated against
- *               the compose files of its stack. One named `localhost/<name>`
+ *               for the demo), deduplicated against the compose files of its
+ *               stack. One named `localhost/<name>`
  *               is built by its script from `<name>/Dockerfile` beside it, and
  *               no registry serves it (GoAccess since #1675: upstream's image
  *               is on an Alpine past its end of life), so its leg builds that
@@ -120,7 +120,7 @@
  * read at 4.7.6), and `managed.yml`, which hands its Trigger.dev services only
  * the keys it lists, sets neither. The guard holds that.
  *
- * A floating tag (`redis:7-alpine`) is scanned as the registry serves it
+ * A floating tag (`busybox:1.38`) is scanned as the registry serves it
  * today, which need not be what the box pulled last. The summary says which.
  * A built image is the same kind of reading: its packages are Debian's on the
  * day of the scan, while a deploy that the CLI's builder serves from its cache

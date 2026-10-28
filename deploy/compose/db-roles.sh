@@ -29,8 +29,9 @@
 #       ${POSTGRES_PASSWORD:-openmigrate_password}, ${POSTGRES_DB:-openmigrate},
 #       ${APP_DB_USER:-app_user}, ${APP_DB_PASSWORD:-app_password}), and
 #       COMPOSE_PROJECT from compose_project. Returns 2 when the project
-#       cannot be read. Otherwise a role would be set to `"value"`, quotes and
-#       all, which no container presents.
+#       cannot be read, or managed.yml names no postgres image to ask with.
+#       Otherwise a role would be set to `"value"`, quotes and all, which no
+#       container presents.
 #   db_roles_list
 #       the login roles, one `name|super|login` line each in DB_ROLES_LIST,
 #       over the socket as the owner: names and flags, never a password.
@@ -126,9 +127,16 @@
 # same function rather than a second mechanism.
 
 # The client for a network question: the image the stack's postgres runs, so
-# asking pulls nothing. scripts/rotate-db-passwords.unit.test.ts holds it to
-# managed.yml.
-DB_ROLES_CLIENT_IMAGE='postgres:18-alpine'
+# asking pulls nothing. Read from managed.yml beside this file, its first
+# postgres image line, as compose_project reads its `name:` and stand-up-live.sh
+# its check image: a literal here had to be moved by hand with every pin, and
+# the pins move by pull request since 2026-10-22, tag and digest. The reference
+# ends at the first space or `#`, as dump-idp.sh reads its pin, so a comment
+# after it (dev.yml writes its image lines that way) never reaches `docker run`.
+# Empty when the file names none, and db_roles_init refuses then.
+# scripts/rotate-db-passwords.unit.test.ts holds it to managed.yml.
+DB_ROLES_CLIENT_IMAGE="$(sed -n '/^[[:space:]]*image:[[:space:]]*postgres:/{s/^[[:space:]]*image:[[:space:]]*\([^[:space:]#]*\).*/\1/p;q;}' "${SCRIPT_DIR}/managed.yml" 2>/dev/null)" ||
+  DB_ROLES_CLIENT_IMAGE=''
 
 # env_value and compose_project, and own_address_redact for db_roles_masked.
 # SCRIPT_DIR is the caller's, which is this directory.
@@ -244,6 +252,10 @@ db_roles_env() {
 db_roles_init() { # db_roles_init <env-file>
   DB_ROLES_ENV_FILE="${1:-}"
   COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")" || return 2
+  if [ -z "$DB_ROLES_CLIENT_IMAGE" ]; then
+    echo "db_roles_init: ${SCRIPT_DIR}/managed.yml names no postgres image, which every question about a password is asked with" >&2
+    return 2
+  fi
   DB_ROLES_OWNER="$(db_roles_env POSTGRES_USER openmigrate)"
   DB_ROLES_OWNER_PASSWORD="$(db_roles_env POSTGRES_PASSWORD openmigrate_password)"
   DB_ROLES_DB="$(db_roles_env POSTGRES_DB openmigrate)"

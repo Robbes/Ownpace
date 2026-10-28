@@ -330,8 +330,10 @@ async function startNextcloud(): Promise<{
     `[NextcloudSetup] Starting Nextcloud container (${asked ? `NEXTCLOUD_IMAGE: ${asked}` : 'the default image'})...`,
   );
 
-  // Start container WITHOUT HTTP wait strategy - we'll use internal readiness check instead
-  const nextcloudContainer = await (asked ? new GenericContainer(asked) : new GenericContainer('nextcloud:34-apache'))
+  // Start container WITHOUT HTTP wait strategy - we'll use internal readiness check instead.
+  // The default is the dev stack's image, tag and digest: the pin watch reads dev.yml, not this
+  // file, and scripts/a-float-nothing-ever-pulled.unit.test.ts holds the two equal.
+  const nextcloudContainer = await (asked ? new GenericContainer(asked) : new GenericContainer('nextcloud:34.0.5-apache@sha256:1f9212adecae32010cdbf137d7e0db78d08c696dc3e77f1eddcbf902d10209b4'))
     .withEnvironment({
       SQLITE_DATABASE: 'nextcloud',
       NEXTCLOUD_ADMIN_USER: 'testadmin',
@@ -917,7 +919,8 @@ export async function startTestEnvironment(skipStalwart: boolean = false, skipNe
 
   // Start Postgres container
   console.log('[Testcontainers] Starting Postgres container...');
-  const postgresContainer = await new GenericContainer('postgres:18-alpine')
+  // dev.yml's, tag and digest (scripts/a-float-nothing-ever-pulled.unit.test.ts).
+  const postgresContainer = await new GenericContainer('postgres:18.6-alpine@sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5')
     .withExposedPorts(5432)
     .withEnvironment({
       POSTGRES_DB: 'ownpace',

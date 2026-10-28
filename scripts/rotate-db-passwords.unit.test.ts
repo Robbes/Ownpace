@@ -1036,6 +1036,37 @@ describe('every question about a password is asked the way the stack asks it', (
     },
     CASE_MS * 2,
   );
+
+  it(
+    "takes the client from managed.yml itself, so a pin moved there moves it, and a file without one is refused",
+    () => {
+      // db-roles.sh named the client as a literal that had to be moved by hand
+      // with every postgres pin. It reads managed.yml's first postgres line now,
+      // as compose_project reads its `name:` and stand-up-live.sh its check image,
+      // and stops at the reference: a comment after it, the way dev.yml writes
+      // its image lines, is not part of what `docker run` is given.
+      const fx = fixture();
+      const yml = join(fx.compose, 'managed.yml');
+      const text = readFileSync(yml, 'utf8');
+      const moved = `postgres:18.99-alpine@sha256:${'e'.repeat(64)}`;
+      const repinned = text.replace(/^(\s*image:\s*)postgres:\S+/gm, `$1${moved} # multi-arch (arm64)`);
+      expect(repinned, 'no postgres image line to move').not.toBe(text);
+      writeFileSync(yml, repinned);
+      const r = run(fx, ['--check']);
+      const asked = calls(fx).filter((c) => c.kind === 'network');
+      expect(asked.length, r.output).toBeGreaterThan(0);
+      expect(new Set(asked.map((c) => c.image))).toEqual(new Set([moved]));
+
+      const none = fixture();
+      const without = join(none.compose, 'managed.yml');
+      writeFileSync(without, readFileSync(without, 'utf8').replace(/^(\s*image:\s*)postgres:/gm, '$1mirror.example/postgres:'));
+      const refused = run(none, ['--check']);
+      expect(refused.status, refused.output).not.toBe(0);
+      expect(refused.output).toContain('names no postgres image');
+      expect(calls(none).filter((c) => c.kind === 'network')).toEqual([]);
+    },
+    CASE_MS * 2,
+  );
 });
 
 // ---------------------------------------------------------------------------

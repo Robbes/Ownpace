@@ -83,7 +83,7 @@ ARG VITE_SUPPORT_EMAIL=
 ENV VITE_SUPPORT_EMAIL=$VITE_SUPPORT_EMAIL
 RUN pnpm --filter @openmig/web build
 
-FROM nginx:1.31-alpine AS runtime
+FROM nginx:1.31.8-alpine@sha256:1ef7ca94d7879df82421428ce13bd1eaa412404953859cf7a5b6512c25e67a60 AS runtime
 ENV API_UPSTREAM=api:3001
 # THE SIGN-IN HOST, FOR THE APP'S POLICY (workplan 0158). nginx.conf.template
 # names it in the policy's connect-src, so the page may fetch the issuer's
