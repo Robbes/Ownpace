@@ -291,6 +291,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   the machine lacks it, and a pull that does not end is stopped after
   `ZITADEL_PULL_TIMEOUT` (600 seconds) with a sentence saying what to do. The
   operator runbook says how to end such a step and go on.
+- **systeminformation 5.33.16 closes two advisories in `networkStats()`**
+  (GHSA-4vjg-vx72-qq4g, low, and GHSA-7648-jmwf-vw7j, moderate), which
+  Trigger.dev's SDK carries through `@opentelemetry/host-metrics`. On Linux an
+  interface name could reach a file outside `/sys/class/net` through a symlink,
+  which needs a local user and a caller that passes it untrusted input; the
+  prototype pollution affects the BSDs only. A floor at 5.33.14, the Linux fix
+  (published 2026-09-28, past the three-day cooldown), takes the tree from
+  5.33.1 to 5.33.16.
 
 ## [0.2.0-alpha.2] - 2026-10-25
 
