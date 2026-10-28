@@ -847,6 +847,7 @@ reading a file drops off its entry by itself.
 - [a-plane-token-the-dead-worker-left](../scripts/a-plane-token-the-dead-worker-left.unit.test.ts) — THE PLANE'S TOKENS (workplan 0143 T1 step 3's plane half, the half plane-limit.sh cannot fix).
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
+- [a-pull-that-never-came-back](../scripts/a-pull-that-never-came-back.unit.test.ts) — A PULL THAT NEVER CAME BACK (live's deploy of alpha.2, 2026-10-28).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
@@ -4547,6 +4548,14 @@ Reads:
 - `deploy/compose/managed.yml`
 - `deploy/compose/setup-managed-demo.sh`
 - `deploy/compose/smoke-managed.sh`
+
+### [a-pull-that-never-came-back](../scripts/a-pull-that-never-came-back.unit.test.ts)
+
+A PULL THAT NEVER CAME BACK (live's deploy of alpha.2, 2026-10-28).
+
+Reads:
+
+- `deploy/compose/bootstrap-managed.sh`
 
 ### [a-rate-that-must-not-spread](../scripts/a-rate-that-must-not-spread.unit.test.ts)
 

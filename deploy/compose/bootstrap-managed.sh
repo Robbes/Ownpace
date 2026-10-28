@@ -77,6 +77,9 @@ COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")"
 # applies every migration from scratch; #47 took roughly two minutes on the
 # Spark, and a machine with slower disk will take longer.
 IDP_READY_TIMEOUT="${IDP_READY_TIMEOUT:-300}"
+# How long a pull of the identity provider's image may take, when it is not on
+# the machine yet (prepare_machinekey_volume). A new tag is a few hundred MB.
+ZITADEL_PULL_TIMEOUT="${ZITADEL_PULL_TIMEOUT:-600}"
 
 # What a log line looks like when it is reporting that something FAILED, across
 # every image this stack runs: logfmt (Zitadel, Trigger.dev, Caddy), JSON, bare
@@ -1912,10 +1915,6 @@ resolve_image_uid() { # resolve_image_uid <image> <user-from-config>
 }
 
 prepare_machinekey_volume() {
-  # Explicit pull first: `inspect` reads the LOCAL image, and on a fresh machine
-  # the image arrives with `up` — which is after this. Cached, this is a no-op.
-  "${COMPOSE[@]}" pull -q zitadel
-
   # ASKED BY NAME, not by position. `config --images zitadel` looks like the
   # obvious call and is a trap: it prints the service's DEPENDENCIES too —
   # `postgres:18-alpine` came back on the second line here — so taking the first
@@ -1926,6 +1925,32 @@ prepare_machinekey_volume() {
   local image user
   image="$("${COMPOSE[@]}" config --format json | jq -r '.services.zitadel.image // empty')"
   [ -n "$image" ] || die "compose could not name the zitadel image — cannot tell what user it runs as."
+
+  # PULLED ONLY WHEN IT IS NOT HERE, AND NEVER WITHOUT AN END (live's deploy of
+  # alpha.2, 2026-10-28). `inspect` below reads the LOCAL image, and on a fresh
+  # machine the image arrives with `up`, which is after this, so a missing one
+  # is pulled first. One that is here is not asked for again: on live, a pull of
+  # an image already present printed "Pulled" and then never returned (compose
+  # v5.0.2 drawing its progress in a terminal; the nights, with no terminal,
+  # never met it), and the deploy waited sixteen minutes on a no-op until the
+  # pull was killed and the deploy did not take. A pull that is needed is
+  # bounded: ZITADEL_PULL_TIMEOUT seconds, then a refusal that says what to do.
+  # And it gets no terminal, as on the nights: input from /dev/null, output
+  # through a pipe, so compose prints plain lines, and `timeout`, which runs it
+  # in a process group of its own, cannot have it stopped for touching one.
+  if ! docker image inspect "$image" >/dev/null 2>&1; then
+    local pull_rc=0
+    timeout --kill-after=30 "$ZITADEL_PULL_TIMEOUT" "${COMPOSE[@]}" pull -q zitadel </dev/null 2>&1 |
+      sed 's/^/    /' || pull_rc=$?
+    case "$pull_rc" in
+      0) ;;
+      124 | 137)
+        die "the pull of ${image} did not end within ${ZITADEL_PULL_TIMEOUT}s, so it was stopped; nothing after it ran.
+    Run the same command again. If it stops here again, pull it by hand
+    (docker pull ${image}) and see what it waits on." ;;
+      *) die "the pull of ${image} failed (exit ${pull_rc}, above)." ;;
+    esac
+  fi
 
   user="$(docker image inspect "$image" --format '{{.Config.User}}')"
 

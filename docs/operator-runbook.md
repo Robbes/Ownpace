@@ -941,6 +941,16 @@ On either, this is what an upgrade does and does not do:
    switches them off with a check that the demo's DAV writes still work.
    `docs/managed-bring-up.md`, *Nothing phones home*, has each switch, where it was read, the
    command that applies it to a running stack, and the check to run after the upgrade.
+6. A deploy that sits on one line for more than ten minutes (live, 2026-10-28: a `docker compose
+   pull -q zitadel` printed "Pulled" in 0.6s and never returned, in a terminal; the bring-up now
+   pulls that image only when the machine lacks it, and stops a pull after
+   `ZITADEL_PULL_TIMEOUT`, 600s). Find what it waits on from a second terminal, reading only:
+   `pgrep -af 'docker (compose|run|create|cp|image)'`. A compose command that has printed its
+   last line and does not return may be ended with `kill -TERM <its pid>`: the bring-up stops,
+   `deploy-live.sh` says the deploy did not take and logs it, the hold stays on and the copy is
+   kept, and the same `deploy-live.sh <tag>` run again goes forward from the checkout it left.
+   Run that second deploy as `… 2>&1 | tee ~/deploy.log; echo "exit ${PIPESTATUS[0]}"`: with
+   its output not a terminal, compose prints plain lines instead of drawing its progress.
 
 ## Grant links: who granted what
 
