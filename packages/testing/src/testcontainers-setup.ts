@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFile, execFileSync, execSync } from 'node:child_process';
 import { promisify } from 'node:util';
+import { nextcloudImageAsked, versionstringOf, wrongServer } from './nextcloud-image.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -319,10 +320,20 @@ async function startNextcloud(): Promise<{
   password: string;
   container: StartedTestContainer;
 }> {
-  console.log('[NextcloudSetup] Starting Nextcloud container...');
+  // NEXTCLOUD_IMAGE asks for another image than the default: the second-major
+  // leg (.github/workflows/nextcloud-second-major.yml) sets it. See
+  // nextcloud-image.ts for what an image asked for by name changes. The default
+  // stays a literal call of its own, so the line that names the demo's major is
+  // one a reader, and a guard, can find by its text.
+  const asked = nextcloudImageAsked();
+  console.log(
+    `[NextcloudSetup] Starting Nextcloud container (${asked ? `NEXTCLOUD_IMAGE: ${asked}` : 'the default image'})...`,
+  );
 
-  // Start container WITHOUT HTTP wait strategy - we'll use internal readiness check instead
-  const nextcloudContainer = await new GenericContainer('nextcloud:34-apache')
+  // Start container WITHOUT HTTP wait strategy - we'll use internal readiness check instead.
+  // The default is the dev stack's image, tag and digest: the pin watch reads dev.yml, not this
+  // file, and scripts/a-float-nothing-ever-pulled.unit.test.ts holds the two equal.
+  const nextcloudContainer = await (asked ? new GenericContainer(asked) : new GenericContainer('nextcloud:34.0.5-apache@sha256:1f9212adecae32010cdbf137d7e0db78d08c696dc3e77f1eddcbf902d10209b4'))
     .withEnvironment({
       SQLITE_DATABASE: 'nextcloud',
       NEXTCLOUD_ADMIN_USER: 'testadmin',
@@ -457,6 +468,16 @@ async function startNextcloud(): Promise<{
     const errorMsg = `Nextcloud DAV not ready: PROPFIND did not return 207 after ${maxPropfindAttempts} attempts. Last status: ${lastStatus}. Response body (first 200 chars): ${lastBody}. status.php body: ${statusBody.slice(0, 200)}`;
     console.error(`[NextcloudSetup] ${errorMsg}`);
     throw new Error(errorMsg);
+  }
+
+  // Which server answered, in its own words, so a run's log says which major
+  // its DAV suites ran against; and, for an image asked for by name, a refusal
+  // when it is not the version the tag names.
+  console.log(`[NextcloudSetup] Nextcloud ${versionstringOf(statusBody) ?? '(status.php said no version)'} answered`);
+  const notAsked = wrongServer(asked, statusBody);
+  if (notAsked) {
+    console.error(`[NextcloudSetup] ${notAsked}`);
+    throw new Error(notAsked);
   }
 
   console.log(`[NextcloudSetup] Nextcloud DAV fully ready at ${webdavUrl}`);
@@ -898,7 +919,14 @@ export async function startTestEnvironment(skipStalwart: boolean = false, skipNe
 
   // Start Postgres container
   console.log('[Testcontainers] Starting Postgres container...');
-  const postgresContainer = await new GenericContainer('postgres:18-alpine')
+  // The base of the stacks' build, deploy/compose/postgres/Dockerfile, tag and
+  // digest, started as its postgres user (uid 70) as the stacks' build is: the
+  // entrypoint then never reaches gosu, and initdb makes this container's new
+  // volume as uid 70, the way every new volume of the stacks is made
+  // (scripts/a-database-started-as-root.unit.test.ts). The build only removes
+  // gosu, so pulling its base keeps every run from building an image.
+  const postgresContainer = await new GenericContainer('postgres:18.6-alpine@sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5')
+    .withUser('70:70')
     .withExposedPorts(5432)
     .withEnvironment({
       POSTGRES_DB: 'ownpace',
@@ -952,6 +980,12 @@ export async function startTestEnvironment(skipStalwart: boolean = false, skipNe
       console.log(`[NextcloudSetup] Nextcloud ready - WebDAV: ${nextcloud.webdavUrl}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      // A run that names its Nextcloud exists for that Nextcloud: without it
+      // every DAV suite would skip and the run would be green over nothing.
+      const asked = nextcloudImageAsked();
+      if (asked) {
+        throw new Error(`NEXTCLOUD_IMAGE asks for ${asked}, and that Nextcloud did not start: ${msg}`, { cause: err });
+      }
       console.warn(`[Testcontainers] Warning: Could not start Nextcloud: ${msg}`);
       console.warn('[Testcontainers] Continuing without Nextcloud - WebDAV tests will be skipped.');
     }

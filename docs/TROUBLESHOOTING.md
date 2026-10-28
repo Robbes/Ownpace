@@ -479,8 +479,9 @@ netstat -tulpn | grep LISTEN
 # migration's ledger and every stored credential
 docker compose down
 
-# Rebuild images
-docker compose build --no-cache
+# Rebuild the images that carry code, by name. Never a bare build: it rebuilds the
+# databases' image too, which restarts the databases of every stack on this Docker daemon
+docker compose build --no-cache api web
 
 # Start fresh
 docker compose up -d
@@ -569,8 +570,8 @@ docker compose up -d
 docker compose down -v
 docker system prune -a
 
-# Rebuild from scratch
+# Rebuild from scratch (`up` builds the databases' image, by itself, where it is missing)
 git pull
-docker compose build
+docker compose build api web
 docker compose up -d
 ```

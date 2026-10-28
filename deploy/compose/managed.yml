@@ -72,6 +72,27 @@
 # in docs/managed-bring-up.md, "Which address a port answers on".
 name: ownpace-managed
 #
+# THE STORES AND THE TLS FRONT BY EXACT VERSION AND DIGEST (2026-10-22, workplan 0119 §4).
+# postgres, trigger-db, trigger-redis, trigger-tls and nextcloud floated within their lines until
+# then (`postgres:18-alpine`, `caddy:2-alpine`, ...), so that they would take their patches, and
+# nothing ever pulled them: Compose pulls only an image the machine does not have, so both
+# stacks ran whatever copy was pulled first, and nothing said which. Each now moves by a
+# pull request, proven by E2E (managed) on its branch, and live takes it from a release tag; `up`
+# pulls a digest the machine does not have. Dependabot reads no file here: the weekly pin watch
+# (scripts/idp-pin-watch.mjs) says when a newer tag is listed, and the weekly image scan
+# (scripts/image-scan.mjs) counts the findings a newer package fixes, which is when a rebuild of
+# the same tag is worth its new digest. db-roles.sh asks with this file's first postgres image.
+# postgres and trigger-db run a build of the official image since 2026-10-26 (workplan 0146 T15):
+# their pin is deploy/compose/postgres/Dockerfile's FROM, by tag and digest, which Dependabot does
+# read (its own entry), and the name below carries a hash of that file's instructions, so a
+# changed Dockerfile is a name the machine does not have yet, and a pull request that changes one
+# fails a-database-started-as-root until the names move with it (the failure says how). `up`
+# builds it only where that name is missing, and only if nothing asks for a build: `up --build`
+# builds every service in its scope that has a `build:`, dependencies included, so
+# bootstrap-managed.sh builds `api web` by name and runs `up` without it.
+# scripts/a-float-nothing-ever-pulled.unit.test.ts refuses a new float; busybox's one-shot
+# chown is the one it names, with its reason.
+#
 # CONTAINER OUTPUT, CAPPED BY SIZE (2026-10-21). Docker's default driver,
 # json-file, keeps everything a container writes, with no limit of age or size,
 # until the container is removed, and a service whose image and settings do not
@@ -95,7 +116,17 @@ x-logging: &logging
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:18-alpine
+    # The official image without gosu, started as its postgres user, uid 70
+    # (workplan 0146 T15): deploy/compose/postgres/Dockerfile says why, what a
+    # start as uid 70 leaves out, and why the name carries the hash of its
+    # instructions. Compose builds it on the first `up` that finds no image of
+    # this name; the base's digest is the Dockerfile's FROM. `never`: no
+    # registry serves this name, so `docker compose pull` passes it by rather
+    # than failing on it, and `up` builds it when it is missing without first
+    # asking whatever answers on this host's port 443 for it.
+    image: localhost/postgres:18.6-alpine-6b2d97623fb5
+    build: ./postgres
+    pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-db
     restart: unless-stopped
     logging: *logging
@@ -208,7 +239,10 @@ services:
 
   # Trigger.dev Backend
   trigger-db:
-    image: postgres:18-alpine
+    # The same build as postgres above.
+    image: localhost/postgres:18.6-alpine-6b2d97623fb5
+    build: ./postgres
+    pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-db
     restart: unless-stopped
     logging: *logging
@@ -245,15 +279,17 @@ services:
   # Trigger.dev's queues and locks, on Redis 7.4, the line the owner chose
   # (workplan 0119 §3 item 3). On Debian 12 since 2026-10-21, not Alpine: the
   # 7.4 Alpine images are built on Alpine 3.21, whose security support ends on
-  # 2026-11-01, and Debian 12's LTS runs to 2028-06-30. The tag floats within
-  # 7.4 so that a `docker compose pull trigger-redis` takes upstream's rebuilds
-  # of it as Debian ships fixes; nothing pulls it on its own, so that pull is a
-  # person's (0119 §4). Both images run Redis as uid 999 and the append-only
-  # file is that user's alone, so redis_data carries over in either direction.
+  # 2026-11-01, and Debian 12's LTS runs to 2028-06-30. Pinned by tag and
+  # digest since 2026-10-22 (0119 §4): it floated within 7.4, and nothing pulled
+  # it. 7.4's next patch comes in a pull request when the pin watch lists it, and
+  # a rebuild of this tag as Debian ships fixes when the weekly image scan counts
+  # findings a newer package fixes. Both images run Redis as uid 999 and the
+  # append-only file is that user's alone, so redis_data carries over in either
+  # direction.
   # It holds the run queues: on live it changes only at a deploy, and
   # deploy-live.sh refuses one without the hold or with a pass still in flight.
   trigger-redis:
-    image: redis:7.4-bookworm
+    image: redis:7.4.11-bookworm@sha256:44960b3100c48159a66d28c18b0588c193492e25f7551d60e51dd464fc3eca5b
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-redis
     restart: unless-stopped
     logging: *logging
@@ -766,7 +802,7 @@ services:
   # (IP-connecting browsers send no SNI). Set TRIGGER_TLS_HOST in .env to the
   # address browsers actually use (e.g. the machine's VPN IP).
   trigger-tls:
-    image: caddy:2-alpine
+    image: caddy:2.11.7-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls
     restart: unless-stopped
     logging: *logging
@@ -1269,7 +1305,8 @@ services:
         # GET /version reports this commit (build-identity.ts). CI passes it
         # (images.yml); a hand-built stack must pass it too or the endpoint
         # answers commit "unknown" — build with:
-        #   GIT_SHA=$(git rev-parse HEAD) docker compose -f managed.yml build
+        #   GIT_SHA=$(git rev-parse HEAD) docker compose -f managed.yml build api web
+        # by name: a bare `build` builds the databases' image too.
         GIT_SHA: ${GIT_SHA:-unknown}
     container_name: ${COMPOSE_PROJECT_NAME}-api
     restart: unless-stopped
@@ -1861,7 +1898,7 @@ services:
   # 0139, 2026-09-29). It holds fixtures, never a tester's data.
   # `scripts/a-service-that-phones-home.unit.test.ts` lists it as left on.
   nextcloud:
-    image: nextcloud:34-apache
+    image: nextcloud:34.0.5-apache@sha256:1f9212adecae32010cdbf137d7e0db78d08c696dc3e77f1eddcbf902d10209b4
     container_name: ${COMPOSE_PROJECT_NAME}-nextcloud
     restart: unless-stopped
     logging: *logging
