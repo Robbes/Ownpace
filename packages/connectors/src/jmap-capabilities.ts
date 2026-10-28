@@ -101,7 +101,8 @@ const DOMAIN_REQUIREMENTS: ReadonlyArray<{
     supportedByThisProduct: false,
     unsupportedReason:
       'This product has no JMAP calendar target. Workplan 0031 T1 is parked by owner decision: ' +
-      'Stalwart v0.16.10 refuses `recurrenceRules` over JMAP while its own CalDAV path accepts ' +
+      'Stalwart refuses `recurrenceRules` over JMAP (v0.16.10, and v0.16.27 when re-checked on ' +
+      '2026-10-25) while its own CalDAV path accepts ' +
       'them, so a JMAP calendar target would write a recurring series as a single event plus ' +
       'orphaned overrides — silently, since every write succeeds. Calendars travel over CalDAV.',
   },

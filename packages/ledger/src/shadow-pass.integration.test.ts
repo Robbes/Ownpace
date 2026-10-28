@@ -37,7 +37,7 @@ if (!PG_CONNECTION_STRING) {
 
 // Stalwart configuration from Testcontainers (set by vitest.global-setup.ts)
 // Stalwart is a REQUIRED dependency for shadow pass tests
-// NOTE: Using IMAPS (port 993) with TLS - Stalwart v0.16.10 auto-binds TLS listeners but NOT plaintext 143
+// NOTE: Using IMAPS (port 993) with TLS - Stalwart v0.16.27 auto-binds TLS listeners but NOT plaintext 143
 const STALWART_IMAP_HOST = process.env.STALWART_IMAP_HOST;
 const STALWART_IMAP_PORT = parseInt(process.env.STALWART_IMAP_PORT || '993', 10);
 const STALWART_JMAP_URL = process.env.STALWART_JMAP_URL;

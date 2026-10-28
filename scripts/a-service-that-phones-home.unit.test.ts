@@ -69,9 +69,15 @@
  *    here too. Its one-shot `minio-init` runs `mc mb`, and mc asks `dl.min.io`
  *    only when it is run with no command (`cmd/main.go` at mc's
  *    `RELEASE.2025-08-13T08-35-41Z`).
- *  - MAILPIT (v1.31.6, the test stack's catcher; live has none) asks GitHub for
- *    its newest release whenever its web page asks for the server's info,
- *    unless `MP_DISABLE_VERSION_CHECK` says true (`internal/stats/stats.go`).
+ *  - MAILPIT (v1.31.6, and again at v1.32.0 on 2026-10-25; the test stack's
+ *    catcher, live has none) asks GitHub for its newest release whenever its
+ *    web page asks for the server's info, unless `MP_DISABLE_VERSION_CHECK`
+ *    says true (`internal/stats/stats.go`, the variable read in `cmd/root.go`
+ *    as `1`, `true` or `yes`). Neither file changed between the two tags.
+ *    None of its other requests goes to its maker: a webhook goes out only
+ *    when one is configured, and the HTML check, link check and screenshot
+ *    proxy fetch what a caught message names only when its API is asked for
+ *    them; none of those files changed either.
  *  - NEXTCLOUD (34, the demo's DAV target on the OTA stack every night, and the
  *    development one) sends its version, PHP version and install time to
  *    `updates.nextcloud.com`, asks `apps.nextcloud.com` for the app store, the
@@ -96,7 +102,12 @@
  *    machine this cannot see). The row records the image the default was read
  *    at, and a different image in the file fails here until somebody re-reads
  *    the default at the new version and moves the row. A new release is exactly
- *    where a new report appears: Zitadel's ping arrived with v4. A switched
+ *    where a new report appears: Zitadel's ping arrived with v4. A row whose
+ *    fact was read for a whole major line records that line instead, and is
+ *    compared by repository and major: Caddy's (Caddy 2 has no telemetry) and
+ *    Nextcloud's (read at `stable34`), whose images are pinned by tag and
+ *    digest since 2026-10-22, so that a patch or a rebuild the pin watch asks
+ *    for does not fail here, and another major still does. A switched
  *    service takes nothing from `env_file` or `extends`, and no overlay, since
  *    neither is read here.
  *  - NO SWITCH: nothing in it reports home, and the row says why. It records the
@@ -121,15 +132,17 @@
  * follow-up switches them off with a check that the demo's DAV writes still
  * work.
  *
- * And the demo's Stalwart (v0.16.10), which
+ * And the demo's Stalwart (v0.16.27), which
  * `setup-stalwart.sh` starts with `docker run`, outside every compose file, on
  * the OTA stack every night, in the self-host end-to-end run and on a
- * developer's machine. In normal mode
- * it fetches its WebUI from `github.com/stalwartlabs/webui/releases/latest` on
- * first start and every 30 days, its spam-filter rules from
+ * developer's machine. It fetches its WebUI from
+ * `github.com/stalwartlabs/webui/releases/download/v1.0.11` on first start and
+ * every 30 days, its spam-filter rules from
  * `github.com/stalwartlabs/spam-filter/releases/latest`, and an ASN and country
- * database from `cdn.jsdelivr.net` every day
- * (`crates/common/src/manager/defaults.rs`, `SpamSettings` in
+ * database every day, from `github.com/sapics/ip-location-db` on a database it
+ * made and from `cdn.jsdelivr.net` on one v0.16.10 made, which keeps the
+ * addresses it was given (`crates/common/src/manager/defaults.rs` and
+ * `application.rs`, `SpamSettings` in
  * `crates/registry/src/schema/structs_impl.rs`). Each is an object in its
  * database, not in its one-line file on disk, so switching it off is new
  * objects in the provisioning plan, and Stalwart settings written without
@@ -147,8 +160,11 @@
  * panel, which the script ignores) and its WebSocket server (`src/websocket.c`,
  * only with `--real-time-html`, which it never passes). And it runs with
  * `--network none`, so nothing could leave if a later version added
- * something. The image is pinned by digest, and the row below fails on
- * another pin or on a run that has a network.
+ * something. Its image is built from that commit by
+ * `deploy/compose/goaccess/Dockerfile` (#1675: upstream's image is on an
+ * Alpine past its end of life) and run with `--pull never`, and the row below
+ * fails on another commit, on a base not pinned by digest, or on a run that
+ * has a network or may pull.
  *
  * WHAT THIS CANNOT SEE. A running container, or a machine's `.env`: live's own
  * `TRIGGER_IMAGE_TAG` would run another webapp than the default read here, which
@@ -501,8 +517,18 @@ export function caddyProblems(caddyfile: string): string[] {
 }
 
 interface Row {
-  /** Exactly the `image:` the file writes, as the default was read at; `build` for our own. */
+  /**
+   * Exactly the `image:` the file writes, as the default was read at; `build`
+   * for our own; or, with `line`, the repository and major line it was read
+   * for (`caddy:2`).
+   */
   readonly readAt: string;
+  /**
+   * The fact holds for the whole major line, so the row compares the
+   * repository and the tag's first number: a patch or a rebuild keeps the
+   * reason, another major is a new question.
+   */
+  readonly line?: true;
   /** What it sends by default and where that was read, or why it needs no switch. */
   readonly why: string;
   /** Problems with the switch, or with the fact the row rests on; empty when it holds. */
@@ -522,19 +548,20 @@ const CLICKHOUSE =
 const MINIO =
   'chainguard/minio:latest@sha256:d88920d6a50bd0b088223b688be3b76c63e6205dbe494437f67ba1240ea12880';
 const MAILPIT =
-  'axllent/mailpit:v1.31.6@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387';
-const NEXTCLOUD = 'nextcloud:34-apache';
+  'axllent/mailpit:v1.32.0@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498';
+/** Read at `stable34` (config.sample.php and the two crawlers), so the line, not one patch of it. */
+const NEXTCLOUD = 'nextcloud:34';
 /** The demo's Stalwart, outside every compose file; its fetches were read at this tag. */
-const STALWART = 'stalwartlabs/stalwart:v0.16.10';
+const STALWART = 'stalwartlabs/stalwart:v0.16.27';
 /**
  * The site's visit count, outside every compose file (`site-visits.sh`); read
- * at the tag `v1.12` (`ef3c4f3c`). The digest is Docker Hub's index for the tag
- * `1.12` (amd64 and arm64), read from its listing on 2026-10-05 and read back
- * from the registry on 2026-10-06 (a HEAD of the tag returns it); not pulled
- * through Docker here.
+ * at the tag `v1.12` (`ef3c4f3c`), and since 2026-10-25 (#1675) built from that
+ * commit by `deploy/compose/goaccess/Dockerfile`, under a name no registry
+ * serves. Until then it was Docker Hub's `allinurl/goaccess:1.12`, on Alpine
+ * 3.20.
  */
-const GOACCESS =
-  'allinurl/goaccess:1.12@sha256:9e6dfd4abce94bd7c2907c1840b7b35f666587d56b24ffbb930b4782a87ea172';
+const GOACCESS = 'localhost/goaccess:1.12';
+const GOACCESS_COMMIT = 'ef3c4f3c3e42b378e705fb3a1a5ef1c2e72e6348';
 
 const NEXTCLOUD_PHONES =
   'its version and PHP version to updates.nextcloud.com, the app store at apps.nextcloud.com, the announcements feed and a ' +
@@ -578,11 +605,12 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
   },
   'deploy/compose/managed.yml:mailpit': {
     readAt: MAILPIT,
-    why: "a release check to GitHub when its web page asks for the server's info (internal/stats/stats.go at v1.31.6)",
+    why: "a release check to GitHub when its web page asks for the server's info (internal/stats/stats.go at v1.31.6, unchanged at v1.32.0)",
     holds: (svc) => exactly(environmentOf(svc), 'MP_DISABLE_VERSION_CHECK', 'true'),
   },
   'deploy/compose/managed.yml:trigger-tls': {
-    readAt: 'caddy:2-alpine',
+    readAt: 'caddy:2',
+    line: true,
     why:
       'Caddy 2 has no telemetry (its repository names it only for the opt-in `tracing` directive), and its one ' +
       'default that leaves the machine is automatic HTTPS, which asks a public certificate authority; `tls internal` ' +
@@ -597,10 +625,28 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
 
 const NONE = (what: string): string => `${what} has no telemetry, update check or error report of any kind`;
 
+/**
+ * The official PostgreSQL image built here without gosu, as uid 70 (workplan
+ * 0146 T15, deploy/compose/postgres/Dockerfile; the appliance's since T15b,
+ * deploy/selfhost/postgres/Dockerfile). A build is `build` to this file, so
+ * the row holds the software by the Dockerfile's FROM instead.
+ */
+const BUILT_POSTGRES: Row = {
+  readAt: 'build',
+  why: `${NONE('PostgreSQL')}; built here from the official image, with gosu removed and nothing added that runs`,
+  holds: (svc, entry) => {
+    const build = svc.build as string | { context?: string } | undefined;
+    const context = typeof build === 'string' ? build : build?.context;
+    if (!context) return ['no build context to read the Dockerfile from'];
+    const from = /^FROM\s+(\S+)\s*$/m.exec(read(`${dirname(entry.file)}/${context.replace(/^\.\//, '')}/Dockerfile`))?.[1] ?? '';
+    return /^postgres:[^/]+$/.test(from) ? [] : [`built FROM ${from || 'nothing'}, not the official postgres image`];
+  },
+};
+
 /** Repositories, not tags: a new version of the same software keeps the reason; other software does not. */
 export const NO_SWITCH: Readonly<Record<string, Row>> = {
-  'deploy/compose/managed.yml:postgres': { readAt: 'postgres', why: NONE('PostgreSQL') },
-  'deploy/compose/managed.yml:trigger-db': { readAt: 'postgres', why: NONE('PostgreSQL') },
+  'deploy/compose/managed.yml:postgres': BUILT_POSTGRES,
+  'deploy/compose/managed.yml:trigger-db': BUILT_POSTGRES,
   'deploy/compose/managed.yml:pgbouncer': { readAt: 'edoburu/pgbouncer', why: NONE('PgBouncer') },
   'deploy/compose/managed.yml:trigger-redis': { readAt: 'redis', why: NONE('Redis') },
   'deploy/compose/managed.yml:trigger-registry': {
@@ -646,8 +692,8 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
       'ask our own services and public pages of the providers it watches, and carry nothing about anyone',
   },
   'deploy/compose/www.yml:www': { readAt: 'nginx', why: NONE('nginx') },
-  'deploy/compose/dev.yml:postgres': { readAt: 'postgres', why: NONE('PostgreSQL') },
-  'deploy/selfhost/compose.yml:postgres': { readAt: 'postgres', why: NONE('PostgreSQL') },
+  'deploy/compose/dev.yml:postgres': BUILT_POSTGRES,
+  'deploy/selfhost/compose.yml:postgres': BUILT_POSTGRES,
   'deploy/selfhost/compose.yml:app': {
     readAt: 'build',
     why: "Ownpace's own appliance: self-host sends us nothing, the privacy policy's first line",
@@ -688,6 +734,7 @@ const MANAGED_SCRIPTS = Object.freeze(['bootstrap-managed.sh', ...LIVE_SCRIPTS])
 export const LEFT_ON: Readonly<Record<string, Row>> = {
   'deploy/compose/managed.yml:nextcloud': {
     readAt: NEXTCLOUD,
+    line: true,
     why: `${NEXTCLOUD_PHONES}; the demo's DAV target, on the OTA stack every night, started only with --with-demo, which both live scripts refuse`,
     holds: () =>
       bringUpProblems(
@@ -697,6 +744,7 @@ export const LEFT_ON: Readonly<Record<string, Row>> = {
   },
   'deploy/compose/dev.yml:nextcloud': {
     readAt: NEXTCLOUD,
+    line: true,
     why: `${NEXTCLOUD_PHONES}; the development and self-host end-to-end DAV target, which no managed bring-up starts`,
     holds: () =>
       MANAGED_SCRIPTS.filter((s) => read(`deploy/compose/${s}`).includes('dev.yml')).map(
@@ -730,6 +778,14 @@ function repositoryOf(image: string): string {
   const colon = noDigest.indexOf(':', slash + 1);
   return colon === -1 ? noDigest : noDigest.slice(0, colon);
 }
+/** `caddy:2` for `caddy:2.11.7-alpine@sha256:…`: the repository and its tag's first number. */
+function lineOf(image: string): string {
+  const repository = repositoryOf(image);
+  const major = /^:v?(\d+)/.exec(image.slice(repository.length))?.[1];
+  return major === undefined ? image : `${repository}:${major}`;
+}
+/** The image as a row compares it: whole, or by its line when the row says the fact holds for one. */
+const asRead = (row: Row, svc: Service): string => (row.line ? lineOf(imageOf(svc)) : imageOf(svc));
 
 const files = composeFiles();
 const entries: Entry[] = files.flatMap((file) => {
@@ -786,7 +842,7 @@ describe('a switched service runs the version its default was read at, with the 
       const entry = running.find((e) => e.key === key);
       expect(entry, `${key} is gone`).toBeDefined();
       expect(
-        imageOf(entry!.service),
+        asRead(row, entry!.service),
         `${key}'s default was read at ${row.readAt}. Re-read what the new version sends by default, then move this row.`,
       ).toBe(row.readAt);
       const unread = (['env_file', 'extends'] as const).filter((k) => entry!.service[k] !== undefined);
@@ -812,7 +868,7 @@ describe('what is left on is left on where no tester is', () => {
     it(key, () => {
       const entry = running.find((e) => e.key === key)!;
       expect(entry, `${key} is gone`).toBeDefined();
-      expect(imageOf(entry.service), `${key}'s defaults were read at ${row.readAt}; re-read them at the new pin`).toBe(row.readAt);
+      expect(asRead(row, entry.service), `${key}'s defaults were read at ${row.readAt}; re-read them at the new pin`).toBe(row.readAt);
       expect(row.holds!(entry.service, entry), `${key}: ${row.why}`).toEqual([]);
     });
   }
@@ -836,21 +892,31 @@ describe('an overlay runs its base image and switches nothing back on', () => {
 describe('what runs outside every compose file is named, at the version it was read at', () => {
   it("the demo's Stalwart (setup-stalwart.sh, docker run) is the one whose fetches docs/managed-bring-up.md names", () => {
     const image = /^IMAGE="([^"]+)"$/m.exec(read('deploy/selfhost/setup-stalwart.sh'))?.[1];
-    expect(image, "Stalwart's WebUI, spam-rule and ASN fetches were read at v0.16.10; re-read defaults.rs at the new pin").toBe(STALWART);
+    expect(image, "Stalwart's WebUI, spam-rule and ASN fetches were read at v0.16.27; re-read defaults.rs at the new pin").toBe(STALWART);
     const doc = read('docs/managed-bring-up.md');
-    for (const host of ['github.com/stalwartlabs/webui', 'github.com/stalwartlabs/spam-filter', 'cdn.jsdelivr.net']) {
+    for (const host of [
+      'github.com/stalwartlabs/webui',
+      'github.com/stalwartlabs/spam-filter',
+      'github.com/sapics/ip-location-db',
+      'cdn.jsdelivr.net',
+    ]) {
       expect(doc, `Nothing phones home no longer names Stalwart's ${host}`).toContain(host);
     }
   });
 
-  it("the site's visit count (site-visits.sh, docker run) is GoAccess at the version read, pinned by digest, with no network", () => {
+  it("the site's visit count (site-visits.sh, docker run) is GoAccess built from the commit read, on bases pinned by digest, never pulled, with no network", () => {
     const script = read('deploy/compose/site-visits.sh');
     const image = /^GOACCESS_IMAGE="([^"]+)"$/m.exec(script)?.[1];
+    expect(image, 'the image this checkout builds, under a name no registry serves (#1675)').toBe(GOACCESS);
+    const dockerfile = read('deploy/compose/goaccess/Dockerfile');
     expect(
-      image,
-      'GoAccess was read at 1.12 for what it sends (nothing: no telemetry, update check or report). Re-read src/gdns.c and src/websocket.c at the new pin',
-    ).toBe(GOACCESS);
-    expect(image, 'pinned by digest, as the images in managed.yml are').toMatch(/^[^@]+:[^@]+@sha256:[0-9a-f]{64}$/);
+      /^ARG GOACCESS_COMMIT=([0-9a-f]{40})$/m.exec(dockerfile)?.[1],
+      'GoAccess was read at v1.12 (ef3c4f3c) for what it sends (nothing: no telemetry, update check or report). Re-read src/gdns.c and src/websocket.c at the new commit',
+    ).toBe(GOACCESS_COMMIT);
+    expect(dockerfile, 'the source is checked against the commit it was read at').toMatch(/test "\$\(git rev-parse HEAD\)" = "\$GOACCESS_COMMIT"/);
+    const froms = [...dockerfile.matchAll(/^FROM\s+(\S+)/gm)].map((m) => m[1]!);
+    expect(froms.length, 'the Dockerfile builds FROM nothing').toBeGreaterThan(0);
+    for (const from of froms) expect(from, 'pinned by tag and digest, as the images in managed.yml are').toMatch(/^[^@\s]+:[^@\s]+@sha256:[0-9a-f]{64}$/);
     const code = script
       .split('\n')
       .filter((l) => !/^\s*#/.test(l))
@@ -858,6 +924,9 @@ describe('what runs outside every compose file is named, at the version it was r
     expect(code, 'site-visits.sh no longer runs its image').toMatch(/\bdocker run\b/);
     expect(code, 'site-visits.sh no longer runs its image').toMatch(/"\$\{?GOACCESS_IMAGE\}?"/);
     expect(code, 'GoAccess runs with a network: nothing it might send could be stopped').toMatch(/--network none\b/);
+    expect(code, 'an image missing on the machine would be pulled under its name').toMatch(/docker run [^\n]*--pull never\b/);
+    expect(code, 'site-visits.sh no longer builds its image from goaccess/').toMatch(/docker build [^\n]*"\$\{?GOACCESS_IMAGE\}?" "\$\{?GOACCESS_CONTEXT\}?"/);
+    expect(script).toMatch(/^GOACCESS_CONTEXT="\$\{SCRIPT_DIR\}\/goaccess"$/m);
     const doc = read('docs/managed-bring-up.md');
     const section = /^## Nothing phones home\n([\s\S]*?)^## /m.exec(doc)?.[1] ?? '';
     expect(section, 'Nothing phones home no longer names the visit count').toContain('allinurl/goaccess');
