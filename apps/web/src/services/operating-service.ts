@@ -688,6 +688,24 @@ export interface ShareRowRefused {
   readonly reasonNl?: string;
 }
 
+/** One row a press left open and untried at the new system's limit (`ShareRowWaiting`, core). */
+export interface ShareRowWaiting {
+  readonly id: string;
+  readonly on: string;
+  readonly grantee?: string;
+}
+
+/**
+ * The new system's limit on new shares, as the press stopped at it (workplan
+ * 0104, Status of 2026-10-25): our sentence, saying when to apply again, in
+ * English and in Dutch, and the seconds the new system asked for when it did.
+ */
+export interface ShareLimitReached {
+  readonly retryAfterSeconds?: number;
+  readonly reason: string;
+  readonly reasonNl?: string;
+}
+
 /** What a folder press that went ahead did, row by row (the route's 200). */
 export interface ShareFolderApplied {
   readonly status: string;
@@ -698,6 +716,14 @@ export interface ShareFolderApplied {
   /** Links and manual rows, which the press leaves to the checklist. */
   readonly leftForChecklist: { readonly links: number; readonly manual: number };
   readonly waitingForCutover: number;
+  /**
+   * The rows the press stopped before at the new system's limit on new
+   * shares: none refused, all still open. Absent from a server older than
+   * this field, which reported them as refused.
+   */
+  readonly waitingForLimit?: ReadonlyArray<ShareRowWaiting>;
+  /** The limit it stopped at, when `waitingForLimit` is not empty. */
+  readonly limit?: ShareLimitReached;
 }
 
 /**
@@ -720,7 +746,10 @@ export interface ShareFolderApplied {
  *
  * A press that went ahead answers 200, and the rows the new system refused
  * are in `refused`, each with the server's sentence (`ShareRowRefused`). They
- * stay open, so the screen says them under the folder.
+ * stay open, so the screen says them under the folder. So are the rows it
+ * stopped before at the new system's limit on new shares, in
+ * `waitingForLimit`, with the one sentence in `limit` saying when to apply
+ * again.
  */
 export async function applyShareFolder(
   mappingId: string,

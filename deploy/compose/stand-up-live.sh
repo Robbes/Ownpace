@@ -1098,7 +1098,10 @@ db_opens() {
 check_db_passwords() {
   local owner owner_pw app_pw u label k control_failed='' opened=''
   local -a lines=() users=()
-  PG_CHECK_IMAGE="$(sed -n '/^[[:space:]]*image:[[:space:]]*postgres:/{s/^[[:space:]]*image:[[:space:]]*//p;q}' "${SCRIPT_DIR}/managed.yml")"
+  # managed.yml's first postgres line: the build (deploy/compose/postgres) since
+  # 2026-10-26, which `--only data` built before this asks; the official image
+  # is still read, should the line go back.
+  PG_CHECK_IMAGE="$(sed -n '/^[[:space:]]*image:[[:space:]]*\(localhost\/\)\{0,1\}postgres:/{s/^[[:space:]]*image:[[:space:]]*//p;q}' "${SCRIPT_DIR}/managed.yml")"
   [ -n "$PG_CHECK_IMAGE" ] || stopped "managed.yml names no postgres image to ask the database with."
   PG_CHECK_DB="$(env_value "$ENV_FILE" POSTGRES_DB openmigrate)"
   owner="$(env_value "$ENV_FILE" POSTGRES_USER openmigrate)"
