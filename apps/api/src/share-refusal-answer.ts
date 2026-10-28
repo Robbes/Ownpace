@@ -20,18 +20,39 @@
  *   each ending with the reference;
  * - the operator keeps the full text: the message goes to the log once under
  *   that reference, and the operator's log page records `share.refused`
- *   under it. One request, one reference, however many rows it refused. The
- *   message is the server's reply and our prose around it; the password the
- *   share was asked with is in a header, never in it.
+ *   under it, or `share.limited` when the first answer was the target's
+ *   limit on new shares (workplan 0104 T5). One request, one reference,
+ *   however many rows it refused. The message is the server's reply and our
+ *   prose around it; the password the share was asked with is in a header,
+ *   never in it.
  *
  * The appliance does not come here: its only user is its owner, who reads the
  * full text, as T3 left a Test there.
  */
 
-import { log, newAppEvent, recordAppEvent, shareRefusalSaid, type ShareRefused } from '@openmig/shared';
+import {
+  log,
+  newAppEvent,
+  recordAppEvent,
+  shareLimitOf,
+  shareRefusalKind,
+  shareRefusalSaid,
+  type ShareLimit,
+  type ShareRefusalKind,
+  type ShareRefused,
+} from '@openmig/shared';
 
 /** The event on the operator's log page for a request whose share was refused. */
 export const SHARE_REFUSED_EVENT = 'share.refused';
+
+/**
+ * The event for a request whose first answer was the target's limit on new
+ * shares, which refused nothing (workplan 0104 T5). A press stops at the
+ * limit, so it is the last answer of a request: a request that was refused
+ * rows before it records `share.refused`, and the limit is logged under the
+ * same reference.
+ */
+export const SHARE_LIMITED_EVENT = 'share.limited';
 
 /** A refusal as the connector returns it: the server's words, and the parts. */
 export interface ShareRefusal {
@@ -39,11 +60,19 @@ export interface ShareRefusal {
   readonly said: ShareRefused;
 }
 
-/** A refusal as the tester is answered: our sentence, in both languages. */
+/**
+ * A refusal as the tester is answered: our sentence, in both languages, and
+ * `limited` when it was the target's limit on new shares rather than a
+ * refusal, so a press stops there (workplan 0104, Status of 2026-10-25).
+ * `refusedAs` is which sentence it got, for the press, never the wire: a
+ * press that meets the limit after refusals says so (`limitAfterRefusals`).
+ */
 export interface ShareRefusalAnswer {
   readonly ok: false;
   readonly reason: string;
   readonly reasonNl: string;
+  readonly limited?: ShareLimit;
+  readonly refusedAs: ShareRefusalKind;
 }
 
 /**
@@ -60,8 +89,14 @@ export function shareRefusalAnswers(
   const logged = new Set<string>();
 
   return (refusal) => {
+    const limited = shareLimitOf(refusal.said);
     if (reference === undefined) {
-      const event = newAppEvent({ level: 'warn', event: SHARE_REFUSED_EVENT, tenantId, mappingId });
+      const event = newAppEvent({
+        level: 'warn',
+        event: limited === undefined ? SHARE_REFUSED_EVENT : SHARE_LIMITED_EVENT,
+        tenantId,
+        mappingId,
+      });
       reference = event.reference;
       // Not awaited: `recordAppEvent` never throws, and the answer must not
       // wait on the log.
@@ -76,6 +111,8 @@ export function shareRefusalAnswers(
       ok: false,
       reason: `${said.en} Reference ${reference}.`,
       reasonNl: `${said.nl} Referentie ${reference}.`,
+      ...(limited === undefined ? {} : { limited }),
+      refusedAs: shareRefusalKind(refusal.said),
     };
   };
 }

@@ -518,11 +518,12 @@ export interface SmtpSettings {
   /**
    * Accept a certificate the system would otherwise reject — a self-signed one.
    *
-   * EXISTS FOR ONE REASON (0043 T1): the integration harness's Stalwart binds
-   * TLS listeners only and presents a self-signed certificate, so without this
-   * there is no way to prove — against anything — that this product can send an
-   * email at all. Before it, `smtp-transport.ts` was referenced by no test and
-   * nodemailer was never even constructed by the suite.
+   * EXISTS FOR ONE REASON (0043 T1): the integration harness publishes its
+   * Stalwart's SMTP only as SMTPS on 465, with a self-signed certificate, so
+   * without this there is no way to prove — against anything — that this
+   * product can send an email at all. Before it, `smtp-transport.ts` was
+   * referenced by no test and nodemailer was never even constructed by the
+   * suite.
    *
    * REFUSED IN PRODUCTION. `readNotifierConfig` turns the whole channel OFF, with
    * the reason named, when this is set and `NODE_ENV === 'production'`. A

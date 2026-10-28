@@ -10,7 +10,7 @@
 # official image's standard split.
 
 # The same node tag and digest the selfhost image pins (apps/selfhost/Dockerfile).
-FROM node:24.22.1-slim@sha256:1681862882da07ee5476fee047bcf34138833f1df42633bb25bcb0f438d5bf3d AS build
+FROM node:24.22.1-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea AS build
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
@@ -83,7 +83,12 @@ ARG VITE_SUPPORT_EMAIL=
 ENV VITE_SUPPORT_EMAIL=$VITE_SUPPORT_EMAIL
 RUN pnpm --filter @openmig/web build
 
-FROM nginx:1.31-alpine AS runtime
+# nginx's -alpine-slim (workplan 0146 T12a): the same nginx package on the same
+# base layers as -alpine, without the dynamic modules -alpine adds (njs, xslt,
+# geoip, image-filter, acme) or curl, none of which nginx.conf.template loads.
+# envsubst and the entrypoint's template step are in slim; the health check
+# below is busybox's wget, which slim keeps.
+FROM nginx:1.31.8-alpine-slim@sha256:f45171d36c76a8b2f5ef97108a3a8a2294248a6578a0a180edc2d78f7d2edc26 AS runtime
 ENV API_UPSTREAM=api:3001
 # THE SIGN-IN HOST, FOR THE APP'S POLICY (workplan 0158). nginx.conf.template
 # names it in the policy's connect-src, so the page may fetch the issuer's

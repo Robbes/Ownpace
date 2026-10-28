@@ -318,7 +318,7 @@ describe('and it is proved where the proof is needed', () => {
 
   it('never lets a mail check take down the bring-up', () => {
     // `api` dies on any non-2xx, so an unguarded call here exits the script
-    // MID-PHASE — before `up -d --build` has built api and web, which is what
+    // MID-PHASE — before the app phase has built api and web, which is what
     // phase_app exists to do. A check on the mail channel took down the whole
     // deployment: a healthcheck killing the service it watches. Delivery is
     // REPORTED here and asserted in the smoke, where failing is the job.

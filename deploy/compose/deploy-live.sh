@@ -850,17 +850,32 @@ comparison_bases() {
 trigger_moves() {
   local new="$1" entry base new_pins old_pins
   shift
-  new_pins="$(image_pins "$new" 'triggerdotdev\/')" || new_pins=''
+  new_pins="$(trigger_pin "$new")" || new_pins=''
   [ -n "$new_pins" ] || return 0
   for entry in "$@"; do
     base="${entry%%$'\t'*}"
     [ -n "$base" ] || continue
     [ "$base" != - ] || return 0
     git -C "$REPO_ROOT" cat-file -e "${base}^{commit}" 2>/dev/null || return 0
-    old_pins="$(image_pins "$base" 'triggerdotdev\/')" || old_pins=''
+    old_pins="$(trigger_pin "$base")" || old_pins=''
     [ "$old_pins" = "$new_pins" ] || return 0
   done
   return 1
+}
+
+# trigger_pin <commit> — the Trigger.dev version managed.yml at that commit
+# pins, its `${TRIGGER_IMAGE_TAG:-v…}` defaults read as versions, sorted, or
+# nothing. The version, not the image lines: from workplan 0146 T16 on (alpha.4,
+# #1722), the two services run a build here (`localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v…}-<hash>`)
+# whose hash moves when its Dockerfile does, and what migrates triggerdb is the
+# version, never that build. So a change to the build alone, or ghcr's image
+# replaced by the build at the same version, moves no pin; both forms read the
+# same.
+trigger_pin() {
+  local text found
+  text="$(git -C "$REPO_ROOT" show "$1:deploy/compose/managed.yml" 2>/dev/null)" || return 0
+  found="$(grep -oE '\$\{TRIGGER_IMAGE_TAG:-v[0-9.]+\}' <<<"$text")" || return 0
+  sed 's/.*:-//; s/}$//' <<<"$found" | sort -u
 }
 
 # image_pins <commit> <pattern> — the image lines of managed.yml at that commit
@@ -893,9 +908,14 @@ differences() {
       *) echo "changes ${file}" ;;
     esac
   done <<<"$changed"
-  for line in 'Trigger.dev:triggerdotdev\/' 'identity provider:zitadel\/zitadel'; do
-    old_pins="$(image_pins "$base" "${line#*:}")"
-    new_pins="$(image_pins "$new" "${line#*:}")"
+  for line in 'Trigger.dev' 'identity provider:zitadel\/zitadel'; do
+    if [ "$line" = Trigger.dev ]; then
+      old_pins="$(trigger_pin "$base")"
+      new_pins="$(trigger_pin "$new")"
+    else
+      old_pins="$(image_pins "$base" "${line#*:}")"
+      new_pins="$(image_pins "$new" "${line#*:}")"
+    fi
     if [ -z "$old_pins" ] || [ -z "$new_pins" ]; then
       echo "cannot be compared with it on the ${line%%:*} pin: managed.yml at one of the two has no image line naming it"
     elif [ "$old_pins" != "$new_pins" ]; then

@@ -1758,8 +1758,12 @@ describe('the first bring-up: the stops, the resume, the checks and the first lo
       const checks = called(s, 'dbcheck');
       expect(checks.length).toBeGreaterThanOrEqual(8);
       for (const c of checks) expect(c).toMatch(/^dbcheck ownpace-live_ownpace-network /);
+      // With the image live's postgres runs: managed.yml's first postgres line, the
+      // build `localhost/postgres:…` since workplan 0146 T15.
+      const image = /^\s*image:\s*((?:localhost\/)?postgres:\S+)\s*$/m.exec(readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8'))?.[1];
+      expect(image, 'managed.yml names no postgres image').toMatch(/^localhost\/postgres:/);
       for (const d of called(s, 'docker').filter((l) => l.startsWith('docker run'))) {
-        expect(d).toContain('-e PGPASSWORD --network ownpace-live_ownpace-network postgres:');
+        expect(d).toContain(`-e PGPASSWORD --network ownpace-live_ownpace-network ${image} `);
         expect(d).toContain('psql -h postgres ');
       }
 

@@ -1,7 +1,7 @@
 # ADR-0022: IMAP Dependency Security Strategy
 
-**Status:** Accepted — and **the migration this deferred was carried out on 2026-08-06**  
-**Date:** 2026-07-08 (update: 2026-08-06)  
+**Status:** Accepted — and **the migration this deferred was carried out on 2026-08-06**; since 2026-10-25 it also records the owner's decisions on the Stalwart test fixture's pin  
+**Date:** 2026-07-08 (updates: 2026-08-06, 2026-10-25)  
 **Authors:** OpenHands Agent  
 **Supersedes:** None
 
@@ -13,6 +13,7 @@
 
 - The vulnerable chain is **gone, not overridden**: `imap-simple`→`utf7`→`semver@5.3.0` left the lockfile with the imapflow migration (workplan 0032).
 - The `semver` pnpm override **stays** — it was never only about that chain; removing it is a separate decision with its own blast radius. Since 2026-10-21 it is one scoped entry per fixed line (5.7.2, 6.3.1, 7.5.2): a 5.x, 6.x or 7.x below its fix is lifted within its major, and nothing is moved to 7.
+- The Stalwart test fixture is pinned at **v0.16.27** (2026-10-25). It moves only on the owner's decision, recorded here as a dated update, with every copy in one change, as `docs/stalwart-integration-fix.md`, "Moving the pin", lists.
 
 > ## Update, 2026-08-06 — the workaround is no longer load-bearing
 >
@@ -34,6 +35,40 @@
 >
 > Everything below stands as the record of the decision that was made in July,
 > and is deliberately not rewritten.
+
+> ## Update, 2026-10-25 — the Stalwart pin moves to v0.16.27, on the owner's decision
+>
+> AGENTS.md puts the decisions about Stalwart here: the reference target that
+> the integration tests, E2E (self-hosted) and the OTA demo start, and that
+> `docs/stalwart-integration-fix.md` pinned at v0.16.10 with *"DO NOT change
+> the pinned version"*. Stalwart is a test fixture only. Live never runs it:
+> the bring-up starts it only with `--with-demo`, which live refuses
+> (workplan 0132 T5).
+>
+> **Why it moves.** The image-scan triage of 2026-10-23 (workplan 0146 T11 (b))
+> read v0.16.10 at 3 critical and 114 high findings, and v0.16.27 (Debian 13.7)
+> at 0 critical and 47 high, none of the 47 with a fix upstream. The fix doc's
+> rule made that the owner's call. **The owner decided yes on 2026-10-25.**
+>
+> **Why it is safe to move within v0.16.** Upstream's notes for every v0.16.x
+> release say a v0.16 install upgrades by replacing the binary or pulling the
+> image. Its changelog from v0.16.11 to v0.16.27 renames no setting, no
+> recovery-mode variable and no object the provisioning plan upserts. Run in
+> the session that made the change: the two-phase `setup-stalwart.sh` with
+> `stalwart-cli` 1.0.13, the eleven integration files that use Stalwart (44
+> tests), the JMAP spike (`recurrenceRules` is still refused, so workplan 0031
+> T1 stays parked), and one volume taken from v0.16.10 to v0.16.27 and back
+> twice, its mail and contacts read back each time. What comes with it is in
+> the fix doc: the x86_64 images need an x86-64-v2 CPU from v0.16.26 on, the
+> WebUI comes from release v1.0.11 and in recovery mode too, and a new
+> database fetches its ASN lists from GitHub instead of jsDelivr.
+>
+> **How it merges.** Main is frozen from the alpha.2 fold to its tag, so the
+> change merges after the tag, for alpha.3, once the CI integration tests,
+> E2E (self-hosted) and E2E (managed) are green on it.
+>
+> **The rule for the next move** is the operative bullet above, and its
+> checklist lives in the fix doc. The `semver` decision is untouched.
 
 ## Context
 

@@ -11,7 +11,7 @@
  *
  * ## Node: every `actions/setup-node` asks for the major the images run
  *
- * The api, web and selfhost images build `FROM node:24.x-slim`, `package.json`
+ * The three app images build `FROM node:24.x-trixie-slim`, `package.json`
  * declares `"engines": { "node": ">=24" }`, and eight `setup-node` steps asked
  * for `'24'`. The managed gate (`e2e-managed.yml`) and the live-target lane
  * (`e2e-live-target.yml`) asked for `22` — found 2026-09-24. The managed gate
@@ -314,7 +314,9 @@ describe('migration-lint replays onto the Postgres major the deployments run', (
   const deployed = DEPLOYMENTS.flatMap((file) => {
     const image = (parseYaml(read(file)) as { services?: { postgres?: { image?: unknown } } }).services?.postgres
       ?.image;
-    const m = typeof image === 'string' ? /^postgres:(\d+)[.\-@]/.exec(image) : null;
+    // managed.yml's is the build `localhost/postgres:18.6-alpine-<hash>` since
+    // 0146 T15, whose tag starts with its base's.
+    const m = typeof image === 'string' ? /^(?:localhost\/)?postgres:(\d+)[.\-@]/.exec(image) : null;
     return m ? [{ file, major: Number(m[1]) }] : [];
   });
   const linted = [...read('.github/workflows/ci.yml').matchAll(/--dev-url\s+"docker:\/\/postgres\/(\d+)\//g)].map(

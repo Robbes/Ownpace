@@ -5497,12 +5497,19 @@ if [ -n "$BALANCE_TAG" ]; then
   # short of it, so a 429 read like any other refusal. With nothing refused it
   # prints the reason or the count, never the body: an applied row carries the
   # source's share verbatim, token and address included, and this log is public.
+  # A press now stops at the target's 429 and lists the rows from there in
+  # `waitingForLimit`, apart from the refused, with one sentence in `limit`
+  # (workplan 0104, Status of 2026-10-25); those are printed after the refused.
   refused_rows() { # refused_rows <press body> — one line per refused row, else its reason
     [ -n "$1" ] || { echo "    (the press answered with no body)"; return; }
     jq -r 'if (.refused | type) == "array" and (.refused | length) > 0
       then .refused[] | "    \(.on)  \(.code)  \(.reason)"
       else "    \(.reason // .error // "no row refused, \(.applied | length) applied")" end' <<<"$1" 2>/dev/null \
       || printf '    %s\n' "${1:0:300}"
+    jq -r 'select((.waitingForLimit | type) == "array" and (.waitingForLimit | length) > 0)
+      | "    \(.waitingForLimit | length) row(s) not tried, waiting for the limit on new shares:",
+        (.waitingForLimit[] | "    \(.on)  waiting"),
+        "    \(.limit.reason // "(the press named no limit)")"' <<<"$1" 2>/dev/null || :
     if grep -q 'status 429' <<<"$1"; then
       echo "  A reason says 429: Nextcloud lets one account create 20 new shares in 10 minutes,"
       echo "  failed attempts included, and another run's press inside that window spends the same 20."
@@ -5626,6 +5633,9 @@ if [ -n "$BALANCE_TAG" ]; then
         echo "  whether this run's own row, ${own_row}, was tried."
       elif jq -e --arg on "$own_row" 'any(.refused[]?; .on == $on)' <<<"${press_out%$'\n'*}" >/dev/null 2>&1; then
         echo "  This run's own row, ${own_row}, is among the refused."
+      elif jq -e --arg on "$own_row" 'any(.waitingForLimit[]?; .on == $on)' <<<"${press_out%$'\n'*}" >/dev/null 2>&1; then
+        echo "  This run's own row, ${own_row}, was not tried: the press stopped at the"
+        echo "  target's limit on new shares before it."
       else
         echo "  This run's own row, ${own_row}, is not among the refused, and none was applied:"
         echo "  the press did not try it."
@@ -5757,6 +5767,13 @@ else
     if [ -n "$own_open" ]; then
       echo "both presses reported success, yet this run's own share row(s) are still open:"
       echo "$own_open"
+      # What each press answered, refused and waiting rows both: a press that
+      # applied an older open row and then met the target's limit before this
+      # run's own lists it in `waitingForLimit`, and that is the explanation.
+      echo "  the folder press answered:"
+      refused_rows "${fpress_out%$'\n'*}"
+      echo "  the one-go press answered:"
+      refused_rows "${press_out%$'\n'*}"
       fail_at "a press reported success and left this run's own share row(s) open"
     fi
   fi
