@@ -115,9 +115,9 @@ describe('the smoke can tell a configured issuer from a running container', () =
   });
 
   it('asks with a client the API image actually HAS', () => {
-    // THE IMAGE HAS NO CURL. `apps/api/Dockerfile` builds on `node:24-slim`,
-    // and its own HEALTHCHECK is `node -e "fetch(...)"` for exactly this
-    // reason. Asked on the running stack:
+    // THE IMAGE HAS NO CURL. `apps/api/Dockerfile` builds on a slim Node image
+    // (`node:<x.y.z>-trixie-slim`), and its own HEALTHCHECK is
+    // `node -e "fetch(...)"` for exactly this reason. Asked on the running stack:
     //
     //   docker exec ownpace-api sh -lc 'command -v curl'  ->  no curl
     //   docker exec ownpace-api sh -lc 'command -v wget'  ->  no wget

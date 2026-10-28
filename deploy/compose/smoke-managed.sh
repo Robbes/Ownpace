@@ -2734,7 +2734,7 @@ else
   # The question is only ever "can the thing that verifies tokens reach the keys",
   # so it is asked from there.
   # ASKED WITH THE CLIENT THE API ITSELF USES, because the API image has neither
-  # curl nor wget. It is `node:24-slim`: node and little else, which is why the
+  # curl nor wget. It is a slim Node image: node and little else, which is why the
   # image's own HEALTHCHECK is `node -e "fetch(...)"` (apps/api/Dockerfile).
   #
   # This check used `curl`, with `2>/dev/null || true` around it. So on every run

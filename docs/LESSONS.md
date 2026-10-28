@@ -175,6 +175,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/api/Dockerfile`
 
+- [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
@@ -441,6 +442,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/selfhost/Dockerfile`
 
+- [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
@@ -465,6 +467,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/web/Dockerfile`
 
+- [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-healthcheck-that-asked-the-wrong-address](../scripts/a-healthcheck-that-asked-the-wrong-address.unit.test.ts) — A HEALTHCHECK THAT ASKED THE WRONG ADDRESS.
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
@@ -829,6 +832,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/worker/trigger.config.ts`
 
+- [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-pass-that-outlives-its-runner](../scripts/a-pass-that-outlives-its-runner.unit.test.ts) — A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
@@ -1122,6 +1126,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/managed.yml`
 
+- [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
 - [a-build-that-reached-for-the-lan](../scripts/a-build-that-reached-for-the-lan.unit.test.ts) — A BUILD THAT REACHED FOR THE LAN (workplan 0132 T3 (a); E2E (managed) #201).
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
@@ -1603,6 +1608,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/selfhost/compose.yml`
 
+- [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-dependabot-directory-with-nothing-to-read](../scripts/a-dependabot-directory-with-nothing-to-read.unit.test.ts) — A DEPENDABOT DIRECTORY WITH NOTHING TO READ: `.github/dependabot.yml` listed `/deploy/compose` for its `docker-compose` updater from 2026-09-06, and in seven weeks of Mondays it never moved one image there (workplan 0146 T8).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
@@ -2856,6 +2862,7 @@ reading a file drops off its entry by itself.
 
 ### `scripts/package-appliance.mjs`
 
+- [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
 
@@ -3182,6 +3189,20 @@ reading a file drops off its entry by itself.
 - [an-integration-test-is-handed-its-database](../scripts/an-integration-test-is-handed-its-database.unit.test.ts) — AN INTEGRATION TEST IS HANDED ITS DATABASE.
 
 ## 2. By guard — what each one is about
+
+### [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts)
+
+A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
+
+Reads:
+
+- `apps/api/Dockerfile`
+- `apps/selfhost/Dockerfile`
+- `apps/web/Dockerfile`
+- `apps/worker/trigger.config.ts`
+- `deploy/compose/managed.yml`
+- `deploy/selfhost/compose.yml`
+- `scripts/package-appliance.mjs`
 
 ### [a-blip-that-failed-a-gate](../scripts/a-blip-that-failed-a-gate.unit.test.ts)
 
