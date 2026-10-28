@@ -2,7 +2,7 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-10-26 (update this block at the end of every session)
+## Status — 2026-10-28 (update this block at the end of every session)
 
 **2026-10-26: the tasks build on the API image's own base, a draft stacked on v4.8.1** (0146
 T14, draft #1716 on branch `claude/ownpace-public-readiness-y7orc6-tasks-trixie-base`; 0146's Status entry
@@ -120,6 +120,19 @@ tag.
   over alpha.2 for this move alone, although v4.8.1 adds no migration: it counts any move of the
   Trigger.dev pin in `managed.yml` as one-way (`differences()`), and the way back is then the copy
   before the update, as for any one-way deploy.
+
+**2026-10-28: MinIO's digest moves to Chainguard's build of 2026-10-25 (0146 T7).**
+`chainguard/minio:latest` by the index digest `268d68a2…` (linux/amd64 and linux/arm64),
+built 2026-10-25 01:49 UTC and pushed as `latest` at 14:29 UTC, so three days old at
+2026-10-28 14:29 UTC; `e70b2b1e…`, pushed 2026-10-27, is not. Its apk databases, both
+architectures: Wolfi's `minio` 0.20261023.200651-r0, the fork's
+`RELEASE.2026-10-23T20-06-51Z`, and `mc` 0.20250813.083541-r27 as before. The fork's two
+commits since `RELEASE.2026-09-22T19-25-18Z` (`d88920d6…`'s) move nine Go modules (golang.org/x/net
+to 0.60.0, x/crypto to 0.57.0 and klauspost/compress to 1.18.7 among them) and the Go of their
+VulnCheck workflow, and change nothing under `cmd/` or `internal/`, so the release check and call-home that `a-service-that-phones-home` holds off
+are the code read at the earlier tag. Trivy 0.76.1 read no finding of any severity in it
+on 2026-10-28, on both architectures, as in `d88920d6…`. Nothing a stack sets changes; the
+next bring-up pulls it.
 
 **2026-10-26: the API runs on distroless, built on a branch, not merged (0146 T13, draft
 #1709).** A new
@@ -781,7 +794,7 @@ is who moves it after T1.
 | `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8) | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`); 26.2 is out of ClickHouse's support, **accepted for the Alpha** (§3 item 9) |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
 | `tecnativa/docker-socket-proxy` | `managed.yml` | v0.5.0 | v0.5.0 | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
-| `bitnamilegacy/minio`; `chainguard/minio` on branch `claude/ownpace-public-readiness-y7orc6-object-store-swap` (0146 T7) | `managed.yml` (`minio`, and on the branch `minio-init`) | 2025.5.24-debian-12-r5 by digest; on the branch `latest` by index digest `d88920d6…` (built 2026-10-22, read 2026-10-24) | none for Bitnami's: `bitnamilegacy` stopped at 2025.7.23 (pushed 2025-08-19); `minio/minio` stopped at RELEASE.2025-09-07. Chainguard's `latest` is rebuilt about daily | no upstream for Bitnami's | owner; on the branch, by hand when the pin watch says `latest` was rebuilt (0146 T8) | **§3, taken 2026-10-23** — replace it within the Alpha with Chainguard's maintained build (item 5) |
+| `chainguard/minio` (0146 T7, #1692; `bitnamilegacy/minio` 2025.5.24-debian-12-r5 until alpha.2) | `managed.yml` (`minio`, `minio-init`) | `latest` by index digest `268d68a2…` (built 2026-10-25, pushed as `latest` 14:29 UTC, taken 2026-10-28: the fork's RELEASE.2026-10-23T20-06-51Z; `d88920d6…`, its RELEASE.2026-09-22T19-25-18Z, from #1692) | `latest` `e70b2b1e…` (pushed 2026-10-27) | three rebuilds since (pushed 2026-10-26 17:11, 2026-10-27 01:51 and 21:51 UTC), none yet three days old | by hand when the pin watch says `latest` was rebuilt, once three days old (0146 T8) | **§3, taken 2026-10-23** — Chainguard's maintained build replaced the frozen Bitnami image in alpha.2 (item 5) |
 | `caddy` | `managed.yml` | 2.11.7-alpine by digest `eb4d35b7…` (2026-10-22; `2-alpine` floating before, never pulled, 2.11.4 when recorded) | 2.11.7 | current | by hand, in its own PR, when the pin watch lists a newer 2.x or the image scan counts fixable findings | **pinned 2026-10-22** (§4); a major is the owner's. The move from 2.11.4 crosses the breaking changes 2.11.6 lists (in the code since 2.11.5): request headers capped at 16 KiB (431 above it), one-minute idle read and write timeouts, header names with a `.` dropped. Checked against `trigger-tls.Caddyfile` (`default_sni`, `tls internal`, `reverse_proxy trigger-api:3000` over HTTP), which sets none of them; the path to watch after the nightly is the dashboard over the mesh |
 | `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.19.2 (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.19.2 | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason | 1.38 (1.38.0) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
@@ -1123,8 +1136,9 @@ is beside each; none is urgent tonight.
    for 2026-10-28), after the drain that deploy needs anyway, on a store that starts empty.
    Live has had no testers on alpha.1, so what it loses is nothing a tester sent.
 
-   **Built 2026-10-24, on branch `claude/ownpace-public-readiness-y7orc6-object-store-swap`, not
-   merged.** What it does, each point read off the image or upstream rather than assumed:
+   **Built 2026-10-24, on branch `claude/ownpace-public-readiness-y7orc6-object-store-swap`;
+   merged 2026-10-25 as #1692, in alpha.2; the digest moved to `268d68a2…` on 2026-10-28
+   (Status).** What it does, each point read off the image or upstream rather than assumed:
    - `chainguard/minio:latest` by an index digest read from Docker Hub's API and its registry
      on 2026-10-24: `d88920d6a50b…`, built 2026-10-22 09:59 UTC and pushed as `latest` at
      11:25 UTC that day (its attestation's push time; the tag moved on at 2026-10-23 18:05

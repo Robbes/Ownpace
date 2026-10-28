@@ -65,7 +65,8 @@
  *    and `conf.d`, in sorted order, so a later one wins
  *    (`src/Common/Config/ConfigProcessor.cpp`, `getConfigMergeFiles`).
  *  - MINIO (Chainguard's build since 0146 T7, the fork's
- *    `RELEASE.2026-09-22T19-25-18Z`; read first at Bitnami's 2025.5.24) asks
+ *    `RELEASE.2026-10-23T20-06-51Z`, read at `RELEASE.2026-09-22T19-25-18Z`,
+ *    whose code it shares; read first at Bitnami's 2025.5.24) asks
  *    `dl.min.io` for the newest release at every start, with a User-Agent that
  *    carries the OS, the architecture, `docker`, its version and the CPU's
  *    count, vendor and model (`cmd/server-main.go`, `cmd/common-main.go`,
@@ -545,13 +546,15 @@ const ZITADEL = 'ghcr.io/zitadel/zitadel:v4.20.0';
 const CLICKHOUSE =
   'clickhouse/clickhouse-server:26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd';
 /**
- * Chainguard's MinIO (0146 T7): `latest` by the index digest it had from
- * 2026-10-22 to 2026-10-23, read on 2026-10-24. Its server is the fork's
- * `RELEASE.2026-09-22T19-25-18Z`, read at that tag of `chainguard-forks/minio`;
- * its mc is `RELEASE.2025-08-13T08-35-41Z`.
+ * Chainguard's MinIO (0146 T7): `latest` by the index digest it had on
+ * 2026-10-25, taken 2026-10-28. Its server is the fork's
+ * `RELEASE.2026-10-23T20-06-51Z`, whose cmd/ and internal/ are those of
+ * `RELEASE.2026-09-22T19-25-18Z`, read at that tag of `chainguard-forks/minio`
+ * (the two differ in go.mod, go.sum and a CI workflow alone); its mc is
+ * `RELEASE.2025-08-13T08-35-41Z`.
  */
 const MINIO =
-  'chainguard/minio:latest@sha256:d88920d6a50bd0b088223b688be3b76c63e6205dbe494437f67ba1240ea12880';
+  'chainguard/minio:latest@sha256:268d68a2a3b6fc65f905a61f84d7eab6345ce6bff14f551e2b028ec31e6a1341';
 const MAILPIT =
   'axllent/mailpit:v1.32.0@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498';
 /** Read at `stable34` (config.sample.php and the two crawlers), so the line, not one patch of it. */
@@ -601,7 +604,8 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
     readAt: MINIO,
     why:
       'a release check to dl.min.io at every start, its User-Agent carrying OS, architecture, version and CPU ' +
-      "(cmd/server-main.go, cmd/update.go, cmd/common-main.go at chainguard-forks/minio's RELEASE.2026-09-22T19-25-18Z; " +
+      "(cmd/server-main.go, cmd/update.go, cmd/common-main.go at chainguard-forks/minio's RELEASE.2026-09-22T19-25-18Z, " +
+      'the same files at RELEASE.2026-10-23T20-06-51Z; ' +
       'first read at RELEASE.2025-05-24T17-08-30Z, the Bitnami image this replaced)',
     holds: (svc) => {
       const env = environmentOf(svc);
