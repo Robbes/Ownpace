@@ -153,7 +153,7 @@ function buildIdentity() {
  * already and should not pay for a download it will never run.
  *
  * Pinned rather than floating, and pinned in ONE place: the version is the one
- * the self-host image's `FROM node:<x.y.z>-slim@sha256:…` line names, in
+ * the self-host image's `FROM node:<x.y.z>-<variant>@sha256:…` line names, in
  * `apps/selfhost/Dockerfile`. That image runs this same payload, so the e2e
  * gates test the same Node version the Windows zip ships (as the linux build,
  * not the win-x64 node.exe). It used to be a constant here, which nothing

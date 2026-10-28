@@ -52,14 +52,21 @@
  *                      tag list (Docker Hub and ghcr, anonymous tokens), or,
  *                      for a tag with no number held by its digest
  *                      (`chainguard/minio:latest`, 0146 T7), against the digest
- *                      its registry names for that tag today; the
+ *                      its registry names for that tag today; an image built
+ *                      here (`localhost/postgres`, 0146 T15) by its
+ *                      Dockerfile's FROM, the tag its own name starts with,
+ *                      its line saying that Dependabot reads that one too; the
  *                      busybox copies in the scripts, www.yml's nginx against
  *                      apps/web/Dockerfile's, Stalwart's copies and its newest
- *                      v0.16.x, GoAccess, and the Trivy the Security Scan runs.
+ *                      v0.16.x, the GoAccess release site-visits.sh builds
+ *                      against upstream's git tags, the Trivy the Security
+ *                      Scan runs, and the cosign the workflows name, every
+ *                      copy together.
  *                      cosign-installer's default is a status line only. Any
  *                      other image a script in deploy/compose runs is not
- *                      compared; today that is only db-roles.sh's floating
- *                      postgres:18-alpine, and the rest are in comments.
+ *                      compared; today there is none (db-roles.sh reads its
+ *                      client from managed.yml since 2026-10-22), and the
+ *                      rest are in comments.
  *
  * A tag is compared with the tags shaped like it (the same letters and
  * separators, numbers where the digits are) that keep its major, since a major
@@ -67,7 +74,12 @@
  * `latest`, `1.38` with `1.39` and never with `1.38.0-glibc`, and a floating
  * `18-alpine` is current within its line by construction. That is why
  * floating tags need no exclusion here, and why pinning them exactly (by
- * digest) makes them watched without a change to this file.
+ * digest) makes them watched without a change to this file, as the stores and
+ * the TLS front were on 2026-10-22. A digest is not compared against a
+ * registry: a rebuild under the same tag is the image scan's to report
+ * (`image-scan.mjs`). The one row that compares a digest is www.yml's nginx,
+ * held to apps/web/Dockerfile's FROM by tag and digest, so a digest-only move
+ * of the web image's base by Dependabot lists www.yml too.
  *
  * Each own-issue row keeps one issue open while it is behind: opened, brought
  * up to date (with a comment when its newest moved, since an edit notifies
@@ -89,6 +101,7 @@
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -134,9 +147,20 @@ export const COMPARED_ELSEWHERE = {
 export const REBUILD_NOTE =
   'a rebuild of the same tag: move the digest in a pull request of its own, with the image scan of the new one read and E2E (managed) on its branch';
 
+/**
+ * Said beside an image built here that is behind (`localhost/postgres`, 0146
+ * T15): Dependabot reads its Dockerfile too (its entry in
+ * .github/dependabot.yml), so the pull request that moves it is Dependabot's.
+ */
+export const builtNote = (dockerfile) =>
+  `Dependabot reads this one too, in \`${dockerfile}\`: take its pull request, and push to it the \`sed\` its failing test prints for the image lines`;
+
 /** How Stalwart moves, said beside its line in the summary issue: AGENTS.md forbids moving it otherwise. */
 export const STALWART_RULE =
   "the owner's call: it moves only by docs/stalwart-integration-fix.md and ADR-0022, every copy together (AGENTS.md)";
+
+/** The visit count's GoAccess, built here (#1675). */
+export const GOACCESS_DOCKERFILE = 'deploy/compose/goaccess/Dockerfile';
 
 /** Every copy of the Stalwart pin. The fixture's Dockerfile may go; a missing file is skipped. */
 export const STALWART_FILES = [
@@ -145,6 +169,12 @@ export const STALWART_FILES = [
   'packages/testing/fixtures/stalwart/Dockerfile',
   'scripts/a-service-that-phones-home.unit.test.ts',
 ];
+
+/**
+ * The workflows that install cosign: images.yml signs every published image
+ * with it, and release.yml's verify job checks those signatures with it.
+ */
+export const COSIGN_FILES = ['.github/workflows/images.yml', '.github/workflows/release.yml'];
 
 const IMAGE_LINE = /^\s*image:\s*ghcr\.io\/zitadel\/zitadel:(\S+)\s*$/gm;
 const RELEASE = /^v(\d+)\.(\d+)\.(\d+)$/;
@@ -267,7 +297,7 @@ export function stateOf(pin, newest) {
 
 // ----------------------------------------------------------- images ------
 
-/** An image reference in its three parts: `axllent/mailpit:v1.31.6@sha256:…`. */
+/** An image reference in its three parts: `axllent/mailpit:v1.32.0@sha256:…`. */
 export function parseRef(ref) {
   const at = ref.indexOf('@');
   const digest = at >= 0 ? ref.slice(at + 1) : '';
@@ -290,6 +320,53 @@ export function readImages(text) {
     images.push({ line: i + 1, ...parseRef(m[1].replace(/\$\{[A-Za-z0-9_]+:-([^}]*)\}/g, '$1')) });
   });
   return images;
+}
+
+/**
+ * The outside image a Dockerfile builds on: its one FROM, as a reference.
+ * A Dockerfile built beside a compose file builds on one image, so a second
+ * FROM, or one without a tag and a digest, is an error rather than a guess.
+ */
+export function dockerfileBase(text) {
+  const froms = [...text.matchAll(/^FROM\s+(?:--\S+\s+)*(\S+)(?:\s+AS\s+\S+)?\s*$/gim)].map((m) => m[1]);
+  if (froms.length !== 1) throw new Error(`a Dockerfile built beside a compose file has one FROM; this one has ${froms.length}`);
+  const base = parseRef(froms[0]);
+  if (!base.tag || !/^sha256:[0-9a-f]{64}$/.test(base.digest)) throw new Error(`FROM ${froms[0]} carries no tag and digest`);
+  return base;
+}
+
+/**
+ * The tag a compose file gives an image it builds (2026-10-26): the base's tag
+ * and the first twelve hex digits of the SHA-256 of the Dockerfile's
+ * instruction lines, each with its newline, comments and blank lines left out:
+ * `18.6-alpine-0123456789ab`. `up` builds such an image only when the machine
+ * has none of that name (nothing here asks it to build one it has: no `up
+ * --build`, no bare `build`), so a name that did not change when the Dockerfile
+ * did would keep the old build running for good, and nothing would say so. The
+ * shell gives the same digits:
+ *   grep -Ev '^[[:space:]]*(#|$)' <Dockerfile> | sha256sum | cut -c1-12
+ */
+export function builtTag(text) {
+  const instructions = text.split('\n').filter((line) => !/^\s*(#|$)/.test(line));
+  const digits = createHash('sha256').update(instructions.map((line) => `${line}\n`).join('')).digest('hex').slice(0, 12);
+  return `${dockerfileBase(text).tag}-${digits}`;
+}
+
+/**
+ * A compose file's image that is built here, not pulled (2026-10-26):
+ * `localhost/<name>:<tag>`, a name no registry serves, built by compose from
+ * `<name>/Dockerfile` beside the file. Its pins are that Dockerfile's FROM.
+ * Null for an image a registry serves; an error when the Dockerfile is not
+ * there, since nothing could then say what the image is.
+ */
+export function builtImage(repo, file, image) {
+  if (!image.repo.startsWith('localhost/')) return null;
+  const name = image.repo.slice('localhost/'.length);
+  if (!/^[a-z0-9][a-z0-9._-]*$/.test(name)) throw new Error(`${file} runs ${image.ref}, which names no directory a Dockerfile could be in`);
+  const context = `${dirname(file)}/${name}`;
+  const text = repo.read(`${context}/Dockerfile`);
+  if (text === null) throw new Error(`${file} runs ${image.ref}, built from ${context}/Dockerfile, which is not in this checkout`);
+  return { context, dockerfile: `${context}/Dockerfile`, base: dockerfileBase(text), tag: builtTag(text) };
 }
 
 /** Where an image's tag list is: ghcr, or Docker Hub (with `library/` for an official image). */
@@ -742,14 +819,21 @@ export async function routineRows(repo, net) {
 
   // Every image line of the compose files, but for those another row compares
   // and www.yml's nginx, which follows the web image.
+  // An image built here (`localhost/postgres`, 2026-10-26) is compared by its
+  // Dockerfile's FROM: its own tag is this repository's, and no registry lists it.
   const images = new Map();
   for (const file of COMPOSE_FILES) {
-    for (const image of readImages(need(repo, file))) {
+    for (const line of readImages(need(repo, file))) {
+      const built = builtImage(repo, file, line);
+      const image = built ? { ...built.base, line: line.line } : line;
       if (image.repo in COMPARED_ELSEWHERE) continue;
       if (file === 'deploy/compose/www.yml' && image.repo === 'nginx') continue;
       const key = `${image.repo}:${image.tag}`;
       if (!images.has(key)) images.set(key, { ...image, where: [] });
-      if (!images.get(key).where.includes(file)) images.get(key).where.push(file);
+      if (built) images.get(key).dockerfile = built.dockerfile;
+      for (const where of built ? [built.dockerfile, file] : [file]) {
+        if (!images.get(key).where.includes(where)) images.get(key).where.push(where);
+      }
     }
   }
   for (const image of images.values()) {
@@ -768,7 +852,8 @@ export async function routineRows(repo, net) {
         };
       }
       const newest = newestLike(image.tag, await tagsFor(image.repo));
-      return { pin: image.tag, newest, state: stateOf(image.tag, newest) };
+      const state = stateOf(image.tag, newest);
+      return { pin: image.tag, newest, state, ...(state === 'behind' && image.dockerfile ? { notes: [builtNote(image.dockerfile)] } : {}) };
     }]);
   }
 
@@ -806,19 +891,37 @@ export async function routineRows(repo, net) {
     const pin = [...pins].sort(compareParts);
     const newest = newestLike(pin[0], await tagsFor('stalwartlabs/stalwart'), 2);
     const state = pin.length > 1 ? 'behind' : stateOf(pin[0], newest);
-    // AGENTS.md: "Never change the pinned Stalwart version". An agent reading
-    // the summary issue is told whose call it is, and by which document.
+    // AGENTS.md: "Change the pinned Stalwart version only on the owner's
+    // decision, recorded in ADR-0022". An agent reading the summary issue is
+    // told whose call it is, and by which document.
     const notes = [...(pin.length > 1 ? ['the copies disagree'] : []), ...(state === 'behind' ? [STALWART_RULE] : [])];
     return { pin: pin.join(' / '), newest, state, notes };
   }]);
 
-  // GoAccess: the visit count's image, two-part tags.
-  jobs.push(['allinurl/goaccess', 'deploy/compose/site-visits.sh', async () => {
+  // GoAccess: the visit count's image, built here since #1675 from the commit
+  // of a release (deploy/compose/goaccess/Dockerfile, whose Alpine Dependabot
+  // moves). So its release is compared with upstream's git tags, the two-part
+  // and the three-part alike (1.10.1 followed 1.10), and the name the script
+  // runs must be that release's.
+  jobs.push(['allinurl/goaccess', 'deploy/compose/site-visits.sh, deploy/compose/goaccess/Dockerfile', async () => {
     const ref = /GOACCESS_IMAGE="([^"]+)"/.exec(need(repo, 'deploy/compose/site-visits.sh'))?.[1];
     if (!ref) throw new Error('site-visits.sh names no GOACCESS_IMAGE');
-    const { repo: name, tag } = parseRef(ref);
-    const newest = newestLike(tag, await tagsFor(name));
-    return { pin: tag, newest, state: stateOf(tag, newest) };
+    const release = /^# GoAccess (v\d+(?:\.\d+)+)$/m.exec(need(repo, GOACCESS_DOCKERFILE))?.[1];
+    if (!release) throw new Error(`${GOACCESS_DOCKERFILE} names no GoAccess release ("# GoAccess v1.12") above the commit it builds`);
+    const { tag } = parseRef(ref);
+    if (`v${tag}` !== release) throw new Error(`site-visits.sh runs ${ref}, and ${GOACCESS_DOCKERFILE} builds GoAccess ${release}`);
+    const tags = tagsOf(await net.lsRemote('https://github.com/allinurl/goaccess'));
+    const candidates = [];
+    for (const shape of [release, `${release}.0`]) {
+      try {
+        candidates.push(newestLike(shape, tags));
+      } catch {
+        // No tag of that shape: the other shape still answers, and none at all fails below.
+      }
+    }
+    if (candidates.length === 0) throw new Error(`no tag shaped like ${release} was listed, so it cannot be called current`);
+    const newest = candidates.sort(compareParts).at(-1);
+    return { pin: release, newest, state: stateOf(release, newest) };
   }]);
 
   // Trivy: the binary the Security Scan runs, named or the action's default.
@@ -844,23 +947,50 @@ export async function routineRows(repo, net) {
     return { pin: pin.join(' / '), newest, state: stateOf(pin[0], newest), notes: [...new Set(notes)] };
   }]);
 
+  // cosign: what signs the images and what checks them. Named in a step
+  // (`cosign-release:`), it is a pin nothing else moves, as Trivy's is, and a
+  // row, its copies held together. Left to cosign-installer's default,
+  // Dependabot moves it with the installer, and it is a status line only.
+  const status = [];
+  const cosignSteps = [];
+  try {
+    for (const file of COSIGN_FILES) {
+      const steps = stepsUsing(need(repo, file), 'sigstore/cosign-installer');
+      if (steps.length === 0) throw new Error(`${file} runs no cosign-installer`);
+      cosignSteps.push(...steps);
+    }
+  } catch (error) {
+    status.push(`cosign: could not be read (${error instanceof Error ? error.message : String(error)})`);
+  }
+  const installs = async (step) =>
+    step.with['cosign-release'] ??
+    actionDefault(await net.text(`https://raw.githubusercontent.com/sigstore/cosign-installer/${step.sha}/action.yml`), 'cosign-release');
+  const cosignNewest = async (pin) => newestLike(pin, tagsOf(await net.lsRemote('https://github.com/sigstore/cosign')));
+  const named = status.length === 0 && cosignSteps.some((step) => step.with['cosign-release']);
+  if (named) {
+    jobs.push(['cosign', COSIGN_FILES.join(', '), async () => {
+      const pins = new Set();
+      for (const step of cosignSteps) pins.add(await installs(step));
+      const pin = [...pins].sort(compareParts);
+      const newest = await cosignNewest(pin[0]);
+      const state = pin.length > 1 ? 'behind' : stateOf(pin[0], newest);
+      return { pin: pin.join(' / '), newest, state, notes: pin.length > 1 ? ['the copies disagree'] : [] };
+    }]);
+  }
+
   const rows = [];
   for (const [name, where, job] of jobs) rows.push(await settle(job, { name, where }));
 
-  // cosign: a status line only. The installer's default is what signs.
-  const status = [];
-  try {
-    const [step] = stepsUsing(need(repo, '.github/workflows/images.yml'), 'sigstore/cosign-installer');
-    if (!step) throw new Error('images.yml runs no cosign-installer');
-    const pin =
-      step.with['cosign-release'] ??
-      actionDefault(await net.text(`https://raw.githubusercontent.com/sigstore/cosign-installer/${step.sha}/action.yml`), 'cosign-release');
-    const newest = newestLike(pin, tagsOf(await net.lsRemote('https://github.com/sigstore/cosign')));
-    status.push(
-      `cosign: cosign-installer ${step.version || step.sha.slice(0, 7)} installs ${pin}${step.with['cosign-release'] ? ' (named)' : ' (its default)'}, and the newest cosign is ${newest}`,
-    );
-  } catch (error) {
-    status.push(`cosign: could not be read (${error instanceof Error ? error.message : String(error)})`);
+  if (status.length === 0 && !named) {
+    try {
+      const [step] = cosignSteps;
+      const pin = await installs(step);
+      status.push(
+        `cosign: cosign-installer ${step.version || step.sha.slice(0, 7)} installs ${pin} (its default), and the newest cosign is ${await cosignNewest(pin)}`,
+      );
+    } catch (error) {
+      status.push(`cosign: could not be read (${error instanceof Error ? error.message : String(error)})`);
+    }
   }
   return { rows, status };
 }
@@ -880,7 +1010,7 @@ export function summaryOf(rows, status) {
   const behind = rows.filter((r) => r.state === 'behind');
   const failed = rows.filter((r) => r.state === 'error' || r.state === 'ahead');
   const body = [
-    "Dependabot does not read these pins: its compose fetcher reads only files named like `compose.yml`, and no file in `deploy/compose` is (`a-dependabot-directory-with-nothing-to-read`). So this watch reads them, each against its own registry's tags of the same major. Behind:",
+    "Dependabot does not read these pins, but for an image built here, whose line says so: its compose fetcher reads only files named like `compose.yml`, and no file in `deploy/compose` is (`a-dependabot-directory-with-nothing-to-read`). So this watch reads them, each against its own registry's tags of the same major. Behind:",
     '',
     ...behind.map(lineOf),
     '',

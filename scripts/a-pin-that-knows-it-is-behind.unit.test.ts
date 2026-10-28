@@ -5,7 +5,7 @@
  * pinned identity provider still had (workplan 0135 T7 (b)).
  *
  * The identity provider is pinned in `managed.yml`, and Dependabot does not
- * move it: it reads no file in `deploy/compose`, and an upgrade moves its
+ * move it: it reads no compose file in `deploy/compose`, and an upgrade moves its
  * schema one way and is the owner's call (0119 §3 item 2). So nothing said
  * when upstream moved on. v4.18.0 fixed GHSA-4hgj-wm6c-q7p2,
  * a rename of any account through login v1, on 2026-09-21, and a week later
@@ -18,7 +18,8 @@
  *
  * EVERY PIN DEPENDABOT CANNOT SEE (workplan 0146 T8, 2026-10-21). The
  * identity provider was not the only one. Dependabot read no file in
- * `deploy/compose` (`a-dependabot-directory-with-nothing-to-read`), so
+ * `deploy/compose` (`a-dependabot-directory-with-nothing-to-read`; since
+ * 0146 T15 it reads one, the databases' Dockerfile, and still no compose file), so
  * pgbouncer fell two releases and two CVEs behind and Trigger.dev four
  * releases; the tasks ran a Node two security releases old, and pnpm sat six
  * releases back. Each was found by somebody reading. The same watch now has
@@ -48,13 +49,17 @@ import {
   COMPARED_ELSEWHERE,
   COMPOSE,
   COMPOSE_FILES,
+  COSIGN_FILES,
   ISSUE_TITLE,
   STALWART_FILES,
+  GOACCESS_DOCKERFILE,
   TASK_ON_API_IMAGE,
   TITLES,
   WINDOW_DAYS,
   actionDefault,
   baseImageOf,
+  builtImage,
+  builtNote,
   clickhouseRow,
   clickhouseSupport,
   compareTags,
@@ -605,6 +610,16 @@ describe('pnpm, and the TypeScript split', () => {
 
 /** The Trivy the scan names, once it names one; until then the action's default, which the stub gives as v0.70.0. */
 const TRIVY_NAMED = stepsUsing(REAL.read('.github/workflows/security-scan.yml')!, 'aquasecurity/trivy-action')[0]?.with.version;
+/** Every cosign-installer step of the workflows that install cosign, in COSIGN_FILES' order. */
+const COSIGN_STEPS = COSIGN_FILES.flatMap((file) => stepsUsing(REAL.read(file)!, 'sigstore/cosign-installer'));
+/** The cosign the workflows name; the installer's default, which the stub gives as v3.0.6, when they name none. */
+const COSIGN_NAMED = COSIGN_STEPS[0]?.with['cosign-release'];
+/** The workflows with every `cosign-release:` taken out, comments above it included: the installer's default again. */
+const cosignDefault = (): Record<string, string> =>
+  Object.fromEntries(COSIGN_FILES.map((file) => [file, REAL.read(file)!.replace(/\n( +)with:\n(?:\1 {2}#.*\n)*\1 {2}cosign-release: .*(?=\n)/g, '')]));
+
+/** The GoAccess release `deploy/compose/goaccess/Dockerfile` builds (#1675), read from its own line. */
+const GOACCESS_RELEASE = /^# GoAccess (v\d+(?:\.\d+)+)$/m.exec(REAL.read(GOACCESS_DOCKERFILE) ?? '')?.[1] ?? 'no release named';
 
 /**
  * Every tag list answered with the pin itself, plus one newer tag for each of
@@ -615,12 +630,13 @@ function registry(newer: Record<string, string> = {}): Stubs {
   const pins = new Map<string, string[]>();
   const digests = new Map<string, string>();
   for (const file of COMPOSE_FILES) {
-    for (const image of readImages(REAL.read(file)!)) {
+    for (const line of readImages(REAL.read(file)!)) {
+      // A built image's registry is its Dockerfile's FROM's: no registry lists its own name.
+      const image = builtImage(REAL, file, line)?.base ?? line;
       pins.set(registryOf(image.repo).name, [...(pins.get(registryOf(image.repo).name) ?? []), image.tag]);
       if (image.digest) digests.set(`${registryOf(image.repo).name}:${image.tag}`, image.digest);
     }
   }
-  for (const m of REAL.read('deploy/compose/site-visits.sh')!.matchAll(/GOACCESS_IMAGE="allinurl\/goaccess:([^@"]+)/g)) pins.set('allinurl/goaccess', [m[1]!]);
   for (const file of STALWART_FILES) for (const m of (REAL.read(file) ?? '').matchAll(/stalwartlabs\/stalwart:(v[\d.]+)/g)) pins.set('stalwartlabs/stalwart', [m[1]!]);
   return {
     json: [
@@ -642,7 +658,9 @@ function registry(newer: Record<string, string> = {}): Stubs {
     ],
     lsRemote: {
       'https://github.com/aquasecurity/trivy': lsRemote('v0.70.0', ...(TRIVY_NAMED ? [TRIVY_NAMED] : []), ...(newer.trivy ? [newer.trivy] : [])),
-      'https://github.com/sigstore/cosign': lsRemote('v3.0.6', 'v3.1.4'),
+      // GoAccess's releases as upstream tags them, two parts and three, up to the one the Dockerfile builds.
+      'https://github.com/allinurl/goaccess': lsRemote('v1.9.4', 'v1.10', 'v1.10.2', GOACCESS_RELEASE, ...(newer.goaccess ? [newer.goaccess] : [])),
+      'https://github.com/sigstore/cosign': lsRemote('v3.0.6', ...(COSIGN_NAMED ? [COSIGN_NAMED] : []), ...(newer.cosign ? [newer.cosign] : [])),
     },
   };
 }
@@ -652,12 +670,13 @@ describe('the routine pins, in one summary issue', () => {
     const { rows } = await routineRows(REAL, fakeNet(registry()));
     const compared = new Set(rows.map((r) => r.name));
     for (const file of COMPOSE_FILES) {
-      for (const image of readImages(REAL.read(file)!)) {
+      for (const line of readImages(REAL.read(file)!)) {
+        const image = builtImage(REAL, file, line)?.base ?? line;
         const covered =
           compared.has(image.repo) ||
           image.repo in COMPARED_ELSEWHERE ||
           (file === 'deploy/compose/www.yml' && image.repo === 'nginx' && compared.has('nginx in www.yml'));
-        expect(covered, `${file}:${image.line} runs ${image.repo}, which nothing compares`).toBe(true);
+        expect(covered, `${file}:${line.line} runs ${image.repo}, which nothing compares`).toBe(true);
       }
     }
     for (const reason of Object.values(COMPARED_ELSEWHERE)) expect(reason.length).toBeGreaterThan(10);
@@ -666,8 +685,8 @@ describe('the routine pins, in one summary issue', () => {
   it('is all current when every registry lists only the pin, and the run writes nothing', async () => {
     const { rows, status } = await routineRows(REAL, fakeNet(registry()));
     expect(rows.filter((r) => r.state !== 'current').map((r) => `${r.name}: ${r.state} ${r.error ?? ''}`)).toEqual([]);
-    expect(status).toHaveLength(1);
-    expect(status[0]).toMatch(/^cosign: cosign-installer \S+ installs v[\d.]+ \((its default|named)\), and the newest cosign is v[\d.]+$/);
+    expect(rows.find((r) => r.name === 'cosign')).toMatchObject({ pin: COSIGN_NAMED, newest: COSIGN_NAMED, state: 'current' });
+    expect(status, 'a named cosign is a row, never a status line').toEqual([]);
     const { gh, calls } = fakeGh([OTHER]);
     expect(keepIssue(summaryOf(rows, status), gh, TITLES.routine)).toBe('untouched');
     expect(calls).toEqual([]);
@@ -676,20 +695,72 @@ describe('the routine pins, in one summary issue', () => {
   it("names what is behind: an image newer on its registry, and the Trivy the scan runs", async () => {
     const pgbouncer = readImages(MANAGED).find((i) => i.repo === 'edoburu/pgbouncer')!;
     const newer = pgbouncer.tag.replace(/(\d+)-p(\d+)$/, (_all, patch: string) => `${Number(patch) + 9}-p0`);
-    const { rows, status } = await routineRows(REAL, fakeNet(registry({ 'edoburu/pgbouncer': newer, trivy: 'v0.99.0' })));
+    const { rows, status } = await routineRows(REAL, fakeNet(registry({ 'edoburu/pgbouncer': newer, trivy: 'v0.99.0', cosign: 'v3.99.0' })));
     const behind = rows.filter((r) => r.state === 'behind');
     expect(behind.map((r) => [r.name, r.newest])).toEqual([
       ['edoburu/pgbouncer', newer],
       ['Trivy', 'v0.99.0'],
+      ['cosign', 'v3.99.0'],
     ]);
     const summary = summaryOf(rows, status);
     expect(summary.state).toBe('behind');
     expect(summary.body).toContain(`- \`edoburu/pgbouncer\` (deploy/compose/managed.yml): ${pgbouncer.tag}, newest **${newer}**`);
     if (!TRIVY_NAMED) expect(summary.body).toMatch(/no version: named, so trivy-action \S+'s default/);
-    expect(summary.body).toContain('cosign: cosign-installer');
+    expect(summary.body).toContain(`- \`cosign\` (${COSIGN_FILES.join(', ')}): ${COSIGN_NAMED}, newest **v3.99.0**`);
+    expect(summary.body).not.toContain('Also known');
     const { gh, calls } = fakeGh([OTHER]);
     expect(keepIssue(summary, gh, TITLES.routine)).toBe('opened');
     expect(calls).toEqual([['issue', 'create', '--title', TITLES.routine, '--body', summary.body]]);
+  });
+
+  it('names one cosign in every workflow that installs it: the release that signs is the release that checks', () => {
+    for (const file of COSIGN_FILES) {
+      expect(stepsUsing(REAL.read(file)!, 'sigstore/cosign-installer').length, `${file} installs no cosign`).toBeGreaterThan(0);
+    }
+    expect(COSIGN_NAMED, 'images.yml names no cosign-release').toMatch(/^v\d+\.\d+\.\d+$/);
+    expect(COSIGN_STEPS.map((step) => step.with['cosign-release'])).toEqual(COSIGN_STEPS.map(() => COSIGN_NAMED));
+    expect(new Set(COSIGN_STEPS.map((step) => step.sha)).size, 'one cosign-installer commit in both').toBe(1);
+  });
+
+  it('holds the cosign copies together, and reads one left to the installer as its default', async () => {
+    const release = REAL.read('.github/workflows/release.yml')!;
+    const older = withFiles({ '.github/workflows/release.yml': release.replace(`cosign-release: '${COSIGN_NAMED}'`, "cosign-release: 'v3.0.9'") });
+    const disagree = (await routineRows(older, fakeNet(registry()))).rows.find((r) => r.name === 'cosign');
+    expect(disagree).toMatchObject({ pin: `v3.0.9 / ${COSIGN_NAMED}`, state: 'behind', notes: ['the copies disagree'] });
+    const unnamed = withFiles({ '.github/workflows/release.yml': cosignDefault()['.github/workflows/release.yml']! });
+    const half = (await routineRows(unnamed, fakeNet(registry()))).rows.find((r) => r.name === 'cosign');
+    expect(half).toMatchObject({ pin: `v3.0.6 / ${COSIGN_NAMED}`, state: 'behind', notes: ['the copies disagree'] });
+  });
+
+  it("keeps cosign-installer's default a status line: Dependabot moves it with the installer", async () => {
+    const plain = cosignDefault();
+    for (const text of Object.values(plain)) expect(text).not.toContain('cosign-release');
+    const { rows, status } = await routineRows(withFiles(plain), fakeNet(registry({ cosign: 'v3.99.0' })));
+    expect(rows.map((r) => r.name)).not.toContain('cosign');
+    expect(status).toEqual([`cosign: cosign-installer ${COSIGN_STEPS[0]!.version} installs v3.0.6 (its default), and the newest cosign is v3.99.0`]);
+    expect(summaryOf(rows, status).state, 'a status line opens no issue').toBe('current');
+  });
+
+  it("compares the Postgres built here by its Dockerfile's FROM, never by a name no registry lists (0146 T15)", async () => {
+    const dockerfile = REAL.read('deploy/compose/postgres/Dockerfile')!;
+    const from = /^FROM postgres:(\S+)@/m.exec(dockerfile)![1]!;
+    expect(readImages(MANAGED).filter((i) => i.repo === 'localhost/postgres').length, 'managed.yml builds no postgres').toBe(2);
+    const [, major, minor, rest] = /^(\d+)\.(\d+)(.*)$/.exec(from)!;
+    const newer = `${major}.${Number(minor) + 1}${rest}`;
+    const { rows } = await routineRows(REAL, fakeNet(registry({ 'library/postgres': newer })));
+    const postgres = rows.filter((r) => /postgres/.test(r.name ?? ''));
+    expect(postgres.map((r) => [r.name, r.pin, r.newest, r.state])).toEqual([['postgres', from, newer, 'behind']]);
+    expect(postgres[0]!.where).toBe('deploy/compose/postgres/Dockerfile, deploy/compose/managed.yml, deploy/compose/dev.yml');
+    // Dependabot reads that Dockerfile too, so the issue says whose pull request moves it,
+    // and says it on that line alone: a pulled image's line is Dependabot's blind spot.
+    expect(postgres[0]!.notes).toEqual([builtNote('deploy/compose/postgres/Dockerfile')]);
+    const body = summaryOf(rows, []).body ?? '';
+    expect(body.split('\n').find((l) => l.startsWith('- `postgres`'))).toContain('Dependabot reads this one too, in `deploy/compose/postgres/Dockerfile`');
+    expect(body).toMatch(/^Dependabot does not read these pins, but for an image built here, whose line says so:/);
+    expect(rows.filter((r) => r.notes?.some((n) => n.startsWith('Dependabot reads'))).map((r) => r.name)).toEqual(['postgres']);
+    // Without the Dockerfile there is nothing to say what the image is: an error, never "current".
+    const without: Repo = { read: (rel) => (rel === 'deploy/compose/postgres/Dockerfile' ? null : REAL.read(rel)), list: REAL.list };
+    await expect(routineRows(without, fakeNet(registry()))).rejects.toThrow(/deploy\/compose\/postgres\/Dockerfile, which is not in this checkout/);
   });
 
   it('holds the copies together: www.yml with the web image, the scripts with the compose busybox, Stalwart with itself', async () => {
@@ -705,8 +776,24 @@ describe('the routine pins, in one summary issue', () => {
     expect(rows.find((r) => r.name === 'stalwartlabs/stalwart')!.notes).toEqual(['the copies disagree', STALWART_RULE]);
   });
 
-  /** AGENTS.md: "Never change the pinned Stalwart version". The issue says whose call it is. */
+  /** AGENTS.md: it moves "only on the owner's decision, recorded in ADR-0022". The issue says whose call. */
   const STALWART_RULE = "the owner's call: it moves only by docs/stalwart-integration-fix.md and ADR-0022, every copy together (AGENTS.md)";
+
+  it("compares the GoAccess release the visit count builds with upstream's git tags, two-part and three-part, and holds the image's name to it (#1675)", async () => {
+    expect(GOACCESS_RELEASE).toMatch(/^v\d+\.\d+/);
+    const current = (await routineRows(REAL, fakeNet(registry()))).rows.find((r) => r.name === 'allinurl/goaccess')!;
+    expect(current).toMatchObject({ state: 'current', pin: GOACCESS_RELEASE, newest: GOACCESS_RELEASE });
+    // A patch release has three parts where the pin has two: it is still newer.
+    const patch = `${GOACCESS_RELEASE}.1`;
+    const behind = (await routineRows(REAL, fakeNet(registry({ goaccess: patch })))).rows.find((r) => r.name === 'allinurl/goaccess')!;
+    expect(behind).toMatchObject({ state: 'behind', newest: patch });
+    // The name the script runs is the release the Dockerfile builds.
+    const script = REAL.read('deploy/compose/site-visits.sh')!.replace(/^(GOACCESS_IMAGE="[^:"]+:)[^"]+"$/m, '$19.9"');
+    expect(script).not.toBe(REAL.read('deploy/compose/site-visits.sh'));
+    const mismatch = (await routineRows(withFiles({ 'deploy/compose/site-visits.sh': script }), fakeNet(registry()))).rows.find((r) => r.name === 'allinurl/goaccess')!;
+    expect(mismatch.state).toBe('error');
+    expect(mismatch.error).toMatch(/builds GoAccess v/);
+  });
 
   it('names the rule Stalwart moves by, in the summary issue, beside its line', async () => {
     const { rows, status } = await routineRows(REAL, fakeNet(registry({ 'stalwartlabs/stalwart': 'v0.16.999' })));
@@ -827,9 +914,10 @@ describe('the whole watch, one issue per row', () => {
     expect(new Set(report.issues.map((r) => r.title)).size).toBe(7);
     expect(report.issues[0]!.title).toBe(ISSUE_TITLE);
     const printed = table(report);
-    for (const name of ['identity provider', 'Trigger.dev', 'ClickHouse', "the tasks' Node", 'pnpm', 'TypeScript split', 'routine pins, one issue', 'edoburu/pgbouncer', 'Trivy', 'status: cosign']) {
+    for (const name of ['identity provider', 'Trigger.dev', 'ClickHouse', "the tasks' Node", 'pnpm', 'TypeScript split', 'routine pins, one issue', 'edoburu/pgbouncer', 'Trivy']) {
       expect(printed).toContain(name);
     }
+    expect(printed).toMatch(/^ {2}cosign +v\d/m);
   });
 
   it('keeps going when one row cannot read its upstream, and marks only that one', async () => {

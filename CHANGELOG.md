@@ -6,6 +6,38 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The api, selfhost and web images build on Debian 13, and the api and
+  selfhost images carry no package manager** (workplan 0146 T12, #1708): the
+  three built `FROM node:24.22.1-slim`, which is Debian 12, where Trivy read
+  1 critical and 61 high findings. `node:24.22.1-trixie-slim`, Debian 13.7,
+  reads 0 and 48, and its Node is the same binary, byte for byte. The api and
+  selfhost runtime stages also remove npm, npx, corepack, pnpm and yarn,
+  which nothing in either container runs; npm's bundled packages were 5 of
+  the highs, so the base under both reads 0 critical and 43 high, none of
+  which Debian has fixed. The managed tasks build on the same image
+  (workplan 0146 T14, #1716, in this release too). Nothing a stack sets
+  changes.
+- **The managed API runs on a distroless image** (workplan 0146 T13,
+  #1709): its runtime is `gcr.io/distroless/nodejs24-debian13:nonroot` by
+  digest, Debian 13.7 with Node and fourteen packages and no shell, where
+  Trivy reads 0 critical and 0 high on amd64 and arm64, against 0 and 43 on
+  the Debian 13 Node image under it before. The Node is the same binary, and
+  the managed tasks keep building on the Node image (T14); the smoke stops when the API's Node is not
+  the version the tasks get. The container runs as uid 65532 instead of
+  10001 and can no longer write its own code, which is root's; it mounts
+  nothing. Nothing execs a shell or `printenv` into it: every script and doc
+  reads its variables with `docker container inspect` and runs Node by its
+  path (T13a, #1710, in this release too). **The live deploy from
+  `v0.2.0-alpha.2` or earlier to this release runs `deploy-live.sh` twice**
+  (the owner's decision of 2026-10-26). The first run is the older
+  checkout's script, which asks with `printenv` and says `NODE_ENV: the api
+  container could not be asked`, exit 3, though live has moved to the tag
+  and nothing was rolled back. Then `git checkout --
+  apps/worker/package.json` and the same `./deploy/compose/deploy-live.sh
+  <tag>` again, which reads from Docker and takes (docs/managed-bring-up.md,
+  *The deploy from alpha.2 to alpha.3 runs twice*). A deploy from this
+  release on runs once. `docker compose … exec api sh` or `printenv` by hand
+  no longer works; `/nodejs/bin/node` does.
 - **The managed tasks run on the API image's own base, with no package
   manager** (workplan 0146 T14, #1716): a task deploy builds them on the
   image `apps/api/Dockerfile` builds FROM instead of Trigger.dev's
@@ -21,6 +53,134 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **pnpm is 11.28.8** (workplan 0119, issue #1694, #1701): the lockfile is
+  unchanged, and the installs, the images' filtered installs and the advisory
+  gate give what 11.28.6 gave. When pnpm next re-resolves the tree it also
+  records an optional peer that a package's own dependency supplies, and
+  reuses a version the same install already resolved, so the next dependency
+  update may move a few lockfile lines it did not ask for. 11.28.8 differs
+  from 11.28.7 only in the Node.js inside the standalone `@pnpm/exe`, which CI
+  and the images do not run.
+- **The images are signed with cosign v3.1.4, and the release checks them
+  with the same** (#1671, #1702): `images.yml` and `release.yml`'s verify job name
+  the release, where cosign-installer's default installed v3.0.6, and the pin
+  watch compares it with cosign's newest and holds the two together.
+  Signing stays keyless and by digest, and the `cosign verify` line
+  `deploy/selfhost/README.md` gives does not change.
+- **The weekly image scan names every critical finding, not only how many.**
+  Below its table, the run's summary lists each critical one by one: the CVE,
+  the package and its version, the version that fixes it or **no fix yet**,
+  and where in the image it sits. A count did not say whether a rebuild, a
+  newer tag or only upstream could clear it, and code scanning's detail is
+  shown only to those with write access.
+- **A live deploy judges a Trigger.dev move by its version, not by how its
+  image lines are written.** `deploy-live.sh` says whether a deploy is one way
+  or reversible, and whether the copy taken before it must hold the task
+  runner's database, by comparing the Trigger.dev versions the two releases
+  pin. It no longer compares their image lines. The verdicts are unchanged for
+  today's lines. It ships ahead of alpha.4's Trigger.dev images built here,
+  whose lines name no upstream image: a deploy of those is judged by the
+  script that runs before it.
+- **The site's visit count builds GoAccess 1.12 on Alpine 3.24, because
+  upstream's image is on Alpine 3.20, past its end of life** (workplan 0152,
+  #1675): no upstream release has moved off 3.20, and Alpine's own package is
+  1.10.2. `site-visits.sh` now builds `deploy/compose/goaccess/Dockerfile`,
+  upstream's own at `v1.12` on `alpine:3.24.3` by tag and digest, from the
+  commit the tag names and with only the libraries GoAccess loads, as
+  `localhost/goaccess:1.12` at the start of each run, and never pulls it. The
+  first run after the deploy that brings it builds for a few minutes and needs
+  Docker Hub, Alpine's package mirrors and `github.com`; a build that fails
+  reads no log and fails the duty `visits`. A pull request that changes that
+  directory builds it on an arm64 runner (the new *Images the scripts build*,
+  `.github/workflows/script-images.yml`), and Dependabot moves its Alpine pin
+  in a pull request of its own, which that build covers. The weekly image scan
+  builds it too and scans it under the name it had, `goaccess`, so #1675
+  closes on the first scan on `main` that reads it: the scan's report now
+  keeps its issues from a run on `main` only, so a scan dispatched on a pull
+  request's branch reports what it found and opens or closes no issue. The
+  pin watch compares the GoAccess release it builds with upstream's tags, a
+  three-part patch release included.
+- **The managed stack's databases, Redis, dashboard front and demo Nextcloud,
+  and the web image's nginx, run by exact version and digest** (workplan 0119
+  §4, #1678): postgres 18.6, redis 7.4.11, caddy 2.11.7, nextcloud 34.0.5 and
+  nginx 1.31.8. They floated within their lines and nothing ever pulled them,
+  so each stack ran whatever copy its machine had pulled first. The next `up`
+  pulls each digest and recreates its service, so each database restarts
+  once; the site's nginx moves only when `www.yml` is brought up again.
+  The dashboard's front overrides none of Caddy 2.11.7's new defaults: it
+  answers 431 to request headers over 16 KiB and closes a connection idle for
+  a minute. The demo Nextcloud upgrades its volume to 34.0.5 and refuses an
+  older image on it afterwards, and runs with PHP's session upload progress
+  off, upstream's mitigation for CVE-2026-115560. `db-roles.sh` runs the
+  postgres client `managed.yml` pins. When the bring-up replaces the postgres
+  container, it now recreates PgBouncer too: the pooler had cached a login
+  that failed while the old server shut down, and refused `app_user` for 15
+  seconds (E2E (managed) #285).
+- **Both databases of the managed stack start as PostgreSQL's own user, from
+  the official image without gosu** (workplan 0146 T15, #1717): the scan's one
+  critical and 25 of its 26 high findings in `postgres:18.6-alpine` were the Go
+  runtime in gosu, which the image ran only to drop from root to that user.
+  Compose builds `deploy/compose/postgres` on the first `up`, and both
+  databases restart once; their data needs nothing, being that user's already.
+  `docker compose exec postgres` now runs as that user (add `-u 0` for root);
+  every script's `psql`, `pg_dump` and `pg_restore` answers as before. Rebuild
+  the web or API image by name (`docker compose … build web`, then `up -d
+  web`): `up --build` would rebuild the databases' image too and could restart
+  them.
+- **The self-hosted appliance's database starts as PostgreSQL's own user too,
+  from the official image without gosu** (workplan 0146 T15b): gosu was the
+  one critical finding in the appliance's `postgres:18.6-alpine`, and no newer
+  digest of the tag drops it. The database's image follows the checkout, not
+  the app's image: after updating the checkout (`git pull`, or the release's
+  tag), the first `docker compose -f deploy/selfhost/compose.yml up -d` builds
+  `deploy/selfhost/postgres` and restarts the database once, on the same base
+  and the same data, which is that user's already; nothing else to do. An
+  appliance upgraded by `pull app` alone keeps the official image, gosu
+  included; the quickstart's upgrade now updates the checkout first. That
+  build needs a buildx plugin of 0.17.0 or later where the host has one. A
+  data directory bound from the host instead of the named volume must belong
+  to uid 70 (`chown -R 70:70`, or the quickstart's `run … chown` under rootless
+  Docker) before a new database can start in it. `docker compose exec
+  postgres` runs as that user (`-u 0` for root), and the backup's `pg_dump` and
+  the restore's `psql` answer as before. The PGlite appliance and the Windows
+  appliance run no database server and are unchanged.
+- **The web image and the public site run nginx 1.31.8-alpine-slim** (workplan
+  0146 T12a): the same nginx on the same base, without the modules and tools
+  the `-alpine` image adds and nothing here loads, 51 packages in all. The
+  image scan reads 0 critical and 0 high where `-alpine` reads 1 high
+  (brotli-libs, CVE-2026-111497). The site's nginx moves when `www.yml` is
+  brought up again.
+- **The test stack's mail catcher is Mailpit v1.32.0** (workplan 0146 T11,
+  #1699): it closes GHSA-379p-g4f4-hq5h (high), in which an image
+  attachment whose EXIF directories point at each other held Mailpit's
+  thumbnail endpoint in a loop, a core busy and memory growing until the
+  process was killed, and it is built with Go 1.27.3, which fixes
+  CVE-2026-111943 in `crypto/x509` that v1.31.6's Go 1.27.2 has. It also
+  strips `<base>` and refresh tags from a message's HTML view. The stack's
+  exposure to the loop was small: SMTP is reachable only from the stack's
+  own services, and the web page and its API only on the address
+  `MAILPIT_BIND` names, loopback by default. Its release check is still
+  off, read again at v1.32.0. The first start rebuilds one index in the kept
+  `mailpit.db`; v1.31.6 still opens that file. Live runs no catcher.
+- **The Stalwart the tests and the demo start is v0.16.27** (workplan 0146
+  T11 (b), ADR-0022, #1698): the integration tests, the self-hosted
+  end-to-end run and the OTA demo run it, live never does. v0.16.10's image
+  carried 3 critical and 114 high findings, v0.16.27's carries no critical
+  and 47 high, none with a fix. On x86_64 its image needs a CPU with
+  x86-64-v2, so a virtual machine with a generic CPU model refuses to start
+  it. Its WebUI now comes from release v1.0.11, in recovery mode too, and a
+  new database fetches its ASN lists from GitHub instead of jsDelivr. A data
+  volume v0.16.10 made works under v0.16.27 and back again. The pin moves
+  only on the owner's decision, recorded in ADR-0022, every copy together.
+- **Nothing execs a shell or `printenv` into the managed api container any
+  more** (workplan 0146 T13a, #1710): the smoke, the managed gate, `deploy-live.sh`,
+  `stand-up-live.sh` and the docs read its variables with `docker container
+  inspect`, and the smoke runs Node there by its path and stops when that
+  Node is not the version the managed tasks get. It works on the Node image
+  and on the distroless one this release moves the API to (T13, #1709, the
+  owner's decision of 2026-10-26), so every deploy started from this release
+  on runs a `deploy-live.sh` that reads it this way; the deploy to this
+  release from an older one runs twice (above). Nothing a stack sets changes.
 - **Trigger.dev is v4.8.1** (workplan 0119, issue #1668, #1697): the webapp
   and the supervisor run on Node 24.22.1, October's security release, where
   they ran 24.18.0, and the supervisor now distrusts the roots behind the
@@ -32,6 +192,88 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   CLI's own base image under them is now on 24.22.1 as well, so the first
   task deploy after this one is the slow one. ClickHouse stays on 26.2,
   which Trigger.dev still pins.
+
+### Added
+
+- **The suites that talk to Nextcloud also run against Nextcloud 35** (workplan
+  0119): `.github/workflows/nextcloud-second-major.yml` runs the WebDAV,
+  CalDAV, CardDAV, chunked-upload and share suites against
+  `nextcloud:35.0.2-apache`, pinned by digest, on a push to `main` that
+  touches their code, weekly, and on a pull request that changes the leg
+  itself; not on every pull request. A customer's own Nextcloud may already
+  run 35 while the demo stays on 34 until after the alpha.2 tag, since that
+  move is one way. The run fails when Nextcloud does not start, when the
+  server that answered is not the version the tag names, and when any test
+  skipped. The integration tier also gained its first suite for the share
+  verb against a real server: a user share, the listing that reads it back,
+  and a grantee the server does not know.
+- **Live proves an update by itself, and its owner can start one pass to see
+  it** (workplan 0132 T9, #1724): every ten minutes live's box checks run
+  `copy-before-update.sh delete-if-proven`. It deletes the copy before an
+  update by `delete`'s own rule and, stricter, only with no hold on, the
+  checkout at the commit that took, a data type of the proving pass's
+  migration completed, nothing in the copy's directory that its note does not
+  name, and an hour after the hold was last lifted. The box checks then mail
+  *Update proven* once (`COPY_DELETE_WHEN_PROVEN=false` in live's `.env`
+  leaves the delete to the owner). `deploy/compose/live-pass-check.sh` starts
+  one pass on the migration `LIVE_PASS_CHECK_MIGRATION` names, through *Sync
+  now*'s own gates, refuses while the hold is on or the passes in flight are
+  at the tick's caps, and says within 15 minutes how it ended.
+
+### Fixed
+
+- **qs 6.16.1 closes another denial of service in `qs.stringify`**
+  (GHSA-6pq8-jhm2-2vcw, moderate): with `arrayFormat: 'comma'`, an array
+  element carrying a non-callable own `toString` threw an uncaught TypeError.
+  The override's floor moves from 6.16.0 to 6.16.1 (published 2026-10-14, past
+  the three-day cooldown), which express and the tests' superagent now take.
+  The API only parses query strings through express, so it could not be
+  reached there.
+- **The weekly image scan reads the tasks' image as a task deploy builds it**
+  (workplan 0146 T10, #1700): it read only the base image Trigger.dev's CLI
+  names, while every deploy copied the API image's Node over that base and
+  upgraded its Debian packages, so the alerts for what the upgrade fixes could
+  never close. The scan now builds that stage itself, from the deploy config,
+  and reports it under the same code-scanning category and alert location, so
+  the first scan on `main` after this closes them, and the alerts it still has
+  keep their numbers.
+- **A share press stops at the new system's limit on new shares, and says
+  when to apply again** (workplan 0104 T5, #1704): Nextcloud 31 to 35 let one
+  account create 20 shares in 10 minutes and answer the next one 429, and a
+  press asks twice for each person without an account there, so a one-go
+  press over more than about ten of them reported every row after the limit
+  as refused, under the generic sentence. A 429 now has its own sentence, in
+  English and Dutch, on both editions, with what `Retry-After` asked, up to a
+  day, or Nextcloud's ten minutes. `apply-all` and `apply-folder` stop at the
+  first one and list that row and the rows after it as `waitingForLimit`,
+  open and untried, apart from `refused`, with the sentence as `limit`; the
+  Sharing page says them under the folder as waiting, with the time to apply
+  again on the reader's clock. A refused row stays open and is asked for
+  again first, at the same cost, so a press that met the limit after
+  refusals says to settle those rows first, and to check the password first
+  when the sign-in was refused. A grantee that looks like an e-mail address
+  still gets the user share first: a Nextcloud login may be an address.
+- **The API image carries production dependencies only, so the dev tools'
+  Go binaries leave it** (workplan 0146 T9, #1687): it copied an install that
+  held every devDependency, the root's included, and the Go builds of
+  esbuild 0.25.12 and TypeScript 7's native compiler in it were 2 critical
+  and 65 high of the `edge` image's 3 and 125 findings, though nothing in the
+  container runs them. The install now takes `--prod`, and the API and
+  `packages/orchestration` declare the drizzle-orm and pg they load, which
+  they used to find among the root's devDependencies. Nothing a stack sets
+  changes.
+- **A deploy no longer waits without end on a compose step** (live's deploy of
+  alpha.2, 2026-10-28): the bring-up asked compose to pull the identity
+  provider's image before reading its user, even when the machine had it, and
+  on live that pull printed "Pulled" and never returned, so the deploy waited
+  sixteen minutes, until the pull was killed, and then did not take. Compose
+  v5.0.x's progress, drawn in a terminal, can deadlock at the end of a command
+  (docker/compose#13639); the nights run without a terminal and never met it.
+  `bootstrap-managed.sh` and `deploy-live.sh` now ask compose for plain
+  progress (`COMPOSE_PROGRESS=plain`), the bring-up pulls that image only when
+  the machine lacks it, and a pull that does not end is stopped after
+  `ZITADEL_PULL_TIMEOUT` (600 seconds) with a sentence saying what to do. The
+  operator runbook says how to end such a step and go on.
 
 ## [0.2.0-alpha.2] - 2026-10-25
 

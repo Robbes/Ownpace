@@ -2,7 +2,117 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-10-24 (update this block at the end of every session)
+## Status — 2026-10-27 (update this block at the end of every session)
+
+**2026-10-27: T9 built** (the owner, 2026-10-28: *build both*, one draft PR for alpha.3), on
+branch `claude/ownpace-public-readiness-y7orc6-live-pass-check`, not merged. It merges only
+after live runs `v0.2.0-alpha.2`, and reaches live with the alpha.3 tag. An update to live is now
+proven without the owner waiting for a pass, and its copy goes without the owner's step.
+
+- **Why.** `deploy-live.sh` skips the smoke on live: the smoke makes organisations and users and
+  ends every open hold, so a deploy to live is checked by its version and its pages. The update
+  is proven only once a pass that started after the deploy has succeeded, and until then
+  `copy-before-update.sh delete` refuses. Passes come every hour for 14 days, then every 6 hours,
+  then once a day (`packages/orchestration/src/sync-due.ts`), so after lifting the hold the owner
+  waited hours for one, and then deleted the copy by hand.
+- **(a) The box checks delete the copy once the update is proven.** `box-checks.sh`, every ten
+  minutes after the duties' check, asks `copy-before-update.sh delete-if-proven`. That applies
+  `delete`'s rule through the same `prove()`, then also needs, each read: no hold on at all, the
+  next update's included; live's checkout at the commit the took line names (`deploys.log`'s third
+  column: a deploy that stopped half-way logs no line); a pass the rule counts whose migration has
+  a data type completed (`migration_status.completed_at`) at or after that pass began; the hold
+  last lifted, or the took line if that is later, at least an hour ago
+  (`COPY_AUTO_GRACE_SECONDS=3600`); every entry in the copy's directory named in its note; and
+  `COPY_DELETE_WHEN_PROVEN` in live's `.env` empty or `true`, on a line `env_value` reads (an
+  indented one, or one with a space before `=`, deletes nothing). It deletes with `delete`'s own
+  `delete_all` and prints one line on stdout: `none`, `kept` and why, `deleted` with the tags,
+  times, passes and number of files, or `unread` and what it could not read. A deleted copy is
+  one mail, *Update proven*. Its line is kept in `box-checks/copy-proven` before the mail is
+  tried, and while that mail is unsent no other delete is asked for. A kept copy is no mail: the
+  *Daily summary* has a line for the copy, kept and why. An answer it cannot read is a NOT DONE
+  and a failed run, never a mail. `copy-before-update.sh delete`, the owner's, keeps its rule
+  unchanged.
+- **(b) A pass on demand.** `deploy/compose/live-pass-check.sh`, from live's checkout with no
+  arguments, reads as the owner over the postgres container's socket, SELECTs only: the open
+  holds, the migration `LIVE_PASS_CHECK_MIGRATION` names, and the passes in flight by the tick's
+  own rule. It refuses a migration that is not in an organisation where a platform operator is an
+  active owner, is not running or selects nothing (exit 2), an open hold (3), and the tick's caps
+  full or a pass of that migration running (4). Then it runs `apps/api/src/scripts/live-pass.ts`
+  inside the api container, with Node at its absolute path, as `app_user` under row security. That
+  calls `pressSyncNow` (`apps/api/src/routes/migrations/sync-now.ts`): the route's gates and its
+  one enqueue, moved there unchanged and shared with `POST /api/migrations/:mappingId/sync`. It
+  records no visit. It follows the pass by its run id (`orchestrator_ref`) for up to 15 minutes and
+  ends with a `verdict:` line: 0 succeeded, every data type the migration selects completed in
+  that pass; 1 failed after its retries, or cancelled; 5 timed out, the pass goes on; 6 ended
+  unfinished; 7 could not tell.
+- **The owner's answers, 2026-10-28** (every recommendation taken): (1) the automatic delete waits
+  an hour after the hold was last lifted, or after the took line if that is later; (2) it is
+  stricter than `delete`'s rule, as (a) lists, and an entry in the copy's directory that its note
+  does not name keeps the whole copy; (3) the press records no visit, so the owner's migration
+  keeps its cadence; (4) the automatic delete is on by default, and `COPY_DELETE_WHEN_PROVEN=false`
+  in live's `.env` turns it off. Who deletes the copy is recorded in 0139's Status.
+- **Proved:**
+  - `scripts/one-copy-before-each-update.unit.test.ts`, 128 cases, 42 of them new: every
+    condition beyond `prove()` keeps the copy in a case of its own, on PGlite with both chains,
+    among them the next update's hold on, the state in which `delete` deletes; a migration that
+    completed only in a pass that failed, began before the took line or was not a pass; the hour
+    counted from the took line when it is later than the lift; `COPY_DELETE_WHEN_PROVEN` in a form
+    `env_value` does not read and Compose does (indented after the example's `true`, a space
+    before `=`, `:` for `=`), which deletes nothing; a real take, with `--trigger` and with a
+    trigger part added later, is recognised whole.
+  - `scripts/a-disk-that-says-it-is-filling.unit.test.ts`, 67 cases, 32 new or changed: the one
+    mail, the line kept before the mail is tried, an unsent mail sent before the next delete is
+    asked for, all eleven reasons for a kept copy in the summary, and the sweep over every mail
+    and output.
+  - `scripts/a-deploy-the-owner-waited-hours-to-prove.unit.test.ts`, new, 70 cases:
+    `live-pass-check.sh` with `docker` and `psql` stubbed, every refusal before Docker is asked,
+    every exit, the follow by run id, the first read and the follow on PGlite with both chains,
+    and its copies of the tick's window, default caps and kinds and of run-delta-sync's attempts
+    and backoff, each against its source.
+  - `apps/api/src/scripts/live-pass.unit.test.ts`, new, 13 cases: the press and `POST /sync` on the
+    same migration make the same trigger call; the route records a visit and the script does not.
+  - Edited: `a-hold-that-holds-every-door` and `an-organisation-closed-at-every-door` (the moved
+    gates), `a-verify-that-measured-a-race`, `a-runbook-for-every-alert` (*Update proven*'s row)
+    and `a-deploy-from-a-named-tag` (`deploy-live.sh`'s closing words name both scripts).
+  - Red first: 73 of the 74 new or changed cases of the two box-checks guards failed on the code
+    before (the one that passed exits 2 either way); all 70 of the new guard failed on the tree
+    without the script and its records. `live-pass.ts`'s tests were written with its code.
+  - Mutations, each turning a case red: 16 of `copy-before-update.sh` and `box-checks.sh` (the
+    any-hold check, the commit, the completed data type, the pass's status, its start after the
+    took line and its kind, the hour, the hour counted from the took line, the unnamed entry, the
+    off switch, the switch's line in a form `env_value` does not read, the line stored before the
+    mail, the line stored only after a failed mail, the unsent mail blocking the next delete, the
+    kept reasons, and the script's own output kept out of the journal line); 15 of
+    `live-pass-check.sh` (the hold, the caps, the completed data types, the retry's 180 s, the
+    follow by run id, a bare `node`, the migration's id printed, the operator check, the press's
+    hold answer, and each of its six copies of the tick's and run-delta-sync's values); and 5 of
+    `live-pass.ts` and `sync-now.ts`.
+  - By hand: `live-pass-check.sh` against a throwaway Postgres 16 with both chains
+    (`scripts/local-pg.sh`), through a stub `docker`, for every exit.
+- **Not proved here:** that Trigger.dev keeps a run's id across its retry attempts. The follow
+  assumes it; if each attempt had an id of its own, a failed first attempt would read as final
+  after 180 s, and the box checks would still count the retry when it succeeds.
+- **For the owner, after `deploy-live.sh` to a tag that carries this:**
+  1. Before the alpha.3 deploy, as today: once alpha.2's update is proven, delete its copy from
+     live's checkout with `./deploy/compose/copy-before-update.sh delete`. Alpha.2's box checks
+     do not delete it, and `take` refuses a proven copy.
+  2. `systemctl --user is-active ownpace-box-checks.timer` prints `active`; if not, the bring-up
+     guide's *Installing them*.
+  3. Name one of your own migrations once, a small one in an organisation where you are an owner
+     (its id is the last part of its page's address), from live's checkout:
+     `./deploy/compose/env-upsert.sh deploy/compose/.env LIVE_PASS_CHECK_MIGRATION=<the id>`.
+     Only to keep deleting the copy yourself: `COPY_DELETE_WHEN_PROVEN=false` the same way.
+  4. Deploy alpha.3 as usual. No unit needs copying. Its closing words are still alpha.2's and
+     tell you to delete the copy by hand, which you may skip.
+  5. Lift the hold after looking; starting it again within the hour keeps the copy. Then
+     `./deploy/compose/live-pass-check.sh`: `verdict: succeeded` and exit 0 within 15 minutes. 3:
+     the hold is still on. 4: run it again once a pass ends. 5: the pass goes on. 1 or 6: the run
+     log on the migration's page. 2, not an operator's organisation:
+     `./deploy/compose/operator.sh list`.
+  6. About an hour after the lift, the mail *[ownpace-live] Update proven: <the tag>*;
+     `journalctl --user -u ownpace-box-checks -n 50 --no-pager` names the files, and the next
+     *Daily summary* has the line *The copy before an update*. Write the verdict, the mail's time
+     and anything unexpected here, under T9.
 
 **2026-10-24: the Spark's runner service had been down since 2026-09-25, and it showed only when
 the queue stopped.** E2E (self-hosted) #292 (scheduled, on `cf47ea50`) waited from 01:48 UTC for a
@@ -2235,6 +2345,7 @@ conflicted: both new entries kept. Nothing has run on the machine, and live does
 | T6 One way to deploy live, from a tag | Step 4, the copy before the update, ✅ **done** in #1361, merged 2026-09-29 (`b65da810`): `deploy-live.sh` takes it with `copy-before-update.sh` (0139, rec-copies (a)), with the review's fixes of 2026-09-29 (a tag without the scripts live is kept by refused, the rollback's `since`); (a) `deploy-live.sh` ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), with 0146 T5 (a), not yet run on live; (b) ✅ **done** in #1232, merged 2026-09-27: every enqueue in the API goes through one function that answers 409 with the hold's sentence; the three web gaps (b) left ✅ **done** in #1284, merged 2026-09-28 (`f7a7a270`). The procedure's steps on the machine are the owner's, once live stands (T1b) and 0146 has cut a release tag — *was:* step 4 🔨 built 2026-09-28 on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, not merged; (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); (b) ✅ **done** in #1232, merged 2026-09-27; the procedure and (a), `deploy-live.sh`, 📋 **Proposed** (D1, D5, D7) | §3. Hold, drain, a tag, bring-up without the demo, checks, lift. Replaces three procedures that disagree. With 0146. (a) is the deploy script, (b) the hold at every door. The Status block (2026-09-28) says how (a) was built. |
 | T7 What the gate does for the OTA stack, done for live | The drill off live, its duty replaced by the copy's backstop `copies`, ✅ **done** in #1361, merged 2026-09-29 (`b65da810`) (0139, rec-drill (a)), with the review's fixes of 2026-09-29 (6 days less an hour, each file by its own age); ✅ **done** in #1276, merged 2026-09-28 (`b2e63ab0`): `box-duties.sh`, `setup-zitadel.sh --token-only` and `--count-organisations`, and a user timer in the bring-up; waits for live to stand (T1b to T1e, from 0146 T0's tag) and for the owner to install the timer; ✅ **done** in #1664, merged 2026-10-21 (`6bd020f6`): a failed run mails the owner (`OnFailure=`, 0142 T3), and each run leaves a record the box checks read; live takes it with its next tag — *was:* a failed run's mail 🔨 built 2026-10-21 on branch `claude/ownpace-public-readiness-y7orc6-owner-told`, not merged; the drill off live 🔨 built 2026-09-28 on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, not merged; 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-duty-the-gate-used-to-do`, not merged (2026-09-28); 📋 **Proposed**, with T1b | §3. The identity provider's provisioning token, the Trigger.dev database drill (until 2026-09-28; since then the copy's backstop, 0139), T3's check and 0135's organisation count, on a timer on the machine, for live. |
 | T8 The gate gets a stack of its own on the same machine | ⛔ **Superseded 2026-09-24** by D7 | §3. The second stack is live, not the gate's. Its parts moved to T1, T1b and 0143. |
+| T9 An update proven without the owner's wait (added 2026-10-27; the owner, 2026-10-28: *build both*, one draft PR for alpha.3, merged only after live runs `v0.2.0-alpha.2`) | 🔨 **Built** on branch `claude/ownpace-public-readiness-y7orc6-live-pass-check`, not merged (2026-10-27); merges only after live runs `v0.2.0-alpha.2` | §3 T6 steps 8 and 9, with 0139 rec-copies (a) and 0142 T3. (a) Live's box checks run `copy-before-update.sh delete-if-proven` every ten minutes: `delete`'s own rule, and stricter: no hold on, the checkout at the commit that took, a data type of a proving pass's migration completed, an hour after the hold was last lifted, nothing outside the copy's note, and `COPY_DELETE_WHEN_PROVEN` not false. They delete as `delete` does and mail *Update proven* once. (b) `deploy/compose/live-pass-check.sh` starts one pass on `LIVE_PASS_CHECK_MIGRATION` through *Sync now*'s own gates and enqueue (`pressSyncNow`, moved to `routes/migrations/sync-now.ts`), refuses while the hold is on or the tick's caps are full, and says within 15 minutes how it ended. |
 
 ## 1. What there is today
 
