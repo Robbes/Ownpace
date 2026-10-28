@@ -104,6 +104,9 @@ import {
   localeOf,
   log,
   permissionsNotDiscoverable,
+  shareLimitOf,
+  shareRefusalKind,
+  shareRefusalSaid,
   type PermissionListing,
   type ShareGrantRow,
 } from '@openmig/shared';
@@ -2264,7 +2267,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
                 'nobody to share with. Handle it by hand and mark the row done.',
             };
           }
-          return createNextcloudShare(
+          const created = await createNextcloudShare(
             {
               webdavUrl: t.url,
               username: t.user,
@@ -2276,7 +2279,12 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
                     headers,
                     ...(typeof body === 'string' ? { body } : {}),
                   });
-                  return { status: r.status, body: await r.text(), headers: {} };
+                  // The one header the share call reads: when to ask again,
+                  // on the target's limit (`ShareLimit`, workplan 0104).
+                  const retryAfter = r.headers.get('retry-after');
+                  const kept: Record<string, string> =
+                    retryAfter === null ? {} : { 'retry-after': retryAfter };
+                  return { status: r.status, body: await r.text(), headers: kept };
                 },
               },
             },
@@ -2289,6 +2297,19 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
               ...(note ? { note } : {}),
             },
           );
+          if (created.ok) return created;
+          // THE TARGET'S LIMIT IS SAID IN OUR WORDS HERE TOO (workplan 0104,
+          // Status of 2026-10-25). Every other refusal reaches the owner in
+          // the target's words. A limit has none worth reading (Nextcloud's
+          // 429 is an empty OCS reply), and what the owner needs is when to
+          // apply again; the reply goes to the log.
+          const limited = shareLimitOf(created.said);
+          // Which refusal it was, for a press that meets the limit after it
+          // (`limitAfterRefusals`); the reason stays the target's words.
+          if (limited === undefined) return { ...created, refusedAs: shareRefusalKind(created.said) };
+          log.warn(`[share] the target's limit on new shares: ${created.reason}`);
+          const said = shareRefusalSaid(created.said);
+          return { ok: false as const, reason: said.en, reasonNl: said.nl, limited };
         };
       };
       /**
@@ -2493,6 +2514,8 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           return sendJson(res, outcome.code === 'not_found' ? 404 : 409, {
             error: outcome.code,
             reason: outcome.reason,
+            // The target's limit is said in both languages (workplan 0104).
+            ...(outcome.reasonNl === undefined ? {} : { reasonNl: outcome.reasonNl }),
           });
         }
         return sendJson(res, 200, { status: 'ok', grant: outcome.row });

@@ -11,7 +11,7 @@
  *
  * ## Node: every `actions/setup-node` asks for the major the images run
  *
- * The api, web and selfhost images build `FROM node:24.x-slim`, `package.json`
+ * The three app images build `FROM node:24.x-trixie-slim`, `package.json`
  * declares `"engines": { "node": ">=24" }`, and eight `setup-node` steps asked
  * for `'24'`. The managed gate (`e2e-managed.yml`) and the live-target lane
  * (`e2e-live-target.yml`) asked for `22` — found 2026-09-24. The managed gate
@@ -109,7 +109,13 @@
  * So the deploy config adds one layer, for every target but `trigger dev`,
  * that copies the Node binary out of the very image `apps/api/Dockerfile`
  * builds FROM over the base image's, and refreshes the base image's Debian
- * packages. Dependabot moves that FROM line every week, and the tasks move
+ * packages. (Since 0146 T13 that is the API's BUILD stage: it runs on
+ * distroless, whose `/nodejs/bin/node` was the same file, byte for byte, on
+ * both architectures when T13 pinned it. The two pins move separately, the
+ * Node tag and the distroless digest, on the one major the next block holds,
+ * and the managed smoke's preflights stop when the API container's Node is
+ * not this line's x.y.z: `an-api-image-with-nothing-to-exec`, section 5.)
+ * Dependabot moves that FROM line every week, and the tasks move
  * with it. This block holds the layer to that line exactly: it runs the
  * config's own extension with a stand-in build context and compares the
  * instruction with the image this file reads from the Dockerfile itself, and
@@ -147,13 +153,17 @@ const read = (p: string) => readFileSync(join(REPO_ROOT, p), 'utf8');
 type Step = { uses?: string; with?: Record<string, unknown> };
 type Workflow = { jobs?: Record<string, { steps?: Step[] }> };
 
-/** Every `FROM node:<major>…` line in every app image, found rather than listed. */
+/**
+ * Every `FROM node:<major>…` line in every app image, found rather than listed,
+ * and every `FROM gcr.io/distroless/nodejs<major>-…` line: the API's runtime
+ * stage since 0146 T13, which names its Node major in the image's name.
+ */
 function imageNodeMajors(): ReadonlyArray<{ image: string; major: number }> {
   return readdirSync(join(REPO_ROOT, 'apps'))
     .map((app) => `apps/${app}/Dockerfile`)
     .filter((p) => existsSync(join(REPO_ROOT, p)))
     .flatMap((image) =>
-      [...read(image).matchAll(/^FROM\s+node:(\d+)[.\-@\s]/gm)].map((m) => ({ image, major: Number(m[1]) })),
+      [...read(image).matchAll(/^FROM\s+(?:node:|gcr\.io\/distroless\/nodejs)(\d+)[.\-@\s]/gm)].map((m) => ({ image, major: Number(m[1]) })),
     );
 }
 
@@ -221,6 +231,9 @@ describe('every gate runs the Node major the images ship', () => {
     expect(images.map((i) => i.image)).toEqual(
       expect.arrayContaining(['apps/api/Dockerfile', 'apps/selfhost/Dockerfile']),
     );
+    // The API's two: the Node image it builds on, and the distroless one it
+    // runs on (0146 T13). Both are held to the one major below.
+    expect(images.filter((i) => i.image === 'apps/api/Dockerfile')).toHaveLength(2);
     for (const anchor of ANCHORS) {
       expect(
         steps.some((s) => s.where.startsWith(`${anchor} `)),
@@ -316,7 +329,9 @@ describe('migration-lint replays onto the Postgres major the deployments run', (
   const deployed = DEPLOYMENTS.flatMap((file) => {
     const image = (parseYaml(read(file)) as { services?: { postgres?: { image?: unknown } } }).services?.postgres
       ?.image;
-    const m = typeof image === 'string' ? /^postgres:(\d+)[.\-@]/.exec(image) : null;
+    // managed.yml's is the build `localhost/postgres:18.6-alpine-<hash>` since
+    // 0146 T15, whose tag starts with its base's.
+    const m = typeof image === 'string' ? /^(?:localhost\/)?postgres:(\d+)[.\-@]/.exec(image) : null;
     return m ? [{ file, major: Number(m[1]) }] : [];
   });
   const linted = [...read('.github/workflows/ci.yml').matchAll(/--dev-url\s+"docker:\/\/postgres\/(\d+)\//g)].map(

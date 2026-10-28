@@ -309,10 +309,37 @@ in [managed-bring-up.md](./managed-bring-up.md#updating-a-running-deployment),
 - [ ] The script said the deploy took: `/api/version` on live names the tag's
       commit and version, `/api/ready` answers 200, `/api/auth/mode` answers
       `managed`, and the exposure check passed.
+      **The deploy from `v0.2.0-alpha.2` (or earlier) to `v0.2.0-alpha.3` (or
+      later) runs twice** (workplan 0146 T13, the owner's decision of
+      2026-10-26). The first run is alpha.2's script, the copy the checkout had
+      before it moved, and it asks the api container with `printenv`, which
+      the distroless API has not got. Live moves to the tag, and that run
+      prints this, then that the copy before this update is kept and that
+      the deploy is logged as `did-not-take`, and exits 3:
+
+      ```text
+      [deploy-live] the deploy did not take: v0.2.0-alpha.3 is checked out, and
+          NODE_ENV: the api container could not be asked (docker compose exec -T api printenv NODE_ENV).
+      [deploy-live] The hold stays on. Nothing was lifted. Fix the cause and run this again with v0.2.0-alpha.3, or name another tag; the next deploy is compared with v0.2.0-alpha.3 too.
+      ```
+
+      When that `NODE_ENV` line is the only one under it, run it again, the
+      hold still on, naming the tag the first run named; the tag's own script
+      reads `NODE_ENV` from Docker and says the deploy took
+      ([managed-bring-up.md](./managed-bring-up.md#the-deploy-from-alpha2-to-alpha3-runs-twice)):
+
+      ```bash
+      git checkout -- apps/worker/package.json    # the task deploy strips its last newline; the second run refuses a tree that is not clean
+      ./deploy/compose/deploy-live.sh <tag>       # the same tag the first run named: v0.2.0-alpha.3 for the alpha.2 to alpha.3 deploy
+      ```
 - [ ] Read whether it called the deploy one-way or reversible before lifting
       the hold, which you do yourself. During the alpha a bad deploy is fixed
       forward, with a fix and a new `alpha.N` tag; a reversible one can also be
       undone by deploying the previous tag with the same script.
+- [ ] After you lifted the hold, `./deploy/compose/live-pass-check.sh` said
+      `verdict: succeeded` (or a pass of your own completed), and about an
+      hour after the lift the box checks mailed *Update proven* (or you ran
+      `./deploy/compose/copy-before-update.sh delete`).
 
 The OTA stack is not deployed this way: the nightly gate brings `main` up on it
 every night. Nothing in the Release workflow touches live: it runs on

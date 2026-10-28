@@ -39,8 +39,11 @@
 # This FROM line is also the Windows payload's Node: `package-appliance.mjs
 # --with-node` ships the node.exe of exactly this x.y.z, and refuses a line
 # without one. Dependabot's image bump therefore moves both.
+#
+# Debian 13 ("trixie"), named in the tag, as in apps/api/Dockerfile, which says
+# why.
 
-FROM node:24.22.1-slim@sha256:1681862882da07ee5476fee047bcf34138833f1df42633bb25bcb0f438d5bf3d AS base
+FROM node:24.22.1-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
@@ -68,6 +71,19 @@ RUN node scripts/package-appliance.mjs --out /payload
 
 # ---- runtime: non-root, health-checked ----
 FROM base AS runtime
+# NO PACKAGE MANAGER AT RUNTIME. CMD and the HEALTHCHECK run `node`, and nothing
+# execs npm, npx, pnpm, yarn or corepack into this container. npm's bundled
+# undici, brace-expansion and http-cache-semantics were the base image's 5
+# high Node.js findings. The Windows payload's node.exe comes from nodejs.org,
+# not from this image, so this changes nothing for it.
+# The whole global-modules directory goes, not npm and corepack by name: they
+# are all it holds in this base, and a package manager a later base stage
+# installs with `npm install -g` (Node 25 and later ship no corepack) lands
+# there too, so it goes with them.
+RUN rm -rf /usr/local/lib/node_modules \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+    /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+    /opt/yarn-v*
 ENV NODE_ENV=production
 # Surfaced by GET /version (buildIdentity in @openmig/core).
 ARG GIT_SHA=unknown

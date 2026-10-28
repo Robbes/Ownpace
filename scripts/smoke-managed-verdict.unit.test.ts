@@ -350,7 +350,7 @@ describe('the two services nothing else speaks for (0084)', () => {
   // `bitnamilegacy/minio` or `caddy:2-alpine`, so there is no evidence to
   // write such a probe from, and an assertion has none of that exposure.
   const minio = smoke.match(
-    /if docker exec "\$API_CONTAINER" node -e \\\n[\s\S]*?\nfi/,
+    /if docker exec "\$API_CONTAINER" "\$API_NODE" -e \\\n[\s\S]*?\nfi/,
   )?.[0];
   const tls = smoke.match(/TLS_PORT="\$\{TRIGGER_TLS_PORT[\s\S]*?\nfi/)?.[0];
 
@@ -367,11 +367,11 @@ describe('the two services nothing else speaks for (0084)', () => {
   });
 
   it('minio unreachable fails the smoke', () => {
-    expect(verdict(minio!, 'API_CONTAINER=x\ndocker() { return 1; }')).toBe('1');
+    expect(verdict(minio!, 'API_CONTAINER=x API_NODE=/nodejs/bin/node\ndocker() { return 1; }')).toBe('1');
   });
 
   it('minio answering leaves the smoke alone', () => {
-    expect(verdict(minio!, 'API_CONTAINER=x\ndocker() { return 0; }')).toBe('0');
+    expect(verdict(minio!, 'API_CONTAINER=x API_NODE=/nodejs/bin/node\ndocker() { return 0; }')).toBe('0');
   });
 
   it('nothing on the TLS port fails the smoke', () => {
@@ -936,7 +936,7 @@ describe('the last two services nothing spoke for (0084 T7.1)', () => {
   // trigger-tls were already asserted here; these two were covered by nothing.
   const registry = smoke.match(/^REGISTRY_PORT_CHECK=[\s\S]*?\nfi$/m)?.[0];
   const proxy = smoke.match(
-    /^if docker exec "\$API_CONTAINER" node -e \\\n\s*"fetch\('http:\/\/trigger-docker-proxy[\s\S]*?\nfi$/m,
+    /^if docker exec "\$API_CONTAINER" "\$API_NODE" -e \\\n\s*"fetch\('http:\/\/trigger-docker-proxy[\s\S]*?\nfi$/m,
   )?.[0];
 
   /** Run an extracted block with `curl`/`docker` stubbed onto PATH. */
@@ -1001,11 +1001,11 @@ describe('the last two services nothing spoke for (0084 T7.1)', () => {
     // This is workplan 0018's entire failure mode: the supervisor creates every
     // runner container through this proxy, so when it is down an enqueue never
     // becomes a runner — invisible in a green CI.
-    expect(verdict(proxy!, { docker: 'exit 1' }, 'API_CONTAINER=stub')).toBe('1');
+    expect(verdict(proxy!, { docker: 'exit 1' }, 'API_CONTAINER=stub API_NODE=/nodejs/bin/node')).toBe('1');
   });
 
   it('the docker proxy answering is a pass', () => {
-    expect(verdict(proxy!, { docker: 'exit 0' }, 'API_CONTAINER=stub')).toBe('0');
+    expect(verdict(proxy!, { docker: 'exit 0' }, 'API_CONTAINER=stub API_NODE=/nodejs/bin/node')).toBe('0');
   });
 
   it('asserts rather than probes, and says why', () => {

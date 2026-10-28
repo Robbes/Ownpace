@@ -138,10 +138,17 @@ describe('the runtime needs no transpiler', () => {
   });
 
   it('starts the api image with node, not a transpiler', () => {
+    // Since 0146 T13 the runtime is distroless: ENTRYPOINT names node by its
+    // path, and CMD is the .ts entry it runs. Together they are the command.
     const dockerfile = readFileSync(join(ROOT, 'apps/api/Dockerfile'), 'utf8');
-    const cmd = dockerfile.split('\n').filter((l) => l.startsWith('CMD ')).at(-1);
+    const last = (op: string) => dockerfile.split('\n').filter((l) => l.startsWith(`${op} `)).at(-1);
+    const entrypoint = last('ENTRYPOINT');
+    const cmd = last('CMD');
+    expect(entrypoint).toBeDefined();
     expect(cmd).toBeDefined();
-    expect(cmd).toContain('node');
-    expect(cmd).not.toContain('tsx');
+    const command = [...(JSON.parse(entrypoint!.slice('ENTRYPOINT '.length)) as string[]), ...(JSON.parse(cmd!.slice('CMD '.length)) as string[])];
+    expect(command[0]).toMatch(/\/node$/);
+    expect(command).toContain('apps/api/src/index.ts');
+    expect(command.join(' ')).not.toContain('tsx');
   });
 });

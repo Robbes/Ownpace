@@ -31,12 +31,12 @@
  * own catch, which answers 500.
  */
 
-import type { Response } from 'express';
 import type { Pool } from 'pg';
 import type { LedgerDriver } from '@openmig/ledger';
 import { readOrganisationClosure } from '@openmig/managed';
 import { ACCOUNT_CLOSED, organisationClosedRefusal, type OrganisationClosure } from '@openmig/shared';
 import { withTenantDb } from './middleware/auth.ts';
+import type { Answerable } from './types/api.ts';
 
 /** What a door answers for a closed organisation. */
 export interface AccountClosedAnswer {
@@ -84,7 +84,7 @@ export async function closedOrganisation(
  * write and before it opens any stored access.
  */
 export async function refusedAsClosed(
-  res: Response,
+  res: Answerable,
   tenantId: string,
   source: Pool | LedgerDriver,
 ): Promise<boolean> {

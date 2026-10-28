@@ -1029,10 +1029,50 @@ describe('every question about a password is asked the way the stack asks it', (
       const socket = calls(fx).filter((c) => c.kind === 'socket');
       expect(socket.length).toBeGreaterThan(0);
       expect(socket.filter((c) => c.container && 'PGPASSWORD' in c.container)).toEqual([]);
-      // And the client is the image the stack's own postgres runs, so the machine pulls nothing.
-      const image = /postgres:\n\s+image:\s*(\S+)/.exec(read('deploy/compose/managed.yml'))?.[1];
+      // And the client is the image the stack's own postgres runs, so the machine pulls nothing:
+      // the build `localhost/postgres:…` since 0146 T15.
+      const image = /^\s*image:\s*((?:localhost\/)?postgres:\S+)/m.exec(read('deploy/compose/managed.yml'))?.[1];
       expect(image).toBeTruthy();
       expect(new Set(calls(fx).filter((c) => c.kind === 'network').map((c) => c.image))).toEqual(new Set([image]));
+    },
+    CASE_MS * 2,
+  );
+
+  it(
+    "takes the client from managed.yml itself, so a pin moved there moves it, and a file without one is refused",
+    () => {
+      // db-roles.sh named the client as a literal that had to be moved by hand
+      // with every postgres pin. It reads managed.yml's first postgres line now,
+      // as compose_project reads its `name:` and stand-up-live.sh its check image,
+      // and stops at the reference: a comment after it, the way dev.yml writes
+      // its image lines, is not part of what `docker run` is given.
+      const fx = fixture();
+      const yml = join(fx.compose, 'managed.yml');
+      const text = readFileSync(yml, 'utf8');
+      const moved = `localhost/postgres:18.99-alpine-${'e'.repeat(12)}`;
+      const repinned = text.replace(/^(\s*image:\s*)localhost\/postgres:\S+/gm, `$1${moved} # multi-arch (arm64)`);
+      expect(repinned, 'no postgres image line to move').not.toBe(text);
+      writeFileSync(yml, repinned);
+      const r = run(fx, ['--check']);
+      const asked = calls(fx).filter((c) => c.kind === 'network');
+      expect(asked.length, r.output).toBeGreaterThan(0);
+      expect(new Set(asked.map((c) => c.image))).toEqual(new Set([moved]));
+
+      // The official image is still read, should managed.yml go back to it.
+      const back = fixture();
+      const official = `postgres:18.6-alpine@sha256:${'f'.repeat(64)}`;
+      const backYml = join(back.compose, 'managed.yml');
+      writeFileSync(backYml, readFileSync(backYml, 'utf8').replace(/^(\s*image:\s*)localhost\/postgres:\S+/gm, `$1${official}`));
+      run(back, ['--check']);
+      expect(new Set(calls(back).filter((c) => c.kind === 'network').map((c) => c.image))).toEqual(new Set([official]));
+
+      const none = fixture();
+      const without = join(none.compose, 'managed.yml');
+      writeFileSync(without, readFileSync(without, 'utf8').replace(/^(\s*image:\s*)localhost\/postgres:/gm, '$1mirror.example/postgres:'));
+      const refused = run(none, ['--check']);
+      expect(refused.status, refused.output).not.toBe(0);
+      expect(refused.output).toContain('names no postgres image');
+      expect(calls(none).filter((c) => c.kind === 'network')).toEqual([]);
     },
     CASE_MS * 2,
   );

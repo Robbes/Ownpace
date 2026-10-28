@@ -90,11 +90,15 @@ function enqueueCalls(): Map<string, number> {
 
 /**
  * The doors that call the function, by file. Eight on 2026-09-27: four in
- * each of the two migration routers. A door added later is one more here and
- * one more row in `enqueueDoors` (`__tests__/doors-that-start-work.ts`).
+ * each of the two migration routers. Since 0132 T9 *Sync now*'s door lives in
+ * `routes/migrations/sync-now.ts` (`pressSyncNow`), which the route and the
+ * machine's press for live's pass check both call: still eight. A door added
+ * later is one more here and one more row in `enqueueDoors`
+ * (`__tests__/doors-that-start-work.ts`).
  */
 const DOORS_BY_FILE: Readonly<Record<string, number>> = {
-  'routes/migrations/index.ts': 4,
+  'routes/migrations/index.ts': 3,
+  'routes/migrations/sync-now.ts': 1,
   'routes/migrations/operating-routes.ts': 4,
 };
 
