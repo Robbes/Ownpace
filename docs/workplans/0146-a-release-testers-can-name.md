@@ -4,6 +4,62 @@
 
 ## Status — 2026-10-26 (update this block at the end of every session)
 
+**2026-10-26, build: T13a, the readers first, a draft for alpha.3**, as draft #1710 on branch
+`claude/ownpace-public-readiness-y7orc6-api-readers`, against `main`. It merges after the alpha.2
+tag, once E2E (managed) has run on it, and ships in alpha.3: a release before T13 (draft #1709),
+which puts the API's runtime on distroless.
+
+- **Why first.** The review of #1709 on 2026-10-26 (two reviews) preferred to split T13.
+  `deploy-live.sh` runs the copy the checkout had before it moves to the tag (its header, *Like
+  every step*), and a copy that asks the api container its `NODE_ENV` with `printenv` reports a
+  deploy of the distroless image as one that did not take, though the stack has moved. With the
+  readers on live a release earlier, a deploy of that image from alpha.3 or later meets no such
+  copy, and the two-run step #1709 had documented for the owner is not needed.
+- **What changes.** Every site that exec'd a shell, `printenv` or a bare `node` into the api
+  container now does what works on the Node image and on distroless alike. A variable the API
+  was started with is read from Docker, `docker container inspect`'s `.Config.Env` (the image's
+  ENV with Compose's environment over it, which is what the process got and what `printenv`
+  printed): by `api_env` in `deploy-live.sh` and `stand-up-live.sh` (NODE_ENV, through `compose
+  ps -q api`, with Docker's own error on stderr and "no api container" told apart from "not
+  set"), in the smoke (JWT_ISSUER, JWT_SECRET, JWT_AUDIENCE, JWT_JWKS_URI), and in
+  `e2e-managed.yml`'s pooler step (DIRECT_DATABASE_URL). `container` inspect, because a bare
+  `docker inspect` of a name that is no container answers with the image Compose built under the
+  same name. The smoke's three probes (minio, docker-proxy, issuer) run Node by the path its
+  preflights find (`api_node`: `/nodejs/bin/node`, then `/usr/local/bin/node`), and the
+  preflights stop when that Node's version is not the `x.y.z` of the Dockerfile's `FROM node:`
+  line, the Node the tasks copy (`dockerfile_node`). On today's image that finds
+  `/usr/local/bin/node`, the line's own Node, and passes; on distroless, whose digest moves
+  apart from the node tag, it is the only thing that would say the two differ. The docs'
+  read-backs read from Docker: `managed-bring-up.md`'s new *Reading what the api container was
+  started with*, BACKUP_RETENTION_DAYS, the mail variables, `env_of`, `deploy-live.sh`'s checks
+  and the issuer row, and `ending-the-alpha.md`'s empty-stage check. No Dockerfile changes.
+- **Guards.** `scripts/an-api-image-with-nothing-to-exec.unit.test.ts`, #1709's sections 2 to
+  5: no shell, `printenv` or bare `node` exec'd into the api container in `deploy/`, `scripts/`,
+  `test/`, the workflows or `docs/` (records aside); `api_env` in the three scripts and the
+  smoke's `api_node` run against a stub docker for both image layouts; no `CMD-SHELL` or
+  shell-string healthcheck, and no shell, `printenv` or bare `node` as `command` or
+  `entrypoint`, on a compose service built from the API image; the version check passing and
+  stopping by either path. Section 1, the runtime stage, stays with T13.
+  `a-deploy-from-a-named-tag`, `a-first-bring-up-of-live`, `identity-in-the-gate` and
+  `smoke-managed-verdict` read the new forms. The scan knows the container by its service, its
+  name, the id `"$(docker compose … ps -q api)"` gives (read to its own `)`, the form the docs'
+  read-backs teach), and a variable the same file sets to that id (the gate's `api_id`, the
+  live scripts' `id`): the review of the split found a `printenv` exec'd by either id form
+  stayed green, and five deliberate regressions by those forms (the doc, the gate, both live
+  scripts, a bare `node`) now turn it red.
+- **Not run here.** No Docker daemon in this session. E2E (managed) has to show the smoke's
+  preflights naming `/usr/local/bin/node v24.22.1`, the minio, docker-proxy and issuer probes
+  passing, and the pooler step reading DIRECT_DATABASE_URL.
+- **What is left.** Two deploys still meet the T13 image with a script that asks with
+  `printenv`: one from a tag before T13a (alpha.2 or earlier) straight to a tag with T13,
+  skipping alpha.3, which `ending-the-alpha.md` step 5 allows ("the tag that runs now or a newer
+  release"); and one forward to a tag with T13 after live was rolled back to such a tag. Either
+  runs the older tag's script, which says the deploy did not take, though the stack has moved; a
+  second run, from the checkout now at the tag, reads from Docker. Deploying alpha.3 first
+  avoids the skip. During the alpha a bad deploy is fixed forward (`docs/release.md` §5), so
+  both are recorded here and not in the procedures.
+- **One-way:** none. Every read works on the image of every earlier tag too.
+
 **2026-10-26, last of all: T15b after its review, thirteen findings, twelve fixed as found and
 one in a narrower form**, on the same branch. No fault was found in the Dockerfile, its name or its
 Dependabot entry.
@@ -1641,6 +1697,7 @@ best given with T0.
 | T11 The patch and minor moves that clear findings | (a) 🔨 **Being built** as draft #1699 on branch `claude/ownpace-public-readiness-y7orc6-mailpit-1-32-0`, for alpha.3 (Status, 2026-10-25); (b) 🟡 **Built 2026-10-25**, draft #1698, merges after the alpha.2 tag (the owner's yes, ADR-0022); (c) 📋 **Proposed**, after the Alpha (2026-10-23) | Status, 2026-10-23 (the scan triage), read with Trivy 0.76.0 on linux/amd64. (a) **Mailpit v1.32.0**: 0/0, where v1.31.6 has CVE-2026-111943 (Go's `crypto/x509`); for alpha.3 (*was:* after the first invitation), by hand in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts`, which pins the reference by tag and digest and records Mailpit's release check as read at v1.31.6, so that fact is read again at v1.32.0 in the same change. Done so on the branch: the release check read again at v1.32.0, unchanged. (b) **Stalwart v0.16.27** (Debian 13.7): 0 critical and 47 high, none with a fix, where v0.16.10 has 3/114. The owner's call: `docs/stalwart-integration-fix.md` pins v0.16.10 and says *"DO NOT change the pinned version"* (AGENTS.md puts its decisions in ADR-0022), and every copy moves together: `setup-stalwart.sh`, the fixture's Dockerfile, the Testcontainers setup, the fix doc and the guards that name it. (c) **ClickHouse 26.3** (26.3.59, Ubuntu 22.04): 0/0, where 26.2.19.43 has CVE-2026-45447 and CVE-2026-84782 in openssl. After the Alpha: the owner accepted 26.2 for it on 2026-10-23 (0119 §3 item 9 on the Trigger.dev v4.7.6 branch), and 26.3 is ahead of the 26.2 Trigger.dev's own compose pins, which the pin watch compares with (T8). It moves in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts` together: the guard pins the reference by tag and digest and records the crash-report default as read at `v26.2.19.43-stable`, as `clickhouse-no-crash-reports.xml`'s comment does, so both are read again at 26.3. |
 | T12 The images' Node base on a named Debian, with no package manager at runtime | 🔨 **Being built** as draft #1708 on branch `claude/ownpace-public-readiness-y7orc6-node-trixie-slim`, for after the alpha.2 tag and #1687 (2026-10-25) | Status, 2026-10-25. The api, selfhost and web images built on `node:24.22.1-slim`, Debian 12.15: 1 critical and 61 high on 2026-10-25. `node:24.22.1-trixie-slim`, Debian 13.7, reads 0/48 with the same Node binary, and 0/43 without npm and corepack, which nothing in the api or selfhost container runs. Done when the three FROM lines name Debian 13 by tag and digest, the two runtime stages carry no package manager, E2E (managed) and E2E (self-hosted) are green on it, and the scan's `-edge` categories read the base's 0/43 (the API's with T9). Distroless `nodejs24-debian13` (0/0) for the API is the next step, after alpha.3, as its own decision. |
 | T12a The web image's nginx carries only what it loads | 🔨 **Being built** as a draft on branch `claude/ownpace-public-readiness-y7orc6-nginx-alpine-slim`, based on #1678's, for alpha.3 (2026-10-25) | Status, 2026-10-25, and 0119's of the same evening. `nginx:1.31.8-alpine-slim` by index digest `f45171d3…` in `apps/web/Dockerfile`'s runtime and `deploy/compose/www.yml`, in place of 1.31.8-alpine `1ef7ca94…`: the same nginx package on the same base layers, without the 51 packages -alpine adds (curl, the njs, xslt, geoip, image-filter and acme modules, and their libraries). Trivy 0.76.1 on linux/arm64 and linux/amd64: -alpine 0/1 (brotli-libs 1.2.0-r1, CVE-2026-111497, fixed in 1.2.1-r0), slim 0/0; the stable line's 1.30.6-alpine 0/1 as well. Neither `nginx.conf.template` nor `www-nginx.conf` loads a module, the API upstream is plain HTTP and both health checks are busybox's `wget`; `scripts/an-nginx-that-carries-only-what-it-loads.unit.test.ts` holds the variant in both files and refuses a dropped module's directive or a curl in a health check or a runbook's look inside, since nothing runs `www.yml` to see one. Merges after #1678 and the alpha.2 tag, not before 19:51 UTC on 2026-10-27 (three days after the slim index was pushed, to add riscv64), with E2E (managed) on the branch. The OTA site moves when a person brings `www.yml` up again; live's www with the next deploy while `WWW_LIVE` is true; live's web image with the release tag that carries it. |
+| T13a The readers first | 🔨 **Being built** as draft #1710 on branch `claude/ownpace-public-readiness-y7orc6-api-readers`, for alpha.3 (2026-10-26) | Status, 2026-10-26. The half of T13 (draft #1709) that works before the switch: the smoke, the managed gate, `deploy-live.sh`, `stand-up-live.sh` and the docs read the api container's variables with `docker container inspect` and run Node there by its path, on the Node image and on distroless alike, and the smoke stops when the API's Node is not the version the tasks get. It ships a release before T13, so that a deploy of the distroless image from alpha.3 or later runs no `deploy-live.sh` that asks with `printenv` (one straight from alpha.2, or forward after a rollback past T13a, still does: Status, 2026-10-26). Done when E2E (managed) is green on it (the smoke's preflights naming `/usr/local/bin/node v24.22.1`) and live runs alpha.3. |
 | T15 Both databases of the managed stacks start as uid 70, from the official image without gosu | 🔨 **Being built** as draft #1717 on branch `claude/ownpace-public-readiness-y7orc6-postgres-without-gosu`, stacked on #1678, for after the alpha.2 tag (2026-10-26) | Status, 2026-10-26. `postgres:18.6-alpine` reads 1 critical and 26 high (Trivy v0.76.1, arm64 and amd64); the critical and 25 highs are Go's standard library in gosu, which the entrypoint runs only when it starts as root. `deploy/compose/postgres/Dockerfile` removes it and starts as uid 70, the user gosu dropped to; `managed.yml`'s `postgres` and `trigger-db` and `dev.yml`'s run it, and the scan builds and scans it. Done when E2E (managed) is green on the branch (the OTA stack's existing volumes, started as uid 70, and a second bring-up leaving both databases running on the same image ID), `build (postgres)` is green on the pull request, the image scan's `postgres-managed` reads 0 critical and 1 high (brotli-libs, until docker-library rebuilds 18.6-alpine), and live has taken it from a tag. The appliance's Postgres is T15b. |
 | T15b The appliance's Postgres starts as uid 70, from the official image without gosu | 🔨 **Being built** on branch `claude/ownpace-public-readiness-y7orc6-appliance-postgres-without-gosu`, stacked on #1717, for after the alpha.2 tag (2026-10-26) | Status, 2026-10-26, last. The appliance's `postgres:18.6-alpine` (`77f58511…`) reads 1 critical and 26 high (Trivy v0.76.1, arm64); the critical is gosu's Go, and no newer digest drops it. `deploy/selfhost/postgres/Dockerfile` is T15's instructions on the appliance's own base, `deploy/selfhost/compose.yml` runs it as `localhost/postgres:18.6-alpine-b18f51417292` (never pulled), Dependabot moves its FROM in an entry of its own, the scan's `postgres-selfhost` leg builds it, `build (postgres)` proves it on a pull request, and E2E (self-hosted) builds `app` by name. Done when `build (postgres)` is green on the pull request (the appliance's build started on a volume the official image initialised as root), E2E (self-hosted) is green on the branch with `persistence: postgres`, the image scan's `postgres-selfhost` reads 0 critical, and a release tag carries it. |
 

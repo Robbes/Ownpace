@@ -677,15 +677,16 @@ main() {
   # the bring-up sources the .env with `set -a`, which overrides it. What is
   # left: a NODE_ENV line in a form the check does not read, or a container
   # the bring-up did not recreate.
-  local node_env
-  if node_env="$("${COMPOSE[@]}" exec -T api printenv NODE_ENV 2>/dev/null)"; then
-    if [ "$node_env" = production ]; then
-      say "  NODE_ENV in the api container: production"
-    else
-      failures+=("NODE_ENV in the api container is not production (workplan 0132 T4). Its value is not printed. The .env said production before the checkout. Look for a NODE_ENV line in a form the check does not read (indented, a space before '=', or ':' for '='), with: grep -n NODE_ENV deploy/compose/.env. Or this bring-up did not recreate the api container: docker compose -f deploy/compose/managed.yml ps api says how long it has been up.")
-    fi
+  # Read from Docker (api_env, workplan 0146 T13a), never exec'd in: the
+  # distroless API image of T13 has no shell and no printenv.
+  local node_env env_rc=0
+  node_env="$(api_env NODE_ENV)" || env_rc=$?
+  if [ "$env_rc" -eq 0 ] && [ "$node_env" = production ]; then
+    say "  NODE_ENV in the api container: production"
+  elif [ "$env_rc" -le 1 ]; then
+    failures+=("NODE_ENV in the api container is not production (workplan 0132 T4). Its value is not printed. The .env said production before the checkout. Look for a NODE_ENV line in a form the check does not read (indented, a space before '=', or ':' for '='), with: grep -n NODE_ENV deploy/compose/.env. Or this bring-up did not recreate the api container: docker compose -f deploy/compose/managed.yml ps api says how long it has been up.")
   else
-    failures+=("NODE_ENV: the api container could not be asked (docker compose exec -T api printenv NODE_ENV).")
+    failures+=("NODE_ENV: the api container could not be asked (docker compose ps -q api, then docker container inspect; why is above).")
   fi
   # The site (0139 T10): the tag's, built here and brought up under its own
   # project, before the exposure check, which then covers it too.
@@ -752,6 +753,31 @@ json_string() {
         if (typeof v === "string") process.stdout.write(v);
       } catch {}
     });' "$1"
+}
+
+# api_env <name> — a variable the api container was started with, read from
+# Docker rather than from inside the container (workplan 0146 T13a, the readers
+# first). The distroless API image of T13 has no shell and no `printenv`; a tag
+# before T13 brings up a Node image, which has both, and this answers the same
+# for either, so this script asks alike whichever tag it deploys. It ships a
+# release before T13 does, so that no deploy meets the distroless image with a
+# copy of this script that asks with `printenv`. `docker container
+# inspect`'s `.Config.Env` is the image's ENV with compose's `environment:` over
+# it, one entry per name: what the process started with. Exit 0 set, 1 not set,
+# 2 no running api container, or none Docker could read. Why it could not is on
+# stderr, in Docker's words: they name containers and variables, never a value.
+api_env() {
+  local id env line
+  id="$("${COMPOSE[@]}" ps -q api)" || return 2
+  [ -n "$id" ] || { echo "docker compose ps -q api: no api container in this project" >&2; return 2; }
+  env="$(docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$id")" || return 2
+  while IFS= read -r line; do
+    if [[ "$line" == "$1="* ]]; then
+      printf '%s\n' "${line#*=}"
+      return 0
+    fi
+  done <<<"$env"
+  return 1
 }
 
 # The project Compose itself reports from here. Answering another one means

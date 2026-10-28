@@ -255,10 +255,12 @@ hold (step 3), because the privacy policy promises it for the end of the Alpha.
 
 Before lifting the hold:
 
-1. **The api reads an empty stage.**
+1. **The api reads an empty stage.** Read from Docker, which answers for either API
+   image: the distroless one has no shell to ask (docs/managed-bring-up.md, *Reading
+   what the api container was started with*).
 
    ```bash
-   docker compose -f deploy/compose/managed.yml exec -T api sh -c 'printf "[%s]\n" "$OWNPACE_STAGE"'   # []
+   docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$(docker compose -f deploy/compose/managed.yml ps -q api)" | grep '^OWNPACE_STAGE='   # OWNPACE_STAGE=
    ```
 
 2. **The api asks nobody to accept the texts.** Its start log has neither

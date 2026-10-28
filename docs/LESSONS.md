@@ -70,6 +70,7 @@ reading a file drops off its entry by itself.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
+- [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first).
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
 - [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
@@ -158,6 +159,7 @@ reading a file drops off its entry by itself.
 - [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-signature-checked-under-either-name](../scripts/a-signature-checked-under-either-name.unit.test.ts) — Every documented `cosign verify` accepts the images signed under either of the repository's names, and nothing else (ADR-0040).
+- [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first).
 
 ### `CONTRIBUTING.md`
 
@@ -179,6 +181,7 @@ reading a file drops off its entry by itself.
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
+- [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 - [an-image-that-shipped-what-it-never-runs](../scripts/an-image-that-shipped-what-it-never-runs.unit.test.ts) — The API image carried the whole development tree, and ran none of it.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
@@ -936,6 +939,7 @@ reading a file drops off its entry by itself.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-tag-that-already-pointed-elsewhere](../scripts/a-tag-that-already-pointed-elsewhere.unit.test.ts) — A TAG THAT ALREADY POINTED ELSEWHERE: a release tag is what `deploy-live.sh` trusts, and the workflow that cuts it has to know, at the moment it cuts it, that the name is free or already its own at the same commit, and that what it prove…
+- [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first).
 - [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
@@ -1424,6 +1428,7 @@ reading a file drops off its entry by itself.
 - [a-sync-the-gate-pressed-on-free](../scripts/a-sync-the-gate-pressed-on-free.unit.test.ts) — A SYNC THE GATE PRESSED ON FREE (E2E (managed) #238, 2026-10-05).
 - [a-verdict-that-does-not-say-what-failed](../scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts) — A gate that knows what broke and will not say it.
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
+- [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first).
 - [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts) — AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [gate-coverage](../scripts/gate-coverage.unit.test.ts) — What the managed gate actually asks the running stack for.
@@ -1480,6 +1485,7 @@ reading a file drops off its entry by itself.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
+- [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
 - [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
@@ -1656,11 +1662,16 @@ reading a file drops off its entry by itself.
 - [a-count-every-merge-made-stale](../scripts/a-count-every-merge-made-stale.unit.test.ts) — A COUNT EVERY MERGE MADE STALE: both generated indexes opened with a total across every plan or guard, so every merge changed a line that every other open pull request carried too (workplan 0147, 2026-09-28).
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+- [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first).
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
 
 ### `docs/README.md`
 
 - [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
+
+### `docs/TROUBLESHOOTING.md`
+
+- [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first).
 
 ### `docs/adr/0000-template.md`
 
@@ -1788,6 +1799,7 @@ reading a file drops off its entry by itself.
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [a-visit-count-that-kept-the-visitor](../scripts/a-visit-count-that-kept-the-visitor.unit.test.ts) — A VISIT COUNT THAT KEPT THE VISITOR (the owner, 2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip for now, no netbird api tokens..."*; privacy §4.5, §5 and §9).
 - [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
+- [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first).
 - [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
@@ -5468,6 +5480,22 @@ Reads:
 - `deploy/selfhost/compose.yml`
 - `deploy/selfhost/selfhost.env.example`
 - `packages/shared/src/a-grant-mail-that-says-alpha.unit.test.ts`
+
+### [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts)
+
+AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first).
+
+Reads:
+
+- `.github/workflows/e2e-managed.yml`
+- `CHANGELOG.md`
+- `apps/api/Dockerfile`
+- `deploy/compose/deploy-live.sh`
+- `deploy/compose/smoke-managed.sh`
+- `deploy/compose/stand-up-live.sh`
+- `docs/LESSONS.md`
+- `docs/TROUBLESHOOTING.md`
+- `docs/managed-bring-up.md`
 
 ### [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts)
 
