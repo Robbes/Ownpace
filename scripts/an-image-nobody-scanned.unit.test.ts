@@ -48,13 +48,30 @@
  * builds the deploy's `base` stage from the config's own extensions and scans
  * that, under the name, and so the category, its alerts were opened under.
  *
+ * And an image no registry serves cannot be pulled to be scanned (#1675,
+ * 2026-10-25). GoAccess's upstream image is on an Alpine past its end of life,
+ * so `site-visits.sh` builds `localhost/goaccess` from
+ * `deploy/compose/goaccess/Dockerfile`. A script's `localhost/<name>` image is
+ * listed with the directory it is built from, its leg builds that directory
+ * on the arm64 runner before Trivy reads it, and its name (`goaccess`, the
+ * category and the issue) is the one the pulled image had, so the issue
+ * closes on the first scan on main that reads the supported base. Only a run
+ * on main keeps the issues (`ISSUES_REF`): a review found that the dispatch
+ * this change asked for, on its own branch, would have closed #1675 before
+ * the merge, while main and live still ran 3.20, and Monday's scan on main
+ * would then have opened it again under a new number. And a pull request
+ * that changes such a Dockerfile builds it
+ * (`.github/workflows/script-images.yml`), with Dependabot's move of its base
+ * in a pull request of its own: grouped with the apps' images, a new Alpine
+ * line would have been merged on checks that never built it.
+ *
  * The network is stubbed (the git tags, the Trigger.dev CLI's tarball) and so
  * is `gh`; the compose files, the scripts and the deploy config are the real
  * ones.
  */
 
 import { describe, it, expect } from 'vitest';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { gzipSync } from 'node:zlib';
@@ -65,8 +82,11 @@ import { COMPOSE_FILES, parseRef, readImages, repoReader, stepsUsing, type Net, 
 import type { BuildContext, BuildLayer } from '@trigger.dev/core/v3/build';
 import taskConfig from '../apps/worker/trigger.config.ts';
 import {
+  BUILT_HERE,
   ISSUE_PREFIX,
+  ISSUES_REF,
   OWNPACE_IMAGES,
+  SCRIPT_DIRS,
   OWNPACE_REGISTRY,
   SCAN_FILES,
   TASK_CONFIG,
@@ -276,6 +296,27 @@ describe('which images it scans', () => {
     const without = await imagesToScan(withFiles({ 'deploy/compose/db-roles.sh': computed }), fakeNet());
     expect(without.some((i) => i.where.includes('db-roles.sh'))).toBe(false);
     expect(without.find((i) => i.name === 'postgres-managed')?.ref).toBe(managedPostgres.ref);
+  });
+
+  it('an image a script builds here (localhost/<name>) is listed with the directory its leg builds, and refused without a Dockerfile (#1675)', async () => {
+    const images = await imagesToScan(REAL, fakeNet());
+    const goaccess = images.find((i) => i.name === 'goaccess')!;
+    expect(goaccess.ref, 'GoAccess is pulled from a registry again').toMatch(new RegExp(`^${BUILT_HERE.replace('.', '\\.')}goaccess:`));
+    expect(goaccess.context).toBe('deploy/compose/goaccess');
+    expect(goaccess.floating, "its pins are its Dockerfile's").toBe(false);
+    expect(REAL.read(`${goaccess.context}/Dockerfile`)).toMatch(/^FROM /m);
+    // Every other image is pulled, and carries no context.
+    for (const image of images.filter((i) => !i.ref.startsWith(BUILT_HERE))) expect(image.context, image.name).toBeUndefined();
+    // The same name, its category and its issue, whether pulled or built: a reference moved
+    // from a registry to localhost keeps `goaccess`.
+    const script = REAL.read('deploy/compose/site-visits.sh')!;
+    const pulled = script.replace(/^GOACCESS_IMAGE="[^"]+"$/m, 'GOACCESS_IMAGE="allinurl/goaccess:1.12@sha256:' + '9'.repeat(64) + '"');
+    expect(pulled).not.toBe(script);
+    const before = (await imagesToScan(withFiles({ 'deploy/compose/site-visits.sh': pulled }), fakeNet())).find((i) => i.name === 'goaccess');
+    expect(before?.context).toBeUndefined();
+    // A localhost image with nothing to build it from is refused, never left out.
+    const missing: Repo = { read: (rel) => (rel === 'deploy/compose/goaccess/Dockerfile' ? null : REAL.read(rel)), list: REAL.list };
+    await expect(imagesToScan(missing, fakeNet())).rejects.toThrow(/deploy\/compose\/goaccess\/Dockerfile, which is not in this checkout/);
   });
 
   it("the tasks' image, built on the base the pinned CLI names for the runtime trigger.config.ts asks for", async () => {
@@ -690,6 +731,21 @@ describe('the report job', () => {
     expect(imagesFromEnv(JSON.stringify([built]))).toEqual([built]);
   });
 
+  it('says which image was built here, and routes its issue to the Dockerfile rather than to a tag upstream moves', () => {
+    const built: ScanImage = { name: 'goaccess', ref: 'localhost/goaccess:1.12', where: 'deploy/compose/site-visits.sh', floating: false, context: 'deploy/compose/goaccess' };
+    const summary = summarize([built], reports({ 'trivy-image-goaccess.json': trivyJson({ Family: 'alpine', Name: '3.24.3' }) }));
+    expect(summary.missing).toEqual([]);
+    expect(summary.lines.join('\n')).toMatch(/\| `goaccess` \| `localhost\/goaccess:1\.12` \(built from `deploy\/compose\/goaccess`\) \| alpine 3\.24\.3 \| supported \|/);
+    const issue = eoslIssue(built, readReport(trivyJson({ Family: 'alpine', Name: '3.20.10', EOSL: true })));
+    expect(issue.state).toBe('behind');
+    expect(issue.body).toContain('`deploy/compose/goaccess/Dockerfile`');
+    expect(issue.body).toContain('dependabot.yml');
+    expect(issue.body, 'Dependabot moves a new line of the base too').not.toMatch(/within its line/);
+    expect(issue.body, 'a built image has no upstream tag to wait for').not.toContain('idp-pin-watch.yml');
+    expect(issue.body).not.toContain('serves today');
+    expect(eoslIssue(built, readReport(trivyJson({ Family: 'alpine', Name: '3.24.3' }))).state).toBe('current');
+  });
+
   it('reads the image list the list job handed on, and refuses an empty one', () => {
     expect(imagesFromEnv(JSON.stringify(IMAGES))).toEqual(IMAGES);
     expect(() => imagesFromEnv('[]')).toThrow(/no image/);
@@ -736,6 +792,47 @@ describe('one issue per image past its end of life', () => {
     const { gh, calls } = fakeGh([stray]);
     keepIssues(IMAGES, summarize(IMAGES, all(fine)), gh);
     expect(calls).toEqual([['issue', 'close', '14', '--comment', expect.stringContaining('No image of this name')]]);
+  });
+
+  it('keeps them from a run on main only: a run dispatched on a branch says what it found and touches no issue', () => {
+    // From the command line, with a `gh` on the PATH that records what it is
+    // asked and answers `issue list` with none open.
+    const dir = mkdtempSync(join(tmpdir(), 'image-scan-issues-'));
+    try {
+      writeFileSync(join(dir, 'trivy-image-redis.json'), eosl);
+      writeFileSync(join(dir, 'trivy-image-minio.json'), fine);
+      writeFileSync(join(dir, 'trivy-image-caddy.json'), fine);
+      const bin = join(dir, 'bin');
+      const calls = join(dir, 'gh-calls');
+      const summary = join(dir, 'summary.md');
+      mkdirSync(bin);
+      writeFileSync(join(bin, 'gh'), `#!/bin/sh\nprintf '%s\\n' "$*" >>'${calls}'\nif [ "$1 $2" = "issue list" ]; then echo '[]'; fi\n`);
+      chmodSync(join(bin, 'gh'), 0o755);
+      const run = (ref: string | undefined) => {
+        rmSync(calls, { force: true });
+        writeFileSync(summary, '');
+        const env: Record<string, string> = { PATH: `${bin}:${process.env.PATH}`, IMAGES: JSON.stringify(IMAGES), GITHUB_STEP_SUMMARY: summary };
+        if (ref !== undefined) env.GITHUB_REF = ref;
+        const r = spawnSync(process.execPath, [join(REPO_ROOT, 'scripts/image-scan.mjs'), 'report', dir, '--issue'], { encoding: 'utf8', env });
+        return { ...r, calls: existsSync(calls) ? readFileSync(calls, 'utf8').trim().split('\n') : [], summary: readFileSync(summary, 'utf8') };
+      };
+      expect(ISSUES_REF).toBe('refs/heads/main');
+      for (const ref of ['refs/heads/claude/ownpace-public-readiness-y7orc6-goaccess-eol', 'refs/heads/release-gate/v0.2.0-alpha.3', 'refs/tags/v0.2.0-alpha.3', '', undefined]) {
+        const branch = run(ref);
+        expect(branch.status, branch.stderr).toBe(0);
+        expect(branch.calls, `a run on ${ref} kept an issue`).toEqual([]);
+        expect(branch.stdout).toMatch(/^::warning::redis: /m);
+        expect(branch.stdout).toContain('Issues are kept by a run on main only.');
+        expect(branch.summary).toContain(`This run is on ${ref || 'no ref'}, so no issue was opened, updated or closed.`);
+      }
+      const main = run(ISSUES_REF);
+      expect(main.status, main.stderr).toBe(0);
+      expect(main.calls.filter((c) => c.startsWith('issue create')), main.calls.join('\n')).toHaveLength(1);
+      expect(main.stdout).toContain('issue, redis: opened');
+      expect(main.summary).not.toContain('Issues are kept by a run on main only.');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('says in a comment when the image moved and is still past its end of life', () => {
@@ -802,9 +899,10 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
 
   it('runs on a GitHub-hosted runner, never on the machine whose images it scans', () => {
     for (const job of [list, report]) expect(job?.['runs-on']).toBe('ubuntu-24.04');
-    // A leg that builds its image builds it natively for the platform scanned,
-    // on GitHub's arm64 runner; every other leg reads a registry from amd64.
-    expect(scan?.['runs-on']).toBe("${{ matrix.build && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}");
+    // A leg that builds its image (the tasks' `build`, a script's `context`)
+    // builds it natively for the platform scanned, on GitHub's arm64 runner;
+    // every other leg reads a registry from amd64.
+    expect(scan?.['runs-on']).toBe("${{ (matrix.build || matrix.context) && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}");
   });
 
   it('may do what each job needs, and nothing else', () => {
@@ -822,7 +920,24 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
     expect(scan!.strategy?.matrix).toEqual({ include: '${{ fromJSON(needs.image-list.outputs.images) }}' });
     // A registry, or for a leg that built its image this runner's Docker
     // alone, so a build that left nothing is never read from a registry instead.
-    expect(scan!.env).toEqual({ TRIVY_PLATFORM: 'linux/arm64', TRIVY_IMAGE_SRC: "${{ matrix.build && 'docker' || 'remote' }}" });
+    expect(scan!.env).toEqual({ TRIVY_PLATFORM: 'linux/arm64', TRIVY_IMAGE_SRC: "${{ (matrix.build || matrix.context) && 'docker' || 'remote' }}" });
+  });
+
+  it('builds an image a script builds here, on its leg only and before Trivy, under the reference the script runs (#1675)', () => {
+    const trivy = scan!.steps.findIndex((s) => s.uses?.startsWith('aquasecurity/trivy-action@'));
+    // The checkout is shared with the tasks' leg (`matrix.build || matrix.context`); the build is this leg's alone.
+    const built = scan!.steps.filter((s) => s.if?.split(' || ').includes('matrix.context'));
+    expect(built, 'no step builds the image of a context leg').toHaveLength(2);
+    for (const step of built) expect(scan!.steps.indexOf(step), 'a build step after the scan').toBeLessThan(trivy);
+    expect(scan!.steps.slice(trivy).some((s) => s.if?.includes('matrix.context')), 'a build step after the scan').toBe(false);
+    expect(built[0]!.uses).toMatch(/^actions\/checkout@[0-9a-f]{40}$/);
+    expect(built[0]!.with?.['persist-credentials']).toBe(false);
+    expect(built[1]!.if).toBe('matrix.context');
+    expect(built[1]!.env).toEqual({ CONTEXT: '${{ matrix.context }}', REF: '${{ matrix.ref }}' });
+    expect(built[1]!.run).toMatch(/^set -euo pipefail$/m);
+    expect(built[1]!.run).toContain('docker build --pull --platform "$TRIVY_PLATFORM" --tag "$REF" "$CONTEXT"');
+    // Every other step runs on every leg, or on the tasks' leg alone (the test of the tasks' build).
+    expect(scan!.steps.filter((s) => s.if && s.if !== 'always()' && s.if !== 'matrix.build' && !built.includes(s))).toEqual([]);
   });
 
   it('runs the same pinned trivy-action and the same named Trivy as the existing scan, as JSON, report only', () => {
@@ -849,10 +964,13 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
 
   it("builds the tasks' image before it scans it, on that leg alone, from the deploy config itself", () => {
     const trivyAt = scan!.steps.findIndex((s) => s.uses?.startsWith('aquasecurity/trivy-action@'));
-    const before = scan!.steps.slice(0, trivyAt);
-    // Every step before the scan is the build's, and runs only where the list asked for one.
+    // Every step before the scan is a build's (this one's, or a script's image's,
+    // the checkout shared), and runs only where the list asked for one.
+    for (const step of scan!.steps.slice(0, trivyAt)) {
+      expect(['matrix.build', 'matrix.context', 'matrix.build || matrix.context'], `${step.name ?? step.uses} runs on every leg`).toContain(step.if);
+    }
+    const before = scan!.steps.slice(0, trivyAt).filter((s) => s.if?.split(' || ').includes('matrix.build'));
     expect(before.length).toBeGreaterThan(0);
-    for (const step of before) expect(step.if, `${step.name ?? step.uses} runs on every leg`).toBe('matrix.build');
     for (const step of scan!.steps.slice(trivyAt)) expect(step.if ?? '', `${step.name ?? step.uses}`).not.toContain('matrix.build');
     expect(before.map((s) => s.uses?.split('@')[0] ?? s.run?.trim().split('\n')[0])).toEqual([
       'actions/checkout',
@@ -882,6 +1000,10 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
     expect(pnpm!.with?.package_json_file).toBe('src/package.json');
     expect(install!['working-directory']).toBe('src');
     expect(build!['working-directory']).toBe('src');
+    // A script's image is built from the same checkout, so from src/ too.
+    const scripted = scan!.steps.slice(0, trivyAt).filter((s) => s.if === 'matrix.context');
+    expect(scripted.length).toBeGreaterThan(0);
+    for (const step of scripted) expect(step['working-directory'], `${step.name ?? step.uses}`).toBe('src');
     expect(scan!.steps.filter((s) => s.uses?.startsWith('actions/checkout@')), 'one checkout, under src/').toHaveLength(1);
     // Every step from the scan on runs in the working directory every leg shares.
     for (const step of scan!.steps.slice(trivyAt)) expect(step['working-directory'], `${step.name ?? step.uses}`).toBeUndefined();
@@ -914,7 +1036,7 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
     expect(check.run).toContain('exit 1');
   });
 
-  it('the report job reads every report, keeps the issues, and fails on a missing one', () => {
+  it('the report job reads every report, keeps the issues (from main only, in the script), and fails on a missing one', () => {
     const run = report!.steps.find((s) => s.run?.includes('image-scan.mjs report'))!;
     expect(run.run?.trim()).toBe('node scripts/image-scan.mjs report image-reports --issue');
     expect(run.if).toBe('always()');
@@ -939,5 +1061,81 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
     }
     // And the first `runs-on: ${{` is still the existing job's.
     expect(WORKFLOW.indexOf('runs-on: ${{')).toBeLessThan(WORKFLOW.indexOf('  image-list:'));
+  });
+});
+
+// ------------------------------------- an image a script builds, on its PR -
+
+describe('an image a script builds is built on the pull request that changes it (#1675)', () => {
+  const FILE = '.github/workflows/script-images.yml';
+  const text = readFileSync(join(REPO_ROOT, FILE), 'utf8');
+  const wf = parseYaml(text) as {
+    on: Record<string, { paths?: string[]; branches?: string[] } | null>;
+    permissions?: Record<string, string>;
+    jobs: Record<string, Job & { 'timeout-minutes'?: number; strategy?: { 'fail-fast'?: boolean; matrix?: { context?: string[] } } }>;
+  };
+  // Every directory a script beside it builds a `localhost/<name>` image from:
+  // its literal `…IMAGE="localhost/<name>:…"`, the assignment image-scan.mjs
+  // reads. A directory a compose file builds holds a Dockerfile too, and is
+  // built on its pull request by images.yml, not here.
+  const contexts = [
+    ...new Set(
+      SCRIPT_DIRS.flatMap((dir) =>
+        readdirSync(join(REPO_ROOT, dir))
+          .filter((n) => n.endsWith('.sh'))
+          .flatMap((n) =>
+            [...readFileSync(join(REPO_ROOT, dir, n), 'utf8').matchAll(/^\s*(?:readonly\s+|export\s+|local\s+)?(?:[A-Z][A-Z0-9_]*_)?IMAGE=(["'])localhost\/([a-z0-9][a-z0-9._-]*)[:@]/gm)].map(
+              (m) => `${dir}/${m[2]}`,
+            ),
+          ),
+      ),
+    ),
+  ].sort();
+
+  it('finds the one there is, so the checks below are not vacuous', () => {
+    expect(contexts).toContain('deploy/compose/goaccess');
+    for (const context of contexts) expect(existsSync(join(REPO_ROOT, context, 'Dockerfile')), `${context}/Dockerfile`).toBe(true);
+  });
+
+  it('runs on a pull request that changes one of them, and on nothing else', () => {
+    expect(Object.keys(wf.on)).toEqual(['pull_request']);
+    expect(wf.on.pull_request?.branches, "no `branches:` filter (ci.yml's trigger block says why)").toBeUndefined();
+    const paths = wf.on.pull_request?.paths ?? [];
+    for (const context of contexts) expect(paths, `${context} is built by a script and not on its pull request`).toContain(`${context}/**`);
+    expect(paths).toContain(FILE);
+  });
+
+  it('builds every one of them, natively on arm64, from a checkout that keeps no credential, pushing nothing', () => {
+    expect(wf.permissions).toEqual({ contents: 'read' });
+    const jobs = Object.values(wf.jobs);
+    expect(jobs).toHaveLength(1);
+    const job = jobs[0]!;
+    expect(job['runs-on']).toBe('ubuntu-24.04-arm');
+    expect(job.permissions, 'the workflow grants contents: read and no job widens it').toBeUndefined();
+    expect(job['timeout-minutes']).toBeGreaterThan(0);
+    expect(job.strategy?.['fail-fast']).toBe(false);
+    expect([...(job.strategy?.matrix?.context ?? [])].sort()).toEqual(contexts);
+    const checkout = job.steps.find((s) => s.uses?.startsWith('actions/checkout@'));
+    expect(checkout?.uses).toMatch(/^actions\/checkout@[0-9a-f]{40}$/);
+    expect(checkout?.with?.['persist-credentials']).toBe(false);
+    const build = job.steps.find((s) => s.run?.includes('docker build'))!;
+    expect(build.env).toEqual({ CONTEXT: '${{ matrix.context }}' });
+    expect(build.run).toMatch(/^set -euo pipefail$/m);
+    expect(build.run).toMatch(/docker build --pull --progress=plain --platform linux\/arm64 --tag "\$ref" "\$CONTEXT"/);
+    expect(text, 'a build here pushes nothing and logs in nowhere').not.toMatch(/--push|docker login|login-action|secrets\./);
+  });
+
+  it("Dependabot moves each one's base in a pull request of its own, which that build covers", () => {
+    type Update = { 'package-ecosystem': string; directory?: string; directories?: string[]; groups?: unknown; 'commit-message'?: { prefix?: string } };
+    const updates = (parseYaml(readFileSync(join(REPO_ROOT, '.github/dependabot.yml'), 'utf8')) as { updates: Update[] }).updates;
+    const docker = updates.filter((u) => u['package-ecosystem'] === 'docker');
+    for (const context of contexts) {
+      const entries = docker.filter((u) => [...(u.directories ?? []), ...(u.directory ? [u.directory] : [])].includes(`/${context}`));
+      expect(entries, `${context}: one docker entry of Dependabot's`).toHaveLength(1);
+      const [entry] = entries;
+      expect(entry!.directories, `${context} shares a Dependabot entry, and so a pull request whose checks build only the apps' images`).toBeUndefined();
+      expect(entry!.directory).toBe(`/${context}`);
+      expect(entry!['commit-message']?.prefix).not.toBe('chore(images)');
+    }
   });
 });

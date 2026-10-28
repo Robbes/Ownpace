@@ -19,6 +19,9 @@ export declare const OWNPACE_IMAGES: string[];
 export declare const ISSUE_PREFIX: string;
 export declare const TASK_IMAGE: string;
 export declare const TASK_CONFIG: string;
+/** The only ref whose run keeps the issues: `refs/heads/main`. */
+export declare const ISSUES_REF: string;
+export declare const BUILT_HERE: string;
 
 /** One image to scan: one matrix leg, one SARIF category, one artifact, one issue title. */
 export interface ScanImage {
@@ -28,6 +31,8 @@ export interface ScanImage {
   floating: boolean;
   /** Set for an image the leg builds before it scans it: the local tag it builds under (workplan 0146 T10). */
   build?: string;
+  /** Set when no registry serves the image: the directory its leg builds it from (`deploy/compose/goaccess`). */
+  context?: string;
 }
 
 /** What one Trivy JSON report says. */

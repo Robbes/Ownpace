@@ -55,8 +55,10 @@
  *                      its registry names for that tag today; the
  *                      busybox copies in the scripts, www.yml's nginx against
  *                      apps/web/Dockerfile's, Stalwart's copies and its newest
- *                      v0.16.x, GoAccess, the Trivy the Security Scan runs,
- *                      and the cosign the workflows name, every copy together.
+ *                      v0.16.x, the GoAccess release site-visits.sh builds
+ *                      against upstream's git tags, the Trivy the Security
+ *                      Scan runs, and the cosign the workflows name, every
+ *                      copy together.
  *                      cosign-installer's default is a status line only. Any
  *                      other image a script in deploy/compose runs is not
  *                      compared; today that is only db-roles.sh's floating
@@ -138,6 +140,9 @@ export const REBUILD_NOTE =
 /** How Stalwart moves, said beside its line in the summary issue: AGENTS.md forbids moving it otherwise. */
 export const STALWART_RULE =
   "the owner's call: it moves only by docs/stalwart-integration-fix.md and ADR-0022, every copy together (AGENTS.md)";
+
+/** The visit count's GoAccess, built here (#1675). */
+export const GOACCESS_DOCKERFILE = 'deploy/compose/goaccess/Dockerfile';
 
 /** Every copy of the Stalwart pin. The fixture's Dockerfile may go; a missing file is skipped. */
 export const STALWART_FILES = [
@@ -814,13 +819,30 @@ export async function routineRows(repo, net) {
     return { pin: pin.join(' / '), newest, state, notes };
   }]);
 
-  // GoAccess: the visit count's image, two-part tags.
-  jobs.push(['allinurl/goaccess', 'deploy/compose/site-visits.sh', async () => {
+  // GoAccess: the visit count's image, built here since #1675 from the commit
+  // of a release (deploy/compose/goaccess/Dockerfile, whose Alpine Dependabot
+  // moves). So its release is compared with upstream's git tags, the two-part
+  // and the three-part alike (1.10.1 followed 1.10), and the name the script
+  // runs must be that release's.
+  jobs.push(['allinurl/goaccess', 'deploy/compose/site-visits.sh, deploy/compose/goaccess/Dockerfile', async () => {
     const ref = /GOACCESS_IMAGE="([^"]+)"/.exec(need(repo, 'deploy/compose/site-visits.sh'))?.[1];
     if (!ref) throw new Error('site-visits.sh names no GOACCESS_IMAGE');
-    const { repo: name, tag } = parseRef(ref);
-    const newest = newestLike(tag, await tagsFor(name));
-    return { pin: tag, newest, state: stateOf(tag, newest) };
+    const release = /^# GoAccess (v\d+(?:\.\d+)+)$/m.exec(need(repo, GOACCESS_DOCKERFILE))?.[1];
+    if (!release) throw new Error(`${GOACCESS_DOCKERFILE} names no GoAccess release ("# GoAccess v1.12") above the commit it builds`);
+    const { tag } = parseRef(ref);
+    if (`v${tag}` !== release) throw new Error(`site-visits.sh runs ${ref}, and ${GOACCESS_DOCKERFILE} builds GoAccess ${release}`);
+    const tags = tagsOf(await net.lsRemote('https://github.com/allinurl/goaccess'));
+    const candidates = [];
+    for (const shape of [release, `${release}.0`]) {
+      try {
+        candidates.push(newestLike(shape, tags));
+      } catch {
+        // No tag of that shape: the other shape still answers, and none at all fails below.
+      }
+    }
+    if (candidates.length === 0) throw new Error(`no tag shaped like ${release} was listed, so it cannot be called current`);
+    const newest = candidates.sort(compareParts).at(-1);
+    return { pin: release, newest, state: stateOf(release, newest) };
   }]);
 
   // Trivy: the binary the Security Scan runs, named or the action's default.

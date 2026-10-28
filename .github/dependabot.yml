@@ -101,6 +101,26 @@ updates:
     commit-message:
       prefix: chore(images)
 
+  # The visit count's GoAccess (deploy/compose/goaccess/Dockerfile), built on
+  # Alpine because upstream's image is on one past its end of life (#1675). An
+  # entry of its own, so its pull request carries nothing else: the block
+  # above groups minor and patch across its directories, and its pull
+  # request's checks build the apps' images, never this one. This pull
+  # request's checks build it (.github/workflows/script-images.yml), on arm64
+  # as live's daily duty `visits` does from the tag that carries it. A new
+  # Alpine line (3.24 to 3.25) is a minor and comes here too: read Alpine's
+  # release notes for it before merging.
+  - package-ecosystem: docker
+    directory: "/deploy/compose/goaccess"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: chore(goaccess)
+
   # The self-host stack's images (workplan 0119 T1). Dependabot's compose fetcher
   # reads only the files directly in a directory whose names match
   # `(docker-)?compose(-\w+)?(\.[\w-]+)?\.ya?ml`, so `deploy/compose` is not

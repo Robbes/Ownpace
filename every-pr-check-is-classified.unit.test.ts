@@ -71,6 +71,14 @@ const NOT_REQUIRABLE = new Map([
       'itself, the integration setup, the suite finder), so on any other PR it is never reported; ' +
       'a red run is a finding about the other major, for the owner, not a merge gate.',
   ],
+  // script-images.yml (#1675): builds an image a script builds for itself, on a
+  // pull request that changes its directory, and on no other.
+  [
+    'Build (${{ matrix.context }})',
+    'script-images.yml carries a `paths:` filter on its pull_request trigger (the directories ' +
+      'of the images the scripts build), so on a PR touching none of them the workflow never ' +
+      'runs and the context is never reported.',
+  ],
   // security-scan.yml's image jobs (0146 T8, scan half). Their `if:` runs them on
   // schedule and workflow_dispatch only, so a pull request reports them skipped,
   // the matrix job under its unexpanded name. The scan is report-only by design:

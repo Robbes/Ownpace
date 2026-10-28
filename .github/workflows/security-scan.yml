@@ -415,7 +415,10 @@ jobs:
   # it for the report job, converts it with `trivy convert` (the binary
   # trivy-action put on the PATH) and uploads the SARIF. The report job warns,
   # writes a summary line, and keeps one issue open per image past its end of
-  # life, closed when that ends.
+  # life, closed when that ends: from a run on main only (the schedule, or a
+  # dispatch on main). A dispatch on a pull request's branch scans the images
+  # that branch brings, and would close an issue for a fix main does not have
+  # yet (#1675, 2026-10-25), so its report says so and touches no issue.
   #
   # ONE CATEGORY PER IMAGE, AND WHAT THAT LEAVES BEHIND. Each upload is a
   # Trivy configuration of its own, `trivy-image-<name>`, which no pull request
@@ -446,6 +449,16 @@ jobs:
   # that reads the built stage closes the alerts it no longer has, and the ones
   # it still has keep their numbers and their triage.
   #
+  # AN IMAGE NO REGISTRY SERVES IS BUILT, NOT PULLED (#1675, 2026-10-25). A
+  # script's `localhost/<name>` image is built by that script from
+  # `<name>/Dockerfile` beside it (GoAccess: deploy/compose/site-visits.sh,
+  # because upstream's image is on an Alpine past its end of life), so the
+  # list gives its leg a `context`. That leg checks out this commit, builds the
+  # directory natively on GitHub's arm64 runner (free on a public repository;
+  # ci.yml's integration tests use it) under the reference the script runs,
+  # and Trivy reads it from that runner's Docker only. The name, and so the
+  # category and the issue, stays the image's short name (`goaccess`).
+  #
   # Step names differ from the job above on purpose: its guard finds them by
   # `indexOf`, and reads the first `runs-on:` expression in this file as the
   # runner condition, so these jobs come after it and name GitHub-hosted
@@ -472,7 +485,8 @@ jobs:
       # scripts name, the tasks' base image as the pinned Trigger.dev CLI names
       # it (with `build`, the tag its leg builds the deploy's stage under),
       # and Ownpace's three at `:edge` and at the newest release tag, which
-      # is what live runs: it builds the tag it deploys. See image-scan.mjs.
+      # is what live runs: it builds the tag it deploys; an image a script
+      # builds here carries its `context`. See image-scan.mjs.
       - name: List every image the stacks run
         id: list
         run: node scripts/image-scan.mjs list >> "$GITHUB_OUTPUT"
@@ -481,11 +495,12 @@ jobs:
     name: Image scan (${{ matrix.name }})
     needs: image-list
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.image_scans)
-    # A leg that builds its image builds it for the platform scanned, on
-    # GitHub's arm64 runner (free on a public repository, as ci.yml's
-    # integration tests use it): no emulation, no setup actions. Every other
-    # leg reads its image from the registry, from amd64.
-    runs-on: ${{ matrix.build && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    # A leg that builds its image (the tasks' `build`, a script's `context`)
+    # builds it for the platform scanned, on GitHub's arm64 runner (free on a
+    # public repository, as ci.yml's integration tests use it): no emulation,
+    # no setup actions. Every other leg reads its image from the registry,
+    # from amd64.
+    runs-on: ${{ (matrix.build || matrix.context) && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -503,14 +518,19 @@ jobs:
       # never be read from a registry instead. Ownpace's images are public, so
       # no login.
       TRIVY_PLATFORM: linux/arm64
-      TRIVY_IMAGE_SRC: ${{ matrix.build && 'docker' || 'remote' }}
+      TRIVY_IMAGE_SRC: ${{ (matrix.build || matrix.context) && 'docker' || 'remote' }}
     steps:
-      # THE TASKS' IMAGE, BUILT AS A DEPLOY BUILDS IT (the comment above
-      # image-list). These five steps run on that leg only. The workspace is
-      # installed because the Containerfile comes from running the deploy
-      # config's own build extensions, as the CLI does, so nothing here repeats
-      # an instruction or a version. The build pulls the base by its digest and
-      # the API image's Node image by its digest, and reaches Debian's archive.
+      # THE TASKS' IMAGE, BUILT AS A DEPLOY BUILDS IT, AND AN IMAGE ITS SCRIPT
+      # BUILDS (the two comments above image-list). The checkout runs on both
+      # kinds of leg; the next four steps on the tasks' leg only, the last one
+      # before the scan on a script's leg only. The workspace is installed
+      # because the Containerfile comes from running the deploy config's own
+      # build extensions, as the CLI does, so nothing here repeats an
+      # instruction or a version. The tasks' build pulls the base by its digest
+      # and the API image's Node image by its digest, and reaches Debian's
+      # archive; a script's build pulls its Dockerfile's bases by their digests
+      # and reaches the package mirrors and the source it names, as the
+      # script's own build does on the machine.
       #
       # The checkout goes to `src/`, never to the working directory, which the
       # Trivy step and `trivy convert` share with every other leg: there Trivy
@@ -519,7 +539,7 @@ jobs:
       # findings from this leg's SARIF alone, and code scanning would call them
       # fixed. image-scan.mjs finds the repository from its own path.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: matrix.build
+        if: matrix.build || matrix.context
         with:
           persist-credentials: false
           path: src
@@ -551,6 +571,16 @@ jobs:
           cat "$context/Containerfile"
           docker build --pull --platform "$TRIVY_PLATFORM" --tag "$TAG" --file "$context/Containerfile" "$context"
           docker image inspect --format '{{.Os}}/{{.Architecture}} {{.Id}}' "$TAG"
+      - name: Build the image its script builds, from its Dockerfile here
+        if: matrix.context
+        working-directory: src
+        env:
+          CONTEXT: ${{ matrix.context }}
+          REF: ${{ matrix.ref }}
+        run: |
+          set -euo pipefail
+          docker build --pull --platform "$TRIVY_PLATFORM" --tag "$REF" "$CONTEXT"
+          docker image inspect --format '{{.Os}}/{{.Architecture}} {{.Id}}' "$REF"
 
       - name: Scan the image with Trivy (JSON)
         id: image_trivy
@@ -677,6 +707,8 @@ jobs:
       # Every listed image against its report: a missing one is an ::error::
       # and fails the run; one past its end of life is a ::warning::, a line
       # in the summary and an issue; findings are counted and fail nothing.
+      # `--issue` keeps the issues on main only: the script reads GITHUB_REF
+      # (image-scan.mjs, ISSUES_REF), and on any other ref says it kept none.
       - name: Every image has a report, and one issue per image past its end of life
         if: always()
         env:

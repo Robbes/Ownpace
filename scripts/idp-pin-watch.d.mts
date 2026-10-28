@@ -19,6 +19,7 @@ export declare const COMPARED_ELSEWHERE: Record<string, string>;
 export declare const STALWART_RULE: string;
 export declare const REBUILD_NOTE: string;
 export declare const STALWART_FILES: string[];
+export declare const GOACCESS_DOCKERFILE: string;
 export declare const TASK_OVERLAY: RegExp;
 export declare const COSIGN_FILES: string[];
 

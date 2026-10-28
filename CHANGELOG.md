@@ -34,6 +34,25 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   today's lines. It ships ahead of alpha.4's Trigger.dev images built here,
   whose lines name no upstream image: a deploy of those is judged by the
   script that runs before it.
+- **The site's visit count builds GoAccess 1.12 on Alpine 3.24, because
+  upstream's image is on Alpine 3.20, past its end of life** (workplan 0152,
+  #1675): no upstream release has moved off 3.20, and Alpine's own package is
+  1.10.2. `site-visits.sh` now builds `deploy/compose/goaccess/Dockerfile`,
+  upstream's own at `v1.12` on `alpine:3.24.3` by tag and digest, from the
+  commit the tag names and with only the libraries GoAccess loads, as
+  `localhost/goaccess:1.12` at the start of each run, and never pulls it. The
+  first run after the deploy that brings it builds for a few minutes and needs
+  Docker Hub, Alpine's package mirrors and `github.com`; a build that fails
+  reads no log and fails the duty `visits`. A pull request that changes that
+  directory builds it on an arm64 runner (the new *Images the scripts build*,
+  `.github/workflows/script-images.yml`), and Dependabot moves its Alpine pin
+  in a pull request of its own, which that build covers. The weekly image scan
+  builds it too and scans it under the name it had, `goaccess`, so #1675
+  closes on the first scan on `main` that reads it: the scan's report now
+  keeps its issues from a run on `main` only, so a scan dispatched on a pull
+  request's branch reports what it found and opens or closes no issue. The
+  pin watch compares the GoAccess release it builds with upstream's tags, a
+  three-part patch release included.
 
 ### Added
 

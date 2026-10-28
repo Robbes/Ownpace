@@ -27,7 +27,12 @@
  *             - every image a script in deploy/compose or deploy/selfhost
  *               names in a literal `…IMAGE=` assignment (GoAccess, Stalwart
  *               for the demo, db-roles.sh's client), deduplicated against
- *               the compose files of its stack;
+ *               the compose files of its stack. One named `localhost/<name>`
+ *               is built by its script from `<name>/Dockerfile` beside it, and
+ *               no registry serves it (GoAccess since #1675: upstream's image
+ *               is on an Alpine past its end of life), so its leg builds that
+ *               directory for linux/arm64 and scans what it built
+ *               (`context`); the Dockerfile must be there;
  *             - the tasks' image, which no file here names: the base image
  *               the pinned Trigger.dev CLI names for the tasks' runtime (the
  *               pin watch's `cliBaseImage`), with the layers a deploy adds
@@ -44,7 +49,10 @@
  *           image whose operating system Trivy calls past its end of life
  *           (`.Metadata.OS.EOSL`, which only the JSON report carries; SARIF
  *           never shows it) gets a `::warning::`, a line in the job summary,
- *           and one issue, kept open while it lasts and closed when it ends.
+ *           and one issue, kept open while it lasts and closed when it ends,
+ *           by a run on main only (`ISSUES_REF`): a run dispatched on a pull
+ *           request's branch scans that branch's images, and its report says
+ *           what it found and touches no issue.
  *           Findings fail nothing: a CVE published upstream on a Sunday
  *           cannot turn main red. They go to code scanning as SARIF, one
  *           category per image.
@@ -152,10 +160,21 @@ export const TASK_CONFIG = 'apps/worker/trigger.config.ts';
 /** Every image issue's title starts with this, and ends with the image's name. */
 export const ISSUE_PREFIX = "An image's operating system is past its end of life: ";
 
+/**
+ * The only ref whose run keeps the issues: main, where the schedule runs and
+ * where the stacks take their images from. A run dispatched on a pull
+ * request's branch scans the images that branch would bring, so its report
+ * would close an issue for a fix main does not have yet, or open one for an
+ * image main does not run (#1675 would have closed on a dispatch of the
+ * branch that fixes it, before its merge, and the next Monday on main would
+ * have opened it again under a new number).
+ */
+export const ISSUES_REF = 'refs/heads/main';
+
 /** What the report reads for a summary: the two severities the scan asks for. */
 const SEVERITIES = ['CRITICAL', 'HIGH'];
 
-/** A literal image in a script: `GOACCESS_IMAGE="allinurl/goaccess:1.12@sha256:…"`. */
+/** A literal image in a script: `GOACCESS_IMAGE="localhost/goaccess:1.12"`, `IMAGE="stalwartlabs/stalwart:v0.16.10"`. */
 const SCRIPT_IMAGE = /^\s*(?:readonly\s+|export\s+|local\s+)?(?:[A-Z][A-Z0-9_]*_)?IMAGE=(["'])([a-z0-9][^"'\s$]*)\1\s*(?:#.*)?$/gm;
 
 const need = (repo, rel) => {
@@ -192,6 +211,9 @@ export function newestReleaseTag(lsRemote) {
   return versions.sort(compareSemVer).at(-1);
 }
 
+/** The registry no image is pulled from: a script's image named under it is built from a Dockerfile here. */
+export const BUILT_HERE = 'localhost/';
+
 /** The images a script names literally, each with its line. */
 function scriptImages(text) {
   const images = [];
@@ -201,6 +223,21 @@ function scriptImages(text) {
     images.push({ line: text.slice(0, m.index).split('\n').length, ...image });
   }
   return images;
+}
+
+/**
+ * Where a script's `localhost/<name>` image is built from: `<name>/` beside the
+ * script, which must hold a Dockerfile. Any other image is pulled: null.
+ */
+function buildContext(repo, dir, image) {
+  if (!image.repo.startsWith(BUILT_HERE)) return null;
+  const name = image.repo.slice(BUILT_HERE.length);
+  if (!/^[a-z0-9][a-z0-9._-]*$/.test(name)) throw new Error(`${image.ref} names no directory a Dockerfile could be in`);
+  const context = `${dir}/${name}`;
+  if (repo.read(`${context}/Dockerfile`) === null) {
+    throw new Error(`${image.ref} is built from ${context}/Dockerfile, which is not in this checkout: no registry serves it, so nothing could scan it`);
+  }
+  return context;
 }
 
 /**
@@ -215,17 +252,17 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
   // Once per stack and reference: one reference both stacks run is two scans,
   // so neither name moves when two pins converge.
   const byStackRef = new Map();
-  const add = (image, where) => {
+  const add = (image, where, context = null) => {
     if (image.repo.startsWith(ownpace)) return;
     const stack = stackOf(where);
     const key = `${stack}\n${image.ref}`;
-    if (!byStackRef.has(key)) byStackRef.set(key, { ...image, stack, where: [] });
+    if (!byStackRef.has(key)) byStackRef.set(key, { ...image, stack, context, where: [] });
     if (!byStackRef.get(key).where.includes(where)) byStackRef.get(key).where.push(where);
   };
   for (const file of SCAN_FILES) for (const image of readImages(need(repo, file))) add(image, file);
   for (const dir of SCRIPT_DIRS) {
     for (const name of repo.list(dir).filter((n) => n.endsWith('.sh')).sort()) {
-      for (const image of scriptImages(need(repo, `${dir}/${name}`))) add(image, `${dir}/${name}`);
+      for (const image of scriptImages(need(repo, `${dir}/${name}`))) add(image, `${dir}/${name}`, buildContext(repo, dir, image));
     }
   }
 
@@ -242,6 +279,8 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
     const base = stacks.get(short(image)).size > 1 ? `${short(image)}-${image.stack}` : short(image);
     const name = taken.has(base) ? `${base}-${basename(image.where[0]).replace(/\.(ya?ml|sh)$/, '')}` : base;
     taken.add(base);
+    // A built image's pins are its Dockerfile's, so its tag does not float.
+    if (image.context) return { name, ref: image.ref, where: image.where.join(', '), floating: false, context: image.context };
     return { name, ref: image.ref, where: image.where.join(', '), floating: isFloating(image) };
   });
 
@@ -417,7 +456,9 @@ export function eoslIssue(image, report) {
   const body = [
     `\`${image.ref}\` (${image.where}) runs on **${os}**, which its distribution no longer supports: Trivy's report for it says \`EOSL\`, end of service life. Its packages get no more security fixes, so what the scan finds in them from now on stays open whatever else moves.`,
     '',
-    'The way out is the same image on a supported base: a newer tag of it once upstream has moved its base, or another variant of it. The pin watch (`.github/workflows/idp-pin-watch.yml`) says when a newer tag exists. The move goes in a pull request like any pin, with its release notes read; an image of `managed.yml` takes E2E (managed) dispatched on its branch, and live takes it from a release tag. A major is the owner\'s call.',
+    image.context
+      ? `This image is built here, from \`${image.context}/Dockerfile\`, and its base is the \`FROM\` there. The way out is a supported base in that file, by exact tag and digest. Dependabot moves that pin, a new line of the base included, in a pull request of its own (\`.github/dependabot.yml\`), and the pull request's checks build the image; read the base's release notes before merging it. Live takes it from a release tag. A major is the owner's call.`
+      : 'The way out is the same image on a supported base: a newer tag of it once upstream has moved its base, or another variant of it. The pin watch (`.github/workflows/idp-pin-watch.yml`) says when a newer tag exists. The move goes in a pull request like any pin, with its release notes read; an image of `managed.yml` takes E2E (managed) dispatched on its branch, and live takes it from a release tag. A major is the owner\'s call.',
     ...(image.floating
       ? ['', 'The tag floats, so this is the image its registry serves today, which need not be the one the box pulled last.']
       : []),
@@ -465,7 +506,7 @@ export function summarize(images, readFile) {
       annotations.push(`::warning::${image.name}: ${shortRef(image.ref)} runs ${report.os}, past its end of life (Trivy: EOSL). An issue is kept open for it.`);
     }
     rows.push(
-      `| \`${image.name}\` | \`${shortRef(image.ref)}\`${image.floating ? ' (floats)' : ''}${image.build ? ' (built on)' : ''} | ${report.os ?? 'not detected'} | ${report.eosl ? '**past its end of life**' : 'supported'} | ${report.critical} | ${report.high} | ${report.fixable} |`,
+      `| \`${image.name}\` | \`${shortRef(image.ref)}\`${image.floating ? ' (floats)' : ''}${image.build ? ' (built on)' : ''}${image.context ? ` (built from \`${image.context}\`)` : ''} | ${report.os ?? 'not detected'} | ${report.eosl ? '**past its end of life**' : 'supported'} | ${report.critical} | ${report.high} | ${report.fixable} |`,
     );
   }
   const eosl = read.filter((r) => r.report.eosl).length;
@@ -478,7 +519,7 @@ export function summarize(images, readFile) {
     '|---|---|---|---|---|---|---|',
     ...rows,
     '',
-    'A floating tag is scanned as its registry serves it today, which need not be what the box pulled last. The platform scanned is the one the stacks run on, linux/arm64.',
+    'A floating tag is scanned as its registry serves it today, which need not be what the box pulled last. An image built here is scanned as its Dockerfile builds today, which need not be what the box built last. The platform scanned is the one the stacks run on, linux/arm64.',
     ...(images.some((i) => i.build)
       ? [
           '',
@@ -569,7 +610,11 @@ async function main(argv, env) {
     console.log(summary.lines.join('\n'));
     if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${summary.lines.join('\n')}\n`);
     let failed = summary.missing.length > 0;
-    if (rest.includes('--issue')) {
+    if (rest.includes('--issue') && env.GITHUB_REF !== ISSUES_REF) {
+      const line = `Issues are kept by a run on main only. This run is on ${env.GITHUB_REF || 'no ref'}, so no issue was opened, updated or closed.`;
+      console.log(`issue, none: ${line}`);
+      if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `\n${line}\n`);
+    } else if (rest.includes('--issue')) {
       const gh = (args) => execFileSync('gh', args, { encoding: 'utf8' });
       try {
         for (const line of keepIssues(images, summary, gh)) console.log(`issue, ${line}`);

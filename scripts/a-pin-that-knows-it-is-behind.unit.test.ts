@@ -51,6 +51,7 @@ import {
   COSIGN_FILES,
   ISSUE_TITLE,
   STALWART_FILES,
+  GOACCESS_DOCKERFILE,
   TASK_OVERLAY,
   TITLES,
   WINDOW_DAYS,
@@ -612,6 +613,9 @@ const COSIGN_NAMED = COSIGN_STEPS[0]?.with['cosign-release'];
 const cosignDefault = (): Record<string, string> =>
   Object.fromEntries(COSIGN_FILES.map((file) => [file, REAL.read(file)!.replace(/\n( +)with:\n(?:\1 {2}#.*\n)*\1 {2}cosign-release: .*(?=\n)/g, '')]));
 
+/** The GoAccess release `deploy/compose/goaccess/Dockerfile` builds (#1675), read from its own line. */
+const GOACCESS_RELEASE = /^# GoAccess (v\d+(?:\.\d+)+)$/m.exec(REAL.read(GOACCESS_DOCKERFILE) ?? '')?.[1] ?? 'no release named';
+
 /**
  * Every tag list answered with the pin itself, plus one newer tag for each of
  * `newer`; and a digest-only pin's tag answered with its own digest, or with
@@ -626,7 +630,6 @@ function registry(newer: Record<string, string> = {}): Stubs {
       if (image.digest) digests.set(`${registryOf(image.repo).name}:${image.tag}`, image.digest);
     }
   }
-  for (const m of REAL.read('deploy/compose/site-visits.sh')!.matchAll(/GOACCESS_IMAGE="allinurl\/goaccess:([^@"]+)/g)) pins.set('allinurl/goaccess', [m[1]!]);
   for (const file of STALWART_FILES) for (const m of (REAL.read(file) ?? '').matchAll(/stalwartlabs\/stalwart:(v[\d.]+)/g)) pins.set('stalwartlabs/stalwart', [m[1]!]);
   return {
     json: [
@@ -648,6 +651,8 @@ function registry(newer: Record<string, string> = {}): Stubs {
     ],
     lsRemote: {
       'https://github.com/aquasecurity/trivy': lsRemote('v0.70.0', ...(TRIVY_NAMED ? [TRIVY_NAMED] : []), ...(newer.trivy ? [newer.trivy] : [])),
+      // GoAccess's releases as upstream tags them, two parts and three, up to the one the Dockerfile builds.
+      'https://github.com/allinurl/goaccess': lsRemote('v1.9.4', 'v1.10', 'v1.10.2', GOACCESS_RELEASE, ...(newer.goaccess ? [newer.goaccess] : [])),
       'https://github.com/sigstore/cosign': lsRemote('v3.0.6', ...(COSIGN_NAMED ? [COSIGN_NAMED] : []), ...(newer.cosign ? [newer.cosign] : [])),
     },
   };
@@ -743,6 +748,22 @@ describe('the routine pins, in one summary issue', () => {
 
   /** AGENTS.md: "Never change the pinned Stalwart version". The issue says whose call it is. */
   const STALWART_RULE = "the owner's call: it moves only by docs/stalwart-integration-fix.md and ADR-0022, every copy together (AGENTS.md)";
+
+  it("compares the GoAccess release the visit count builds with upstream's git tags, two-part and three-part, and holds the image's name to it (#1675)", async () => {
+    expect(GOACCESS_RELEASE).toMatch(/^v\d+\.\d+/);
+    const current = (await routineRows(REAL, fakeNet(registry()))).rows.find((r) => r.name === 'allinurl/goaccess')!;
+    expect(current).toMatchObject({ state: 'current', pin: GOACCESS_RELEASE, newest: GOACCESS_RELEASE });
+    // A patch release has three parts where the pin has two: it is still newer.
+    const patch = `${GOACCESS_RELEASE}.1`;
+    const behind = (await routineRows(REAL, fakeNet(registry({ goaccess: patch })))).rows.find((r) => r.name === 'allinurl/goaccess')!;
+    expect(behind).toMatchObject({ state: 'behind', newest: patch });
+    // The name the script runs is the release the Dockerfile builds.
+    const script = REAL.read('deploy/compose/site-visits.sh')!.replace(/^(GOACCESS_IMAGE="[^:"]+:)[^"]+"$/m, '$19.9"');
+    expect(script).not.toBe(REAL.read('deploy/compose/site-visits.sh'));
+    const mismatch = (await routineRows(withFiles({ 'deploy/compose/site-visits.sh': script }), fakeNet(registry()))).rows.find((r) => r.name === 'allinurl/goaccess')!;
+    expect(mismatch.state).toBe('error');
+    expect(mismatch.error).toMatch(/builds GoAccess v/);
+  });
 
   it('names the rule Stalwart moves by, in the summary issue, beside its line', async () => {
     const { rows, status } = await routineRows(REAL, fakeNet(registry({ 'stalwartlabs/stalwart': 'v0.16.999' })));
