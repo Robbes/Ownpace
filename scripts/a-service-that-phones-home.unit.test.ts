@@ -84,11 +84,13 @@
  *    when one is configured, and the HTML check, link check and screenshot
  *    proxy fetch what a caught message names only when its API is asked for
  *    them; none of those files changed either.
- *  - NEXTCLOUD (34, the demo's DAV target on the OTA stack every night, and the
- *    development one) sends its version, PHP version and install time to
+ *  - NEXTCLOUD (35 since the demo's move, workplan 0119 T5, 34 before; the
+ *    demo's DAV target on the OTA stack every night, and the development one)
+ *    sends its version, PHP version and install time to
  *    `updates.nextcloud.com`, asks `apps.nextcloud.com` for the app store, the
  *    announcements feed at `pushfeed.nextcloud.com`, and four public sites for
- *    a connectivity check (`config/config.sample.php` at `stable34`:
+ *    a connectivity check (`config/config.sample.php` at `stable34`, and again
+ *    at `v35.0.2`:
  *    `updatechecker`, `appstoreenabled` and `has_internet_connection` all
  *    true). `has_internet_connection` false is what the announcements crawler,
  *    the connectivity check and the lookup-server upload each read
@@ -111,9 +113,10 @@
  *    where a new report appears: Zitadel's ping arrived with v4. A row whose
  *    fact was read for a whole major line records that line instead, and is
  *    compared by repository and major: Caddy's (Caddy 2 has no telemetry) and
- *    Nextcloud's (read at `stable34`), whose images are pinned by tag and
- *    digest since 2026-10-22, so that a patch or a rebuild the pin watch asks
- *    for does not fail here, and another major still does. A switched
+ *    Nextcloud's (read at `stable34`, and at `v35.0.2` when the demo moved),
+ *    whose images are pinned by tag and digest since 2026-10-22, so that a
+ *    patch or a rebuild the pin watch asks for does not fail here, and another
+ *    major still does. A switched
  *    service takes nothing from `env_file` or `extends`, and no overlay, since
  *    neither is read here.
  *  - NO SWITCH: nothing in it reports home, and the row says why. It records the
@@ -557,8 +560,16 @@ const MINIO =
   'chainguard/minio:latest@sha256:268d68a2a3b6fc65f905a61f84d7eab6345ce6bff14f551e2b028ec31e6a1341';
 const MAILPIT =
   'axllent/mailpit:v1.32.0@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498';
-/** Read at `stable34` (config.sample.php and the two crawlers), so the line, not one patch of it. */
-const NEXTCLOUD = 'nextcloud:34';
+/**
+ * Read at `stable34` (config.sample.php and the two crawlers), so the line, not
+ * one patch of it; read again at `v35.0.2` and nextcloud_announcements'
+ * `stable35` on 2026-10-26, for the demo's move to 35 (workplan 0119 T5): the
+ * same three defaults, the same four sites, the same feed, and the same three
+ * readers of `has_internet_connection` (their diffs against 34 are a blank
+ * line, phpseclib 3's namespace and the global-scale check moved behind an
+ * interface).
+ */
+const NEXTCLOUD = 'nextcloud:35';
 /** The demo's Stalwart, outside every compose file; its fetches were read at this tag. */
 const STALWART = 'stalwartlabs/stalwart:v0.16.27';
 /**
@@ -573,7 +584,7 @@ const GOACCESS_COMMIT = 'ef3c4f3c3e42b378e705fb3a1a5ef1c2e72e6348';
 
 const NEXTCLOUD_PHONES =
   'its version and PHP version to updates.nextcloud.com, the app store at apps.nextcloud.com, the announcements feed and a ' +
-  'connectivity check to four public sites (config.sample.php, Crawler.php, InternetConnectivity.php at stable34); ' +
+  'connectivity check to four public sites (config.sample.php, Crawler.php, InternetConnectivity.php at stable34 and v35.0.2); ' +
   'updatechecker, appstoreenabled and has_internet_connection are not switched off yet: a hook that set them false made ' +
   "the demo's first CalDAV write answer 500 in E2E (managed) #215, and it holds fixtures, never a tester's data";
 

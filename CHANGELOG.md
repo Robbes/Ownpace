@@ -102,9 +102,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   three-part patch release included.
 - **The managed stack's databases, Redis, dashboard front and demo Nextcloud,
   and the web image's nginx, run by exact version and digest** (workplan 0119
-  §4, #1678): postgres 18.6, redis 7.4.11, caddy 2.11.7, nextcloud 34.0.5 and
-  nginx 1.31.8. They floated within their lines and nothing ever pulled them,
-  so each stack ran whatever copy its machine had pulled first. The next `up`
+  §4, #1678): postgres 18.6, redis 7.4.11, caddy 2.11.7, nextcloud 34.0.5
+  (35.0.2 since, below) and nginx 1.31.8. They floated within their lines and
+  nothing ever pulled them, so each stack ran whatever copy its machine had
+  pulled first. The next `up`
   pulls each digest and recreates its service, so each database restarts
   once; the site's nginx moves only when `www.yml` is brought up again.
   The dashboard's front overrides none of Caddy 2.11.7's new defaults: it
@@ -198,21 +199,31 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   #1716, in this release too), so the first task deploy after this one is
   the slow one. ClickHouse stays on 26.2,
   which Trigger.dev still pins.
+- **The demo, development and integration-test Nextcloud move to 35.0.2**
+  (workplan 0119 T5), by digest, from 34.0.5; the second-major leg moves to
+  34.0.5 in their place. Every suite that talks to Nextcloud had passed
+  against 35 first. On the OTA stack the move is one way: the first `up`
+  upgrades the demo's volume and its database in the stack's Postgres
+  (`occ upgrade`), and 34 refuses them afterwards. `docs/managed-bring-up.md`,
+  *A Nextcloud major on the OTA stack*, gives the order and the way back, and
+  the bring-up stops when the demo Nextcloud answers its healthcheck but is in
+  maintenance mode or still owes an upgrade, which the healthcheck cannot
+  tell. Live runs no Nextcloud. A developer's `dev.yml` Nextcloud upgrades its
+  volume on the next `up`.
 
 ### Added
 
-- **The suites that talk to Nextcloud also run against Nextcloud 35** (workplan
-  0119): `.github/workflows/nextcloud-second-major.yml` runs the WebDAV,
-  CalDAV, CardDAV, chunked-upload and share suites against
-  `nextcloud:35.0.2-apache`, pinned by digest, on a push to `main` that
-  touches their code, weekly, and on a pull request that changes the leg
-  itself; not on every pull request. A customer's own Nextcloud may already
-  run 35 while the demo stays on 34 until after the alpha.2 tag, since that
-  move is one way. The run fails when Nextcloud does not start, when the
-  server that answered is not the version the tag names, and when any test
-  skipped. The integration tier also gained its first suite for the share
-  verb against a real server: a user share, the listing that reads it back,
-  and a grantee the server does not know.
+- **The suites that talk to Nextcloud also run against the major the demo
+  does not run** (workplan 0119): `.github/workflows/nextcloud-second-major.yml`
+  runs the WebDAV, CalDAV, CardDAV, chunked-upload and share suites against
+  `nextcloud:34.0.5-apache`, pinned by digest (against `35.0.2-apache` until
+  the demo moved to 35, above), on a push to `main` that touches their code,
+  weekly, and on a pull request that changes the leg itself; not on every pull
+  request. A customer's own Nextcloud may run either major. The run fails when
+  Nextcloud does not start, when the server that answered is not the version
+  the tag names, and when any test skipped. The integration tier also gained
+  its first suite for the share verb against a real server: a user share, the
+  listing that reads it back, and a grantee the server does not know.
 - **Live proves an update by itself, and its owner can start one pass to see
   it** (workplan 0132 T9, #1724): every ten minutes live's box checks run
   `copy-before-update.sh delete-if-proven`. It deletes the copy before an
