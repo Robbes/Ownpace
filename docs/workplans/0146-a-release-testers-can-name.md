@@ -21,6 +21,156 @@ The OTA's Bitnami-era `minio_data` stays on disk until the owner removes it, aft
 `v0.2.0-alpha.2`, after the task runner's drain, starting empty. The CHANGELOG fold, the last
 merge before the two counted nights, carries it.
 
+**2026-10-25, build: T10, the image scan reads the tasks' image as a deploy builds it, a draft
+for alpha.3**, as draft #1700 on branch `claude/ownpace-public-readiness-y7orc6-tasks-image-scan`.
+Main is frozen from the alpha.2 fold to its tag; this merges after the tag. It changes the weekly
+image scan and nothing a stack runs, so no E2E reads it; the proof is a dispatch of Security Scan.
+
+- **What the leg reads now.** The leg named `trigger-task-base` builds the `base` stage of the
+  Containerfile a task deploy writes, and Trivy scans that. `scripts/image-scan.mjs containerfile
+  <base>` imports `apps/worker/trigger.config.ts`, runs its build extensions as the CLI does (every
+  `onBuildStart`, then every `onBuildComplete`, with `target: 'deploy'`) and writes
+  `FROM <base> AS base`, `ENV DEBIAN_FRONTEND=noninteractive` and each layer's
+  `image.instructions` in order: today the API image's Node copied over the base image's, and
+  `apt-get -y upgrade`. So nothing in the scan repeats an instruction or a version. The base is
+  still the one the list reads from the CLI that `apps/worker/package.json` pins, so the v4.8.1
+  branch moves it with no change here. The leg runs on `ubuntu-24.04-arm`, GitHub's arm64 runner
+  (free on a public repository, as ci.yml's integration tests already use it), so the build is
+  native for linux/arm64, the platform every leg scans; it installs the workspace first, because
+  the config imports `@trigger.dev/sdk`. Trivy reads the image from that runner's Docker alone
+  (`TRIVY_IMAGE_SRC` is `docker` on that leg), so a build that left nothing cannot be read from a
+  registry instead. Every other leg is as it was.
+- **The category stays `trivy-image-trigger-task-base`.** The name is kept and now means the
+  stage it is: the CLI's `base`, which every later stage starts from. The first image scan on
+  `main` after the merge (Monday's schedule, or a dispatch on `main`) uploads the built stage's
+  findings under it, and code scanning closes every alert that analysis no longer has. Nothing is
+  deleted by hand, and the release preflight's grouped note drops with it. The local tag is in the
+  base's own repository, `triggerdotdev/node:trigger-task-base-built` (`taskBuildTag`), never
+  pushed: Trivy's SARIF gives a Debian finding the image's repository as its location and no
+  fingerprint, so code scanning tells alerts apart by rule and location. The first draft's
+  `trigger-task-base:built` would have moved every Debian alert to `library/trigger-task-base`:
+  all of them closed on the first scan, fixed or not, and the unfixed ones opened again under new
+  numbers, their triage left behind (found in review). The base read 14
+  critical and 119 high on 2026-10-25 (Security Scan #4763), and the triage of 2026-10-23 worked
+  out from the base's report that the upgraded image would keep 2 critical and 87 high (T10's
+  row): the dispatch says what it reads. What stays: zlib1g's CVE-2023-45853, which has no fix,
+  and npm's own bundled packages under `/usr/local/lib/node_modules/npm`, tar 7.5.15's
+  CVE-2026-59873 the critical among them, since the layer copies only the Node binary.
+- **What it leaves out, and says so.** The CLI's two steps after the layers install nothing
+  (an `apt-get --fix-broken install` and the CA trust edits). The task code and the externals the
+  CLI installs with `npm i` (`pg`, `@electric-sql/pglite`) are npm packages: their own versions
+  are the ones installed here, which the repository scan of the lockfile reads, and what npm
+  resolves under them at a deploy neither scan reads. A layer with `image.pkgs` is refused, since
+  the CLI installs those in this stage; so is any throw in an extension, which the CLI would log
+  and deploy past. A deploy that the CLI's builder serves from its cache keeps the Debian packages
+  of the build that filled it, so the scan can read newer packages than a stack runs, as with a
+  floating tag; the summary says so under the table. The base is the CLI's own: an instance can
+  name others for its deploys (the webapp's `DEPLOY_BASE_IMAGES` and `DEPLOY_BUILD_BASE_IMAGES`),
+  and `managed.yml`, which hands its Trigger.dev services only the keys it lists, sets neither;
+  the guard holds that. The Containerfile has no `# syntax=` line, though the CLI's has one: it
+  would pull the floating `docker/dockerfile:1` frontend on every scan, and the stage needs
+  nothing beyond the builder's own.
+- **After the second review (2026-10-25).** The leg checks the repository out under `src/` and
+  installs and builds there. Trivy reads a `.trivyignore` and a `trivy.yaml` from its working
+  directory when trivy-action names neither (it sets `TRIVY_IGNOREFILE` and `TRIVY_CONFIG` only
+  when asked), and the Trivy step and `trivy convert` run in `$GITHUB_WORKSPACE`, which on this
+  leg alone was the repository's root: a file there would have dropped findings from this leg's
+  SARIF, and code scanning would have called them fixed. Neither file exists today; reproduced
+  with Trivy v0.76.1's `trivy convert` on a one-finding report. A failed install or build is now
+  named in the leg's last step (the `install` and `build` outcomes, counted only when `failure`
+  or `cancelled`, since the other legs skip both), where before it read only as the Trivy step
+  ended `skipped`. And the guard holds the three jobs' `if:` whole: it held them to contain the
+  condition, which `github.event_name == 'pull_request' || <the condition>` also does.
+- **Read for this:** trigger.dev 4.7.6's npm tarball, `dist/esm/deploy/buildImage.js`
+  (`generateNodeContainerfile`, `parseGenerateOptions`, `BASE_IMAGE`) and
+  `dist/esm/build/extensions.js` (the order the hooks run in, and `onBuildComplete`'s errors
+  logged, not thrown) and `dist/esm/commands/deploy.js` (`applyServerBaseImages`, with
+  `supportsInstanceBaseImages: true`); the webapp's `apps/webapp/app/env.server.ts` at v4.7.6
+  (`DEPLOY_BASE_IMAGES`, `DEPLOY_BUILD_BASE_IMAGES`); trivy-action v0.36.0's `action.yaml` and `entrypoint.sh` (`image-ref` is
+  the positional reference, `TRIVY_IMAGE_SRC` passes through), and Trivy v0.76.1's
+  `pkg/fanal/image/daemon.go` (an image from Docker is inspected by name, `--platform` not
+  consulted) and `pkg/report/sarif.go` (`ToPathUri`: an operating-system finding's location is
+  the image's repository, with Docker Hub's `library/` for a one-part name). GitHub's changelog of 2025-08-07: arm64 hosted runners are generally available
+  and free in public repositories.
+- **Proved here:** `scripts/an-image-nobody-scanned.unit.test.ts`, 43 tests, among them the
+  built stage against the config's own layers, the CLI's hook order, the refusals, the command
+  line under plain Node, a pin move of the SDK that keeps the name and the build tag, the
+  build tag's SARIF location against the base's (Trivy's rule written out, with the first
+  draft's tag as its vacuity case), `managed.yml` naming no instance base image, and the
+  workflow's five build steps on that leg alone. Each of three mutations of `image-scan.mjs`
+  (hooks interleaved, the `pkgs` refusal gone, the `build` field gone) failed exactly its case in
+  the first draft, and each of three after the review does in this one (the first draft's tag
+  back, the `# syntax=` line back, a `DEPLOY_BASE_IMAGES` in `managed.yml`). After the second
+  review, each of five mutations of the workflow fails exactly one case: the checkout back at the
+  root, the Trivy step moved into `src/`, a pull request added to the scan's `if:` and to the
+  report's, and the install's outcome dropped from the last step.
+  Not proved here: the leg itself. No workflow was dispatched from this session; a dispatch of
+  Security Scan on this branch with `image_scans` on runs it, and its SARIF goes to the branch's
+  ref, not `main`'s.
+- **One-way:** none. Reverting restores the base-image scan, and its next upload under the same
+  category reopens what the base has.
+
+**2026-10-25, build: the cosign that signs and checks the images is named, v3.1.4, where
+cosign-installer's default gave v3.0.6, a draft for alpha.3**, as draft #1702 on branch
+`claude/ownpace-public-readiness-y7orc6-dependabot-invisible-pins`. Main is frozen from the alpha.2
+fold to its tag; this merges after the tag. #1671 listed it under *Also known*: *"cosign:
+cosign-installer v4.1.2 installs v3.0.6 (its default), and the newest cosign is v3.1.4"*. Its two
+other rows, Mailpit and Stalwart, are T11 (a) and (b), each on its own branch.
+- **The pin.** `cosign-release: 'v3.1.4'` in `images.yml`'s *Install cosign* step, whose cosign
+  signs every published image by digest, and in `release.yml`'s verify job, whose cosign checks
+  those signatures. Nothing would have moved it: v4.1.2 is cosign-installer's newest release and
+  still installs v3.0.6, and its main branch says v3.1.3, unreleased. Dependabot moves the
+  installer, never an input.
+- **The watch.** A named cosign is a pin nothing else moves, as Trivy's is, so
+  `idp-pin-watch.mjs` reads it as a routine row from both files (`COSIGN_FILES`), held together
+  (*the copies disagree* when they do), against cosign's tags of its major. Left to the
+  installer's default it stays the status line it was. Run on the branch,
+  `node scripts/idp-pin-watch.mjs` reads *"cosign v3.1.4 v3.1.4 current"* and prints no status
+  line. `a-pin-that-knows-it-is-behind` gains three cases and changes three; with `release.yml`
+  set back to v3.1.3 six fail.
+- **Read:** cosign's release notes from v3.0.6 to v3.1.4. v3.1.0 was never published and
+  v3.1.1 is identical to it: signing runs through sigstore-go, the protobuf bundle (the default
+  since v3.0) is the format for signing and verifying, and flags for trust material given by
+  hand are deprecated. v3.1.2 deprecates `--payload`; v3.1.3 fixes GHSA-fx35-mq7g-6g98; v3.1.4
+  deprecates `--use-signing-config` and fixes signing and verify bugs. The workflows use
+  `cosign sign --yes` on a digest and `cosign verify` with an identity or identity regexp and
+  the OIDC issuer, and neither form is deprecated. GHSA-fx35-mq7g-6g98 (high, up to v3.1.2) is
+  a bypass of `verify-blob` with a legacy JSON bundle. The advisory says `cosign verify` of a
+  container image and the protobuf bundle are not affected, so this is routine and not a
+  security move here.
+- **What naming the release costs.** Left to its default, cosign-installer checks the v3.0.6
+  binary against a hash its `action.yml` carries. With a release named, it downloads v3.1.4 and
+  checks it with the bootstrap v3.0.6's `verify-blob --bundle`, once keyless and once with
+  `--key` (`action.yml` at the pinned commit). v3.0.6 reads any bundle that is not a protobuf
+  one as a legacy bundle (`checkNewBundle` in `cmd/cosign/cli/verify/verify_bundle.go`), and
+  that is the path GHSA-fx35-mq7g-6g98 covers: a crafted legacy bundle skips the identity
+  check, and its embedded key replaces `--key`. So that check is weaker than the hash, in front
+  of a job that holds `packages: write` and `id-token: write`. What holds it is that v3.1.4 is
+  an immutable release (its page: *"Immutable release. Only release title and notes can be
+  modified."*), so its assets cannot be swapped after publication, and its binary was checked
+  here against `cosign_checksums.txt`. A hash check of our own after the installer was not
+  added: the sign step does not run on a pull request, so a later move of the release that
+  missed the hash would fail only on `main`, after the images are pushed unsigned.
+- **Waited for.** v3.1.4 was published 2026-10-20 at 18:27:42 UTC (the release feed's
+  `updated`; its assets' `Last-Modified` is 18:02 to 18:04 UTC), three days old on 2026-10-23
+  at 18:27 UTC.
+- **Proved here, by hand, the installer's own path for a named release.** The bootstrap v3.0.6
+  binary hashes to the `c956e5df…` v4.1.2 carries; `release/release-cosign.pub` at v3.1.4
+  hashes to its `f4cea466…`; v3.0.6's `verify-blob` reads *"Verified OK"* for v3.1.4's
+  `cosign-linux-amd64` with both its keyless bundle and its KMS-key bundle; the binary's hash
+  is the one in `cosign_checksums.txt`, and it reports `GitVersion: v3.1.4`. The trusted root
+  was sigstore/root-signing's `targets/trusted_root.json`, given as `--trusted-root`, because
+  the session's network refuses the TUF host; on a runner the installer reads it from TUF.
+- **Not proved here.** No signature has been made with v3.1.4, and v3.1.4 has not checked one
+  made with v3.0.6: a signature's bundle is a blob ghcr hands out from a host the session's
+  network refuses, so both versions read *"no signatures found"* here, for that reason alone. The
+  pull request runs neither step. The first signing is `images.yml` on the merge commit, which
+  every push to `main` starts, and its sign step fails loud. The first check is the next
+  release's verify job, or a `verify` dispatch of Release from `main` on alpha.2 after this
+  merges (the owner's call). It cannot be run before: Release refuses a dispatch from any
+  branch but `main` (`dispatchedFromMain` in `release-preflight.mjs`).
+- **One way:** nothing. Going back is the two `cosign-release:` lines.
+
 **2026-10-24: T7 answered and being built.** The owner, on 2026-10-23 at 19:05 UTC: *"T7 no,
 fix already within the alpha"*. The frozen `bitnamilegacy/minio` is not accepted for the Alpha.
 Chainguard's maintained MinIO replaces it on branch
@@ -985,7 +1135,7 @@ best given with T0.
 | T7 The object store: replace the frozen MinIO, or accept it for the alpha in writing | ✅ **Merged** as #1692 on 2026-10-25 (`0029db4a`), after E2E (managed) #281 was green; *was:* 🔨 being built on branch `claude/ownpace-public-readiness-y7orc6-object-store-swap` (2026-10-24): Chainguard's MinIO by index digest on a new volume, `minio-init` making `packets`, and the guard; **answered 2026-10-23**: *"T7 no, fix already within the alpha"*, so the frozen image is not accepted, and is replaced within the Alpha. Remains: live from the tag that carries it (alpha.2) after the drain, starting empty, and the old volume removed by the owner on each stack (§3) — *was:* ⏳ **Owner** | §3. The owner declined the recommendation to accept it for the alpha and replace it at its end: Chainguard's maintained MinIO build replaces it now, with versitygw still the fallback (0119 §3, item 5, decided 2026-10-23 and built 2026-10-24). |
 | T8 A watch on the pinned images Dependabot leaves alone | Watch half ✅ **done** in #1663, merged 2026-10-21 (`087183b7`): every pin Dependabot cannot see, one issue per owner's-call row and one summary issue, and `/deploy/compose` out of `dependabot.yml` (Status, 2026-10-21); scan half ✅ **done** in #1674, merged 2026-10-22 (`51a0d267`): a weekly, report-only Trivy scan of every image the stacks run, with one issue per image past its end of life (Status, 2026-10-22) — *was:* scan half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-image-scan`, not merged (2026-10-22); watch half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-pin-watch`, not merged (2026-10-21), scan half 📋 Proposed; 📋 **Proposed** | §3. Widened 2026-10-21: Dependabot read no file in `deploy/compose`, so the watch covers every image line of its `managed.yml`, `dev.yml` and `www.yml` and the busybox and GoAccess copies in its scripts, `packageManager`, the Trivy the scan runs and the TypeScript split as well as Trigger.dev, ClickHouse and the task base image. MinIO has no upstream to compare with and is left to the scan half; since 0146 T7 (on its branch, not merged, 2026-10-24), Chainguard's MinIO `latest` is compared by its index digest, and `bitnamilegacy/minio` leaves the watch's list of images compared elsewhere. |
 | T9 The API image runs without the dev tools | 🔨 **Being built** as a draft on branch `claude/ownpace-public-readiness-y7orc6-api-image-prod-deps`, for after the first invitation (2026-10-23) | Status, 2026-10-23 (the scan triage). `apps/api/Dockerfile`'s runtime stage copies the build stage's whole `/app`, where `pnpm install --filter @openmig/api...` installed the devDependencies too, the root's included, and `CMD` (`node apps/api/src/index.ts`) needs none of them. Their Go binaries are 2 critical and 65 high of the image's 3/125 on 2026-10-23: esbuild 0.25.12 (Go 1.23.12; drizzle-kit's and `@esbuild-kit/esm-loader`'s), counted twice, and TypeScript 7's native compiler (Go 1.26.4). The lockfile itself, dev dependencies included, reads 0/0. Done when the runtime image holds production dependencies only, a dependency it still needs and lacks fails at start, which the managed gate's first `curl $API/health` catches, and the image scan finds the Node base's findings alone. |
-| T10 The image scan reads the tasks' image as it is built | 📋 **Proposed** (2026-10-23) | Status, 2026-10-23 (the scan triage). `scripts/image-scan.mjs` scans the base image the pinned CLI names (`triggerdotdev/node:24-bookworm` by digest, category `trigger-task-base`, 14/117 on 2026-10-23), not the tasks' image that `deploy-tasks.sh` builds from it. The Trigger.dev v4.7.6 branch upgrades that image's Debian packages at build (`apt-get -y upgrade`), which fixes the 42 Debian findings that have a fix (12 critical, all Perl, fixed in 5.36.0-7+deb12u4, and 30 high). It leaves npm's bundled packages under `/usr/local/lib/node_modules/npm`, since the overlay copies only `/usr/local/bin/node` (tar 7.5.15's CVE-2026-59873, critical, fixed in 7.5.19, and 12 high, 11 of them with a fix), and the 76 Debian findings without a fix, zlib1g's CVE-2023-45853 among them: the built image would still carry 2 critical and 87 high of the 131 (read with Trivy 0.76.0, 2026-10-23). The scan cannot see the upgrade, so the category keeps alerts for 42 findings the built image no longer has. The scan runs on a GitHub-hosted runner, which cannot read the stack's own registry, so the proposal is to build the image in the scan job as the deploy builds it. The old category, if renamed, has its configuration deleted by hand (T8). |
+| T10 The image scan reads the tasks' image as it is built | 🔨 **Being built** as draft #1700 on branch `claude/ownpace-public-readiness-y7orc6-tasks-image-scan`, for after the alpha.2 tag: the leg builds the deploy's `base` stage from `trigger.config.ts`'s own extensions on GitHub's arm64 runner and scans it under the same category, its local tag in the base's repository so the alerts keep their location (Status, 2026-10-25) — *was:* 📋 Proposed (2026-10-23) | Status, 2026-10-23 (the scan triage). `scripts/image-scan.mjs` scans the base image the pinned CLI names (`triggerdotdev/node:24-bookworm` by digest, category `trigger-task-base`, 14/117 on 2026-10-23), not the tasks' image that `deploy-tasks.sh` builds from it. The Trigger.dev v4.7.6 branch upgrades that image's Debian packages at build (`apt-get -y upgrade`), which fixes the 42 Debian findings that have a fix (12 critical, all Perl, fixed in 5.36.0-7+deb12u4, and 30 high). It leaves npm's bundled packages under `/usr/local/lib/node_modules/npm`, since the overlay copies only `/usr/local/bin/node` (tar 7.5.15's CVE-2026-59873, critical, fixed in 7.5.19, and 12 high, 11 of them with a fix), and the 76 Debian findings without a fix, zlib1g's CVE-2023-45853 among them: the built image would still carry 2 critical and 87 high of the 131 (read with Trivy 0.76.0, 2026-10-23). The scan cannot see the upgrade, so the category keeps alerts for 42 findings the built image no longer has. The scan runs on a GitHub-hosted runner, which cannot read the stack's own registry, so the proposal is to build the image in the scan job as the deploy builds it. The old category, if renamed, has its configuration deleted by hand (T8). |
 | T11 The patch and minor moves that clear findings | (a) 📋 **Proposed**; (b) ⏳ **Owner**; (c) 📋 **Proposed**, after the Alpha (2026-10-23) | Status, 2026-10-23 (the scan triage), read with Trivy 0.76.0 on linux/amd64. (a) **Mailpit v1.32.0**: 0/0, where v1.31.6 has CVE-2026-111943 (Go's `crypto/x509`); after the first invitation, by hand in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts`, which pins the reference by tag and digest and records Mailpit's release check as read at v1.31.6, so that fact is read again at v1.32.0 in the same change. (b) **Stalwart v0.16.27** (Debian 13.7): 0 critical and 47 high, none with a fix, where v0.16.10 has 3/114. The owner's call: `docs/stalwart-integration-fix.md` pins v0.16.10 and says *"DO NOT change the pinned version"* (AGENTS.md puts its decisions in ADR-0022), and every copy moves together: `setup-stalwart.sh`, the fixture's Dockerfile, the Testcontainers setup, the fix doc and the guards that name it. (c) **ClickHouse 26.3** (26.3.59, Ubuntu 22.04): 0/0, where 26.2.19.43 has CVE-2026-45447 and CVE-2026-84782 in openssl. After the Alpha: the owner accepted 26.2 for it on 2026-10-23 (0119 §3 item 9 on the Trigger.dev v4.7.6 branch), and 26.3 is ahead of the 26.2 Trigger.dev's own compose pins, which the pin watch compares with (T8). It moves in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts` together: the guard pins the reference by tag and digest and records the crash-report default as read at `v26.2.19.43-stable`, as `clickhouse-no-crash-reports.xml`'s comment does, so both are read again at 26.3. |
 | T12a The web image's nginx carries only what it loads | 🔨 **Being built** as a draft on branch `claude/ownpace-public-readiness-y7orc6-nginx-alpine-slim`, based on #1678's, for alpha.3 (2026-10-25) | Status, 2026-10-25, and 0119's of the same evening. `nginx:1.31.8-alpine-slim` by index digest `f45171d3…` in `apps/web/Dockerfile`'s runtime and `deploy/compose/www.yml`, in place of 1.31.8-alpine `1ef7ca94…`: the same nginx package on the same base layers, without the 51 packages -alpine adds (curl, the njs, xslt, geoip, image-filter and acme modules, and their libraries). Trivy 0.76.1 on linux/arm64 and linux/amd64: -alpine 0/1 (brotli-libs 1.2.0-r1, CVE-2026-111497, fixed in 1.2.1-r0), slim 0/0; the stable line's 1.30.6-alpine 0/1 as well. Neither `nginx.conf.template` nor `www-nginx.conf` loads a module, the API upstream is plain HTTP and both health checks are busybox's `wget`; `scripts/an-nginx-that-carries-only-what-it-loads.unit.test.ts` holds the variant in both files and refuses a dropped module's directive or a curl in a health check or a runbook's look inside, since nothing runs `www.yml` to see one. Merges after #1678 and the alpha.2 tag, not before 19:51 UTC on 2026-10-27 (three days after the slim index was pushed, to add riscv64), with E2E (managed) on the branch. The OTA site moves when a person brings `www.yml` up again; live's www with the next deploy while `WWW_LIVE` is true; live's web image with the release tag that carries it. |
 

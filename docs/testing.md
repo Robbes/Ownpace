@@ -395,9 +395,16 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   SBOM attached to release tags. On the weekly run (Mondays 06:00 UTC) and on dispatch only, and on
   GitHub-hosted runners, it also scans every container image the stacks run (workplan 0146 T8):
   the `image:` lines of `managed.yml`, `dev.yml`, `www.yml` and the appliance's compose file, the
-  images the scripts name, the tasks' base image the pinned Trigger.dev CLI names, and Ownpace's
-  three images at `:edge` and at the newest release tag, all as linux/arm64
-  (`scripts/image-scan.mjs list`). Report only: each image's findings go to code scanning under
+  images the scripts name, the tasks' image, and Ownpace's three images at `:edge` and at the
+  newest release tag, all as linux/arm64 (`scripts/image-scan.mjs list`). The tasks' image is
+  built in its leg, not pulled (workplan 0146 T10): the leg installs the workspace, writes the
+  `base` stage a task deploy builds on the base image the pinned Trigger.dev CLI names
+  (`image-scan.mjs containerfile`, which runs `apps/worker/trigger.config.ts`'s own build
+  extensions), builds it natively on `ubuntu-24.04-arm` under a local tag in that base's
+  repository, so its alerts keep their location, and Trivy reads it from that runner's Docker
+  alone. That checkout is under `src/`: Trivy reads a `.trivyignore` and a `trivy.yaml` from its
+  working directory unless told otherwise, so on this leg too it reads none of the repository's,
+  and a file at the root can never drop a finding from code scanning. Report only: each image's findings go to code scanning under
   `trivy-image-<name>` and fail nothing; an image whose operating system Trivy calls past its end
   of life gets a warning, a line in the run's summary and one issue, closed when that ends. A scan
   that left no report fails the run. An image is named after its repository's last part, with
@@ -462,9 +469,21 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   the web image's base lists `www.yml` too. It moves nothing: each issue gives the route, and the
   move is the owner's call. A row that cannot read its upstream, or finds its pin ahead of every
   tag listed, fails the run and never closes an issue.
+  The cosign `images.yml` signs with and `release.yml`'s verify job checks with is a routine row
+  too, since both steps name it (`cosign-release:`) and Dependabot moves only the installer: the
+  two copies are held together. Left to cosign-installer's default, it would be a status line
+  in the summary issue and open nothing.
+- `nextcloud-second-major.yml` — Mondays 05:17 UTC, on a push to `main` that touches the code
+  the Nextcloud suites exercise, on a pull request that changes the leg, and on dispatch; on a
+  GitHub-hosted runner, never a required check: the suites that talk to Nextcloud against the
+  major the demo does not run (see "The second Nextcloud major" below).
 - `images.yml` — the three application images: an amd64 build-only check on a pull request that
   touches a Dockerfile, `deploy/` or the workflow; a multi-arch build and publish on `main` and
   on `v*` tags.
+- `script-images.yml` — the images a script builds for itself (today GoAccess, which
+  `deploy/compose/site-visits.sh` builds from `deploy/compose/goaccess/Dockerfile`, #1675): an
+  arm64 build-only check, `Build (<directory>)`, on a pull request that touches that directory or
+  the workflow, Dependabot's move of its Alpine pin included. It pushes nothing.
 - `windows-payload.yml` (dispatch, and on v* tags; builds the Windows appliance payload).
 - `release.yml` — dispatch only, from `main`, on GitHub-hosted runners only; never a required
   check, since it has no pull-request trigger. It cuts a release tag and publishes it in order
@@ -506,9 +525,11 @@ against the runs recorded that evening, recorded green runs, and every event and
 red when the two disagree.
 
 Do **not** require `integration-tests (ubuntu-24.04)` / `(ubuntu-24.04-arm)`, nor
-`build (api|web|selfhost)` from `images.yml`. Neither is reported at all on some pull requests —
+`build (api|web|selfhost)` from `images.yml`, nor `DAV suites on the second Nextcloud major` from
+`nextcloud-second-major.yml`, nor `Build (deploy/compose/goaccess)` from `script-images.yml`.
+None is reported at all on some pull requests —
 a skipped matrix job reports once under the literal `integration-tests (${{ matrix.runner }})`,
-and `images.yml` has a `paths:` filter — so a docs-only PR blocks forever on "Expected — waiting
+and the other three workflows have a `paths:` filter — so a docs-only PR blocks forever on "Expected — waiting
 for status to be reported", with nothing queued in Actions to explain it. Full rationale is the
 `SCOPE:` comment above `ci-complete` in `ci.yml`.
 
@@ -533,6 +554,18 @@ Runners: on a pull request every `ci.yml` job is GitHub-hosted, with integration
 the same jobs run on the self-hosted arm64 Spark. Image builds are GitHub-hosted, and e2e runs only
 on the Spark. The Spark runner executes trusted workflows only. Both the `integration-tests` job
 and `e2e.yml` install `stalwart-cli` as a host binary for their respective provisioning phases.
+
+**The second Nextcloud major** (workplan 0119, Status of 2026-10-25). The integration tier and the
+demo run Nextcloud 34; a customer's own server may already run 35. `nextcloud-second-major.yml`
+runs the suites that read a `NEXTCLOUD_` variable (found by `scripts/nextcloud-suites.mjs`: WebDAV,
+CalDAV, CardDAV, the DAV sync, the chunked upload and the share verb) against the image its
+`NEXTCLOUD_IMAGE` names, pinned by tag and digest, without Stalwart, on a GitHub-hosted runner: on a
+push to `main` that touches `packages/**`, `apps/**` or the test setup, weekly, on demand, and on a
+pull request that changes the leg itself. A Nextcloud asked for by name that does not start fails
+the run (the default only warns and lets the suites skip), the version `status.php` reports must be
+the one the tag names, and a report with a skipped test fails it too. Locally, the same with
+`NEXTCLOUD_IMAGE=<ref> SKIP_STALWART=true pnpm exec vitest run --project integration
+--no-file-parallelism $(node scripts/nextcloud-suites.mjs)`.
 
 ## Appendix — untested seams (verified against the tree, 2026-08-02; re-verified 2026-09-24)
 
