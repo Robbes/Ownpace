@@ -54,6 +54,13 @@
 # instruction to the builder) and no COPY, ADD or --mount (they read files the
 # hash does not cover), and `build:` names this directory and nothing more.
 #
+# THE APPLIANCE'S COPY. deploy/selfhost/postgres/Dockerfile is this file on
+# the appliance's own base (workplan 0146 T15b): compose builds
+# `localhost/<name>` from `<name>/Dockerfile` beside the compose file, and each
+# pin moves on its own. The same guard holds the two to the same instructions
+# but for the FROM, so an instruction changed here is changed there too, and
+# moves the appliance's name as well.
+#
 # NOTHING BUILDS IT AGAIN WHILE THE MACHINE HAS IT. `up --build` builds every
 # service in its scope that has a `build:`, dependencies included (api and web
 # depend on both databases), and so does a `build` that names no service. From
