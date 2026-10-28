@@ -2352,7 +2352,9 @@ until that update is proven, never longer than seven days (workplan 0134 open
 question 1 (b), and workplan 0139, the owner's answer rec-copies (a), both of
 2026-09-28), so live sets `7`. `deploy-live.sh` takes the copy
 (`copy-before-update.sh take`, *`ownpace-live`: a release tag, with
-`deploy-live.sh`*), you delete it once the update is proven
+`deploy-live.sh`*), the box checks delete it once the update is proven (an
+hour after the hold was last lifted at the earliest,
+`copy-before-update.sh delete-if-proven`), or you do
 (`./deploy/compose/copy-before-update.sh delete`), and the daily duties delete
 it once it is older than six days less an hour whatever happens (*Live's daily
 duties*), so it is never kept past its seventh day. A stack that keeps no copy
@@ -4392,15 +4394,15 @@ journalctl --user -u 'ownpace-tell-owner@*' -n 20 --no-pager
 
 ### Who is told: a failed run, a run that never came, and the disk
 
-Workplan 0142 T3. Four things reach you by mail, through the relay and the
+Workplan 0142 T3. Five things reach you by mail, through the relay and the
 addresses the status page's alerts use (*8d*: `ALERT_SMTP_*`, `ALERT_FROM` and
 `ALERT_TO`, falling back to `SMTP_*`, `NOTIFY_FROM` and `NOTIFY_TO`), sent by
 [`tell-owner.sh`](../deploy/compose/tell-owner.sh). It passes curl the relay
 and the login in a config on a file descriptor, never on a command line, uses
 STARTTLS, required, on 587 and implicit TLS on 465 (or with `SMTP_SECURE=true`
 on `SMTP_PORT`), and refuses a `.env` that is not live's. A body holds
-numbers, the names of duties, databases and volumes, mount points and dates:
-no address, and no value from the `.env` but the floor and
+numbers, the names of duties, databases and volumes, release tags, mount points
+and dates: no address, and no value from the `.env` but the floor and
 `ZITADEL_PAT_EXPIRY`'s date.
 Each message has a row under its name in the
 [incident runbook](./incident-runbook.md#one-row-per-alert).
@@ -4429,17 +4431,31 @@ Each message has a row under its name in the
   Docker daemon restarting, and only in the journal). Never one every ten
   minutes: it remembers each state in `~/.persistent/ownpace-live/box-checks/`,
   and a message that could not be sent is sent again by the next run.
+- **The update proven.** The same run asks
+  `copy-before-update.sh delete-if-proven` whether the update the copy before
+  it was taken for is proven, and that script deletes the copy when it is
+  (workplan 0132 T9; the rule is under step 6 of *`ownpace-live`: a release
+  tag, with `deploy-live.sh`*, below). A copy it deleted is one mail, *Update
+  proven*, naming the tag, the times, the passes and the number of files; the
+  files' names are in the journal. The line it answered is kept in
+  `~/.persistent/ownpace-live/box-checks/copy-proven` before the mail is
+  tried, so a mail that could not be sent is sent by the next run, and no
+  other copy is deleted until it is. A kept copy is no mail: the summary says
+  why. An answer it cannot read is in the journal and a failed run, never a
+  mail.
 - **One summary a day,** at its first run from 07:00 UTC: *Daily summary*,
   numbers only. Free space; the duties' last run and pass, their timer and
   the token's date; every database of each stack's `postgres` and
   `trigger-db`, live's and the OTA stack's, by size; the five largest volumes
   of the two stacks; live's rows of `run`, `run_event`, `item` and
-  `app_event`, and the age of the sync tick's beat. It reads each database
-  with `docker exec` into the container its compose labels name, psql over
-  the container's own socket, SELECTs only. A morning without it means the
-  machine, the box checks' timer or the relay is broken. One that could not be
-  sent is tried again an hour later, not at every run, and its send error is
-  in `journalctl --user -u ownpace-box-checks`.
+  `app_event`, the age of the sync tick's beat, and where the copy before an
+  update stands (none here, kept and why, deleted, or not read). It reads
+  each database with `docker exec` into the container its compose labels
+  name, psql over the container's own socket, SELECTs only. A morning
+  without it means the machine, the box checks' timer or the relay is
+  broken. One that could not be sent is tried again an hour later, not at
+  every run, and its send error is in
+  `journalctl --user -u ownpace-box-checks`.
   `./deploy/compose/box-checks.sh --summary` sends one now.
 
 `box-checks.sh` exits 0 when everything was checked and every message due was
@@ -4701,24 +4717,62 @@ thing. One script moves it:
    `deploy-live.sh`, `exposure-check.sh`, `box-duties.sh`, `stack-kind.sh` and
    `copy-before-update.sh` is refused too, as `stand-up-live.sh` refuses it: live
    would lose its daily duties and the copy's backstop.
-5. **Read what it printed, then lift the hold yourself.** The tick's next
-   summary shows passes started, and one of your own migrations should complete
-   a pass on the new tasks.
-6. **Delete the copy once the update is proven.** From `~/ownpace-live`:
+5. **Read what it printed, then lift the hold yourself.** Lifting it is your
+   last look: the first pass that succeeds after it proves the update, and an
+   hour later the copy goes (step 6). The tick's next summary shows passes
+   started. To see one now, start one pass on a small migration of your own,
+   as *Sync now* starts it, and follow it for up to 15 minutes. From
+   `~/ownpace-live`:
+
+   ```bash
+   ./deploy/compose/live-pass-check.sh
+   ```
+
+   It refuses while a hold is on, while the passes in flight are at the tick's
+   caps (`MAX_PASSES_IN_FLIGHT`, `MAX_PASSES_PER_ORGANISATION`) or that
+   migration has one running, and a migration that is not running, selects no
+   data type, or is not in an organisation where a platform operator is an
+   active owner. It writes no row and cancels nothing: Ctrl-C stops the
+   watching, and the pass goes on. Its last line says how it ended, and so
+   does its exit: 0 `succeeded`, every data type the migration selects
+   finished in that pass; 1 `failed` after its retries, or `cancelled`; 2
+   `refused, nothing was started`; 3 `refused, the hold is on`;
+   4 `refused, capacity is full`; 5 `timed out`, and the pass goes on;
+   6 `ended unfinished`; 7 `could not tell`. The migration is the one
+   `LIVE_PASS_CHECK_MIGRATION` in live's `.env` names, by its id (the last
+   part of its page's address, `/mappings/<id>`). Name it once:
+
+   ```bash
+   ./deploy/compose/env-upsert.sh deploy/compose/.env LIVE_PASS_CHECK_MIGRATION=<the migration's id>
+   ```
+6. **The copy goes by itself once the update is proven.** Every ten minutes
+   live's box checks run `copy-before-update.sh delete-if-proven` (workplan
+   0132 T9). It keeps `delete`'s rule: the last line `deploys.log` has since
+   the copy was taken says the deploy took (one that did not take after it
+   leaves nothing proven), the hold that covered it is lifted, and a pass that
+   started after it succeeded, each read from live's database. And it is
+   stricter: no hold is on at all, live's checkout is at the commit that took,
+   a data type of a proving pass's migration completed at or after that pass
+   began, the hold was last lifted (or the deploy took, if that is later) at
+   least an hour ago, and nothing in the copy's directory is outside its note
+   (a dump made by hand after it, or a rollback's since file, keeps the whole
+   copy for you). It then deletes the copy as `delete` does, and the box
+   checks mail *Update proven* once (*Who is told*, above). Starting the hold
+   again within that hour keeps the copy. To keep every copy until you delete
+   it yourself, set `COPY_DELETE_WHEN_PROVEN=false` in live's `.env`, with
+   `env-upsert.sh` as in step 5. Or delete it yourself now, by `delete`'s rule
+   alone, from `~/ownpace-live`:
 
    ```bash
    ./deploy/compose/copy-before-update.sh delete
    ```
 
-   It refuses unless the last line `deploys.log` has since the copy was taken
-   says the deploy took (one that did not take after it leaves nothing
-   proven), the hold that covered it is lifted, and a pass that started after
-   it succeeded, each read from live's database. **Not proven by day 6: roll
-   back from the copy that day** (the operator runbook's *The copy before an
-   update*, which starts with `copy-before-update.sh since`, so that what
-   testers erased or deleted after the copy is erased and deleted again). The
-   daily duties delete it once it is older than six days less an hour
-   whatever happens, and fail the day before to remind you.
+   **Not proven by day 6: roll back from the copy that day** (the operator
+   runbook's *The copy before an update*, which starts with
+   `copy-before-update.sh since`, so that what testers erased or deleted after
+   the copy is erased and deleted again). The daily duties delete it once it
+   is older than six days less an hour whatever happens, and fail the day
+   before to remind you.
 
 #### The deploy from alpha.2 to alpha.3 runs twice
 

@@ -96,8 +96,10 @@
 # taken: after a deploy that did not take it is still the copy of what ran
 # before. A take that fails or refuses (a copy of a proven update still there:
 # delete it first) refuses the deploy, before anything moves. The copy goes
-# once the update is proven, by the owner's `copy-before-update.sh delete`,
-# and after day 6 whatever happens, by the daily duties' backstop.
+# once the update is proven, by live's box checks (copy-before-update.sh
+# delete-if-proven, an hour after the hold was last lifted at the earliest),
+# or by the owner's `copy-before-update.sh delete`, and after day 6 whatever
+# happens, by the daily duties' backstop.
 #
 # THE UNITS ARE COPIED, NOT LINKED (docs/managed-bring-up.md, "Live's daily
 # duties"): a tag that changes a unit under deploy/compose/systemd/, or adds
@@ -114,7 +116,9 @@
 # owner's, before it. It does not LIFT the hold (step
 # 8): the owner lifts it after looking at what this printed, and watches the
 # tick's next summary and one of their own migrations complete a pass on the
-# new tasks, and then deletes the copy. It checks the drain; it does not wait for it.
+# new tasks (./deploy/compose/live-pass-check.sh starts one and says how it
+# ended); the box checks then delete the copy. It checks the drain; it does
+# not wait for it.
 #
 # IT REFUSES, BEFORE THE CHECKOUT OR THE STACK CHANGES, each with its own
 # message and a non-zero exit. (To read a tag origin has and this clone does
@@ -717,8 +721,8 @@ main() {
   echo
   say "the deploy took: ${tag} (${commit}) runs, and answered every check."
   printf '%s\n' "${reversibility#*$'\n'}"
-  say "The hold is still on. Lift it yourself, after looking (workplan 0132 T6 step 8): the tick's next summary shows passes started, and one of your own migrations should complete a pass on the new tasks."
-  say "Then the update is proven: delete the copy taken before it, ./deploy/compose/copy-before-update.sh delete, which checks all three. Not proven by day 6: roll back from the copy (docs/operator-runbook.md, The copy before an update). The daily duties delete it after day 6 whatever happens."
+  say "The hold is still on. Lift it yourself, after looking (workplan 0132 T6 step 8): lifting it is your last look, since the first pass that succeeds after it proves the update. ./deploy/compose/live-pass-check.sh starts one on your own migration (LIVE_PASS_CHECK_MIGRATION in live's .env) and says within 15 minutes how it ended; or watch the tick's next summary."
+  say "Then the update is proven: an hour after you lift the hold, the box checks delete the copy taken before it, as ./deploy/compose/copy-before-update.sh delete does (delete-if-proven, stricter), and mail Update proven; starting the hold again keeps it. Or delete it now yourself: ./deploy/compose/copy-before-update.sh delete. Not proven by day 6: roll back from the copy (docs/operator-runbook.md, The copy before an update). The daily duties delete it after day 6 whatever happens."
   log_deploy "$deploy_log" "$tag" "$commit" took "$verdict"
   units_note
   # The next deploy refuses a tree that is not clean, so say it now.

@@ -2266,7 +2266,7 @@ describe('a copy is made before the update: copy-before-update.sh, right before 
   );
 
   it(
-    'the deploy that took says how the copy goes: deleted once proven, rolled back from by day 6',
+    'the deploy that took says how the copy goes: a pass on demand, deleted once proven by the box checks or the owner, rolled back from by day 6',
     () => {
       const s = stage({ releases: [NEXT] });
       const r = run(s, [NEXT.tag]);
@@ -2274,6 +2274,8 @@ describe('a copy is made before the update: copy-before-update.sh, right before 
       const after = r.out.slice(r.out.indexOf('the deploy took'));
       expect(after).toContain('./deploy/compose/copy-before-update.sh delete');
       expect(after).toMatch(/day 6/);
+      expect(after).toContain('./deploy/compose/live-pass-check.sh');
+      expect(after).toContain('delete-if-proven');
     },
     CASE_MS,
   );

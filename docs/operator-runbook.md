@@ -723,11 +723,16 @@ would not follow one (mount a larger disk at that path if you need the room).
   refuses a kept copy the next daily run deletes, so that no update is left without a copy:
   prove the previous update and delete its copy, or roll back from it, first. The rollback's own
   deploy, of the note's `from=`, goes ahead.
-- **Deleted once the update is proven**, by you, from `~/ownpace-live`:
-  `./deploy/compose/copy-before-update.sh delete`. It refuses unless the last line `deploys.log`
-  has since the copy was taken says the deploy took (a deploy that did not take after one that
-  did leaves nothing proven), the hold that covered that deploy is lifted, and a pass that
-  started after it succeeded.
+- **Deleted once the update is proven**, by live's box checks every ten minutes
+  (`copy-before-update.sh delete-if-proven`, workplan 0132 T9), or by you, from
+  `~/ownpace-live`: `./deploy/compose/copy-before-update.sh delete`. It refuses unless the last
+  line `deploys.log` has since the copy was taken says the deploy took (a deploy that did not
+  take after one that did leaves nothing proven), the hold that covered that deploy is lifted,
+  and a pass that started after it succeeded. The box checks are stricter: any hold on, the
+  checkout not at the commit that took, no data type of a proving pass's migration completed
+  since that pass began, less than an hour since the hold was last lifted, or a file the note
+  does not name each keeps it; a copy they delete is one mail, *Update proven*.
+  `COPY_DELETE_WHEN_PROVEN=false` in live's `.env` leaves it to you.
 - **Deleted after day 6 whatever happens**, by the daily duties' `copies`
   (`copy-before-update.sh expire`), once it is older than 6 days less an hour, so it is never
   kept past day 7 even when a run starts late. A dump made there by hand goes by its own age,
@@ -749,6 +754,7 @@ gone. Steps 4, 6 and 10 do each of them again; do not skip them.
 1. **The hold on, the drain done.** Start the hold again if you lifted it, and wait for
    `0 pass(es) still in flight` in the tick's log. Anything else testers did since the update is
    lost with the database; their migrations adopt what the targets hold on their next pass.
+   While any hold is on, the box checks delete nothing.
 2. **Read the note:** `cat "$C/copy-before-update.txt"`. `from=` is the release that ran
    before, the one to go back to; the files are listed below it.
 3. **Stop everything that connects to the databases:**
@@ -827,8 +833,10 @@ gone. Steps 4, 6 and 10 do each of them again; do not skip them.
     `./deploy/compose/idp-strays.sh`, then `--remove`, for the accounts nobody let in that the
     restore brought back (*Sign-in accounts nobody let in*, below). An account you removed by
     hand in the provider's console after the copy: remove it again the same way.
-11. **Lift the hold, watch a pass complete**, then `./deploy/compose/copy-before-update.sh
-    delete`: the rollback is the update the copy now proves.
+11. **Lift the hold, watch a pass complete** (`./deploy/compose/live-pass-check.sh` starts one),
+    then `./deploy/compose/copy-before-update.sh delete`: the rollback is the update the copy now
+    proves. The box checks leave this copy to you: the since-the-copy file beside it is not in
+    its note.
 
 Step 5's command was rehearsed on 2026-09-28 against Postgres 16 with both migration chains
 applied, after a simulated update (a column, a table and a row added): with a session still
@@ -1756,7 +1764,7 @@ The response is what you tell the customer. It carries **two dates**:
 | --- | --- |
 | `purgeAfter` | when the **live service** stops holding their data |
 | `backupsExpireAt` | when the last backup that could still contain it ages out — **this is when the erasure completes** |
-| `backupRetentionDays` | this deployment's retention, from `BACKUP_RETENTION_DAYS` (default **7**, which assumes backups exist; `ownpace-live` sets **7**, the most days the copy of its databases made before an update is kept: `deploy-live.sh` takes it, you delete it once the update is proven, and the daily duties delete it after day 6, [The copy before an update](#the-copy-before-an-update-ownpace-live), workplans 0134 and 0139) |
+| `backupRetentionDays` | this deployment's retention, from `BACKUP_RETENTION_DAYS` (default **7**, which assumes backups exist; `ownpace-live` sets **7**, the most days the copy of its databases made before an update is kept: `deploy-live.sh` takes it, live's box checks (`copy-before-update.sh delete-if-proven`, 0132 T9) or you delete it once the update is proven, and the daily duties delete it after day 6, [The copy before an update](#the-copy-before-an-update-ownpace-live), workplans 0134 and 0139) |
 | `erasureCompletesText` | the same promise as a sentence, `en` and `nl` |
 | `windowDays` | the window they chose |
 | `canReopenUntil` | until when `POST /api/tenants/:tenantId/reopen` works: `purgeAfter`, or `null` for a window of `0` |

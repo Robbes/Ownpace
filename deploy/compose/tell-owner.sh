@@ -38,7 +38,8 @@
 # value a command is given).
 #
 # NO ADDRESS OR SECRET IN THE BODY. The callers send numbers, names of duties,
-# mount points, dates; the headers carry the From and To lines a mail needs.
+# release tags, mount points, dates; the headers carry the From and To lines a
+# mail needs.
 # What it prints names the message and how many it went to, never an address.
 #
 # LIVE'S ONLY. It refuses a .env that does not carry live's marker exactly
