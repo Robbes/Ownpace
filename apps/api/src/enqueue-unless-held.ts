@@ -22,6 +22,10 @@
  * in `apps/api/src`. `a-hold-that-holds-every-door.unit.test.ts` sweeps the
  * source for any other.
  *
+ * *Sync now*'s gates live in `routes/migrations/sync-now.ts` (`pressSyncNow`),
+ * which the route and the machine's press for live's pass check
+ * (`scripts/live-pass.ts`, workplan 0132 T9) both call.
+ *
  * ## Asked before the first write
  *
  * Four doors write before they enqueue. *Start* activates the migration, a
@@ -80,13 +84,13 @@
  * stays as it was, for the owner to start.
  */
 
-import type { Response } from 'express';
 import type { Pool } from 'pg';
 import type { LedgerDriver } from '@openmig/ledger';
 import { readOpenPause, readOrganisationClosure } from '@openmig/managed';
 import { getTriggerClient } from '@openmig/scheduler';
 import { withTenantDb } from './middleware/auth.ts';
 import { accountClosedAnswer } from './closed-organisation.ts';
+import type { Answerable } from './types/api.ts';
 
 type Trigger = ReturnType<typeof getTriggerClient>['tasks']['trigger'];
 
@@ -114,7 +118,7 @@ async function whatStopsAStart(tenantId: string, source: Pool | LedgerDriver) {
  * where each door already lands that failure on its own row.
  */
 export async function enqueueUnlessHeld(
-  res: Response,
+  res: Answerable,
   tenantId: string,
   source: Pool | LedgerDriver,
 ): Promise<Enqueue | null> {

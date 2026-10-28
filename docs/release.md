@@ -313,6 +313,10 @@ in [managed-bring-up.md](./managed-bring-up.md#updating-a-running-deployment),
       the hold, which you do yourself. During the alpha a bad deploy is fixed
       forward, with a fix and a new `alpha.N` tag; a reversible one can also be
       undone by deploying the previous tag with the same script.
+- [ ] After you lifted the hold, `./deploy/compose/live-pass-check.sh` said
+      `verdict: succeeded` (or a pass of your own completed), and about an
+      hour after the lift the box checks mailed *Update proven* (or you ran
+      `./deploy/compose/copy-before-update.sh delete`).
 
 The OTA stack is not deployed this way: the nightly gate brings `main` up on it
 every night. Nothing in the Release workflow touches live: it runs on

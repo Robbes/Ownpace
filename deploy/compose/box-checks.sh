@@ -34,20 +34,32 @@
 #                own mail through OnFailure=; this is the one for the run that
 #                never came.
 #
+# THE COPY BEFORE AN UPDATE (workplan 0132 T9; the owner, 2026-10-28), every
+# run too: it asks copy-before-update.sh delete-if-proven, which deletes the
+# copy of live's databases taken before an update once that update is proven,
+# by `delete`'s rule and the stricter conditions it adds there. The deletion
+# is that script's; this one deletes nothing itself. A copy deleted is one
+# mail ("Update proven"), with the files' names in the journal, and while that
+# mail is not sent it asks for no other delete. A copy kept is no mail: the
+# summary says why. An answer it cannot judge is a NOT DONE and a failed exit,
+# never a mail.
+#
 # ONCE A DAY, at its first run from 07:00 UTC, or now with --summary: "Daily
 # summary", numbers only. Free space; the duties' last run and last pass,
 # their timer, and the provisioning token's date (ZITADEL_PAT_EXPIRY); the
 # size of every database in each stack's postgres and trigger-db, live's and
 # the OTA stack's (managed.yml's own name); the five largest volumes of the two
-# stacks; on live, the rows of run, run_event, item and app_event, and the age
-# of the sync tick's beat (0142 T2). It is also the channel's proof of life: a
+# stacks; on live, the rows of run, run_event, item and app_event, the age of
+# the sync tick's beat (0142 T2), and the copy before an update: none, kept
+# and why, or deleted. It is also the channel's proof of life: a
 # morning without it means this machine, this timer or the relay is broken.
 # One that could not be sent is tried again an hour later, not at every run:
 # each try asks both stacks' databases and Docker's volumes again.
 #
 # WHAT IT REMEMBERS, in ~/.persistent/<project>/box-checks, this account's
 # alone (umask 077): each check's last state, when it started watching, the
-# day of the last summary and when one last could not be sent. A message that
+# day of the last summary and when one last could not be sent, and the line of
+# a deleted copy whose mail is not sent yet (copy-proven). A message that
 # could not be sent leaves its state as it was, so the next run sends it again
 # (the summary, an hour later).
 #
@@ -59,9 +71,11 @@
 # it among those that hold the owner at the machine, because its counts span
 # every organisation. Live's row counts are given only when that role passes
 # row security (a superuser), or they would count no organisation's rows.
+# copy-before-update.sh reads live's database the same way for the copy's
+# proof.
 #
 # NOTHING SECRET, NO ADDRESS. It sends and prints numbers, mount points, the
-# names of databases, volumes and duties, and dates. Of the .env's values it
+# names of databases, volumes and duties, release tags, and dates. Of the .env's values it
 # reads ALERT_DISK_FREE_GB, a number, and ZITADEL_PAT_EXPIRY, a date, and
 # prints that date. What a tool said when it failed goes to the journal, not
 # into a mail.
@@ -89,6 +103,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 ENV_FILE="${SCRIPT_DIR}/.env"
 TELL="${SCRIPT_DIR}/tell-owner.sh"
+COPY="${SCRIPT_DIR}/copy-before-update.sh"
 
 # The messages, by the names docs/incident-runbook.md gives their rows
 # (a-runbook-for-every-alert reads these lines).
@@ -97,6 +112,7 @@ MSG_DISK_UNREAD='Disk not read'
 MSG_DISK_OK='Disk recovered'
 MSG_DUTIES_LATE='Daily duties late'
 MSG_SUMMARY='Daily summary'
+MSG_UPDATE_PROVEN='Update proven'
 
 # A day's run, and two hours for it to start late and run long.
 LATE_AFTER_SECONDS=$((26 * 3600))
@@ -367,6 +383,123 @@ EOF
   state_set duties "$now" || true
 }
 
+# ------------------------------------------------- the copy before an update --
+
+# What copy-before-update.sh delete-if-proven may put in its one line: times
+# in deploys.log's format, release tags, counts, and nothing else.
+ISO_RE='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+TAG_RE='^[A-Za-z0-9][A-Za-z0-9._-]*$'
+COPY_LINE='The copy before an update: not read'
+
+# deleted_fields <line> — sets D_TAKEN, D_BEFORE, D_TOOK, D_TAG, D_PASSES and
+# D_FILES from the line delete-if-proven prints when it deleted the copy;
+# false when it is not that line, field by field.
+deleted_fields() {
+  local kind
+  IFS=$'\t' read -r kind D_TAKEN D_BEFORE D_TOOK D_TAG D_PASSES D_FILES <<<"$1"
+  [ "$kind" = deleted ] && [ "$(wc -l <<<"$1")" -eq 1 ] &&
+    [[ "$D_TAKEN" =~ $ISO_RE ]] && [[ "$D_TOOK" =~ $ISO_RE ]] &&
+    [[ "$D_BEFORE" =~ $TAG_RE ]] && [[ "$D_TAG" =~ $TAG_RE ]] &&
+    [[ "$D_PASSES" =~ ^[1-9][0-9]*$ ]] && [[ "$D_FILES" =~ ^[1-9][0-9]*$ ]]
+}
+
+# tell_proven <line> — "Update proven", from a deleted copy's line; true when
+# it was sent.
+tell_proven() {
+  deleted_fields "$1" || return 1
+  tell "$MSG_UPDATE_PROVEN" "$D_TAG" 'the next run sends it again, and asks for no other delete until it is sent' <<EOF
+The update to ${D_TAG} is proven, by the rule of ./deploy/compose/copy-before-update.sh delete and the box checks' own: the deploy of ${D_TAG} took at ${D_TOOK} (deploys.log), the hold that covered it was lifted at least an hour ago and no hold is on now, the checkout is at the commit that took, and ${D_PASSES} pass(es) that started after it succeeded and have a data type of their migration completed.
+
+So the copy of live's databases taken at ${D_TAKEN}, before ${D_BEFORE}, is deleted, as that command deletes it: ${D_FILES} file(s). Live holds no copy until the next deploy takes one; a bad update from here is fixed forward with a new tag.
+
+Nothing to do. The files' names are in the journal:
+  journalctl --user -u ownpace-box-checks -n 50 --no-pager
+To keep the next copy until you delete it yourself: COPY_DELETE_WHEN_PROVEN=false in live's .env.
+EOF
+}
+
+# copy_reason <code> — why delete-if-proven kept the copy, in the summary's
+# words; false for a code it does not give.
+copy_reason() {
+  case "$1" in
+    no-note) echo "files without a copy's note (a dump by hand), each deleted by its own age after day 6" ;;
+    off) echo 'COPY_DELETE_WHEN_PROVEN is false: deleting it is yours (copy-before-update.sh delete)' ;;
+    no-took) echo 'no deploy has taken since it was taken' ;;
+    did-not-take) echo 'the last deploy since it was taken did not take' ;;
+    hold-on) echo 'the hold that covered the deploy is still on: lift it after looking' ;;
+    no-pass) echo 'no pass that started after the deploy has succeeded yet: ./deploy/compose/live-pass-check.sh starts one' ;;
+    unfinished) echo 'passes since the deploy succeeded, but none has a data type of its migration completed yet' ;;
+    held) echo 'a hold is on now: the box checks delete nothing while one is' ;;
+    grace) echo 'proven, and deleted once an hour has passed since the hold was last lifted' ;;
+    head-moved) echo 'the checkout is not at the commit the deploy took' ;;
+    unlisted) echo 'a file beside it is not in its note: delete it yourself (copy-before-update.sh delete), or day 6 does' ;;
+    *) return 1 ;;
+  esac
+}
+
+# unread_code <code> — whether delete-if-proven gives it when it cannot tell.
+unread_code() {
+  case "$1" in
+    note-time | log-unread | log-garbled | db | answer | not-superuser | git | switch | note-unread | delete-incomplete) return 0 ;;
+  esac
+  return 1
+}
+
+# check_copy — copy-before-update.sh delete-if-proven, its one line read and
+# nothing else of what it printed: COPY_LINE for the summary, one mail for a
+# copy deleted, and a NOT DONE for an answer it cannot judge. A deleted copy's
+# line is kept (copy-proven) until its mail is sent, and no other delete is
+# asked for while it is.
+check_copy() {
+  local pending rc=0 kind='' code='' taken='' before='' day='' reason l
+  pending="$(state_get copy-proven)"
+  if [ -n "$pending" ]; then
+    if ! deleted_fields "$pending"; then
+      PROBLEMS+=("the copy before an update: copy-proven in what it remembers is not a line it wrote; nothing more is deleted until that file is gone")
+      return 0
+    fi
+    if ! tell_proven "$pending"; then
+      COPY_LINE="The copy before an update: deleted (the update to ${D_TAG} is proven); the mail saying so is not sent yet"
+      return 0
+    fi
+    state_set copy-proven '' || return 0
+  fi
+  if [ ! -x "$COPY" ]; then
+    PROBLEMS+=("the copy before an update: copy-before-update.sh is not beside this script, or cannot be run")
+    return 0
+  fi
+  capture "$COPY" delete-if-proven </dev/null || rc=$?
+  if [ "$(wc -l <<<"$OUT")" -eq 1 ]; then
+    IFS=$'\t' read -r kind code taken before day <<<"$OUT"
+  fi
+  if [ "$rc" -eq 0 ] && [ "$OUT" = none ]; then
+    COPY_LINE='The copy before an update: none here'
+  elif [ "$rc" -eq 0 ] && [ "$kind" = kept ] && reason="$(copy_reason "$code")" &&
+    [[ "$taken" =~ $ISO_RE || "$taken" = - ]] && [[ "$before" =~ $TAG_RE || "$before" = - ]] &&
+    [[ "$day" =~ ^[1-9][0-9]*$ || "$day" = - ]]; then
+    COPY_LINE="The copy before an update: taken ${taken}, before ${before}, day ${day} of at most 7: kept, ${reason}"
+  elif [ "$rc" -eq 0 ] && deleted_fields "$OUT"; then
+    # The files it deleted, by name, for the journal.
+    while IFS= read -r l; do [ -z "$l" ] || fail_line "$l"; done <<<"$ERR_TEXT"
+    # Kept before the mail is tried: a deletion is told, by this run or the next.
+    state_set copy-proven "$OUT" || true
+    if tell_proven "$OUT"; then
+      state_set copy-proven '' || true
+      COPY_LINE="The copy before an update: deleted at $(utc "$NOW"): the update to ${D_TAG} is proven"
+    else
+      COPY_LINE="The copy before an update: deleted (the update to ${D_TAG} is proven); the mail saying so is not sent yet"
+    fi
+  elif [ "$rc" -eq 1 ] && [ "$kind" = unread ] && [ -z "$taken" ] && unread_code "$code"; then
+    while IFS= read -r l; do [ -z "$l" ] || fail_line "$l"; done <<<"$ERR_TEXT"
+    PROBLEMS+=("the copy before an update: whether its update is proven (${code})")
+  else
+    # Nothing of what it printed on stdout goes anywhere: it is not a line
+    # this reads.
+    fail_line "copy-before-update.sh delete-if-proven (exit ${rc}): ${ERR_TEXT:-it said nothing}"
+    PROBLEMS+=("the copy before an update: copy-before-update.sh delete-if-proven answered nothing this reads (exit ${rc})")
+  fi
+}
+
 # -------------------------------------------------------------- the summary --
 
 # container <project> <service> — sets CONTAINER to the id of that service's
@@ -550,7 +683,8 @@ ${VOLUME_LINES}
 
 On ${COMPOSE_PROJECT}
   ${ROWS_LINE}
-  ${BEAT_LINE}"
+  ${BEAT_LINE}
+  ${COPY_LINE}"
   if [ "${#PROBLEMS[@]}" -gt 0 ]; then
     body+="
 
@@ -576,10 +710,11 @@ fi
 check_disk docker "Docker's data root" "$DOCKER_ROOT"
 check_disk persistent "live's persisted directory" "$PERSIST"
 check_duties
+check_copy
 if summary_due; then send_summary; fi
 
 if [ "${#PROBLEMS[@]}" -gt 0 ]; then
   for p in "${PROBLEMS[@]}"; do fail_line "NOT DONE: ${p}"; done
   exit 1
 fi
-say "checked: ${#SEEN_MOUNTS[@]} filesystem(s) against ${FLOOR_GB} GB, the duties' last pass"
+say "checked: ${#SEEN_MOUNTS[@]} filesystem(s) against ${FLOOR_GB} GB, the duties' last pass, the copy before an update"

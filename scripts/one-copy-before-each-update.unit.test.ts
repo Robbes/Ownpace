@@ -36,6 +36,18 @@
  *   refuses; a database it cannot read, or a role row security binds, is no
  *   proof. It sends no statement that writes.
  *
+ *   delete-if-proven, the box checks' delete (workplan 0132 T9; the owner,
+ *   2026-10-28). It runs every ten minutes with nobody watching, so it is
+ *   never looser than delete: the same proof, then no hold on at all (the
+ *   next update's included), live's checkout at the commit that took, a data
+ *   type of a proving pass's migration completed since that pass began, an
+ *   hour since the hold was last lifted, nothing in the directory the note
+ *   does not name, and COPY_DELETE_WHEN_PROVEN not false. Each condition has
+ *   a case that keeps the copy, read from the same kind of database, and each
+ *   case fails when its condition is taken out. It prints one line on stdout,
+ *   the one box-checks.sh reads, with no path and no id in it, and sends no
+ *   statement that writes.
+ *
  *   expire, the daily backstop. Nothing older than 6 days less an hour
  *   survives it, proven or not, so a copy is never kept past day 7 even when a
  *   daily run starts late. Each file goes by its own age, a dump by hand
@@ -227,7 +239,10 @@ if (process.env.STUB_PSQL_FAIL) {
   process.exit(2);
 }
 if (!process.env.STUB_PGLITE) {
-  process.stdout.write(process.env.STUB_PSQL_ANSWER || '');
+  // STUB_PSQL_ANSWER2, when set, answers the second call on: delete-if-proven asks twice.
+  const nth = fs.readFileSync(process.env.STUB_LOG, 'utf8').split('\\n').filter((l) => l.startsWith('psql ')).length;
+  const second = nth >= 2 && process.env.STUB_PSQL_ANSWER2 !== undefined;
+  process.stdout.write((second ? process.env.STUB_PSQL_ANSWER2 : process.env.STUB_PSQL_ANSWER) || '');
   process.exit(0);
 }
 (async () => {
@@ -363,7 +378,7 @@ function runIn(s: Stage, script: string, args: string[], extra: NodeJS.ProcessEn
     cwd: s.work,
     timeout: 60_000,
   });
-  return { status: r.status ?? -1, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
+  return { status: r.status ?? -1, out: `${r.stdout ?? ''}${r.stderr ?? ''}`, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
 const run = (s: Stage, args: string[], extra: NodeJS.ProcessEnv = {}) => runIn(s, SCRIPT, args, extra);
 
@@ -378,30 +393,42 @@ const note = (s: Stage): string => readFileSync(join(s.dir, NOTE), 'utf8');
 /** An ISO time `ago` milliseconds before now, to the second, as deploys.log writes it. */
 const iso = (ago: number): string => new Date(Date.now() - ago).toISOString().replace(/\.\d{3}Z$/, 'Z');
 
+/** A commit no checkout here is at. */
+const ELSEWHERE = 'c0ffee0000000000000000000000000000000000';
+
 /** A line of deploys.log, as deploy-live.sh appends it. Returns the line's time. */
-function logDeploy(s: Stage, ago: number, outcome: 'took' | 'did-not-take', tag = TAG): string {
+function logDeploy(s: Stage, ago: number, outcome: 'took' | 'did-not-take', tag = TAG, commit = ELSEWHERE): string {
   mkdirSync(dirname(s.deployLog), { recursive: true });
   const at = iso(ago);
-  const line = [at, tag, 'c0ffee0000000000000000000000000000000000', outcome, 'one-way'].join('\t');
+  const line = [at, tag, commit, outcome, 'one-way'].join('\t');
   writeFileSync(s.deployLog, `${existsSync(s.deployLog) ? readFileSync(s.deployLog, 'utf8') : ''}${line}\n`);
   return at;
 }
 
+/** The commit the checkout's HEAD is at: the one a deploy that took logs. */
+function headOf(s: Stage): string {
+  const r = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: s.work, encoding: 'utf8', env: gitEnv(s.home) });
+  if (r.status !== 0) throw new Error(`git rev-parse HEAD: ${r.stderr}`);
+  return r.stdout.trim();
+}
+
 /**
  * A copy as `take` leaves it, planted: the note's header in the script's
- * format (`taken=`, `taken_epoch=`, `before=` above the first blank line), and
- * the dumps, every file's time the copy's.
+ * format (`taken=`, `taken_epoch=`, `before=` above the first blank line), its
+ * Files list as take writes it (without it, `listed: false`), and the dumps,
+ * every file's time the copy's.
  */
-function plantCopy(s: Stage, ago: number, opts: { withNote?: boolean } = {}): string[] {
+function plantCopy(s: Stage, ago: number, opts: { withNote?: boolean; listed?: boolean } = {}): string[] {
   mkdirSync(s.dir, { recursive: true, mode: 0o700 });
   const stamp = iso(ago).replace(/[-:]/g, '');
   const names = [`openmigrate-${LIVE}-${stamp}.dump`, `zitadel-${LIVE}-${stamp}.dump`, `roles-${LIVE}-${stamp}.sql`];
   for (const n of names) writeFileSync(join(s.dir, n), 'PGDMP a planted part\n', { mode: 0o600 });
   if (opts.withNote !== false) {
     const epoch = Math.floor((Date.now() - ago) / 1000);
+    const files = opts.listed === false ? '' : `\n  Files:\n${names.map((n) => `    ${n}   21 bytes\n`).join('')}`;
     writeFileSync(
       join(s.dir, NOTE),
-      `taken=${iso(ago)}\ntaken_epoch=${epoch}\nbefore=${TAG}\nfrom=${RUNNING}\n\nA planted copy.\n`,
+      `taken=${iso(ago)}\ntaken_epoch=${epoch}\nbefore=${TAG}\nfrom=${RUNNING}\n\nA planted copy.\n${files}`,
       { mode: 0o600 },
     );
     names.push(NOTE);
@@ -883,6 +910,446 @@ describe('delete, the proof read from a database with both chains applied', () =
 });
 
 // ===========================================================================
+// delete-if-proven: the box checks' delete
+// ===========================================================================
+
+const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
+const WRITES = /\b(UPDATE|INSERT|DELETE|DROP|TRUNCATE)\b/i;
+
+/** The line box-checks.sh reads: exactly one, with no path and no id in it. */
+function oneLine(stdout: string): string {
+  expect(stdout, 'delete-if-proven did not print exactly one line on stdout').toMatch(/^[^\n]+\n$/);
+  expect(stdout, 'its line holds a path').not.toContain('/');
+  expect(stdout, 'its line holds an id').not.toMatch(UUID);
+  return stdout.slice(0, -1);
+}
+
+/** The copy's time, as its note says it. */
+const takenOf = (s: Stage): string => /^taken=(.*)$/m.exec(note(s))?.[1] ?? '';
+
+/** The note's time moved back, as if the take had run `ago` milliseconds ago. */
+function asTakenAgo(s: Stage, ago: number): void {
+  writeFileSync(
+    join(s.dir, NOTE),
+    note(s)
+      .replace(/^taken=.*$/m, `taken=${iso(ago)}`)
+      .replace(/^taken_epoch=.*$/m, `taken_epoch=${Math.floor((Date.now() - ago) / 1000)}`),
+  );
+}
+
+describe('delete-if-proven: one line on stdout, and what it cannot tell, each read before anything is deleted', () => {
+  // Every condition holds by the stubs' answers (delete's counts, then its
+  // own: no hold, one finished pass, the hold lifted 90 minutes ago), so each
+  // case breaks one, and only that one keeps the copy.
+  const PROVEN = { STUB_PSQL_ANSWER: 'yes|0|1\n', STUB_PSQL_ANSWER2: 'yes|0|1|5400\n' };
+  const provable = (dotEnv = LIVE_ENV) => {
+    const s = stage(dotEnv);
+    const planted = plantCopy(s, 3 * HOUR);
+    const took = logDeploy(s, 2 * HOUR, 'took', TAG, headOf(s));
+    return { s, planted, took };
+  };
+  const psqlCalls = (s: Stage): string[] => calls(s).filter((c) => c.startsWith('psql '));
+
+  it.each([[''], ['true'], ["'true'"]])(
+    'COPY_DELETE_WHEN_PROVEN=%s, and every answer proves it: deleted, the line naming the copy, the deploy, the passes and the files',
+    (value) => {
+      const { s, planted, took } = provable(`${LIVE_ENV}COPY_DELETE_WHEN_PROVEN=${value}\n`);
+      const taken = takenOf(s);
+      const r = run(s, ['delete-if-proven'], PROVEN);
+      expect(r.status, r.out).toBe(0);
+      expect(oneLine(r.stdout)).toBe(['deleted', taken, TAG, took, TAG, '1', String(planted.length)].join('\t'));
+      expect(filesIn(s.dir)).toEqual([]);
+      // Every sentence on stderr, the files by name among them.
+      for (const f of planted) expect(r.stderr).toContain(f);
+      expect(psqlCalls(s)).toHaveLength(2);
+    },
+  );
+
+  it('no directory: none, and nothing asked', () => {
+    const s = stage();
+    const r = run(s, ['delete-if-proven'], PROVEN);
+    expect(r.status, r.out).toBe(0);
+    expect(oneLine(r.stdout)).toBe('none');
+    expect(calls(s)).toEqual([]);
+  });
+
+  it('dumps without a note: kept, each going by its own age, and the database not asked', () => {
+    const s = stage();
+    const planted = plantCopy(s, 3 * HOUR, { withNote: false });
+    logDeploy(s, 2 * HOUR, 'took', TAG, headOf(s));
+    const r = run(s, ['delete-if-proven'], PROVEN);
+    expect(r.status, r.out).toBe(0);
+    expect(oneLine(r.stdout)).toBe('kept\tno-note\t-\t-\t-');
+    expect(filesIn(s.dir)).toEqual(planted);
+    expect(psqlCalls(s)).toEqual([]);
+  });
+
+  it("COPY_DELETE_WHEN_PROVEN=false in live's .env: kept for the owner's own delete, and the database not even asked", () => {
+    const { s, planted } = provable(`${LIVE_ENV}COPY_DELETE_WHEN_PROVEN=false\n`);
+    const taken = takenOf(s);
+    const r = run(s, ['delete-if-proven'], PROVEN);
+    expect(r.status, r.out).toBe(0);
+    expect(oneLine(r.stdout)).toBe(`kept\toff\t${taken}\t${TAG}\t1`);
+    expect(r.stderr).toContain('./deploy/compose/copy-before-update.sh delete');
+    expect(filesIn(s.dir)).toEqual(planted);
+    expect(psqlCalls(s)).toEqual([]);
+  });
+
+  it.each([['maybe'], ['"true"'], ['TRUE']])(
+    'COPY_DELETE_WHEN_PROVEN=%s is neither true nor false: it cannot tell, deletes nothing, and does not print the value',
+    (value) => {
+      const { s, planted } = provable(`${LIVE_ENV}COPY_DELETE_WHEN_PROVEN=${value}\n`);
+      const r = run(s, ['delete-if-proven'], PROVEN);
+      expect(r.status, r.out).toBe(1);
+      expect(oneLine(r.stdout)).toBe('unread\tswitch');
+      expect(r.stderr).toContain('COPY_DELETE_WHEN_PROVEN');
+      expect(r.out).not.toContain(value);
+      expect(filesIn(s.dir)).toEqual(planted);
+    },
+  );
+
+  // env_value reads a key at the start of its line; Compose reads these too,
+  // and bash the indented one. As env_value reads them, the first is the
+  // example's true and the others are empty, and each would delete the copy
+  // the owner switched the delete off for.
+  it.each([
+    ["indented, after the example's true", 'COPY_DELETE_WHEN_PROVEN=true\n  COPY_DELETE_WHEN_PROVEN=false\n'],
+    ["with a space before '='", 'COPY_DELETE_WHEN_PROVEN = false\n'],
+    ["with ':' for '='", 'COPY_DELETE_WHEN_PROVEN: false\n'],
+  ])('COPY_DELETE_WHEN_PROVEN %s: it cannot tell, deletes nothing, and does not print the value', (_label, lines) => {
+    const { s, planted } = provable(`${LIVE_ENV}${lines}`);
+    const r = run(s, ['delete-if-proven'], PROVEN);
+    expect(r.status, r.out).toBe(1);
+    expect(oneLine(r.stdout)).toBe('unread\tswitch');
+    expect(r.stderr).toContain("COPY_DELETE_WHEN_PROVEN is set in live's .env in a form this does not read");
+    expect(r.out).not.toContain('false');
+    expect(filesIn(s.dir)).toEqual(planted);
+    expect(psqlCalls(s)).toEqual([]);
+  });
+
+  it.each([
+    ['the database cannot be read', { STUB_PSQL_FAIL: '1' }, 'db'],
+    ["a role row security binds, to delete's question", { STUB_PSQL_ANSWER: 'no|0|1\n' }, 'not-superuser'],
+    ['a role row security binds, to its own', { ...PROVEN, STUB_PSQL_ANSWER2: 'no|0|1|5400\n' }, 'not-superuser'],
+    ['an answer that is not its counts', { ...PROVEN, STUB_PSQL_ANSWER2: 'garbage\n' }, 'answer'],
+    ["delete's three counts where its four are asked", { ...PROVEN, STUB_PSQL_ANSWER2: 'yes|0|1\n' }, 'answer'],
+    ['two lines of counts', { ...PROVEN, STUB_PSQL_ANSWER2: 'yes|0|1|5400\nyes|0|1|5400\n' }, 'answer'],
+  ] as const)('%s: it cannot tell, exit 1, and the copy intact', (_label, extra, code) => {
+    const { s, planted } = provable();
+    const r = run(s, ['delete-if-proven'], extra);
+    expect(r.status, r.out).toBe(1);
+    expect(oneLine(r.stdout)).toBe(`unread\t${code}`);
+    expect(filesIn(s.dir)).toEqual(planted);
+  });
+
+  it('a note that does not say when the copy was taken: it cannot tell', () => {
+    const { s, planted } = provable();
+    writeFileSync(join(s.dir, NOTE), note(s).replace(/^taken=.*\n/m, ''));
+    const r = run(s, ['delete-if-proven'], PROVEN);
+    expect(r.status, r.out).toBe(1);
+    expect(oneLine(r.stdout)).toBe('unread\tnote-time');
+    expect(filesIn(s.dir)).toEqual(planted);
+  });
+
+  it("a tag its line could not carry, the note's or deploys.log's: it cannot tell, and a deletion box-checks.sh could not read never happens", () => {
+    const a = provable();
+    writeFileSync(join(a.s.dir, NOTE), note(a.s).replace(/^before=.*$/m, 'before=v0.2.0 alpha.2'));
+    const byNote = run(a.s, ['delete-if-proven'], PROVEN);
+    expect(byNote.status, byNote.out).toBe(1);
+    expect(oneLine(byNote.stdout)).toBe('unread\tnote-unread');
+    expect(filesIn(a.s.dir)).toEqual(a.planted);
+
+    const b = stage();
+    const planted = plantCopy(b, 3 * HOUR);
+    logDeploy(b, 2 * HOUR, 'took', 'v0.2.0 alpha.2', headOf(b));
+    const byLog = run(b, ['delete-if-proven'], PROVEN);
+    expect(byLog.status, byLog.out).toBe(1);
+    expect(oneLine(byLog.stdout)).toBe('unread\tlog-garbled');
+    expect(filesIn(b.dir)).toEqual(planted);
+  });
+
+  it("git that cannot name the checkout's HEAD: it cannot tell", () => {
+    const { s, planted } = provable();
+    rmSync(join(s.work, '.git'), { recursive: true, force: true });
+    const r = run(s, ['delete-if-proven'], { ...PROVEN, GIT_CEILING_DIRECTORIES: s.root });
+    expect(r.status, r.out).toBe(1);
+    expect(oneLine(r.stdout)).toBe('unread\tgit');
+    expect(filesIn(s.dir)).toEqual(planted);
+  });
+
+  it('an argument it does not take: usage, exit 2, and nothing asked', () => {
+    const { s, planted } = provable();
+    const r = run(s, ['delete-if-proven', 'now'], PROVEN);
+    expect(r.status, r.out).toBe(2);
+    expect(r.stdout).toBe('');
+    expect(calls(s)).toEqual([]);
+    expect(filesIn(s.dir)).toEqual(planted);
+  });
+
+  it("refuses the OTA stack's .env before any docker call, with nothing on stdout", () => {
+    const s = stage(OTA_ENV);
+    const r = run(s, ['delete-if-proven'], PROVEN);
+    expect(r.status, r.out).toBe(1);
+    expect(r.stdout).toBe('');
+    expect(r.out).toContain('STACK_KIND');
+    expect(calls(s)).toEqual([]);
+  });
+});
+
+describe("delete-if-proven: the box checks' delete, never looser than delete, read from a database with both chains applied", () => {
+  let dataDir = '';
+  const TENANT = 'd0000000-0000-4000-8000-000000000003';
+  const CONNECTION = 'd0000000-0000-4000-8000-000000000013';
+  const MAILBOX = 'd0000000-0000-4000-8000-000000000023';
+  const MAPPING = 'd0000000-0000-4000-8000-000000000033';
+  const withDb = async (fn: (db: PgliteLike) => Promise<void>) => {
+    const db = new PGlite(dataDir, { extensions: { pgcrypto } });
+    try {
+      await fn(db);
+    } finally {
+      await db.close();
+    }
+  };
+  const setState = (sql: string) =>
+    withDb(async (db) => {
+      await db.exec(`DELETE FROM run; DELETE FROM platform_pause; DELETE FROM migration_status; ${sql}`);
+    });
+  // The copy three hours ago, the deploy that took two hours ago, under a
+  // hold that began before the copy.
+  const HOLD_ON = `INSERT INTO platform_pause (started_at, message, started_by)
+    VALUES (now() - interval '3 hours 10 minutes', 'We werken het platform bij.', 'owner-subject');`;
+  const lifted = (ago: string) => `INSERT INTO platform_pause (started_at, ended_at, message, started_by, ended_by)
+    VALUES (now() - interval '3 hours 10 minutes', now() - interval '${ago}', 'We werkten het platform bij.',
+            'owner-subject', 'owner-subject');`;
+  const HOLD_LIFTED = lifted('90 minutes');
+  const HOLD_LIFTED_RECENT = lifted('30 minutes');
+  const NEXT_HOLD = `INSERT INTO platform_pause (started_at, message, started_by)
+    VALUES (now() - interval '10 minutes', 'We werken het platform weer bij.', 'owner-subject');`;
+  /** A pass of the migration (or of none), started `startedAgo`. */
+  const pass = (startedAgo: string, mapping: string | null = MAPPING, status = 'succeeded', kind = 'incremental') =>
+    `INSERT INTO run (tenant_id, mapping_id, kind, status, started_at, finished_at)
+       VALUES ('${TENANT}', ${mapping === null ? 'NULL' : `'${mapping}'`}, '${kind}', '${status}',
+               now() - interval '${startedAgo}', now() - interval '1 minute');`;
+  /** The migration's mail, completed `ago`: what markCompleted writes. */
+  const completed = (ago: string) =>
+    `INSERT INTO migration_status (tenant_id, mapping_id, domain, state, started_at, completed_at)
+       VALUES ('${TENANT}', '${MAPPING}', 'email', 'completed', now() - interval '${ago}', now() - interval '${ago}');`;
+  // Every condition holds: the hold lifted 90 minutes ago, a pass of the
+  // migration started an hour ago, and its mail completed half an hour ago.
+  const PROVEN = `${HOLD_LIFTED}${pass('60 minutes')}${completed('30 minutes')}`;
+
+  beforeAll(async () => {
+    dataDir = join(tempDir('delete-if-proven-db-'), 'pg');
+    const driver = pgliteDriver({ dataDir });
+    await runMigrations({ driver, logger: () => {} });
+    await runManagedMigrations({ driver, logger: () => {} });
+    await driver.end();
+    await withDb(async (db) => {
+      await db.exec(`
+        INSERT INTO tenant (id, name) VALUES ('${TENANT}', 'A tester');
+        INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
+          VALUES ('${CONNECTION}', '${TENANT}', 'source', 'imap', 'a source', '{}'::jsonb, 'connected', 'v1:a-credential');
+        INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address)
+          VALUES ('${MAILBOX}', '${TENANT}', '${CONNECTION}', 'user', 'someone@example.org');
+        INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, status, source_secret_ref)
+          VALUES ('${MAPPING}', '${TENANT}', '${MAILBOX}', 'active', NULL);`);
+    });
+  }, PGLITE_CASE_MS);
+
+  /**
+   * The state, a copy three hours old, and a deploy that took two hours ago at
+   * the checkout's HEAD (or as `log` writes deploys.log); then delete-if-proven.
+   */
+  const attempt = async (state: string, log?: (s: Stage) => void) => {
+    await setState(state);
+    const s = stage();
+    const planted = plantCopy(s, 3 * HOUR);
+    const taken = takenOf(s);
+    const took = log ? '' : logDeploy(s, 2 * HOUR, 'took', TAG, headOf(s));
+    if (log) log(s);
+    const r = run(s, ['delete-if-proven'], { STUB_PGLITE: dataDir });
+    expect(sqlSent(s)).not.toMatch(WRITES);
+    return { s, r, planted, taken, took };
+  };
+  const expectKept = ({ s, r, planted, taken }: Awaited<ReturnType<typeof attempt>>, code: string) => {
+    expect(r.status, r.out).toBe(0);
+    expect(oneLine(r.stdout)).toBe(`kept\t${code}\t${taken}\t${TAG}\t1`);
+    expect(filesIn(s.dir), 'a copy it keeps lost a file').toEqual(planted);
+  };
+
+  it(
+    'every condition holds: deleted, all of it, and the line says what was proven',
+    async () => {
+      const { s, r, planted, taken, took } = await attempt(PROVEN);
+      expect(r.status, r.out).toBe(0);
+      expect(oneLine(r.stdout)).toBe(['deleted', taken, TAG, took, TAG, '1', String(planted.length)].join('\t'));
+      expect(filesIn(s.dir)).toEqual([]);
+    },
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    "the same, with the next update's hold already on: kept (held), where delete deletes",
+    async () => {
+      const a = await attempt(`${PROVEN}${NEXT_HOLD}`);
+      expectKept(a, 'held');
+      // delete's own rule counts only the hold that covered the deploy.
+      const looser = run(a.s, ['delete'], { STUB_PGLITE: dataDir });
+      expect(looser.status, looser.out).toBe(0);
+      expect(filesIn(a.s.dir)).toEqual([]);
+    },
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    'the hold that covered the deploy still on: kept (hold-on), as delete keeps it',
+    async () => expectKept(await attempt(`${HOLD_ON}${pass('60 minutes')}${completed('30 minutes')}`), 'hold-on'),
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    'the hold lifted, and no pass since: kept (no-pass), as delete keeps it',
+    async () => expectKept(await attempt(HOLD_LIFTED), 'no-pass'),
+    PGLITE_CASE_MS,
+  );
+
+  it.each([
+    ['a pass of no migration succeeded, beside a migration completed', `${HOLD_LIFTED}${pass('60 minutes', null)}${completed('30 minutes')}`],
+    ['the pass succeeded, and its migration last completed before it began', `${HOLD_LIFTED}${pass('60 minutes')}${completed('70 minutes')}`],
+    // delete's own count passes on the pass of no migration; the migration
+    // completed only in a run the rule does not count.
+    [
+      "the migration's own pass failed after its mail completed",
+      `${HOLD_LIFTED}${pass('60 minutes', null)}${pass('50 minutes', MAPPING, 'failed')}${completed('30 minutes')}`,
+    ],
+    [
+      "the migration's own pass began before the deploy took",
+      `${HOLD_LIFTED}${pass('60 minutes', null)}${pass('150 minutes')}${completed('30 minutes')}`,
+    ],
+    [
+      'the migration completed in a run that is not a pass (verify)',
+      `${HOLD_LIFTED}${pass('60 minutes', null)}${pass('50 minutes', MAPPING, 'succeeded', 'verify')}${completed('30 minutes')}`,
+    ],
+  ])(
+    'a pass that did nothing proves nothing: kept (unfinished), %s',
+    async (_label, state) => expectKept(await attempt(state), 'unfinished'),
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    'proven, and the hold lifted only 30 minutes ago: kept (grace), the owner\'s hour',
+    async () => expectKept(await attempt(`${HOLD_LIFTED_RECENT}${pass('20 minutes')}${completed('10 minutes')}`), 'grace'),
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    'proven, the hold lifted 90 minutes ago and the deploy took only 30 minutes ago: kept (grace), the hour counted from the later',
+    async () =>
+      expectKept(
+        await attempt(`${HOLD_LIFTED}${pass('20 minutes')}${completed('10 minutes')}`, (s) =>
+          logDeploy(s, HOUR / 2, 'took', TAG, headOf(s)),
+        ),
+        'grace',
+      ),
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    'the checkout is not at the commit the deploy took: kept (head-moved)',
+    async () => expectKept(await attempt(PROVEN, (s) => logDeploy(s, 2 * HOUR, 'took', TAG, ELSEWHERE)), 'head-moved'),
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    'a deploy since that did not take: kept (did-not-take); no deploy that took: kept (no-took)',
+    async () => {
+      expectKept(
+        await attempt(PROVEN, (s) => {
+          logDeploy(s, 2 * HOUR, 'took', TAG, headOf(s));
+          logDeploy(s, 1 * HOUR, 'did-not-take', 'v0.2.0-alpha.3', headOf(s));
+        }),
+        'did-not-take',
+      );
+      expectKept(await attempt(PROVEN, () => {}), 'no-took');
+    },
+    PGLITE_CASE_MS,
+  );
+
+  it.each([['by-hand-after.sql'], ['since-the-copy-20261027T101500Z.sql']])(
+    'a file beside the copy its note does not name (%s): the whole copy kept (unlisted), for the owner or day 6',
+    async (stray) => {
+      const a = await attempt(PROVEN, (s) => {
+        writeFileSync(join(s.dir, stray), '-- not the copy\'s\n', { mode: 0o600 });
+        logDeploy(s, 2 * HOUR, 'took', TAG, headOf(s));
+      });
+      expect(a.r.status, a.r.out).toBe(0);
+      expect(oneLine(a.r.stdout)).toBe(`kept\tunlisted\t${a.taken}\t${TAG}\t1`);
+      expect(filesIn(a.s.dir)).toEqual([...a.planted, stray].sort());
+      expect(a.r.stderr).toContain(stray);
+    },
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    'a note that lists none of its files: kept (unlisted)',
+    async () => {
+      await setState(PROVEN);
+      const s = stage();
+      const planted = plantCopy(s, 3 * HOUR, { listed: false });
+      logDeploy(s, 2 * HOUR, 'took', TAG, headOf(s));
+      const r = run(s, ['delete-if-proven'], { STUB_PGLITE: dataDir });
+      expect(r.status, r.out).toBe(0);
+      expect(oneLine(r.stdout)).toMatch(/^kept\tunlisted\t/);
+      expect(filesIn(s.dir)).toEqual(planted);
+    },
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    'end to end: what take --trigger wrote, delete-if-proven recognises whole and deletes, once every condition holds',
+    async () => {
+      await setState(PROVEN);
+      const s = stage();
+      const took = run(s, ['take', '--trigger', TAG]);
+      expect(took.status, took.out).toBe(0);
+      const written = filesIn(s.dir);
+      expect(written.filter((f) => f.startsWith('triggerdb-'))).toHaveLength(1);
+      // As if the take had run three hours ago, before a deploy that took two hours ago.
+      asTakenAgo(s, 3 * HOUR);
+      logDeploy(s, 2 * HOUR, 'took', TAG, headOf(s));
+      const r = run(s, ['delete-if-proven'], { STUB_PGLITE: dataDir });
+      expect(r.status, r.out).toBe(0);
+      expect(oneLine(r.stdout)).toMatch(new RegExp(`^deleted\\t[^\\t]+\\t${TAG.replace(/\./g, '\\.')}\\t.*\\t${written.length}$`));
+      expect(filesIn(s.dir)).toEqual([]);
+    },
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    "end to end: a kept copy that gained the task runner's database (an ADDED line) is recognised whole too",
+    async () => {
+      await setState(PROVEN);
+      const s = stage();
+      const first = run(s, ['take', TAG]);
+      expect(first.status, first.out).toBe(0);
+      asTakenAgo(s, 3 * HOUR);
+      // The next deploy moves the Trigger.dev pin: the kept copy gains its part.
+      const added = run(s, ['take', '--trigger', TAG]);
+      expect(added.status, added.out).toBe(0);
+      expect(note(s)).toMatch(/^ADDED /m);
+      const written = filesIn(s.dir);
+      expect(written.filter((f) => f.startsWith('triggerdb-'))).toHaveLength(1);
+      logDeploy(s, 2 * HOUR, 'took', TAG, headOf(s));
+      const r = run(s, ['delete-if-proven'], { STUB_PGLITE: dataDir });
+      expect(r.status, r.out).toBe(0);
+      expect(oneLine(r.stdout)).toMatch(new RegExp(`\\t${written.length}$`));
+      expect(filesIn(s.dir)).toEqual([]);
+    },
+    PGLITE_CASE_MS,
+  );
+});
+
+// ===========================================================================
 // expire: the daily backstop
 // ===========================================================================
 
@@ -1014,7 +1481,7 @@ describe('the directory is a directory: a symbolic link there is refused by ever
     return { s, elsewhere };
   }
 
-  it.each([[['take', TAG]], [['take', '--dry-run', TAG]], [['delete']], [['expire']], [['since']]])(
+  it.each([[['take', TAG]], [['take', '--dry-run', TAG]], [['delete']], [['delete-if-proven']], [['expire']], [['since']]])(
     'copy-before-update.sh %j: refused, naming the link, and nothing written through it',
     (args) => {
       const { s, elsewhere } = linked();

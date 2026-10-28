@@ -84,6 +84,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   skipped. The integration tier also gained its first suite for the share
   verb against a real server: a user share, the listing that reads it back,
   and a grantee the server does not know.
+- **Live proves an update by itself, and its owner can start one pass to see
+  it** (workplan 0132 T9, #1724): every ten minutes live's box checks run
+  `copy-before-update.sh delete-if-proven`. It deletes the copy before an
+  update by `delete`'s own rule and, stricter, only with no hold on, the
+  checkout at the commit that took, a data type of the proving pass's
+  migration completed, nothing in the copy's directory that its note does not
+  name, and an hour after the hold was last lifted. The box checks then mail
+  *Update proven* once (`COPY_DELETE_WHEN_PROVEN=false` in live's `.env`
+  leaves the delete to the owner). `deploy/compose/live-pass-check.sh` starts
+  one pass on the migration `LIVE_PASS_CHECK_MIGRATION` names, through *Sync
+  now*'s own gates, refuses while the hold is on or the passes in flight are
+  at the tick's caps, and says within 15 minutes how it ended.
 
 ### Fixed
 

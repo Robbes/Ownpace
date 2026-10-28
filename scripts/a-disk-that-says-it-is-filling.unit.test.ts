@@ -63,6 +63,19 @@
  *   End to end: `box-checks.sh` with the real `tell-owner.sh` sends a low disk
  *   and a summary, and the bodies hold no address and no secret.
  *
+ *   The copy before an update (workplan 0132 T9; the owner, 2026-10-28): every
+ *   run asks `copy-before-update.sh delete-if-proven`, a stub here that prints
+ *   the one line it is told to, and reads that line and nothing else of what
+ *   it printed. A copy deleted is one "Update proven" naming the tag, the
+ *   times, the passes and the number of files, never their names, which go to
+ *   the journal; the line is kept before the mail is tried, so a mail that
+ *   could not be sent goes with a later run, and until it has gone nothing
+ *   more is asked. A copy kept, or none, is no mail, and the summary says why.
+ *   An answer it cannot judge (a code it does not know, two lines, a time that
+ *   is not one, an exit that does not match) is a NOT DONE and a failed exit,
+ *   and none of it is mailed or printed. A `copy-before-update.sh` that is not
+ *   there is a NOT DONE too, and the disk and the duties are still checked.
+ *
  * The units themselves, and the record `box-duties.sh` writes, are asserted in
  * `a-duty-the-gate-used-to-do.unit.test.ts`, beside the duties' own; the rows
  * in `docs/incident-runbook.md` in `a-runbook-for-every-alert.unit.test.ts`.
@@ -183,6 +196,17 @@ const TOP_FIVE = [
   'ownpace-managed_trigger_minio',
 ];
 
+/** A copy taken before NEXT, a deploy of NEXT that took, two passes since and five files: the line delete-if-proven prints when it deleted them. */
+const NEXT = 'v0.2.0-alpha.3';
+const TAKEN = '2026-10-21T04:55:00Z';
+const TOOK = '2026-10-21T05:10:00Z';
+const DELETED = ['deleted', TAKEN, NEXT, TOOK, NEXT, '2', '5'].join('\t');
+const DUMP = 'openmigrate-ownpace-live-20261021T045500Z.dump';
+/** What it says on stderr as it deletes: the journal's, never a mail's. */
+const SAID = `[copy-before-update] deleted the copy taken ${TAKEN} before ${NEXT}: ${DUMP}, roles-ownpace-live-20261021T045500Z.sql, copy-before-update.txt.`;
+/** An id that must never be printed or mailed. */
+const AN_ID = 'e0000000-0000-4000-8000-000000000001';
+
 // ---------------------------------------------------------------------------
 // The stand-ins
 // ---------------------------------------------------------------------------
@@ -260,11 +284,29 @@ for a in "$@"; do case "$a" in -d | -d* | --date | --date=*) exec ${REAL_DATE} "
 exec ${REAL_DATE} "$@"
 `;
 
-/** tell-owner.sh, recording each message: `=== <name>`, `--- <detail>`, then the body. */
+/**
+ * tell-owner.sh, recording each message: `=== <name>`, `--- <detail>`, then the
+ * body; and its call, in order with the others, with what STUB_PROVEN_FILE
+ * held at that moment when it is set.
+ */
 const TELL_STUB = `#!/usr/bin/env bash
+echo "tell-owner.sh $1" >>"$STUB_LOG"
+[ -z "\${STUB_PROVEN_FILE:-}" ] || printf 'proven-at-send %s\\n' "$(cat "$STUB_PROVEN_FILE" 2>/dev/null)" >>"$STUB_LOG"
 body="$(cat)"
 printf '=== %s\\n--- %s\\n%s\\n' "$1" "\${2:-}" "$body" >>"$STUB_TOLD"
 [ -z "\${STUB_TELL_FAIL:-}" ] || { echo "[tell-owner] not sent (the stub says no)" >&2; exit 1; }
+`;
+
+/**
+ * copy-before-update.sh, for delete-if-proven: STUB_COPY_LINE on stdout (none
+ * when it is not set at all), STUB_COPY_SAID on stderr, and STUB_COPY_RC as
+ * its exit.
+ */
+const COPY_STUB = `#!/usr/bin/env bash
+echo "copy-before-update.sh $*" >>"$STUB_LOG"
+printf '%s\\n' "\${STUB_COPY_LINE-none}"
+[ -z "\${STUB_COPY_SAID:-}" ] || printf '%s\\n' "$STUB_COPY_SAID" >&2
+exit "\${STUB_COPY_RC:-0}"
 `;
 
 /** curl: its arguments, its environment, the config on fd 3 and the message on stdin, each call apart. */
@@ -315,6 +357,7 @@ function stage(opts: StageOptions = {}): Stage {
   } else {
     writeExec(join(compose, 'tell-owner.sh'), TELL_STUB);
   }
+  writeExec(join(compose, 'copy-before-update.sh'), COPY_STUB);
   writeFileSync(join(compose, '.env'), opts.dotEnv ?? LIVE_ENV);
 
   const bin = join(root, 'bin');
@@ -846,8 +889,9 @@ describe('one summary a day, numbers only', () => {
     writeRecord(s, 'last-run', NOW - 2 * HOUR, 'failed', 'token');
     writeRecord(s, 'last-pass', NOW - 30 * HOUR, 'passed');
     free(s, { docker: 3, persist: 'fail' });
-    // Two runs, so the disk that cannot be read is told too; the summary is due at the second.
-    const first = checks(s);
+    // Two runs, so the disk that cannot be read is told too; the summary is due
+    // at the second. The first deletes the copy before an update.
+    const first = checks(s, [], { STUB_COPY_LINE: DELETED, STUB_COPY_SAID: SAID });
     expect(first.status, first.out).toBe(1);
     rmSync(join(s.persist, 'box-checks', 'summary'));
     const second = checks(s);
@@ -855,11 +899,203 @@ describe('one summary a day, numbers only', () => {
     expect(told(s).map((m) => m.name)).toEqual([
       'Disk below the floor',
       'Daily duties late',
+      'Update proven',
       'Disk not read',
       'Daily summary',
     ]);
     expectNothingIdentifying(readFileSync(s.told, 'utf8'), 'what it sent');
     expectNothingIdentifying(first.out + second.out, 'what it printed');
+  });
+});
+
+describe('the copy before an update: copy-before-update.sh deletes it once proven, and the owner is told once (workplan 0132 T9)', () => {
+  const copyCalls = (s: Stage): string[] => calls(s, 'copy-before-update.sh');
+  /** What it remembers of a deleted copy whose mail is not sent yet. */
+  const pending = (s: Stage): string => {
+    const f = join(s.persist, 'box-checks', 'copy-proven');
+    return existsSync(f) ? readFileSync(f, 'utf8').replace(/\n$/, '') : '';
+  };
+  const summaryOf = (s: Stage): string => told(s).find((m) => m.name === 'Daily summary')?.body ?? '';
+
+  it('every run asks copy-before-update.sh delete-if-proven, exactly that, and none sends nothing', () => {
+    const s = stage();
+    dutiesPassed(s);
+    const r = checks(s);
+    expect(r.status, r.out).toBe(0);
+    expect(copyCalls(s)).toEqual(['copy-before-update.sh delete-if-proven']);
+    expect(told(s)).toEqual([]);
+    expect(r.out).toContain('the copy before an update');
+  });
+
+  it("none: the summary says there is none, under live's own lines", () => {
+    const s = stage();
+    dutiesPassed(s);
+    const r = checks(s, ['--summary']);
+    expect(r.status, r.out).toBe(0);
+    expect(summaryOf(s)).toMatch(/^On ownpace-live\n( {2}.*\n){2} {2}The copy before an update: none here$/m);
+  });
+
+  it('a copy deleted is one "Update proven": the tag, the times, the passes, the number of files, and their names in the journal only', () => {
+    const s = stage();
+    dutiesPassed(s);
+    const r = checks(s, ['--summary'], {
+      STUB_COPY_LINE: DELETED,
+      STUB_COPY_SAID: SAID,
+      STUB_PROVEN_FILE: join(s.persist, 'box-checks', 'copy-proven'),
+    });
+    expect(r.status, r.out).toBe(0);
+    expect(told(s).map((m) => `${m.name}: ${m.detail}`)).toEqual([`Update proven: ${NEXT}`, `Daily summary: ${day(NOW)}`]);
+    // Kept before the mail is tried: a run killed while the mail hangs leaves
+    // the deletion for the next run to tell.
+    const log = readFileSync(s.log, 'utf8').split('\n');
+    expect(log[log.indexOf('tell-owner.sh Update proven') + 1], 'the deletion was not kept before the mail was tried').toBe(
+      `proven-at-send ${DELETED}`,
+    );
+    const body = told(s)[0]!.body;
+    for (const words of [
+      `The update to ${NEXT} is proven`,
+      `took at ${TOOK} (deploys.log)`,
+      `taken at ${TAKEN}, before ${NEXT}`,
+      '2 pass(es)',
+      '5 file(s)',
+      './deploy/compose/copy-before-update.sh delete',
+      'journalctl --user -u ownpace-box-checks -n 50 --no-pager',
+      "COPY_DELETE_WHEN_PROVEN=false in live's .env",
+    ]) {
+      expect(body, `the mail does not say ${words}`).toContain(words);
+    }
+    expect(body, 'a file name went into the mail').not.toContain(DUMP);
+    expect(r.out, 'the journal does not name the files deleted').toContain(DUMP);
+    expect(summaryOf(s)).toContain(`The copy before an update: deleted at ${iso(NOW)}: the update to ${NEXT} is proven`);
+    expect(pending(s)).toBe('');
+
+    clearTold(s);
+    const again = checks(s);
+    expect(again.status, again.out).toBe(0);
+    expect(told(s), 'a copy deleted is told once').toEqual([]);
+  });
+
+  it('a mail that could not be sent: the line is kept, nothing more is asked until it is sent, and it is sent once, first', () => {
+    const s = stage();
+    dutiesPassed(s);
+    const failed = checks(s, [], { STUB_COPY_LINE: DELETED, STUB_COPY_SAID: SAID, STUB_TELL_FAIL: '1' });
+    expect(failed.status, failed.out).toBe(1);
+    expect(failed.out).toMatch(/NOT DONE: "Update proven" could not be sent/);
+    expect(pending(s), 'the deletion is remembered for a later run to tell').toBe(DELETED);
+
+    // The relay still down: the mail is tried again, and no delete is asked for.
+    writeFileSync(s.log, '');
+    const still = checks(s, [], { STUB_COPY_LINE: DELETED, STUB_TELL_FAIL: '1' });
+    expect(still.status, still.out).toBe(1);
+    expect(copyCalls(s), 'another delete was asked for while a deletion was untold').toEqual([]);
+    expect(pending(s)).toBe(DELETED);
+
+    // The relay back: the mail first, then the question.
+    writeFileSync(s.log, '');
+    clearTold(s);
+    const sent = checks(s);
+    expect(sent.status, sent.out).toBe(0);
+    expect(told(s).map((m) => `${m.name}: ${m.detail}`)).toEqual([`Update proven: ${NEXT}`]);
+    const order = readFileSync(s.log, 'utf8')
+      .split('\n')
+      .filter((l) => /^(tell-owner|copy-before-update)\.sh /.test(l));
+    expect(order).toEqual(['tell-owner.sh Update proven', 'copy-before-update.sh delete-if-proven']);
+    expect(pending(s)).toBe('');
+
+    clearTold(s);
+    expect(checks(s).status).toBe(0);
+    expect(told(s)).toEqual([]);
+  });
+
+  it('a copy kept is no mail, and the summary says why, on which day', () => {
+    const s = stage();
+    dutiesPassed(s);
+    const r = checks(s, ['--summary'], { STUB_COPY_LINE: ['kept', 'held', TAKEN, NEXT, '3'].join('\t') });
+    expect(r.status, r.out).toBe(0);
+    expect(told(s).map((m) => m.name)).toEqual(['Daily summary']);
+    expect(summaryOf(s)).toContain(
+      `The copy before an update: taken ${TAKEN}, before ${NEXT}, day 3 of at most 7: kept, a hold is on now: the box checks delete nothing while one is`,
+    );
+  });
+
+  it.each(['no-note', 'off', 'no-took', 'did-not-take', 'hold-on', 'no-pass', 'unfinished', 'held', 'grace', 'head-moved', 'unlisted'])(
+    'kept (%s): a reason of its own in the summary, and no mail',
+    (code) => {
+      const s = stage();
+      dutiesPassed(s);
+      const line = code === 'no-note' ? 'kept\tno-note\t-\t-\t-' : ['kept', code, TAKEN, NEXT, '2'].join('\t');
+      const r = checks(s, ['--summary'], { STUB_COPY_LINE: line });
+      expect(r.status, r.out).toBe(0);
+      expect(told(s).map((m) => m.name)).toEqual(['Daily summary']);
+      expect(summaryOf(s)).toMatch(/The copy before an update: taken \S+, before \S+, day \S+ of at most 7: kept, \S/);
+    },
+  );
+
+  it('it cannot tell (unread, exit 1): a NOT DONE naming the code, no mail, and the summary says what could not be read', () => {
+    const s = stage();
+    dutiesPassed(s);
+    const said = '[copy-before-update] the database could not be read (above), and a database that cannot be read proves nothing.';
+    const r = checks(s, ['--summary'], { STUB_COPY_LINE: 'unread\tdb', STUB_COPY_RC: '1', STUB_COPY_SAID: said });
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toContain('NOT DONE: the copy before an update: whether its update is proven (db)');
+    expect(r.out, 'what it said is not in the journal').toContain(said);
+    expect(told(s).map((m) => m.name)).toEqual(['Daily summary']);
+    expect(summaryOf(s)).toContain('The copy before an update: not read');
+    expect(summaryOf(s)).toMatch(/What could not be read[\s\S]*the copy before an update: whether its update is proven \(db\)/);
+    expect(summaryOf(s), 'what a tool said went into a mail').not.toContain(said);
+  });
+
+  it.each([
+    ['two lines, a path and an id', `deleted\t${TAKEN}\n/home/someone/.persistent/ownpace-live/copy-before-update\n${AN_ID}`, '0'],
+    ['a deleted line whose time is not one', DELETED.replace(TOOK, 'yesterday'), '0'],
+    ['a deleted line that deleted no file', DELETED.replace(/\t5$/, '\t0'), '0'],
+    ['a deleted line with a field too many', `${DELETED}\textra`, '0'],
+    ['a kept line with a code it does not give', ['kept', 'because', TAKEN, NEXT, '3'].join('\t'), '0'],
+    ['a kept line with a path for its tag', ['kept', 'held', TAKEN, '/home/someone', '3'].join('\t'), '0'],
+    ['unread, but exit 0', 'unread\tdb', '0'],
+    ['unread with a code it does not give', 'unread\teverything', '1'],
+    ['none, but exit 1', 'none', '1'],
+    ['a deleted line, but exit 1', DELETED, '1'],
+    ['nothing at all, exit 2', '', '2'],
+  ])('%s: a NOT DONE, no mail, nothing remembered, and none of it printed', (_label, line, rc) => {
+    const s = stage();
+    dutiesPassed(s);
+    const r = checks(s, ['--summary'], { STUB_COPY_LINE: line, STUB_COPY_RC: rc });
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toContain(
+      `NOT DONE: the copy before an update: copy-before-update.sh delete-if-proven answered nothing this reads (exit ${rc})`,
+    );
+    expect(told(s).map((m) => m.name)).toEqual(['Daily summary']);
+    expect(summaryOf(s)).toContain('The copy before an update: not read');
+    expect(pending(s)).toBe('');
+    // Its times, tags, paths and ids (a count is too short to tell apart):
+    // nothing of the line goes anywhere.
+    for (const part of line.split(/[\t\n]/).filter((p) => p.length > 3 && /[0-9/]/.test(p))) {
+      expect(r.out, `what it printed on stdout was printed: ${part}`).not.toContain(part);
+      expect(readFileSync(s.told, 'utf8'), `what it printed on stdout was mailed: ${part}`).not.toContain(part);
+    }
+  });
+
+  it('copy-before-update.sh not there: a NOT DONE, and the disk and the duties are still checked', () => {
+    const s = stage();
+    dutiesPassed(s, NOW - 27 * HOUR);
+    free(s, { docker: 14, persist: 100 });
+    rmSync(join(s.compose, 'copy-before-update.sh'));
+    const r = checks(s);
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toContain('NOT DONE: the copy before an update: copy-before-update.sh is not beside this script, or cannot be run');
+    expect(told(s).map((m) => m.name)).toEqual(['Disk below the floor', 'Daily duties late']);
+  });
+
+  it('a copy-proven it did not write: a NOT DONE, and no delete is asked for until it is gone', () => {
+    const s = stage();
+    dutiesPassed(s);
+    writeState(s, 'copy-proven', `deleted\t${TAKEN}\tnot a line it wrote`);
+    const r = checks(s, [], { STUB_COPY_LINE: DELETED });
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toMatch(/NOT DONE: the copy before an update: copy-proven/);
+    expect(copyCalls(s)).toEqual([]);
+    expect(told(s)).toEqual([]);
   });
 });
 
@@ -1104,6 +1340,20 @@ describe('end to end: box-checks.sh with the real tell-owner.sh', () => {
     ]);
     for (const m of sent) expectNothingIdentifying(m.split('\n\n').slice(1).join('\n\n'), 'a body');
     expect(readFileSync(s.curl.args, 'utf8').trim().split('\n')).toEqual(['--config /dev/fd/3', '--config /dev/fd/3']);
+    expectNothingIdentifying(r.out, 'what it printed');
+  });
+
+  it('a copy deleted reaches curl as "Update proven", with the runbook\'s row, and its body holds no address and no secret', () => {
+    const s = stage({ realTell: true });
+    dutiesPassed(s);
+    const r = checks(s, [], { STUB_COPY_LINE: DELETED, STUB_COPY_SAID: SAID });
+    expect(r.status, r.out).toBe(0);
+    const sent = mails(s);
+    expect(sent.map((m) => /^Subject: (.*)$/m.exec(m)?.[1])).toEqual([`[ownpace-live] Update proven: ${NEXT}`]);
+    const body = sent[0]!.split('\n\n').slice(1).join('\n\n');
+    expect(body).toContain('docs/incident-runbook.md, the row "Update proven"');
+    expect(body).not.toContain(DUMP);
+    expectNothingIdentifying(body, 'the body');
     expectNothingIdentifying(r.out, 'what it printed');
   });
 });
