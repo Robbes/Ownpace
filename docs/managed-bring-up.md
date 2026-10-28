@@ -2940,7 +2940,9 @@ report, from `~/ownpace-live`:
     word of it that holds a character no browser's own string holds (an `@`,
     a `%`) left out whole.
   It streams from Docker through that filter into GoAccess: no copy of the log
-  is ever written. GoAccess (`allinurl/goaccess`, pinned by digest) runs with
+  is ever written. GoAccess 1.12 runs from an image the script builds from
+  this checkout (`deploy/compose/goaccess/Dockerfile`, *The image*, below),
+  never pulled, with
   `--network none`, on a read-only disk, as an unprivileged user with no
   capability, no port and nothing of ours mounted (the image's own empty
   volume, which that user cannot write to, goes with `--rm`), and keeps **no
@@ -2979,11 +2981,39 @@ and open the newest file in a browser. It loads nothing from anywhere: its
 scripts, styles and map are inside the file. The run's own lines (how many
 requests came through the public name, and from how many addresses) are in the
 journal with the other duties' (`journalctl --user -u ownpace-box-duties`).
-**The first run on the machine is Docker's own test.** The pinned digest was
-read back from Docker Hub, and the amd64 image's own GoAccess was run through
-the script as an unprivileged user on a read-only disk with no network, which
-is how its refusal of `-o` was found; Docker's own `--read-only`,
-`--network none` and `--cap-drop ALL` were not.
+
+**The image** (#1675). Upstream's `allinurl/goaccess:1.12`, and `latest` with
+it, is built on Alpine 3.20, which Alpine no longer supports, and no upstream
+release has moved off it (2026-10-25). So the script builds GoAccess itself,
+from `deploy/compose/goaccess/Dockerfile`: upstream's own Dockerfile at the tag
+`v1.12`, on a supported Alpine (by tag and digest, its `FROM` lines), with the
+source fetched by the commit the tag names and only the libraries GoAccess
+loads in the image. It
+builds it as `localhost/goaccess:1.12`, a name no registry serves, at the start
+of every run, before any log is read, and runs it with `--pull never`. Docker's
+cache makes that seconds when nothing changed. The first build, and the first
+after Dependabot moved the Alpine pin and a deploy brought it, takes a few
+minutes and needs Docker Hub, Alpine's package mirrors and `github.com`
+(Dependabot's pull request for that pin is built first, by
+`.github/workflows/script-images.yml`, as every pull request that changes the
+Dockerfile is); a
+build that fails reads no log, and the duty fails with Docker's last lines. To
+build it by hand, from `~/ownpace-live`, before the first daily run:
+
+```bash
+docker build --tag localhost/goaccess:1.12 deploy/compose/goaccess
+docker run --rm --pull never --network none localhost/goaccess:1.12 --version
+```
+
+The second line should print `GoAccess - 1.12.`. The image built here is
+scanned every week (*Nothing phones home* says what it sends: nothing).
+
+**The first run on the machine is Docker's own test.** Upstream's image's
+GoAccess (2026-10-06), and on 2026-10-25 GoAccess built from the commit the
+Dockerfile fetches with its own commands (on glibc, not the image's musl), were
+run through the script as an unprivileged user with no network, which is how
+the refusal of `-o` was found; the image the Dockerfile builds, and Docker's own
+`--read-only`, `--network none` and `--cap-drop ALL`, were not.
 
 ## What cannot work on a mesh-only host
 
@@ -3103,33 +3133,32 @@ refusal is a follow-up in workplan 0139. So the downloads stay on, as they are.
 
 The site's visit count (*Counting its visits*, above) runs GoAccess with
 `docker run`, outside every compose file, from live's checkout once a day.
-GoAccess 1.12 (`allinurl/goaccess:1.12`, pinned by the digest of the tag's
-index, read back from Docker Hub on 2026-10-06; its source read at the tag
-`v1.12`) has no telemetry, update check or error report. What in it can reach a
+GoAccess 1.12 (`github.com/allinurl/goaccess`, its source read at the tag
+`v1.12`, `ef3c4f3c`, and built from that commit by
+`deploy/compose/goaccess/Dockerfile` since 2026-10-25) has no telemetry,
+update check or error report. What in it can reach a
 network is its lookup of hosts' names (`src/gdns.c`, for the hosts panel, which
 `site-visits.sh` ignores) and its WebSocket server (`src/websocket.c`, only with
 `--real-time-html`, which it never passes). It runs with `--network none` all
-the same, so nothing could leave if a later version added a report. Docker pulls
-the image from Docker Hub the first time, as it pulls any other.
+the same, so nothing could leave if a later version added a report. Its image
+is never pulled (`--pull never`); building it fetches Alpine and its packages
+and GoAccess's source, and nothing else.
 
-**The image's base is past its end of life**
-([#1675](https://github.com/Robbes/Ownpace/issues/1675)).
+**The image's base was past its end of life**
+([#1675](https://github.com/Robbes/Ownpace/issues/1675)), and is built on a
+supported one now (2026-10-25, workplan 0152). Upstream's
 `allinurl/goaccess:1.12`, and `latest` with it, is built on Alpine 3.20.10,
-which Alpine no longer supports: a flaw found in its packages from now on stays
-open in this image. It stays pinned for now (2026-10-22, workplan 0152).
-GoAccess runs offline (`--network none`), read-only, as 65534, on input
-`site-visits.sh`'s filter has already cut to a few fields of a small character
-set, and of the image's packages only musl lies on that input's path. The one
-musl fix Alpine 3.20 released after the image was built (`r4`, in `regcomp`)
-cannot be reached from a log line. And no release tag carries `site-visits.sh`
-yet, so live, which runs from a tag, does not run it yet. The image moves,
-through a pull request like any pin, to an upstream release built on a
-supported Alpine; the pin watch (`scripts/idp-pin-watch.mjs`) says when a newer
-tag exists. It moves to an image of our own instead, GoAccess built on a
-supported base, if upstream's next release is still on 3.20, or if the weekly
-image scan (the image jobs of `.github/workflows/security-scan.yml`,
-[#1674](https://github.com/Robbes/Ownpace/pull/1674)) reports a HIGH or
-CRITICAL finding in musl.
+which Alpine no longer supports, and upstream's Dockerfile at `master` still
+starts from 3.20, so no upstream release could be waited for. Alpine's own
+package is 1.10.2 on 3.24. So `deploy/compose/goaccess/Dockerfile` builds 1.12
+on a supported Alpine (3.24 when this was written, supported until 2028-06-01
+by the table of the Trivy the scan runs), and `site-visits.sh` builds it
+(*Counting its visits*, *The image*). Dependabot moves its Alpine pin in a pull
+request of its own, which builds it, the pin watch (`scripts/idp-pin-watch.mjs`)
+compares the GoAccess release it builds with upstream's tags, and the weekly
+image scan (the image jobs of `.github/workflows/security-scan.yml`) builds it
+on an arm64 runner and scans what it built, under the name it always had,
+`goaccess`.
 
 The deploy CLI, which runs on the host, was read only this far: at 4.5.16 its
 `src/telemetry/tracing.ts` is gone, and no exporter of its own was found. The

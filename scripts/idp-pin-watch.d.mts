@@ -20,7 +20,9 @@ export declare const STALWART_RULE: string;
 export declare const REBUILD_NOTE: string;
 export declare function builtNote(dockerfile: string): string;
 export declare const STALWART_FILES: string[];
+export declare const GOACCESS_DOCKERFILE: string;
 export declare const TASK_OVERLAY: RegExp;
+export declare const COSIGN_FILES: string[];
 
 export type State = 'current' | 'behind' | 'ahead' | 'error';
 
