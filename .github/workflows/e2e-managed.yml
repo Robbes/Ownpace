@@ -549,7 +549,20 @@ jobs:
             exit 1
           }
           # And the migration path is direct: DIRECT_DATABASE_URL must not point at the pooler.
-          direct=$(docker compose $MANAGED_COMPOSE exec -T api printenv DIRECT_DATABASE_URL)
+          # Read from Docker, not exec'd in, so it holds on the Node image and on
+          # the distroless one, which has no shell and no printenv (workplan 0146
+          # T13a, the readers first; T13 the switch). The container's .Config.Env
+          # is the image's ENV with compose's environment over it, what the API
+          # started with. `container inspect`: a bare inspect of a name that is
+          # no container falls through to an image of that name.
+          # Its id only: a ps names its columns here, never the bind-printing default.
+          api_id=$(docker compose $MANAGED_COMPOSE ps --format '{{.ID}}' api)
+          api_env=$(docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$api_id")
+          direct=$(sed -n 's/^DIRECT_DATABASE_URL=//p' <<<"$api_env")
+          if [ -z "$direct" ]; then
+            echo "::error::The api container ($api_id) was started without a DIRECT_DATABASE_URL, so where the migrations connect cannot be told."
+            exit 1
+          fi
           case "$direct" in
             *pgbouncer*|*:6432*)
               echo "::error::DIRECT_DATABASE_URL points at the pooler. Migrations hold a SESSION advisory lock; through a transaction pooler two replicas stop excluding each other, silently."

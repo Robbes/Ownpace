@@ -98,7 +98,10 @@ describe('the smoke can tell a configured issuer from a running container', () =
   it('reads JWT_ISSUER from the API container rather than from .env', () => {
     // What the running service verifies against. A file on the host is at best
     // a claim about that, and this gate exists because a claim was wrong.
-    expect(smoke).toMatch(/docker exec "\$API_CONTAINER" printenv JWT_ISSUER/);
+    // Read from Docker's view of that container (`api_env`, workplan 0146
+    // T13a): the distroless image of T13 has no `printenv` to exec.
+    expect(smoke).toMatch(/STACK_ISSUER="\$\(api_env JWT_ISSUER 2>&1\)"/);
+    expect(smoke).toMatch(/docker container inspect --format '\{\{range \.Config\.Env\}\}\{\{println \.\}\}\{\{end\}\}' "\$API_CONTAINER"/);
   });
 
   it('asks from INSIDE the API container, not from the host', () => {
@@ -115,13 +118,18 @@ describe('the smoke can tell a configured issuer from a running container', () =
   });
 
   it('asks with a client the API image actually HAS', () => {
-    // THE IMAGE HAS NO CURL. `apps/api/Dockerfile` builds on `node:24-slim`,
-    // and its own HEALTHCHECK is `node -e "fetch(...)"` for exactly this
-    // reason. Asked on the running stack:
+    // THE IMAGE HAS NO CURL. `apps/api/Dockerfile` ran on a slim Node image,
+    // and its own HEALTHCHECK was `node -e "fetch(...)"` for exactly this
+    // reason. Asked on the running stack then, through its shell:
     //
-    //   docker exec ownpace-api sh -lc 'command -v curl'  ->  no curl
-    //   docker exec ownpace-api sh -lc 'command -v wget'  ->  no wget
-    //   docker exec ownpace-api sh -lc 'command -v node'  ->  /usr/local/bin/node
+    //   command -v curl  ->  no curl
+    //   command -v wget  ->  no wget
+    //   command -v node  ->  /usr/local/bin/node
+    //
+    // Since 0146 T13 it runs on distroless, which has no shell to ask at all:
+    // Node at /nodejs/bin/node, off PATH, and nothing else. So the probe runs
+    // `$API_NODE`, the path the smoke's preflights found on either image
+    // (`api_node`, 0146 T13a).
     //
     // This section used `curl`, so on every run ever made `sh: 1: curl: not
     // found` became the empty string — and the empty string was then REPORTED
@@ -135,7 +143,7 @@ describe('the smoke can tell a configured issuer from a running container', () =
     );
     expect(section, 'nothing in this section may reach for curl or wget in the API container')
       .not.toMatch(/docker exec "?\$API_CONTAINER"?[^\n]*\b(curl|wget)\b/);
-    expect(section).toMatch(/docker exec "\$API_CONTAINER" node -e/);
+    expect(section).toMatch(/docker exec "\$API_CONTAINER" "\$API_NODE" -e/);
     expect(section, 'the same client the API verifies tokens with').toContain('fetch(');
   });
 
@@ -199,7 +207,7 @@ describe('the issuer check takes the path the API actually takes', () => {
       smoke,
       'the gate does not read JWT_JWKS_URI, so it cannot know whether discovery\n' +
         'is a path this API ever takes.',
-    ).toMatch(/printenv JWT_JWKS_URI/);
+    ).toMatch(/API_JWKS="\$\(api_env JWT_JWKS_URI/);
   });
 
   it('proves THAT address from the API when it is set', () => {

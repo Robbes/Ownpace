@@ -110,6 +110,67 @@ API="${SMOKE_API:-http://localhost:${api_port:-3001}}"
 COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")" || exit 1
 DB_CONTAINER="${SMOKE_DB_CONTAINER:-${COMPOSE_PROJECT}-db}"
 API_CONTAINER="${SMOKE_API_CONTAINER:-${COMPOSE_PROJECT}-api}"
+
+# NOTHING IS EXEC'D INTO THE API CONTAINER BUT NODE, BY ITS PATH (workplan 0146
+# T13a, the readers first). Two image layouts have to answer alike. The Node
+# image the API has run on has a shell, `printenv` and node at
+# /usr/local/bin/node. The distroless image workplan 0146 T13 moves it to has
+# no shell and no `printenv`, and node at /nodejs/bin/node, which is not on its
+# PATH, so `docker exec <api> printenv` and `docker exec <api> node` both find
+# nothing there. A stack not rebuilt since a pull, or rolled back to an older
+# tag, runs whichever its image was built with. So:
+#
+# api_env <name> — a variable the API was started with, read from Docker
+# rather than from inside: `docker container inspect`'s `.Config.Env` is the
+# image's ENV with compose's `environment:` over it, one entry per name, which
+# is exactly what the process got and what `printenv` printed, on either
+# image. `container` inspect, because a bare `docker inspect` of a name that
+# is no container falls through to the IMAGE compose built under the same name
+# and answers with its ENV alone. Three answers, as `printenv` and `docker
+# exec` gave them: 0 set (empty included), 1 not set, 2 the container could not
+# be read (Docker's words on stderr).
+api_env() {
+  local env line
+  env="$(docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$API_CONTAINER")" || return 2
+  while IFS= read -r line; do
+    if [[ "$line" == "$1="* ]]; then
+      printf '%s\n' "${line#*=}"
+      return 0
+    fi
+  done <<<"$env"
+  return 1
+}
+
+# api_node — the API image's node, by absolute path, and the version it gives:
+# `<path> <version>` for the first of the two that runs in this container.
+# The distroless image has no shell to ask `command -v`, so each is tried.
+# Nothing, and exit 1, when neither runs: the preflights stop there.
+api_node() {
+  local p v
+  for p in /nodejs/bin/node /usr/local/bin/node; do
+    if v="$(docker exec "$API_CONTAINER" "$p" --version 2>/dev/null)" && [ -n "$v" ]; then
+      printf '%s %s\n' "$p" "$v"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# dockerfile_node [dockerfile] — `v<x.y.z>`, the Node version of the first
+# `FROM node:<x.y.z>-…` line of the API's Dockerfile: the Node image it builds
+# on, and the Node the managed tasks copy (apps/worker/trigger.config.ts). Exit
+# 1 when it has none.
+dockerfile_node() {
+  local line
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^FROM[[:space:]]+node:([0-9]+\.[0-9]+\.[0-9]+)- ]]; then
+      printf 'v%s\n' "${BASH_REMATCH[1]}"
+      return 0
+    fi
+  done <"${1:-${REPO_ROOT}/apps/api/Dockerfile}"
+  return 1
+}
+
 POLLS="${SMOKE_POLLS:-45}"
 POLL_SLEEP="${SMOKE_POLL_SLEEP:-2}"
 # The prepare phase waits on a whole sync pass (runner start + DAV round trips),
@@ -262,15 +323,16 @@ API_STARTED_AT="$(api_started_at)"
 # section far below asks the same question, but the first `mint` happens long
 # before it and the answer changes what that token means.
 #
-# THREE ANSWERS, NOT TWO. `printenv` exits 1 when the variable is not set and
-# `docker exec` exits 125+ when it could not run at all, and those are different
-# facts: one says this stack has no identity provider configured, the other says
+# THREE ANSWERS, NOT TWO. `api_env` exits 1 when the variable is not set and 2
+# when the container could not be read at all, and those are different facts:
+# one says this stack has no identity provider configured, the other says
 # nothing has been established either way. Collapsing them with `|| true` is how
 # "could not ask" gets reported as "not provisioned" — the same shape as the
-# curl-that-was-not-there below.
-STACK_ISSUER="$(docker exec "$API_CONTAINER" printenv JWT_ISSUER 2>&1)"
+# curl-that-was-not-there below. (`printenv` through `docker exec` drew the same
+# line at 1 and 125, and the distroless image has no `printenv`, 0146 T13a.)
+STACK_ISSUER="$(api_env JWT_ISSUER 2>&1)"
 STACK_ISSUER_RC=$?
-if [ "$STACK_ISSUER_RC" -ge 125 ]; then
+if [ "$STACK_ISSUER_RC" -ge 2 ]; then
   echo "!!! cannot read JWT_ISSUER from '$API_CONTAINER' (exit ${STACK_ISSUER_RC}): ${STACK_ISSUER}"
   echo "!!! nothing below can speak for this stack's sign-in either way."
   STACK_ISSUER=""
@@ -905,11 +967,41 @@ if [ ! -d "$REPO_ROOT/apps/api/node_modules/jsonwebtoken" ]; then
   echo "FATAL: apps/api/node_modules/jsonwebtoken missing — run: pnpm install"
   exit 1
 fi
-JW="$(docker exec "$API_CONTAINER" printenv JWT_SECRET)" || {
+JW="$(api_env JWT_SECRET)" || {
   echo "FATAL: cannot read JWT_SECRET from '$API_CONTAINER'"
   exit 1
 }
-echo "preflights OK (API up, db reachable, jsonwebtoken present, secret read)"
+# The node every probe below runs inside the API container (`api_node`, above).
+API_NODE_FOUND="$(api_node)" || {
+  echo "FATAL: neither /nodejs/bin/node nor /usr/local/bin/node runs in '$API_CONTAINER'"
+  echo "       (docker exec '$API_CONTAINER' /nodejs/bin/node --version says why), so no probe"
+  echo "       from inside the stack's network can run"
+  exit 1
+}
+API_NODE="${API_NODE_FOUND%% *}"
+API_NODE_VERSION="${API_NODE_FOUND#* }"
+# THE API RUNS THE NODE ITS DOCKERFILE'S FROM NODE LINE NAMES (workplan 0146
+# T13a). The managed tasks copy their Node out of that line. On the Node image
+# the API runs that line's Node as it is; the distroless runtime workplan 0146
+# T13 moves it to has a Node of its own, whose `nonroot` tag names no version
+# and which no scanner lists, pinned by a digest that moves apart from the node
+# tag. Asked here, on the image this stack runs, a pin moved without the other
+# stops the run with both versions named, instead of the API and the tasks
+# drifting apart with every check green.
+WANT_NODE="$(dockerfile_node)" || {
+  echo "FATAL: $REPO_ROOT/apps/api/Dockerfile has no FROM node:<x.y.z>-… line, so which Node"
+  echo "       the API should run cannot be told"
+  exit 1
+}
+if [ "$API_NODE_VERSION" != "$WANT_NODE" ]; then
+  echo "FATAL: the API container's ${API_NODE} is ${API_NODE_VERSION}, and apps/api/Dockerfile's"
+  echo "       FROM node line, the Node the managed tasks copy, is ${WANT_NODE}. Either the"
+  echo "       runtime's Node and that line were moved apart (a distroless digest and the"
+  echo "       node tag: move the other to the same Node), or this stack's api image was"
+  echo "       not built from this checkout"
+  exit 1
+fi
+echo "preflights OK (API up, db reachable, jsonwebtoken present, secret read, ${API_NODE} ${API_NODE_VERSION} runs in the API container, the Dockerfile's Node)"
 
 # WHAT A BROWSER MAY DO WITH THE APP, AS THE IMAGE SENDS IT (workplan 0158).
 # `scripts/what-a-browser-may-do-with-the-app.unit.test.ts` reads the template
@@ -985,9 +1077,10 @@ fi
 note "minio and trigger-tls (0084 — the last two unasserted services)"
 
 # MINIO is network-internal (no published port), so this goes through a
-# container on `ownpace-network`. The API container, because it is a Node
-# image whose own entrypoint is node — the same reasoning the trigger probes
-# use — and because this script already execs into it to read JWT_SECRET.
+# container on `ownpace-network`. The API container, because node runs there:
+# it is its image's entrypoint, and the preflights found it by path
+# (`$API_NODE`: the distroless image of workplan 0146 T13 has no shell, and
+# node off PATH).
 #
 # `fetch` resolving is the whole assertion. It settles on ANY HTTP response,
 # 403 and 404 included, and rejects only when nothing is listening. That is
@@ -995,7 +1088,7 @@ note "minio and trigger-tls (0084 — the last two unasserted services)"
 # that depends on a named path goes quietly wrong the day an upstream image
 # moves it, and "something is serving HTTP on minio:9000" is the claim
 # trigger-api actually depends on (OBJECT_STORE_BASE_URL points there).
-if docker exec "$API_CONTAINER" node -e \
+if docker exec "$API_CONTAINER" "$API_NODE" -e \
   "fetch('http://minio:9000/minio/health/live').then(r=>{console.log('minio HTTP '+r.status);process.exit(0)}).catch(e=>{console.log('minio unreachable: '+e.message);process.exit(1)})"
 then
   echo "minio: reachable from the API container on the stack network"
@@ -1113,8 +1206,7 @@ fi
 
 # THE DOCKER PROXY publishes no port; it is reachable only on the stack network,
 # so this goes through the API container exactly as the minio assertion does —
-# a Node image whose own entrypoint is node, which this script already execs
-# into to read JWT_SECRET.
+# node, by the path the preflights found (`$API_NODE`).
 #
 # `tcp://trigger-docker-proxy:2375` is the address managed.yml gives the
 # supervisor as DOCKER_HOST, and `/_ping` is the Docker API's own liveness
@@ -1125,7 +1217,7 @@ fi
 # supervisor creates every runner container through this proxy, so when it is
 # down an enqueue never becomes a runner — and that is invisible in a green CI,
 # which is the entire reason this script exists.
-if docker exec "$API_CONTAINER" node -e \
+if docker exec "$API_CONTAINER" "$API_NODE" -e \
   "fetch('http://trigger-docker-proxy:2375/_ping').then(r=>{console.log('trigger-docker-proxy HTTP '+r.status);process.exit(0)}).catch(e=>{console.log('trigger-docker-proxy unreachable: '+e.message);process.exit(1)})"
 then
   echo "trigger-docker-proxy: reachable from the API container on the stack network"
@@ -1188,7 +1280,7 @@ else
 
   # The application, asked for rather than assumed — its client id and the
   # redirect URI it will actually accept.
-  IDP_PROJECT="$(docker exec "$API_CONTAINER" printenv JWT_AUDIENCE 2>/dev/null || true)"
+  IDP_PROJECT="$(api_env JWT_AUDIENCE 2>/dev/null || true)"
   IDP_APP="$(idp_api POST "/management/v1/projects/${IDP_PROJECT}/apps/_search" '{"queries":[]}' \
     | jq -r '.result[]? | select(.name=="Ownpace Web") | .id' | awk 'NR==1')"
   IDP_APP_CFG="$(idp_api GET "/management/v1/projects/${IDP_PROJECT}/apps/${IDP_APP}" || true)"
@@ -2734,8 +2826,10 @@ else
   # The question is only ever "can the thing that verifies tokens reach the keys",
   # so it is asked from there.
   # ASKED WITH THE CLIENT THE API ITSELF USES, because the API image has neither
-  # curl nor wget. It is `node:24-slim`: node and little else, which is why the
-  # image's own HEALTHCHECK is `node -e "fetch(...)"` (apps/api/Dockerfile).
+  # curl nor wget. It is distroless (0146 T13): node and no shell, node at
+  # /nodejs/bin/node and off PATH, which is why the image's own HEALTHCHECK is
+  # `/nodejs/bin/node -e "fetch(...)"` (apps/api/Dockerfile), and why this runs
+  # `$API_NODE`, the path the preflights found.
   #
   # This check used `curl`, with `2>/dev/null || true` around it. So on every run
   # ever made, `sh: 1: curl: not found` became the empty string, the empty string
@@ -2749,7 +2843,7 @@ else
   # be reached" and "the issuer answered X" are three different facts about three
   # different things, and only the last one is about the issuer (hard rule 10).
   idp_get() { # idp_get <url> — body on stdout; 0 ok, 22 non-2xx, 7 unreachable, else the exec failed
-    docker exec "$API_CONTAINER" node -e '
+    docker exec "$API_CONTAINER" "$API_NODE" -e '
       fetch(process.argv[1], { signal: AbortSignal.timeout(10000) })
         .then(async (r) => {
           process.stdout.write(await r.text());
@@ -2787,7 +2881,7 @@ else
   # the authorization and token endpoints — and the host takes the browser's
   # path. Neither assertion is dropped; both move to a caller in a position to
   # make them.
-  API_JWKS="$(docker exec "$API_CONTAINER" printenv JWT_JWKS_URI 2>/dev/null || true)"
+  API_JWKS="$(api_env JWT_JWKS_URI 2>/dev/null || true)"
 
   if [ -n "$API_JWKS" ]; then
     idp_get "$API_JWKS" >/dev/null

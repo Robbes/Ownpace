@@ -73,8 +73,9 @@
 #       refuses what it would refuse, and writes nothing, not even the
 #       directory.
 #   copy-before-update.sh delete
-#       The operator's step, once the update is proven. It refuses unless all
-#       three hold, each read, never assumed:
+#       The owner's step, once the update is proven; live's box checks run the
+#       stricter delete-if-proven below every ten minutes. It refuses unless
+#       all three hold, each read, never assumed:
 #         the LAST line deploys.log (deploy-live.sh's) has at or after the
 #           moment the copy was taken says `took`: a deploy that did not take
 #           after one that did leaves nothing proven, and the copy is of what
@@ -87,6 +88,29 @@
 #       owner the image created, which row security never binds; it checks
 #       that, and every statement it sends is a SELECT. A database it cannot
 #       read proves nothing. So does a note without its time.
+#   copy-before-update.sh delete-if-proven
+#       box-checks.sh runs it every ten minutes (workplan 0132 T9; the owner,
+#       2026-10-28): the delete nobody watches, so never looser than delete.
+#       It applies delete's rule unchanged, and then also needs, each read:
+#         no hold on at all, the next update's included;
+#         live's checkout at the commit the took line names (deploys.log's
+#           third column): a deploy since that stopped half-way logs nothing;
+#         a pass the rule counts whose migration has a data type completed
+#           (migration_status.completed_at) at or after that pass began: a run
+#           that halts before its first data type, or pauses every one at its
+#           deadline, still closes as succeeded;
+#         the hold last lifted, or the took line if that is later, at least
+#           an hour ago (COPY_AUTO_GRACE_SECONDS): starting the hold again in
+#           that hour keeps the copy;
+#         every entry in this directory named in the note (its Files list, an
+#           ADDED line, the note itself): a dump made after the copy, or a
+#           rollback's since file, keeps the whole copy for the owner or day 6;
+#         COPY_DELETE_WHEN_PROVEN in live's .env empty or true: false leaves
+#           the delete to the owner, and any other value deletes nothing, as
+#           does a line in a form env_value does not read and Compose does.
+#       It then deletes as delete does. It prints exactly one line on stdout,
+#       the one box-checks.sh reads, and every sentence on stderr. Every
+#       statement it sends is a SELECT.
 #   copy-before-update.sh expire
 #       box-duties.sh's daily backstop. It deletes the copy once its note is
 #       older than 6 days less an hour, proven or not, and each other file here
@@ -119,11 +143,14 @@
 #
 # Usage:  ./deploy/compose/copy-before-update.sh take [--dry-run] [--trigger] <tag>
 #         ./deploy/compose/copy-before-update.sh delete
+#         ./deploy/compose/copy-before-update.sh delete-if-proven
 #         ./deploy/compose/copy-before-update.sh expire
 #         ./deploy/compose/copy-before-update.sh since
 # Exit:   0 done, kept, or nothing to do; 1 refused, or a part of a take
 #         failed (nothing of that run is left), or expire on the copy's last
-#         day; 2 usage.
+#         day; 2 usage. delete-if-proven: 0 none, kept or deleted (one line on
+#         stdout says which); 1 cannot tell (unread <code> on stdout) or
+#         refused before reading (nothing on stdout); 2 usage.
 #
 # Sourced (dump-idp.sh, trigger-version.sh), it defines only the directory's
 # name, below, and returns before anything runs.
@@ -145,6 +172,11 @@ COPY_MARGIN_SECONDS=3600
 COPY_EXPIRE_AFTER=$((COPY_EXPIRE_DAYS * 86400 - COPY_MARGIN_SECONDS))
 # Older than this, the next daily run deletes the copy: its last day.
 COPY_LAST_DAY_AFTER=$((COPY_EXPIRE_AFTER - 86400))
+# How long after the hold was last lifted (or after the took line, if that is
+# later) the box checks wait before they delete a proven copy (workplan 0132
+# T9): time for a look at the new release, and to keep the copy by starting
+# the hold again.
+COPY_AUTO_GRACE_SECONDS=3600
 # The timer that runs that backstop (deploy/compose/systemd/), a user unit.
 COPY_BACKSTOP_TIMER=ownpace-box-duties.timer
 
@@ -187,6 +219,7 @@ usage() {
   cat >&2 <<'EOF'
 usage: ./deploy/compose/copy-before-update.sh take [--dry-run] [--trigger] <tag>
        ./deploy/compose/copy-before-update.sh delete
+       ./deploy/compose/copy-before-update.sh delete-if-proven
        ./deploy/compose/copy-before-update.sh expire
        ./deploy/compose/copy-before-update.sh since
 (from live's checkout; --help for more)
@@ -219,7 +252,7 @@ case "$CMD" in
     # It lands in file names, so it is a release tag's shape and nothing else.
     [[ "$TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || usage "'${TAG}' is not a tag name"
     ;;
-  delete | expire | since)
+  delete | expire | since | delete-if-proven)
     [ "$#" -eq 0 ] || usage "${CMD} takes no arguments"
     ;;
   -h | --help)
@@ -262,6 +295,16 @@ umask 077
 copy_files() {
   [ -d "$COPY_DIR" ] || return 0
   find "$COPY_DIR" -mindepth 1 -maxdepth 1 -printf '%f\n' | LC_ALL=C sort
+}
+
+# note_files — the name of every entry the note says is the copy's, one per
+# line, sorted: its Files list and each ADDED line, as take writes them, and
+# the note itself. False when the note cannot be read.
+note_files() {
+  local listed
+  listed="$(sed -n -E -e 's/^    ([A-Za-z0-9._-]+)   [0-9]+ bytes.*$/\1/p' \
+    -e 's/^database, (triggerdb-[A-Za-z0-9._-]+)[.]$/\1/p' "${COPY_DIR}/${COPY_NOTE}")" || return 1
+  LC_ALL=C sort -u <<<"${listed:+${listed}$'\n'}${COPY_NOTE}"
 }
 
 # note_value <key> — the key's value in the note's header, above its first
@@ -309,66 +352,114 @@ SELECT (SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'yes' ELSE 'no' END
 SQL
 }
 
+# auto_read <took> — one line, `superuser|holds on|passes finished|seconds
+# since the lift`, read the same way, for delete-if-proven. Reads only. The
+# holds are every one still on, whenever it began. The passes are those
+# proof_read counts whose migration has a data type completed at or after the
+# pass began (migration_status.completed_at, which markCompleted alone writes
+# and nothing clears). The seconds are since the last hold was lifted, or
+# since <took> when that is later.
+auto_read() {
+  docker exec -i "$DB_CONTAINER" sh -c 'psql -X -q -At -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$1"' sh "$DB_NAME" <<SQL
+SELECT (SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'yes' ELSE 'no' END
+          FROM pg_roles WHERE rolname = current_user) AS superuser,
+       (SELECT count(*) FROM platform_pause WHERE ended_at IS NULL) AS holds_on,
+       (SELECT count(*) FROM run r
+         WHERE r.kind IN ('initial_copy', 'incremental') AND r.status = 'succeeded'
+           AND r.started_at > '${1}'::timestamptz
+           AND EXISTS (SELECT 1 FROM migration_status s
+                        WHERE s.tenant_id = r.tenant_id AND s.mapping_id = r.mapping_id
+                          AND s.completed_at >= r.started_at)) AS passes_finished,
+       (SELECT floor(extract(epoch FROM now() - greatest(coalesce(max(ended_at), '${1}'::timestamptz),
+                                                          '${1}'::timestamptz)))::bigint
+          FROM platform_pause) AS seconds_since_lift;
+SQL
+}
+
 ISO_RE='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
 
 # prove — whether the update the copy was taken for is proven. Sets WHY to what
 # was found, and returns 0 when proven, 1 when not. It never exits: `take`
-# keeps a copy it cannot prove, and `delete` refuses it.
+# keeps a copy it cannot prove, and `delete` refuses it. For delete-if-proven
+# it also sets PROVE_KIND (proven; kept, not proven yet; unread, it could not
+# tell) and PROVE_CODE, the took line's time, tag and commit once it has read
+# them, and, proven, the passes it counted.
 WHY=''
+PROVE_KIND=''
+PROVE_CODE=''
+PROVE_TOOK=''
+PROVE_TOOK_TAG=''
+PROVE_TOOK_COMMIT=''
+PROVE_PASSES=''
 prove() {
-  local taken line took took_tag outcome answer superuser holds passes
+  local taken line took took_tag outcome took_commit answer superuser holds passes
+  PROVE_KIND='' PROVE_CODE='' PROVE_TOOK='' PROVE_TOOK_TAG='' PROVE_TOOK_COMMIT='' PROVE_PASSES=''
   taken="$(note_value taken)"
   if ! [[ "$taken" =~ $ISO_RE ]]; then
     WHY="the note (${COPY_NOTE}) does not say when the copy was taken, so no deploy can be shown to have taken after it"
+    PROVE_KIND=unread PROVE_CODE=note-time
     return 1
   fi
   if [ ! -e "$DEPLOY_LOG" ]; then
     WHY="there is no ${DEPLOY_LOG}, so no deploy has taken since the copy was taken, ${taken}"
+    PROVE_KIND=kept PROVE_CODE=no-took
     return 1
   fi
   # The LAST deploy since the copy, of either outcome: a did-not-take after a
   # took leaves nothing proven, whatever the hold and the passes say since,
-  # because what runs now is the checkout that did not take.
-  if ! line="$(awk -F '\t' -v since="$taken" '$1 >= since && ($4 == "took" || $4 == "did-not-take") { l = $1 "\t" $2 "\t" $4 } END { if (l != "") print l }' "$DEPLOY_LOG")"; then
+  # because what runs now is the checkout that did not take. Its commit comes
+  # last, so that a line without one reads as before.
+  if ! line="$(awk -F '\t' -v since="$taken" '$1 >= since && ($4 == "took" || $4 == "did-not-take") { l = $1 "\t" $2 "\t" $4 "\t" $3 } END { if (l != "") print l }' "$DEPLOY_LOG")"; then
     WHY="${DEPLOY_LOG} could not be read (above)"
+    PROVE_KIND=unread PROVE_CODE=log-unread
     return 1
   fi
   if [ -z "$line" ]; then
     WHY="no deploy has taken since the copy was taken, ${taken}: ${DEPLOY_LOG} has no took line at or after it"
+    PROVE_KIND=kept PROVE_CODE=no-took
     return 1
   fi
-  IFS=$'\t' read -r took took_tag outcome <<<"$line"
+  IFS=$'\t' read -r took took_tag outcome took_commit <<<"$line"
+  PROVE_TOOK="$took" PROVE_TOOK_TAG="$took_tag" PROVE_TOOK_COMMIT="$took_commit"
   if ! [[ "$took" =~ $ISO_RE ]]; then
     WHY="the last line in ${DEPLOY_LOG} since the copy does not start with a time in deploy-live.sh's format"
+    PROVE_KIND=unread PROVE_CODE=log-garbled
     return 1
   fi
   if [ "$outcome" != took ]; then
     WHY="the last deploy since the copy was taken, of ${took_tag} at ${took}, did not take (${DEPLOY_LOG}): what runs now is that checkout, and the copy is of what ran before it. It is proven only once a deploy since takes, its hold is lifted and a pass after it succeeds"
+    PROVE_KIND=kept PROVE_CODE=did-not-take
     return 1
   fi
   if ! answer="$(proof_read "$took")"; then
     WHY="the database could not be read (above), and a database that cannot be read proves nothing"
+    PROVE_KIND=unread PROVE_CODE=db
     return 1
   fi
   IFS='|' read -r superuser holds passes <<<"$answer"
   if ! [[ "$superuser" =~ ^(yes|no)$ && "$holds" =~ ^[0-9]+$ && "$passes" =~ ^[0-9]+$ ]] ||
     [ "$(wc -l <<<"$answer")" -ne 1 ]; then
     WHY="the database answered something that is not the counts asked for, and that proves nothing"
+    PROVE_KIND=unread PROVE_CODE=answer
     return 1
   fi
   if [ "$superuser" != yes ]; then
     WHY="the role psql connects as is not a superuser, so row security would hide the holds and the passes, and a count of them would mean nothing"
+    PROVE_KIND=unread PROVE_CODE=not-superuser
     return 1
   fi
   if [ "$holds" -gt 0 ]; then
     WHY="the deploy of ${took_tag} took at ${took}, and the hold that covered it is still on: lift it after looking (0132 T6 step 8)"
+    PROVE_KIND=kept PROVE_CODE=hold-on
     return 1
   fi
   if [ "$passes" -eq 0 ]; then
     WHY="the deploy of ${took_tag} took at ${took} and its hold is lifted, but no pass that started after it has succeeded yet"
+    PROVE_KIND=kept PROVE_CODE=no-pass
     return 1
   fi
   WHY="the deploy of ${took_tag} took at ${took} (deploys.log), the hold that covered it is lifted, and ${passes} pass(es) that started after it succeeded"
+  PROVE_KIND=proven PROVE_PASSES="$passes"
   return 0
 }
 
@@ -540,6 +631,13 @@ checkout:
 
     ./deploy/compose/copy-before-update.sh delete
 
+Live's box checks (box-checks.sh, every ten minutes) delete it by themselves
+once that holds and, stricter: no hold is on, live's checkout is at the commit
+that took, a data type of a proving pass's migration completed, the hold was
+last lifted at least an hour ago, and nothing in this directory is outside
+this note (copy-before-update.sh delete-if-proven).
+COPY_DELETE_WHEN_PROVEN=false in live's .env leaves it to you.
+
 It is never kept past day 7: the daily duties (box-duties.sh, copies) delete
 it once it is older than ${COPY_EXPIRE_DAYS} days less an hour, proven or not. If the
 update is not proven by day 6, roll back from it that day, starting with
@@ -668,6 +766,149 @@ cmd_delete() {
   say "proven: ${WHY}."
   delete_all || refuse "the copy could not be deleted in full (above)."
   say "deleted the copy taken ${taken} before ${before}: ${files//$'\n'/, }."
+}
+
+# auto_kept <code> — delete-if-proven's line for a copy it keeps, and why:
+# kept<TAB><code><TAB><taken><TAB><before><TAB><day>, each from the note, and
+# - where the note does not say it in its own shape.
+auto_kept() {
+  local taken before day='-' epoch
+  taken="$(note_value taken)"
+  before="$(note_value before)"
+  [[ "$taken" =~ $ISO_RE ]] || taken='-'
+  [[ "$before" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || before='-'
+  epoch="$(copy_epoch)"
+  [ -z "$epoch" ] || day="$(copy_day "$(($(date +%s) - epoch))")"
+  printf 'kept\t%s\t%s\t%s\t%s\n' "$1" "$taken" "$before" "$day"
+}
+
+# auto_unread <code> — delete-if-proven's line when it cannot tell, and exit 1.
+auto_unread() {
+  printf 'unread\t%s\n' "$1"
+  exit 1
+}
+
+# delete-if-proven: the box checks' delete (workplan 0132 T9). delete's rule,
+# by the same prove(), and then the conditions an unattended run adds, each
+# read, never assumed. Every sentence goes to stderr; the one line on stdout
+# is what box-checks.sh reads.
+cmd_delete_if_proven() {
+  local files taken before unread switch at_head answer superuser holds passes since listed extra
+  files="$(copy_files)"
+  if [ -z "$files" ]; then
+    fail "no copy in ${COPY_DIR}: nothing to delete."
+    printf 'none\n'
+    return 0
+  fi
+  if [ ! -f "${COPY_DIR}/${COPY_NOTE}" ]; then
+    fail "files without a copy's note (a dump by hand): each goes after day ${COPY_EXPIRE_DAYS} by its own age (expire)."
+    printf 'kept\tno-note\t-\t-\t-\n'
+    return 0
+  fi
+  # The switch as Compose and `set -a; . .env` read it, or not at all
+  # (unread_keys, env-read.sh): an indented `  COPY_DELETE_WHEN_PROVEN=false`
+  # after the example's `=true` reads as true here, and `KEY = false` as empty,
+  # and either would delete the copy the owner switched the delete off for.
+  if ! unread="$(unread_keys "$ENV_FILE")" || grep -q ':COPY_DELETE_WHEN_PROVEN$' <<<"$unread"; then
+    fail "COPY_DELETE_WHEN_PROVEN is set in live's .env in a form this does not read (indented, a space before '=', or ':' for '='); its value is not printed. Write it KEY=value at the start of its line. Nothing is deleted until it is."
+    auto_unread switch
+  fi
+  switch="$(env_value "$ENV_FILE" COPY_DELETE_WHEN_PROVEN)"
+  case "$switch" in
+    '' | true) ;;
+    false)
+      fail "COPY_DELETE_WHEN_PROVEN is false in live's .env: deleting the copy stays yours (./deploy/compose/copy-before-update.sh delete)."
+      auto_kept off
+      return 0
+      ;;
+    *)
+      fail "COPY_DELETE_WHEN_PROVEN in live's .env is neither true nor false; its value is not printed. Nothing is deleted until it is one of the two."
+      auto_unread switch
+      ;;
+  esac
+
+  # delete's own rule, unchanged.
+  taken="$(note_value taken)"
+  before="$(note_value before)"
+  if ! prove; then
+    fail "${WHY}."
+    if [ "$PROVE_KIND" = kept ]; then
+      auto_kept "$PROVE_CODE"
+      return 0
+    fi
+    auto_unread "$PROVE_CODE"
+  fi
+  # The line names the tags it deleted for, and box-checks.sh reads only a
+  # tag's shape: a deletion it cannot read would go untold.
+  if ! [[ "$PROVE_TOOK_TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+    fail "the took line in ${DEPLOY_LOG} does not name a tag in deploy-live.sh's shape."
+    auto_unread log-garbled
+  fi
+  if ! [[ "$before" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+    fail "the note (${COPY_NOTE}) does not name the tag the copy was taken before in take's shape."
+    auto_unread note-unread
+  fi
+
+  # The checkout runs what took: a deploy since that stopped half-way logs no
+  # line (deploy-live.sh writes its line last), and leaves HEAD elsewhere.
+  if ! at_head="$(git -C "$REPO_ROOT" rev-parse -q --verify HEAD 2>/dev/null)"; then
+    fail "git could not name the checkout's HEAD."
+    auto_unread git
+  fi
+  if [ "$at_head" != "$PROVE_TOOK_COMMIT" ]; then
+    fail "the checkout is not at the commit the deploy of ${PROVE_TOOK_TAG} took: a deploy since may have stopped half-way, and that one logs no line. Kept."
+    auto_kept head-moved
+    return 0
+  fi
+
+  # No hold at all, a pass that did something, and the owner's hour.
+  if ! answer="$(auto_read "$PROVE_TOOK")"; then
+    fail "the database could not be read (above), and a database that cannot be read proves nothing."
+    auto_unread db
+  fi
+  if ! [[ "$answer" =~ ^(yes|no)[|][0-9]+[|][0-9]+[|]-?[0-9]+$ ]] || [ "$(wc -l <<<"$answer")" -ne 1 ]; then
+    fail "the database answered something that is not the counts asked for, and that proves nothing."
+    auto_unread answer
+  fi
+  IFS='|' read -r superuser holds passes since <<<"$answer"
+  if [ "$superuser" != yes ]; then
+    fail "the role psql connects as is not a superuser, so row security would hide the holds and the passes, and a count of them would mean nothing."
+    auto_unread not-superuser
+  fi
+  if [ "$holds" -gt 0 ]; then
+    fail "a hold is on now: the box checks delete nothing while one is."
+    auto_kept held
+    return 0
+  fi
+  if [ "$passes" -eq 0 ]; then
+    fail "passes since the deploy succeeded, but none has a data type of its migration completed since it began."
+    auto_kept unfinished
+    return 0
+  fi
+  if [ "$since" -lt "$COPY_AUTO_GRACE_SECONDS" ]; then
+    fail "proven, and kept until an hour after the hold was last lifted: starting the hold again keeps it."
+    auto_kept grace
+    return 0
+  fi
+
+  # Nothing here but the copy: delete_all removes every entry, and a dump
+  # made after the copy, or a rollback's since file, is not the copy's to lose.
+  if ! listed="$(note_files)"; then
+    fail "the note (${COPY_NOTE}) could not be read for the files it names."
+    auto_unread note-unread
+  fi
+  files="$(copy_files)"
+  extra="$(LC_ALL=C comm -23 <(printf '%s\n' "$files") <(printf '%s\n' "$listed"))"
+  if [ -n "$extra" ]; then
+    fail "beside the copy, not in its note: ${extra//$'\n'/, }. Delete it yourself (./deploy/compose/copy-before-update.sh delete), or day ${COPY_EXPIRE_DAYS} does."
+    auto_kept unlisted
+    return 0
+  fi
+
+  fail "proven: ${WHY}; no hold is on, the checkout is at the commit that took, ${passes} of those passes have a data type of their migration completed since they began, and the hold was last lifted (or the deploy took, if later) $((since / 60)) minutes ago."
+  delete_all || auto_unread delete-incomplete
+  fail "deleted the copy taken ${taken} before ${before}: ${files//$'\n'/, }."
+  printf 'deleted\t%s\t%s\t%s\t%s\t%s\t%s\n' "$taken" "$before" "$PROVE_TOOK" "$PROVE_TOOK_TAG" "$passes" "$(wc -l <<<"$files")"
 }
 
 cmd_expire() {
@@ -922,6 +1163,7 @@ TAIL
 case "$CMD" in
   take) cmd_take ;;
   delete) cmd_delete ;;
+  delete-if-proven) cmd_delete_if_proven ;;
   expire) cmd_expire ;;
   since) cmd_since ;;
 esac

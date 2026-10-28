@@ -30,8 +30,13 @@ import { defineConfig } from '@trigger.dev/sdk';
  * to 4.7.6, two security releases behind, and nothing here moved it. So a
  * deploy adds one layer to the task image: the Node binary out of the image
  * `apps/api/Dockerfile` builds FROM, copied over the base image's, and the base
- * image's Debian packages upgraded. Dependabot moves that FROM line, so the
- * tasks move with the API. The CLI puts a layer's instructions in the image's
+ * image's Debian packages upgraded. Dependabot moves that FROM line, and the
+ * tasks move with it. Since workplan 0146 T13 that line is the API's BUILD
+ * stage: the API runs on distroless, with a Node of its own pinned by a digest
+ * that moves apart from the tag. Same Node version as this line, checked, not
+ * assumed: the managed smoke's preflights stop when the API container's Node
+ * is not this line's x.y.z (deploy/compose/smoke-managed.sh, `dockerfile_node`).
+ * The CLI puts a layer's instructions in the image's
  * first stage, as root, which its build, indexer and final stages all start
  * from. An official Node binary needs only glibc 2.28, so one taken from a
  * trixie image runs on the base image's bookworm.

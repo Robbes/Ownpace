@@ -46,9 +46,9 @@
  *             - Ownpace's own three images, at `:edge` (what main publishes,
  *               which the OTA stack builds every night) and at the newest
  *               release tag (what live runs: it builds the tag it deploys).
- *           The FROM bases of apps/*\/Dockerfile (node, nginx) are inside
- *           Ownpace's images and are not scanned twice. www.yml's nginx is,
- *           because the site runs it as it is.
+ *           The FROM bases of apps/*\/Dockerfile (node, distroless, nginx)
+ *           are inside Ownpace's images and are not scanned twice. www.yml's
+ *           nginx is, because the site runs it as it is.
  *   report  reads the report each scan wrote, one per image. A missing or
  *           unreadable report is an error and fails the run: a scan that did
  *           not happen must never read like a week without findings. An

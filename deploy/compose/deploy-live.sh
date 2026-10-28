@@ -96,8 +96,10 @@
 # taken: after a deploy that did not take it is still the copy of what ran
 # before. A take that fails or refuses (a copy of a proven update still there:
 # delete it first) refuses the deploy, before anything moves. The copy goes
-# once the update is proven, by the owner's `copy-before-update.sh delete`,
-# and after day 6 whatever happens, by the daily duties' backstop.
+# once the update is proven, by live's box checks (copy-before-update.sh
+# delete-if-proven, an hour after the hold was last lifted at the earliest),
+# or by the owner's `copy-before-update.sh delete`, and after day 6 whatever
+# happens, by the daily duties' backstop.
 #
 # THE UNITS ARE COPIED, NOT LINKED (docs/managed-bring-up.md, "Live's daily
 # duties"): a tag that changes a unit under deploy/compose/systemd/, or adds
@@ -114,7 +116,9 @@
 # owner's, before it. It does not LIFT the hold (step
 # 8): the owner lifts it after looking at what this printed, and watches the
 # tick's next summary and one of their own migrations complete a pass on the
-# new tasks, and then deletes the copy. It checks the drain; it does not wait for it.
+# new tasks (./deploy/compose/live-pass-check.sh starts one and says how it
+# ended); the box checks then delete the copy. It checks the drain; it does
+# not wait for it.
 #
 # IT REFUSES, BEFORE THE CHECKOUT OR THE STACK CHANGES, each with its own
 # message and a non-zero exit. (To read a tag origin has and this clone does
@@ -281,6 +285,10 @@ ENV_FILE="${SCRIPT_DIR}/.env"
 . "${SCRIPT_DIR}/release-tag.sh"
 # The .env named to Compose, so that it reads the file checked below.
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml" --env-file "${ENV_FILE}")
+# Plain progress for every compose call here and in the bring-up it starts:
+# compose v5.0.x's terminal progress can deadlock at the end of a command
+# (docker/compose#13639), as it did on live's deploy of alpha.2 (2026-10-28).
+export COMPOSE_PROGRESS=plain
 # Live's copy of the site: its project, and Compose under it, never live's
 # (0139 T10). Set by main from the project, with the reader's answer.
 WWW_LIVE_PROJECT=''
@@ -677,15 +685,16 @@ main() {
   # the bring-up sources the .env with `set -a`, which overrides it. What is
   # left: a NODE_ENV line in a form the check does not read, or a container
   # the bring-up did not recreate.
-  local node_env
-  if node_env="$("${COMPOSE[@]}" exec -T api printenv NODE_ENV 2>/dev/null)"; then
-    if [ "$node_env" = production ]; then
-      say "  NODE_ENV in the api container: production"
-    else
-      failures+=("NODE_ENV in the api container is not production (workplan 0132 T4). Its value is not printed. The .env said production before the checkout. Look for a NODE_ENV line in a form the check does not read (indented, a space before '=', or ':' for '='), with: grep -n NODE_ENV deploy/compose/.env. Or this bring-up did not recreate the api container: docker compose -f deploy/compose/managed.yml ps api says how long it has been up.")
-    fi
+  # Read from Docker (api_env, workplan 0146 T13a), never exec'd in: the
+  # distroless API image of T13 has no shell and no printenv.
+  local node_env env_rc=0
+  node_env="$(api_env NODE_ENV)" || env_rc=$?
+  if [ "$env_rc" -eq 0 ] && [ "$node_env" = production ]; then
+    say "  NODE_ENV in the api container: production"
+  elif [ "$env_rc" -le 1 ]; then
+    failures+=("NODE_ENV in the api container is not production (workplan 0132 T4). Its value is not printed. The .env said production before the checkout. Look for a NODE_ENV line in a form the check does not read (indented, a space before '=', or ':' for '='), with: grep -n NODE_ENV deploy/compose/.env. Or this bring-up did not recreate the api container: docker compose -f deploy/compose/managed.yml ps api says how long it has been up.")
   else
-    failures+=("NODE_ENV: the api container could not be asked (docker compose exec -T api printenv NODE_ENV).")
+    failures+=("NODE_ENV: the api container could not be asked (docker compose ps -q api, then docker container inspect; why is above).")
   fi
   # The site (0139 T10): the tag's, built here and brought up under its own
   # project, before the exposure check, which then covers it too.
@@ -712,8 +721,8 @@ main() {
   echo
   say "the deploy took: ${tag} (${commit}) runs, and answered every check."
   printf '%s\n' "${reversibility#*$'\n'}"
-  say "The hold is still on. Lift it yourself, after looking (workplan 0132 T6 step 8): the tick's next summary shows passes started, and one of your own migrations should complete a pass on the new tasks."
-  say "Then the update is proven: delete the copy taken before it, ./deploy/compose/copy-before-update.sh delete, which checks all three. Not proven by day 6: roll back from the copy (docs/operator-runbook.md, The copy before an update). The daily duties delete it after day 6 whatever happens."
+  say "The hold is still on. Lift it yourself, after looking (workplan 0132 T6 step 8): lifting it is your last look, since the first pass that succeeds after it proves the update. ./deploy/compose/live-pass-check.sh starts one on your own migration (LIVE_PASS_CHECK_MIGRATION in live's .env) and says within 15 minutes how it ended; or watch the tick's next summary."
+  say "Then the update is proven: an hour after you lift the hold, the box checks delete the copy taken before it, as ./deploy/compose/copy-before-update.sh delete does (delete-if-proven, stricter), and mail Update proven; starting the hold again keeps it. Or delete it now yourself: ./deploy/compose/copy-before-update.sh delete. Not proven by day 6: roll back from the copy (docs/operator-runbook.md, The copy before an update). The daily duties delete it after day 6 whatever happens."
   log_deploy "$deploy_log" "$tag" "$commit" took "$verdict"
   units_note
   # The next deploy refuses a tree that is not clean, so say it now.
@@ -752,6 +761,35 @@ json_string() {
         if (typeof v === "string") process.stdout.write(v);
       } catch {}
     });' "$1"
+}
+
+# api_env <name> — a variable the api container was started with, read from
+# Docker rather than from inside the container (workplan 0146 T13a, the readers
+# first). The distroless API image of T13 has no shell and no `printenv`; a tag
+# before T13 brings up a Node image, which has both, and this answers the same
+# for either, so this script asks alike whichever tag it deploys. It ships in
+# the release T13 ships in (alpha.3; the owner's decision of 2026-10-26), so a
+# deploy to that release from alpha.2 or earlier runs the older copy of this
+# script, which asks with `printenv`, says the deploy did not take though the
+# stack has moved, and is run a second time from the checkout now at the tag
+# (docs/managed-bring-up.md, *The deploy from alpha.2 to alpha.3 runs twice*).
+# A deploy started from a checkout with this function runs once. `docker container
+# inspect`'s `.Config.Env` is the image's ENV with compose's `environment:` over
+# it, one entry per name: what the process started with. Exit 0 set, 1 not set,
+# 2 no running api container, or none Docker could read. Why it could not is on
+# stderr, in Docker's words: they name containers and variables, never a value.
+api_env() {
+  local id env line
+  id="$("${COMPOSE[@]}" ps -q api)" || return 2
+  [ -n "$id" ] || { echo "docker compose ps -q api: no api container in this project" >&2; return 2; }
+  env="$(docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$id")" || return 2
+  while IFS= read -r line; do
+    if [[ "$line" == "$1="* ]]; then
+      printf '%s\n' "${line#*=}"
+      return 0
+    fi
+  done <<<"$env"
+  return 1
 }
 
 # The project Compose itself reports from here. Answering another one means

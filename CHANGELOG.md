@@ -4,6 +4,40 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **The api, selfhost and web images build on Debian 13, and the api and
+  selfhost images carry no package manager** (workplan 0146 T12, #1708): the
+  three built `FROM node:24.22.1-slim`, which is Debian 12, where Trivy read
+  1 critical and 61 high findings. `node:24.22.1-trixie-slim`, Debian 13.7,
+  reads 0 and 48, and its Node is the same binary, byte for byte. The api and
+  selfhost runtime stages also remove npm, npx, corepack, pnpm and yarn,
+  which nothing in either container runs; npm's bundled packages were 5 of
+  the highs, so the base under both reads 0 critical and 43 high, none of
+  which Debian has fixed. The managed tasks copy the same Node as before.
+  Nothing a stack sets changes.
+- **The managed API runs on a distroless image** (workplan 0146 T13,
+  #1709): its runtime is `gcr.io/distroless/nodejs24-debian13:nonroot` by
+  digest, Debian 13.7 with Node and fourteen packages and no shell, where
+  Trivy reads 0 critical and 0 high on amd64 and arm64, against 0 and 43 on
+  the Debian 13 Node image under it before. The Node is the same binary, and
+  the managed tasks keep theirs; the smoke stops when the API's Node is not
+  the version the tasks get. The container runs as uid 65532 instead of
+  10001 and can no longer write its own code, which is root's; it mounts
+  nothing. Nothing execs a shell or `printenv` into it: every script and doc
+  reads its variables with `docker container inspect` and runs Node by its
+  path (T13a, #1710, in this release too). **The live deploy from
+  `v0.2.0-alpha.2` or earlier to this release runs `deploy-live.sh` twice**
+  (the owner's decision of 2026-10-26). The first run is the older
+  checkout's script, which asks with `printenv` and says `NODE_ENV: the api
+  container could not be asked`, exit 3, though live has moved to the tag
+  and nothing was rolled back. Then `git checkout --
+  apps/worker/package.json` and the same `./deploy/compose/deploy-live.sh
+  <tag>` again, which reads from Docker and takes (docs/managed-bring-up.md,
+  *The deploy from alpha.2 to alpha.3 runs twice*). A deploy from this
+  release on runs once. `docker compose … exec api sh` or `printenv` by hand
+  no longer works; `/nodejs/bin/node` does.
+
 ### Changed
 
 - **pnpm is 11.28.8** (workplan 0119, issue #1694, #1701): the lockfile is
@@ -125,13 +159,21 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   new database fetches its ASN lists from GitHub instead of jsDelivr. A data
   volume v0.16.10 made works under v0.16.27 and back again. The pin moves
   only on the owner's decision, recorded in ADR-0022, every copy together.
+- **Nothing execs a shell or `printenv` into the managed api container any
+  more** (workplan 0146 T13a, #1710): the smoke, the managed gate, `deploy-live.sh`,
+  `stand-up-live.sh` and the docs read its variables with `docker container
+  inspect`, and the smoke runs Node there by its path and stops when that
+  Node is not the version the managed tasks get. It works on the Node image
+  and on the distroless one this release moves the API to (T13, #1709, the
+  owner's decision of 2026-10-26), so every deploy started from this release
+  on runs a `deploy-live.sh` that reads it this way; the deploy to this
+  release from an older one runs twice (above). Nothing a stack sets changes.
 - **Trigger.dev's object store runs Chainguard's MinIO build of 2026-10-25**
   (workplan 0146 T7): `latest` by the digest it had that day, taken once three
   days old. Its server is the fork's RELEASE.2026-10-23T20-06-51Z, which moves
   nine Go modules, golang.org/x/net, x/crypto and klauspost/compress among
-  them, and changes no MinIO code;
-  Trivy reads no finding in it, as in the build before. Nothing a stack sets
-  changes; the next bring-up pulls it.
+  them, and changes no MinIO code; Trivy reads no finding in it, as in the
+  build before. Nothing a stack sets changes; the next bring-up pulls it.
 
 ### Added
 
@@ -147,6 +189,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   skipped. The integration tier also gained its first suite for the share
   verb against a real server: a user share, the listing that reads it back,
   and a grantee the server does not know.
+- **Live proves an update by itself, and its owner can start one pass to see
+  it** (workplan 0132 T9, #1724): every ten minutes live's box checks run
+  `copy-before-update.sh delete-if-proven`. It deletes the copy before an
+  update by `delete`'s own rule and, stricter, only with no hold on, the
+  checkout at the commit that took, a data type of the proving pass's
+  migration completed, nothing in the copy's directory that its note does not
+  name, and an hour after the hold was last lifted. The box checks then mail
+  *Update proven* once (`COPY_DELETE_WHEN_PROVEN=false` in live's `.env`
+  leaves the delete to the owner). `deploy/compose/live-pass-check.sh` starts
+  one pass on the migration `LIVE_PASS_CHECK_MIGRATION` names, through *Sync
+  now*'s own gates, refuses while the hold is on or the passes in flight are
+  at the tick's caps, and says within 15 minutes how it ended.
 
 ### Fixed
 
@@ -190,6 +244,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   `packages/orchestration` declare the drizzle-orm and pg they load, which
   they used to find among the root's devDependencies. Nothing a stack sets
   changes.
+- **A deploy no longer waits without end on a compose step** (live's deploy of
+  alpha.2, 2026-10-28): the bring-up asked compose to pull the identity
+  provider's image before reading its user, even when the machine had it, and
+  on live that pull printed "Pulled" and never returned, so the deploy waited
+  sixteen minutes, until the pull was killed, and then did not take. Compose
+  v5.0.x's progress, drawn in a terminal, can deadlock at the end of a command
+  (docker/compose#13639); the nights run without a terminal and never met it.
+  `bootstrap-managed.sh` and `deploy-live.sh` now ask compose for plain
+  progress (`COMPOSE_PROGRESS=plain`), the bring-up pulls that image only when
+  the machine lacks it, and a pull that does not end is stopped after
+  `ZITADEL_PULL_TIMEOUT` (600 seconds) with a sentence saying what to do. The
+  operator runbook says how to end such a step and go on.
 
 ## [0.2.0-alpha.2] - 2026-10-25
 
