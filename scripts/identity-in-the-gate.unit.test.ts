@@ -66,11 +66,11 @@ describe('the gate starts and configures the identity provider', () => {
   it('provisions BEFORE the web build, or the login page has no client id', () => {
     // Ordering, asserted as ordering. setup-zitadel.sh writes VITE_OIDC_ISSUER
     // and VITE_OIDC_CLIENT_ID, and VITE_ values are baked into the bundle at
-    // build time — so provisioning after `up --build` gives every first-ever
+    // build time — so provisioning after the build gives every first-ever
     // bring-up a login page that knows no client, correct only from the second
     // run. That is an instruction nobody should have to be given.
     const setup = bootstrap.indexOf('setup-zitadel.sh');
-    const build = bootstrap.indexOf('up -d --build --wait "${services[@]}"');
+    const build = bootstrap.indexOf('"${COMPOSE[@]}" build api web');
     expect(setup, 'setup-zitadel.sh must be invoked').toBeGreaterThan(-1);
     expect(build, 'the web build must be found').toBeGreaterThan(-1);
     expect(setup, 'provisioning has to happen before the build').toBeLessThan(build);
@@ -82,7 +82,7 @@ describe('the gate starts and configures the identity provider', () => {
     // is correct on paper and useless in fact.
     const between = bootstrap.slice(
       bootstrap.indexOf('setup-zitadel.sh'),
-      bootstrap.indexOf('up -d --build --wait "${services[@]}"'),
+      bootstrap.indexOf('"${COMPOSE[@]}" build api web'),
     );
     expect(between, 'load_env must run between provisioning and the build').toContain('load_env');
   });

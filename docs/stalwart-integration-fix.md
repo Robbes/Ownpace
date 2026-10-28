@@ -1,15 +1,17 @@
-# Stalwart v0.16.10 Testcontainers Integration — Authoritative Reference
+# Stalwart v0.16.27 Testcontainers Integration — Authoritative Reference
 
-DO NOT deviate from this. DO NOT change the pinned version. DO NOT put accounts/domains/listeners
-in config.json. DO NOT skip the shadow-pass tests. Prior sessions repeatedly re-fabricated the
-config below; this file is the corrected ground truth.
+DO NOT deviate from this. DO NOT change the pinned version (v0.16.27 since 2026-10-25) except on
+the owner's decision, recorded in ADR-0022, with every copy moved in the same change and the
+two-phase run proved on the new tag first — see "Moving the pin" below. DO NOT put
+accounts/domains/listeners in config.json. DO NOT skip the shadow-pass tests. Prior sessions
+repeatedly re-fabricated the config below; this file is the corrected ground truth.
 
-## Verified Image: stalwartlabs/stalwart:v0.16.10 (official, no custom image needed)
+## Verified Image: stalwartlabs/stalwart:v0.16.27 (official, no custom image needed)
 
 **Finding**: The custom image `stalwart-test-custom:latest` provides NO benefit over the official
 image. It was previously thought to contain workarounds for config or listener issues, but those
-were solving non-problems. The official image `stalwartlabs/stalwart:v0.16.10` works correctly
-when used with the proper two-phase startup pattern.
+were solving non-problems. The official image (`stalwartlabs/stalwart:v0.16.10` then, v0.16.27
+now) works correctly when used with the proper two-phase startup pattern.
 
 **Dockerfile inspection** (from prior session):
 ```
@@ -19,6 +21,61 @@ docker inspect stalwart-test-custom:latest --format '{{json .Config.Cmd}}'
 # Result: [] (no custom command)
 ```
 The custom image had no special configuration baked in. Switch to the official image.
+
+## Moving the pin
+
+**Rule (2026-10-25, ADR-0022):** the pin moves only on the owner's decision, recorded as a dated
+section of ADR-0022, and only within a minor line upstream calls a binary swap (v0.16.x: *"replace
+the binary (or run `docker pull`)"*); another line starts from upstream's `UPGRADING/` notes. In
+the same change:
+- every copy: `IMAGE` in `deploy/selfhost/setup-stalwart.sh`, both phases in
+  `packages/testing/src/testcontainers-setup.ts`, `packages/testing/fixtures/stalwart/Dockerfile`,
+  `STALWART` in `scripts/a-service-that-phones-home.unit.test.ts`, and this file
+  (`scripts/idp-pin-watch.mjs` reads the first four and reports "the copies disagree" otherwise);
+- then `git grep -n` for the old tag, because nothing guards the other places that name the
+  current pin: ADR-0022's operative bullet (then `node scripts/adr-operative.mjs --write`) and its
+  row in `docs/adr/README.md`, the comments in `testcontainers-setup.ts` and
+  `packages/ledger/src/shadow-pass.integration.test.ts`, `e2e.yml`'s header, `docs/testing.md`,
+  "Nothing phones home" in `docs/managed-bring-up.md`, the demo's Stalwart in
+  `scripts/a-service-that-phones-home.unit.test.ts`'s header, and the calendar reason in
+  `packages/connectors/src/jmap-capabilities.ts`. Dated records (ADR updates, workplan Status
+  entries, the dated paragraphs below) keep the tag they name;
+- upstream's changelog between the two tags, read for the recovery-mode variables, the CLI and
+  the `Domain`/`Account` objects the plan below upserts;
+- `crates/common/src/manager/defaults.rs` re-read at the new tag for what it downloads, and
+  "Nothing phones home" in `docs/managed-bring-up.md` and `setup-stalwart.sh`'s header said again;
+- `scripts/jmap-target-spike.ts` re-run, workplan 0031 T1's trigger;
+- the image three days past its push (CONTRIBUTING.md's age), unless a security fix needs it
+  sooner.
+
+Before it merges: the CI `integration-tests` job, then E2E (self-hosted) and E2E (managed).
+
+**v0.16.10 → v0.16.27 (2026-10-25, workplan 0146 T11 (b)).** Why: the image scan read v0.16.10 at
+3 critical and 114 high, v0.16.27 (Debian 13.7) at 0 and 47, none of the 47 with a fix. Pushed to
+Docker Hub on 2026-10-18 (index `sha256:c429b311…`). Upstream's changelog v0.16.11 to v0.16.27
+renames no setting, recovery-mode variable or plan object this file uses. What touches this
+repository:
+- v0.16.26: the x86_64 images, all but `-alpine`, refuse to start on a CPU without x86-64-v2
+  (a VM with a generic CPU model). The Spark runner is arm64; GitHub's hosted runners have it.
+- v0.16.16 and v0.16.27: the WebUI is downloaded in recovery mode too, and from the release
+  `v1.0.11` rather than `releases/latest` (a stored `latest` address is served as `v1.0.11`).
+- v0.16.18: a new database fetches its ASN and country lists from
+  `github.com/sapics/ip-location-db`; one made earlier keeps its `cdn.jsdelivr.net` addresses.
+- v0.16.22: IMAP `AUTHENTICATE` is refused on clear text, and a shared mailbox needs the `r`
+  right to `SELECT`. Nothing here speaks clear-text IMAP, and the shared-mailbox test passes.
+- The JMAP session adds `urn:ietf:params:jmap:emailpush` and `:webpush-vapid` to the fifteen
+  capabilities v0.16.10 lists; nothing here reads either.
+
+Proved in the session that made the change, on x86_64 with a local Docker daemon:
+`setup-stalwart.sh` at v0.16.27 with `stalwart-cli` 1.0.13 (the installer's `latest`, which CI
+already ran against v0.16.10): five upserts, then IMAPS and a JMAP session as the plan's
+accounts; the eleven integration files that use Stalwart and not Nextcloud
+(`SKIP_NEXTCLOUD=true`), 44 tests passed; the spike, which still reads `recurrenceRules` refused
+on all three rungs (0031 T1 stays parked); and one data volume made at v0.16.10, then taken to
+v0.16.27, back to v0.16.10 and to v0.16.27 again by `setup-stalwart.sh`, with a message and a
+contact card written under each version and every earlier one read back under the next.
+Upstream does not promise the way back; that run is the evidence that a branch's E2E (managed)
+on the OTA demo's volume leaves it usable for main's next night.
 
 ## config.json — the ENTIRE file, both phases, nothing else
 {"@type": "RocksDb", "path": "/opt/stalwart/data"}
@@ -37,7 +94,7 @@ the database and are provisioned via stalwart-cli — never in config.json. Mail
   wall).
 
 ## Two-phase startup (required — provisioning and serving cannot share one process)
-Phase 1 (provisioning): image stalwartlabs/stalwart:v0.16.10, config.json mounted, data volume,
+Phase 1 (provisioning): image stalwartlabs/stalwart:v0.16.27, config.json mounted, data volume,
   STALWART_RECOVERY_MODE=1 + STALWART_RECOVERY_ADMIN=admin:<pw>. Recovery mode exposes only the
   management API (mail listeners suspended). Provision via stalwart-cli, then STOP the container.
 Phase 2 (serving): new container, SAME config.json, SAME data volume, NO recovery env vars →
@@ -84,19 +141,23 @@ observed to prevent "LOCK: Resource temporarily unavailable" errors:
 
 ## Verified Findings from Integration Testing
 
-**Image**: The official `stalwartlabs/stalwart:v0.16.10` image works correctly. No custom image
-is needed. The custom image `stalwart-test-custom:latest` provided no benefit.
+**Image**: The official `stalwartlabs/stalwart` image works correctly (v0.16.10, and v0.16.27
+since 2026-10-25). No custom image is needed. The custom image `stalwart-test-custom:latest`
+provided no benefit.
 
-**TLS Ports**: Stalwart v0.16.10 in Normal Mode auto-binds TLS listeners:
+**TLS Ports**: Stalwart in Normal Mode auto-binds TLS listeners:
 - IMAPS on port 993 (implicit TLS)
 - POP3S on port 995 (implicit TLS)
 - HTTPS on port 443
 - SMTPS on port 465
 - Management HTTP on port 8080 (unencrypted, for JMAP/management)
 
-**Plaintext ports NOT bound by default**: IMAP (143), POP3 (110), SMTP (25/587) are NOT
-auto-bound in v0.16.10. This is a hardening change from earlier versions. Tests MUST use TLS
-ports (993 for IMAPS).
+**Plaintext ports NOT bound by default**: IMAP (143), POP3 (110) and submission (587) are NOT
+auto-bound. This is a hardening change from earlier versions. Tests MUST use TLS ports (993 for
+IMAPS). Read from `/proc/net/tcp` inside the normal-mode container on 2026-10-25, v0.16.10 and
+v0.16.27 listen on the same seven ports: 25, 443, 465, 993, 995, 4190 and 8080. So plain SMTP on
+25 and ManageSieve on 4190 ARE bound (this section said 25 was not until then); nothing here
+publishes either — `setup-stalwart.sh` publishes 8080 and 993, Testcontainers 8080, 993 and 465.
 
 ## IMAP Authentication Fix (Resolved)
 
@@ -389,7 +450,7 @@ Before repeating that investigation, rule these out first, cheaply:
    environment than a Stalwart/script bug — `setup-stalwart.sh` (pre-this-fix, bind-mount and all)
    is proven working on the bare Spark runner per "Round 4" below.
 4. If it reproduces even via `docker exec` on a bare host, that's a genuine, novel finding worth its
-   own investigation (image bug, `STALWART_RECOVERY_MODE` regression in v0.16.10, resource limits
+   own investigation (image bug, `STALWART_RECOVERY_MODE` regression in the pinned version, resource limits
    inside the sandbox preventing the listener thread from starting, etc.) — but confirm 1–3 first
    before spending hours on it again.
 

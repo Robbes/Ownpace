@@ -36,26 +36,50 @@ ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
 WORKDIR /app
 
-FROM base AS build
+FROM base AS deps
 COPY . .
-# `--filter @openmig/api...` = this app AND its workspace dependencies. Measured
-# against an unfiltered install of the same tree: 698 packages instead of 800,
-# and no node_modules for apps/web, apps/worker, apps/selfhost or
-# packages/testing — none of which this image runs.
+# PRODUCTION DEPENDENCIES ONLY (`--prod`), and nothing builds: there is no JS
+# build, and Node erases the types at start. This stage used to install
+# everything, and the runtime copied it, so drizzle-kit's esbuild and TypeScript
+# 7's native compiler were in the image, and their Go binaries were 2 of its 3
+# critical and 65 of its 125 high findings (the edge image, 2026-10-23). Nothing
+# in the container runs them. CMD and the HEALTHCHECK are Node's
+# (`/nodejs/bin/node`, below); the smoke gate's probes run Node by its path with
+# its own fetch, and read the API's variables from Docker, never with
+# `printenv`; the operator scripts and the demo seed run on the HOST, from the
+# checkout (deploy/compose/operator.sh, seed-managed.sh); the migrations are the
+# API's own start-up code, which reads the SQL in packages/*/migrations.
 #
-# It does NOT drop the workspace ROOT's dependencies; pnpm installs those
-# whatever the filter says, so the root's devDependencies land here regardless
-# of the filter. See apps/web/Dockerfile, where believing otherwise cost a
-# wrong claim. CMD no longer depends on that being true — it invokes `node`
-# directly — but the install still behaves this way.
+# `--filter-prod @openmig/api...` = this app AND the workspace packages its
+# `dependencies` reach (pnpm follows `optionalDependencies` and
+# `peerDependencies` too); the workspace root's `dependencies` come too,
+# whatever the filter says (apps/web/Dockerfile). Not `--filter`: its `...`
+# also follows devDependencies, and @openmig/core and @openmig/ledger list
+# workspace packages there, so a workspace package only a test reaches would
+# be selected and `--prod` would install ITS production dependencies. Measured
+# on 2026-10-25: 9 of the 14 workspace projects and 250 packages, the same
+# tree `--filter` gave that day; the full install of the same filter had 622.
 #
-# THIS IS A RUNTIME IMAGE, not a build one, so a pruned package is a resolution
-# failure in production rather than a red build. Two things cover that:
-# `scripts/workspace-deps.unit.test.ts` asserts every `@openmig/*` specifier in
-# this app's source — static, dynamic `import()` and `require()` alike — is a
-# DECLARED dependency, which is exactly what the filter follows; and the managed
-# gate's first preflight is `curl $API/health`, so an image that cannot resolve
-# its own modules fails loudly at the top of the run.
+# Not `pnpm deploy --prod`. It copies each workspace package INTO node_modules,
+# and Node refuses to strip types under a node_modules path: the deployed tree
+# failed at its first import with ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING.
+# A plain install keeps apps/api/node_modules/@openmig/* as symlinks into
+# packages/, outside node_modules.
+#
+# THIS IS A RUNTIME IMAGE, not a build one, so a missing package is a
+# resolution failure in production rather than a red build. With `--prod` that
+# includes anything a runtime file imports that its own package declares only
+# as a devDependency, or not at all: it used to resolve through the root's
+# devDependencies, and now nothing installs those. apps/api and
+# packages/orchestration imported drizzle-orm (and orchestration pg) that way
+# until they declared them. Three things cover it:
+# `scripts/an-image-that-shipped-what-it-never-runs.unit.test.ts` asserts every
+# package a runtime file of this closure loads is in its own `dependencies`,
+# and that no stage the runtime takes files from installs devDependencies;
+# `scripts/workspace-deps.unit.test.ts` asserts every `@openmig/*` specifier is
+# declared, which is what the filter follows; and the managed gate's first
+# preflight is `curl $API/health`, so an image that cannot resolve its own
+# modules fails loudly at the top of the run.
 #
 # Then /app is made READABLE BY EVERYONE AND WRITABLE BY ROOT ALONE, whatever
 # modes the checkout gave its files (a umask of 077 writes them 0600, and COPY
@@ -65,7 +89,7 @@ COPY . .
 # up into a second layer, and last in the stage the runtime copies from, so
 # nothing after it writes a file with another mode.
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile --filter @openmig/api... \
+    pnpm install --frozen-lockfile --prod --filter-prod @openmig/api... \
  && chmod -R u=rwX,go=rX /app
 
 # THE RUNTIME IS DISTROLESS (workplan 0146 T13): Google's
@@ -92,7 +116,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 #
 # What that takes, wherever the container is reached:
 # - No RUN in this stage: there is nothing to run one with. The files come in
-#   by COPY as root's, readable by all and writable by root alone (the build
+#   by COPY as root's, readable by all and writable by root alone (the deps
 #   stage's last RUN): the API reads its code and cannot rewrite it.
 # - Node is /nodejs/bin/node and is NOT on the PATH. ENTRYPOINT and the
 #   HEALTHCHECK name it; `docker exec <api> node ...` finds nothing.
@@ -116,7 +140,7 @@ ENV NODE_ENV=production
 # Surfaced by GET /version (buildIdentity in @openmig/core).
 ARG GIT_SHA=unknown
 ENV OPENMIG_COMMIT=$GIT_SHA
-COPY --from=build /app /app
+COPY --from=deps /app /app
 WORKDIR /app
 USER 65532:65532
 EXPOSE 3001

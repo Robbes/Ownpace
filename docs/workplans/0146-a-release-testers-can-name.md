@@ -247,6 +247,344 @@ written to ship a release before T13).
   tag. The procedures say so, word for word (the owner's decision of 2026-10-26, above).
 - **One-way:** none. Every read works on the image of every earlier tag too.
 
+**2026-10-26, last of all: T15b after its review, thirteen findings, twelve fixed as found and
+one in a narrower form**, on the same branch. No fault was found in the Dockerfile, its name or its
+Dependabot entry.
+- **The documented upgrade never reached the database** (found twice). Compose.yml and
+  `deploy/selfhost/postgres/Dockerfile` come from the checkout, and the quickstart's upgrade only
+  pulled the app's image, so an appliance upgraded as documented kept the official image, gosu
+  and all, while the CHANGELOG said there was nothing to do. The upgrade now updates the checkout
+  first (`git pull --ff-only` on `edge`, the release's tag on a release; a copied
+  `deploy/selfhost/` is copied again, `postgres/` included), and the quickstart, the README's
+  one-line upgrade and the CHANGELOG say the database's image follows the checkout.
+- **The build needs a current buildx where there is one** (narrower than found). Compose v5.6.1
+  without a buildx plugin builds with the engine's classic builder (run here with the plugin
+  hidden: it went on to the engine), and refuses a buildx older than 0.17.0 with `compose build
+  requires buildx 0.17.0 or later` (run here with a plugin reporting v0.10.4); `DOCKER_BUILDKIT=0`
+  takes it past that to the classic builder. "What you need" and Troubleshooting say so.
+- **No gate started the build on an existing appliance's volume.** `build (postgres)` now starts
+  the appliance's on one: the Dockerfile's own FROM, gosu and all, initialises the compose file's
+  `pgdata` as root (PGDATA uid 70's, `/var/lib/postgresql/18` root's) and writes a row; the build
+  then starts on it and must read the row back. dev.yml's still starts on a new volume, and E2E
+  (self-hosted) and its drill start the appliance on new ones. Run here against a stand-in
+  `docker` for the flow and the failure (no daemon here); the pull request's run is the proof.
+- **The bind-mount advice assumed rootful Docker, and said `chown 70:70` in two places and
+  `chown -R 70:70` in three.** Every place says `-R` now, and the quickstart gives the form
+  that works under rootless Docker too: `docker compose … run --rm --no-deps -u 0 --entrypoint
+  chown postgres -R 70:70 /var/lib/postgresql`, which chowns in the container's own uid mapping.
+- **`an-image-nobody-scanned` failed on a correct Dependabot pull request.** It held the two
+  built names apart, and the records expect them to meet: with the appliance's FROM set to
+  managed's and the printed `sed` applied, two of its tests failed and every other guard passed.
+  It now holds that the names are equal exactly when the two Dockerfiles' hashes are, and its
+  meeting case meets on a made-up name. The same simulation passes all six guards now.
+- **The rebuild guard missed three ways in.** It read neither the appliance's E2E tests, which
+  run `docker compose ${COMPOSE_FILES} up -d postgres` on the runner the managed stacks share,
+  nor `scripts/*.sh` (`upgrade-drill.sh`); and it read a command continued with a backslash one
+  line at a time, so `--build` on the next line went unseen. It reads `test/e2e` and
+  `scripts/*.sh` now, and joins continued lines, keeping the first line's number.
+- **The job check was a text match.** `exit 0` before the appliance's `prove`, an `if false`
+  around it, or `return 0` at the top of `prove()` left every line in place and passed. The
+  guard now reads the step's statements outside its functions as an exact sequence, each
+  function's first statements, and refuses `exit 0`, `return` and a trailing `|| true`; each of
+  those, and the new volume proof taken out or run as uid 70, is a case in the guard.
+- **Three records said what is not so.** `docs/deployment.md` said Dependabot keeps "the three
+  Dockerfiles" and reads nothing in `deploy/compose` (five Dockerfiles since T15 and T15b, two
+  of them the databases'); 0119 and `dependabot.yml` said the pin watch reads nothing in
+  `deploy/selfhost` (it reads `setup-stalwart.sh`'s Stalwart pin); the Dockerfile and the bullet
+  below read as if E2E (self-hosted) ran on Dependabot's pull request by itself (it runs nightly
+  and on dispatch, so it is dispatched on that branch).
+- **Mutation-checked**, each red and then restored: the E2E drill's `up -d postgres` given
+  `--build`; the quickstart's upgrade written as a continued `up -d --build`; `upgrade-drill.sh`
+  building every service; `exit 0` before, and `if false` around, the appliance's proof in
+  images.yml; the root-initialised start removed; the two names equal on two contents.
+
+**2026-10-26, last: T15b, the appliance's PostgreSQL without gosu**, on branch
+`claude/ownpace-public-readiness-y7orc6-appliance-postgres-without-gosu`, stacked on draft #1717
+(whose guard, scan leg and job it extends), for after the alpha.2 tag. No pull request opened yet.
+- **What the scan counted.** The appliance's `postgres:18.6-alpine@sha256:77f58511…` reads 1
+  critical and 26 high with Trivy v0.76.1 on linux/arm64 (2026-10-26; the weekly scan's
+  `postgres-selfhost` leg is this image): the critical is CVE-2025-68121, Go 1.24.6's standard library in
+  `/usr/local/bin/gosu` (fixed in Go 1.24.13 and 1.25.7). The newest digest of the tag
+  (`10a5c69a…`, pushed 2026-10-26 04:10 UTC) ships the same gosu, so no move of the pin fixes it;
+  removing gosu does, as T15 measured for the managed build (0 critical, 1 high).
+- **What was built.** `deploy/selfhost/postgres/Dockerfile`: the managed Dockerfile's
+  instructions (`RUN rm /usr/local/bin/gosu`, `PSQL_HISTORY` and `HISTFILE` in `/tmp`, `USER
+  70:70`) on the appliance's own base, `77f58511…`. `deploy/selfhost/compose.yml`'s postgres runs
+  it as `localhost/postgres:18.6-alpine-b18f51417292` with `build: ./postgres` and `pull_policy:
+  never`, the twelve hex digits being the SHA-256 of its instruction lines as for T15. The
+  directory is where `builtImage()` and the image scan look (`<dir of the compose file>/<name>`).
+- **The base kept, and why.** `898c60cb…`, the managed stacks' rebuild of the same tag, was
+  pushed 2026-10-22 and is past the three-day floor; `10a5c69a…` is not. The appliance keeps the
+  digest it ran, so removing gosu is the only change an appliance's first `up` makes to its
+  database, and a new base stays a move of its own: Dependabot's, as it moved this pin on
+  2026-09-24, with E2E (self-hosted) dispatched on its branch before it merges (it runs nightly
+  and on dispatch, never on a pull request). While the two FROMs differ the two names do too;
+  when they meet, so do the names, which is the same content.
+- **Dependabot.** The pin left the docker-compose entry's view (it moves image lines, and this
+  one names a build now) for a `docker` entry of its own, `/deploy/selfhost/postgres`,
+  `chore(postgres)`, with the major ignore that entry had. The docker-compose entry would still
+  read `localhost/postgres:…` in compose.yml, and read it as a Docker Hub repository: in
+  dependabot-core's `SharedFileParser` (read on `main`, 2026-10-26) a registry is a host with a
+  dot in it, so it would have asked Docker Hub for `localhost/postgres`'s tags every Monday. It
+  now ignores `localhost/postgres` outright, and `Job#allowed_update?` drops a dependency every
+  version of which is ignored before any update checker runs. What that entry still reads is the
+  app's line, Ownpace's own `edge`; `a-dependabot-directory-with-nothing-to-read` holds as before.
+- **The scan, the job and the E2E.** `scripts/image-scan.mjs` already builds any
+  `localhost/<name>` of the files it reads, so the `postgres-selfhost` leg now builds
+  `deploy/selfhost/postgres` on arm64 under the same name and category; no code changed there.
+  `images.yml`'s `build (postgres)` brings up the appliance's postgres after dev.yml's, on a new
+  volume, with the same checks (image user `70:70`; `exec`, the server and PGDATA uid 70; no
+  gosu; `psql` answers), one check name, so `every-pr-check-is-classified` needs no new row. E2E
+  (self-hosted) built the appliance with `up -d --build`, which now builds the database too, on a
+  runner whose Docker the managed stacks share, and whose names meet theirs once the FROMs do; it
+  now builds `app` by name and runs `up` without `--build`, as the managed bring-up does since
+  T15's review, and `compose.dev.yml`'s header says the same.
+- **Guards.** `scripts/a-database-started-as-root.unit.test.ts`: the appliance's Dockerfile by
+  every rule the managed one meets, and the managed one's instructions but for the FROM; its
+  image line by its own hash, failing with its own `sed`, which the guard runs on a copy; never
+  pulled, never root, and no override among the appliance's compose files putting root, a pull or
+  another build back; its own Dependabot entry and the compose entry's ignore; `build (postgres)`
+  proving both Dockerfiles; E2E (self-hosted) building `app` by name; and the commands it reads
+  for a rebuild now include deploy/selfhost's, `$SELFHOST_COMPOSE_FILES` among them. The named
+  exception for the appliance is gone: no compose file under deploy/ may run the official image.
+  `an-image-nobody-scanned` (the `postgres-selfhost` leg builds its directory) and
+  `a-service-that-phones-home` (the row reads the Dockerfile's FROM) follow. Mutation-checked:
+  eighteen breakages, each one red in these guards, every one restored (the
+  appliance Dockerfile with an instruction more and the name left, with gosu, `USER 0` or another
+  FROM; compose.yml without `pull_policy`, on the official image, or as root; an override as
+  root; the Dependabot entry gone or offering a major, the compose entry asking for
+  `localhost/postgres` (an ignore with update types) or ignoring `postgres` again, which
+  `a-dependabot-directory-with-nothing-to-read` refuses; `build (postgres)` without the appliance or
+  its file; E2E with `up --build` again; `compose.dev.yml` or the quickstart giving a rebuild; the
+  managed Dockerfile with an instruction the appliance's lacks).
+- **What an appliance sees.** Once its checkout is updated (the quickstart's upgrade says so
+  since the review below), its next `up -d` builds the image and recreates the database once,
+  on the same volume, whose PGDATA the root entrypoint left uid 70's. `docker compose exec
+  postgres` is uid 70 (`-u 0` for root); the quickstart's backup and restore commands answer the
+  same. A host directory bound in place of the named volume must be uid 70's for a new database;
+  no document told anyone to bind one, and the quickstart, compose.yml and the Dockerfile now say
+  how (`chown -R 70:70`, or under rootless Docker a `run … chown` inside the container). The PGlite appliance and the Windows appliance (ADR-0027) run no
+  database server and build nothing.
+- **Not proven here, and what proves it.** That the Dockerfile builds and starts (no Docker
+  daemon here): `build (postgres)` on the pull request, and E2E (self-hosted) dispatched on the
+  branch with `persistence: postgres`, whose backup and restore drill also starts it on a second
+  new volume. That an appliance's existing, root-initialised volume starts as uid 70:
+  `build (postgres)`, which since the review below starts the appliance's build on a volume the
+  official image initialised as root and reads back the row written there (e2e.yml begins with
+  `down -v`); T15's chroot run measured the same path of the same entrypoint. The image scan's
+  `postgres-selfhost` on a dispatch with the image scans.
+
+**2026-10-26, later still: T15, the built image's name asked again, on draft #1717.** The
+question: is `localhost/postgres:18.6-alpine-6b2d97623fb5` tied to what it builds? If not, live
+and the OTA stack, on one daemon and one name, would share whatever was built last, and a stack
+that had the name would never build a moved base.
+- **It is.** `6b2d97623fb5` is neither the Dockerfile's SHA-256 (`c6953866…`) nor the base's
+  digest (`898c60cb…`): it is the first twelve hex digits of the SHA-256 of the Dockerfile's
+  instruction lines, comments and blank lines left out (`builtTag` in `scripts/idp-pin-watch.mjs`;
+  `grep -Ev '^[[:space:]]*(#|$)' deploy/compose/postgres/Dockerfile | sha256sum | cut -c1-12`
+  prints it), and `a-database-started-as-root` has compared the three image lines with it since
+  `d885817b`. So a changed instruction is a name no stack has: the OTA stack builds `main`'s
+  under another name and live keeps its own, and a stack's next `up_wait postgres` finds the new
+  name missing and builds it. Comments are left out on purpose: a comment-only edit would
+  otherwise rename the image and restart both databases of every stack at its next `up`, for no
+  change in what runs.
+- **Compose builds a missing image under `pull_policy: never`.** Read in compose's source at
+  v5.1.1 and v5.6.1: `up` hands build options for every service in its scope to `create` unless
+  `--no-build` (`cmd/compose/up.go`), `build` passes a service by only when its image is present
+  and its policy is not `build` (`pkg/compose/build.go`), and `mustPull` is false for `never`
+  (`pkg/compose/pull.go`). Run: `build (postgres)` on `186440f4` brought up dev.yml's postgres on a
+  runner without the image, every step `success`. Nothing in the bring-up passes `--no-build`.
+- **What was missing, now fixed.** (1) A stale name failed as three lines, each saying the name
+  to write and none how. Now one failure lists every stale line by file and line and prints the
+  `sed` that moves them; the guard runs that `sed` on copies of the compose files and finds them
+  whole after it. Red first: with `ENV HISTFILE` changed in the real Dockerfile and the names
+  left, the guard failed naming `managed.yml:125` (postgres), `managed.yml:241` (trigger-db) and
+  `dev.yml:21`, with the new name `18.6-alpine-d0dcb792c87f`; the printed `sed` applied, it passed
+  but for the Dependabot case below; both restored. (2) Inputs the hash does not cover: a parser
+  directive (`# syntax=`, `# escape=`, a comment to the hash), COPY, ADD or `--mount`, and a
+  `build:` mapping (args, a target) are now refused, each case red with its check removed. The
+  context holds the Dockerfile alone. (3) **Dependabot did not read the Dockerfile**: its
+  `docker` entry lists `/apps/api`, `/apps/web` and `/apps/selfhost`. It now has an entry of its
+  own (`/deploy/compose/postgres`, `chore(postgres)`, no major), the shape #1703 asks of every
+  Dockerfile under `deploy/compose`; its pull request fails the guard until the names move, and
+  the failure says how. The guard holds the entry; it was red until it was added.
+
+**2026-10-26, later: T15 after its review, three findings, all fixed on draft #1717.** No fault
+was found in how the image starts, in the uids, or in any script that execs into a database, and
+the review's own Trivy v0.76.1 runs read the same 1/26 and gosu's 1/25.
+- **Every bring-up rebuilt the databases' image, which could restart live's databases outside a
+  hold.** The entry below said compose builds the image only when the machine has none of its
+  name; that holds for `up`, not for `up --build`, which builds every service in its scope that
+  has a `build:`, dependencies included (compose 5.1.1, `cmd/compose/create.go` and `up.go`,
+  read in its source). The app phase ran `up -d --build --wait` over a list that names both
+  databases, and api and web depend on them. With BuildKit's cache that is the same image ID and
+  nothing restarts; from a pruned cache it is a new ID under the same name, the next `up` that
+  reaches a database recreates it (`mustRecreate` compares the image label), and live and the OTA
+  stack share one daemon. Fixed: the app phase builds `api web` by name (with `GIT_SHA`, and `die`
+  when they do not build) and brings its list up through `up_wait`, without `--build`. Every
+  command that said otherwise was rewritten to build by name: `setup-zitadel.sh`'s closing hint,
+  `setup-managed-demo.sh`'s run order, managed.yml's build comment,
+  `docs/managed-bring-up.md` (the app phase, the identity hint, the stage and support-mail
+  rebuilds, the after-a-pull sequence), `docs/billing-rehearsal-on-ota.md` (twice) and
+  `docs/TROUBLESHOOTING.md` (twice). The Dockerfile, managed.yml's header, the pin watch's
+  `builtTag` and the bring-up doc now say when it is built again and why nothing asks.
+- **`docker compose pull` failed on the build, and the first `up` asked the host's own port 443
+  for it.** No registry serves `localhost/postgres`; compose's default policy pulls a missing
+  image first, and a pull of a buildable image is collected into `pull`'s error
+  (`pkg/compose/pull.go`). Fixed: `pull_policy: never` on the three services. `pull` passes them
+  by, `up` builds a missing one without asking (`build.go` builds when the image is absent,
+  whatever the policy), and `--build` would still override it. `docker compose config` resolves
+  both files with it (compose v5.6.1 here).
+- **No pull request built the Dockerfile.** `images.yml` now has `build (postgres)`, on a pull
+  request only (its paths filter includes `deploy/**`): it brings up dev.yml's postgres on a
+  runner without the image, so compose builds it, waits for TCP, and checks the image's user is
+  `70:70`, that `exec`, the server (PID 1) and PGDATA are uid 70, that gosu is gone, and that
+  `psql` answers. It publishes nothing and is not requirable: `every-pr-check-is-classified`
+  lists it beside `build`, silenced by the same `paths:` filter (docs/testing.md, ci.yml's
+  comment).
+- **Guard.** `scripts/a-database-started-as-root.unit.test.ts` gained four tests and a policy
+  check: 5 of its 11 failed before the fix (the policy, the thirteen commands, phase_app, the
+  missing job). Each regression put back fails it: `--build` on phase_app's `up` (2 tests), no
+  `pull_policy` on trigger-db (2), an `up --build` in a document (1), a bare `build` in the
+  identity hint (1), the job removed, building with `docker build`, or without its gosu check (1
+  each). `identity-in-the-gate.unit.test.ts` now finds the web build by its `build api web`.
+- **For E2E (managed) on the branch, in addition:** a second bring-up's app phase shows
+  `postgres` and `trigger-db` *Running*, not *Recreated*, and `docker image inspect` gives the
+  same ID for `localhost/postgres:18.6-alpine-6b2d97623fb5` before and after it.
+
+**2026-10-26: T15, both PostgreSQL databases of the managed stacks without gosu, built as
+draft #1717** on branch `claude/ownpace-public-readiness-y7orc6-postgres-without-gosu`, stacked on
+#1678 (whose pin it builds on), for after the alpha.2 tag. Main is frozen until then.
+- **What the scan counted.** `postgres:18.6-alpine` at #1678's index digest (`898c60cb…`,
+  built 2026-10-21) reads 1 critical and 26 high with Trivy v0.76.1 on arm64 and on amd64 alike:
+  25 high and the critical (CVE-2025-68121) are Go 1.24.6's standard library in
+  `/usr/local/bin/gosu` (gosu 1.19), and one high is Alpine's brotli-libs 1.2.0-r1
+  (CVE-2026-111497, fixed in 1.2.1-r0, which docker-library has not rebuilt 18.6-alpine with
+  yet). The appliance's digest (`77f58511…`) is the same image line, Dependabot's.
+- **Why gosu can go.** `docker-entrypoint.sh` at that digest runs gosu only when it starts as
+  root: as root it chowns every file in PGDATA and `/var/run/postgresql` that uid 70 does not
+  own, then re-executes itself through gosu as uid 70. Started as uid 70 it skips both.
+- **What was built.** `deploy/compose/postgres/Dockerfile`: that digest, `RUN rm
+  /usr/local/bin/gosu`, `PSQL_HISTORY` and `HISTFILE` in `/tmp`, `USER 70:70`. `managed.yml`'s
+  `postgres` and `trigger-db` and `dev.yml`'s `postgres` run it as
+  `localhost/postgres:18.6-alpine-6b2d97623fb5` with `build: ./postgres`; the twelve hex digits
+  are the SHA-256 of the Dockerfile's instruction lines, because compose builds an image only
+  when the machine has none of its name. The integration tests start the same base with
+  `.withUser('70:70')`. `db-roles.sh` and `stand-up-live.sh` read the build from managed.yml.
+  The image scan builds the directory on GitHub's arm64 runner and scans what it built, under the
+  category the pulled image had (`postgres-managed`); the pin watch compares the Dockerfile's
+  FROM. Guard: `scripts/a-database-started-as-root.unit.test.ts`, with the six it touches.
+- **Measured here, without a Docker daemon.** The base's layers for both platforms, read from
+  Docker Hub by digest, with one layer added holding only the whiteout for
+  `usr/local/bin/gosu` and the config's user set to `70:70` (what the RUN and USER leave),
+  scanned as an OCI layout with Trivy v0.76.1: **0 critical and 1 high on arm64 and on amd64**,
+  brotli-libs alone. The same layout with the whiteout naming another file reads 1/26, gosu
+  included, so the whiteout is what removed it.
+- **Run here, as the stacks will run it.** The amd64 image's own root filesystem, its own
+  `docker-entrypoint.sh` and PostgreSQL 18.6 binaries, in a chroot with private mount, network
+  and PID namespaces, with managed.yml's environment and command: (1) a volume shaped as Docker
+  makes a new one (the image's `/var/lib/postgresql`, uid 70, mode 1777), started as root with
+  gosu, initialised; nothing in PGDATA was left owned by anyone but uid 70, and only
+  `/var/lib/postgresql/18` is root's; (2) gosu removed, the same volume started as uid 70:
+  *"Skipping initialization"*, ready, the server uid 70; (3) a new volume started as uid 70:
+  initdb as uid 70, everything uid 70's; (4) as uid 70, the scripts' own commands: `psql -U`
+  over the socket, `pg_dump --format=custom` and `pg_restore --list` (copy-before-update.sh,
+  dump-idp.sh), `pg_dumpall --roles-only`, `pg_dump --format=plain --no-owner` restored into a
+  new database (trigger-version.sh's drill), `pg_restore --clean --if-exists --create`, a role's
+  password from a psql variable (db-roles.sh), a `PGOPTIONS` session setting, and
+  `pg_stat_statements` loaded; every one answered. And the two failures, as the Dockerfile
+  says: started as root without gosu, *"exec: gosu: not found"*; a root-owned host directory
+  started as uid 70, *"mkdir: can't create directory '/var/lib/postgresql/18/': Permission
+  denied"*. An interactive psql and shell as uid 70 wrote their history into the volume's root
+  without the two variables, and into `/tmp` with them.
+- **Not proven here, and what proves it.** That the Dockerfile builds (no daemon here): E2E
+  (managed) on the branch builds it on the Spark, and a dispatch of Security Scan with the image
+  scans on the branch builds and scans it on arm64. That the stacks' real volumes start as uid
+  70: E2E (managed) runs against the OTA stack's existing volumes, and its first `up` recreates
+  both databases on the build. That a new Docker volume initialises as uid 70: the integration
+  tests, on both runners, on every pull request that runs them.
+- **Decided against, with the reasons in the Dockerfile and `docs/managed-bring-up.md`.** The
+  appliance's Postgres: its pin is Dependabot's, which moves an image line and no build, and an
+  appliance may keep its data in a bind mount, which a start as uid 70 cannot initialise.
+  Building the image in the integration tests: the build only removes gosu, so starting its base
+  as uid 70 runs the same entrypoint path without a build per run. `apk upgrade brotli-libs` in
+  the build: it would reach Alpine's mirrors at every build and make the image a function of the
+  day it was built. A Debian base: it collates text differently from the musl the databases were
+  made under.
+
+**2026-10-25: T12a, the web image's nginx on -alpine-slim, built as a draft for alpha.3.** (Numbered T12 until 2026-10-27, when the alpha.3 landing rehearsal found #1708's Node task numbered T12 as well; this one, named in the fewest places, became T12a.)
+1.31.8-alpine's one finding in the scan, brotli-libs CVE-2026-111497 (high, fixed in
+1.2.1-r0), is in a package -alpine adds over -alpine-slim, with 50 others nothing here loads;
+slim reads 0/0 on linux/arm64 and linux/amd64 (Trivy 0.76.1). Branch
+`claude/ownpace-public-readiness-y7orc6-nginx-alpine-slim`, based on #1678's, merges after
+it, after the alpha.2 tag and not before 19:51 UTC on 2026-10-27. T12a's row and 0119's Status
+entry of 2026-10-25 (evening) have the measurement.
+
+**2026-10-25, build: T9, the API image carries production dependencies only, a draft for
+alpha.3**, as draft #1687 on branch `claude/ownpace-public-readiness-y7orc6-api-image-prod-deps`.
+Main is frozen from the alpha.2 fold to its tag; this merges after the tag, once E2E (managed)
+and E2E (self-hosted) have run on the branch.
+
+- **What changes.** `apps/api/Dockerfile`'s install stage, renamed `deps`, runs
+  `pnpm install --frozen-lockfile --prod --filter-prod @openmig/api...`, and the runtime stage
+  copies it. `apps/api` now declares drizzle-orm, and `packages/orchestration` drizzle-orm and
+  pg: they loaded them through the root's devDependencies, which `--prod` no longer installs. Not
+  `pnpm deploy --prod`: it copies the workspace packages into `node_modules`, where Node refuses
+  to strip types (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`, measured on 2026-10-23).
+  `scripts/an-image-that-shipped-what-it-never-runs.unit.test.ts` holds both halves: no stage the
+  runtime takes files from installs devDependencies, and every package a runtime file of the
+  API's closure loads is in its own package's `dependencies`.
+- **Brought up to main** with merge commit `62af1e8d`: Trigger.dev v4.7.6 and the tasks on the
+  API image's Node (#1689), body-parser 2.4.0 (#1691) and fast-uri 3.1.9 (#1693) merged without
+  a conflict. The `FROM` line `apps/worker/trigger.config.ts` reads is unchanged, so the tasks
+  still take the API image's Node. Merged again with `d775def7`, up to `0029db4a`, the MinIO
+  swap (#1692): its T7 and T8 rows were taken over this branch's, which had not changed them.
+  GitHub runs no pull-request workflow on a branch that conflicts with its base, so without it
+  the `--filter-prod` commit below would have had no CI until after the tag.
+- **The changelog line sits at the top of `[Unreleased]`, under its own `### Fixed`**, from the
+  review of `3f1bc91d`. Under the section's other `### Fixed`, the merge of main after the
+  alpha.2 fold met no conflict and filed it under `## [0.2.0-alpha.2]`, crediting alpha.2 with a
+  fix its image lacks. At the top, a trial merge with the fold's head (`841d63c0`) conflicts
+  right under `## [Unreleased]`, so neither that merge nor GitHub's squash can file it
+  silently. Keeping both sides, this branch's first, leaves the line in `[Unreleased]`, and the
+  diff against the fold then touches `[Unreleased]` alone.
+- **Proved here, on the merged tree, without Docker.** In a copy of the branch made with
+  `git archive`, less `.github` as `.dockerignore` says, the runtime stage's install under Node
+  24.22.1 (the image's, nodejs.org's archive checked against its `SHASUMS256.txt`) and pnpm
+  11.28.6 added 250 packages, body-parser 2.4.0 among them, and no esbuild, TypeScript,
+  drizzle-kit, tsx or vitest. Started from that tree with `NODE_ENV=production` and only
+  `DATABASE_URL` set, against an empty database on a throwaway cluster from
+  `scripts/local-pg.sh`, the API applied both chains itself (65 ledger and 59 managed
+  migrations) and answered `GET /health` and `GET /version` with 200. Trivy v0.76.1 (its DB of
+  2026-10-25 07:10 UTC), `rootfs --scanners vuln --severity HIGH,CRITICAL`: that tree 0
+  critical and 0 high; main's install of the same filter (622 packages) 2 and 65, all of them in
+  three Go binaries: esbuild 0.25.12's, counted twice at 1/25, and TypeScript 7.0.2's native
+  `tsc`, 0/15. The root `node_modules` went from 375 MiB to 141 MiB (apparent size, hard links
+  counted).
+- **`--filter-prod`, not `--filter`**, from the review of `76c1db67`. Under `--filter`, pnpm's
+  `@openmig/api...` also follows devDependencies, and `@openmig/core` and `@openmig/ledger` list
+  workspace packages there. Today those are in the production closure anyway, so both flags
+  select the same 9 of 14 projects: in two `git archive` copies of `76c1db67`, the two installs
+  each added 250 packages, and their `node_modules/.pnpm` entries and every symlink outside it
+  were the same, target for target. In a copy with `@openmig/testing` added as a devDependency of
+  core, `pnpm ls -r --depth -1 --filter @openmig/api...` listed it and `--filter-prod` did not;
+  the image would have installed a test package's production dependencies past `--prod`. The
+  guard now refuses a `--prod` install that selects with `--filter x...`, and its closure walks
+  `dependencies`, `optionalDependencies` and `peerDependencies`, the edges `--filter-prod`
+  follows; with `--filter` put back in the Dockerfile, two of its cases fail. The boot above was
+  not repeated, since the tree is the same.
+- **Not proved here.** The image itself, since this session has no Docker daemon: CI's
+  `images.yml` builds it on the pull request, and E2E (managed) is what boots, migrates and
+  serves it. The cluster here is Postgres 16; the stacks run 18. The image scan has two
+  categories for the API (`scripts/image-scan.mjs`): `ownpace-api-edge` reads `main`'s `:edge`,
+  and its alerts close at the first Security Scan with image scans on `main` after the merge;
+  what should remain is the Node base's, 1/60 on 2026-10-23. `ownpace-api-release` reads the
+  newest `v*` tag's image, and alpha.2's is built with the full install, so its esbuild and
+  native `tsc` alerts stay open until an image scan after the alpha.3 tag; live, which runs
+  tags only, ships them until it runs alpha.3.
+- **One-way:** none. No migration and no setting; reverting the Dockerfile and the two
+  `package.json` lines restores the full install.
+
 **2026-10-25, build: T12, the images' Node base on Debian 13, with no package manager in the
 api and selfhost runtimes, a draft for alpha.3**, as draft #1708 on branch
 `claude/ownpace-public-readiness-y7orc6-node-trixie-slim`. It merges after the alpha.2 tag and
@@ -321,6 +659,262 @@ The OTA's Bitnami-era `minio_data` stays on disk until the owner removes it, aft
 `main` with the change (T27 of the owner's steps holds the read-only checks). Live takes it from
 `v0.2.0-alpha.2`, after the task runner's drain, starting empty. The CHANGELOG fold, the last
 merge before the two counted nights, carries it.
+
+**2026-10-25, built: Stalwart v0.16.27, T11 (b)**, as draft #1698 from branch
+`claude/ownpace-public-readiness-y7orc6-stalwart-0-16-27`, to merge after the alpha.2 tag. The
+owner decided yes on 2026-10-25. ADR-0022 records the decision in a dated update and an operative
+bullet, AGENTS.md now says the pin moves only that way, and `docs/stalwart-integration-fix.md`
+names the new pin and, under "Moving the pin", the rule and the checklist for the next move.
+
+- **Moved together:** `IMAGE` in `deploy/selfhost/setup-stalwart.sh`, both phases in
+  `packages/testing/src/testcontainers-setup.ts`, `packages/testing/fixtures/stalwart/Dockerfile`
+  and `STALWART` in `scripts/a-service-that-phones-home.unit.test.ts`, the four copies the pin
+  watch reads, with the comments, `docs/testing.md` and `e2e.yml`'s header that named v0.16.10.
+  Nothing pins `stalwart-cli`: CI, `e2e.yml` and `e2e-managed.yml` install the installer's
+  `latest`, v1.0.13 of 2026-09-28, which main has run against v0.16.10 since. `managed.yml` does
+  not run Stalwart.
+- **Read upstream:** Stalwart's changelog v0.16.11 to v0.16.27 (nothing this repository uses is
+  renamed; v0.16.26's x86-64-v2 floor for x86_64 images; v0.16.22's clear-text `AUTHENTICATE`
+  refusal and `r` right for a shared mailbox), `defaults.rs` and `application.rs` at v0.16.27
+  (the WebUI from release v1.0.11 and in recovery mode too; ASN lists from
+  `github.com/sapics/ip-location-db` on a new database, jsDelivr kept on an old one, which
+  `stalwart-cli snapshot` read back), and `stalwart-cli`'s changelog to v1.0.13. Docker Hub pushed
+  v0.16.27 on 2026-10-18 at 19:26 UTC (index `sha256:c429b311…`), so CONTRIBUTING.md's three
+  days passed on 2026-10-21.
+- **Proved here,** with a local Docker daemon on x86_64: `setup-stalwart.sh` at v0.16.27, five
+  upserts, IMAPS and a JMAP session; the eleven integration files that use Stalwart and not
+  Nextcloud, 44 tests passed; `scripts/jmap-target-spike.ts`, `recurrenceRules` still refused on
+  all three rungs, so 0031 T1 stays parked; and one volume made at v0.16.10, taken to v0.16.27,
+  back and forward again, mail and contacts read back each time. So no step is one way: a
+  branch's E2E (managed) leaves the OTA demo's volume usable for main's next night.
+- **CI on the pull request, green at `06ca97c8`:** every check passed, `integration-tests` on
+  `ubuntu-24.04` and on `ubuntu-24.04-arm` included, so a GitHub-hosted x86_64 runner has the
+  x86-64-v2 floor, and arm64 ran v0.16.27 for the first time. A review then found no blocker;
+  its fixes (the port comment, `docs/testing.md` and the two SMTP comments now say 25 and 4190
+  are bound but not published, and that the tests reach SMTP only as SMTPS on 465; "Moving the
+  pin" asks for a `git grep` of the old tag) and a merge of `main` after #1692 followed.
+- **Before the merge:** after the tag, merge `main` again, keeping the `CHANGELOG.md` line under
+  the new `[Unreleased]` and not in the alpha.2 section; then E2E (self-hosted) and E2E (managed) on the
+  branch. Watch their logs for *"other side closed"* on a JMAP request: v0.16.24 started closing
+  idle HTTP keep-alive connections (*"HTTP: Idle keep-alive connections are never closed."*,
+  under Fixed), and a reused socket would fail that way. CI's integration run did not show it.
+- **Not in this:** switching Stalwart's downloads off (0139's follow-up) and pinning
+  `stalwart-cli`.
+
+**2026-10-25, build: T11 (a), Mailpit v1.31.6 → v1.32.0, a draft for alpha.3**, as draft #1699
+on branch `claude/ownpace-public-readiness-y7orc6-mailpit-1-32-0`; refs #1671, the pin watch's summary
+issue, which lists Mailpit v1.31.6 as behind v1.32.0 (it stays open for Stalwart, T11 (b)). Main is
+frozen from the alpha.2 fold to its tag; this merges after the tag, once E2E (managed) has run on it.
+- **The pin.** `axllent/mailpit:v1.32.0@sha256:0790692b…` in `managed.yml`, the index digest
+  Docker Hub's tag listing gives and a HEAD of the tag on `registry-1.docker.io` returns (an OCI
+  index: amd64, arm64 and 386). `scripts/a-service-that-phones-home.unit.test.ts` pins the same
+  reference. No other file runs Mailpit: no `dev.yml` service, no Testcontainers setup, no
+  workflow; `docs/managed-bring-up.md`'s *Nothing phones home* row, 0119's inventory row and an
+  example in `idp-pin-watch.mjs`'s comment move with it. The released `CHANGELOG.md` line naming
+  v1.31.6 and the release fixture that copies it stay as written.
+- **Why.** v1.31.6's binary is built with Go 1.27.2 and v1.32.0's with Go 1.27.3 (`go version -m`
+  on `/mailpit` from each image's amd64 layer). Go 1.27.3 is two commits on go1.27.2, one of
+  them *"crypto/x509: distrust a handful of intermediates … Fixes CVE-2026-111943"* (golang/go
+  `90617fb`), the finding the 2026-10-23 triage read on v1.31.6 (0/1) and not on v1.32.0 (0/0).
+  Mailpit's own release closes a second hole, GHSA-379p-g4f4-hq5h (high, CVSS 7.5, every version
+  to v1.31.6, read on GitHub): `GET /api/v1/message/{ID}/part/{PartID}/thumb` read an image
+  attachment's EXIF with goexif, whose walker caught only a directory that points at itself, so a
+  JPEG whose directories point at each other held the request in a loop, a core busy and memory
+  growing until the process was killed; v1.32.0 replaces goexif with a small orientation reader.
+  Here that needed a mail from this stack's own services, since SMTP is not published, or a caller
+  of the web port, which is on loopback unless `MAILPIT_BIND` names another address. The release
+  also strips `<base>` and `<meta http-equiv="refresh">` tags from the `/view/{ID}.html` output.
+  The image is Alpine 3.24.3.
+- **Read:** Mailpit's `CHANGELOG.md` at v1.32.0 and `git diff v1.31.6 v1.32.0` (24 commits).
+  The release check is as it was: `internal/stats/stats.go` and `cmd/root.go` did not change, so
+  `MP_DISABLE_VERSION_CHECK` still answers `"disabled"` before any request, and the variable is
+  still read as `1`, `true` or `yes`. The webhook, the HTML and link checks and the screenshot
+  proxy did not change either. The API the smoke and `setup-zitadel.sh` read (`/api/v1/messages`,
+  `/api/v1/search`) did not change, nor did `/mailpit readyz`, the healthcheck. New: SMTP, POP3
+  and HTTP each hold back or refuse a connection past 1 000 open at once
+  (`internal/connlimit`), far above what the gate opens.
+- **One schema step, not one way.** The first start on the kept `mailpit_data` volume applies
+  `internal/storage/schemas/1.32.0.sql` to `mailpit.db`: the index `idx_message_tags_id` is
+  dropped and made again on `(ID, TagID)`, and a row `1.32.0` goes into its `schemas` table.
+  v1.31.6 opens that file if rolled back: `dbApplySchemas` applies only the scripts it carries
+  that have no row yet, so a row it has no script for changes nothing, and the index keeps its
+  name and still leads with `ID`.
+  Nothing to do before or after.
+- **Three days.** The tag was pushed at 2026-10-22T22:13:49Z (Docker Hub's `tag_last_pushed`;
+  upstream's release commit `ce798cfd` is from 22:02Z), so it is three days old at
+  2026-10-25T22:13Z, before this can merge.
+- **Proved here:** the 115 guards in `scripts/` that read `managed.yml`, Mailpit, or a file this
+  changes pass (3 682 tests); with the old pin put back in `managed.yml`, the phone-home guard
+  fails on the Mailpit row, as it should. `node scripts/idp-pin-watch.mjs` on the branch reads
+  *"axllent/mailpit v1.32.0 v1.32.0 current"*. Not proved here: a stack running v1.32.0.
+  That is E2E (managed), on the OTA stack, where Mailpit is the catcher every mail assertion of
+  the smoke reads.
+- **Main merged in, 2026-10-25.** #1692 (Chainguard's MinIO) merged after the branch was cut and
+  rewrote the rows next to Mailpit's, so the branch merged main: the bring-up table and the
+  phone-home guard's header keep main's MinIO row and this Mailpit row, the `CHANGELOG.md` keeps
+  both entries, and the index is regenerated. The guards were run again on the merge.
+- **One draft at a time on the OTA stack.** E2E (managed) brings up the dispatched branch's
+  `managed.yml` on the one OTA stack, so a head that lacks a merged change rolls that change back
+  there (this branch before the merge would have put `bitnamilegacy/minio` back on the old
+  `minio_data` volume), and a head that lacks another draft's change undoes that draft's E2E
+  (Trigger.dev v4.8.1, #1697, downgraded to v4.7.6 against a database v4.8.1 had migrated). So
+  the drafts for alpha.3 go one at a time: one draft's E2E, then its merge; the next merges main
+  before its own E2E. This one merges main again after the fold (#1706) and the alpha.2 tag, and
+  its E2E is dispatched only on a head that holds the tag's commit. A nightly on `main` between
+  that E2E and the merge puts v1.31.6 back on the database v1.32.0 changed, the rollback read
+  above and not run. Text: #1698 (Stalwart) changes this same T11 row, so whichever merges second
+  keeps (a) from this and (b) from that; #1697 and #1698 also meet this in `CHANGELOG.md`, #1697
+  in 0119, and the fold in this Status block and the index.
+
+**2026-10-25, build: T10, the image scan reads the tasks' image as a deploy builds it, a draft
+for alpha.3**, as draft #1700 on branch `claude/ownpace-public-readiness-y7orc6-tasks-image-scan`.
+Main is frozen from the alpha.2 fold to its tag; this merges after the tag. It changes the weekly
+image scan and nothing a stack runs, so no E2E reads it; the proof is a dispatch of Security Scan.
+
+- **What the leg reads now.** The leg named `trigger-task-base` builds the `base` stage of the
+  Containerfile a task deploy writes, and Trivy scans that. `scripts/image-scan.mjs containerfile
+  <base>` imports `apps/worker/trigger.config.ts`, runs its build extensions as the CLI does (every
+  `onBuildStart`, then every `onBuildComplete`, with `target: 'deploy'`) and writes
+  `FROM <base> AS base`, `ENV DEBIAN_FRONTEND=noninteractive` and each layer's
+  `image.instructions` in order: today the API image's Node copied over the base image's, and
+  `apt-get -y upgrade`. So nothing in the scan repeats an instruction or a version. The base is
+  still the one the list reads from the CLI that `apps/worker/package.json` pins, so the v4.8.1
+  branch moves it with no change here. The leg runs on `ubuntu-24.04-arm`, GitHub's arm64 runner
+  (free on a public repository, as ci.yml's integration tests already use it), so the build is
+  native for linux/arm64, the platform every leg scans; it installs the workspace first, because
+  the config imports `@trigger.dev/sdk`. Trivy reads the image from that runner's Docker alone
+  (`TRIVY_IMAGE_SRC` is `docker` on that leg), so a build that left nothing cannot be read from a
+  registry instead. Every other leg is as it was.
+- **The category stays `trivy-image-trigger-task-base`.** The name is kept and now means the
+  stage it is: the CLI's `base`, which every later stage starts from. The first image scan on
+  `main` after the merge (Monday's schedule, or a dispatch on `main`) uploads the built stage's
+  findings under it, and code scanning closes every alert that analysis no longer has. Nothing is
+  deleted by hand, and the release preflight's grouped note drops with it. The local tag is in the
+  base's own repository, `triggerdotdev/node:trigger-task-base-built` (`taskBuildTag`), never
+  pushed: Trivy's SARIF gives a Debian finding the image's repository as its location and no
+  fingerprint, so code scanning tells alerts apart by rule and location. The first draft's
+  `trigger-task-base:built` would have moved every Debian alert to `library/trigger-task-base`:
+  all of them closed on the first scan, fixed or not, and the unfixed ones opened again under new
+  numbers, their triage left behind (found in review). The base read 14
+  critical and 119 high on 2026-10-25 (Security Scan #4763), and the triage of 2026-10-23 worked
+  out from the base's report that the upgraded image would keep 2 critical and 87 high (T10's
+  row): the dispatch says what it reads. What stays: zlib1g's CVE-2023-45853, which has no fix,
+  and npm's own bundled packages under `/usr/local/lib/node_modules/npm`, tar 7.5.15's
+  CVE-2026-59873 the critical among them, since the layer copies only the Node binary.
+- **What it leaves out, and says so.** The CLI's two steps after the layers install nothing
+  (an `apt-get --fix-broken install` and the CA trust edits). The task code and the externals the
+  CLI installs with `npm i` (`pg`, `@electric-sql/pglite`) are npm packages: their own versions
+  are the ones installed here, which the repository scan of the lockfile reads, and what npm
+  resolves under them at a deploy neither scan reads. A layer with `image.pkgs` is refused, since
+  the CLI installs those in this stage; so is any throw in an extension, which the CLI would log
+  and deploy past. A deploy that the CLI's builder serves from its cache keeps the Debian packages
+  of the build that filled it, so the scan can read newer packages than a stack runs, as with a
+  floating tag; the summary says so under the table. The base is the CLI's own: an instance can
+  name others for its deploys (the webapp's `DEPLOY_BASE_IMAGES` and `DEPLOY_BUILD_BASE_IMAGES`),
+  and `managed.yml`, which hands its Trigger.dev services only the keys it lists, sets neither;
+  the guard holds that. The Containerfile has no `# syntax=` line, though the CLI's has one: it
+  would pull the floating `docker/dockerfile:1` frontend on every scan, and the stage needs
+  nothing beyond the builder's own.
+- **After the second review (2026-10-25).** The leg checks the repository out under `src/` and
+  installs and builds there. Trivy reads a `.trivyignore` and a `trivy.yaml` from its working
+  directory when trivy-action names neither (it sets `TRIVY_IGNOREFILE` and `TRIVY_CONFIG` only
+  when asked), and the Trivy step and `trivy convert` run in `$GITHUB_WORKSPACE`, which on this
+  leg alone was the repository's root: a file there would have dropped findings from this leg's
+  SARIF, and code scanning would have called them fixed. Neither file exists today; reproduced
+  with Trivy v0.76.1's `trivy convert` on a one-finding report. A failed install or build is now
+  named in the leg's last step (the `install` and `build` outcomes, counted only when `failure`
+  or `cancelled`, since the other legs skip both), where before it read only as the Trivy step
+  ended `skipped`. And the guard holds the three jobs' `if:` whole: it held them to contain the
+  condition, which `github.event_name == 'pull_request' || <the condition>` also does.
+- **Read for this:** trigger.dev 4.7.6's npm tarball, `dist/esm/deploy/buildImage.js`
+  (`generateNodeContainerfile`, `parseGenerateOptions`, `BASE_IMAGE`) and
+  `dist/esm/build/extensions.js` (the order the hooks run in, and `onBuildComplete`'s errors
+  logged, not thrown) and `dist/esm/commands/deploy.js` (`applyServerBaseImages`, with
+  `supportsInstanceBaseImages: true`); the webapp's `apps/webapp/app/env.server.ts` at v4.7.6
+  (`DEPLOY_BASE_IMAGES`, `DEPLOY_BUILD_BASE_IMAGES`); trivy-action v0.36.0's `action.yaml` and `entrypoint.sh` (`image-ref` is
+  the positional reference, `TRIVY_IMAGE_SRC` passes through), and Trivy v0.76.1's
+  `pkg/fanal/image/daemon.go` (an image from Docker is inspected by name, `--platform` not
+  consulted) and `pkg/report/sarif.go` (`ToPathUri`: an operating-system finding's location is
+  the image's repository, with Docker Hub's `library/` for a one-part name). GitHub's changelog of 2025-08-07: arm64 hosted runners are generally available
+  and free in public repositories.
+- **Proved here:** `scripts/an-image-nobody-scanned.unit.test.ts`, 43 tests, among them the
+  built stage against the config's own layers, the CLI's hook order, the refusals, the command
+  line under plain Node, a pin move of the SDK that keeps the name and the build tag, the
+  build tag's SARIF location against the base's (Trivy's rule written out, with the first
+  draft's tag as its vacuity case), `managed.yml` naming no instance base image, and the
+  workflow's five build steps on that leg alone. Each of three mutations of `image-scan.mjs`
+  (hooks interleaved, the `pkgs` refusal gone, the `build` field gone) failed exactly its case in
+  the first draft, and each of three after the review does in this one (the first draft's tag
+  back, the `# syntax=` line back, a `DEPLOY_BASE_IMAGES` in `managed.yml`). After the second
+  review, each of five mutations of the workflow fails exactly one case: the checkout back at the
+  root, the Trivy step moved into `src/`, a pull request added to the scan's `if:` and to the
+  report's, and the install's outcome dropped from the last step.
+  Not proved here: the leg itself. No workflow was dispatched from this session; a dispatch of
+  Security Scan on this branch with `image_scans` on runs it, and its SARIF goes to the branch's
+  ref, not `main`'s.
+- **One-way:** none. Reverting restores the base-image scan, and its next upload under the same
+  category reopens what the base has.
+
+**2026-10-25, build: the cosign that signs and checks the images is named, v3.1.4, where
+cosign-installer's default gave v3.0.6, a draft for alpha.3**, as draft #1702 on branch
+`claude/ownpace-public-readiness-y7orc6-dependabot-invisible-pins`. Main is frozen from the alpha.2
+fold to its tag; this merges after the tag. #1671 listed it under *Also known*: *"cosign:
+cosign-installer v4.1.2 installs v3.0.6 (its default), and the newest cosign is v3.1.4"*. Its two
+other rows, Mailpit and Stalwart, are T11 (a) and (b), each on its own branch.
+- **The pin.** `cosign-release: 'v3.1.4'` in `images.yml`'s *Install cosign* step, whose cosign
+  signs every published image by digest, and in `release.yml`'s verify job, whose cosign checks
+  those signatures. Nothing would have moved it: v4.1.2 is cosign-installer's newest release and
+  still installs v3.0.6, and its main branch says v3.1.3, unreleased. Dependabot moves the
+  installer, never an input.
+- **The watch.** A named cosign is a pin nothing else moves, as Trivy's is, so
+  `idp-pin-watch.mjs` reads it as a routine row from both files (`COSIGN_FILES`), held together
+  (*the copies disagree* when they do), against cosign's tags of its major. Left to the
+  installer's default it stays the status line it was. Run on the branch,
+  `node scripts/idp-pin-watch.mjs` reads *"cosign v3.1.4 v3.1.4 current"* and prints no status
+  line. `a-pin-that-knows-it-is-behind` gains three cases and changes three; with `release.yml`
+  set back to v3.1.3 six fail.
+- **Read:** cosign's release notes from v3.0.6 to v3.1.4. v3.1.0 was never published and
+  v3.1.1 is identical to it: signing runs through sigstore-go, the protobuf bundle (the default
+  since v3.0) is the format for signing and verifying, and flags for trust material given by
+  hand are deprecated. v3.1.2 deprecates `--payload`; v3.1.3 fixes GHSA-fx35-mq7g-6g98; v3.1.4
+  deprecates `--use-signing-config` and fixes signing and verify bugs. The workflows use
+  `cosign sign --yes` on a digest and `cosign verify` with an identity or identity regexp and
+  the OIDC issuer, and neither form is deprecated. GHSA-fx35-mq7g-6g98 (high, up to v3.1.2) is
+  a bypass of `verify-blob` with a legacy JSON bundle. The advisory says `cosign verify` of a
+  container image and the protobuf bundle are not affected, so this is routine and not a
+  security move here.
+- **What naming the release costs.** Left to its default, cosign-installer checks the v3.0.6
+  binary against a hash its `action.yml` carries. With a release named, it downloads v3.1.4 and
+  checks it with the bootstrap v3.0.6's `verify-blob --bundle`, once keyless and once with
+  `--key` (`action.yml` at the pinned commit). v3.0.6 reads any bundle that is not a protobuf
+  one as a legacy bundle (`checkNewBundle` in `cmd/cosign/cli/verify/verify_bundle.go`), and
+  that is the path GHSA-fx35-mq7g-6g98 covers: a crafted legacy bundle skips the identity
+  check, and its embedded key replaces `--key`. So that check is weaker than the hash, in front
+  of a job that holds `packages: write` and `id-token: write`. What holds it is that v3.1.4 is
+  an immutable release (its page: *"Immutable release. Only release title and notes can be
+  modified."*), so its assets cannot be swapped after publication, and its binary was checked
+  here against `cosign_checksums.txt`. A hash check of our own after the installer was not
+  added: the sign step does not run on a pull request, so a later move of the release that
+  missed the hash would fail only on `main`, after the images are pushed unsigned.
+- **Waited for.** v3.1.4 was published 2026-10-20 at 18:27:42 UTC (the release feed's
+  `updated`; its assets' `Last-Modified` is 18:02 to 18:04 UTC), three days old on 2026-10-23
+  at 18:27 UTC.
+- **Proved here, by hand, the installer's own path for a named release.** The bootstrap v3.0.6
+  binary hashes to the `c956e5df…` v4.1.2 carries; `release/release-cosign.pub` at v3.1.4
+  hashes to its `f4cea466…`; v3.0.6's `verify-blob` reads *"Verified OK"* for v3.1.4's
+  `cosign-linux-amd64` with both its keyless bundle and its KMS-key bundle; the binary's hash
+  is the one in `cosign_checksums.txt`, and it reports `GitVersion: v3.1.4`. The trusted root
+  was sigstore/root-signing's `targets/trusted_root.json`, given as `--trusted-root`, because
+  the session's network refuses the TUF host; on a runner the installer reads it from TUF.
+- **Not proved here.** No signature has been made with v3.1.4, and v3.1.4 has not checked one
+  made with v3.0.6: a signature's bundle is a blob ghcr hands out from a host the session's
+  network refuses, so both versions read *"no signatures found"* here, for that reason alone. The
+  pull request runs neither step. The first signing is `images.yml` on the merge commit, which
+  every push to `main` starts, and its sign step fails loud. The first check is the next
+  release's verify job, or a `verify` dispatch of Release from `main` on alpha.2 after this
+  merges (the owner's call). It cannot be run before: Release refuses a dispatch from any
+  branch but `main` (`dispatchedFromMain` in `release-preflight.mjs`).
+- **One way:** nothing. Going back is the two `cosign-release:` lines.
 
 **2026-10-24: T7 answered and being built.** The owner, on 2026-10-23 at 19:05 UTC: *"T7 no,
 fix already within the alpha"*. The frozen `bitnamilegacy/minio` is not accepted for the Alpha.
@@ -1271,7 +1865,7 @@ lane run Node 24 (`ceb516c`); the version guard's header says what the worker ru
 
 **After the first invitation:** T1, T3, T4 (apart from the drill from rc.1, which T2 runs because
 `docs/release.md` requires it before a tag), T6's pull-request check that the task bundle loads,
-T7, T8, T9, T10 and T11 (its (c) after the Alpha). T7 is one sentence from the owner, and is
+T7, T8, T9, T10, T11 (its (c) after the Alpha) and T12a. T7 is one sentence from the owner, and is
 best given with T0.
 
 | Task | Status | Notes |
@@ -1285,12 +1879,15 @@ best given with T0.
 | T6 The tasks run the Node the images run | ✅ **done** in #1231, merged 2026-09-27: (a), `runtime: 'node-24'` and Guard 1. Guard 2, the bundle-load check, not built (after the first invitation) — *was:* 📋 Proposed | §3. **Alpha minimum:** `runtime: 'node-24'` in `trigger.config.ts` (supported by the pinned CLI, read from its package) and the version guard extended. **After the first invitation:** a pull-request check that the bundle loads. |
 | T7 The object store: replace the frozen MinIO, or accept it for the alpha in writing | ✅ **Merged** as #1692 on 2026-10-25 (`0029db4a`), after E2E (managed) #281 was green; *was:* 🔨 being built on branch `claude/ownpace-public-readiness-y7orc6-object-store-swap` (2026-10-24): Chainguard's MinIO by index digest on a new volume, `minio-init` making `packets`, and the guard; **answered 2026-10-23**: *"T7 no, fix already within the alpha"*, so the frozen image is not accepted, and is replaced within the Alpha. Remains: live from the tag that carries it (alpha.2) after the drain, starting empty, and the old volume removed by the owner on each stack (§3) — *was:* ⏳ **Owner** | §3. The owner declined the recommendation to accept it for the alpha and replace it at its end: Chainguard's maintained MinIO build replaces it now, with versitygw still the fallback (0119 §3, item 5, decided 2026-10-23 and built 2026-10-24). |
 | T8 A watch on the pinned images Dependabot leaves alone | Watch half ✅ **done** in #1663, merged 2026-10-21 (`087183b7`): every pin Dependabot cannot see, one issue per owner's-call row and one summary issue, and `/deploy/compose` out of `dependabot.yml` (Status, 2026-10-21); scan half ✅ **done** in #1674, merged 2026-10-22 (`51a0d267`): a weekly, report-only Trivy scan of every image the stacks run, with one issue per image past its end of life (Status, 2026-10-22) — *was:* scan half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-image-scan`, not merged (2026-10-22); watch half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-pin-watch`, not merged (2026-10-21), scan half 📋 Proposed; 📋 **Proposed** | §3. Widened 2026-10-21: Dependabot read no file in `deploy/compose`, so the watch covers every image line of its `managed.yml`, `dev.yml` and `www.yml` and the busybox and GoAccess copies in its scripts, `packageManager`, the Trivy the scan runs and the TypeScript split as well as Trigger.dev, ClickHouse and the task base image. MinIO has no upstream to compare with and is left to the scan half; since 0146 T7 (on its branch, not merged, 2026-10-24), Chainguard's MinIO `latest` is compared by its index digest, and `bitnamilegacy/minio` leaves the watch's list of images compared elsewhere. |
-| T9 The API image runs without the dev tools | 🔨 **Being built** as a draft on branch `claude/ownpace-public-readiness-y7orc6-api-image-prod-deps`, for after the first invitation (2026-10-23) | Status, 2026-10-23 (the scan triage). `apps/api/Dockerfile`'s runtime stage copies the build stage's whole `/app`, where `pnpm install --filter @openmig/api...` installed the devDependencies too, the root's included, and `CMD` (`node apps/api/src/index.ts`) needs none of them. Their Go binaries are 2 critical and 65 high of the image's 3/125 on 2026-10-23: esbuild 0.25.12 (Go 1.23.12; drizzle-kit's and `@esbuild-kit/esm-loader`'s), counted twice, and TypeScript 7's native compiler (Go 1.26.4). The lockfile itself, dev dependencies included, reads 0/0. Done when the runtime image holds production dependencies only, a dependency it still needs and lacks fails at start, which the managed gate's first `curl $API/health` catches, and the image scan finds the Node base's findings alone. |
-| T10 The image scan reads the tasks' image as it is built | 📋 **Proposed** (2026-10-23) | Status, 2026-10-23 (the scan triage). `scripts/image-scan.mjs` scans the base image the pinned CLI names (`triggerdotdev/node:24-bookworm` by digest, category `trigger-task-base`, 14/117 on 2026-10-23), not the tasks' image that `deploy-tasks.sh` builds from it. The Trigger.dev v4.7.6 branch upgrades that image's Debian packages at build (`apt-get -y upgrade`), which fixes the 42 Debian findings that have a fix (12 critical, all Perl, fixed in 5.36.0-7+deb12u4, and 30 high). It leaves npm's bundled packages under `/usr/local/lib/node_modules/npm`, since the overlay copies only `/usr/local/bin/node` (tar 7.5.15's CVE-2026-59873, critical, fixed in 7.5.19, and 12 high, 11 of them with a fix), and the 76 Debian findings without a fix, zlib1g's CVE-2023-45853 among them: the built image would still carry 2 critical and 87 high of the 131 (read with Trivy 0.76.0, 2026-10-23). The scan cannot see the upgrade, so the category keeps alerts for 42 findings the built image no longer has. The scan runs on a GitHub-hosted runner, which cannot read the stack's own registry, so the proposal is to build the image in the scan job as the deploy builds it. The old category, if renamed, has its configuration deleted by hand (T8). |
-| T11 The patch and minor moves that clear findings | (a) 📋 **Proposed**; (b) ⏳ **Owner**; (c) 📋 **Proposed**, after the Alpha (2026-10-23) | Status, 2026-10-23 (the scan triage), read with Trivy 0.76.0 on linux/amd64. (a) **Mailpit v1.32.0**: 0/0, where v1.31.6 has CVE-2026-111943 (Go's `crypto/x509`); after the first invitation, by hand in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts`, which pins the reference by tag and digest and records Mailpit's release check as read at v1.31.6, so that fact is read again at v1.32.0 in the same change. (b) **Stalwart v0.16.27** (Debian 13.7): 0 critical and 47 high, none with a fix, where v0.16.10 has 3/114. The owner's call: `docs/stalwart-integration-fix.md` pins v0.16.10 and says *"DO NOT change the pinned version"* (AGENTS.md puts its decisions in ADR-0022), and every copy moves together: `setup-stalwart.sh`, the fixture's Dockerfile, the Testcontainers setup, the fix doc and the guards that name it. (c) **ClickHouse 26.3** (26.3.59, Ubuntu 22.04): 0/0, where 26.2.19.43 has CVE-2026-45447 and CVE-2026-84782 in openssl. After the Alpha: the owner accepted 26.2 for it on 2026-10-23 (0119 §3 item 9 on the Trigger.dev v4.7.6 branch), and 26.3 is ahead of the 26.2 Trigger.dev's own compose pins, which the pin watch compares with (T8). It moves in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts` together: the guard pins the reference by tag and digest and records the crash-report default as read at `v26.2.19.43-stable`, as `clickhouse-no-crash-reports.xml`'s comment does, so both are read again at 26.3. |
-| T12 The images' Node base on a named Debian, with no package manager at runtime | 🔨 **Being built** as draft #1708 on branch `claude/ownpace-public-readiness-y7orc6-node-trixie-slim`, for after the alpha.2 tag and #1687 (2026-10-25) | Status, 2026-10-25. The api, selfhost and web images built on `node:24.22.1-slim`, Debian 12.15: 1 critical and 61 high on 2026-10-25. `node:24.22.1-trixie-slim`, Debian 13.7, reads 0/48 with the same Node binary, and 0/43 without npm and corepack, which nothing in the api or selfhost container runs. Done when the three FROM lines name Debian 13 by tag and digest, the two runtime stages carry no package manager, E2E (managed) and E2E (self-hosted) are green on it, and the scan's `-edge` categories read the base's 0/43 (the API's with T9). Distroless `nodejs24-debian13` (0/0) for the API is T13 (#1709), in alpha.3 with T13a, the owner's decision of 2026-10-26. |
-| T13a The readers first | 🔨 **Being built** as draft #1710 on branch `claude/ownpace-public-readiness-y7orc6-api-readers`, for alpha.3 (2026-10-26) | Status, 2026-10-26. The half of T13 (draft #1709) that works before the switch: the smoke, the managed gate, `deploy-live.sh`, `stand-up-live.sh` and the docs read the api container's variables with `docker container inspect` and run Node there by its path, on the Node image and on distroless alike, and the smoke stops when the API's Node is not the version the tasks get. It ships in alpha.3 with T13, the owner's decision of 2026-10-26: every deploy started from alpha.3 or later runs a `deploy-live.sh` that reads from Docker, and the alpha.2 to alpha.3 live deploy runs twice, its first run alpha.2's script, which asks with `printenv` (Status, 2026-10-26; the procedures say so). Done when E2E (managed) is green on it (the smoke's preflights naming `/usr/local/bin/node v24.22.1`) and live runs alpha.3. |
+| T9 The API image runs without the dev tools | 🔨 **Being built** as draft #1687 on branch `claude/ownpace-public-readiness-y7orc6-api-image-prod-deps`, for after the alpha.2 tag: the install takes `--prod`, two packages declare what they load, and the merged tree boots, migrates and reads 0 critical and 0 high (Status, 2026-10-25) — *was:* 🔨 being built as a draft, for after the first invitation (2026-10-23) | Status, 2026-10-23 (the scan triage). `apps/api/Dockerfile`'s runtime stage copies the build stage's whole `/app`, where `pnpm install --filter @openmig/api...` installed the devDependencies too, the root's included, and `CMD` (`node apps/api/src/index.ts`) needs none of them. Their Go binaries are 2 critical and 65 high of the image's 3/125 on 2026-10-23: esbuild 0.25.12 (Go 1.23.12; drizzle-kit's and `@esbuild-kit/esm-loader`'s), counted twice, and TypeScript 7's native compiler (Go 1.26.4). The lockfile itself, dev dependencies included, reads 0/0. Done when the runtime image holds production dependencies only, a dependency it still needs and lacks fails at start, which the managed gate's first `curl $API/health` catches, and the image scan of `main`'s `:edge` (`ownpace-api-edge`) finds the Node base's findings alone; `ownpace-api-release`, which reads the newest tag, and live follow with the alpha.3 tag. |
+| T10 The image scan reads the tasks' image as it is built | 🔨 **Being built** as draft #1700 on branch `claude/ownpace-public-readiness-y7orc6-tasks-image-scan`, for after the alpha.2 tag: the leg builds the deploy's `base` stage from `trigger.config.ts`'s own extensions on GitHub's arm64 runner and scans it under the same category, its local tag in the base's repository so the alerts keep their location (Status, 2026-10-25) — *was:* 📋 Proposed (2026-10-23) | Status, 2026-10-23 (the scan triage). `scripts/image-scan.mjs` scans the base image the pinned CLI names (`triggerdotdev/node:24-bookworm` by digest, category `trigger-task-base`, 14/117 on 2026-10-23), not the tasks' image that `deploy-tasks.sh` builds from it. The Trigger.dev v4.7.6 branch upgrades that image's Debian packages at build (`apt-get -y upgrade`), which fixes the 42 Debian findings that have a fix (12 critical, all Perl, fixed in 5.36.0-7+deb12u4, and 30 high). It leaves npm's bundled packages under `/usr/local/lib/node_modules/npm`, since the overlay copies only `/usr/local/bin/node` (tar 7.5.15's CVE-2026-59873, critical, fixed in 7.5.19, and 12 high, 11 of them with a fix), and the 76 Debian findings without a fix, zlib1g's CVE-2023-45853 among them: the built image would still carry 2 critical and 87 high of the 131 (read with Trivy 0.76.0, 2026-10-23). The scan cannot see the upgrade, so the category keeps alerts for 42 findings the built image no longer has. The scan runs on a GitHub-hosted runner, which cannot read the stack's own registry, so the proposal is to build the image in the scan job as the deploy builds it. The old category, if renamed, has its configuration deleted by hand (T8). |
+| T11 The patch and minor moves that clear findings | (a) 🔨 **Being built** as draft #1699 on branch `claude/ownpace-public-readiness-y7orc6-mailpit-1-32-0`, for alpha.3 (Status, 2026-10-25); (b) 🟡 **Built 2026-10-25**, draft #1698, merges after the alpha.2 tag (the owner's yes, ADR-0022); (c) 📋 **Proposed**, after the Alpha (2026-10-23) | Status, 2026-10-23 (the scan triage), read with Trivy 0.76.0 on linux/amd64. (a) **Mailpit v1.32.0**: 0/0, where v1.31.6 has CVE-2026-111943 (Go's `crypto/x509`); for alpha.3 (*was:* after the first invitation), by hand in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts`, which pins the reference by tag and digest and records Mailpit's release check as read at v1.31.6, so that fact is read again at v1.32.0 in the same change. Done so on the branch: the release check read again at v1.32.0, unchanged. (b) **Stalwart v0.16.27** (Debian 13.7): 0 critical and 47 high, none with a fix, where v0.16.10 has 3/114. The owner's call: `docs/stalwart-integration-fix.md` pins v0.16.10 and says *"DO NOT change the pinned version"* (AGENTS.md puts its decisions in ADR-0022), and every copy moves together: `setup-stalwart.sh`, the fixture's Dockerfile, the Testcontainers setup, the fix doc and the guards that name it. (c) **ClickHouse 26.3** (26.3.59, Ubuntu 22.04): 0/0, where 26.2.19.43 has CVE-2026-45447 and CVE-2026-84782 in openssl. After the Alpha: the owner accepted 26.2 for it on 2026-10-23 (0119 §3 item 9 on the Trigger.dev v4.7.6 branch), and 26.3 is ahead of the 26.2 Trigger.dev's own compose pins, which the pin watch compares with (T8). It moves in `managed.yml` and in `scripts/a-service-that-phones-home.unit.test.ts` together: the guard pins the reference by tag and digest and records the crash-report default as read at `v26.2.19.43-stable`, as `clickhouse-no-crash-reports.xml`'s comment does, so both are read again at 26.3. |
+| T12 The images' Node base on a named Debian, with no package manager at runtime | 🔨 **Being built** as draft #1708 on branch `claude/ownpace-public-readiness-y7orc6-node-trixie-slim`, for after the alpha.2 tag and #1687 (2026-10-25) | Status, 2026-10-25. The api, selfhost and web images built on `node:24.22.1-slim`, Debian 12.15: 1 critical and 61 high on 2026-10-25. `node:24.22.1-trixie-slim`, Debian 13.7, reads 0/48 with the same Node binary, and 0/43 without npm and corepack, which nothing in the api or selfhost container runs. Done when the three FROM lines name Debian 13 by tag and digest, the two runtime stages carry no package manager, E2E (managed) and E2E (self-hosted) are green on it, and the scan's `-edge` categories read the base's 0/43 (the API's with T9). Distroless `nodejs24-debian13` (0/0) for the API is the next step, after alpha.3, as its own decision. |
+| T12a The web image's nginx carries only what it loads | 🔨 **Being built** as a draft on branch `claude/ownpace-public-readiness-y7orc6-nginx-alpine-slim`, based on #1678's, for alpha.3 (2026-10-25) | Status, 2026-10-25, and 0119's of the same evening. `nginx:1.31.8-alpine-slim` by index digest `f45171d3…` in `apps/web/Dockerfile`'s runtime and `deploy/compose/www.yml`, in place of 1.31.8-alpine `1ef7ca94…`: the same nginx package on the same base layers, without the 51 packages -alpine adds (curl, the njs, xslt, geoip, image-filter and acme modules, and their libraries). Trivy 0.76.1 on linux/arm64 and linux/amd64: -alpine 0/1 (brotli-libs 1.2.0-r1, CVE-2026-111497, fixed in 1.2.1-r0), slim 0/0; the stable line's 1.30.6-alpine 0/1 as well. Neither `nginx.conf.template` nor `www-nginx.conf` loads a module, the API upstream is plain HTTP and both health checks are busybox's `wget`; `scripts/an-nginx-that-carries-only-what-it-loads.unit.test.ts` holds the variant in both files and refuses a dropped module's directive or a curl in a health check or a runbook's look inside, since nothing runs `www.yml` to see one. Merges after #1678 and the alpha.2 tag, not before 19:51 UTC on 2026-10-27 (three days after the slim index was pushed, to add riscv64), with E2E (managed) on the branch. The OTA site moves when a person brings `www.yml` up again; live's www with the next deploy while `WWW_LIVE` is true; live's web image with the release tag that carries it. |
+| T13a The readers first | 🔨 **Being built** as draft #1710 on branch `claude/ownpace-public-readiness-y7orc6-api-readers`, for alpha.3 (2026-10-26) | Status, 2026-10-26. The half of T13 (draft #1709) that works before the switch: the smoke, the managed gate, `deploy-live.sh`, `stand-up-live.sh` and the docs read the api container's variables with `docker container inspect` and run Node there by its path, on the Node image and on distroless alike, and the smoke stops when the API's Node is not the version the tasks get. It ships a release before T13, so that a deploy of the distroless image from alpha.3 or later runs no `deploy-live.sh` that asks with `printenv` (one straight from alpha.2, or forward after a rollback past T13a, still does: Status, 2026-10-26). Done when E2E (managed) is green on it (the smoke's preflights naming `/usr/local/bin/node v24.22.1`) and live runs alpha.3. |
 | T13 The API's runtime on distroless | 🔨 **Being built** as draft #1709 on branch `claude/ownpace-public-readiness-y7orc6-api-distroless`, after #1708 (T12), #1710 (T13a) and #1687 (T9); alpha.3, with #1710, the owner's decision of 2026-10-26, the alpha.2 to alpha.3 live deploy runs twice | Status, 2026-10-26. The API, the container the internet reaches through `/api`, runs on `gcr.io/distroless/nodejs24-debian13:nonroot` by digest: 0 critical and 0 high on amd64 and arm64, against T12's 0/43, with the same Node binary, and no shell, `printenv` or Node on PATH, and `/app` root's. Every script, workflow and doc that exec'd a shell, `printenv` or a bare `node` into it reads from `docker container inspect` or runs Node by its path instead, on old and new images alike, since T13a (#1710), in the same release. The tasks keep T12's Node line, and the smoke stops when the API's Node is not that line's version. Done when E2E (managed) and E2E (self-hosted) are green on it (the smoke's preflights naming `/nodejs/bin/node v24.22.1`), live runs a tag that carries it (from alpha.2, a deploy run twice, as the procedures say), and the scan's `ownpace-api-edge` reads the distroless base's 0/0 (with T9's `--prod` install). |
+| T15 Both databases of the managed stacks start as uid 70, from the official image without gosu | 🔨 **Being built** as draft #1717 on branch `claude/ownpace-public-readiness-y7orc6-postgres-without-gosu`, stacked on #1678, for after the alpha.2 tag (2026-10-26) | Status, 2026-10-26. `postgres:18.6-alpine` reads 1 critical and 26 high (Trivy v0.76.1, arm64 and amd64); the critical and 25 highs are Go's standard library in gosu, which the entrypoint runs only when it starts as root. `deploy/compose/postgres/Dockerfile` removes it and starts as uid 70, the user gosu dropped to; `managed.yml`'s `postgres` and `trigger-db` and `dev.yml`'s run it, and the scan builds and scans it. Done when E2E (managed) is green on the branch (the OTA stack's existing volumes, started as uid 70, and a second bring-up leaving both databases running on the same image ID), `build (postgres)` is green on the pull request, the image scan's `postgres-managed` reads 0 critical and 1 high (brotli-libs, until docker-library rebuilds 18.6-alpine), and live has taken it from a tag. The appliance's Postgres is T15b. |
+| T15b The appliance's Postgres starts as uid 70, from the official image without gosu | 🔨 **Being built** on branch `claude/ownpace-public-readiness-y7orc6-appliance-postgres-without-gosu`, stacked on #1717, for after the alpha.2 tag (2026-10-26) | Status, 2026-10-26, last. The appliance's `postgres:18.6-alpine` (`77f58511…`) reads 1 critical and 26 high (Trivy v0.76.1, arm64); the critical is gosu's Go, and no newer digest drops it. `deploy/selfhost/postgres/Dockerfile` is T15's instructions on the appliance's own base, `deploy/selfhost/compose.yml` runs it as `localhost/postgres:18.6-alpine-b18f51417292` (never pulled), Dependabot moves its FROM in an entry of its own, the scan's `postgres-selfhost` leg builds it, `build (postgres)` proves it on a pull request, and E2E (self-hosted) builds `app` by name. Done when `build (postgres)` is green on the pull request (the appliance's build started on a volume the official image initialised as root), E2E (self-hosted) is green on the branch with `persistence: postgres`, the image scan's `postgres-selfhost` reads 0 critical, and a release tag carries it. |
 
 ## 1. What there is today
 
