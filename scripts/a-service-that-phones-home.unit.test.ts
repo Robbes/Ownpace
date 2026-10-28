@@ -545,7 +545,7 @@ const CLICKHOUSE =
  * 2026-10-25, taken 2026-10-28. Its server is the fork's
  * `RELEASE.2026-10-23T20-06-51Z`, whose cmd/ and internal/ are those of
  * `RELEASE.2026-09-22T19-25-18Z`, read at that tag of `chainguard-forks/minio`
- * (the two differ in go.mod and go.sum alone); its mc is
+ * (the two differ in go.mod, go.sum and a CI workflow alone); its mc is
  * `RELEASE.2025-08-13T08-35-41Z`.
  */
 const MINIO =

@@ -671,9 +671,10 @@ services:
   # Wolfi's `minio` 0.20261023.200651-r0 (the fork's
   # RELEASE.2026-10-23T20-06-51Z), `mc` 0.20250813.083541-r27, and bash as
   # /bin/sh. The fork's release before it, RELEASE.2026-09-22T19-25-18Z in
-  # d88920d6a50b… (2026-10-22, #1692), differs from this one only in its Go
-  # modules (golang.org/x/net 0.60.0, x/crypto 0.57.0, klauspost/compress
-  # 1.18.7): no line under cmd/ or internal/ changed. The weekly pin watch (idp-pin-watch.mjs) says when `latest` has
+  # d88920d6a50b… (2026-10-22, #1692), differs from this one in go.mod and
+  # go.sum (nine modules, golang.org/x/net 0.60.0, x/crypto 0.57.0 and
+  # klauspost/compress 1.18.7 among them) and in its VulnCheck workflow's Go:
+  # no line under cmd/ or internal/ changed. The weekly pin watch (idp-pin-watch.mjs) says when `latest` has
   # moved on; a move is a pull request with the new digest's scan read and
   # E2E (managed) on its branch. Trigger.dev's own digest from its move of
   # 2026-09-28 still resolved on 2026-10-24, so an old digest stays pullable

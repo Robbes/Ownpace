@@ -128,7 +128,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **Trigger.dev's object store runs Chainguard's MinIO build of 2026-10-25**
   (workplan 0146 T7): `latest` by the digest it had that day, taken once three
   days old. Its server is the fork's RELEASE.2026-10-23T20-06-51Z, which moves
-  golang.org/x/net, x/crypto and klauspost/compress and changes no MinIO code;
+  nine Go modules, golang.org/x/net, x/crypto and klauspost/compress among
+  them, and changes no MinIO code;
   Trivy reads no finding in it, as in the build before. Nothing a stack sets
   changes; the next bring-up pulls it.
 
