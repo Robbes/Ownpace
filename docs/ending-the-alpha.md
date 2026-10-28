@@ -260,6 +260,10 @@ hold (step 3), because the privacy policy promises it for the end of the Alpha.
    [deploy-live] The hold stays on. Nothing was lifted. Fix the cause and run this again with <tag>, or name another tag; the next deploy is compared with <tag> too.
    ```
 
+   Start that first run as `COMPOSE_PROGRESS=plain ./deploy/compose/deploy-live.sh <tag>`:
+   alpha.2's script does not ask compose for plain progress (docs/operator-runbook.md,
+   *Upgrade*, item 6).
+
    When that `NODE_ENV` line is the only one under it, run the deploy again, the hold still on;
    the tag's own script reads from Docker and says the deploy took (docs/managed-bring-up.md,
    *The deploy from alpha.2 to alpha.3 runs twice*):
