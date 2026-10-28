@@ -33,6 +33,7 @@
     "@openmig/scheduler": "workspace:*",
     "@openmig/shared": "workspace:*",
     "cors": "^2.8.5",
+    "drizzle-orm": "catalog:",
     "express": "^5.3.0",
     "helmet": "^8.3.0",
     "jose": "^6.2.13",
