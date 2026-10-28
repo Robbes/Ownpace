@@ -65,7 +65,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   a minute. The demo Nextcloud upgrades its volume to 34.0.5 and refuses an
   older image on it afterwards, and runs with PHP's session upload progress
   off, upstream's mitigation for CVE-2026-115560. `db-roles.sh` runs the
-  postgres client `managed.yml` pins.
+  postgres client `managed.yml` pins. When the bring-up replaces the postgres
+  container, it now recreates PgBouncer too: the pooler had cached a login
+  that failed while the old server shut down, and refused `app_user` for 15
+  seconds (E2E (managed) #285).
 
 ### Added
 

@@ -1340,7 +1340,12 @@ phase_data() {
   say data "postgres, the two roles set to .env, the pooler's lookup role, pgbouncer"
   load_env
 
+  # Which postgres container ran before this `up`, so that a replaced one is
+  # seen below (A POOLER THAT OUTLIVED ITS DATABASE).
+  local db_before db_after
+  db_before="$("${COMPOSE[@]}" ps -q postgres 2>/dev/null | awk 'NR==1')" || db_before=''
   up_wait postgres
+  db_after="$("${COMPOSE[@]}" ps -q postgres 2>/dev/null | awk 'NR==1')" || db_after=''
   note "postgres healthy"
 
   # Before anything migrates: the API's first start applies 0001, which makes
@@ -1413,10 +1418,26 @@ phase_data() {
   # before — which is exactly what happened on the Spark, 2026-08-18, and cost a
   # round trip.
   #
-  # Only when it is unhealthy: a pooler that is serving is left alone, because
-  # recreating it drops every client connection for no reason.
+  # Only when it is unhealthy, or its database was replaced (below): a pooler
+  # that is serving is left alone, because recreating it drops every client
+  # connection for no reason.
+  #
+  # A POOLER THAT OUTLIVED ITS DATABASE is recreated too. When this run's `up`
+  # replaced the postgres container (a new image or digest in managed.yml),
+  # PgBouncer kept running, and every pool that logged in while the old server
+  # shut down got "the database system is shutting down". PgBouncer caches
+  # such a failed login for server_login_retry (15 seconds by default) and
+  # refuses every client of that pool meanwhile with "server login has been
+  # failing, cached error". The proof below then failed on app_user through
+  # the pooler: E2E (managed) #285 on 2026-10-28, the first run with postgres
+  # pinned by digest (#1678), and so also the alpha.3 deploy of live. Its
+  # server connections died with the old container anyway, so this drops
+  # nothing a serving pooler still had.
   if [ "$("${COMPOSE[@]}" ps --format '{{.Health}}' pgbouncer 2>/dev/null | tail -1)" = "unhealthy" ]; then
     note "pgbouncer is running but unhealthy — recreating it so it re-reads pgbouncer.ini"
+    "${COMPOSE[@]}" up -d --force-recreate --no-deps pgbouncer >/dev/null
+  elif [ -n "$db_before" ] && [ "$db_after" != "$db_before" ]; then
+    note "postgres was replaced by this run — recreating pgbouncer, so no pool keeps a login that failed while the old one shut down"
     "${COMPOSE[@]}" up -d --force-recreate --no-deps pgbouncer >/dev/null
   fi
 

@@ -236,10 +236,14 @@ interface StubState {
   triggerRefuses: boolean;
   /** The statement over trigger-db's socket fails, as a catalog write would. */
   triggerFails: boolean;
+  /** What `compose ps -q postgres` answers, one per call: the container before the `up`, then after it. Empty: the same id every time. */
+  dbIds?: string[];
 }
 interface Call {
   kind: string;
   argv: string[];
+  /** `compose ps -q postgres`: the container id the stub answered. */
+  id?: string;
   stdin?: string;
   sql?: string;
   user?: string;
@@ -366,6 +370,10 @@ for (; i < argv.length; i++) { if (argv[i] === '-f' || argv[i] === '--env-file' 
 const sub = argv[i]; const rest = argv.slice(i + 1);
 if (sub === 'config' || sub === 'version') { log({ kind: 'config' }); done(0); }
 if (sub === 'up') { log({ kind: 'up', services: rest.filter((x) => !x.startsWith('-')) }); done(0); }
+if (sub === 'ps' && rest.includes('-q') && rest.includes('postgres')) {
+  const id = state.dbIds && state.dbIds.length ? state.dbIds.shift() : 'db-1'; save();
+  log({ kind: 'ps-id', id: id }); out(id + NL); done(0);
+}
 if (sub === 'ps') { log({ kind: 'ps' }); out('healthy' + NL); done(0); }
 if (sub !== 'exec') { log({ kind: 'compose-' + sub }); done(0); }
 
@@ -1193,6 +1201,46 @@ describe('(c) the data phase sets both roles to .env, before anything migrates, 
 // ---------------------------------------------------------------------------
 // trigger-db's role, held to .env by the trigger phase (0132 T2, step A)
 // ---------------------------------------------------------------------------
+
+describe('(c2) a postgres the run replaced takes a new pooler before the proof (E2E (managed) #285, 2026-10-28)', () => {
+  const recreated = (calls: Call[]) =>
+    calls.filter((c) => c.kind === 'up' && (c.services ?? []).includes('pgbouncer') && c.argv.includes('--force-recreate'));
+
+  it('recreates pgbouncer after postgres is up and before the roles are asked through it, when the container changed', () => {
+    const s = aStack(envText(realEnv()), { dbIds: ['db-old', 'db-new'] });
+    const r = bootstrap(s, ['--only', 'data']);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toMatch(/postgres was replaced by this run — recreating pgbouncer/);
+    const again = recreated(r.calls);
+    expect(again, 'one recreate of the pooler').toHaveLength(1);
+    expect(again[0]!.argv).toEqual(expect.arrayContaining(['up', '-d', '--force-recreate', '--no-deps', 'pgbouncer']));
+    const at = r.calls.indexOf(again[0]!);
+    const postgresUp = r.calls.findIndex((c) => c.kind === 'up' && (c.services ?? []).includes('postgres'));
+    const ids = r.calls.map((c, i) => ({ c, i })).filter(({ c }) => c.kind === 'ps-id');
+    expect(ids.map(({ c }) => c.id), 'asked before and after the up').toEqual(['db-old', 'db-new']);
+    expect(ids[0]!.i).toBeLessThan(postgresUp);
+    expect(ids[1]!.i).toBeGreaterThan(postgresUp);
+    expect(at).toBeGreaterThan(postgresUp);
+    const firstPooler = r.calls.findIndex((c) => c.kind === 'pooler');
+    expect(firstPooler, 'the roles are asked through the pooler').toBeGreaterThan(-1);
+    expect(at, 'before the pooler is asked').toBeLessThan(firstPooler);
+  });
+
+  it('leaves a serving pooler alone when postgres kept its container', () => {
+    const s = aStack(envText(realEnv()), { dbIds: ['db-1', 'db-1'] });
+    const r = bootstrap(s, ['--only', 'data']);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).not.toMatch(/recreating pgbouncer/);
+    expect(recreated(r.calls)).toHaveLength(0);
+  });
+
+  it('leaves it alone on a first bring-up too, where no postgres ran before', () => {
+    const s = aStack(envText(realEnv()), { dbIds: ['', 'db-new'] });
+    const r = bootstrap(s, ['--only', 'data']);
+    expect(r.status, r.out).toBe(0);
+    expect(recreated(r.calls)).toHaveLength(0);
+  });
+});
 
 describe("(e) the trigger phase sets trigger-db's role to .env's value, once trigger-db is up and before trigger-api starts", () => {
   /** One the role may hold that .env no longer does: a putting back that could not reach it, or an older .env copied back. */
