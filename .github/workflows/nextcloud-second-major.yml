@@ -1,15 +1,17 @@
 # The suites that talk to Nextcloud, against the major the demo does not run
-# (workplan 0119, Status of 2026-10-25).
+# (workplan 0119, Status of 2026-10-25 and of 2026-10-26).
 #
-# The demo Nextcloud, the dev stack and the integration tier run one major, 34.
-# A customer's own Nextcloud is whatever they run, and Nextcloud 35 has been
-# on Docker Hub since mid-September 2026, 35.0.2 since mid-October.
-# Moving the demo is one way, since Nextcloud's data never goes back a
-# version, and it waits for after the alpha.2 tag. What can be known before
-# then is whether the code works against 35: WebDAV, CalDAV, CardDAV, the
-# chunked upload and the OCS share verb. This runs those suites, and only
-# those, against 35, so the answer is on record before the demo moves and
-# before a customer finds out.
+# The demo Nextcloud, the dev stack and the integration tier run one major.
+# A customer's own Nextcloud is whatever they run. Until the pull request that
+# moved the demo (workplan 0119 T5), that one major was 34 and this ran 35, so
+# that "does the code work against 35" had an answer before the demo moved and
+# before a customer found out: it did, every suite green against 35.0.1 and
+# 35.0.2 (#1705). The demo, the dev stack and the tier move to 35 on the
+# branch that moves them (one way for the demo's data: Nextcloud's data never
+# goes back a version), and this runs 34, which Nextcloud maintains until
+# 2027-06 and which a customer who has not upgraded still runs, so the code
+# stays proven against it. This runs WebDAV, CalDAV, CardDAV, the chunked
+# upload and the OCS share verb, and only those.
 #
 # WHICH SUITES. Every `*.integration.test.ts` that reads a NEXTCLOUD_ variable,
 # found by scripts/nextcloud-suites.mjs rather than listed here, so the next
@@ -27,8 +29,8 @@
 # CONTRIBUTING.md asks of a dependency, unless a security fix needs it sooner.
 #
 # WHEN, AND WHERE. Not on every pull request: the integration job in ci.yml
-# already runs every suite against 34 on two architectures, and doubling that
-# for 35 on every pull request buys little. It runs:
+# already runs every suite against the demo's major on two architectures, and
+# doubling that for the other major on every pull request buys little. It runs:
 #   - on a push to main that touches the code those suites exercise;
 #   - on a pull request that changes how this leg runs (this file, the suite
 #     finder, the integration setup and project), so a change to the leg
@@ -39,12 +41,14 @@
 # pull_request trigger (ci.yml's header says why that must never reach the
 # Spark), and the Spark is one machine that also serves production. amd64:
 # the question is the Nextcloud major, not the architecture, and ci.yml's
-# arm64 leg covers that for 34.
+# arm64 leg covers that for the demo's major.
 #
 # NOT A REQUIRED CHECK. Its `paths:` filters leave it unreported on most pull
 # requests, so requiring it would block them forever
 # (every-pr-check-is-classified.unit.test.ts lists it with that reason). A red
-# run here is a finding about 35, for the owner's decision on the demo's move.
+# run here is a finding about the other major: about 35 before the demo moved,
+# for the owner's decision on that move; about 34 since, for what a customer
+# still on 34 can migrate.
 #
 # scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts holds this file.
 name: Nextcloud second major
@@ -90,14 +94,15 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      # 35.0.2-apache by the digest pushed 2026-10-23 19:50 UTC (also what
-      # `35-apache` and `latest` named on 2026-10-26), on PHP 8.5.12, which
-      # closes CVE-2026-109618 and CVE-2026-109619, as the 34-apache the
-      # integration job pulls (34.0.5, rebuilt 2026-10-23) does. Moved from
-      # 35.0.1 (PHP 8.5.11) on 2026-10-26, once 35.0.2's digest had passed the
-      # three-day wait at 19:51 UTC (workplan 0119, T5). By hand: Dependabot
-      # reads no workflow env, and the pin watch reads no workflow file.
-      NEXTCLOUD_IMAGE: nextcloud:35.0.2-apache@sha256:89af7ee7a96ff5e9668280566209268ae6b2d02327f6ef6d56f6d68228cf9431
+      # 34.0.5-apache by upstream's rebuild of 2026-10-23 17:17 UTC (also what
+      # `34-apache` named on 2026-10-26), the digest the demo, the dev stack and
+      # the integration tier pinned before they moved to 35.0.2 (#1678, 0119
+      # §4), on PHP 8.5.12 like 35.0.2's. The leg ran 35.0.1 from 2026-10-25
+      # and 35.0.2 from 2026-10-26, and flipped to 34 in the pull request that
+      # moved the demo (workplan 0119, T5). By hand: Dependabot reads no
+      # workflow env, and the pin watch reads no workflow file, so 34.0.6 (due
+      # 2026-11-12) is nobody's to report until a row reads this line.
+      NEXTCLOUD_IMAGE: nextcloud:34.0.5-apache@sha256:1f9212adecae32010cdbf137d7e0db78d08c696dc3e77f1eddcbf902d10209b4
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

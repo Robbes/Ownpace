@@ -1942,12 +1942,23 @@ services:
   # The demo's DAV target, brought up with the OTA stack every night
   # (--with-demo, which both live scripts refuse). Its update check, app store,
   # announcements feed and connectivity check are on by default
-  # (config.sample.php at stable34), and are NOT switched off yet: a hook that
-  # set them false made the demo's first CalDAV write answer 500 (workplan
-  # 0139, 2026-09-29). It holds fixtures, never a tester's data.
-  # `scripts/a-service-that-phones-home.unit.test.ts` lists it as left on.
+  # (config.sample.php at stable34, the same at v35.0.2), and are NOT switched
+  # off yet: a hook that set them false made the demo's first CalDAV write
+  # answer 500 (workplan 0139, 2026-09-29). It holds fixtures, never a tester's
+  # data. `scripts/a-service-that-phones-home.unit.test.ts` lists it as left on.
+  #
+  # NEXTCLOUD 35 FROM THE PULL REQUEST THAT MOVED IT (workplan 0119 T5, written
+  # 2026-10-26), 34 before. A major moves ONE WAY: the first `up` with this pin
+  # upgrades nextcloud_data and the `nextcloud` database in the stack's Postgres
+  # from 34 (`occ upgrade` in the image's entrypoint), and 34 refuses to start
+  # on them afterwards. On the OTA stack that first `up` is E2E (managed) on the
+  # branch that moves it, and the bring-up asks `occ status` after it, since
+  # the healthcheck below cannot tell (bootstrap-managed.sh,
+  # nextcloud_upgrade_done). What puts it back is in docs/managed-bring-up.md,
+  # *A Nextcloud major on the OTA stack*. The other major, 34, runs in CI only
+  # (.github/workflows/nextcloud-second-major.yml).
   nextcloud:
-    image: nextcloud:34.0.5-apache@sha256:1f9212adecae32010cdbf137d7e0db78d08c696dc3e77f1eddcbf902d10209b4
+    image: nextcloud:35.0.2-apache@sha256:89af7ee7a96ff5e9668280566209268ae6b2d02327f6ef6d56f6d68228cf9431
     container_name: ${COMPOSE_PROJECT_NAME}-nextcloud
     restart: unless-stopped
     logging: *logging

@@ -29,6 +29,13 @@
  *   ONE PASSWORD IN THREE PLACES (--sync-password): config.php first, while the
  *   old value still opens the role, then the role; and the 2026-09-29 state,
  *   where the role took a value config.php does not hold, put right first.
+ *   A NEXTCLOUD UP BUT NOT UPGRADED STOPS THE BRING-UP (workplan 0119 T5,
+ *   written 2026-10-26 for the move from 34 to 35). The healthcheck's
+ *   status.php answers 200 in maintenance mode and with an upgrade owed, so a
+ *   major's failed `occ upgrade` passed `up_wait nextcloud` and failed later
+ *   on 503s that did not name it. After the first start the bring-up asks
+ *   `occ status`, and stops on maintenance, an upgrade owed, or no answer,
+ *   naming docs/managed-bring-up.md's section on a Nextcloud major.
  *
  * HOW IT RUNS. No docker and no database: `docker` is a stand-in on the PATH
  * that keeps a small state in files (the role and its password, the database,
@@ -180,6 +187,8 @@ fi
 if [ "$sub" = exec ] && [ "$service" = nextcloud ]; then
   case "$rest" in
     *' occ status '*)
+      # What the bring-up asks after the first start: what the case put in nc_status.
+      if has nc_status; then [ "$(get nc_status)" != fails ] || exit 1; get nc_status; echo; exit 0; fi
       if occ_boots && [ "$(get cfg_type)" = pgsql ]; then
         echo '{"installed":true,"version":"34.0.4.1","maintenance":false,"needsDbUpgrade":false}'
         exit 0
@@ -278,7 +287,23 @@ interface Start {
   importFails?: boolean;
   /** The converter leaves a table out of Postgres that it does not list as left. */
   unlistedTable?: boolean;
+  /** What `occ status --output=json` prints after the bring-up's first start, or `fails`. */
+  ncStatus?: string;
 }
+
+/** `occ status --output=json` of a demo Nextcloud that took its upgrade, as v35.0.2's `core/Command/Status.php` prints it (read, not run). */
+const NC_UP = (over: Record<string, unknown> = {}): string =>
+  JSON.stringify({
+    installed: true,
+    version: '35.0.2.1',
+    versionstring: '35.0.2',
+    edition: '',
+    maintenance: false,
+    needsDbUpgrade: false,
+    productname: 'Nextcloud',
+    extendedSupport: false,
+    ...over,
+  });
 
 const SQLITE_ROWS = [
   'rows|oc_appconfig|158',
@@ -358,6 +383,7 @@ function aStack(start: Start, envPassword: string | null): Stack {
   if (start.alterFails) put('alter_fails', '');
   if (start.importFails) put('import_fails', '');
   if (start.unlistedTable) put('unlisted_table', '');
+  if (start.ncStatus !== undefined) put('nc_status', start.ncStatus);
   const bin = join(dir, 'bin');
   mkdirSync(bin);
   writeFileSync(join(bin, 'docker'), DOCKER, { mode: 0o755 });
@@ -433,9 +459,9 @@ function definition(name: string): string {
   return BOOTSTRAP.slice(start + 1, end + 2);
 }
 
-/** The data phase's demo half: the database made ready, the first start, and the note. */
+/** The data phase's demo half: the database made ready, the first start, what it says, and the note. */
 function bringUp(start: Start, envPassword: string | null = aPassword()): Ran {
-  const stack = aStack(start, envPassword);
+  const stack = aStack({ ncStatus: NC_UP(), ...start }, envPassword);
   // ensure-env-secrets.sh's stand-in: it fills NEXTCLOUD_DB_PASSWORD when it is missing.
   writeFileSync(
     join(stack.compose, 'ensure-env-secrets.sh'),
@@ -457,6 +483,7 @@ function bringUp(start: Start, envPassword: string | null = aPassword()): Ran {
     'note() { echo "    $*"; }',
     'die() { echo "!!! $*" >&2; exit 1; }',
     definition('nextcloud_database_ready'),
+    definition('nextcloud_upgrade_done'),
     definition('note_nextcloud_database'),
     'nextcloud_database_ready',
     // up_wait nextcloud: a first start installs, connecting with what .env holds.
@@ -465,6 +492,7 @@ function bringUp(start: Start, envPassword: string | null = aPassword()): Ran {
     `  env_value "$ENV_FILE" NEXTCLOUD_DB_PASSWORD | tr -d '\\n' >'${st}/cfg_pw'; echo 'event=install' >>"$STAND_IN_LOG"`,
     'fi',
     `touch '${st}/running'`,
+    'nextcloud_upgrade_done',
     'note_nextcloud_database',
     '',
   ].join('\n');
@@ -522,14 +550,16 @@ describe('a fresh demo install starts on the stack’s Postgres', () => {
     expect(read('deploy/compose/managed.env.example')).toMatch(/^NEXTCLOUD_DB_PASSWORD=$/m);
   });
 
-  it('makes the role and the database before Nextcloud’s first start, and says which database it uses after', () => {
+  it('makes the role and the database before Nextcloud’s first start, asks it whether it took, and says which database it uses after', () => {
     const data = definition('phase_data');
     const ready = data.indexOf('nextcloud_database_ready');
     const up = data.indexOf('up_wait nextcloud');
+    const asked = data.indexOf('nextcloud_upgrade_done');
     const said = data.indexOf('note_nextcloud_database');
     expect(ready).toBeGreaterThan(0);
     expect(up).toBeGreaterThan(ready);
-    expect(said).toBeGreaterThan(up);
+    expect(asked, 'nothing asks occ status between the first start and the note').toBeGreaterThan(up);
+    expect(said).toBeGreaterThan(asked);
   });
 });
 
@@ -627,6 +657,57 @@ describe('the bring-up’s data phase, for the demo Nextcloud', () => {
     expect(ran.events[0]).toBe('ensure-env-secrets');
     expect(ran.state('role_pw')).toMatch(/^pw[0-9a-f]{24}$/);
     expect(ran.state('cfg_pw')).toBe(ran.state('role_pw'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// After the first start: did a major's upgrade take (workplan 0119 T5)
+// ---------------------------------------------------------------------------
+
+describe('the bring-up asks the demo Nextcloud whether its upgrade took', () => {
+  /** An installed demo on Postgres, as the OTA stack's is, the night a new major first starts on it. */
+  const installed = (ncStatus: string): Start => {
+    const theirs = aPassword();
+    return { volume: true, running: true, role: { pw: theirs }, db: {}, tables: 131, cfg: { type: 'pgsql', pw: theirs }, ncStatus };
+  };
+  const DOC = read('docs/managed-bring-up.md');
+
+  it('says the version and goes on when it is out of maintenance with no upgrade owed', () => {
+    const ran = bringUp(installed(NC_UP()));
+    expect(ran.status, ran.out).toBe(0);
+    expect(ran.out).toContain('nextcloud healthy (demo DAV backend): 35.0.2, out of maintenance, no upgrade owed');
+    expect(ran.out).toContain('the demo Nextcloud is on Postgres (nextcloud)');
+  });
+
+  it.each([
+    [{ maintenance: true }, 'is in maintenance mode'],
+    [{ needsDbUpgrade: true }, 'still owes an upgrade'],
+    [{ maintenance: true, needsDbUpgrade: true }, 'is in maintenance mode and still owes an upgrade'],
+  ])('stops, healthy or not, when occ status says %j, and names the way on', (over, said) => {
+    const ran = bringUp(installed(NC_UP(over)));
+    expect(ran.status, ran.out).toBe(1);
+    expect(ran.out).toContain(`the demo Nextcloud 35.0.2 answers its health check but ${said}:`);
+    expect(ran.out).toContain('docker compose -f deploy/compose/managed.yml logs --tail 200 nextcloud');
+    expect(ran.out).toContain('docs/managed-bring-up.md, *A Nextcloud major on the OTA stack*, *When the run goes wrong*');
+    expect(ran.out, 'it went on past a Nextcloud that answers 503').not.toContain('the demo Nextcloud is on Postgres');
+    expect(ran.out).not.toContain('nextcloud healthy (demo DAV backend)');
+  });
+
+  it.each([
+    ['fails', 'occ status could not run'],
+    [NC_UP({ installed: false }), 'it says it is not installed'],
+  ])('stops when occ status prints %s (%s)', (ncStatus) => {
+    const ran = bringUp(installed(ncStatus));
+    expect(ran.status, ran.out).toBe(1);
+    expect(ran.out).toContain('but occ status does not say it is installed');
+    expect(ran.out).not.toContain('the demo Nextcloud is on Postgres');
+  });
+
+  it('points at a section and a heading the bring-up doc has', () => {
+    const from = DOC.indexOf('\n### A Nextcloud major on the OTA stack\n');
+    expect(from, 'docs/managed-bring-up.md has no section *A Nextcloud major on the OTA stack*').toBeGreaterThan(0);
+    const section = DOC.slice(from, DOC.indexOf('\n### ', from + 1));
+    expect(section).toContain('**When the run goes wrong.**');
   });
 });
 

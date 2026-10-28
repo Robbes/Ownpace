@@ -30,6 +30,135 @@ to 3 and from 2 to 1 (2 and 0 since the entry above), once a dispatched scan on 
 moves the FROMs and the names; Dependabot reads neither directory, on purpose. The inventory's
 Trigger.dev row says so. Dropped, removal by removal, as upstream fixes each.
 
+**2026-10-26: the demo, the dev stack and the integration tier move to Nextcloud 35.0.2, and
+the second-major leg to 34.0.5, in a draft for alpha.3** (T5), on the branch
+`claude/ownpace-public-readiness-y7orc6-nextcloud-35-demo`: #1678's head (`72c6cff6`, every
+floating image pinned) with #1705's (`b09d6f4f`, the leg on 35.0.2) merged in, as draft #1720.
+**The owner's OK, 2026-10-26: "Yes, in alpha.3"**, late in the alpha.3 queue, after the riskier
+items, with the copies of *A Nextcloud major on the OTA stack* taken before its E2E (managed).
+A major is the owner's call (§2.1's row; the pin watch moves nothing and names the route); the
+owner had kept the demo on 34 for alpha.2, and on the OTA stack the move is one way. `main` is
+frozen until the alpha.2 tag, so nothing moves before it.
+- **The merge.** Five files conflicted. `testcontainers-setup.ts` took #1705's one-line ternary
+  with `dev.yml`'s reference as the literal, the resolution both entries below name; the
+  CHANGELOG keeps both bullets under `[Unreleased]` (`### Added` before `### Changed`); this
+  Status keeps both 2026-10-25 entries; §2.1 keeps #1678's pinned row and adds #1705's; §4 keeps
+  #1678's "pinned" bullet in place of #1705's stale "stay floating" one, and adds #1705's bullet
+  on the leg; `docs/LESSONS.md` and the workplan index were regenerated.
+- **What moves.** `managed.yml`, `dev.yml` and the Testcontainers default, from
+  `nextcloud:34.0.5-apache@sha256:1f9212ad…` to `nextcloud:35.0.2-apache@sha256:89af7ee7…`
+  (pushed 2026-10-23 19:50 UTC, PHP 8.5.12, past the three-day floor at 19:51 UTC today). Read
+  again on Docker Hub this evening: `89af7ee7…` is still what `35.0.2-apache` and `35-apache`
+  name, and `1f9212ad…` what `34.0.5-apache` and `34-apache` name, each index with linux/amd64
+  and linux/arm64. `nextcloud-second-major.yml`'s `NEXTCLOUD_IMAGE` goes the other way, to
+  #1678's 34.0.5 digest. `a-nextcloud-the-demo-does-not-run`'s rule did not change and made the
+  flip one change: with the three moved and the leg left on 35 it failed, "the same major".
+- **Why 34 for the leg.** Nextcloud maintains 34 until 2027-06 and 33 until 2027-02 (the server
+  wiki's *Maintenance and Release Schedule*, read today); 34 is the major a customer who has not
+  taken 35 yet most likely runs, and the one this code was measured on. 34.0.6 and 35.0.3 are
+  due 2026-11-12. The pin watch reads 35 in the compose files from here on, and nothing reads
+  the leg's 34 (§4).
+- **Read for it**, at the server's `v35.0.2`, nextcloud/docker `7e9e152f` (`35/apache`), and
+  activity, notifications and nextcloud_announcements at `stable35`:
+  - *The upgrade.* `version.php` upgrades from 34.0 and 35.0 only. The image's entrypoint, the
+    same file for 34 and 35 at `7e9e152f`, refuses a data version newer than the image and a jump
+    of more than one major, copies the code into the volume, runs `occ upgrade` and prints any app
+    the upgrade disabled; when `occ upgrade` fails it exits, and Nextcloud keeps maintenance mode
+    on ("Maintenance mode is kept active", `core/Command/Upgrade.php`). `status.php` answers 200
+    in maintenance mode and with an upgrade owed, so the healthcheck cannot tell; since the
+    review below, the bring-up asks `occ status` after `up_wait nextcloud` and stops on either.
+  - *Its database.* PostgreSQL 18 is 35's recommended version (the admin manual's system
+    requirements at `stable35`); SQLite stays for `dev.yml` and the tier, as on 34.
+  - *Apps.* Nothing here installs or enables one: there is no `app:install` or `app:enable` in
+    `deploy/`, `scripts/` or the workflows (the smoke names `occ app:enable sharebymail` only as
+    a remedy). The demo uses what ships enabled: dav, files, files_sharing, sharebymail,
+    provisioning_api (`setup-nextcloud-users.sh` makes the accounts over OCS) and the brute-force
+    allow-list, which 35 reads from the same `bruteForce` `whitelist_*` keys. 35 ships every app
+    34 ships, enables the same 46 by default, and adds one, `sharing`, always enabled: share APIs
+    and occ commands, no background job. #1705's leg ran the share suite green against it.
+    That is what the repository enables, not what the OTA box holds: its app store is left on,
+    and an app installed there by hand (calendar, contacts, tasks and deck do not ship with the
+    server) is `occ upgrade`'s to update from the app store or disable, which the entrypoint
+    only prints ("The following apps have been disabled:"). So the bring-up doc has the owner
+    list `occ app:list --shipped=false` before the run and compare it after (review below).
+  - *The smoke's drain.* The five jobs that can mail (`NC_MAIL_JOBS`) are the same classes at 35,
+    each listed as a job in its app's `info.xml`; none of the seven jobs 35's shipped apps add
+    (app_api one, circles four, notifications one, serverinfo one) mails anybody.
+    `CronService` is the same (14 minutes, job classes on `cron.php`'s command line, "Starting
+    job"), and `background-job:list --class … --output=json` still prints `class`.
+  - *Phoning home.* `config.sample.php`'s `updatechecker`, `appstoreenabled`,
+    `has_internet_connection` and four connectivity sites are as at `stable34`, and the crawler,
+    the connectivity check and the lookup-server retry read `has_internet_connection` as on 34.
+    `a-service-that-phones-home`'s two Nextcloud rows move to `nextcloud:35`; until then they
+    failed on the new pin, as they are meant to.
+  - *PHP.* 35.0.2's image still sets `opcache.jit=1255` in `opcache-recommended.ini`, so
+    `zz-ownpace-no-jit.ini` is still needed and still sorts after it; it sets
+    `session.upload_progress.enabled=0` and `APACHE_BODY_LIMIT` as 34.0.5's build does.
+- **What upgrades, and when.** Only the OTA demo has data that lasts: its `nextcloud_data`
+  volume and its `nextcloud` database in the stack's Postgres
+  (`a-demo-nextcloud-on-the-stacks-postgres`). Live runs no Nextcloud: `deploy-live.sh` and
+  `stand-up-live.sh` refuse `--with-demo` by name, and without it the bring-up does not start one
+  (`docs/managed-bring-up.md` says so). The self-host E2E removes `dev.yml`'s container before
+  each run, so 35 installs afresh there, and the tier starts a new one per run; a developer's
+  `dev.yml` keeps the image's anonymous volume and upgrades it on the next `up`. **E2E (managed)
+  on this branch is the first thing that upgrades the OTA volume**: the gate brings the branch's
+  `managed.yml` up in the OTA project (`bootstrap-managed.sh --from data --with-demo`, then
+  `up_wait nextcloud`), so that run is the upgrade, not a test before it, and every nightly of
+  `main` is red at `up_wait nextcloud` from then until this merges.
+- **The way back, written for the owner**, in `docs/managed-bring-up.md`, *A Nextcloud major on
+  the OTA stack*: the order (the OK; after the alpha.2 tag and never between counted nights; the
+  migrations paused a few minutes before the copies and until the branch merges; the room checked
+  against live's disk floor; the apps that do not ship listed, then the volume copied and the
+  database dumped, with the demo stopped, by a block that refuses an earlier try's leftovers and
+  ends with a line that says it is done, and a block that puts the demo back when it stops
+  partway; E2E (managed) dispatched when the branch is otherwise ready, and merged before the next
+  nightly is created, 03:30 UTC; `occ status`, the entrypoint's disabled-apps line and the app
+  list asked), and what to do when the run goes wrong: a wait that gave up while the upgrade ran
+  on (dispatch again), a failed `occ upgrade` (put the cause right, then maintenance mode off,
+  `occ upgrade` by hand, `occ status`), back to 34 (both copies together), and with no copies a
+  fresh demo (drop the volume and the database; the next bring-up installs it and makes the four
+  accounts and their seed again, and what the owner's own migrations wrote there is lost). Each
+  block runs as one subshell under `set -eu`, so a pasted block stops at its first failure.
+- **Not re-proven on 35:** `nextcloud-to-postgres.sh --convert` and `nextcloud-counters.sql`,
+  shown on 34.0.4 for an install still on SQLite. None is known: the OTA demo has been on
+  Postgres since 2026-09-29 and a fresh install starts there.
+- **Proved here** (no Docker daemon in this session): the unit guards that read the changed
+  files, `scripts/`, `packages/testing` and the classification guard (268 files, 5 994 tests, 33
+  skipped) and the four `apps/api` ones that read them; ESLint on the changed TypeScript; `pnpm
+  typecheck`. Five mutations, each red and put back: the leg left on 35, `dev.yml`,
+  `managed.yml` or the Testcontainers default left on 34, and the phones-home row left at 34.
+  Before the leg moved, the three pins moved alone failed `a-nextcloud-the-demo-does-not-run`
+  ("the same major"), and before the rows moved, `a-service-that-phones-home` ("re-read them at
+  the new pin").
+  **Owed, in this order:** CI on the pull request (the integration tier on 35.0.2 on both
+  architectures, and the second-major leg on 34.0.5, which the change to
+  `testcontainers-setup.ts` starts); E2E (self-hosted) on the branch, where `dev.yml`'s 35
+  installs afresh and is provisioned, seeded and migrated into; then, after the owner's OK and
+  the alpha.2 tag, E2E (managed) on the branch, which is the OTA demo's upgrade, in the order the
+  bring-up doc gives. At the merge, these records say what happened in place of what waits:
+  T5's row and §2.1's two `nextcloud` rows the merge's date and the E2E (managed) run that
+  upgraded the OTA volume, in place of "on the branch …" and "a draft waiting on the owner's
+  OK"; this entry the date of the OK. The comments elsewhere name the move by its pull request
+  and T5, not by the day it was written, and need no new date.
+- **Review of `48dff04e`, the same evening** (eleven findings, every one held). The failed
+  `occ upgrade` recovery was wrong: with maintenance mode kept on, Nextcloud's updater leaves it
+  on after a good upgrade (it turns it off only when it was off as the upgrade started,
+  `lib/private/Updater.php` at `v35.0.2`), and when the core already upgraded, `occ upgrade`
+  does not run at all ("Nextcloud is in maintenance mode … call this script again", exit 2,
+  `core/Command/Upgrade.php`); the doc now turns it off first, then upgrades, then asks
+  `occ status`. The recovery blocks set the compose project themselves and run as one subshell
+  under `set -eu`, so an empty project never reaches `pg_restore` or `DROP DATABASE`. The order
+  lists and compares the apps that do not ship. `bootstrap-managed.sh` asks `occ status` after
+  `up_wait nextcloud` (`nextcloud_upgrade_done`) and stops on maintenance, an upgrade owed or no
+  answer, with the way on, and `a-demo-nextcloud-on-the-stacks-postgres` holds it with the
+  stand-in answering as v35.0.2's `core/Command/Status.php` prints: four mutations (no
+  maintenance check, no upgrade check, no installed check, the call dropped from `phase_data`),
+  each red and put back. The comments that said "35 since 2026-10-26" name the move by its pull
+  request and T5 (the day the draft was written is not the day it lands, and the OTA demo moves
+  at E2E (managed) on the branch); the guard's title reads either way; the one-way note in
+  *Updating a running deployment* names the way back for a major; "Back to 34" names `main`'s
+  34 pin, floating `34-apache` until #1678 merges; #1678's CHANGELOG bullet points at 35.0.2.
+
 **2026-10-26: the tasks build on the API image's own base, a draft stacked on v4.8.1** (0146
 T14, draft #1716 on branch `claude/ownpace-public-readiness-y7orc6-tasks-trixie-base`; 0146's Status entry
 of the same day has the detail and the figures).
@@ -780,7 +909,7 @@ a decision each, §3, for the owner.
 | T2 The safe moves | ✅ Done 2026-09-06 | node 24.20.0-slim (three Dockerfiles), postgres 18.6-alpine (self-host), pgbouncer v1.25.2-p0, mailpit v1.31.1, busybox 1.38 (compose, three scripts, one test, the bring-up doc), nginx 1.30-alpine (web image and www; both on 1.31 since the morning, see the status block); three action version comments set to the tag their SHA is. Stateless, or a fixture, or a patch of a store that upgrades in place. Proved on the branch before merge: **E2E (self-hosted) #189 green** (the postgres and node moves, restart-resume included) and **E2E (managed) #161 green** (pgbouncer in front of the API, mailpit, busybox, nginx behind www), both dispatched at 01:57 UTC; `images.yml` built the three images from the moved FROM lines; the `unit` scripts guards 92 files, 1 567 tests. |
 | T3 The owner's decisions | 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Taken 2026-09-09: Redis (item 3 — **stay on 7.4**, with a revisit trigger) and the release-age gate (item 8 — `minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). Taken 2026-10-23: ClickHouse 26.2 for the Alpha (item 9). The object store (item 5): taken 2026-10-23, *"T7 no, fix already within the alpha"* (0146 T7), and ✅ merged as #1692 on 2026-10-25 (`0029db4a`, E2E (managed) #281 green) — *was:* still the owner's, with a candidate named. |
 | T4 vitest 5 | ✅ Done 2026-09-06 | `vitest` and `@vitest/coverage-v8` 4.1.11 → 5.0.0, every declaring package together. Green on Node 22 (508 files, 6 326 tests) and on Node 24 as CI runs it (509 files, 6 411 tests); the v8 provider loads and reports. Two things the major needed first, found by trying it and landed as their own PR (#810) because they are right under vitest 4 too: the alias map's missing subpath pins — `@openmig/core/archive-reader` and thirteen more, plus a guard — and the exclude patterns in their documented form, since vitest 5 follows pnpm's workspace symlinks when it crawls and a bare `node_modules` matched only the top level. The bump is its own PR, stacked on #810. |
-| T5 The second Nextcloud major in CI | 🔨 In progress | 2026-10-25: `nextcloud-second-major.yml` runs the suites that talk to Nextcloud against 35.0.1 by digest (35.0.2 since 2026-10-26), the setup refuses a Nextcloud that did not start or is not the version named, and the tier has a share suite. Green on its pull request (#1705: 36 tests against 35.0.1, 814 against 34.0.5 on both architectures); a draft, merged after the alpha.2 tag. Reviewed and `main` merged in the same day; after the fold (#1706), the CHANGELOG bullet back under `[Unreleased]`; on 2026-10-26, once its digest was three days old, 35.0.2 by digest (PHP 8.5.12) (Status). CI only, not one way. |
+| T5 The second Nextcloud major in CI | 🔨 In progress | 2026-10-25: `nextcloud-second-major.yml` runs the suites that talk to Nextcloud against 35.0.1 by digest (35.0.2 since 2026-10-26), the setup refuses a Nextcloud that did not start or is not the version named, and the tier has a share suite. Green on its pull request (#1705: 36 tests against 35.0.1, 814 against 34.0.5 on both architectures); a draft, merged after the alpha.2 tag. Reviewed and `main` merged in the same day; after the fold (#1706), the CHANGELOG bullet back under `[Unreleased]`; on 2026-10-26, once its digest was three days old, 35.0.2 by digest (PHP 8.5.12) (Status). CI only, not one way. 2026-10-26, a draft for alpha.3 on `…-nextcloud-35-demo` (#1678 and #1705 merged): the demo, the dev stack and the tier to 35.0.2 by digest and the leg to 34.0.5, the major customers who have not upgraded still run; **the owner's OK came on 2026-10-26** ("Yes, in alpha.3", Status), and E2E (managed) on it is the OTA demo's one-way upgrade, after the copies (Status of 2026-10-26; the way back in `managed-bring-up.md`). |
 
 ## 1. Why this exists
 
@@ -826,8 +955,8 @@ is who moves it after T1.
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason | 1.38 (1.38.0) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.37.0 (2026-10-21) | v5.37.0 (2026-09-24) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
 | `axllent/mailpit` | `managed.yml` | v1.32.0 by digest (2026-10-25, for CVE-2026-111943 in v1.31.6's Go, 0146 T11 (a); v1.31.6 from 2026-10-21, v1.31.1 from T2) | v1.32.0 (2026-10-22), digest `0790692b…` | current | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
-| `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 34.0.5-apache by digest `1f9212ad…` (2026-10-25, upstream's rebuild of 2026-10-23 with `session.upload_progress.enabled=0`, PHP's mitigation for CVE-2026-115560; `9dbdc711…` from 2026-10-22, `34-apache` floating before, never pulled) | 34.0.5 (2026-10-15) on PHP 8.5.12 | current | by hand, in its own PR, when the pin watch lists a newer 34.x or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and refuses an older image on it, so a bad move is fixed forward (`managed-bring-up.md`, *Updating a running deployment*) |
-| `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 35.0.2-apache by digest (PHP 8.5.12), since 2026-10-26; 35.0.1 before | 35.0.2-apache | current | by hand; the pin watch reads no workflow file (§4) | a CI fixture: the other major customers may run, never deployed |
+| `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 35.0.2-apache by digest `89af7ee7…` on the branch `…-nextcloud-35-demo` (2026-10-26, T5; draft #1720, the owner's OK of 2026-10-26 for alpha.3); before it 34.0.5-apache by digest `1f9212ad…` (2026-10-25, upstream's rebuild of 2026-10-23 with `session.upload_progress.enabled=0`, PHP's mitigation for CVE-2026-115560; `9dbdc711…` from 2026-10-22, `34-apache` floating before, never pulled) | 35.0.2 (2026-10-15) on PHP 8.5.12; 35.0.3 due 2026-11-12 | current | by hand, in its own PR, when the pin watch lists a newer 35.x (34.x before the move) or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and its database and refuses an older image on them, so a bad move is fixed forward or put back from a copy taken before it (`managed-bring-up.md`, *Updating a running deployment* and *A Nextcloud major on the OTA stack*) |
+| `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 34.0.5-apache by digest `1f9212ad…` (PHP 8.5.12) on the branch `…-nextcloud-35-demo`, flipped in the pull request that moved the demo (T5, written 2026-10-26); before it 35.0.2-apache by digest `89af7ee7…` from 2026-10-26, 35.0.1 from 2026-10-25 | 34.0.5; 34.0.6 due 2026-11-12 | current | by hand; the pin watch reads no workflow file (§4) | a CI fixture: the other major customers may run (35 while the demo ran 34, 34 since), never deployed |
 | `ghcr.io/robbes/ownpace-selfhost` | `deploy/selfhost/compose.yml` | `edge` | ours | — | `images.yml` | — |
 
 Ignored by name in the new Dependabot entries, so that a green tick cannot make these
@@ -1370,6 +1499,9 @@ is beside each; none is urgent tonight.
 - **The second Nextcloud major's pin is moved by hand** (T5): nothing watches
   `nextcloud-second-major.yml`'s `NEXTCLOUD_IMAGE`. A row in the pin watch reading it is the
   follow-up, once the open pull requests that change `scripts/idp-pin-watch.mjs` have merged.
+  Since the flip (T5, in the pull request that moved the demo) the leg names 34.0.5 and the
+  compose files 35, so the pin watch reads 35 and 34.0.6 (due 2026-11-12) is nobody's to report
+  until that row exists.
 - **ClickHouse** is not checked against anything but Trigger.dev's own compose, and that
   is by design; the version that rejected a migration is the reason it is pinned at all. That
   pin, 26.2, has been out of ClickHouse's support since 2026-05-21: accepted for the Alpha, with

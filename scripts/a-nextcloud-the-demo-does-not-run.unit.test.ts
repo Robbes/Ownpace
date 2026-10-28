@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may be on 35 while every suite here ran against 34 (workplan 0119, Status of 2026-10-25).
+ * A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may run a major no suite here ran against (35 while the demo ran 34, workplan 0119, Status of 2026-10-25; 34 since the demo's move, T5).
  *
  * ## What was missing
  *
@@ -13,6 +13,19 @@
  * CardDAV, chunked-upload and share code work against 35" had no answer
  * anywhere, and the first to ask it would have been a customer.
  *
+ * ## Since the demo moved (workplan 0119 T5, written 2026-10-26)
+ *
+ * The leg answered: every suite green against 35.0.1 and 35.0.2 (#1705). The
+ * demo, the dev stack and the integration tier then move to
+ * `nextcloud:35.0.2-apache` by digest, and the leg flips to
+ * `nextcloud:34.0.5-apache` by the digest they ran before (#1678): 34 is the
+ * major a customer who has not upgraded still runs, maintained by Nextcloud
+ * until 2027-06. The rule below did not change, and is what made the flip one
+ * change: with the demo on 35 and the leg left on 35 it fails, "the same
+ * major", until the leg names the other one. A major is the owner's call, and
+ * one way for the demo's data (`docs/managed-bring-up.md`, *A Nextcloud major
+ * on the OTA stack*).
+ *
  * ## What answers it
  *
  * `.github/workflows/nextcloud-second-major.yml` runs the integration suites
@@ -20,7 +33,7 @@
  * image its `NEXTCLOUD_IMAGE` names, on a GitHub-hosted runner: on a push to
  * main that touches their code, on a pull request that changes how the leg
  * runs, weekly, and on demand. Not on every pull request: `ci.yml` already
- * runs every suite against 34 on two architectures.
+ * runs every suite against the demo's major on two architectures.
  *
  * ## What this holds
  *
