@@ -11,10 +11,14 @@
  * then never returned: sixteen minutes, waiting on the daemon's socket, with
  * compose drawing its progress in a terminal (the nights run it with none and
  * never met it). The same pull from a second terminal came back in 0.7s. The
- * deploy only moved on once the pull was killed, and so did not take.
+ * deploy only moved on once the pull was killed, and so did not take. The
+ * cause is compose v5.0.x's terminal progress writer, which can deadlock at
+ * the end of a command (docker/compose#13639).
  *
- * Two things answer it, and both are run here, against the function as it is
- * in bootstrap-managed.sh, with a stub `docker` that records every call:
+ * Three things answer it. Plain progress for every compose call of the
+ * bring-up and of deploy-live.sh (read here). And, run here against the
+ * function as it is in bootstrap-managed.sh with a stub `docker` that records
+ * every call:
  *   - an image that is here is not pulled at all;
  *   - a pull that is needed has an end (ZITADEL_PULL_TIMEOUT), after which the
  *     bring-up stops with a sentence saying what to do, never a wait.
@@ -29,6 +33,7 @@ import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BOOTSTRAP = readFileSync(join(REPO_ROOT, 'deploy/compose/bootstrap-managed.sh'), 'utf8');
+const DEPLOY_LIVE = readFileSync(join(REPO_ROOT, 'deploy/compose/deploy-live.sh'), 'utf8');
 
 const start = BOOTSTRAP.indexOf('prepare_machinekey_volume() {');
 const FUNCTION = BOOTSTRAP.slice(start, BOOTSTRAP.indexOf('\n}\n', start) + 3);
@@ -55,13 +60,19 @@ case "$*" in
 esac
 `;
 
-function run(env: { PRESENT: '0' | '1'; PULL?: 'ok' | 'hang' | 'fail'; timeout?: string }) {
+function run(env: { PRESENT: '0' | '1'; PULL?: 'ok' | 'hang' | 'fail'; timeout?: string; timeoutExit?: string }) {
   const dir = mkdtempSync(join(tmpdir(), 'pull-never-came-back-'));
   try {
     const bin = join(dir, 'bin');
     mkdirSync(bin);
     writeFileSync(join(bin, 'docker'), STUB);
     chmodSync(join(bin, 'docker'), 0o755);
+    // A `timeout` that ends as given, ahead of the real one on PATH: the exits
+    // a real run cannot be made to give here (killed, interrupted).
+    if (env.timeoutExit) {
+      writeFileSync(join(bin, 'timeout'), `#!/bin/sh\nexit ${env.timeoutExit}\n`);
+      chmodSync(join(bin, 'timeout'), 0o755);
+    }
     const calls = join(dir, 'calls');
     writeFileSync(calls, '');
     const script = [
@@ -105,14 +116,29 @@ describe('a pull that never came back (live, 2026-10-28)', () => {
     expect(DEFAULT_LINE).toBe('ZITADEL_PULL_TIMEOUT="${ZITADEL_PULL_TIMEOUT:-600}"');
   });
 
-  it('gives the pull no terminal: input from /dev/null, output through a pipe', () => {
-    // Read, not run: a test has no terminal to take away. With one, compose
-    // draws its progress (the mode that hung on live), and `timeout`, which
-    // starts it in a process group of its own, would see it stopped the moment
-    // it touched the terminal's settings, and stop it after 600 seconds instead.
+  it('asks every compose call for plain progress, in the bring-up and in deploy-live.sh', () => {
+    // Read, not run: a test has no terminal, where the deadlock lives. Exported
+    // right after COMPOSE is set, before any compose call, so the scripts each
+    // starts (setup-zitadel.sh, the bring-up from deploy-live.sh) get it too.
+    for (const [name, text] of [['bootstrap-managed.sh', BOOTSTRAP], ['deploy-live.sh', DEPLOY_LIVE]] as const) {
+      const code = text.replace(/^\s*#.*$/gm, '');
+      const set = code.indexOf('\nexport COMPOSE_PROGRESS=plain\n');
+      const firstCall = code.indexOf('"${COMPOSE[@]}"');
+      expect(set, `${name} no longer asks for plain progress`).toBeGreaterThan(-1);
+      expect(firstCall, `${name} makes no compose call any more`).toBeGreaterThan(-1);
+      expect(set, `${name} asks for plain progress after its first compose call`).toBeLessThan(firstCall);
+    }
+  });
+
+  it('keeps Ctrl-C able to stop the pull, and its output in a file, not a pipe', () => {
+    // Read, not run. Without --foreground, `timeout` takes the pull out of the
+    // terminal's process group, so Ctrl-C reaches only the script and the pull
+    // runs on to its limit (the review of this change, measured with the real
+    // docker CLI and compose in a terminal: 15s, not 2s). A pipe would let
+    // anything the pull leaves running hold the bring-up open on its far end.
     const code = FUNCTION.replace(/^\s*#.*$/gm, '');
     expect(code).toMatch(
-      /timeout --kill-after=\d+ "\$ZITADEL_PULL_TIMEOUT" "\$\{COMPOSE\[@\]\}" pull -q zitadel <\/dev\/null 2>&1 \|\n\s+sed 's\/\^\/    \/' \|\| pull_rc=\$\?/,
+      /timeout --foreground --kill-after=\d+ "\$ZITADEL_PULL_TIMEOUT" "\$\{COMPOSE\[@\]\}" pull -q zitadel <\/dev\/null >"\$pull_log" 2>&1 \|\|\n\s+pull_rc=\$\?/,
     );
   });
 
@@ -143,6 +169,16 @@ describe('a pull that never came back (live, 2026-10-28)', () => {
     // Nothing after the pull ran: no user read, no volume prepared.
     expect(r.calls.some((c) => c.includes('--format {{.Config.User}}'))).toBe(false);
     expect(r.calls.some((c) => c.includes('zitadel-machinekey'))).toBe(false);
+  });
+
+  it('names a pull killed after its limit (137) as killed, and an interrupted one (130) as interrupted', () => {
+    const killed = run({ PRESENT: '0', timeoutExit: '137' });
+    expect(killed.status).not.toBe(0);
+    expect(killed.stderr).toMatch(/the pull of ghcr\.io\/zitadel\/zitadel:v9\.9\.9 was killed \(exit 137\): by the limit of 600s and 30 more/);
+    const interrupted = run({ PRESENT: '0', timeoutExit: '130' });
+    expect(interrupted.status).not.toBe(0);
+    expect(interrupted.stderr).toMatch(/the pull of ghcr\.io\/zitadel\/zitadel:v9\.9\.9 was interrupted/);
+    for (const r of [killed, interrupted]) expect(r.calls.some((c) => c.includes('zitadel-machinekey'))).toBe(false);
   });
 
   it('names a pull that failed by its exit, rather than as a timeout', () => {

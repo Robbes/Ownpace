@@ -68,6 +68,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
+# PLAIN PROGRESS, ALWAYS (live's deploy of alpha.2, 2026-10-28). Compose v5.0.x
+# draws its progress in a terminal with a writer that can deadlock at the end
+# of a command: it prints its last line ("Pulled 0.6s") and never returns
+# (docker/compose#13639, fixed upstream by #13640; a second path after a cancel,
+# #14114). Live's bring-up met it from a terminal; the nights, with none, never
+# did. Plain progress has no such writer. Exported, so setup-zitadel.sh and
+# every script this starts write plain lines too.
+export COMPOSE_PROGRESS=plain
 # The compose project this checkout drives: COMPOSE_PROJECT_NAME, else
 # managed.yml's `name:`. Two stacks share the reference machine's Docker daemon
 # (workplan 0132 D7), so every volume name or persisted path this prints is
@@ -1931,21 +1939,29 @@ prepare_machinekey_volume() {
   # machine the image arrives with `up`, which is after this, so a missing one
   # is pulled first. One that is here is not asked for again: on live, a pull of
   # an image already present printed "Pulled" and then never returned (compose
-  # v5.0.2 drawing its progress in a terminal; the nights, with no terminal,
-  # never met it), and the deploy waited sixteen minutes on a no-op until the
-  # pull was killed and the deploy did not take. A pull that is needed is
-  # bounded: ZITADEL_PULL_TIMEOUT seconds, then a refusal that says what to do.
-  # And it gets no terminal, as on the nights: input from /dev/null, output
-  # through a pipe, so compose prints plain lines, and `timeout`, which runs it
-  # in a process group of its own, cannot have it stopped for touching one.
+  # v5.0.2's terminal progress, docker/compose#13639; COMPOSE_PROGRESS above now
+  # keeps every call here off it), and the deploy waited sixteen minutes on a
+  # no-op until the pull was killed and the deploy did not take. A pull that is
+  # needed is bounded: ZITADEL_PULL_TIMEOUT seconds, then a refusal that says
+  # what to do. `--foreground` keeps it in the terminal's own process group, so
+  # Ctrl-C still reaches it; its output goes to a file, never a pipe, so nothing
+  # it leaves behind can hold the bring-up open.
   if ! docker image inspect "$image" >/dev/null 2>&1; then
-    local pull_rc=0
-    timeout --kill-after=30 "$ZITADEL_PULL_TIMEOUT" "${COMPOSE[@]}" pull -q zitadel </dev/null 2>&1 |
-      sed 's/^/    /' || pull_rc=$?
+    local pull_rc=0 pull_log
+    pull_log="$(mktemp)"
+    timeout --foreground --kill-after=30 "$ZITADEL_PULL_TIMEOUT" "${COMPOSE[@]}" pull -q zitadel </dev/null >"$pull_log" 2>&1 ||
+      pull_rc=$?
+    sed 's/^/    /' "$pull_log"
+    rm -f "$pull_log"
     case "$pull_rc" in
       0) ;;
-      124 | 137)
+      124)
         die "the pull of ${image} did not end within ${ZITADEL_PULL_TIMEOUT}s, so it was stopped; nothing after it ran.
+    Run the same command again. If it stops here again, pull it by hand
+    (docker pull ${image}) and see what it waits on." ;;
+      130) die "the pull of ${image} was interrupted; nothing after it ran." ;;
+      137)
+        die "the pull of ${image} was killed (exit 137): by the limit of ${ZITADEL_PULL_TIMEOUT}s and 30 more, or by something else on this machine; nothing after it ran.
     Run the same command again. If it stops here again, pull it by hand
     (docker pull ${image}) and see what it waits on." ;;
       *) die "the pull of ${image} failed (exit ${pull_rc}, above)." ;;
