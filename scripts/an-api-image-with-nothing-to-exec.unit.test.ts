@@ -12,8 +12,8 @@
  * `gcr.io/distroless/nodejs24-debian13:nonroot` by digest: fourteen Debian
  * packages and Node, 0 critical and 0 high the same day. Its
  * `/nodejs/bin/node` was the trixie image's `/usr/local/bin/node`, byte for
- * byte (sha256 `e32e2d16…` amd64, `c8c57216…` arm64). The tasks copy Node out
- * of the Dockerfile's `FROM node:` line, and the two pins move apart, so the
+ * byte (sha256 `e32e2d16…` amd64, `c8c57216…` arm64). The tasks build on
+ * the Dockerfile's `FROM node:` line, and the two pins move apart, so the
  * smoke holds the API's Node to that line's version on every managed run (5).
  *
  * What the image no longer has is what everything around it used. Before

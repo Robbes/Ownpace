@@ -158,8 +158,8 @@ api_node() {
 
 # dockerfile_node [dockerfile] — `v<x.y.z>`, the Node version of the first
 # `FROM node:<x.y.z>-…` line of the API's Dockerfile: the Node image it builds
-# on, and the Node the managed tasks copy (apps/worker/trigger.config.ts). Exit
-# 1 when it has none.
+# on, and the image the managed tasks build on (apps/worker/trigger.config.ts,
+# 0146 T14). Exit 1 when it has none.
 dockerfile_node() {
   local line
   while IFS= read -r line; do
@@ -981,7 +981,7 @@ API_NODE_FOUND="$(api_node)" || {
 API_NODE="${API_NODE_FOUND%% *}"
 API_NODE_VERSION="${API_NODE_FOUND#* }"
 # THE API RUNS THE NODE ITS DOCKERFILE'S FROM NODE LINE NAMES (workplan 0146
-# T13a). The managed tasks copy their Node out of that line. On the Node image
+# T13a). The managed tasks build on that line (0146 T14). On the Node image
 # the API runs that line's Node as it is; the distroless runtime workplan 0146
 # T13 moves it to has a Node of its own, whose `nonroot` tag names no version
 # and which no scanner lists, pinned by a digest that moves apart from the node
@@ -995,7 +995,7 @@ WANT_NODE="$(dockerfile_node)" || {
 }
 if [ "$API_NODE_VERSION" != "$WANT_NODE" ]; then
   echo "FATAL: the API container's ${API_NODE} is ${API_NODE_VERSION}, and apps/api/Dockerfile's"
-  echo "       FROM node line, the Node the managed tasks copy, is ${WANT_NODE}. Either the"
+  echo "       FROM node line, the Node the managed tasks run, is ${WANT_NODE}. Either the"
   echo "       runtime's Node and that line were moved apart (a distroless digest and the"
   echo "       node tag: move the other to the same Node), or this stack's api image was"
   echo "       not built from this checkout"

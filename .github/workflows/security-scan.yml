@@ -435,19 +435,24 @@ jobs:
   #
   # THE TASKS' IMAGE IS BUILT, NOT PULLED (workplan 0146 T10, 2026-10-25). No
   # registry holds it: each deploy builds it on the stack's own machine, on
-  # the base image the pinned Trigger.dev CLI names, with the layers
-  # apps/worker/trigger.config.ts adds (the API image's Node, and the base
-  # image's Debian packages upgraded). Until this, the scan read the base
-  # image alone, and the alerts for what those layers fix stayed open. So its
-  # leg builds the deploy's `base` stage (`image-scan.mjs containerfile`, which
-  # runs the config's own extensions and so needs the workspace installed) on
-  # GitHub's arm64 runner, natively, and Trivy reads it from that runner's
-  # Docker. The name, and so the category, stays `trigger-task-base`, and the
-  # local tag it is built under is in the base's own repository
-  # (`triggerdotdev/node:trigger-task-base-built`, never pushed), which is the
-  # location Trivy's SARIF gives each Debian finding: so the first scan on main
-  # that reads the built stage closes the alerts it no longer has, and the ones
-  # it still has keep their numbers and their triage.
+  # the image apps/api/Dockerfile builds FROM, which
+  # apps/worker/trigger.config.ts names as the tasks' base since 0146 T14 (the
+  # base image the pinned Trigger.dev CLI names when the config names none),
+  # with the layer the config adds (the base image's Debian packages upgraded,
+  # dumb-init and the CA trust edits, the package managers removed). Until T10,
+  # the scan read a base image alone, and the alerts for what the layers fix
+  # stayed open. So its leg builds the deploy's `base` stage (`image-scan.mjs
+  # containerfile`, which runs the config's own extensions and so needs the
+  # workspace installed) on GitHub's arm64 runner, natively, and Trivy reads it
+  # from that runner's Docker. The name, and so the category, stays
+  # `trigger-task-base`, and the local tag it is built under is in the base's
+  # own repository (`node:trigger-task-base-built` on the API's Node image,
+  # never pushed), which is the location Trivy's SARIF gives each Debian
+  # finding: so a scan on main that reads the built stage closes the alerts it
+  # no longer has, and the ones it still has keep their numbers and their
+  # triage. T14 moved the base's repository (`triggerdotdev/node` to `node`),
+  # so the first scan after it closes the old base's alerts and opens the new
+  # one's, once.
   #
   # AN IMAGE NO REGISTRY SERVES IS BUILT, NOT PULLED (#1675, 2026-10-25). A
   # script's `localhost/<name>` image is built by that script from
@@ -499,11 +504,13 @@ jobs:
           check-latest: true # the newest 24.x, not the first one in the runner's tool cache
       # The compose files' image lines, read with the pin watch's reader (a
       # `${VAR:-default}` as its default, a digest kept), the images the
-      # scripts name, the tasks' base image as the pinned Trigger.dev CLI names
-      # it (with `build`, the tag its leg builds the deploy's stage under),
-      # and Ownpace's three at `:edge` and at the newest release tag, which
-      # is what live runs: it builds the tag it deploys; an image a script or
-      # a compose file builds here carries its `context`. See image-scan.mjs.
+      # scripts name, the tasks' image (with `build`, the tag its leg builds
+      # the deploy's stage under, on apps/api/Dockerfile's FROM image, which
+      # trigger.config.ts builds the tasks on; on the pinned Trigger.dev CLI's
+      # base when the config names none), and Ownpace's three at `:edge` and
+      # at the newest release tag, which is what live runs: it builds the tag
+      # it deploys; an image a script or a compose file builds here carries
+      # its `context`. See image-scan.mjs.
       - name: List every image the stacks run
         id: list
         run: node scripts/image-scan.mjs list >> "$GITHUB_OUTPUT"
@@ -543,8 +550,8 @@ jobs:
       # before the scan on a `context` leg only. The workspace is installed
       # because the Containerfile comes from running the deploy config's own
       # build extensions, as the CLI does, so nothing here repeats an
-      # instruction or a version. The tasks' build pulls the base by its digest
-      # and the API image's Node image by its digest, and reaches Debian's
+      # instruction or a version. The tasks' build pulls its base, the API
+      # image's Node image since 0146 T14, by its digest, and reaches Debian's
       # archive; a `context` build pulls its Dockerfile's bases by their digests
       # and reaches the package mirrors and the source it names, as the
       # script's or compose's own build does on the machine; it pushes nothing.

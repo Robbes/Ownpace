@@ -14,14 +14,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   selfhost runtime stages also remove npm, npx, corepack, pnpm and yarn,
   which nothing in either container runs; npm's bundled packages were 5 of
   the highs, so the base under both reads 0 critical and 43 high, none of
-  which Debian has fixed. The managed tasks copy the same Node as before.
-  Nothing a stack sets changes.
+  which Debian has fixed. The managed tasks build on the same image
+  (workplan 0146 T14, #1716, in this release too). Nothing a stack sets
+  changes.
 - **The managed API runs on a distroless image** (workplan 0146 T13,
   #1709): its runtime is `gcr.io/distroless/nodejs24-debian13:nonroot` by
   digest, Debian 13.7 with Node and fourteen packages and no shell, where
   Trivy reads 0 critical and 0 high on amd64 and arm64, against 0 and 43 on
   the Debian 13 Node image under it before. The Node is the same binary, and
-  the managed tasks keep theirs; the smoke stops when the API's Node is not
+  the managed tasks keep building on the Node image (T14); the smoke stops when the API's Node is not
   the version the tasks get. The container runs as uid 65532 instead of
   10001 and can no longer write its own code, which is root's; it mounts
   nothing. Nothing execs a shell or `printenv` into it: every script and doc
@@ -37,6 +38,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   *The deploy from alpha.2 to alpha.3 runs twice*). A deploy from this
   release on runs once. `docker compose … exec api sh` or `printenv` by hand
   no longer works; `/nodejs/bin/node` does.
+- **The managed tasks run on the API image's own base, with no package
+  manager** (workplan 0146 T14, #1716): a task deploy builds them on the
+  image `apps/api/Dockerfile` builds FROM instead of Trigger.dev's
+  `triggerdotdev/node:24-bookworm`, so they run that image's Node and
+  Debian, which Dependabot moves. They keep dumb-init, Debian's CA store and
+  the distrust of the compromised eMudhra roots and intermediates that the
+  CLI gives its own images, and lose npm, corepack and yarn, which nothing in
+  them runs. On Debian 13 (#1708) the tasks' image reads 0 critical and 43
+  high findings, none with a fix, where the one a deploy builds on the CLI's
+  v4.8.1 base reads about 1 and 80. The weekly image scan reads the tasks on
+  that base too. The first task deploy after this is slow: a new image in
+  both build stages, with the Debian archive reachable.
 
 ### Changed
 
@@ -181,9 +194,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   webapp has since v4.7.6. It carries no database or ClickHouse migration,
   but a stack whose `.env` sets `TRIGGER_IMAGE_TAG` sets `v4.8.1` there
   first, with no run executing and after the backup, or its bring-up stops
-  at the `trigger` phase. The tasks still take the API image's Node; the
-  CLI's own base image under them is now on 24.22.1 as well, so the first
-  task deploy after this one is the slow one. ClickHouse stays on 26.2,
+  at the `trigger` phase. The tasks build on the API image's own base (T14,
+  #1716, in this release too), so the first task deploy after this one is
+  the slow one. ClickHouse stays on 26.2,
   which Trigger.dev still pins.
 
 ### Added
@@ -224,8 +237,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   reached there.
 - **The weekly image scan reads the tasks' image as a task deploy builds it**
   (workplan 0146 T10, #1700): it read only the base image Trigger.dev's CLI
-  names, while every deploy copies the API image's Node over that base and
-  upgrades its Debian packages, so the alerts for what the upgrade fixes could
+  names, while every deploy copied the API image's Node over that base and
+  upgraded its Debian packages, so the alerts for what the upgrade fixes could
   never close. The scan now builds that stage itself, from the deploy config,
   and reports it under the same code-scanning category and alert location, so
   the first scan on `main` after this closes them, and the alerts it still has

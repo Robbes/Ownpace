@@ -26,8 +26,8 @@
 # ("bookworm"): on 2026-10-25 Trivy 0.76.1 read 1 critical and 61 high findings
 # in `node:24.22.1-slim` and 0 and 48 in this image, on amd64 and arm64 alike,
 # and none of the 43 Debian ones left has a fix. Node is the same file in both,
-# byte for byte, and the managed tasks copy it out of this image
-# (apps/worker/trigger.config.ts). Dependabot keeps the suffix when it moves the
+# byte for byte, and the managed tasks build on this image
+# (apps/worker/trigger.config.ts, 0146 T14). Dependabot keeps the suffix when it moves the
 # tag. scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts holds
 # the three FROM lines to one string and the tag to a named Debian release.
 FROM node:24.22.1-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea AS base
@@ -105,7 +105,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 # c8c57216... on arm64).
 #
 # THE SAME NODE VERSION AS THE FROM NODE LINE ABOVE, CHECKED, NOT ASSUMED. The
-# managed tasks copy Node out of that line (apps/worker/trigger.config.ts), and
+# managed tasks build on that line (apps/worker/trigger.config.ts, 0146 T14), and
 # the two pins move apart: Dependabot moves the node tag, and this digest when
 # the `nonroot` tag moves. Nothing reads the version off this image either (the
 # `nonroot` tag names none, and Trivy lists no Node runtime in it). So the

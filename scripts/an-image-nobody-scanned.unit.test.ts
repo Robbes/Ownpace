@@ -76,6 +76,14 @@
  * `postgres-selfhost`, the category and the issue) is the one the pulled
  * image had.
  *
+ *  - The tasks' base image is the one a deploy builds on. Since workplan 0146
+ *    T14 the deploy config builds the tasks on the image `apps/api/Dockerfile`
+ *    builds FROM, and the CLI's own base image is in nothing a deploy builds;
+ *    a list that kept reading the CLI's would scan an image nothing runs, and
+ *    nothing would scan the one that does. So the config's own extension is
+ *    run here as the CLI runs it, and the scan's reference must be the base
+ *    it leaves in the manifest.
+ *
  * The network is stubbed (the git tags, the Trigger.dev CLI's tarball) and so
  * is `gh`; the compose files, the scripts and the deploy config are the real
  * ones.
@@ -89,10 +97,10 @@ import { gzipSync } from 'node:zlib';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
-import { COMPOSE_FILES, builtTag, parseRef, readImages, repoReader, stepsUsing, type Net, type Repo } from './idp-pin-watch.mjs';
-import type { BuildContext, BuildLayer } from '@trigger.dev/core/v3/build';
-import taskConfig from '../apps/worker/trigger.config.ts';
+import type { BuildContext, BuildExtension, BuildLayer } from '@trigger.dev/core/v3/build';
+import { COMPOSE_FILES, TASK_ON_API_IMAGE, builtTag, parseRef, readImages, repoReader, stepsUsing, type Net, type Repo } from './idp-pin-watch.mjs';
 import {
+  API_DOCKERFILE,
   BUILT_HERE,
   ISSUE_PREFIX,
   ISSUES_REF,
@@ -116,6 +124,7 @@ import {
   type ScanImage,
   type TaskConfig,
 } from './image-scan.mjs';
+import taskConfig from '../apps/worker/trigger.config.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const REAL = repoReader(REPO_ROOT);
@@ -192,6 +201,35 @@ function fakeNet(tags = TAGS): Net & { asked: string[] } {
     probe: refuse,
   };
 }
+
+/**
+ * The base a task deploy builds on: every build extension of the real deploy
+ * config run as the CLI runs them for a deploy (all starts, then all
+ * completes, one manifest handed to each), and the manifest's `image.base`
+ * read back, which is where the CLI takes the Containerfile's first FROM
+ * from. Undefined when the config names none, and the CLI's own base is used.
+ */
+async function deployBase(): Promise<string | undefined> {
+  const context = {
+    target: 'deploy',
+    workingDir: join(REPO_ROOT, 'apps/worker'),
+    addLayer: (_layer: BuildLayer) => undefined,
+  } as unknown as BuildContext;
+  type Manifest = Parameters<NonNullable<BuildExtension['onBuildComplete']>>[1];
+  const manifest = { image: { pkgs: [], instructions: [] } } as unknown as Manifest;
+  const extensions = taskConfig.build?.extensions ?? [];
+  for (const extension of extensions) await extension.onBuildStart?.(context);
+  for (const extension of extensions) await extension.onBuildComplete?.(context, manifest);
+  return manifest.image?.base;
+}
+
+/** The deploy config with the pin watch's mark of a base of its own taken out: a config that names none. */
+const configWithoutBase = (): string => {
+  const config = REAL.read('apps/worker/trigger.config.ts')!;
+  const bare = config.replace(TASK_ON_API_IMAGE, '');
+  expect(TASK_ON_API_IMAGE.test(bare), 'the mark is still in the config, so this case would prove nothing').toBe(false);
+  return bare;
+};
 
 /** The real checkout, with some files replaced. */
 const withFiles = (over: Record<string, string>): Repo => ({
@@ -368,9 +406,29 @@ describe('which images it scans', () => {
     }
   });
 
-  it("the tasks' image, built on the base the pinned CLI names for the runtime trigger.config.ts asks for", async () => {
+  it("the tasks' base image is the one a deploy builds on: the API image's FROM, where the config names it", async () => {
+    const base = await deployBase();
+    // Vacuity guard: the config names a base of its own (0146 T14), so the
+    // equality below compares two real references, not two undefineds.
+    expect(base, 'the deploy config names no base, so the CLI builds the tasks on its own').toMatch(/^node:\S+@sha256:[0-9a-f]{64}$/);
     const net = fakeNet();
     const images = await imagesToScan(REAL, net);
+    const task = images.find((i) => i.name === 'trigger-task-base');
+    expect(task?.ref, "the scan reads an image no task deploy builds on").toBe(base);
+    expect(task?.ref).toBe(/^FROM\s+(node:\S+)/m.exec(REAL.read(API_DOCKERFILE)!)![1]);
+    expect(task?.where).toContain(API_DOCKERFILE);
+    expect(task?.where).toContain('apps/worker/trigger.config.ts');
+    expect(task?.floating).toBe(false);
+    // Built in its leg as a deploy builds it, on that base (workplan 0146 T10).
+    expect(task?.build, "its leg builds the deploy's stage on that base").toBe(taskBuildTag(base!));
+    // The CLI's own base is in nothing a deploy builds, so it is not even read.
+    expect(net.asked.some((url) => url.includes('registry.npmjs.org/trigger.dev/'))).toBe(false);
+    expect(images.some((i) => i.ref === TASK_BASE)).toBe(false);
+  });
+
+  it("where the config names no base of its own, the one the pinned CLI names for the runtime the config asks for", async () => {
+    const net = fakeNet();
+    const images = await imagesToScan(withFiles({ 'apps/worker/trigger.config.ts': configWithoutBase() }), net);
     const cli = JSON.parse(REAL.read('apps/worker/package.json')!).dependencies['@trigger.dev/sdk'] as string;
     // The name, and so the SARIF category `trivy-image-trigger-task-base`, is
     // the one its alerts were opened under (workplan 0146 T10): renamed, the
@@ -409,7 +467,7 @@ describe('which images it scans', () => {
     }
   });
 
-  it("builds on the CLI's own base, since the managed stack names no other for its deploys", () => {
+  it("builds on the base the config names, or else the CLI's own, since the managed stack names no other for its deploys", () => {
     // A Trigger.dev instance can make the CLI build on base images of its own
     // (the webapp's DEPLOY_BASE_IMAGES and DEPLOY_BUILD_BASE_IMAGES, which the
     // 4.7.6 CLI applies); the scan would then read a base no deploy uses.
@@ -424,10 +482,11 @@ describe('which images it scans', () => {
     // to 4.8.1, say) moves the tarball read and the `where`, and nothing else.
     const manifest = JSON.parse(REAL.read('apps/worker/package.json')!) as { dependencies: Record<string, string> };
     const moved = JSON.stringify({ ...manifest, dependencies: { ...manifest.dependencies, '@trigger.dev/sdk': '99.0.1' } });
+    // The CLI's base is read only where the config names no base of its own (0146 T14).
     const net = fakeNet();
-    const images = await imagesToScan(withFiles({ 'apps/worker/package.json': moved }), net);
+    const images = await imagesToScan(withFiles({ 'apps/worker/package.json': moved, 'apps/worker/trigger.config.ts': configWithoutBase() }), net);
     expect(net.asked).toContain('https://registry.npmjs.org/trigger.dev/-/trigger.dev-99.0.1.tgz');
-    const before = (await imagesToScan(REAL, fakeNet())).find((i) => i.name === TASK_IMAGE)!;
+    const before = (await imagesToScan(withFiles({ 'apps/worker/trigger.config.ts': configWithoutBase() }), fakeNet())).find((i) => i.name === TASK_IMAGE)!;
     const after = images.find((i) => i.name === TASK_IMAGE)!;
     expect(after.where).toContain('trigger.dev 99.0.1');
     expect({ name: after.name, build: after.build }).toEqual({ name: before.name, build: before.build });
@@ -457,13 +516,22 @@ describe('which images it scans', () => {
   });
 
   it("leaves out the Dockerfiles' FROM bases, which are inside Ownpace's images, but scans www.yml's nginx, which runs as it is", async () => {
+    // The API's is listed once, as the tasks' base, which is an image of its
+    // own (the case above); under no other name. Without the config's base,
+    // not at all.
     const images = await imagesToScan(REAL, fakeNet());
+    const bare = await imagesToScan(withFiles({ 'apps/worker/trigger.config.ts': configWithoutBase() }), fakeNet());
     for (const dockerfile of ['apps/api/Dockerfile', 'apps/selfhost/Dockerfile']) {
       // Every image a stage builds FROM: the API's are the Node image it builds
       // on and the distroless one it runs on (0146 T13), both inside ownpace-api.
+      // The Node one is listed once more, as the tasks' base (0146 T14), and
+      // under no other name; without the config's base, not at all.
       const froms = [...REAL.read(dockerfile)!.matchAll(/^FROM\s+(\S+[:@]\S+)/gm)].map((m) => m[1]!);
       expect(froms.length, `${dockerfile} builds FROM no image`).toBeGreaterThan(0);
-      for (const from of froms) expect(images.some((i) => i.ref === from), `${from} is scanned twice`).toBe(false);
+      for (const from of froms) {
+        expect(images.filter((i) => i.ref === from && i.name !== 'trigger-task-base').map((i) => i.name), `${from} is scanned twice`).toEqual([]);
+        expect(bare.some((i) => i.ref === from), `${from} is scanned twice`).toBe(false);
+      }
     }
     const www = readImages(REAL.read('deploy/compose/www.yml')!).find((i) => i.repo === 'nginx')!;
     expect(images.find((i) => i.ref === www.ref)?.where).toBe('deploy/compose/www.yml');
@@ -540,9 +608,15 @@ describe('which images it scans', () => {
     expect(isFloating({ tag: '1.12', digest: 'sha256:0' })).toBe(false);
   });
 
-  it('refuses rather than lists less: a CLI it cannot read, or no release tag', async () => {
+  it("refuses rather than lists less: a CLI it cannot read, an API base it cannot read, or no release tag", async () => {
     const broken: Net = { ...fakeNet(), bytes: async () => Promise.reject(new Error('registry.npmjs.org answered 503')) };
-    await expect(imagesToScan(REAL, broken)).rejects.toThrow(/503/);
+    await expect(imagesToScan(withFiles({ 'apps/worker/trigger.config.ts': configWithoutBase() }), broken)).rejects.toThrow(/503/);
+    // A FROM line without a digest is not the reference the config builds
+    // on, and the CLI's base is not what the tasks run: neither is listed.
+    const dockerfile = REAL.read(API_DOCKERFILE)!;
+    const unpinned = dockerfile.replace(/^(FROM\s+node:\S+?)@sha256:[0-9a-f]{64}/m, '$1');
+    expect(unpinned, 'the FROM line kept its digest, so this case would prove nothing').not.toBe(dockerfile);
+    await expect(imagesToScan(withFiles({ [API_DOCKERFILE]: unpinned }), broken)).rejects.toThrow(/has no FROM node:<tag>@sha256:<digest> line/);
     await expect(imagesToScan(REAL, fakeNet(lsRemote('edge')))).rejects.toThrow(/no v\* release tag/);
   });
 });
@@ -583,8 +657,12 @@ function stubConfig(calls: string[], layers: Record<string, Layer>, fail?: strin
 }
 
 describe("the tasks' image, built as a deploy builds it (workplan 0146 T10)", () => {
-  it("is the deploy's base stage: the CLI's base image, then every instruction the config's extensions add", async () => {
-    const stage = await taskBaseStage(taskConfig, { base: TASK_BASE, workingDir: WORKER_DIR });
+  it("is the deploy's base stage: the base the config names, then every instruction the config's extensions add", async () => {
+    // The base a deploy builds on: the API image's FROM, which the config
+    // names as the manifest's `image.base` (0146 T14).
+    const base = await deployBase();
+    expect(base, 'the deploy config names no base, so the CLI builds the tasks on its own').toMatch(/^node:\S+@sha256:[0-9a-f]{64}$/);
+    const stage = await taskBaseStage(taskConfig, { base: base!, workingDir: WORKER_DIR });
     const instructions = (await deployLayers()).flatMap((layer) => layer.image?.instructions ?? []);
     // Vacuity guard: a config whose extensions add nothing would make the
     // built stage the base image again, which is what this was written to end.
@@ -592,14 +670,16 @@ describe("the tasks' image, built as a deploy builds it (workplan 0146 T10)", ()
     const lines = stage.split('\n');
     // No `# syntax=` line: it would pull a floating frontend image on every scan.
     expect(lines.filter((l) => /^#\s*syntax\s*=/i.test(l))).toEqual([]);
-    const from = lines.indexOf(`FROM ${TASK_BASE} AS base`);
+    const from = lines.indexOf(`FROM ${base} AS base`);
     expect(from, 'no FROM line naming the base image as the stage `base`').toBeGreaterThan(0);
     expect(lines.filter((l) => l.startsWith('FROM ')), 'one stage, the base one').toHaveLength(1);
-    const body = lines.slice(from + 1).filter((l) => l.trim() !== '');
-    expect(body).toEqual(['ENV DEBIAN_FRONTEND=noninteractive', ...instructions]);
-    // The API image's Node, by tag and digest, as the deploy's layer copies it.
-    const apiNode = /^FROM\s+(node:\S+)/m.exec(REAL.read('apps/api/Dockerfile')!)![1]!;
-    expect(stage).toContain(`COPY --from=${apiNode} /usr/local/bin/node /usr/local/bin/node`);
+    // After it, the stage is the CLI's ENV and the layers' instructions, whole
+    // and in order (an instruction may span lines with a `\\` continuation).
+    const body = lines.slice(from + 1).join('\n');
+    expect(body).toBe(['', 'ENV DEBIAN_FRONTEND=noninteractive', '', ...instructions, ''].join('\n'));
+    // On the API image's own base, its own Node: nothing copies a Node binary over it.
+    expect(base).toBe(/^FROM\s+(node:\S+)/m.exec(REAL.read('apps/api/Dockerfile')!)![1]!);
+    expect(stage).not.toMatch(/COPY --from=\S+ \/usr\/local\/bin\/node /);
   });
 
   it('runs the extensions in the CLI\'s order, as a deploy, and keeps the layers in theirs', async () => {

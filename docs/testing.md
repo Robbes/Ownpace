@@ -410,13 +410,14 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   images the scripts name, the tasks' image, and Ownpace's three images at `:edge` and at the
   newest release tag, all as linux/arm64 (`scripts/image-scan.mjs list`). The tasks' image is
   built in its leg, not pulled (workplan 0146 T10): the leg installs the workspace, writes the
-  `base` stage a task deploy builds on the base image the pinned Trigger.dev CLI names
-  (`image-scan.mjs containerfile`, which runs `apps/worker/trigger.config.ts`'s own build
-  extensions), builds it natively on `ubuntu-24.04-arm` under a local tag in that base's
-  repository, so its alerts keep their location, and Trivy reads it from that runner's Docker
-  alone. That checkout is under `src/`: Trivy reads a `.trivyignore` and a `trivy.yaml` from its
-  working directory unless told otherwise, so on this leg too it reads none of the repository's,
-  and a file at the root can never drop a finding from code scanning. Report only: each image's findings go to code scanning under
+  `base` stage a task deploy builds (`image-scan.mjs containerfile`, which runs
+  `apps/worker/trigger.config.ts`'s own build extensions) on the image `apps/api/Dockerfile`
+  builds FROM, which the config builds the tasks on since workplan 0146 T14 (on the base image
+  the pinned Trigger.dev CLI names when the config names none), builds it natively on
+  `ubuntu-24.04-arm` under a local tag in that base's repository, and Trivy reads it from that
+  runner's Docker alone. That checkout is under `src/`: Trivy reads a `.trivyignore` and a
+  `trivy.yaml` from its working directory unless told otherwise, so on this leg too it reads none
+  of the repository's, and a file at the root can never drop a finding from code scanning. Report only: each image's findings go to code scanning under
   `trivy-image-<name>` and fail nothing; an image whose operating system Trivy calls past its end
   of life gets a warning, a line in the run's summary and one issue, closed when that ends. A scan
   that left no report fails the run. An image is named after its repository's last part, with
@@ -473,8 +474,9 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   identity provider's pin in `managed.yml` against upstream's newest release of the same major;
   Trigger.dev against the newest tag both its images carry (`trigger-version.sh probe`);
   ClickHouse against the one Trigger.dev's own compose file pins; the tasks' Node against Node's
-  newest security release, until `trigger.config.ts` copies the API image's Node (it does since
-  issue #1669, so that row reports current); `packageManager` against the newest pnpm of its major; and the
+  newest security release, until `trigger.config.ts` builds the tasks on the API image's own base
+  (it took that image's Node from issue #1669 and builds on the image from 0146 T14, so that row
+  reports current); `packageManager` against the newest pnpm of its major; and the
   TypeScript split's exit. Each of those keeps one issue open while it is behind, says a newer
   release in a comment, and closes the issue when the pin catches up. Every other image line of
   `managed.yml`, `dev.yml` and `www.yml` (Dependabot reads no file in `deploy/compose`), the

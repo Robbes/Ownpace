@@ -21,7 +21,7 @@ export declare const REBUILD_NOTE: string;
 export declare function builtNote(dockerfile: string): string;
 export declare const STALWART_FILES: string[];
 export declare const GOACCESS_DOCKERFILE: string;
-export declare const TASK_OVERLAY: RegExp;
+export declare const TASK_ON_API_IMAGE: RegExp;
 export declare const COSIGN_FILES: string[];
 
 export type State = 'current' | 'behind' | 'ahead' | 'error';

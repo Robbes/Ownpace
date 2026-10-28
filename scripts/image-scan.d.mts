@@ -22,6 +22,7 @@ export declare const TASK_CONFIG: string;
 /** The only ref whose run keeps the issues: `refs/heads/main`. */
 export declare const ISSUES_REF: string;
 export declare const BUILT_HERE: string;
+export declare const API_DOCKERFILE: string;
 
 /** One image to scan: one matrix leg, one SARIF category, one artifact, one issue title. */
 export interface ScanImage {

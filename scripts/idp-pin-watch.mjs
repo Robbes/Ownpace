@@ -41,8 +41,8 @@
  *                      text. Its own issue, while the two differ.
  *   the tasks' Node    the Node in the base image the pinned Trigger.dev CLI
  *                      names, against Node's newest security release, while
- *                      no overlay in `trigger.config.ts` gives the tasks the
- *                      API image's Node. Its own issue.
+ *                      `trigger.config.ts` does not build the tasks on the
+ *                      API image's own base. Its own issue.
  *   pnpm               `packageManager` against the newest pnpm of its major.
  *                      Its own issue; a newer major is a line in it.
  *   TypeScript split   a cleanup notice, opened when typescript-eslint's
@@ -665,19 +665,24 @@ export async function clickhouseRow(repo, net, trigger) {
   };
 }
 
-/** The overlay that gives the tasks the API image's Node, once `trigger.config.ts` has one. */
-export const TASK_OVERLAY = /COPY --from=\S+ \/usr\/local\/bin\/node /;
+/**
+ * Where `trigger.config.ts` builds the tasks on the API image's own base (the
+ * manifest's `image.base`, 0146 T14), so the CLI's base image, and its Node,
+ * is in nothing a deploy builds. From #1689 to T14 the mark was a layer that
+ * copied the API image's Node over the CLI's base.
+ */
+export const TASK_ON_API_IMAGE = /\bbase: taskBase\.image\b/;
 
 export async function taskNodeRow(repo, net) {
   const config = need(repo, 'apps/worker/trigger.config.ts');
-  if (TASK_OVERLAY.test(config)) {
+  if (TASK_ON_API_IMAGE.test(config)) {
     return {
       pin: 'apps/api/Dockerfile',
       newest: '-',
       state: 'current',
-      notes: ["the tasks copy the API image's Node (apps/worker/trigger.config.ts), which Dependabot moves"],
+      notes: ["the tasks build on the API image's base (apps/worker/trigger.config.ts), which Dependabot moves"],
       closing:
-        "The tasks now take the API image's Node (`apps/worker/trigger.config.ts`), which Dependabot moves with `apps/api/Dockerfile`. Nothing is left for this row to watch.",
+        "The tasks now build on the API image's own base (`apps/worker/trigger.config.ts`), which Dependabot moves with `apps/api/Dockerfile`. Nothing is left for this row to watch.",
     };
   }
   const runtime = /\bruntime:\s*['"]([^'"]+)['"]/.exec(config)?.[1];
@@ -698,7 +703,7 @@ export async function taskNodeRow(repo, net) {
   const route =
     compareParts(latestNode, floor.version) >= 0
       ? `The newest CLI, trigger.dev ${latest}, builds on Node ${latestNode}: moving Trigger.dev to it (its issue's route) moves the tasks too.`
-      : `The newest CLI, trigger.dev ${latest}, still builds on Node ${latestNode}: upstream has not republished its base image. The way that does not wait for it is an overlay in \`apps/worker/trigger.config.ts\` that copies the API image's Node (\`apps/api/Dockerfile\`, which Dependabot moves) over the base image's. Once it is there, this issue closes.`;
+      : `The newest CLI, trigger.dev ${latest}, still builds on Node ${latestNode}: upstream has not republished its base image. The way that does not wait for it is to build the tasks on the API image's own base in \`apps/worker/trigger.config.ts\` (\`apps/api/Dockerfile\`'s FROM line, which Dependabot moves). Once it does, this issue closes.`;
   const body = [
     `The tasks run on the base image the pinned CLI, trigger.dev ${cli}, names for \`runtime: '${runtime}'\`: \`${image}\`, whose Node is **${node}**. Node's newest ${partsOf(node)[0]}.x security release is **${floor.version}** (${floor.date}, https://nodejs.org/dist/index.json).`,
     '',

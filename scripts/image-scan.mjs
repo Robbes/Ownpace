@@ -39,16 +39,22 @@
  *               is on an Alpine past its end of life), so its leg builds that
  *               directory for linux/arm64 and scans what it built
  *               (`context`); the Dockerfile must be there;
- *             - the tasks' image, which no file here names: the base image
- *               the pinned Trigger.dev CLI names for the tasks' runtime (the
- *               pin watch's `cliBaseImage`), with the layers a deploy adds
- *               to it, BUILT in the scan job (see `containerfile` below);
+ *             - the tasks' image (`trigger-task-base`), which no file here
+ *               names, BUILT in the scan job (see `containerfile` below): the
+ *               `base` stage a task deploy builds, on the image
+ *               apps/api/Dockerfile builds FROM, where
+ *               apps/worker/trigger.config.ts builds the tasks on it (the
+ *               pin watch's `TASK_ON_API_IMAGE`, workplan 0146 T14), and
+ *               otherwise on the one the pinned Trigger.dev CLI names for the
+ *               tasks' runtime (the pin watch's `cliBaseImage`), with the
+ *               layers the config adds to it at a deploy;
  *             - Ownpace's own three images, at `:edge` (what main publishes,
  *               which the OTA stack builds every night) and at the newest
  *               release tag (what live runs: it builds the tag it deploys).
  *           The FROM bases of apps/*\/Dockerfile (node, distroless, nginx)
- *           are inside Ownpace's images and are not scanned twice. www.yml's
- *           nginx is, because the site runs it as it is.
+ *           are inside Ownpace's images and are not scanned twice, except the
+ *           API's Node line as the tasks' base, which is an image of its own.
+ *           www.yml's nginx is, because the site runs it as it is.
  *   report  reads the report each scan wrote, one per image. A missing or
  *           unreadable report is an error and fails the run: a scan that did
  *           not happen must never read like a week without findings. An
@@ -70,8 +76,8 @@
  *           the instructions of every layer they add. So this one command
  *           needs the workspace installed; the list and the report do not.
  *           Workplan 0146 T10: until 2026-10-25 the scan read the base image
- *           alone, while every deploy copies the API image's Node over it
- *           and upgrades its Debian packages, so findings the deploy fixes
+ *           alone, while every deploy copied the API image's Node over it
+ *           and upgraded its Debian packages, so findings the deploy fixes
  *           stayed open in code scanning for good.
  *
  * Names are kept as steady as they can be, because a SARIF category that
@@ -107,7 +113,8 @@
  * repository (`taskBuildTag`), never under a name of its own. Trivy's SARIF
  * gives an operating-system package's finding the image's repository as its
  * location (`ToPathUri` in its `pkg/report/sarif.go`, read at v0.76.1:
- * `triggerdotdev/node` for the base, by tag and digest or not), and writes no
+ * `node` for the API image's base since T14, `triggerdotdev/node` for the
+ * CLI's before it, by tag and digest or not), and writes no
  * fingerprint, so code scanning tells one alert from another by rule and
  * location. Built as `trigger-task-base:built`, the location would have been
  * `library/trigger-task-base`: every Debian alert would close on the first
@@ -120,11 +127,13 @@
  * `@electric-sql/pglite`). Their own versions are the ones installed here, so
  * the repository scan of the lockfile reads them; the packages npm resolves
  * under them, with no lockfile, neither scan reads. And it is built on the
- * CLI's own base: a Trigger.dev instance can name other base images for its
- * deploys (the webapp's `DEPLOY_BASE_IMAGES` and `DEPLOY_BUILD_BASE_IMAGES`,
- * which the CLI builds on when the instance sends them, `applyServerBaseImages`
- * read at 4.7.6), and `managed.yml`, which hands its Trigger.dev services only
- * the keys it lists, sets neither. The guard holds that.
+ * base the deploy config names (apps/api/Dockerfile's FROM image since
+ * workplan 0146 T14), or else on the CLI's own: a Trigger.dev instance can
+ * name other base images for its deploys (the webapp's `DEPLOY_BASE_IMAGES`
+ * and `DEPLOY_BUILD_BASE_IMAGES`, which the CLI builds on when the instance
+ * sends them, `applyServerBaseImages` read at 4.7.6), and `managed.yml`, which
+ * hands its Trigger.dev services only the keys it lists, sets neither. The
+ * guard holds that.
  *
  * A floating tag (`busybox:1.38`) is scanned as the registry serves it
  * today, which need not be what the box pulled last. The summary says which.
@@ -143,7 +152,7 @@ import { appendFileSync, existsSync, readFileSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { COMPOSE_FILES, cliBaseImage, keepIssue, parseRef, readImages, realNet, repoReader, tagsOf } from './idp-pin-watch.mjs';
+import { COMPOSE_FILES, TASK_ON_API_IMAGE, cliBaseImage, keepIssue, parseRef, readImages, realNet, repoReader, tagsOf } from './idp-pin-watch.mjs';
 import { compareSemVer, parseSemVer } from './release-names-agree.mjs';
 
 /** The compose files whose `image:` lines are scanned: the pin watch's, and the appliance's. */
@@ -162,6 +171,14 @@ export const OWNPACE_IMAGES = ['api', 'web', 'selfhost'];
  */
 export const TASK_IMAGE = 'trigger-task-base';
 export const TASK_CONFIG = 'apps/worker/trigger.config.ts';
+
+/**
+ * The Dockerfile whose FROM image the tasks build on, where trigger.config.ts
+ * says so (0146 T14), and that line as the config reads it: a Node image by
+ * tag and digest.
+ */
+export const API_DOCKERFILE = 'apps/api/Dockerfile';
+const API_FROM = /^FROM\s+(node:\S+@sha256:[0-9a-f]{64})(?:\s|$)/m;
 
 /** Every image issue's title starts with this, and ends with the image's name. */
 export const ISSUE_PREFIX = "An image's operating system is past its end of life: ";
@@ -292,22 +309,29 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
     return { name, ref: image.ref, where: image.where.join(', '), floating: isFloating(image) };
   });
 
-  // The tasks' base image: the CLI names it, for the runtime trigger.config.ts asks for.
+  // The tasks' image, scanned as a deploy builds it: the leg builds its `base`
+  // stage (`containerfile`) under `build` and scans that, not the reference.
+  // Its base: where trigger.config.ts builds the tasks on the API image's own
+  // base (0146 T14), the CLI's base image is in nothing a deploy builds, and
+  // the base is the API Dockerfile's FROM node image, read as the config reads
+  // it. Otherwise the CLI names it, for the runtime the config asks for. The
+  // name stays, and so does the SARIF category.
   const config = need(repo, TASK_CONFIG);
-  const runtime = /\bruntime:\s*['"]([^'"]+)['"]/.exec(config)?.[1];
-  if (!runtime) throw new Error(`${TASK_CONFIG} names no runtime`);
-  const cli = JSON.parse(need(repo, 'apps/worker/package.json')).dependencies?.['@trigger.dev/sdk'];
-  if (!/^\d+\.\d+\.\d+$/.test(cli ?? '')) throw new Error(`apps/worker's @trigger.dev/sdk is ${cli}, not a version`);
-  // Scanned as a deploy builds on it: the leg builds its `base` stage
-  // (`containerfile`) under `build` and scans that, not the reference.
-  const base = await cliBaseImage(net, cli, runtime);
-  entries.push({
-    name: TASK_IMAGE,
-    ref: base,
-    where: `trigger.dev ${cli}'s BASE_IMAGE['${runtime}'], with the layers ${TASK_CONFIG} adds at a deploy`,
-    floating: false,
-    build: taskBuildTag(base),
-  });
+  let base;
+  let where;
+  if (TASK_ON_API_IMAGE.test(config)) {
+    base = API_FROM.exec(need(repo, API_DOCKERFILE))?.[1];
+    if (!base) throw new Error(`${API_DOCKERFILE} has no FROM node:<tag>@sha256:<digest> line, and the tasks build on it`);
+    where = `${API_DOCKERFILE}'s FROM line, which ${TASK_CONFIG} builds the tasks on, with the layers it adds at a deploy`;
+  } else {
+    const runtime = /\bruntime:\s*['"]([^'"]+)['"]/.exec(config)?.[1];
+    if (!runtime) throw new Error(`${TASK_CONFIG} names no runtime`);
+    const cli = JSON.parse(need(repo, 'apps/worker/package.json')).dependencies?.['@trigger.dev/sdk'];
+    if (!/^\d+\.\d+\.\d+$/.test(cli ?? '')) throw new Error(`apps/worker's @trigger.dev/sdk is ${cli}, not a version`);
+    base = await cliBaseImage(net, cli, runtime);
+    where = `trigger.dev ${cli}'s BASE_IMAGE['${runtime}'], with the layers ${TASK_CONFIG} adds at a deploy`;
+  }
+  entries.push({ name: TASK_IMAGE, ref: base, where, floating: false, build: taskBuildTag(base) });
 
   // Ownpace's own: what main publishes, and the newest release.
   const release = newestReleaseTag(await net.lsRemote(upstream));
