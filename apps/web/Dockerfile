@@ -83,7 +83,12 @@ ARG VITE_SUPPORT_EMAIL=
 ENV VITE_SUPPORT_EMAIL=$VITE_SUPPORT_EMAIL
 RUN pnpm --filter @openmig/web build
 
-FROM nginx:1.31.8-alpine@sha256:1ef7ca94d7879df82421428ce13bd1eaa412404953859cf7a5b6512c25e67a60 AS runtime
+# nginx's -alpine-slim (workplan 0146 T12a): the same nginx package on the same
+# base layers as -alpine, without the dynamic modules -alpine adds (njs, xslt,
+# geoip, image-filter, acme) or curl, none of which nginx.conf.template loads.
+# envsubst and the entrypoint's template step are in slim; the health check
+# below is busybox's wget, which slim keeps.
+FROM nginx:1.31.8-alpine-slim@sha256:f45171d36c76a8b2f5ef97108a3a8a2294248a6578a0a180edc2d78f7d2edc26 AS runtime
 ENV API_UPSTREAM=api:3001
 # THE SIGN-IN HOST, FOR THE APP'S POLICY (workplan 0158). nginx.conf.template
 # names it in the policy's connect-src, so the page may fetch the issuer's
