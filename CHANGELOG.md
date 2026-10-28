@@ -168,6 +168,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   owner's decision of 2026-10-26), so every deploy started from this release
   on runs a `deploy-live.sh` that reads it this way; the deploy to this
   release from an older one runs twice (above). Nothing a stack sets changes.
+- **Trigger.dev's object store runs Chainguard's MinIO build of 2026-10-25**
+  (workplan 0146 T7): `latest` by the digest it had that day, taken once three
+  days old. Its server is the fork's RELEASE.2026-10-23T20-06-51Z, which moves
+  nine Go modules, golang.org/x/net, x/crypto and klauspost/compress among
+  them, and changes no MinIO code; Trivy reads no finding in it, as in the
+  build before. Nothing a stack sets changes; the next bring-up pulls it.
 - **Trigger.dev is v4.8.1** (workplan 0119, issue #1668, #1697): the webapp
   and the supervisor run on Node 24.22.1, October's security release, where
   they ran 24.18.0, and the supervisor now distrusts the roots behind the

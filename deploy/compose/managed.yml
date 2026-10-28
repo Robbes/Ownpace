@@ -661,18 +661,20 @@ services:
   # (docker/docker-compose.yml at v4.7.6). 0119 §3 item 5 has the comparison.
   #
   # THE PIN. Chainguard's free tier publishes `latest` and `latest-dev` and
-  # nothing else, rebuilt about daily, so this is `latest` by an index digest
-  # read from Docker Hub's API and registry on 2026-10-24: d88920d6a50b…,
-  # built 2026-10-22 09:59 UTC and pushed as `latest` at 11:25 UTC that day,
-  # with linux/amd64 and linux/arm64 in it. Not the newest `latest`
-  # (c47b1779bfd1…, pushed 2026-10-24 02:01 UTC), on purpose: this is the
-  # build Trivy read 0 critical / 0 high on 2026-10-23, when it was `latest`,
-  # and it is three days old on 2026-10-25 at 11:25 UTC, as a release this
-  # repository takes should be (CONTRIBUTING.md). The two differ only in
-  # brotli's libraries, 1.2.1-r0 here and -r1 there (their apk databases).
-  # Inside: Wolfi's `minio` 0.20260922.192518-r5 (the fork's
-  # RELEASE.2026-09-22T19-25-18Z), `mc` 0.20250813.083541-r27, and bash as
-  # /bin/sh. The weekly pin watch (idp-pin-watch.mjs) says when `latest` has
+  # nothing else, rebuilt about daily, so this is `latest` by an index digest:
+  # 268d68a2a3b6…, built 2026-10-25 01:49 UTC and pushed as `latest` at 14:29
+  # UTC that day, with linux/amd64 and linux/arm64 in it, taken on 2026-10-28
+  # once it was three days old, as a release this repository takes should be
+  # (CONTRIBUTING.md). Not the newest `latest` (e70b2b1e74d7…, pushed
+  # 2026-10-27), on purpose. Trivy 0.76.1 read no finding of any severity in
+  # it on 2026-10-28, on both architectures. Inside (their apk databases):
+  # Wolfi's `minio` 0.20261023.200651-r0 (the fork's
+  # RELEASE.2026-10-23T20-06-51Z), `mc` 0.20250813.083541-r27, and bash as
+  # /bin/sh. The fork's release before it, RELEASE.2026-09-22T19-25-18Z in
+  # d88920d6a50b… (2026-10-22, #1692), differs from this one in go.mod and
+  # go.sum (nine modules, golang.org/x/net 0.60.0, x/crypto 0.57.0 and
+  # klauspost/compress 1.18.7 among them) and in its VulnCheck workflow's Go:
+  # no line under cmd/ or internal/ changed. The weekly pin watch (idp-pin-watch.mjs) says when `latest` has
   # moved on; a move is a pull request with the new digest's scan read and
   # E2E (managed) on its branch. Trigger.dev's own digest from its move of
   # 2026-09-28 still resolved on 2026-10-24, so an old digest stays pullable
@@ -697,7 +699,7 @@ services:
   #     minio-init below makes `packets`.
   # `scripts/an-object-store-with-a-maintainer.unit.test.ts` holds all of it.
   minio:
-    image: chainguard/minio:latest@sha256:d88920d6a50bd0b088223b688be3b76c63e6205dbe494437f67ba1240ea12880
+    image: chainguard/minio:latest@sha256:268d68a2a3b6fc65f905a61f84d7eab6345ce6bff14f551e2b028ec31e6a1341
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio
     restart: unless-stopped
     logging: *logging
@@ -706,7 +708,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-very-safe-password}
       # NO RELEASE CHECK AT START (workplan 0139, 2026-09-28; read again at the
-      # fork's RELEASE.2026-09-22T19-25-18Z). At every start this MinIO asks
+      # fork's RELEASE.2026-09-22T19-25-18Z, the same code at
+      # RELEASE.2026-10-23T20-06-51Z). At every start this MinIO asks
       # dl.min.io for its newest release, and its User-Agent carries the OS,
       # the architecture, `docker`, its version and the CPU's count, vendor and
       # model (cmd/server-main.go, cmd/common-main.go, cmd/update.go). `off`
@@ -773,7 +776,7 @@ services:
   # (getDependencyCondition, pkg/compose/start.go, v2.20.0 to v5.6.1). The
   # bring-up names it beside `minio` all the same, so a failure prints its log.
   minio-init:
-    image: chainguard/minio:latest@sha256:d88920d6a50bd0b088223b688be3b76c63e6205dbe494437f67ba1240ea12880
+    image: chainguard/minio:latest@sha256:268d68a2a3b6fc65f905a61f84d7eab6345ce6bff14f551e2b028ec31e6a1341
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio-init
     restart: "no"
     logging: *logging
