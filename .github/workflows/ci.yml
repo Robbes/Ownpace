@@ -845,8 +845,9 @@ jobs:
   #                                   list it as one)
   #   Check for committed artifacts  (no-committed-artifacts.yml)
   #
-  # DO NOT REQUIRE `build (api|web|selfhost)` from images.yml, even though you
-  # will see those checks on some pull requests. That workflow's `pull_request`
+  # DO NOT REQUIRE `build (api|web|selfhost)` from images.yml, nor its
+  # `build (postgres)` (0146 T15), even though you will see those checks on
+  # some pull requests. That workflow's `pull_request`
   # trigger carries a `paths:` filter — the three Dockerfiles, `deploy/**` and
   # itself — so on a PR that touches none of them the workflow never runs and
   # those contexts are never reported at all. Required, they would hang such a

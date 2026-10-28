@@ -846,8 +846,10 @@ assert_zitadel_role_password() {
 
 
 # The diagnosis half, separated from the `up` half so that a bring-up which
-# cannot go through `up_wait` — the app services need `--build` and a GIT_SHA —
-# can still reach it. It used to be inlined here, and the two calls that could
+# cannot go through `up_wait` — the provider's `up -d` below, which has no
+# healthcheck to wait on — can still reach it. (The app services were the other
+# such call, with `up --build` and a GIT_SHA, until 2026-10-26: they are built
+# by name now, and come up through `up_wait` like the rest.) It used to be inlined here, and the two calls that could
 # not use the wrapper therefore had no diagnosis at all: E2E (managed) #39
 # reported `ownpace-idp Restarting (1)` and not one word about why, because the
 # zitadel bring-up added in #504 called compose directly.
@@ -1044,7 +1046,7 @@ phase_preflight() {
     die "dependencies are not installed — run: pnpm install --frozen-lockfile"
 
   # Disk. A managed stack is roughly ten images plus ClickHouse and MinIO
-  # volumes; running out halfway through `up --build` leaves a stack that is
+  # volumes; running out halfway through the build and the `up` leaves a stack that is
   # partly built and wholly confusing.
   local free_gb
   free_gb="$(df -Pk "${REPO_ROOT}" | awk 'NR==2 {print int($4/1024/1024)}')"
@@ -1340,7 +1342,12 @@ phase_data() {
   say data "postgres, the two roles set to .env, the pooler's lookup role, pgbouncer"
   load_env
 
+  # Which postgres container ran before this `up`, so that a replaced one is
+  # seen below (A POOLER THAT OUTLIVED ITS DATABASE).
+  local db_before db_after
+  db_before="$("${COMPOSE[@]}" ps -q postgres 2>/dev/null | awk 'NR==1')" || db_before=''
   up_wait postgres
+  db_after="$("${COMPOSE[@]}" ps -q postgres 2>/dev/null | awk 'NR==1')" || db_after=''
   note "postgres healthy"
 
   # Before anything migrates: the API's first start applies 0001, which makes
@@ -1413,10 +1420,26 @@ phase_data() {
   # before — which is exactly what happened on the Spark, 2026-08-18, and cost a
   # round trip.
   #
-  # Only when it is unhealthy: a pooler that is serving is left alone, because
-  # recreating it drops every client connection for no reason.
+  # Only when it is unhealthy, or its database was replaced (below): a pooler
+  # that is serving is left alone, because recreating it drops every client
+  # connection for no reason.
+  #
+  # A POOLER THAT OUTLIVED ITS DATABASE is recreated too. When this run's `up`
+  # replaced the postgres container (a new image or digest in managed.yml),
+  # PgBouncer kept running, and every pool that logged in while the old server
+  # shut down got "the database system is shutting down". PgBouncer caches
+  # such a failed login for server_login_retry (15 seconds by default) and
+  # refuses every client of that pool meanwhile with "server login has been
+  # failing, cached error". The proof below then failed on app_user through
+  # the pooler: E2E (managed) #285 on 2026-10-28, the first run with postgres
+  # pinned by digest (#1678), and so also the alpha.3 deploy of live. Its
+  # server connections died with the old container anyway, so this drops
+  # nothing a serving pooler still had.
   if [ "$("${COMPOSE[@]}" ps --format '{{.Health}}' pgbouncer 2>/dev/null | tail -1)" = "unhealthy" ]; then
     note "pgbouncer is running but unhealthy — recreating it so it re-reads pgbouncer.ini"
+    "${COMPOSE[@]}" up -d --force-recreate --no-deps pgbouncer >/dev/null
+  elif [ -n "$db_before" ] && [ "$db_after" != "$db_before" ]; then
+    note "postgres was replaced by this run — recreating pgbouncer, so no pool keeps a login that failed while the old one shut down"
     "${COMPOSE[@]}" up -d --force-recreate --no-deps pgbouncer >/dev/null
   fi
 
@@ -2114,7 +2137,6 @@ phase_app() {
     note_catcher_left_running
   fi
 
-  # GIT_SHA so `GET /version` answers with a commit rather than "unknown".
   # THE IDENTITY PROVIDER IS PROVISIONED BEFORE `web` IS BUILT, and the order is
   # the whole point.
   #
@@ -2173,12 +2195,21 @@ phase_app() {
   # VITE_ values, and the build below has to see them.
   load_env
 
-  # `|| explain_failure` because this one cannot go through `up_wait`: it needs
-  # `--build` and a GIT_SHA in the environment. Without it, a web or api image
-  # that starts and dies reports one line naming the service and nothing about
-  # the cause — the same blindness as the zitadel call above.
+  # THE TWO IMAGES THAT CARRY CODE ARE BUILT BY NAME, AND `up` IS NOT GIVEN
+  # `--build` (the review of #1717, 2026-10-26). `up --build` builds every
+  # service in its scope that has a `build:`, dependencies included, and since
+  # workplan 0146 T15 the two databases have one (deploy/compose/postgres).
+  # This `up` used to carry `--build`, so every bring-up rebuilt their
+  # image: the same image ID while BuildKit kept its cache, a new one under the
+  # same name after a prune, and then the next `up` that reached a database
+  # recreated it — on the shared daemon live's too, outside any hold. Built by
+  # name here, the databases' image is built only where its name is missing.
+  # GIT_SHA so `GET /version` answers with a commit rather than "unknown"; it
+  # is a build argument only, so the `up` below needs none.
+  # scripts/a-database-started-as-root.unit.test.ts holds this.
   GIT_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)" \
-    "${COMPOSE[@]}" up -d --build --wait "${services[@]}" || explain_failure "${services[@]}"
+    "${COMPOSE[@]}" build api web || die "the api and web images did not build (compose's words are above); nothing was started or recreated."
+  up_wait "${services[@]}"
   note "up and healthy: ${services[*]}"
   note "api: ${API_URL:-http://localhost:3001}   web: ${WEB_URL:-http://localhost:3123}"
   # What the rule for a host a tenant gives us admits by name (workplan 0136

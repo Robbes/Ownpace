@@ -33,28 +33,51 @@ ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
 WORKDIR /app
 
-FROM base AS build
+FROM base AS deps
 COPY . .
-# `--filter @openmig/api...` = this app AND its workspace dependencies. Measured
-# against an unfiltered install of the same tree: 698 packages instead of 800,
-# and no node_modules for apps/web, apps/worker, apps/selfhost or
-# packages/testing — none of which this image runs.
+# PRODUCTION DEPENDENCIES ONLY (`--prod`), and nothing builds: there is no JS
+# build, and Node erases the types at start. This stage used to install
+# everything, and the runtime copied it, so drizzle-kit's esbuild and TypeScript
+# 7's native compiler were in the image, and their Go binaries were 2 of its 3
+# critical and 65 of its 125 high findings (the edge image, 2026-10-23). Nothing
+# in the container runs them. CMD and the HEALTHCHECK are `node`; the smoke
+# gate's `docker exec` probes are `node -e` with Node's own fetch, or
+# `printenv`; the operator scripts and the demo seed run on the HOST, from the
+# checkout (deploy/compose/operator.sh, seed-managed.sh); the migrations are the
+# API's own start-up code, which reads the SQL in packages/*/migrations.
 #
-# It does NOT drop the workspace ROOT's dependencies; pnpm installs those
-# whatever the filter says, so the root's devDependencies land here regardless
-# of the filter. See apps/web/Dockerfile, where believing otherwise cost a
-# wrong claim. CMD no longer depends on that being true — it invokes `node`
-# directly — but the install still behaves this way.
+# `--filter-prod @openmig/api...` = this app AND the workspace packages its
+# `dependencies` reach (pnpm follows `optionalDependencies` and
+# `peerDependencies` too); the workspace root's `dependencies` come too,
+# whatever the filter says (apps/web/Dockerfile). Not `--filter`: its `...`
+# also follows devDependencies, and @openmig/core and @openmig/ledger list
+# workspace packages there, so a workspace package only a test reaches would
+# be selected and `--prod` would install ITS production dependencies. Measured
+# on 2026-10-25: 9 of the 14 workspace projects and 250 packages, the same
+# tree `--filter` gave that day; the full install of the same filter had 622.
 #
-# THIS IS A RUNTIME IMAGE, not a build one, so a pruned package is a resolution
-# failure in production rather than a red build. Two things cover that:
-# `scripts/workspace-deps.unit.test.ts` asserts every `@openmig/*` specifier in
-# this app's source — static, dynamic `import()` and `require()` alike — is a
-# DECLARED dependency, which is exactly what the filter follows; and the managed
-# gate's first preflight is `curl $API/health`, so an image that cannot resolve
-# its own modules fails loudly at the top of the run.
+# Not `pnpm deploy --prod`. It copies each workspace package INTO node_modules,
+# and Node refuses to strip types under a node_modules path: the deployed tree
+# failed at its first import with ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING.
+# A plain install keeps apps/api/node_modules/@openmig/* as symlinks into
+# packages/, outside node_modules.
+#
+# THIS IS A RUNTIME IMAGE, not a build one, so a missing package is a
+# resolution failure in production rather than a red build. With `--prod` that
+# includes anything a runtime file imports that its own package declares only
+# as a devDependency, or not at all: it used to resolve through the root's
+# devDependencies, and now nothing installs those. apps/api and
+# packages/orchestration imported drizzle-orm (and orchestration pg) that way
+# until they declared them. Three things cover it:
+# `scripts/an-image-that-shipped-what-it-never-runs.unit.test.ts` asserts every
+# package a runtime file of this closure loads is in its own `dependencies`,
+# and that no stage the runtime takes files from installs devDependencies;
+# `scripts/workspace-deps.unit.test.ts` asserts every `@openmig/*` specifier is
+# declared, which is what the filter follows; and the managed gate's first
+# preflight is `curl $API/health`, so an image that cannot resolve its own
+# modules fails loudly at the top of the run.
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile --filter @openmig/api...
+    pnpm install --frozen-lockfile --prod --filter-prod @openmig/api...
 
 FROM base AS runtime
 # NO PACKAGE MANAGER AT RUNTIME. CMD and the HEALTHCHECK run `node`, and nothing
@@ -74,7 +97,7 @@ ENV NODE_ENV=production
 # Surfaced by GET /version (buildIdentity in @openmig/core).
 ARG GIT_SHA=unknown
 ENV OPENMIG_COMMIT=$GIT_SHA
-COPY --from=build /app /app
+COPY --from=deps /app /app
 # Non-root runtime user.
 RUN useradd --system --uid 10001 --home-dir /app appuser && chown -R appuser:appuser /app
 USER appuser

@@ -123,7 +123,7 @@ import {
 import { SecretStore } from '@openmig/core/secret-store';
 import { createNextcloudShare } from '@openmig/connectors';
 import { shareRefusalAnswers } from '../../share-refusal-answer.ts';
-import type { ShareGrantRow } from '@openmig/shared';
+import type { ShareGrantRow, ShareLimit, ShareRefusalKind } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
 import { migrationInventoryScans, resolveMappingMailbox } from '../permissions.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
@@ -544,7 +544,10 @@ async function nextcloudCapabilityFor(
       row: ShareGrantRow,
       /** Where a person confirmed it should go (ADR-0032 §6), when they did. */
       confirmed?: string,
-    ) => Promise<{ ok: true } | { ok: false; reason: string; reasonNl: string }>)
+    ) => Promise<
+      | { ok: true }
+      | { ok: false; reason: string; reasonNl: string; limited?: ShareLimit; refusedAs?: ShareRefusalKind }
+    >)
   | undefined
 > {
   const rows = await withTenantDb(s.tenantId, pool(), (db) =>
@@ -608,7 +611,11 @@ async function nextcloudCapabilityFor(
             headers,
             ...(typeof body === 'string' ? { body } : {}),
           });
-          return { status: r.status, body: await r.text(), headers: {} };
+          // The one header the share call reads: when to ask again, on the
+          // target's limit (`ShareLimit`, workplan 0104).
+          const retryAfter = r.headers.get('retry-after');
+          const kept: Record<string, string> = retryAfter === null ? {} : { 'retry-after': retryAfter };
+          return { status: r.status, body: await r.text(), headers: kept };
         } },
       },
       {
