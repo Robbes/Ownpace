@@ -22,9 +22,9 @@
  *   off on an empty `.env`, and on with the switch on, even with a password
  *   or a sender holding a double quote.
  *
- * The gatus facts are from its source at v5.37.0 (`alert.go`, `config.go`,
- * both as they were at v5.36.0), and were checked at v5.36.0 by loading this
- * file with gatus's own loader.
+ * The gatus facts are from its source at v5.38.0 (`alert.go`, `config.go`,
+ * both as they were at v5.36.0 for what this file reads), and were checked at
+ * v5.36.0 by loading this file with gatus's own loader.
  *
  * It fails today: `gatus.yaml` has no `alerting` block.
  */

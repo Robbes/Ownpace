@@ -220,6 +220,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   cannot ask, fails. The machine's own address, and an address only the OTA
   names resolve to, fail on every answer as before; a listed port is tried
   everywhere, and one that stops answering is said, so the list can shrink.
+- **The status page's Gatus is v5.38.0** (workplan 0119): built with Go 1.27.3
+  and gRPC 1.84.0, which clears 7 of the 12 highs the image scan of 2026-10-29
+  found in v5.37.0; the other five wait on a Gatus release. The configuration,
+  the page and its stored history are unchanged, and the comments that read
+  Gatus's source now name the version they were checked at.
 
 ### Added
 

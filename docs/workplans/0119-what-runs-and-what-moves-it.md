@@ -4,6 +4,20 @@
 
 ## Status — 2026-10-29 (update this block at the end of every session)
 
+**2026-10-29: the status page's Gatus moves to v5.38.0, which clears 7 of its 12 highs.** The
+image scan of 2026-10-29 on `main` (Security Scan run 40843566092) found 12 fixable highs in
+`ghcr.io/twin/gatus:v5.37.0`, all in the Go binary. v5.38.0 (Docker Hub push 2026-10-28 21:16
+UTC) is built with Go 1.27.3 and gRPC 1.84.0, which clear the four standard-library ones and the
+three gRPC ones. The other five, in modules v5.38.0 did not move (go-jose 4.1.4,
+klauspost/compress 1.18.6, golang.org/x/image 0.40.0 twice, golang.org/x/net 0.58.0), wait on a
+Gatus release. Its source, diffed against v5.37.0: the
+Dockerfile, `main.go`, `alert.go` and the page's static files are the same, `config.go` adds a
+Resend alert type (used only when configured; ours is not) and logging, the User-Agent is still
+`Gatus/1.0`, and the SQLite store needs no migration. So every comment that read its source at
+v5.37.0 holds at v5.38.0, and says so. The pin stays by tag, as `status-page`'s guard holds it.
+It merges once three days old, after 2026-10-31 21:17 UTC, with E2E (managed) green on its
+branch. Rollback is the old tag.
+
 **2026-10-28, about 22:30 UTC: the owner removed the OTA demo's way back to Nextcloud 34, and
 both stacks' Bitnami-era MinIO volumes.** Earlier than planned: *A Nextcloud major on the OTA
 stack* (the bring-up guide) removes the copy of the demo's volume and the dump of its database
@@ -998,7 +1012,7 @@ is who moves it after T1.
 | `caddy` | `managed.yml` | 2.11.7-alpine by digest `eb4d35b7…` (2026-10-22; `2-alpine` floating before, never pulled, 2.11.4 when recorded) | 2.11.7 | current | by hand, in its own PR, when the pin watch lists a newer 2.x or the image scan counts fixable findings | **pinned 2026-10-22** (§4); a major is the owner's. The move from 2.11.4 crosses the breaking changes 2.11.6 lists (in the code since 2.11.5): request headers capped at 16 KiB (431 above it), one-minute idle read and write timeouts, header names with a `.` dropped. Checked against `trigger-tls.Caddyfile` (`default_sni`, `tls internal`, `reverse_proxy trigger-api:3000` over HTTP), which sets none of them; the path to watch after the nightly is the dashboard over the mesh |
 | `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.19.2 (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.19.2 | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason | 1.38 (1.38.0) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
-| `ghcr.io/twin/gatus` | `managed.yml` | v5.37.0 (2026-10-21) | v5.37.0 (2026-09-24) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
+| `ghcr.io/twin/gatus` | `managed.yml` | v5.38.0 (Status, 2026-10-29; before it v5.37.0 from 2026-10-21) | v5.38.0 (2026-10-28) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
 | `axllent/mailpit` | `managed.yml` | v1.32.0 by digest (2026-10-25, for CVE-2026-111943 in v1.31.6's Go, 0146 T11 (a); v1.31.6 from 2026-10-21, v1.31.1 from T2) | v1.32.0 (2026-10-22), digest `0790692b…` | current | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
 | `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 35.0.2-apache by digest `89af7ee7…` since 2026-10-28 (T5; #1720, `3d2f129e`, the owner's OK of 2026-10-26 for alpha.3; the OTA volume upgraded by E2E (managed) run 40774398411); before it 34.0.5-apache by digest `1f9212ad…` (2026-10-25, upstream's rebuild of 2026-10-23 with `session.upload_progress.enabled=0`, PHP's mitigation for CVE-2026-115560; `9dbdc711…` from 2026-10-22, `34-apache` floating before, never pulled) | 35.0.2 (2026-10-15) on PHP 8.5.12; 35.0.3 due 2026-11-12 | current | by hand, in its own PR, when the pin watch lists a newer 35.x (34.x before the move) or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and its database and refuses an older image on them, so a bad move is fixed forward or put back from a copy taken before it (`managed-bring-up.md`, *Updating a running deployment* and *A Nextcloud major on the OTA stack*) |
 | `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 34.0.5-apache by digest `1f9212ad…` (PHP 8.5.12) since 2026-10-28, flipped in the pull request that moved the demo (T5; #1720, `3d2f129e`, after E2E (managed) run 40774398411 upgraded the OTA volume); before it 35.0.2-apache by digest `89af7ee7…` from 2026-10-26, 35.0.1 from 2026-10-25 | 34.0.5; 34.0.6 due 2026-11-12 | current | by hand; the pin watch reads no workflow file (§4) | a CI fixture: the other major customers may run (35 while the demo ran 34, 34 since), never deployed |
