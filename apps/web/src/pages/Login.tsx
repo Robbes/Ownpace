@@ -184,6 +184,20 @@ const Login: React.FC = () => {
     };
   }, []);
 
+  // BACK FROM THE ISSUER can bring this page back from the browser's
+  // back/forward cache with its state as it was when it left: the button
+  // pressed still saying it is on its way, and both held. Neither leaves
+  // again until a reload. So a page shown again from that cache lets go of
+  // them (0095 T6's review: the issuer's "how do you want to register" page
+  // is where somebody changes their mind).
+  useEffect(() => {
+    const shownAgain = (event: PageTransitionEvent) => {
+      if (event.persisted) setRedirecting(null);
+    };
+    window.addEventListener('pageshow', shownAgain);
+    return () => window.removeEventListener('pageshow', shownAgain);
+  }, []);
+
   /**
    * With an address, registration at the issuer with it filled in, in this
    * page's language; without one, plain sign-in, with exactly the parameters

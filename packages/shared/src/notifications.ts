@@ -852,7 +852,8 @@ export type NotificationEvent =
        * `alpha`. Picked by the same locale, for the same reason. The API makes
        * them from `LEGAL_SITE_URL` (`testerGuideUrl` in
        * `privacy-policy-link.ts`). The guide's own page, never a section of
-       * it: outside the alpha this mail carries no fragment at all.
+       * it: the mail's one fragment is the sign-in link's `#register=`
+       * (0095 T6), and the guide's top is where a tester starts.
        */
       readonly testerGuide?: Readonly<Record<NotificationLocale, string>>;
     }

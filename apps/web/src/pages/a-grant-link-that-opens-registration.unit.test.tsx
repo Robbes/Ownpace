@@ -177,6 +177,36 @@ describe('opened from the grant mail’s link', () => {
     expect(screen.getByRole('button', { name: SAID.en.signIn })).toBeDisabled();
   });
 
+  it.each([
+    ['Create your account', SAID.en.create, 'Taking you to the sign-in service…'],
+    ['Sign in', SAID.en.signIn, 'Taking you to sign in…'],
+  ] as const)('back from the issuer, out of the back/forward cache: %s and its neighbour can be pressed again', async (_which, name, leaving) => {
+    // The browser can restore this page as it left it, mid-redirect. A page
+    // shown again from that cache lets go of the buttons.
+    const user = userEvent.setup();
+    vi.mocked(beginSignIn).mockReturnValue(new Promise(() => {}));
+    renderAt(LINK('en'));
+
+    await user.click(await screen.findByRole('button', { name }));
+    expect(screen.getByRole('button', { name: leaving })).toBeDisabled();
+
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+
+    expect(await screen.findByRole('button', { name: SAID.en.create })).toBeEnabled();
+    expect(screen.getByRole('button', { name: SAID.en.signIn })).toBeEnabled();
+  });
+
+  it('a page shown the ordinary way (not from that cache) changes nothing', async () => {
+    const user = userEvent.setup();
+    vi.mocked(beginSignIn).mockReturnValue(new Promise(() => {}));
+    renderAt(LINK('en'));
+
+    await user.click(await screen.findByRole('button', { name: SAID.en.create }));
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: false }));
+
+    expect(screen.getByRole('button', { name: 'Taking you to the sign-in service…' })).toBeDisabled();
+  });
+
   it('says the sign-in service’s own sentence when it cannot be reached, and lets them try again', async () => {
     const user = userEvent.setup();
     vi.mocked(beginSignIn).mockRejectedValueOnce(new Error('The sign-in service did not answer (503).'));

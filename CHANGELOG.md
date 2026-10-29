@@ -210,7 +210,6 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   maintenance mode or still owes an upgrade, which the healthcheck cannot
   tell. Live runs no Nextcloud. A developer's `dev.yml` Nextcloud upgrades its
   volume on the next `up`.
-
 - **The grant mail's link opens registration with the address filled in**
   (workplan 0095 T6; the owner, 2026-10-29). The link ends in `#register=` and
   the address the mail was sent to. Opened from it, the sign-in page offers

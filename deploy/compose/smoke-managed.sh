@@ -1534,48 +1534,57 @@ else
   read_retrying curl -sS "${IDP_RESOLVE[@]}" -m 15 -o /dev/null -D - -c "$reg_jar" -w '\n%{http_code}' \
     "${STACK_ISSUER%/}/oauth/v2/authorize?client_id=${IDP_CLIENT_ID}&redirect_uri=${IDP_REDIRECT}&response_type=code&scope=openid%20email&code_challenge=${reg_challenge}&code_challenge_method=S256&prompt=create&login_hint=smoke-register%40example.test&ui_locales=en"
   reg_loc="$(tr -d '\r' <<<"${CURL_OUT%$'\n'*}" | sed -n 's/^[Ll]ocation: //p' | awk 'NR==1')"
+  # The page is asked, and judged, only where there is one to ask: with no
+  # Location there is nothing to load, and the gate carries on to its next
+  # section with this failure on its list, as every other block here does.
   case "$reg_loc" in
     '')
       echo "the provider sent a registration request nowhere — no Location on the authorization request."
       fail_at ;;
-    http*) reg_url="$reg_loc" ;;
-    *) reg_url="${STACK_ISSUER%/}${reg_loc}" ;;
+    *)
+      reg_url="$reg_loc"
+      case "$reg_url" in http*) ;; *) reg_url="${STACK_ISSUER%/}${reg_loc}" ;; esac
+      read_retrying curl -sS "${IDP_RESOLVE[@]}" -m 15 -b "$reg_jar" -c "$reg_jar" -w '\n%{http_code}' "$reg_url"
+      reg_page="${CURL_OUT%$'\n'*}"
+      reg_code="${CURL_OUT##*$'\n'}"
+      # Outside providers on the policy people resolve, as the Google count
+      # above reads it: allowed, and at least one linked. A policy that cannot
+      # be read (idp_api answers nothing then) is said to be unreadable, not
+      # taken for either answer.
+      reg_policy="$(idp_api GET /management/v1/policies/login || true)"
+      reg_outside="$(jq -r 'if (.policy.allowExternalIdp == true) and (([.policy.idps[]?] | length) > 0) then "yes" else "no" end' <<<"$reg_policy" 2>/dev/null || true)"
+      reg_outside="${reg_outside:-unreadable}"
+      if [ "$reg_code" != "200" ]; then
+        echo "the registration page answered HTTP ${reg_code} at ${reg_url}: ${reg_page:0:200}"
+        fail_at
+      elif grep -qE "<input[^>]*id=\"email\"[^>]*value=\"${reg_hint}\"" <<<"$reg_page"; then
+        if [ "$reg_outside" = "yes" ]; then
+          echo "the grant link's registration page has the address filled in, although the policy offers outside providers"
+        else
+          echo "the grant link's registration page has the address filled in"
+        fi
+      elif grep -q 'name="usernamepassword"' <<<"$reg_page" && [ "$reg_outside" = "yes" ]; then
+        echo "the grant link opens registration: the provider asks how to register first, as it does with outside providers on the policy (the address is filled in only without them)"
+      elif grep -q 'name="usernamepassword"' <<<"$reg_page" && [ "$reg_outside" = "unreadable" ]; then
+        echo "the grant link opens registration: the provider asks how to register first (the login policy could not be read, so whether outside providers are on it is unchecked)"
+      elif grep -q 'name="usernamepassword"' <<<"$reg_page"; then
+        echo "the grant link opens the provider's 'how do you want to register' page, but the policy offers no outside provider."
+        echo "  Zitadel's login v1 skips that page, and fills in the address, only when it offers none;"
+        echo "  a person granted access would meet an empty address field here."
+        fail_at
+      elif grep -q 'id="email"' <<<"$reg_page"; then
+        echo "the grant link opens the registration form, but without the address in it."
+        echo "  the provider no longer takes login_hint into its registration form: a person granted access"
+        echo "  types their address again, which is what workplan 0095 T6 ended."
+        fail_at
+      else
+        reg_text="$(tr '\n' ' ' <<<"$reg_page" | sed 's/.*<body[^>]*>//; s/<[^>]*>/ /g; s/  */ /g; s/^ *//')"
+        echo "the grant link does not open registration: prompt=create led to a page with no registration form."
+        echo "  text: ${reg_text:0:400}"
+        fail_at
+      fi ;;
   esac
-  read_retrying curl -sS "${IDP_RESOLVE[@]}" -m 15 -b "$reg_jar" -c "$reg_jar" -w '\n%{http_code}' "$reg_url"
-  reg_page="${CURL_OUT%$'\n'*}"
-  reg_code="${CURL_OUT##*$'\n'}"
   rm -f "$reg_jar"
-  # Outside providers on the policy people resolve, as the Google count above
-  # reads it: allowed, and at least one linked.
-  reg_policy="$(idp_api GET /management/v1/policies/login || true)"
-  reg_outside="$(jq -r 'if (.policy.allowExternalIdp == true) and (([.policy.idps[]?] | length) > 0) then "yes" else "no" end' <<<"$reg_policy" 2>/dev/null || echo unreadable)"
-  if [ "$reg_code" != "200" ]; then
-    echo "the registration page answered HTTP ${reg_code} at ${reg_url}: ${reg_page:0:200}"
-    fail_at
-  elif grep -qE "<input[^>]*id=\"email\"[^>]*value=\"${reg_hint}\"" <<<"$reg_page"; then
-    if [ "$reg_outside" = "yes" ]; then
-      echo "the grant link's registration page has the address filled in, although the policy offers outside providers"
-    else
-      echo "the grant link's registration page has the address filled in"
-    fi
-  elif grep -q 'name="usernamepassword"' <<<"$reg_page" && [ "$reg_outside" != "no" ]; then
-    echo "the grant link opens registration: the provider asks how to register first, as it does with outside providers on the policy (the address is filled in only without them)"
-  elif grep -q 'name="usernamepassword"' <<<"$reg_page"; then
-    echo "the grant link opens the provider's 'how do you want to register' page, but the policy offers no outside provider."
-    echo "  Zitadel's login v1 skips that page, and fills in the address, only when it offers none;"
-    echo "  a person granted access would meet an empty address field here."
-    fail_at
-  elif grep -q 'id="email"' <<<"$reg_page"; then
-    echo "the grant link opens the registration form, but without the address in it."
-    echo "  the provider no longer takes login_hint into its registration form: a person granted access"
-    echo "  types their address again, which is what workplan 0095 T6 ended."
-    fail_at
-  else
-    reg_text="$(tr '\n' ' ' <<<"$reg_page" | sed 's/.*<body[^>]*>//; s/<[^>]*>/ /g; s/  */ /g; s/^ *//')"
-    echo "the grant link does not open registration: prompt=create led to a page with no registration form."
-    echo "  text: ${reg_text:0:400}"
-    fail_at
-  fi
 
   # ---------- the form that founds an organisation, which nobody is served ----------
   #
