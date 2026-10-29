@@ -47,7 +47,7 @@ services:
   # upgrades it from 34, one way; the self-host E2E removes the container
   # before each run and so installs afresh.
   nextcloud:
-    image: nextcloud:35.0.2-apache@sha256:89af7ee7a96ff5e9668280566209268ae6b2d02327f6ef6d56f6d68228cf9431 # official multi-arch (arm64); base: Debian 13 "Trixie" via php image
+    image: nextcloud:35.0.2-apache@sha256:e0b1a2af52c82c07b7a0e8e59878bd8769e704447734d5d238a836982f51b9c8 # official multi-arch (arm64); base: Debian 13 "Trixie" via php image
     container_name: ownpace-dev-nextcloud # fixed name so provisioning scripts can `docker exec` it deterministically
     environment:
       SQLITE_DATABASE: nextcloud

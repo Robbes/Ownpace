@@ -50,6 +50,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   v4.8.1 base reads about 1 and 80. The weekly image scan reads the tasks on
   that base too. The first task deploy after this is slow: a new image in
   both build stages, with the Debian archive reachable.
+- **The demo's Nextcloud is upstream's rebuild of 35.0.2, which clears a critical**
+  (workplan 0119 T5): `nextcloud:35.0.2-apache@sha256:e0b1a2af…`, pushed by Docker Hub on
+  2026-10-28, carries `libbrotli1` 1.1.0-2+deb13u1 for CVE-2026-111497. Same Nextcloud and PHP,
+  so nothing to upgrade on the demo's volume. `managed.yml`, `dev.yml` and the Testcontainers
+  default move together. Live runs no Nextcloud.
 
 ### Changed
 
