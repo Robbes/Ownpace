@@ -12,8 +12,10 @@ the front answers 5432 itself and nothing reaches the machine. The owner chose (
 *known, with a tripwire*: the optional repository variable `EXPOSURE_PROBE_FRONT_PORTS` lists
 such ports; on a production name's address a listed port answering is a note, after the probe
 sends it PostgreSQL's SSLRequest, and an `S` or `N` back fails; a tripwire that cannot ask
-fails; on the machine's own address and the OTA names' every answer still fails; a listed port
-that stops answering is said, so the list can shrink. Branch
+fails; on the machine's own address, and on an address only the OTA names resolve to, every
+answer still fails; a listed port that stops answering is said, so the list can shrink. Only
+PostgreSQL trips the wire, so the bring-up guide asks for a capture of every port before a port
+is listed, and NetBird's dashboard for an L4 service on it. Branch
 `claude/ownpace-public-readiness-y7orc6-probe-front-ports`.
 
 **2026-10-27: T9 built** (the owner, 2026-10-28: *build both*, one draft PR for alpha.3), on

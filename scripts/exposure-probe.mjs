@@ -59,10 +59,15 @@
  * answers is a note, not a finding. It is never a blind spot: the probe then
  * sends that port PostgreSQL's SSLRequest, and an answer in PostgreSQL's
  * protocol (`S` or `N`) FAILS, since a database answering there is not the
- * front's. The machine's own address (`EXPOSURE_PROBE_HOST`) and the OTA
- * names' addresses get no such list: there every answer still fails. A listed
- * port that no longer answers is said, so the list can shrink. The variable
- * is optional; unset, every answer fails, as before.
+ * front's, and so does a tripwire that could not ask. The machine's own
+ * address (`EXPOSURE_PROBE_HOST`), and an address only the OTA names resolve
+ * to, get no such list: there every answer still fails. An address the OTA
+ * names share with a production name is a production name's. A listed port
+ * that no longer answers is said, so the list can shrink. Only PostgreSQL
+ * trips the wire: anything else answering on a listed port is a note, which
+ * is why a port goes on the list only after the machine has shown that
+ * nothing arrives (docs/managed-bring-up.md). The variable is optional;
+ * unset, every answer fails, as before.
  *
  * ITS LOG NEVER NAMES AN ADDRESS. The run's log is public. Every address, and
  * the secret, is masked with `::add-mask::` before anything else is printed,
@@ -433,11 +438,20 @@ export async function runProbe(config, io) {
       );
     }
   });
+  // A listed port that stopped answering: said, from the answers that came
+  // back only. An address this runner could not try says nothing about it.
   for (const port of frontPorts) {
-    const anywhere = held.some((h) => h.port === port);
-    const triedOnFront = tries.some((t) => t.port === port && productionFront.has(t.address));
-    if (triedOnFront && !anywhere) {
+    if (held.some((h) => h.port === port)) continue;
+    const onFront = tries.flatMap((t, i) => (t.port === port && productionFront.has(t.address) ? [answers[i]] : []));
+    const answered = onFront.filter((a) => typeof a === 'string').length;
+    if (!answered) continue;
+    if (answered === onFront.length) {
       note(`port ${port} is in EXPOSURE_PROBE_FRONT_PORTS, and no address of the production names answers on it now: the entry can go`);
+    } else {
+      note(
+        `port ${port} is in EXPOSURE_PROBE_FRONT_PORTS, and no address of the production names this runner could try ` +
+          `answers on it now (${onFront.length - answered} not tried)`,
+      );
     }
   }
   if (!open) {
@@ -563,19 +577,27 @@ export function realNetwork({ connectMs = 5000, tlsMs = 10000, fetchMs = 15000 }
      * PostgreSQL's SSLRequest, and what came back: `postgres` when the first
      * byte is `S` or `N`, as PostgreSQL answers it; `other` with how many
      * bytes, never what they were; `silent`; `closed`; or `untried`. Fail
-     * closed: an `S` or `N` first counts as PostgreSQL whatever follows.
+     * closed: an `S` or `N` first counts as PostgreSQL whatever follows, and
+     * a connection that never formed, so the request was never sent, is
+     * `untried` (its code), never an answer: the probe fails it.
      */
     postgres(address, port) {
       return new Promise((done) => {
         const socket = netConnect({ host: address, port });
+        let asked = false;
         let bytes = 0;
         let first;
         const finish = (answer) => {
           socket.destroy();
           done(answer);
         };
-        socket.setTimeout(connectMs, () => finish(bytes ? { kind: 'other', bytes } : { kind: 'silent' }));
-        socket.once('connect', () => socket.write(SSL_REQUEST));
+        socket.setTimeout(connectMs, () =>
+          finish(!asked ? { untried: 'timeout' } : bytes ? { kind: 'other', bytes } : { kind: 'silent' }),
+        );
+        socket.once('connect', () => {
+          asked = true;
+          socket.write(SSL_REQUEST);
+        });
         socket.on('data', (chunk) => {
           if (first === undefined) first = chunk[0];
           bytes += chunk.length;
@@ -584,7 +606,7 @@ export function realNetwork({ connectMs = 5000, tlsMs = 10000, fetchMs = 15000 }
         socket.once('end', () => finish(bytes ? { kind: 'other', bytes } : { kind: 'closed' }));
         socket.once('error', (e) => {
           const code = e?.code ?? 'error';
-          finish(CANNOT_TRY.has(code) ? { untried: code } : { kind: 'closed' });
+          finish(!asked || CANNOT_TRY.has(code) ? { untried: code } : { kind: 'closed' });
         });
       });
     },

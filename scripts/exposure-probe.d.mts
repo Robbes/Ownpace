@@ -70,7 +70,6 @@ export interface PageAnswer {
   readonly why?: string;
 }
 
-/** The network and the log, so a test can hand the probe its own. */
 /** What PostgreSQL's SSLRequest met: PostgreSQL's answer, other bytes (how many), nothing, or not tried. */
 export type PostgresAnswer =
   | { readonly kind: 'postgres' }
@@ -82,6 +81,7 @@ export type PostgresAnswer =
 /** PostgreSQL's SSLRequest: eight bytes, answered by PostgreSQL with `S` or `N`. */
 export declare const SSL_REQUEST: Buffer;
 
+/** The network and the log, so a test can hand the probe its own. */
 export interface ProbeIo {
   resolve(name: string): Promise<{ readonly addresses: readonly string[]; readonly error?: string }>;
   connect(address: string, port: number): Promise<ConnectAnswer>;

@@ -422,6 +422,34 @@ describe('ports the front answers by itself (EXPOSURE_PROBE_FRONT_PORTS)', () =>
     expect(lines.find((l) => l.startsWith('FAIL'))).toMatch(/port 3001 answers$/);
   });
 
+  it('a front address this runner could not try says nothing about the list: no "the entry can go"', async () => {
+    const { io, lines } = fakeIo({
+      resolved: { ...ALL_RESOLVED, 'app.ownpace.eu': [FRONT, V6], 'id.ownpace.eu': [FRONT], 'status.ownpace.eu': [FRONT] },
+      untried: [V6],
+    });
+    expect(await runProbe(HELD, io)).toBe(0);
+    expect(lines.some((l) => l.includes('the entry can go'))).toBe(false);
+    expect(lines).toContain(
+      'note  port 5432 is in EXPOSURE_PROBE_FRONT_PORTS, and no address of the production names this runner could try answers on it now (1 not tried)',
+    );
+    expectNoAddress(lines);
+  });
+
+  it('every front address untried: nothing said about the list at all', async () => {
+    const { io, lines } = fakeIo({ untried: [FRONT, FRONT_2] });
+    await runProbe(HELD, io);
+    expect(lines.some((l) => l.includes('is in EXPOSURE_PROBE_FRONT_PORTS'))).toBe(false);
+  });
+
+  it('a tripwire whose own connection timed out FAILS, like any it could not ask', async () => {
+    const { io, lines } = fakeIo({
+      open: [[FRONT, 5432]],
+      postgres: { [`${FRONT}#5432`]: { untried: 'timeout' } },
+    });
+    expect(await runProbe(HELD, io)).toBe(1);
+    expect(lines.find((l) => l.startsWith('FAIL'))).toMatch(/could not be asked in PostgreSQL's protocol \(timeout\)/);
+  });
+
   it('says a listed port that no longer answers, so the list can shrink', async () => {
     const { io, lines } = fakeIo({});
     expect(await runProbe(HELD, io)).toBe(0);
@@ -553,6 +581,13 @@ describe('the real network, against a port on this machine', () => {
     const answer = await realNetwork({ connectMs: 2000 }).postgres('127.0.0.1', port);
     expect(answer).toMatchObject({ kind: 'other' });
     expect(JSON.stringify(answer)).not.toContain('HTTP');
+  });
+
+  it('a connection that never forms is untried, never an answer: the request was not sent', async () => {
+    const { port } = await serve(() => null);
+    await new Promise<void>((done) => server!.close(() => done()));
+    server = undefined;
+    expect(await realNetwork({ connectMs: 2000 }).postgres('127.0.0.1', port)).toEqual({ untried: 'ECONNREFUSED' });
   });
 
   it('tells a port that says nothing from one that closes without a word', async () => {
