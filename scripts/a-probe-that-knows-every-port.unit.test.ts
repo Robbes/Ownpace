@@ -263,6 +263,9 @@ describe('the workflow', () => {
     const env = probe[0]!.env ?? {};
     expect(env.EXPOSURE_PROBE_LIVE_PORTS).toBe('${{ vars.EXPOSURE_PROBE_LIVE_PORTS }}');
     expect(env.EXPOSURE_PROBE_HOST).toBe('${{ secrets.EXPOSURE_PROBE_HOST }}');
+    // A variable, not a secret, and not an input: port numbers the owner set
+    // once, after checking on the machine (2026-10-29), not a choice per run.
+    expect(env.EXPOSURE_PROBE_FRONT_PORTS).toBe('${{ vars.EXPOSURE_PROBE_FRONT_PORTS }}');
     expect(env.EXPOSURE_PROBE_OTA_NAMES).toBe('${{ inputs.ota_names }}');
     expect(env.EXPOSURE_PROBE_SITE_NAME).toBe('${{ inputs.site_name }}');
   });

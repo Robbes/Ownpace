@@ -2,7 +2,21 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-10-28 (update this block at the end of every session)
+## Status — 2026-10-29 (update this block at the end of every session)
+
+**2026-10-29: the outside probe knows a port the front holds by itself (T3 (c)).** Its runs of
+2026-10-28 and 2026-10-29 found TCP 5432 answering on both of live's front IPv4 addresses, the
+only finding left. On the machine, a 15-minute capture of every SYN to port 5432 across a probe
+run saw only the containers' own connections, none over the mesh interface or the network card:
+the front answers 5432 itself and nothing reaches the machine. The owner chose (2026-10-29)
+*known, with a tripwire*: the optional repository variable `EXPOSURE_PROBE_FRONT_PORTS` lists
+such ports; on a production name's address a listed port answering is a note, after the probe
+sends it PostgreSQL's SSLRequest, and an `S` or `N` back fails; a tripwire that cannot ask
+fails; on the machine's own address, and on an address only the OTA names resolve to, every
+answer still fails; a listed port that stops answering is said, so the list can shrink. Only
+PostgreSQL trips the wire, so the bring-up guide asks for a capture of every port before a port
+is listed, and NetBird's dashboard for an L4 service on it. Branch
+`claude/ownpace-public-readiness-y7orc6-probe-front-ports`.
 
 **2026-10-27: T9 built** (the owner, 2026-10-28: *build both*, one draft PR for alpha.3), on
 branch `claude/ownpace-public-readiness-y7orc6-live-pass-check`, merged as #1724 on 2026-10-28
@@ -1393,6 +1407,9 @@ forged `X-Forwarded-For`, waits for live to stand (T1b to T1e).
   finding names the names and the port, the machine's own address by the secret's name, and an
   error by its code. An address the runner cannot reach (a hosted runner has no IPv6 route) is
   reported as not tried, never as closed.
+  *2026-10-29:* ports the front answers by itself, from the repository variable
+  `EXPOSURE_PROBE_FRONT_PORTS`, are a note on a production name's address and tried everywhere,
+  with PostgreSQL's SSLRequest as their tripwire (Status, 2026-10-29).
 - **The guards, and that they failed first.** `scripts/exposure-check.unit.test.ts`, 21 cases, all
   red on `main` (no script). `scripts/a-probe-that-knows-every-port.unit.test.ts`, 10 cases, and
   `scripts/exposure-probe.unit.test.ts`, 24 cases, did not load on `main` (neither module existed).
