@@ -2,7 +2,15 @@
 
 > **In one line:** Emailing granted and declined access requesters through `access_granted` and `access_declined` notifier events carrying no link or token, with Zitadel self-registration turned on by `setup-zitadel.sh`, and SPF/DKIM/DMARC for the sending domain.
 
-## Status — 2026-09-27 (update this block at the end of every session)
+## Status — 2026-10-29 (update this block at the end of every session)
+
+**2026-10-29: T6, the grant mail's link fills in the address at registration.** The owner,
+after their own grant on live: *"I needed to register an account again. While I thought I
+already filled in my data when asking access to the alpha."* The link now ends in `#register=`
+and the granted address, and the sign-in page offers "Create your account", which asks the
+issuer for registration with that address filled in (§T6 below). Still no token, and T0's
+answer stands: we create no account. Branch `claude/ownpace-public-readiness-y7orc6-grant-prefill`,
+draft, for alpha.4.
 
 **2026-09-27: the sentence below that A is *not* a security hole holds only while every account
 at the identity provider is in the project's own organisation.** Workplan 0135 §1 found the
@@ -16,10 +24,11 @@ Self-registration, T0's choice, stays on.
 | Task | Status | Evidence |
 |---|---|---|
 | T0 **The account that does not exist** (owner) | ✅ **Decided 2026-08-22: A, self-registration — and built** | Granting creates the organisation and an invitation. It does **not** create an account at the identity provider, and [ADR-0042](../adr/0042-who-holds-the-passwords.md) forbids us from doing so. `setup-zitadel.sh` now turns self-registration on and **reads the setting back** rather than trusting the call — `api` runs `curl -sS` without `-f`, so an HTTP error exits 0, and this particular silent no-op surfaces days later in front of a customer who cannot sign in. Its refusal names the console path to set it by hand. 3 guard cases. |
-| T1 The event and its two languages | ✅ **Done 2026-08-22** | A new `access_granted` kind on the existing union, EN + NL, with 0030 T1's compile-time key parity. Four cases, and the one that matters asserts the body carries **no link, code or token**: the only URL is the app address, and it has no query or fragment that could smuggle one in. |
+| T1 The event and its two languages | ✅ **Done 2026-08-22** | A new `access_granted` kind on the existing union, EN + NL, with 0030 T1's compile-time key parity. Four cases, and the one that matters asserts the body carries **no link, code or token**: the only URL is the app address, and it has no query or fragment that could smuggle one in. *2026-10-29 (T6):* the query is the mail's language (2026-10-17) and the fragment is the address the mail prints; still no token. |
 | T2 A recipient who is not a member yet | ✅ **Done 2026-08-22** | `apps/api/src/access-notify.ts` — the digest's shape (one transport, many envelopes) for a recipient who is deliberately not a member. Returns one of three outcomes rather than deciding what they mean: `sent`, `off` (no SMTP — nobody will ever be told) and `failed` (we tried, something is broken). Those imply different next actions for the operator, so they stay three. 3 cases, including that it never rejects. |
 | T3 The caller, outside the transaction | ✅ **Done 2026-08-22** | After the commit and outside it. The outcome is returned to the operator in the response, because "nobody was told" means the manual step is back and they are the only one who can take it. `WEB_URL` is **refused** rather than defaulted: a grant email carrying `http://localhost:3123` has told somebody to go nowhere, and would go out looking exactly like a successful one. |
 | T4 Deliverability | 📋 Planned — **needs DNS, so it is the owner's** | SPF, DKIM and DMARC for the sending domain. Without them this lands in spam, and "we emailed you" becomes "we did nothing" from the customer's side. |
+| T6 **A link that fills in the address** (owner, 2026-10-29) | 🔄 **Built 2026-10-29, draft for alpha.4** | The grant mail's link ends in `#register=<address>` (`registrationLink`, `packages/shared/src/registration-link.ts`); the invitation mail keeps the bare page. Opened from it, `Login.tsx` shows "Create your account" / "Maak uw account aan" with the address, then "Already have an account?" and Sign in, and no request link; the button sends `prompt=create`, `login_hint` and `ui_locales`, plain Sign in sends exactly the seven parameters it always did. Only behind the request link's own gate (`acceptsSeedToken: false`). `smoke-managed.sh` reads the provider's registration page. Owner's choices: a button, not a redirect; the provider's `login hint invalid` info line accepted (§T6). |
 | T5 The decline email | ✅ **Done 2026-08-22** | Saying no is a courtesy too. `access_declined` carries **no fields at all** — no reason, no organisation, and above all not the operator's note, which the queue labels "not for them". An **"email them if you decline" toggle, defaulted ON**, lets an operator clear junk without mailing a stranger, and the four outcomes (`sent` / `off` / `failed` / `skipped`) now reach the screen instead of stopping at the API. |
 
 ## The gap that is not about email at all
@@ -123,6 +132,12 @@ asserts the only URL in the body is the app address and that it carries no query
 or fragment, so the next person tempted to "improve" this into a one-click link
 fails there first.
 
+*2026-10-29 (T6):* the URL now carries the mail's language as its query (the UX sweep,
+2026-10-17) and, in the grant mail only, the granted address as its fragment. The test now
+pins exactly that link, one `#`, and an address that reads back as the one the mail prints;
+it still fails on anything token-shaped. A link with an address in it authorises nothing: the
+binding still waits for the issuer to verify that address with a code.
+
 **It does not close with "open the app to take action."** Every other event does.
 This one is read by somebody who has no account yet, so that line is an
 instruction they cannot follow — and the one they DO need is three lines above.
@@ -172,6 +187,51 @@ that knew the outcome unmounts the moment the row leaves the tab it was in. So a
 grant that emailed nobody looked exactly like one that did. The outcome is now
 lifted to the page and reported on both decisions, which is the half of T3 that
 was only true down to the API boundary.
+
+## T6 — a link that fills in the address
+
+The owner asked for access on live, was granted, and at the sign-in service typed the same
+address again, with first and last name, a password twice and the terms (2026-10-29). Only the
+address can be carried over: OpenID Connect has no standard parameter for names, and the
+registration form has no passkey option (a passkey is added after sign-in, as today).
+
+**How.** `registrationLink(appUrl, locale, email)` writes `…/login?locale=<l>#register=<encoded
+address>`; `addressFromRegistrationLink(hash)` reads it back, and anything that is not an
+address of at most 320 characters reads as null, which is today's page. One module for both
+halves, so the key and the encoding cannot drift apart. `beginSignIn(config, { create,
+loginHint, uiLocales })` adds `prompt=create` (Initiating User Registration via OpenID Connect
+1.0), `login_hint` and `ui_locales` (OIDC Core §3.1.2.1): standard parameters, read from no
+provider's URL shapes, so ADR-0042's replaceable issuer holds and needs no amendment.
+
+**Where the address goes.** After `#`, so no request carries it from the link: not our nginx
+log, not the API, not the reverse proxy in front of the stack. The page never sends it to the API either, so
+it cannot be used to learn whether an address was granted, and its words claim no grant. It
+leaves the browser only when the person presses the button, as the `login_hint` of the
+authorize request to the provider, which is where they would have typed it anyway.
+
+**One new log line, accepted (owner, 2026-10-29).** Zitadel logs `login hint invalid` at info
+with the hint, for every hint that matches no account, which is everybody the button is for. It
+lands in the provider's own container log on our own machine, kept as that log is kept
+(privacy §9). Privacy 1.0 stays literally true (§4.5: server logs "are not free of names"); an
+HTML comment there names the line, and the sentence goes into the next privacy version. Turning
+the provider's log level to `warn` was the alternative, and it also takes away the lines the
+bring-up guide reads.
+
+**A button, not a redirect.** A mail scanner that runs scripts would otherwise start
+registrations; somebody who already has an account gets the choice; and the page already
+waits for the API's answer about what it accepts.
+
+**What the person sees depends on the login policy.** Zitadel's login v1 fills in the address
+only where registration offers no outside provider (`renderRegisterOption` at v4.20.0). Live
+refuses every `IDP_*` key, so live gets the filled-in form. OTA and E2E (managed) offer Google,
+so there the provider asks "how do you want to register" first, and the address field after it
+is empty: expected, and no prediction for live. `smoke-managed.sh` knows both answers and reads
+the policy to choose. If the hint matches an account that exists, Zitadel selects it and asks
+for its password instead, so somebody who registered already falls through to sign-in.
+
+**Unchanged.** The invitation mail (`member_invited`) keeps the bare sign-in page; the mail's
+words, including "Use this account:" with the same address; the request form and its
+always-201 answer; the binding, which still needs an address the issuer verified.
 
 ## Gates
 

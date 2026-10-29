@@ -187,6 +187,24 @@ describe('granting access while the deployment runs the alpha', () => {
   });
 });
 
+describe('the link in the grant mail (0095 T6)', () => {
+  it.each(['en', 'nl'] as const)(
+    'opens the sign-in page with the requested address after #, in %s',
+    async (locale) => {
+      // Through the real route, from the request's own row: the address the
+      // person typed on the form is the one the sign-in page will fill in,
+      // `+` and all.
+      const email = `anna+${locale}@example.test`;
+      const { res, mail } = await knockAndGrant(email, locale);
+      expect(res.status).toBe(201);
+      expect(mail).toHaveLength(1);
+      expect(mail[0]!.body).toContain(
+        `https://app.example.test/login?locale=${locale}#register=${encodeURIComponent(email)}\n`,
+      );
+    },
+  );
+});
+
 describe('granting access anywhere else', () => {
   it.each(['en', 'nl'] as const)('sends a mail that says nothing about an alpha, in %s', async (locale) => {
     const { res, mail } = await knockAndGrant(`person-${locale}@example.test`, locale);

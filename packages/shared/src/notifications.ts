@@ -37,6 +37,7 @@
  */
 
 import type { DiscoveryDomain } from './discovery.ts';
+import { registrationLink } from './registration-link.ts';
 
 /** The two languages the UI speaks; the same pair, deliberately. */
 export type NotificationLocale = 'en' | 'nl';
@@ -807,6 +808,12 @@ export type NotificationEvent =
        * The issuer owns identity (ADR-0042), so this mail authorises nothing —
        * which is the property that makes forwarding or intercepting it
        * harmless, and the reason not to "improve" this into a one-click link.
+       *
+       * Since 2026-10-29 (0095 T6) the link ends in `#register=` and `email`
+       * below, so the sign-in page can open registration with the address
+       * filled in. Still no token: the fragment is the address this mail
+       * prints anyway, and it binds nothing until the issuer verifies it with
+       * a code (`registration-link.ts`).
        */
       readonly appUrl: string;
       /**
@@ -1607,6 +1614,8 @@ function moneyToGiveBackLines(event: MoneyToGiveBackEvent): string[] {
  * a Dutch tester with an English browser met it in English; the page reads
  * `?locale=` once, on arrival. Still an address and never a token: the one
  * query is the language. One trailing slash on the setting is not doubled.
+ * The invitation's link; the grant mail's adds the address after `#`
+ * (`registrationLink`, 0095 T6).
  */
 function signInPage(appUrl: string, locale: NotificationLocale): string {
   return `${appUrl.replace(/\/$/, '')}/login?locale=${locale}`;
@@ -1654,7 +1663,9 @@ export function renderEvent(
     case 'access_granted':
       lines.push(`${b.grantedOrganisation}: ${event.organisation}`, '');
       lines.push(b.grantedIntro, '');
-      lines.push(`${b.grantedSignIn} ${signInPage(event.appUrl, locale)}`, '');
+      // The sign-in page with the address after `#`, so "Create your account"
+      // there fills it in (0095 T6). The invitation below keeps the bare page.
+      lines.push(`${b.grantedSignIn} ${registrationLink(event.appUrl, locale, event.email)}`, '');
       lines.push(`${b.grantedUseThisAddress} ${event.email}`, '');
       lines.push(b.grantedVerify, '');
       lines.push(b.grantedNoLink);

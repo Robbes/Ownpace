@@ -47,6 +47,14 @@ export const en = {
   // Under the sign-in button (workplan 0144 T7): the way to the request page
   // for somebody who has no account yet. The mirror of `access.backToSignIn`.
   'login.requestAccess': 'No account yet? Request access.',
+  // ---- The grant mail's link: registration with the address filled in (0095 T6) ----
+  // Drawn only when the page was opened from that link. The words claim no
+  // grant: anybody can type such a link, with any address in it.
+  'login.createAccount': 'Create your account',
+  'login.createAccount.as':
+    'With {email}. The sign-in service mails a code to that address to confirm it is yours.',
+  'login.createAccount.redirecting': 'Taking you to the sign-in service…',
+  'login.haveAccount': 'Already have an account?',
   // ---- Asking the API what it accepts, before offering it (workplan 0102 T1) ----
   'login.checking': 'Checking how to sign in…',
   // Not a fallback to the paste box: on a managed stack that box is refused
@@ -208,6 +216,12 @@ export const nl: Record<keyof typeof en, string> = {
     'Deze API gebruikt geen identiteitsprovider en accepteert dus een token uit het seedscript.',
   'login.oidcFailed': 'Wij konden de aanmeldservice niet bereiken.',
   'login.requestAccess': 'Nog geen account? Vraag toegang aan.',
+  // ---- De link in de toegangsmail (0095 T6) — zie het Engelse blok. ----
+  'login.createAccount': 'Maak uw account aan',
+  'login.createAccount.as':
+    'Met {email}. De aanmeldservice mailt een code naar dat adres om te bevestigen dat het van u is.',
+  'login.createAccount.redirecting': 'U wordt doorgestuurd naar de aanmeldservice…',
+  'login.haveAccount': 'Heeft u al een account?',
   // ---- De API vragen wat zij accepteert (workplan 0102 T1) — zie het Engelse blok. ----
   'login.checking': 'Bezig met controleren hoe u zich aanmeldt…',
   'login.modeUnavailable': 'Aanmelden is nu niet mogelijk.',
