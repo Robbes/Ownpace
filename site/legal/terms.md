@@ -122,7 +122,9 @@
      and the time, and refuses to store any access (adding a connection,
      giving one a new key, creating a migration) until the current versions
      are accepted. The site build renders the Alpha conditions since then.
-     Still to do: the texts must be served (live's WWW_LIVE is false).
+     Served since 2026-10-28: live runs alpha.2 with WWW_LIVE=true, and the six texts on
+     www.ownpace.eu read 1.0, dated 2026-10-19, on 2026-10-29 (0139 Status, 2026-10-29).
+     (Was: still to do: the texts must be served, live's WWW_LIVE being false.)
   B. DONE BY REWORDING (2026-10-05; the owner, asked to reword it or build the rest first: "Reword
      to match the code"). §11, the Alpha conditions §10 and privacy §9 now say what the code does:
      no new work starts, work already running finishes what it is doing and stops, a pass can carry
