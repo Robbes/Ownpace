@@ -110,6 +110,8 @@ function fakeIo(fake: Fake = {}): { io: ProbeIo; lines: string[]; asked: string[
   const io: ProbeIo = {
     resolve: async (name) => ({ addresses: (fake.resolved ?? RESOLVED)[name] ?? [] }),
     connect: async () => 'silent',
+    // Nothing answers, so the front's own ports are never asked about here.
+    postgres: async () => ({ kind: 'silent' }),
     tls: async (name) => ([...PRODUCTION_NAMES, SITE_NAME].includes(name) ? { state: 'tls' } : { state: 'none', why: 'timeout' }),
     issuer: async () => ({ issuer: 'https://id.ownpace.eu' }),
     page: async (url) => {

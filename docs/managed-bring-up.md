@@ -383,7 +383,13 @@ takes the machine's own public address from the optional secret
 `EXPOSURE_PROBE_HOST`. It also asks `app.`, `id.`, `status.` and
 `www.ownpace.eu` for the page a visitor asks first, and fails while NetBird's
 sign-in answers one of them instead of the service (workplan 0139, item 8;
-*After the script: the owner's steps*, step 5).
+*After the script: the owner's steps*, step 5). A port the front answers by
+itself, which never reaches the machine, goes in the optional repository
+variable `EXPOSURE_PROBE_FRONT_PORTS`, and only after a capture on the machine
+during a probe run has shown that nothing arrives (workplan 0132 T3 (c), the
+owner, 2026-10-29). On a production name's address such a port answering is
+then a note, unless it answers as PostgreSQL, which fails; on the machine's own
+address and the OTA names' it fails as before.
 
 **The OTA site is recreated by hand, and only by hand.** No workflow runs
 `www.yml`, and the bring-up does not start the site (*The public site*, below).
@@ -4117,6 +4123,14 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    the account, your laptop on the mesh or the machine, NetBird may let a
    request through its SSO without a sign-in page, so a browser there proves
    nothing, and the probe runs on a GitHub-hosted runner.
+   If a port answers on the production names' addresses that nothing of yours
+   publishes, find out first whether anything arrives: on the machine,
+   `sudo timeout 900 tcpdump -lni any -q 'tcp dst port <port> and tcp[tcpflags] & (tcp-syn|tcp-ack) == tcp-syn'`
+   while you dispatch the probe. Connections that arrive over the mesh
+   interface or the network card are a real exposure: close it. Only the
+   containers' own (`veth…`) or none: the front holds the port itself, and
+   `gh variable set EXPOSURE_PROBE_FRONT_PORTS --body '<port>'` makes it a
+   note, with PostgreSQL's handshake as its tripwire.
 6. **Live's logs name the visitor** (workplan 0132 T3 (d); privacy §4.5).
    From outside the NetBird network, send one request to the app and one to
    the site, each with a forged header, `192.0.2.1` being a documentation

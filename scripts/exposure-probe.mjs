@@ -49,6 +49,21 @@
  * routed, requires the name to resolve to live's front alone and 443 to
  * answer over TLS.
  *
+ * PORTS THE FRONT ANSWERS BY ITSELF (the owner, 2026-10-29). The front in
+ * front of live can hold a port open that never reaches the machine. On
+ * 2026-10-28 and 2026-10-29 TCP 5432 answered on both of live's front IPv4
+ * addresses, and a 15-minute capture on the machine, across a probe run, saw
+ * no connection to 5432 arrive from outside: only the containers' own. So the
+ * repository variable `EXPOSURE_PROBE_FRONT_PORTS` lists such ports, and on an
+ * address a production name resolves to, and only there, a listed port that
+ * answers is a note, not a finding. It is never a blind spot: the probe then
+ * sends that port PostgreSQL's SSLRequest, and an answer in PostgreSQL's
+ * protocol (`S` or `N`) FAILS, since a database answering there is not the
+ * front's. The machine's own address (`EXPOSURE_PROBE_HOST`) and the OTA
+ * names' addresses get no such list: there every answer still fails. A listed
+ * port that no longer answers is said, so the list can shrink. The variable
+ * is optional; unset, every answer fails, as before.
+ *
  * ITS LOG NEVER NAMES AN ADDRESS. The run's log is public. Every address, and
  * the secret, is masked with `::add-mask::` before anything else is printed,
  * and nothing printed carries one: an address is named by the names that
@@ -83,11 +98,12 @@
  * registration page answers 404 (0135 T1), and the forged `X-Forwarded-For`
  * request (0132 T3 (d)), which needs live standing.
  *
- * Usage:  EXPOSURE_PROBE_LIVE_PORTS='4123 4126' node scripts/exposure-probe.mjs
+ * Usage:  EXPOSURE_PROBE_LIVE_PORTS='4123 4126' [EXPOSURE_PROBE_FRONT_PORTS=5432] node scripts/exposure-probe.mjs
  * Exit: 0 pass; 1 a finding; 2 the configuration, or the port list, is wrong.
  */
 
 import { promises as dns } from 'node:dns';
+import { Buffer } from 'node:buffer';
 import { appendFileSync } from 'node:fs';
 import { connect as netConnect, isIP } from 'node:net';
 import { resolve as resolvePath } from 'node:path';
@@ -119,6 +135,13 @@ export const SIGN_IN_PAGES = [
 /** Where NetBird's proxy serves the assets of its own pages (proxy/web/web.go, PathPrefix). */
 export const NETBIRD_ASSETS = '/__netbird__/';
 
+/**
+ * PostgreSQL's SSLRequest (protocol 3, "SSL Session Encryption"): length 8,
+ * code 80877103. A PostgreSQL server answers it with one byte, `S` or `N`,
+ * before anything else; nothing is sent after it, and no credential ever.
+ */
+export const SSL_REQUEST = Buffer.from([0x00, 0x00, 0x00, 0x08, 0x04, 0xd2, 0x16, 0x2f]);
+
 /** How the machine's own address is named in the log: by the secret that holds it. */
 const HOST_LABEL = "the machine's own address (EXPOSURE_PROBE_HOST)";
 
@@ -146,6 +169,22 @@ export function probeConfig(env, derivedPorts) {
         else errors.push(`EXPOSURE_PROBE_LIVE_PORTS, entry ${i + 1}, is not one port number (1 to 65535).`);
       });
   }
+  const frontPorts = [];
+  (env.EXPOSURE_PROBE_FRONT_PORTS ?? '')
+    .trim()
+    .split(/[\s,]+/)
+    .filter(Boolean)
+    .forEach((token, i) => {
+      const port = /^\d+$/.test(token) ? Number(token) : NaN;
+      if (!(port >= 1 && port <= 65535)) {
+        errors.push(`EXPOSURE_PROBE_FRONT_PORTS, entry ${i + 1}, is not one port number (1 to 65535).`);
+      } else if (port === TLS_PORT) {
+        errors.push(
+          `EXPOSURE_PROBE_FRONT_PORTS names ${TLS_PORT}, which is not a port the front holds by itself: ` +
+            'it is the one port the production names must answer on, over TLS, and it is asked that way.',
+        );
+      } else frontPorts.push(port);
+    });
   const otaMode = (env.EXPOSURE_PROBE_OTA_NAMES ?? '').trim() || 'report';
   if (!OTA_MODES.includes(otaMode)) {
     errors.push(`EXPOSURE_PROBE_OTA_NAMES must be one of ${OTA_MODES.join(', ')}.`);
@@ -155,8 +194,18 @@ export function probeConfig(env, derivedPorts) {
     errors.push(`EXPOSURE_PROBE_SITE_NAME must be one of ${SITE_MODES.join(', ')}.`);
   }
   if (errors.length) return { errors };
-  const ports = [...new Set([...derivedPorts, ...livePorts])].sort((a, b) => a - b);
-  return { config: { ports, host: (env.EXPOSURE_PROBE_HOST ?? '').trim(), otaMode, siteMode }, errors: [] };
+  // A listed port is tried everywhere too: what the list says is checked, not taken on trust.
+  const ports = [...new Set([...derivedPorts, ...livePorts, ...frontPorts])].sort((a, b) => a - b);
+  return {
+    config: {
+      ports,
+      frontPorts: [...new Set(frontPorts)].sort((a, b) => a - b),
+      host: (env.EXPOSURE_PROBE_HOST ?? '').trim(),
+      otaMode,
+      siteMode,
+    },
+    errors: [],
+  };
 }
 
 /** Run `fn` over `items`, at most `limit` at a time, keeping the order. */
@@ -327,11 +376,21 @@ export async function runProbe(config, io) {
   // ---- Nothing else answers -------------------------------------------------
   const tries = targets.flatMap((t) => config.ports.map((port) => ({ ...t, port })));
   const answers = await inPool(tries, 32, ({ address, port }) => io.connect(address, port));
+  // Where a port the front holds by itself may answer: an address a
+  // production name resolves to, and never the machine's own.
+  const frontPorts = new Set(config.frontPorts ?? []);
+  const machine = new Set(hostAddresses);
+  const productionFront = new Set(
+    PRODUCTION_NAMES.flatMap((n) => resolved.get(n).addresses).filter((a) => !machine.has(a)),
+  );
+  const held = [];
   const untried = new Map();
   let open = 0;
-  tries.forEach(({ label, port }, i) => {
+  tries.forEach(({ address, label, port }, i) => {
     const answer = answers[i];
-    if (answer === 'open') {
+    if (answer === 'open' && frontPorts.has(port) && productionFront.has(address)) {
+      held.push({ address, label, port });
+    } else if (answer === 'open') {
       open++;
       fail(`${label}: port ${port} answers`);
     } else if (typeof answer === 'object' && answer !== null) {
@@ -344,7 +403,50 @@ export async function runProbe(config, io) {
     const which = ports.length === config.ports.length ? `any of the ${ports.length} ports` : `ports ${ports.join(' ')}`;
     note(`${label}: not tried from this runner (${why}), on ${which}; nothing is known about it`);
   }
-  if (!open) pass(`no tried port answers on ${targets.length} address(es)`);
+  // ---- The front's own ports: answering is the front's, PostgreSQL is not ----
+  const spoke = await inPool(held, 8, ({ address, port }) => io.postgres(address, port));
+  held.forEach(({ label, port }, i) => {
+    const answer = spoke[i];
+    if (answer?.kind === 'postgres') {
+      open++;
+      fail(
+        `${label}: port ${port} answers as PostgreSQL. EXPOSURE_PROBE_FRONT_PORTS lists it as one the front ` +
+          'answers by itself, and a database answering there is not the front',
+      );
+    } else if (!['other', 'silent', 'closed'].includes(answer?.kind)) {
+      // Fail closed: a port the tripwire could not ask is a port nobody knows.
+      open++;
+      fail(
+        `${label}: port ${port} answers, and could not be asked in PostgreSQL's protocol ` +
+          `(${answer?.untried ?? 'no reason'}), so it is counted`,
+      );
+    } else {
+      const words =
+        answer.kind === 'other'
+          ? `answered ${answer.bytes} byte(s) that are not PostgreSQL's`
+          : answer.kind === 'silent'
+            ? 'said nothing'
+            : 'closed the connection';
+      note(
+        `${label}: port ${port} answers, the front's own (EXPOSURE_PROBE_FRONT_PORTS); asked in PostgreSQL's ` +
+          `protocol it ${words}, so not counted`,
+      );
+    }
+  });
+  for (const port of frontPorts) {
+    const anywhere = held.some((h) => h.port === port);
+    const triedOnFront = tries.some((t) => t.port === port && productionFront.has(t.address));
+    if (triedOnFront && !anywhere) {
+      note(`port ${port} is in EXPOSURE_PROBE_FRONT_PORTS, and no address of the production names answers on it now: the entry can go`);
+    }
+  }
+  if (!open) {
+    pass(
+      held.length
+        ? `no tried port answers on ${targets.length} address(es), beside ${held.length} the front answers by itself`
+        : `no tried port answers on ${targets.length} address(es)`,
+    );
+  }
 
   // ---- 443 on the production names, over TLS -------------------------------
   for (const name of PRODUCTION_NAMES) {
@@ -453,6 +555,36 @@ export function realNetwork({ connectMs = 5000, tlsMs = 10000, fetchMs = 15000 }
         socket.once('error', (e) => {
           const code = e?.code ?? 'error';
           finish(CANNOT_TRY.has(code) ? { untried: code } : 'closed');
+        });
+      });
+    },
+
+    /**
+     * PostgreSQL's SSLRequest, and what came back: `postgres` when the first
+     * byte is `S` or `N`, as PostgreSQL answers it; `other` with how many
+     * bytes, never what they were; `silent`; `closed`; or `untried`. Fail
+     * closed: an `S` or `N` first counts as PostgreSQL whatever follows.
+     */
+    postgres(address, port) {
+      return new Promise((done) => {
+        const socket = netConnect({ host: address, port });
+        let bytes = 0;
+        let first;
+        const finish = (answer) => {
+          socket.destroy();
+          done(answer);
+        };
+        socket.setTimeout(connectMs, () => finish(bytes ? { kind: 'other', bytes } : { kind: 'silent' }));
+        socket.once('connect', () => socket.write(SSL_REQUEST));
+        socket.on('data', (chunk) => {
+          if (first === undefined) first = chunk[0];
+          bytes += chunk.length;
+          finish(first === 0x53 || first === 0x4e ? { kind: 'postgres' } : { kind: 'other', bytes });
+        });
+        socket.once('end', () => finish(bytes ? { kind: 'other', bytes } : { kind: 'closed' }));
+        socket.once('error', (e) => {
+          const code = e?.code ?? 'error';
+          finish(CANNOT_TRY.has(code) ? { untried: code } : { kind: 'closed' });
         });
       });
     },

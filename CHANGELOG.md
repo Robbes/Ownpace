@@ -211,6 +211,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   tell. Live runs no Nextcloud. A developer's `dev.yml` Nextcloud upgrades its
   volume on the next `up`.
 
+- **The outside probe knows a port the front answers by itself** (workplan
+  0132 T3 (c); the owner, 2026-10-29). TCP 5432 answered on both of live's
+  front addresses, and a capture on the machine during a probe run showed
+  nothing arriving there. The optional repository variable
+  `EXPOSURE_PROBE_FRONT_PORTS` lists such ports: on a production name's
+  address a listed port answering is a note, once PostgreSQL's SSLRequest
+  sent to it gets no PostgreSQL answer; an `S` or `N` back, or a tripwire that
+  cannot ask, fails. The machine's own address and the OTA names' fail on
+  every answer as before, a listed port is tried everywhere, and one that
+  stops answering is said, so the list can shrink.
+
 ### Added
 
 - **The suites that talk to Nextcloud also run against the major the demo
