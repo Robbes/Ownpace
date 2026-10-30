@@ -1673,7 +1673,7 @@ services:
   # in git and reviewed — read the header of that file for what this page can and
   # cannot tell you, and why it lives here rather than on its own machine.
   gatus:
-    image: ghcr.io/twin/gatus:v5.37.0
+    image: ghcr.io/twin/gatus:v5.38.0
     container_name: ${COMPOSE_PROJECT_NAME}-status
     restart: unless-stopped
     logging: *logging
@@ -1796,7 +1796,7 @@ services:
     # no curl, no shell, so `CMD-SHELL` is out too, and `main.go` parses no
     # arguments at all, so there is no `gatus healthcheck` subcommand the way
     # mailpit has `/mailpit readyz`. Verified against the upstream Dockerfile
-    # and main.go at v5.37.0 rather than assumed.
+    # and main.go at v5.38.0 rather than assumed.
     #
     # WRITTEN IN #498 AND NEVER ONCE RUN, because nothing started this service
     # until #547 put it in the bring-up's list. Its first real execution was

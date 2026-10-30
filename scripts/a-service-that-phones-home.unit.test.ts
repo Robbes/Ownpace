@@ -744,7 +744,7 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
   'deploy/compose/managed.yml:gatus': {
     readAt: 'ghcr.io/twin/gatus',
     why:
-      "no telemetry at v5.37.0, and its page loads nothing from another host; its requests are gatus.yaml's probes, which " +
+      "no telemetry at v5.38.0, and its page loads nothing from another host; its requests are gatus.yaml's probes, which " +
       'ask our own services and public pages of the providers it watches, and carry nothing about anyone',
   },
   'deploy/compose/www.yml:www': { readAt: 'nginx', why: NONE('nginx') },
