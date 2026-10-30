@@ -28,6 +28,13 @@
 #                                       live serves the site, separated by spaces or
 #                                       commas. Port numbers, not secrets. The
 #                                       probe will not run without them.
+#   variable EXPOSURE_PROBE_FRONT_PORTS optional: ports the front in front of
+#                                       live answers by itself (PostgreSQL's,
+#                                       since 2026-10-29).
+#                                       On a production name's address only, such
+#                                       a port answering is a note, unless it
+#                                       answers as PostgreSQL, which fails. Unset:
+#                                       every answer fails.
 #   secret   EXPOSURE_PROBE_HOST        optional: the machine's own public
 #                                       address (or a name for it). Masked, and
 #                                       never printed.
@@ -94,6 +101,7 @@ jobs:
       - name: Try every port from outside
         env:
           EXPOSURE_PROBE_LIVE_PORTS: ${{ vars.EXPOSURE_PROBE_LIVE_PORTS }}
+          EXPOSURE_PROBE_FRONT_PORTS: ${{ vars.EXPOSURE_PROBE_FRONT_PORTS }}
           EXPOSURE_PROBE_HOST: ${{ secrets.EXPOSURE_PROBE_HOST }}
           EXPOSURE_PROBE_OTA_NAMES: ${{ inputs.ota_names }}
           EXPOSURE_PROBE_SITE_NAME: ${{ inputs.site_name }}

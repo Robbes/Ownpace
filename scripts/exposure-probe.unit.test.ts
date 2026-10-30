@@ -43,9 +43,11 @@ import {
   OTA_NAMES,
   PRODUCTION_NAMES,
   SITE_NAME,
+  SSL_REQUEST,
   probeConfig,
   realNetwork,
   runProbe,
+  type PostgresAnswer,
   type ProbeIo,
   type ProbeConfig,
 } from './exposure-probe.mjs';
@@ -68,6 +70,8 @@ interface Fake {
   untried?: string[];
   tls?: Record<string, { state: 'tls' | 'tcp-only' | 'none'; why?: string }>;
   issuer?: { issuer?: string; why?: string };
+  /** What PostgreSQL's SSLRequest meets, by `address#port`; said nothing otherwise. */
+  postgres?: Record<string, PostgresAnswer>;
 }
 
 const ALL_RESOLVED: Record<string, string[]> = {
@@ -80,10 +84,17 @@ const ALL_RESOLVED: Record<string, string[]> = {
   'www.ota.ownpace.eu': [OTA_FRONT],
 };
 
-function fakeIo(fake: Fake): { io: ProbeIo; lines: string[]; tried: string[]; tlsAsked: string[] } {
+function fakeIo(fake: Fake): {
+  io: ProbeIo;
+  lines: string[];
+  tried: string[];
+  tlsAsked: string[];
+  pgAsked: string[];
+} {
   const lines: string[] = [];
   const tried: string[] = [];
   const tlsAsked: string[] = [];
+  const pgAsked: string[] = [];
   const io: ProbeIo = {
     resolve: async (name) => {
       const error = fake.unresolvable?.[name];
@@ -94,6 +105,10 @@ function fakeIo(fake: Fake): { io: ProbeIo; lines: string[]; tried: string[]; tl
       tried.push(`${address}#${port}`);
       if (fake.untried?.includes(address)) return { untried: 'ENETUNREACH' };
       return (fake.open ?? []).some(([a, p]) => a === address && p === port) ? 'open' : 'silent';
+    },
+    postgres: async (address, port) => {
+      pgAsked.push(`${address}#${port}`);
+      return fake.postgres?.[`${address}#${port}`] ?? { kind: 'silent' };
     },
     tls: async (name) => {
       tlsAsked.push(name);
@@ -108,7 +123,7 @@ function fakeIo(fake: Fake): { io: ProbeIo; lines: string[]; tried: string[]; tl
     page: async () => ({ status: 200, netbird: false }),
     print: (line) => lines.push(line),
   };
-  return { io, lines, tried, tlsAsked };
+  return { io, lines, tried, tlsAsked, pgAsked };
 }
 
 const CONFIG: ProbeConfig = { ports: [3001, 3123, 5432], host: MACHINE, otaMode: 'report', siteMode: 'report' };
@@ -331,6 +346,127 @@ describe('the OTA names, as open question 7 will decide', () => {
   });
 });
 
+/**
+ * PORTS THE FRONT ANSWERS BY ITSELF (the owner, 2026-10-29). 5432 answered on
+ * both of live's front IPv4 addresses, and a capture on the machine across a
+ * probe run saw nothing arrive. `EXPOSURE_PROBE_FRONT_PORTS` lists such ports:
+ * on a production name's address only, such a port answering is a note, and
+ * the tripwire behind it, PostgreSQL's SSLRequest, fails on a PostgreSQL
+ * answer. Everywhere else every answer still fails.
+ */
+describe('ports the front answers by itself (EXPOSURE_PROBE_FRONT_PORTS)', () => {
+  const HELD: ProbeConfig = { ...CONFIG, frontPorts: [5432] };
+
+  it('a listed port answering on the production names\' addresses is a note, after it does not answer as PostgreSQL', async () => {
+    const { io, lines, pgAsked } = fakeIo({
+      open: [
+        [FRONT, 5432],
+        [FRONT_2, 5432],
+      ],
+      postgres: { [`${FRONT}#5432`]: { kind: 'other', bytes: 7 } },
+    });
+    expect(await runProbe(HELD, io)).toBe(0);
+    expect(pgAsked.sort()).toEqual([`${FRONT}#5432`, `${FRONT_2}#5432`].sort());
+    expect(lines.filter((l) => l.startsWith('FAIL'))).toEqual([]);
+    const held = lines.filter((l) => l.startsWith('note') && l.includes("port 5432 answers, the front's own"));
+    expect(held).toHaveLength(2);
+    expect(held.join('\n')).toContain("answered 7 byte(s) that are not PostgreSQL's");
+    expect(held.join('\n')).toContain('said nothing');
+    expect(lines).toContain('pass  no tried port answers on 5 address(es), beside 2 the front answers by itself');
+    expectNoAddress(lines);
+  });
+
+  it('FAILS when the listed port answers as PostgreSQL: a database there is not the front', async () => {
+    const { io, lines } = fakeIo({
+      open: [[FRONT, 5432]],
+      postgres: { [`${FRONT}#5432`]: { kind: 'postgres' } },
+    });
+    expect(await runProbe(HELD, io)).toBe(1);
+    expect(lines.find((l) => l.startsWith('FAIL'))).toMatch(/port 5432 answers as PostgreSQL/);
+    expect(lines.some((l) => l.startsWith('pass  no tried port'))).toBe(false);
+    expectNoAddress(lines);
+  });
+
+  it('FAILS when the tripwire could not ask: a port nobody could ask is a port nobody knows', async () => {
+    const { io, lines } = fakeIo({
+      open: [[FRONT, 5432]],
+      postgres: { [`${FRONT}#5432`]: { untried: 'EPERM' } },
+    });
+    expect(await runProbe(HELD, io)).toBe(1);
+    expect(lines.find((l) => l.startsWith('FAIL'))).toMatch(/could not be asked in PostgreSQL's protocol \(EPERM\)/);
+  });
+
+  it('still FAILS on the machine\'s own address, and asks it nothing', async () => {
+    const { io, lines, pgAsked } = fakeIo({ open: [[MACHINE, 5432]] });
+    expect(await runProbe(HELD, io)).toBe(1);
+    expect(lines).toContain("FAIL  the machine's own address (EXPOSURE_PROBE_HOST) (IPv4): port 5432 answers");
+    expect(pgAsked).toEqual([]);
+  });
+
+  it('still FAILS on a production name\'s address that is the machine\'s own too', async () => {
+    const { io, lines, pgAsked } = fakeIo({ open: [[FRONT, 5432]] });
+    expect(await runProbe({ ...HELD, host: FRONT }, io)).toBe(1);
+    expect(lines.filter((l) => l.startsWith('FAIL') && l.includes('port 5432 answers')).length).toBeGreaterThan(0);
+    expect(pgAsked).toEqual([]);
+  });
+
+  it('still FAILS on an address only the OTA names resolve to', async () => {
+    const { io, lines } = fakeIo({ open: [[OTA_FRONT, 5432]] });
+    expect(await runProbe(HELD, io)).toBe(1);
+    expect(lines.find((l) => l.startsWith('FAIL'))).toMatch(/app\.ota\.ownpace\.eu.*port 5432 answers$/);
+  });
+
+  it('still FAILS on a port the variable does not list, on the front too', async () => {
+    const { io, lines } = fakeIo({ open: [[FRONT, 3001]] });
+    expect(await runProbe(HELD, io)).toBe(1);
+    expect(lines.find((l) => l.startsWith('FAIL'))).toMatch(/port 3001 answers$/);
+  });
+
+  it('a front address this runner could not try says nothing about the list: no "the entry can go"', async () => {
+    const { io, lines } = fakeIo({
+      resolved: { ...ALL_RESOLVED, 'app.ownpace.eu': [FRONT, V6], 'id.ownpace.eu': [FRONT], 'status.ownpace.eu': [FRONT] },
+      untried: [V6],
+    });
+    expect(await runProbe(HELD, io)).toBe(0);
+    expect(lines.some((l) => l.includes('the entry can go'))).toBe(false);
+    expect(lines).toContain(
+      'note  port 5432 is in EXPOSURE_PROBE_FRONT_PORTS, and no address of the production names this runner could try answers on it now (1 not tried)',
+    );
+    expectNoAddress(lines);
+  });
+
+  it('every front address untried: nothing said about the list at all', async () => {
+    const { io, lines } = fakeIo({ untried: [FRONT, FRONT_2] });
+    await runProbe(HELD, io);
+    expect(lines.some((l) => l.includes('is in EXPOSURE_PROBE_FRONT_PORTS'))).toBe(false);
+  });
+
+  it('a tripwire whose own connection timed out FAILS, like any it could not ask', async () => {
+    const { io, lines } = fakeIo({
+      open: [[FRONT, 5432]],
+      postgres: { [`${FRONT}#5432`]: { untried: 'timeout' } },
+    });
+    expect(await runProbe(HELD, io)).toBe(1);
+    expect(lines.find((l) => l.startsWith('FAIL'))).toMatch(/could not be asked in PostgreSQL's protocol \(timeout\)/);
+  });
+
+  it('says a listed port that no longer answers, so the list can shrink', async () => {
+    const { io, lines } = fakeIo({});
+    expect(await runProbe(HELD, io)).toBe(0);
+    expect(lines).toContain(
+      'note  port 5432 is in EXPOSURE_PROBE_FRONT_PORTS, and no address of the production names answers on it now: the entry can go',
+    );
+    expect(lines).toContain('pass  no tried port answers on 5 address(es)');
+  });
+
+  it('without the variable, the front\'s 5432 fails as it always did', async () => {
+    const { io, lines, pgAsked } = fakeIo({ open: [[FRONT, 5432]] });
+    expect(await runProbe(CONFIG, io)).toBe(1);
+    expect(lines.find((l) => l.startsWith('FAIL'))).toMatch(/port 5432 answers$/);
+    expect(pgAsked).toEqual([]);
+  });
+});
+
 describe('the configuration the workflow hands it', () => {
   const derived = [3001, 3123, 5432];
 
@@ -369,6 +505,26 @@ describe('the configuration the workflow hands it', () => {
     expect(probeConfig({ EXPOSURE_PROBE_LIVE_PORTS: '4123', EXPOSURE_PROBE_SITE_NAME: 'required' }, derived).config?.siteMode).toBe('required');
   });
 
+  it('reads the ports the front answers by itself, and tries them everywhere too', () => {
+    const r = probeConfig({ EXPOSURE_PROBE_LIVE_PORTS: '4123', EXPOSURE_PROBE_FRONT_PORTS: '5432, 6000 5432' }, derived);
+    expect(r.errors).toEqual([]);
+    expect(r.config?.frontPorts).toEqual([5432, 6000]);
+    expect(r.config?.ports).toEqual([3001, 3123, 4123, 5432, 6000]);
+    expect(probeConfig({ EXPOSURE_PROBE_LIVE_PORTS: '4123' }, derived).config?.frontPorts).toEqual([]);
+  });
+
+  it.each(['54x2', '0', '70000', '5432-5433'])('refuses a front port that is not one port number: %s', (v) => {
+    const r = probeConfig({ EXPOSURE_PROBE_LIVE_PORTS: '4123', EXPOSURE_PROBE_FRONT_PORTS: v }, derived);
+    expect(r.config).toBeUndefined();
+    expect(r.errors.join('\n')).toContain('EXPOSURE_PROBE_FRONT_PORTS');
+  });
+
+  it('refuses 443 as a port the front holds: it is the one the names must answer on, over TLS', () => {
+    const r = probeConfig({ EXPOSURE_PROBE_LIVE_PORTS: '4123', EXPOSURE_PROBE_FRONT_PORTS: '443' }, derived);
+    expect(r.config).toBeUndefined();
+    expect(r.errors.join('\n')).toMatch(/EXPOSURE_PROBE_FRONT_PORTS names 443/);
+  });
+
   it('never repeats the secret in a refusal', () => {
     const r = probeConfig({ EXPOSURE_PROBE_LIVE_PORTS: 'x', EXPOSURE_PROBE_HOST: MACHINE }, derived);
     expect(r.errors.join('\n')).not.toContain(MACHINE);
@@ -389,5 +545,56 @@ describe('the real network, against a port on this machine', () => {
     await new Promise<void>((done) => server!.close(() => done()));
     server = undefined;
     expect(await net.connect('127.0.0.1', port)).toBe('closed');
+  });
+
+  /** A server on loopback that answers what it is given, and records what it got. */
+  async function serve(answer: (got: Buffer) => Buffer | null, after: 'end' | 'stay' = 'stay') {
+    const got: Buffer[] = [];
+    server = createServer((s) => {
+      s.on('data', (chunk: Buffer) => {
+        got.push(chunk);
+        const reply = answer(Buffer.concat(got));
+        if (reply) s.write(reply);
+        if (after === 'end') s.end();
+      });
+    });
+    await new Promise<void>((done) => server!.listen(0, '127.0.0.1', done));
+    const address = server.address();
+    return { port: typeof address === 'object' && address ? address.port : 0, got };
+  }
+
+  it('sends PostgreSQL\'s SSLRequest and nothing else, and knows its answer', async () => {
+    const { port, got } = await serve(() => Buffer.from('N'));
+    const answer = await realNetwork({ connectMs: 2000 }).postgres('127.0.0.1', port);
+    expect(answer).toEqual({ kind: 'postgres' });
+    expect(Buffer.concat(got)).toEqual(SSL_REQUEST);
+    expect([...SSL_REQUEST]).toEqual([0, 0, 0, 8, 0x04, 0xd2, 0x16, 0x2f]);
+  });
+
+  it('counts S, PostgreSQL\'s other answer, the same way', async () => {
+    const { port } = await serve(() => Buffer.from('S'));
+    expect(await realNetwork({ connectMs: 2000 }).postgres('127.0.0.1', port)).toEqual({ kind: 'postgres' });
+  });
+
+  it('calls other bytes other, by how many, and never what they were', async () => {
+    const { port } = await serve(() => Buffer.from('HTTP/1.1 400 Bad Request\r\n\r\n'), 'end');
+    const answer = await realNetwork({ connectMs: 2000 }).postgres('127.0.0.1', port);
+    expect(answer).toMatchObject({ kind: 'other' });
+    expect(JSON.stringify(answer)).not.toContain('HTTP');
+  });
+
+  it('a connection that never forms is untried, never an answer: the request was not sent', async () => {
+    const { port } = await serve(() => null);
+    await new Promise<void>((done) => server!.close(() => done()));
+    server = undefined;
+    expect(await realNetwork({ connectMs: 2000 }).postgres('127.0.0.1', port)).toEqual({ untried: 'ECONNREFUSED' });
+  });
+
+  it('tells a port that says nothing from one that closes without a word', async () => {
+    const silent = await serve(() => null);
+    expect(await realNetwork({ connectMs: 500 }).postgres('127.0.0.1', silent.port)).toEqual({ kind: 'silent' });
+    await new Promise<void>((done) => server!.close(() => done()));
+    const closing = await serve(() => null, 'end');
+    expect(await realNetwork({ connectMs: 2000 }).postgres('127.0.0.1', closing.port)).toEqual({ kind: 'closed' });
   });
 });

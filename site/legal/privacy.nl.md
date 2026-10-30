@@ -629,7 +629,10 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
        (copy-before-update.sh since) and does it again in the restored database, so "Gegevens
        die uit de dienst zijn gewist, kunnen nog hoogstens 7 dagen in die kopie staan" holds
        through a rollback too. True on live once live runs a tag that carries it and the daily duties' timer runs
-       (take refuses without it); the rollback has not been run on a stack.
+       (take refuses without it). *2026-10-29:* live runs alpha.2 since 2026-10-28; its deploy
+       took the copy on 2026-10-27 at 20:56 UTC with the timer running, and the rollback was
+       run once on live itself, before any tester (0132 Status, 2026-10-29). (Was: the
+       rollback has not been run on a stack.)
      - Vastleggingen van de achtergrondtaken: the drill sentence is gone (rec-drill (a)), and
        the drill is off live's duties (0139 T6): box-duties.sh's second duty is the copy's
        backstop, and trigger-version.sh refuses drill on live. True on live once live runs a

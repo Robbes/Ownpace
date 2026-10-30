@@ -2,7 +2,18 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-10-28 (update this block at the end of every session)
+## Status — 2026-10-29 (update this block at the end of every session)
+
+**2026-10-28, about 22:30 UTC: the owner removed the OTA demo's way back to Nextcloud 34, and
+both stacks' Bitnami-era MinIO volumes.** Earlier than planned: *A Nextcloud major on the OTA
+stack* (the bring-up guide) removes the copy of the demo's volume and the dump of its database
+once the move has held for a night or two, and the owner removed them the same evening. E2E
+(managed) run 40774398411 had already brought the OTA demo up healthy on 35.0.2 (T5, #1720), so
+the copies of 34 were no longer needed. The old MinIO volumes, `ownpace-managed_minio_data` and
+`ownpace-live_minio_data`, went the same evening with the old images (0146 T7). So item 5's
+restore plan, the old image on the old volume, no longer exists on either stack. On live that
+also ends the way back to alpha.1 (0132 Status, 2026-10-29; the operator runbook, *Rolling back
+from it, by day 6*).
 
 **2026-10-28: alpha.3's work landed on main, the demo's Nextcloud 35 last.** Twenty-eight pull
 requests merged after the alpha.2 tag (`f62bcbe2`), from 2026-10-27 21:58 to 2026-10-28 22:38 UTC;

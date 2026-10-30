@@ -36,6 +36,12 @@ export type SiteMode = 'report' | 'required';
 export interface ProbeConfig {
   /** Every port tried on every address, sorted, once each. */
   readonly ports: readonly number[];
+  /**
+   * EXPOSURE_PROBE_FRONT_PORTS: ports the front answers by itself, a note on
+   * a production name's address while they do not answer as PostgreSQL.
+   * Absent or empty: every answer fails.
+   */
+  readonly frontPorts?: readonly number[];
   /** EXPOSURE_PROBE_HOST: the machine's own address or name, or ''. */
   readonly host: string;
   readonly otaMode: OtaMode;
@@ -64,10 +70,23 @@ export interface PageAnswer {
   readonly why?: string;
 }
 
+/** What PostgreSQL's SSLRequest met: PostgreSQL's answer, other bytes (how many), nothing, or not tried. */
+export type PostgresAnswer =
+  | { readonly kind: 'postgres' }
+  | { readonly kind: 'other'; readonly bytes: number }
+  | { readonly kind: 'silent' }
+  | { readonly kind: 'closed' }
+  | { readonly untried: string };
+
+/** PostgreSQL's SSLRequest: eight bytes, answered by PostgreSQL with `S` or `N`. */
+export declare const SSL_REQUEST: Buffer;
+
 /** The network and the log, so a test can hand the probe its own. */
 export interface ProbeIo {
   resolve(name: string): Promise<{ readonly addresses: readonly string[]; readonly error?: string }>;
   connect(address: string, port: number): Promise<ConnectAnswer>;
+  /** Asked only of a port the front holds by itself, after it answered. */
+  postgres(address: string, port: number): Promise<PostgresAnswer>;
   tls(name: string): Promise<TlsAnswer>;
   issuer(url: string): Promise<{ readonly issuer?: string; readonly why?: string }>;
   page(url: string): Promise<PageAnswer>;

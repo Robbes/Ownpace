@@ -2,7 +2,7 @@
 
 > **In one line:** Role enforcement in the managed API: a role matrix amending ADR-0035, `requireRole` on write routes with a route-table guard, owner-role guards, audit rows for deletes, credential swaps and cutover preparation, viewer-aware web buttons.
 
-## Status — 2026-10-21 (update this block at the end of every session)
+## Status — 2026-10-29 (update this block at the end of every session)
 
 **2026-10-21: T4 built, without the membership rows, in #1648, merged 2026-10-21 (`efcaeef8`).**
 Four acts now leave one `audit_log` row with the caller as actor, so the operator's log page says
@@ -284,7 +284,7 @@ links, and until T2 lands the product offers owner and admin only.
 | T4 Who deleted it, who replaced the password, who prepared the cutover | ✅ **done** without the membership rows, in #1648, merged 2026-10-21 (`efcaeef8`); `member.invited` and `member.role_changed` wait on open question 4 — *was:* 📋 **Proposed** | §3. An `audit_log` row with the actor for deleting a migration or a connection, replacing credentials, and preparing a cutover. |
 | T5 The web app shows a viewer no button it cannot press | 📋 **Proposed**, after T2 | §3. One table in the web app that mirrors T1, checked against the API's. |
 | T6 A viewer and a member are refused, and a test says so | 📋 **Proposed**, with T2 | §3. 403 cases for every gated write, driven by T2's table; the migrations suite stops asserting that a member may delete. |
-| T7 Until T2 lands: nobody is invited or moved below admin | ✅ **done** in #1294, merged 2026-09-28 (`a1625f08`); the check not yet run on `ownpace-live` — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-an-owner-or-an-admin-for-the-alpha`, not merged** (2026-09-28) | §3 and the Status block. The invite and role-change routes answer 400 `owner_or_admin_only` for any role but owner and admin; the Team page offers those two, defaults to admin and says what an admin can do; `operator.sh check role-below-admin` lists the rows below admin and exits 1 while there is one. T2's PR undoes it. |
+| T7 Until T2 lands: nobody is invited or moved below admin | ✅ **done** in #1294, merged 2026-09-28 (`a1625f08`); the check run on `ownpace-live` on 2026-10-29, exit 0 (0139 Status, 2026-10-29) — *was:* the check not yet run on `ownpace-live` — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-an-owner-or-an-admin-for-the-alpha`, not merged** (2026-09-28) | §3 and the Status block. The invite and role-change routes answer 400 `owner_or_admin_only` for any role but owner and admin; the Team page offers those two, defaults to admin and says what an admin can do; `operator.sh check role-below-admin` lists the rows below admin and exits 1 while there is one. T2's PR undoes it. |
 
 ## 1. What there is today
 
