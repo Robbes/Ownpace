@@ -60,10 +60,19 @@ GHSA-cg2g-xh64-v4q7 in dompurify 3.4.13, fixed in 3.4.17, in
   mutation of the Dockerfile (the integrity check dropped or its value changed, the change-time
   and path proofs dropped, the bundle check, the link check and the import proof dropped,
   `to` moved, `from_tree` changed, `rm -rf`).
-- **Not proven here** (no Docker daemon): that the real image passes every check. The
-  dispatched Security Scan's build does on arm64, and the pull request's
-  `build (trigger, amd64|arm64)` on both. Expected: 1 critical. E2E (managed) on the branch:
-  owed, after the alpha.3 tag.
+- **Proven on the real image, on both platforms** (no Docker daemon here, so on GitHub's
+  runners). Draft #1742's `build (trigger, amd64)` and `build (trigger, arm64)` are green on
+  `0f2ae9fd`: every check before the swap held on upstream's image (the published 3.4.13 file
+  for file, the three links, one `dompurify/package.json`, no DOMPurify and no import of
+  dompurify or mermaid in the webapp's build), the tarball's sha512 was the published one, no
+  other path or file of the image changed, and the log reads `require(dompurify):
+  …/dompurify@3.4.13/node_modules/dompurify/dist/purify.cjs.js 3.4.17` and `import(dompurify):
+  …/dist/purify.es.mjs 3.4.17` from each of the two requirers. The Security Scan dispatched on
+  the branch at `0f2ae9fd` (run 41015259996) read `localhost/trigger.dev:v4.8.1-d467cf5da6ef`
+  as **1 critical, 137 high**, 81 with a fix (2, 138 and 83 before, run 41004468330): the one
+  critical left is zlib1g, CVE-2023-45853, which Debian has not fixed, and GHSA-mrv2-3pqr-j5jr
+  went with GHSA-cg2g-xh64-v4q7. The supervisor reads 0 and 25, unchanged. E2E (managed) on
+  the branch: owed, after the alpha.3 tag.
 
 **2026-10-30, last: alpha.3 is folded.** Six pull requests merged on 2026-10-30, each after CI,
 and each that changes what a stack runs after E2E on its branch:

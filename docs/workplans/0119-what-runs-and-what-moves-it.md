@@ -16,7 +16,10 @@ are posthog-js 1.407.3, whose entry points carry none and whose dashboard half i
 moving: it fetches the tarball from the npm registry, refuses it unless its sha512 is the one
 npm published, swaps the directory, and proves nothing else in the image changed and that both
 requirers load 3.4.17. `managed.yml`'s name moves to `-d467cf5da6ef`; `trigger-version.sh` and
-the pin are unchanged, as is the version. The inventory's Trigger.dev row says so. It moves
+the pin are unchanged, as is the version. The inventory's Trigger.dev row says so. Measured on
+the branch at `0f2ae9fd` (Security Scan run 41015259996): 1 critical and 137 high, 81 with a
+fix (2, 138 and 83 before); the critical left is zlib1g. Draft #1742's
+`build (trigger, amd64|arm64)` ran every check and proof on upstream's image, green. It moves
 nothing on the machine until a tag carries it, and then builds the webapp's image again, with
 the npm registry reachable. E2E (managed) on the branch: owed, after the alpha.3 tag.
 
