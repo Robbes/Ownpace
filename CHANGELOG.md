@@ -14,11 +14,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   relative. The 404 page, served at whatever address was wrong, names none.
   The build writes `llms.txt` at the site's root: one line per page per
   language, by the page's own title and description, under *English* and
-  *Nederlands*. The address comes from `PUBLIC_SITE_URL`, the one place the
-  site writes it. A test build names the same addresses and keeps its
-  `noindex`; they take effect where `--public` makes the site indexable, which
-  live's deploy does with `WWW_LIVE=true`. No visible sentence changes.
-  `site/a-page-that-names-its-address-in-full.unit.test.ts` holds it.
+  *Nederlands*, for every page a visitor reaches from the home page. The
+  Alpha's conditions and its guide, which the nav leaves out for the people
+  taking part, are left out of it too, and keep their canonical and hreflang
+  links. It lists the site's pages only: the links to the maintained
+  documentation that ADR-0029 also asks of `llms.txt` are still owed. nginx
+  serves the site's text as UTF-8 (`charset utf-8` in `www-nginx.conf`), so
+  `llms.txt`, its first file with text outside ASCII, says so in its
+  `Content-Type`. The address comes from `PUBLIC_SITE_URL`, the one place the
+  site writes it, and the build follows it there. A test build names the same
+  addresses and keeps its `noindex`; they take effect where `--public` makes
+  the site indexable, which live's deploy does with `WWW_LIVE=true`. No visible
+  sentence changes. `site/a-page-that-names-its-address-in-full.unit.test.ts`
+  holds it, and `site/calculator.unit.test.ts` the charset.
 
 ## [0.2.0-alpha.3] - 2026-10-30
 

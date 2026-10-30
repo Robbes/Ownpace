@@ -20,19 +20,35 @@
  *  - its hreflang links are absolute, one per language, reciprocal, and cover
  *    every language the page is rendered in; `x-default` is the default
  *    locale's page;
- *  - `llms.txt` lists every page with an address, in its own language's
- *    section, by its own title and description, and no address that is not a
- *    page; the build writes it at the site's root;
+ *  - `llms.txt` lists every page a visitor reaches from the home page by the
+ *    site's own links, in its own language's section, by its own title and
+ *    description, and nothing else: not the Alpha's conditions and guide,
+ *    which no such page links (`UNLISTED` in `build.mjs`), and no address
+ *    that is not a page; the build writes it at the site's root;
  *  - a test build carries the same links and the same `llms.txt` as a
  *    `--public` one, and keeps its `noindex`;
- *  - the site's own address is written once, in `security-txt.mjs`.
+ *  - the site's own address is written once, in `security-txt.mjs`, and the
+ *    build follows it: a copy of the site whose `security-txt.mjs` names
+ *    another origin names that origin in every address above.
  *
- * NOT held: that a search engine or an assistant does anything with them.
+ * NOT held: that a search engine or an assistant does anything with them, or
+ * the charset `llms.txt` is served with (`www-nginx.conf`, held in
+ * `calculator.unit.test.ts`).
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -107,6 +123,75 @@ function absolute(href: string | undefined): boolean {
 
 const canonicals = (html: string) => links(html).filter((l) => l.attrs.rel === 'canonical');
 const alternates = (html: string) => links(html).filter((l) => l.attrs.rel === 'alternate' && 'hreflang' in l.attrs);
+
+/** A page's canonical and hreflang links, each as its attributes, for comparing two renders. */
+const search = (html: string) =>
+  links(html)
+    .filter((l) => l.attrs.rel === 'canonical' || 'hreflang' in l.attrs)
+    .map((l) => JSON.stringify(l.attrs));
+
+/**
+ * The addresses a visitor reaches from the home page (`/`, the default
+ * locale's) by following the site's own links: each `<a href>`, resolved
+ * against the address of the page it is on, without its query or fragment,
+ * and `index.html` read as its directory, as nginx serves it. A link off the
+ * site, or to an address that is no page, leads nowhere here. This is what
+ * `llms.txt` offers an assistant: what the site offers every visitor.
+ */
+function reachable(pages: readonly { file: string; html: string }[], origin: string): Set<string> {
+  const at = new Map(pages.filter((p) => !notFound(p)).map((p) => [`${origin}${servedAt(p.file)}`, p]));
+  const seen = new Set<string>();
+  const queue = [`${origin}/`];
+  while (queue.length > 0) {
+    const address = queue.shift()!;
+    const page = at.get(address);
+    if (seen.has(address) || !page) continue;
+    seen.add(address);
+    for (const m of page.html.matchAll(/<a\b[^>]*\bhref="([^"]*)"/g)) {
+      const u = new URL(text(m[1]!), address);
+      queue.push(`${u.origin}${u.pathname.replace(/(^|\/)index\.html$/, '$1')}`);
+    }
+  }
+  return seen;
+}
+
+/** A copy of `site/`, without `dist` or `node_modules`, in a directory of its own. */
+function copyOfSite(prefix: string): string {
+  const copy = realpathSync(mkdtempSync(join(tmpdir(), prefix)));
+  cpSync(HERE, copy, {
+    recursive: true,
+    filter: (src) => !src.split(sep).includes('dist') && !src.split(sep).includes('node_modules'),
+  });
+  return copy;
+}
+
+/**
+ * The pages and `llms.txt` the `build.mjs` in `dir` renders, in a child: a
+ * module's `PUBLIC` is read from argv, and its addresses from the
+ * `security-txt.mjs` beside it, when it loads.
+ */
+function renderIn(dir: string, args: string[], env: NodeJS.ProcessEnv): { pages: { file: string; html: string }[]; llms: string } {
+  const build = pathToFileURL(join(dir, 'build.mjs')).href;
+  const out = execFileSync(
+    process.execPath,
+    [
+      '-e',
+      `import(${JSON.stringify(build)})
+         .then((m) => process.stdout.write(JSON.stringify({ pages: m.rendered.map((p) => ({ file: p.file, html: p.html })), llms: m.llms })))
+         .catch((e) => { process.stderr.write(String(e && e.message)); process.exit(1); });`,
+      // `--` first, or node claims `--public` as an option of its own.
+      '--',
+      ...args,
+    ],
+    {
+      env: { ...process.env, ...env },
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'pipe'] as const,
+    },
+  );
+  return JSON.parse(out) as { pages: { file: string; html: string }[]; llms: string };
+}
 
 /** Every page of both builds, by file, the Alpha's first. */
 async function everyPage(): Promise<Page[]> {
@@ -221,9 +306,9 @@ function parseLlms(txt: string): Llms {
   return out;
 }
 
-describe('llms.txt lists every page with an address, by its own words (ADR-0029; 0152 T5 (c))', () => {
+describe('llms.txt lists every page a visitor reaches, by its own words (ADR-0029; 0152 T5 (c))', () => {
   for (const alpha of [true, false]) {
-    it(`every page in its own language's section, and nothing else, in a build ${alpha ? 'for' : 'not for'} the Alpha`, async () => {
+    it(`every such page in its own language's section, and nothing else, in a build ${alpha ? 'for' : 'not for'} the Alpha`, async () => {
       const origin = await site();
       const { all, fallback, name } = await locales();
       const { rendered, llms } = await built(alpha);
@@ -255,8 +340,19 @@ describe('llms.txt lists every page with an address, by its own words (ADR-0029;
         }
       }
       expect(listed.length, 'llms.txt lists a page twice').toBe(new Set(listed).size);
-      expect(listed.slice().sort(), 'llms.txt does not list exactly the pages with an address').toEqual(
-        pages.map(own).sort(),
+      const reached = reachable(pages, origin);
+      expect(listed.slice().sort(), 'llms.txt does not list exactly the pages a visitor reaches from the home page').toEqual(
+        pages.map(own).filter((a) => reached.has(a)).sort(),
+      );
+
+      // The pages it leaves out are the Alpha's, and only those: its
+      // conditions in every build and its guide in the Alpha's, each in both
+      // languages. Linked from the app, and the conditions from the guide,
+      // and from no page a visitor reaches. A page that starts linking one of them, or a page of
+      // the site's that nothing links any more, fails here first.
+      const unreached = pages.filter((p) => !reached.has(own(p)));
+      expect(unreached.map((p) => `${p.locale}:${p.key}`).sort(), 'the pages no visitor reaches from the home page').toEqual(
+        (alpha ? ['alpha', 'guide'] : ['alpha']).flatMap((k) => all.map((l) => `${l}:${k}`)).sort(),
       );
     });
   }
@@ -271,17 +367,13 @@ describe('llms.txt lists every page with an address, by its own words (ADR-0029;
 describe('the build writes llms.txt at the root, and every address in it is a file it wrote', () => {
   let copy = '';
   beforeAll(() => {
-    copy = realpathSync(mkdtempSync(join(tmpdir(), 'site-search-')));
-    cpSync(HERE, copy, {
-      recursive: true,
-      filter: (src) => !src.split(sep).includes('dist') && !src.split(sep).includes('node_modules'),
-    });
+    copy = copyOfSite('site-search-');
   });
   afterAll(() => {
     if (copy) rmSync(copy, { recursive: true, force: true });
   });
 
-  it('writes it, the same file the module renders, listing each HTML file but the 404s', async () => {
+  it('writes it, the same file the module renders, listing each HTML file a visitor reaches', async () => {
     const origin = await site();
     const r = spawnSync(process.execPath, [join(copy, 'build.mjs')], {
       cwd: copy,
@@ -301,19 +393,22 @@ describe('the build writes llms.txt at the root, and every address in it is a fi
       const file = path.endsWith('/') ? `${path}index.html` : path;
       expect(existsSync(join(dist, file)), `llms.txt lists ${url}, and the build wrote no ${file}`).toBe(true);
     }
-    const html: string[] = [];
+    const html: { file: string; html: string }[] = [];
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir)) {
         const full = join(dir, entry);
         if (statSync(full).isDirectory()) walk(full);
-        else if (entry.endsWith('.html')) html.push(relative(dist, full).split(sep).join('/'));
+        else if (entry.endsWith('.html'))
+          html.push({ file: relative(dist, full).split(sep).join('/'), html: readFileSync(full, 'utf8') });
       }
     };
     walk(dist);
+    const reached = reachable(html, origin);
     expect(
-      urls.map((u) => u.slice(origin.length)).sort(),
-      'llms.txt does not list every HTML file the build wrote but the 404s',
-    ).toEqual(html.filter((f) => !notFound({ file: f })).map(servedAt).sort());
+      urls.slice().sort(),
+      'llms.txt does not list every HTML file the build wrote that a visitor reaches from the home page',
+    ).toEqual([...reached].sort());
+    expect(urls.length, 'llms.txt lists next to no page, so the comparison above says little').toBeGreaterThan(20);
   });
 });
 
@@ -325,33 +420,9 @@ describe('the build writes llms.txt at the root, and every address in it is a fi
  */
 describe('a test build names the same addresses as a public one, and keeps its noindex', () => {
   /** The `--public` render, in a child: `PUBLIC` is read from argv at load. */
-  function publicBuild(): { pages: { file: string; html: string }[]; llms: string } {
-    const build = pathToFileURL(join(HERE, 'build.mjs')).href;
-    const out = execFileSync(
-      process.execPath,
-      [
-        '-e',
-        `import(${JSON.stringify(build)})
-           .then((m) => process.stdout.write(JSON.stringify({ pages: m.rendered.map((p) => ({ file: p.file, html: p.html })), llms: m.llms })))
-           .catch((e) => { process.stderr.write(String(e && e.message)); process.exit(1); });`,
-        // `--` first, or node claims `--public` as an option of its own.
-        '--',
-        '--public',
-      ],
-      {
-        env: { ...process.env, OWNPACE_APP_URL: 'https://app.ownpace.eu', OWNPACE_STAGE: 'alpha' },
-        encoding: 'utf8',
-        maxBuffer: 64 * 1024 * 1024,
-        stdio: ['ignore', 'pipe', 'pipe'] as const,
-      },
-    );
-    return JSON.parse(out) as { pages: { file: string; html: string }[]; llms: string };
-  }
+  const publicBuild = () =>
+    renderIn(HERE, ['--public'], { OWNPACE_APP_URL: 'https://app.ownpace.eu', OWNPACE_STAGE: 'alpha' });
 
-  const search = (html: string) =>
-    links(html)
-      .filter((l) => l.attrs.rel === 'canonical' || 'hreflang' in l.attrs)
-      .map((l) => JSON.stringify(l.attrs));
   const NOINDEX = '<meta name="robots" content="noindex, nofollow" />';
 
   it('the same canonical and hreflang links on every page, and the same llms.txt', async () => {
@@ -374,8 +445,48 @@ describe('a test build names the same addresses as a public one, and keeps its n
   });
 });
 
-describe("the site's own address is written once", () => {
-  it('in security-txt.mjs, and in no other module of the site', async () => {
+describe("the site's own address is written once, and the build follows it", () => {
+  /**
+   * Behaviour, not spelling: the case below it counts the literal, which a
+   * `build.mjs` that writes the address in two halves, without importing it,
+   * would pass. This moves the address in a copy of the site, and every
+   * address the copy names has to move with it.
+   */
+  let copy = '';
+  beforeAll(() => {
+    copy = copyOfSite('site-origin-');
+  });
+  afterAll(() => {
+    if (copy) rmSync(copy, { recursive: true, force: true });
+  });
+
+  it('a copy whose security-txt.mjs names another origin names it in every canonical, hreflang and llms.txt address', async () => {
+    const origin = await site();
+    const elsewhere = 'https://site.example';
+    const file = join(copy, 'security-txt.mjs');
+    const line = `export const PUBLIC_SITE_URL = '${origin}';`;
+    const source = readFileSync(file, 'utf8');
+    expect(source.split(line).length - 1, `security-txt.mjs does not say ${line} once`).toBe(1);
+    writeFileSync(file, source.replace(line, `export const PUBLIC_SITE_URL = '${elsewhere}';`));
+
+    const moved = renderIn(copy, [], { OWNPACE_STAGE: 'alpha' });
+    const here = await built(true);
+    const move = (s: string) => s.split(origin).join(elsewhere);
+    expect(moved.pages.map((p) => p.file).sort()).toEqual(here.rendered.map((p) => p.file).sort());
+    let named = 0;
+    for (const p of here.rendered) {
+      const twin = moved.pages.find((q) => q.file === p.file)!;
+      expect(search(twin.html), `${p.file}: the copy names other addresses than ${elsewhere}'s`).toEqual(
+        search(p.html).map(move),
+      );
+      named += search(p.html).length;
+    }
+    expect(named, 'no page names an address, so nothing above was compared').toBeGreaterThan(100);
+    expect(here.llms, 'llms.txt names no address, so nothing below is compared').toContain(`(${origin}/)`);
+    expect(moved.llms, "the copy's llms.txt").toBe(move(here.llms));
+  });
+
+  it('in security-txt.mjs, and as a literal in no other module of the site', async () => {
     const origin = await site();
     expect(new URL(origin).origin, 'PUBLIC_SITE_URL is not an origin alone').toBe(origin);
     expect(new URL(origin).protocol).toBe('https:');

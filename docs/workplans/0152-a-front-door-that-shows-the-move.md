@@ -10,7 +10,10 @@ ADR-0029). The inventory of 2026-10-30 marked (c) as blocking the first invitati
 and the owner wants it in alpha.3. What it waited for, the site's own address, is
 `https://www.ownpace.eu`, which serves live's site since 2026-10-28; the site writes it once,
 as `PUBLIC_SITE_URL` in `site/security-txt.mjs`, and the build now reads it from there
-(`addressOf` in `site/build.mjs`). No visible sentence changes, and no legal text.
+(`addressOf` in `site/build.mjs`). No visible sentence changes, and no legal text. Reviewed
+the same day (pull request #1743); the five findings are in the bullets below, each where it
+belongs: the Alpha's pages leave `llms.txt`, nginx names the charset, the address is held by
+behaviour, the documentation's lines are owed, and 0131's row says where (c) is.
 - **Every page's `<head>`:** one `<link rel="canonical">` to its own address in full; one
   `<link rel="alternate" hreflang>` per language, itself included, so the links are reciprocal;
   and `x-default`. The hreflang links were relative (`/nl/prijzen.html`) and are now absolute;
@@ -22,12 +25,27 @@ as `PUBLIC_SITE_URL` in `site/security-txt.mjs`, and the build now reads it from
   for the nav.
 - **`llms.txt` at the site's root,** in llmstxt.org's shape: `# Ownpace` (the header's name), the
   English home page's description as the `>` summary, and a section per language, *English* and
-  *Nederlands* (each language's own name in `copy.mjs`), with one line per page with an address:
-  `- [its <title>](its canonical address): its meta description`. One line per page per language,
-  not per page with both: each language's page has its own title and description in its own
-  words, and one line holding both would give one page the other language's. It is built from
-  what the build rendered, so the tester guide is listed in a build for the Alpha only. Nothing
-  in it is written for it.
+  *Nederlands* (each language's own name in `copy.mjs`), with one line per page a visitor reaches
+  from the home page: `- [its <title>](its canonical address): its meta description`. One line
+  per page per language, not per page with both: each language's page has its own title and
+  description in its own words, and one line holding both would give one page the other
+  language's. Nothing in it is written for it.
+- **The Alpha's pages are not in `llms.txt`** (after review). The conditions and the tester guide
+  are kept out of the nav because a link there "would offer conditions to people who cannot take
+  part" (`OUTSIDE_NAV`, `ALPHA_ONLY`); the app and the texts that name them link them, and the
+  guide links the conditions, and no page a visitor reaches from the home page does. The first `llms.txt` listed every
+  page with an address, and so offered them to every assistant that read it. It now leaves out
+  `UNLISTED` (`site/build.mjs`, those two lists), and offers what the site offers every visitor.
+  Their canonical and hreflang links stay: they describe a page, and offer it to nobody.
+- **nginx says the text is UTF-8** (after review). `charset` is off by default, so `llms.txt`, the
+  first file the site serves with text outside ASCII (a dash in every title, and Dutch), went out
+  as `Content-Type: text/plain` with no charset; an HTML page names its own in `<meta charset>`.
+  `www-nginx.conf` now says `charset utf-8;` once, at server level, which every location inherits
+  (unlike `add_header`). Served by a local nginx 1.24 from the `--public` build, before and after:
+  `/llms.txt`, `/robots.txt` and `/.well-known/security.txt` went from `text/plain` to
+  `text/plain; charset=utf-8`, every page from `text/html` to `text/html; charset=utf-8`, the logo
+  stayed `image/png`, and every answer kept its CSP. Not seen on the live host, and not under the
+  image's nginx 1.31.8.
 - **A test host carries the same addresses.** `rel="canonical"` names the preferred address of a
   page's content, which for a copy on a test host is production's; the test build is `noindex`
   and its robots.txt disallows everything, so nothing reads them there, and they take effect where
@@ -39,29 +57,48 @@ as `PUBLIC_SITE_URL` in `site/security-txt.mjs`, and the build now reads it from
   `Disallow: /` otherwise) and names no address, so it has nothing to disagree with. There is no
   sitemap.xml, and none is added: ADR-0029's operative rules name `llms.txt` and robots.txt, and
   mention a sitemap only as one of the scanners' criteria in its context.
-- **Guard:** `site/a-page-that-names-its-address-in-full.unit.test.ts`, 10 cases, run on the build
+- **Guard:** `site/a-page-that-names-its-address-in-full.unit.test.ts`, 11 cases, run on the build
   for the Alpha and the one without: exactly one canonical per page, in `<head>`, absolute, equal
   to the address nginx serves its file at; none on the 404 pages; hreflang absolute, one per
   language, reciprocal, covering exactly the languages the page is rendered in, `x-default` on the
   default locale's page; `llms.txt` holding only a title, a summary, sections and page lines, each
-  line's title and description the page's own, under its own language, every page with an address
-  listed once and nothing else; the build, run as it is run on a copy of `site/`, writing
-  `llms.txt` at the root, every address in it a file it wrote and every HTML file but the 404s in
-  it; a `--public` render naming the same addresses and the same `llms.txt` while a test page keeps
-  its one `noindex`; and `https://www.ownpace.eu` written in one module of the site.
-  Mutations of `site/build.mjs`, nineteen, each caught: the canonical naming the other language's
-  page, relative, or written twice; hreflang relative, without the page itself, naming this
-  language's page for every language, written in `<body>`, or without `x-default`; the 404 page
-  given an address; `llms.txt` without Terms, with an address that is no page, with each page's
-  title as its description, with the 404 pages, with a section headed by the other language, with
-  the home page's title as its summary, or not written to `dist`; the address written as a literal
-  in `build.mjs`; the links written by `--public` builds only; and the test build without its
-  `noindex`.
-- **Open:** ADR-0029's rule says `llms.txt` is "curated as links to maintained docs". This one
-  lists the site's pages, which the build keeps in step with the app. Whether it should also
-  link documents in the repository (the self-host quickstart and the repository itself, which
-  every page's footer links already) is the owner's choice of what to list. T0, the owner's read
-  of the site's new sentences, is unchanged: this adds none.
+  line's title and description the page's own, under its own language, listing once exactly the
+  pages a visitor reaches from the home page by following the site's `<a href>` links, and the
+  pages it leaves out exactly the Alpha's conditions (and, in the Alpha's build, its guide) in both
+  languages; the build, run as it is run on a copy of `site/`, writing `llms.txt` at the root,
+  every address in it a file it wrote and every HTML file a visitor reaches in it; a `--public`
+  render naming the same addresses and the same `llms.txt` while a test page keeps its one
+  `noindex`; a copy of `site/` whose `security-txt.mjs` names `https://site.example` naming that
+  origin in every canonical, hreflang and `llms.txt` address and nothing else changed; and
+  `https://www.ownpace.eu` written as a literal in one module of the site. The charset is held
+  beside the CSP in `site/calculator.unit.test.ts`, which reads `www-nginx.conf` as nginx reads it
+  (`scripts/nginx-config.ts`): `charset utf-8` once, at server level, no location's own, no
+  `charset_types` without text/plain, nothing that re-encodes.
+  Mutations of `site/build.mjs`, nineteen at first, each caught: the canonical naming the other
+  language's page, relative, or written twice; hreflang relative, without the page itself, naming
+  this language's page for every language, written in `<body>`, or without `x-default`; the 404
+  page given an address; `llms.txt` without Terms, with an address that is no page, with each
+  page's title as its description, with the 404 pages, with a section headed by the other
+  language, with the home page's title as its summary, or not written to `dist`; the address
+  written as a literal in `build.mjs`; the links written by `--public` builds only; and the test
+  build without its `noindex`. The review ran fourteen of its own and one survived: the address
+  written in two halves in `build.mjs` and not imported, which a count of the literal cannot see.
+  After the fixes, twenty-two, each caught: that one, and the address in halves for the `llms.txt`
+  lines alone or for `x-default` alone (the copy with another origin); `llms.txt` listing the
+  Alpha's pages again, only the conditions, only the guide, or leaving out the estimate as well
+  (the reach cases and the written file); without Terms, with the 404 pages, with a `/sitemap.xml`,
+  with CRLF, or with the Dutch summary; not written to `dist`; `x-default` on the page's own
+  language; the links in `--public` builds only; and seven of `www-nginx.conf`: no `charset`,
+  one commented out, another charset, one in `location /` alone, `charset off` in a location,
+  `charset_types text/xml`, and a `source_charset`.
+- **0131's go/no-go row for 0152** said (c) is not on main. Its *Today* cell now says (c) comes to
+  main with #1743, the pull request that carries that line, and is not in `v0.2.0-alpha.2`.
+- **Owed: `llms.txt`'s links to the maintained documentation.** ADR-0029 decided what `llms.txt`
+  is made from: "curated from the existing documentation rather than written fresh", the ADRs,
+  workplans and runbooks, linked rather than restated. This one lists the site's own pages, which
+  is T5 (c)'s "a line each" and not the ADR's whole rule, so it is not optional and not done. Which
+  documents is the selection the ADR calls the curation job; nobody has made it, and no task holds
+  it yet. T0, the owner's read of the site's new sentences, is unchanged: this adds none.
 
 **2026-10-25, after review: issues are kept from main only, the pull request builds the image,
 and Dependabot moves its base in a pull request of its own** ([#1675](https://github.com/Robbes/Ownpace/issues/1675)).

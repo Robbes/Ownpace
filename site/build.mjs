@@ -763,6 +763,18 @@ const OUTSIDE_NAV = ['alpha'];
  */
 const ALPHA_ONLY = ['guide'];
 
+/**
+ * The pages `llms.txt` does not list (`llmsTxt`): `OUTSIDE_NAV`'s and
+ * `ALPHA_ONLY`'s, for the reason they are kept out of the nav. They are
+ * written for the people taking part in the Alpha and linked where those
+ * people are (the app, the texts that name them, and the guide, which links
+ * the conditions), and no page a visitor reaches from the home page links them. `llms.txt` offers an
+ * assistant what the site offers every visitor, so a line for them would offer
+ * conditions and a guide to people who cannot take part. They keep their
+ * canonical and hreflang links, which describe a page and offer it to nobody.
+ */
+const UNLISTED = [...OUTSIDE_NAV, ...ALPHA_ONLY];
+
 const urlFor = (locale, key) => {
   const file = COPY[locale].files[key];
   return `${localeRoot(locale)}/${file === 'index.html' ? '' : file}`;
@@ -1896,11 +1908,18 @@ export function build({ alpha = ALPHA, googleRestricted = GOOGLE_RESTRICTED } = 
  * description in its own words, so a line holding both would have to choose
  * one language's words for the other's page.
  *
- * Built from what this build rendered, so a page the build renders is listed
- * and one it does not render (the tester guide outside the Alpha) is not.
+ * Built from what this build rendered, less `UNLISTED`'s pages: the Alpha's
+ * conditions and its guide, which no page a visitor reaches from the home page
+ * links. So it lists what a visitor can reach, and nothing else.
+ *
+ * NOT YET HERE: ADR-0029 says `llms.txt` is curated as links to the maintained
+ * documentation (the ADRs, workplans and runbooks). This lists the site's own
+ * pages, workplan 0152 T5 (c)'s "a line each"; the documentation's lines are
+ * still owed, and which documents is the selection that ADR leaves to whoever
+ * curates them.
  */
 function llmsTxt(pages) {
-  const addressed = pages.filter((p) => p.address);
+  const addressed = pages.filter((p) => p.address && !UNLISTED.includes(p.key));
   const home = addressed.find((p) => p.locale === DEFAULT_LOCALE && p.key === 'home');
   if (!home) throw new Error(`site: no ${DEFAULT_LOCALE} home page was rendered, so llms.txt has no summary`);
   return [
