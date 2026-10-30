@@ -8,11 +8,12 @@
 addition)**, on branch `claude/ownpace-public-readiness-y7orc6-webapp-dompurify`, from `main` at
 the fold. It goes into alpha.3: after the fold, the owner chose on 2026-10-30 to put this and
 0152 T5 (c) into alpha.3 rather than start alpha.4 with them. It merges after CI and E2E
-(managed) on its branch, and the refold then moves its CHANGELOG line, under `[Unreleased]`
-until then, into alpha.3's section. A Security Scan dispatched on the branch at the fold's tree
-(run 41004468330, Trivy 0.76.1, linux/arm64) read 2 critical and 138 high findings in
-`localhost/trigger.dev:v4.8.1-38e6d59739c6`: zlib1g (CVE-2023-45853, no fix in Debian), and
-GHSA-cg2g-xh64-v4q7 in dompurify 3.4.13, fixed in 3.4.17, in
+(managed) on its branch. Its CHANGELOG line stays under `[Unreleased]` until it is moved into
+alpha.3's section, which Release's preflight needs before C is tagged; #1741 and #1743, the
+other alpha.3 additions, moved theirs in their own pull requests. A Security Scan dispatched
+on the branch at the fold's tree (run 41004468330, Trivy 0.76.1, linux/arm64) read 2 critical
+and 138 high findings in `localhost/trigger.dev:v4.8.1-38e6d59739c6`: zlib1g (CVE-2023-45853,
+no fix in Debian), and GHSA-cg2g-xh64-v4q7 in dompurify 3.4.13, fixed in 3.4.17, in
 `node_modules/.pnpm/dompurify@3.4.13/node_modules/dompurify/package.json`.
 - **Who requires dompurify, read at v4.8.1.** Upstream's `pnpm-lock.yaml` names two packages:
   posthog-js 1.407.3, which `app/hooks/usePostHog.ts` imports, and mermaid 11.16.1, through
@@ -84,7 +85,7 @@ GHSA-cg2g-xh64-v4q7 in dompurify 3.4.13, fixed in 3.4.17, in
   as **1 critical, 137 high**, 81 with a fix (2, 138 and 83 before, run 41004468330): the one
   critical left is zlib1g, CVE-2023-45853, which Debian has not fixed, and GHSA-mrv2-3pqr-j5jr
   went with GHSA-cg2g-xh64-v4q7. The supervisor reads 0 and 25, unchanged. E2E (managed) on
-  the branch: owed, before the merge and the refold.
+  the branch: owed, before the merge.
 - **The review of 2026-10-30** found four things, and each held when checked again. The
   records called this a draft for alpha.4, after the owner had put it into alpha.3, and T16's
   done-condition still read 2 and 0; it is an alpha.3 addition now, and 1 and 0. Seven of ten
@@ -99,6 +100,67 @@ GHSA-cg2g-xh64-v4q7 in dompurify 3.4.13, fixed in 3.4.17, in
   The RUN does not change, so the image's name, the builds and the scan above stand; the guard
   has the cases that catch each of the seven (Guards, above), and the header, `REPLACED` and
   these records say what the tarballs hold.
+
+**2026-10-30, latest: the owner waives the counted nights for alpha.3, and Release can take
+it (built as a draft, reviewed once).** The owner, 2026-10-30: *"I approve alpha.3 tag now, we
+skip the waiting days. No one is in the alpha yet."* Release could not do that: its preflight
+and its tag job refuse a commit the nights do not hold for, and the only way past was a tag
+pushed by hand, the unordered path that broke alpha.1 (`docs/release.md` §2). Built on branch
+`claude/ownpace-public-readiness-y7orc6-release-nights-waiver`, as a draft pull request:
+
+- **`waive_nights`**, a new input of the Release workflow: the owner's reason, in their words.
+  Empty is today's behaviour. **Set, it is taken only for a version in `WAIVER_VERSIONS`**
+  (`scripts/release-nights.mjs`): `v0.2.0-alpha.3` alone, the version the owner named, and the
+  guard holds that each listed version is a pre-release. A later waiver is a pull request that
+  adds its version with the owner's words. **And only from a person's account:** a run whose
+  actor is an app's bot is refused, since the tag would credit the owner's words to it.
+- **Taken,** in preflight, rehearse and release mode the nights are read as always, and if they
+  do not hold their refusals are notes, the first quoting it and naming the run's actor. The
+  commit must be given: a waiver with `commit` empty is refused. The tag's message has a line
+  of its own after *Proved by*, `Nights waived by <actor>, in their words: "<reason>"`, the
+  reason a JSON string, and the summaries of the preflight and the tag job say it too.
+  `verify` and `rehearse-tag` read no nights and refuse a waiver.
+- **The tag job is bound by the preflight:** the check step's output `waived` reaches it as
+  `PREFLIGHT_WAIVED`. When the nights held at the preflight, its summary says the waiver was
+  not used, and the tag job reads the nights again as a run without one would, refusing if they
+  stopped holding. A run that refused before it read the nights says so, and never that they
+  were waived.
+- **Nothing else is waived:** C on `main`'s first-parent line, the tag free, the names, the
+  version, the changelog fold, C's push runs of CI (the whole suite) and Security Scan, the
+  callees, the upgrade gates, the gate scan and the approval in the `release` environment.
+- **The text is read as hostile:** one line, at most 300 characters, with a letter or a digit,
+  and no backtick, `<`, `$(`, `${`, `@`, control character or character that shows nothing
+  (private use, unassigned, a lone surrogate, a Hangul filler, the braille blank). A refusal
+  says why and does not repeat it, and the text reaches the scripts through `env:` only. The
+  preflight is no boundary against C's own code, which runs in its job before the check and
+  the verdict; the tag job, a job of its own, reads the input itself.
+- **It amends decision 9** of 2026-10-23 (*no override input*, below), and 0141 T14 says so.
+- **The review of 2026-10-30** found eight things, and each held when checked again: the waiver
+  worked for any version, stable ones included; the preflight said "not used" while the tag job
+  would still use it; a blank-looking text (a Hangul filler, the braille blank, a private-use
+  character, a lone surrogate) was taken; a `"` in the words could end the tag's quote; a run
+  that refused before reading the nights said they were waived; a comment called the verdict
+  step's env out of the candidate's reach; the CHANGELOG said "the release says so" where only
+  the tag does; and a bot could be named as the waiver's author. All eight are fixed as above.
+- **Proven on the branch:** the unit project, 1077 files, 16173 tests passed and 33 skipped;
+  lint, typecheck, the conflict-marker check and both index checks. The three guards
+  (`a-release-preflight-that-said-yes-too-soon`, `a-tag-that-already-pointed-elsewhere`,
+  `a-tag-cut-only-on-green`) run the resolve, check, verdict and tag scripts as the workflow
+  does: a command in the text is refused and makes nothing; the check step's output says
+  whether it used the waiver; and the tag script, against a scripted API with no nights on
+  record, posts the tag with the waiver's line and writes the summary when the preflight used
+  it, and refuses and posts nothing when it did not. Each of 40 mutations of the first build
+  and 25 of the review's fixes turned one of them red. Not run: the workflow itself (no
+  dispatch from a branch).
+- **For alpha.3:** C is the fold's squash, `3a15c74d` (#1739), or a later re-fold, which then
+  folds this pull request's CHANGELOG line into alpha.3's section too: the preflight refuses a
+  commit with a line under `[Unreleased]`. Release runs `main`'s copy of its scripts, so this
+  merges first. C's own push runs on `3a15c74d` are green: CI #4983 and Security Scan #5020; a
+  re-fold needs its own. Then the owner, from their own account, dispatches Release with
+  `version` `v0.2.0-alpha.3`, `commit` C in full, `waive_nights` in their own words, first
+  `mode=preflight`, then `mode=release`, and approves. That replaces the next entry's *"The
+  earliest is the E2E (managed) nightly of 2026-11-01"*. The freeze kept the nights on C; with
+  them waived, a merge after C costs only the note that counts the commits on `main` after it.
 
 **2026-10-30, last: alpha.3 is folded.** Six pull requests merged on 2026-10-30, each after CI,
 and each that changes what a stack runs after E2E on its branch:
@@ -1734,7 +1796,8 @@ reaches the self-hosted machine or live.
   count (3), and the freeze (4), all written once in 0141 T14; the approval
   environment (5); no CI on a Release-made tag, C's own push run must have run
   lint, unit, UI and integration (6); the changelog section dated within the
-  week before the run (8); no override input (9); open code-scanning alerts
+  week before the run (8); no override input (9; amended on 2026-10-30 by the owner's waiver of
+  the nights, `waive_nights`, Status of that day); open code-scanning alerts
   reported, not refused (11); immutable releases off (13); hand-pushed tags
   unchanged, as break-glass (14). The tag ruleset (10) is optional, and the
   owner's answer of 2026-10-23 is "not now": `docs/release.md`'s *Settings the
@@ -2447,7 +2510,7 @@ best given with T0.
 | T14 The tasks build on the API image's own base, with no package manager | ✅ **Merged** as #1716 on 2026-10-28 (`98802571`), after #1697 (`f387b175`) and #1708, and after E2E (managed) run 40758865207 was green; in alpha.3 — *was:* 🔨 being built (2026-10-26) as draft #1716 on branch `claude/ownpace-public-readiness-y7orc6-tasks-trixie-base`, stacked on #1697 | Status, 2026-10-26. `apps/worker/trigger.config.ts` sets the build manifest's `image.base` to `apps/api/Dockerfile`'s FROM image and `image.buildBase` to the CLI's own `-build` image, and one layer installs `ca-certificates` and `dumb-init`, makes the CLI's trust edits and drops every package manager where no `g++` is. On #1708's `node:24.22.1-trixie-slim` the runtime stage reads 0 critical and 43 high, none fixable, where the image a deploy builds on the CLI's base read about 2/88 on 4.7.6 (`main` until #1697) and 1/80 on #1697 (Trivy 0.76.1, amd64 and arm64). The weekly scan lists that base as `trigger-task-base`, and #1700 (T10) builds the layer on it. A Trigger.dev move fails the version gate until the CLI's build image and trust list are read again. E2E (managed) after #1697 and #1708: run 40758865207, green before the merge. |
 | T15 Both databases of the managed stacks start as uid 70, from the official image without gosu | ✅ **Merged** as #1717 on 2026-10-28 (`6f9af7f2`), after #1678 and after E2E (managed) run 40616652331 was green; in alpha.3 — *was:* 🔨 being built as draft #1717 on branch `claude/ownpace-public-readiness-y7orc6-postgres-without-gosu`, stacked on #1678, for after the alpha.2 tag (2026-10-26) | Status, 2026-10-26. `postgres:18.6-alpine` reads 1 critical and 26 high (Trivy v0.76.1, arm64 and amd64); the critical and 25 highs are Go's standard library in gosu, which the entrypoint runs only when it starts as root. `deploy/compose/postgres/Dockerfile` removes it and starts as uid 70, the user gosu dropped to; `managed.yml`'s `postgres` and `trigger-db` and `dev.yml`'s run it, and the scan builds and scans it. Done when E2E (managed) is green on the branch (the OTA stack's existing volumes, started as uid 70, and a second bring-up leaving both databases running on the same image ID), `build (postgres)` is green on the pull request, the image scan's `postgres-managed` reads 0 critical and 1 high (brotli-libs, until docker-library rebuilds 18.6-alpine), and live has taken it from a tag. The appliance's Postgres is T15b. |
 | T15b The appliance's Postgres starts as uid 70, from the official image without gosu | ✅ **Merged** as #1719 on 2026-10-28 (`fb0fea2e`), after #1717 and after E2E (self-hosted) run 40621523504 was green; in alpha.3 — *was:* 🔨 being built on branch `claude/ownpace-public-readiness-y7orc6-appliance-postgres-without-gosu`, stacked on #1717, for after the alpha.2 tag (2026-10-26) | Status, 2026-10-26, last. The appliance's `postgres:18.6-alpine` (`77f58511…`) reads 1 critical and 26 high (Trivy v0.76.1, arm64); the critical is gosu's Go, and no newer digest drops it. `deploy/selfhost/postgres/Dockerfile` is T15's instructions on the appliance's own base, `deploy/selfhost/compose.yml` runs it as `localhost/postgres:18.6-alpine-b18f51417292` (never pulled), Dependabot moves its FROM in an entry of its own, the scan's `postgres-selfhost` leg builds it, `build (postgres)` proves it on a pull request, and E2E (self-hosted) builds `app` by name. Done when `build (postgres)` is green on the pull request (the appliance's build started on a volume the official image initialised as root), E2E (self-hosted) is green on the branch with `persistence: postgres`, the image scan's `postgres-selfhost` reads 0 critical, and a release tag carries it. |
-| T16 The Trigger.dev images run without the files nothing here runs | ✅ **Built** (2026-10-27) on branch `claude/ownpace-public-readiness-y7orc6-trigger-patched`, stacked on #1716 with #1717 merged in; #1722, **in alpha.3** (the owner, 2026-10-30: *"Put all alpha 4 into alpha 3"*; first planned for alpha.4); **decided 2026-10-26** by the owner: *"Both"*, an issue upstream and this build until upstream ships the fixes; and **2026-10-27**: tar out of the copy of pnpm each service runs too | Status, 2026-10-27 (both entries). `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile` build on upstream's v4.8.1 images by tag and digest and delete depot's and esbuild's Go binaries (both names each), node's copy of pnpm and the tar in root's from the webapp, root's copy of pnpm and the tar in node's from the supervisor: 8 critical findings to 2, and 2 to 0 (risk accepted: a native `pnpm install` in these containers would fail). Since 2026-10-30, an alpha.3 addition before the refold (Status, *after the fold*): the webapp's build also replaces dompurify 3.4.13's files with 3.4.17's, fetched from the npm registry and refused unless their sha512 is the one npm published, and proves nothing else in the image changed; nothing here loads dompurify, so no code that runs changes, and the webapp's 2 go to 1 (zlib1g). Dropped when upstream moves dompurify past 3.4.13. Every removal names a version-locked path and fails the build by name when upstream moves it; each build refuses a release other than its `read_at` and an entrypoint other than the one read; `trigger-version.sh pin` moves both FROMs and names, never `read_at`; a move's pull request has both builds green before any window; both services set `COREPACK_ENABLE_NETWORK: "0"`. Done when `build (trigger, amd64|arm64)` is green on the pull request, a dispatched image scan reads 1 and 0 (2 and 0 before the dompurify swap), E2E (managed) is green on the branch and live has taken it from a tag: live's deploy from alpha.2 (first run, alpha.2's script) says one-way, *cannot be compared … on the Trigger.dev pin*, and copies triggerdb; the second run (the tag's script) says *v4.7.6 -> v4.8.1*; both services run healthy from the `localhost/` names; and the copy is kept (`COPY_DELETE_WHEN_PROVEN=false`) until the task runner has run real work on them. From then on, T16a judges every deploy by the version: a later change to the builds alone at v4.8.1 is reversible. Dropped removal by removal as upstream fixes them. |
+| T16 The Trigger.dev images run without the files nothing here runs | ✅ **Built** (2026-10-27) on branch `claude/ownpace-public-readiness-y7orc6-trigger-patched`, stacked on #1716 with #1717 merged in; #1722, **in alpha.3** (the owner, 2026-10-30: *"Put all alpha 4 into alpha 3"*; first planned for alpha.4); **decided 2026-10-26** by the owner: *"Both"*, an issue upstream and this build until upstream ships the fixes; and **2026-10-27**: tar out of the copy of pnpm each service runs too | Status, 2026-10-27 (both entries). `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile` build on upstream's v4.8.1 images by tag and digest and delete depot's and esbuild's Go binaries (both names each), node's copy of pnpm and the tar in root's from the webapp, root's copy of pnpm and the tar in node's from the supervisor: 8 critical findings to 2, and 2 to 0 (risk accepted: a native `pnpm install` in these containers would fail). Since 2026-10-30, an alpha.3 addition (Status, *after the fold*): the webapp's build also replaces dompurify 3.4.13's files with 3.4.17's, fetched from the npm registry and refused unless their sha512 is the one npm published, and proves nothing else in the image changed; nothing here loads dompurify, so no code that runs changes, and the webapp's 2 go to 1 (zlib1g). Dropped when upstream moves dompurify past 3.4.13. Every removal names a version-locked path and fails the build by name when upstream moves it; each build refuses a release other than its `read_at` and an entrypoint other than the one read; `trigger-version.sh pin` moves both FROMs and names, never `read_at`; a move's pull request has both builds green before any window; both services set `COREPACK_ENABLE_NETWORK: "0"`. Done when `build (trigger, amd64|arm64)` is green on the pull request, a dispatched image scan reads 1 and 0 (2 and 0 before the dompurify swap), E2E (managed) is green on the branch and live has taken it from a tag: live's deploy from alpha.2 (first run, alpha.2's script) says one-way, *cannot be compared … on the Trigger.dev pin*, and copies triggerdb; the second run (the tag's script) says *v4.7.6 -> v4.8.1*; both services run healthy from the `localhost/` names; and the copy is kept (`COPY_DELETE_WHEN_PROVEN=false`) until the task runner has run real work on them. From then on, T16a judges every deploy by the version: a later change to the builds alone at v4.8.1 is reversible. Dropped removal by removal as upstream fixes them. |
 | T16a `deploy-live.sh` reads the Trigger.dev pin as a version, in alpha.3 | ✅ **Merged** 2026-10-27 as #1721 (`991bd21c`), commit `4628488b` alone, in alpha.3 (T16's review asked for it on its own, for the alpha.3 merge order) | Status, 2026-10-27, later. The one-way or reversible verdict of a deploy, and whether its copy holds triggerdb, are computed by the `deploy-live.sh` of the checkout that runs before the deploy. alpha.3's must read `${TRIGGER_IMAGE_TAG:-v…}` as the version (`trigger_pin`), or alpha.4's `localhost/` image lines read as a pin it cannot compare. CI only (the deploy guard, `a-deploy-from-a-named-tag`); no window. Done when it is in the alpha.3 tag live deploys. With T16 in alpha.3 as well (2026-10-30), it judges every deploy after alpha.3; alpha.3's own deploy from alpha.2 is judged by alpha.2's script (T16's row). |
 
 ## 1. What there is today

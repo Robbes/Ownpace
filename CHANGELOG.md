@@ -115,6 +115,15 @@ work.
 
 ### Changed
 
+- **The owner can waive the counted nights in writing, and the release tag
+  says so** (workplan 0146, the owner's words of 2026-10-30 for alpha.3). The
+  Release workflow takes `waive_nights`, the owner's reason, for a version the
+  owner named (alpha.3 only) and from a person's account: the nights'
+  refusals become notes that quote it, the commit must be given, and the
+  tag's message and the run's summaries say the nights were waived, by whom
+  and in what words. The tag job uses it only when the preflight did. Nothing
+  else is waived. Before, the only way past the nights was a tag pushed by
+  hand, the unordered path that broke alpha.1.
 - **pnpm is 11.28.9** (workplan 0119, issues #1694 and #1735, #1701): the
   lockfile is unchanged, and the installs, the images' filtered installs and
   the advisory gate give what 11.28.6 gave. When pnpm next re-resolves the
@@ -309,6 +318,27 @@ work.
 
 ### Added
 
+- **Every page of the public site names its own address and its other
+  language's in full, and `llms.txt` lists them** (workplan 0152 T5 (c);
+  ADR-0029): each page's `<head>` carries a canonical link to its address on
+  `https://www.ownpace.eu`, and its hreflang links (English, Dutch and
+  `x-default`, the English page the root serves) are absolute where they were
+  relative. The 404 page, served at whatever address was wrong, names none.
+  The build writes `llms.txt` at the site's root: one line per page per
+  language, by the page's own title and description, under *English* and
+  *Nederlands*, for every page a visitor reaches from the home page. The
+  Alpha's conditions and its guide, which the nav leaves out for the people
+  taking part, are left out of it too, and keep their canonical and hreflang
+  links. It lists the site's pages only: the links to the maintained
+  documentation that ADR-0029 also asks of `llms.txt` are still owed. nginx
+  serves the site's text as UTF-8 (`charset utf-8` in `www-nginx.conf`), so
+  `llms.txt`, its first file with text outside ASCII, says so in its
+  `Content-Type`. The address comes from `PUBLIC_SITE_URL`, the one place the
+  site writes it, and the build follows it there. A test build names the same
+  addresses and keeps its `noindex`; they take effect where `--public` makes
+  the site indexable, which live's deploy does with `WWW_LIVE=true`. No visible
+  sentence changes. `site/a-page-that-names-its-address-in-full.unit.test.ts`
+  holds it, and `site/calculator.unit.test.ts` the charset.
 - **The suites that talk to Nextcloud also run against the major the demo
   does not run** (workplan 0119): `.github/workflows/nextcloud-second-major.yml`
   runs the WebDAV, CalDAV, CardDAV, chunked-upload and share suites against
