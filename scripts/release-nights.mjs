@@ -25,6 +25,23 @@
  * The live-target lane (`e2e-live-target.yml`) joins the rule when 0141 T13
  * arms it; it is the commented line in COUNTED.
  *
+ * THE OWNER'S WAIVER (the owner, 2026-10-30, for alpha.3: "I approve alpha.3
+ * tag now, we skip the waiting days. No one is in the alpha yet."). The
+ * Release workflow's `waive_nights` input holds the owner's reason, in their
+ * words. Empty, nothing changes. Set, in the modes that read the nights
+ * (preflight, rehearse, release, and the tag job's read again), the nights'
+ * refusals become notes, the first of them quoting the waiver and naming the
+ * run's actor, and the tag's message says the nights were waived. It waives
+ * the nights and nothing else: the commit is still given, a full commit on
+ * `main`'s first-parent line, and every other check refuses as before.
+ * `verify` and `rehearse-tag` read no nights, and refuse a waiver.
+ *
+ * The text is written into a public tag message and a job summary, so it is
+ * read as hostile: one line, at most WAIVER_MAX characters, and no backtick,
+ * no `<`, no `$(` or `${`, no `@`, no control or formatting character. A
+ * refusal says what is wrong with it and never repeats it. Where it is
+ * quoted in Markdown it sits in a code span, which renders nothing.
+ *
  * Usage (read-only; GH_TOKEN optional on this public repository):
  *
  *   node scripts/release-nights.mjs --commit <sha>
@@ -175,6 +192,94 @@ export function countNights({ managedRuns, applianceRuns, attempts = {}, commit,
     );
   }
   return { verdict: refused ? 'refuse' : 'pass', lines, managed: counted, appliance, proof };
+}
+
+// ---------------------------------------------------------------------------
+// The owner's waiver
+// ---------------------------------------------------------------------------
+
+/** The longest waiver, in characters. */
+export const WAIVER_MAX = 300;
+/** The modes that read the nights, and so the only ones a waiver means anything in. */
+export const WAIVER_MODES = ['preflight', 'rehearse', 'release'];
+/** A GitHub login, as GITHUB_ACTOR gives it. */
+const LOGIN = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}(?:\[bot\])?$/;
+
+/** What makes the text unfit for the record, one phrase each; empty when it is fit. */
+export function waiverProblems(text) {
+  const problems = [];
+  if (text.trim() === '') problems.push('says nothing');
+  if (text.length > WAIVER_MAX) problems.push(`is ${text.length} characters long, more than ${WAIVER_MAX}`);
+  if (/[\n\r\u0085\u2028\u2029]/.test(text)) problems.push('is more than one line');
+  else if (/[\p{Cc}\p{Cf}]/u.test(text)) problems.push('holds a control or formatting character');
+  if (text.includes('`')) problems.push('holds a backtick');
+  if (text.includes('<')) problems.push('holds a "<"');
+  if (/\$[({]/.test(text)) problems.push('holds "$(" or "${"');
+  if (text.includes('@')) problems.push('holds an "@"');
+  return problems;
+}
+
+/** The waiver as a line quotes it: the reason in a code span, which Markdown renders as nothing but text. */
+export const waivedBy = ({ reason, actor }) => `the counted nights are waived by ${actor}, in their words: \`${reason}\``;
+
+/**
+ * The waiver from the `waive_nights` input's text, the mode and the run's
+ * actor. `waiver` is `{ reason, actor }`, or null. `lines` is empty when the
+ * text is, a note quoting the waiver when it is taken, and a refusal that
+ * does not repeat the text when it is not.
+ */
+export function readWaiver({ text, mode, actor }) {
+  if (text === undefined || text === null || text === '') return { waiver: null, lines: [] };
+  const said = String(text);
+  if (!WAIVER_MODES.includes(mode)) {
+    const which = ['verify', 'rehearse-tag'].includes(mode) ? `${mode} mode` : 'this mode';
+    return { waiver: null, lines: [refuse('waiver', `waive_nights is set, and ${which} reads no nights: dispatch it again with waive_nights empty`)] };
+  }
+  const problems = waiverProblems(said);
+  if (problems.length > 0) {
+    return {
+      waiver: null,
+      lines: [
+        refuse(
+          'waiver',
+          `waive_nights ${problems.join(', ')}. It is written into the tag’s message and the run’s summary, ` +
+            `so it is one line of at most ${WAIVER_MAX} characters, ` +
+            'with no backtick, "<", "$(", "${" or "@". It is not repeated here',
+        ),
+      ],
+    };
+  }
+  if (typeof actor !== 'string' || !LOGIN.test(actor)) {
+    return { waiver: null, lines: [refuse('waiver', 'the run’s actor could not be read, and a waiver names who gave it')] };
+  }
+  const waiver = { reason: said.trim(), actor };
+  return {
+    waiver,
+    lines: [note('waiver', `${waivedBy(waiver)}; it waives the nights and nothing else (docs/release.md, “When the owner waives the nights”)`)],
+  };
+}
+
+/**
+ * The nights' verdict under a waiver. With none, it is returned as it is.
+ * Nights that hold are kept, with a note that the waiver was not used.
+ * Nights that do not hold: the verdict is `waived`, each refusal becomes a
+ * note, the first line quotes the waiver, and there is no proof of nights.
+ */
+export function waiveNights(nights, waiver) {
+  if (!waiver) return nights;
+  if (nights.verdict === 'pass') {
+    return { ...nights, waived: false, lines: [...nights.lines, note('nights', 'the nights hold, so the waiver was not used')] };
+  }
+  return {
+    ...nights,
+    verdict: 'waived',
+    waived: true,
+    proof: '',
+    lines: [
+      note('nights', `the refusals below are notes in this run: ${waivedBy(waiver)}`),
+      ...nights.lines.map((l) => (l.kind === 'refuse' ? note('nights', `waived: ${l.sentence}`) : l)),
+    ],
+  };
 }
 
 /** Every run's earlier attempts, for the runs that have them. */

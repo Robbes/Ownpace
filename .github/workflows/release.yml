@@ -50,6 +50,20 @@
 #   release       everything, after the owner approves
 #   verify        what an existing tag published, checked
 #
+# THE OWNER'S WAIVER of the nights (input `waive_nights`; the owner,
+# 2026-10-30, for alpha.3: "I approve alpha.3 tag now, we skip the waiting
+# days. No one is in the alpha yet."). Empty, the nights are read as 0141
+# T14 says. Set, it is the owner's reason in their words. In preflight,
+# rehearse and release mode, and in the tag job's read again, the nights'
+# refusals become notes that quote it; the commit must be given, a full
+# commit on main's first-parent line; the tag's message and the summaries of
+# the preflight and the tag job say the nights were waived, by whom and in
+# what words. Nothing else is waived. verify and rehearse-tag read no nights
+# and refuse it. The text is one line of at most 300 characters, with no
+# backtick, "<", "$(", "${" or "@", and like every input it reaches the
+# scripts through `env:` only, never a `run:`, an `if:` or the run's name
+# (scripts/release-nights.mjs, readWaiver).
+#
 # THE APPROVAL is the recorded say-so of workplan 0025 T2, with a name and a
 # time, and a guard against accidents. It is not a boundary: anyone with
 # write access can push a tag by hand, and a copy of this file on another
@@ -86,6 +100,11 @@ on:
         type: choice
         default: preflight
         options: [preflight, rehearse, rehearse-tag, release, verify]
+      waive_nights:
+        description: 'The owner only: why the counted nights are waived, in your words, one line. Needs commit. Waives the nights and nothing else; written into the tag (docs/release.md). Empty: the nights are read'
+        type: string
+        required: false
+        default: ''
 
 permissions: {}
 
@@ -117,6 +136,7 @@ jobs:
       VERSION: ${{ inputs.version }}
       COMMIT_INPUT: ${{ inputs.commit }}
       MODE: ${{ inputs.mode }}
+      WAIVE_NIGHTS: ${{ inputs.waive_nights }}
       RELEASE_LINES: release-lines.jsonl
     steps:
       # main's scripts, with every branch and tag, for `merge-base` and for
@@ -279,6 +299,7 @@ jobs:
       COMMIT: ${{ needs.preflight.outputs.commit }}
       PROOF: ${{ needs.preflight.outputs.proof }}
       GATE_RUN: ${{ needs.gate-scan.outputs.run }}
+      WAIVE_NIGHTS: ${{ inputs.waive_nights }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -404,6 +425,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       VERSION: ${{ inputs.version }}
+      # Read only to refuse it: a rehearsal tag reads no nights.
+      WAIVE_NIGHTS: ${{ inputs.waive_nights }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

@@ -6,6 +6,7 @@
  */
 
 import type { Client, Line } from './release-github.mjs';
+import type { Waiver } from './release-nights.mjs';
 
 export type { Client } from './release-github.mjs';
 
@@ -33,7 +34,9 @@ export interface Decision {
 }
 
 export declare function releaseRunId(message: string | undefined | null): number | null;
-export declare function tagMessage(options: { version: string; runUrl: string; proof: string }): string;
+/** Throws on a waiver that could add a line of its own to the message. */
+export declare function tagMessage(options: { version: string; runUrl: string; proof: string; waiver?: Waiver | null }): string;
+export declare function tagSummary(options: { version: string; commit: string; lines: Line[] }): string;
 export declare function isReleaseRun(run: Record<string, unknown> | null | undefined, version: string): boolean;
 /** A job as `GET actions/runs/{id}/jobs` answers it, as far as the tag reads it. */
 export interface RunJob {
@@ -72,5 +75,7 @@ export declare function cutTag(
     runUrl: string;
     proof: string;
     readNights: () => Promise<{ verdict: 'pass' | 'refuse'; lines: Line[]; proof: string }>;
+    /** The owner's waiver of the nights, or null. */
+    waiver?: Waiver | null;
   },
 ): Promise<Line[]>;

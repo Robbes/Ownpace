@@ -37,6 +37,16 @@
  * The gate scan makes a branch at C and runs C's own security-scan.yml with a
  * write token, so it runs only on a commit the resolve step found on main's
  * first-parent line (the review of 2026-10-23).
+ *
+ * THE OWNER'S WAIVER of the nights (`WAIVE_NIGHTS`, the workflow's
+ * `waive_nights` input; the owner, 2026-10-30, for alpha.3). The resolve step
+ * reads it (`readWaiver` in `release-nights.mjs`): set in verify mode, unfit
+ * for the record, or with no actor to name, it is a refusal that ends the run
+ * there, a rehearsal included. Taken, the commit must be given, since there
+ * are no nights to pick one; the check step turns the nights' refusals into
+ * notes that quote it; and the verdict's summary says, under its title, that
+ * the nights are waived, by whom and in what words. Every other check refuses
+ * as it does without it.
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -46,7 +56,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { github, pass, refuse, note, report, output, short, getAll, slimAlert } from './release-github.mjs';
 import { parseSemVer, compareSemVer } from './release-names-agree.mjs';
-import { readNights } from './release-nights.mjs';
+import { readNights, readWaiver, waiveNights } from './release-nights.mjs';
 import { tagDecision, peelTag } from './release-cut-tag.mjs';
 import { withoutTokens } from './release-upgrade-gates.mjs';
 import { checkRelease } from './release-verify.mjs';
@@ -79,7 +89,7 @@ export const EXPECTED_CHECKS = {
  * rehearsal carries every other refusal to its end; one of these ends it at
  * the preflight, before the gate scan makes a branch at the commit.
  */
-export const RESOLVE_CHECKS = ['inputs', 'dispatched-from-main', 'commit', 'previous-release', 'candidate-on-main', 'step-resolve', 'step-worktree'];
+export const RESOLVE_CHECKS = ['inputs', 'waiver', 'dispatched-from-main', 'commit', 'previous-release', 'candidate-on-main', 'step-resolve', 'step-worktree'];
 /** The changelog section's date: the day the fold merged, in the owner's zone. */
 export const FOLD_WINDOW = { daysBefore: 7, daysAfter: 1 };
 
@@ -397,8 +407,24 @@ export function notChecked() {
   ];
 }
 
+/**
+ * The line under the summary's title when the run carries the owner's
+ * waiver: whether it was used, and what it does not waive. The reason sits in
+ * a code span, which Markdown renders as text.
+ */
+export function waiverSummary(waiver, lines) {
+  if (lines.some((l) => l.check === 'nights' && l.kind === 'pass')) {
+    return `**The nights hold**, so the waiver ${waiver.actor} gave was not used.`;
+  }
+  return (
+    `**The counted nights are waived** by ${waiver.actor}, in their words: \`${waiver.reason}\`\n\n` +
+    'Nothing else is waived: the names, the version, the changelog fold, C on main’s first-parent line, CI’s full suite on C, ' +
+    'the gate scan and the approval still hold (docs/release.md, “When the owner waives the nights”).'
+  );
+}
+
 /** Count, refuse what never ran or ended in an error, and decide the exit. */
-export function verdict({ lines, mode, outcomes = {}, commit }) {
+export function verdict({ lines, mode, outcomes = {}, commit, waiver = null }) {
   const expected = mode === 'verify' ? EXPECTED_CHECKS.verify : EXPECTED_CHECKS.full;
   const extra = [];
   for (const check of expected) {
@@ -415,6 +441,7 @@ export function verdict({ lines, mode, outcomes = {}, commit }) {
   const summary = [
     `### Release preflight (${mode})${commit ? ` on ${short(commit)}` : ''}: ${refused === 0 ? 'nothing refused' : `${refused} refused`}`,
     '',
+    ...(waiver ? [waiverSummary(waiver, all), ''] : []),
     ...all.filter((l) => l.kind === 'refuse').map(row),
     ...all.filter((l) => l.kind !== 'refuse').map(row),
     '',
@@ -428,9 +455,16 @@ export function verdict({ lines, mode, outcomes = {}, commit }) {
 
 const git = (args, cwd = process.cwd()) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
 
-async function resolveStep(client, env) {
+/**
+ * The resolve step: the inputs, the owner's waiver, main, C and the release
+ * before. With a waiver, C is the commit given or a refusal: the nights are
+ * not read to pick one.
+ */
+export async function resolveStep(client, env) {
   const { VERSION: version, COMMIT_INPUT: given = '', MODE: mode } = env;
   const lines = [...validateInputs({ version, commit: given, mode })];
+  const { waiver, lines: waived } = readWaiver({ text: env.WAIVE_NIGHTS, mode, actor: env.GITHUB_ACTOR });
+  lines.push(...waived);
   lines.push(dispatchedFromMain({ ref: env.GITHUB_REF, workflowRef: env.GITHUB_WORKFLOW_REF, repository: env.GITHUB_REPOSITORY }));
   const out = { commit: '', previous: '', candidate: 'false' };
   if (lines.some((l) => l.kind === 'refuse')) return { lines, out };
@@ -448,7 +482,11 @@ async function resolveStep(client, env) {
   }
 
   let commit = given;
-  if (!commit) {
+  if (!commit && waiver) {
+    lines.push(
+      refuse('commit', 'the nights are waived, so they pick no commit: dispatch it again with commit set to the full commit to tag, on main’s first-parent line'),
+    );
+  } else if (!commit) {
     const nights = await readNights(client, { commit: null });
     if (nights.verdict === 'pass' && nights.commit) {
       commit = nights.commit;
@@ -488,7 +526,11 @@ async function resolveStep(client, env) {
   return { lines, out };
 }
 
-async function checkStep(client, env, candidate) {
+/**
+ * The check step, with C checked out in `candidate`. The nights are read for
+ * C, and under the owner's waiver their refusals are notes (`waiveNights`).
+ */
+export async function checkStep(client, env, candidate) {
   const { VERSION: version, COMMIT: commit, PREVIOUS: previous, MODE: mode } = env;
   const lines = [];
 
@@ -514,7 +556,8 @@ async function checkStep(client, env, candidate) {
   const scan = await newest('security-scan.yml');
   lines.push(scanGreenOnMain(scan, commit));
 
-  const nights = await readNights(client, { commit });
+  const { waiver } = readWaiver({ text: env.WAIVE_NIGHTS, mode, actor: env.GITHUB_ACTOR });
+  const nights = waiveNights(await readNights(client, { commit }), waiver);
   lines.push(...nights.lines);
 
   if (mode !== 'verify') {
@@ -611,7 +654,10 @@ async function main(argv) {
           .filter(Boolean)
           .map((p) => p.split('=')),
       );
-      const v = verdict({ lines: readLines(env.RELEASE_LINES), mode: env.MODE, outcomes, commit: env.COMMIT ?? '' });
+      // The waiver read again from the input, not from the lines file, which
+      // the candidate's own code could reach.
+      const { waiver } = readWaiver({ text: env.WAIVE_NIGHTS, mode: env.MODE, actor: env.GITHUB_ACTOR });
+      const v = verdict({ lines: readLines(env.RELEASE_LINES), mode: env.MODE, outcomes, commit: env.COMMIT ?? '', waiver });
       report(v.extra, { file: '' });
       if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, v.summary);
       output({ refused: v.refused });

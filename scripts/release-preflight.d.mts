@@ -6,7 +6,7 @@
  */
 
 import type { Alert, Client, Line } from './release-github.mjs';
-import type { Run } from './release-nights.mjs';
+import type { Run, Waiver } from './release-nights.mjs';
 import type { Decision } from './release-cut-tag.mjs';
 
 export type { Alert, Line } from './release-github.mjs';
@@ -60,9 +60,23 @@ export declare function openAlertsNotes(client: Pick<Client, 'get'>): Promise<Li
 export declare function candidateEnv(env: Record<string, string | undefined>): Record<string, string | undefined>;
 export declare function notChecked(): Line[];
 export declare function namesStep(candidate: string, version: string, env?: Record<string, string | undefined>): Line;
+export declare function waiverSummary(waiver: Waiver, lines: Line[]): string;
 export declare function verdict(options: {
   lines: Line[];
   mode: string;
   outcomes?: Record<string, string>;
   commit?: string;
+  /** The owner's waiver of the nights, read from the input; null or absent when there is none. */
+  waiver?: Waiver | null;
 }): { refused: number; exitCode: 0 | 1; summary: string; lines: Line[]; extra: Line[] };
+/** The check step, with the environment the workflow gives it and C checked out in `candidate`. */
+export declare function checkStep(
+  client: Client,
+  env: Record<string, string | undefined>,
+  candidate: string,
+): Promise<{ lines: Line[]; proof: string }>;
+/** The resolve step, with the environment the workflow gives it. */
+export declare function resolveStep(
+  client: Client,
+  env: Record<string, string | undefined>,
+): Promise<{ lines: Line[]; out: { commit: string; previous: string; candidate: string } }>;

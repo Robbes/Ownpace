@@ -28,8 +28,16 @@
  *
  * ## What this test holds, read from the parsed YAML
  *
- * - Dispatch only, with exactly the inputs `version`, `commit` and `mode`,
- *   `mode` defaulting to the read-only `preflight`.
+ * - Dispatch only, with exactly the inputs `version`, `commit`, `mode` and
+ *   `waive_nights`, `mode` defaulting to the read-only `preflight` and
+ *   `waive_nights` to empty, which is no waiver.
+ * - The owner's waiver (the owner, 2026-10-30, for alpha.3: "I approve
+ *   alpha.3 tag now, we skip the waiting days. No one is in the alpha
+ *   yet."): `waive_nights` reaches the three jobs that read it, the
+ *   preflight, the tag and the tag rehearsal, as a job's `env:` and nowhere
+ *   else: not a `run:`, an `if:`, a step's `env:` or the run's name, which
+ *   the tag job reads back to know Release's own runs. The tag rehearsal
+ *   reads no nights and refuses it before it makes anything.
  * - No permission at the top; each job exactly the permissions it uses, and
  *   none ever `packages` or `id-token`: Release never builds, pushes or signs.
  * - The order: the tag needs the preflight, the approval and the gate scan;
@@ -55,7 +63,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -96,13 +104,61 @@ describe(`${RELEASE_FILE}: who can start it, and with what`, () => {
     expect(Object.keys(release.on ?? {})).toEqual(['workflow_dispatch']);
   });
 
-  it('takes exactly a version, a commit and a mode, and the mode defaults to the read-only preflight', () => {
+  it('takes exactly a version, a commit, a mode and the owner’s waiver; the mode defaults to the read-only preflight, the waiver to none', () => {
     const inputs = (release.on!.workflow_dispatch as { inputs: Record<string, Record<string, unknown>> }).inputs;
-    expect(Object.keys(inputs)).toEqual(['version', 'commit', 'mode']);
+    expect(Object.keys(inputs)).toEqual(['version', 'commit', 'mode', 'waive_nights']);
     expect(inputs.version).toMatchObject({ type: 'string', required: true });
     expect(inputs.commit).toMatchObject({ type: 'string', required: false, default: '' });
     expect(inputs.mode).toMatchObject({ type: 'choice', default: 'preflight' });
     expect(inputs.mode!.options).toEqual(['preflight', 'rehearse', 'rehearse-tag', 'release', 'verify']);
+    expect(inputs.waive_nights).toMatchObject({ type: 'string', required: false, default: '' });
+  });
+
+  // The owner, 2026-10-30. The text is the owner's words and is read as
+  // hostile: it reaches a script only as an environment variable, and only
+  // in the jobs that read it.
+  it('passes the waiver to the preflight, the tag and the tag rehearsal as a job’s env, and nowhere else', () => {
+    const found: string[] = [];
+    const walk = (value: unknown, path: string) => {
+      if (typeof value === 'string') {
+        if (value.includes('waive_nights')) found.push(`${path} = ${value}`);
+      } else if (value && typeof value === 'object') {
+        for (const [k, v] of Object.entries(value)) walk(v, path ? `${path}.${k}` : k);
+      }
+    };
+    walk(release, '');
+    const expression = '${{ inputs.waive_nights }}';
+    expect(found.sort()).toEqual([
+      `jobs.preflight.env.WAIVE_NIGHTS = ${expression}`,
+      `jobs.tag-rehearsal.env.WAIVE_NIGHTS = ${expression}`,
+      `jobs.tag.env.WAIVE_NIGHTS = ${expression}`,
+    ]);
+    // The tag job knows Release's own runs by this name; a waiver in it would change it.
+    expect((release as { 'run-name'?: string })['run-name']).toBe('Release ${{ inputs.version }} (${{ inputs.mode }})');
+  });
+
+  it('the tag rehearsal refuses a waiver before it makes anything', () => {
+    const rehearse = (waiver: string) =>
+      spawnSync(process.execPath, [join(ROOT, 'scripts', 'release-dispatch.mjs'), 'rehearse-tag'], {
+        encoding: 'utf8',
+        env: {
+          PATH: process.env.PATH ?? '',
+          GITHUB_ACTIONS: 'false',
+          // Nothing listens here, and the ref is not main: a script that went
+          // on past the waiver would refuse for the ref, with nothing sent.
+          GITHUB_API_URL: 'http://127.0.0.1:9',
+          GITHUB_REF: 'refs/heads/not-main',
+          VERSION: 'v0.2.0-alpha.3',
+          GITHUB_ACTOR: 'example-owner',
+          WAIVE_NIGHTS: waiver,
+        },
+      });
+    const waived = rehearse('No one is in the alpha yet.');
+    expect(waived.status).toBe(1);
+    expect(waived.stdout.trim()).toBe('refuse waiver: waive_nights is set, and rehearse-tag mode reads no nights: dispatch it again with waive_nights empty');
+    const plain = rehearse('');
+    expect(plain.status).toBe(1);
+    expect(plain.stdout.trim()).toBe('refuse rehearsal-tag: dispatched from refs/heads/not-main: the rehearsal runs from main');
   });
 });
 
