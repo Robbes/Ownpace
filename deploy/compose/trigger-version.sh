@@ -5,8 +5,9 @@
 # WHY THIS EXISTS. Upgrading Trigger.dev is one number that has to agree in
 # every place that names it, and a database migration that goes one way. The
 # webapp applies its own schema migrations on boot; Prisma has no
-# down-migrations. So the documented rollback — put the old image tag back —
-# restores the IMAGES and not the schema they migrated, and `triggerdb` holds
+# down-migrations. So the documented rollback — run the checkout that pinned
+# the old version again — restores the IMAGES and not the schema they
+# migrated, and `triggerdb` holds
 # the one thing on this machine that cannot be rebuilt unattended: the account,
 # the project, its API keys, the worker group and the deployed-task records.
 # Recreating those needs a person and a browser (see deploy-tasks.sh's ONE-TIME
@@ -124,7 +125,38 @@ repo_tag() {
 }
 
 running_tag() { # what is ACTUALLY running, which is the only thing that is not a claim
-  docker inspect --format '{{.Config.Image}}' "$API_CONTAINER" 2>/dev/null | sed 's/.*://' || true
+  # The tag, without the twelve hex digits a build here ends its name in
+  # (`localhost/trigger.dev:v4.8.1-<hash>`, workplan 0146 T16): they are the
+  # Dockerfile's, not the version's, and left on they read as a disagreement.
+  docker inspect --format '{{.Config.Image}}' "$API_CONTAINER" 2>/dev/null | sed 's/.*://; s/-[0-9a-f]\{12\}$//' || true
+}
+
+# THE BUILD, NOT ONLY THE VERSION (workplan 0146 T16). running_tag drops the
+# hash, so a trigger-api running another build of the same version (an older
+# Dockerfile's, or one a branch left on the machine) reads as the pin. These
+# print the image trigger-api runs in full and the name managed.yml gives the
+# build at this checkout, the .env's TRIGGER_IMAGE_TAG or the default in it,
+# and say when the two differ: the next `up` recreates trigger-api.
+checkout_image() {
+  local line tag
+  line="$(grep -oE 'localhost/trigger\.dev:\$\{TRIGGER_IMAGE_TAG:-v[^}]+\}-[0-9a-f]{12}' "${SCRIPT_DIR}/managed.yml")" || return 0
+  line="$(head -1 <<<"$line")"
+  tag="$(env_value "$ENV_FILE" TRIGGER_IMAGE_TAG "$(repo_tag)")"
+  printf '%s\n' "${line%%\$\{*}${tag}${line##*\}}"
+}
+
+build_lines() {
+  local image built
+  image="$(docker inspect --format '{{.Config.Image}}' "$API_CONTAINER" 2>/dev/null || true)"
+  built="$(checkout_image)"
+  [ -n "$image" ] || return 0
+  echo "  image     ${image}"
+  [ -n "$built" ] || return 0
+  echo "  builds    ${built}   (managed.yml here, with .env's TRIGGER_IMAGE_TAG)"
+  if [ "$image" != "$built" ]; then
+    echo "  NOTE      trigger-api runs another image than this checkout names: another"
+    echo "            build or version. The next up recreates it from this checkout."
+  fi
 }
 
 # ------------------------------------------------------------------ list --
@@ -175,6 +207,33 @@ tag_exists() { # tag_exists <image> <tag>
   return 1
 }
 
+# THE INDEX DIGEST A TAG HAS TODAY, for the FROM of the builds here (workplan
+# 0146 T16: deploy/compose/trigger.dev and deploy/compose/supervisor build on
+# upstream's images by tag and digest). The question tag_exists asks, read for
+# its headers. Only an index (OCI) or a manifest list (Docker) is taken: the
+# FROM serves amd64 and arm64 both, and a one-platform manifest would build on
+# one of them only.
+tag_digest() { # tag_digest <image> <tag>
+  local image="$1" tag="$2" headers type digest
+  headers="$(curl -sS --max-time 20 -I \
+    -H "Authorization: Bearer $(ghcr_token "$image")" \
+    -H 'Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json' \
+    "https://ghcr.io/v2/triggerdotdev/${image}/manifests/${tag}")" ||
+    die "ghcr.io did not answer for triggerdotdev/${image}:${tag}, so its digest is not known. Nothing was moved."
+  headers="$(tr -d '\r' <<<"$headers")"
+  # The last of each: a proxy's own answer to CONNECT can come first.
+  type="$(sed -n 's/^[Cc]ontent-[Tt]ype:[[:space:]]*//p' <<<"$headers" | tail -n 1)"
+  type="${type%%;*}"
+  digest="$(sed -n 's/^[Dd]ocker-[Cc]ontent-[Dd]igest:[[:space:]]*//p' <<<"$headers" | tail -n 1)"
+  case "$type" in
+    application/vnd.oci.image.index.v1+json | application/vnd.docker.distribution.manifest.list.v2+json) ;;
+    *) die "ghcr.io/triggerdotdev/${image}:${tag} is '${type:-nothing}', not an index of platforms, so no FROM can name it for both. Nothing was moved." ;;
+  esac
+  [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] ||
+    die "ghcr.io gave no digest for triggerdotdev/${image}:${tag} ('${digest}'). Nothing was moved."
+  printf '%s\n' "$digest"
+}
+
 # BOTH images or neither: the webapp and the supervisor run one tag by
 # construction, so a half-published version is not a version you can move to.
 tag_usable() { tag_exists trigger.dev "$1" && tag_exists supervisor "$1"; }
@@ -222,6 +281,7 @@ cmd_list() {
 
   echo
   echo "  running   ${running:-<trigger-api is not up>}"
+  build_lines
   echo "  pinned    ${pinned}   (managed.yml default)"
   echo "  SDK       ${sdk}   (apps/worker — must equal the pinned tag without its v)"
   if [ -n "$running" ] && [ "$running" != "$pinned" ]; then
@@ -452,8 +512,19 @@ EOF
   zcat "$dump" | docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 >/dev/null ||
     die "the restore failed part way. ${DB_NAME} is now INCOMPLETE — load the dump by hand and read the error:
     zcat ${dump} | docker exec -i ${DB_CONTAINER} psql -U ${DB_USER} -d ${DB_NAME}"
-  say "restored. Put TRIGGER_IMAGE_TAG and the SDK back to the version that dump came from, then:"
+  # WHAT RUNS AT THE OLD VERSION IS THE CHECKOUT THAT PINNED IT (workplan 0146
+  # T16). Both images are built from this checkout's Dockerfiles, whose FROM
+  # and checks are its own version's: the old tag in .env alone builds this
+  # checkout's Dockerfile, which refuses it.
+  say "restored. Now run what that dump's version ran: the checkout that pinned it, whose"
+  say "Dockerfiles and image names come with it (the release tag before the move; on live,"
+  say "docs/operator-runbook.md, Rolling back from it, step 9, which deploys it with"
+  say "deploy-live.sh), with .env's TRIGGER_IMAGE_TAG, if it sets one, at that version. Elsewhere:"
+  say "  git checkout <the release before the move>    # or revert the move's commit"
+  say "  pnpm install --frozen-lockfile"
+  say "  ./deploy/compose/env-upsert.sh <the .env> TRIGGER_IMAGE_TAG=<that version>"
   say "  ${COMPOSE[*]} up -d trigger-api trigger-supervisor"
+  say "Not \`$0 pin <that version>\`: it keeps this checkout's removals, read at this version."
 }
 
 # ------------------------------------------------------------------- pin --
@@ -476,10 +547,45 @@ cmd_pin() {
   tag_exists trigger.dev "$want" || die "ghcr.io/triggerdotdev/trigger.dev:${want} is not published."
   tag_exists supervisor  "$want" || die "ghcr.io/triggerdotdev/supervisor:${want} is not published — the
 webapp and the supervisor run ONE tag, so a half-published version is not usable."
+  # What the FROM of each build here names (0146 T16), asked before anything moves.
+  local webapp_digest supervisor_digest
+  webapp_digest="$(tag_digest trigger.dev "$want")"
+  supervisor_digest="$(tag_digest supervisor "$want")"
 
   bare="${want#v}"
+  # EVERY LINE IT WILL MOVE IS THERE, OR NOTHING MOVES. A refusal half-way
+  # through left managed.yml's defaults and one build at the new version and
+  # the rest at the old one, with nothing said about what had moved.
+  local name esc digest dockerfile hex
+  for name in trigger.dev supervisor; do
+    dockerfile="${SCRIPT_DIR}/${name}/Dockerfile"
+    [ -f "$dockerfile" ] || continue
+    esc="${name//./\\.}"
+    [ "$(grep -cE "^FROM ghcr\.io/triggerdotdev/${esc}:v[0-9]+\.[0-9]+\.[0-9]+@sha256:[0-9a-f]{64}\$" "$dockerfile")" = 1 ] ||
+      die "${dockerfile} has no FROM ghcr.io/triggerdotdev/${name}:<tag>@<digest> line to move, so its build would not follow ${want}. Read it. Nothing was moved."
+    [ "$(grep -cE "^    image: localhost/${esc}:\\\$\\{TRIGGER_IMAGE_TAG:-v[0-9]+\.[0-9]+\.[0-9]+\\}-[0-9a-f]{12}\$" "${SCRIPT_DIR}/managed.yml")" = 1 ] ||
+      die "managed.yml does not name the build of ${dockerfile} once as localhost/${name}:\${TRIGGER_IMAGE_TAG:-v…}-<hash>. Read it. Nothing was moved."
+  done
   say "moving every place to ${want}"
   sed -i -E "s|\\\$\\{TRIGGER_IMAGE_TAG:-v[0-9]+\.[0-9]+\.[0-9]+\\}|\${TRIGGER_IMAGE_TAG:-${want}}|g" "${SCRIPT_DIR}/managed.yml"
+  # THE BUILDS HERE (workplan 0146 T16). Each Dockerfile's FROM moves to the
+  # tag and the digest it has today, and the name managed.yml gives the build
+  # to that file's new hash, the SHA-256 of its instruction lines (the
+  # Dockerfile's header). A directory that is gone is skipped: the patch was
+  # dropped, and its service runs ghcr's image again.
+  for name in trigger.dev supervisor; do
+    dockerfile="${SCRIPT_DIR}/${name}/Dockerfile"
+    [ -f "$dockerfile" ] || continue
+    esc="${name//./\\.}"
+    if [ "$name" = trigger.dev ]; then digest="$webapp_digest"; else digest="$supervisor_digest"; fi
+    sed -i -E "s|^FROM ghcr\.io/triggerdotdev/${esc}:v[0-9]+\.[0-9]+\.[0-9]+@sha256:[0-9a-f]{64}\$|FROM ghcr.io/triggerdotdev/${name}:${want}@${digest}|" "$dockerfile"
+    grep -qxF "FROM ghcr.io/triggerdotdev/${name}:${want}@${digest}" "$dockerfile" ||
+      die "${dockerfile}'s FROM did not move to ${want}, though it was checked first. managed.yml's defaults have moved already: undo with git checkout -- deploy/compose, and read it."
+    hex="$(grep -Ev '^[[:space:]]*(#|$)' "$dockerfile" | sha256sum | cut -c1-12)"
+    sed -i -E "s|^([[:space:]]*image: localhost/${esc}:\\\$\\{TRIGGER_IMAGE_TAG:-${want//./\\.}\\})-[0-9a-f]{12}\$|\\1-${hex}|" "${SCRIPT_DIR}/managed.yml"
+    [ "$(grep -cxF "    image: localhost/${name}:\${TRIGGER_IMAGE_TAG:-${want}}-${hex}" "${SCRIPT_DIR}/managed.yml")" = 1 ] ||
+      die "managed.yml does not name the build of ${dockerfile} once as localhost/${name}:\${TRIGGER_IMAGE_TAG:-${want}}-${hex}, though it was checked first. Its defaults have moved already: undo with git checkout -- deploy/compose, and read it."
+  done
   sed -i -E "s|^TRIGGER_IMAGE_TAG=v[0-9]+\.[0-9]+\.[0-9]+$|TRIGGER_IMAGE_TAG=${want}|" "${SCRIPT_DIR}/managed.env.example"
   # EVERY MANIFEST THE CI GUARD COMPARES, not a list of them. This moved
   # apps/worker's SDK alone and left the root package.json (sdk AND core) and
@@ -498,15 +604,31 @@ webapp and the supervisor run ONE tag, so a half-published version is not usable
 files, nothing running. What remains, in this order:
 
   1. pnpm install                      # the lockfile has to follow the SDK
-  2. git diff                          # managed.yml x2, managed.env.example and
-                                       # every @trigger.dev/* manifest line, no more
-  3. $0 backup before-${want}          # the schema migration is ONE WAY
-  4. read docs/managed-bring-up.md's upgrade order — do NOT upgrade with runs
+  2. git diff                          # managed.yml x2, managed.env.example,
+                                       # every @trigger.dev/* manifest line, and
+                                       # the FROM of trigger.dev/ and supervisor/'s
+                                       # Dockerfile with the hash in their names
+  3. Read the headers of those two Dockerfiles again at ${want}: why each
+     removal is safe was read at their read_at, which pin leaves where it is,
+     and both builds refuse ${want} until it moves (with entrypoint_sha256,
+     when the entrypoint changed). Drop a removal ${want} fixed. Then move the
+     two names to the new hashes, with the sed the guard prints
+     (scripts/a-binary-the-stack-never-runs.unit.test.ts).
+  4. Open a PR, and wait for build (trigger, amd64) and build (trigger, arm64)
+     (images.yml) to be green, before any window opens: they prove every path
+     and that the packages load at ${want}, and a path that moved fails there
+     by name.
+  5. $0 backup before-${want}          # the schema migration is ONE WAY
+  6. read docs/managed-bring-up.md's upgrade order — do NOT upgrade with runs
      in flight; drain EXECUTING first, or every run loops on
      "Snapshot changed inside startRunAttempt"
-  5. open a PR; the gate's own run performs the upgrade on this machine
+  7. the gate's own run (E2E (managed) on the PR's branch) performs the
+     upgrade on this machine
 
-Rolling back means: $0 restore --latest --yes, and pinning the old version.
+Rolling back means: $0 restore --latest --yes, then the checkout that pinned
+the old version: a revert of this move's commit, or on live the release tag
+before it (docs/operator-runbook.md, Rolling back from it). Never pin
+backwards: that keeps this checkout's removals, read at this version.
 EOF
 }
 

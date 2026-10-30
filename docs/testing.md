@@ -427,10 +427,11 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   configuration behind in code scanning with its alerts open; delete it on the code scanning tool
   status page (the Security tab, Code scanning, Tool status). An image a compose file builds here,
   `localhost/<name>` from `<name>/Dockerfile` beside it (the Postgres of `managed.yml` and
-  `dev.yml`, workplan 0146 T15, and the appliance's, T15b), has no registry to be read from: its
-  leg checks the commit out under `src/`, builds the directory natively on GitHub's arm64 runner
-  and scans what it built, under the name the pulled image had (`postgres-managed`,
-  `postgres-selfhost`).
+  `dev.yml`, workplan 0146 T15, the appliance's, T15b, and Trigger.dev's webapp and supervisor in
+  `managed.yml`, T16), has no registry to be read from: its leg checks the commit out under
+  `src/`, builds the directory natively on GitHub's arm64 runner and scans what it built, under
+  the name the pulled image had (`postgres-managed`, `postgres-selfhost`, `trigger.dev`,
+  `supervisor`).
 - `e2e.yml` — nightly (23:30 UTC on the Postgres stack, 01:30 UTC on PGlite) and on dispatch, on
   `[self-hosted, linux, arm64]` (the Spark); brings up Stalwart via
   `deploy/selfhost/setup-stalwart.sh` (the two-phase recovery→normal bring-up — not a
@@ -503,7 +504,14 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   `deploy/compose/postgres` and `deploy/selfhost/postgres`, and checks each runs as uid 70
   without gosu (workplan 0146 T15, T15b); it publishes nothing. The appliance's starts on the
   volume an existing appliance has, one the official image initialised as root, and must read
-  back the row written there.
+  back the row written there. And `build (trigger, amd64)` and `build (trigger, arm64)` build
+  `deploy/compose/trigger.dev` and `deploy/compose/supervisor`, upstream's Trigger.dev images with
+  files deleted that never run here, natively on each platform, after checking the base's user,
+  command and entrypoint are the ones the Dockerfiles read, and check the result keeps upstream's
+  user, command, entrypoint and working directory (workplan 0146 T16). Each removal fails the
+  build by name when its path is not there, and each Dockerfile refuses another release than its
+  `read_at`, so the pull request of a Trigger.dev move is red there until the Dockerfiles are
+  read again.
 - `script-images.yml` — the images a script builds for itself (today GoAccess, which
   `deploy/compose/site-visits.sh` builds from `deploy/compose/goaccess/Dockerfile`, #1675): an
   arm64 build-only check, `Build (<directory>)`, on a pull request that touches that directory or
@@ -549,9 +557,10 @@ against the runs recorded that evening, recorded green runs, and every event and
 red when the two disagree.
 
 Do **not** require `integration-tests (ubuntu-24.04)` / `(ubuntu-24.04-arm)`, nor
-`build (api|web|selfhost)` or `build (postgres)` from `images.yml`, nor `DAV suites on the second
-Nextcloud major` from `nextcloud-second-major.yml`, nor `Build (deploy/compose/goaccess)` from
-`script-images.yml`. None is reported at all on some pull requests —
+`build (api|web|selfhost)`, `build (postgres)` or `build (trigger, amd64|arm64)` from
+`images.yml`, nor `DAV suites on the second Nextcloud major` from `nextcloud-second-major.yml`,
+nor `Build (deploy/compose/goaccess)` from `script-images.yml`. None is reported at all on some
+pull requests —
 a skipped matrix job reports once under the literal `integration-tests (${{ matrix.runner }})`,
 and the other three workflows have a `paths:` filter — so a docs-only PR blocks forever on "Expected — waiting
 for status to be reported", with nothing queued in Actions to explain it. Full rationale is the

@@ -74,6 +74,7 @@ import {
   readImages,
   readPin,
   readTriggerPin,
+  TRIGGER_BUILDS,
   registryDigest,
   registryOf,
   repoReader,
@@ -464,6 +465,37 @@ describe('Trigger.dev, against the newest tag both images carry', () => {
     expect(row.body).toMatch(/Its own pull request/);
     expect(row.body).toMatch(/E2E \(managed\) dispatched on that branch/);
     expect(row.body).toMatch(/Live takes it from a release tag/);
+    // The builds are proven at the new tag before the drain, the backup and the window (0146 T16).
+    const body = row.body ?? '';
+    const order = ['trigger-version.sh pin v4.99.2', 'build (trigger, amd64)', 'Drain first', 'backup before-v4.99.2', 'E2E (managed) dispatched'].map((s) => body.indexOf(s));
+    expect(order.every((i) => i >= 0), JSON.stringify(order)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(row.body).toContain('`read_at`');
+  });
+
+  it("reads the two images built here (0146 T16) by their Dockerfiles' FROM, which must name the pin", async () => {
+    const built = readImages(MANAGED).filter((i) => i.repo in TRIGGER_BUILDS);
+    expect(built.map((i) => i.repo).sort()).toEqual(['localhost/supervisor', 'localhost/trigger.dev']);
+    for (const line of built) {
+      const b = builtImage(REAL, COMPOSE, line)!;
+      expect(b.base.repo).toBe(TRIGGER_BUILDS[line.repo]);
+      expect(b.base.tag).toBe(TRIGGER_PIN);
+      expect(line.tag).toBe(b.tag);
+    }
+    // A Dockerfile left at another version than the defaults: the row fails, and never says current.
+    const file = 'deploy/compose/supervisor/Dockerfile';
+    const behind = REAL.read(file)!.replace(/^(FROM \S+:)v[\d.]+@/m, '$1v4.0.0@');
+    await expect(triggerRow(withFiles({ [file]: behind }), fakeNet({ probe: () => '' }))).rejects.toThrow(
+      `${file} builds on ghcr.io/triggerdotdev/supervisor:v4.0.0, and ${COMPOSE} pins ghcr.io/triggerdotdev/supervisor:${TRIGGER_PIN}`,
+    );
+    // Their bases are compared by this row, so the routine rows leave them out, with no note of their own.
+    const { rows } = await routineRows(REAL, fakeNet(registry()));
+    expect(rows.filter((r) => /triggerdotdev|localhost/.test(r.name ?? '')).map((r) => r.name)).toEqual([]);
+    expect(COMPARED_ELSEWHERE).toMatchObject({ 'ghcr.io/triggerdotdev/trigger.dev': 'the Trigger.dev row', 'ghcr.io/triggerdotdev/supervisor': 'the Trigger.dev row' });
+    // The issue says the images are built here, and what to do with the builds on a move.
+    const row = await triggerRow(REAL, fakeNet({ probe: () => 'v4.99.2\n' }));
+    expect(row.body).toContain('deploy/compose/trigger.dev/Dockerfile');
+    expect(row.body).toContain('`build (trigger, amd64|arm64)`');
   });
 
   it('is current when the probe finds nothing newer, and refuses an answer that is not a tag', async () => {

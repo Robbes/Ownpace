@@ -1664,11 +1664,15 @@ phase_trigger() {
   # SDK-compatible" is a hope, not a deploy story.
   #
   # Checked rather than corrected: which way to reconcile is a judgement about
-  # what to run, and the two directions have different consequences — bumping
-  # the tag pulls images that may not exist yet, pinning the SDK back changes
-  # what the tasks are built with. Naming both is the useful thing a script can
-  # do here.
-  local sdk_version tag_version compose_default
+  # what to run, and the two directions have different consequences. The .env
+  # at this checkout's version recreates the webapp and the supervisor at it:
+  # both are built here from Dockerfiles whose FROM is that version (workplan
+  # 0146 T16), and their builds refuse any other. The .env's own version needs
+  # the checkout that pins it, which moves the images and the SDK the tasks are
+  # built with together: a move forward is `trigger-version.sh pin`, an older
+  # version is the release that pinned it, never a pin backwards. The SDK alone
+  # is neither. Naming both is the useful thing a script can do here.
+  local sdk_version tag_version compose_default newest
   sdk_version="$(node -p "require('${REPO_ROOT}/apps/worker/package.json').dependencies['@trigger.dev/sdk']")"
   # The fallback is managed.yml's own default, read the way trigger-version.sh's
   # repo_tag reads it (here-strings, not pipes: see no-pipeline-its-own-consumer-
@@ -1687,12 +1691,29 @@ phase_trigger() {
     echo "!!! These run the same protocol and are only compatible by coincidence when they differ." >&2
     echo "!!! Reconcile, in whichever direction you mean:" >&2
     echo "!!!   ./deploy/compose/env-upsert.sh ${ENV_FILE} TRIGGER_IMAGE_TAG=v${sdk_version}" >&2
-    echo "!!!     then re-run this phase — the webapp and supervisor are recreated at the new tag" >&2
-    echo "!!!   or pin @trigger.dev/sdk back to ${tag_version#v} in apps/worker/package.json" >&2
-    echo "!!!     and pnpm install --frozen-lockfile" >&2
+    echo "!!!     then re-run this phase — the webapp and supervisor are recreated at this checkout's version" >&2
+    # Forward is a move of this checkout; backward is the checkout that pinned
+    # it: a pin backwards keeps this version's removals and read_at.
+    newest="$(sort -V <<<"${tag_version#v}"$'\n'"${sdk_version}")"
+    newest="${newest##*$'\n'}"
+    if [ "$newest" = "${tag_version#v}" ]; then
+      echo "!!!   or move this checkout to ${tag_version}: ./deploy/compose/trigger-version.sh pin ${tag_version}," >&2
+      echo "!!!     then pnpm install and the pull request docs/managed-bring-up.md describes (Upgrading Trigger.dev)." >&2
+    else
+      echo "!!!   or run the checkout that pinned ${tag_version}: the release before the move, or a revert of" >&2
+      echo "!!!     the move's commit (docs/managed-bring-up.md, Upgrading Trigger.dev, Rolling back). Never" >&2
+      echo "!!!     trigger-version.sh pin backwards: this checkout's Dockerfiles were read for its own version." >&2
+    fi
+    echo "!!!   Not the SDK alone: both images are built from this checkout's Dockerfiles (workplan" >&2
+    echo "!!!     0146 T16), whose FROM is this checkout's version, and they refuse to build another." >&2
     exit 1
   fi
   note "Trigger.dev images and SDK agree at ${sdk_version}"
+  # trigger-api and trigger-supervisor run builds of upstream's images with
+  # files deleted that never run here (workplan 0146 T16), named after the
+  # version and the hash of their Dockerfiles. The up_wait calls below build
+  # each where its name is missing, and nothing else: never `up --build`.
+  note "trigger-api and trigger-supervisor are local builds of upstream's ${tag_version} (deploy/compose/trigger.dev, deploy/compose/supervisor), built where the machine does not have them yet"
   # THE SUPERVISOR COMES UP LAST, AND NOT ONLY FOR ORDERING.
   #
   # trigger-api bootstraps a worker group and writes its token into the SHARED
