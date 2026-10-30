@@ -330,7 +330,10 @@ services:
     # deploy/compose/trigger.dev/Dockerfile, whose FROM is the pin, by tag and
     # digest, takes out the depot and esbuild binaries, node's copy of pnpm and
     # the tar in root's (only pnpm's node-gyp needs it; the owner, 2026-10-27),
-    # and says why nothing here runs them. The name is the version (the .env's
+    # and says why nothing here runs them. It also replaces dompurify 3.4.13's
+    # files with 3.4.17's, fetched from the npm registry and refused unless their
+    # sha512 is the one npm published (nothing here loads dompurify; the copy
+    # the scan reads is the fixed one). The name is the version (the .env's
     # TRIGGER_IMAGE_TAG, or the default) and the hash of that file's
     # instructions; the build argument only refuses a .env naming another
     # version than the file builds. `trigger-version.sh pin` moves the FROM and
@@ -338,7 +341,7 @@ services:
     # why). `user: root` decides which copy of pnpm the entrypoint runs, and so
     # which one the Dockerfile may delete:
     # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
-    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.1}-38e6d59739c6
+    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.1}-d467cf5da6ef
     build:
       context: ./trigger.dev
       args:
