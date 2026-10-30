@@ -5077,6 +5077,22 @@ Before the first run, set `TRIGGER_IMAGE_TAG=v4.8.1` in live's persisted
 the first run's bring-up stops on the version drift instead, before the
 checks that print the lines above.
 
+The first run's verdict block says one-way and that the copy holds the task
+runner's database (`copy-before-update.sh take --trigger`), as for any move of
+the Trigger.dev version, but its reason reads *cannot be compared with it on
+the Trigger.dev pin: managed.yml at one of the two has no image line naming
+it*: alpha.2's script compares image lines, and from alpha.3 on `trigger-api`
+and `trigger-supervisor` run images built on this machine (workplan 0146 T16,
+*Trigger.dev's two images built here*, above). Its bring-up prints that they
+are local builds of upstream's v4.8.1; it builds them only if the shared
+daemon does not hold the two names yet (the OTA's E2E and nightly build them
+first), in a minute or two from ghcr.io, and a build that fails stops the run
+before any Trigger.dev container is recreated. Never `up --build` or `build`
+them by hand on either stack: the other stack's next `up` would recreate its
+Trigger.dev containers outside any hold. The second run says *moves the
+Trigger.dev pin in managed.yml: v4.7.6 -> v4.8.1*, keeps the first run's copy
+and builds nothing.
+
 Start the first run with plain progress, from `~/ownpace-live`:
 `COMPOSE_PROGRESS=plain ./deploy/compose/deploy-live.sh v0.2.0-alpha.3`.
 alpha.2's script does not ask compose for it, and a compose step can then
@@ -5103,7 +5119,21 @@ is taken*), runs the bring-up again over a stack already at the tag, and says
 `NODE_ENV in the api container: production` and `the deploy took:
 v0.2.0-alpha.3 (<commit>) runs, and answered every check.`, then what it says
 after every deploy that took, and exits 0, with a `took` line in
-`deploys.log`. The task environment lines are the first run's: `set-task-env.sh`
+`deploys.log`. Then, before step 5 starts a pass, keep the copy:
+
+```bash
+./deploy/compose/env-upsert.sh deploy/compose/.env COPY_DELETE_WHEN_PROVEN=false
+```
+
+Without it the box checks delete the copy once a pass proves the update and
+the hold has been lifted for an hour (*The copy goes by itself once the update
+is proven*, above), and it is
+live's only quick way back from the builds
+(*Rolling back*, under *Trigger.dev's two images built here*). Delete it by
+hand with `./deploy/compose/copy-before-update.sh delete` once the task runner
+has run real work for a few days, then set the key back (`true`, or remove the
+line) before the next deploy: a proven copy that is kept makes the next take
+refuse. The task environment lines are the first run's: `set-task-env.sh`
 says `[set-task-env] deleted OWNPACE_STAGE: …` only when it deletes the stage,
 and the second run finds it gone and says nothing (`ending-the-alpha.md`
 step 6 reads the first run's). Then step 5 as usual. With any other line under
@@ -5604,10 +5634,14 @@ it pulled it before, and never again while the name is there: never `up
   names come with it and whose images are still on the machine. Never
   `trigger-version.sh pin` backwards: that keeps the current removals and
   `read_at`, builds a name nobody proved, and fails once a removal was
-  dropped. To the release before the builds it is reversible at the same
-  version (`deploy-live.sh` compares the Trigger.dev version, not the image
+  dropped. To a release before the builds at the same version it is
+  reversible (`deploy-live.sh` compares the Trigger.dev version, not the image
   line); the pulled image that release ran is still on the machine unless it
-  was pruned, and `up` pulls it again if it was. When a build misbehaves at
+  was pruned, and `up` pulls it again if it was. Live has no such release: it
+  went from alpha.2 (ghcr's v4.7.6) to alpha.3 (the builds at v4.8.1), so its
+  way back from the builds is the copy before that update, to all of alpha.2,
+  triggerdb included, which is why that deploy keeps the copy (*The deploy
+  from alpha.2 to alpha.3 runs twice*). When a build misbehaves at
   runtime at a version that has no release before it to go back to, the way
   out is the *Dropping them* edit below for that service (ghcr's image line
   back, no `build:` or `pull_policy:`), as its own pull request with E2E

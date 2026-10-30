@@ -99,9 +99,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   or reversible, and whether the copy taken before it must hold the task
   runner's database, by comparing the Trigger.dev versions the two releases
   pin. It no longer compares their image lines. The verdicts are unchanged for
-  today's lines. It ships ahead of alpha.4's Trigger.dev images built here,
-  whose lines name no upstream image: a deploy of those is judged by the
-  script that runs before it.
+  today's lines. It ships with the Trigger.dev images built here, whose lines
+  name no upstream image: a deploy is judged by the script that runs before it,
+  so live's deploy from alpha.2 says one-way on the Trigger.dev pin, as the
+  move from v4.7.6 to v4.8.1 makes it anyway, and every later deploy is judged
+  by the version.
 - **The site's visit count builds GoAccess 1.12 on Alpine 3.24, because
   upstream's image is on Alpine 3.20, past its end of life** (workplan 0152,
   #1675, #1703): no upstream release has moved off 3.20, and Alpine's own package is

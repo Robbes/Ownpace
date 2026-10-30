@@ -2250,7 +2250,7 @@ describe('a copy is made before the update: copy-before-update.sh, right before 
   );
 
   it(
-    "ghcr's images replaced by the builds at the same version, as alpha.3 to alpha.4: reversible, and no --trigger",
+    "ghcr's images replaced by the builds at the same version: reversible, and no --trigger",
     () => {
       const s = stage({ runningGhcrTrigger: true, releases: [{ ...NEXT, builtTrigger: true }] });
       expect(git(s.root, s.work, 'show', `${RUNNING.tag}:deploy/compose/managed.yml`)).toContain(
