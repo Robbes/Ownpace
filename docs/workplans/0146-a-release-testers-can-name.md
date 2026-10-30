@@ -31,7 +31,7 @@ hand, the unordered path that broke alpha.1 (`docs/release.md` §2). Built on br
   `a-tag-cut-only-on-green`) run the resolve, verdict and tag scripts as the workflow does: a
   command in the text is refused and makes nothing, and the tag script, against a scripted API
   with no nights on record, posts the tag with the waiver's line and writes the summary. Each
-  of 41 mutations of the code they hold turned one of them red. Not run: the workflow itself
+  of 40 mutations of the code they hold turned one of them red. Not run: the workflow itself
   (no dispatch from a branch).
 - **For alpha.3:** C is the fold's squash, `3a15c74d` (#1739), or a later re-fold, which then
   folds this pull request's CHANGELOG line into alpha.3's section too: the preflight refuses a
