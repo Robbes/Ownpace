@@ -73,6 +73,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   overflow when a message over 4 GB is propagated over the cluster bus. This
   stack runs no cluster. Taken a day before its three-day floor, under the
   floor's exception for a security fix. The run queues' file carries over.
+- **The demo's Nextcloud is upstream's rebuild of 35.0.2, which clears a critical**
+  (workplan 0119 T5): `nextcloud:35.0.2-apache@sha256:e0b1a2af…`, pushed by Docker Hub on
+  2026-10-28, carries `libbrotli1` 1.1.0-2+deb13u1 for CVE-2026-111497. Same Nextcloud and PHP,
+  so nothing to upgrade on the demo's volume. `managed.yml`, `dev.yml` and the Testcontainers
+  default move together. Live runs no Nextcloud.
 
 ### Changed
 
