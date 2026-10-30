@@ -29,7 +29,8 @@ one line per check, `pass` or `refuse`, every reason at once):
 
 - The inputs, and that it was dispatched from `main`.
 - The commit C is on `main`'s first-parent line. Left empty, C is the commit
-  the counted nights ran (below).
+  the counted nights ran (below). Under the owner's waiver of the nights it is
+  given, never empty (§2, *When the owner waives the nights*).
 - The tag is free, or is an annotated tag Release itself made at C (a re-run);
   no branch is named like it.
 - The names agree: the candidate's own `scripts/release-names-agree.mjs`, and
@@ -45,7 +46,8 @@ one line per check, `pass` or `refuse`, every reason at once):
   T14 defines them (`scripts/release-nights.mjs`): the newest two completed
   scheduled runs of E2E (managed) both ran C and are green on every attempt, no
   night is missing, and the four scheduled E2E (self-hosted) runs of those
-  nights ran C and are green on every attempt.
+  nights ran C and are green on every attempt. Unless the owner waives them
+  (§2, *When the owner waives the nights*): their refusals are then notes.
 - **Upgrade gates against the PREVIOUS release**, read rather than eyeballed
   (`scripts/release-upgrade-gates.mjs`): each chain's upgrade test runs with
   `UPGRADE_FROM_REF` set to the release before (without it each starts from
@@ -200,11 +202,76 @@ working tree. Once a newer release is tagged, a re-run or a dispatch of an
 older tag's workflows is refused by the same rule, because that tag now sorts
 below one that exists. Cut a new tag instead of re-running an old one.
 
+### When the owner waives the nights
+
+The owner's call, and only for a release no tester runs yet. The first was
+alpha.3, on 2026-10-30: *"I approve alpha.3 tag now, we skip the waiting days.
+No one is in the alpha yet."* (workplan 0146, Status of 2026-10-30). It
+replaces the tag pushed by hand for that case, so the order above holds.
+
+**Which versions.** Only those in `WAIVER_VERSIONS` in
+`scripts/release-nights.mjs`, each there with the owner's words and the day:
+today `v0.2.0-alpha.3` alone. A waiver for any other version is refused. The
+next one is a pull request that adds its version there, quoting the owner,
+merged before the dispatch; the guard holds that each is a pre-release.
+
+Dispatch Release **from your own account** with `waive_nights` set to the
+reason, in your own words, and `commit` set to the full commit to tag: the
+fold's squash on `main`. Whoever dispatches is the one the tag names, so a run
+whose actor is an app's bot (`…[bot]`) is refused, and an agent does not
+dispatch a waiver in your name. There are no nights to pick a commit, so a
+waiver with `commit` empty is refused. Run `mode=preflight` first, then
+`mode=release`.
+
+**What it does.** In `preflight`, `rehearse` and `release` mode the nights are
+read as always. If they do not hold, their refusals become notes, the first of
+them quoting your words and naming the run's actor; the preflight's summary
+says so under its title, the tag job's summary lists it, and the tag's message
+has a line of its own after *Proved by*, your words as a JSON string (a `"` in
+them comes out as `\"`):
+
+```text
+Nights waived by <actor>, in their words: "<the reason>"
+```
+
+If the nights hold, the waiver is not used: the preflight's summary says so,
+and the tag's message names the nights as it always does. **The tag job is
+bound by what the preflight did** (its output `waived`): when the nights held
+there, the tag job reads them again as in a run without a waiver, and if they
+stopped holding between the preflight and the tag, it refuses and writes
+nothing. Dispatch again; that preflight then uses the waiver, and says so. A run
+that refused before it read the nights (a waiver with `commit` empty, for one)
+says the nights were not read, never that they were waived.
+
+**What it does not waive.** Everything else refuses as it does without it: C
+on `main`'s first-parent line, the tag free, the names and `openapi.yaml`'s
+version, the changelog folded and dated, C's own push run of CI with the whole
+suite run and Security Scan's push run green, the callees, the upgrade gates,
+the gate scan minutes before the tag, and the approval in the `release`
+environment.
+
+**The text.** It is written into a public tag and two job summaries, so it is
+one line of at most 300 characters, with a letter or a digit, and no backtick,
+`<`, `$(`, `${`, `@`, control character or character that shows nothing (a
+private-use or unassigned one, a lone surrogate, a Hangul filler, the braille
+blank). The preflight refuses anything else, says why, and does not repeat it.
+It reaches the scripts only as an environment variable, like every input.
+`verify` and `rehearse-tag` read no nights and refuse a waiver.
+
+**A record, not a boundary.** Like the approval: anyone who can dispatch can
+type it, and in release mode the run still waits for your click. Nor is the
+preflight a boundary against C's own code: C's names check and install run in
+the preflight job before its check and its verdict, and can rewrite their
+environment, the lines file and the summary. What counts is the tag job's own
+read of the input, in a job of its own, with the version and actor checks
+above. The release page's body is Security Scan's and does not carry the
+waiver: when you write the release's prose (§4), say it there too.
+
 ### Break-glass: a tag pushed by hand
 
-When Release cannot run (the owner accepts fewer nights in writing, or GitHub
-refuses the workflow's token), the tag is pushed by hand, from the commit the
-names check passed on:
+When Release cannot run (GitHub refuses the workflow's token, for instance;
+fewer nights is the waiver above, not this), the tag is pushed by hand, from
+the commit the names check passed on:
 
 ```bash
 git tag -a v<X.Y.Z> -m "Ownpace v<X.Y.Z>"
@@ -291,8 +358,10 @@ in [managed-bring-up.md](./managed-bring-up.md#updating-a-running-deployment),
 - [ ] Its commit is one the nightly gate ran green, as workplan 0141 T14
       reads it. Release refused to tag otherwise, and the tag's message names
       the Release run and the runs that proved it: cite that in the deploy
-      log. A tag pushed by hand carries no such proof, and the owner accepts
-      fewer in writing in the deploy log.
+      log. A tag cut under the owner's waiver says so in its message
+      (*Nights waived by …*): cite that line as the acceptance. A tag pushed
+      by hand carries no such proof, and the owner accepts fewer in writing in
+      the deploy log.
 - [ ] Its commit has `deploy/compose/exposure-check.sh` (on `main` since
       #1271), and live's `.env` has `EXPOSURE_ALLOW` naming every address,
       other than loopback, that a container on the machine is published on on
