@@ -23,6 +23,13 @@ under the floor's one exception, a security fix (CONTRIBUTING.md), with E2E (man
 its branch. The append-only file and uid 999 are unchanged, so `redis_data` carries over and the
 way back is the old digest.
 
+**2026-10-30: the demo's Nextcloud rebuild (#1732) merges before its floor.** The owner,
+2026-10-30: *"3 pr's are still open, merge them in, continue with fixing the vulnerabilities,
+work to the new defined alpha as next version. Still no one is in the alpha."* The rebuild clears
+a critical (CVE-2026-111497, entry below), so it is taken a day before its three-day floor
+(2026-10-31 16:51 UTC) under the floor's one exception, a security fix (CONTRIBUTING.md), with
+E2E (managed) and E2E (self-hosted) green on its branch as planned.
+
 **2026-10-30: Gatus v5.38.0 (#1733) merges before its floor.** The owner, 2026-10-30: *"3 pr's
 are still open, merge them in, continue with fixing the vulnerabilities, work to the new defined
 alpha as next version. Still no one is in the alpha."* v5.38.0 clears 7 of the status page's 12
@@ -40,6 +47,20 @@ It also re-acts on changed store and linker settings, and `pnpm audit --ignore` 
 non-zero when advisories remain. The advisory gate runs `pnpm audit --audit-level=moderate
 --json` without `--ignore`, the images install into fresh stages, and nothing here uses
 registry prefixes, so none of it changes what this repository does. CI only; no E2E.
+
+**2026-10-29: the demo's Nextcloud 35.0.2 moves to upstream's rebuild, which clears a critical
+(T5).** The image scan of 2026-10-29 on `main` (Security Scan run 40843566092) found one fixable
+critical in `nextcloud:35.0.2-apache@sha256:89af7ee7…`: CVE-2026-111497 in `libbrotli1`
+1.1.0-2+b7. Upstream rebuilt the same tag on 2026-10-28 (Docker Hub push 16:51 UTC), digest
+`e0b1a2af…`: the same Nextcloud 35.0.2 and PHP 8.5.12, on Debian's snapshot of 2026-10-27, with
+`libbrotli1` 1.1.0-2+deb13u1, read from the image's dpkg status on amd64 and arm64. The other
+packages that moved are libheif 1.23.4 to 1.23.6 and tzdata 2026c to 2026e. `managed.yml`,
+`dev.yml` and the Testcontainers default move together (`a-float-nothing-ever-pulled`). It merges
+once three days old, after 2026-10-31 16:51 UTC (CONTRIBUTING's age, counted from the registry's
+push), with E2E (managed) and E2E (self-hosted) green on its branch, before the next nightly. No
+`occ upgrade` and no data migration: the old digest can still start on the demo's volume.
+`nextcloud-second-major.yml`'s 34.0.5 leg stays as it is (CI only). The image's other criticals
+(libopenexr, libxml2, linux-libc-dev) have no fix yet.
 
 **2026-10-29: the status page's Gatus moves to v5.38.0, which clears 7 of its 12 highs.** The
 image scan of 2026-10-29 on `main` (Security Scan run 40843566092) found 12 fixable highs in
@@ -1077,7 +1098,7 @@ is who moves it after T1.
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason | 1.38 (1.38.0) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.38.0 (2026-10-30, a day before its floor under the security-fix exception: Status, 2026-10-29 and 2026-10-30; before it v5.37.0 from 2026-10-21) | v5.38.0 (2026-10-28) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
 | `axllent/mailpit` | `managed.yml` | v1.32.0 by digest (2026-10-25, for CVE-2026-111943 in v1.31.6's Go, 0146 T11 (a); v1.31.6 from 2026-10-21, v1.31.1 from T2) | v1.32.0 (2026-10-22), digest `0790692b…` | current | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
-| `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 35.0.2-apache by digest `89af7ee7…` since 2026-10-28 (T5; #1720, `3d2f129e`, the owner's OK of 2026-10-26 for alpha.3; the OTA volume upgraded by E2E (managed) run 40774398411); before it 34.0.5-apache by digest `1f9212ad…` (2026-10-25, upstream's rebuild of 2026-10-23 with `session.upload_progress.enabled=0`, PHP's mitigation for CVE-2026-115560; `9dbdc711…` from 2026-10-22, `34-apache` floating before, never pulled) | 35.0.2 (2026-10-15) on PHP 8.5.12; 35.0.3 due 2026-11-12 | current | by hand, in its own PR, when the pin watch lists a newer 35.x (34.x before the move) or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and its database and refuses an older image on them, so a bad move is fixed forward or put back from a copy taken before it (`managed-bring-up.md`, *Updating a running deployment* and *A Nextcloud major on the OTA stack*) |
+| `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 35.0.2-apache by digest `e0b1a2af…`, upstream's rebuild of 2026-10-28 (Docker Hub push 16:51 UTC) on Debian's snapshot of 2026-10-27, with `libbrotli1` 1.1.0-2+deb13u1 for the critical CVE-2026-111497, taken 2026-10-30, a day before its floor, under the security-fix exception (Status, 2026-10-29 and 2026-10-30); before it `89af7ee7…` since 2026-10-28 (T5; #1720, `3d2f129e`, the owner's OK of 2026-10-26 for alpha.3; the OTA volume upgraded by E2E (managed) run 40774398411); before it 34.0.5-apache by digest `1f9212ad…` (2026-10-25, upstream's rebuild of 2026-10-23 with `session.upload_progress.enabled=0`, PHP's mitigation for CVE-2026-115560; `9dbdc711…` from 2026-10-22, `34-apache` floating before, never pulled) | 35.0.2 (2026-10-15) on PHP 8.5.12; 35.0.3 due 2026-11-12 | current | by hand, in its own PR, when the pin watch lists a newer 35.x (34.x before the move) or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and its database and refuses an older image on them, so a bad move is fixed forward or put back from a copy taken before it (`managed-bring-up.md`, *Updating a running deployment* and *A Nextcloud major on the OTA stack*) |
 | `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 34.0.5-apache by digest `1f9212ad…` (PHP 8.5.12) since 2026-10-28, flipped in the pull request that moved the demo (T5; #1720, `3d2f129e`, after E2E (managed) run 40774398411 upgraded the OTA volume); before it 35.0.2-apache by digest `89af7ee7…` from 2026-10-26, 35.0.1 from 2026-10-25 | 34.0.5; 34.0.6 due 2026-11-12 | current | by hand; the pin watch reads no workflow file (§4) | a CI fixture: the other major customers may run (35 while the demo ran 34, 34 since), never deployed |
 | `ghcr.io/robbes/ownpace-selfhost` | `deploy/selfhost/compose.yml` | `edge` | ours | — | `images.yml` | — |
 

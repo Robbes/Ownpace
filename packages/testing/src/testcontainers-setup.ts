@@ -333,7 +333,7 @@ async function startNextcloud(): Promise<{
   // Start container WITHOUT HTTP wait strategy - we'll use internal readiness check instead.
   // The default is the dev stack's image, tag and digest: the pin watch reads dev.yml, not this
   // file, and scripts/a-float-nothing-ever-pulled.unit.test.ts holds the two equal.
-  const nextcloudContainer = await (asked ? new GenericContainer(asked) : new GenericContainer('nextcloud:35.0.2-apache@sha256:89af7ee7a96ff5e9668280566209268ae6b2d02327f6ef6d56f6d68228cf9431'))
+  const nextcloudContainer = await (asked ? new GenericContainer(asked) : new GenericContainer('nextcloud:35.0.2-apache@sha256:e0b1a2af52c82c07b7a0e8e59878bd8769e704447734d5d238a836982f51b9c8'))
     .withEnvironment({
       SQLITE_DATABASE: 'nextcloud',
       NEXTCLOUD_ADMIN_USER: 'testadmin',

@@ -1958,7 +1958,7 @@ services:
   # *A Nextcloud major on the OTA stack*. The other major, 34, runs in CI only
   # (.github/workflows/nextcloud-second-major.yml).
   nextcloud:
-    image: nextcloud:35.0.2-apache@sha256:89af7ee7a96ff5e9668280566209268ae6b2d02327f6ef6d56f6d68228cf9431
+    image: nextcloud:35.0.2-apache@sha256:e0b1a2af52c82c07b7a0e8e59878bd8769e704447734d5d238a836982f51b9c8
     container_name: ${COMPOSE_PROJECT_NAME}-nextcloud
     restart: unless-stopped
     logging: *logging
