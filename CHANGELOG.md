@@ -4,6 +4,24 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.3] - 2026-10-30
+
+A tester's grant mail now opens registration with the address it was sent to
+already filled in, and a share press that meets Nextcloud's limit on new shares
+stops there and says when to apply again. Underneath, most of what runs moved.
+The managed API runs on a distroless Debian 13 image with production
+dependencies only, and nothing execs a shell into it; the web image and the
+public site run nginx 1.31.8-alpine-slim; both databases, and the appliance's,
+start as PostgreSQL's own user. Trigger.dev moves to v4.8.1, with its webapp
+and supervisor built here without the files nothing runs and its tasks on the
+API image's own base; its object store runs Chainguard's MinIO build of
+2026-10-25 and its queues Redis 7.4.12. The demo Nextcloud moves to 35.0.2, and
+the status page to Gatus v5.38.0. Live proves an update by itself, a deploy no
+longer waits without end on a compose step, and the weekly image scan names
+every critical finding. Live's deploy from alpha.2 takes two runs of the deploy
+script, and keeps the copy taken before it until the task runner has run real
+work.
+
 ### Security
 
 - **The api, selfhost and web images build on Debian 13, and the api and

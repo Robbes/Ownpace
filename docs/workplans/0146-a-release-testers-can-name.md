@@ -4,6 +4,30 @@
 
 ## Status — 2026-10-30 (update this block at the end of every session)
 
+**2026-10-30, last: alpha.3 is folded.** Six pull requests merged on 2026-10-30, each after CI,
+and each that changes what a stack runs after E2E on its branch:
+
+- #1729 (0095 T6), the grant mail's link opens registration with the address filled in,
+  `01779831`, E2E (managed) #307;
+- #1736, pnpm 11.28.9, `70d44346`, CI only;
+- #1722 (T16), Trigger.dev's webapp and supervisor built here, `30533c7f`, E2E (managed) #308;
+- #1737, Trigger.dev's Redis 7.4.12, `2e42dae5`, E2E (managed) #309;
+- #1732, the demo's Nextcloud 35.0.2 rebuild, `9c341f62`, E2E (managed) #310 and E2E
+  (self-hosted) #314;
+- #1733, the status page's Gatus v5.38.0, `0f18b51b`, E2E (managed) #311.
+
+The fold moves `package.json` and the API contract to `0.2.0-alpha.3` and everything under
+`[Unreleased]` to `## [0.2.0-alpha.3] - 2026-10-30`. Its squash is C, and `main` takes nothing
+else until the tag. The tag needs two scheduled E2E (managed) runs on C, at most 30 hours apart,
+and four scheduled E2E (self-hosted) runs on C between C reaching `main` and the newer of the two
+(`scripts/release-nights.mjs`). The earliest is the E2E (managed) nightly of 2026-11-01. Then the
+Release workflow (mode `release`) waits for the owner's approval in the `release` environment.
+That replaces the 2026-10-29 entry's dates (Redis after its floor, the tag about 2026-11-02/03).
+Live's deploy of the tag still waits for alpha.2's copy to go, about 2026-11-02 19:56 UTC, and
+runs twice, and keeps the copy taken before it (the entries below). MinIO's newer `latest` (the pin watch,
+issue #1671) is a rebuild with no finding to clear, three days old on 2026-11-01 03:00 UTC, so it
+goes into alpha.4.
+
 **2026-10-30, later: T16 (#1722) moves into alpha.3 too.** The owner: *"Can you put all in
 alpha 3?"* and *"Put all alpha 4 into alpha 3."* T16 was the one item left for alpha.4 (#1729
 moved first, below); nothing else queued for alpha.4 is built. It merges before the fold, after

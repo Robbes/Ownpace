@@ -4,6 +4,16 @@
 
 ## Status — 2026-10-30 (update this block at the end of every session)
 
+**2026-10-30, last: what alpha.3 moves, folded.** The fold (0146 Status, 2026-10-30) closes
+alpha.3 with the moves of 2026-10-30 in it: pnpm 11.28.9 (#1736), Trigger.dev's webapp and
+supervisor built here (#1722), Redis 7.4.12 (#1737), the demo's Nextcloud 35.0.2 rebuild
+(#1732) and Gatus v5.38.0 (#1733). The pin watch (issue #1671) now has one image behind:
+Chainguard's MinIO `latest` at `0dab2f9f…`, a rebuild of the same tag. The pin `268d68a2…` had no
+finding of any severity on 2026-10-28, so the newer one is no security fix and waits for its
+floor, 2026-11-01 03:00 UTC, and for the tag. It is a pull request of its own for alpha.4, with
+its scan read and E2E (managed) on its branch, as the watch says. The issue closes when none is
+behind.
+
 **2026-10-30: the Trigger.dev images built here (0146 T16, #1722) are in alpha.3, not alpha.4.**
 The owner: *"Put all alpha 4 into alpha 3."* #1722 merges before alpha.3's fold, after CI, the
 built images' scan and E2E (managed) on its branch; the entries below that name it for alpha.4
