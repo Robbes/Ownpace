@@ -4,6 +4,67 @@
 
 ## Status — 2026-10-30 (update this block at the end of every session)
 
+**2026-10-30, latest: the owner waives the counted nights for alpha.3, and Release can take
+it (built as a draft, reviewed once).** The owner, 2026-10-30: *"I approve alpha.3 tag now, we
+skip the waiting days. No one is in the alpha yet."* Release could not do that: its preflight
+and its tag job refuse a commit the nights do not hold for, and the only way past was a tag
+pushed by hand, the unordered path that broke alpha.1 (`docs/release.md` §2). Built on branch
+`claude/ownpace-public-readiness-y7orc6-release-nights-waiver`, as a draft pull request:
+
+- **`waive_nights`**, a new input of the Release workflow: the owner's reason, in their words.
+  Empty is today's behaviour. **Set, it is taken only for a version in `WAIVER_VERSIONS`**
+  (`scripts/release-nights.mjs`): `v0.2.0-alpha.3` alone, the version the owner named, and the
+  guard holds that each listed version is a pre-release. A later waiver is a pull request that
+  adds its version with the owner's words. **And only from a person's account:** a run whose
+  actor is an app's bot is refused, since the tag would credit the owner's words to it.
+- **Taken,** in preflight, rehearse and release mode the nights are read as always, and if they
+  do not hold their refusals are notes, the first quoting it and naming the run's actor. The
+  commit must be given: a waiver with `commit` empty is refused. The tag's message has a line
+  of its own after *Proved by*, `Nights waived by <actor>, in their words: "<reason>"`, the
+  reason a JSON string, and the summaries of the preflight and the tag job say it too.
+  `verify` and `rehearse-tag` read no nights and refuse a waiver.
+- **The tag job is bound by the preflight:** the check step's output `waived` reaches it as
+  `PREFLIGHT_WAIVED`. When the nights held at the preflight, its summary says the waiver was
+  not used, and the tag job reads the nights again as a run without one would, refusing if they
+  stopped holding. A run that refused before it read the nights says so, and never that they
+  were waived.
+- **Nothing else is waived:** C on `main`'s first-parent line, the tag free, the names, the
+  version, the changelog fold, C's push runs of CI (the whole suite) and Security Scan, the
+  callees, the upgrade gates, the gate scan and the approval in the `release` environment.
+- **The text is read as hostile:** one line, at most 300 characters, with a letter or a digit,
+  and no backtick, `<`, `$(`, `${`, `@`, control character or character that shows nothing
+  (private use, unassigned, a lone surrogate, a Hangul filler, the braille blank). A refusal
+  says why and does not repeat it, and the text reaches the scripts through `env:` only. The
+  preflight is no boundary against C's own code, which runs in its job before the check and
+  the verdict; the tag job, a job of its own, reads the input itself.
+- **It amends decision 9** of 2026-10-23 (*no override input*, below), and 0141 T14 says so.
+- **The review of 2026-10-30** found eight things, and each held when checked again: the waiver
+  worked for any version, stable ones included; the preflight said "not used" while the tag job
+  would still use it; a blank-looking text (a Hangul filler, the braille blank, a private-use
+  character, a lone surrogate) was taken; a `"` in the words could end the tag's quote; a run
+  that refused before reading the nights said they were waived; a comment called the verdict
+  step's env out of the candidate's reach; the CHANGELOG said "the release says so" where only
+  the tag does; and a bot could be named as the waiver's author. All eight are fixed as above.
+- **Proven on the branch:** the unit project, 1077 files, 16173 tests passed and 33 skipped;
+  lint, typecheck, the conflict-marker check and both index checks. The three guards
+  (`a-release-preflight-that-said-yes-too-soon`, `a-tag-that-already-pointed-elsewhere`,
+  `a-tag-cut-only-on-green`) run the resolve, check, verdict and tag scripts as the workflow
+  does: a command in the text is refused and makes nothing; the check step's output says
+  whether it used the waiver; and the tag script, against a scripted API with no nights on
+  record, posts the tag with the waiver's line and writes the summary when the preflight used
+  it, and refuses and posts nothing when it did not. Each of 40 mutations of the first build
+  and 25 of the review's fixes turned one of them red. Not run: the workflow itself (no
+  dispatch from a branch).
+- **For alpha.3:** C is the fold's squash, `3a15c74d` (#1739), or a later re-fold, which then
+  folds this pull request's CHANGELOG line into alpha.3's section too: the preflight refuses a
+  commit with a line under `[Unreleased]`. Release runs `main`'s copy of its scripts, so this
+  merges first. C's own push runs on `3a15c74d` are green: CI #4983 and Security Scan #5020; a
+  re-fold needs its own. Then the owner, from their own account, dispatches Release with
+  `version` `v0.2.0-alpha.3`, `commit` C in full, `waive_nights` in their own words, first
+  `mode=preflight`, then `mode=release`, and approves. That replaces the next entry's *"The
+  earliest is the E2E (managed) nightly of 2026-11-01"*. The freeze kept the nights on C; with
+  them waived, a merge after C costs only the note that counts the commits on `main` after it.
+
 **2026-10-30, last: alpha.3 is folded.** Six pull requests merged on 2026-10-30, each after CI,
 and each that changes what a stack runs after E2E on its branch:
 
@@ -1638,7 +1699,8 @@ reaches the self-hosted machine or live.
   count (3), and the freeze (4), all written once in 0141 T14; the approval
   environment (5); no CI on a Release-made tag, C's own push run must have run
   lint, unit, UI and integration (6); the changelog section dated within the
-  week before the run (8); no override input (9); open code-scanning alerts
+  week before the run (8); no override input (9; amended on 2026-10-30 by the owner's waiver of
+  the nights, `waive_nights`, Status of that day); open code-scanning alerts
   reported, not refused (11); immutable releases off (13); hand-pushed tags
   unchanged, as break-glass (14). The tag ruleset (10) is optional, and the
   owner's answer of 2026-10-23 is "not now": `docs/release.md`'s *Settings the

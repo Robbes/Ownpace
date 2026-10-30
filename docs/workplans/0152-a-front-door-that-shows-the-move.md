@@ -2,7 +2,103 @@
 
 > **In one line:** The public site explains a move at a glance: old account and new home in one picture, the destinations named, the alpha said, a shorter menu, a calculator that ends in a button, monthly and yearly prices (a year costs six months), and a page per provider a person leaves.
 
-## Status — 2026-10-28 (update this block at the end of every session)
+## Status — 2026-10-30 (update this block at the end of every session)
+
+**2026-10-30: T5 (c) is built: every page names its address and its other language's in full,
+and `llms.txt` lists them** (branch `claude/ownpace-public-readiness-y7orc6-site-search-metadata`;
+ADR-0029). The inventory of 2026-10-30 marked (c) as blocking the first invitation (0131 T5),
+and the owner wants it in alpha.3. What it waited for, the site's own address, is
+`https://www.ownpace.eu`, which serves live's site since 2026-10-28; the site writes it once,
+as `PUBLIC_SITE_URL` in `site/security-txt.mjs`, and the build now reads it from there
+(`addressOf` in `site/build.mjs`). No visible sentence changes, and no legal text. Reviewed
+the same day (pull request #1743); the five findings are in the bullets below, each where it
+belongs: the Alpha's pages leave `llms.txt`, nginx names the charset, the address is held by
+behaviour, the documentation's lines are owed, and 0131's row says where (c) is.
+- **Every page's `<head>`:** one `<link rel="canonical">` to its own address in full; one
+  `<link rel="alternate" hreflang>` per language, itself included, so the links are reciprocal;
+  and `x-default`. The hreflang links were relative (`/nl/prijzen.html`) and are now absolute;
+  no page carries both. `x-default` stays, now absolute, on the English page: the root serves the
+  default locale's pages and nothing negotiates a language (`www-nginx.conf`), so English is what
+  a visitor whose language is neither is served. ADR-0029 says nothing of it.
+- **The 404 page names no address**, and no other language's: nginx serves it at whatever address
+  was wrong. Until now it carried Home's hreflang links, because it is rendered with Home's key
+  for the nav.
+- **`llms.txt` at the site's root,** in llmstxt.org's shape: `# Ownpace` (the header's name), the
+  English home page's description as the `>` summary, and a section per language, *English* and
+  *Nederlands* (each language's own name in `copy.mjs`), with one line per page a visitor reaches
+  from the home page: `- [its <title>](its canonical address): its meta description`. One line
+  per page per language, not per page with both: each language's page has its own title and
+  description in its own words, and one line holding both would give one page the other
+  language's. Nothing in it is written for it.
+- **The Alpha's pages are not in `llms.txt`** (after review). The conditions and the tester guide
+  are kept out of the nav because a link there "would offer conditions to people who cannot take
+  part" (`OUTSIDE_NAV`, `ALPHA_ONLY`); the app and the texts that name them link them, and the
+  guide links the conditions, and no page a visitor reaches from the home page does. The first `llms.txt` listed every
+  page with an address, and so offered them to every assistant that read it. It now leaves out
+  `UNLISTED` (`site/build.mjs`, those two lists), and offers what the site offers every visitor.
+  Their canonical and hreflang links stay: they describe a page, and offer it to nobody.
+- **nginx says the text is UTF-8** (after review). `charset` is off by default, so `llms.txt`, the
+  first file the site serves with text outside ASCII (a dash in every title, and Dutch), went out
+  as `Content-Type: text/plain` with no charset; an HTML page names its own in `<meta charset>`.
+  `www-nginx.conf` now says `charset utf-8;` once, at server level, which every location inherits
+  (unlike `add_header`). Served by a local nginx 1.24 from the `--public` build, before and after:
+  `/llms.txt`, `/robots.txt` and `/.well-known/security.txt` went from `text/plain` to
+  `text/plain; charset=utf-8`, every page from `text/html` to `text/html; charset=utf-8`, the logo
+  stayed `image/png`, and every answer kept its CSP. Not seen on the live host, and not under the
+  image's nginx 1.31.8.
+- **A test host carries the same addresses.** `rel="canonical"` names the preferred address of a
+  page's content, which for a copy on a test host is production's; the test build is `noindex`
+  and its robots.txt disallows everything, so nothing reads them there, and they take effect where
+  `--public` makes the site indexable, which live's deploy does with `WWW_LIVE=true`. The robots
+  meta is unchanged. security.txt is the opposite case and stays as it was: RFC 9116's `Canonical`
+  says where that file is, which on a test host is not production. None of these links is one a
+  visitor follows, and none names an app (`the-test-site-sent-people-to-production` still passes).
+- **robots.txt and sitemap.xml:** robots.txt is unchanged (`Allow: /` under `--public`,
+  `Disallow: /` otherwise) and names no address, so it has nothing to disagree with. There is no
+  sitemap.xml, and none is added: ADR-0029's operative rules name `llms.txt` and robots.txt, and
+  mention a sitemap only as one of the scanners' criteria in its context.
+- **Guard:** `site/a-page-that-names-its-address-in-full.unit.test.ts`, 11 cases, run on the build
+  for the Alpha and the one without: exactly one canonical per page, in `<head>`, absolute, equal
+  to the address nginx serves its file at; none on the 404 pages; hreflang absolute, one per
+  language, reciprocal, covering exactly the languages the page is rendered in, `x-default` on the
+  default locale's page; `llms.txt` holding only a title, a summary, sections and page lines, each
+  line's title and description the page's own, under its own language, listing once exactly the
+  pages a visitor reaches from the home page by following the site's `<a href>` links, and the
+  pages it leaves out exactly the Alpha's conditions (and, in the Alpha's build, its guide) in both
+  languages; the build, run as it is run on a copy of `site/`, writing `llms.txt` at the root,
+  every address in it a file it wrote and every HTML file a visitor reaches in it; a `--public`
+  render naming the same addresses and the same `llms.txt` while a test page keeps its one
+  `noindex`; a copy of `site/` whose `security-txt.mjs` names `https://site.example` naming that
+  origin in every canonical, hreflang and `llms.txt` address and nothing else changed; and
+  `https://www.ownpace.eu` written as a literal in one module of the site. The charset is held
+  beside the CSP in `site/calculator.unit.test.ts`, which reads `www-nginx.conf` as nginx reads it
+  (`scripts/nginx-config.ts`): `charset utf-8` once, at server level, no location's own, no
+  `charset_types` without text/plain, nothing that re-encodes.
+  Mutations of `site/build.mjs`, nineteen at first, each caught: the canonical naming the other
+  language's page, relative, or written twice; hreflang relative, without the page itself, naming
+  this language's page for every language, written in `<body>`, or without `x-default`; the 404
+  page given an address; `llms.txt` without Terms, with an address that is no page, with each
+  page's title as its description, with the 404 pages, with a section headed by the other
+  language, with the home page's title as its summary, or not written to `dist`; the address
+  written as a literal in `build.mjs`; the links written by `--public` builds only; and the test
+  build without its `noindex`. The review ran fourteen of its own and one survived: the address
+  written in two halves in `build.mjs` and not imported, which a count of the literal cannot see.
+  After the fixes, twenty-two, each caught: that one, and the address in halves for the `llms.txt`
+  lines alone or for `x-default` alone (the copy with another origin); `llms.txt` listing the
+  Alpha's pages again, only the conditions, only the guide, or leaving out the estimate as well
+  (the reach cases and the written file); without Terms, with the 404 pages, with a `/sitemap.xml`,
+  with CRLF, or with the Dutch summary; not written to `dist`; `x-default` on the page's own
+  language; the links in `--public` builds only; and seven of `www-nginx.conf`: no `charset`,
+  one commented out, another charset, one in `location /` alone, `charset off` in a location,
+  `charset_types text/xml`, and a `source_charset`.
+- **0131's go/no-go row for 0152** said (c) is not on main. Its *Today* cell now says (c) comes to
+  main with #1743, the pull request that carries that line, and is not in `v0.2.0-alpha.2`.
+- **Owed: `llms.txt`'s links to the maintained documentation.** ADR-0029 decided what `llms.txt`
+  is made from: "curated from the existing documentation rather than written fresh", the ADRs,
+  workplans and runbooks, linked rather than restated. This one lists the site's own pages, which
+  is T5 (c)'s "a line each" and not the ADR's whole rule, so it is not optional and not done. Which
+  documents is the selection the ADR calls the curation job; nobody has made it, and no task holds
+  it yet. T0, the owner's read of the site's new sentences, is unchanged: this adds none.
 
 **2026-10-25, after review: issues are kept from main only, the pull request builds the image,
 and Dependabot moves its base in a pull request of its own** ([#1675](https://github.com/Robbes/Ownpace/issues/1675)).
@@ -1066,7 +1162,7 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 | T2 A shorter menu, and a header that fits a phone | ✅ **Built 2026-10-04, with T6 (c); *Leaving…* joined it with T5 (b); its words wait for T0** | §3. The header reads Home · How it works · Pricing · Sign in, plus the language switch. Privacy and Terms move to the footer. On a phone the menu folds into a `<details>`, which needs no script. |
 | T3 The hero shows the move | ✅ **Built 2026-10-04, and the app screen joined it 2026-10-05 (D8); its words wait for T0** | §3. The drawing `hero-move.svg`, inlined: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it, and a three-step strip links to *How it works*. After the strip, the app itself: a person's page, photographed by `scripts/shoot-the-app-screen.mjs` and held to the app's words by the UI smoke. |
 | T4 The destinations, named | ✅ **Built 2026-10-04; its words wait for T0** | §3. A *Where to* section names what the app supports, from a site copy of the app's list with a guard that it matches. It says plainly that the new account is one the person opens and pays for themselves. |
-| T5 A page per provider a person leaves | 🟡 **(a) and (b) built 2026-10-04; (c) waits for the site's address; its words wait for T0** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |
+| T5 A page per provider a person leaves | ✅ **(a) and (b) built 2026-10-04; (c) built 2026-10-30, on `claude/ownpace-public-readiness-y7orc6-site-search-metadata`; its words wait for T0** — *was:* 🟡 **(a) and (b) built 2026-10-04; (c) waits for the site's address; its words wait for T0** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |
 | T6 Pricing that reads in one pass | ✅ **(a) to (g) done**: (a) the sentence by #1317 and its guard beside D6's by #1339, both merged 2026-09-29; (b) in #1486, merged 2026-10-05; (c) with T2 in #1471, (d) the new list with ADR-0014's amendment of 2026-09-29 in force and (g)'s principle on the page and the architecture document's dated §16 note, both in #1435, (e) in #1477 and (f)'s words on the page and in the terms in #1470, all merged 2026-10-04; (f)'s button, its label decided 2026-10-05, in #1562 (0111 slice 7c), merged 2026-10-11, and the email a month before a year's credit runs out in #1579, merged 2026-10-12. Its words wait for T0 — *was:* 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (c) built 2026-10-04, with T2 (#1471). (d) built 2026-10-03, with (g)'s principle on the page. (b) and (e) built 2026-10-04. (f)'s words on the page and in the terms built 2026-10-04; the button's label decided 2026-10-05, the button built 2026-10-11 (0111 slice 7c). The rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) The withdrawal button, and the year's end (D11, amended 2026-10-04). (g) The principle, the price that pays for the work (D12). |
 | T7 A calculator that ends in a button | ✅ **Built 2026-10-04: (a) in two halves, the form's and the site's, and (b) to (e); its words wait for T0** | §3. (a) *Request access* carries the answers along. (b) *Until when?* says which payment suits it. (c) The layout faults and a live region. (d) Box as a source. (e) Several sources at once, and Tasks. |
 | T8 Claims you can check | ✅ **(a) and (b) built 2026-10-04; (c) built 2026-10-16, merged in #1599 (`72977aa6`)** | §3. "Open source" links the repository. Each proof point links the guard that holds it. The footer names the company once 0139 publishes it; until then that line is the one part that waits. |

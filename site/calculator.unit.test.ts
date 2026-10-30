@@ -40,6 +40,7 @@ import {
 } from './calculator.mjs';
 import { OBJECT_TYPES, PROFILES_VERSION, SIZE_ASKED, pathsFor } from './profiles.mjs';
 import { GMAIL_IMAP_DOWNLOAD_BYTES_PER_DAY } from '../packages/shared/src/rate-budget.ts';
+import { parseNginx, type NginxNode } from '../scripts/nginx-config.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -272,6 +273,43 @@ describe('the one script, the one hash', () => {
         'Content-Security-Policy',
       );
     }
+  });
+
+  it('says every text file is UTF-8, once, at server level, and nothing below undoes it (0152 T5 (c))', () => {
+    // `charset` is off by default, so `llms.txt`, the first file the site
+    // serves with text outside ASCII, went out as `text/plain` with no
+    // charset and left the client to guess; an HTML page names its own with
+    // <meta charset>, a plain-text file cannot. Unlike `add_header`, `charset`
+    // IS inherited, so one line at server level covers every location, until a
+    // location sets one of its own or a `charset_types` narrows it. Read as
+    // nginx reads the file (`scripts/nginx-config.ts`), so a commented-out line
+    // is no line.
+    const top = parseNginx(
+      readFileSync(join(HERE, '..', 'deploy', 'compose', 'www-nginx.conf'), 'utf8'),
+      'deploy/compose/www-nginx.conf',
+    );
+    const servers = top.filter((n) => n.name === 'server');
+    expect(servers, 'www-nginx.conf has not one server block').toHaveLength(1);
+    expect(
+      servers[0]!.children!.filter((n) => n.name === 'charset').map((n) => n.args),
+      'www-nginx.conf: the server says no `charset utf-8;`, so a text file is served with no charset',
+    ).toEqual([['utf-8']]);
+
+    const every = (nodes: readonly NginxNode[]): NginxNode[] => nodes.flatMap((n) => [n, ...every(n.children ?? [])]);
+    const all = every(top);
+    expect(
+      all.filter((n) => n.name === 'charset').length,
+      "www-nginx.conf: a location sets a charset of its own, which replaces the server's there",
+    ).toBe(1);
+    for (const n of all.filter((d) => d.name === 'charset_types')) {
+      expect(n.args, 'www-nginx.conf: a `charset_types` without text/plain drops the charset from llms.txt').toContain(
+        'text/plain',
+      );
+    }
+    expect(
+      all.filter((n) => n.name === 'source_charset' || n.name === 'override_charset').map((n) => n.name),
+      'www-nginx.conf: a directive that re-encodes what the build wrote',
+    ).toEqual([]);
   });
 });
 
