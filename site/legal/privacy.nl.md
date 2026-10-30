@@ -269,7 +269,7 @@ zelf in het log van het proces dat de fout tegenkwam, naast een referentie, zoda
 kunnen helpen; die tekst kan een map, een bestand of een adres noemen. En een aanvraag voor
 toegang wordt gelogd met het e-mailadres dat erin staat, net als ons besluit erover.
 
-<!-- ONE MORE SUCH LINE, ONCE alpha.4 RUNS (workplan 0095 T6; the owner, 2026-10-29, accepted it
+<!-- ONE MORE SUCH LINE, ONCE alpha.3 RUNS (workplan 0095 T6; the owner, 2026-10-29, accepted it
      with the grant link that fills in the address). The grant mail's link carries the granted
      address after '#', which no request carries; "Create your account" on the sign-in page then
      sends it to the sign-in service as the standard login_hint. The sign-in service (Zitadel,

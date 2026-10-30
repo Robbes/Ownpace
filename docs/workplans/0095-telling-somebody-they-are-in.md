@@ -2,7 +2,12 @@
 
 > **In one line:** Emailing granted and declined access requesters through `access_granted` and `access_declined` notifier events carrying no link or token, with Zitadel self-registration turned on by `setup-zitadel.sh`, and SPF/DKIM/DMARC for the sending domain.
 
-## Status — 2026-10-29 (update this block at the end of every session)
+## Status — 2026-10-30 (update this block at the end of every session)
+
+**2026-10-30: T6 lands in alpha.3, not alpha.4 (the owner: *"I want #1729 earlier"*).** It merges
+before alpha.3's CHANGELOG fold, after CI and E2E (managed) on its branch, so live takes it with
+the alpha.3 tag. Live's proof is that deploy's smoke, which reads the registration page the link
+leads to, and a grant on live after it: the registration form shows the granted address.
 
 **2026-10-29: T6, the grant mail's link fills in the address at registration.** The owner,
 after their own grant on live: *"I needed to register an account again. While I thought I
@@ -28,7 +33,7 @@ Self-registration, T0's choice, stays on.
 | T2 A recipient who is not a member yet | ✅ **Done 2026-08-22** | `apps/api/src/access-notify.ts` — the digest's shape (one transport, many envelopes) for a recipient who is deliberately not a member. Returns one of three outcomes rather than deciding what they mean: `sent`, `off` (no SMTP — nobody will ever be told) and `failed` (we tried, something is broken). Those imply different next actions for the operator, so they stay three. 3 cases, including that it never rejects. |
 | T3 The caller, outside the transaction | ✅ **Done 2026-08-22** | After the commit and outside it. The outcome is returned to the operator in the response, because "nobody was told" means the manual step is back and they are the only one who can take it. `WEB_URL` is **refused** rather than defaulted: a grant email carrying `http://localhost:3123` has told somebody to go nowhere, and would go out looking exactly like a successful one. |
 | T4 Deliverability | 📋 Planned — **needs DNS, so it is the owner's** | SPF, DKIM and DMARC for the sending domain. Without them this lands in spam, and "we emailed you" becomes "we did nothing" from the customer's side. |
-| T6 **A link that fills in the address** (owner, 2026-10-29) | 🟡 **Built 2026-10-29, draft for alpha.4** | The grant mail's link ends in `#register=<address>` (`registrationLink`, `packages/shared/src/registration-link.ts`); the invitation mail keeps the bare page. Opened from it, `Login.tsx` shows "Create your account" / "Maak uw account aan" with the address, then "Already have an account?" and Sign in, and no request link; the button sends `prompt=create`, `login_hint` and `ui_locales`, plain Sign in sends exactly the seven parameters it always did. Only behind the request link's own gate (`acceptsSeedToken: false`). `smoke-managed.sh` reads the provider's registration page. Owner's choices: a button, not a redirect; the provider's `login hint invalid` info line accepted (§T6). |
+| T6 **A link that fills in the address** (owner, 2026-10-29) | ✅ **Built 2026-10-29; #1729, for alpha.3 (the owner, 2026-10-30)** | The grant mail's link ends in `#register=<address>` (`registrationLink`, `packages/shared/src/registration-link.ts`); the invitation mail keeps the bare page. Opened from it, `Login.tsx` shows "Create your account" / "Maak uw account aan" with the address, then "Already have an account?" and Sign in, and no request link; the button sends `prompt=create`, `login_hint` and `ui_locales`, plain Sign in sends exactly the seven parameters it always did. Only behind the request link's own gate (`acceptsSeedToken: false`). `smoke-managed.sh` reads the provider's registration page. Owner's choices: a button, not a redirect; the provider's `login hint invalid` info line accepted (§T6). |
 | T5 The decline email | ✅ **Done 2026-08-22** | Saying no is a courtesy too. `access_declined` carries **no fields at all** — no reason, no organisation, and above all not the operator's note, which the queue labels "not for them". An **"email them if you decline" toggle, defaulted ON**, lets an operator clear junk without mailing a stranger, and the four outcomes (`sent` / `off` / `failed` / `skipped`) now reach the screen instead of stopping at the API. |
 
 ## The gap that is not about email at all
