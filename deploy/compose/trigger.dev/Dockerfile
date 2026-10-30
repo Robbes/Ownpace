@@ -1,8 +1,9 @@
 # Trigger.dev's webapp as upstream publishes it, by tag and index digest, with
-# files deleted that no process of this stack ever runs (workplan 0146 T16; the
-# owner's decisions of 2026-10-26, "Both": an issue upstream, and this build
-# until upstream ships the fixes, and of 2026-10-27: tar out of the copy of
-# pnpm that runs, too).
+# files deleted that no process of this stack ever runs, and one package's
+# files replaced by the release that fixes it (workplan 0146 T16; the owner's
+# decisions of 2026-10-26, "Both": an issue upstream, and this build until
+# upstream ships the fixes, and of 2026-10-27: tar out of the copy of pnpm that
+# runs, too).
 #
 # WHY. Trivy 0.76.1 read 8 critical findings in
 # ghcr.io/triggerdotdev/trigger.dev:v4.8.1 (linux/arm64, 2026-10-26). Six are
@@ -15,9 +16,10 @@
 #     keeps for the user node, which goes whole;
 #   - the same tar in root's copy of pnpm, the one every pnpm of the
 #     entrypoint runs here (below), which stays without it.
-# Two stay: zlib1g (CVE-2023-45853, no fix in Debian) and dompurify 3.4.13
-# (GHSA-cg2g-xh64-v4q7, which mermaid loads, and the dashboard may run). So 8
-# become 2. The binaries are the same Go builds on amd64.
+# Two were left after those: zlib1g (CVE-2023-45853, no fix in Debian), which
+# stays, and dompurify 3.4.13 (GHSA-cg2g-xh64-v4q7, fixed in 3.4.17), whose
+# files the last RUN as root replaces with 3.4.17's (WHAT IS REPLACED, below).
+# So 8 become 1. The binaries are the same Go builds on amd64.
 #
 # WHAT GOES, AND WHY NOTHING RUNS IT. Read in upstream's source at v4.8.1 and in
 # the published packages, whose sha512 is the one pnpm-lock.yaml names:
@@ -68,6 +70,58 @@
 #     The build checks node-gyp's install.js is still the one file that
 #     requires tar, and proves as root that pnpm runs a command in
 #     @trigger.dev/database's package offline, as the migrations do.
+#
+# WHAT IS REPLACED: DOMPURIFY 3.4.13'S FILES BY 3.4.17'S. Trivy 0.76.1 reads
+# GHSA-cg2g-xh64-v4q7 (critical: with SAFE_FOR_TEMPLATES, template expressions
+# split across nodes survive in an attached shadow root's content, in the DOM
+# output modes) and GHSA-mrv2-3pqr-j5jr (high) in
+# node_modules/.pnpm/dompurify@3.4.13/node_modules/dompurify. 3.4.17 fixes
+# both; npm published it 2026-10-12 12:41 UTC and lists no advisory against
+# it. Two packages require dompurify (upstream's pnpm-lock.yaml at read_at):
+#   - posthog-js 1.407.3, which the webapp imports (app/hooks/usePostHog.ts).
+#     Its entry points, dist/main.js and dist/module.js, carry no DOMPurify. Its
+#     one require('dompurify') is in lib/src/extensions/product-tours, which no
+#     entry point loads: the browser takes product tours from PostHog's own
+#     host, and only once PostHog starts, which managed.yml's
+#     POSTHOG_PROJECT_KEY: "" stops (a-service-that-phones-home holds it). Its
+#     dist/product-tours.js bundles DOMPurify 3.3.2 into its own file, which
+#     Trivy does not read and nothing here serves.
+#   - mermaid 11.16.1, through streamdown 2.5.0 (the dashboard's markdown).
+#     streamdown 2.5.0 imports no mermaid: it draws a diagram only through the
+#     @streamdown/mermaid plugin, which the webapp neither installs nor passes.
+# So no process of this stack loads dompurify, and the replacement changes no
+# code that runs. It makes the one copy the scan reads, and any later load,
+# the release that fixes it. The build checks the half it can see: no file
+# under apps/webapp/build or apps/webapp/public carries DOMPurify (its
+# trusted-types attribute, data-tt-policy-suffix, which every copy carries) or
+# imports dompurify or mermaid by name. Between the two published tarballs,
+# 3.4.13 to 3.4.17 changes no API either caller uses. The 24 file names are
+# the same. The entry points and exports are unchanged (main, module, browser,
+# types and exports), and require() of either CJS build gives the same keys.
+# package.json differs only in the version, its scripts and its
+# devDependencies (rollup became rolldown). The type declarations differ in the
+# order of one import, and the CJS ones drop `export { _default as default }`
+# and keep `export = _default`. The code changes are in src/purify.ts's
+# sanitising internals (the fixes), the helpers src/utils.ts adds for them, and
+# src/attrs.ts, which allows two more SVG attributes, pointer-events and
+# vector-effect.
+#
+# HOW IT IS REPLACED, AND PROVED. The last RUN as root fetches
+# dompurify-3.4.17.tgz from the npm registry, as the API image's build fetches
+# its packages, and refuses it unless its sha512 is the integrity npm
+# published. Before it changes anything it checks: the directory is the
+# published 3.4.13, file for file (from_tree: the SHA-256 of the sorted list
+# of each file's SHA-256 and path); the only links to it are posthog-js's,
+# mermaid's and pnpm's hoisted one; no other dompurify/package.json is in the
+# image; and the webapp's build, as above. It unpacks the tarball apart, checks
+# it is the published 3.4.17 (to_tree), gives it the old directory's owner,
+# and puts it in the old one's place. Then it proves the directory is to_tree;
+# that no other path in the image was added or removed, and no other file
+# changed, since a marker it made before the fetch; and that from posthog-js's
+# and mermaid's own directories, require('dompurify') and import('dompurify')
+# both load 3.4.17 from it. The directory keeps pnpm's name, dompurify@3.4.13,
+# and pnpm's records (pnpm-lock.yaml, node_modules/.pnpm/lock.yaml) keep
+# 3.4.13: nothing here installs, and Trivy reads package.json in an image.
 #
 # TWO NAMES FOR EACH BINARY. The postinstall of each package (install.js,
 # maybeOptimizePackage) hard-links its platform package's binary over its own
@@ -134,10 +188,14 @@
 # LABEL: the hash covers all that is built, and the image's configuration stays
 # upstream's.
 #
-# THE WAY OUT. The issue that asks upstream for these fixes is filed by the
-# owner (workplan 0146 T16); its address goes here once it exists. When a `pin`
+# THE WAY OUT. The owner filed the issue that asks upstream for these fixes,
+# triggerdotdev/trigger.dev#5084 (workplan 0146 T16). Upstream's fix for
+# dompurify is the override in its root package.json, `"dompurify@>=3 <3.4.13":
+# "^3.4.13"` at v4.8.1, raised to 3.4.17 with its lockfile. When a `pin`
 # to a release that fixed one of these fails its check, delete that removal and
-# its row in the guard's REMOVED table. When none is left, managed.yml runs
+# its row in the guard's REMOVED table; a release that moves dompurify past
+# 3.4.13 fails the replacement on its path, and the replacement and its
+# REPLACED row go the same way. When none is left, managed.yml runs
 # ghcr's image again and this directory goes (docs/managed-bring-up.md,
 # "Upgrading Trigger.dev"). This file is never `pin`ned backwards: its checks
 # hold for read_at only, so going back to an older release means running the
@@ -199,6 +257,68 @@ RUN set -eu; \
     [ "$(cd /triggerdotdev && COREPACK_ENABLE_NETWORK=0 pnpm --version)" = 10.33.2 ] || fail "as root, the user trigger-api runs as, pnpm does not start offline."; \
     (cd /triggerdotdev && COREPACK_ENABLE_NETWORK=0 pnpm --fail-if-no-match --filter @trigger.dev/database exec node -e 0) || fail "as root, pnpm without tar does not run a command in @trigger.dev/database offline, as the entrypoint's migrations need."; \
     echo "$me: removed both names of depot and esbuild, node's copy of pnpm and tar from root's; as root, pnpm 10.33.2 starts and runs a workspace command offline."
+
+# Still as root: dompurify 3.4.13's files replaced by 3.4.17's, as npm published
+# them (WHAT IS REPLACED and HOW IT IS REPLACED, above).
+RUN set -eu; \
+    me=deploy/compose/trigger.dev/Dockerfile; \
+    fail() { echo "$me: $*" >&2; echo "$me: re-read the header's WHAT IS REPLACED against this image, or drop the replacement if upstream moved dompurify." >&2; exit 1; }; \
+    s=/triggerdotdev/node_modules/.pnpm; \
+    pkg="$s/dompurify@3.4.13/node_modules/dompurify"; \
+    from=3.4.13; \
+    from_tree=e9c42f84de69a3769f574e05d9a17d919029a5b1bace0609737e9a9b7e9539d5; \
+    to=3.4.17; \
+    to_tree=595c3084456d2b111dbb14e16bf1462ecff273316170067b0a95a1cc5f0ff809; \
+    url=https://registry.npmjs.org/dompurify/-/dompurify-3.4.17.tgz; \
+    integrity=sha512-B/pSlYVHQ58kqISD/yDjuJ1yfzI34m1gF4lAod2bwSRhiN4K5Cl3H8Af7hqB2PmTL911tdEudnnXn5FnhRoz0w==; \
+    posthog="$s/posthog-js@1.407.3/node_modules/posthog-js"; \
+    mermaid="$s/mermaid@11.16.1/node_modules/mermaid"; \
+    webapp=/triggerdotdev/apps/webapp; \
+    top=/; \
+    version() { node -p "require(process.argv[1] + '/package.json').version" "$1"; }; \
+    files() { (cd "$1" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum); }; \
+    tree() { files "$1" | sha256sum | cut -d' ' -f1; }; \
+    [ -f "$pkg/package.json" ] || fail "$pkg is not there."; \
+    [ "$(version "$pkg")" = "$from" ] || fail "$pkg is dompurify $(version "$pkg"), not $from."; \
+    [ -z "$(find "$pkg" ! -type f ! -type d)" ] || fail "$pkg holds more than files and directories."; \
+    [ "$(tree "$pkg")" = "$from_tree" ] || { files "$pkg" >&2; fail "$pkg is not the published dompurify $from, file for file (above)."; }; \
+    for d in "$posthog" "$mermaid"; do [ -f "$d/package.json" ] || fail "$d is not there."; done; \
+    links="$(find "$s" -maxdepth 3 -name dompurify ! -path "$pkg" | LC_ALL=C sort | tr '\n' ' ')"; \
+    [ "$links" = "$s/mermaid@11.16.1/node_modules/dompurify $s/node_modules/dompurify $s/posthog-js@1.407.3/node_modules/dompurify " ] || fail "dompurify is linked from: $links; this file was read for posthog-js 1.407.3's, mermaid 11.16.1's and pnpm's hoisted link."; \
+    for l in $links; do { [ -L "$l" ] && [ "$(readlink -f "$l")" = "$(readlink -f "$pkg")" ]; } || fail "$l is not a link to $pkg."; done; \
+    copies="$(find "$top" -xdev -path '*/dompurify/package.json' -type f)"; \
+    [ "$copies" = "$pkg/package.json" ] || fail "dompurify's package.json is at: $copies; this file replaces $pkg alone."; \
+    for d in "$webapp/build/client" "$webapp/build/server" "$webapp/public"; do [ -d "$d" ] || fail "$d is not there: the webapp's build is not where it was read."; done; \
+    found="$(grep -rlF data-tt-policy-suffix "$webapp/build" "$webapp/public")" && st=0 || st=$?; \
+    [ "$st" = 1 ] || fail "the webapp's own build carries DOMPurify (grep exits $st): ${found:-}. A copy bundled there is not the package this replaces."; \
+    found="$(grep -rlE "(from|import\(|require\()[[:space:]]*[\"'](dompurify|mermaid)[\"']" "$webapp/build")" && st=0 || st=$?; \
+    [ "$st" = 1 ] || fail "the webapp's own build imports dompurify or mermaid (grep exits $st): ${found:-}. This file was read for a webapp that loads neither."; \
+    tmp="$(mktemp -d)"; \
+    marker="$tmp/marker"; \
+    : > "$marker"; \
+    paths() { find "$top" -xdev \( -path "$tmp" -o -path "$pkg" \) -prune -o -print | LC_ALL=C sort | sha256sum; }; \
+    before="$(paths)"; \
+    node -e "fetch(process.argv[1]).then(async (r) => { if (!r.ok) throw new Error(process.argv[1] + ' answered ' + r.status); require('fs').writeFileSync(process.argv[2], Buffer.from(await r.arrayBuffer())); })" "$url" "$tmp/dompurify.tgz" || fail "$url could not be fetched; nothing was changed."; \
+    got="$(node -p "'sha512-' + require('crypto').createHash('sha512').update(require('fs').readFileSync(process.argv[1])).digest('base64')" "$tmp/dompurify.tgz")"; \
+    [ "$got" = "$integrity" ] || fail "$url is $got, not $integrity, the integrity npm published for dompurify $to; nothing was changed."; \
+    mkdir "$tmp/unpacked"; \
+    tar -xzf "$tmp/dompurify.tgz" -C "$tmp/unpacked" --no-same-owner; \
+    new="$tmp/unpacked/package"; \
+    [ "$(version "$new")" = "$to" ] || fail "$url unpacks to dompurify $(version "$new"), not $to; nothing was changed."; \
+    { [ -z "$(find "$new" ! -type f ! -type d)" ] && [ "$(tree "$new")" = "$to_tree" ]; } || { files "$new" >&2; fail "$url unpacks to other files than the published dompurify $to (above); nothing was changed."; }; \
+    chown -R "$(stat -c %u:%g "$pkg/package.json")" "$new"; \
+    rm -r "$pkg"; \
+    mv "$new" "$pkg"; \
+    { [ "$(version "$pkg")" = "$to" ] && [ "$(tree "$pkg")" = "$to_tree" ]; } || fail "$pkg is not the published dompurify $to after the swap."; \
+    [ "$(paths)" = "$before" ] || fail "a path outside $pkg was added or removed while it was replaced."; \
+    changed="$(find "$top" -xdev \( -path "$tmp" -o -path "$pkg" \) -prune -o ! -type d -cnewer "$marker" -print)"; \
+    [ -z "$changed" ] || fail "outside $pkg, these changed while it was replaced: $changed"; \
+    rm -r "$tmp"; \
+    for d in "$posthog" "$mermaid"; do \
+      (cd "$d" && node -e "const fs = require('fs'); const p = fs.realpathSync(require.resolve('dompurify')); const v = require('dompurify').version; console.log('require(dompurify): ' + p + ' ' + v); if (p !== fs.realpathSync(process.argv[1] + '/dist/purify.cjs.js') || v !== process.argv[2]) process.exit(1);" "$pkg" "$to") || fail "from $d, require('dompurify') does not load $to from $pkg."; \
+      (cd "$d" && node --input-type=module -e "import { realpathSync } from 'node:fs'; import { fileURLToPath } from 'node:url'; const p = realpathSync(fileURLToPath(import.meta.resolve('dompurify'))); const v = (await import('dompurify')).default.version; console.log('import(dompurify): ' + p + ' ' + v); if (p !== realpathSync(process.argv[1] + '/dist/purify.es.mjs') || v !== process.argv[2]) process.exit(1);" "$pkg" "$to") || fail "from $d, import('dompurify') does not load $to from $pkg."; \
+    done; \
+    echo "$me: dompurify $from's files at $pkg are $to's, as npm published them ($integrity); nothing else in the image changed; from posthog-js and mermaid, require and import load $to."
 
 # Upstream's own user, which this image keeps.
 USER node
