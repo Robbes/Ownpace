@@ -6,9 +6,9 @@
 
 **2026-10-30, later: T16 (#1722) moves into alpha.3 too.** The owner: *"Can you put all in
 alpha 3?"* and *"Put all alpha 4 into alpha 3."* T16 was the one item left for alpha.4 (#1729
-moved first, above); nothing else queued for alpha.4 is built. It merges before the fold, after
+moved first, below); nothing else queued for alpha.4 is built. It merges before the fold, after
 CI, the built images' scan and E2E (managed) on its branch. That supersedes *Alpha.4 keeps
-T16* above, the 2026-10-29 entry's *Alpha.4* item and *Left for alpha.4: T16*, and T16's row now
+T16* below, the 2026-10-29 entry's *Alpha.4* item and *Left for alpha.4: T16*, and T16's row now
 reads alpha.3. What changes for live's deploy from alpha.2:
 
 - **The first run is judged by alpha.2's script**, which compares image lines, not versions
