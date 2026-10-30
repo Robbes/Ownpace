@@ -90,6 +90,13 @@ name: ownpace-managed
 # builds it only where that name is missing, and only if nothing asks for a build: `up --build`
 # builds every service in its scope that has a `build:`, dependencies included, so
 # bootstrap-managed.sh builds `api web` by name and runs `up` without it.
+# trigger-api and trigger-supervisor run a local build too since workplan 0146 T16: upstream's
+# image, whose pin is the FROM of deploy/compose/trigger.dev/Dockerfile and
+# deploy/compose/supervisor/Dockerfile by tag and digest, with files deleted that never run here.
+# Their names start with the Trigger.dev version, TRIGGER_IMAGE_TAG or its default, as before, and
+# end in the hash of the Dockerfile's instructions; `trigger-version.sh pin` moves both, and
+# nothing builds them while the machine has the name. Dependabot reads neither Dockerfile, on
+# purpose: Trigger.dev moves by `trigger-version.sh` only.
 # scripts/a-float-nothing-ever-pulled.unit.test.ts refuses a new float; busybox's one-shot
 # chown is the one it names, with its reason.
 #
@@ -311,7 +318,26 @@ services:
     # deploy story). The old hardcoded v4.5.4 pin claimed to match an SDK that
     # had moved to 4.5.7 — and the v4.5.7 pin then repeated the same drift
     # when the SDK moved to 4.5.9.
-    image: ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.1}
+    #
+    # BUILT HERE, FROM UPSTREAM'S IMAGE WITH FILES DELETED THAT NEVER RUN
+    # (workplan 0146 T16, the owner's "Both" of 2026-10-26):
+    # deploy/compose/trigger.dev/Dockerfile, whose FROM is the pin, by tag and
+    # digest, takes out the depot and esbuild binaries, node's copy of pnpm and
+    # the tar in root's (only pnpm's node-gyp needs it; the owner, 2026-10-27),
+    # and says why nothing here runs them. The name is the version (the .env's
+    # TRIGGER_IMAGE_TAG, or the default) and the hash of that file's
+    # instructions; the build argument only refuses a .env naming another
+    # version than the file builds. `trigger-version.sh pin` moves the FROM and
+    # the name together. `never`: no registry serves the name (postgres says
+    # why). `user: root` decides which copy of pnpm the entrypoint runs, and so
+    # which one the Dockerfile may delete:
+    # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
+    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.1}-38e6d59739c6
+    build:
+      context: ./trigger.dev
+      args:
+        TRIGGER_IMAGE_TAG: ${TRIGGER_IMAGE_TAG:-}
+    pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-api
     restart: unless-stopped
     logging: *logging
@@ -418,6 +444,15 @@ services:
       TRIGGER_TELEMETRY_DISABLED: "1"
       POSTHOG_PROJECT_KEY: ""
       CHECKPOINT_DISABLE: "1"
+      # PNPM IS NEVER FETCHED AT A START (workplan 0146 T16). Every pnpm the
+      # entrypoint runs is corepack's copy in the image, root's here (`user:
+      # root`); the build deletes node's. Without a copy for the user that
+      # runs, corepack downloads pnpm from the npm registry, unannounced and
+      # unscanned, at every start; with this it refuses, and the start fails
+      # with "Network access disabled by the environment" instead. Corepack
+      # reads it before any fetch (corepack 0.36.0, Node 24.22.1's:
+      # corepack.cjs:13142).
+      COREPACK_ENABLE_NETWORK: "0"
     ports:
       # Plain HTTP, and the deploy CLI and its image build ask it on 127.0.0.1
       # (API_ORIGIN above), so TRIGGER_BIND stays empty on a real box. See the
@@ -597,7 +632,16 @@ services:
   # deployed task is dequeued by nobody — which is exactly what this stack
   # was before 0018: bootstrap env vars with no consumer.
   trigger-supervisor:
-    image: ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.1}
+    # Built here as trigger-api is (deploy/compose/supervisor/Dockerfile):
+    # upstream's image without root's copy of pnpm, and without the tar in
+    # node's. No `user:`, so it runs as the image's node, whose copy its CMD
+    # runs and the Dockerfile keeps.
+    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.1}-072042d10128
+    build:
+      context: ./supervisor
+      args:
+        TRIGGER_IMAGE_TAG: ${TRIGGER_IMAGE_TAG:-}
+    pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-supervisor
     restart: unless-stopped
     logging: *logging
@@ -618,6 +662,8 @@ services:
       # stack's database.
       DOCKER_RUNNER_NETWORKS: ${COMPOSE_PROJECT_NAME}_ownpace-network
       DOCKER_REGISTRY_URL: localhost:${REGISTRY_PORT:-5000}
+      # As trigger-api's: a start without its copy of pnpm fails, never fetches one.
+      COREPACK_ENABLE_NETWORK: "0"
     volumes:
       - trigger_shared:/home/node/shared
     depends_on:

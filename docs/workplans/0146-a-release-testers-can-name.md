@@ -4,6 +4,30 @@
 
 ## Status — 2026-10-30 (update this block at the end of every session)
 
+**2026-10-30, later: T16 (#1722) moves into alpha.3 too.** The owner: *"Can you put all in
+alpha 3?"* and *"Put all alpha 4 into alpha 3."* T16 was the one item left for alpha.4 (#1729
+moved first, below); nothing else queued for alpha.4 is built. It merges before the fold, after
+CI, the built images' scan and E2E (managed) on its branch. That supersedes *Alpha.4 keeps
+T16* below, the 2026-10-29 entry's *Alpha.4* item and *Left for alpha.4: T16*, and T16's row now
+reads alpha.3. What changes for live's deploy from alpha.2:
+
+- **The first run is judged by alpha.2's script**, which compares image lines, not versions
+  (T16a is in alpha.3, not on live yet). It still says one-way and the copy still takes
+  triggerdb (`--trigger`), as the move from v4.7.6 to v4.8.1 needs anyway; only the reason line
+  changes, to *cannot be compared … on the Trigger.dev pin*. The second run, the tag's own
+  script, says *v4.7.6 -> v4.8.1*. Upstream adds no migration between the two versions (0119
+  Status), so a way back to alpha.2 has no schema to undo.
+- **The images are built on the machine the first time a stack needs them**, from ghcr's v4.8.1
+  by index digest (no Docker Hub, no npm). The OTA's E2E and nightly build them on the shared
+  daemon first, so live normally finds both names and builds nothing.
+- **No release on live runs ghcr's v4.8.1**, so a fault only the built images have has no
+  same-version way back: the copy before the update (back to all of alpha.2, triggerdb
+  included) or a fix forward (*Dropping them*, a pull request with E2E and a tag). So the
+  owner's deploy keeps that copy: right after the second run says *the deploy took* and before
+  *live-pass-check.sh*, `COPY_DELETE_WHEN_PROVEN=false` in live's `.env` (the bring-up guide,
+  *The deploy from alpha.2 to alpha.3 runs twice*). It is deleted by hand once the task runner
+  has run real work for a few days, and the key goes back before the next deploy.
+
 **2026-10-30: #1729 (0095 T6) moves into alpha.3.** The owner, 2026-10-30: *"I want #1729
 earlier."* The grant mail's link that opens registration with the address filled in merges
 before alpha.3's CHANGELOG fold, after CI and E2E (managed) on its branch; the entry below that
@@ -24,6 +48,158 @@ names it for alpha.4 is superseded. Alpha.4 keeps T16 (#1722).
   mail's link opens registration with the address filled in. It follows the owner's decision of
   2026-10-29, which also accepts the sign-in service's `login hint invalid` info line; 0095 on
   that branch records it.
+
+**2026-10-27, later: T16's review, and tar out of the copy of pnpm each service runs** (same
+branch, still a draft for alpha.4).
+- **The owner's second decision, 2026-10-27**, asked with the risk stated: remove tar 7.5.13
+  (CVE-2026-59873) from the copy of pnpm 10.33.2 each service *keeps* too, so the webapp goes
+  from 8 critical findings to 2 (zlib1g, no fix in Debian; dompurify via mermaid) and the
+  supervisor from 2 to 0. Re-read here before building it: in the published pnpm 10.33.2 (its
+  sha512 the registry's) the one `require('tar')` in `dist` is the bundled node-gyp's
+  `lib/install.js`, which downloads and unpacks Node's headers for a native build; `pnpm.cjs`
+  and `worker.js` name no tar (they bundle tar-stream). node-gyp runs only when a package script
+  calls it or an install builds a native add-on; the webapp's entrypoint runs three migration
+  scripts through pnpm and the supervisor's CMD runs `node dist/index.js` through pnpm, and
+  neither installs. Corepack is **0.36.0** in Node 24.22.1 (not 0.34.0, as recorded before; the
+  records are corrected), and its `installVersion` reuses a copy by its `.corepack` file alone,
+  so the copy without tar runs as it is and is never fetched. The environment's own pnpm
+  (10.28.0, the same layout), copied without tar, ran `--version`, a workspace script and
+  `--filter … exec` offline. **The one risk, accepted:** a `pnpm install` inside these
+  containers that builds a native add-on would fail; nothing there installs. Each build tests
+  the directory, checks node-gyp's `install.js` is still the one file of the copy requiring
+  tar, removes it with a plain `rm -r`, and proves pnpm starts and runs `--filter <its package>
+  exec node -e 0` offline as the service's user (root for the webapp, node for the supervisor;
+  the final `USER` stays upstream's node). The kept copies stay where they were: the webapp
+  keeps root's (`trigger-api` runs `user: root`), the supervisor node's.
+- **The review, sixteen findings, each checked; all held and are fixed.** (1) A blocker:
+  `pnpm -s typecheck` failed on the branch (an `as const` was missing in
+  `an-image-nobody-scanned`). (2) *A release nobody read*: the depot and esbuild paths are the
+  same in 4.7.6, 4.8.0 and 4.8.1, so a move re-proved paths, never that nothing reaches them;
+  each removing RUN now names `read_at=v4.8.1`, refuses any other version before it removes
+  anything, and the guard holds `read_at` to the FROM, so `pin` leaves a move red until someone
+  reads the reasons again. (3) *Who runs pnpm is upstream's too*: each RUN pins the entrypoint
+  it was read with by SHA-256, and `build (trigger, …)` checks the base's user, command and
+  entrypoint are the ones read, before it builds. (4) The guard of that job read its text only;
+  it now runs the step under bash with a stub docker and sees each refusal stop it. (5) The way
+  back: `restore` and `pin` said to put the old tag back or pin the old version, which builds
+  this checkout's Dockerfile at a version it refuses; both, the bring-up's drift check and
+  *Upgrading Trigger.dev* now say to run the checkout that pinned that version (a revert, or the
+  release tag before), never a `pin` backwards. (6) Order: the builds' proof now comes before
+  the drain, the backup and any `.env` change, in `pin`'s steps, the pin watch's issue and the
+  upgrade order; a T35-style step for a future move waits on `build (trigger, amd64)` and
+  `(arm64)` green. (7) `pin` no longer stops half-way, `list` shows the build and not only the
+  version, the depot gate is `DEPOT_TOKEN` and `DEPOT_ORG_ID` (`DEPOT_REGION` has a default),
+  the `.env` no longer "chooses" the version (it names it, and must equal the checkout's), and
+  the scan's headers name these builds. (8) **live's verdict at alpha.4 depends on alpha.3**:
+  the verdict is computed by the previous checkout's `deploy-live.sh`, so `4628488b` (the
+  reader of the Trigger.dev pin as a version) must reach live in alpha.3, as its own pull
+  request: T16a below. Without it, alpha.3's script says alpha.4 is one-way ("cannot be
+  compared … on the Trigger.dev pin") and copies triggerdb too; that is conservative, and
+  alpha.3 stays a way back all the same (a rollback run from alpha.4's checkout compares the
+  version, and says reversible).
+- **Proven here:** every guard named, the new cases each seen to fail on the mutation it names
+  (the tar removal dropped, its proof dropped or run as the other user, `read_at` and the
+  entrypoint check removed, five mutations of `images.yml`'s step, the half-move, the restore
+  text, the step order, the drift remedy). **Not proven here** (no Docker daemon; ghcr's blobs
+  unreachable): the builds themselves. The draft's `build (trigger, amd64|arm64)` does that
+  first, including the expected base configuration (`"node" ["./scripts/entrypoint.sh"]
+  ["docker-entrypoint.sh"]` and `"node" ["pnpm","run","--filter","supervisor","start"]
+  ["/app/entrypoint.sh"]`, read from upstream's Dockerfiles, not from the images) and the two
+  entrypoint hashes; then a dispatched image scan (expected 2 and 0), then E2E (managed).
+
+**2026-10-27: T16, the Trigger.dev webapp and supervisor built here without the files nothing
+runs, as a draft for alpha.4**, on branch `claude/ownpace-public-readiness-y7orc6-trigger-patched`.
+It is stacked on #1716 (and so #1697), with #1717 (and so #1678) merged in, because it builds the
+way #1717 builds the managed Postgres. Not merged; the draft pull request names all four.
+- **The decision.** The owner, 2026-10-26, on the weekly scan's critical findings in Trigger.dev
+  v4.8.1 (Trivy 0.76.1, linux/arm64): *"Both"*. The owner files an issue upstream (drafted;
+  its address goes into both Dockerfiles' headers once it exists), and this build deletes only
+  files that never run in this stack, until upstream ships the fixes.
+- **What goes, read from source:** upstream at v4.8.1, and the published `@depot/cli`
+  0.0.1-cli.2.80.0, `esbuild` 0.23.0, their four platform packages and pnpm 10.33.2, each
+  tarball's sha512 the lockfile's.
+  - depot's Go binary (3 criticals). Loading `@depot/cli` only defines functions; the binary is
+    looked up inside `depot(...)`, whose one call is the `depot push` of
+    `finalizeDeploymentV2.server.ts`, reached only with `DEPOT_TOKEN` and `DEPOT_ORG_ID` set
+    (`DEPOT_REGION` has a default). trigger-api sets neither, and `a-service-that-phones-home` refuses the
+    token. The webapp loads the package at start (the finalize routes import it), which is
+    harmless without the binary.
+  - esbuild 0.23.0's Go binary (1 critical), spawned only by a build, transform or context
+    call. It is installed because the `trigger.dev` CLI (`packages/cli-v3`) depends on it, and
+    the CLI enters the webapp's pruned `pnpm install --prod` through
+    `internal-packages/dashboard-agent`'s devDependency `"trigger.dev": "workspace:*"`; nothing
+    in the image calls it. tsdown and tsx are not in the production set at all, so the
+    upstream draft's item 3 was corrected.
+  - The copy of pnpm the service's user does not run (1 critical in each image, tar 7.5.13).
+- **Two premises corrected.** (a) *Which copy of pnpm is unused.* trigger-api runs
+  `user: root` (`managed.yml`), so HOME is `/root` and every pnpm of the entrypoint runs root's
+  copy: the webapp's build removes node's copy and keeps root's. trigger-supervisor has no
+  `user:`, so it is the other way round. Deleting root's copy in the webapp, as first briefed,
+  would have made corepack download pnpm (and an unscanned tar) from the npm registry at every
+  start. The targets stayed 8 to 3 and 2 to 1 (2 and 0 since the later entry). Both services now set
+  `COREPACK_ENABLE_NETWORK: "0"`, so a mismatch fails the start rather than fetching. (b) *Two
+  names per binary.* Each postinstall hard-links the platform binary over its package's
+  `bin/` shim, the layer stores the second name as a tar hard link, and Trivy 0.76.1's walker
+  skips hard links, so the scan reported one path per binary. Both names go, and the build
+  checks that every one starts with ELF's magic first.
+- **The build.** `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`:
+  one FROM each, upstream's image by `v4.8.1` and index digest (`bcce9e8f…` and `9907be3e…`,
+  read from ghcr's manifests on 2026-10-26 and again on 2026-10-27); `ARG TRIGGER_IMAGE_TAG`,
+  which only refuses a `.env` naming another version than the image's `@trigger.dev/core`;
+  FROM, ARG, USER and RUN only, `USER node` last. Every path names a version: the build
+  refuses another packageManager than `pnpm@10.33.2` or a platform other than linux-arm64 or
+  linux-x64, tests each path before a plain `rm`, fails if any `depot` or `esbuild` under
+  `node_modules/.pnpm` is still an ELF, proves both packages still load, and proves pnpm
+  starts offline as the service's user and refuses as the other. `managed.yml` then ran
+  `localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.1}-72939d99d1b8` and
+  `localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.1}-8d594a98a98b` (-38e6d59739c6 and
+  -072042d10128 since the later entry, whose removals changed the instructions) (#1717's hash rule), built
+  from `./trigger.dev` and `./supervisor` with the version as their one argument,
+  `pull_policy: never`. Checked with compose 5.6.1's `config`: unset, `v4.8.1` and `v4.9.0`
+  in `.env` give the names and arguments meant.
+- **The version mechanism is kept.** Still exactly two `${TRIGGER_IMAGE_TAG:-v…}` defaults,
+  so the drift check, `repo_tag`, the bring-up's test, the pin watch and the runbook read what
+  they did; checklist steps T15 and T35 are unchanged for this draft (a T35-style step for a
+  future move waits on both builds green: the later entry). `trigger-version.sh pin` now asks
+  ghcr for both tags' index digests (`tag_digest`, an index or manifest list only; run here
+  against ghcr: both v4.8.1 digests, and a refusal for a tag that does not exist), moves both
+  FROMs and writes the new hash into both names; a dropped directory is skipped. `list` reads
+  the running tag without the hash. The pin watch's Trigger.dev row fails when a Dockerfile's
+  FROM is not the pin, and its issue says what to do with the builds on a move.
+- **Live.** `deploy-live.sh` reads the Trigger.dev pin as the version (`trigger_pin`), not the
+  image lines: a change to the builds alone, and ghcr's image replaced by the build at the same
+  version, are reversible and take no copy of triggerdb; a version move stays one-way with
+  `--trigger`. The verdict is computed by the script of the checkout that runs before the
+  deploy, so this reader should reach live in alpha.3, as a small pull request of its own. If
+  it does not, alpha.4's deploy says one-way ("cannot be compared on the Trigger.dev pin") and
+  copies triggerdb too: conservative, and harmless.
+- **CI.** `images.yml`'s pull-request job `build (trigger, amd64|arm64)` builds both
+  Dockerfiles natively on each platform with managed.yml's version, and checks the user,
+  command, entrypoint and working directory are upstream's: the only place the linux-x64 paths
+  are exercised. Not required (its `paths:` filter). The weekly and dispatched image scan
+  builds both on arm64 under the same names, so the SARIF categories and issues continue.
+- **Guards.** New: `scripts/a-binary-the-stack-never-runs.unit.test.ts`. It runs both
+  Dockerfiles' RUN instructions, as their users, over a stand-in of each image's tree on both
+  platforms, and shows each removes exactly its REMOVED table, and that every path upstream
+  could move fails the build by name before anything is removed. It also holds the shape,
+  the names, the `user:` coupling, why each removal stays safe, the CI job and Dependabot's
+  silence. Changed: `a-database-started-as-root` (no `build` of any service whose image is
+  built here), `a-service-that-phones-home` (both rows read `build`, held to the FROM;
+  `COREPACK_ENABLE_NETWORK` in `WEBAPP_KEYS`), `an-image-nobody-scanned`,
+  `a-pin-that-knows-it-is-behind`, `trigger-version.unit` (the rewrite on both Dockerfiles,
+  its hash equal to the pin watch's, a dropped directory, `running_tag`, `tag_digest`),
+  `a-deploy-from-a-named-tag` (both forms; three new cases) and `every-pr-check-is-classified`.
+  Each new case was seen to fail on the mutation it names.
+- **Not proven here** (no Docker daemon, and ghcr's blobs are unreachable from this session):
+  that the two Dockerfiles build, which proves the hard links, the paths and the corepack
+  copies on the real images. The draft's `build (trigger, amd64|arm64)` does that first; then
+  a Security Scan dispatched on the branch with `image_scans` (expected: `trigger.dev` 3
+  critical, `supervisor` 1, and the webapp leg's time against its 30 minutes), then E2E
+  (managed) on the branch, whose task deploy goes through the finalize route that loads
+  `@depot/cli`. No version moves, so no window is needed.
+- **Not in this draft:** deleting tar inside the copy of pnpm that does run (only pnpm's bundled
+  node-gyp requires it). That would take the counts to 2 and 0, and is a separate step with the
+  owner's OK. *Since given, 2026-10-27, and built: the entry above.*
 
 **2026-10-28: alpha.3's work landed on main, T9 to T15b, T7's digest and the cosign, each
 after its own proof.** After the alpha.2 tag (`v0.2.0-alpha.2`, `f62bcbe2`), 28 pull requests
@@ -2151,6 +2327,8 @@ best given with T0.
 | T14 The tasks build on the API image's own base, with no package manager | ✅ **Merged** as #1716 on 2026-10-28 (`98802571`), after #1697 (`f387b175`) and #1708, and after E2E (managed) run 40758865207 was green; in alpha.3 — *was:* 🔨 being built (2026-10-26) as draft #1716 on branch `claude/ownpace-public-readiness-y7orc6-tasks-trixie-base`, stacked on #1697 | Status, 2026-10-26. `apps/worker/trigger.config.ts` sets the build manifest's `image.base` to `apps/api/Dockerfile`'s FROM image and `image.buildBase` to the CLI's own `-build` image, and one layer installs `ca-certificates` and `dumb-init`, makes the CLI's trust edits and drops every package manager where no `g++` is. On #1708's `node:24.22.1-trixie-slim` the runtime stage reads 0 critical and 43 high, none fixable, where the image a deploy builds on the CLI's base read about 2/88 on 4.7.6 (`main` until #1697) and 1/80 on #1697 (Trivy 0.76.1, amd64 and arm64). The weekly scan lists that base as `trigger-task-base`, and #1700 (T10) builds the layer on it. A Trigger.dev move fails the version gate until the CLI's build image and trust list are read again. E2E (managed) after #1697 and #1708: run 40758865207, green before the merge. |
 | T15 Both databases of the managed stacks start as uid 70, from the official image without gosu | ✅ **Merged** as #1717 on 2026-10-28 (`6f9af7f2`), after #1678 and after E2E (managed) run 40616652331 was green; in alpha.3 — *was:* 🔨 being built as draft #1717 on branch `claude/ownpace-public-readiness-y7orc6-postgres-without-gosu`, stacked on #1678, for after the alpha.2 tag (2026-10-26) | Status, 2026-10-26. `postgres:18.6-alpine` reads 1 critical and 26 high (Trivy v0.76.1, arm64 and amd64); the critical and 25 highs are Go's standard library in gosu, which the entrypoint runs only when it starts as root. `deploy/compose/postgres/Dockerfile` removes it and starts as uid 70, the user gosu dropped to; `managed.yml`'s `postgres` and `trigger-db` and `dev.yml`'s run it, and the scan builds and scans it. Done when E2E (managed) is green on the branch (the OTA stack's existing volumes, started as uid 70, and a second bring-up leaving both databases running on the same image ID), `build (postgres)` is green on the pull request, the image scan's `postgres-managed` reads 0 critical and 1 high (brotli-libs, until docker-library rebuilds 18.6-alpine), and live has taken it from a tag. The appliance's Postgres is T15b. |
 | T15b The appliance's Postgres starts as uid 70, from the official image without gosu | ✅ **Merged** as #1719 on 2026-10-28 (`fb0fea2e`), after #1717 and after E2E (self-hosted) run 40621523504 was green; in alpha.3 — *was:* 🔨 being built on branch `claude/ownpace-public-readiness-y7orc6-appliance-postgres-without-gosu`, stacked on #1717, for after the alpha.2 tag (2026-10-26) | Status, 2026-10-26, last. The appliance's `postgres:18.6-alpine` (`77f58511…`) reads 1 critical and 26 high (Trivy v0.76.1, arm64); the critical is gosu's Go, and no newer digest drops it. `deploy/selfhost/postgres/Dockerfile` is T15's instructions on the appliance's own base, `deploy/selfhost/compose.yml` runs it as `localhost/postgres:18.6-alpine-b18f51417292` (never pulled), Dependabot moves its FROM in an entry of its own, the scan's `postgres-selfhost` leg builds it, `build (postgres)` proves it on a pull request, and E2E (self-hosted) builds `app` by name. Done when `build (postgres)` is green on the pull request (the appliance's build started on a volume the official image initialised as root), E2E (self-hosted) is green on the branch with `persistence: postgres`, the image scan's `postgres-selfhost` reads 0 critical, and a release tag carries it. |
+| T16 The Trigger.dev images run without the files nothing here runs | ✅ **Built** (2026-10-27) on branch `claude/ownpace-public-readiness-y7orc6-trigger-patched`, stacked on #1716 with #1717 merged in; #1722, **in alpha.3** (the owner, 2026-10-30: *"Put all alpha 4 into alpha 3"*; first planned for alpha.4); **decided 2026-10-26** by the owner: *"Both"*, an issue upstream and this build until upstream ships the fixes; and **2026-10-27**: tar out of the copy of pnpm each service runs too | Status, 2026-10-27 (both entries). `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile` build on upstream's v4.8.1 images by tag and digest and delete depot's and esbuild's Go binaries (both names each), node's copy of pnpm and the tar in root's from the webapp, root's copy of pnpm and the tar in node's from the supervisor: 8 critical findings to 2, and 2 to 0 (risk accepted: a native `pnpm install` in these containers would fail). Every removal names a version-locked path and fails the build by name when upstream moves it; each build refuses a release other than its `read_at` and an entrypoint other than the one read; `trigger-version.sh pin` moves both FROMs and names, never `read_at`; a move's pull request has both builds green before any window; both services set `COREPACK_ENABLE_NETWORK: "0"`. Done when `build (trigger, amd64|arm64)` is green on the pull request, a dispatched image scan reads 2 and 0, E2E (managed) is green on the branch and live has taken it from a tag: live's deploy from alpha.2 (first run, alpha.2's script) says one-way, *cannot be compared … on the Trigger.dev pin*, and copies triggerdb; the second run (the tag's script) says *v4.7.6 -> v4.8.1*; both services run healthy from the `localhost/` names; and the copy is kept (`COPY_DELETE_WHEN_PROVEN=false`) until the task runner has run real work on them. From then on, T16a judges every deploy by the version: a later change to the builds alone at v4.8.1 is reversible. Dropped removal by removal as upstream fixes them. |
+| T16a `deploy-live.sh` reads the Trigger.dev pin as a version, in alpha.3 | ✅ **Merged** 2026-10-27 as #1721 (`991bd21c`), commit `4628488b` alone, in alpha.3 (T16's review asked for it on its own, for the alpha.3 merge order) | Status, 2026-10-27, later. The one-way or reversible verdict of a deploy, and whether its copy holds triggerdb, are computed by the `deploy-live.sh` of the checkout that runs before the deploy. alpha.3's must read `${TRIGGER_IMAGE_TAG:-v…}` as the version (`trigger_pin`), or alpha.4's `localhost/` image lines read as a pin it cannot compare. CI only (the deploy guard, `a-deploy-from-a-named-tag`); no window. Done when it is in the alpha.3 tag live deploys. With T16 in alpha.3 as well (2026-10-30), it judges every deploy after alpha.3; alpha.3's own deploy from alpha.2 is judged by alpha.2's script (T16's row). |
 
 ## 1. What there is today
 

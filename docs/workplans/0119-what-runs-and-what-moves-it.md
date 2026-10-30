@@ -4,6 +4,13 @@
 
 ## Status — 2026-10-30 (update this block at the end of every session)
 
+**2026-10-30: the Trigger.dev images built here (0146 T16, #1722) are in alpha.3, not alpha.4.**
+The owner: *"Put all alpha 4 into alpha 3."* #1722 merges before alpha.3's fold, after CI, the
+built images' scan and E2E (managed) on its branch; the entries below that name it for alpha.4
+are superseded. The pin is still v4.8.1 by version; the FROMs are ghcr's v4.8.1 index digests
+pushed 2026-10-23, so no floor restarts. 0146's Status of 2026-10-30 has what changes for live's
+deploy from alpha.2.
+
 **2026-10-30: Trigger.dev's Redis moves to 7.4.12, a security release, before its floor.** The
 owner, 2026-10-30: *"3 pr's are still open, merge them in, continue with fixing the
 vulnerabilities, work to the new defined alpha as next version. Still no one is in the alpha."*
@@ -37,6 +44,32 @@ the copies of 34 were no longer needed. The old MinIO volumes, `ownpace-managed_
 restore plan, the old image on the old volume, no longer exists on either stack. On live that
 also ends the way back to alpha.1 (0132 Status, 2026-10-29; the operator runbook, *Rolling back
 from it, by day 6*).
+
+**2026-10-27, later: tar out of the copy of pnpm each Trigger.dev service runs, and T16's
+review** (0146 T16, the same draft; 0146's later Status entry of the day has the detail). The
+owner chose on 2026-10-27, asked with the risk stated, to remove tar 7.5.13 from the copy of
+pnpm each service keeps too: in pnpm 10.33.2 only the bundled node-gyp requires it, and these
+containers run scripts and install nothing, so a native `pnpm install` there is the one thing
+that would now fail. The criticals go from 8 to 2 (webapp: zlib1g, dompurify) and from 2 to 0
+(supervisor). The webapp keeps root's copy (`trigger-api` runs `user: root`), the supervisor
+node's. From the review: each build refuses a release other than its `read_at`, so a version
+move reads the reasons again before its `build (trigger, …)` jobs can be green, and those come
+before any window; the `.env` names the version and must be the checkout's; going back to an
+older version runs the checkout that pinned it, never `trigger-version.sh pin` backwards.
+
+**2026-10-27: Trigger.dev's two images built here without the files nothing runs, a draft for
+alpha.4** (0146 T16, branch `claude/ownpace-public-readiness-y7orc6-trigger-patched`, stacked on
+#1716 with #1717 merged in; the owner's *"Both"* of 2026-10-26; 0146's Status entry of the same
+day has the detail). The pin is still the version: two `${TRIGGER_IMAGE_TAG:-v…}` defaults in
+`managed.yml`, which `.env` names (it must be the checkout's) and the drift check holds to the SDK. What changes is
+where the images come from: `trigger-api` and `trigger-supervisor` run
+`localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.1}-<hash>` and `localhost/supervisor:…`, built
+from `deploy/compose/trigger.dev` and `deploy/compose/supervisor`, whose FROM is ghcr's v4.8.1
+image by index digest (`bcce9e8f…`, `9907be3e…`). They delete depot's and esbuild's Go
+binaries and the copy of pnpm the service's user does not run: the scan's criticals go from 8
+to 3 and from 2 to 1 (2 and 0 since the entry above), once a dispatched scan on the branch confirms it. `trigger-version.sh pin`
+moves the FROMs and the names; Dependabot reads neither directory, on purpose. The inventory's
+Trigger.dev row says so. Dropped, removal by removal, as upstream fixes each.
 
 **2026-10-28: alpha.3's work landed on main, the demo's Nextcloud 35 last.** Twenty-eight pull
 requests merged after the alpha.2 tag (`f62bcbe2`), from 2026-10-27 21:58 to 2026-10-28 22:38 UTC;
@@ -1012,7 +1045,7 @@ is who moves it after T1.
 | `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (#1717, merged 2026-10-28, `6f9af7f2`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.6-alpine by digest `898c60cb…` (2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13); 18.7 is due 2026-11-12 | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and prints the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8) | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
 | `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
 | `redis` | `managed.yml` | 7.4.12-bookworm by digest `b6b6e3dc…` (2026-10-30, a security release, before its floor under the floor's exception: Status, 2026-10-30); before it 7.4.11-bookworm by digest `44960b31…` (2026-10-22; `7.4-bookworm` floating from 2026-10-21, `7-alpine` on Alpine 3.21 before) | 8.8.2-alpine | one major | owner for a major; a 7.4 patch by hand when the pin watch lists it | **§3** — the licence changed at 7.4, which is the line this is pinned on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
-| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json` | v4.8.1 (2026-10-25; v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.1 (2026-10-23) | current | `trigger-version.sh` only; the pin watch keeps an issue open while a newer tag is in both images (0146 T8) | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and it reads no file in `deploy/compose` |
+| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`; since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0) | v4.8.1 (2026-10-25; v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.1 (2026-10-23) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and it reads no file in `deploy/compose` |
 | `triggerdotdev/node` (24-bookworm-build) | `apps/worker/trigger.config.ts` (`TASK_BUILD_IMAGE`, the tasks' build stage; 0146 T14, #1716) | by digest `34a3f455…`, trigger.dev 4.8.1's `BUILD_IMAGE['node-24']` (pushed 2026-10-22) | what the pinned CLI names | none while they agree | by hand, with each Trigger.dev move, read from the new CLI's `deploy/buildImage.js` (the Status entry of 2026-10-26) | not shipped: only `node_modules` and `index.json` leave the stage, so a stale one still builds |
 | `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8) | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`); 26.2 is out of ClickHouse's support, **accepted for the Alpha** (§3 item 9) |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |

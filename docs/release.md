@@ -332,6 +332,18 @@ in [managed-bring-up.md](./managed-bring-up.md#updating-a-running-deployment),
       git checkout -- apps/worker/package.json    # the task deploy strips its last newline; the second run refuses a tree that is not clean
       ./deploy/compose/deploy-live.sh <tag>       # the same tag the first run named: v0.2.0-alpha.3 for the alpha.2 to alpha.3 deploy
       ```
+
+      For the alpha.2 to alpha.3 deploy, keep the copy before the update once
+      the second run says it took, before a pass can prove the update: it is
+      live's only quick way back from the Trigger.dev images built here
+      (workplan 0146 T16). Delete it by hand with
+      `./deploy/compose/copy-before-update.sh delete` once the task runner has
+      run real work for a few days, and set the key back before the next deploy
+      ([managed-bring-up.md](./managed-bring-up.md#the-deploy-from-alpha2-to-alpha3-runs-twice)):
+
+      ```bash
+      ./deploy/compose/env-upsert.sh deploy/compose/.env COPY_DELETE_WHEN_PROVEN=false
+      ```
 - [ ] Read whether it called the deploy one-way or reversible before lifting
       the hold, which you do yourself. During the alpha a bad deploy is fixed
       forward, with a fix and a new `alpha.N` tag; a reversible one can also be
