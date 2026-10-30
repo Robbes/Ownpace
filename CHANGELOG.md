@@ -4,6 +4,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **The Docker socket proxy is built here, on a current HAProxy** (workplan 0119):
+  `tecnativa/docker-socket-proxy:v0.5.0` was built once, on 2026-07-27, on HAProxy 3.4.2 and
+  Alpine 3.24.1, and the image scan of 2026-10-29 found 6 high findings in it, all fixed in
+  newer Alpine packages, with no newer release to move to. `deploy/compose/docker-socket-proxy`
+  builds upstream's v0.5.0, its configuration and entrypoint byte for byte, on
+  `haproxy:3.4.7-alpine` (Alpine 3.24.3). What the Trigger.dev supervisor may ask Docker, and
+  what it may not, is unchanged.
+
 ## [0.2.0-alpha.3] - 2026-10-30
 
 A tester's grant mail now opens registration with the address it was sent to

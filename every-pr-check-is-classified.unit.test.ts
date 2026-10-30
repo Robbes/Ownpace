@@ -97,6 +97,14 @@ const NOT_REQUIRABLE = new Map([
       'PR touching none of those paths the workflow never runs and neither leg is reported. A Trigger.dev ' +
       'move touches deploy/compose, so its pull request does run them, red until the Dockerfiles are read again.',
   ],
+  // images.yml's build of deploy/compose/docker-socket-proxy (workplan 0119,
+  // 2026-10-30): the same workflow, so the same `paths:` filter silences it.
+  [
+    'build (docker-socket-proxy)',
+    'images.yml carries a `paths:` filter on its pull_request trigger (deploy/** among them), so on a ' +
+      "PR touching none of those paths the workflow never runs and the context is never reported. A PR " +
+      "that moves the proxy's Dockerfile or its files does run it, and E2E (managed) builds the image anyway.",
+  ],
   // security-scan.yml's image jobs (0146 T8, scan half). Their `if:` runs them on
   // schedule and workflow_dispatch only, so a pull request reports them skipped,
   // the matrix job under its unexpanded name. The scan is report-only by design:

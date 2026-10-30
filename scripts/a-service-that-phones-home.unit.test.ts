@@ -707,8 +707,28 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
     holds: (svc) => Object.keys(environmentOf(svc)).filter((k) => k.startsWith('OTEL_')).map((k) => `${k} is set, which could send its traces somewhere`),
   },
   'deploy/compose/managed.yml:trigger-docker-proxy': {
-    readAt: 'tecnativa/docker-socket-proxy',
-    why: 'HAProxy in front of the Docker socket: it answers the supervisor and calls nothing',
+    readAt: 'build',
+    why:
+      'HAProxy in front of the Docker socket: it answers the supervisor and calls nothing; built here since 2026-10-30 from ' +
+      "tecnativa/docker-socket-proxy v0.5.0's Dockerfile, haproxy.cfg and entrypoint on a current official haproxy image, " +
+      "and every server its haproxy.cfg names is the socket (SOCKET_PATH), with no resolver, mailer, peer or log host",
+    holds: (svc, entry) => {
+      const { from, problems } = builtFrom(svc, entry);
+      if (from !== undefined && repositoryOf(from) !== 'haproxy') problems.push(`built FROM ${from}, not the official haproxy image: read what it sends by default`);
+      const build = svc.build as string | { context?: string } | undefined;
+      const context = typeof build === 'string' ? build : build?.context;
+      if (!context) return problems;
+      const cfg = read(`${dirname(entry.file)}/${context.replace(/^\.\//, '')}/haproxy.cfg`);
+      const servers = [...cfg.matchAll(/^\s*server\s+\S+\s+(\S+)/gm)].map((m) => m[1]);
+      if (servers.length === 0 || servers.some((s) => s !== '$SOCKET_PATH')) {
+        problems.push(`haproxy.cfg's servers are ${JSON.stringify(servers)}, not the Docker socket alone: read where it now connects`);
+      }
+      for (const section of ['resolvers', 'mailers', 'peers', 'http-errors', 'ring']) {
+        if (new RegExp(`^${section}\\s`, 'm').test(cfg)) problems.push(`haproxy.cfg has a \`${section}\` section, which can reach another host`);
+      }
+      if (!/^\s*log stdout\b/m.test(cfg) || /^\s*log\s+(?!stdout\b|global\b)/m.test(cfg)) problems.push('haproxy.cfg logs somewhere other than stdout');
+      return problems;
+    },
   },
   'deploy/compose/managed.yml:trigger-supervisor': {
     readAt: 'build',

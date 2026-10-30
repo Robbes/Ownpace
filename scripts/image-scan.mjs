@@ -30,7 +30,10 @@
  *               the appliance's since T15b, deploy/selfhost/postgres;
  *               Trigger.dev's webapp and supervisor without the files nothing
  *               here runs since 0146 T16, under the names `trigger.dev` and
- *               `supervisor` the pulled images had), so its leg builds that
+ *               `supervisor` the pulled images had; the Docker socket proxy,
+ *               upstream's v0.5.0 on a current HAProxy, since 2026-10-30,
+ *               deploy/compose/docker-socket-proxy, under the name
+ *               `docker-socket-proxy` the pulled image had), so its leg builds that
  *               directory for linux/arm64 and scans what it built
  *               (`context`); the Dockerfile must be there;
  *             - every image a script in deploy/compose or deploy/selfhost

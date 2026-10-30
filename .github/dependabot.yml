@@ -13,8 +13,9 @@
 # cosign images.yml and release.yml name, and the TypeScript split. It runs on Mondays after
 # this, and keeps an issue open while one is behind. This file moves cosign-installer, and the
 # cosign it installs only while no step names one.
-# The one of those this file sees too is the databases' build, whose pin is the FROM of
-# deploy/compose/postgres/Dockerfile (its entry below). The appliance's PostgreSQL is a build
+# The ones of those this file sees too are the databases' build, whose pin is the FROM of
+# deploy/compose/postgres/Dockerfile (its entry below), and the Docker socket proxy's since
+# 2026-10-30, the FROM of deploy/compose/docker-socket-proxy/Dockerfile (its entry below). The appliance's PostgreSQL is a build
 # too since 0146 T15b, and its pin, the FROM of deploy/selfhost/postgres/Dockerfile, is this
 # file's alone (its entry below): the pin watch reads neither deploy/selfhost/compose.yml nor
 # that Dockerfile (in deploy/selfhost it reads only setup-stalwart.sh's Stalwart pin).
@@ -174,6 +175,32 @@ updates:
         update-types: ["version-update:semver-major"]
     commit-message:
       prefix: chore(postgres)
+
+  # The Trigger.dev supervisor's Docker socket proxy
+  # (deploy/compose/docker-socket-proxy/Dockerfile, workplan 0119, 2026-10-30):
+  # Tecnativa's docker-socket-proxy v0.5.0 on the newest HAProxy of the line
+  # that release chose, which managed.yml builds as
+  # `localhost/docker-socket-proxy:<tag>-<12 hex>`, the hex being the hash of
+  # the Dockerfile's instructions. So this pull request, a newer 3.4 or a new
+  # digest in the FROM, fails scripts/a-tag-upstream-never-rebuilds.unit.test.ts
+  # until managed.yml's image line moves too; the failure prints the `sed` that
+  # moves it. Push that to the pull request's branch, read HAProxy's notes for
+  # the release, and dispatch E2E (managed) on it: every task run starts
+  # through this proxy. Patches and digests only: another HAProxy line is the
+  # owner's call, taken with a release of docker-socket-proxy (its header).
+  - package-ecosystem: docker
+    directory: "/deploy/compose/docker-socket-proxy"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: haproxy
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+    commit-message:
+      prefix: chore(socket-proxy)
 
   # The self-host stack's images (workplan 0119 T1). Dependabot's compose fetcher
   # reads only the files directly in a directory whose names match

@@ -405,6 +405,15 @@ describe('which images it scans', () => {
       expect(built?.where).toBe('deploy/compose/managed.yml');
       expect(REAL.read(`${context}/Dockerfile`)).toMatch(new RegExp(`^FROM ghcr\\.io/triggerdotdev/${name.replace('.', '\\.')}:`, 'm'));
     }
+    // The Docker socket proxy built here (2026-10-30) keeps the name, and so the
+    // category and the issue, that `tecnativa/docker-socket-proxy` had.
+    const proxy = images.find((i) => i.name === 'docker-socket-proxy');
+    expect(proxy?.ref, 'the Docker socket proxy is pulled from a registry again').toMatch(/^localhost\/docker-socket-proxy:\d+\.\d+\.\d+-alpine-[0-9a-f]{12}$/);
+    expect(proxy?.context).toBe('deploy/compose/docker-socket-proxy');
+    expect(proxy?.where).toBe('deploy/compose/managed.yml');
+    expect(proxy?.floating).toBe(false);
+    expect(REAL.read('deploy/compose/docker-socket-proxy/Dockerfile')).toMatch(/^FROM haproxy:/m);
+    expect(images.filter((i) => /socket-proxy/.test(i.name)).map((i) => i.name), 'one scan of the proxy, under its old name').toEqual(['docker-socket-proxy']);
     // Every other image is pulled, and carries no context.
     for (const image of images.filter((i) => !i.ref.startsWith(BUILT_HERE))) expect(image.context, image.name).toBeUndefined();
     // And the Postgres images built here are these two. Other images built

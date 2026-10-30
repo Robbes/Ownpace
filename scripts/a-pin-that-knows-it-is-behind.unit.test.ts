@@ -53,6 +53,9 @@ import {
   ISSUE_TITLE,
   STALWART_FILES,
   GOACCESS_DOCKERFILE,
+  LINES,
+  SOCKET_PROXY_DOCKERFILE,
+  SOCKET_PROXY_UPSTREAM,
   TASK_ON_API_IMAGE,
   TITLES,
   WINDOW_DAYS,
@@ -652,6 +655,8 @@ const cosignDefault = (): Record<string, string> =>
 
 /** The GoAccess release `deploy/compose/goaccess/Dockerfile` builds (#1675), read from its own line. */
 const GOACCESS_RELEASE = /^# GoAccess (v\d+(?:\.\d+)+)$/m.exec(REAL.read(GOACCESS_DOCKERFILE) ?? '')?.[1] ?? 'no release named';
+/** The docker-socket-proxy release trigger-docker-proxy is built from (2026-10-30), read from its own line. */
+const SOCKET_PROXY_RELEASE = /^# docker-socket-proxy (v\d+\.\d+\.\d+)$/m.exec(REAL.read(SOCKET_PROXY_DOCKERFILE) ?? '')?.[1] ?? 'no release named';
 
 /**
  * Every tag list answered with the pin itself, plus one newer tag for each of
@@ -693,6 +698,8 @@ function registry(newer: Record<string, string> = {}): Stubs {
       // GoAccess's releases as upstream tags them, two parts and three, up to the one the Dockerfile builds.
       'https://github.com/allinurl/goaccess': lsRemote('v1.9.4', 'v1.10', 'v1.10.2', GOACCESS_RELEASE, ...(newer.goaccess ? [newer.goaccess] : [])),
       'https://github.com/sigstore/cosign': lsRemote('v3.0.6', ...(COSIGN_NAMED ? [COSIGN_NAMED] : []), ...(newer.cosign ? [newer.cosign] : [])),
+      // docker-socket-proxy's releases as upstream tags them, up to the one the Dockerfile builds.
+      [SOCKET_PROXY_UPSTREAM]: lsRemote('v0.1.0', 'v0.4.2', SOCKET_PROXY_RELEASE, ...(newer.socketProxy ? [newer.socketProxy] : [])),
     },
   };
 }
@@ -825,6 +832,36 @@ describe('the routine pins, in one summary issue', () => {
     const mismatch = (await routineRows(withFiles({ 'deploy/compose/site-visits.sh': script }), fakeNet(registry()))).rows.find((r) => r.name === 'allinurl/goaccess')!;
     expect(mismatch.state).toBe('error');
     expect(mismatch.error).toMatch(/builds GoAccess v/);
+  });
+
+  it("compares the socket proxy's release with upstream's git tags, and its HAProxy only within its line (2026-10-30)", async () => {
+    const proxy = readImages(MANAGED).find((i) => i.repo === 'localhost/docker-socket-proxy')!;
+    expect(proxy, 'managed.yml no longer builds the Docker socket proxy').toBeDefined();
+    const base = builtImage(REAL, COMPOSE, proxy)!.base;
+    expect(base.repo).toBe('haproxy');
+    expect(LINES).toEqual({ haproxy: 2 });
+    const [major, minor, patch] = base.tag.match(/\d+/g)!.map(Number) as [number, number, number];
+    const suffix = base.tag.replace(/^[\d.]+/, '');
+    // The release: current against the tags upstream has, behind against a newer one.
+    expect(SOCKET_PROXY_RELEASE).toMatch(/^v0\.\d+\.\d+$/);
+    const rows = async (newer: Record<string, string> = {}) => (await routineRows(REAL, fakeNet(registry(newer)))).rows;
+    expect((await rows()).find((r) => r.name === 'tecnativa/docker-socket-proxy')).toMatchObject({ state: 'current', pin: SOCKET_PROXY_RELEASE, newest: SOCKET_PROXY_RELEASE });
+    const next = SOCKET_PROXY_RELEASE.replace(/^v0\.(\d+)\.\d+$/, (_all, m: string) => `v0.${Number(m) + 1}.0`);
+    const release = (await rows({ socketProxy: next })).find((r) => r.name === 'tecnativa/docker-socket-proxy')!;
+    expect(release).toMatchObject({ state: 'behind', pin: SOCKET_PROXY_RELEASE, newest: next, where: SOCKET_PROXY_DOCKERFILE });
+    // HAProxy: a patch of its line is behind, with Dependabot's note; another line is not this row's.
+    const haproxy = async (tag: string) => (await rows({ 'library/haproxy': tag })).find((r) => r.name === 'haproxy')!;
+    const patched = await haproxy(`${major}.${minor}.${patch + 1}${suffix}`);
+    expect(patched).toMatchObject({ state: 'behind', pin: base.tag, newest: `${major}.${minor}.${patch + 1}${suffix}`, notes: [builtNote(SOCKET_PROXY_DOCKERFILE)] });
+    expect(patched.where).toBe(`${SOCKET_PROXY_DOCKERFILE}, ${COMPOSE}`);
+    expect(await haproxy(`${major}.${minor + 1}.0${suffix}`)).toMatchObject({ state: 'current', newest: base.tag });
+    expect(await haproxy(`${major + 1}.0.0${suffix}`)).toMatchObject({ state: 'current', newest: base.tag });
+    // Without its release line the row cannot say which release it is built from: an error, never current.
+    const unnamed = REAL.read(SOCKET_PROXY_DOCKERFILE)!.replace(/^# docker-socket-proxy v[\d.]+\n/m, '');
+    expect(unnamed).not.toBe(REAL.read(SOCKET_PROXY_DOCKERFILE));
+    const row = (await routineRows(withFiles({ [SOCKET_PROXY_DOCKERFILE]: unnamed }), fakeNet(registry()))).rows.find((r) => r.name === 'tecnativa/docker-socket-proxy')!;
+    expect(row.state).toBe('error');
+    expect(row.error).toMatch(/names no docker-socket-proxy release/);
   });
 
   it('names the rule Stalwart moves by, in the summary issue, beside its line', async () => {

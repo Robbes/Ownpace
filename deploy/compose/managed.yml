@@ -97,6 +97,12 @@ name: ownpace-managed
 # end in the hash of the Dockerfile's instructions; `trigger-version.sh pin` moves both, and
 # nothing builds them while the machine has the name. Dependabot reads neither Dockerfile, on
 # purpose: Trigger.dev moves by `trigger-version.sh` only.
+# trigger-docker-proxy runs a local build too since 2026-10-30 (workplan 0119): Tecnativa's
+# docker-socket-proxy v0.5.0 on a current HAProxy of its line, whose pin is the FROM of
+# deploy/compose/docker-socket-proxy/Dockerfile by tag and digest, which Dependabot reads (its own
+# entry, patches and digests only). Its name ends in the hash of that file's instructions, as the
+# databases' does, and a pull request that changes them fails a-tag-upstream-never-rebuilds until
+# the name moves with it. `up` builds it where the name is missing.
 # scripts/a-float-nothing-ever-pulled.unit.test.ts refuses a new float; busybox's one-shot
 # chown is the one it names, with its reason.
 #
@@ -609,8 +615,20 @@ services:
   # raw socket: the whitelist below is exactly what running task containers
   # needs (create/manage containers, pull images, attach networks) and nothing
   # more — no exec into other containers, no volume deletion, no swarm.
+  #
+  # Built here since 2026-10-30 (workplan 0119): Tecnativa's docker-socket-proxy
+  # at its release v0.5.0, its Dockerfile, haproxy.cfg and entrypoint as they
+  # are at that tag, on the newest HAProxy of the same line, 3.4.7, instead of
+  # the 3.4.2 that v0.5.0's image was built on in July and never rebuilt (0
+  # critical and 6 high findings on 2026-10-29, all 6 fixed in newer Alpine
+  # packages). The environment below is upstream's interface, unchanged.
+  # deploy/compose/docker-socket-proxy/Dockerfile says what changed (the base
+  # only), why the name carries the hash of its instructions, and how it moves.
+  # `never`, as for the databases: no registry serves this name.
   trigger-docker-proxy:
-    image: tecnativa/docker-socket-proxy:v0.5.0
+    image: localhost/docker-socket-proxy:3.4.7-alpine-86292f1f80d6
+    build: ./docker-socket-proxy
+    pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-docker-proxy
     restart: unless-stopped
     logging: *logging

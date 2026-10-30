@@ -21,6 +21,9 @@ export declare const REBUILD_NOTE: string;
 export declare function builtNote(dockerfile: string): string;
 export declare const STALWART_FILES: string[];
 export declare const GOACCESS_DOCKERFILE: string;
+export declare const SOCKET_PROXY_DOCKERFILE: string;
+export declare const SOCKET_PROXY_UPSTREAM: string;
+export declare const LINES: Record<string, number>;
 export declare const TASK_ON_API_IMAGE: RegExp;
 export declare const COSIGN_FILES: string[];
 
