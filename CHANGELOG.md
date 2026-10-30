@@ -6,13 +6,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
-- **The owner can waive the counted nights in writing, and the release says
-  so** (workplan 0146, the owner's words of 2026-10-30 for alpha.3). The
-  Release workflow takes `waive_nights`, the owner's reason: the nights'
+- **The owner can waive the counted nights in writing, and the release tag
+  says so** (workplan 0146, the owner's words of 2026-10-30 for alpha.3). The
+  Release workflow takes `waive_nights`, the owner's reason, for a version the
+  owner named (alpha.3 only) and from a person's account: the nights'
   refusals become notes that quote it, the commit must be given, and the
   tag's message and the run's summaries say the nights were waived, by whom
-  and in what words. Nothing else is waived. Before, the only way past the
-  nights was a tag pushed by hand, the unordered path that broke alpha.1.
+  and in what words. The tag job uses it only when the preflight did. Nothing
+  else is waived. Before, the only way past the nights was a tag pushed by
+  hand, the unordered path that broke alpha.1.
 
 ## [0.2.0-alpha.3] - 2026-10-30
 

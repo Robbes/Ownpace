@@ -40,13 +40,21 @@
  *
  * THE OWNER'S WAIVER of the nights (`WAIVE_NIGHTS`, the workflow's
  * `waive_nights` input; the owner, 2026-10-30, for alpha.3). The resolve step
- * reads it (`readWaiver` in `release-nights.mjs`): set in verify mode, unfit
- * for the record, or with no actor to name, it is a refusal that ends the run
- * there, a rehearsal included. Taken, the commit must be given, since there
- * are no nights to pick one; the check step turns the nights' refusals into
- * notes that quote it; and the verdict's summary says, under its title, that
- * the nights are waived, by whom and in what words. Every other check refuses
- * as it does without it.
+ * reads it (`readWaiver` in `release-nights.mjs`): set in verify mode, for a
+ * version the owner did not waive, unfit for the record, or with no person to
+ * name, it is a refusal that ends the run there, a rehearsal included. Taken,
+ * the commit must be given, since there are no nights to pick one; the check
+ * step reads the nights, turns their refusals into notes that quote it, and
+ * says in its output `waived` whether it did, which binds the tag job; and the
+ * verdict's summary says, under its title, whether the nights were waived,
+ * held, or were never read. Every other check refuses as it does without it.
+ *
+ * None of this is a boundary against C's own code. C's names check and its
+ * install run in this job before the check and the verdict, and can rewrite
+ * their environment (through `$GITHUB_ENV`), the lines file and the summary.
+ * The reads that count are the resolve step's, before any of C's code runs,
+ * and the tag job's, a job of its own whose `WAIVE_NIGHTS` comes from the
+ * input; `waived` can only narrow what the tag job does with it.
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -409,12 +417,24 @@ export function notChecked() {
 
 /**
  * The line under the summary's title when the run carries the owner's
- * waiver: whether it was used, and what it does not waive. The reason sits in
- * a code span, which Markdown renders as text.
+ * waiver: whether it was used, and what it does not waive. The nights held
+ * (a pass), were never read (no line of theirs, or the verdict's "did not
+ * run"), or did not hold and were waived (notes only). The reason sits in a
+ * code span, which Markdown renders as text.
  */
 export function waiverSummary(waiver, lines) {
-  if (lines.some((l) => l.check === 'nights' && l.kind === 'pass')) {
-    return `**The nights hold**, so the waiver ${waiver.actor} gave was not used.`;
+  const nights = lines.filter((l) => l.check === 'nights');
+  if (nights.some((l) => l.kind === 'pass')) {
+    return (
+      `**The nights hold**, so the waiver ${waiver.actor} gave was not used. In release mode the tag job does not use it either: ` +
+      'if the nights stop holding before the tag, it refuses, as a run without a waiver does.'
+    );
+  }
+  if (nights.length === 0 || nights.some((l) => l.kind === 'refuse')) {
+    return (
+      `**The nights were not read**: the run refused before it read them, so the waiver ${waiver.actor} gave, ` +
+      `in their words: \`${waiver.reason}\`, was not used.`
+    );
   }
   return (
     `**The counted nights are waived** by ${waiver.actor}, in their words: \`${waiver.reason}\`\n\n` +
@@ -463,8 +483,8 @@ const git = (args, cwd = process.cwd()) => execFileSync('git', args, { cwd, enco
 export async function resolveStep(client, env) {
   const { VERSION: version, COMMIT_INPUT: given = '', MODE: mode } = env;
   const lines = [...validateInputs({ version, commit: given, mode })];
-  const { waiver, lines: waived } = readWaiver({ text: env.WAIVE_NIGHTS, mode, actor: env.GITHUB_ACTOR });
-  lines.push(...waived);
+  const { waiver, lines: waiverLines } = readWaiver({ text: env.WAIVE_NIGHTS, mode, actor: env.GITHUB_ACTOR, version });
+  lines.push(...waiverLines);
   lines.push(dispatchedFromMain({ ref: env.GITHUB_REF, workflowRef: env.GITHUB_WORKFLOW_REF, repository: env.GITHUB_REPOSITORY }));
   const out = { commit: '', previous: '', candidate: 'false' };
   if (lines.some((l) => l.kind === 'refuse')) return { lines, out };
@@ -484,7 +504,7 @@ export async function resolveStep(client, env) {
   let commit = given;
   if (!commit && waiver) {
     lines.push(
-      refuse('commit', 'the nights are waived, so they pick no commit: dispatch it again with commit set to the full commit to tag, on main’s first-parent line'),
+      refuse('commit', 'a waiver of the nights is given, so they pick no commit: dispatch it again with commit set to the full commit to tag, on main’s first-parent line'),
     );
   } else if (!commit) {
     const nights = await readNights(client, { commit: null });
@@ -529,6 +549,7 @@ export async function resolveStep(client, env) {
 /**
  * The check step, with C checked out in `candidate`. The nights are read for
  * C, and under the owner's waiver their refusals are notes (`waiveNights`).
+ * `waived` is whether they were: the tag job uses the waiver only then.
  */
 export async function checkStep(client, env, candidate) {
   const { VERSION: version, COMMIT: commit, PREVIOUS: previous, MODE: mode } = env;
@@ -556,7 +577,7 @@ export async function checkStep(client, env, candidate) {
   const scan = await newest('security-scan.yml');
   lines.push(scanGreenOnMain(scan, commit));
 
-  const { waiver } = readWaiver({ text: env.WAIVE_NIGHTS, mode, actor: env.GITHUB_ACTOR });
+  const { waiver } = readWaiver({ text: env.WAIVE_NIGHTS, mode, actor: env.GITHUB_ACTOR, version });
   const nights = waiveNights(await readNights(client, { commit }), waiver);
   lines.push(...nights.lines);
 
@@ -581,7 +602,7 @@ export async function checkStep(client, env, candidate) {
   }
   lines.push(...notChecked());
   const proof = [ci ? `CI run #${ci.run_number}` : '', scan ? `Security Scan run #${scan.run_number} on main` : ''].filter(Boolean).join(', ');
-  return { lines, proof };
+  return { lines, proof, waived: nights.waived === true };
 }
 
 /**
@@ -639,9 +660,9 @@ async function main(argv) {
       return 0;
     }
     case 'check': {
-      const { lines, proof } = await checkStep(client, env, candidate);
+      const { lines, proof, waived } = await checkStep(client, env, candidate);
       report(lines);
-      output({ proof });
+      output({ proof, waived: waived ? 'true' : 'false' });
       return 0;
     }
     case 'callees':
@@ -654,9 +675,10 @@ async function main(argv) {
           .filter(Boolean)
           .map((p) => p.split('=')),
       );
-      // The waiver read again from the input, not from the lines file, which
-      // the candidate's own code could reach.
-      const { waiver } = readWaiver({ text: env.WAIVE_NIGHTS, mode: env.MODE, actor: env.GITHUB_ACTOR });
+      // The waiver read again, for the summary's line. Like the lines file,
+      // this step's env is within reach of C's names check and install, which
+      // ran before it: the summary is a record, not a boundary (the header).
+      const { waiver } = readWaiver({ text: env.WAIVE_NIGHTS, mode: env.MODE, actor: env.GITHUB_ACTOR, version: env.VERSION });
       const v = verdict({ lines: readLines(env.RELEASE_LINES), mode: env.MODE, outcomes, commit: env.COMMIT ?? '', waiver });
       report(v.extra, { file: '' });
       if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, v.summary);

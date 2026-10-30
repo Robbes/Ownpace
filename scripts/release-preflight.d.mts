@@ -74,7 +74,12 @@ export declare function checkStep(
   client: Client,
   env: Record<string, string | undefined>,
   candidate: string,
-): Promise<{ lines: Line[]; proof: string }>;
+): Promise<{
+  lines: Line[];
+  proof: string;
+  /** Whether the owner's waiver turned the nights' refusals into notes: the tag job uses it only then. */
+  waived: boolean;
+}>;
 /** The resolve step, with the environment the workflow gives it. */
 export declare function resolveStep(
   client: Client,

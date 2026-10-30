@@ -209,23 +209,39 @@ alpha.3, on 2026-10-30: *"I approve alpha.3 tag now, we skip the waiting days.
 No one is in the alpha yet."* (workplan 0146, Status of 2026-10-30). It
 replaces the tag pushed by hand for that case, so the order above holds.
 
-Dispatch Release with `waive_nights` set to the reason, in your own words, and
-`commit` set to the full commit to tag: the fold's squash on `main`. There are
-no nights to pick one, so a waiver with `commit` empty is refused. Run
-`mode=preflight` first, then `mode=release`.
+**Which versions.** Only those in `WAIVER_VERSIONS` in
+`scripts/release-nights.mjs`, each there with the owner's words and the day:
+today `v0.2.0-alpha.3` alone. A waiver for any other version is refused. The
+next one is a pull request that adds its version there, quoting the owner,
+merged before the dispatch; the guard holds that each is a pre-release.
 
-**What it does.** In `preflight`, `rehearse` and `release` mode, and when the
-tag job reads the nights again, the nights' refusals become notes, the first
-of them quoting your words and naming the run's actor. The preflight's summary
+Dispatch Release **from your own account** with `waive_nights` set to the
+reason, in your own words, and `commit` set to the full commit to tag: the
+fold's squash on `main`. Whoever dispatches is the one the tag names, so a run
+whose actor is an app's bot (`…[bot]`) is refused, and an agent does not
+dispatch a waiver in your name. There are no nights to pick a commit, so a
+waiver with `commit` empty is refused. Run `mode=preflight` first, then
+`mode=release`.
+
+**What it does.** In `preflight`, `rehearse` and `release` mode the nights are
+read as always. If they do not hold, their refusals become notes, the first of
+them quoting your words and naming the run's actor; the preflight's summary
 says so under its title, the tag job's summary lists it, and the tag's message
-has a line of its own after *Proved by*:
+has a line of its own after *Proved by*, your words as a JSON string (a `"` in
+them comes out as `\"`):
 
 ```text
 Nights waived by <actor>, in their words: "<the reason>"
 ```
 
-When the nights hold after all, the waiver is not used, and the tag's message
-names the nights as it always does.
+If the nights hold, the waiver is not used: the preflight's summary says so,
+and the tag's message names the nights as it always does. **The tag job is
+bound by what the preflight did** (its output `waived`): when the nights held
+there, the tag job reads them again as in a run without a waiver, and if they
+stopped holding between the preflight and the tag, it refuses and writes
+nothing. Dispatch again; that preflight then uses the waiver, and says so. A run
+that refused before it read the nights (a waiver with `commit` empty, for one)
+says the nights were not read, never that they were waived.
 
 **What it does not waive.** Everything else refuses as it does without it: C
 on `main`'s first-parent line, the tag free, the names and `openapi.yaml`'s
@@ -235,14 +251,21 @@ the gate scan minutes before the tag, and the approval in the `release`
 environment.
 
 **The text.** It is written into a public tag and two job summaries, so it is
-one line of at most 300 characters, with no backtick, `<`, `$(`, `${`, `@` or
-control character. The preflight refuses anything else, says why, and does not
-repeat it. It reaches the scripts only as an environment variable, like every
-input. `verify` and `rehearse-tag` read no nights and refuse a waiver. Like the
-approval, it is a record and not a boundary: anyone who can dispatch can type
-it, and in release mode the run still waits for your click. The release page's
-body is Security Scan's and does not carry it: when you write the release's
-prose (§4), say it there too.
+one line of at most 300 characters, with a letter or a digit, and no backtick,
+`<`, `$(`, `${`, `@`, control character or character that shows nothing (a
+private-use or unassigned one, a lone surrogate, a Hangul filler, the braille
+blank). The preflight refuses anything else, says why, and does not repeat it.
+It reaches the scripts only as an environment variable, like every input.
+`verify` and `rehearse-tag` read no nights and refuse a waiver.
+
+**A record, not a boundary.** Like the approval: anyone who can dispatch can
+type it, and in release mode the run still waits for your click. Nor is the
+preflight a boundary against C's own code: C's names check and install run in
+the preflight job before its check and its verdict, and can rewrite their
+environment, the lines file and the summary. What counts is the tag job's own
+read of the input, in a job of its own, with the version and actor checks
+above. The release page's body is Security Scan's and does not carry the
+waiver: when you write the release's prose (§4), say it there too.
 
 ### Break-glass: a tag pushed by hand
 

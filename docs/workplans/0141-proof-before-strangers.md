@@ -437,7 +437,7 @@ for the card says so.
 | T11 The detectors and the permission report tell a Connect-with-Microsoft tester the truth | 📋 **Proposed**; the minimum 🔨 built 2026-09-27, merged as #1246; the credential model (open question 7) parked 2026-09-27 | §3. The finding was checked again on 2026-09-24. The true sentence goes in **before the first Microsoft 365 tester**. Per-tenant credentials come **after**, with an ADR. |
 | T12 The managed journey in a browser | ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ✅ **done** in #1646, merged 2026-10-21 (the fixture cases, (b)); ⏳ **Owner** (the walk); 📋 **Proposed** (the real-API journey, (c), after) — *was:* ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) | §3. The two-stranger walk happens on `ownpace-live` **before the first invitation**. The real-API journey comes **after**, in the gate on the OTA stack; it was parked on 0132 T8, which 0132 D7 superseded. |
 | T13 The O365 lane and the live-target lane | ⏳ **Owner** (runner label, secrets); 📋 **Proposed** (code) | §3. **After.** A green run counts only when it ran the product's code against a real account. |
-| T14 The nightly managed gate's readiness rule | ✅ **Read by code** in #1682, merged 2026-10-23 (`54e4c3d2`): `scripts/release-nights.mjs`, which the Release workflow runs, first read by it on `main` the same day (Release run 1: no commit qualifies yet); both nights on C, every attempt green, and the freeze, the owner's of 2026-10-23, written in §3; 🔨 **The owner's waiver** (2026-10-30, for alpha.3), built as a draft on branch `claude/ownpace-public-readiness-y7orc6-release-nights-waiver`: Release's `waive_nights`, the rule's refusals as notes that quote it, the commit given, the tag's message saying so, nothing else waived (§3); 📋 **Decided 2026-09-27**: two nights, scheduled runs only; **read 2026-09-27: 0 of 2** (the managed gate's #199 and #200 red, the appliance's last four green), and stated in `docs/testing.md` — *was:* 🔨 **Read by code** on branch `claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged (2026-10-23); ⏳ **Owner** (names N); 📋 **Proposed** (the rule) | §3. Worked out with 0132 T6 step 1. It is read **before the first invitation**, before live's first bring-up from a tag, and again before each later deploy to live. |
+| T14 The nightly managed gate's readiness rule | ✅ **Read by code** in #1682, merged 2026-10-23 (`54e4c3d2`): `scripts/release-nights.mjs`, which the Release workflow runs, first read by it on `main` the same day (Release run 1: no commit qualifies yet); both nights on C, every attempt green, and the freeze, the owner's of 2026-10-23, written in §3; 🔨 **The owner's waiver** (2026-10-30, for alpha.3), built as a draft on branch `claude/ownpace-public-readiness-y7orc6-release-nights-waiver`: Release's `waive_nights`, for a version in `WAIVER_VERSIONS` only (alpha.3) and from a person's account, the rule's refusals as notes that quote it, the commit given, the tag's message saying so, the tag job bound by what the preflight did, nothing else waived (§3); 📋 **Decided 2026-09-27**: two nights, scheduled runs only; **read 2026-09-27: 0 of 2** (the managed gate's #199 and #200 red, the appliance's last four green), and stated in `docs/testing.md` — *was:* 🔨 **Read by code** on branch `claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged (2026-10-23); ⏳ **Owner** (names N); 📋 **Proposed** (the rule) | §3. Worked out with 0132 T6 step 1. It is read **before the first invitation**, before live's first bring-up from a tag, and again before each later deploy to live. |
 
 ## 1. What there is today
 
@@ -1199,11 +1199,15 @@ waiver. Decision 9 of 2026-10-23 said it would not be an input, and the
 break-glass was a tag pushed by hand. The owner, 2026-10-30, for alpha.3:
 *"I approve alpha.3 tag now, we skip the waiting days. No one is in the alpha
 yet."* (0146 Status, 2026-10-30). It is the owner's call, for a release no
-tester runs yet. With it, the rule above is read as always and its refusals
-are notes that quote the waiver; the commit is given, not picked; the tag's
-message says the nights were waived, by whom and in what words, and that line
-is the acceptance 0132's deploy log cites. It waives this rule and nothing
-else (`docs/release.md` §2, *When the owner waives the nights*).
+tester runs yet, and it is taken only for a version listed in
+`WAIVER_VERSIONS` (`scripts/release-nights.mjs`) with the owner's words:
+alpha.3 alone so far, and the next is a pull request that adds one. With it,
+the rule above is read as always and its refusals are notes that quote the
+waiver; the commit is given, not picked; the tag job uses the waiver only when
+the preflight did; the tag's message says the nights were waived, by whom and
+in what words, and that line is the acceptance 0132's deploy log cites. It
+waives this rule and nothing else (`docs/release.md` §2, *When the owner
+waives the nights*).
 
 **Reading it** without Release:
 

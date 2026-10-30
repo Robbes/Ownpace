@@ -77,16 +77,28 @@
  * the commit must be given (there are no nights to pick one), and every other
  * check refuses as it did. Verify mode refuses a waiver, since it reads no
  * nights. The text goes into a public tag message and a job summary, so this
- * holds what it may be: one line, at most 300 characters, no backtick, `<`,
- * `$(`, `${`, `@` or control character, and a refusal never repeats it. It
- * never runs: the resolve step is run as the workflow runs it, with a
- * command in the text, and nothing is made.
+ * holds what it may be: one line, at most 300 characters, with a letter or a
+ * digit, no backtick, `<`, `$(`, `${`, `@`, control character or character
+ * that shows nothing, and a refusal never repeats it. It never runs: the
+ * resolve step is run as the workflow runs it, with a command in the text,
+ * and nothing is made.
+ *
+ * The review of 2026-10-30 narrowed it. It is taken only for a version in
+ * `WAIVER_VERSIONS` (alpha.3, the one the owner named), each a pre-release,
+ * and never from an app's bot, whose name the tag would put on the owner's
+ * words. A run that refused before it read the nights says so, never that
+ * they were waived. The check step's `waived` output says whether it used
+ * the waiver, and the tag job uses it only then: the approver read a summary
+ * that said "not used".
  */
 
 import { describe, it, expect } from 'vitest';
-import { spawnSync } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
+import { promisify } from 'node:util';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
@@ -118,7 +130,8 @@ import {
   resolveStep,
   checkStep,
 } from './release-preflight.mjs';
-import { countNights, readWaiver, waiveNights, WAIVER_MAX, WAIVER_MODES } from './release-nights.mjs';
+import { countNights, readWaiver, waiveNights, WAIVER_MAX, WAIVER_MODES, WAIVER_VERSIONS } from './release-nights.mjs';
+import { parseSemVer } from './release-names-agree.mjs';
 import type { Line, Alert } from './release-preflight.mjs';
 import { tagDecision } from './release-cut-tag.mjs';
 import { ALERT_FIELDS, ALERT_INSTANCE_FIELDS, ALERT_RULE_FIELDS, ALERT_TOOL_FIELDS, getAll, slimAlert } from './release-github.mjs';
@@ -672,8 +685,8 @@ describe('the owner’s waiver of the nights (the owner, 2026-10-30, for alpha.3
     countNights({ managedRuns: [], applianceRuns: [], commit: C, mergedAt: '2026-10-30T20:00:00Z', now: '2026-10-30T21:00:00Z' });
 
   it('empty is no waiver: no line, and nothing changes', () => {
-    expect(readWaiver({ text: '', mode: 'release', actor: OWNER })).toEqual({ waiver: null, lines: [] });
-    expect(readWaiver({ text: undefined, mode: 'verify', actor: undefined })).toEqual({ waiver: null, lines: [] });
+    expect(readWaiver({ text: '', mode: 'release', actor: OWNER, version: V3 })).toEqual({ waiver: null, lines: [] });
+    expect(readWaiver({ text: undefined, mode: 'verify', actor: undefined, version: undefined })).toEqual({ waiver: null, lines: [] });
     const nights = noNights();
     expect(waiveNights(nights, null)).toBe(nights);
   });
@@ -681,31 +694,65 @@ describe('the owner’s waiver of the nights (the owner, 2026-10-30, for alpha.3
   it('is taken in preflight, rehearse and release, and quoted with the run’s actor', () => {
     expect(WAIVER_MODES).toEqual(['preflight', 'rehearse', 'release']);
     for (const mode of WAIVER_MODES) {
-      const { waiver, lines } = readWaiver({ text: `  ${WORDS}  `, mode, actor: OWNER });
+      const { waiver, lines } = readWaiver({ text: `  ${WORDS}  `, mode, actor: OWNER, version: V3 });
       expect(waiver, mode).toEqual({ reason: WORDS, actor: OWNER });
       expect(lines, mode).toHaveLength(1);
       expect(lines[0]).toMatchObject({ kind: 'note', check: 'waiver' });
-      expect(lines[0]!.sentence).toContain(`waived by ${OWNER}, in their words: \`${WORDS}\``);
-      expect(lines[0]!.sentence).toContain('it waives the nights and nothing else');
+      // Given, not yet waived: only the nights, read and refused, are waived.
+      expect(lines[0]!.sentence).toContain(`a waiver of the counted nights is given by ${OWNER}, in their words: \`${WORDS}\``);
+      expect(lines[0]!.sentence).toContain('It waives nothing else');
+      expect(lines[0]!.sentence).not.toMatch(/nights are waived/);
     }
-    expect(readWaiver({ text: WORDS, mode: 'release', actor: 'dependabot[bot]' }).waiver).not.toBeNull();
+  });
+
+  // The review of 2026-10-30: the owner waived the nights for alpha.3, "No
+  // one is in the alpha yet". Not for every release after it.
+  it('is taken only for a version the owner named, each a pre-release', () => {
+    expect(WAIVER_VERSIONS).toEqual([V3]);
+    for (const v of WAIVER_VERSIONS) {
+      const semver = parseSemVer(v.slice(1));
+      expect(semver, v).not.toBeNull();
+      expect(semver!.prerelease.length, `${v} is a pre-release, one no tester runs yet`).toBeGreaterThan(0);
+    }
+    for (const version of ['v1.0.0', 'v0.3.0', 'v0.2.0-alpha.4', 'v0.2.0-alpha.2', 'v0.2.0-alpha.3+x', '', undefined]) {
+      for (const mode of WAIVER_MODES) {
+        const { waiver, lines } = readWaiver({ text: WORDS, mode, actor: OWNER, version });
+        expect(waiver, `${String(version)} ${mode}`).toBeNull();
+        expect(refusedAt(lines, 'waiver').map((l) => l.sentence)).toEqual([
+          `waive_nights is set, and the owner waived the nights for ${V3} only, not for this version: ` +
+            'dispatch it again with waive_nights empty, or first add the version to WAIVER_VERSIONS with the owner’s words',
+        ]);
+      }
+    }
+  });
+
+  // The review of 2026-10-30: the tag says "Nights waived by <actor>, in
+  // their words". An app's token would put a bot's name on the owner's words.
+  it('is refused from an app’s bot, which the tag would credit with the owner’s words', () => {
+    for (const actor of ['dependabot[bot]', 'github-actions[bot]', 'claude[bot]']) {
+      const { waiver, lines } = readWaiver({ text: WORDS, mode: 'release', actor, version: V3 });
+      expect(waiver, actor).toBeNull();
+      expect(refusedAt(lines, 'waiver').map((l) => l.sentence), actor).toEqual([
+        'the run’s actor is an app’s bot, and the tag would credit the owner’s words to it: the owner dispatches a waiver from their own account',
+      ]);
+    }
   });
 
   it('is refused in verify and rehearse-tag mode, which read no nights', () => {
     for (const mode of ['verify', 'rehearse-tag']) {
-      const { waiver, lines } = readWaiver({ text: WORDS, mode, actor: OWNER });
+      const { waiver, lines } = readWaiver({ text: WORDS, mode, actor: OWNER, version: V3 });
       expect(waiver, mode).toBeNull();
       expect(
         refusedAt(lines, 'waiver').map((l) => l.sentence),
         mode,
       ).toEqual([`waive_nights is set, and ${mode} mode reads no nights: dispatch it again with waive_nights empty`]);
     }
-    expect(refusedAt(readWaiver({ text: WORDS, mode: 'ship', actor: OWNER }).lines, 'waiver')).toHaveLength(1);
+    expect(refusedAt(readWaiver({ text: WORDS, mode: 'ship', actor: OWNER, version: V3 }).lines, 'waiver')).toHaveLength(1);
   });
 
   it('names who gave it: a run whose actor cannot be read takes no waiver', () => {
     for (const actor of [undefined, '', 'two words', `x${AT}example.invalid`, 'a\nb']) {
-      const { waiver, lines } = readWaiver({ text: WORDS, mode: 'release', actor });
+      const { waiver, lines } = readWaiver({ text: WORDS, mode: 'release', actor, version: V3 });
       expect(waiver, String(actor)).toBeNull();
       expect(refusedAt(lines, 'waiver'), String(actor)).toHaveLength(1);
     }
@@ -727,24 +774,39 @@ describe('the owner’s waiver of the nights (the owner, 2026-10-30, for alpha.3
     ['a NUL', 'ok\u0000', /holds a control or formatting character/],
     ['more than the cap', 'x'.repeat(WAIVER_MAX + 1), new RegExp(`is ${WAIVER_MAX + 1} characters long, more than ${WAIVER_MAX}`)],
     ['only spaces', '   ', /says nothing/],
+    // The review of 2026-10-30: none of these is whitespace or Cc/Cf, and each
+    // made a tag line that read `in their words: ""` with nothing between.
+    ['a Hangul filler', '\u3164', /says nothing: it has no letter or digit, holds a character that shows nothing/],
+    ['three Hangul fillers', '\u3164\u3164\u3164', /says nothing: it has no letter or digit, holds a character that shows nothing/],
+    ['the braille blank, twice', '\u2800\u2800', /says nothing: it has no letter or digit, holds a character that shows nothing/],
+    ['a halfwidth Hangul filler', '\uFFA0', /says nothing: it has no letter or digit, holds a character that shows nothing/],
+    ['the Hangul choseong and jungseong fillers', '\u115F\u1160', /says nothing: it has no letter or digit, holds a character that shows nothing/],
+    ['a private-use character', '\uE000', /says nothing: it has no letter or digit, holds a character that shows nothing/],
+    ['a lone surrogate between letters', 'x\uD800y', /^waive_nights holds a character that shows nothing\./],
+    ['a blank beside words', 'skip them \u3164', /^waive_nights holds a character that shows nothing\./],
+    ['punctuation only', '... !', /says nothing: it has no letter or digit/],
   ])('refuses %s, says why, and does not repeat it', (_, text, why) => {
-    const { waiver, lines } = readWaiver({ text, mode: 'release', actor: OWNER });
+    const { waiver, lines } = readWaiver({ text, mode: 'release', actor: OWNER, version: V3 });
     expect(waiver).toBeNull();
     const refused = refusedAt(lines, 'waiver');
     expect(refused).toHaveLength(1);
     const sentence = refused[0]!.sentence;
     expect(sentence).toMatch(why);
     expect(sentence).toMatch(/^[^\r\n]*$/);
-    for (const odd of ['\u2028', '\u202e', '\u0000']) expect(sentence).not.toContain(odd);
+    for (const odd of ['\u2028', '\u202e', '\u0000', '\u3164', '\u2800', '\uFFA0', '\u115F', '\uE000', '\uD800']) expect(sentence).not.toContain(odd);
     for (const part of ['forged', 'onerror', 'pwned', 'github.token', 'example.invalid', 'reversed', 'see `id`']) {
       if (text.includes(part)) expect(sentence).not.toContain(part);
     }
   });
 
   it('takes a waiver of exactly the cap, and one with quotes and punctuation', () => {
-    expect(readWaiver({ text: 'x'.repeat(WAIVER_MAX), mode: 'release', actor: OWNER }).waiver).not.toBeNull();
+    expect(readWaiver({ text: 'x'.repeat(WAIVER_MAX), mode: 'release', actor: OWNER, version: V3 }).waiver).not.toBeNull();
     const plain = 'The owner\'s call: "skip the nights" (alpha.3, 2026-10-30) - 100% sure!';
-    expect(readWaiver({ text: plain, mode: 'release', actor: OWNER }).waiver).toEqual({ reason: plain, actor: OWNER });
+    expect(readWaiver({ text: plain, mode: 'release', actor: OWNER, version: V3 }).waiver).toEqual({ reason: plain, actor: OWNER });
+    // Words in any script are words; an emoji beside them is a symbol that shows.
+    for (const words of ['Niemand zit nog in de alfa, één release', '\u8FD8\u6CA1\u6709\u4EBA', 'ok \u{1F44D}', '3']) {
+      expect(readWaiver({ text: words, mode: 'release', actor: OWNER, version: V3 }).waiver, words).not.toBeNull();
+    }
   });
 
   it('turns the nights’ refusals into notes, the first quoting the waiver, and keeps nights that hold as they are', () => {
@@ -782,7 +844,7 @@ describe('the owner’s waiver of the nights (the owner, 2026-10-30, for alpha.3
       expect(
         refusedAt(lines, 'commit').map((l) => l.sentence),
         mode,
-      ).toEqual(['the nights are waived, so they pick no commit: dispatch it again with commit set to the full commit to tag, on main’s first-parent line']);
+      ).toEqual(['a waiver of the nights is given, so they pick no commit: dispatch it again with commit set to the full commit to tag, on main’s first-parent line']);
       expect(lines.find((l) => l.check === 'waiver')?.kind, mode).toBe('note');
       expect(asked, mode).toEqual([]);
       expect(out, mode).toEqual({ commit: '', previous: '', candidate: 'false' });
@@ -813,6 +875,22 @@ describe('the owner’s waiver of the nights (the owner, 2026-10-30, for alpha.3
     expect(asked).toEqual([]);
   });
 
+  it('refuses a waiver for a version the owner did not name before anything is read, and from a bot', async () => {
+    const overs: Array<Record<string, string>> = [{ VERSION: 'v1.0.0' }, { VERSION: 'v0.2.0-alpha.4' }, { GITHUB_ACTOR: 'claude[bot]' }];
+    for (const over of overs) {
+      const asked: string[] = [];
+      const { lines, out } = await resolveStep(recording(asked), resolveEnv({ COMMIT_INPUT: C, WAIVE_NIGHTS: WORDS, ...over }));
+      expect(refusedAt(lines, 'waiver'), JSON.stringify(over)).toHaveLength(1);
+      expect(lines.some((l) => l.kind === 'note' && l.check === 'waiver'), JSON.stringify(over)).toBe(false);
+      expect(out.candidate).toBe('false');
+      expect(asked).toEqual([]);
+    }
+    // The same version without a waiver is not refused at the waiver.
+    const asked: string[] = [];
+    const { lines } = await resolveStep(recording(asked), resolveEnv({ VERSION: 'v1.0.0', COMMIT_INPUT: C }));
+    expect(lines.some((l) => l.check === 'waiver')).toBe(false);
+  });
+
   it('the check step reads the nights for C, and under the waiver their refusals are notes; nothing else changes', async () => {
     /** The record with no run of anything on C, the tag free, no branch named like it. */
     const record: Client = {
@@ -837,6 +915,9 @@ describe('the owner’s waiver of the nights (the owner, 2026-10-30, for alpha.3
     expect(refusedAt(waived.lines, 'ci-green')).toHaveLength(1);
     expect(refusedAt(waived.lines, 'scan-green-on-main')).toHaveLength(1);
     expect(others(waived.lines)).toEqual(others(plain.lines));
+    // What the tag job is bound by: the waiver was used here, and only here.
+    expect(plain.waived).toBe(false);
+    expect(waived.waived).toBe(true);
   });
 
   describe('the verdict and its summary', () => {
@@ -868,7 +949,26 @@ describe('the owner’s waiver of the nights (the owner, 2026-10-30, for alpha.3
       expect(plain.summary).not.toMatch(/waive/i);
       expect(plain.summary.split('\n')[2]).toBe('- **pass** inputs: ok');
       const unused = verdict({ lines: held, mode: 'release', outcomes, commit: C, waiver });
-      expect(unused.summary.split('\n')[2]).toBe(`**The nights hold**, so the waiver ${OWNER} gave was not used.`);
+      expect(unused.summary.split('\n')[2]).toBe(
+        `**The nights hold**, so the waiver ${OWNER} gave was not used. In release mode the tag job does not use it either: ` +
+          'if the nights stop holding before the tag, it refuses, as a run without a waiver does.',
+      );
+    });
+
+    // The review of 2026-10-30: a waiver with commit empty refused at the
+    // resolve step, and the summary still said the nights were waived.
+    it('a run that refused before it read the nights says so, and never that they were waived', async () => {
+      const resolved = await resolveStep(recording([]), resolveEnv({ WAIVE_NIGHTS: WORDS }));
+      const v = verdict({ lines: resolved.lines, mode: 'release', outcomes: { resolve: 'success', check: 'skipped' }, waiver });
+      expect(v.exitCode).toBe(1);
+      expect(v.summary.split('\n')[2]).toBe(
+        `**The nights were not read**: the run refused before it read them, so the waiver ${OWNER} gave, in their words: \`${WORDS}\`, was not used.`,
+      );
+      expect(v.summary).not.toMatch(/nights are waived/i);
+      expect(v.summary).toContain(`a waiver of the counted nights is given by ${OWNER}`);
+      // And when the check step itself failed before the nights: not read either.
+      const failed = verdict({ lines: passing(), mode: 'release', outcomes: { check: 'failure' }, commit: C, waiver });
+      expect(failed.summary.split('\n')[2]).toMatch(/^\*\*The nights were not read\*\*/);
     });
 
     it('a rehearsal whose waiver was refused ends at the preflight, before the gate scan', () => {
@@ -911,7 +1011,7 @@ describe('the owner’s waiver of the nights (the owner, 2026-10-30, for alpha.3
         const lines = join(dir, 'lines.jsonl');
         const recorded = [...passing(), ...waiveNights(noNights(), { reason: WORDS, actor: OWNER }).lines];
         writeFileSync(lines, recorded.map((l) => JSON.stringify(l)).join('\n') + '\n');
-        const env = { MODE: 'release', COMMIT: C, OUTCOMES: '', WAIVE_NIGHTS: WORDS, GITHUB_ACTOR: OWNER, RELEASE_LINES: lines };
+        const env = { MODE: 'release', VERSION: V3, COMMIT: C, OUTCOMES: '', WAIVE_NIGHTS: WORDS, GITHUB_ACTOR: OWNER, RELEASE_LINES: lines };
         const r = run('verdict', env);
         try {
           expect(r.status).toBe(0);
@@ -925,6 +1025,59 @@ describe('the owner’s waiver of the nights (the owner, 2026-10-30, for alpha.3
         }
       } finally {
         rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    // The tag job uses the waiver only when this output says the preflight
+    // did: a check step that forgot it would leave every waived release
+    // refused at the tag, after the approval and the gate scan.
+    it('the check step says in its output whether it used the waiver', async () => {
+      /** The record with no run of anything on C, over HTTP, as the API answers it. */
+      const server = createServer((req, res) => {
+        const path = (req.url ?? '').replace(/^\/repos\/Robbes\/Ownpace\//, '');
+        const json = path.startsWith('actions/workflows/')
+          ? { workflow_runs: [] }
+          : path.startsWith('code-scanning/')
+            ? []
+            : path === `commits/${C}`
+              ? { commit: { committer: { date: '2026-10-30T20:00:00Z' } } }
+              : undefined;
+        res.writeHead(json === undefined ? 404 : 200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(json ?? { message: 'Not Found' }));
+      });
+      await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+      const check = async (over: Record<string, string>) => {
+        const dir = mkdtempSync(join(tmpdir(), 'release-waiver-check-'));
+        try {
+          const out = join(dir, 'output');
+          writeFileSync(out, '');
+          await promisify(execFile)(process.execPath, [SCRIPT, 'check', '--candidate', ROOT], {
+            cwd: dir,
+            env: {
+              PATH: process.env.PATH ?? '',
+              GITHUB_ACTIONS: 'false',
+              GITHUB_API_URL: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+              GITHUB_REPOSITORY: 'Robbes/Ownpace',
+              GITHUB_OUTPUT: out,
+              RELEASE_LINES: join(dir, 'lines.jsonl'),
+              VERSION: V3,
+              COMMIT: C,
+              PREVIOUS: '',
+              MODE: 'release',
+              GITHUB_ACTOR: OWNER,
+              ...over,
+            },
+          });
+          return readFileSync(out, 'utf8').split('\n').filter((l) => l.startsWith('waived='));
+        } finally {
+          rmSync(dir, { recursive: true, force: true });
+        }
+      };
+      try {
+        expect(await check({ WAIVE_NIGHTS: WORDS })).toEqual(['waived=true']);
+        expect(await check({})).toEqual(['waived=false']);
+      } finally {
+        server.close();
       }
     });
   });

@@ -28,19 +28,23 @@
  * THE OWNER'S WAIVER (the owner, 2026-10-30, for alpha.3: "I approve alpha.3
  * tag now, we skip the waiting days. No one is in the alpha yet."). The
  * Release workflow's `waive_nights` input holds the owner's reason, in their
- * words. Empty, nothing changes. Set, in the modes that read the nights
- * (preflight, rehearse, release, and the tag job's read again), the nights'
- * refusals become notes, the first of them quoting the waiver and naming the
- * run's actor, and the tag's message says the nights were waived. It waives
- * the nights and nothing else: the commit is still given, a full commit on
- * `main`'s first-parent line, and every other check refuses as before.
- * `verify` and `rehearse-tag` read no nights, and refuse a waiver.
+ * words. Empty, nothing changes. Set, it is taken only for a version in
+ * WAIVER_VERSIONS, each there with the owner's words, and only from a run
+ * whose actor is a person, not an app's bot. Taken, in the modes that read
+ * the nights (preflight, rehearse, release, and the tag job's read again),
+ * the nights' refusals become notes, the first of them quoting the waiver and
+ * naming the run's actor, and the tag's message says the nights were waived.
+ * It waives the nights and nothing else: the commit is still given, a full
+ * commit on `main`'s first-parent line, and every other check refuses as
+ * before. `verify` and `rehearse-tag` read no nights, and refuse a waiver.
  *
  * The text is written into a public tag message and a job summary, so it is
- * read as hostile: one line, at most WAIVER_MAX characters, and no backtick,
- * no `<`, no `$(` or `${`, no `@`, no control or formatting character. A
+ * read as hostile: one line, at most WAIVER_MAX characters, with a letter or
+ * a digit, and no backtick, no `<`, no `$(` or `${`, no `@`, no control or
+ * formatting character, and no character that shows nothing (BLANK). A
  * refusal says what is wrong with it and never repeats it. Where it is
- * quoted in Markdown it sits in a code span, which renders nothing.
+ * quoted in Markdown it sits in a code span, which renders nothing; in the
+ * tag's message it is a JSON string, so a `"` in it cannot end the quote.
  *
  * Usage (read-only; GH_TOKEN optional on this public repository):
  *
@@ -202,16 +206,33 @@ export function countNights({ managedRuns, applianceRuns, attempts = {}, commit,
 export const WAIVER_MAX = 300;
 /** The modes that read the nights, and so the only ones a waiver means anything in. */
 export const WAIVER_MODES = ['preflight', 'rehearse', 'release'];
-/** A GitHub login, as GITHUB_ACTOR gives it. */
+/**
+ * The versions the owner has waived the nights for, each with their words and
+ * the day. A waiver for any other version is refused: the next one is a pull
+ * request that adds it here, quoting the owner. Each is a pre-release, one no
+ * tester runs yet (the guard holds that).
+ */
+export const WAIVER_VERSIONS = [
+  // The owner, 2026-10-30: "I approve alpha.3 tag now, we skip the waiting days. No one is in the alpha yet."
+  'v0.2.0-alpha.3',
+];
+/** A GitHub login, as GITHUB_ACTOR gives it; an app's bot ends in `[bot]`. */
 const LOGIN = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}(?:\[bot\])?$/;
+/**
+ * What shows nothing, yet is neither whitespace nor a control or formatting
+ * character: private use, unassigned, a lone surrogate, the Hangul fillers and
+ * the braille blank. In a public tag they make a quote that looks empty.
+ */
+const BLANK = /[\p{Co}\p{Cn}\p{Cs}\u115F\u1160\u3164\uFFA0\u2800]/u;
 
 /** What makes the text unfit for the record, one phrase each; empty when it is fit. */
 export function waiverProblems(text) {
   const problems = [];
-  if (text.trim() === '') problems.push('says nothing');
+  if (!/[\p{L}\p{N}]/u.test(text.replace(new RegExp(BLANK.source, 'gu'), ''))) problems.push('says nothing: it has no letter or digit');
   if (text.length > WAIVER_MAX) problems.push(`is ${text.length} characters long, more than ${WAIVER_MAX}`);
   if (/[\n\r\u0085\u2028\u2029]/.test(text)) problems.push('is more than one line');
   else if (/[\p{Cc}\p{Cf}]/u.test(text)) problems.push('holds a control or formatting character');
+  if (BLANK.test(text)) problems.push('holds a character that shows nothing');
   if (text.includes('`')) problems.push('holds a backtick');
   if (text.includes('<')) problems.push('holds a "<"');
   if (/\$[({]/.test(text)) problems.push('holds "$(" or "${"');
@@ -223,17 +244,30 @@ export function waiverProblems(text) {
 export const waivedBy = ({ reason, actor }) => `the counted nights are waived by ${actor}, in their words: \`${reason}\``;
 
 /**
- * The waiver from the `waive_nights` input's text, the mode and the run's
- * actor. `waiver` is `{ reason, actor }`, or null. `lines` is empty when the
- * text is, a note quoting the waiver when it is taken, and a refusal that
- * does not repeat the text when it is not.
+ * The waiver from the `waive_nights` input's text, the mode, the version and
+ * the run's actor. `waiver` is `{ reason, actor }`, or null. `lines` is empty
+ * when the text is, a note that it was given when it is taken, and a refusal
+ * that does not repeat the text when it is not. Only `waiveNights` says the
+ * nights are waived, once they were read and did not hold.
  */
-export function readWaiver({ text, mode, actor }) {
+export function readWaiver({ text, mode, actor, version }) {
   if (text === undefined || text === null || text === '') return { waiver: null, lines: [] };
   const said = String(text);
   if (!WAIVER_MODES.includes(mode)) {
     const which = ['verify', 'rehearse-tag'].includes(mode) ? `${mode} mode` : 'this mode';
     return { waiver: null, lines: [refuse('waiver', `waive_nights is set, and ${which} reads no nights: dispatch it again with waive_nights empty`)] };
+  }
+  if (!WAIVER_VERSIONS.includes(version)) {
+    return {
+      waiver: null,
+      lines: [
+        refuse(
+          'waiver',
+          `waive_nights is set, and the owner waived the nights for ${WAIVER_VERSIONS.join(', ')} only, not for this version: ` +
+            'dispatch it again with waive_nights empty, or first add the version to WAIVER_VERSIONS with the owner’s words',
+        ),
+      ],
+    };
   }
   const problems = waiverProblems(said);
   if (problems.length > 0) {
@@ -243,8 +277,8 @@ export function readWaiver({ text, mode, actor }) {
         refuse(
           'waiver',
           `waive_nights ${problems.join(', ')}. It is written into the tag’s message and the run’s summary, ` +
-            `so it is one line of at most ${WAIVER_MAX} characters, ` +
-            'with no backtick, "<", "$(", "${" or "@". It is not repeated here',
+            `so it is one line of at most ${WAIVER_MAX} characters, with a letter or a digit, ` +
+            'and no backtick, "<", "$(", "${", "@" or character that shows nothing. It is not repeated here',
         ),
       ],
     };
@@ -252,10 +286,22 @@ export function readWaiver({ text, mode, actor }) {
   if (typeof actor !== 'string' || !LOGIN.test(actor)) {
     return { waiver: null, lines: [refuse('waiver', 'the run’s actor could not be read, and a waiver names who gave it')] };
   }
+  if (actor.endsWith('[bot]')) {
+    return {
+      waiver: null,
+      lines: [refuse('waiver', 'the run’s actor is an app’s bot, and the tag would credit the owner’s words to it: the owner dispatches a waiver from their own account')],
+    };
+  }
   const waiver = { reason: said.trim(), actor };
   return {
     waiver,
-    lines: [note('waiver', `${waivedBy(waiver)}; it waives the nights and nothing else (docs/release.md, “When the owner waives the nights”)`)],
+    lines: [
+      note(
+        'waiver',
+        `a waiver of the counted nights is given by ${actor}, in their words: \`${waiver.reason}\`. The nights are still read: ` +
+          'if they hold it is not used, and if not, their refusals are notes. It waives nothing else (docs/release.md, “When the owner waives the nights”)',
+      ),
+    ],
   };
 }
 

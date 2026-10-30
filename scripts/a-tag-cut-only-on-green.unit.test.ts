@@ -37,7 +37,10 @@
  *   preflight, the tag and the tag rehearsal, as a job's `env:` and nowhere
  *   else: not a `run:`, an `if:`, a step's `env:` or the run's name, which
  *   the tag job reads back to know Release's own runs. The tag rehearsal
- *   reads no nights and refuses it before it makes anything.
+ *   reads no nights and refuses it before it makes anything. The tag job
+ *   uses it only when the preflight did: the check step's `waived`, the
+ *   preflight's output, reaches the tag job as `PREFLIGHT_WAIVED` (the review
+ *   of 2026-10-30).
  * - No permission at the top; each job exactly the permissions it uses, and
  *   none ever `packages` or `id-token`: Release never builds, pushes or signs.
  * - The order: the tag needs the preflight, the approval and the gate scan;
@@ -135,6 +138,16 @@ describe(`${RELEASE_FILE}: who can start it, and with what`, () => {
     ]);
     // The tag job knows Release's own runs by this name; a waiver in it would change it.
     expect((release as { 'run-name'?: string })['run-name']).toBe('Release ${{ inputs.version }} (${{ inputs.mode }})');
+  });
+
+  // The review of 2026-10-30: the preflight's summary said the waiver was
+  // not used when the nights held, and the tag job used it anyway.
+  it('binds the tag job to whether the preflight used the waiver', () => {
+    expect(jobs.preflight!.outputs?.waived).toBe('${{ steps.check.outputs.waived }}');
+    expect(jobs.preflight!.steps?.find((s) => s.id === 'check')?.run).toBe('node scripts/release-preflight.mjs check --candidate candidate');
+    expect(jobs.tag!.env?.PREFLIGHT_WAIVED).toBe('${{ needs.preflight.outputs.waived }}');
+    const mentions = JSON.stringify(jobs).match(/outputs\.waived/g) ?? [];
+    expect(mentions, 'read by the tag job and nowhere else').toHaveLength(2);
   });
 
   it('the tag rehearsal refuses a waiver before it makes anything', () => {

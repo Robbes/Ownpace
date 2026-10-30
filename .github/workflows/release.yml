@@ -53,16 +53,21 @@
 # THE OWNER'S WAIVER of the nights (input `waive_nights`; the owner,
 # 2026-10-30, for alpha.3: "I approve alpha.3 tag now, we skip the waiting
 # days. No one is in the alpha yet."). Empty, the nights are read as 0141
-# T14 says. Set, it is the owner's reason in their words. In preflight,
-# rehearse and release mode, and in the tag job's read again, the nights'
-# refusals become notes that quote it; the commit must be given, a full
-# commit on main's first-parent line; the tag's message and the summaries of
-# the preflight and the tag job say the nights were waived, by whom and in
-# what words. Nothing else is waived. verify and rehearse-tag read no nights
-# and refuse it. The text is one line of at most 300 characters, with no
-# backtick, "<", "$(", "${" or "@", and like every input it reaches the
-# scripts through `env:` only, never a `run:`, an `if:` or the run's name
-# (scripts/release-nights.mjs, readWaiver).
+# T14 says. Set, it is the owner's reason in their words, taken only for a
+# version in WAIVER_VERSIONS (alpha.3) and only from a person's account, not
+# an app's bot. In preflight, rehearse and release mode the nights' refusals
+# become notes that quote it; the commit must be given, a full commit on
+# main's first-parent line; the tag's message and the summaries of the
+# preflight and the tag job say the nights were waived, by whom and in what
+# words. The tag job uses it only when the preflight did (its output
+# `waived`): nights that held there are read again as in a run without one.
+# Nothing else is waived. verify and rehearse-tag read no nights and refuse
+# it. The text is one line of at most 300 characters, with a letter or a
+# digit, and no backtick, "<", "$(", "${", "@" or character that shows
+# nothing, and like every input it reaches the scripts through `env:` only,
+# never a `run:`, an `if:` or the run's name (scripts/release-nights.mjs,
+# readWaiver). The preflight is no boundary against C's own code, which runs
+# in its job; the tag job, a job of its own, reads the input itself.
 #
 # THE APPROVAL is the recorded say-so of workplan 0025 T2, with a name and a
 # time, and a guard against accidents. It is not a boundary: anyone with
@@ -101,7 +106,7 @@ on:
         default: preflight
         options: [preflight, rehearse, rehearse-tag, release, verify]
       waive_nights:
-        description: 'The owner only: why the counted nights are waived, in your words, one line. Needs commit. Waives the nights and nothing else; written into the tag (docs/release.md). Empty: the nights are read'
+        description: 'The owner only, from their own account, for a version in WAIVER_VERSIONS: why the counted nights are waived, in your words, one line. Needs commit. Waives the nights and nothing else; written into the tag (docs/release.md). Empty: the nights are read'
         type: string
         required: false
         default: ''
@@ -132,6 +137,9 @@ jobs:
       previous: ${{ steps.resolve.outputs.previous }}
       refused: ${{ steps.verdict.outputs.refused }}
       proof: ${{ steps.check.outputs.proof }}
+      # 'true' only when the owner's waiver turned the nights' refusals into
+      # notes. The tag job uses the waiver only then.
+      waived: ${{ steps.check.outputs.waived }}
     env:
       VERSION: ${{ inputs.version }}
       COMMIT_INPUT: ${{ inputs.commit }}
@@ -300,6 +308,7 @@ jobs:
       PROOF: ${{ needs.preflight.outputs.proof }}
       GATE_RUN: ${{ needs.gate-scan.outputs.run }}
       WAIVE_NIGHTS: ${{ inputs.waive_nights }}
+      PREFLIGHT_WAIVED: ${{ needs.preflight.outputs.waived }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

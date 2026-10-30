@@ -77,5 +77,7 @@ export declare function cutTag(
     readNights: () => Promise<{ verdict: 'pass' | 'refuse'; lines: Line[]; proof: string }>;
     /** The owner's waiver of the nights, or null. */
     waiver?: Waiver | null;
+    /** Whether the preflight used the waiver; without it, the nights are read as in a run without one. */
+    waivedAtPreflight?: boolean;
   },
 ): Promise<Line[]>;

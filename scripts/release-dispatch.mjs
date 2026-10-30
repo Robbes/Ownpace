@@ -392,7 +392,7 @@ async function main(argv) {
       return done(await publish(client, { workflow, ref: version, sha, inputs: inputsFrom(argv), timeoutMs: 140 * 60_000, currentRunId }));
     }
     case 'rehearse-tag': {
-      const waived = readWaiver({ text: process.env.WAIVE_NIGHTS, mode: 'rehearse-tag', actor: process.env.GITHUB_ACTOR }).lines;
+      const waived = readWaiver({ text: process.env.WAIVE_NIGHTS, mode: 'rehearse-tag', actor: process.env.GITHUB_ACTOR, version: process.env.VERSION }).lines;
       if (waived.length > 0) return done(waived);
       if (process.env.GITHUB_REF !== 'refs/heads/main') {
         return done([refuse('rehearsal-tag', `dispatched from ${process.env.GITHUB_REF}: the rehearsal runs from main`)]);

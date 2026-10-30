@@ -63,9 +63,16 @@ export interface Waiver {
 
 export declare const WAIVER_MAX: number;
 export declare const WAIVER_MODES: string[];
+/** The versions the owner waived the nights for; a waiver for any other is refused. */
+export declare const WAIVER_VERSIONS: string[];
 export declare function waiverProblems(text: string): string[];
 export declare function waivedBy(waiver: Waiver): string;
-export declare function readWaiver(options: { text: string | undefined | null; mode: string | undefined; actor: string | undefined }): {
+export declare function readWaiver(options: {
+  text: string | undefined | null;
+  mode: string | undefined;
+  actor: string | undefined;
+  version: string | undefined;
+}): {
   waiver: Waiver | null;
   lines: Line[];
 };

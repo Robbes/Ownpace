@@ -21,9 +21,12 @@
  * 2. the nights (`release-nights.mjs`), for this commit, only when the tag
  *    is to be made: a night that went red since, or a newer night on another
  *    commit, stops it, unless the owner waived the nights (`WAIVE_NIGHTS`,
- *    `readWaiver`). Then their refusals are notes, the first quoting the
- *    waiver, and the tag's message has a line of its own saying the nights
- *    were waived, by whom and in what words. Nothing else is waived;
+ *    `readWaiver`) and the preflight used the waiver (`PREFLIGHT_WAIVED`, its
+ *    output `waived`): nights that held there are read here as in a run
+ *    without one. Under the waiver their refusals are notes, the first
+ *    quoting it, and the tag's message has a line of its own saying the
+ *    nights were waived, by whom and in what words, the words a JSON string.
+ *    Nothing else is waived;
  * 3. the commit is still on `main` (`compare`: ahead or identical);
  * 4. the tag, peeled again, right before the write.
  *
@@ -38,8 +41,9 @@
  * Environment: GH_TOKEN (contents: write, actions: read), VERSION, COMMIT,
  * PROOF (the preflight's runs), GATE_RUN (the gate scan's run id),
  * GITHUB_RUN_ID, and WAIVE_NIGHTS with GITHUB_ACTOR (the owner's waiver; empty
- * is none). Exit 0 when the tag is there and is this release's. With a
- * waiver, the job's summary lists what it did.
+ * is none) and PREFLIGHT_WAIVED ('true' when the preflight used it). Exit 0
+ * when the tag is there and is this release's. With a waiver, the job's
+ * summary lists what it did.
  * (The review of 2026-10-23 put the peel before the nights, and added the
  * tag job to what makes a tag Release's.)
  */
@@ -61,14 +65,15 @@ export function releaseRunId(message) {
 
 /**
  * The annotated tag's message: what it is, the run that made it, what proved
- * it, and, when the nights were waived, a line that says so. A waiver that
- * could add a line of its own (a forged "Release run:") is never written.
+ * it, and, when the nights were waived, a line that says so, the owner's
+ * words as a JSON string, so a `"` in them cannot end the quote. A waiver
+ * that could add a line of its own (a forged "Release run:") is never written.
  */
 export function tagMessage({ version, runUrl, proof, waiver = null }) {
   if (waiver && (waiverProblems(waiver.reason).length > 0 || /\s/.test(waiver.actor))) {
     throw new Error('the waiver is not fit for the tag’s message');
   }
-  const waived = waiver ? `Nights waived by ${waiver.actor}, in their words: "${waiver.reason}"\n` : '';
+  const waived = waiver ? `Nights waived by ${waiver.actor}, in their words: ${JSON.stringify(waiver.reason)}\n` : '';
   return `Ownpace ${version}\n\nRelease run: ${runUrl}\nProved by: ${proof}\n${waived}`;
 }
 
@@ -154,9 +159,10 @@ export async function peelTag(client, version, { currentRunId = Number(process.e
 /**
  * Read again, then write. `readNights` answers the nights for the commit;
  * `proof` names the preflight's and the gate's runs; `waiver` is the owner's,
- * or null.
+ * or null; `waivedAtPreflight` is whether the preflight used it. The waiver
+ * is used here only when it was there: the approver read that summary.
  */
-export async function cutTag(client, { version, commit, runId, runUrl, proof, readNights: nights, waiver = null }) {
+export async function cutTag(client, { version, commit, runId, runUrl, proof, readNights: nights, waiver = null, waivedAtPreflight = false }) {
   const lines = [];
   const decide = async () => tagDecision({ commit, version, ...(await peelTag(client, version, { currentRunId: runId })) });
   // Peeled first: a re-run over Release's own tag carries on, whatever ran since.
@@ -164,7 +170,11 @@ export async function cutTag(client, { version, commit, runId, runUrl, proof, re
   if (first.action === 'refuse') return [refuse('tag', `${first.why}. Nothing was written.`)];
   if (first.action === 'reuse') return [pass('tag', first.why)];
 
-  const fresh = waiveNights(await nights(), waiver);
+  const used = waiver && waivedAtPreflight ? waiver : null;
+  if (waiver && !used) {
+    lines.push(note('waiver', 'the nights held at the preflight, so the waiver was not used there, and it is not used here: the nights are read as in a run without one'));
+  }
+  const fresh = waiveNights(await nights(), used);
   if (fresh.verdict === 'waived') {
     lines.push(...fresh.lines);
   } else if (fresh.verdict !== 'pass') {
@@ -173,7 +183,7 @@ export async function cutTag(client, { version, commit, runId, runUrl, proof, re
     return lines;
   } else {
     lines.push(pass('nights-again', `read again before the tag: ${fresh.proof}`));
-    if (waiver) lines.push(note('waiver', 'the nights hold, read again before the tag, so the waiver was not used'));
+    if (used) lines.push(note('waiver', 'the nights hold, read again before the tag, so the waiver was not used'));
   }
 
   const compared = await client.get(`compare/${commit}...main`, { allow404: true });
@@ -186,7 +196,7 @@ export async function cutTag(client, { version, commit, runId, runUrl, proof, re
   if (before.action === 'refuse') return [...lines, refuse('tag', `${before.why}. Nothing was written.`)];
   if (before.action === 'reuse') return [...lines, pass('tag', before.why)];
 
-  const message = tagMessage({ version, runUrl, proof: [proof, fresh.proof].filter(Boolean).join('; '), waiver: fresh.waived ? waiver : null });
+  const message = tagMessage({ version, runUrl, proof: [proof, fresh.proof].filter(Boolean).join('; '), waiver: fresh.waived ? used : null });
   const object = await client.send('POST', 'git/tags', { tag: version, message, object: commit, type: 'commit' });
   if (object.status !== 201 || !object.json?.sha) {
     return [...lines, refuse('tag', `POST git/tags answered ${object.status}${object.json?.message ? `: ${object.json.message}` : ''}`)];
@@ -219,8 +229,9 @@ async function main() {
   const { VERSION: version, COMMIT: commit, PROOF: proof = '', GATE_RUN: gate = '' } = process.env;
   const runId = Number(process.env.GITHUB_RUN_ID);
   // The tag job runs in release mode only. A waiver the preflight would have
-  // refused is refused here too, before anything is read or written.
-  const { waiver, lines: said } = readWaiver({ text: process.env.WAIVE_NIGHTS, mode: 'release', actor: process.env.GITHUB_ACTOR });
+  // refused is refused here too, before anything is read or written. This
+  // job's env comes from the input, not from anything C's code could touch.
+  const { waiver, lines: said } = readWaiver({ text: process.env.WAIVE_NIGHTS, mode: 'release', actor: process.env.GITHUB_ACTOR, version });
   if (said.some((l) => l.kind === 'refuse')) {
     report(said);
     return 1;
@@ -234,6 +245,7 @@ async function main() {
     proof: [proof, gate ? `gate scan ${urlOfRun(gate)}` : ''].filter(Boolean).join('; '),
     readNights: () => readNights(client, { commit }),
     waiver,
+    waivedAtPreflight: process.env.PREFLIGHT_WAIVED === 'true',
   });
   report(lines);
   if (waiver && process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, tagSummary({ version, commit, lines }));
