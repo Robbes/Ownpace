@@ -50,6 +50,29 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   v4.8.1 base reads about 1 and 80. The weekly image scan reads the tasks on
   that base too. The first task deploy after this is slow: a new image in
   both build stages, with the Debian archive reachable.
+- **The Trigger.dev webapp and supervisor run without files nothing here
+  runs** (workplan 0146 T16): both are built on the machine from upstream's
+  v4.8.1 images, by tag and digest, without depot's and esbuild's Go binaries,
+  without the copy of pnpm their user does not run, and without the tar inside
+  the copy it does run (the owner's decision of 2026-10-27: only pnpm's
+  bundled node-gyp needs it, to build a native add-on, and nothing in these
+  containers installs; such an install there would now fail). Those held 6 of
+  the 8 critical findings the image scan read in the webapp on 2026-10-26, and
+  both of the supervisor's; the zlib1g and dompurify findings stay until
+  Debian and upstream move. The first bring-up after this builds both images
+  where the machine lacks them, pulling upstream's from ghcr as before, and
+  `.env` needs nothing new: `TRIGGER_IMAGE_TAG` names the version, and must be
+  the checkout's (the build refuses another). Both services set
+  `COREPACK_ENABLE_NETWORK: "0"`, so a start never fetches pnpm from the npm
+  registry. `trigger-version.sh pin` moves the builds with the version; the
+  builds refuse a release nobody has read them against, so the pull request
+  of a move reads them again and rebuilds them on amd64 and arm64 before the
+  window. Rolling back runs the checkout that pinned the older version.
+- **Trigger.dev's Redis is 7.4.12, a security release** (workplan 0119):
+  `redis:7.4.12-bookworm@sha256:b6b6e3dc…`, upstream's fix for a heap buffer
+  overflow when a message over 4 GB is propagated over the cluster bus. This
+  stack runs no cluster. Taken a day before its three-day floor, under the
+  floor's exception for a security fix. The run queues' file carries over.
 - **The demo's Nextcloud is upstream's rebuild of 35.0.2, which clears a critical**
   (workplan 0119 T5): `nextcloud:35.0.2-apache@sha256:e0b1a2af…`, pushed by Docker Hub on
   2026-10-28, carries `libbrotli1` 1.1.0-2+deb13u1 for CVE-2026-111497. Same Nextcloud and PHP,
@@ -86,9 +109,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   or reversible, and whether the copy taken before it must hold the task
   runner's database, by comparing the Trigger.dev versions the two releases
   pin. It no longer compares their image lines. The verdicts are unchanged for
-  today's lines. It ships ahead of alpha.4's Trigger.dev images built here,
-  whose lines name no upstream image: a deploy of those is judged by the
-  script that runs before it.
+  today's lines. It ships with the Trigger.dev images built here, whose lines
+  name no upstream image: a deploy is judged by the script that runs before it,
+  so live's deploy from alpha.2 says one-way on the Trigger.dev pin, as the
+  move from v4.7.6 to v4.8.1 makes it anyway, and every later deploy is judged
+  by the version.
 - **The site's visit count builds GoAccess 1.12 on Alpine 3.24, because
   upstream's image is on Alpine 3.20, past its end of life** (workplan 0152,
   #1675, #1703): no upstream release has moved off 3.20, and Alpine's own package is

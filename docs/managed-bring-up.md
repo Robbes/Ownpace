@@ -3107,7 +3107,14 @@ refuses a `COMPOSE_FILE` in the shell.
 
 The entrypoint's other children do not call out: pnpm 10.33.2 checks for its
 own update only on `install` and `add`, goose v3.27.1 has no network use of its
-own, and the dashboard agent's migration is plain drizzle-orm. At v4.7.6 it also
+own, and the dashboard agent's migration is plain drizzle-orm. Nor does
+corepack, which starts every `pnpm`: `trigger-api` and `trigger-supervisor` set
+`COREPACK_ENABLE_NETWORK: "0"` (workplan 0146 T16), because their builds delete
+the copy of pnpm the other user would run, and tar from the copy theirs runs
+(*Upgrading Trigger.dev*, below).
+Without a copy for the user that runs, corepack would download pnpm from the
+npm registry at every start, unannounced; with it, the start fails and says
+"Network access disabled by the environment". At v4.7.6 it also
 preloads `distrust-cas.cjs`, which drops the compromised eMudhra roots from
 Node's own list and calls nothing; the webapp's two new server-side events go
 through the PostHog client `TRIGGER_TELEMETRY_DISABLED` leaves unmade; and its
@@ -4525,7 +4532,7 @@ journal of whatever ran it), 2 refused.
 | Supervisor loops on `Snapshot changed inside startRunAttempt`, runs pile up `EXECUTING`, runner containers accumulate | Almost certainly **not** about snapshots. Check `docker compose logs trigger-api` for `Unsupported state or unable to authenticate data` at `PrismaSecretStore.getSecrets` — that is `TRIGGER_ENCRYPTION_KEY` no longer matching the stored secrets | See "Rotating `TRIGGER_ENCRYPTION_KEY`" above. `set-task-env.sh` alone does not fix it |
 | `set-task-env.sh` fails with a bare `Connection error`, and works when re-run | It was run straight after `trigger-api` was recreated, before the webapp was accepting requests | Nothing — it now waits for the webapp before uploading, and says so |
 | A secret in `.env` is a `change-me-…` value and was never generated | `ensure-env-secrets.sh` used to treat any non-empty value as set, so an `.env` copied from an older template kept its shipped placeholders for ever | Re-run `./deploy/compose/ensure-env-secrets.sh` — it now replaces placeholders and prints what to recreate afterwards |
-| `--from trigger` refuses with "Trigger.dev version drift" | `TRIGGER_IMAGE_TAG` and `@trigger.dev/sdk` disagree (0018 T0). Unset, the tag falls back to `managed.yml`'s default, which is easy to miss | Set `TRIGGER_IMAGE_TAG` to `v<sdk version>`, or pin the SDK back. The refusal prints both commands |
+| `--from trigger` refuses with "Trigger.dev version drift" | `TRIGGER_IMAGE_TAG` and `@trigger.dev/sdk` disagree (0018 T0). Unset, the tag falls back to `managed.yml`'s default, which is easy to miss | Set `TRIGGER_IMAGE_TAG` to `v<sdk version>`, the checkout's version; or run the checkout that pins the tag's version: a move forward with `./deploy/compose/trigger-version.sh pin` and the pull request *Upgrading Trigger.dev* describes, an older version the release that pinned it, never a `pin` backwards. Never the SDK alone: both images are built from the checkout's Dockerfiles (0146 T16) and refuse another version. The refusal prints both ways |
 | The deploy asks "Would you like to apply those updates?" mid-script | `apps/worker/package.json` pins one SDK version and `node_modules` holds another, so the CLI offers to reconcile them — and waits. In CI there is no terminal to answer from | `pnpm install --frozen-lockfile`, then re-run. `deploy-tasks.sh` now refuses up front rather than letting the deploy become interactive |
 | The CLI sits at its version banner for tens of minutes | `npx`'s "Ok to proceed?" install prompt, invisible because output is discarded | Every script here uses `npx -y`; if you are running it by hand, do too |
 | **`<project>-nextcloud` is `Up` but `(unhealthy)`**, `curl` says `Empty reply from server` in under a second, and `nextcloud.log` has written nothing for hours | PHP is SEGFAULTING on every web request. `docker compose -f deploy/compose/managed.yml logs nextcloud` shows `AH00051: child pid … exit signal Segmentation fault (11)` on a metronomic 15-second beat — the healthcheck interval — because the only request arriving is `/status.php` and every one of them kills its worker. Apache writes the access line *after* a response completes, so a crashed child logs nothing at all, which is why `nextcloud.log` looks idle rather than broken. The cause, isolated on the Spark 2026-09-13: **PHP's tracing JIT**, which the image's own `opcache-recommended.ini` enables (`opcache.jit=1255`, `jit_buffer_size=8M`). A bulk delete drove a shared bootstrap path hot, it compiled to something that faults, and every request through it afterwards died. It survives `docker restart` because the same trace recompiles | Fixed in the repo: `deploy/compose/nextcloud-php.ini` is mounted as `zz-ownpace-no-jit.ini` and turns the JIT off while leaving opcache on. Pull and force-recreate the service. **To confirm this is what you are looking at**, use the one asymmetry that identifies it: `docker compose -f deploy/compose/managed.yml exec nextcloud php /var/www/html/status.php` returns clean JSON on the CLI (where `opcache.enable_cli=Off`) while the identical file segfaults under Apache. Do NOT reach for the database, the data directory or `integrity:check-core` first — all three were ruled out before the JIT was found |
@@ -5070,6 +5077,26 @@ Before the first run, set `TRIGGER_IMAGE_TAG=v4.8.1` in live's persisted
 the first run's bring-up stops on the version drift instead, before the
 checks that print the lines above.
 
+The first run's verdict block says one-way and that the copy holds the task
+runner's database (`copy-before-update.sh take --trigger`), as for any move of
+the Trigger.dev version, but its reason reads *cannot be compared with it on
+the Trigger.dev pin: managed.yml at one of the two has no image line naming
+it*: alpha.2's script compares image lines, and from alpha.3 on `trigger-api`
+and `trigger-supervisor` run images built on this machine (workplan 0146 T16,
+*Both Trigger.dev images are built here*, below). Its bring-up, the tag's own,
+prints that they are local builds of upstream's v4.8.1; it builds each only if
+the shared daemon does not hold its name yet (the OTA's E2E and nightly build
+them first), in a minute or two from ghcr.io. A failed build of
+`trigger-api`'s image stops the run before `trigger-api` is recreated; the
+supervisor's image is built after `trigger-api` runs on its build, so a failure
+there leaves `trigger-api` on v4.8.1 next to ghcr's v4.7.6 supervisor, with the
+hold on and the copy (triggerdb included) kept: fix the cause and run again.
+Never `up --build` or `build` them by hand on either stack: the other stack's
+next `up` would recreate its Trigger.dev containers outside any hold. The
+second run says *moves the Trigger.dev pin in managed.yml: v4.7.6 -> v4.8.1*,
+keeps the first run's copy and builds neither Trigger.dev image (both names are
+there from the first run).
+
 Start the first run with plain progress, from `~/ownpace-live`:
 `COMPOSE_PROGRESS=plain ./deploy/compose/deploy-live.sh v0.2.0-alpha.3`.
 alpha.2's script does not ask compose for it, and a compose step can then
@@ -5096,7 +5123,21 @@ is taken*), runs the bring-up again over a stack already at the tag, and says
 `NODE_ENV in the api container: production` and `the deploy took:
 v0.2.0-alpha.3 (<commit>) runs, and answered every check.`, then what it says
 after every deploy that took, and exits 0, with a `took` line in
-`deploys.log`. The task environment lines are the first run's: `set-task-env.sh`
+`deploys.log`. Then, before step 5 starts a pass, keep the copy:
+
+```bash
+./deploy/compose/env-upsert.sh deploy/compose/.env COPY_DELETE_WHEN_PROVEN=false
+```
+
+Without it the box checks delete the copy once a pass proves the update and
+the hold has been lifted for an hour (*The copy goes by itself once the update
+is proven*, above), and it is
+live's only quick way back from the builds
+(*Rolling back*, under *Both Trigger.dev images are built here*, below). Delete it by
+hand with `./deploy/compose/copy-before-update.sh delete` once the task runner
+has run real work for a few days, then set the key back (`true`, or remove the
+line) before the next deploy: a proven copy that is kept makes the next take
+refuse. The task environment lines are the first run's: `set-task-env.sh`
 says `[set-task-env] deleted OWNPACE_STAGE: …` only when it deletes the stage,
 and the second run finds it gone and says nothing (`ending-the-alpha.md`
 step 6 reads the first run's). Then step 5 as usual. With any other line under
@@ -5539,12 +5580,82 @@ new instance's own.
 
 **Upgrading Trigger.dev** is one number in every place that names it, and they
 must agree: the two `${TRIGGER_IMAGE_TAG:-…}` defaults in `managed.yml`,
-`TRIGGER_IMAGE_TAG` in `managed.env.example`, and every `@trigger.dev/*`
+`TRIGGER_IMAGE_TAG` in `managed.env.example`, the FROM of the two Dockerfiles
+the images are built from (below), and every `@trigger.dev/*`
 dependency in the root, `apps/worker` and `packages/scheduler` manifests
-(`.env`'s `TRIGGER_IMAGE_TAG`, when set, overrides the compose default on that
-machine). `--from trigger` refuses at bring-up when they disagree, and
+(`.env`'s `TRIGGER_IMAGE_TAG`, when set, names the version on that machine,
+and must be the checkout's: the builds refuse another). `--from trigger`
+refuses at bring-up when they disagree, and
 `bootstrap-managed.unit.test.ts` refuses in CI — added after dependabot moved
 the SDK alone, passed all seventeen checks and broke the managed gate.
+
+**Both Trigger.dev images are built here, from upstream's** (workplan 0146
+T16; the owner's decision of 2026-10-26, "Both": an issue upstream, and this
+build until upstream ships the fixes). `deploy/compose/trigger.dev/Dockerfile`
+and `deploy/compose/supervisor/Dockerfile` build on
+`ghcr.io/triggerdotdev/trigger.dev` and `…/supervisor` by tag and index digest,
+and delete only files no process of this stack runs: depot's and esbuild's Go
+binaries (each under both of its names) and node's copy of pnpm in the webapp,
+root's copy of pnpm in the supervisor, and, the owner's decision of
+2026-10-27, tar from the copy each service does run (only pnpm's bundled
+node-gyp requires it, to build a native add-on, and these containers install
+nothing). The image scan's critical findings go from 8 to 2 and from 2 to 0.
+The one risk accepted: a `pnpm install` inside `trigger-api` or
+`trigger-supervisor` that builds a native add-on would fail. Each Dockerfile's
+header says why each file is safe to delete, and why the webapp keeps root's
+copy of pnpm and the supervisor node's: `trigger-api` runs `user: root`,
+`trigger-supervisor` as the image's node. `managed.yml` names them
+`localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v…}-<hash>` and
+`localhost/supervisor:…`: the version as before, then the hash of the
+Dockerfile's instructions. The checkout's FROM chooses the version; `.env`'s
+`TRIGGER_IMAGE_TAG` names it, and must name the same one: the drift check below
+holds it to the SDK, and the build refuses a `.env` that names another version
+than its FROM. To run another version, run the checkout that pins it (a
+release tag, or a move to it with `trigger-version.sh pin`). `up` builds each
+name where the machine does not have it, pulling upstream's image from ghcr as
+it pulled it before, and never again while the name is there: never `up
+--build`, never `build trigger-api`.
+
+- **`trigger-version.sh pin` moves them.** It asks ghcr for both tags' index
+  digests, checks every line it will move is there (or moves nothing), writes
+  the digests into the two FROMs, and writes the new hash into both names,
+  with everything else it moves. It leaves each Dockerfile's `read_at`, the
+  release its reasons were read in.
+- **A move's pull request re-proves every removal, before any window.** Both
+  builds refuse a release other than their `read_at`: read each Dockerfile's
+  header again at the new release (the depot gate, what `build/server.js`
+  imports, the entrypoint, the copies of pnpm), move `read_at` (and
+  `entrypoint_sha256` when the entrypoint changed), drop a removal the release
+  fixed, and move the names with the `sed` the guard prints. Then
+  `build (trigger, amd64)` and `build (trigger, arm64)` (`images.yml`) build
+  both at the new tag: each removal names a version-locked path and fails by
+  name when it is not there, and the base's user, command and entrypoint must
+  be the ones read. Wait for both to be green before the drain, the backup and
+  any `.env` change.
+- **Rolling back** is running the checkout that pinned the old version: a
+  revert of the move's commit, or on live the release tag before it
+  (`docs/operator-runbook.md`, *Rolling back from it*), whose Dockerfiles and
+  names come with it and whose images are still on the machine. Never
+  `trigger-version.sh pin` backwards: that keeps the current removals and
+  `read_at`, builds a name nobody proved, and fails once a removal was
+  dropped. To a release before the builds at the same version it is
+  reversible (`deploy-live.sh` compares the Trigger.dev version, not the image
+  line); the pulled image that release ran is still on the machine unless it
+  was pruned, and `up` pulls it again if it was. Live has no such release: it
+  went from alpha.2 (ghcr's v4.7.6) to alpha.3 (the builds at v4.8.1), so its
+  way back from the builds is the copy before that update, to all of alpha.2,
+  triggerdb included, which is why that deploy keeps the copy (*The deploy
+  from alpha.2 to alpha.3 runs twice*). When a build misbehaves at
+  runtime at a version that has no release before it to go back to, the way
+  out is the *Dropping them* edit below for that service (ghcr's image line
+  back, no `build:` or `pull_policy:`), as its own pull request with E2E
+  (managed) and a tag.
+- **Dropping them**, once upstream ships the fixes: delete each removal as a
+  `pin` to a release that fixed it fails it, with its row in
+  `scripts/a-binary-the-stack-never-runs.unit.test.ts`. When none is left, put
+  `image: ghcr.io/triggerdotdev/<image>:${TRIGGER_IMAGE_TAG:-v…}` back without
+  `build:` and `pull_policy:`, and delete both directories and that guard.
+  Keep `COREPACK_ENABLE_NETWORK`.
 
 **A `.env` that sets `TRIGGER_IMAGE_TAG` moves by hand, on each stack.** Live's
 was copied from `managed.env.example`, so it names the pin of the day it was
@@ -5597,8 +5708,8 @@ never reads as "nothing newer", nor as an older newest.
 
 > **Back the database up first, because the upgrade is one way.** The webapp
 > applies its own schema migrations on boot and Prisma has no down-migrations,
-> so putting the old tag back restores the IMAGES and not the schema they
-> migrated. `triggerdb` holds the account, the project, its API keys, the
+> so going back to the older version (its checkout, *Rolling back*, above)
+> restores the IMAGES and not the schema they migrated. `triggerdb` holds the account, the project, its API keys, the
 > worker group and the deployed-task records — the things whose loss needs a
 > person, a browser and a magic link to repair. The managed gate runs
 > `trigger-version.sh drill` on every pass, which dumps that database,
@@ -5614,18 +5725,25 @@ never reads as "nothing newer", nor as an older newest.
 >
 > The order that avoids it:
 >
+> 0. Before any window: `trigger-version.sh pin <version>` and `pnpm install`,
+>    the two Dockerfiles read again and their `read_at` moved (above), and the
+>    pull request open with `build (trigger, amd64)` and `build (trigger,
+>    arm64)` green.
 > 1. Stop the schedule producing work, or accept a backlog you will cancel.
 > 2. Wait for `TaskRun` to have nothing in `EXECUTING`.
-> 3. Change the tag AND the SDK together, `pnpm install`.
+> 3. Back up `triggerdb`, set `.env`'s `TRIGGER_IMAGE_TAG` (where it is set)
+>    to the new version, and run the pull request's checkout: on the OTA
+>    stack, E2E (managed) on its branch does this.
 > 4. `--from trigger`, then **redeploy the tasks** — an image built by one CLI
 >    version and run by another platform version is the same drift by a
 >    different route.
 > 5. Watch the first few runs reach `COMPLETED_SUCCESSFULLY` before walking
 >    away.
 >
-> Rolling back is the same procedure in reverse, and is the right first move
-> when an upgrade goes wrong: the older version has run history behind it and
-> the newer one does not.
+> Rolling back is the same procedure in reverse with the checkout that
+> pinned the older version (*Rolling back*, above), never a `pin` backwards,
+> and is the right first move when an upgrade goes wrong: the older version
+> has run history behind it and the newer one does not.
 
 > ⚠️ **The four places are not the only thing an upgrade depends on.** The
 > v4.5.12 attempt did all of the above — verified backup, drained queue, all

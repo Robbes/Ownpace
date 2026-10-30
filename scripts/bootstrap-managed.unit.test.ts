@@ -926,6 +926,31 @@ describe('the Trigger.dev images and the SDK that builds the tasks agree', () =>
     expect(out).toBe(composeDefaults[0]);
   });
 
+  it('a drift names the two remedies that build: the .env at the checkout\'s version, or a checkout that pins the other (0146 T16)', () => {
+    // Pinning the SDK back alone passed this check, and the build of the webapp
+    // then refused: its Dockerfile's FROM is the checkout's version.
+    const script = readFileSync(join(REPO_ROOT, 'deploy/compose/bootstrap-managed.sh'), 'utf8');
+    const check = /^ {2}if \[ "\$\{tag_version#v\}" != "\$sdk_version" \]; then\n[\s\S]*?\n {2}fi$/m.exec(script)?.[0];
+    expect(check, 'phase_trigger no longer compares tag_version this way').toBeTruthy();
+    const r = spawnSync('bash', ['-c', `set -euo pipefail\nENV_FILE=/x/.env\nsdk_version=4.8.1\ntag_version=v4.9.0\n${check}`], { encoding: 'utf8' });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('Trigger.dev version drift (0018 T0)');
+    expect(r.stderr).toContain('env-upsert.sh /x/.env TRIGGER_IMAGE_TAG=v4.8.1');
+    expect(r.stderr).toContain('./deploy/compose/trigger-version.sh pin v4.9.0');
+    expect(r.stderr).not.toMatch(/pin @trigger\.dev\/sdk back/);
+    // An .env OLDER than the checkout (live at v4.7.6 against v4.8.1) is the
+    // checkout that pinned it, never a pin backwards: that keeps this
+    // version's removals and read_at, and its build refuses.
+    const back = spawnSync('bash', ['-c', `set -euo pipefail\nENV_FILE=/x/.env\nsdk_version=4.8.1\ntag_version=v4.7.6\n${check}`], { encoding: 'utf8' });
+    expect(back.status).toBe(1);
+    expect(back.stderr).toContain('env-upsert.sh /x/.env TRIGGER_IMAGE_TAG=v4.8.1');
+    expect(back.stderr).toContain('run the checkout that pinned v4.7.6');
+    expect(back.stderr).not.toContain('trigger-version.sh pin v4.7.6');
+    // A patch number of two digits is newer, not older (sort -V, not a string compare).
+    const ten = spawnSync('bash', ['-c', `set -euo pipefail\nENV_FILE=/x/.env\nsdk_version=4.8.9\ntag_version=v4.8.10\n${check}`], { encoding: 'utf8' });
+    expect(ten.stderr).toContain('./deploy/compose/trigger-version.sh pin v4.8.10');
+  });
+
   it('a managed.yml with no default to fall back to is named, not a silent exit', () => {
     // Reading the default is a grep, and under `set -e` a grep that finds
     // nothing ends the bring-up with no message at all. The script's own `die`
