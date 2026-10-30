@@ -846,8 +846,18 @@ the same way for `dump-idp.sh` (its header). Steps 4 and 6 are rehearsed in
 `scripts/one-copy-before-each-update.unit.test.ts` on two PGlite databases with both chains
 applied, the copy's and the one after it: an organisation closed, one reopened, one erased, a
 connection, a migration with its sharing list, a person and a membership deleted, and a grant
-withdrawn after the copy, each done again in a fresh copy of the first. The whole sequence has
-not been run on a stack.
+withdrawn after the copy, each done again in a fresh copy of the first. The whole sequence was
+run once on live, on 2026-10-27/28, before any tester: from `v0.2.0-alpha.2` back to
+`v0.2.0-alpha.1`, from the copy `deploy-live.sh` took before alpha.2: steps 1 to 10, and step 11
+as far as lifting the hold. It worked. Step 11's proof could not follow, since live had no
+migration and so no pass ran, and the copy was kept; alpha.2 was deployed again over it
+(workplan 0132, Status, 2026-10-29).
+
+**Live cannot go back to `v0.2.0-alpha.1` this way any more** (2026-10-28). Alpha.1's MinIO
+mounts the Bitnami-era `ownpace-live_minio_data`, and the owner removed that volume after
+alpha.2's deploy (workplan 0146 T7). Steps 5 to 8 restore databases only, so Trigger.dev's
+packet store would not come back as alpha.1 left it. From alpha.2 on, MinIO is on
+`minio_data_v2`, so a rollback to alpha.2 or later is not affected.
 
 ## If the machine is lost during the alpha
 

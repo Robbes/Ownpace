@@ -152,6 +152,24 @@ export function redirectUri(): string {
 }
 
 /**
+ * Asking the issuer to open registration rather than sign-in (0095 T6).
+ *
+ * All three are standard and none names a provider, so the issuer stays
+ * replaceable (ADR-0042): `prompt=create` (Initiating User Registration via
+ * OpenID Connect 1.0), `login_hint` (OIDC Core §3.1.2.1) and `ui_locales`
+ * (the same section). An issuer that ignores one gives today's page: its own
+ * sign-in, an empty address field, or the browser's language.
+ */
+export interface SignInOptions {
+  /** Open the issuer's registration form (`prompt=create`). */
+  readonly create?: boolean;
+  /** The address to fill in (`login_hint`). Blank is not sent. */
+  readonly loginHint?: string;
+  /** The language to show it in (`ui_locales`). */
+  readonly uiLocales?: string;
+}
+
+/**
  * Begin sign-in: mint a verifier, remember it, and leave for the issuer.
  *
  * The verifier and state live in `sessionStorage`, not `localStorage`, and that
@@ -161,8 +179,14 @@ export function redirectUri(): string {
  * `config` defaults to the build's, which is what every caller uses; it is an
  * argument at all so this flow can be exercised against a configuration without
  * a build (see `configFrom`).
+ *
+ * `options` only ever ADD parameters, and only the grant link's "Create your
+ * account" passes any: plain "Sign in" sends exactly the seven it always sent.
  */
-export async function beginSignIn(config: OidcConfig | null = oidcConfig()): Promise<void> {
+export async function beginSignIn(
+  config: OidcConfig | null = oidcConfig(),
+  options: SignInOptions = {},
+): Promise<void> {
   if (!config) throw new Error('Sign-in is not configured (VITE_OIDC_ISSUER / VITE_OIDC_CLIENT_ID).');
 
   const { authorization_endpoint } = await discover(config.issuer);
@@ -180,6 +204,10 @@ export async function beginSignIn(config: OidcConfig | null = oidcConfig()): Pro
     code_challenge: await challengeFor(verifier),
     code_challenge_method: 'S256',
   });
+  if (options.create) params.set('prompt', 'create');
+  const hint = options.loginHint?.trim();
+  if (hint) params.set('login_hint', hint);
+  if (options.uiLocales) params.set('ui_locales', options.uiLocales);
   browser.location.assign(`${authorization_endpoint}?${params.toString()}`);
 }
 

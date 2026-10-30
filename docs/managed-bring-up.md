@@ -383,7 +383,13 @@ takes the machine's own public address from the optional secret
 `EXPOSURE_PROBE_HOST`. It also asks `app.`, `id.`, `status.` and
 `www.ownpace.eu` for the page a visitor asks first, and fails while NetBird's
 sign-in answers one of them instead of the service (workplan 0139, item 8;
-*After the script: the owner's steps*, step 5).
+*After the script: the owner's steps*, step 5). A port the front answers by
+itself, which never reaches the machine, goes in the optional repository
+variable `EXPOSURE_PROBE_FRONT_PORTS`, and only after a capture on the machine
+during a probe run has shown that nothing arrives (workplan 0132 T3 (c), the
+owner, 2026-10-29). On a production name's address such a port answering is
+then a note, unless it answers as PostgreSQL, which fails; on the machine's own
+address, and on an address only the OTA names resolve to, it fails as before.
 
 **The OTA site is recreated by hand, and only by hand.** No workflow runs
 `www.yml`, and the bring-up does not start the site (*The public site*, below).
@@ -3499,7 +3505,7 @@ mailbox.
 
 | Mail | Sent by, and when | Carries a code | What you do |
 |---|---|---|---|
-| *Ownpace — your access is ready* (`access_granted`; Dutch *uw toegang staat klaar*) | The API, when you grant their request, in the language they asked in | No. It says it is safe to forward. | Forward it to the address it was sent to. Or write them the same three facts yourself (the app's address, the address to register with, and that they must confirm the confirmation mail), and on live copy the Alpha paragraph from the caught mail word for word, in the language it was sent in, with its two lines after it: the Alpha conditions' address and the tester guide's. |
+| *Ownpace — your access is ready* (`access_granted`; Dutch *uw toegang staat klaar*) | The API, when you grant their request, in the language they asked in | No. It says it is safe to forward. Its link ends in `#register=` and the address it was sent to, so the sign-in page offers *Create your account* with that address filled in (workplan 0095 T6, from alpha.3); the address is the one the mail prints, not a code. | Forward it to the address it was sent to. Or write them the same three facts yourself (the app's address, the address to register with, and that they must confirm the confirmation mail), and on live copy the Alpha paragraph from the caught mail word for word, in the language it was sent in, with its two lines after it: the Alpha conditions' address and the tester guide's. |
 | *Ownpace — about your request* (`access_declined`; Dutch *over uw aanvraag*) | The API, when you decline with *Email them if you decline* ticked, which is the default | No | Forward it, or untick the box and write them yourself. |
 | *Ownpace — you are invited to join an organisation* (`member_invited`; Dutch *u bent uitgenodigd voor een organisatie*) | The API, when an owner or admin invites them on the Team page, or presses *Send again* on that row, in the organisation's summary language (workplan 0156 T3). During the Alpha it carries the same Alpha paragraph, with the conditions' and the guide's addresses in that language, before the privacy line (0131 T1 (b)). At most 20 a day per organisation, and one invitation at most once in ten minutes | No. It says it is safe to forward. | Forward it to the address it was sent to. |
 | Verify your address | The identity provider, when they register, and at a first sign-in with Microsoft (above) | **Yes** | Pass the code on within the hour, by the rule below. |
@@ -4124,6 +4130,24 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    the account, your laptop on the mesh or the machine, NetBird may let a
    request through its SSO without a sign-in page, so a browser there proves
    nothing, and the probe runs on a GitHub-hosted runner.
+   If a port answers on the production names' addresses that nothing of yours
+   publishes, find out first whether the front sends it anywhere. In NetBird's
+   dashboard, look for a TCP, TLS or UDP service whose public port is that
+   port: such a service relays to any host and port, so it is an exposure
+   whatever the capture says. Then, on the machine, capture every new
+   connection that arrives over the mesh, to ANY port, while you dispatch the
+   probe. The front reaches the machine only over the mesh (NetBird's
+   interface is `wt0` by default), and the probe's tries on the machine's own
+   address are judged by the probe itself:
+   `sudo timeout 900 tcpdump -lni wt0 -q 'tcp[tcpflags] & (tcp-syn|tcp-ack) == tcp-syn and not dst port <WEB_PORT> and not dst port <ZITADEL_PORT> and not dst port <STATUS_PORT> and not dst port <WWW_PORT>'`.
+   A connection from the front at the probe's time, whatever the port, means
+   the front forwards something, so close it; your own mesh devices' show up
+   too, from their own addresses. Nothing from the front: the front holds the
+   port itself, and
+   `gh variable set EXPOSURE_PROBE_FRONT_PORTS --body '<port>'` makes it a
+   note, with PostgreSQL's handshake as its tripwire. That tripwire knows
+   only PostgreSQL: anything else that answers on a listed port is a note,
+   which is why the capture comes first.
 6. **Live's logs name the visitor** (workplan 0132 T3 (d); privacy §4.5).
    From outside the NetBird network, send one request to the app and one to
    the site, each with a forged header, `192.0.2.1` being a documentation

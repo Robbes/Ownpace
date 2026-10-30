@@ -392,7 +392,9 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   v0.2.0-alpha.1 is tagged and the owner has read it, then alpha.2, with its own freeze (0141 T14
   says what a freeze is), two nights and a deploy (the owner, 2026-10-05: *"Two tags"*). Until
   that release is on live, live asks nobody, so the first invitation waits for it. The API's
-  start log says which.
+  start log says which. **Done 2026-10-28:** live runs alpha.2, which carries the final texts.
+  On 2026-10-29 its acceptance screen asked for 1.0, and the six texts on `www.ownpace.eu` read
+  1.0, dated 2026-10-19 (0139 Status, 2026-10-29).
 - *The language on the record* (privacy §4.4; review of 2026-09-29): the record keeps the
   language each text was accepted in, and the draft of §4.4 now says so in both languages
   (*"in which language"* / *"in welke taal"*), as does the screen. **Kept** in the final text
@@ -446,8 +448,14 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   less an hour; `dump-idp.sh` and `trigger-version.sh` write only there on live. A rollback by
   day 6 starts with `copy-before-update.sh since`, which does again after the restore what was
   erased, closed or deleted after the copy (the operator runbook, *The copy before an update*).
-  **Still to do:** live runs a tag that carries it, with the daily duties' timer installed
-  (`take` refuses without it); the rollback run once on the test stack.
+  **Done 2026-10-28:** live runs alpha.2, which carries it. Its deploy took the copy on
+  2026-10-27 at 20:56 UTC, which `take` does only while the daily duties' timer runs. The
+  rollback was run once on live itself, before any tester, from alpha.2 back to alpha.1 (the
+  operator runbook's steps 1 to 10, and step 11 as far as lifting the hold). No migration has
+  run on live, so alpha.2's update is not proven, and unless a pass proves it first that copy
+  goes after day 6 (0132 Status, 2026-10-29). *(Was: still to do: live
+  runs a tag that carries it, with the daily duties' timer installed; the rollback run once on
+  the test stack.)*
 - *No daily copies of the task runner's database on live* (privacy §9; rec-drill (a)): built on
   the same branch. The drill is off live's duties in `box-duties.sh` (its duty is the copy's
   backstop, `copies`) and stays on the test stack; `trigger-version.sh` refuses `drill` on live,

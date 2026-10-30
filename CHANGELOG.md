@@ -71,14 +71,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
-- **pnpm is 11.28.8** (workplan 0119, issue #1694, #1701): the lockfile is
-  unchanged, and the installs, the images' filtered installs and the advisory
-  gate give what 11.28.6 gave. When pnpm next re-resolves the tree it also
-  records an optional peer that a package's own dependency supplies, and
-  reuses a version the same install already resolved, so the next dependency
-  update may move a few lockfile lines it did not ask for. 11.28.8 differs
-  from 11.28.7 only in the Node.js inside the standalone `@pnpm/exe`, which CI
-  and the images do not run.
+- **pnpm is 11.28.9** (workplan 0119, issues #1694 and #1735, #1701): the
+  lockfile is unchanged, and the installs, the images' filtered installs and
+  the advisory gate give what 11.28.6 gave. When pnpm next re-resolves the
+  tree it also records an optional peer that a package's own dependency
+  supplies, and reuses a version the same install already resolved, so the
+  next dependency update may move a few lockfile lines it did not ask for.
+  11.28.8 differs from 11.28.7 only in the Node.js inside the standalone
+  `@pnpm/exe`, which CI and the images do not run. 11.28.9 takes undici
+  7.30.1 against a registry response that could crash it
+  (GHSA-xjj6-f33q-929c), and sizes its install workers by a container's CPU
+  quota.
 - **The images are signed with cosign v3.1.4, and the release checks them
   with the same** (#1671, #1702): `images.yml` and `release.yml`'s verify job name
   the release, where cosign-installer's default installed v3.0.6, and the pin
@@ -228,6 +231,30 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   maintenance mode or still owes an upgrade, which the healthcheck cannot
   tell. Live runs no Nextcloud. A developer's `dev.yml` Nextcloud upgrades its
   volume on the next `up`.
+- **The outside probe knows a port the front answers by itself** (workplan
+  0132 T3 (c), #1730; the owner, 2026-10-29). TCP 5432 answered on both of live's
+  front addresses, and a capture on the machine during a probe run showed
+  nothing arriving there. The optional repository variable
+  `EXPOSURE_PROBE_FRONT_PORTS` lists such ports: on a production name's
+  address a listed port answering is a note, once PostgreSQL's SSLRequest
+  sent to it gets no PostgreSQL answer; an `S` or `N` back, or a tripwire that
+  cannot ask, fails. The machine's own address, and an address only the OTA
+  names resolve to, fail on every answer as before; a listed port is tried
+  everywhere, and one that stops answering is said, so the list can shrink.
+- **The grant mail's link opens registration with the address filled in**
+  (workplan 0095 T6; the owner, 2026-10-29). The link ends in `#register=` and
+  the address the mail was sent to. Opened from it, the sign-in page offers
+  *Create your account* / *Maak uw account aan*, which asks the sign-in
+  service for registration (`prompt=create`) with that address (`login_hint`)
+  in the page's language (`ui_locales`), and *Sign in* as the second choice.
+  The address travels after `#`, which no request carries: it leaves the
+  browser only when the button is pressed, to the sign-in service, which logs
+  an address that matches no account yet at info (accepted; the comment beside
+  privacy §4.5). That service still verifies it with a code before it binds
+  anybody. Live's sign-in service fills the field in; where Google is
+  offered too (OTA, E2E), it first asks how to register, and the field stays
+  empty. Invitations are unchanged. `smoke-managed.sh` reads the registration
+  page the link leads to.
 
 ### Added
 

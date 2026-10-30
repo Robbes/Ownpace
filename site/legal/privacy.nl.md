@@ -269,6 +269,17 @@ zelf in het log van het proces dat de fout tegenkwam, naast een referentie, zoda
 kunnen helpen; die tekst kan een map, een bestand of een adres noemen. En een aanvraag voor
 toegang wordt gelogd met het e-mailadres dat erin staat, net als ons besluit erover.
 
+<!-- ONE MORE SUCH LINE, ONCE alpha.3 RUNS (workplan 0095 T6; the owner, 2026-10-29, accepted it
+     with the grant link that fills in the address). The grant mail's link carries the granted
+     address after '#', which no request carries; "Create your account" on the sign-in page then
+     sends it to the sign-in service as the standard login_hint. The sign-in service (Zitadel,
+     login v1) logs "login hint invalid" at info level with that address for every hint that
+     matches no account yet, which is everybody the button is for, in its own container log on
+     our machine, kept as §9's Server logs row says. Same person, same purpose and same
+     machine as the grant line above, and "not free of names" covers it, so 1.0 stays true. At
+     the next version, the sentence above gains: "and the sign-in service logs the address you
+     register with when you arrive from the mail that grants you access" / NL to match. -->
+
 <!-- NOT YET TRUE ON live: nothing counts yet. The owner, 2026-10-05, verbatim: "go with GoAccess
      on the logs and the sentence. id and status we skip for now, no netbird api tokens..." It
      answers the recommendation to count visits to www.ownpace.eu with GoAccess, from the access
@@ -618,7 +629,10 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
        (copy-before-update.sh since) and does it again in the restored database, so "Gegevens
        die uit de dienst zijn gewist, kunnen nog hoogstens 7 dagen in die kopie staan" holds
        through a rollback too. True on live once live runs a tag that carries it and the daily duties' timer runs
-       (take refuses without it); the rollback has not been run on a stack.
+       (take refuses without it). *2026-10-29:* live runs alpha.2 since 2026-10-28; its deploy
+       took the copy on 2026-10-27 at 20:56 UTC with the timer running, and the rollback was
+       run once on live itself, before any tester (0132 Status, 2026-10-29). (Was: the
+       rollback has not been run on a stack.)
      - Vastleggingen van de achtergrondtaken: the drill sentence is gone (rec-drill (a)), and
        the drill is off live's duties (0139 T6): box-duties.sh's second duty is the copy's
        backstop, and trigger-version.sh refuses drill on live. True on live once live runs a

@@ -2,7 +2,29 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-10-28 (update this block at the end of every session)
+## Status — 2026-10-29 (update this block at the end of every session)
+
+**2026-10-29: pnpm 11.28.9, the one `packageManager` line (issue #1735).** npm dates it
+2026-10-27 00:32 UTC, so it passes the three-day floor at 2026-10-30 00:33 UTC, and its pull
+request merges after that. Under it `pnpm install` leaves `pnpm-lock.yaml` byte-identical, and
+`pnpm audit` reads no advisory. Read for it: the 11.28.9 entry of the package's own
+`CHANGELOG.md`. It takes undici 7.30.1 for GHSA-xjj6-f33q-929c (a registry response with too
+many content encodings crashed pnpm), and sizes the install workers by a container's CPU quota.
+It also re-acts on changed store and linker settings, and `pnpm audit --ignore` now exits
+non-zero when advisories remain. The advisory gate runs `pnpm audit --audit-level=moderate
+--json` without `--ignore`, the images install into fresh stages, and nothing here uses
+registry prefixes, so none of it changes what this repository does. CI only; no E2E.
+
+**2026-10-28, about 22:30 UTC: the owner removed the OTA demo's way back to Nextcloud 34, and
+both stacks' Bitnami-era MinIO volumes.** Earlier than planned: *A Nextcloud major on the OTA
+stack* (the bring-up guide) removes the copy of the demo's volume and the dump of its database
+once the move has held for a night or two, and the owner removed them the same evening. E2E
+(managed) run 40774398411 had already brought the OTA demo up healthy on 35.0.2 (T5, #1720), so
+the copies of 34 were no longer needed. The old MinIO volumes, `ownpace-managed_minio_data` and
+`ownpace-live_minio_data`, went the same evening with the old images (0146 T7). So item 5's
+restore plan, the old image on the old volume, no longer exists on either stack. On live that
+also ends the way back to alpha.1 (0132 Status, 2026-10-29; the operator runbook, *Rolling back
+from it, by day 6*).
 
 **2026-10-27, later: tar out of the copy of pnpm each Trigger.dev service runs, and T16's
 review** (0146 T16, the same draft; 0146's later Status entry of the day has the detail). The
@@ -1060,7 +1082,7 @@ which for a current SHA is never. T2 sets the three labels to the truth.
 
 Node 24 everywhere it matters: `engines` says `>=24`, CI installs `24`, the images run
 24.22.1 (24.20.0 at the audit), and the Windows payload ships the self-host image's version.
-pnpm 11.28.8 (11.22.0 at the audit), moved by hand: Dependabot never touches `packageManager`,
+pnpm 11.28.9 (11.22.0 at the audit), moved by hand: Dependabot never touches `packageManager`,
 so a bump is the newest pnpm 11 that is three days old (`latest-11` once it is), then
 `pnpm install` to show the lockfile unchanged. PostgreSQL 18 on both stacks; PGlite (npm) current. Prisma current.
 

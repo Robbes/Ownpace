@@ -1,7 +1,8 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
+import { addressFromRegistrationLink } from '@openmig/shared';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useLocale } from '../i18n/index.tsx';
 import { LOCALES, type Locale } from '../i18n/strings.ts';
@@ -77,6 +78,11 @@ export function decodeTokenClaims(token: string): TokenClaims | null {
  * whoever arrives another way. The choice is the stored one, so the pages
  * after sign-in follow it. The title is the page's `<h1>` inside its `<main>`,
  * and the browser's tab says it too.
+ *
+ * **Opened from the grant mail, it offers registration first** (0095 T6; the
+ * owner, 2026-10-29: they had typed their address on the request form and
+ * then again at the sign-in service). The mail's link ends in `#register=`
+ * and the address it was granted to; see the block above the buttons.
  */
 const Login: React.FC = () => {
   const { t, locale, setLocale } = useLocale();
@@ -112,7 +118,8 @@ const Login: React.FC = () => {
   // reader saying it twice.
   const [oidcError, setOidcError] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
-  const [redirecting, setRedirecting] = useState(false);
+  // Which button is on its way to the issuer, so only that one says so.
+  const [redirecting, setRedirecting] = useState<'signIn' | 'create' | null>(null);
   const [verifying, setVerifying] = useState(false);
 
   // Read once at render: this is a build-time value, and a page that could
@@ -124,6 +131,25 @@ const Login: React.FC = () => {
   // only the bundle has them. What the API will ACCEPT is a different question
   // with a different answer, asked below.
   const issuer = oidcConfig();
+
+  /**
+   * THE ADDRESS THE GRANT MAIL'S LINK CARRIES, or null (0095 T6).
+   *
+   * Read from the fragment, which no request carries, so it reaches neither
+   * the API nor any server's log; and this page never sends it to the API
+   * either, so it cannot be used to learn whether an address was granted.
+   * Anything that is not an address gives null and today's page.
+   *
+   * The fragment stays in the address bar: clearing it would take the button
+   * away on a reload or a Back. It leaves the browser only when somebody
+   * presses "Create your account", as the issuer's `login_hint`.
+   *
+   * A BUTTON, NOT A REDIRECT: a mail scanner that runs scripts would otherwise
+   * start registrations, and somebody who already has an account gets the
+   * choice. Guarded by a-grant-link-that-opens-registration.unit.test.tsx.
+   */
+  const { hash } = useLocation();
+  const registerAs = React.useMemo(() => addressFromRegistrationLink(hash), [hash]);
 
   /**
    * WHAT THIS DEPLOYMENT WILL ACCEPT, ASKED RATHER THAN ASSUMED (0102 T1).
@@ -158,11 +184,34 @@ const Login: React.FC = () => {
     };
   }, []);
 
-  const startSignIn = () => {
+  // BACK FROM THE ISSUER can bring this page back from the browser's
+  // back/forward cache with its state as it was when it left: the button
+  // pressed still saying it is on its way, and both held. Neither leaves
+  // again until a reload. So a page shown again from that cache lets go of
+  // them (0095 T6's review: the issuer's "how do you want to register" page
+  // is where somebody changes their mind).
+  useEffect(() => {
+    const shownAgain = (event: PageTransitionEvent) => {
+      if (event.persisted) setRedirecting(null);
+    };
+    window.addEventListener('pageshow', shownAgain);
+    return () => window.removeEventListener('pageshow', shownAgain);
+  }, []);
+
+  /**
+   * With an address, registration at the issuer with it filled in, in this
+   * page's language; without one, plain sign-in, with exactly the parameters
+   * it always had.
+   */
+  const startSignIn = (as?: string) => {
     setOidcError(null);
-    setRedirecting(true);
-    void beginSignIn().catch((err: unknown) => {
-      setRedirecting(false);
+    setRedirecting(as === undefined ? 'signIn' : 'create');
+    const leaving =
+      as === undefined
+        ? beginSignIn()
+        : beginSignIn(undefined, { create: true, loginHint: as, uiLocales: locale });
+    void leaving.catch((err: unknown) => {
+      setRedirecting(null);
       // The service's own sentence — "could not sign in" is not actionable,
       // and the usual causes here (a wrong issuer URL, a provider that is still
       // starting) each say so plainly.
@@ -345,13 +394,41 @@ const Login: React.FC = () => {
           <>
             {issuer && (
               <div className="mt-8 space-y-3">
+                {/* THE GRANT MAIL'S LINK (0095 T6): registration first, with
+                    the address it carries, and sign-in as the second choice
+                    for somebody who already has an account. Behind the same
+                    gate as the request link below, for the same reason: only
+                    where the API has an issuer does a verified address bind
+                    anybody to anything. */}
+                {registerAs !== null && !authMode.acceptsSeedToken && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => startSignIn(registerAs)}
+                      disabled={redirecting !== null}
+                      className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-site-teal hover:bg-site-teal/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-site-teal disabled:opacity-50"
+                    >
+                      {redirecting === 'create'
+                        ? t('login.createAccount.redirecting')
+                        : t('login.createAccount')}
+                    </button>
+                    <p className="text-center text-sm text-gray-600">
+                      {t('login.createAccount.as', { email: registerAs })}
+                    </p>
+                    <p className="pt-3 text-center text-sm text-gray-600">{t('login.haveAccount')}</p>
+                  </>
+                )}
                 <button
                   type="button"
-                  onClick={startSignIn}
-                  disabled={redirecting}
-                  className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-site-teal hover:bg-site-teal/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-site-teal disabled:opacity-50"
+                  onClick={() => startSignIn()}
+                  disabled={redirecting !== null}
+                  className={
+                    registerAs !== null && !authMode.acceptsSeedToken
+                      ? 'group relative w-full flex justify-center py-2 px-4 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-site-teal disabled:opacity-50'
+                      : 'group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-site-teal hover:bg-site-teal/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-site-teal disabled:opacity-50'
+                  }
                 >
-                  {redirecting ? t('login.redirecting') : t('login.withProvider')}
+                  {redirecting === 'signIn' ? t('login.redirecting') : t('login.withProvider')}
                 </button>
                 {oidcError !== null && (
                   <p role="alert" className="text-sm text-red-600">
@@ -374,8 +451,10 @@ const Login: React.FC = () => {
                     about the address, so there is no link. And only on managed,
                     by the route table: `/login` and `/request-access` are both
                     `ManagedOnly` in AppRoutes.
-                    Guarded by a-door-from-the-sign-in-page.unit.test.tsx. */}
-                {!authMode.acceptsSeedToken && (
+                    Guarded by a-door-from-the-sign-in-page.unit.test.tsx.
+                    Not under the grant link's buttons: that person's request
+                    has been answered (0095 T6). */}
+                {!authMode.acceptsSeedToken && registerAs === null && (
                   <p className="text-center text-sm">
                     <Link
                       to={`/request-access?locale=${locale}`}

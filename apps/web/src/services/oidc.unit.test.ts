@@ -183,6 +183,51 @@ describe('beginSignIn', () => {
     });
   });
 
+  it('sends exactly the seven parameters it always sent, when asked for plain sign-in', async () => {
+    // The grant link's options (0095 T6) only ever ADD. "Sign in" must reach
+    // the issuer as it did before they existed.
+    stubFetch(DOCUMENT);
+    await beginSignIn(CONFIG);
+
+    const sent = [...new URL(assigned[0]!).searchParams.keys()].sort();
+    expect(sent).toEqual([
+      'client_id',
+      'code_challenge',
+      'code_challenge_method',
+      'redirect_uri',
+      'response_type',
+      'scope',
+      'state',
+    ]);
+  });
+
+  it('asks for registration with the address and the language, when the grant link asks (0095 T6)', async () => {
+    // Three standard parameters, none a provider's: `prompt=create`
+    // (Initiating User Registration via OpenID Connect 1.0), `login_hint` and
+    // `ui_locales` (OIDC Core §3.1.2.1). The address survives its `+`.
+    stubFetch(DOCUMENT);
+    await beginSignIn(CONFIG, { create: true, loginHint: 'Anna+x@Example.test', uiLocales: 'nl' });
+
+    const url = new URL(assigned[0]!);
+    expect(`${url.origin}${url.pathname}`).toBe(DOCUMENT.authorization_endpoint);
+    expect(url.searchParams.get('prompt')).toBe('create');
+    expect(url.searchParams.get('login_hint')).toBe('Anna+x@Example.test');
+    expect(url.searchParams.get('ui_locales')).toBe('nl');
+    // Still the same flow underneath: a public client proving the exchange.
+    expect(url.searchParams.get('code_challenge_method')).toBe('S256');
+    expect(url.searchParams.get('client_secret')).toBeNull();
+  });
+
+  it('sends no blank login_hint', async () => {
+    stubFetch(DOCUMENT);
+    await beginSignIn(CONFIG, { create: true, loginHint: '  ' });
+
+    const url = new URL(assigned[0]!);
+    expect(url.searchParams.get('prompt')).toBe('create');
+    expect(url.searchParams.has('login_hint')).toBe(false);
+    expect(url.searchParams.has('ui_locales')).toBe(false);
+  });
+
   it('mints a different verifier every time', async () => {
     stubFetch(DOCUMENT);
     await beginSignIn(CONFIG);
