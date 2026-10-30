@@ -289,7 +289,7 @@ services:
   # It holds the run queues: on live it changes only at a deploy, and
   # deploy-live.sh refuses one without the hold or with a pass still in flight.
   trigger-redis:
-    image: redis:7.4.11-bookworm@sha256:44960b3100c48159a66d28c18b0588c193492e25f7551d60e51dd464fc3eca5b
+    image: redis:7.4.12-bookworm@sha256:b6b6e3dc0c0952737748e55d5d885272840c7e42ba41ab1d5489f693419882f5
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-redis
     restart: unless-stopped
     logging: *logging
