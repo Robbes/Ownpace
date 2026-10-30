@@ -25,6 +25,7 @@ import {
   wantsAttention,
   type MappingAttention,
 } from './notifications.ts';
+import { addressFromRegistrationLink } from './registration-link.ts';
 
 const quiet: MappingAttention = {
   mappingId: 'acme-mail',
@@ -533,7 +534,7 @@ describe('access granted — the one event addressed to a non-member (0095)', ()
     email: 'stranger@example.test',
   } as const;
 
-  it('carries NO link, code or token — nothing to keep, nothing to leak', () => {
+  it('carries NO code or token — nothing to keep, nothing to leak', () => {
     // The property, not a preference. The issuer owns identity (ADR-0042), so
     // this mail authorises nothing, which is what makes forwarding or
     // intercepting it harmless. The next person to "improve" this into a
@@ -542,10 +543,20 @@ describe('access granted — the one event addressed to a non-member (0095)', ()
       const { body } = renderEvent(event, locale);
       // The app's sign-in page is the only URL, and its one query is the
       // mail's language (the UX sweep, 2026-10-17): nothing that could
-      // smuggle a token in, and no fragment.
+      // smuggle a token in.
+      //
+      // ITS ONE FRAGMENT IS THE ADDRESS THE MAIL PRINTS (0095 T6, the owner,
+      // 2026-10-29), so the sign-in page can open registration with it filled
+      // in. Exactly that, and once: still no token, and the address binds
+      // nothing until the issuer has verified it with a code.
       const urls = body.match(/https?:\/\/\S+/g) ?? [];
-      expect(urls).toEqual([`https://app.ownpace.eu/login?locale=${locale}`]);
-      expect(body).not.toMatch(/token|code=|invite=|\?t=|#/i);
+      expect(urls).toEqual([
+        `https://app.ownpace.eu/login?locale=${locale}#register=stranger%40example.test`,
+      ]);
+      expect(body).not.toMatch(/token|code=|invite=|\?t=/i);
+      expect(body.split('#'), 'one fragment, the link’s').toHaveLength(2);
+      expect(addressFromRegistrationLink(new URL(urls[0]!).hash)).toBe(event.email);
+      expect(body).toContain(`${event.email}\n`);
     }
   });
 
@@ -583,7 +594,9 @@ describe('access granted — the one event addressed to a non-member (0095)', ()
   ] as const)('sends them to the sign-in page in the mail’s language (%s)', (locale, appUrl) => {
     const { body } = renderEvent({ ...event, appUrl }, locale);
     const said = locale === 'en' ? 'Sign in here:' : 'Meld u hier aan:';
-    expect(body).toContain(`${said} https://app.ownpace.eu/login?locale=${locale}\n`);
+    expect(body).toContain(
+      `${said} https://app.ownpace.eu/login?locale=${locale}#register=stranger%40example.test\n`,
+    );
   });
 
   it('does not tell somebody to open an app they cannot open yet', () => {

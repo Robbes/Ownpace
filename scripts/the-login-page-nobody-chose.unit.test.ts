@@ -391,9 +391,62 @@ describe('and it names the Host header the ingress rewrote', () => {
     // Two authorization requests are two different auth requests with two
     // different cookies, and a comparison across them would be meaningless.
     expect(smoke, 'the head of the authorize response is not kept').toMatch(/login_head=/);
-    const heads = (smoke.match(/oauth\/v2\/authorize/g) ?? []).length;
+    // The grant link's registration request (0095 T6, below) asks a different
+    // question with its own jar, so it is not one of these.
+    const heads = (smoke.match(/oauth\/v2\/authorize\?[^"\n]*/g) ?? []).filter(
+      (url) => !url.includes('prompt=create'),
+    ).length;
     expect(heads, 'the login-page block asks for an authorization request more than once')
       .toBeLessThanOrEqual(2);
+  });
+});
+
+describe('and the page the grant link opens (workplan 0095 T6)', () => {
+  /**
+   * The grant mail's link ends in `#register=` and the address, and the
+   * sign-in page's "Create your account" sends `prompt=create`, `login_hint`
+   * and `ui_locales`. Whether the provider still opens registration with the
+   * address in it is a property of the provider's version, so the gate asks
+   * it, the way it asks for the login page above.
+   */
+  const smoke = directives('smoke-managed.sh');
+  const requests = (smoke.match(/oauth\/v2\/authorize\?[^"\n]*/g) ?? []).filter((url) =>
+    url.includes('prompt=create'),
+  );
+
+  it('asks once, with the three parameters the button sends', () => {
+    expect(requests, 'the gate asks for registration exactly once').toHaveLength(1);
+    expect(requests[0]).toContain('login_hint=smoke-register%40example.test');
+    expect(requests[0]).toContain('ui_locales=en');
+  });
+
+  it('with its own cookie jar, which it removes', () => {
+    // The user-agent binding above: a request read with another request's
+    // cookie is refused for a reason that has nothing to do with this check.
+    expect(smoke).toMatch(/reg_jar="\$\(mktemp\)"/);
+    expect(smoke).toMatch(/-c "\$reg_jar"[^\n]*\n\s*"\$\{STACK_ISSUER%\/\}\/oauth\/v2\/authorize\?[^"\n]*prompt=create/);
+    expect(smoke).toMatch(/rm -f "\$reg_jar"/);
+  });
+
+  it('fails when the form comes back without the address, and when there is no registration form at all', () => {
+    // Cut at its two headings, which are comments, so from the whole file;
+    // then without its comments, as everywhere in this file.
+    const whole = readFileSync(join(COMPOSE, 'smoke-managed.sh'), 'utf8');
+    const from = whole.indexOf("# ---- the grant mail's link");
+    const to = whole.indexOf('# ---------- the form that founds an organisation');
+    expect(from, 'the block was not found in smoke-managed.sh').toBeGreaterThan(0);
+    expect(to).toBeGreaterThan(from);
+    const block = whole
+      .slice(from, to)
+      .split('\n')
+      .filter((l) => !/^\s*#/.test(l))
+      .join('\n');
+    // The address must be the value of the email field, not just somewhere on
+    // the page (the page could echo it in an error).
+    expect(block).toMatch(/<input\[\^>\]\*id=\\"email\\"\[\^>\]\*value=\\"\$\{reg_hint\}\\"/);
+    // Every branch that is not one of the two right answers ends in fail_at.
+    const fatal = (block.match(/fail_at/g) ?? []).length;
+    expect(fatal, 'no answer, no Location, the option page without outside providers, an empty field, no form').toBe(5);
   });
 });
 
