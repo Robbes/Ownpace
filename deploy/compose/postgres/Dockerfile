@@ -69,7 +69,7 @@
 # daemon, so one stack's rebuild restarts the other's databases. The bring-up
 # builds `api web` by name and runs `up` without `--build`, and the same guard
 # refuses any script or document that says otherwise.
-FROM postgres:18.6-alpine@sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5
+FROM postgres:18.6-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
 
 # A plain rm: a base without gosu fails here, and this file has nothing left to do.
 RUN rm /usr/local/bin/gosu
