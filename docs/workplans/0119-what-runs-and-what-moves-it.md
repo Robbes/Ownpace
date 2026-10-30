@@ -4,7 +4,7 @@
 
 ## Status — 2026-10-30 (update this block at the end of every session)
 
-**2026-10-30: the Docker socket proxy is built here, on HAProxy 3.4.7 (alpha.4, draft #1740).** The
+**2026-10-30: the Docker socket proxy is built here, on HAProxy 3.4.7 (alpha.3, #1740).** The
 image scan of 2026-10-29 (Security Scan run 40843566092) read `tecnativa/docker-socket-proxy:v0.5.0`
 at 0 critical and 6 high on Alpine 3.24.1, all 6 fixed in newer Alpine packages. Docker Hub pushed
 that tag once, on 2026-07-27, and lists no newer release (besides `latest`, which is v0.5.0 itself,
@@ -43,9 +43,12 @@ or nothing, where Docker must answer; Docker's 200, 403 or 404, HAProxy's 503, o
 proxy must refuse): each run must fail and name every probe. The review found that the guard as
 first written passed the job with `exit "$failed"` turned into `exit 0`, and with its commit,
 plugins and auth probes dropped, and the job took any status but 403 and 000, HAProxy's own 503
-among them, for Docker's answer. HAProxy's notes for 3.4.3 to 3.4.7 are not read yet:
-www.haproxy.org was not reachable from the session that took the pin. E2E (managed) on the branch:
-owed, after the alpha.3 tag.
+among them, for Docker's answer. It goes into alpha.3 by the owner's answer of 2026-10-30: only if
+its review is clean, its configuration is upstream's byte for byte, and E2E (managed) passes with
+real task runs through it. HAProxy's notes for 3.4.3 to 3.4.7 stay unread: www.haproxy.org is
+outside this session's network. 3.4 is a stable branch, which takes fixes only, and the proof of
+behaviour is the branch's: the build job's 17 refused and 9 allowed probes against a real Docker,
+and E2E (managed) on the branch.
 
 **2026-10-30, last: what alpha.3 moves, folded.** The fold (0146 Status, 2026-10-30) closes
 alpha.3 with the moves of 2026-10-30 in it: pnpm 11.28.9 (#1736), Trigger.dev's webapp and

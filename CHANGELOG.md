@@ -4,16 +4,6 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
-### Security
-
-- **The Docker socket proxy is built here, on a current HAProxy** (workplan 0119):
-  `tecnativa/docker-socket-proxy:v0.5.0` was built once, on 2026-07-27, on HAProxy 3.4.2 and
-  Alpine 3.24.1, and the image scan of 2026-10-29 found 6 high findings in it, all fixed in
-  newer Alpine packages, with no newer release to move to. `deploy/compose/docker-socket-proxy`
-  builds upstream's v0.5.0, its configuration and entrypoint byte for byte, on
-  `haproxy:3.4.7-alpine` (Alpine 3.24.3), where the scan reads 0 critical and 0 high. What the
-  Trigger.dev supervisor may ask Docker, and what it may not, is unchanged.
-
 ## [0.2.0-alpha.3] - 2026-10-30
 
 A tester's grant mail now opens registration with the address it was sent to
@@ -26,14 +16,23 @@ start as PostgreSQL's own user. Trigger.dev moves to v4.8.1, with its webapp
 and supervisor built here without the files nothing runs and its tasks on the
 API image's own base; its object store runs Chainguard's MinIO build of
 2026-10-25 and its queues Redis 7.4.12. The demo Nextcloud moves to 35.0.2, and
-the status page to Gatus v5.38.0. Live proves an update by itself, a deploy no
-longer waits without end on a compose step, and the weekly image scan names
-every critical finding. Live's deploy from alpha.2 takes two runs of the deploy
-script, and keeps the copy taken before it until the task runner has run real
-work.
+the status page to Gatus v5.38.0. The webapp built here carries dompurify
+3.4.17, the Docker socket proxy is built here on HAProxy 3.4.7, and the public
+site names each page's full address and its other language's, and lists its
+pages in llms.txt. Live proves an update by itself, a deploy no longer waits
+without end on a compose step, and the weekly image scan names every critical
+finding. Live's deploy from alpha.2 takes two runs of the deploy script, and
+keeps the copy taken before it until the task runner has run real work.
 
 ### Security
 
+- **The Docker socket proxy is built here, on a current HAProxy** (workplan 0119):
+  `tecnativa/docker-socket-proxy:v0.5.0` was built once, on 2026-07-27, on HAProxy 3.4.2 and
+  Alpine 3.24.1, and the image scan of 2026-10-29 found 6 high findings in it, all fixed in
+  newer Alpine packages, with no newer release to move to. `deploy/compose/docker-socket-proxy`
+  builds upstream's v0.5.0, its configuration and entrypoint byte for byte, on
+  `haproxy:3.4.7-alpine` (Alpine 3.24.3), where the scan reads 0 critical and 0 high. What the
+  Trigger.dev supervisor may ask Docker, and what it may not, is unchanged.
 - **The api, selfhost and web images build on Debian 13, and the api and
   selfhost images carry no package manager** (workplan 0146 T12, #1708): the
   three built `FROM node:24.22.1-slim`, which is Debian 12, where Trivy read
