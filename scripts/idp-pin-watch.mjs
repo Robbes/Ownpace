@@ -1077,7 +1077,7 @@ export function summaryOf(rows, status) {
   const behind = rows.filter((r) => r.state === 'behind');
   const failed = rows.filter((r) => r.state === 'error' || r.state === 'ahead');
   const body = [
-    "Dependabot does not read these pins, but for an image built here, whose line says so: its compose fetcher reads only files named like `compose.yml`, and no file in `deploy/compose` is (`a-dependabot-directory-with-nothing-to-read`). So this watch reads them, each against its own registry's tags of the same major. Behind:",
+    "Dependabot does not read these pins, but for an image built here, whose line says so: its compose fetcher reads only files named like `compose.yml`, and no file in `deploy/compose` is (`a-dependabot-directory-with-nothing-to-read`). So this watch reads them, each against its own registry's tags of the same major, or of its line where `LINES` names one (HAProxy's), and a release built here from upstream's files (GoAccess, the Docker socket proxy) against upstream's git tags. Behind:",
     '',
     ...behind.map(lineOf),
     '',

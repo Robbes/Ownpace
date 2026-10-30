@@ -4703,6 +4703,39 @@ builds its `app` by name and runs `up` without `--build`. What the change
 means for an appliance's own data, a bind mount of a host directory included,
 is in [selfhost-quickstart.md](./selfhost-quickstart.md).
 
+**The Docker socket proxy is a build here too** (workplan 0119, 2026-10-30).
+`trigger-docker-proxy`, between the Trigger.dev supervisor and the host's
+Docker socket, runs `localhost/docker-socket-proxy:<base tag>-<12 hex>`, which
+compose builds from `deploy/compose/docker-socket-proxy`: Tecnativa's
+docker-socket-proxy at its release v0.5.0, its Dockerfile, `haproxy.cfg` and
+entrypoint as they are at that tag, on the pinned `haproxy:3.4.7-alpine`
+digest instead of the 3.4.2 upstream's image was built on in July and never
+rebuilt. The environment is the one it had, so what the supervisor may ask
+Docker, and what it may not, is unchanged.
+
+- **The first `up` builds it, and the proxy restarts once.** The bring-up's
+  trigger phase (`up_wait … trigger-docker-proxy …`) finds no image of that
+  name and builds it, pulling the pinned HAProxy base from Docker Hub when the
+  machine does not have it, then recreates the proxy because its image
+  changed: the OTA stack at the E2E (managed) run of the branch or the next
+  nightly gate, live inside `deploy-live.sh`'s hold and drain, from the tag.
+  The service says `pull_policy: never`, as the databases do: `docker compose
+  pull` passes it by, and `up` builds it without asking a registry, and never
+  again while the machine has the name.
+- **Moving it.** A newer HAProxy 3.4, or a rebuild of its tag, is Dependabot's
+  pull request (the directory's own entry, patches and digests only). It
+  fails `scripts/a-tag-upstream-never-rebuilds.unit.test.ts` until
+  `managed.yml`'s image line moves too: the failure prints the `sed` that
+  moves it, to run on the pull request's branch and push. Then `build
+  (docker-socket-proxy)` (`images.yml`) builds it, starts it with
+  `managed.yml`'s environment and asks it what it must allow and refuse, and
+  its E2E (managed) is dispatched like any pin's. A newer docker-socket-proxy
+  release is listed in the pin watch's summary issue and moved by hand, as the
+  Dockerfile's header says. Another HAProxy line is the owner's call.
+- **Rolling back to a tag before this runs upstream's image again**,
+  `tecnativa/docker-socket-proxy:v0.5.0`, with the same environment; `up`
+  pulls it when the machine no longer has it.
+
 ### A Nextcloud major on the OTA stack
 
 Written on 2026-10-26 for the move from 34 to 35 (workplan 0119 T5). A major

@@ -8,8 +8,9 @@
  * supervisor and the host's Docker socket, ran
  * `tecnativa/docker-socket-proxy:v0.5.0`. Docker Hub pushed that tag on
  * 2026-07-27 and never again: upstream builds a release once, from
- * `haproxy:3.4.2-alpine` as it was that day, and publishes nothing newer but
- * `master` and `nightly`, which are no release. The image scan of 2026-10-29
+ * `haproxy:3.4.2-alpine` as it was that day, and publishes no newer release:
+ * besides `latest`, which is v0.5.0 itself, only `master`, `nightly` and
+ * builds of upstream's pull requests. The image scan of 2026-10-29
  * read 0 critical and 6 high findings in it, all 6 fixed in a newer Alpine
  * package, and the pin watch called it current, because by tag it was. A
  * digest move could not help, and a newer release did not exist.
@@ -46,7 +47,17 @@
  *    that name on a pull request, checks upstream's user, entrypoint and
  *    command, and starts it with managed.yml's environment and socket,
  *    word for word, so what it allows and refuses is what the stack's proxy
- *    allows and refuses;
+ *    allows and refuses. What it asks is read from upstream's own rules
+ *    (haproxy.cfg's allow lines, the ENV's defaults, managed.yml's values):
+ *    a request Docker must answer for every switch managed.yml turns on, and
+ *    one the proxy must refuse for every switch left off that no switch
+ *    turned on covers. And the job's verdict is the probes': its step is run
+ *    here against a stub docker and curl, every probe answered as it should
+ *    and then each answered wrongly in turn (the proxy's own 403 or 503
+ *    where Docker must answer, Docker's answer where the proxy must refuse,
+ *    nothing at all), and it must pass the first and fail each of the rest,
+ *    naming the probe. Docker's answer is told from HAProxy's by the
+ *    Api-Version header Docker sets on every response;
  *  - Dependabot reads the directory in an entry of its own, which moves
  *    HAProxy's patches and digests and leaves its line alone: another line is
  *    the owner's call, taken with a release of docker-socket-proxy.
@@ -69,6 +80,7 @@ const CONTEXT = 'deploy/compose/docker-socket-proxy';
 const DOCKERFILE = `${CONTEXT}/Dockerfile`;
 const MANAGED = 'deploy/compose/managed.yml';
 const IMAGES_WORKFLOW = '.github/workflows/images.yml';
+const HAPROXY_CFG = `${CONTEXT}/haproxy.cfg`;
 const SERVICE = 'trigger-docker-proxy';
 const NAME = 'localhost/docker-socket-proxy';
 
@@ -292,7 +304,7 @@ interface Job {
 }
 
 /** What is wrong with images.yml's build of the proxy; empty when it holds. */
-function workflowProblems(workflow: string, managed: string, dockerfile: string): string[] {
+function workflowProblems(workflow: string, managed: string, dockerfile: string, cfg: string): string[] {
   const problems: string[] = [];
   const job = (parseYaml(workflow) as { jobs: Record<string, Job> }).jobs['socket-proxy'];
   if (!job) return ['images.yml has no socket-proxy job: nothing builds the proxy before E2E (managed)'];
@@ -301,7 +313,7 @@ function workflowProblems(workflow: string, managed: string, dockerfile: string)
   if (JSON.stringify(job.permissions) !== JSON.stringify({ contents: 'read' })) problems.push(`its permissions are ${JSON.stringify(job.permissions)}, not contents: read`);
   const checkout = job.steps.find((s) => s.uses?.startsWith('actions/checkout@'));
   if (checkout?.with?.['persist-credentials'] !== false) problems.push('its checkout keeps a credential');
-  const run = job.steps.find((s) => s.run?.includes('docker build'))?.run ?? '';
+  const run = stepOf(workflow);
   if (!/^set -euo pipefail$/m.test(run)) problems.push('its script does not start with set -euo pipefail');
   if (!run.includes(`docker build --pull --progress=plain --tag "$ref" ${CONTEXT}\n`)) problems.push(`it does not build ${CONTEXT} under the name it read`);
   if (!run.includes(`\\(${NAME.replace('/', '\\/')}:[^[:space:]]*\\)`)) problems.push(`it does not read the name from managed.yml's ${NAME} line`);
@@ -318,21 +330,195 @@ function workflowProblems(workflow: string, managed: string, dockerfile: string)
   const cmd = /^CMD\s+(\[.*\])\s*$/m.exec(dockerfile)?.[1];
   const want = `"${String(user)}" ["docker-entrypoint.sh"] ${cmd ? JSON.stringify(JSON.parse(cmd)) : 'none'}`;
   if (!run.includes(`want='${want}'`)) problems.push(`it does not check the built image runs ${want} (user, entrypoint, command)`);
-  // A probe for every part of the API managed.yml switches on, and the refusals the header names.
-  const probes = (from: number, to: number) => [...run.slice(from, to).matchAll(/"(GET|POST) (\/[^"]*)"/g)].map((m) => `${m[1]} ${m[2]}`);
-  const allowedAt = run.indexOf('for probe in');
-  const refusedAt = run.indexOf('for probe in', allowedAt + 1);
-  const allowed = probes(allowedAt, refusedAt);
-  const refused = probes(refusedAt, run.length);
-  for (const [key, path] of [['CONTAINERS', '/containers/'], ['IMAGES', '/images/'], ['NETWORKS', '/networks'], ['VOLUMES', '/volumes']] as const) {
-    if (svc && environment(svc).includes(`${key}=1`) && !allowed.some((p) => p.startsWith(`GET ${path}`))) problems.push(`no GET of ${path} among the probes Docker must answer, and ${SERVICE} sets ${key}=1`);
+  // The verdict is the probes': the step ends in it, and nothing before it exits but to fail.
+  const commands = run.split('\n').map((line) => line.trim()).filter((line) => line && !line.startsWith('#'));
+  if (commands.at(-1) !== 'exit "$failed"') problems.push(`its last command is \`${String(commands.at(-1))}\`, not \`exit "$failed"\`: the job's verdict would not be the probes'`);
+  for (const line of commands.slice(0, -1)) {
+    if (/(^|[\s;&|(])exit\b/.test(line) && !/(^|[\s;&|(])exit 1$/.test(line)) problems.push(`\`${line}\` exits before the probes' verdict, and not to fail`);
   }
-  if (svc && environment(svc).includes('POST=1') && !allowed.some((p) => p.startsWith('POST '))) problems.push(`no POST among the probes Docker must answer, and ${SERVICE} sets POST=1`);
-  for (const path of ['/exec/', '/build', '/info', '/swarm', '/secrets', '/system/']) {
-    if (!refused.some((p) => p.split(' ')[1]!.startsWith(path))) problems.push(`no probe of ${path} among those the proxy must refuse`);
+  // What it asks, read from upstream's own rules under managed.yml's environment.
+  const { allowed, refused } = probesOf(run);
+  if (!svc) return problems;
+  const rules = switchesOf(cfg);
+  const allowLines = cfg.split('\n').filter((line) => /^\s*http-request allow\b/.test(line)).length;
+  if (!rules.length || rules.length !== allowLines) problems.push(`read ${rules.length} of ${HAPROXY_CFG}'s ${allowLines} allow rules: the rest are written another way, and what the proxy allows cannot be read from them`);
+  const set = new Map(environment(svc).map((pair) => [pair.slice(0, pair.indexOf('=')), pair.slice(pair.indexOf('=') + 1)]));
+  const defaults = defaultsOf(dockerfile);
+  const value = (key: string) => set.get(key) ?? defaults.get(key) ?? '0';
+  for (const key of new Set([...rules.map((r) => r.key), 'POST'])) {
+    if (!['0', '1'].includes(value(key))) problems.push(`${SERVICE}'s ${key} is ${value(key)}, and a switch here is 0 or 1`);
   }
-  if (!run.includes('[ "$code" != 403 ]') || !run.includes('[ "$code" = 403 ] || [ "$code" = 000 ]')) problems.push('it does not hold the refusals to 403 and the rest to an answer from Docker');
+  const on = rules.filter((r) => value(r.key) === '1');
+  const passes = (probe: string) => {
+    const [method, path] = probe.split(' ') as [string, string];
+    return (method === 'GET' || value('POST') === '1') && on.some((r) => r.pattern.test(path));
+  };
+  for (const rule of rules.filter((r) => set.get(r.key) === '1')) {
+    if (!allowed.some((p) => rule.pattern.test(p.split(' ')[1]!))) problems.push(`no probe Docker must answer for ${rule.key}, which ${SERVICE} sets to 1 (${rule.source})`);
+  }
+  if (value('POST') === '1' && !allowed.some((p) => p.startsWith('POST '))) problems.push(`no POST among the probes Docker must answer, and ${SERVICE} sets POST=1`);
+  for (const probe of allowed.filter((p) => !passes(p))) problems.push(`${probe} is among the probes Docker must answer, and under ${SERVICE}'s environment upstream's rules refuse it`);
+  // A switch left off is refused unless one turned on opens its paths too (the ALLOW_* actions under /containers).
+  const covered = (rule: Switch) => on.some((r) => rule.source.startsWith(r.source));
+  for (const rule of rules.filter((r) => value(r.key) !== '1' && !covered(r))) {
+    if (!refused.some((p) => rule.pattern.test(p.split(' ')[1]!) && !passes(p))) {
+      problems.push(`no probe the proxy must refuse for ${rule.key}, which upstream's ENV leaves at ${defaults.get(rule.key) ?? '(unset)'} and ${SERVICE} does not turn on (${rule.source})`);
+    }
+  }
+  for (const probe of refused.filter(passes)) problems.push(`${probe} is among the probes the proxy must refuse, and under ${SERVICE}'s environment upstream's rules allow it`);
   return problems;
+}
+
+/** The step that builds and asks the proxy. */
+const stepOf = (workflow: string) => (parseYaml(workflow) as { jobs: Record<string, Job> }).jobs['socket-proxy']?.steps.find((s) => s.run?.includes('docker build'))?.run ?? '';
+
+/** The step's two lists of probes, `METHOD /path` each: those Docker must answer, then those the proxy must refuse. */
+function probesOf(run: string): { allowed: string[]; refused: string[] } {
+  const probes = (from: number, to: number) => (from < 0 ? [] : [...run.slice(from, to).matchAll(/"(GET|POST) (\/[^"]*)"/g)].map((m) => `${m[1]} ${m[2]}`));
+  const allowedAt = run.indexOf('for probe in');
+  const refusedAt = allowedAt < 0 ? -1 : run.indexOf('for probe in', allowedAt + 1);
+  return { allowed: probes(allowedAt, refusedAt < 0 ? run.length : refusedAt), refused: probes(refusedAt, run.length) };
+}
+
+interface Switch {
+  key: string;
+  /** The path expression of its allow rule, as haproxy.cfg writes it. */
+  source: string;
+  pattern: RegExp;
+}
+
+/** upstream's haproxy.cfg: each endpoint switch, and the paths its allow rule opens when the switch is on. */
+function switchesOf(cfg: string): Switch[] {
+  return [...cfg.matchAll(/^\s*http-request allow if \{ path,url_dec -m reg -i (\S+) \} \{ env\(([A-Z_][A-Z0-9_]*)\) -m bool \}\s*$/gm)].map((m) => ({
+    key: m[2]!,
+    source: m[1]!,
+    pattern: new RegExp(m[1]!, 'i'),
+  }));
+}
+
+/** The value upstream's ENV gives each name it declares. */
+function defaultsOf(dockerfile: string): Map<string, string> {
+  const env = /^ENV\s+((?:.*\\\n)*.*)$/m.exec(dockerfile)?.[1] ?? '';
+  return new Map([...env.matchAll(/([A-Z_][A-Z0-9_]*)=(\S*)/g)].map((m) => [m[1]!, m[2]!]));
+}
+
+/**
+ * The stubs the step runs against, as shell functions ahead of it, so that a
+ * run forks and never starts another program for them. `docker`: the build
+ * and the run succeed, the image runs `$CONFIG` (user, entrypoint, command),
+ * and every call is logged. `curl`: the readiness check (`-f`) succeeds, and
+ * a probe's `-w` is written with the status and Api-Version that `$ANSWERS`
+ * gives its `METHOD /path` (a tab, then `<status> <version>`, the version
+ * empty where HAProxy answered itself); a request it has no answer for
+ * answers nothing, as curl does when nothing listens. `sleep` returns.
+ */
+const STUBS = `docker() {
+  printf '%s\\n' "$*" >> "$DOCKER_LOG"
+  case "$1" in
+    build) return 0 ;;
+    run) echo 0123456789ab ;;
+    image) case "\${4:-}" in *.Config.User*) printf '%s\\n' "$CONFIG" ;; *) echo "linux/amd64 sha256:stub" ;; esac ;;
+    *) echo "unexpected: docker $*" >&2; return 3 ;;
+  esac
+}
+curl() {
+  local method=GET format= fail=0 url= path answer key value code version out
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -X|--request) method="$2"; shift 2 ;;
+      -w|--write-out) format="$2"; shift 2 ;;
+      -o|--output|-m|--max-time|-H|--header|-D|--dump-header) shift 2 ;;
+      --*) shift ;;
+      -*) case "$1" in *f*) fail=1 ;; esac; shift ;;
+      *) url="$1"; shift ;;
+    esac
+  done
+  if [ "$fail" = 1 ]; then return 0; fi
+  path="\${url#http://127.0.0.1:2375}"
+  answer="000 "
+  while IFS=$'\\t' read -r key value; do
+    if [ "$key" = "$method $path" ]; then answer="$value"; fi
+  done < "$ANSWERS"
+  code="\${answer%% *}"; version="\${answer#* }"
+  out="\${format//'%{http_code}'/$code}"
+  out="\${out//'%header{api-version}'/$version}"
+  printf '%s' "$out"
+  if [ "$code" = 000 ]; then echo "curl: (7) Failed to connect to 127.0.0.1 port 2375" >&2; return 7; fi
+}
+sleep() { :; }
+`;
+
+interface StepRun {
+  readonly status: number;
+  readonly out: string;
+  /** Every docker call, one per line. */
+  readonly docker: string[];
+}
+
+/** Runs the step as GitHub runs it (bash -eo pipefail, CI and GITHUB_ACTIONS set), in this checkout, after the stubs, with the given answers. */
+function runProbeStep(run: string, answers: ReadonlyMap<string, string>, config: string): StepRun {
+  const dir = mkdtempSync(join(tmpdir(), 'socket-proxy-step-'));
+  try {
+    const script = join(dir, 'step.sh');
+    writeFileSync(script, `${STUBS}${run}`);
+    const table = join(dir, 'answers.tsv');
+    writeFileSync(table, [...answers].map(([probe, answer]) => `${probe}\t${answer}\n`).join(''));
+    const log = join(dir, 'docker.log');
+    writeFileSync(log, '');
+    const r = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', script], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+      env: { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: dir, CI: 'true', GITHUB_ACTIONS: 'true', DOCKER_LOG: log, ANSWERS: table, CONFIG: config },
+    });
+    return { status: r.status ?? -1, out: `${r.stdout ?? ''}${r.stderr ?? ''}`, docker: readFileSync(log, 'utf8').split('\n').filter(Boolean) };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** Docker's answer carries its API version; HAProxy's carries none. */
+const DOCKER_ANSWERS = '200 1.47';
+const PROXY_REFUSES = '403 ';
+/** Wrong answers to a probe Docker must answer, each given to every such probe in a run of its own. */
+const NOT_DOCKERS = ["403 |the proxy's own 403", "503 |HAProxy's own 503, the socket not answering", "400 |HAProxy's own 400", '000 |nothing'];
+/** Wrong answers to a probe the proxy must refuse, each given to every such probe in a run of its own. */
+const NOT_REFUSED = ["200 1.47|Docker's 200", "403 1.47|Docker's own 403", "404 1.47|Docker's 404", "503 |HAProxy's own 503", '000 |nothing'];
+
+/**
+ * What is wrong with the job's verdict; empty when it holds. Its step runs
+ * against the stubs with every probe answered as it should, which must pass;
+ * then, for each wrong answer above, once with every probe of its kind
+ * answered that way, which must fail and name each of them. The first wrong
+ * verdict ends the reading.
+ */
+function verdictProblems(workflow: string, dockerfile: string): string[] {
+  const run = stepOf(workflow);
+  const { allowed, refused } = probesOf(run);
+  const user = [...dockerfile.matchAll(/^USER\s+(\S+)\s*$/gm)].map((m) => m[1]).at(-1);
+  const cmd = /^CMD\s+(\[.*\])\s*$/m.exec(dockerfile)?.[1];
+  const config = `"${String(user)}" ["docker-entrypoint.sh"] ${cmd ? JSON.stringify(JSON.parse(cmd)) : 'none'}`;
+  const right = new Map<string, string>([...allowed.map((p) => [p, DOCKER_ANSWERS] as const), ...refused.map((p) => [p, PROXY_REFUSES] as const)]);
+  const base = runProbeStep(run, right, config);
+  if (base.status !== 0 || /^::error::/m.test(base.out)) return [`with every probe answered as it should, the step exits ${base.status}:\n${base.out}`];
+  const want = `${NAME}:${builtTag(dockerfile)}`;
+  if (!base.docker.includes(`build --pull --progress=plain --tag ${want} ${CONTEXT}`)) return [`the step does not build ${CONTEXT} as ${want}: ${JSON.stringify(base.docker)}`];
+  const runs = [
+    ...NOT_DOCKERS.map((wrong) => ({ probes: allowed, wrong, kind: 'Docker must answer' })),
+    ...NOT_REFUSED.map((wrong) => ({ probes: refused, wrong, kind: 'the proxy must refuse' })),
+  ];
+  for (const { probes, wrong, kind } of runs) {
+    const [answer, what] = wrong.split('|') as [string, string];
+    const r = runProbeStep(run, new Map([...right, ...probes.map((p) => [p, answer] as const)]), config);
+    const lines = r.out.split('\n');
+    const unnamed = probes.filter((p) => !lines.some((line) => line.startsWith(`::error::${p}:`)));
+    if (r.status === 0 || unnamed.length) {
+      return [
+        `with every probe ${kind} answered ${what} ("${answer}"), the step exits ${r.status}` +
+          `${unnamed.length ? ` and names no error for ${unnamed.join(', ')}` : ''}: its verdict is not the probes'\n${r.out}`,
+      ];
+    }
+  }
+  return [];
 }
 
 const contextNames = () => readdirSync(join(REPO_ROOT, CONTEXT));
@@ -453,37 +639,102 @@ describe("images.yml builds it on a pull request and asks it what the stack's pr
   const workflow = read(IMAGES_WORKFLOW);
   const managed = read(MANAGED);
   const dockerfile = read(DOCKERFILE);
+  const cfg = read(HAPROXY_CFG);
+  const swapped = (text: string, from: RegExp | string, to: string) => {
+    const out = text.replace(from, to);
+    expect(out, `${String(from)} matched nothing`).not.toBe(text);
+    return out;
+  };
 
   it("builds this directory under managed.yml's name and starts it with managed.yml's environment and socket", () => {
-    expect(workflowProblems(workflow, managed, dockerfile)).toEqual([]);
+    expect(workflowProblems(workflow, managed, dockerfile, cfg)).toEqual([]);
   });
 
+  // A verdictProblems call runs the step up to ten times, about a tenth of a second each alone and slower beside the rest of the unit project, so the tests that call it have a minute.
+  it("asks for every switch upstream's rules leave off, and the job's verdict is the probes'", () => {
+    // Read from upstream's rules, not written here: these sixteen, and the ALLOW_* actions under /containers, which CONTAINERS=1 opens anyway.
+    const rules = switchesOf(cfg);
+    expect(rules.map((r) => r.key)).toContain('ALLOW_STOP');
+    const { refused } = probesOf(stepOf(workflow));
+    const asked = rules.filter((r) => refused.some((p) => r.pattern.test(p.split(' ')[1]!))).map((r) => r.key);
+    expect(asked).toEqual(['AUTH', 'BUILD', 'COMMIT', 'CONFIGS', 'DISTRIBUTION', 'EXEC', 'GRPC', 'INFO', 'NODES', 'PLUGINS', 'SECRETS', 'SERVICES', 'SESSION', 'SWARM', 'SYSTEM', 'TASKS']);
+    expect(verdictProblems(workflow, dockerfile)).toEqual([]);
+  }, 60_000);
+
   it('refuses a job that drifted from managed.yml, or stopped asking', () => {
-    const swapped = (text: string, from: RegExp | string, to: string) => {
-      const out = text.replace(from, to);
-      expect(out, `${String(from)} matched nothing`).not.toBe(text);
-      return out;
-    };
-    // managed.yml switches exec on and the job does not follow.
-    expect(workflowProblems(workflow, swapped(managed, /^(\s*)POST: 1$/m, '$1POST: 1\n$1EXEC: 1'), dockerfile)).toEqual([expect.stringContaining('the two move together')]);
-    expect(workflowProblems(swapped(workflow, ' -e VOLUMES=1', ''), managed, dockerfile)).toEqual([expect.stringContaining('the two move together')]);
-    expect(workflowProblems(swapped(workflow, ' "GET /volumes" \\', ' \\'), managed, dockerfile)).toEqual([expect.stringContaining('no GET of /volumes')]);
-    expect(workflowProblems(swapped(workflow, /"POST \/containers\/socket-proxy-probe-none\/stop" "POST \/networks\/socket-proxy-probe-none\/connect"/, '"GET /_ping"'), managed, dockerfile)).toEqual([
+    const problems = (wf: string, m = managed) => workflowProblems(wf, m, dockerfile, cfg);
+    // managed.yml switches exec on and the job does not follow: it no longer asks what the stack's proxy allows.
+    expect(problems(workflow, swapped(managed, /^(\s*)POST: 1$/m, '$1POST: 1\n$1EXEC: 1'))).toEqual([
+      expect.stringContaining('the two move together'),
+      expect.stringContaining('no probe Docker must answer for EXEC'),
+      expect.stringMatching(/^GET \/exec\/\S+ is among the probes the proxy must refuse, and .* allow it$/),
+      expect.stringMatching(/^POST \/exec\/\S+ is among the probes the proxy must refuse, and .* allow it$/),
+    ]);
+    expect(problems(swapped(workflow, ' -e VOLUMES=1', ''))).toEqual([expect.stringContaining('the two move together')]);
+    expect(problems(swapped(workflow, ' "GET /volumes" \\', ' \\'))).toEqual([expect.stringContaining('no probe Docker must answer for VOLUMES')]);
+    expect(problems(swapped(workflow, /"POST \/containers\/socket-proxy-probe-none\/stop" "POST \/networks\/socket-proxy-probe-none\/connect"/, '"GET /_ping"'))).toEqual([
       expect.stringContaining('no POST among the probes'),
     ]);
-    expect(workflowProblems(swapped(workflow, '/var/run/docker.sock:/var/run/docker.sock:ro \\', '/var/run/docker.sock:/var/run/docker.sock \\'), managed, dockerfile)).toEqual([
-      expect.stringContaining('it mounts'),
+    expect(problems(swapped(workflow, '"GET /volumes" \\', '"GET /info" \\'))).toEqual([
+      expect.stringContaining('no probe Docker must answer for VOLUMES'),
+      expect.stringContaining("GET /info is among the probes Docker must answer, and under trigger-docker-proxy's environment upstream's rules refuse it"),
     ]);
-    expect(workflowProblems(swapped(workflow, `--tag "$ref" ${CONTEXT}\n`, '--tag "$ref" deploy/compose/postgres\n'), managed, dockerfile)).toEqual([
-      expect.stringContaining(`does not build ${CONTEXT}`),
+    expect(problems(swapped(workflow, '/var/run/docker.sock:/var/run/docker.sock:ro \\', '/var/run/docker.sock:/var/run/docker.sock \\'))).toEqual([expect.stringContaining('it mounts')]);
+    expect(problems(swapped(workflow, `--tag "$ref" ${CONTEXT}\n`, '--tag "$ref" deploy/compose/postgres\n'))).toEqual([expect.stringContaining(`does not build ${CONTEXT}`)]);
+    expect(problems(swapped(workflow, "want='\"root\"", "want='\"haproxy\""))).toEqual([expect.stringContaining('does not check the built image runs')]);
+    expect(problems(swapped(workflow, 'name: build (docker-socket-proxy)', 'name: build (proxy)'))).toEqual([expect.stringContaining('every-pr-check-is-classified')]);
+    // A refusal no longer asked for, each by the switch upstream's rules name.
+    expect(problems(swapped(workflow, '"GET /exec/socket-proxy-probe-none/json" "POST /exec/socket-proxy-probe-none/start" \\', '\\'))).toEqual([
+      expect.stringContaining('no probe the proxy must refuse for EXEC'),
     ]);
-    expect(workflowProblems(swapped(workflow, '"GET /exec/socket-proxy-probe-none/json" "POST /exec/socket-proxy-probe-none/start" \\', '\\'), managed, dockerfile)).toEqual([
-      expect.stringContaining('no probe of /exec/'),
+    expect(problems(swapped(workflow, '"POST /commit" ', ''))).toEqual([expect.stringContaining('no probe the proxy must refuse for COMMIT')]);
+    expect(problems(swapped(swapped(workflow, '"GET /plugins" ', ''), '"POST /auth" ', ''))).toEqual([
+      expect.stringContaining('no probe the proxy must refuse for AUTH'),
+      expect.stringContaining('no probe the proxy must refuse for PLUGINS'),
     ]);
-    expect(workflowProblems(swapped(workflow, '[ "$code" != 403 ]', '[ "$code" = 000 ]'), managed, dockerfile)).toEqual([expect.stringContaining('hold the refusals to 403')]);
-    expect(workflowProblems(swapped(workflow, "want='\"root\"", "want='\"haproxy\""), managed, dockerfile)).toEqual([expect.stringContaining('does not check the built image runs')]);
-    expect(workflowProblems(swapped(workflow, 'name: build (docker-socket-proxy)', 'name: build (proxy)'), managed, dockerfile)).toEqual([expect.stringContaining('every-pr-check-is-classified')]);
+    expect(problems(swapped(workflow, '"GET /tasks"', '"GET /tasks" "GET /images/json"'))).toEqual([
+      expect.stringContaining('GET /images/json is among the probes the proxy must refuse, and under trigger-docker-proxy\'s environment upstream\'s rules allow it'),
+    ]);
+    // An allow rule written another way is one the guard cannot read, so it says so.
+    const rewritten = swapped(cfg, '/tasks } { env(TASKS) -m bool }', '/tasks } { env(TASKS) -m int gt 0 }');
+    expect(workflowProblems(workflow, managed, dockerfile, rewritten)).toEqual([expect.stringContaining('read 27 of deploy/compose/docker-socket-proxy/haproxy.cfg\'s 28 allow rules')]);
+    // The verdict, by its text: the step ends in it.
+    expect(problems(swapped(workflow, 'exit "$failed"', 'exit 0'))).toEqual([expect.stringContaining('its last command is `exit 0`')]);
+    expect(problems(swapped(workflow, '          failed=0\n', '          failed=0\n          [ -n "${SKIP_PROBES:-}" ] && exit 0\n'))).toEqual([expect.stringContaining('exits before the probes\' verdict, and not to fail')]);
   });
+
+  it("refuses a step whose verdict is not every probe's", () => {
+    const verdict = (wf: string) => verdictProblems(wf, dockerfile);
+    const allowedBranch = 'if [ -z "$version" ]; then';
+    const refusedBranch = 'if [ "$code" != 403 ] || [ -n "$version" ]; then';
+    // Green whatever the probes answer.
+    expect(verdict(swapped(workflow, 'exit "$failed"', 'exit 0'))).toEqual([
+      expect.stringMatching(/^with every probe Docker must answer answered the proxy's own 403 \("403 "\), the step exits 0:/),
+    ]);
+    // The proxy's own 403, or its 503, taken for Docker's answer.
+    expect(verdict(swapped(workflow, allowedBranch, 'if [ -z "$version" ] && [ "$code" != 403 ]; then'))).toEqual([
+      expect.stringMatching(/^with every probe Docker must answer answered the proxy's own 403 \("403 "\), the step exits 0 and names no error for GET \/_ping, GET \/version, /),
+    ]);
+    expect(verdict(swapped(workflow, allowedBranch, 'if [ "$code" = 403 ] || [ "$code" = 000 ]; then'))).toEqual([
+      expect.stringMatching(/^with every probe Docker must answer answered HAProxy's own 503, the socket not answering \("503 "\), the step exits 0/),
+    ]);
+    // Docker's own 403, or a 503 HAProxy wrote, taken for the proxy's refusal.
+    expect(verdict(swapped(workflow, refusedBranch, 'if [ "$code" != 403 ]; then'))).toEqual([
+      expect.stringMatching(/^with every probe the proxy must refuse answered Docker's own 403 \("403 1\.47"\), the step exits 0/),
+    ]);
+    expect(verdict(swapped(workflow, refusedBranch, 'if [ "$code" = 000 ] || [ -n "$version" ]; then'))).toEqual([
+      expect.stringMatching(/^with every probe the proxy must refuse answered HAProxy's own 503 \("503 "\), the step exits 0/),
+    ]);
+    // A refusal that fails out loud and passes anyway.
+    const quiet = workflow.replace(/(refuses it with the proxy's own 403 under managed\.yml's environment"\n\s*)failed=1/, '$1true');
+    expect(quiet).not.toBe(workflow);
+    expect(verdict(quiet)).toEqual([expect.stringMatching(/^with every probe the proxy must refuse answered Docker's 200 \("200 1\.47"\), the step exits 0:/)]);
+    // One probe skipped by name: the step stays red, and says nothing about it.
+    const skipped = swapped(workflow, '"GET /tasks"; do\n', '"GET /tasks"; do\n            [ "$probe" = \'GET /tasks\' ] && continue\n');
+    expect(verdict(skipped)).toEqual([expect.stringMatching(/^with every probe the proxy must refuse answered Docker's 200 \("200 1\.47"\), the step exits 1 and names no error for GET \/tasks:/)]);
+    // Docker's answer no longer read: every probe Docker must answer fails, so the step is red when nothing is wrong.
+    expect(verdict(swapped(workflow, " %header{api-version}'", "'"))).toEqual([expect.stringMatching(/^with every probe answered as it should, the step exits 1:/)]);
+  }, 60_000);
 });
 
 describe('Dependabot moves its base within its line, in a pull request of its own', () => {

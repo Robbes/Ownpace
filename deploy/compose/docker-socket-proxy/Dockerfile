@@ -5,16 +5,18 @@
 #
 # WHY IT IS BUILT HERE. The service ran `tecnativa/docker-socket-proxy:v0.5.0`,
 # pushed to Docker Hub on 2026-07-27 and not rebuilt since. Docker Hub lists no
-# newer release, only `master` and `nightly`, which are no release. That image
-# is upstream's Dockerfile at v0.5.0 on `haproxy:3.4.2-alpine` as the tag was
-# then, Alpine 3.24.1, and the image scan of 2026-10-29 (Security Scan run
-# 40843566092, Trivy v0.76.1, linux/arm64) read 0 critical and 6 high findings
-# in it, all 6 fixed in a newer Alpine package. Read from the two images'
-# package databases (linux/arm64, 2026-10-30), the packages that differ between
-# that base and this one are apk-tools and libapk 3.0.6 to 3.0.8,
-# ca-certificates 20260611 to 20261020, libcrypto3 and libssl3 (openssl) 3.5.7
-# to 3.5.9, musl and musl-utils 1.2.6-r2 to -r3, pcre2 10.47 to 10.49 and zlib
-# 1.3.2-r0 to -r1. Upstream's image had exactly 3.4.2-alpine's packages.
+# newer release: besides `latest`, which is v0.5.0 itself, only `master`,
+# `nightly` and builds of upstream's pull requests, which are no release, and
+# v0.5.0 is upstream's newest git tag. That image is upstream's Dockerfile at
+# v0.5.0 on `haproxy:3.4.2-alpine` as the tag was then, Alpine 3.24.1, and the
+# image scan of 2026-10-29 (Security Scan run 40843566092, Trivy v0.76.1,
+# linux/arm64) read 0 critical and 6 high findings in it, all 6 fixed in a
+# newer Alpine package. Read from the two images' package databases
+# (linux/arm64, 2026-10-30), the packages that differ between that base and
+# this one are apk-tools and libapk 3.0.6 to 3.0.8, ca-certificates 20260611
+# to 20261020, libcrypto3 and libssl3 (openssl) 3.5.7 to 3.5.9, musl and
+# musl-utils 1.2.6-r2 to -r3, pcre2 10.47 to 10.49 and zlib 1.3.2-r0 to -r1.
+# Upstream's image had exactly 3.4.2-alpine's packages.
 #
 # WHAT IT IS. Upstream's own Dockerfile at the tag v0.5.0
 # (github.com/Tecnativa/docker-socket-proxy, commit 2e118a0c), with the two
@@ -43,7 +45,8 @@
 # upstream's v0.5.0 does. images.yml's `build (docker-socket-proxy)` builds it
 # on a pull request that touches deploy/, starts it on the runner's Docker
 # socket with managed.yml's environment, and asks it for what the supervisor
-# uses and for what it must refuse.
+# uses, which Docker must answer, and for every endpoint switch left off, which
+# the proxy must refuse with its own 403.
 #
 # THE NAME. managed.yml builds this as
 # `localhost/docker-socket-proxy:<base tag>-<12 hex>`, a name no registry

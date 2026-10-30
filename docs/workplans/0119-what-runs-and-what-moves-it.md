@@ -7,9 +7,10 @@
 **2026-10-30: the Docker socket proxy is built here, on HAProxy 3.4.7 (alpha.4, draft #1740).** The
 image scan of 2026-10-29 (Security Scan run 40843566092) read `tecnativa/docker-socket-proxy:v0.5.0`
 at 0 critical and 6 high on Alpine 3.24.1, all 6 fixed in newer Alpine packages. Docker Hub pushed
-that tag once, on 2026-07-27, and lists no newer release, only `master` and `nightly`, so neither a
-newer tag nor a new digest could move it, and the pin watch called it current. The proxy sits
-between the Trigger.dev supervisor and the host's Docker socket. `deploy/compose/docker-socket-proxy/`
+that tag once, on 2026-07-27, and lists no newer release (besides `latest`, which is v0.5.0 itself,
+only `master`, `nightly` and builds of upstream's pull requests; v0.5.0 is upstream's newest git tag),
+so neither a newer tag nor a new digest could move it, and the pin watch called it current. The
+proxy sits between the Trigger.dev supervisor and the host's Docker socket. `deploy/compose/docker-socket-proxy/`
 is upstream's Dockerfile at v0.5.0 (commit `2e118a0c`) with its `haproxy.cfg` and
 `docker-entrypoint.sh` byte for byte, on `haproxy:3.4.7-alpine` by index digest `2caaf8b1…`, the
 newest of the 3.4 line v0.5.0 chose (pushed 2026-10-24 17:56 UTC, past its floor; Alpine 3.24.3,
@@ -24,11 +25,22 @@ request, starts it with managed.yml's environment and asks it what it must allow
 `scripts/a-tag-upstream-never-rebuilds.unit.test.ts` holds all of it. Measured on the branch:
 Security Scan run 41012325563 (`image_scans`, on `1361e706`) reads `docker-socket-proxy`, built from
 `deploy/compose/docker-socket-proxy` on linux/arm64, at 0 critical, 0 high and 0 fixable on Alpine
-3.24.3, from 0, 6 and 6. The pull request's `build (docker-socket-proxy)` (Images run 41012498700)
-built it, the check read both files `OK`, and the proxy, started with managed.yml's environment on the
-runner's socket, passed Docker's own answer back for the nine requests the supervisor's environment
-allows and answered 403 to the twelve it refuses (exec, build, commit, info, swarm, secrets,
-services, nodes, the system, plugins, auth). HAProxy's notes for 3.4.3 to 3.4.7 are not read yet:
+3.24.3, from 0, 6 and 6. The pull request's `build (docker-socket-proxy)` (Images run 41012498700,
+on `61ea7c0a`) built it, the check read both files `OK`, and the proxy, started with managed.yml's
+environment on the runner's socket, passed Docker's answer back for the nine requests the
+supervisor's environment allows and answered 403 to the twelve it asked to be refused. Since the
+review of 2026-10-30 the job asks more: a request Docker must answer passes only with Docker's
+`Api-Version` header, and the proxy must answer its own 403, without that header, to seventeen
+requests covering the sixteen endpoint switches upstream's v0.5.0 leaves off and managed.yml does not
+turn on (auth, build, commit, configs, distribution, exec, grpc, info, nodes, plugins, secrets,
+services, session, swarm, system, tasks); the job's first run as changed is owed on the branch. The guard reads those switches from
+upstream's `haproxy.cfg` and ENV, and holds the job's verdict by running its step against a stub
+that answers the probes wrongly, one kind of wrong answer per run (the proxy's own 403, 503 or 400,
+or nothing, where Docker must answer; Docker's 200, 403 or 404, HAProxy's 503, or nothing, where the
+proxy must refuse): each run must fail and name every probe. The review found that the
+guard as first written passed the job with `exit "$failed"` turned into `exit 0`, and with its
+commit, plugins and auth probes dropped, and the job took any status but 403 and 000, HAProxy's own
+503 among them, for Docker's answer. HAProxy's notes for 3.4.3 to 3.4.7 are not read yet:
 www.haproxy.org was not reachable from the session that took the pin. E2E (managed) on the branch:
 owed, after the alpha.3 tag.
 
