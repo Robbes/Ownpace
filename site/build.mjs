@@ -48,7 +48,7 @@ import {
   total,
 } from './prices.mjs';
 import { freeTier as free, deriveTier, GMAIL_IMAP_GB_PER_DAY } from './calculator.mjs';
-import { securityTxt } from './security-txt.mjs';
+import { securityTxt, PUBLIC_SITE_URL } from './security-txt.mjs';
 import { LOCALES, DEFAULT_LOCALE, localeRoot, COPY } from './copy.mjs';
 import { CUSTOMER_TYPES, INDICATIVE_PROFILES, OBJECT_TYPES, PROFILES_VERSION, SIZE_ASKED } from './profiles.mjs';
 import { DATA_TYPES, DESTINATIONS, PROTOCOL_NAMES } from './destinations.mjs';
@@ -768,6 +768,28 @@ const urlFor = (locale, key) => {
   return `${localeRoot(locale)}/${file === 'index.html' ? '' : file}`;
 };
 
+/**
+ * A page's address in full, on the production site (workplan 0152 T5 (c)):
+ * what its canonical link, every page's hreflang links and `llms.txt` name.
+ *
+ * `PUBLIC_SITE_URL` (`security-txt.mjs`) is the one place the site's own
+ * address is written; the app's `PRODUCTION_LEGAL_SITE` is held to it
+ * (`scripts/a-policy-link-that-answers.unit.test.ts`).
+ *
+ * THE SAME ADDRESS IN EVERY BUILD, a test host's too. `rel="canonical"` names
+ * the preferred address of a page's content, not where this copy is served:
+ * for a copy of the site on a test host, that is production's, which is what
+ * a search engine should be told if it ever indexed the copy. A test build is
+ * `noindex` and its robots.txt disallows everything, so nothing reads them
+ * there; they take effect where `--public` makes the site indexable, which
+ * live's deploy does when its `.env` says `WWW_LIVE=true`. security.txt is the
+ * opposite case: RFC 9116's `Canonical` says where that file is located, which
+ * on a test host is not production, so only a `--public` build writes it. None
+ * of this is a link a visitor follows: the language switch and the nav stay
+ * relative, and nothing here names an app.
+ */
+const addressOf = (locale, key) => `${PUBLIC_SITE_URL}${urlFor(locale, key)}`;
+
 // WHAT BUILD THIS PAGE CAME FROM.
 //
 // The monorepo root package.json, which is the same single source the app's
@@ -817,7 +839,34 @@ const COMPANY = {};
 const companyOf = (locale) =>
   (COMPANY[locale] ??= companyLineOf(readFileSync(join(HERE, SOURCE[locale].privacy), 'utf8')));
 
-function layout({ title, description, body, locale, key, draft, alpha }) {
+/**
+ * What a page tells a search engine about its address (workplan 0152 T5 (c)),
+ * all of it absolute (`addressOf`): its canonical address; the page in each
+ * language, itself included, which is what makes the links reciprocal; and
+ * `x-default`, the page in `DEFAULT_LOCALE`. That is the build's own model:
+ * the root serves the default locale's pages, and nothing negotiates a
+ * language (`www-nginx.conf`), so a visitor whose language is neither is
+ * served the English page, and `x-default` says so.
+ *
+ * Until 2026-10-30 the hreflang links were relative, and there was no
+ * canonical link: a search engine resolves a relative one against whichever
+ * host served the page, and an assistant reading the page's source has no
+ * host to resolve it against.
+ */
+function searchLinks(locale, key) {
+  return [
+    `<link rel="canonical" href="${addressOf(locale, key)}" />`,
+    ...LOCALES.map((l) => `<link rel="alternate" hreflang="${l}" href="${addressOf(l, key)}" />`),
+    `<link rel="alternate" hreflang="x-default" href="${addressOf(DEFAULT_LOCALE, key)}" />`,
+  ].join('\n');
+}
+
+/**
+ * `addressed` is false for the 404 page alone: nginx serves it at whatever
+ * address was wrong, so it has no address of its own, and no other language's,
+ * to name (`searchLinks`). Its `key` is Home's for the nav, not an address.
+ */
+function layout({ title, description, body, locale, key, draft, alpha, addressed = true }) {
   const c = COPY[locale];
   const leaving = LEAVING.map((p) => leavingLink(locale, p, 20, `leaving-${p.id}` === key)).join('');
   const nav =
@@ -832,9 +881,6 @@ function layout({ title, description, body, locale, key, draft, alpha }) {
     `<a href="${esc(`${SIGN_IN_URL}?locale=${locale}`)}">${c.nav.signIn}</a>`;
 
   const other = LOCALES.find((l) => l !== locale);
-  const alternates = LOCALES.map(
-    (l) => `<link rel="alternate" hreflang="${l}" href="${urlFor(l, key)}" />`,
-  ).join('\n');
 
   const banner = draft
     ? `<p class="draft">${c.draftBanner}</p>`
@@ -863,8 +909,7 @@ function layout({ title, description, body, locale, key, draft, alpha }) {
 <meta property="og:type" content="website" />
 <meta property="og:locale" content="${locale === 'nl' ? 'nl_NL' : 'en_GB'}" />
 ${PUBLIC ? '' : '<meta name="robots" content="noindex, nofollow" />'}
-${alternates}
-<link rel="alternate" hreflang="x-default" href="${urlFor(DEFAULT_LOCALE, key)}" />
+${addressed ? searchLinks(locale, key) : ''}
 <link rel="icon" href="/brand/logo-120.png" />
 <style>${CSS}</style>
 </head>
@@ -1782,6 +1827,11 @@ export function build({ alpha = ALPHA, googleRestricted = GOOGLE_RESTRICTED } = 
         locale,
         key,
         file: `${localeRoot(locale).replace(/^\//, '')}${localeRoot(locale) ? '/' : ''}${c.files[key]}`,
+        // What `llms.txt` lists the page by: its address, and its own title
+        // and description, the words its <head> carries.
+        address: addressOf(locale, key),
+        title,
+        description,
         html: layout({ title, description, body, locale, key, draft, alpha }),
       });
     }
@@ -1811,6 +1861,10 @@ export function build({ alpha = ALPHA, googleRestricted = GOOGLE_RESTRICTED } = 
       locale,
       key: 'home',
       file: `${localeRoot(locale).replace(/^\//, '')}${localeRoot(locale) ? '/' : ''}404.html`,
+      // No address of its own (`addressed` in `layout`), so `llms.txt` leaves it out.
+      address: null,
+      title: c.notFound.title,
+      description: c.notFound.title,
       html: layout({
         title: c.notFound.title,
         description: c.notFound.title,
@@ -1819,12 +1873,50 @@ export function build({ alpha = ALPHA, googleRestricted = GOOGLE_RESTRICTED } = 
         key: 'home',
         draft: false,
         alpha,
+        addressed: false,
       }),
     });
   }
 
   const drafts = rendered.reduce((n, p) => n + (p.html.match(/class="todo"/g) ?? []).length, 0);
-  return { rendered, drafts };
+  return { rendered, drafts, llms: llmsTxt(rendered) };
+}
+
+/**
+ * `llms.txt`, at the site's root (ADR-0029; workplan 0152 T5 (c)), in the
+ * shape llmstxt.org gives it: a `#` title, a `>` summary, and `##` sections of
+ * `- [title](url): description` lines.
+ *
+ * Nothing in it is written for it. The title is the name the header shows, the
+ * summary is the home page's description in `DEFAULT_LOCALE`, and each line is
+ * one page with an address (every page but the 404) in one language, by its
+ * own `<title>` and `<meta name="description">`, at the address its canonical
+ * link names. A section per language, headed by the language's own name
+ * (`langName` in `copy.mjs`): each language's page has its own title and
+ * description in its own words, so a line holding both would have to choose
+ * one language's words for the other's page.
+ *
+ * Built from what this build rendered, so a page the build renders is listed
+ * and one it does not render (the tester guide outside the Alpha) is not.
+ */
+function llmsTxt(pages) {
+  const addressed = pages.filter((p) => p.address);
+  const home = addressed.find((p) => p.locale === DEFAULT_LOCALE && p.key === 'home');
+  if (!home) throw new Error(`site: no ${DEFAULT_LOCALE} home page was rendered, so llms.txt has no summary`);
+  return [
+    '# Ownpace',
+    '',
+    `> ${home.description}`,
+    '',
+    ...LOCALES.flatMap((locale) => [
+      `## ${COPY[locale].langName}`,
+      '',
+      ...addressed
+        .filter((p) => p.locale === locale)
+        .map((p) => `- [${p.title}](${p.address}): ${p.description}`),
+      '',
+    ]),
+  ].join('\n');
 }
 
 /**
@@ -1901,7 +1993,7 @@ function draftRefusal(unpublishable) {
  * file is run directly, which is the difference between a build tool and a
  * module a test may import.
  */
-export const { rendered, drafts } = build();
+export const { rendered, drafts, llms } = build();
 
 /**
  * CLEAR THE CONTENTS OF `dist`, NEVER THE DIRECTORY ITSELF.
@@ -1983,6 +2075,8 @@ if (runDirectly && process.argv.includes('--check')) {
     join(DIST, 'robots.txt'),
     PUBLIC ? 'User-agent: *\nAllow: /\n' : 'User-agent: *\nDisallow: /\n',
   );
+  // The pages, listed for an assistant (ADR-0029; 0152 T5 (c); `llmsTxt`).
+  writeFileSync(join(DIST, 'llms.txt'), llms);
   // Where a vulnerability is reported (0139 T9): the channel SECURITY.md
   // names, in the same order, with an Expires the RFC requires.
   mkdirSync(join(DIST, '.well-known'), { recursive: true });

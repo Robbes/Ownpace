@@ -26,7 +26,11 @@ export const ADVISORY_FORM = 'https://github.com/Robbes/Ownpace/security/advisor
 /** The policy the file points at. */
 export const POLICY_URL = 'https://github.com/Robbes/Ownpace/blob/main/SECURITY.md';
 
-/** Where the production site is served. */
+/**
+ * Where the production site is served: the one place the site's own address is
+ * written. `build.mjs` builds every page's canonical and hreflang addresses and
+ * `llms.txt`'s from it as well (`addressOf`, workplan 0152 T5 (c)).
+ */
 export const PUBLIC_SITE_URL = 'https://www.ownpace.eu';
 
 /** How far ahead `Expires` is written. */

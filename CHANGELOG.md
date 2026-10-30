@@ -4,6 +4,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **Every page of the public site names its own address and its other
+  language's in full, and `llms.txt` lists them** (workplan 0152 T5 (c);
+  ADR-0029): each page's `<head>` carries a canonical link to its address on
+  `https://www.ownpace.eu`, and its hreflang links (English, Dutch and
+  `x-default`, the English page the root serves) are absolute where they were
+  relative. The 404 page, served at whatever address was wrong, names none.
+  The build writes `llms.txt` at the site's root: one line per page per
+  language, by the page's own title and description, under *English* and
+  *Nederlands*. The address comes from `PUBLIC_SITE_URL`, the one place the
+  site writes it. A test build names the same addresses and keeps its
+  `noindex`; they take effect where `--public` makes the site indexable, which
+  live's deploy does with `WWW_LIVE=true`. No visible sentence changes.
+  `site/a-page-that-names-its-address-in-full.unit.test.ts` holds it.
+
 ## [0.2.0-alpha.3] - 2026-10-30
 
 A tester's grant mail now opens registration with the address it was sent to
