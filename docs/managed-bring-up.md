@@ -5083,15 +5083,19 @@ the Trigger.dev version, but its reason reads *cannot be compared with it on
 the Trigger.dev pin: managed.yml at one of the two has no image line naming
 it*: alpha.2's script compares image lines, and from alpha.3 on `trigger-api`
 and `trigger-supervisor` run images built on this machine (workplan 0146 T16,
-*Trigger.dev's two images built here*, above). Its bring-up prints that they
-are local builds of upstream's v4.8.1; it builds them only if the shared
-daemon does not hold the two names yet (the OTA's E2E and nightly build them
-first), in a minute or two from ghcr.io, and a build that fails stops the run
-before any Trigger.dev container is recreated. Never `up --build` or `build`
-them by hand on either stack: the other stack's next `up` would recreate its
-Trigger.dev containers outside any hold. The second run says *moves the
-Trigger.dev pin in managed.yml: v4.7.6 -> v4.8.1*, keeps the first run's copy
-and builds nothing.
+*Both Trigger.dev images are built here*, below). Its bring-up, the tag's own,
+prints that they are local builds of upstream's v4.8.1; it builds each only if
+the shared daemon does not hold its name yet (the OTA's E2E and nightly build
+them first), in a minute or two from ghcr.io. A failed build of
+`trigger-api`'s image stops the run before `trigger-api` is recreated; the
+supervisor's image is built after `trigger-api` runs on its build, so a failure
+there leaves `trigger-api` on v4.8.1 next to ghcr's v4.7.6 supervisor, with the
+hold on and the copy (triggerdb included) kept: fix the cause and run again.
+Never `up --build` or `build` them by hand on either stack: the other stack's
+next `up` would recreate its Trigger.dev containers outside any hold. The
+second run says *moves the Trigger.dev pin in managed.yml: v4.7.6 -> v4.8.1*,
+keeps the first run's copy and builds neither Trigger.dev image (both names are
+there from the first run).
 
 Start the first run with plain progress, from `~/ownpace-live`:
 `COMPOSE_PROGRESS=plain ./deploy/compose/deploy-live.sh v0.2.0-alpha.3`.
@@ -5129,7 +5133,7 @@ Without it the box checks delete the copy once a pass proves the update and
 the hold has been lifted for an hour (*The copy goes by itself once the update
 is proven*, above), and it is
 live's only quick way back from the builds
-(*Rolling back*, under *Trigger.dev's two images built here*). Delete it by
+(*Rolling back*, under *Both Trigger.dev images are built here*, below). Delete it by
 hand with `./deploy/compose/copy-before-update.sh delete` once the task runner
 has run real work for a few days, then set the key back (`true`, or remove the
 line) before the next deploy: a proven copy that is kept makes the next take
