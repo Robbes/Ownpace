@@ -10,8 +10,8 @@
  * deployed-task records (deploy-tasks.sh's ONE-TIME prerequisites need a
  * browser and a magic link). The webapp applies its own schema migrations on
  * boot and Prisma has no down-migrations, so a version bump is ONE WAY: the
- * documented rollback puts the old image tag back, which restores the IMAGES
- * and not the schema they migrated.
+ * documented rollback runs the checkout that pinned the old version, which
+ * restores the IMAGES and not the schema they migrated.
  *
  * Nothing backed that database up. `trigger-version.sh` does — and the tests
  * below are mostly about the parts that DESTROY things, because a restore is
@@ -36,6 +36,7 @@ import { gzipSync } from 'node:zlib';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { builtTag } from './idp-pin-watch.mjs';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = join(REPO_ROOT, 'deploy/compose/trigger-version.sh');
@@ -117,6 +118,25 @@ describe('a restore refuses before it can destroy anything', () => {
     expect(r.stderr).toContain('REFUSING');
     expect(r.stderr).toContain('stop trigger-api trigger-supervisor');
     expect(r.stderr).toContain('--yes');
+  });
+
+  it('after a restore, says to run the checkout that pinned the old version, never the old tag alone or a pin backwards (0146 T16)', () => {
+    // The images are built from this checkout's Dockerfiles, which refuse another version
+    // than their own: the old tag in .env alone builds nothing that runs.
+    const bin = join(dir, 'bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, 'docker'), '#!/usr/bin/env bash\ncase "$1" in inspect) echo false ;; exec) cat >/dev/null ;; esac\nexit 0\n', { mode: 0o755 });
+    const f = join(backups, 'triggerdb-20260824T000003Z.sql.gz');
+    writeFileSync(f, looksLikeADump());
+    const r = run(['restore', f, '--yes'], { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}` });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stderr).toContain('restored. Now run what that dump');
+    expect(r.stderr).toContain('the checkout that pinned it');
+    expect(r.stderr).toContain('Rolling back from it, step 9');
+    expect(r.stderr).toContain('git checkout <the release before the move>');
+    expect(r.stderr).toMatch(/up -d trigger-api trigger-supervisor/);
+    expect(r.stderr).toContain('Not `');
+    expect(r.stderr).not.toContain('Put TRIGGER_IMAGE_TAG and the SDK back');
   });
 });
 
@@ -226,19 +246,25 @@ describe('pin moves every place the CI guard compares', () => {
     expect(manifests.filter(declaresTrigger).length).toBeGreaterThan(2);
   });
 
+  /** The digests `tag_digest` would have read, before the slice; stubbed, since that asks ghcr. */
+  const DIGESTS = { webapp_digest: `sha256:${'a'.repeat(64)}`, supervisor_digest: `sha256:${'b'.repeat(64)}` };
+  const BUILDS = ['trigger.dev', 'supervisor'] as const;
+  const copy = (rel: string) => {
+    mkdirSync(join(dir, dirname(rel)), { recursive: true });
+    writeFileSync(join(dir, rel), readFileSync(join(REPO_ROOT, rel)));
+  };
+  /** Runs the slice inside a function, as in the script: the block may declare `local`s. */
+  const runRewrite = (want: string) =>
+    spawnSync('bash', ['-c', `set -euo pipefail\nsay() { :; }\ndie() { echo "DIE: $*" >&2; exit 1; }\nrewrite() {\n${rewrite}\n}\nrewrite`], {
+      encoding: 'utf8',
+      env: { ...process.env, want, SCRIPT_DIR: join(dir, 'deploy/compose'), REPO_ROOT: dir, ...DIGESTS },
+    });
+
   it('every @trigger.dev dependency, both compose defaults and the example, and nothing else', () => {
-    const copy = (rel: string) => {
-      mkdirSync(join(dir, dirname(rel)), { recursive: true });
-      writeFileSync(join(dir, rel), readFileSync(join(REPO_ROOT, rel)));
-    };
-    const files = ['deploy/compose/managed.yml', 'deploy/compose/managed.env.example', ...manifests];
+    const files = ['deploy/compose/managed.yml', 'deploy/compose/managed.env.example', ...manifests, ...BUILDS.map((b) => `deploy/compose/${b}/Dockerfile`)];
     files.forEach(copy);
 
-    // Inside a function, as in the script: the block may declare `local`s.
-    const r = spawnSync('bash', ['-c', `set -euo pipefail\nsay() { :; }\nrewrite() {\n${rewrite}\n}\nrewrite`], {
-      encoding: 'utf8',
-      env: { ...process.env, want: 'v9.8.7', SCRIPT_DIR: join(dir, 'deploy/compose'), REPO_ROOT: dir },
-    });
+    const r = runRewrite('v9.8.7');
     expect(r.status, r.stderr).toBe(0);
 
     for (const rel of manifests) {
@@ -253,6 +279,171 @@ describe('pin moves every place the CI guard compares', () => {
     expect(readFileSync(join(dir, 'deploy/compose/managed.env.example'), 'utf8')).toMatch(
       /^TRIGGER_IMAGE_TAG=v9\.8\.7$/m,
     );
+  });
+
+  it("moves each build's FROM to the tag and its digest, and its name to the new hash, which is the pin watch's (0146 T16)", () => {
+    ['deploy/compose/managed.yml', 'deploy/compose/managed.env.example', ...manifests, ...BUILDS.map((b) => `deploy/compose/${b}/Dockerfile`)].forEach(copy);
+    const r = runRewrite('v9.8.7');
+    expect(r.status, r.stderr).toBe(0);
+    const before = readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8').split('\n');
+    const after = readFileSync(join(dir, 'deploy/compose/managed.yml'), 'utf8').split('\n');
+    const changed = after.filter((line, i) => line !== before[i]);
+    const want: string[] = [];
+    for (const [i, name] of BUILDS.entries()) {
+      const dockerfile = readFileSync(join(dir, `deploy/compose/${name}/Dockerfile`), 'utf8');
+      const digest = i === 0 ? DIGESTS.webapp_digest : DIGESTS.supervisor_digest;
+      expect(dockerfile, name).toMatch(new RegExp(`^FROM ghcr\\.io/triggerdotdev/${name.replace('.', '\\.')}:v9\\.8\\.7@${digest}$`, 'm'));
+      // Only the FROM line moved in the Dockerfile.
+      const real = readFileSync(join(REPO_ROOT, `deploy/compose/${name}/Dockerfile`), 'utf8').split('\n');
+      expect(dockerfile.split('\n').filter((line, n) => line !== real[n]), name).toHaveLength(1);
+      // The shell's hash and the JS one agree on the rewritten file.
+      const hex = builtTag(dockerfile).slice('v9.8.7-'.length);
+      want.push(`    image: localhost/${name}:\${TRIGGER_IMAGE_TAG:-v9.8.7}-${hex}`);
+    }
+    expect(changed).toEqual(want);
+  });
+
+  it('pins the same version again to take the digest it has today, and skips a build whose directory is gone', () => {
+    ['deploy/compose/managed.yml', 'deploy/compose/managed.env.example', ...manifests, 'deploy/compose/trigger.dev/Dockerfile'].forEach(copy);
+    // The supervisor's patch dropped: its line is ghcr's image again, and its directory is gone.
+    const compose = join(dir, 'deploy/compose/managed.yml');
+    const dropped = readFileSync(compose, 'utf8').replace(/localhost\/supervisor:(\$\{TRIGGER_IMAGE_TAG:-v[\d.]+\})-[0-9a-f]{12}/, 'ghcr.io/triggerdotdev/supervisor:$1');
+    writeFileSync(compose, dropped);
+    const pin = /\$\{TRIGGER_IMAGE_TAG:-(v[^}]+)\}/.exec(dropped)![1]!;
+    const r = runRewrite(pin);
+    expect(r.status, r.stderr).toBe(0);
+    const after = readFileSync(compose, 'utf8');
+    expect(after).toContain(`image: ghcr.io/triggerdotdev/supervisor:\${TRIGGER_IMAGE_TAG:-${pin}}\n`);
+    expect(readFileSync(join(dir, 'deploy/compose/trigger.dev/Dockerfile'), 'utf8')).toMatch(new RegExp(`^FROM ghcr\\.io/triggerdotdev/trigger\\.dev:${pin.replaceAll('.', '\\.')}@${DIGESTS.webapp_digest}$`, 'm'));
+    const hex = builtTag(readFileSync(join(dir, 'deploy/compose/trigger.dev/Dockerfile'), 'utf8')).slice(pin.length + 1);
+    expect(after).toContain(`    image: localhost/trigger.dev:\${TRIGGER_IMAGE_TAG:-${pin}}-${hex}\n`);
+  });
+
+  it('refuses a Dockerfile whose FROM it cannot move, or a build line it cannot find, before it moves anything', () => {
+    const files = ['deploy/compose/managed.yml', 'deploy/compose/managed.env.example', ...manifests, ...BUILDS.map((b) => `deploy/compose/${b}/Dockerfile`)];
+    const snapshot = () => Object.fromEntries(files.map((rel) => [rel, readFileSync(join(dir, rel), 'utf8')]));
+    files.forEach(copy);
+    const file = join(dir, 'deploy/compose/supervisor/Dockerfile');
+    writeFileSync(file, readFileSync(file, 'utf8').replace(/^FROM (\S+)@sha256:[0-9a-f]{64}$/m, 'FROM $1'));
+    let before = snapshot();
+    let r = runRewrite('v9.8.7');
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('has no FROM ghcr.io/triggerdotdev/supervisor:<tag>@<digest> line to move');
+    expect(r.stderr).toContain('Nothing was moved.');
+    // The webapp's FROM and name, managed.yml's defaults, the example and every manifest are as they were.
+    expect(snapshot()).toEqual(before);
+    // The supervisor's name line gone from managed.yml: the same.
+    files.forEach(copy);
+    const compose = join(dir, 'deploy/compose/managed.yml');
+    writeFileSync(compose, readFileSync(compose, 'utf8').replace(/^ {4}image: localhost\/supervisor:.*$/m, '    image: localhost/supervisor:latest'));
+    before = snapshot();
+    r = runRewrite('v9.8.7');
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('managed.yml does not name the build of');
+    expect(r.stderr).toContain('Nothing was moved.');
+    expect(snapshot()).toEqual(before);
+  });
+
+  it("says to read the Dockerfiles again and wait for both builds before the backup and the drain, and never to pin backwards", () => {
+    const text = pin.slice(pin.indexOf('  cat <<EOF'));
+    const order = ['read_at', 'build (trigger, amd64) and build (trigger, arm64)', 'backup before-', 'drain EXECUTING first', 'E2E (managed)'].map((s) => text.indexOf(s));
+    expect(order.every((i) => i > 0), JSON.stringify(order)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(text).toContain('Never pin\nbackwards');
+    expect(text).not.toContain('and pinning the old version');
+    // An unquoted heredoc runs anything in backticks: none in it.
+    expect(text).not.toContain('`');
+  });
+});
+
+describe('the builds here, read and asked for as trigger-version.sh does (0146 T16)', () => {
+  const fn = (name: string) => new RegExp(`^${name}\\(\\) \\{[\\s\\S]*?\\n\\}`, 'm').exec(script)?.[0] ?? '';
+
+  it('`list` reads the running tag without the hash a build ends its name in', () => {
+    expect(fn('running_tag')).toContain('docker inspect');
+    const bin = join(dir, 'bin');
+    mkdirSync(bin, { recursive: true });
+    for (const [image, want] of [
+      ['localhost/trigger.dev:v4.8.1-72939d99d1b8', 'v4.8.1'],
+      ['ghcr.io/triggerdotdev/trigger.dev:v4.8.1', 'v4.8.1'],
+    ] as const) {
+      writeFileSync(join(bin, 'docker'), `#!/usr/bin/env bash\necho '${image}'\n`, { mode: 0o755 });
+      const r = spawnSync('bash', ['-c', `set -euo pipefail\nAPI_CONTAINER=x\n${fn('running_tag')}\nrunning_tag`], {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}` },
+      });
+      expect(r.stdout, image).toBe(`${want}\n`);
+    }
+  });
+
+  it('`list` prints the image trigger-api runs in full and the build this checkout names, and says when they differ', () => {
+    const compose = readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8');
+    const named = /localhost\/trigger\.dev:\$\{TRIGGER_IMAGE_TAG:-(v[^}]+)\}-([0-9a-f]{12})/.exec(compose)!;
+    const [, pin, hex] = named;
+    const stack = join(dir, 'compose');
+    mkdirSync(stack, { recursive: true });
+    writeFileSync(join(stack, 'managed.yml'), compose);
+    const bin = join(dir, 'bin');
+    mkdirSync(bin, { recursive: true });
+    const lines = (running: string, env?: string) => {
+      writeFileSync(join(bin, 'docker'), `#!/usr/bin/env bash\necho '${running}'\n`, { mode: 0o755 });
+      if (env === undefined) rmSync(join(stack, '.env'), { force: true });
+      else writeFileSync(join(stack, '.env'), env);
+      const body = ['set -euo pipefail', `. '${join(REPO_ROOT, 'deploy/compose/env-read.sh')}'`, `SCRIPT_DIR='${stack}'`, `ENV_FILE='${stack}/.env'`, 'API_CONTAINER=x', fn('repo_tag'), fn('checkout_image'), fn('build_lines'), 'build_lines'].join('\n');
+      const r = spawnSync('bash', ['-c', body], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}` } });
+      expect(r.status, r.stderr).toBe(0);
+      return r.stdout;
+    };
+    const same = lines(`localhost/trigger.dev:${pin}-${hex}`);
+    expect(same).toContain(`  image     localhost/trigger.dev:${pin}-${hex}\n`);
+    expect(same).toContain(`  builds    localhost/trigger.dev:${pin}-${hex}`);
+    expect(same).not.toContain('NOTE');
+    // Another build of the same version: the version reads the same, the build does not.
+    expect(lines(`localhost/trigger.dev:${pin}-000000000000`)).toContain('NOTE      trigger-api runs another image than this checkout names');
+    // The .env's version names the build.
+    expect(lines(`localhost/trigger.dev:v9.9.9-${hex}`, "TRIGGER_IMAGE_TAG='v9.9.9'\n")).not.toContain('NOTE');
+  });
+
+  /** `tag_digest` against a stubbed ghcr, whose headers come after a proxy's own answer to CONNECT. */
+  function digestOf(type: string, digest: string) {
+    const bin = join(dir, 'bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(
+      join(bin, 'curl'),
+      [
+        '#!/usr/bin/env bash',
+        'url="${@: -1}"',
+        'case "$url" in',
+        `  *'/token?'*) echo '{"token":"t"}' ;;`,
+        `  *) printf 'HTTP/1.1 200 Connection Established\r\n\r\nHTTP/2 200 \r\ncontent-type: %s\r\ndocker-content-digest: %s\r\n\r\n' '${type}' '${digest}' ;;`,
+        'esac',
+        '',
+      ].join('\n'),
+      { mode: 0o755 },
+    );
+    const body = ['set -euo pipefail', 'die() { echo "DIE: $*" >&2; exit 1; }', 'TOKEN_trigger_dev=""; TOKEN_supervisor=""', fn('ghcr_token'), fn('tag_digest'), 'tag_digest supervisor v9.8.7'].join('\n');
+    return spawnSync('bash', ['-c', body], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}` } });
+  }
+
+  it("reads an index's digest, and refuses a one-platform manifest or a missing digest", () => {
+    const ok = digestOf('application/vnd.oci.image.index.v1+json', `sha256:${'c'.repeat(64)}`);
+    expect(ok.stderr).toBe('');
+    expect(ok.stdout).toBe(`sha256:${'c'.repeat(64)}\n`);
+    expect(digestOf('application/vnd.docker.distribution.manifest.list.v2+json', `sha256:${'d'.repeat(64)}`).stdout).toBe(`sha256:${'d'.repeat(64)}\n`);
+    const one = digestOf('application/vnd.oci.image.manifest.v1+json', `sha256:${'c'.repeat(64)}`);
+    expect(one.status).not.toBe(0);
+    expect(one.stderr).toContain('not an index of platforms');
+    const none = digestOf('application/vnd.oci.image.index.v1+json', 'sha256:short');
+    expect(none.status).not.toBe(0);
+    expect(none.stderr).toContain('gave no digest');
+  });
+
+  it('pin asks both digests after both tags answer and before anything moves', () => {
+    const pin = fn('cmd_pin');
+    const asked = pin.indexOf('webapp_digest="$(tag_digest trigger.dev "$want")"');
+    expect(asked).toBeGreaterThan(pin.indexOf('tag_exists supervisor'));
+    expect(pin.indexOf('supervisor_digest="$(tag_digest supervisor "$want")"')).toBeGreaterThan(asked);
+    expect(pin.indexOf('bare="${want#v}"')).toBeGreaterThan(asked);
   });
 });
 
