@@ -95,11 +95,16 @@
 # under apps/webapp/build or apps/webapp/public carries DOMPurify (its
 # trusted-types attribute, data-tt-policy-suffix, which every copy carries) or
 # imports dompurify or mermaid by name. Between the two published tarballs,
-# 3.4.13 to 3.4.17 changes no API either caller uses: the same 24 files; the
-# same package.json but for the version and the build scripts (main, module,
-# browser and exports are unchanged); type declarations equal but for the order
-# of one import. The code changes inside sanitize (the fixes), and attrs.ts
-# allows two more SVG attributes, pointer-events and vector-effect.
+# 3.4.13 to 3.4.17 changes no API either caller uses. The 24 file names are
+# the same. The entry points and exports are unchanged (main, module, browser,
+# types and exports), and require() of either CJS build gives the same keys.
+# package.json differs only in the version, its scripts and its
+# devDependencies (rollup became rolldown). The type declarations differ in the
+# order of one import, and the CJS ones drop `export { _default as default }`
+# and keep `export = _default`. The code changes are in src/purify.ts's
+# sanitising internals (the fixes), the helpers src/utils.ts adds for them, and
+# src/attrs.ts, which allows two more SVG attributes, pointer-events and
+# vector-effect.
 #
 # HOW IT IS REPLACED, AND PROVED. The last RUN as root fetches
 # dompurify-3.4.17.tgz from the npm registry, as the API image's build fetches
@@ -183,8 +188,10 @@
 # LABEL: the hash covers all that is built, and the image's configuration stays
 # upstream's.
 #
-# THE WAY OUT. The issue that asks upstream for these fixes is filed by the
-# owner (workplan 0146 T16); its address goes here once it exists. When a `pin`
+# THE WAY OUT. The owner filed the issue that asks upstream for these fixes,
+# triggerdotdev/trigger.dev#5084 (workplan 0146 T16). Upstream's fix for
+# dompurify is the override in its root package.json, `"dompurify@>=3 <3.4.13":
+# "^3.4.13"` at v4.8.1, raised to 3.4.17 with its lockfile. When a `pin`
 # to a release that fixed one of these fails its check, delete that removal and
 # its row in the guard's REMOVED table; a release that moves dompurify past
 # 3.4.13 fails the replacement on its path, and the replacement and its
