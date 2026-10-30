@@ -223,6 +223,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   cannot ask, fails. The machine's own address, and an address only the OTA
   names resolve to, fail on every answer as before; a listed port is tried
   everywhere, and one that stops answering is said, so the list can shrink.
+- **The grant mail's link opens registration with the address filled in**
+  (workplan 0095 T6; the owner, 2026-10-29). The link ends in `#register=` and
+  the address the mail was sent to. Opened from it, the sign-in page offers
+  *Create your account* / *Maak uw account aan*, which asks the sign-in
+  service for registration (`prompt=create`) with that address (`login_hint`)
+  in the page's language (`ui_locales`), and *Sign in* as the second choice.
+  The address travels after `#`, which no request carries: it leaves the
+  browser only when the button is pressed, to the sign-in service, which logs
+  an address that matches no account yet at info (accepted; the comment beside
+  privacy §4.5). That service still verifies it with a code before it binds
+  anybody. Live's sign-in service fills the field in; where Google is
+  offered too (OTA, E2E), it first asks how to register, and the field stays
+  empty. Invitations are unchanged. `smoke-managed.sh` reads the registration
+  page the link leads to.
 
 ### Added
 
