@@ -62,7 +62,10 @@
  *                      busybox copies in the scripts, www.yml's nginx against
  *                      apps/web/Dockerfile's, Stalwart's copies and its newest
  *                      v0.16.x, the GoAccess release site-visits.sh builds
- *                      against upstream's git tags, the Trivy the Security
+ *                      against upstream's git tags, the docker-socket-proxy
+ *                      release trigger-docker-proxy is built from against
+ *                      upstream's git tags (its base, HAProxy, is compared
+ *                      within its line, `LINES`), the Trivy the Security
  *                      Scan runs, and the cosign the workflows name, every
  *                      copy together.
  *                      cosign-installer's default is a status line only. Any
@@ -164,6 +167,28 @@ export const STALWART_RULE =
 
 /** The visit count's GoAccess, built here (#1675). */
 export const GOACCESS_DOCKERFILE = 'deploy/compose/goaccess/Dockerfile';
+
+/**
+ * The Docker socket proxy, built here since 2026-10-30 (workplan 0119):
+ * Tecnativa's docker-socket-proxy at the release its Dockerfile names
+ * (`# docker-socket-proxy v0.5.0`), on a current HAProxy of the line that
+ * release chose. Until then managed.yml ran upstream's image, and this watch
+ * compared its tag with Docker Hub's; it compares the release with upstream's
+ * git tags now, as GoAccess's.
+ */
+export const SOCKET_PROXY_DOCKERFILE = 'deploy/compose/docker-socket-proxy/Dockerfile';
+export const SOCKET_PROXY_UPSTREAM = 'https://github.com/Tecnativa/docker-socket-proxy';
+
+/**
+ * Images whose line is more of their tag than its first number, by how many
+ * numbers it is: compared with the newest tag that keeps them, never across
+ * lines. HAProxy keeps each `3.4` branch on its own, and the socket proxy runs
+ * the one its upstream release chose (deploy/compose/docker-socket-proxy's
+ * header): another is the owner's call, which Dependabot is told to leave
+ * alone too, and a release of docker-socket-proxy that moves it is that row's
+ * to report.
+ */
+export const LINES = { haproxy: 2 };
 
 /** Every copy of the Stalwart pin. The fixture's Dockerfile may go; a missing file is skipped. */
 export const STALWART_FILES = [
@@ -881,7 +906,7 @@ export async function routineRows(repo, net) {
           ...(state === 'behind' ? { notes: [REBUILD_NOTE] } : {}),
         };
       }
-      const newest = newestLike(image.tag, await tagsFor(image.repo));
+      const newest = newestLike(image.tag, await tagsFor(image.repo), LINES[image.repo] ?? 1);
       const state = stateOf(image.tag, newest);
       return { pin: image.tag, newest, state, ...(state === 'behind' && image.dockerfile ? { notes: [builtNote(image.dockerfile)] } : {}) };
     }]);
@@ -951,6 +976,18 @@ export async function routineRows(repo, net) {
     }
     if (candidates.length === 0) throw new Error(`no tag shaped like ${release} was listed, so it cannot be called current`);
     const newest = candidates.sort(compareParts).at(-1);
+    return { pin: release, newest, state: stateOf(release, newest) };
+  }]);
+
+  // The Docker socket proxy: trigger-docker-proxy runs a build here since
+  // 2026-10-30, upstream's files at a release on a current HAProxy
+  // (deploy/compose/docker-socket-proxy/Dockerfile, whose base Dependabot
+  // moves within its line). So the release it is built from is compared with
+  // upstream's git tags, of its own 0.x major, as the image's tag was.
+  jobs.push(['tecnativa/docker-socket-proxy', SOCKET_PROXY_DOCKERFILE, async () => {
+    const release = /^# docker-socket-proxy (v\d+\.\d+\.\d+)$/m.exec(need(repo, SOCKET_PROXY_DOCKERFILE))?.[1];
+    if (!release) throw new Error(`${SOCKET_PROXY_DOCKERFILE} names no docker-socket-proxy release ("# docker-socket-proxy v0.5.0") above its FROM`);
+    const newest = newestLike(release, tagsOf(await net.lsRemote(SOCKET_PROXY_UPSTREAM)));
     return { pin: release, newest, state: stateOf(release, newest) };
   }]);
 
@@ -1040,7 +1077,7 @@ export function summaryOf(rows, status) {
   const behind = rows.filter((r) => r.state === 'behind');
   const failed = rows.filter((r) => r.state === 'error' || r.state === 'ahead');
   const body = [
-    "Dependabot does not read these pins, but for an image built here, whose line says so: its compose fetcher reads only files named like `compose.yml`, and no file in `deploy/compose` is (`a-dependabot-directory-with-nothing-to-read`). So this watch reads them, each against its own registry's tags of the same major. Behind:",
+    "Dependabot does not read these pins, but for an image built here, whose line says so: its compose fetcher reads only files named like `compose.yml`, and no file in `deploy/compose` is (`a-dependabot-directory-with-nothing-to-read`). So this watch reads them, each against its own registry's tags of the same major, or of its line where `LINES` names one (HAProxy's), and a release built here from upstream's files (GoAccess, the Docker socket proxy) against upstream's git tags. Behind:",
     '',
     ...behind.map(lineOf),
     '',

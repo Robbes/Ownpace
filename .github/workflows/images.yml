@@ -519,3 +519,126 @@ jobs:
             fi
             echo "${ref}: ${platform}, $(docker image inspect --format '{{.Id}}, user {{.Config.User}}' "$ref")"
           done <<<"$builds"
+
+  # THE DOCKER SOCKET PROXY BUILT HERE, ON A PULL REQUEST (workplan 0119,
+  # 2026-10-30). managed.yml's trigger-docker-proxy runs
+  # `localhost/docker-socket-proxy:<tag>-<hash>`, which compose builds on the
+  # machine from deploy/compose/docker-socket-proxy: Tecnativa's
+  # docker-socket-proxy v0.5.0, its files byte for byte, on the newest HAProxy
+  # of the line that release chose. Nothing publishes it, so the matrix above
+  # never builds it, and without this job the first build of a pull request
+  # that moved its FROM would be the branch's E2E (managed).
+  #
+  # It builds the directory under the name managed.yml gives it, checks the
+  # image's user, entrypoint and command are upstream's, and starts it on this
+  # runner's Docker socket, read-only, with the environment managed.yml sets.
+  # Then it asks it, as the supervisor would over DOCKER_HOST, for what the
+  # supervisor uses (containers, images, networks, volumes, a POST to a
+  # container that does not exist): Docker must answer each, whatever it
+  # answers, and the answer must carry the Api-Version header Docker sets on
+  # every response, so that HAProxy's own 403, or its 503 when the socket stops
+  # answering, never counts as Docker's. And for every endpoint switch
+  # upstream's v0.5.0 leaves off and managed.yml does not turn on (auth, build,
+  # commit, configs, distribution, exec, grpc, info, nodes, plugins, secrets,
+  # services, session, swarm, the system, tasks): the proxy must answer 403
+  # itself, without that header. The job exits with the verdict of every
+  # probe, and the guard runs this script against a stub that answers each
+  # probe wrongly in turn. A FROM that does not resolve, a file whose SHA-256
+  # is not the one the Dockerfile names, an entrypoint without its executable
+  # bit, or a HAProxy that reads the configuration another way fails here by
+  # name. The address is the runner's own loopback, and the probes create,
+  # start and remove nothing. On a pull request only, publishing nothing. Held
+  # by scripts/a-tag-upstream-never-rebuilds.unit.test.ts.
+  socket-proxy:
+    name: build (docker-socket-proxy)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build the Docker socket proxy as managed.yml names it, and ask it what it allows and refuses
+        run: |
+          set -euo pipefail
+          # The reference compose builds, read from managed.yml's one image line for it.
+          ref="$(sed -n 's/^[[:space:]]*image:[[:space:]]*\(localhost\/docker-socket-proxy:[^[:space:]]*\)[[:space:]]*$/\1/p' deploy/compose/managed.yml)"
+          if [ -z "$ref" ] || [ "$(wc -l <<<"$ref")" != 1 ]; then
+            echo "::error::managed.yml names no single localhost/docker-socket-proxy image: '${ref}'"
+            exit 1
+          fi
+          docker build --pull --progress=plain --tag "$ref" deploy/compose/docker-socket-proxy
+          have="$(docker image inspect --format '{{json .Config.User}} {{json .Config.Entrypoint}} {{json .Config.Cmd}}' "$ref")"
+          want='"root" ["docker-entrypoint.sh"] ["haproxy","-f","/tmp/haproxy.cfg"]'
+          if [ "$have" != "$want" ]; then
+            echo "::error::${ref} runs ${have} (user, entrypoint, command), and upstream's v0.5.0 runs ${want}"
+            exit 1
+          fi
+          # managed.yml's environment and socket for trigger-docker-proxy, as they are there.
+          docker run -d --name socket-proxy \
+            -e CONTAINERS=1 -e IMAGES=1 -e NETWORKS=1 -e VOLUMES=1 -e POST=1 \
+            -v /var/run/docker.sock:/var/run/docker.sock:ro \
+            -p 127.0.0.1:2375:2375 "$ref"
+          for attempt in $(seq 1 30); do
+            if curl -fsS -o /dev/null --max-time 2 http://127.0.0.1:2375/_ping; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              echo "::error::${ref} did not answer /_ping within 30 seconds"
+              exit 1
+            fi
+            sleep 1
+          done
+          # Who answered a request, and how: its HTTP status, then the Api-Version
+          # header, which Docker sets on every response it writes, its errors
+          # among them. HAProxy's own answers carry none: its 403, and the 400,
+          # 408, 500, 502, 503 and 504 its errorfiles write when a request is
+          # malformed or the socket does not answer. curl writes 000 when
+          # nothing answered, and nothing for a header that is not there.
+          answer() {
+            curl -sS -o /dev/null -w '%{http_code} %header{api-version}' --max-time 10 -X "$1" "http://127.0.0.1:2375$2" || true
+          }
+          failed=0
+          # What the supervisor uses under managed.yml's environment: Docker's answer, whatever it is.
+          for probe in \
+            "GET /_ping" "GET /version" "GET /containers/json" "GET /v1.43/containers/json" \
+            "GET /images/json" "GET /networks" "GET /volumes" \
+            "POST /containers/socket-proxy-probe-none/stop" "POST /networks/socket-proxy-probe-none/connect"; do
+            read -r method path <<<"$probe"
+            read -r code version <<<"$(answer "$method" "$path")"
+            if [ -z "$version" ]; then
+              echo "::error::${probe}: ${code} without Api-Version, the proxy's own answer, and the supervisor needs Docker's here"
+              failed=1
+            else
+              echo "allowed: ${probe} -> ${code} (Docker's answer, API ${version})"
+            fi
+          done
+          # One request for each endpoint switch upstream's v0.5.0 leaves off and managed.yml does not turn on: the proxy's own 403.
+          for probe in \
+            "POST /auth" "POST /build" "POST /commit" "GET /configs" \
+            "GET /distribution/socket-proxy-probe-none/json" \
+            "GET /exec/socket-proxy-probe-none/json" "POST /exec/socket-proxy-probe-none/start" \
+            "GET /grpc" "GET /info" "GET /nodes" "GET /plugins" "GET /secrets" "GET /services" \
+            "GET /session" "GET /swarm" "GET /system/df" "GET /tasks"; do
+            read -r method path <<<"$probe"
+            read -r code version <<<"$(answer "$method" "$path")"
+            if [ "$code" != 403 ] || [ -n "$version" ]; then
+              echo "::error::${probe}: ${code}${version:+ from Docker (Api-Version ${version})}, and upstream's v0.5.0 refuses it with the proxy's own 403 under managed.yml's environment"
+              failed=1
+            else
+              echo "refused: ${probe} -> 403 (the proxy's own)"
+            fi
+          done
+          echo "${ref}: $(docker image inspect --format '{{.Os}}/{{.Architecture}} {{.Id}}' "$ref")"
+          exit "$failed"
+
+      - name: The proxy's log, when it did not answer as it should
+        if: failure()
+        run: docker logs socket-proxy || true
+
+      - name: Remove the proxy
+        if: always()
+        run: docker rm -f socket-proxy || true

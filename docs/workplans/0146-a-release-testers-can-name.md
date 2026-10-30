@@ -85,7 +85,8 @@ no fix in Debian), and GHSA-cg2g-xh64-v4q7 in dompurify 3.4.13, fixed in 3.4.17,
   as **1 critical, 137 high**, 81 with a fix (2, 138 and 83 before, run 41004468330): the one
   critical left is zlib1g, CVE-2023-45853, which Debian has not fixed, and GHSA-mrv2-3pqr-j5jr
   went with GHSA-cg2g-xh64-v4q7. The supervisor reads 0 and 25, unchanged. E2E (managed) on
-  the branch: owed, before the merge.
+  the branch: run 41050861489 was green (the new image healthy, the smoke passed), and it merged as
+  #1742 (`2a1666ae`).
 - **The review of 2026-10-30** found four things, and each held when checked again. The
   records called this a draft for alpha.4, after the owner had put it into alpha.3, and T16's
   done-condition still read 2 and 0; it is an alpha.3 addition now, and 1 and 0. Seven of ten

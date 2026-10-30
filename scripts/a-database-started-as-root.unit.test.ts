@@ -67,7 +67,8 @@
  *    comment or document gives a command that builds the databases' image:
  *    no `up --build` on managed.yml or dev.yml, no `build` naming no service
  *    or a database, nor any other service whose image is built here, read
- *    from the files (trigger-api and trigger-supervisor since 0146 T16);
+ *    from the files (trigger-api and trigger-supervisor since 0146 T16, and
+ *    trigger-docker-proxy since 2026-10-30);
  *  - a pull request that touches deploy/ builds the Dockerfile and starts the
  *    result (images.yml, `build (postgres)`), so a FROM that does not resolve,
  *    or a base without gosu, is found there and not first by E2E (managed);
@@ -618,9 +619,10 @@ const COMPOSE_VARIABLE = /^"?\$\{?[A-Z_]*COMPOSE[A-Z_]*\}?"?$/;
 
 /**
  * Every service of managed.yml and dev.yml that runs an image built here
- * (`localhost/…`), read from the files: the two databases (0146 T15), and
- * trigger-api and trigger-supervisor since 0146 T16. None may be built by
- * name: each is built where its name is missing, and only then.
+ * (`localhost/…`), read from the files: the two databases (0146 T15),
+ * trigger-api and trigger-supervisor since 0146 T16, and trigger-docker-proxy
+ * since 2026-10-30 (0119). None may be built by name: each is built where its
+ * name is missing, and only then.
  */
 const BUILT_HERE_SERVICES: ReadonlySet<string> = new Set(
   ['deploy/compose/managed.yml', 'deploy/compose/dev.yml'].flatMap((file) =>
@@ -826,7 +828,7 @@ const lift = (name: string): string => {
 
 describe("nothing builds the databases' image again while the machine has it", () => {
   it('knows every service that runs an image built here, from the compose files', () => {
-    expect([...BUILT_HERE_SERVICES].sort()).toEqual(['postgres', 'trigger-api', 'trigger-db', 'trigger-supervisor']);
+    expect([...BUILT_HERE_SERVICES].sort()).toEqual(['postgres', 'trigger-api', 'trigger-db', 'trigger-docker-proxy', 'trigger-supervisor']);
   });
 
   it('reads the commands it means, and refuses each way of rebuilding it', () => {

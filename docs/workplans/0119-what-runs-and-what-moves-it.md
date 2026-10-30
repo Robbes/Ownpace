@@ -4,6 +4,52 @@
 
 ## Status — 2026-10-30 (update this block at the end of every session)
 
+**2026-10-30: the Docker socket proxy is built here, on HAProxy 3.4.7 (alpha.3, #1740).** The
+image scan of 2026-10-29 (Security Scan run 40843566092) read `tecnativa/docker-socket-proxy:v0.5.0`
+at 0 critical and 6 high on Alpine 3.24.1, all 6 fixed in newer Alpine packages. Docker Hub pushed
+that tag once, on 2026-07-27, and lists no newer release (besides `latest`, which is v0.5.0 itself,
+only `master`, `nightly` and builds of upstream's pull requests; v0.5.0 is upstream's newest git
+tag), so neither a newer tag nor a new digest could move it, and the pin watch called it current.
+The proxy sits between the Trigger.dev supervisor and the host's Docker socket.
+`deploy/compose/docker-socket-proxy/` is upstream's Dockerfile at v0.5.0 (commit `2e118a0c`) with
+its `haproxy.cfg` and `docker-entrypoint.sh` byte for byte, on `haproxy:3.4.7-alpine` by index
+digest `2caaf8b1…`, the newest of the 3.4 line v0.5.0 chose (pushed 2026-10-24 17:56 UTC, past its
+floor; Alpine 3.24.3, openssl 3.5.9, musl 1.2.6-r3, pcre2 10.49, zlib 1.3.2-r1). One RUN checks the
+two files by SHA-256, so the name, which hashes the Dockerfile's instruction lines, moves when they
+do. `managed.yml` runs it as `localhost/docker-socket-proxy:3.4.7-alpine-86292f1f80d6`,
+`pull_policy: never`, built by the bring-up's `up` where the name is missing; its environment is
+upstream's interface, unchanged. Dependabot moves the base within 3.4 (an entry of its own); the pin
+watch compares HAProxy within its line and the release with upstream's tags; the image scan builds
+the directory under the name `docker-socket-proxy`, as before; images.yml's
+`build (docker-socket-proxy)` builds it on a pull request, starts it with managed.yml's environment
+and asks it what it must allow and refuse; `scripts/a-tag-upstream-never-rebuilds.unit.test.ts`
+holds all of it. Measured on the branch: Security Scan run 41012325563 (`image_scans`, on
+`1361e706`) reads `docker-socket-proxy`, built from `deploy/compose/docker-socket-proxy` on
+linux/arm64, at 0 critical, 0 high and 0 fixable on Alpine 3.24.3, from 0, 6 and 6. The pull
+request's `build (docker-socket-proxy)` (Images run 41012498700, on `61ea7c0a`) built it, the check
+read both files `OK`, and the proxy, started with managed.yml's environment on the runner's socket,
+passed Docker's answer back for the nine requests the supervisor's environment allows and answered
+403 to the twelve it asked to be refused. Since the review of 2026-10-30 the job asks more: a
+request Docker must answer passes only with Docker's `Api-Version` header, and the proxy must answer
+its own 403, without that header, to seventeen requests covering the sixteen endpoint switches
+upstream's v0.5.0 leaves off and managed.yml does not turn on (auth, build, commit, configs,
+distribution, exec, grpc, info, nodes, plugins, secrets, services, session, swarm, system, tasks).
+Images run 41039726159 (on `6befad27`) read it so: the nine requests the supervisor uses came back
+with `Api-Version` 1.48, the 404 and the 400 of the two POSTs among them, so Docker wrote both, and
+all seventeen came back 403 from the proxy, without it. The guard reads those switches from
+upstream's `haproxy.cfg` and ENV, and holds the job's verdict by running its step against a stub
+that answers the probes wrongly, one kind of wrong answer per run (the proxy's own 403, 503 or 400,
+or nothing, where Docker must answer; Docker's 200, 403 or 404, HAProxy's 503, or nothing, where the
+proxy must refuse): each run must fail and name every probe. The review found that the guard as
+first written passed the job with `exit "$failed"` turned into `exit 0`, and with its commit,
+plugins and auth probes dropped, and the job took any status but 403 and 000, HAProxy's own 503
+among them, for Docker's answer. It goes into alpha.3 by the owner's answer of 2026-10-30: only if
+its review is clean, its configuration is upstream's byte for byte, and E2E (managed) passes with
+real task runs through it. HAProxy's notes for 3.4.3 to 3.4.7 stay unread: www.haproxy.org is
+outside this session's network. 3.4 is a stable branch, which takes fixes only, and the proof of
+behaviour is the branch's: the build job's 17 refused and 9 allowed probes against a real Docker,
+and E2E (managed) on the branch.
+
 **2026-10-30, after the fold: the webapp built here carries dompurify 3.4.17, an alpha.3
 addition** (0146 T16; 0146's Status entry of the same name has the detail). The owner put it
 into alpha.3 on 2026-10-30, after the fold: it merges after CI and E2E (managed) on its
@@ -23,7 +69,8 @@ the branch at `0f2ae9fd` (Security Scan run 41015259996): 1 critical and 137 hig
 fix (2, 138 and 83 before); the critical left is zlib1g. Draft #1742's
 `build (trigger, amd64|arm64)` ran every check and proof on upstream's image, green. It moves
 nothing on the machine until a tag carries it, and then builds the webapp's image again, with
-the npm registry reachable. E2E (managed) on the branch: owed, before the merge.
+the npm registry reachable. E2E (managed) run 41050861489 on the branch was green (the new image healthy, the smoke
+passed), and it merged as #1742 (`2a1666ae`).
 
 **2026-10-30, last: what alpha.3 moves, folded.** The fold (0146 Status, 2026-10-30) closes
 alpha.3 with the moves of 2026-10-30 in it: pnpm 11.28.9 (#1736), Trigger.dev's webapp and
@@ -1122,7 +1169,7 @@ is who moves it after T1.
 | `triggerdotdev/node` (24-bookworm-build) | `apps/worker/trigger.config.ts` (`TASK_BUILD_IMAGE`, the tasks' build stage; 0146 T14, #1716) | by digest `34a3f455…`, trigger.dev 4.8.1's `BUILD_IMAGE['node-24']` (pushed 2026-10-22) | what the pinned CLI names | none while they agree | by hand, with each Trigger.dev move, read from the new CLI's `deploy/buildImage.js` (the Status entry of 2026-10-26) | not shipped: only `node_modules` and `index.json` leave the stage, so a stale one still builds |
 | `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8) | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`); 26.2 is out of ClickHouse's support, **accepted for the Alpha** (§3 item 9) |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
-| `tecnativa/docker-socket-proxy` | `managed.yml` | v0.5.0 | v0.5.0 | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
+| `haproxy` (the Docker socket proxy's base; `tecnativa/docker-socket-proxy:v0.5.0` itself until 2026-10-30) | `deploy/compose/docker-socket-proxy/Dockerfile`'s FROM, built as `localhost/docker-socket-proxy:<tag>-<hash>` by `managed.yml` (`trigger-docker-proxy`) since 2026-10-30: upstream's v0.5.0 Dockerfile, `haproxy.cfg` and entrypoint byte for byte (commit `2e118a0c`), the base the only change; `pull_policy: never`, built only where the name is missing | 3.4.7-alpine by index digest `2caaf8b1…` (pushed 2026-10-24 17:56 UTC, Alpine 3.24.3, taken 2026-10-30; 0 critical and 0 high built, Security Scan run 41012325563); before it upstream's image, built once on 2026-07-27 on 3.4.2-alpine (Alpine 3.24.1), 0 critical and 6 high on 2026-10-29 | 3.4.7 (2026-10-24); docker-socket-proxy v0.5.0 (2026-07-27) | current | Dependabot `docker`, its own entry, for 3.4 patches and digests; a docker-socket-proxy release by hand, when the pin watch's summary issue lists it (against upstream's tags) | another HAProxy line (3.5, 3.6) is the owner's, taken with a docker-socket-proxy release; Dependabot ignores HAProxy's minors and majors |
 | `chainguard/minio` (0146 T7, #1692; `bitnamilegacy/minio` 2025.5.24-debian-12-r5 until alpha.2) | `managed.yml` (`minio`, `minio-init`) | `latest` by index digest `268d68a2…` (built 2026-10-25, pushed as `latest` 14:29 UTC, taken 2026-10-28: the fork's RELEASE.2026-10-23T20-06-51Z; `d88920d6…`, its RELEASE.2026-09-22T19-25-18Z, from #1692) | `latest` `e70b2b1e…` (pushed 2026-10-27) | three rebuilds since (pushed 2026-10-26 17:11, 2026-10-27 01:51 and 21:51 UTC), none yet three days old | by hand when the pin watch says `latest` was rebuilt, once three days old (0146 T8) | **§3, taken 2026-10-23** — Chainguard's maintained build replaced the frozen Bitnami image in alpha.2 (item 5) |
 | `caddy` | `managed.yml` | 2.11.7-alpine by digest `eb4d35b7…` (2026-10-22; `2-alpine` floating before, never pulled, 2.11.4 when recorded) | 2.11.7 | current | by hand, in its own PR, when the pin watch lists a newer 2.x or the image scan counts fixable findings | **pinned 2026-10-22** (§4); a major is the owner's. The move from 2.11.4 crosses the breaking changes 2.11.6 lists (in the code since 2.11.5): request headers capped at 16 KiB (431 above it), one-minute idle read and write timeouts, header names with a `.` dropped. Checked against `trigger-tls.Caddyfile` (`default_sni`, `tls internal`, `reverse_proxy trigger-api:3000` over HTTP), which sets none of them; the path to watch after the nightly is the dashboard over the mesh |
 | `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.19.2 (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.19.2 | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
@@ -1136,7 +1183,8 @@ is who moves it after T1.
 Ignored by name in the new Dependabot entries, so that a green tick cannot make these
 decisions: the two Trigger.dev images and Zitadel (one way), ClickHouse and the object
 store (deliberate pins), and the majors of `postgres`, `redis`, `registry`, `nextcloud`
-and `caddy`.
+and `caddy`; and since 2026-10-30 HAProxy's minors and majors in the Docker socket proxy's
+entry, because its line is the one the docker-socket-proxy release chose.
 
 *2026-10-21 (workplan 0146 T8): the `docker-compose` entry for `deploy/compose` never read a
 file. Dependabot's compose fetcher reads only names like `compose.yml`, and `managed.yml`,

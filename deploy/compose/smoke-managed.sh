@@ -1162,8 +1162,13 @@ trap 'kill "$WATCHER_PID" 2>/dev/null || true; end_stream' EXIT
 # binary that image certainly has — and under `up -d --wait` a probe naming a
 # missing binary does not misreport, it fails the bring-up and takes the whole
 # gate with it. **Nothing in this repository has ever executed a command inside
-# `registry:3` or `tecnativa/docker-socket-proxy`**, and that evidence cannot be
-# gathered from a checkout: it needs a Docker daemon and those images pulled.
+# `registry:3` or the Docker socket proxy**, and that evidence cannot be
+# gathered from a checkout: it needs a Docker daemon and those images pulled or
+# built. The proxy is `localhost/docker-socket-proxy` since 2026-10-30 (workplan
+# 0119), upstream's docker-socket-proxy v0.5.0 built here on a current HAProxy,
+# and `tecnativa/docker-socket-proxy` before. images.yml's `build
+# (docker-socket-proxy)` builds and starts it on a pull request and asks it over
+# HTTP, which runs its own entrypoint and nothing else inside it.
 # Until somebody has done that, "the image probably has wget" is the guess that
 # costs a bring-up, and an assertion from proven tooling is strictly better —
 # when it is wrong the gate goes red with a sentence instead of never starting.
