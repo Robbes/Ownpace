@@ -68,6 +68,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   builds refuse a release nobody has read them against, so the pull request
   of a move reads them again and rebuilds them on amd64 and arm64 before the
   window. Rolling back runs the checkout that pinned the older version.
+- **Trigger.dev's Redis is 7.4.12, a security release** (workplan 0119):
+  `redis:7.4.12-bookworm@sha256:b6b6e3dc…`, upstream's fix for a heap buffer
+  overflow when a message over 4 GB is propagated over the cluster bus. This
+  stack runs no cluster. Taken a day before its three-day floor, under the
+  floor's exception for a security fix. The run queues' file carries over.
 
 ### Changed
 
