@@ -844,3 +844,167 @@ describe('the boundary the retry must not cross', () => {
     expect(readFileSync(SETUP, 'utf8')).toMatch(/^IDP_READ_ATTEMPTS="\$\{IDP_READ_ATTEMPTS:-4\}"$/m);
   });
 });
+
+/**
+ * THE GRANT LINK'S REGISTRATION PAGE (workplan 0095 T6), run as the login
+ * block above is: the REAL block, with the real curl, against a server here
+ * that plays the provider. The authorization request with `prompt=create`
+ * starts request `k`, sets the cookie `ua=UA-k` it is bound to and sends the
+ * browser on, or sends it nowhere; the page it points to is one of the
+ * provider's, served only for that cookie (Zitadel's own error otherwise).
+ * `idp_api` answers the login policy from a file, or nothing.
+ */
+function registrationBlock(): string {
+  const from = source.indexOf("  reg_hint='smoke-register@example.test'");
+  expect(from, 'the registration block is gone or was renamed').toBeGreaterThan(-1);
+  const closer = '  rm -f "$reg_jar"\n';
+  const to = source.indexOf(closer, from);
+  expect(to).toBeGreaterThan(from);
+  return source.slice(from, to + closer.length);
+}
+
+const FILLED =
+  '<html><body><form><input class="lgn-input" type="email" id="email" name="email" autocomplete="email" value="smoke-register@example.test" required></form></body></html>';
+const EMPTY_FIELD =
+  '<html><body><form><input class="lgn-input" type="email" id="email" name="email" autocomplete="email" value="" required></form></body></html>';
+const OPTION_PAGE =
+  '<html><body><form><button class="lgn-raised-button lgn-primary" name="usernamepassword" value="true" formnovalidate>Register</button></form></body></html>';
+const LOGIN_FORM = '<html><body><form method="post"><input name="loginName"></form></body></html>';
+const WITH_GOOGLE = JSON.stringify({ policy: { allowExternalIdp: true, idps: [{ idpId: 'g' }] } });
+const WITHOUT = JSON.stringify({ policy: { allowExternalIdp: false, idps: [] } });
+
+async function registrationPage(
+  page: string | null,
+  policy: string | null,
+): Promise<{ out: string; err: string; seen: Seen[]; asked: string[] }> {
+  const dir = mkdtempSync(join(tmpdir(), 'smoke-reg-'));
+  const seen: Seen[] = [];
+  const asked: string[] = [];
+  let k = 0;
+  const server: Server = createServer((req, res) => {
+    const u = new URL(req.url ?? '/', 'http://127.0.0.1');
+    seen.push({ path: u.pathname, cookie: req.headers.cookie ?? '', authRequestID: u.searchParams.get('authRequestID') ?? '' });
+    if (u.pathname === '/oauth/v2/authorize') {
+      asked.push(u.search);
+      k += 1;
+      // `page === null`: the provider answers, and sends the browser nowhere.
+      res.writeHead(
+        page === null ? 200 : 302,
+        page === null ? {} : { Location: `/ui/login/login?authRequestID=${k}`, 'Set-Cookie': `ua=UA-${k}; Path=/; HttpOnly` },
+      );
+      res.end();
+      return;
+    }
+    if (u.pathname === '/ui/login/login') {
+      const ua = /(?:^|;\s*)ua=([^;]+)/.exec(req.headers.cookie ?? '')?.[1];
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(
+        ua === `UA-${u.searchParams.get('authRequestID')}`
+          ? (page ?? '')
+          : '<html><body><p>User Agent does not correspond (EVENT-adk13)</p></body></html>',
+      );
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+  try {
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const port = (server.address() as AddressInfo).port;
+    if (policy !== null) writeFileSync(join(dir, 'policy.json'), policy);
+    const script = [
+      'set -uo pipefail',
+      'D="$BLIP_DIR"',
+      `sleep() { printf '%s\\n' "$1" >> "$D/slept"; }`,
+      'fail_at() { echo "FAIL_AT ${1:-}"; }',
+      // The management API as the gate calls it: the policy, or nothing and a
+      // failure, which is what `idp_api` gives for any answer but a 2xx.
+      'idp_api() { [ -f "$D/policy.json" ] && cat "$D/policy.json"; }',
+      'IDP_READ_ATTEMPTS=4',
+      `STACK_ISSUER=http://127.0.0.1:${port}`,
+      'IDP_RESOLVE=()',
+      'IDP_CLIENT_ID=client-human',
+      `IDP_REDIRECT=http://127.0.0.1:${port}/auth/callback`,
+      lift('read_retrying'),
+      registrationBlock(),
+      'echo BLOCK_END',
+    ].join('\n');
+    const env = { ...process.env, BLIP_DIR: dir, TMPDIR: dir, NO_PROXY: '*', no_proxy: '*' };
+    return await new Promise((resolve) => {
+      const child = spawn('bash', ['-c', script], { stdio: ['ignore', 'pipe', 'pipe'], env });
+      let out = '';
+      let err = '';
+      child.stdout.on('data', (d: Buffer) => (out += d.toString()));
+      child.stderr.on('data', (d: Buffer) => (err += d.toString()));
+      child.on('close', () => resolve({ out, err, seen, asked }));
+    });
+  } finally {
+    server.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+describe('the page the grant link opens, run with the real curl (0095 T6)', () => {
+  const failures = (out: string): number => (out.match(/^FAIL_AT/gm) ?? []).length;
+
+  it('asks once, with the three parameters the button sends, and reads the page with that request\'s cookie', async () => {
+    const r = await registrationPage(FILLED, WITHOUT);
+    expect(r.asked).toHaveLength(1);
+    const q = new URLSearchParams(r.asked[0]);
+    expect(q.get('prompt')).toBe('create');
+    expect(q.get('login_hint')).toBe('smoke-register@example.test');
+    expect(q.get('ui_locales')).toBe('en');
+    const page = r.seen.filter((s) => s.path === '/ui/login/login');
+    expect(page).toHaveLength(1);
+    expect(page[0]!.cookie).toBe('ua=UA-1');
+    expect(r.out).toContain("the grant link's registration page has the address filled in\n");
+    expect(failures(r.out)).toBe(0);
+    expect(r.out).toContain('BLOCK_END');
+  });
+
+  it('the form with the address in it, where the policy offers outside providers too: passes, and says so', async () => {
+    const r = await registrationPage(FILLED, WITH_GOOGLE);
+    expect(r.out).toContain('although the policy offers outside providers');
+    expect(failures(r.out)).toBe(0);
+  });
+
+  it('the "how do you want to register" page, with outside providers on the policy: passes (OTA, E2E)', async () => {
+    const r = await registrationPage(OPTION_PAGE, WITH_GOOGLE);
+    expect(r.out).toContain('the provider asks how to register first, as it does with outside providers on the policy');
+    expect(failures(r.out)).toBe(0);
+  });
+
+  it('that page, with none on the policy: FAILS, since a person granted access would meet an empty field', async () => {
+    const r = await registrationPage(OPTION_PAGE, WITHOUT);
+    expect(r.out).toContain('but the policy offers no outside provider');
+    expect(failures(r.out)).toBe(1);
+    expect(r.out).toContain('BLOCK_END');
+  });
+
+  it('that page, with a policy that cannot be read: passes, and says the policy was not checked', async () => {
+    const r = await registrationPage(OPTION_PAGE, null);
+    expect(r.out).toContain('the login policy could not be read, so whether outside providers are on it is unchecked');
+    expect(failures(r.out)).toBe(0);
+  });
+
+  it('the registration form without the address: FAILS', async () => {
+    const r = await registrationPage(EMPTY_FIELD, WITHOUT);
+    expect(r.out).toContain('the grant link opens the registration form, but without the address in it.');
+    expect(failures(r.out)).toBe(1);
+  });
+
+  it('the sign-in form instead of registration: FAILS, with the page\'s text', async () => {
+    const r = await registrationPage(LOGIN_FORM, WITHOUT);
+    expect(r.out).toContain('the grant link does not open registration');
+    expect(failures(r.out)).toBe(1);
+  });
+
+  it('no Location: FAILS once and carries on to the next section, with no unbound variable', async () => {
+    const r = await registrationPage(null, WITHOUT);
+    expect(r.out).toContain('the provider sent a registration request nowhere');
+    expect(failures(r.out)).toBe(1);
+    expect(r.out).toContain('BLOCK_END');
+    expect(r.err).not.toContain('unbound variable');
+    expect(r.seen.filter((s) => s.path === '/ui/login/login')).toEqual([]);
+  });
+});

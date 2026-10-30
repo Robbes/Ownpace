@@ -46,6 +46,9 @@ describe('the invitation mail', () => {
   it.each(LOCALES)('sends them to the sign-in page in the mail’s language, in %s', (locale) => {
     const { body } = renderEvent(INVITED, locale);
     expect(body).toContain(`${INVITED.appUrl}/login?locale=${locale}\n`);
+    // Not the grant mail's link with the address after `#` (0095 T6): the
+    // owner asked for that in the grant mail only.
+    expect(body).not.toContain('#');
   });
 
   it.each(LOCALES)('closes with what is kept and the privacy policy, in %s', (locale) => {

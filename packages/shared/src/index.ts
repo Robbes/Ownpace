@@ -49,6 +49,9 @@ export * from './decisions.ts';
 export * from './decision-words.ts';
 export * from './permissions.ts';
 export * from './notifications.ts';
+// Workplan 0095 T6: the grant mail's link, written by the API and read by
+// the sign-in page.
+export * from './registration-link.ts';
 export * from './tenant-contact.ts';
 export * from './share-announcement.ts';
 // The privacy policy's address for that mail, from LEGAL_SITE_URL (0139 T4).
