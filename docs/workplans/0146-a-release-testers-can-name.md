@@ -4,6 +4,67 @@
 
 ## Status — 2026-10-30 (update this block at the end of every session)
 
+**2026-10-30, after the fold: the webapp built here carries dompurify 3.4.17 (T16, a draft for
+alpha.4)**, on branch `claude/ownpace-public-readiness-y7orc6-webapp-dompurify`, from `main` at
+the fold. A Security Scan dispatched on the branch at the fold's tree (run 41004468330, Trivy
+0.76.1, linux/arm64) read 2 critical and 138 high findings in
+`localhost/trigger.dev:v4.8.1-38e6d59739c6`: zlib1g (CVE-2023-45853, no fix in Debian), and
+GHSA-cg2g-xh64-v4q7 in dompurify 3.4.13, fixed in 3.4.17, in
+`node_modules/.pnpm/dompurify@3.4.13/node_modules/dompurify/package.json`.
+- **Who requires dompurify, read at v4.8.1.** Upstream's `pnpm-lock.yaml` names two packages:
+  posthog-js 1.407.3, which `app/hooks/usePostHog.ts` imports, and mermaid 11.16.1, through
+  streamdown 2.5.0, the dashboard's markdown. Neither path loads it. posthog-js's entry points
+  (`dist/main.js`, `dist/module.js`) carry no DOMPurify; its one `require('dompurify')` is in
+  `lib/src/extensions/product-tours`, which no entry point loads. The browser takes product
+  tours from PostHog's own host once PostHog starts, and `POSTHOG_PROJECT_KEY: ""` keeps it from
+  starting. streamdown 2.5.0 imports no mermaid: it draws a diagram only through the
+  `@streamdown/mermaid` plugin, which the webapp neither installs nor passes. Nothing in the
+  webapp's source, its internal packages or its packages imports dompurify or mermaid. So the
+  earlier records' *which mermaid loads, and the dashboard may run* is corrected: no process of
+  this stack loads dompurify. posthog-js's `dist/product-tours.js` bundles DOMPurify 3.3.2 into
+  its own file; Trivy does not read it, and nothing here serves it.
+- **What 3.4.14 to 3.4.17 change.** npm lists five advisories against 3.4.13 and none against
+  3.4.17: GHSA-cg2g-xh64-v4q7 (critical: with `SAFE_FOR_TEMPLATES`, template expressions split
+  across nodes survive in an attached shadow root's content, in the DOM output modes; up to
+  3.4.16), GHSA-mrv2-3pqr-j5jr (high: `IN_PLACE` with a hook that removes a parent or sibling;
+  up to 3.4.16), and three lows. Read in the two published tarballs (no release notes were
+  reachable from here): the same 24 files; the same `package.json` but for the version and the
+  build scripts (rollup became rolldown), so `main`, `module`, `browser` and `exports` are
+  unchanged; type declarations equal but for the order of one import. `purify.ts` changes
+  inside `sanitize` (the fixes), `utils.ts` adds helpers, and `attrs.ts` allows two more SVG
+  attributes, `pointer-events` and `vector-effect`. npm published 3.4.17 on 2026-10-12 12:41 UTC,
+  18 days ago, and it is `latest`.
+- **The build, in the style of the removals.** A third RUN in
+  `deploy/compose/trigger.dev/Dockerfile`, as root, after the removing one. Before it changes
+  anything it checks the package is the published 3.4.13 file for file (`from_tree`, the
+  SHA-256 of `sha256sum` over its files sorted by path); that only posthog-js's, mermaid's and
+  pnpm's hoisted link lead to it; that no other `dompurify/package.json` is in the image; and
+  that nothing under `apps/webapp/build` or `apps/webapp/public` carries DOMPurify (its
+  trusted-types attribute, `data-tt-policy-suffix`) or imports dompurify or mermaid by name. It
+  fetches `dompurify-3.4.17.tgz` from the npm registry and refuses it unless its sha512 is
+  `sha512-B/pSlYVH…`, the integrity npm published; unpacks it apart and checks it against
+  `to_tree`; gives it the old directory's owner; and swaps the directory. Then it proves the
+  directory is `to_tree`; that no other path in the image was added or removed and no other
+  file's change time moved since a marker made before the fetch; and that from posthog-js's and
+  mermaid's own directories `require('dompurify')` and `import('dompurify')` both load 3.4.17
+  from it. Nothing the webapp's server starts with imports either package, so that is as far
+  as module loading goes. One input is new: the machine reaches the npm registry when it builds
+  the webapp's image, as it already does for the API's.
+- **Guards.** `a-binary-the-stack-never-runs` holds a `REPLACED` table equal to what the RUN
+  names (both versions, the address, the integrity, both trees, both requirers, past the
+  floor), holds the RUN's order (each check before the swap, each proof after it, as root,
+  before upstream's `USER node`), and runs it over the stand-in with a stand-in registry: it
+  swaps the package and nothing else, fifteen ways upstream or the registry could differ fail
+  it with nothing changed, and each proof after the swap fails on the change it is there to
+  see. `managed.yml`'s name moves to `-d467cf5da6ef`. Each new case was seen to fail on its
+  mutation of the Dockerfile (the integrity check dropped or its value changed, the change-time
+  and path proofs dropped, the bundle check, the link check and the import proof dropped,
+  `to` moved, `from_tree` changed, `rm -rf`).
+- **Not proven here** (no Docker daemon): that the real image passes every check. The
+  dispatched Security Scan's build does on arm64, and the pull request's
+  `build (trigger, amd64|arm64)` on both. Expected: 1 critical. E2E (managed) on the branch:
+  owed, after the alpha.3 tag.
+
 **2026-10-30, last: alpha.3 is folded.** Six pull requests merged on 2026-10-30, each after CI,
 and each that changes what a stack runs after E2E on its branch:
 
@@ -2351,7 +2412,7 @@ best given with T0.
 | T14 The tasks build on the API image's own base, with no package manager | ✅ **Merged** as #1716 on 2026-10-28 (`98802571`), after #1697 (`f387b175`) and #1708, and after E2E (managed) run 40758865207 was green; in alpha.3 — *was:* 🔨 being built (2026-10-26) as draft #1716 on branch `claude/ownpace-public-readiness-y7orc6-tasks-trixie-base`, stacked on #1697 | Status, 2026-10-26. `apps/worker/trigger.config.ts` sets the build manifest's `image.base` to `apps/api/Dockerfile`'s FROM image and `image.buildBase` to the CLI's own `-build` image, and one layer installs `ca-certificates` and `dumb-init`, makes the CLI's trust edits and drops every package manager where no `g++` is. On #1708's `node:24.22.1-trixie-slim` the runtime stage reads 0 critical and 43 high, none fixable, where the image a deploy builds on the CLI's base read about 2/88 on 4.7.6 (`main` until #1697) and 1/80 on #1697 (Trivy 0.76.1, amd64 and arm64). The weekly scan lists that base as `trigger-task-base`, and #1700 (T10) builds the layer on it. A Trigger.dev move fails the version gate until the CLI's build image and trust list are read again. E2E (managed) after #1697 and #1708: run 40758865207, green before the merge. |
 | T15 Both databases of the managed stacks start as uid 70, from the official image without gosu | ✅ **Merged** as #1717 on 2026-10-28 (`6f9af7f2`), after #1678 and after E2E (managed) run 40616652331 was green; in alpha.3 — *was:* 🔨 being built as draft #1717 on branch `claude/ownpace-public-readiness-y7orc6-postgres-without-gosu`, stacked on #1678, for after the alpha.2 tag (2026-10-26) | Status, 2026-10-26. `postgres:18.6-alpine` reads 1 critical and 26 high (Trivy v0.76.1, arm64 and amd64); the critical and 25 highs are Go's standard library in gosu, which the entrypoint runs only when it starts as root. `deploy/compose/postgres/Dockerfile` removes it and starts as uid 70, the user gosu dropped to; `managed.yml`'s `postgres` and `trigger-db` and `dev.yml`'s run it, and the scan builds and scans it. Done when E2E (managed) is green on the branch (the OTA stack's existing volumes, started as uid 70, and a second bring-up leaving both databases running on the same image ID), `build (postgres)` is green on the pull request, the image scan's `postgres-managed` reads 0 critical and 1 high (brotli-libs, until docker-library rebuilds 18.6-alpine), and live has taken it from a tag. The appliance's Postgres is T15b. |
 | T15b The appliance's Postgres starts as uid 70, from the official image without gosu | ✅ **Merged** as #1719 on 2026-10-28 (`fb0fea2e`), after #1717 and after E2E (self-hosted) run 40621523504 was green; in alpha.3 — *was:* 🔨 being built on branch `claude/ownpace-public-readiness-y7orc6-appliance-postgres-without-gosu`, stacked on #1717, for after the alpha.2 tag (2026-10-26) | Status, 2026-10-26, last. The appliance's `postgres:18.6-alpine` (`77f58511…`) reads 1 critical and 26 high (Trivy v0.76.1, arm64); the critical is gosu's Go, and no newer digest drops it. `deploy/selfhost/postgres/Dockerfile` is T15's instructions on the appliance's own base, `deploy/selfhost/compose.yml` runs it as `localhost/postgres:18.6-alpine-b18f51417292` (never pulled), Dependabot moves its FROM in an entry of its own, the scan's `postgres-selfhost` leg builds it, `build (postgres)` proves it on a pull request, and E2E (self-hosted) builds `app` by name. Done when `build (postgres)` is green on the pull request (the appliance's build started on a volume the official image initialised as root), E2E (self-hosted) is green on the branch with `persistence: postgres`, the image scan's `postgres-selfhost` reads 0 critical, and a release tag carries it. |
-| T16 The Trigger.dev images run without the files nothing here runs | ✅ **Built** (2026-10-27) on branch `claude/ownpace-public-readiness-y7orc6-trigger-patched`, stacked on #1716 with #1717 merged in; #1722, **in alpha.3** (the owner, 2026-10-30: *"Put all alpha 4 into alpha 3"*; first planned for alpha.4); **decided 2026-10-26** by the owner: *"Both"*, an issue upstream and this build until upstream ships the fixes; and **2026-10-27**: tar out of the copy of pnpm each service runs too | Status, 2026-10-27 (both entries). `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile` build on upstream's v4.8.1 images by tag and digest and delete depot's and esbuild's Go binaries (both names each), node's copy of pnpm and the tar in root's from the webapp, root's copy of pnpm and the tar in node's from the supervisor: 8 critical findings to 2, and 2 to 0 (risk accepted: a native `pnpm install` in these containers would fail). Every removal names a version-locked path and fails the build by name when upstream moves it; each build refuses a release other than its `read_at` and an entrypoint other than the one read; `trigger-version.sh pin` moves both FROMs and names, never `read_at`; a move's pull request has both builds green before any window; both services set `COREPACK_ENABLE_NETWORK: "0"`. Done when `build (trigger, amd64|arm64)` is green on the pull request, a dispatched image scan reads 2 and 0, E2E (managed) is green on the branch and live has taken it from a tag: live's deploy from alpha.2 (first run, alpha.2's script) says one-way, *cannot be compared … on the Trigger.dev pin*, and copies triggerdb; the second run (the tag's script) says *v4.7.6 -> v4.8.1*; both services run healthy from the `localhost/` names; and the copy is kept (`COPY_DELETE_WHEN_PROVEN=false`) until the task runner has run real work on them. From then on, T16a judges every deploy by the version: a later change to the builds alone at v4.8.1 is reversible. Dropped removal by removal as upstream fixes them. |
+| T16 The Trigger.dev images run without the files nothing here runs | ✅ **Built** (2026-10-27) on branch `claude/ownpace-public-readiness-y7orc6-trigger-patched`, stacked on #1716 with #1717 merged in; #1722, **in alpha.3** (the owner, 2026-10-30: *"Put all alpha 4 into alpha 3"*; first planned for alpha.4); **decided 2026-10-26** by the owner: *"Both"*, an issue upstream and this build until upstream ships the fixes; and **2026-10-27**: tar out of the copy of pnpm each service runs too | Status, 2026-10-27 (both entries). `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile` build on upstream's v4.8.1 images by tag and digest and delete depot's and esbuild's Go binaries (both names each), node's copy of pnpm and the tar in root's from the webapp, root's copy of pnpm and the tar in node's from the supervisor: 8 critical findings to 2, and 2 to 0 (risk accepted: a native `pnpm install` in these containers would fail). Since 2026-10-30, a draft for alpha.4 (Status, *after the fold*): the webapp's build also replaces dompurify 3.4.13's files with 3.4.17's, fetched from the npm registry and refused unless their sha512 is the one npm published, and proves nothing else in the image changed; nothing here loads dompurify, so no code that runs changes, and the webapp's 2 go to 1 (zlib1g). Dropped when upstream moves dompurify past 3.4.13. Every removal names a version-locked path and fails the build by name when upstream moves it; each build refuses a release other than its `read_at` and an entrypoint other than the one read; `trigger-version.sh pin` moves both FROMs and names, never `read_at`; a move's pull request has both builds green before any window; both services set `COREPACK_ENABLE_NETWORK: "0"`. Done when `build (trigger, amd64|arm64)` is green on the pull request, a dispatched image scan reads 2 and 0, E2E (managed) is green on the branch and live has taken it from a tag: live's deploy from alpha.2 (first run, alpha.2's script) says one-way, *cannot be compared … on the Trigger.dev pin*, and copies triggerdb; the second run (the tag's script) says *v4.7.6 -> v4.8.1*; both services run healthy from the `localhost/` names; and the copy is kept (`COPY_DELETE_WHEN_PROVEN=false`) until the task runner has run real work on them. From then on, T16a judges every deploy by the version: a later change to the builds alone at v4.8.1 is reversible. Dropped removal by removal as upstream fixes them. |
 | T16a `deploy-live.sh` reads the Trigger.dev pin as a version, in alpha.3 | ✅ **Merged** 2026-10-27 as #1721 (`991bd21c`), commit `4628488b` alone, in alpha.3 (T16's review asked for it on its own, for the alpha.3 merge order) | Status, 2026-10-27, later. The one-way or reversible verdict of a deploy, and whether its copy holds triggerdb, are computed by the `deploy-live.sh` of the checkout that runs before the deploy. alpha.3's must read `${TRIGGER_IMAGE_TAG:-v…}` as the version (`trigger_pin`), or alpha.4's `localhost/` image lines read as a pin it cannot compare. CI only (the deploy guard, `a-deploy-from-a-named-tag`); no window. Done when it is in the alpha.3 tag live deploys. With T16 in alpha.3 as well (2026-10-30), it judges every deploy after alpha.3; alpha.3's own deploy from alpha.2 is judged by alpha.2's script (T16's row). |
 
 ## 1. What there is today

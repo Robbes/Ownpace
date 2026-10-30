@@ -4,6 +4,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **The Trigger.dev webapp built here carries dompurify 3.4.17, which clears
+  its last fixable critical** (workplan 0146 T16): the image scan read
+  GHSA-cg2g-xh64-v4q7 (critical) and GHSA-mrv2-3pqr-j5jr (high) in dompurify
+  3.4.13, under the webapp's `node_modules`. Its build now fetches dompurify
+  3.4.17 (published 2026-10-12) from the npm registry, refuses it unless its
+  sha512 is the one npm published, and puts its files in place of 3.4.13's. It
+  proves that nothing else in the image changed and that both packages that
+  require dompurify load the new release. Nothing in this stack loads
+  dompurify (the dashboard's PostHog stays off, and its markdown draws no
+  diagrams), so no code that runs changes. The webapp's critical findings go
+  from 2 to 1: zlib1g, which Debian has not fixed. The first bring-up after
+  this builds the webapp's image again, with the npm registry reachable, as the
+  API's build needs it already.
+
 ## [0.2.0-alpha.3] - 2026-10-30
 
 A tester's grant mail now opens registration with the address it was sent to

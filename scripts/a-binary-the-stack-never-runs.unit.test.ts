@@ -23,7 +23,8 @@
  * `deploy/compose/supervisor/Dockerfile` build on upstream's images by tag and
  * index digest, and their headers say why each file is safe to delete.
  *
- * Two lessons came out of reading it, and each is held here.
+ * Two lessons came out of reading it, and each is held here. A third came with
+ * the one finding left that a release fixes (below, A COPY THE SCAN READS).
  *
  *  - TRIVY DOES NOT SEE A HARD-LINKED SECOND NAME. The postinstall of
  *    @depot/cli and of esbuild hard-links the platform package's binary over
@@ -47,6 +48,20 @@
  *    Dockerfile's removed and kept copies are held to its service's `user:`,
  *    and both services set COREPACK_ENABLE_NETWORK: "0", which makes corepack
  *    refuse to fetch: a mismatch stops the start instead of reaching out.
+ *  - A COPY THE SCAN READS IS NOT ALWAYS A COPY THAT RUNS. After the removals
+ *    the webapp kept one critical a release fixes: GHSA-cg2g-xh64-v4q7 in
+ *    dompurify 3.4.13, fixed in 3.4.17. Trivy reads the package.json under
+ *    node_modules, but DOMPurify sanitises in a browser, and a browser runs
+ *    the copy the webapp's build bundled, which a package swapped in
+ *    node_modules never reaches. So before the webapp's build replaces the
+ *    package's files (REPLACED below), it proves its own bundles carry no
+ *    DOMPurify and import neither dompurify nor mermaid, and that nothing
+ *    links the package but the two requirers read. Then the swap clears the
+ *    finding where it is, and changes no code that runs. The swap itself is
+ *    proved too: the tarball by the sha512 npm published, the directory before
+ *    and after file for file, no other path of the image added, removed or
+ *    changed, and both requirers loading the new release by require and by
+ *    import.
  *
  * What else is held:
  *  - the Dockerfiles' shape: one FROM, upstream's image by `vX.Y.Z` and index
@@ -71,6 +86,14 @@
  *    instructions over a stand-in of the image's tree on both platforms, which
  *    also shows that every check fails before anything is removed when a path
  *    upstream moves is not there;
+ *  - REPLACED below equals what the webapp's replacing RUN names (the package,
+ *    both versions, the tarball's address and integrity, both trees), and
+ *    that RUN checks everything it can before it changes anything and proves
+ *    the rest after. Run over the stand-in, with a stand-in registry and the
+ *    stand-in's hashes in place of the real ones, it swaps the package and
+ *    nothing else; each way upstream or the registry could differ fails it
+ *    with nothing changed, and each proof after the swap fails on the change
+ *    it is there to see;
  *  - managed.yml: each service is `localhost/<name>:${TRIGGER_IMAGE_TAG:-<pin>}-<hash>`
  *    (the hash as #1717's), built from `./<name>` with the version as its one
  *    argument, never pulled, with COREPACK_ENABLE_NETWORK "0" and no HOME,
@@ -88,7 +111,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
-import { linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
@@ -164,6 +187,48 @@ const REMOVED: Readonly<Record<Name, readonly Removal[]>> = {
       evidence: "pnpm 10.33.2 dist: require('tar') only in node_modules/node-gyp/lib/install.js, none in pnpm.cjs or worker.js; apps/supervisor/package.json's start at v4.8.1; corepack 0.36.0 installVersion reads .corepack only",
     },
   ],
+};
+
+interface Replacement {
+  /** The package's directory in the image, under pnpm's name for the old version, which it keeps. */
+  readonly path: string;
+  readonly from: string;
+  readonly to: string;
+  /** The tarball, and the integrity npm published for it. */
+  readonly url: string;
+  readonly integrity: string;
+  /** When npm published `to` (the three-day floor, CONTRIBUTING.md). */
+  readonly published: string;
+  /** Each published tarball's files: the SHA-256 of `sha256sum` over them, sorted by path (the RUN's `tree`). */
+  readonly fromTree: string;
+  readonly toTree: string;
+  /** The packages that require it, each a directory that links it. */
+  readonly requirers: readonly string[];
+  /** Why the swap changes no code that runs. */
+  readonly why: string;
+  readonly evidence: string;
+}
+
+/** What each Dockerfile replaces, and why. Must equal what its replacing RUN names. */
+const REPLACED: Readonly<Record<Name, readonly Replacement[]>> = {
+  'trigger.dev': [
+    {
+      path: `${PNPM}/dompurify@3.4.13/node_modules/dompurify`,
+      from: '3.4.13',
+      to: '3.4.17',
+      url: 'https://registry.npmjs.org/dompurify/-/dompurify-3.4.17.tgz',
+      integrity: 'sha512-B/pSlYVHQ58kqISD/yDjuJ1yfzI34m1gF4lAod2bwSRhiN4K5Cl3H8Af7hqB2PmTL911tdEudnnXn5FnhRoz0w==',
+      published: '2026-10-12T12:41:28.880Z',
+      fromTree: 'e9c42f84de69a3769f574e05d9a17d919029a5b1bace0609737e9a9b7e9539d5',
+      toTree: '595c3084456d2b111dbb14e16bf1462ecff273316170067b0a95a1cc5f0ff809',
+      requirers: [`${PNPM}/posthog-js@1.407.3/node_modules/posthog-js`, `${PNPM}/mermaid@11.16.1/node_modules/mermaid`],
+      why:
+        "GHSA-cg2g-xh64-v4q7 (critical) and GHSA-mrv2-3pqr-j5jr (high) in 3.4.13, both fixed in 3.4.17; nothing here loads it: posthog-js's entry points carry no DOMPurify, and streamdown 2.5.0 imports no mermaid without the @streamdown/mermaid plugin, which the webapp does not install",
+      evidence:
+        "npm's advisories for dompurify; the 3.4.13 and 3.4.17 tarballs (same files, same exports, equal type declarations); upstream's pnpm-lock.yaml, app/hooks/usePostHog.ts and app/components/code/StreamdownRenderer.tsx at v4.8.1; posthog-js 1.407.3 dist/main.js, dist/module.js and lib/src/extensions/product-tours; streamdown 2.5.0 dist",
+    },
+  ],
+  supervisor: [],
 };
 
 /** The image's own user, where corepack keeps the copy each service runs. */
@@ -325,6 +390,82 @@ function shapeProblems(name: Name, text: string): string[] {
   return problems;
 }
 
+/** The RUN that replaces a package: the one that names a tarball's `integrity=`. */
+const replacingRuns = (text: string) => runs(text).filter((r) => /(^|[;\s])integrity=/.test(r.args));
+
+/**
+ * What is wrong with a replacing RUN, in words; empty when it holds. Every
+ * check that can come before the swap does, and the proofs come after it.
+ */
+function replacementProblems(text: string): string[] {
+  const problems: string[] = [];
+  const ins = instructions(text);
+  const all = ins.filter((i) => i.keyword === 'RUN');
+  const replacing = all.filter((r) => /(^|[;\s])integrity=/.test(r.args));
+  if (replacing.length !== 1) return [`${replacing.length} RUNs name a tarball's integrity, not one`];
+  const run = replacing[0]!;
+  const args = run.args;
+  if (run.user !== 'root') problems.push(`the replacing RUN runs as ${run.user}, not root`);
+  const removing = all.findIndex((r) => /(^|[;\s])rm\s/.test(r.args));
+  if (removing >= 0 && all.indexOf(run) <= removing) problems.push('the replacing RUN comes before the removing RUN');
+  if (!ins.slice(ins.indexOf(run) + 1).some((i) => i.keyword === 'USER' && i.args === 'node')) {
+    problems.push("the replacing RUN is not followed by upstream's USER node");
+  }
+  const vars = assignments(args);
+  for (const [k, re] of [
+    ['from', /^\d+\.\d+\.\d+$/],
+    ['to', /^\d+\.\d+\.\d+$/],
+    ['from_tree', /^[0-9a-f]{64}$/],
+    ['to_tree', /^[0-9a-f]{64}$/],
+    ['integrity', /^sha512-[A-Za-z0-9+/]{86}==$/],
+    ['url', /^https:\/\/registry\.npmjs\.org\/[a-z0-9.-]+\/-\/[a-z0-9.-]+-\d+\.\d+\.\d+\.tgz$/],
+  ] as const) {
+    if (!re.test(vars.get(k) ?? '')) problems.push(`the replacing RUN's ${k}= is ${vars.get(k) ?? 'not there'}, not a ${String(re)}`);
+  }
+  /** Where a check stands in the RUN, or -1. */
+  const at = (re: RegExp) => args.search(re);
+  const swap = at(/(^|[;\s])rm -r "\$pkg";/);
+  const moved = at(/(^|[;\s])mv "\$new" "\$pkg";/);
+  if (swap < 0 || moved < swap) problems.push('the replacing RUN does not swap the directory with `rm -r "$pkg"` and then `mv "$new" "$pkg"`');
+  const before: ReadonlyArray<[RegExp, string]> = [
+    [/\[ "\$\(version "\$pkg"\)" = "\$from" \] \|\| fail /, "the old directory's version"],
+    [/\[ "\$\(tree "\$pkg"\)" = "\$from_tree" \] \|\| /, 'the old directory, file for file (from_tree)'],
+    [/\[ "\$links" = "[^"]+" \] \|\| fail /, 'which packages link it'],
+    [/\[ "\$\(readlink -f "\$l"\)" = "\$\(readlink -f "\$pkg"\)" \]/, 'that each link leads to it'],
+    [/\[ "\$copies" = "\$pkg\/package\.json" \] \|\| fail /, 'that no other copy of its package.json is in the image'],
+    [/grep -rlF data-tt-policy-suffix "\$webapp\/build" "\$webapp\/public"/, "that the webapp's own build carries no DOMPurify"],
+    [/grep -rlE "\(from\|import\\\(\|require\\\(\)[^\n]*\(dompurify\|mermaid\)[^\n]*"\$webapp\/build"/, "that the webapp's own build imports neither dompurify nor mermaid"],
+    [/before="\$\(paths\)"/, 'the paths of the image before'],
+    [/\[ "\$got" = "\$integrity" \] \|\| fail /, "the tarball's sha512, against the integrity npm published"],
+    [/\[ "\$\(version "\$new"\)" = "\$to" \] \|\| fail /, "the new directory's version"],
+    [/\[ "\$\(tree "\$new"\)" = "\$to_tree" \]/, 'the new directory, file for file (to_tree)'],
+  ];
+  for (const [re, what] of before) {
+    const i = at(re);
+    if (i < 0) problems.push(`the replacing RUN does not check ${what}`);
+    else if (swap >= 0 && i > swap) problems.push(`the replacing RUN checks ${what} only after it has removed the old directory`);
+  }
+  const fetched = at(/node -e "fetch\(/);
+  const marked = at(/: > "\$marker";/);
+  if (marked < 0 || at(/before="\$\(paths\)"/) < marked || fetched < at(/before="\$\(paths\)"/)) {
+    problems.push('the replacing RUN does not set its marker and read the paths of the image before it fetches');
+  }
+  const after: ReadonlyArray<[RegExp, string]> = [
+    [/\[ "\$\(version "\$pkg"\)" = "\$to" \] && \[ "\$\(tree "\$pkg"\)" = "\$to_tree" \]/, 'that the directory is the new release, file for file'],
+    [/\[ "\$\(paths\)" = "\$before" \] \|\| fail /, 'that no other path was added or removed'],
+    [/-cnewer "\$marker" -print\)"; \\?\s*\[ -z "\$changed" \] \|\| fail /, 'that no other file changed since the marker'],
+    [/require\.resolve\('dompurify'\)[^\n]*\|\| fail /, "that each requirer's require loads the new release from it"],
+    [/import\.meta\.resolve\('dompurify'\)[^\n]*\|\| fail /, "that each requirer's import loads the new release from it"],
+  ];
+  for (const [re, what] of after) {
+    const i = at(re);
+    if (i < 0) problems.push(`the replacing RUN does not prove ${what}`);
+    else if (i < moved) problems.push(`the replacing RUN proves ${what} before the swap, which proves nothing`);
+  }
+  if (!/for d in "\$posthog" "\$mermaid"; do \\?\s*\(cd "\$d" && node /.test(args)) problems.push("the replacing RUN does not run its load proofs from each requirer's own directory");
+  return problems;
+}
+
 // ---------------------------------------------------------------------------
 // The RUN instructions, run over a stand-in of the image's tree.
 
@@ -333,6 +474,12 @@ interface Tree {
   readonly files: Record<string, string>;
   /** ELF stand-ins: path, and a second name hard-linked to it. */
   readonly binaries: Array<{ path: string; link?: string }>;
+  /** Symbolic links, as pnpm makes them: path, and its relative target. */
+  readonly links?: ReadonlyArray<{ path: string; target: string }>;
+  /** What the stand-in registry serves, by URL; nothing else answers a fetch. */
+  readonly registry?: Readonly<Record<string, Buffer>>;
+  /** The stand-in's own trees and integrity, which take the real ones' place in the RUN (`build`). */
+  readonly standIn?: { readonly fromTree: string; readonly toTree: string; readonly integrity: string };
 }
 
 /**
@@ -341,7 +488,74 @@ interface Tree {
  * takes its place in the RUN (`build`, unless told to keep the pinned one).
  */
 const STAND_IN_ENTRYPOINT = '#!/bin/sh\nexec "$@"\n';
-const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
+const sha256 = (text: string | Buffer) => createHash('sha256').update(text).digest('hex');
+
+const DOMPURIFY = REPLACED['trigger.dev'][0]!;
+
+/**
+ * A stand-in of a published dompurify, by path under the tarball's `package/`:
+ * the same exports as the real one, each build saying its version. Its CJS
+ * build carries DOMPurify's mark, so a check that read node_modules for it
+ * rather than the webapp's own build would fail.
+ */
+function standInDompurify(version: string, es = version): Record<string, string> {
+  return {
+    'package.json': `${JSON.stringify({
+      name: 'dompurify',
+      version,
+      main: './dist/purify.cjs.js',
+      module: './dist/purify.es.mjs',
+      exports: { '.': { import: './dist/purify.es.mjs', default: './dist/purify.cjs.js' } },
+    })}\n`,
+    'dist/purify.cjs.js': `// data-tt-policy-suffix\nmodule.exports = { version: '${version}', isSupported: false };\n`,
+    'dist/purify.es.mjs': `export default { version: '${es}', isSupported: false };\n`,
+  };
+}
+
+/** The RUN's `tree`: `sha256sum` over a package's files, sorted by path, hashed. */
+function treeHash(files: Readonly<Record<string, string>>): string {
+  const paths = Object.keys(files).map((p) => `./${p}`).sort();
+  return sha256(paths.map((p) => `${sha256(files[p.slice(2)]!)}  ${p}\n`).join(''));
+}
+
+/** A package's files as npm packs them: a gzipped tar under `package/`. */
+function tarball(files: Readonly<Record<string, string>>): Buffer {
+  const dir = mkdtempSync(join(tmpdir(), 'stand-in-tarball-'));
+  try {
+    for (const [path, text] of Object.entries(files)) {
+      mkdirSync(dirname(join(dir, 'package', path)), { recursive: true });
+      writeFileSync(join(dir, 'package', path), text);
+    }
+    const r = spawnSync('tar', ['-czf', join(dir, 'out.tgz'), '-C', dir, 'package'], { encoding: 'utf8' });
+    if (r.status !== 0) throw new Error(`tar could not pack the stand-in: ${r.stderr}`);
+    return readFileSync(join(dir, 'out.tgz'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const integrityOf = (bytes: Buffer) => `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
+/** The stand-in registry's tarball of the new release, made once, so its integrity holds across builds. */
+const STAND_IN_TARBALL = tarball(standInDompurify(DOMPURIFY.to));
+
+/** The replacement's part of the webapp's stand-in tree. */
+function dompurifyTree(): Pick<Tree, 'files' | 'links' | 'registry' | 'standIn'> {
+  const linkTo = (requirerParent: string) => ({ path: `${requirerParent}/dompurify`, target: `${'../'.repeat(requirerParent === `${PNPM}/node_modules` ? 1 : 2)}dompurify@${DOMPURIFY.from}/node_modules/dompurify` });
+  return {
+    files: {
+      ...Object.fromEntries(Object.entries(standInDompurify(DOMPURIFY.from)).map(([p, t]) => [`${DOMPURIFY.path}/${p}`, t])),
+      [`${DOMPURIFY.requirers[0]}/package.json`]: '{"name":"posthog-js","version":"1.407.3","main":"dist/main.js"}\n',
+      [`${DOMPURIFY.requirers[1]}/package.json`]: '{"name":"mermaid","version":"11.16.1"}\n',
+      // The webapp's build: a browser bundle and the server's, neither with DOMPurify in it.
+      '/triggerdotdev/apps/webapp/build/client/assets/entry.client-stand-in.js': 'import { r } from "./root-stand-in.js";\nr();\n',
+      '/triggerdotdev/apps/webapp/build/server/index.mjs': 'import posthog from "posthog-js";\nexport const lazy = () => import("streamdown");\nexport default posthog;\n',
+      '/triggerdotdev/apps/webapp/public/favicon.ico': 'stand-in\n',
+    },
+    links: [...DOMPURIFY.requirers.map((r) => linkTo(dirname(r))), linkTo(`${PNPM}/node_modules`)],
+    registry: { [DOMPURIFY.url]: STAND_IN_TARBALL },
+    standIn: { fromTree: treeHash(standInDompurify(DOMPURIFY.from)), toTree: treeHash(standInDompurify(DOMPURIFY.to)), integrity: integrityOf(STAND_IN_TARBALL) },
+  };
+}
 
 function treeOf(name: Name, plat: string): Tree {
   const corepack = (home: string): Record<string, string> => ({
@@ -365,7 +579,9 @@ function treeOf(name: Name, plat: string): Tree {
     };
   }
   const pkg = (dir: string): Record<string, string> => ({ [`${dir}/package.json`]: '{"main":"lib/main.js"}\n', [`${dir}/lib/main.js`]: 'module.exports = {};\n' });
+  const dompurify = dompurifyTree();
   return {
+    ...dompurify,
     files: {
       '/triggerdotdev/package.json': '{"packageManager":"pnpm@10.33.2"}\n',
       '/triggerdotdev/packages/core/package.json': '{"version":"4.8.1"}\n',
@@ -376,6 +592,7 @@ function treeOf(name: Name, plat: string): Tree {
       [`${PNPM}/node_modules/.bin/esbuild`]: '#!/bin/sh\nexec node "$@"\n',
       ...corepack('/root'),
       ...corepack('/home/node'),
+      ...dompurify.files,
     },
     binaries: [
       {
@@ -417,6 +634,7 @@ interface Sandbox {
   readonly root: string;
   readonly fs: string;
   readonly before: string[];
+  readonly standIn?: Tree['standIn'];
 }
 
 function walk(dir: string, base: string): string[] {
@@ -446,15 +664,31 @@ function sandbox(tree: Tree): Sandbox {
       linkSync(join(fs, b.path), join(fs, b.link));
     }
   }
+  for (const l of tree.links ?? []) {
+    mkdirSync(dirname(join(fs, l.path)), { recursive: true });
+    symlinkSync(l.target, join(fs, l.path));
+  }
+  for (const [url, bytes] of Object.entries(tree.registry ?? {})) {
+    const u = new URL(url);
+    mkdirSync(dirname(join(root, 'registry', u.hostname, u.pathname)), { recursive: true });
+    writeFileSync(join(root, 'registry', u.hostname, u.pathname), bytes);
+  }
+  // mktemp's directory, inside the sandbox, so a RUN that fails leaves nothing behind.
+  mkdirSync(join(root, 'tmp'));
   for (const home of ['/root', '/home/node']) mkdirSync(join(fs, home), { recursive: true });
   writeFileSync(join(bin, 'pnpm'), PNPM_STUB, { mode: 0o755 });
-  // Node itself, told the platform it is asked about.
+  // Node itself, told the platform it is asked about, and with no network: a
+  // fetch is answered from the stand-in registry, or with a 404.
   writeFileSync(
     join(bin, 'preload.cjs'),
-    "for (const k of ['platform', 'arch']) { const v = process.env['FAKE_' + k.toUpperCase()]; if (v) Object.defineProperty(process, k, { value: v }); }\n",
+    [
+      "for (const k of ['platform', 'arch']) { const v = process.env['FAKE_' + k.toUpperCase()]; if (v) Object.defineProperty(process, k, { value: v }); }",
+      "globalThis.fetch = async (url) => { const u = new URL(String(url)); const f = require('path').join(process.env.FAKE_REGISTRY || '/nonexistent', u.hostname, u.pathname); return require('fs').existsSync(f) ? new Response(require('fs').readFileSync(f)) : new Response('not in the stand-in registry', { status: 404 }); };",
+      '',
+    ].join('\n'),
   );
   writeFileSync(join(bin, 'node'), `#!/bin/sh\nexec '${process.execPath}' --require '${join(bin, 'preload.cjs')}' "$@"\n`, { mode: 0o755 });
-  return { root, fs, before: walk(fs, fs) };
+  return { root, fs, before: walk(fs, fs), standIn: tree.standIn };
 }
 
 /** A RUN's script with the image's absolute paths moved under the stand-in's root. */
@@ -468,16 +702,29 @@ interface Options {
   readonly only?: 'root' | 'node';
   /** Keep the entrypoint hash the Dockerfile pins, which the stand-in's entrypoint is not. */
   readonly pinnedEntrypoint?: boolean;
+  /** Keep the trees and integrity the replacing RUN pins, which the stand-in's are not. */
+  readonly pinnedReplacement?: boolean;
+  /** Only the RUNs this picks. */
+  readonly pick?: (run: Instruction) => boolean;
 }
 
 /** Runs a Dockerfile's RUN instructions in order, each as its USER, and stops at the first that fails. */
-function build(text: string, box: Sandbox, { plat = 'linux-arm64', tag = '', only, pinnedEntrypoint = false }: Options = {}): Run {
+function build(text: string, box: Sandbox, { plat = 'linux-arm64', tag = '', only, pinnedEntrypoint = false, pinnedReplacement = false, pick }: Options = {}): Run {
   const [platform, arch] = plat.split('-') as [string, string];
   let out = '';
   for (const run of runs(text)) {
     if (only && run.user !== only) continue;
-    const script = pinnedEntrypoint ? run.args : run.args.replace(/(?<=(^|[;\s])entrypoint_sha256=)[0-9a-f]{64}/, sha256(STAND_IN_ENTRYPOINT));
-    const r = spawnSync('sh', ['-c', rooted(script, box.fs)], {
+    if (pick && !pick(run)) continue;
+    let script = pinnedEntrypoint ? run.args : run.args.replace(/(?<=(^|[;\s])entrypoint_sha256=)[0-9a-f]{64}/, sha256(STAND_IN_ENTRYPOINT));
+    if (!pinnedReplacement && box.standIn) {
+      script = script
+        .replace(/(?<=(^|[;\s])from_tree=)[0-9a-f]{64}/, box.standIn.fromTree)
+        .replace(/(?<=(^|[;\s])to_tree=)[0-9a-f]{64}/, box.standIn.toTree)
+        .replace(/(?<=(^|[;\s])integrity=)sha512-[A-Za-z0-9+/=]+/, box.standIn.integrity);
+    }
+    // The whole file system the replacement walks is the stand-in's root.
+    script = rooted(script, box.fs).replace(/(?<=(^|[;\s])top=)\/;/, `${box.fs};`);
+    const r = spawnSync('sh', ['-c', script], {
       encoding: 'utf8',
       env: {
         PATH: `${join(box.root, 'bin')}:${process.env.PATH ?? '/usr/bin:/bin'}`,
@@ -485,6 +732,8 @@ function build(text: string, box: Sandbox, { plat = 'linux-arm64', tag = '', onl
         TRIGGER_IMAGE_TAG: tag,
         FAKE_PLATFORM: platform,
         FAKE_ARCH: arch,
+        FAKE_REGISTRY: join(box.root, 'registry'),
+        TMPDIR: join(box.root, 'tmp'),
         PNPM_LOG: join(box.root, 'pnpm.log'),
         LANG: 'C',
       },
@@ -629,6 +878,9 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
             // Both names of each binary were found linked, and the log says so.
             expect(run.out.match(/^2 link\(s\), inode \d+, \d+ bytes: /gm), run.out).toHaveLength(4);
             expect(run.left).toContain(`${PNPM}/node_modules/.bin/esbuild`);
+            // And dompurify's files are the new release's, loaded by both requirers.
+            expect(JSON.parse(readFileSync(join(box.fs, DOMPURIFY.path, 'package.json'), 'utf8')).version).toBe(DOMPURIFY.to);
+            expect(run.out.match(/^(require|import)\(dompurify\): \S+ 3\.4\.17$/gm), run.out).toHaveLength(4);
           }
         });
       });
@@ -785,6 +1037,225 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
       const run = build(dockerfiles.supervisor, box, { only: 'node' });
       expect(run.status).not.toBe(0);
       expect(run.out).toContain('as node, the user trigger-supervisor runs as, pnpm 10.33.2 does not start offline');
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The webapp's replacement: dompurify 3.4.13's files by 3.4.17's.
+
+/** A RUN's assignments, each with every variable it names resolved. */
+function resolvedAssignments(run: string): Map<string, string> {
+  const vars = assignments(run);
+  const resolve = (value: string): string => value.replace(/\$\{?([a-z_][a-z0-9_]*)\}?/g, (all, name: string) => (vars.has(name) ? resolve(vars.get(name)!) : all));
+  return new Map([...vars].map(([k, v]) => [k, resolve(v)]));
+}
+
+/** Every entry under the stand-in's root: a file's SHA-256, a link's target, or a directory. */
+function snapshot(box: Sandbox): Map<string, string> {
+  const out = new Map<string, string>();
+  const visit = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      const path = full.slice(box.fs.length);
+      if (entry.isSymbolicLink()) out.set(path, `-> ${readlinkSync(full)}`);
+      else if (entry.isDirectory()) {
+        out.set(path, 'directory');
+        visit(full);
+      } else out.set(path, sha256(readFileSync(full)));
+    }
+  };
+  visit(box.fs);
+  return out;
+}
+
+/** A snapshot without one directory and what is in it. */
+const without = (snap: Map<string, string>, dir: string) => new Map([...snap].filter(([p]) => p !== dir && !p.startsWith(`${dir}/`)));
+const replacingOnly = { pick: (run: Instruction) => /(^|[;\s])integrity=/.test(run.args) };
+
+describe("the webapp's build replaces dompurify's files with the release that fixes it, and nothing else", () => {
+  const webapp = dockerfiles['trigger.dev'];
+
+  it('REPLACED is exactly what the replacing RUN names, and each one is past its floor', () => {
+    for (const name of NAMES) {
+      const found = replacingRuns(dockerfiles[name]);
+      expect(found.length, name).toBe(REPLACED[name].length);
+      for (const [i, r] of REPLACED[name].entries()) {
+        const vars = resolvedAssignments(found[i]!.args);
+        const pkgName = r.path.split('/').at(-1)!;
+        expect(vars.get('pkg'), name).toBe(r.path);
+        expect(r.path.endsWith(`/${pkgName}@${r.from}/node_modules/${pkgName}`), r.path).toBe(true);
+        expect([vars.get('from'), vars.get('to')]).toEqual([r.from, r.to]);
+        expect(vars.get('url')).toBe(`https://registry.npmjs.org/${pkgName}/-/${pkgName}-${r.to}.tgz`);
+        expect(r.url).toBe(vars.get('url'));
+        expect(vars.get('integrity')).toBe(r.integrity);
+        expect([vars.get('from_tree'), vars.get('to_tree')]).toEqual([r.fromTree, r.toTree]);
+        expect([vars.get('posthog'), vars.get('mermaid')]).toEqual(r.requirers);
+        expect(r.why.length).toBeGreaterThan(60);
+        expect(r.evidence.length).toBeGreaterThan(30);
+        // Three days old when it was taken, 2026-10-30 (CONTRIBUTING.md).
+        expect(Date.parse('2026-10-30T00:00:00Z') - Date.parse(r.published)).toBeGreaterThan(3 * 24 * 3600 * 1000);
+      }
+    }
+  });
+
+  it('checks all it can before the swap and proves the rest after it, as root, before upstream’s USER node', () => {
+    expect(replacementProblems(webapp)).toEqual([]);
+    expect(shapeProblems('trigger.dev', webapp)).toEqual([]);
+  });
+
+  it('refuses each way the replacing RUN could slip', () => {
+    /** The text with the one line `re` names taken out. */
+    const drop = (re: RegExp) => {
+      const lines = webapp.split('\n');
+      const i = lines.findIndex((l) => re.test(l));
+      expect(i, `${String(re)} matched no line`).toBeGreaterThanOrEqual(0);
+      return replacementProblems([...lines.slice(0, i), ...lines.slice(i + 1)].join('\n'));
+    };
+    /** The text with the line `re` names moved to just after the line `to` names. */
+    const move = (re: RegExp, to: RegExp) => {
+      const lines = webapp.split('\n');
+      const i = lines.findIndex((l) => re.test(l));
+      expect(i, `${String(re)} matched no line`).toBeGreaterThanOrEqual(0);
+      const line = lines[i]!;
+      const rest = [...lines.slice(0, i), ...lines.slice(i + 1)];
+      const j = rest.findIndex((l) => to.test(l));
+      expect(j, `${String(to)} matched no line`).toBeGreaterThanOrEqual(0);
+      return replacementProblems([...rest.slice(0, j + 1), line, ...rest.slice(j + 1)].join('\n'));
+    };
+    expect(drop(/\[ "\$got" = "\$integrity" \]/)).toEqual(["the replacing RUN does not check the tarball's sha512, against the integrity npm published"]);
+    expect(drop(/\[ "\$\(tree "\$pkg"\)" = "\$from_tree" \]/)).toEqual(['the replacing RUN does not check the old directory, file for file (from_tree)']);
+    expect(drop(/\[ "\$links" = /)).toEqual(['the replacing RUN does not check which packages link it']);
+    expect(drop(/readlink -f "\$l"/)).toEqual(['the replacing RUN does not check that each link leads to it']);
+    expect(drop(/\[ "\$copies" = /)).toEqual(['the replacing RUN does not check that no other copy of its package.json is in the image']);
+    expect(drop(/grep -rlF data-tt-policy-suffix/)).toEqual(["the replacing RUN does not check that the webapp's own build carries no DOMPurify"]);
+    expect(drop(/grep -rlE /)).toEqual(["the replacing RUN does not check that the webapp's own build imports neither dompurify nor mermaid"]);
+    expect(drop(/\[ "\$\(version "\$new"\)" = "\$to" \]/)).toEqual(["the replacing RUN does not check the new directory's version"]);
+    expect(drop(/\[ "\$\(tree "\$new"\)" = "\$to_tree" \]/)).toEqual(['the replacing RUN does not check the new directory, file for file (to_tree)']);
+    expect(drop(/\[ "\$\(paths\)" = "\$before" \]/)).toEqual(['the replacing RUN does not prove that no other path was added or removed']);
+    expect(drop(/\[ -z "\$changed" \]/)).toEqual(['the replacing RUN does not prove that no other file changed since the marker']);
+    expect(drop(/require\.resolve\('dompurify'\)/)).toEqual(["the replacing RUN does not prove that each requirer's require loads the new release from it"]);
+    expect(drop(/import\.meta\.resolve\('dompurify'\)/)).toEqual(["the replacing RUN does not prove that each requirer's import loads the new release from it"]);
+    expect(drop(/^ {4}: > "\$marker"; \\$/)).toEqual(['the replacing RUN does not set its marker and read the paths of the image before it fetches']);
+    expect(drop(/^ {4}mv "\$new" "\$pkg"; \\$/)).toContainEqual(expect.stringContaining('does not swap the directory'));
+    // A check moved after the swap checks nothing in time; a proof moved before it proves nothing.
+    expect(move(/\[ "\$got" = "\$integrity" \]/, /^ {4}mv "\$new" "\$pkg"; \\$/)).toEqual([
+      "the replacing RUN checks the tarball's sha512, against the integrity npm published only after it has removed the old directory",
+    ]);
+    expect(move(/grep -rlF data-tt-policy-suffix/, /^ {4}mv "\$new" "\$pkg"; \\$/)).toEqual([
+      "the replacing RUN checks that the webapp's own build carries no DOMPurify only after it has removed the old directory",
+    ]);
+    expect(move(/\[ "\$\(paths\)" = "\$before" \]/, /\[ "\$\(tree "\$new"\)" = "\$to_tree" \]/)).toEqual([
+      'the replacing RUN proves that no other path was added or removed before the swap, which proves nothing',
+    ]);
+    // As node, after node's USER, or twice.
+    expect(replacementProblems(webapp.replace(/\n(# Still as root: dompurify)/, '\nUSER node\n$1'))).toEqual(['the replacing RUN runs as node, not root']);
+    const run = /\n# Still as root: dompurify[\s\S]*?\n\n/.exec(webapp)![0];
+    expect(replacementProblems(webapp.replace(run, '\n\n') + run)).toEqual(['the replacing RUN runs as node, not root', "the replacing RUN is not followed by upstream's USER node"]);
+    expect(replacementProblems(webapp.replace(run, `${run}${run.slice(1)}`))).toEqual(["2 RUNs name a tarball's integrity, not one"]);
+    // Another source than npm's registry, or an integrity that is no sha512.
+    expect(replacementProblems(webapp.replace(/(?<=url=)https:\/\/registry\.npmjs\.org\//, 'https://example.org/'))).toEqual([expect.stringContaining("the replacing RUN's url= is https://example.org/")]);
+    expect(replacementProblems(webapp.replace(/(?<=integrity=)sha512-/, 'sha1-'))).toEqual([expect.stringContaining("the replacing RUN's integrity= is sha1-")]);
+  });
+
+  it('run over the stand-in, it swaps the package for the published release and changes nothing else; both requirers load it', () => {
+    withSandbox(treeOf('trigger.dev', 'linux-x64'), (box) => {
+      const before = snapshot(box);
+      const owner = statSync(join(box.fs, DOMPURIFY.path, 'package.json')).uid;
+      const run = build(webapp, box, replacingOnly);
+      expect(run.status, run.out).toBe(0);
+      const after = snapshot(box);
+      expect(without(after, DOMPURIFY.path)).toEqual(without(before, DOMPURIFY.path));
+      const files = standInDompurify(DOMPURIFY.to);
+      expect([...after].filter(([p, v]) => p.startsWith(`${DOMPURIFY.path}/`) && v !== 'directory').map(([p, v]) => [p.slice(DOMPURIFY.path.length + 1), v]).sort()).toEqual(
+        Object.entries(files).map(([p, t]) => [p, sha256(t)]).sort(),
+      );
+      expect(statSync(join(box.fs, DOMPURIFY.path, 'package.json')).uid).toBe(owner);
+      // Once from each requirer, by require and by import, from the swapped directory.
+      expect(run.out.split(`require(dompurify): ${join(box.fs, DOMPURIFY.path)}/dist/purify.cjs.js 3.4.17\n`)).toHaveLength(DOMPURIFY.requirers.length + 1);
+      expect(run.out.split(`import(dompurify): ${join(box.fs, DOMPURIFY.path)}/dist/purify.es.mjs 3.4.17\n`)).toHaveLength(DOMPURIFY.requirers.length + 1);
+      expect(run.out).toContain("nothing else in the image changed; from posthog-js and mermaid, require and import load 3.4.17.");
+      expect(readdirSync(join(box.root, 'tmp')), 'the RUN left its staging directory').toEqual([]);
+    });
+  });
+
+  it('each way upstream or the registry could differ fails it, with nothing changed', () => {
+    const base = treeOf('trigger.dev', 'linux-arm64');
+    const files = (add: Record<string, string>, drop: (p: string) => boolean = () => false): Tree => ({
+      ...base,
+      files: { ...Object.fromEntries(Object.entries(base.files).filter(([p]) => !drop(p))), ...add },
+    });
+    const at = (dir: string) => (p: string) => p === dir || p.startsWith(`${dir}/`);
+    const served = (bytes: Buffer, standIn: Partial<NonNullable<Tree['standIn']>> = {}): Tree => ({ ...base, registry: { [DOMPURIFY.url]: bytes }, standIn: { ...base.standIn!, ...standIn } });
+    const extra = tarball({ ...standInDompurify(DOMPURIFY.to), 'dist/extra.js': 'module.exports = 1;\n' });
+    const older = tarball(standInDompurify('3.4.16'));
+    const webappDir = '/triggerdotdev/apps/webapp';
+    const cases: ReadonlyArray<[string, Tree, (fs: string) => string, Options?]> = [
+      ['the package is not where it was', { ...files({}, at(DOMPURIFY.path)), links: [] }, (fs) => `${fs}${DOMPURIFY.path} is not there.`],
+      ['another version at its path', files({ [`${DOMPURIFY.path}/package.json`]: standInDompurify('3.4.12')['package.json']! }), () => 'is dompurify 3.4.12, not 3.4.13'],
+      ['a file of it that is not the published one', files({ [`${DOMPURIFY.path}/dist/purify.cjs.js`]: 'module.exports = { version: "3.4.13" };\n' }), (fs) => `${fs}${DOMPURIFY.path} is not the published dompurify 3.4.13, file for file`],
+      ['a requirer that is not there', files({}, at(DOMPURIFY.requirers[0]!)), (fs) => `${fs}${DOMPURIFY.requirers[0]} is not there.`],
+      [
+        'a third package that links it',
+        { ...base, links: [...base.links!, { path: `${PNPM}/other@1.0.0/node_modules/dompurify`, target: '../../dompurify@3.4.13/node_modules/dompurify' }] },
+        (fs) => `dompurify is linked from: ${fs}${PNPM}/mermaid@11.16.1/node_modules/dompurify ${fs}${PNPM}/node_modules/dompurify ${fs}${PNPM}/other@1.0.0/`,
+      ],
+      [
+        'a requirer with a copy of its own, not the link',
+        {
+          ...files(Object.fromEntries(Object.entries(standInDompurify(DOMPURIFY.from)).map(([p, t]) => [`${dirname(DOMPURIFY.requirers[0]!)}/dompurify/${p}`, t]))),
+          links: base.links!.filter((l) => !l.path.startsWith(dirname(DOMPURIFY.requirers[0]!))),
+        },
+        (fs) => `${fs}${dirname(DOMPURIFY.requirers[0]!)}/dompurify is not a link to`,
+      ],
+      ['another copy of it elsewhere in the image', files({ [`${webappDir}/node_modules/dompurify/package.json`]: standInDompurify('3.4.13')['package.json']! }), () => "dompurify's package.json is at: "],
+      ['a browser bundle that carries DOMPurify', files({ [`${webappDir}/build/client/assets/purify.es-stand-in.js`]: 'const n="data-tt-policy-suffix";export{n};\n' }), (fs) => `the webapp's own build carries DOMPurify (grep exits 0): ${fs}${webappDir}/build/client/assets/purify.es-stand-in.js`],
+      ['a server bundle that imports mermaid', files({ [`${webappDir}/build/server/index.mjs`]: 'export const m = () => import("mermaid");\n' }), () => "the webapp's own build imports dompurify or mermaid (grep exits 0)"],
+      ['a webapp built elsewhere', files({}, at(`${webappDir}/build/client`)), (fs) => `${fs}${webappDir}/build/client is not there`],
+      ['a registry that has no such tarball', { ...base, registry: {} }, () => `${DOMPURIFY.url} could not be fetched; nothing was changed.`],
+      ['a registry that serves other bytes', served(extra), () => `${DOMPURIFY.url} is ${integrityOf(extra)}, not ${base.standIn!.integrity}, the integrity npm published for dompurify 3.4.17; nothing was changed.`],
+      ['a tarball of another release, by its own integrity', served(older, { integrity: integrityOf(older) }), () => `${DOMPURIFY.url} unpacks to dompurify 3.4.16, not 3.4.17; nothing was changed.`],
+      ['a tarball with other files, by its own integrity', served(extra, { integrity: integrityOf(extra) }), () => `${DOMPURIFY.url} unpacks to other files than the published dompurify 3.4.17 (above); nothing was changed.`],
+      // The real trees and integrity, which no stand-in is: the build refuses it.
+      ['the pinned trees, against the stand-in', base, (fs) => `${fs}${DOMPURIFY.path} is not the published dompurify 3.4.13, file for file`, { pinnedReplacement: true }],
+    ];
+    for (const [what, tree, said, options] of cases) {
+      withSandbox(tree, (box) => {
+        const before = snapshot(box);
+        const run = build(webapp, box, { ...replacingOnly, ...options });
+        expect(run.status, `${what}: ${run.out}`).not.toBe(0);
+        expect(run.out, what).toContain(said(box.fs));
+        expect(snapshot(box), `${what}: something changed before it failed`).toEqual(before);
+      });
+    }
+  });
+
+  it('each proof after the swap fails on the change it is there to see', () => {
+    const base = treeOf('trigger.dev', 'linux-arm64');
+    /** The replacing RUN with a line put in right after the swap. */
+    const afterSwap = (line: string) => {
+      const text = webapp.replace(/(\n {4}mv "\$new" "\$pkg"; \\\n)/, `$1    ${line} \\\n`);
+      expect(text).not.toBe(webapp);
+      return text;
+    };
+    withSandbox(base, (box) => {
+      const run = build(afterSwap('echo changed >> /triggerdotdev/package.json;'), box, replacingOnly);
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain(`outside ${box.fs}${DOMPURIFY.path}, these changed while it was replaced: ${box.fs}/triggerdotdev/package.json`);
+    });
+    withSandbox(base, (box) => {
+      const run = build(afterSwap(': > /triggerdotdev/stray;'), box, replacingOnly);
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain(`a path outside ${box.fs}${DOMPURIFY.path} was added or removed while it was replaced.`);
+    });
+    // A release whose ES build is not what its package.json says: require loads it, import does not.
+    const split = standInDompurify(DOMPURIFY.to, '3.4.16');
+    const bytes = tarball(split);
+    withSandbox({ ...base, registry: { [DOMPURIFY.url]: bytes }, standIn: { ...base.standIn!, integrity: integrityOf(bytes), toTree: treeHash(split) } }, (box) => {
+      const run = build(webapp, box, replacingOnly);
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain(`require(dompurify): ${join(box.fs, DOMPURIFY.path)}/dist/purify.cjs.js 3.4.17`);
+      expect(run.out).toContain(`from ${box.fs}${DOMPURIFY.requirers[0]}, import('dompurify') does not load 3.4.17`);
     });
   });
 });
@@ -1141,7 +1612,9 @@ describe('the reading is not vacuous', () => {
   it('found the Dockerfiles and their removing RUNs', () => {
     for (const name of NAMES) {
       expect(statSync(join(REPO_ROOT, dockerfileOf(name))).isFile()).toBe(true);
-      expect(runs(dockerfiles[name]).length, name).toBe(2);
+      // The removing RUN and the node RUN, and the webapp's replacing RUN.
+      expect(runs(dockerfiles[name]).length, name).toBe(2 + REPLACED[name].length);
+      expect(replacingRuns(dockerfiles[name]).length, name).toBe(REPLACED[name].length);
       expect(parseRef(dockerfileBase(dockerfiles[name]).ref).digest).toMatch(/^sha256:[0-9a-f]{64}$/);
     }
   });
