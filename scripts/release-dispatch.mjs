@@ -46,6 +46,8 @@
  *   it, expects the names check to refuse it ("not a release name") before
  *   anything installs, and deletes it. It proves the two calls, a tag-ref
  *   dispatch and the handling of a red run before a real tag depends on them.
+ *   It reads no nights, so it refuses the owner's waiver of them
+ *   (`WAIVE_NIGHTS`) before it makes anything.
  *
  * Usage (in the Release workflow; GH_TOKEN, VERSION, COMMIT in the env):
  *
@@ -61,6 +63,7 @@ import { pathToFileURL } from 'node:url';
 import { github, pass, refuse, note, report, output, runUrl, short } from './release-github.mjs';
 import { generatedBlocks } from './release-verify.mjs';
 import { peelTag, tagDecision } from './release-cut-tag.mjs';
+import { readWaiver } from './release-nights.mjs';
 
 const time = (t) => new Date(t).getTime();
 const newestFirst = (runs) => [...runs].sort((a, b) => time(b.created_at) - time(a.created_at));
@@ -389,6 +392,8 @@ async function main(argv) {
       return done(await publish(client, { workflow, ref: version, sha, inputs: inputsFrom(argv), timeoutMs: 140 * 60_000, currentRunId }));
     }
     case 'rehearse-tag': {
+      const waived = readWaiver({ text: process.env.WAIVE_NIGHTS, mode: 'rehearse-tag', actor: process.env.GITHUB_ACTOR, version: process.env.VERSION }).lines;
+      if (waived.length > 0) return done(waived);
       if (process.env.GITHUB_REF !== 'refs/heads/main') {
         return done([refuse('rehearsal-tag', `dispatched from ${process.env.GITHUB_REF}: the rehearsal runs from main`)]);
       }

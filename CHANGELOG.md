@@ -99,6 +99,15 @@ work.
 
 ### Changed
 
+- **The owner can waive the counted nights in writing, and the release tag
+  says so** (workplan 0146, the owner's words of 2026-10-30 for alpha.3). The
+  Release workflow takes `waive_nights`, the owner's reason, for a version the
+  owner named (alpha.3 only) and from a person's account: the nights'
+  refusals become notes that quote it, the commit must be given, and the
+  tag's message and the run's summaries say the nights were waived, by whom
+  and in what words. The tag job uses it only when the preflight did. Nothing
+  else is waived. Before, the only way past the nights was a tag pushed by
+  hand, the unordered path that broke alpha.1.
 - **pnpm is 11.28.9** (workplan 0119, issues #1694 and #1735, #1701): the
   lockfile is unchanged, and the installs, the images' filtered installs and
   the advisory gate give what 11.28.6 gave. When pnpm next re-resolves the
