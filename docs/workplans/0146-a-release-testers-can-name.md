@@ -2,7 +2,12 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-10-29 (update this block at the end of every session)
+## Status — 2026-10-30 (update this block at the end of every session)
+
+**2026-10-30: #1729 (0095 T6) moves into alpha.3.** The owner, 2026-10-30: *"I want #1729
+earlier."* The grant mail's link that opens registration with the address filled in merges
+before alpha.3's CHANGELOG fold, after CI and E2E (managed) on its branch; the entry below that
+names it for alpha.4 is superseded. Alpha.4 keeps T16 (#1722).
 
 **2026-10-29: alpha.3's tag and live deploy, dated; what waits for alpha.4.**
 

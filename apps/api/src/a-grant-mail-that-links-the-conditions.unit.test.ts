@@ -141,9 +141,9 @@ describe('during the alpha, the grant mail links the tester guide', () => {
   });
 
   it.each(['en', 'nl'] as const)('at the guide itself, never a section of it, in %s', async (locale) => {
-    // The mail outside the alpha carries no fragment at all
-    // (`notifications.unit.test.ts`); inside it, the guide's top is where a
-    // tester starts.
+    // The mail's one fragment is the sign-in link's `#register=<address>`
+    // (0095 T6, `notifications.unit.test.ts`); the guide's link carries none,
+    // because the guide's top is where a tester starts.
     const body = await sent(locale, { OWNPACE_STAGE: 'alpha' });
     expect(body).not.toMatch(/handleiding\.html#|guide\.html#/);
   });
