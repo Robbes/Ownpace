@@ -7,7 +7,8 @@
 # not be in this file, how it fails when upstream moves, and the way out.
 #
 # WHY. Trivy 0.76.1 read 2 critical findings in
-# ghcr.io/triggerdotdev/supervisor:v4.8.1 (linux/arm64, 2026-10-26), both tar
+# ghcr.io/triggerdotdev/supervisor:v4.8.1 (linux/arm64, 2026-10-26; v4.8.3 builds
+# the same Containerfile, entrypoint and pnpm), both tar
 # 7.5.13 (CVE-2026-59873) in corepack's pnpm 10.33.2: once in root's copy and
 # once in node's. managed.yml's trigger-supervisor sets no `user:`, so it runs
 # as the image's user, node, with HOME /home/node, and its CMD, `pnpm run
@@ -35,7 +36,7 @@
 # copy that is gone. So the entrypoint read at read_at is pinned by its SHA-256
 # below, and images.yml's `build (trigger, …)` checks the base's user, command
 # and entrypoint are the ones read.
-FROM ghcr.io/triggerdotdev/supervisor:v4.8.1@sha256:9907be3e369b678eec7c951088d218e8dc647f0a469932a23e9d999552ae6201
+FROM ghcr.io/triggerdotdev/supervisor:v4.8.3@sha256:60808dded07c856481bd94ac0b6c64637dea828e57e918ca3ca270813feac74b
 
 # Given by managed.yml from the .env, empty when the .env sets none. It only refuses.
 ARG TRIGGER_IMAGE_TAG
@@ -45,7 +46,7 @@ USER root
 RUN set -eu; \
     me=deploy/compose/supervisor/Dockerfile; \
     fail() { echo "$me: $*" >&2; echo "$me: re-read this file's header against the new tag, or drop the removal upstream fixed." >&2; exit 1; }; \
-    read_at=v4.8.1; \
+    read_at=v4.8.3; \
     core="v$(node -p "require('/app/packages/core/package.json').version")"; \
     if [ -n "${TRIGGER_IMAGE_TAG:-}" ] && [ "$TRIGGER_IMAGE_TAG" != "$core" ]; then \
       echo "$me: the .env names TRIGGER_IMAGE_TAG=$TRIGGER_IMAGE_TAG, and this checkout builds Trigger.dev $core. Either set TRIGGER_IMAGE_TAG=$core in the .env, or run a checkout that pins $TRIGGER_IMAGE_TAG: the release that ran it, or a move to it (trigger-version.sh pin $TRIGGER_IMAGE_TAG, docs/managed-bring-up.md, Upgrading Trigger.dev)." >&2; \
