@@ -5392,7 +5392,10 @@ sudo apt-get update && sudo apt-get install -y libatomic1
   ```
 
   Node 26 carries no corepack, so a `pnpm` that `corepack enable` made no
-  longer runs: step 4 puts pnpm back.
+  longer runs: step 4 puts pnpm back. Whether NodeSource publishes `node_26.x`
+  was not read when this was written (its repository was not reachable from
+  there): if `apt-get update` fails on that line, put `node_24.x` back and take
+  the tarball below.
 - **nvm** (or fnm, the same verbs): `nvm install 26 && nvm alias default 26`,
   then open a new shell. Global packages are per version: step 4 is needed in
   the new one.

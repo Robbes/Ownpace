@@ -75,13 +75,24 @@ maintenance until 2028-04-30, so nothing forced the move, and the owner chose to
   `libatomic1` matters to the self-hosted runner too: setup-node's Node 26 there is the
   official linux-arm64 binary, `NEEDED libatomic.so.1`. Neither `deploy-live.sh` nor
   `stand-up-live.sh` reads the host's Node version, so neither changed.
-- **Not run here, owed on the pull request:** the images built in Docker (images.yml builds
-  the three on linux/amd64 for a pull request), any arm64 binary (E2E self-hosted builds and
+- **Proved on #1767 at `20cfed4a`, 2026-10-31.** Locally on Node 26.13.0: `pnpm install
+  --frozen-lockfile` (lockfile unchanged), lint and typecheck exit 0, and the whole unit
+  project, 1079 files, 16232 passed and 33 skipped (the guards under `scripts/` failed 3 cases
+  before the fixture rows, all *"names no image for node-26"*). On GitHub: CI green, 55 checks
+  passed and 3 skipped (the pull request's Security Scan leaves its image legs to the
+  schedule), the first lint on 26 cold in 1 min 43 s with the 4 GB heap, integration on
+  ubuntu-24.04 and ubuntu-24.04-arm; images.yml built api, web and selfhost on linux/amd64,
+  its log showing `npm install -g --omit=dev corepack@0.36.0` add 1 package and corepack
+  fetch pnpm 11.28.9; windows-payload run 41250312341 fetched node.exe v26.13.0 (95.5 MB) and
+  uploaded `ownpace-appliance-win-x64-20cfed4a…` (50.8 MB zipped; the owner's Windows 11
+  check of it is owed); Security Scan with `image_scans`, run 41250313842, read the tasks'
+  base built from the branch, `node:26.13.0-trixie-slim` with the config's layer, at Debian
+  13.7, 0 critical, 43 high, none with a fix: the figures of the 24.22.1 base it replaces.
+- **Still owed on the pull request:** any arm64 image (E2E self-hosted builds and
   runs the selfhost image there; E2E managed builds the api and web there, deploys the tasks
   as `node-26` for the first time and runs the host steps on the runner's Node 26), the o365
-  lane, a windows-payload dispatch and the owner's Windows 11 check of its zip (node.exe
-  26.13.0, `14319838…` in nodejs.org's `SHASUMS256.txt`, 100,097,864 bytes against
-  93,915,464 at 24.22.1). The image scan of the final api, web and selfhost images on 26
+  lane, and the owner's Windows 11 check of the zip above (node.exe 26.13.0, `14319838…` in
+  nodejs.org's `SHASUMS256.txt`, 100,097,864 bytes against 93,915,464 at 24.22.1). The image scan of the final api, web and selfhost images on 26
   exists only after the merge (`:edge`); on a branch, Security Scan builds only the tasks'
   base. Re-measure there the 2026-10-25 Trivy figures the Dockerfile and config comments
   quote for 24.

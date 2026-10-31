@@ -24,7 +24,8 @@
 #
 # DEBIAN 13 ("trixie"), NAMED IN THE TAG. The bare `-slim` tag is Debian 12
 # ("bookworm"): on 2026-10-25 Trivy 0.76.1 read 1 critical and 61 high findings
-# in `node:24.22.1-slim` and 0 and 48 in this image, on amd64 and arm64 alike,
+# in `node:24.22.1-slim` and 0 and 48 in `node:24.22.1-trixie-slim`, then this
+# line, on amd64 and arm64 alike,
 # and none of the 43 Debian ones left has a fix. Node is the same file in both,
 # byte for byte, and the managed tasks build on this image
 # (apps/worker/trigger.config.ts, 0146 T14). Dependabot keeps the suffix when it moves the
