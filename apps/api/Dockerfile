@@ -30,7 +30,7 @@
 # (apps/worker/trigger.config.ts, 0146 T14). Dependabot keeps the suffix when it moves the
 # tag. scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts holds
 # the three FROM lines to one string and the tag to a named Debian release.
-FROM node:24.22.1-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea AS base
+FROM node:24.22.1-trixie-slim@sha256:89c5244bc22a9bc3287d89ebc7e49b9cb5bb84cd40e6175ac3421d5a9f68b95a AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
