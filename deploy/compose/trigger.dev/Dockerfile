@@ -21,8 +21,9 @@
 # files the last RUN as root replaces with 3.4.17's (WHAT IS REPLACED, below).
 # So 8 become 1. The binaries are the same Go builds on amd64.
 #
-# WHAT GOES, AND WHY NOTHING RUNS IT. Read in upstream's source at v4.8.1 and in
-# the published packages, whose sha512 is the one pnpm-lock.yaml names:
+# WHAT GOES, AND WHY NOTHING RUNS IT. Read in upstream's source at v4.8.1, again
+# at v4.8.3, and in the published packages, whose sha512 is the one
+# pnpm-lock.yaml names:
 #   - @depot/cli's binary. Loading @depot/cli (lib/main.js) defines functions
 #     and reads DEPOT_BINARY_PATH as a string; the binary is looked up only
 #     inside depot(...), through depotBinaryPath() and generateBinPath(). The
@@ -152,9 +153,9 @@
 # READ AT ONE RELEASE. Why each removal is safe was read in upstream's source at
 # read_at (below): the depot gate, what build/server.js imports, the entrypoint
 # and the copies of pnpm. A release that keeps @depot/cli 0.0.1-cli.2.80.0 and
-# esbuild 0.23.0 at the same paths (4.7.6, 4.8.0 and 4.8.1 all do) would pass
-# every path check here while code this stack reaches started to run one of
-# them. So the build refuses any other version than read_at, and
+# esbuild 0.23.0 at the same paths (4.7.6, 4.8.0, 4.8.1 and 4.8.3 all do) would
+# pass every path check here while code this stack reaches started to run one
+# of them. So the build refuses any other version than read_at, and
 # `trigger-version.sh pin` leaves read_at where it is: a version move's pull
 # request is red (here, in `build (trigger, …)` and in E2E (managed)) until
 # someone reads the reasons again at the new release and moves read_at, and
@@ -191,17 +192,17 @@
 # THE WAY OUT. The owner filed the issue that asks upstream for these fixes,
 # triggerdotdev/trigger.dev#5084 (workplan 0146 T16). Upstream's fix for
 # dompurify is the override in its root package.json, `"dompurify@>=3 <3.4.13":
-# "^3.4.13"` at v4.8.1, raised to 3.4.17 with its lockfile. When a `pin`
-# to a release that fixed one of these fails its check, delete that removal and
-# its row in the guard's REMOVED table; a release that moves dompurify past
-# 3.4.13 fails the replacement on its path, and the replacement and its
-# REPLACED row go the same way. When none is left, managed.yml runs
-# ghcr's image again and this directory goes (docs/managed-bring-up.md,
-# "Upgrading Trigger.dev"). This file is never `pin`ned backwards: its checks
-# hold for read_at only, so going back to an older release means running the
-# checkout that pinned it (a revert of the move, or the older release's tag),
-# whose own Dockerfile and name come with it.
-FROM ghcr.io/triggerdotdev/trigger.dev:v4.8.1@sha256:bcce9e8f5affee747fe0ce208cdf7dcd8815fe84fb44b31f446638fffcb64ebe
+# "^3.4.13"` at v4.8.1 and still at v4.8.3, raised to 3.4.17 with its
+# lockfile. When a `pin` to a release that fixed one of these fails its check,
+# delete that removal and its row in the guard's REMOVED table; a release that
+# moves dompurify past 3.4.13 fails the replacement on its path, and the
+# replacement and its REPLACED row go the same way. When none is left,
+# managed.yml runs ghcr's image again and this directory goes
+# (docs/managed-bring-up.md, "Upgrading Trigger.dev"). This file is never
+# `pin`ned backwards: its checks hold for read_at only, so going back to an
+# older release means running the checkout that pinned it (a revert of the
+# move, or the older release's tag), whose own Dockerfile and name come with it.
+FROM ghcr.io/triggerdotdev/trigger.dev:v4.8.3@sha256:54aa67fa90cd1fc88ce11ae670e6dbb8f12d2ba8b39e839e882d9e32bb8bdb1f
 
 # Given by managed.yml from the .env, empty when the .env sets none. It only refuses.
 ARG TRIGGER_IMAGE_TAG
@@ -211,7 +212,7 @@ USER root
 RUN set -eu; \
     me=deploy/compose/trigger.dev/Dockerfile; \
     fail() { echo "$me: $*" >&2; echo "$me: re-read this file's header against the new tag, or drop the removal upstream fixed." >&2; exit 1; }; \
-    read_at=v4.8.1; \
+    read_at=v4.8.3; \
     core="v$(node -p "require('/triggerdotdev/packages/core/package.json').version")"; \
     if [ -n "${TRIGGER_IMAGE_TAG:-}" ] && [ "$TRIGGER_IMAGE_TAG" != "$core" ]; then \
       echo "$me: the .env names TRIGGER_IMAGE_TAG=$TRIGGER_IMAGE_TAG, and this checkout builds Trigger.dev $core. Either set TRIGGER_IMAGE_TAG=$core in the .env, or run a checkout that pins $TRIGGER_IMAGE_TAG: the release that ran it, or a move to it (trigger-version.sh pin $TRIGGER_IMAGE_TAG, docs/managed-bring-up.md, Upgrading Trigger.dev)." >&2; \

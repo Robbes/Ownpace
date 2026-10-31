@@ -4,18 +4,36 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **Trigger.dev is v4.8.3, taken before its three-day floor on the owner's
+  waiver** (workplan 0119, issue #1738): *"I waive the wait for v4.8.3, just
+  go with it"* (2026-10-31). It skips v4.8.2. The webapp and the supervisor
+  are still built here without the files nothing runs, now on v4.8.3, and the
+  tasks deploy with CLI 4.8.3. It is one way: six Prisma migrations and two
+  ClickHouse ones, which drop a search table and its view this stack never
+  filled. A stack whose `.env` sets `TRIGGER_IMAGE_TAG` sets `v4.8.3` there
+  first, with no run executing and after the backup, or its bring-up stops at
+  the `trigger` phase. A new `trigger.dev login` is started with
+  `--no-browser`, as the bring-up and `deploy-tasks.sh` now print it: without
+  it, CLI 4.8.3 on a machine that can open a browser takes the approval on its
+  own `127.0.0.1`, which a browser on another machine cannot reach.
+
 ### Added
 
-- **The nightly managed gate proves that a meeting the target account organises
-  itself invites nobody** (workplan 0141 T9 (b), the organiser canary): each
-  fresh set now carries an event 3 organised by the demo target account's own
-  address, dated next January, with the canary attendee. There the target's
-  server is the organiser's, so without `SCHEDULE-AGENT=CLIENT` it would mail
-  the attendee on the copy and on the take-back; the catcher stayed silent for
-  event 1 only because its organiser is a third party. The demo bring-up gives
+- **The nightly managed gate proves that copying a meeting the target account
+  organises itself invites nobody** (workplan 0141 T9 (b), the organiser
+  canary): each fresh set now carries an event 3 organised by the demo target
+  account's own address, dated next January, with the canary attendee. There
+  the target's server is the organiser's, so without `SCHEDULE-AGENT=CLIENT`
+  the sync's PUT would invite the attendee; event 1's silence held whatever the
+  writer did, because its organiser is a third party. The take-back is not
+  re-proved by it: its DELETE sends `Schedule-Reply: F`, which alone keeps
+  Nextcloud from sending a CANCEL (0103 T5). The demo bring-up gives
   `tenant-b-target` an address, the seeder refuses before writing when the
-  target has none or the source shares it, and the smoke reads the copy and
-  asks the target's server whether it matches its organiser.
+  target has none, when the source shares it, or when either account's
+  addresses cannot be read, and the smoke reads the copy and asks the target's
+  server whether it matches its organiser.
 
 ### Fixed
 
