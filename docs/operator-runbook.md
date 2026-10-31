@@ -2655,7 +2655,9 @@ workplan 0146 T7. A compose probe runs INSIDE the image, so under
 `up -d --wait` one naming a binary that image lacks does not misreport — it
 fails the bring-up and takes the stack with it. Nothing in this repository had
 run a command inside `bitnamilegacy/minio` or `caddy:2-alpine`, so there was no
-evidence to write either probe from. Chainguard's MinIO, which replaced
+evidence to write either probe from. The front's image is built here without
+curl since 2026-10-31 (`deploy/compose/caddy`, workplan 0119), so a probe that
+names curl would now certainly fail there. Chainguard's MinIO, which replaced
 Bitnami's, carries `mc`, and its probe is upstream's own `mc ready`, which
 Trigger.dev's compose runs in that image. The smoke asserts both from places
 whose tooling is proven, which for `minio` also says that another container on

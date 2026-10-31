@@ -33,7 +33,10 @@
  *               `supervisor` the pulled images had; the Docker socket proxy,
  *               upstream's v0.5.0 on a current HAProxy, since 2026-10-30,
  *               deploy/compose/docker-socket-proxy, under the name
- *               `docker-socket-proxy` the pulled image had), so its leg builds that
+ *               `docker-socket-proxy` the pulled image had; the dashboard's TLS
+ *               front, Caddy's image without curl, since 2026-10-31,
+ *               deploy/compose/caddy, under the name `caddy` the pulled
+ *               image had), so its leg builds that
  *               directory for linux/arm64 and scans what it built
  *               (`context`); the Dockerfile must be there;
  *             - every image a script in deploy/compose or deploy/selfhost

@@ -642,3 +642,78 @@ jobs:
       - name: Remove the proxy
         if: always()
         run: docker rm -f socket-proxy || true
+
+  # THE DASHBOARD'S TLS FRONT BUILT HERE, ON A PULL REQUEST (workplan 0119,
+  # 2026-10-31). managed.yml's trigger-tls runs `localhost/caddy:<tag>-<hash>`,
+  # which compose builds on the machine from deploy/compose/caddy: Caddy's
+  # official image at its pinned digest, with curl removed and the libraries
+  # only curl pulled in. Nothing publishes it, so the matrix above never builds
+  # it, and without this job the first build of a pull request that moved its
+  # FROM would be the branch's E2E (managed).
+  #
+  # It builds the directory under the name managed.yml gives it. The build's
+  # own RUN checks the packages it removes at the versions its header read,
+  # proves they are gone, and asks `caddy version` for the FROM's release, so a
+  # base that moved fails here, by name. Then it starts the image as
+  # managed.yml runs trigger-tls: trigger-tls.Caddyfile mounted read-only
+  # where Caddy reads it, TRIGGER_TLS_HOST at compose's default, the
+  # container's port 3443 on the runner's loopback. And it asks it as the
+  # smoke does, by IP, so with no SNI, which is what the Caddyfile's
+  # default_sni is for, and with -k for the certificate `tls internal` mints:
+  # TLS must terminate and Caddy must answer, with its own Server header.
+  # trigger-api is not there, so the answer is the reverse proxy's 502, which
+  # is still Caddy's. curl writes 000 when nothing answered. The job exits with
+  # the probe's verdict, and the guard runs this step against a stub that
+  # answers wrongly. On a pull request only, publishing nothing. Held by
+  # scripts/a-package-the-front-never-runs.unit.test.ts.
+  caddy:
+    name: build (caddy)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build the TLS front as managed.yml names it, start it with its Caddyfile, and ask it for TLS on 3443
+        run: |
+          set -euo pipefail
+          # The reference compose builds, read from managed.yml's one image line for it.
+          ref="$(sed -n 's/^[[:space:]]*image:[[:space:]]*\(localhost\/caddy:[^[:space:]]*\)[[:space:]]*$/\1/p' deploy/compose/managed.yml)"
+          if [ -z "$ref" ] || [ "$(wc -l <<<"$ref")" != 1 ]; then
+            echo "::error::managed.yml names no single localhost/caddy image: '${ref}'"
+            exit 1
+          fi
+          docker build --pull --progress=plain --tag "$ref" deploy/compose/caddy
+          echo "${ref}: $(docker image inspect --format '{{.Os}}/{{.Architecture}} {{.Id}}' "$ref")"
+          # managed.yml's Caddyfile, mount and port for trigger-tls, TRIGGER_TLS_HOST at compose's default.
+          docker run -d --name tls-front-probe \
+            -e TRIGGER_TLS_HOST=localhost \
+            -v "$PWD/deploy/compose/trigger-tls.Caddyfile:/etc/caddy/Caddyfile:ro" \
+            -p 127.0.0.1:3443:3443 "$ref"
+          # Its status, then its Server header: nothing for a header that is not there, 000 for no answer.
+          answer=''
+          for attempt in $(seq 1 30); do
+            answer="$(curl -sk -o /dev/null -w '%{http_code} %header{server}' --max-time 5 https://127.0.0.1:3443/ || true)"
+            if [ "${answer%% *}" != 000 ]; then
+              break
+            fi
+            sleep 1
+          done
+          read -r code server <<<"$answer"
+          if [ "${code:-000}" = 000 ] || [ "${server:-}" != Caddy ]; then
+            echo "::error::https://127.0.0.1:3443/ by IP answered '${answer}' within 30 seconds, and trigger-tls must terminate TLS there and answer as Caddy"
+            exit 1
+          fi
+          echo "trigger-tls: TLS terminated on 127.0.0.1:3443 by ${server} (HTTP ${code})"
+
+      - name: The front's log, when it did not answer as it should
+        if: failure()
+        run: docker logs tls-front-probe || true
+
+      - name: Remove the front
+        if: always()
+        run: docker rm -f tls-front-probe || true
