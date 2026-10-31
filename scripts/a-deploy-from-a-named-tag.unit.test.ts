@@ -31,11 +31,16 @@
  *   2026-10-04, "Refuse to deploy"), or that sets a sign-in provider's
  *   `IDP_*` key, read from `managed.env.example` (live's sign-in page offers
  *   email and password only: privacy §4.4, §7 and §8; ops-social-signin
- *   (a)): all are named at once, by key, before the fetch and before any
+ *   (a)), or whose `OWNPACE_REACHABLE_HOSTS` names a host (live's list stays
+ *   empty: 0136 T2), or that sets `MOLLIE_API_KEY` while its stage is the
+ *   Alpha's (nothing is charged during the Alpha: 0131 §3 T3), the last three
+ *   read as Compose hands them to the app, `KEY=""` empty: all are named at
+ *   once, by key, before the fetch and before any
  *   docker call, in a dry run too. So is a line that
  *   sets any key in a form the check does not read and the bring-up does
  *   (indented, a space before `=`, `:` for `=`), by line and key: an
  *   indented `NODE_ENV` after a correct one would pass the check and run.
+ *   Live's own `.env`, the Alpha's stage with both keys empty, still deploys.
  *
  *   Its dry run moves something, or refuses less. `--dry-run` is what the
  *   owner runs, with the hold on, to learn whether the deploy can be undone
@@ -1335,6 +1340,126 @@ describe('a stack, a checkout or a moment that is not ready is refused, and noth
       expect(r.out).toMatch(/cannot be appended to/);
       expect(r.out).toContain('MANAGED_ENV_PERSIST_DIR');
       expectNothingChanged(s, r.out, 'reads');
+    },
+    CASE_MS,
+  );
+});
+
+// Live's list of hosts inside our own networks stays empty (workplan 0136 T2),
+// whatever the stage: a name on it is let through for every organisation on
+// live, and it is there for the demo, which live never has. And while live's
+// stage is the Alpha, it sets no payment key (workplan 0131 §3 T3 and T5):
+// nothing is charged, and Mollie's live key goes in with the switch that ends
+// it (docs/ending-the-alpha.md, step 4). stand-up-live.sh refused the first at
+// the first bring-up and nothing refused either at a deploy. Each is read as
+// Compose hands it to the app, which takes one pair of double quotes off:
+// `KEY=""` is empty, `OWNPACE_STAGE="alpha"` is the Alpha, and the stage is
+// compared trimmed and in any case, as `alphaFrom` and `holdsAtCeiling` do.
+// The list is read as `reachableHostsFrom` reads it: a name is whatever is
+// left between the commas and the whitespace.
+//
+// Live's own .env, as it stands (0131 T5, 0136 T2): the Alpha's stage, and both
+// keys empty on lines as managed.env.example writes them. Its next deploy must
+// still take.
+const AS_LIVE_HAS_IT = `${SITE_ENV}OWNPACE_STAGE=alpha\nOWNPACE_REACHABLE_HOSTS=\nMOLLIE_API_KEY=\n`;
+/** The key and the host, never to be printed. */
+const MOLLIE_VALUE = 'live_q3notakey';
+const HOST_VALUE = 'nextcloud-q4';
+
+describe("live's .env admits no host inside our networks, and sets no payment key during the Alpha (workplan 0136 T2, 0131 §3 T3)", () => {
+  it("managed.env.example writes the three lines live's .env was made from, the two keys empty", () => {
+    const example = readFileSync(join(COMPOSE_DIR, 'managed.env.example'), 'utf8');
+    for (const line of ['OWNPACE_STAGE=', 'OWNPACE_REACHABLE_HOSTS=', 'MOLLIE_API_KEY=']) {
+      expect(example.split('\n'), `managed.env.example has no line ${line}`).toContain(line);
+    }
+  });
+
+  it(
+    "taken: live's .env as live has it, the Alpha's stage and both keys empty, and the deploy takes",
+    () => {
+      const s = stage({ releases: [NEXT], dotEnv: AS_LIVE_HAS_IT });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/the deploy took/);
+      expect(head(s)).toBe(s.commit[NEXT.tag]);
+      expect(deployLines(s).map((l) => l.split('\t')[3])).toEqual(['took']);
+      expect(r.out).not.toMatch(/OWNPACE_REACHABLE_HOSTS|MOLLIE_API_KEY|refused/);
+    },
+    CASE_MS,
+  );
+
+  // [label, the .env]: each empty as the app reads it, or a key while the stage is not the Alpha's.
+  const TAKEN: Array<[string, string]> = [
+    ['both keys in empty double quotes, which Compose hands the app as empty', `${LIVE_ENV}OWNPACE_STAGE=alpha\nOWNPACE_REACHABLE_HOSTS=""\nMOLLIE_API_KEY=""\n`],
+    ['both keys in empty single quotes', `${LIVE_ENV}OWNPACE_STAGE=alpha\nOWNPACE_REACHABLE_HOSTS=''\nMOLLIE_API_KEY=''\n`],
+    ['a list of commas and spaces, which names no host', `${LIVE_ENV}OWNPACE_STAGE=alpha\nOWNPACE_REACHABLE_HOSTS=" , ,"\n`],
+    ['neither key on any line', `${LIVE_ENV}OWNPACE_STAGE=alpha\n`],
+    ["Mollie's key after the Alpha: the stage emptied, as ending-the-alpha.md's step 4 leaves it", `${LIVE_ENV}OWNPACE_STAGE=\nMOLLIE_API_KEY=${MOLLIE_VALUE}\n`],
+    ["Mollie's key with no stage on any line", `${LIVE_ENV}MOLLIE_API_KEY=${MOLLIE_VALUE}\n`],
+  ];
+
+  it.each(TAKEN)(
+    'taken by the dry run: %s',
+    (_label, dotEnv) => {
+      const s = stage({ releases: [NEXT], dotEnv });
+      const r = run(s, ['--dry-run', NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toContain(`dry run: a deploy of ${NEXT.tag} now would be reversible.`);
+      expect(r.out).not.toMatch(/OWNPACE_REACHABLE_HOSTS|MOLLIE_API_KEY/);
+      expect(r.out, "the file's own value is never printed").not.toContain(MOLLIE_VALUE);
+    },
+    CASE_MS,
+  );
+
+  // [label, the .env, keys named]
+  const REFUSED: Array<[string, string, string[]]> = [
+    ['a host on the list during the Alpha', `${LIVE_ENV}OWNPACE_STAGE=alpha\nOWNPACE_REACHABLE_HOSTS=${HOST_VALUE}\n`, ['OWNPACE_REACHABLE_HOSTS']],
+    ['a host on the list after the Alpha too: that rule is not the Alpha\'s', `${LIVE_ENV}OWNPACE_STAGE=\nOWNPACE_REACHABLE_HOSTS=${HOST_VALUE},stalwart\n`, ['OWNPACE_REACHABLE_HOSTS']],
+    ['a host in double quotes, after a comma', `${LIVE_ENV}OWNPACE_REACHABLE_HOSTS=", ${HOST_VALUE}"\n`, ['OWNPACE_REACHABLE_HOSTS']],
+    ["Mollie's key during the Alpha", `${LIVE_ENV}OWNPACE_STAGE=alpha\nMOLLIE_API_KEY=${MOLLIE_VALUE}\n`, ['MOLLIE_API_KEY']],
+    ["Mollie's key in double quotes", `${LIVE_ENV}OWNPACE_STAGE=alpha\nMOLLIE_API_KEY="${MOLLIE_VALUE}"\n`, ['MOLLIE_API_KEY']],
+    ['the stage in double quotes, which Compose hands the app as alpha', `${LIVE_ENV}OWNPACE_STAGE="alpha"\nMOLLIE_API_KEY=${MOLLIE_VALUE}\n`, ['MOLLIE_API_KEY']],
+    ['the stage in single quotes and capitals, which the app takes in any case', `${LIVE_ENV}OWNPACE_STAGE='Alpha'\nMOLLIE_API_KEY=${MOLLIE_VALUE}\n`, ['MOLLIE_API_KEY']],
+    ['the stage with spaces around it, which the app trims', `${LIVE_ENV}OWNPACE_STAGE=" ALPHA "\nMOLLIE_API_KEY=${MOLLIE_VALUE}\n`, ['MOLLIE_API_KEY']],
+    [
+      "both, as the AS_LIVE_HAS_IT lines would read with each filled, and NODE_ENV absent: every key named at once",
+      AS_LIVE_HAS_IT.replace('NODE_ENV=production\n', '')
+        .replace('OWNPACE_REACHABLE_HOSTS=\n', `OWNPACE_REACHABLE_HOSTS=${HOST_VALUE}\n`)
+        .replace('MOLLIE_API_KEY=\n', `MOLLIE_API_KEY=${MOLLIE_VALUE}\n`),
+      ['NODE_ENV', 'OWNPACE_REACHABLE_HOSTS', 'MOLLIE_API_KEY'],
+    ],
+  ];
+
+  it.each(REFUSED)(
+    'refused before the fetch and any docker call, in a dry run too, by key: %s',
+    (_label, dotEnv, named) => {
+      const s = stage({ releases: [NEXT], dotEnv });
+      for (const args of [[NEXT.tag], ['--dry-run', NEXT.tag]]) {
+        const r = run(s, args);
+        expect(r.status, `${args.join(' ')}:\n${r.out}`).toBe(1);
+        expect(r.out).toContain("[deploy-live] refused: live's .env is not ready for a deploy.");
+        for (const key of named) expect(r.out).toContain(`${key}: `);
+        for (const key of ['OWNPACE_REACHABLE_HOSTS', 'MOLLIE_API_KEY'].filter((k) => !named.includes(k))) {
+          expect(r.out, `${key} is not set here, and is named`).not.toContain(key);
+        }
+        if (named.includes('OWNPACE_REACHABLE_HOSTS')) {
+          expect(r.out).toContain("OWNPACE_REACHABLE_HOSTS: names a host. Live's list stays empty (workplan 0136 T2)");
+          expect(r.out).toContain('  ./deploy/compose/env-upsert.sh deploy/compose/.env OWNPACE_REACHABLE_HOSTS=\n');
+        }
+        if (named.includes('MOLLIE_API_KEY')) {
+          expect(r.out).toContain("MOLLIE_API_KEY: set, and live's stage is the Alpha (OWNPACE_STAGE=alpha).");
+          expect(r.out).toContain('workplan 0131 §3 T3 and T5');
+          expect(r.out).toContain('  ./deploy/compose/env-upsert.sh deploy/compose/.env MOLLIE_API_KEY=\n');
+          expect(r.out).toContain('docs/ending-the-alpha.md, The switch, step 4');
+        }
+        for (const value of [MOLLIE_VALUE, HOST_VALUE]) {
+          expect(r.out, "the file's own value is never printed").not.toContain(value);
+        }
+        expect(r.out).toContain('The checkout and the stack are as they were.');
+        expect(r.out, 'it fetched before refusing').not.toContain('fetching tags');
+        expectNothingChanged(s, r.out);
+        expect(called(s, 'copy-before-update'), 'a copy was taken for a deploy that is refused').toEqual([]);
+      }
     },
     CASE_MS,
   );
