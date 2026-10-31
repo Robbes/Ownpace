@@ -4,6 +4,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **The Trigger.dev dashboard's TLS front is built here without curl**
+  (workplan 0119): `caddy:2.11.7-alpine`, Caddy's newest release, carries
+  curl, which its upstream adds and nothing on this stack runs, and curl's
+  libraries carried the image's one critical finding (brotli-libs) and two of
+  its highs (curl and libcurl). `deploy/compose/caddy` builds the same image,
+  at the same digest, with curl and the eight libraries only curl needed
+  removed, where Trivy reads 0 critical and 7 high instead of 1 and 9; the 7
+  are in Caddy's own binary and wait for a Caddy release. Caddy, its
+  configuration and its certificate are unchanged.
+
 ### Fixed
 
 - **follow-redirects 1.16.2 closes a third high advisory** (GHSA-mrwp-f3q8-3g9p,
