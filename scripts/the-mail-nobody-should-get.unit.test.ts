@@ -20,7 +20,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -147,7 +147,7 @@ describe('the mail nobody should get — the gate stays armed and asserting', ()
         'the target AFTER the apply half runs; E2E #88 applied a real deletion\n' +
         'to exactly that item four seconds before the read, and the gate\n' +
         'reported its own deletion as an unproven byte-check.',
-    ).toMatch(/CANARY_RE="openmig-demo-event-\.\+-1\[\.\]ics\$"/);
+    ).toMatch(/CANARY_RE="openmig-demo-event-\.\+-\[13\]\[\.\]ics\$"/);
     expect(
       smoke,
       'pick_disposable no longer excludes the canary. The prepare wait loop\n' +
@@ -155,6 +155,96 @@ describe('the mail nobody should get — the gate stays armed and asserting', ()
         'apply half off the byte-check’s fixture — in the wait and the pick\n' +
         'both, by construction.',
     ).toMatch(/pick_disposable\(\)[\s\S]{0,600}!~ '\$CANARY_RE'/);
+  });
+
+  it('the apply half spares the organiser canary too, and still has items to spend (0141 T9 (b))', () => {
+    const smoke = strip('smoke-managed.sh');
+    const m = /CANARY_RE="([^"]+)"/.exec(smoke);
+    expect(m, 'CANARY_RE is no longer assigned in smoke-managed.sh').not.toBeNull();
+    // The value is a POSIX ERE that Postgres applies with `!~`; this one is
+    // also a JavaScript regex, so what it spares is asked, not read.
+    const canary = new RegExp(m?.[1] ?? '$^');
+    const tag = 'smoke-20261031T033000Z-4242';
+    expect(
+      canary.test(`calendars/tenant-b-source/personal/openmig-demo-event-${tag}-3.ics`),
+      'fresh event 3, the organiser canary, is read off the target AFTER the apply\n' +
+        'half, like event 1. A pattern that spared only event 1 would let the apply\n' +
+        'half tombstone it first, and the gate would report its own deletion as an\n' +
+        'unproven organiser canary: E2E #88 again, one event later.',
+    ).toBe(true);
+    expect(canary.test(`calendars/tenant-b-source/personal/openmig-demo-event-${tag}-1.ics`)).toBe(true);
+    expect(
+      canary.test(`calendars/tenant-b-source/personal/openmig-demo-event-${tag}-2.ics`),
+      'event 2 must stay disposable: a pattern that spares every event leaves the\n' +
+        'apply half fewer items each time a domain is added',
+    ).toBe(false);
+  });
+
+  it('seeds an organiser canary: an event whose ORGANIZER is the target account’s own address (0141 T9 (b))', () => {
+    const smoke = strip('smoke-managed.sh');
+    expect(
+      smoke,
+      'the smoke no longer names the TARGET account as fresh event 3’s organiser.\n' +
+        'Event 1’s organiser is a third party, which no server schedules for, so\n' +
+        'without event 3 the catcher’s silence held whether or not the writer\n' +
+        'neutralised: the organiser case 0103 T3 left open, and 0141 T9 asks the\n' +
+        'nightly to prove.',
+    ).toMatch(
+      /SEED_DAV_ORGANISER_USER="\$TARGET_DAV_USER" SEED_DAV_ORGANISER_PASSWORD="\$TARGET_DAV_PASSWORD" \\\n\s*"\$SCRIPT_DIR\/seed-demo-dav-content\.sh" --fresh "\$BALANCE_TAG"/,
+    );
+    const seed = strip('seed-demo-dav-content.sh');
+    expect(
+      seed,
+      'the seeder no longer reads the organiser’s address from the server. The\n' +
+        'property Sabre matches an ORGANIZER against is calendar-user-address-set;\n' +
+        'an address written down here instead could be one the server does not\n' +
+        'match, and the canary would be silent by inability.',
+    ).toMatch(/principals\/users\/\$1\/[\s\S]{0,300}calendar-user-address-set/);
+    expect(
+      seed,
+      'event 3 no longer takes its ORGANIZER from the address the server answered',
+    ).toMatch(/ORGANIZER[^\n]*mailto:\$\{OWN_ORGANISER\}/);
+  });
+
+  it('gives the demo target an address of its own, and the source none (0141 T9 (b))', () => {
+    const demo = strip('setup-managed-demo.sh');
+    expect(
+      demo,
+      'the demo bring-up no longer gives tenant-b-target an email. Nextcloud fills\n' +
+        'an account’s calendar-user-address-set from it, so without one the server\n' +
+        'has nothing to match the organiser canary against, and the seeder refuses.',
+    ).toMatch(/occ user:setting tenant-b-target settings email "\$\{DEMO_TARGET_ADDRESS\}"/);
+    expect(
+      demo,
+      'the bring-up gives the SOURCE account an email. It holds event 3 too, and an\n' +
+        'account that matched its organiser would invite the attendee at seed time.',
+    ).not.toMatch(/user:setting tenant-b-source settings email/);
+  });
+
+  it('reads the organiser canary’s copy back and asks the server whose address organises it', () => {
+    const smoke = strip('smoke-managed.sh');
+    expect(smoke).toMatch(/openmig-demo-event-\$\{BALANCE_TAG\}-3\.ics/);
+    expect(
+      smoke,
+      'the smoke reads event 3’s copy but no longer holds its ORGANIZER line to\n' +
+        'SCHEDULE-AGENT=CLIENT. Here the target account is the organiser, and the\n' +
+        'organiser’s own parameter is what tells its server to send nothing.',
+    ).toMatch(/grep -qv 'SCHEDULE-AGENT=CLIENT' <<<"\$\{own_org\}"\$'\\n'"\$\{own_att\}"/);
+    expect(
+      smoke,
+      'the smoke no longer asks the target’s server whether the copy’s organiser is\n' +
+        'an address it matches. Without that, a copy organised by an address the\n' +
+        'account lost makes the silence one by inability, and it would pass.',
+    ).toMatch(
+      /calendar-user-address-set[\s\S]{0,200}principals\/users\/\$\{TARGET_DAV_USER\}\/[\s\S]{0,600}grep -qxF "\$own_addr" <<<"\$own_set"/,
+    );
+    const copy = smoke.indexOf('openmig-demo-event-${BALANCE_TAG}-3.ics');
+    const silence = smoke.indexOf('query=openmig-attendee-');
+    expect(
+      copy >= 0 && silence >= 0 && copy < silence,
+      'event 3’s copy is read BEFORE the catcher is searched, as event 1’s is, so a\n' +
+        'silence is believed only once the case that would break it is shown to exist',
+    ).toBe(true);
   });
 
   it('the pipe is proved before the silence is believed (0104 T2, first stage)', () => {
@@ -277,6 +367,19 @@ case "$method" in
     printf 201 ;;
   DELETE) printf 204 ;;
   PROPFIND)
+    case "$path" in
+      # own_addresses() (0141 T9 (b)): a principal's calendar-user-address-set,
+      # shaped as Nextcloud answers it. ADDR_<user, with - as _> is the mailto:
+      # entry; unset, the set holds the principal's own URL alone, as it does
+      # for an account with no email.
+      principals/users/*)
+        who="\${path#principals/users/}"; who="\${who%/}"
+        var="ADDR_$(printf '%s' "$who" | tr -c 'A-Za-z0-9' '_')"
+        printf '<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav"><d:response><d:href>/remote.php/dav/principals/users/%s/</d:href><d:propstat><d:prop><cal:calendar-user-address-set>' "$who"
+        if [ -n "\${!var:-}" ]; then printf '<d:href>mailto:%s</d:href>' "\${!var}"; fi
+        printf '<d:href>/remote.php/dav/principals/users/%s/</d:href></cal:calendar-user-address-set></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>' "$who"
+        exit 0 ;;
+    esac
     if [ "$wantscode" = 1 ]; then printf 207; else cat "$CAP/manifest.txt" 2>/dev/null || true; fi ;;
   *) echo "stub docker: unexpected method '$method'" >&2; exit 64 ;;
 esac
@@ -291,7 +394,7 @@ esac
    */
   const FAKE_DIGEST = 'f'.repeat(64);
 
-  function runSeed(args: string[]): { dir: string; stdout: string } {
+  function runSeed(args: string[], env: Record<string, string> = {}): { dir: string; stdout: string } {
     const dir = mkdtempSync(join(tmpdir(), 'seedbytes-'));
     writeFileSync(join(dir, 'docker'), STUB, { mode: 0o755 });
     const stdout = execFileSync('bash', [SEED, ...args], {
@@ -301,10 +404,35 @@ esac
         PATH: `${dir}:${process.env.PATH ?? ''}`,
         SEED_STUB_DIR: dir,
         FAKE_DIGEST,
+        ...env,
       },
     });
     return { dir, stdout };
   }
+
+  /** The same, for a run that is meant to refuse: its status and stderr, never a throw. */
+  function refusedSeed(args: string[], env: Record<string, string>): { dir: string; status: number | null; stderr: string } {
+    const dir = mkdtempSync(join(tmpdir(), 'seedbytes-'));
+    writeFileSync(join(dir, 'docker'), STUB, { mode: 0o755 });
+    const r = spawnSync('bash', [SEED, ...args], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${dir}:${process.env.PATH ?? ''}`,
+        SEED_STUB_DIR: dir,
+        FAKE_DIGEST,
+        ...env,
+      },
+    });
+    return { dir, status: r.status, stderr: r.stderr };
+  }
+
+  /** What the smoke hands the seeder, and the address the demo bring-up gives the target. */
+  const ORGANISER = {
+    SEED_DAV_ORGANISER_USER: 'tenant-b-target',
+    SEED_DAV_ORGANISER_PASSWORD: 'tenant_b_target_pw',
+  };
+  const TARGET_ADDRESS = 'tenant-b-target@demo.openmigrate.test';
 
   const put = (dir: string, name: string): string =>
     readFileSync(join(dir, 'puts', name), 'utf8');
@@ -335,8 +463,12 @@ esac
         ),
       );
       const event2 = put(dir, `calendars_tenant-b-source_personal_openmig-demo-event-${tag}-2.ics`);
-      expect(event2, 'the canary rides event 1 only').not.toMatch(/ATTENDEE|ORGANIZER/);
+      expect(event2, 'the canary rides events 1 and 3 only').not.toMatch(/ATTENDEE|ORGANIZER/);
       expect(event2).toMatch(/\nEND:VEVENT\r?\n/);
+      expect(
+        existsSync(join(dir, 'puts', `calendars_tenant-b-source_personal_openmig-demo-event-${tag}-3.ics`)),
+        'no organiser was named, so this set has no event 3 (0141 T9 (b))',
+      ).toBe(false);
       const ocsPosts = readFileSync(join(dir, 'ocs-posts.txt'), 'utf8');
       expect(
         ocsPosts,
@@ -347,6 +479,76 @@ esac
       expect(ocsPosts).toContain(`openmig-grantee-${tag}@example.invalid`);
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('the organiser canary: event 3 is organised by the address the server answers for the target (0141 T9 (b))', () => {
+    const tag = 't9organiser';
+    const { dir, stdout } = runSeed(['--fresh', tag], { ...ORGANISER, ADDR_tenant_b_target: TARGET_ADDRESS });
+    try {
+      expect(stdout).toContain(`[seed-dav] event ${tag}-3: HTTP 201`);
+      const event3 = put(dir, `calendars_tenant-b-source_personal_openmig-demo-event-${tag}-3.ics`);
+      expect(
+        event3,
+        'event 3’s ORGANIZER must be the target account’s own address, the one its\n' +
+          'server matches: that is what makes the target the organiser, and the case\n' +
+          'in which a server that ignored SCHEDULE-AGENT=CLIENT would mail.',
+      ).toMatch(new RegExp(`\\nORGANIZER;CN=Demo Target:mailto:${TARGET_ADDRESS.replace(/\./g, '\\.')}\\r?\\n`));
+      expect(event3, 'the same tag-addressed canary attendee the catcher is searched for').toMatch(
+        new RegExp(
+          `\\nATTENDEE;CN=Migration Canary;PARTSTAT=NEEDS-ACTION:mailto:openmig-attendee-${tag}@example\\.invalid\\r?\\n`,
+        ),
+      );
+      expect(
+        event3,
+        'the SOURCE bytes carry no SCHEDULE-AGENT: adding it is the writer’s job, and\n' +
+          'a fixture that brought its own would prove the writer did nothing.',
+      ).not.toContain('SCHEDULE-AGENT');
+      expect(event3).toContain(`UID:openmig-demo-event-${tag}-3\n`);
+      expect(event3, 'a VEVENT closed on its own line (the #87 shape)').toMatch(/\nEND:VEVENT\r?\n/);
+      const year = Number(/\nDTSTART:(\d{4})0106T100000Z\r?\n/.exec(event3)?.[1]);
+      expect(
+        year,
+        'event 3 must be dated AFTER the run that copies it. Nextcloud sends no\n' +
+          'invitation for an event whose last occurrence is past (IMipPlugin::schedule),\n' +
+          'so a past date would make the organiser canary silent by inability.',
+      ).toBeGreaterThan(new Date().getUTCFullYear());
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses before the first write when the target has no address of its own', () => {
+    const r = refusedSeed(['--fresh', 't9noaddress'], ORGANISER);
+    try {
+      expect(
+        r.status,
+        'a target account with no email has nothing for its server to match the\n' +
+          'ORGANIZER against, and an organiser canary there proves nothing',
+      ).not.toBe(0);
+      expect(r.stderr).toContain('tenant-b-target has no address of its own');
+      expect(existsSync(join(r.dir, 'manifest.txt')), 'refused AFTER something was written').toBe(false);
+    } finally {
+      rmSync(r.dir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses before the first write when the SOURCE carries the target’s address', () => {
+    const r = refusedSeed(['--fresh', 't9shared'], {
+      ...ORGANISER,
+      ADDR_tenant_b_target: TARGET_ADDRESS,
+      ADDR_tenant_b_source: TARGET_ADDRESS,
+    });
+    try {
+      expect(
+        r.status,
+        'the source holds event 3 too; an account that matched its organiser would\n' +
+          'invite the attendee at seed time, from bytes with no SCHEDULE-AGENT',
+      ).not.toBe(0);
+      expect(r.stderr).toContain(`tenant-b-source carries ${TARGET_ADDRESS}`);
+      expect(existsSync(join(r.dir, 'manifest.txt')), 'refused AFTER something was written').toBe(false);
+    } finally {
+      rmSync(r.dir, { recursive: true, force: true });
     }
   });
 
@@ -593,5 +795,165 @@ printf '{"messages_count":%s}' "\${MAILPIT_COUNT:-0}"
     const run = drain({ BALANCE_TAG: '' });
     expect(run.calls).toEqual([]);
     expect(run.fail).toBe('0');
+  });
+});
+
+/**
+ * THE ORGANISER CANARY'S CHECK, RUN (workplan 0141 T9 (b)).
+ *
+ * The rules above read the smoke's text; these run the block that reads fresh
+ * event 3's copy off the target, exactly as the script has it, with a stub
+ * `curl` that answers the copy and the target's calendar-user-address-set. The
+ * block is where a server's real bytes meet bash's parsing: a line folded
+ * inside the address, an organiser written in capitals, a set the server could
+ * not be asked for. What it must never do is pass a copy whose organiser the
+ * server does not match, because the silence that follows would then be one
+ * by inability.
+ */
+describe('the organiser canary’s check, run (0141 T9 (b))', () => {
+  const SMOKE_TEXT = readFileSync(join(COMPOSE, 'smoke-managed.sh'), 'utf8');
+  const start = SMOKE_TEXT.indexOf('  own_href="remote.php/dav/calendars/');
+  const end = SMOKE_TEXT.indexOf('  sched_mail="$(curl', start);
+  const block = start < 0 || end < 0 ? '' : SMOKE_TEXT.slice(start, end);
+  const failAt = (() => {
+    const s = SMOKE_TEXT.indexOf('fail_at() {');
+    const e = SMOKE_TEXT.indexOf('\n}\n', s);
+    if (s < 0 || e < 0) throw new Error('fail_at() is no longer defined in smoke-managed.sh');
+    return SMOKE_TEXT.slice(s, e + 3);
+  })();
+
+  // The copy is a GET, the address set a PROPFIND; a missing file is a 404,
+  // which `curl -f` turns into a failure, as the real one does.
+  const CURL = `#!/usr/bin/env bash
+{ printf 'curl'; printf ' [%s]' "$@"; printf '\\n'; } >> "\${OWN_STUB_DIR:?}/calls.log"
+case " $* " in
+  *" PROPFIND "*) [ -f "$OWN_STUB_DIR/set.xml" ] || exit 22; cat "$OWN_STUB_DIR/set.xml" ;;
+  *) [ -f "$OWN_STUB_DIR/copy.ics" ] || exit 22; cat "$OWN_STUB_DIR/copy.ics" ;;
+esac
+`;
+  const TAG = 'smoke-20261031T033000Z-4242';
+  const ADDRESS = 'tenant-b-target@demo.openmigrate.test';
+  const ATTENDEE = `ATTENDEE;CN=Migration Canary;PARTSTAT=NEEDS-ACTION;SCHEDULE-AGENT=CLIENT:mailto:openmig-attendee-${TAG}@example.invalid`;
+  const ORGANIZER = `ORGANIZER;CN=Demo Target;SCHEDULE-AGENT=CLIENT:mailto:${ADDRESS}`;
+  const ics = (...props: string[]): string =>
+    ['BEGIN:VCALENDAR', 'VERSION:2.0', 'BEGIN:VEVENT', `UID:openmig-demo-event-${TAG}-3`, ...props, 'END:VEVENT', 'END:VCALENDAR', ''].join(
+      '\r\n',
+    );
+  const addressSet = (...mailtos: string[]): string =>
+    '<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav"><d:response>' +
+    '<d:href>/remote.php/dav/principals/users/tenant-b-target/</d:href><d:propstat><d:prop>' +
+    '<cal:calendar-user-address-set>' +
+    mailtos.map((m) => `<d:href>mailto:${m}</d:href>`).join('') +
+    '<d:href>/remote.php/dav/principals/users/tenant-b-target/</d:href>' +
+    '</cal:calendar-user-address-set></d:prop></d:propstat></d:response></d:multistatus>';
+
+  type Run = { out: string; fail: string; reasons: string; calls: string[] };
+
+  function check(copy: string | null, set: string | null): Run {
+    const dir = mkdtempSync(join(tmpdir(), 'owncanary-'));
+    try {
+      writeFileSync(join(dir, 'curl'), CURL, { mode: 0o755 });
+      if (copy !== null) writeFileSync(join(dir, 'copy.ics'), copy);
+      if (set !== null) writeFileSync(join(dir, 'set.xml'), set);
+      writeFileSync(
+        join(dir, 'run.sh'),
+        `set -uo pipefail\nfail=0\nSECTION=test\nFAIL_REASONS=""\n${failAt}\n${block}\n` +
+          `echo "FAIL=$fail"\nprintf 'REASONS:%s' "$FAIL_REASONS"\n`,
+      );
+      const out = execFileSync('bash', [join(dir, 'run.sh')], {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          PATH: `${dir}:${process.env.PATH ?? ''}`,
+          OWN_STUB_DIR: dir,
+          BALANCE_TAG: TAG,
+          TARGET_DAV_USER: 'tenant-b-target',
+          TARGET_DAV_PASSWORD: 'tenant_b_target_pw',
+          NC: 'http://nextcloud.test',
+        },
+      });
+      const calls = existsSync(join(dir, 'calls.log'))
+        ? readFileSync(join(dir, 'calls.log'), 'utf8').trim().split('\n')
+        : [];
+      return {
+        out,
+        fail: /FAIL=(\d)/.exec(out)?.[1] ?? '?',
+        reasons: out.slice(out.indexOf('REASONS:') + 'REASONS:'.length),
+        calls,
+      };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it('is extractable — the block still exists to test', () => {
+    expect(block, 'event 3’s check, from own_href= to the catcher search, is gone').toMatch(
+      /openmig-demo-event-\$\{BALANCE_TAG\}-3\.ics[\s\S]*calendar-user-address-set/,
+    );
+  });
+
+  it('passes a neutralised copy organised by the target’s own address, and says whose', () => {
+    const run = check(ics(ORGANIZER, ATTENDEE), addressSet(ADDRESS));
+    expect(run.fail, run.out).toBe('0');
+    expect(run.out).toContain(`organised by ${ADDRESS}, tenant-b-target's own`);
+    expect(
+      run.calls.some((c) => c.includes('[PROPFIND]') && c.includes('principals/users/tenant-b-target/')),
+      'the server is asked, not the seed believed',
+    ).toBe(true);
+  });
+
+  it('reads a copy whose lines the server folded, the address included (RFC 5545 §3.1)', () => {
+    const folded = (line: string, at: number): string => `${line.slice(0, at)}\r\n ${line.slice(at)}`;
+    const run = check(
+      ics(folded(ORGANIZER, ORGANIZER.indexOf('@') - 3), folded(ATTENDEE, ATTENDEE.indexOf('SCHEDULE-AGENT') + 4)),
+      addressSet(ADDRESS),
+    );
+    expect(run.fail, run.out).toBe('0');
+    expect(run.out).toContain(`organised by ${ADDRESS},`);
+  });
+
+  it('matches the address as the server stores it, whatever case the copy writes', () => {
+    const run = check(ics(ORGANIZER.replace('mailto:', 'MAILTO:').replace(ADDRESS, ADDRESS.toUpperCase()), ATTENDEE), addressSet(ADDRESS));
+    expect(run.fail, run.out).toBe('0');
+  });
+
+  it('fails an organiser line without SCHEDULE-AGENT=CLIENT: here the account’s own server would send', () => {
+    const run = check(ics(ORGANIZER.replace(';SCHEDULE-AGENT=CLIENT', ''), ATTENDEE), addressSet(ADDRESS));
+    expect(run.fail).toBe('1');
+    expect(run.reasons).toContain("the organiser canary's copy is not neutralised");
+  });
+
+  it('fails an attendee line without SCHEDULE-AGENT=CLIENT', () => {
+    const run = check(ics(ORGANIZER, ATTENDEE.replace(';SCHEDULE-AGENT=CLIENT', '')), addressSet(ADDRESS));
+    expect(run.fail).toBe('1');
+  });
+
+  it('fails a copy whose attendee is not this run’s canary', () => {
+    const run = check(ics(ORGANIZER, ATTENDEE.replace(TAG, 'smoke-an-earlier-run')), addressSet(ADDRESS));
+    expect(run.fail).toBe('1');
+  });
+
+  it('fails when the server does not match the organiser: the silence would be by inability', () => {
+    const run = check(ics(ORGANIZER, ATTENDEE), addressSet());
+    expect(run.fail).toBe('1');
+    expect(run.out).toContain('is not an address the target');
+    expect(run.reasons).toContain("the organiser canary's organiser is not the target's own address");
+  });
+
+  it('fails when the address set cannot be read, rather than reading it as empty or as matched', () => {
+    const run = check(ics(ORGANIZER, ATTENDEE), null);
+    expect(run.fail).toBe('1');
+    expect(run.out).toContain('unmeasured, not safe');
+  });
+
+  it('fails when there is no copy to read', () => {
+    const run = check(null, addressSet(ADDRESS));
+    expect(run.fail).toBe('1');
+    expect(run.reasons).toContain("the organiser canary's copy is not on the target");
+  });
+
+  it('fails a copy with no organiser at all', () => {
+    const run = check(ics(ATTENDEE), addressSet(ADDRESS));
+    expect(run.fail).toBe('1');
   });
 });
