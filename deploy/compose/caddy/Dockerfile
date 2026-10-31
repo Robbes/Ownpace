@@ -40,9 +40,11 @@
 # packages are still there, that no curl is left on the PATH, and that
 # `caddy version` still prints the release the FROM names. The user, the
 # command, the working directory, the ports and the environment are
-# upstream's: this file sets none of them. Read with Trivy as an image with
-# the nine packages and their files removed, it holds 0 critical and 7 high
-# findings, 6 of them fixable, all in the Caddy binary, on both platforms:
+# upstream's: this file sets none of them. Built, the image scan reads it at
+# 0 critical and 7 high findings, 6 of them fixable (Security Scan run
+# 41161126144, linux/arm64, 2026-10-31), the counts read before the first
+# build from both platform images with the nine packages and their files
+# removed, where all seven are in the Caddy binary:
 #   - github.com/go-jose/go-jose/v4 v4.1.5, CVE-2026-116587 (fixed in 4.1.6);
 #   - github.com/go-jose/go-jose/v3 v3.0.5, the same CVE, with no fix;
 #   - golang.org/x/net v0.59.0, CVE-2026-78669 (fixed in 0.60.0);

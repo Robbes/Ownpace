@@ -46,9 +46,11 @@
  *    pull request, starts it with managed.yml's Caddyfile, mount, port and
  *    TRIGGER_TLS_HOST default, and asks it by IP, as the smoke does, for TLS
  *    on that port. Its verdict is the probe's: the step is run here against a
- *    stub docker and curl, answered as Caddy answers and then wrongly in turn
- *    (nothing, no Server header, another server), and must pass the first and
- *    fail each of the rest;
+ *    stub docker and curl, answered as Caddy answered the job's first run (its
+ *    own empty 200: asked by IP, the request matches no site address, so it is
+ *    never proxied) and as its reverse proxy would with nothing behind it
+ *    (502), and must pass both; then wrongly in turn (nothing, no Server
+ *    header, another server, no status), and must fail each;
  *  - Dependabot reads the directory in an entry of its own, which moves every
  *    Caddy 2 release and digest and leaves a major to the owner.
  */
@@ -341,16 +343,29 @@ function runStep(run: string, answer: string): { status: number; out: string; do
   }
 }
 
+/**
+ * Caddy's answers, each given to the probe in a run of its own: every one must
+ * pass. The first is what the job's first run got (2026-10-31, "by Caddy (HTTP
+ * 200)"): asked by IP, the request's Host matches no site address, so Caddy
+ * answers it itself, an empty 200, and never proxies. The second is the
+ * reverse proxy's, were a request to reach the site with trigger-api absent:
+ * any status passes once TLS has terminated and Caddy answered.
+ */
+const RIGHT = ["200 Caddy|Caddy's own answer to a request no site matches", "502 Caddy|the reverse proxy's answer with nothing behind it"];
+
 /** Wrong answers, each given to the probe in a run of its own: none may pass. */
 const WRONG = ['000 |nothing answered', '502 |an answer without a Server header', '200 nginx|another server', '000 Caddy|no status'];
 
 /** What is wrong with the job's verdict; empty when it holds. */
 function verdictProblems(workflow: string, dockerfile: string): string[] {
   const run = stepOf(workflow);
-  const right = runStep(run, '502 Caddy');
-  if (right.status !== 0 || /^::error::/m.test(right.out)) return [`with Caddy's answer, the step exits ${right.status}:\n${right.out}`];
   const want = `${NAME}:${builtTag(dockerfile)}`;
-  if (!right.docker.includes(`build --pull --progress=plain --tag ${want} ${CONTEXT}`)) return [`the step does not build ${CONTEXT} as ${want}: ${JSON.stringify(right.docker)}`];
+  for (const right of RIGHT) {
+    const [answer, what] = right.split('|') as [string, string];
+    const r = runStep(run, answer);
+    if (r.status !== 0 || /^::error::/m.test(r.out)) return [`with ${what} ("${answer}"), the step exits ${r.status}:\n${r.out}`];
+    if (!r.docker.includes(`build --pull --progress=plain --tag ${want} ${CONTEXT}`)) return [`the step does not build ${CONTEXT} as ${want}: ${JSON.stringify(r.docker)}`];
+  }
   for (const wrong of WRONG) {
     const [answer, what] = wrong.split('|') as [string, string];
     const r = runStep(run, answer);
@@ -507,6 +522,10 @@ describe('images.yml builds it on a pull request and asks it for TLS as the smok
     ]);
     expect(verdict(swapped(workflow, 'if [ "${code:-000}" = 000 ] || [ "${server:-}" != Caddy ]; then', 'if [ "${server:-}" != Caddy ]; then'))).toEqual([
       expect.stringMatching(/^with no status \("000 Caddy"\), the step exits 0/),
+    ]);
+    // A step that waits for the reverse proxy's 502 fails the answer Caddy gave the first run.
+    expect(verdict(swapped(workflow, 'if [ "${code:-000}" = 000 ] || [ "${server:-}" != Caddy ]; then', 'if [ "${code:-000}" != 502 ] || [ "${server:-}" != Caddy ]; then'))).toEqual([
+      expect.stringMatching(/^with Caddy's own answer to a request no site matches \("200 Caddy"\), the step exits 1/),
     ]);
   }, 60_000);
 });

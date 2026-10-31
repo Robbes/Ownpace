@@ -7,8 +7,9 @@
 **2026-10-31: the dashboard's TLS front is Caddy 2.11.7 built here without curl, which clears its
 critical (alpha.4).** `trigger-tls` runs `caddy:2.11.7-alpine` by index digest `eb4d35b7…`, the pin
 of 2026-10-22. The image scan of `e1b21aac` (Security Scan run 41130684117, dispatched on
-2026-10-30) is where the critical was counted; its log and report are outside this session's network, so the counts here
-are this session's own. Read on 2026-10-31 with Trivy v0.76.1 and its database of 2026-10-30, as
+2026-10-30) is where the critical was counted: its report's row reads `caddy:2.11.7-alpine@sha256:eb4d35b7452d…`,
+Alpine 3.23.7, 1 critical, 9 high, 9 fixable on linux/arm64, and names the critical, CVE-2026-111497
+in brotli-libs 1.2.0-r0. Read again on 2026-10-31 with Trivy v0.76.1 and its database of 2026-10-30, as
 the image scan reads (vulnerabilities, high and critical), from the registry's own blobs of the two
 platform images the index names (linux/arm64 `cc447f14…`, linux/amd64 `04913b1d…`, each layer
 checked against its digest and the two scanned as OCI layouts): 1 critical, 9 high and 9 fixable
@@ -34,17 +35,30 @@ bring-up's `up` where the name is missing. Dependabot reads the directory in an 
 ship in the newest release, and the pin watch compares within 2 as well); the pin watch compares
 its FROM; the image scan builds it under the name `caddy`, as before; images.yml's `build (caddy)`
 builds it on a pull request, starts it with `trigger-tls.Caddyfile` and asks it by IP for TLS on
-3443; `scripts/a-package-the-front-never-runs.unit.test.ts` holds all of it. What is expected
-after, measured here without a build (this session has no Docker daemon): the same scan of the two
-images with one more layer, written here, that does to apk's database what `apk del` does and
-removes the nine packages' files, reads 0 critical, 7 high and 6 fixable on both platforms. All
-seven are in the Caddy binary: go-jose/v4 v4.1.5 and go-jose/v3 v3.0.5 (CVE-2026-116587, fixed in
+3443; `scripts/a-package-the-front-never-runs.unit.test.ts` holds all of it. **Measured after,
+built** (the pull request at `fadf0cd9`): Images run 41161101247's `build (caddy)` built the
+directory on linux/amd64, where `apk del` purged exactly curl, libcurl, libpsl, nghttp2-libs,
+zstd-libs, brotli-libs, c-ares, libidn2 and libunistring and every proof in the RUN held, and the
+probe printed `trigger-tls: TLS terminated on 127.0.0.1:3443 by Caddy (HTTP 200)`; Security Scan
+run 41161126144, dispatched on the branch, built it on linux/arm64 and its report reads
+`localhost/caddy:2.11.7-alpine-ed5425a7da36` (built from `deploy/compose/caddy`), Alpine 3.23.7,
+**0 critical, 7 high, 6 fixable**, and names no critical for caddy. Those are the counts read before
+the first build, without a Docker daemon, from the two platform images with one more layer that
+does to apk's database what `apk del` does and removes the nine packages' files: 0, 7 and 6 on both
+platforms. The report counts the highs without naming them, and that reading names all seven, in
+the Caddy binary: go-jose/v4 v4.1.5 and go-jose/v3 v3.0.5 (CVE-2026-116587, fixed in
 4.1.6, none for v3), x/net v0.59.0 (CVE-2026-78669, fixed in 0.60.0), and the Go standard library
 v1.26.8 (CVE-2026-111943, CVE-2026-78667, CVE-2026-78669, CVE-2026-97031). Those wait for a Caddy
 release. The three-day floor does not apply: no upstream release or digest is taken, the base is
-the digest the stacks already run, and the removal fetches nothing. Owed: the pull request's
-`build (caddy)`, which is the first real build, and E2E (managed) on the branch, whose smoke asks
-the same front; live takes it from the tag that carries it, and the front restarts once there
+the digest the stacks already run, and the removal fetches nothing. The branch was brought current
+with `main` at `42efbe21` by a merge the same evening, so it carries #1755's Trigger.dev v4.8.3,
+whose migrations are one way, and an E2E (managed) on it runs the OTA stack's v4.8.3 and never the
+v4.8.1 it was cut from. Corrected on review: `images.yml`'s comment said the probe gets the
+reverse proxy's 502; asked by IP, the request's Host matches no site address, so Caddy answers it
+itself, an empty 200 with its Server header, and never proxies, as the run got. The comment says so
+now, and the guard's stub answers as that run did (200) as well as with the proxy's 502, and
+refuses a step that waits for the 502. Owed: E2E (managed) on the branch, whose smoke asks the same
+front; live takes it from the tag that carries it, and the front restarts once there
 (`managed-bring-up.md`, *The dashboard's TLS front is a build here too*).
 
 **2026-10-31: Trigger.dev v4.8.1 → v4.8.3, before its three-day floor, on the owner's waiver
@@ -1408,7 +1422,7 @@ is who moves it after T1.
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
 | `haproxy` (the Docker socket proxy's base; `tecnativa/docker-socket-proxy:v0.5.0` itself until 2026-10-30) | `deploy/compose/docker-socket-proxy/Dockerfile`'s FROM, built as `localhost/docker-socket-proxy:<tag>-<hash>` by `managed.yml` (`trigger-docker-proxy`) since 2026-10-30: upstream's v0.5.0 Dockerfile, `haproxy.cfg` and entrypoint byte for byte (commit `2e118a0c`), the base the only change; `pull_policy: never`, built only where the name is missing | 3.4.7-alpine by index digest `2caaf8b1…` (pushed 2026-10-24 17:56 UTC, Alpine 3.24.3, taken 2026-10-30; 0 critical and 0 high built, Security Scan run 41012325563); before it upstream's image, built once on 2026-07-27 on 3.4.2-alpine (Alpine 3.24.1), 0 critical and 6 high on 2026-10-29 | 3.4.7 (2026-10-24); docker-socket-proxy v0.5.0 (2026-07-27) | current | Dependabot `docker`, its own entry, for 3.4 patches and digests; a docker-socket-proxy release by hand, when the pin watch's summary issue lists it (against upstream's tags) | another HAProxy line (3.5, 3.6) is the owner's, taken with a docker-socket-proxy release; Dependabot ignores HAProxy's minors and majors |
 | `chainguard/minio` (0146 T7, #1692; `bitnamilegacy/minio` 2025.5.24-debian-12-r5 until alpha.2) | `managed.yml` (`minio`, `minio-init`) | `latest` by index digest `268d68a2…` (built 2026-10-25, pushed as `latest` 14:29 UTC, taken 2026-10-28: the fork's RELEASE.2026-10-23T20-06-51Z; `d88920d6…`, its RELEASE.2026-09-22T19-25-18Z, from #1692) | `latest` `e70b2b1e…` (pushed 2026-10-27) | three rebuilds since (pushed 2026-10-26 17:11, 2026-10-27 01:51 and 21:51 UTC), none yet three days old | by hand when the pin watch says `latest` was rebuilt, once three days old (0146 T8) | **§3, taken 2026-10-23** — Chainguard's maintained build replaced the frozen Bitnami image in alpha.2 (item 5) |
-| `caddy` | `deploy/compose/caddy/Dockerfile`'s FROM, built as `localhost/caddy:<tag>-<hash>` by `managed.yml` (`trigger-tls`) since 2026-10-31: upstream's image with curl removed, and the eight libraries only curl needed; `pull_policy: never`, built only where the name is missing (`managed.yml` itself until then) | 2.11.7-alpine by digest `eb4d35b7…` (2026-10-22; `2-alpine` floating before, never pulled, 2.11.4 when recorded); 1 critical, 9 high and 9 fixable as pulled, 0, 7 and 6 expected built (the Status entry of 2026-10-31) | 2.11.7 | current | Dependabot `docker`, its own entry since 2026-10-31, every 2.x release and digest; its build stops with "re-read the header" until the packages it removes are read again (before it: by hand, when the pin watch listed a newer 2.x or the image scan counted fixable findings) | **pinned 2026-10-22** (§4); a major is the owner's, and Dependabot ignores it. The move from 2.11.4 crosses the breaking changes 2.11.6 lists (in the code since 2.11.5): request headers capped at 16 KiB (431 above it), one-minute idle read and write timeouts, header names with a `.` dropped. Checked against `trigger-tls.Caddyfile` (`default_sni`, `tls internal`, `reverse_proxy trigger-api:3000` over HTTP), which sets none of them; the path to watch after the nightly is the dashboard over the mesh |
+| `caddy` | `deploy/compose/caddy/Dockerfile`'s FROM, built as `localhost/caddy:<tag>-<hash>` by `managed.yml` (`trigger-tls`) since 2026-10-31: upstream's image with curl removed, and the eight libraries only curl needed; `pull_policy: never`, built only where the name is missing (`managed.yml` itself until then) | 2.11.7-alpine by digest `eb4d35b7…` (2026-10-22; `2-alpine` floating before, never pulled, 2.11.4 when recorded); 1 critical, 9 high and 9 fixable as pulled (Security Scan run 41130684117), 0, 7 and 6 built (Security Scan run 41161126144, linux/arm64; the Status entry of 2026-10-31) | 2.11.7 | current | Dependabot `docker`, its own entry since 2026-10-31, every 2.x release and digest; its build stops with "re-read the header" until the packages it removes are read again (before it: by hand, when the pin watch listed a newer 2.x or the image scan counted fixable findings) | **pinned 2026-10-22** (§4); a major is the owner's, and Dependabot ignores it. The move from 2.11.4 crosses the breaking changes 2.11.6 lists (in the code since 2.11.5): request headers capped at 16 KiB (431 above it), one-minute idle read and write timeouts, header names with a `.` dropped. Checked against `trigger-tls.Caddyfile` (`default_sni`, `tls internal`, `reverse_proxy trigger-api:3000` over HTTP), which sets none of them; the path to watch after the nightly is the dashboard over the mesh |
 | `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.19.2 (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.19.2 | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason | 1.38 (1.38.0) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.38.0 (2026-10-30, a day before its floor under the security-fix exception: Status, 2026-10-29 and 2026-10-30; before it v5.37.0 from 2026-10-21) | v5.38.0 (2026-10-28) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
