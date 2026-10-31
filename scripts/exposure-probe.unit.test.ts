@@ -39,7 +39,10 @@
 
 import { describe, it, expect, afterEach } from 'vitest';
 import { createServer, type Server } from 'node:net';
+import { createServer as createHttpServer } from 'node:http';
 import {
+  ISSUER,
+  ORG_REGISTRATION,
   OTA_NAMES,
   PRODUCTION_NAMES,
   SITE_NAME,
@@ -47,6 +50,7 @@ import {
   probeConfig,
   realNetwork,
   runProbe,
+  type PageAnswer,
   type PostgresAnswer,
   type ProbeIo,
   type ProbeConfig,
@@ -72,7 +76,12 @@ interface Fake {
   issuer?: { issuer?: string; why?: string };
   /** What PostgreSQL's SSLRequest meets, by `address#port`; said nothing otherwise. */
   postgres?: Record<string, PostgresAnswer>;
+  /** What a page answers, by URL; otherwise 404 for the form that founds an organisation, 200 for the rest. */
+  pages?: Record<string, PageAnswer>;
 }
+
+/** What Zitadel answers at the form once disallowPublicOrgRegistration holds. */
+const CLOSED: PageAnswer = { status: 404, netbird: false };
 
 const ALL_RESOLVED: Record<string, string[]> = {
   'app.ownpace.eu': [FRONT, FRONT_2],
@@ -90,11 +99,13 @@ function fakeIo(fake: Fake): {
   tried: string[];
   tlsAsked: string[];
   pgAsked: string[];
+  pagesAsked: string[];
 } {
   const lines: string[] = [];
   const tried: string[] = [];
   const tlsAsked: string[] = [];
   const pgAsked: string[] = [];
+  const pagesAsked: string[] = [];
   const io: ProbeIo = {
     resolve: async (name) => {
       const error = fake.unresolvable?.[name];
@@ -118,12 +129,16 @@ function fakeIo(fake: Fake): {
       );
     },
     issuer: async () => fake.issuer ?? { issuer: 'https://id.ownpace.eu' },
-    // Each name answers itself: what NetBird's sign-in does instead is
+    // Each name answers itself, and the form that founds an organisation is
+    // closed: what NetBird's sign-in does instead is
     // a-sign-in-in-front-of-the-front-door's.
-    page: async () => ({ status: 200, netbird: false }),
+    page: async (url) => {
+      pagesAsked.push(url);
+      return fake.pages?.[url] ?? (url === ORG_REGISTRATION ? CLOSED : { status: 200, netbird: false });
+    },
     print: (line) => lines.push(line),
   };
-  return { io, lines, tried, tlsAsked, pgAsked };
+  return { io, lines, tried, tlsAsked, pgAsked, pagesAsked };
 }
 
 const CONFIG: ProbeConfig = { ports: [3001, 3123, 5432], host: MACHINE, otaMode: 'report', siteMode: 'report' };
@@ -236,6 +251,125 @@ describe('the probe from outside', () => {
     expect(await runProbe(CONFIG, io)).toBe(0);
     expect(lines.join('\n')).toMatch(/app\.ota\.ownpace\.eu.*IPv6.*not tried.*ENETUNREACH/);
     expectNoAddress(lines);
+  });
+});
+
+/**
+ * NOBODY CAN FOUND AN ORGANISATION AT LIVE'S SIGN-IN SERVICE (workplan 0135
+ * T1; the ask 0132 T3 records). The smoke asks the form on the OTA instance
+ * every night and never runs on live, so the probe asks it there: a 404, and
+ * only a 404, passes. A 2xx is the form; a redirect is not the refusal; no
+ * answer fails as the discovery document's does. No setting makes it a note.
+ */
+describe('the form that founds an organisation (0135 T1)', () => {
+  const formLine = (lines: readonly string[]) => lines.filter((l) => /^(pass|FAIL|note) {2}/.test(l) && l.includes(ORG_REGISTRATION));
+
+  it('is the issuer\'s own page, asked once, and a 404 passes', async () => {
+    expect(ISSUER).toBe('https://id.ownpace.eu');
+    expect(ORG_REGISTRATION).toBe(`${ISSUER}/ui/login/register/org`);
+    const { io, lines, pagesAsked } = fakeIo({});
+    expect(await runProbe(CONFIG, io), lines.join('\n')).toBe(0);
+    expect(pagesAsked.filter((u) => u === ORG_REGISTRATION)).toHaveLength(1);
+    expect(formLine(lines)).toEqual([
+      'pass  https://id.ownpace.eu/ui/login/register/org answers 404: the form that founds an organisation is not served (workplan 0135 T1)',
+    ]);
+    expectNoAddress(lines);
+  });
+
+  it.each([200, 204])('FAILS a %s: the form is served, and the line says what sets it', async (status) => {
+    const { io, lines } = fakeIo({ pages: { [ORG_REGISTRATION]: { status, netbird: false } } });
+    expect(await runProbe(CONFIG, io)).toBe(1);
+    const said = formLine(lines);
+    expect(said).toHaveLength(1);
+    expect(said[0]).toMatch(new RegExp(`^FAIL {2}.*answers ${status}, not 404: the form that founds an organisation is served`));
+    expect(said[0]).toContain('disallowPublicOrgRegistration');
+    expect(said[0]).toContain('workplan 0135 T1');
+  });
+
+  it.each([
+    ['on the same name', '/ui/login/login?authRequestID=s3cr3t-q1', 'id.ownpace.eu'],
+    ['to another host', 'https://login.netbird.example/oauth2/authorize?state=s3cr3t-q1', 'login.netbird.example'],
+    ['to an address', 'https://192.0.2.44/authorize?state=s3cr3t-q1', 'an address (not printed)'],
+  ])('FAILS a redirect %s, never followed, naming its host and nothing of its query', async (_where, location, host) => {
+    for (const status of [301, 302, 303, 307, 308]) {
+      const { io, lines } = fakeIo({ pages: { [ORG_REGISTRATION]: { status, location, netbird: false } } });
+      expect(await runProbe(CONFIG, io)).toBe(1);
+      const said = formLine(lines);
+      expect(said).toHaveLength(1);
+      expect(said[0]).toMatch(new RegExp(`^FAIL {2}.*answers ${status}, a redirect to ${host.replace(/[.()]/g, '\\$&')}, not 404`));
+      const printed = lines.filter((l) => !l.startsWith('::add-mask::')).join('\n');
+      expect(printed).not.toContain('s3cr3t-q1');
+      expect(printed).not.toContain('192.0.2.44');
+      expectNoAddress(lines);
+    }
+  });
+
+  it('FAILS a redirect with no Location: it points nowhere, and is not the refusal', async () => {
+    const { io, lines } = fakeIo({ pages: { [ORG_REGISTRATION]: { status: 302, netbird: false } } });
+    expect(await runProbe(CONFIG, io)).toBe(1);
+    expect(formLine(lines)[0]).toMatch(/^FAIL {2}.*answers 302 with no Location, not 404/);
+  });
+
+  it.each(['ECONNREFUSED', 'ENOTFOUND', 'TimeoutError'])(
+    'FAILS when nothing answers (%s), as the discovery document does: a page nobody could ask is not known to be closed',
+    async (why) => {
+      const { io, lines } = fakeIo({ pages: { [ORG_REGISTRATION]: { why } } });
+      expect(await runProbe(CONFIG, io)).toBe(1);
+      expect(formLine(lines)[0]).toMatch(new RegExp(`^FAIL {2}.*does not answer \\(${why}\\), so the form that founds an organisation is not known to be closed`));
+    },
+  );
+
+  it.each([404, 200, 401])('FAILS NetBird\'s own page, even a %s: it is not the sign-in service\'s refusal', async (status) => {
+    const { io, lines } = fakeIo({ pages: { [ORG_REGISTRATION]: { status, netbird: true } } });
+    expect(await runProbe(CONFIG, io)).toBe(1);
+    const said = formLine(lines)[0]!;
+    expect(said).toMatch(new RegExp(`^FAIL {2}.*answers ${status}, NetBird's own page`));
+    expect(said).toContain("not the sign-in service's 404");
+  });
+
+  it.each([401, 403, 409, 500, 502])('FAILS a %s: only a 404 is the refusal', async (status) => {
+    const { io, lines } = fakeIo({ pages: { [ORG_REGISTRATION]: { status, netbird: false } } });
+    expect(await runProbe(CONFIG, io)).toBe(1);
+    expect(formLine(lines)[0]).toMatch(new RegExp(`^FAIL {2}.*answers ${status}, not 404`));
+  });
+
+  it('is a finding whatever the dispatch says: no list, mode or front port makes the form a note', async () => {
+    const configs: ProbeConfig[] = [
+      { ...CONFIG, frontPorts: [5432] },
+      ...(['report', 'internet', 'mesh-only'] as const).map((otaMode) => ({ ...CONFIG, otaMode })),
+      { ...CONFIG, siteMode: 'required' },
+      { ...CONFIG, host: '' },
+    ];
+    for (const config of configs) {
+      const { io, lines } = fakeIo({
+        pages: { [ORG_REGISTRATION]: { status: 200, netbird: false } },
+        tls: Object.fromEntries(OTA_NAMES.map((n) => [n, { state: config.otaMode === 'internet' ? 'tls' : 'none' } as const])),
+      });
+      expect(await runProbe(config, io), JSON.stringify(config)).toBe(1);
+      expect(formLine(lines)[0]).toMatch(/^FAIL {2}/);
+    }
+  });
+
+  it('the real network reads a 404 as a 404, and follows no redirect to get there', async () => {
+    const server = createHttpServer((req, res) => {
+      if (req.url === '/ui/login/register/org') {
+        res.writeHead(404, { Connection: 'close' });
+        res.end();
+      } else {
+        res.writeHead(302, { Location: '/ui/login/register/org', Connection: 'close' });
+        res.end();
+      }
+    });
+    await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+    try {
+      const a = server.address();
+      const base = `http://127.0.0.1:${typeof a === 'object' && a ? a.port : 0}`;
+      const net = realNetwork({ fetchMs: 3000 });
+      expect(await net.page(`${base}/ui/login/register/org`)).toEqual({ status: 404, netbird: false });
+      expect(await net.page(`${base}/elsewhere`)).toEqual({ status: 302, location: '/ui/login/register/org', netbird: false });
+    } finally {
+      await new Promise<void>((done) => server.close(() => done()));
+    }
   });
 });
 

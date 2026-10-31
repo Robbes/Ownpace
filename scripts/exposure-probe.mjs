@@ -27,7 +27,8 @@
  * certificate for the name. The discovery document at
  * `https://id.ownpace.eu/.well-known/openid-configuration` names
  * `https://id.ownpace.eu` as its issuer, so the production names reach live and
- * not the OTA stack. And no tried port answers (a TCP connection is accepted)
+ * not the OTA stack. The form that founds an organisation there answers 404
+ * (below). And no tried port answers (a TCP connection is accepted)
  * on any of those addresses. What the OTA names should do on 443 is open
  * question 7, which nobody has answered: `EXPOSURE_PROBE_OTA_NAMES` (the
  * dispatch input `ota_names`) is `report` by default, which records what
@@ -99,9 +100,26 @@
  * only on live's front, as above; not answering there fails only when
  * `site_name` is `required`, NetBird's sign-in fails either way.
  *
- * Not yet: 0135's check that the identity provider's organisation
- * registration page answers 404 (0135 T1), and the forged `X-Forwarded-For`
- * request (0132 T3 (d)), which needs live standing.
+ * NOBODY CAN FOUND AN ORGANISATION AT LIVE'S SIGN-IN SERVICE (workplan 0135
+ * T1, the ask 0132 T3 records). Zitadel serves `/ui/login/register/org` to
+ * anybody who can load the sign-in page unless the instance restriction
+ * `disallowPublicOrgRegistration` is set, and with it set the handler answers
+ * a GET with 404. `setup-zitadel.sh` sets it and reads it back on every
+ * bring-up, and the smoke asks the page on the OTA instance every night; the
+ * smoke never runs on live (`deploy-live.sh` skips it), so nothing asked
+ * live's page from outside after the owner's read of 2026-10-29. The probe
+ * asks `ORG_REGISTRATION`, the issuer's page, once and without following a
+ * redirect, and passes a 404 only. A 2xx is the form. A redirect is not the
+ * refusal: it leads to the form elsewhere, a sign-in, or NetBird's own page,
+ * and is named by its host, never its query. Any other status, and no answer
+ * at all, fails as the discovery document's does: a page nobody could ask is
+ * not known to be closed, and so does NetBird's own page, whatever its
+ * status. No setting makes a finding here a note, as
+ * `EXPOSURE_PROBE_FRONT_PORTS` does for a port the front holds by itself
+ * (above): the page is the sign-in service's, and only its 404 refuses.
+ *
+ * Not yet: the forged `X-Forwarded-For` request (0132 T3 (d)), which needs
+ * live standing.
  *
  * Usage:  EXPOSURE_PROBE_LIVE_PORTS='4123 4126' [EXPOSURE_PROBE_FRONT_PORTS=5432] node scripts/exposure-probe.mjs
  * Exit: 0 pass; 1 a finding; 2 the configuration, or the port list, is wrong.
@@ -123,6 +141,11 @@ export const SITE_NAME = 'www.ownpace.eu';
 export const SITE_MODES = ['report', 'required'];
 export const ISSUER = 'https://id.ownpace.eu';
 export const DISCOVERY = `${ISSUER}/.well-known/openid-configuration`;
+/**
+ * The form that founds an organisation, at live's issuer: Zitadel's login v1
+ * path, which answers 404 once `disallowPublicOrgRegistration` holds (0135 T1).
+ */
+export const ORG_REGISTRATION = `${ISSUER}/ui/login/register/org`;
 export const OTA_MODES = ['report', 'internet', 'mesh-only'];
 export const TLS_PORT = 443;
 /**
@@ -300,6 +323,50 @@ export function signInVerdict(page, answer) {
     return { kind: 'other', words: `${status}, a sign-in or access page, not ${page.what}` };
   }
   return { kind: 'other', words: `${status}, not ${page.what}` };
+}
+
+/**
+ * What the form that founds an organisation answered, as a verdict: `closed`
+ * for a 404 and nothing else, `open` otherwise, with the words for the log.
+ * A redirect is named by its host, never its query (it can carry a request's
+ * id), and never when the host is an address.
+ */
+export function orgRegistrationVerdict(answer) {
+  const rule = 'workplan 0135 T1';
+  const fix = `${rule}: read disallowPublicOrgRegistration back on live's instance, and set it, with 0135 §4, T0 step 1`;
+  if (answer.status === undefined) {
+    return {
+      kind: 'open',
+      words: `does not answer (${answer.why ?? 'no reason'}), so the form that founds an organisation is not known to be closed (${rule})`,
+    };
+  }
+  const status = answer.status;
+  if (answer.netbird) {
+    return {
+      kind: 'open',
+      words: `answers ${status}, NetBird's own page (it loads ${NETBIRD_ASSETS}), not the sign-in service's 404 (${rule}; workplan 0139, item 8)`,
+    };
+  }
+  if (status === 404) return { kind: 'closed', words: `answers 404: the form that founds an organisation is not served (${rule})` };
+  if (status >= 200 && status < 300) {
+    return { kind: 'open', words: `answers ${status}, not 404: the form that founds an organisation is served, and anybody can found one (${fix})` };
+  }
+  if (status >= 300 && status < 400) {
+    if (answer.location === undefined || answer.location.trim() === '') {
+      return { kind: 'open', words: `answers ${status} with no Location, not 404, so the form is not known to be closed (${rule})` };
+    }
+    let where;
+    try {
+      where = shownHost(new URL(answer.location, ORG_REGISTRATION).hostname);
+    } catch {
+      where = 'a Location that is not a URL';
+    }
+    return {
+      kind: 'open',
+      words: `answers ${status}, a redirect to ${where}, not 404: not the refusal, and the form may be where it leads (${fix})`,
+    };
+  }
+  return { kind: 'open', words: `answers ${status}, not 404, so the form that founds an organisation is not known to be closed (${rule})` };
 }
 
 /**
@@ -498,6 +565,10 @@ export async function runProbe(config, io) {
   if (doc.issuer === ISSUER) pass(`${DISCOVERY} names ${ISSUER} as its issuer`);
   else if (doc.issuer !== undefined) fail(`${DISCOVERY} names ${shownIssuer(doc.issuer)} as its issuer, not ${ISSUER}`);
   else fail(`${DISCOVERY} could not be read (${doc.why ?? 'no reason'})`);
+
+  // ---- Nobody can found an organisation there (0135 T1) ---------------------
+  const form = orgRegistrationVerdict(await io.page(ORG_REGISTRATION));
+  (form.kind === 'closed' ? pass : fail)(`${ORG_REGISTRATION} ${form.words}`);
 
   // ---- No NetBird sign-in in front of the four names (0139, item 8) ----------
   say(`exposure-probe: NetBird's sign-in off on ${SIGN_IN_PAGES.map((p) => p.name).join(', ')} (workplan 0139, item 8)`);

@@ -2,7 +2,20 @@
 
 > **In one line:** Hardening Zitadel sign-in at `id.ownpace.eu` and the OTA instance via `setup-zitadel.sh`: public organisation registration off, `hasProjectCheck`, organisation counts, MFA and lockout, legal links, Dutch and English copy, release watch, orphan accounts.
 
-## Status — 2026-10-28 (update this block at the end of every session)
+## Status — 2026-10-31 (update this block at the end of every session)
+
+**2026-10-31: the outside probe asks live's form that founds an organisation (T1's outside
+check)**, on branch `claude/ownpace-public-readiness-y7orc6-exposure-probe-registration`, not
+merged. T1 asked that 0132 T3's probe fetch `/ui/login/register/org` too; until now only the
+smoke did, on the OTA instance, and the smoke never runs on live. The owner read live's page as
+404 on 2026-10-29. Now every dispatch of *Exposure probe* asks
+`https://id.ownpace.eu/ui/login/register/org` from a GitHub-hosted runner, without following a
+redirect, and fails unless it answers 404: a 2xx is the form served, a redirect is not the
+refusal, NetBird's own page is not the sign-in service's, and no answer is not known to be
+closed. So a Zitadel upgrade, or a change to the instance's restrictions, that serves the form
+again on live is a finding at the next dispatch, not a stranger's organisation. The URL is the
+probe's issuer plus Zitadel's path; no name is typed again. 0132's Status (2026-10-31) has the
+cases and the mutations.
 
 **2026-10-22: the pin moves to v4.20.0, the Go 1.26.10 build that closes an unauthenticated CPU
 hole in the console (issue #1643)**, merged as #1680 on 2026-10-25 at 06:45 UTC (`359f8e96`), from
@@ -787,7 +800,7 @@ Names used from here on: **live** is the identity provider of `ownpace-live`, at
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner applies T1 and T2 by hand, on each instance, and reads both back | ⏳ **Owner** (D2, D7) for live; on the OTA instance ✅ both set and read back by E2E (managed) #203 on 2026-09-27, and the owner's sign-in checked 2026-09-28 on `1353f06` | §3 and §4. The OTA instance now. Live before its first invitation and before 0133 T3; if live's first tag carries T1 and T2, only the read-backs are left there. Minutes each, and no deploy. |
-| T1 Public organisation registration off | ✅ **done** in #1261, merged 2026-09-28 (`3be0ef03`): `managed.yml` for a fresh instance, `setup-zitadel.sh` for an existing one, read back, and the smoke asks the page; in place on live before its first invitation (D2, D7) — *was:* 🔨 **Built 2026-09-27, not merged**; 📋 **Proposed** | §3. The instance restriction `disallowPublicOrgRegistration`, set by `setup-zitadel.sh` and read back, and set by `managed.yml` for a fresh instance, which live's is. |
+| T1 Public organisation registration off | ✅ **done** in #1261, merged 2026-09-28 (`3be0ef03`): `managed.yml` for a fresh instance, `setup-zitadel.sh` for an existing one, read back, and the smoke asks the page; in place on live before its first invitation (D2, D7); the outside probe asks live's page and fails unless it answers 404 🔨 **built 2026-10-31** on branch `claude/ownpace-public-readiness-y7orc6-exposure-probe-registration`, not merged (Status, 2026-10-31) — *was:* 🔨 **Built 2026-09-27, not merged**; 📋 **Proposed** | §3. The instance restriction `disallowPublicOrgRegistration`, set by `setup-zitadel.sh` and read back, and set by `managed.yml` for a fresh instance, which live's is. |
 | T2 The project admits its own organisation only | ✅ **done** in #1261, merged 2026-09-28 (`3be0ef03`): created with the check, an existing project updated and read back; in place on live before its first invitation (D2, D7) — *was:* 🔨 **Built 2026-09-27, not merged**; 📋 **Proposed** | §3. `hasProjectCheck` on the Ownpace project, set at creation and on an existing project, and read back. Live's project is created at its first bring-up. This sits beside `tenant_member`, not in its place. |
 | T3 One organisation, recorded and counted again | 📋 **Decided 2026-09-24** (D1) for the record; (a) the count on every run of `setup-zitadel.sh` ✅ **done** in #1272, merged 2026-09-28 (`3408c143`); live's daily count is 0132 T7's — *was:* (a) 🔨 built 2026-09-27, not merged; the count 📋 **Proposed** | §3. The owner's answer covers the OTA instance; live's starts with one. The count is per instance: a count anybody can repeat, a line in the bring-up's summary, daily on live by 0132 T7, nightly on the OTA instance by the gate's own run of `setup-zitadel.sh`. |
 | T4 Second factors for the accounts that hold the keys, and a lockout | (a) the enrolment ⏳ **Owner**, live first; (b) the lockout at 10 wrong passwords ✅ **built 2026-10-17** on branch `claude/ownpace-public-readiness-y7orc6-the-owners-sign-in-answers`, **not merged** (open question 3, the owner: *"The lockout limit: I proposed 10 wrong passwords."*): `setup-zitadel.sh` writes it when it differs, the codes' limit copied back, and reads it back on the instance and the organisation, `managed.yml` gives a fresh instance the same; the 5 wrong codes and the unknown login names stay open; (c) the second factor policy ✅ **decided and built 2026-10-17**, same branch, not merged (open question 2, (c): offered, not forced): `forceMfa` and `forceMfaLocalOnly` false and TOTP and U2F allowed, written when they differ and read back on every run; neither yet run against a real instance — *was:* ⏳ **Owner** for the enrolment; 📋 **Proposed** for the lockout and forced MFA | §3. The first human and every operator, on each instance, live first; the machine user cannot have one and relies on its token's short life. A lockout threshold. Whether a second factor is forced is open question 2. |
@@ -1085,7 +1098,8 @@ once the restriction is set, at `https://id.ownpace.eu` and at `https://id.ota.o
 alike. By the same reading the OTA instance serves the form today; nobody has fetched it to see.
 The smoke's sign-in section already fetches the page a browser is sent to, and it gains this
 fetch as well. 0132 T3's outside probe, which tries the production and the OTA names, fetches it
-too; 0132 records the ask.
+too; 0132 records the ask. *2026-10-31:* it does, at `https://id.ownpace.eu` only, the page the
+smoke never asks (Status, 2026-10-31).
 
 **The comments that become true.** The *"NOT AN OPEN DOOR"* and *"ONE organisation"* paragraphs
 in `setup-zitadel.sh` name the restriction as what makes them true. 0095 gets a dated line that
