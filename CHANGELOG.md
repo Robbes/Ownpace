@@ -4,6 +4,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **Trigger.dev's object store runs Chainguard's MinIO build of 2026-10-29,
+  taken before its three-day floor as a security fix** (workplan 0119, 0146
+  T7): the image scan of 2026-10-31 found a high in the build before it,
+  whose server links go-jose 4.1.4, and Wolfi's rebuild moves go-jose to 4.1.6
+  for CVE-2026-116587 (GHSA-mgcc-cww5-fp2q), where a JWK with degenerate RSA
+  parameters could make parsing use excessive CPU. It is the same MinIO
+  release at the same commit, with Go modules moved and no source changed,
+  golang.org/x/net 0.62.0 among them. Nothing a stack sets changes; the next
+  bring-up pulls it, and the data volume carries over.
+
 ### Changed
 
 - **Trigger.dev is v4.8.3, taken before its three-day floor on the owner's

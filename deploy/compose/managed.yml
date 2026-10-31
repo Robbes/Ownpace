@@ -729,14 +729,22 @@ services:
   #
   # THE PIN. Chainguard's free tier publishes `latest` and `latest-dev` and
   # nothing else, rebuilt about daily, so this is `latest` by an index digest:
-  # 268d68a2a3b6…, built 2026-10-25 01:49 UTC and pushed as `latest` at 14:29
-  # UTC that day, with linux/amd64 and linux/arm64 in it, taken on 2026-10-28
-  # once it was three days old, as a release this repository takes should be
-  # (CONTRIBUTING.md). Not the newest `latest` (e70b2b1e74d7…, pushed
-  # 2026-10-27), on purpose. Trivy 0.76.1 read no finding of any severity in
-  # it on 2026-10-28, on both architectures. Inside (their apk databases):
-  # Wolfi's `minio` 0.20261023.200651-r0 (the fork's
-  # RELEASE.2026-10-23T20-06-51Z), `mc` 0.20250813.083541-r27, and bash as
+  # 3b6e40c30ecd…, built 2026-10-29 14:33 UTC and pushed as `latest` on
+  # 2026-10-30 at 01:13 UTC, with linux/amd64 and linux/arm64 in it, taken on
+  # 2026-10-31, before its three-day floor (2026-11-02 01:13 UTC), under the
+  # floor's one exception, a security fix (CONTRIBUTING.md). The digest before
+  # it, 268d68a2a3b6… (built 2026-10-25, taken 2026-10-28, #1726), carries
+  # Wolfi's `minio` 0.20261023.200651-r0, whose server links go-jose 4.1.4:
+  # the image scan of 2026-10-31 read one high in it, with a fix, and Wolfi's
+  # -r1 moves go-jose to 4.1.6 for CVE-2026-116587 (GHSA-mgcc-cww5-fp2q;
+  # RSA parameters in a JWK went unbounded, so a crafted key could cost
+  # excessive CPU). No build with that fix is three days old: the first,
+  # 0dab2f9fee1c… (-r1), went out as `latest` about 03:00 UTC on 2026-10-29.
+  # Inside this one (its apk databases, both architectures): Wolfi's `minio`
+  # 0.20261023.200651-r2, the same fork release, RELEASE.2026-10-23T20-06-51Z
+  # at the same commit (76c06ff1), rebuilt with Go modules moved and no source
+  # patch: go-jose 4.1.6 (-r1), and golang.org/x/net 0.62.0 and x/crypto
+  # 0.58.0 for CVE-2026-78661 (-r2); `mc` 0.20250813.083541-r27, and bash as
   # /bin/sh. The fork's release before it, RELEASE.2026-09-22T19-25-18Z in
   # d88920d6a50b… (2026-10-22, #1692), differs from this one in go.mod and
   # go.sum (nine modules, golang.org/x/net 0.60.0, x/crypto 0.57.0 and
@@ -766,7 +774,7 @@ services:
   #     minio-init below makes `packets`.
   # `scripts/an-object-store-with-a-maintainer.unit.test.ts` holds all of it.
   minio:
-    image: chainguard/minio:latest@sha256:268d68a2a3b6fc65f905a61f84d7eab6345ce6bff14f551e2b028ec31e6a1341
+    image: chainguard/minio:latest@sha256:3b6e40c30ecd5cea627e382ff0b82ca841f58c52294578787043ee80c8ef7c82
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio
     restart: unless-stopped
     logging: *logging
@@ -843,7 +851,7 @@ services:
   # (getDependencyCondition, pkg/compose/start.go, v2.20.0 to v5.6.1). The
   # bring-up names it beside `minio` all the same, so a failure prints its log.
   minio-init:
-    image: chainguard/minio:latest@sha256:268d68a2a3b6fc65f905a61f84d7eab6345ce6bff14f551e2b028ec31e6a1341
+    image: chainguard/minio:latest@sha256:3b6e40c30ecd5cea627e382ff0b82ca841f58c52294578787043ee80c8ef7c82
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio-init
     restart: "no"
     logging: *logging
