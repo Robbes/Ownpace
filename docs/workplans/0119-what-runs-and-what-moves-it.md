@@ -69,8 +69,9 @@ It skips v4.8.2: one move, one way, one window on the OTA stack.
   log in until `CLI_LOGIN_LEGACY_UNTIL`, 2027-01-01 by default); the legacy Bun runtime is
   deprecated (the tasks run `node`). The SDK prefers short-lived run tokens for `triggerTask`,
   `retrieveRun` and `cancelRun`, falling back to the environment key, but the webapp injects
-  `TRIGGER_RUN_TOKEN` only behind its `runTokenInjection` flag, off unless set, so our tasks'
-  `configure({ baseURL })` calls go on with the environment key. Off by default and unset here:
+  `TRIGGER_RUN_TOKEN` only with `RUN_TOKEN_ISSUER_URL` set (`managed.yml` sets none, and the
+  phone-home guard refuses a key it has not read) and its `runTokenInjection` flag on, off
+  unless set, so our tasks' `configure({ baseURL })` calls go on with the environment key. Off by default and unset here:
   the supervisor's run releases (`RELEASE_UNSTARTED_RUNS_ENABLED`,
   `RELEASE_FAILED_POD_RUNS_ENABLED`), deployment-index capture (`DEPLOYMENT_INDEX_*`; upstream's
   own compose now makes a `deployment-indexes` bucket for it, which nothing here writes), and
@@ -99,8 +100,22 @@ It skips v4.8.2: one move, one way, one window on the OTA stack.
   `a-service-that-phones-home`, `a-gate-on-a-version-nothing-ships`,
   `a-gate-that-was-never-switched-on`, `trigger-version`, `bootstrap-managed`,
   `a-pin-that-knows-it-is-behind`); the first four were red on the pin alone, until `read_at`
-  and the names, `TRIGGER_WEBAPP`, `CLI_READ_AT` and the guard's scoped keys moved. Owed: the pull request's `build (trigger, amd64|arm64)` green,
-  then the owner's window on the OTA stack (the pull request's body has its steps: the hold
+  and the names, `TRIGGER_WEBAPP`, `CLI_READ_AT` and the guard's scoped keys moved. On the
+  pull request (#1755, at `2dc1c3c5`, `main` merged in), before the floor: CI's frozen installs
+  pass, and lint, the four unit shards, the UI tests and both integration legs are green (CI run
+  41159761353); Images run 41159761482 has
+  `build (trigger, amd64)` and `build (trigger, arm64)` green, every path check and proof of both
+  Dockerfiles at v4.8.3 (both names of depot and esbuild removed, no ELF of either left,
+  dompurify 3.4.17 loaded from posthog-js and mermaid). The image scan, Security Scan run
+  41159641513 dispatched on the branch: `localhost/trigger.dev:v4.8.3-b0cce1eaa578` (Debian
+  12.15) 1 critical, 136 high, 80 with a fix, where v4.8.1's build read 1, 137 and 81 (#1742);
+  `localhost/supervisor:v4.8.3-f44827c552a6` (Alpine 3.24.3) 0, 25 and 25, as at v4.8.1. The
+  critical left is zlib1g's, which Debian has not fixed. Which high left the webapp could not be
+  read here (the SARIF artifact and code scanning are outside this session's access); upstream's
+  lockfile moved socket.io-client 4.7.5 to 4.8.4, engine.io-client 6.5.3 to 6.6.7,
+  xmlhttprequest-ssl 2.0.0 to 2.1.2 and `@trigger.dev/platform` 1.3.1 to 1.5.0. goose v3.27.1,
+  pnpm 10.33.2 and systeminformation 5.31.7 are the same at v4.8.3, so what they contribute is
+  unchanged. Owed: the owner's window on the OTA stack (the pull request's body has its steps: the hold
   and the drain, a verified dump of `triggerdb` and a copy of ClickHouse's volume with the
   plane stopped, `TRIGGER_IMAGE_TAG=v4.8.3` in the persisted `.env`), E2E (managed) on the
   branch, and the merge within the hour. Live takes it from the alpha.4 tag after

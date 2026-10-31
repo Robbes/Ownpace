@@ -10,7 +10,9 @@ at v4.8.3: the entrypoints, `docker/Dockerfile`, the Containerfile, pnpm 10.33.2
 0.0.1-cli.2.80.0, esbuild 0.23.0 and dompurify 3.4.13 under posthog-js 1.407.3 and mermaid
 11.16.1 are v4.8.1's, so every removal and the dompurify 3.4.17 swap stay, `read_at` is v4.8.3,
 and the names move to `-b0cce1eaa578` and `-f44827c552a6`. The guard's fixtures read v4.8.3.
-`build (trigger, amd64|arm64)` on the pull request proves the paths at v4.8.3.
+On #1755 `build (trigger, amd64|arm64)` (Images run 41159761482) proved every path and check at
+v4.8.3 on both platforms, and the image scan (Security Scan run 41159641513) read the webapp's
+build at 1 critical, 136 high, 80 fixable (1, 137, 81 at v4.8.1) and the supervisor's at 0, 25, 25.
 
 **2026-10-30/31: `v0.2.0-alpha.3` is released, its nights waived, and live runs it (T2, T5,
 T13, T16).** Read from GitHub on 2026-10-31, and from the owner's record of live's deploy (0132
