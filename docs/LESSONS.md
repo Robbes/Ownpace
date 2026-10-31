@@ -1745,8 +1745,13 @@ reading a file drops off its entry by itself.
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 
+### `docs/adr/0045-migrations-are-hand-written-sql.md`
+
+- [a-chain-that-only-grows](../scripts/a-chain-that-only-grows.unit.test.ts) — A CHAIN THAT ONLY GROWS: nothing said when pre-release ended, so nothing refused a squash, an edit or a deletion of a migration a release had shipped, and the squash script's own advice was to drop a database that would not start (workpl…
+
 ### `docs/adr/OPERATIVE.md`
 
+- [a-chain-that-only-grows](../scripts/a-chain-that-only-grows.unit.test.ts) — A CHAIN THAT ONLY GROWS: nothing said when pre-release ended, so nothing refused a squash, an edit or a deletion of a migration a release had shipped, and the squash script's own advice was to drop a database that would not start (workpl…
 - [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts) — A command the docs told you to run, that wrote a migration nobody can apply.
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
@@ -1895,6 +1900,7 @@ reading a file drops off its entry by itself.
 
 ### `docs/release.md`
 
+- [a-chain-that-only-grows](../scripts/a-chain-that-only-grows.unit.test.ts) — A CHAIN THAT ONLY GROWS: nothing said when pre-release ended, so nothing refused a squash, an edit or a deletion of a migration a release had shipped, and the squash script's own advice was to drop a database that would not start (workpl…
 - [a-deploy-the-owner-waited-hours-to-prove](../scripts/a-deploy-the-owner-waited-hours-to-prove.unit.test.ts) — A DEPLOY THE OWNER WAITED HOURS TO PROVE (workplan 0132 T9; the owner, 2026-10-28).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 - [a-release-page-with-no-sbom](../scripts/a-release-page-with-no-sbom.unit.test.ts) — A RELEASE PAGE WITH NO SBOM: neither release this repository has published is complete, and nothing said so (workplan 0146, Status of 2026-10-23).
@@ -2244,6 +2250,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/ledger/migrations/0001_baseline.sql`
 
+- [a-chain-that-only-grows](../scripts/a-chain-that-only-grows.unit.test.ts) — A CHAIN THAT ONLY GROWS: nothing said when pre-release ended, so nothing refused a squash, an edit or a deletion of a migration a release had shipped, and the squash script's own advice was to drop a database that would not start (workpl…
 - [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts) — A command the docs told you to run, that wrote a migration nobody can apply.
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
@@ -2270,6 +2277,15 @@ reading a file drops off its entry by itself.
 
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [an-upgrade-gate-that-skipped-itself](../scripts/an-upgrade-gate-that-skipped-itself.unit.test.ts) — AN UPGRADE GATE THAT SKIPPED ITSELF: `docs/release.md` asked a person to confirm by eye that the upgrade gate's `skipIf(!HAVE_REF)` cases ran against the previous release, because without the tag they skip and the file still reports gree…
+- [every-release-is-a-starting-point](../scripts/every-release-is-a-starting-point.unit.test.ts) — EVERY RELEASE IS A STARTING POINT: the upgrade gates a pull request runs started from rc.1 (the shared chain) and alpha.1 (the managed chain) alone, so three releases later no pull request proved an upgrade from the release `ownpace-live…
+
+### `packages/ledger/src/migrate.ts`
+
+- [a-chain-that-only-grows](../scripts/a-chain-that-only-grows.unit.test.ts) — A CHAIN THAT ONLY GROWS: nothing said when pre-release ended, so nothing refused a squash, an edit or a deletion of a migration a release had shipped, and the squash script's own advice was to drop a database that would not start (workpl…
+
+### `packages/ledger/src/release-line.ts`
+
+- [every-release-is-a-starting-point](../scripts/every-release-is-a-starting-point.unit.test.ts) — EVERY RELEASE IS A STARTING POINT: the upgrade gates a pull request runs started from rc.1 (the shared chain) and alpha.1 (the managed chain) alone, so three releases later no pull request proved an upgrade from the release `ownpace-live…
 
 ### `packages/ledger/src/retention.ts`
 
@@ -2310,10 +2326,15 @@ reading a file drops off its entry by itself.
 
 - [a-version-the-tester-accepted](../scripts/a-version-the-tester-accepted.unit.test.ts) — A VERSION THE TESTER ACCEPTED (workplan 0139 T3).
 
+### `packages/managed/src/migrate-upgrade.integration.test.ts`
+
+- [every-release-is-a-starting-point](../scripts/every-release-is-a-starting-point.unit.test.ts) — EVERY RELEASE IS A STARTING POINT: the upgrade gates a pull request runs started from rc.1 (the shared chain) and alpha.1 (the managed chain) alone, so three releases later no pull request proved an upgrade from the release `ownpace-live…
+
 ### `packages/managed/src/migrate-upgrade.unit.test.ts`
 
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [an-upgrade-gate-that-skipped-itself](../scripts/an-upgrade-gate-that-skipped-itself.unit.test.ts) — AN UPGRADE GATE THAT SKIPPED ITSELF: `docs/release.md` asked a person to confirm by eye that the upgrade gate's `skipIf(!HAVE_REF)` cases ran against the previous release, because without the tag they skip and the file still reports gree…
+- [every-release-is-a-starting-point](../scripts/every-release-is-a-starting-point.unit.test.ts) — EVERY RELEASE IS A STARTING POINT: the upgrade gates a pull request runs started from rc.1 (the shared chain) and alpha.1 (the managed chain) alone, so three releases later no pull request proved an upgrade from the release `ownpace-live…
 
 ### `packages/managed/src/mollie-refunds.ts`
 
@@ -2902,6 +2923,7 @@ reading a file drops off its entry by itself.
 
 ### `scripts/how-migrations-are-authored.mjs`
 
+- [a-chain-that-only-grows](../scripts/a-chain-that-only-grows.unit.test.ts) — A CHAIN THAT ONLY GROWS: nothing said when pre-release ended, so nothing refused a squash, an edit or a deletion of a migration a release had shipped, and the squash script's own advice was to drop a database that would not start (workpl…
 - [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts) — A command the docs told you to run, that wrote a migration nobody can apply.
 
 ### `scripts/idp-pin-watch.mjs`
@@ -2977,6 +2999,11 @@ reading a file drops off its entry by itself.
 - [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
 - [two-nights-read-from-the-record](../scripts/two-nights-read-from-the-record.unit.test.ts) — TWO NIGHTS READ FROM THE RECORD: the nights a release tag waits for were counted by a person reading two `gh run list` commands, and on 2026-10-06 the alpha was tagged on one green night of two (workplan 0141 T14).
 
+### `scripts/release-line.json`
+
+- [a-chain-that-only-grows](../scripts/a-chain-that-only-grows.unit.test.ts) — A CHAIN THAT ONLY GROWS: nothing said when pre-release ended, so nothing refused a squash, an edit or a deletion of a migration a release had shipped, and the squash script's own advice was to drop a database that would not start (workpl…
+- [every-release-is-a-starting-point](../scripts/every-release-is-a-starting-point.unit.test.ts) — EVERY RELEASE IS A STARTING POINT: the upgrade gates a pull request runs started from rc.1 (the shared chain) and alpha.1 (the managed chain) alone, so three releases later no pull request proved an upgrade from the release `ownpace-live…
+
 ### `scripts/release-names-agree.mjs`
 
 - [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
@@ -3022,6 +3049,7 @@ reading a file drops off its entry by itself.
 
 ### `scripts/squash-migrations.sh`
 
+- [a-chain-that-only-grows](../scripts/a-chain-that-only-grows.unit.test.ts) — A CHAIN THAT ONLY GROWS: nothing said when pre-release ended, so nothing refused a squash, an edit or a deletion of a migration a release had shipped, and the squash script's own advice was to drop a database that would not start (workpl…
 - [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts) — A command the docs told you to run, that wrote a migration nobody can apply.
 
 ### `scripts/status-page.unit.test.ts`
@@ -3374,6 +3402,21 @@ Reads:
 - `packages/shared/src/target-domains.unit.test.ts`
 - `scripts/a-consent-nobody-can-answer.unit.test.ts`
 - `scripts/a-scope-class-the-product-does-not-decide.unit.test.ts`
+
+### [a-chain-that-only-grows](../scripts/a-chain-that-only-grows.unit.test.ts)
+
+A CHAIN THAT ONLY GROWS: nothing said when pre-release ended, so nothing refused a squash, an edit or a deletion of a migration a release had shipped, and the squash script's own advice was to drop a database that would not start (workpl…
+
+Reads:
+
+- `docs/adr/0045-migrations-are-hand-written-sql.md`
+- `docs/adr/OPERATIVE.md`
+- `docs/release.md`
+- `packages/ledger/migrations/0001_baseline.sql`
+- `packages/ledger/src/migrate.ts`
+- `scripts/how-migrations-are-authored.mjs`
+- `scripts/release-line.json`
+- `scripts/squash-migrations.sh`
 
 ### [a-check-that-was-never-valid](../scripts/a-check-that-was-never-valid.unit.test.ts)
 
@@ -5859,6 +5902,18 @@ Reads:
 - `apps/worker/src/jobs/managed-digest.ts`
 - `apps/worker/src/jobs/run-rollback.ts`
 - `apps/worker/src/jobs/task-pools.ts`
+
+### [every-release-is-a-starting-point](../scripts/every-release-is-a-starting-point.unit.test.ts)
+
+EVERY RELEASE IS A STARTING POINT: the upgrade gates a pull request runs started from rc.1 (the shared chain) and alpha.1 (the managed chain) alone, so three releases later no pull request proved an upgrade from the release `ownpace-live…
+
+Reads:
+
+- `packages/ledger/src/migrate-upgrade.unit.test.ts`
+- `packages/ledger/src/release-line.ts`
+- `packages/managed/src/migrate-upgrade.integration.test.ts`
+- `packages/managed/src/migrate-upgrade.unit.test.ts`
+- `scripts/release-line.json`
 
 ### [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts)
 

@@ -14,7 +14,7 @@
 - Migrations are **hand-written numbered SQL files**, one per change: `packages/ledger/migrations` for the shared chain, `packages/managed/migrations` for the managed-only one (ADR-0036).
 - **`runMigrations`** applies them at startup, linearly, under a Postgres advisory lock, recording each filename in `schema_migrations`; the appliance and the worker both call it. Nothing applies a migration by hand.
 - **Drizzle Kit authors and applies nothing here.** `pnpm db:generate` and `pnpm db:migrate` refuse (`scripts/how-migrations-are-authored.mjs`), and `drizzle.config.ts` points its `out` at a throwaway directory so the tool cannot write into a chain. Drizzle the ORM is untouched, and `schema-matches-migrations.unit.test.ts` compares it against the chain on every run.
-- Pre-release only, `scripts/squash-migrations.sh` folds the chain into `0001_baseline.sql` — by dumping an applied database, never by hand-merging SQL.
+- **Pre-release ended with `v0.2.0-alpha.1`** (tagged 2026-10-06; `scripts/release-line.json`'s `preReleaseEndedAt`): both chains only grow. A migration a release shipped is never edited, renamed, squashed or deleted; a change is a new file. `scripts/a-chain-that-only-grows.unit.test.ts` holds it, and `scripts/squash-migrations.sh`, which made `0001_baseline.sql` by dumping an applied database, refuses.
 - Nothing may sort below a chain's baseline; `scripts/a-command-the-docs-told-you-to-run.unit.test.ts` enforces it, because the runner applies files in sorted order.
 
 ## Context
@@ -81,3 +81,24 @@ ADR-0017's bullet in place and superseding it:
   with generated ones, move bookkeeping to a second table, and give up the advisory lock
   and downgrade guard `migrate.ts` implements. The tool would be serving the ADR rather
   than the other way round.
+
+## Amendment, 2026-10-31: pre-release ended with the first alpha tag (workplan 0146 T3)
+
+The fourth operative bullet said *"Pre-release only, `scripts/squash-migrations.sh` folds the
+chain into `0001_baseline.sql`"*, and nothing said when pre-release ended. It ended with
+`v0.2.0-alpha.1`, tagged on 2026-10-06: the first tag `ownpace-live` ran, and the moment a
+database holding real data could exist. From it on a squash, an edit or a deletion of an applied
+migration strands every such database: the runner records names, never content, so an edit
+reaches fresh installs only, and a missing name makes the downgrade guard refuse.
+
+- The bullet now says so, and the script refuses before it reads anything.
+- `scripts/a-chain-that-only-grows.unit.test.ts` holds both chains: every file of every release
+  `scripts/release-line.json` lists from `v0.2.0-alpha.1` on is still in the tree, byte for byte
+  as the newest of those releases shipped it. Against an older one of them it may differ in its
+  comments alone, and only because that is history already made: managed 0006 and 0008 gained a
+  note after alpha.1 (#1650), and alpha.2 and alpha.3 shipped it. Putting alpha.1's bytes back
+  would now break theirs. Going forward the rule is byte equality, with no list of exceptions.
+- `v0.1.0-rc.1` stays outside the rule: its baseline was edited after it shipped, under
+  ADR-0036, and the shared chain's upgrade gate carries the allow-list for that.
+- The downgrade refusal in `migrate.ts` no longer names a squash as a cause.
+

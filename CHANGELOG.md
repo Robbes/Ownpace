@@ -4,8 +4,64 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+**Since `v0.1.0-rc.1`, for a reader new to the Alpha** (workplan 0146 T1). The
+sections of alpha.1 to alpha.3 below list what each one changed, and alpha.1's
+stops at mid-August 2026. This is what the Alpha is, grouped by what a tester
+notices.
+
+- **The Alpha.** The managed edition, run by the owner, free and by invitation,
+  for 10 to 20 people over a few weeks, in Dutch. It takes no backups. What each
+  source and target can migrate is in the [feature matrix](docs/feature-matrix.md),
+  with its open gaps in one table; testers have the Dutch tester guide.
+- **Sources**, proven or experimental as the screen labels them
+  (`SOURCE_PROOFS` in `packages/shared/src/front-door.ts`, read on 2026-10-31;
+  the fold reads it again):
+  - proven: Gmail, Google Calendar, Google Contacts and Google Drive, and the
+    Google account's calendars, contacts and files, on the owner's own account;
+    an IMAP server, on one this project runs;
+  - experimental, built and not yet run against a real account of its kind:
+    the Google account's mail and Tasks, and Google's whole-domain option;
+    Microsoft 365 over IMAP and over Graph, the Microsoft 365 account's mail,
+    calendars, contacts, OneDrive and To Do, and a shared mailbox; Apple
+    (iCloud); Dropbox; Box; and an export archive (Google Photos Takeout, or
+    Apple's Data and Privacy export), offered and labelled on managed too.
+- **Targets:** a Soverin account (mail, calendars, contacts, tasks), a
+  Nextcloud account (calendars, contacts, files, tasks), JMAP (mail, contacts,
+  files; its calendars are parked), and plain IMAP, CalDAV, CardDAV and WebDAV.
+- **Signing in** goes through an identity provider, and Ownpace holds no
+  password (ADR-0042). The owner lets each tester in with a grant link.
+- **A migration is silent:** nothing it writes may make a target send mail or
+  a notification (ADR-0043).
+- **Billing:** invoices are numbered and written by the accounting system,
+  never by this product (ADR-0044), and nothing is charged during the Alpha
+  (workplan 0131 T3).
+- **For whoever runs it:** a Log page over the audit log and the app's errors
+  and warnings (workplan 0129), and a problem report a tester sends from the
+  app, which reaches a person and names the build it came from (workplans 0130
+  and 0146 T2).
+
+**What is not in it:**
+
+- No backups during the Alpha (workplan 0134): a database lost is lost.
+- Every source marked experimental above: built and tested, and not yet run
+  against a real account of its kind.
+- A signed Windows payload: the zip is unsigned, as rc.1's was, and Windows
+  warns before it runs (workplan 0025 T6, deferred to `v0.1.0`).
+- An appliance tester: the appliance at this tag is the same code, and the
+  Alpha tests the managed edition.
+
 ### Changed
 
+- **Pre-release has ended, and no migration a release shipped changes again**
+  (workplan 0146 T3, ADR-0045): pre-release ended with `v0.2.0-alpha.1`, the
+  first tag `ownpace-live` ran. `scripts/squash-migrations.sh` refuses before
+  it reads anything, naming ADR-0045 and the tag; ADR-0045's operative rule,
+  `pnpm db:generate`'s refusal, the README and `docs/release.md` say both
+  chains only grow; and the runner's downgrade refusal no longer names a squash
+  as a cause. `scripts/a-chain-that-only-grows.unit.test.ts` holds every file
+  either chain shipped in a release from alpha.1 on, byte for byte as the
+  newest such release shipped it. `scripts/release-line.json` names the tag
+  and lists every release; the fold adds each new one.
 - **Trigger.dev is v4.8.3, taken before its three-day floor on the owner's
   waiver** (workplan 0119, issue #1738): *"I waive the wait for v4.8.3, just
   go with it"* (2026-10-31). It skips v4.8.2. The webapp and the supervisor
@@ -18,6 +74,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   `--no-browser`, as the bring-up and `deploy-tasks.sh` now print it: without
   it, CLI 4.8.3 on a machine that can open a browser takes the approval on its
   own `127.0.0.1`, which a browser on another machine cannot reach.
+
+### Added
+
+- **Every pull request proves the upgrade from the release live runs, on both
+  chains, and on Postgres too** (workplan 0146 T4): each upgrade gate starts
+  from its chain's oldest supported release and from the newest release in
+  `scripts/release-line.json`, where a pull request proved rc.1 and alpha.1
+  alone and only Release's preflight proved the release before. The managed
+  chain's proof also runs in the integration suite on Postgres 18, which the
+  managed edition runs, and the integration job checks out with tags for it.
+  `scripts/every-release-is-a-starting-point.unit.test.ts` fails every pull
+  request once a release tag exists that the list leaves out.
 
 ### Fixed
 

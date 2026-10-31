@@ -4,6 +4,74 @@
 
 ## Status — 2026-10-31 (update this block at the end of every session)
 
+**2026-10-31, later: T1, T3 and T4's unit and Postgres legs built**, on branch
+`claude/ownpace-public-readiness-y7orc6-release-record-0146`, from `main` at `008fa74f`, one draft
+pull request, not merged. For alpha.4.
+
+- **One file names the line (T3, T4).** `scripts/release-line.json`: `preReleaseEndedAt`
+  `v0.2.0-alpha.1`, `releases` (rc.1 and the three alphas, in SemVer order) and, per chain, the
+  oldest release an upgrade is still proved from (rc.1 for the ledger chain, alpha.1 for the
+  managed one, the first with a managed chain). `scripts/release-line.mjs` is the one reading of
+  it the tests share. The fold adds the version it folds as the last of `releases`; until
+  Release tags it, that entry is the release being prepared (`docs/release.md` §1).
+- **T4, the unit legs.** Both unit gates, and the managed chain's new Postgres leg, start from
+  their chain's oldest supported release and the newest release, or from `UPGRADE_FROM_REF`
+  alone, which Release's preflight sets as before. Each starting point is a `describe` of its
+  own, its two databases made and ended inside it. Read on the branch: the shared gate from rc.1
+  and from alpha.3, the managed proof from alpha.1 and from alpha.3, 35 of 35 (from alpha.3 both
+  say there is no migration to exercise; the shared chain is 65 files and the managed 59 at
+  alpha.3 and on `main`). Until now a pull request proved rc.1 and alpha.1 alone.
+- **T4, the Postgres leg.** `packages/managed/src/migrate-upgrade.integration.test.ts` runs the
+  managed proof's database half on Postgres: the release's chains by the release's own
+  migrators, then this build's, compared with a fresh install on every catalogue line, a
+  further run, and the release's migrators refusing. The machinery both legs share moved,
+  unchanged, from the unit file into `packages/managed/src/upgrade-from-a-release.ts`, taking the
+  release as a parameter. The integration job now checks out with `fetch-depth: 0`, as the unit
+  job does. Run here against a local Postgres 16 (CI's is 18): 10 of 10; with
+  `ALTER TABLE public.tenant ADD COLUMN …` appended to applied managed 0040, both legs red on
+  `columns`, as expected.
+- **T4's guard.** `scripts/every-release-is-a-starting-point.unit.test.ts`: the list in SemVer
+  order, its end of pre-release and oldest releases from it; under `CI` every `v*` tag listed and
+  every entry a tag but the one being prepared; the three gate files read their points from it;
+  `startingPoints` on made-up lines. 13 of 13. Mutations, each red then restored: alpha.3 left out
+  of the list; the managed gate's own default put back.
+- **T3.** `squash-migrations.sh` refuses, exit 1, naming ADR-0045 and the tag, before it reads
+  `ADMIN_URL`; its header no longer says a refused database must be dropped. ADR-0045's operative
+  rule says pre-release ended with alpha.1 and both chains only grow, with a dated amendment, and
+  `OPERATIVE.md` is regenerated. The runner's downgrade refusal names the two causes that remain
+  (a build older than the database; a shipped file renamed or removed, a defect) and no squash;
+  the shared gate's refusal case asserts that. `pnpm db:generate`'s refusal, `README.md`'s
+  *Status* and `release.md` say it.
+- **T3's choice on comments.** T3 left the build to choose between (a) byte equality with managed
+  0006 and 0008 put back to alpha.1's bytes, and (b) comments allowed. (a) as written cannot hold
+  any more: #1650's notes in 0006 and 0008 shipped in alpha.2 and alpha.3, so alpha.1's bytes
+  would now break theirs. Built instead: every file of either chain that a listed release from
+  alpha.1 on shipped is still in the tree and byte for byte what the NEWEST such release shipped;
+  against an older one it may differ in its comments alone, which the guard prints (0006 and
+  0008, alpha.1 against alpha.3) and does not refuse. That is (a) from alpha.3 on, with no list of
+  exceptions: a note added to a shipped file today is refused like any other edit. The managed
+  upgrade proof keeps its comment-blind comparison, which this is stricter than. **The owner may
+  prefer (b), or alpha.2 as the end of pre-release** (the tag the 2026-10-05 decision made the
+  alpha tag, at which bytes hold with no history to explain); either is a one-line change.
+- **T3's guard.** `scripts/a-chain-that-only-grows.unit.test.ts`, 14 of 14, 124 files compared
+  with alpha.1, alpha.2 and alpha.3. Mutations, each red then restored: the squash script as on
+  `main` (3); ADR-0045 as on `main` (2); a note added to managed 0059 (1); shared 0065 deleted
+  (1); `migrate.ts` as on `main` (2, and the shared gate's refusal case). **Found on the way:**
+  the first run of the squash-script mutation ran `main`'s script in place, under stubs that
+  succeeded, and it squashed the working tree's shared chain (64 files deleted, the baseline
+  rewritten from an empty dump; restored from git). The guard now runs a copy of the script in a
+  temp tree laid out like the repository, with stubs that fail, and checks the copied chain is
+  untouched.
+- **T1.** The *since rc.1* part opens `CHANGELOG.md`'s `[Unreleased]`, so it becomes alpha.4's
+  section at the fold: what the Alpha is, the sources proven or experimental as
+  `SOURCE_PROOFS` reads on 2026-10-31 (the fold reads it again), the targets, signing in, silence,
+  billing, the operator's Log page and problem report, and what is not in it. The pricing line
+  and the *209 commits* introduction it names were corrected in alpha.1's section already. Its
+  content is the owner's to read, and no guard checks it.
+- **Not in this:** the container drill from the alpha tag, at the next release (`release.md`);
+  `two-chains.unit.test.ts`, which still reads `UPGRADE_FROM_REF`; wiring `release-line.json`
+  into Release's preflight.
+
 **2026-10-31: T16's two builds move to Trigger.dev v4.8.3** (0119's Status entry of that day,
 issue #1738), before its three-day floor on the owner's waiver. Both Dockerfiles were read again
 at v4.8.3: the entrypoints, `docker/Dockerfile`, the Containerfile, pnpm 10.33.2, @depot/cli
@@ -2551,10 +2619,10 @@ best given with T0.
 | Task | Status | Notes |
 |---|---|---|
 | T0 The alpha's version name, and whether any rename comes first | ✅ **Answered 2026-09-28**: *"The version name (0146 T0): ok, what do I do?"*, read as accepting the whole recommendation: `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy; no rename; no last squash. The owner named no item, and has not objected since (Status, 2026-09-28) — *was:* ⏳ **Owner** | §3. **Alpha minimum.** Recommended: `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy; no renames, as ADR-0040 already decided. Two other names each have a trap (§1). |
-| T1 A changelog section a reader can use | 📋 **Proposed** (D1, D6) | §3. After the first invitation, unless it is ready before the tag. Grouped by what a tester notices, with the experimental sources marked, and the stale lines corrected. |
+| T1 A changelog section a reader can use | 🔨 **Built** on branch `claude/ownpace-public-readiness-y7orc6-release-record-0146`, not merged (2026-10-31): the *since rc.1* part at the top of `[Unreleased]`, which the fold makes alpha.4's section, its verdicts read from `SOURCE_PROOFS` on 2026-10-31 (Status, 2026-10-31, later) — *was:* 📋 **Proposed** (D1, D6) | §3. After the first invitation, unless it is ready before the tag. Grouped by what a tester notices, with the experimental sources marked, and the stale lines corrected. |
 | T2 The version bumped, the tag cut, and the build named where it is needed | ✅ Steps 4 to 6's **Release workflow done** in #1682, merged 2026-10-23 (`54e4c3d2`), and proven on `main` the same day by Release runs 1 to 6 (Status, 2026-10-23); `v0.2.0-alpha.2`'s tag ✅ cut 2026-10-27 on the fold, `f62bcbe2` (#1706); `v0.2.0-alpha.3`'s ✅ cut 2026-10-30 on `e1b21aac` by Release run 41066208430 (#16), the counted nights waived by the owner for that version alone (#1741), and published with `bom.json` and the Windows zip (Status, 2026-10-31). The preflight reads the fold, CI and the scan on C, the nights and both chains' upgrade gates (the managed chain's is T4's, #1681); the tag and the publishing are the workflow's after the owner's approval (Status, 2026-10-23); Step 1 ✅ **done** in #1305, merged 2026-09-28 (`0c1a8d8c`): the root version `0.2.0-alpha.1`, `CHANGELOG.md`'s `[0.2.0-alpha.1] - 2026-09-29` with T2's floor, the issue template's Build example, `release.md`'s count of six, and (reviews, 2026-09-28) `openapi.yaml`'s `info.version` held to the root version by guard block (d) and named in `release.md`, the Build field sending managed and Docker testers to the sidebar and Windows testers to the log line, and the stamp held at the bottom of the sidebar in both editions. Steps 2 and 3 ✅ **done** in #1274, merged 2026-09-28 (`1353f062`): the build line in the problem report, `scripts/release-names-agree.mjs` in the three publishing workflows, and both guards. Steps 4 to 6 📋 the owner's: the drill from rc.1, the commit by the two-green-scheduled-nights rule (0141 T14), and the tag and its push; `v0.2.0-alpha.1` is tagged, 2026-10-06 (on `90a23e9b`), and `v0.2.0-alpha.2` is the version since #1558 (merged 2026-10-11) but not yet tagged (both read from the remote 2026-10-16); 📋 **Decided 2026-10-05**, *"Two tags"*: `v0.2.0-alpha.1` once the pull requests in flight merge, to stand live up and rehearse, then `v0.2.0-alpha.2` with the final texts, its own freeze, two nights and deploy, before the first invitation (Status, 2026-10-05) — *was:* steps 4 to 6 🔨 through the Release workflow on branch `claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged (2026-10-23); step 1 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-named-v0-2-0-alpha-1`, not merged (2026-09-28); steps 1 and 4 to 6 📋 waiting for T0 (the name) and the owner (2026-09-28); 🔨 steps 2 and 3 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-that-names-itself`, not merged (2026-09-28); 📋 **Proposed** (D1, D5) | §3. **Alpha minimum.** `docs/release.md`'s procedure, a check that the tag, `package.json` and the changelog agree before anything publishes, and a build line in every problem report. |
-| T3 Pre-release ends at the alpha tag, and the repository holds to it | 📋 **Proposed** (D3) | §3. After the tag exists. The squash script refuses; no migration a release shipped may change; ADR-0045, the runner's message and the README say so. |
-| T4 Upgrades rehearsed from rc.1 and from the alpha tag, on both chains | The managed chain's upgrade proof from the alpha tag ✅ **done** in #1681, merged 2026-10-23 (`b357add8`): `packages/managed/src/migrate-upgrade.unit.test.ts`, from `UPGRADE_FROM_REF` or `v0.2.0-alpha.1`, both chains, with the shared gate's allow-list held to releases before the split (Status, 2026-10-23); the rest 📋 **Proposed** (D3) — *was:* 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-managed-upgrade-test`, not merged (2026-10-23) | §3. The container drill from rc.1 runs in T2. The rest follows the tag: both unit gates start from both tags, the managed chain included, on Postgres as well as PGlite. |
+| T3 Pre-release ends at the alpha tag, and the repository holds to it | 🔨 **Built** on branch `claude/ownpace-public-readiness-y7orc6-release-record-0146`, not merged (2026-10-31): `release-line.json` (`v0.2.0-alpha.1`), the script's refusal, ADR-0045 amended, the runner's message, the README, and `a-chain-that-only-grows`, with byte equality against the newest release that shipped each file (Status, 2026-10-31, later) — *was:* 📋 **Proposed** (D3) | §3. After the tag exists. The squash script refuses; no migration a release shipped may change; ADR-0045, the runner's message and the README say so. |
+| T4 Upgrades rehearsed from rc.1 and from the alpha tag, on both chains | The managed chain's upgrade proof from the alpha tag ✅ **done** in #1681, merged 2026-10-23 (`b357add8`): `packages/managed/src/migrate-upgrade.unit.test.ts`, from `UPGRADE_FROM_REF` or `v0.2.0-alpha.1`, both chains, with the shared gate's allow-list held to releases before the split (Status, 2026-10-23); the unit legs from both starting points, the Postgres leg and `every-release-is-a-starting-point` 🔨 **built** on branch `claude/ownpace-public-readiness-y7orc6-release-record-0146`, not merged (2026-10-31); the container drill from the alpha tag stays the next release's (`release.md`) — *was:* the rest 📋 **Proposed** (D3); 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-managed-upgrade-test`, not merged (2026-10-23) | §3. The container drill from rc.1 runs in T2. The rest follows the tag: both unit gates start from both tags, the managed chain included, on Postgres as well as PGlite. |
 | T5 `ownpace-live` runs only a release tag | (a) ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), in 0132 T6's `deploy-live.sh`, first run on live 2026-10-27/28 for `v0.2.0-alpha.2` (0132 Status, 2026-10-29), and on 2026-10-30 for `v0.2.0-alpha.3`, which live runs from its tag since, deployed in the two runs T13 needs, the second saying *the deploy took* at 23:44:35 UTC (0132 Status, 2026-10-31): the release rule, `/api/version`'s version, one-way or reversible, and the guard's four cases. `--external-id` is deferred (open question 6) — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); 📋 **Proposed** (D2, D3, D4) | §3. **Alpha minimum.** 0132 T6's procedure and script, with the tag always a release whose name, version and commit agree. The deploy says before the hold lifts whether it can be undone. |
 | T6 The tasks run the Node the images run | ✅ **done** in #1231, merged 2026-09-27: (a), `runtime: 'node-24'` and Guard 1. Guard 2, the bundle-load check, not built (after the first invitation) — *was:* 📋 Proposed | §3. **Alpha minimum:** `runtime: 'node-24'` in `trigger.config.ts` (supported by the pinned CLI, read from its package) and the version guard extended. **After the first invitation:** a pull-request check that the bundle loads. |
 | T7 The object store: replace the frozen MinIO, or accept it for the alpha in writing | ✅ **Merged** as #1692 on 2026-10-25 (`0029db4a`), after E2E (managed) #281 was green; its digest moved to `268d68a2…` (the fork's RELEASE.2026-10-23T20-06-51Z) in #1726, merged 2026-10-28 (`0f3fda25`) after E2E (managed) run 40706723499 was green, in alpha.3 (0119 Status); *was:* 🔨 being built on branch `claude/ownpace-public-readiness-y7orc6-object-store-swap` (2026-10-24): Chainguard's MinIO by index digest on a new volume, `minio-init` making `packets`, and the guard; **answered 2026-10-23**: *"T7 no, fix already within the alpha"*, so the frozen image is not accepted, and is replaced within the Alpha. Done since: live runs it from alpha.2 (deployed 2026-10-27/28, on a new volume), and the owner removed the Bitnami-era volume on both stacks, `ownpace-managed_minio_data` and `ownpace-live_minio_data`, with the old images, on 2026-10-28 at about 22:30 UTC (§3 step 4). Because of that, a rollback of live to alpha.1 can no longer bring its packet store back (the operator runbook, *Rolling back from it, by day 6*) — *was:* Remains: live from the tag that carries it (alpha.2) after the drain, starting empty, and the old volume removed by the owner on each stack (§3) — *was:* ⏳ **Owner** | §3. The owner declined the recommendation to accept it for the alpha and replace it at its end: Chainguard's maintained MinIO build replaces it now, with versitygw still the fallback (0119 §3, item 5, decided 2026-10-23 and built 2026-10-24). |
