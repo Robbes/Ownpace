@@ -6,18 +6,18 @@
 
 **2026-10-31, recorded: live runs alpha.3's pins.** The owner deployed `v0.2.0-alpha.3` (tagged
 2026-10-30 on `e1b21aac`) to live on 2026-10-30, with `TRIGGER_IMAGE_TAG=v4.8.1` set in live's
-`.env` first (0132's Status, 2026-10-31, has the deploy). Before it, the four images the stack
-builds on the machine were already there, the OTA stack's E2E having built them on the shared
-daemon, and npm, Docker Hub, ghcr.io, gcr.io and deb.debian.org were reachable from it. After
-it, read on live: `trigger-docker-proxy` on
-`localhost/docker-socket-proxy:3.4.7-alpine-86292f1f80d6` (#1740, the entry below), the
-supervisor at v4.8.1 (#1697, #1722), Redis 7.4.12 (#1737) and MinIO `268d68a2…` (#1726); no
-container unhealthy, starting or restarting; the task deployment's row
+`.env` first (0132's Status, 2026-10-31, has the deploy). Before it, the four `localhost/`
+images (Postgres, the Trigger.dev webapp and supervisor, the socket proxy) were already there,
+the OTA stack's E2E having built them on the shared daemon, and npm, Docker Hub, ghcr.io,
+gcr.io and deb.debian.org were reachable from it. After it, read on live:
+`trigger-docker-proxy` on `localhost/docker-socket-proxy:3.4.7-alpine-86292f1f80d6` (#1740,
+the entry below), the supervisor at v4.8.1 (#1697, #1722), Redis 7.4.12 (#1737) and MinIO
+`268d68a2…` (#1726); no container unhealthy, starting or restarting; the task deployment's row
 `current|20261030.2|DEPLOYED|4.8.1|4.8.1|24.22.1|2026-10-30 23:44`, and the tick
 `COMPLETED_SUCCESSFULLY` on 4.8.1. The deploy's comparison read the Trigger.dev pin as *v4.7.6 ->
-v4.8.1*, and its dry run called the deploy one-way. Neither copy before an update is kept on live, so its way back from these
-pins is forward only (0146 T16). MinIO's newer `latest` stays a pull request for alpha.4 (the
-entry *what alpha.3 moves, folded*, below).
+v4.8.1*, and its dry run called the deploy one-way. Neither copy before an update is kept on
+live, so its way back from these pins is forward only (0146 T16). MinIO's newer `latest` stays
+a pull request for alpha.4 (the entry *what alpha.3 moves, folded*, below).
 
 **2026-10-30: the Docker socket proxy is built here, on HAProxy 3.4.7 (alpha.3, #1740).** The
 image scan of 2026-10-29 (Security Scan run 40843566092) read `tecnativa/docker-socket-proxy:v0.5.0`
