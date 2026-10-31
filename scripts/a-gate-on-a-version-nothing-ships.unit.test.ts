@@ -102,7 +102,7 @@
  * every tenant's mailbox and calendar credentials during a pass and are HTTPS
  * clients, and nothing moved their Node: Dependabot ignores `@trigger.dev/*`,
  * and upstream rebuilt that image only when it chose to (issue #1669, the pin
- * watch's record of it). CLI 4.7.7 and 4.8.1 name a rebuild on 24.22.1
+ * watch's record of it). CLI 4.7.7, 4.8.1 and 4.8.3 name a rebuild on 24.22.1
  * (`…@sha256:3cdc8242…`), which is when upstream chose to.
  *
  * From #1689 the deploy config copied the Node binary out of the very image
@@ -130,7 +130,7 @@
  * and manifest, as the CLI does, and holds what it sets: the base to the image
  * this file reads from the Dockerfile itself, the build stage to the CLI's
  * image for the same major, the packages to the two the runtime uses, the
- * trust edits to the CLI 4.8.1 list, the vendored intermediates to the CLI's
+ * trust edits to the CLI 4.8.3 list, the vendored intermediates to the CLI's
  * bytes, and the removal to a stage with no C++ compiler. It checks that
  * `trigger dev`, which builds no image, gets nothing, and that no instance
  * setting (`DEPLOY_BASE_IMAGES`) can override the config's base. It fails when
@@ -465,7 +465,7 @@ function only(instructions: string[], what: RegExp): string {
 }
 
 /**
- * What trigger.dev 4.8.1 does to its own images' trust store
+ * What trigger.dev 4.8.3 does to its own images' trust store, as 4.8.1 did
  * (`dist/esm/deploy/buildImage.js`, `distrustCompromisedRoots`), which it
  * leaves out of a stage on a base of one's own (`trustStoreHardening`).
  */
@@ -473,9 +473,9 @@ const CLI_DISTRUSTED_ROOTS = ['emSign_ECC_Root_CA_-_G3', 'emSign_Root_CA_-_C1', 
 const CLI_REJECT_DIR = '/usr/local/share/ca-certificates/emsign-block';
 /**
  * SHA-256 of the eight `EMSIGN_COMPROMISE_REJECTED_INTERMEDIATES` of
- * trigger.dev 4.8.1 (`dist/esm/deploy/emsignRejectedIntermediates.js`), each
- * as the CLI writes it (its `pemLines`, a newline after each), in file-name
- * order: the bytes the vendored files must be.
+ * trigger.dev 4.8.3 (`dist/esm/deploy/emsignRejectedIntermediates.js`, the same
+ * file as 4.8.1's), each as the CLI writes it (its `pemLines`, a newline after
+ * each), in file-name order: the bytes the vendored files must be.
  */
 const CLI_REJECTED_SHA256 = 'f4b2b13e9429b1beeda72e78bd7c48a13c0556c2c33ab77236eac90d187832ac';
 const REJECTED_DIR = 'apps/worker/task-image/emsign-block';
@@ -487,7 +487,7 @@ const REJECTED_DIR = 'apps/worker/task-image/emsign-block';
  * in a later CLI reaches the tasks only by hand. A Trigger.dev move fails
  * here until they have been read again.
  */
-const CLI_READ_AT = '4.8.1';
+const CLI_READ_AT = '4.8.3';
 
 /** The DER certificate at the head of a `TRUSTED CERTIFICATE` PEM, without OpenSSL's trust settings after it. */
 function certificateOf(pem: string): X509Certificate {
@@ -556,7 +556,7 @@ describe("the tasks build on the API image's own base", () => {
     const files = readdirSync(join(REPO_ROOT, REJECTED_DIR)).sort();
     expect(files).toHaveLength(8);
     const pems = files.map((f) => read(`${REJECTED_DIR}/${f}`));
-    expect(createHash('sha256').update(pems.join('')).digest('hex'), `${REJECTED_DIR} is not trigger.dev 4.8.1's list`).toBe(
+    expect(createHash('sha256').update(pems.join('')).digest('hex'), `${REJECTED_DIR} is not trigger.dev 4.8.3's list`).toBe(
       CLI_REJECTED_SHA256,
     );
     for (const [i, pem] of pems.entries()) {

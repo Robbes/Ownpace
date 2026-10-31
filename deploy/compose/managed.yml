@@ -343,7 +343,7 @@ services:
     # why). `user: root` decides which copy of pnpm the entrypoint runs, and so
     # which one the Dockerfile may delete:
     # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
-    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.1}-cdedb52d55f0
+    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-0df1cbbe547c
     build:
       context: ./trigger.dev
       args:
@@ -659,7 +659,7 @@ services:
     # upstream's image without root's copy of pnpm, without node-gyp's tree
     # (tar was in it) in node's, and without npm. No `user:`, so it runs as the
     # image's node, whose copy its CMD runs and the Dockerfile keeps.
-    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.1}-2eea3b22dd21
+    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.3}-d56a201c0e1f
     build:
       context: ./supervisor
       args:
