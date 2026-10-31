@@ -103,6 +103,11 @@ name: ownpace-managed
 # entry, patches and digests only). Its name ends in the hash of that file's instructions, as the
 # databases' does, and a pull request that changes them fails a-tag-upstream-never-rebuilds until
 # the name moves with it. `up` builds it where the name is missing.
+# trigger-tls runs a local build too since 2026-10-31 (workplan 0119): Caddy's official image at
+# its pinned digest with curl removed, whose pin is the FROM of deploy/compose/caddy/Dockerfile by
+# tag and digest, which Dependabot reads (its own entry, never a major). Its name ends in the hash
+# of that file's instructions, and a pull request that changes them fails
+# a-package-the-front-never-runs until the name moves with it. `up` builds it where it is missing.
 # scripts/a-float-nothing-ever-pulled.unit.test.ts refuses a new float; busybox's one-shot
 # chown is the one it names, with its reason.
 #
@@ -137,7 +142,7 @@ services:
     # registry serves this name, so `docker compose pull` passes it by rather
     # than failing on it, and `up` builds it when it is missing without first
     # asking whatever answers on this host's port 443 for it.
-    image: localhost/postgres:18.6-alpine-6b2d97623fb5
+    image: localhost/postgres:18.6-alpine-1af6bb314e8d
     build: ./postgres
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-db
@@ -253,7 +258,7 @@ services:
   # Trigger.dev Backend
   trigger-db:
     # The same build as postgres above.
-    image: localhost/postgres:18.6-alpine-6b2d97623fb5
+    image: localhost/postgres:18.6-alpine-1af6bb314e8d
     build: ./postgres
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-db
@@ -880,8 +885,18 @@ services:
   # site address (else Caddy has no certificate to present) and default_sni
   # (IP-connecting browsers send no SNI). Set TRIGGER_TLS_HOST in .env to the
   # address browsers actually use (e.g. the machine's VPN IP).
+  #
+  # Built here since 2026-10-31 (workplan 0119): Caddy's official image at the
+  # digest it ran before, with curl removed and the libraries only curl pulled
+  # in, which carried the image's one critical finding and two of its highs.
+  # Nothing here runs curl in it: no healthcheck, no exec, and the smoke asks
+  # the front from the host. deploy/compose/caddy/Dockerfile says what it
+  # removes, why the name carries the hash of its instructions, and how it
+  # moves. `never`, as for the databases: no registry serves this name.
   trigger-tls:
-    image: caddy:2.11.7-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
+    image: localhost/caddy:2.11.7-alpine-ed5425a7da36
+    build: ./caddy
+    pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls
     restart: unless-stopped
     logging: *logging
