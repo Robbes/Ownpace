@@ -658,7 +658,8 @@ for live's new volumes with a list of its own, the same five.
   a dashboard opened from a laptop `TRIGGER_TLS_BIND`: see *Which address a port
   answers on*. Every phase that runs Compose refuses a bind that is a name,
   `0.0.0.0` or a comment, naming the key.
-- `OWNPACE_REACHABLE_HOSTS` — empty, and on live it stays empty. The API and
+- `OWNPACE_REACHABLE_HOSTS` — empty, and on live it stays empty: `stand-up-live.sh`
+  and `deploy-live.sh` refuse live's `.env` when it names a host. The API and
   every task run refuse to connect to a host a tester typed when it resolves
   inside this service's own network, except for the exact names this lists
   (workplan 0136 T1, T2). An entry admits that name for every organisation on
@@ -2442,7 +2443,9 @@ Invoices go through two services, each with its keys in `.env`:
 **None of this is needed for the alpha**, which invoices nobody. With none of
 these keys set, nothing is asked of either service and everything else runs.
 Live sets them before the alpha ends ([ending-the-alpha.md](./ending-the-alpha.md),
-*Before*, step 2). The OTA stack uses a Moneybird **sandbox** administration
+*Before*, step 2), all but Mollie's key, which goes in with the switch that
+ends it (*The switch*, step 4): while live's stage is `alpha`, `deploy-live.sh`
+refuses its `.env` with `MOLLIE_API_KEY` set (workplan 0131 §3 T3). The OTA stack uses a Moneybird **sandbox** administration
 and Mollie's **test mode**, and is where the proofs in step 6 run.
 
 Run each command below from the stack's own checkout: `./deploy/compose/.env`
@@ -4243,10 +4246,12 @@ it says which and logs nothing; fix it and run it again with `--resume`.
 
 **Not part of the stand-up: the books and payments.** Live runs the alpha,
 which invoices nobody, so the script sets no `MONEYBIRD_*` key and no
-`MOLLIE_API_KEY`, and live runs without them. They come before the alpha ends:
-*8i. The books and payments* above, with live's own Moneybird administration
-and Mollie's live key, and [ending-the-alpha.md](./ending-the-alpha.md) for
-when.
+`MOLLIE_API_KEY`, and live runs without them. They come before the alpha ends,
+all but Mollie's live key: *8i. The books and payments* above, with live's own
+Moneybird administration, and [ending-the-alpha.md](./ending-the-alpha.md) for
+when. Mollie's live key goes in with the switch that ends the alpha (*The
+switch*, step 4), since `deploy-live.sh` refuses live's `.env` with
+`MOLLIE_API_KEY` set while its stage is `alpha`.
 
 ## Live's daily duties
 
@@ -5228,7 +5233,13 @@ marker (`STACK_KIND=production`, `stack-kind.sh`) or without `WEB_URL`; a
 `ALERT_ENABLED` is not exactly `true` (workplan 0142 T0: testers are on live,
 so nobody deploys it without alerts), or that sets a sign-in provider's `IDP_*`
 key (live's sign-in page offers email and password only: privacy §4.4, §7 and
-§8, ops-social-signin (a)), all named at once, by key, before the
+§8, ops-social-signin (a)), or whose `OWNPACE_REACHABLE_HOSTS` names a host
+(live's list stays empty, workplan 0136 T2, whatever the stage), or that sets
+`MOLLIE_API_KEY` while its `OWNPACE_STAGE` is `alpha` (nothing is charged during
+the Alpha, and live keeps the key empty until it ends: workplan 0131 §3 T3; it
+goes in with the switch, [ending-the-alpha.md](./ending-the-alpha.md) step 4),
+those three read as Compose hands them to the app (`KEY=""` is empty,
+`OWNPACE_STAGE="Alpha"` is the Alpha), all named at once, by key, before the
 fetch and any docker call, with any line that sets a key in a form the script
 does not read and the bring-up does (indented, a space before `=`, or `:`), by
 line and key, as the stand-up refuses it;
