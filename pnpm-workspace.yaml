@@ -236,7 +236,14 @@ overrides:
   # PRODUCTION by the scanner's reading: axios, a runtime dependency of apps/web, holds it. One
   # copy in the tree (1.16.0). 1.16.1 was published 2026-10-01, well before the 3-day cooldown
   # below, so no minimumReleaseAgeExclude entry is needed.
-  "follow-redirects@<1.16.1": ^1.16.1
+  #
+  # 2026-10-31. Raised to 1.16.2 for a third HIGH advisory, the gate red on main and on every
+  # pull request again (the tree, not the diff):
+  #   GHSA-mrwp-f3q8-3g9p  cross-realm sensitiveHeaders arrays are discarded, so custom
+  #                        credential headers can follow a redirect (>=1.16.0 <=1.16.1)
+  # 1.16.2 changes one check, `instanceof Array` to `Array.isArray`. Published 2026-10-25 21:32
+  # UTC, past the cooldown below since 2026-10-28, so again no minimumReleaseAgeExclude entry.
+  "follow-redirects@<1.16.2": ^1.16.2
   #
   # libxmljs2 is NOT INSTALLED, on purpose. It is optional for the CycloneDX SBOM tool (an
   # optional dependency of cyclonedx-npm and an optional peer of cyclonedx-library), which uses it
