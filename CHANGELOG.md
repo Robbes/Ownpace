@@ -18,6 +18,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   `--no-browser`, as the bring-up and `deploy-tasks.sh` now print it: without
   it, CLI 4.8.3 on a machine that can open a browser takes the approval on its
   own `127.0.0.1`, which a browser on another machine cannot reach.
+- **The identity provider's setup refuses a sign-in provider's key on live
+  too** (workplan 0140 T10): `setup-zitadel.sh`, run by hand or by the
+  bring-up run by hand, stops on live's settings before anything moves while
+  a Google, Microsoft, GitHub or Apple sign-in key holds a value, as the
+  stand-up and the deploy already do, so live's sign-in page stays email and
+  password only. The provisioning token's daily clock and the organisation
+  count still run.
 
 ### Fixed
 
