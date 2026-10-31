@@ -4,6 +4,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Fixed
+
+- **follow-redirects 1.16.2 closes a third high advisory** (GHSA-mrwp-f3q8-3g9p,
+  workplan 0119): a `sensitiveHeaders` array made in another realm was
+  discarded, so custom credential headers could follow a redirect to another
+  host. The override's floor moves from 1.16.1 to 1.16.2 (published
+  2026-10-25, past the three-day cooldown), whose one change is that check. Its
+  one copy sits under the web app's axios, whose browser build leaves it out
+  of the bundle; the advisory gate had refused `main` and every pull request
+  on it since 2026-10-31.
+
 ## [0.2.0-alpha.3] - 2026-10-30
 
 A tester's grant mail now opens registration with the address it was sent to
