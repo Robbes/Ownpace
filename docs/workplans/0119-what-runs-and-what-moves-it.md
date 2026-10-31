@@ -4,6 +4,21 @@
 
 ## Status — 2026-10-31 (update this block at the end of every session)
 
+**2026-10-31, recorded: live runs alpha.3's pins.** The owner deployed `v0.2.0-alpha.3` (tagged
+2026-10-30 on `e1b21aac`) to live on 2026-10-30, with `TRIGGER_IMAGE_TAG=v4.8.1` set in live's
+`.env` first (0132's Status, 2026-10-31, has the deploy). Before it, the four `localhost/`
+images (Postgres, the Trigger.dev webapp and supervisor, the socket proxy) were already there,
+the OTA stack's E2E having built them on the shared daemon, and npm, Docker Hub, ghcr.io,
+gcr.io and deb.debian.org were reachable from it. After it, read on live:
+`trigger-docker-proxy` on `localhost/docker-socket-proxy:3.4.7-alpine-86292f1f80d6` (#1740,
+the entry below), the supervisor at v4.8.1 (#1697, #1722), Redis 7.4.12 (#1737) and MinIO
+`268d68a2…` (#1726); no container unhealthy, starting or restarting; the task deployment's row
+`current|20261030.2|DEPLOYED|4.8.1|4.8.1|24.22.1|2026-10-30 23:44`, and the tick
+`COMPLETED_SUCCESSFULLY` on 4.8.1. The deploy's comparison read the Trigger.dev pin as *v4.7.6 ->
+v4.8.1*, and its dry run called the deploy one-way. Neither copy before an update is kept on
+live, so its way back from these pins is forward only (0146 T16). MinIO's newer `latest` stays
+a pull request for alpha.4 (the entry *what alpha.3 moves, folded*, below).
+
 **2026-10-31: follow-redirects 1.16.2, which clears GHSA-mrwp-f3q8-3g9p, a high the advisory gate
 fails on (alpha.4).** Security Scan failed at its advisory gate on `main` at `35e1234b` (run
 41151543161, 2026-10-31 00:41 UTC), where the failure also skipped the Trivy step, so nothing was

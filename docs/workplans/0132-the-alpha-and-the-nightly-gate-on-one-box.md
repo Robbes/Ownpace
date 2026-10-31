@@ -2,7 +2,64 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-10-29 (update this block at the end of every session)
+## Status — 2026-10-31 (update this block at the end of every session)
+
+**2026-10-30/31: live runs `v0.2.0-alpha.3`, and neither copy before an update is kept (T6,
+T9).** The owner deployed it on 2026-10-30, before any tester (the owner: *"No one is in the
+alpha yet."*), pasting checked blocks. Times are UTC. No values.
+
+- **The deploy log (T6 step 9).** 2026-10-30, `v0.2.0-alpha.3`: took at 23:44:35 UTC; one-way.
+  The tag is tag object `b0d01c09…` on `e1b21aac` (#1740), cut by Release run 41066208430 (#16),
+  which its message names. The owner waived its counted nights, for this version alone (0141
+  T14; 0146's decision 9, amended for `v0.2.0-alpha.3` only by the owner's answer of 2026-10-30,
+  in #1741, merged as `7e2fbbbe`). The acceptance is the tag message's own line: *Nights waived
+  by Robbes, in their words: "I approve alpha.3 tag now, we skip the waiting days. No one is in
+  the alpha yet."* That citation belongs here, in the repository's record, and not in live's
+  `deploys.log`, which scripts read.
+- **Read-only checks first.** Live's checkout at `v0.2.0-alpha.2`, clean; both box timers
+  (`ownpace-box-duties`, `ownpace-box-checks`) active; in live's `.env`,
+  `TRIGGER_IMAGE_TAG=v4.7.6`, `WWW_LIVE=true` and no `COPY_DELETE_WHEN_PROVEN` line;
+  `deploys.log`'s last line alpha.2's took of 2026-10-28T06:21:26Z; the four `localhost/` images
+  (Postgres, the Trigger.dev webapp and supervisor, the socket proxy) already there (the OTA
+  stack's E2E had built them on the shared daemon); npm, Docker Hub, ghcr.io, gcr.io and
+  deb.debian.org reachable; both databases' data files owned by `postgres`.
+- **The hold (T6 step 2)** went on at about 23:12 UTC. The owner's first block read one hold,
+  302 s old, and 0 passes in flight (T6 step 3).
+- **The copy taken before alpha.2, removed by hand.** It was not proven: no migration had run on
+  live, so no pass could prove alpha.2's update (the entry of 2026-10-27 to 2026-10-29). Its note
+  read `taken=2026-10-27T20:56Z`, `before=v0.2.0-alpha.2`, `from=v0.2.0-alpha.1`. Had it stayed,
+  `take` would have kept it in place of a new one (the same entry). The owner chose to remove it
+  by hand (*"you deploy alpha 3 and remove alpha 2"*), so that the alpha.3 deploy would take a
+  fresh copy of alpha.2 as its way back: 7 files, the rollback rehearsal's
+  `since-the-copy-<stamp>.sql` among them; the directory kept, empty, mode 700. This replaces
+  the entry below's wait for that copy to expire (about 2026-11-02 19:56 UTC), and T9's *For the
+  owner* step 1 with it.
+- **The two runs (T6 steps 3 to 7; 0146 T13).** `TRIGGER_IMAGE_TAG=v4.8.1` was set first. The
+  dry run exited 0: one-way, its reason *cannot be compared … on the Trigger.dev pin*, a take
+  that would include `triggerdb`. Run 1, alpha.2's `deploy-live.sh`: the copy taken at
+  2026-10-30T23:30:32Z, `before=v0.2.0-alpha.3`, `from=v0.2.0-alpha.2` (`f62bcbe2`), 6 files,
+  `triggerdb` among them; did-not-take at 23:34:53Z with the `NODE_ENV` line alone under it, as
+  expected; the site and the exposure check passed. `apps/worker/package.json` was unchanged and
+  the tree clean. Run 2, alpha.3's own script: *the deploy took* at 23:44:35Z, exit 0, its
+  comparison reading *v4.7.6 -> v4.8.1*. It says that only after `/api/version` and
+  `/version.json` both name the tag's version and commit (`deploy-live.sh`, step 7).
+  `COPY_DELETE_WHEN_PROVEN=false` was set right after, as the bring-up guide's *The deploy from
+  alpha.2 to alpha.3 runs twice* says.
+- **The checks after it.** `www-live` ok; no container unhealthy, starting or restarting;
+  `trigger-docker-proxy` on `localhost/docker-socket-proxy:3.4.7-alpine-86292f1f80d6`, the
+  supervisor at v4.8.1, Redis 7.4.12, MinIO `268d68a2…`; the task deployment's row
+  `current|20261030.2|DEPLOYED|4.8.1|4.8.1|24.22.1|2026-10-30 23:44`; the tick
+  `COMPLETED_SUCCESSFULLY` on 4.8.1; the copy's 6 files.
+- **The lift (T6 step 8)** at about 23:57 UTC. The owner's check after it, between about 00:10
+  and 00:20 UTC on 2026-10-31, read `yes|0|-1|0`, and the box checks' timer was active.
+- **Alpha.2's copy, removed by hand too.** The owner: *"After successfully done that, we remove
+  alpha 2"*. The copy taken at 2026-10-30T23:30:32Z went by hand, 6 files, between about 00:00
+  and 00:10 UTC on 2026-10-31; `COPY_DELETE_WHEN_PROVEN` is back to `true`, and the copy
+  directory is empty. No migration has run on live, so `live-pass-check.sh` and the *Update
+  proven* mail (T9's *For the owner*, steps 5 and 6) do not apply, and nothing has proven the
+  update. **The way back from alpha.3 is forward only:** a fix, a new tag and a deploy (0146
+  T5, *Rollback, stated plainly*). The bring-up guide asked to keep this copy until the task
+  runner had run real work for a few days (0146 T16); the owner chose otherwise.
 
 **2026-10-27 to 2026-10-29: live runs `v0.2.0-alpha.2` with the site, `www.ownpace.eu` is
 routed to it, and the outside probe passes (T0, T1e, T3, T6, T9).** The owner's steps (the
@@ -170,7 +227,8 @@ owner waiting for a pass, and its copy goes without the owner's step.
      do not delete it, and `take` refuses a proven copy. *(2026-10-29: not for alpha.2. No
      migration has run on live, so its update cannot be proven. Its copy expires after day 6
      instead, about 2026-11-02 19:56 UTC, and the alpha.3 deploy waits for that; see the entry
-     of 2026-10-27 to 2026-10-29 above.)*
+     of 2026-10-27 to 2026-10-29 above.)* *(2026-10-31: replaced. The owner removed that copy by
+     hand on 2026-10-30, before the alpha.3 deploy; see the entry of 2026-10-30/31 above.)*
   2. `systemctl --user is-active ownpace-box-checks.timer` prints `active`; if not, the bring-up
      guide's *Installing them*.
   3. Name one of your own migrations once, a small one in an organisation where you are an owner
@@ -2423,10 +2481,10 @@ conflicted: both new entries kept. Nothing has run on the machine, and live does
 | T4 A stack that does not say it is production does not start | ✅ **done** in #1472, merged 2026-10-04 (`fb5a1336`); 📋 **Decided 2026-10-04** by the owner: every stack names its mode, the OTA stack runs *"Development, said explicitly"*, and a live `.env` without `ALERT_ENABLED=true` is refused (*"Refuse to deploy"*, 0142 T0); rejected: *"Production on both"* (the first proposal), *"Warn only"*, *"Leave as is"* — *was:* 🔨 **Built** on branch `claude/ownpace-public-readiness-y7orc6-a-stack-that-names-its-mode`, not merged (2026-10-04); 📋 **Proposed** (production on both) | §3. `managed.yml` takes `${NODE_ENV:?…}`, no default. The example keeps `production`. The gate writes `development` into the OTA stack's `.env` when it gives no value, before its backfill. `stand-up-live.sh` and `deploy-live.sh` refuse a live `.env` whose `NODE_ENV` is not `production` or whose `ALERT_ENABLED` is not `true`, and a line either does not read; `deploy-live.sh` also asks the api container. |
 | T4b An issuer without an audience does not start (added 2026-10-04; no workplan owned it) | ✅ **done** in #1472, merged 2026-10-04 (`fb5a1336`), with T4; stated in the plan, no owner decision needed — *was:* 🔨 **Built** on branch `claude/ownpace-public-readiness-y7orc6-a-stack-that-names-its-mode`, not merged (2026-10-04) | §3. The API refuses to start when `JWT_ISSUER` is set and `JWT_AUDIENCE` is empty, on every stack and whatever `NODE_ENV` says, and its verifier never passes an empty audience. Both stacks get `JWT_AUDIENCE` from `setup-zitadel.sh`, so nothing changes there. |
 | T5 No demo in the alpha, and the values that left the machine replaced | ✅ **Closed for live 2026-09-24** (D7), and the refusal of `--with-demo` on live ✅ **done** in #1309, merged 2026-09-28 (`4991094a`) (*was:* 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live`, not merged); 🅿️ **Parked for the OTA stack (trigger: 0026 row 24's own, the OTA stack stops being a demo)** — *was:* the refusal 📋 **Proposed** | §3 and §4. Live never had the demo or its values, so there is nothing to replace. `bootstrap-managed.sh` refuses `--with-demo` on a `.env` that is, or could be, live's (`stack_may_be_live`). Routes (a) and (b) are kept for the OTA stack. |
-| T6 One way to deploy live, from a tag | Step 4, the copy before the update, ✅ **done** in #1361, merged 2026-09-29 (`b65da810`): `deploy-live.sh` takes it with `copy-before-update.sh` (0139, rec-copies (a)), with the review's fixes of 2026-09-29 (a tag without the scripts live is kept by refused, the rollback's `since`); (a) `deploy-live.sh` ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), with 0146 T5 (a), first run on live 2026-10-27/28 for `v0.2.0-alpha.2`, with the rollback by day 6 rehearsed to `v0.2.0-alpha.1` and alpha.2 deployed again (Status, 2026-10-29); (b) ✅ **done** in #1232, merged 2026-09-27: every enqueue in the API goes through one function that answers 409 with the hold's sentence; the three web gaps (b) left ✅ **done** in #1284, merged 2026-09-28 (`f7a7a270`). The procedure's steps on the machine are the owner's, once live stands (T1b) and 0146 has cut a release tag — *was:* step 4 🔨 built 2026-09-28 on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, not merged; (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); (b) ✅ **done** in #1232, merged 2026-09-27; the procedure and (a), `deploy-live.sh`, 📋 **Proposed** (D1, D5, D7) | §3. Hold, drain, a tag, bring-up without the demo, checks, lift. Replaces three procedures that disagree. With 0146. (a) is the deploy script, (b) the hold at every door. The Status block (2026-09-28) says how (a) was built. |
+| T6 One way to deploy live, from a tag | Step 4, the copy before the update, ✅ **done** in #1361, merged 2026-09-29 (`b65da810`): `deploy-live.sh` takes it with `copy-before-update.sh` (0139, rec-copies (a)), with the review's fixes of 2026-09-29 (a tag without the scripts live is kept by refused, the rollback's `since`); (a) `deploy-live.sh` ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), with 0146 T5 (a), first run on live 2026-10-27/28 for `v0.2.0-alpha.2`, with the rollback by day 6 rehearsed to `v0.2.0-alpha.1` and alpha.2 deployed again (Status, 2026-10-29), and on 2026-10-30 for `v0.2.0-alpha.3`, in two runs, took at 23:44:35 UTC (Status, 2026-10-31); (b) ✅ **done** in #1232, merged 2026-09-27: every enqueue in the API goes through one function that answers 409 with the hold's sentence; the three web gaps (b) left ✅ **done** in #1284, merged 2026-09-28 (`f7a7a270`). The procedure's steps on the machine are the owner's, once live stands (T1b) and 0146 has cut a release tag — *was:* step 4 🔨 built 2026-09-28 on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, not merged; (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); (b) ✅ **done** in #1232, merged 2026-09-27; the procedure and (a), `deploy-live.sh`, 📋 **Proposed** (D1, D5, D7) | §3. Hold, drain, a tag, bring-up without the demo, checks, lift. Replaces three procedures that disagree. With 0146. (a) is the deploy script, (b) the hold at every door. The Status block (2026-09-28) says how (a) was built. |
 | T7 What the gate does for the OTA stack, done for live | The drill off live, its duty replaced by the copy's backstop `copies`, ✅ **done** in #1361, merged 2026-09-29 (`b65da810`) (0139, rec-drill (a)), with the review's fixes of 2026-09-29 (6 days less an hour, each file by its own age); ✅ **done** in #1276, merged 2026-09-28 (`b2e63ab0`): `box-duties.sh`, `setup-zitadel.sh --token-only` and `--count-organisations`, and a user timer in the bring-up; waits for live to stand (T1b to T1e, from 0146 T0's tag) and for the owner to install the timer; ✅ **done** in #1664, merged 2026-10-21 (`6bd020f6`): a failed run mails the owner (`OnFailure=`, 0142 T3), and each run leaves a record the box checks read; live takes it with its next tag — *was:* a failed run's mail 🔨 built 2026-10-21 on branch `claude/ownpace-public-readiness-y7orc6-owner-told`, not merged; the drill off live 🔨 built 2026-09-28 on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, not merged; 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-duty-the-gate-used-to-do`, not merged (2026-09-28); 📋 **Proposed**, with T1b | §3. The identity provider's provisioning token, the Trigger.dev database drill (until 2026-09-28; since then the copy's backstop, 0139), T3's check and 0135's organisation count, on a timer on the machine, for live. |
 | T8 The gate gets a stack of its own on the same machine | ⛔ **Superseded 2026-09-24** by D7 | §3. The second stack is live, not the gate's. Its parts moved to T1, T1b and 0143. |
-| T9 An update proven without the owner's wait (added 2026-10-27; the owner, 2026-10-28: *build both*, one draft PR for alpha.3, merged only after live runs `v0.2.0-alpha.2`) | ✅ **done** in #1724, merged 2026-10-28 (`24864dcc`), after E2E (managed) run 40691667564 and E2E (self-hosted) run 40695344152; it reaches live with the alpha.3 tag, then ⏳ **Owner**: the steps in the entry of 2026-10-27 — *was:* 🔨 **Built** on branch `claude/ownpace-public-readiness-y7orc6-live-pass-check`, not merged (2026-10-27); merges only after live runs `v0.2.0-alpha.2` | §3 T6 steps 8 and 9, with 0139 rec-copies (a) and 0142 T3. (a) Live's box checks run `copy-before-update.sh delete-if-proven` every ten minutes: `delete`'s own rule, and stricter: no hold on, the checkout at the commit that took, a data type of a proving pass's migration completed, an hour after the hold was last lifted, nothing outside the copy's note, and `COPY_DELETE_WHEN_PROVEN` not false. They delete as `delete` does and mail *Update proven* once. (b) `deploy/compose/live-pass-check.sh` starts one pass on `LIVE_PASS_CHECK_MIGRATION` through *Sync now*'s own gates and enqueue (`pressSyncNow`, moved to `routes/migrations/sync-now.ts`), refuses while the hold is on or the tick's caps are full, and says within 15 minutes how it ended. |
+| T9 An update proven without the owner's wait (added 2026-10-27; the owner, 2026-10-28: *build both*, one draft PR for alpha.3, merged only after live runs `v0.2.0-alpha.2`) | ✅ **done** in #1724, merged 2026-10-28 (`24864dcc`), after E2E (managed) run 40691667564 and E2E (self-hosted) run 40695344152; it reached live with the alpha.3 tag on 2026-10-30 (Status, 2026-10-31): of the steps in the entry of 2026-10-27, 2 and 4 done; 1 replaced, the copy before alpha.2 removed by hand before the deploy; 5 and 6 do not apply, since no migration has run on live and both copies were removed by hand; 3 not recorded; `COPY_DELETE_WHEN_PROVEN` is `true` again — *was:* it reaches live with the alpha.3 tag, then ⏳ **Owner**: the steps in the entry of 2026-10-27; 🔨 **Built** on branch `claude/ownpace-public-readiness-y7orc6-live-pass-check`, not merged (2026-10-27); merges only after live runs `v0.2.0-alpha.2` | §3 T6 steps 8 and 9, with 0139 rec-copies (a) and 0142 T3. (a) Live's box checks run `copy-before-update.sh delete-if-proven` every ten minutes: `delete`'s own rule, and stricter: no hold on, the checkout at the commit that took, a data type of a proving pass's migration completed, an hour after the hold was last lifted, nothing outside the copy's note, and `COPY_DELETE_WHEN_PROVEN` not false. They delete as `delete` does and mail *Update proven* once. (b) `deploy/compose/live-pass-check.sh` starts one pass on `LIVE_PASS_CHECK_MIGRATION` through *Sync now*'s own gates and enqueue (`pressSyncNow`, moved to `routes/migrations/sync-now.ts`), refuses while the hold is on or the tick's caps are full, and says within 15 minutes how it ended. |
 
 ## 1. What there is today
 
