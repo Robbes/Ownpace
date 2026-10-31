@@ -4786,6 +4786,39 @@ Docker, and what it may not, is unchanged.
   `tecnativa/docker-socket-proxy:v0.5.0`, with the same environment; `up`
   pulls it when the machine no longer has it.
 
+**The dashboard's TLS front is a build here too** (workplan 0119, 2026-10-31).
+`trigger-tls`, the Caddy in front of the Trigger.dev dashboard, runs
+`localhost/caddy:<base tag>-<12 hex>`, which compose builds from
+`deploy/compose/caddy`: Caddy's official `caddy:2.11.7-alpine` at the digest it
+ran before, with curl removed and the eight libraries only curl pulled in.
+Those carried the image's one critical finding and two of its highs. Caddy
+itself, its Caddyfile, its volumes and its ports are as they were, and nothing
+on this stack runs curl in that container: it has no healthcheck, and the smoke
+asks it from the host.
+
+- **The first `up` builds it, and the front restarts once.** The bring-up's
+  trigger phase (`up_wait … trigger-tls`) finds no image of that name and
+  builds it, pulling the pinned Caddy base from Docker Hub when the machine
+  does not have it, and needing no network for the removal, then recreates the front
+  because its image changed: the OTA stack at the E2E (managed) run of the
+  branch or the next nightly gate, live inside `deploy-live.sh`'s hold and
+  drain, from the tag. A browser on the dashboard sees the front drop for the
+  few seconds of the restart. Its certificate and its local authority live in
+  the `trigger_tls_data` volume, which stays, so the browser's exception still
+  holds. `pull_policy: never`, as for the databases.
+- **Moving it.** A newer Caddy 2, or a rebuild of its tag, is Dependabot's pull
+  request (the directory's own entry). Its build stops with "re-read the
+  header": the Dockerfile checks the packages it removes at the versions its
+  header read, and asks `caddy version` for the FROM's release. Read the new
+  image's packages and scan, move those and the header, and then
+  `scripts/a-package-the-front-never-runs.unit.test.ts` prints the `sed` that
+  moves `managed.yml`'s image line. `build (caddy)` (`images.yml`) builds it,
+  starts it with `trigger-tls.Caddyfile` and asks it for TLS on 3443, and its
+  E2E (managed) is dispatched like any pin's. A major is the owner's call.
+- **Rolling back to a tag before this runs upstream's image again**,
+  `caddy:2.11.7-alpine` by the same digest; `up` pulls it when the machine no
+  longer has it.
+
 ### A Nextcloud major on the OTA stack
 
 Written on 2026-10-26 for the move from 34 to 35 (workplan 0119 T5). A major

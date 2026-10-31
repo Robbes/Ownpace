@@ -1719,6 +1719,11 @@ phase_trigger() {
   # named after the hash of its Dockerfile's instructions. The up_wait below
   # builds it where its name is missing, and nothing else does.
   note "trigger-docker-proxy is a local build of upstream's docker-socket-proxy on a current HAProxy (deploy/compose/docker-socket-proxy), built where the machine does not have it yet"
+  # trigger-tls is a build here too since 2026-10-31 (workplan 0119): Caddy's
+  # official image at its pinned digest with curl removed, named after the hash
+  # of its Dockerfile's instructions. The up_wait below builds it where its
+  # name is missing, and nothing else does.
+  note "trigger-tls is a local build of Caddy's image without curl (deploy/compose/caddy), built where the machine does not have it yet"
   # THE SUPERVISOR COMES UP LAST, AND NOT ONLY FOR ORDERING.
   #
   # trigger-api bootstraps a worker group and writes its token into the SHARED
