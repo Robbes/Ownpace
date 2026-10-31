@@ -336,20 +336,31 @@ function tgz(files: Record<string, string>): Buffer {
 }
 
 const D24 = `sha256:d2d0c018${'0'.repeat(56)}`;
-const D24_NEW = `sha256:9e9e9e9e${'0'.repeat(56)}`;
-const buildImageJs = (node24: string) =>
+/**
+ * The stand-in CLI's `node-26` base, which the tasks' row reads: the config
+ * names `runtime: 'node-26'` since the Node line moved to 26 (2026-10-31,
+ * workplan 0119 §2.4). Before that these cases read a `node-24` row, and a
+ * stand-in CLI without a row for the config's runtime failed them all with
+ * "names no image for node-26". The digests are stand-ins, the shape is
+ * trigger.dev 4.8.3's `buildImage.js`.
+ */
+const D26 = `sha256:e319f113${'0'.repeat(56)}`;
+const D26_NEW = `sha256:9e9e9e9e${'0'.repeat(56)}`;
+const buildImageJs = (node26: string) =>
   [
     'export const BASE_IMAGE = {',
     `    bun: "triggerdotdev/bun:1.3-node20-bookworm@sha256:${'a'.repeat(64)}",`,
     `    node: "triggerdotdev/node:24-bookworm@${D24}",`,
     `    "node-22": "triggerdotdev/node:22-bookworm@sha256:${'b'.repeat(64)}",`,
-    `    "node-24": "triggerdotdev/node:24-bookworm@${node24}",`,
+    `    "node-24": "triggerdotdev/node:24-bookworm@${D24}",`,
+    `    "node-26": "triggerdotdev/node:26-bookworm@${node26}",`,
     '};',
     'export const BUILD_IMAGE = {',
     `    "node-24": "triggerdotdev/node:24-bookworm-build@sha256:${'c'.repeat(64)}",`,
+    `    "node-26": "triggerdotdev/node:26-bookworm-build@sha256:${'e'.repeat(64)}",`,
     '};',
   ].join('\n');
-const cliTarball = (node24: string) => tgz({ 'package/package.json': '{}', 'package/dist/esm/deploy/buildImage.js': buildImageJs(node24) });
+const cliTarball = (node26: string) => tgz({ 'package/package.json': '{}', 'package/dist/esm/deploy/buildImage.js': buildImageJs(node26) });
 
 /** Docker Hub as the task image's Node is read from it: an index, its amd64 manifest, the config. */
 const taskImageRegistry = (digest: string, node: string): Array<[RegExp, Answer]> => [
@@ -553,41 +564,52 @@ describe("ClickHouse, against what Trigger.dev's own compose pins", () => {
 describe("the tasks' Node, against Node's newest security release", () => {
   const cli = JSON.parse(REAL.read('apps/worker/package.json')!).dependencies['@trigger.dev/sdk'] as string;
   const config = REAL.read('apps/worker/trigger.config.ts')!;
-  const net = (latest: string, latestDigest: string, latestNode = '24.18.0') =>
+  const net = (latest: string, latestDigest: string, latestNode = '26.12.0') =>
     fakeNet({
       bytes: [
-        [new RegExp(`trigger\\.dev-${cli.replace(/\./g, '\\.')}\\.tgz$`), cliTarball(D24)],
+        [new RegExp(`trigger\\.dev-${cli.replace(/\./g, '\\.')}\\.tgz$`), cliTarball(D26)],
         [new RegExp(`trigger\\.dev-${latest.replace(/\./g, '\\.')}\\.tgz$`), cliTarball(latestDigest)],
       ],
-      json: [TOKEN, NODE_INDEX, ...taskImageRegistry(D24, '24.18.0'), ...taskImageRegistry(D24_NEW, latestNode)],
+      json: [
+        TOKEN,
+        NODE_INDEX,
+        ...taskImageRegistry(D24, '24.18.0'),
+        ...taskImageRegistry(D26, '26.12.0'),
+        ...taskImageRegistry(D26_NEW, latestNode),
+      ],
       npm: (args) => (args.join(' ') === 'view trigger.dev version' ? `${latest}\n` : ''),
     });
 
   it("reads the CLI's base image as text from its tarball, never running it", () => {
-    const js = fileInTgz(cliTarball(D24), 'package/dist/esm/deploy/buildImage.js');
+    const js = fileInTgz(cliTarball(D26), 'package/dist/esm/deploy/buildImage.js');
+    expect(baseImageOf(js, 'node-26')).toBe(`triggerdotdev/node:26-bookworm@${D26}`);
     expect(baseImageOf(js, 'node-24')).toBe(`triggerdotdev/node:24-bookworm@${D24}`);
     expect(baseImageOf(js, 'node')).toBe(`triggerdotdev/node:24-bookworm@${D24}`);
-    expect(() => baseImageOf(js, 'node-26')).toThrow(/no image for node-26/);
-    expect(() => fileInTgz(cliTarball(D24), 'package/missing.js')).toThrow(/not in the package/);
+    expect(() => baseImageOf(js, 'node-28')).toThrow(/no image for node-28/);
+    expect(() => fileInTgz(cliTarball(D26), 'package/missing.js')).toThrow(/not in the package/);
   });
 
   it("reads the image's Node from its amd64 config, and the floor from nodejs.org's index", async () => {
-    expect(await nodeVersionOf(net('9.9.9', D24_NEW), `triggerdotdev/node:24-bookworm@${D24}`)).toBe('24.18.0');
+    expect(await nodeVersionOf(net('9.9.9', D26_NEW), `triggerdotdev/node:24-bookworm@${D24}`)).toBe('24.18.0');
+    expect(await nodeVersionOf(net('9.9.9', D26_NEW), `triggerdotdev/node:26-bookworm@${D26}`)).toBe('26.12.0');
     expect(securityFloor(NODE_INDEX[1], 24)).toEqual({ version: '24.22.1', date: '2026-10-20' });
+    expect(securityFloor(NODE_INDEX[1], 26)).toEqual({ version: '26.12.1', date: '2026-10-21' });
     expect(() => securityFloor([], 24)).toThrow(/no security release/);
   });
 
-  it('is behind on 24.18.0 below 24.22.1, and names the pinned CLI, the newest CLI and the floor', async () => {
-    const row = await taskNodeRow(withFiles({ 'apps/worker/trigger.config.ts': config.replace(TASK_ON_API_IMAGE, '') }), net('9.9.9', D24));
-    expect(row).toMatchObject({ pin: '24.18.0', newest: '24.22.1', state: 'behind' });
+  it('is behind on 26.12.0 below 26.12.1, and names the pinned CLI, the newest CLI and the floor', async () => {
+    // The config's own runtime, read as the row reads it: the stand-in CLI's row for it is D26.
+    expect(/\bruntime:\s*['"]([^'"]+)['"]/.exec(config)?.[1]).toBe('node-26');
+    const row = await taskNodeRow(withFiles({ 'apps/worker/trigger.config.ts': config.replace(TASK_ON_API_IMAGE, '') }), net('9.9.9', D26));
+    expect(row).toMatchObject({ pin: '26.12.0', newest: '26.12.1', state: 'behind' });
     expect(row.body).toContain(`trigger.dev ${cli}`);
-    expect(row.body).toContain('**24.22.1**');
-    expect(row.body).toMatch(/trigger\.dev 9\.9\.9, still builds on Node 24\.18\.0: upstream has not republished/);
+    expect(row.body).toContain('**26.12.1**');
+    expect(row.body).toMatch(/trigger\.dev 9\.9\.9, still builds on Node 26\.12\.0: upstream has not republished/);
   });
 
   it('says a Trigger.dev move fixes it once the newest CLI builds on a Node at the floor', async () => {
-    const row = await taskNodeRow(withFiles({ 'apps/worker/trigger.config.ts': config.replace(TASK_ON_API_IMAGE, '') }), net('9.9.9', D24_NEW, '24.22.1'));
-    expect(row.body).toMatch(/trigger\.dev 9\.9\.9, builds on Node 24\.22\.1: moving Trigger\.dev to it/);
+    const row = await taskNodeRow(withFiles({ 'apps/worker/trigger.config.ts': config.replace(TASK_ON_API_IMAGE, '') }), net('9.9.9', D26_NEW, '26.12.1'));
+    expect(row.body).toMatch(/trigger\.dev 9\.9\.9, builds on Node 26\.12\.1: moving Trigger\.dev to it/);
   });
 
   it("stops, and closes its issue, once the tasks build on the API image's base", async () => {
@@ -955,13 +977,13 @@ describe('the whole watch, one issue per row', () => {
     const base = registry();
     return fakeNet({
       ...base,
-      json: [...base.json!, NODE_INDEX, ...taskImageRegistry(D24, '24.18.0')],
+      json: [...base.json!, NODE_INDEX, ...taskImageRegistry(D26, '26.12.0')],
       text: [
         ...base.text!,
         [/triggerdotdev\/trigger\.dev\/.+\/docker\/docker-compose\.yml$/, `services:\n  clickhouse:\n    image: ${readImages(MANAGED).find((i) => i.repo === 'clickhouse/clickhouse-server')!.ref}\n`],
         [/SECURITY\.md$/, '| 26.2 | ❌ |\n'],
       ],
-      bytes: [[/trigger\.dev-.+\.tgz$/, cliTarball(D24)]],
+      bytes: [[/trigger\.dev-.+\.tgz$/, cliTarball(D26)]],
       lsRemote: { ...base.lsRemote, 'https://github.com/zitadel/zitadel.git': lsRemote(readPin(MANAGED)) },
       probe: () => '',
       npm: (args) => {

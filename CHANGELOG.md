@@ -28,6 +28,26 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **Everything runs Node 26, the LTS line since 2026-10-28** (workplan 0119,
+  the owner's decision of 2026-10-31; supersedes #1754 and Dependabot's
+  #1746, which moved 24 a patch). The api, web and selfhost images build on
+  `node:26.13.0-trixie-slim`, the API runs on `distroless/nodejs26-debian13`
+  with the same Node binary, the managed tasks deploy as `node-26` on the
+  API's base, the Windows payload ships node.exe 26.13.0 (about 6 MB larger),
+  CI and every workflow install 26, and `engines` asks for `>=26`. Node 26
+  ships no corepack, so the images install corepack 0.36.0 from npm to bring
+  pnpm. Node 26's fetch offers HTTP/2 to the servers it calls, and the owner
+  accepted that: Google's APIs take it, Microsoft's sign-in stays on HTTP/1.1,
+  and an error's status text over HTTP/2 has no reason phrase. The API logs
+  one `ExperimentalWarning` about `localStorage` at start, from a library the
+  Trigger.dev SDK loads, and each task process is expected to; nothing behaves
+  differently. **Before deploying this release, live's host needs Node 26,
+  `libatomic1` and pnpm installed from npm**: the deploy runs `pnpm install`,
+  the task deploy and the site build on the host's own Node, and pnpm only
+  warns when that Node is too old. The steps are in `managed-bring-up.md`,
+  *The deploy to alpha.4 needs Node 26 on the host first*. The first task
+  deploy and the first CI lint after the move are slow, as nothing is cached
+  for 26 yet. Nothing a stack's `.env` sets changes.
 - **Trigger.dev is v4.8.3, taken before its three-day floor on the owner's
   waiver** (workplan 0119, issue #1738): *"I waive the wait for v4.8.3, just
   go with it"* (2026-10-31). It skips v4.8.2. The webapp and the supervisor

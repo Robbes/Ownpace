@@ -2,7 +2,11 @@
 
 ## Getting started
 
-You need **Node 24+** and **pnpm**. That is all `pnpm test` needs. The integration and
+You need **Node 26+** and **pnpm**. That is all `pnpm test` needs. Node 25 and later ship
+no Corepack, so pnpm comes from npm (`npm install -g pnpm@11`; inside the repository it
+switches itself to the version `package.json`'s `packageManager` names), and on Linux the
+official Node binaries need `libatomic1` (`sudo apt-get install libatomic1` on Debian and
+Ubuntu). The integration and
 e2e tiers also need Docker: Testcontainers brings up its own Postgres, Nextcloud and
 Stalwart, so there is no stack to install first.
 

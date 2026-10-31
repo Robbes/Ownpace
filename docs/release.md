@@ -352,6 +352,15 @@ on and the drain done. The steps, and what the script refuses and checks, are
 in [managed-bring-up.md](./managed-bring-up.md#updating-a-running-deployment),
 *`ownpace-live`: a release tag, with `deploy-live.sh`*.
 
+- [ ] **From `v0.2.0-alpha.4` on, live's host runs Node 26** (workplan 0119
+      §2.4, the owner's decision of 2026-10-31), before the deploy: `node -v`
+      says `v26.x`, `libatomic1` is installed, and `pnpm` is installed from
+      npm, since Node 26 ships no corepack. The script runs `pnpm install`,
+      the task deploy and the site build on the host's Node, and pnpm only
+      warns (`Unsupported engine`) when that Node is below `engines`, so
+      nothing stops a host left on 24. The readings and the steps, for each way
+      Node can be installed, are in
+      [managed-bring-up.md](./managed-bring-up.md#the-deploy-to-alpha4-needs-node-26-on-the-host-first).
 - [ ] The tag is the one §2 made: annotated, on origin, and the root
       `package.json` at its commit says the tag without its `v`. The script
       refuses anything else: *"live runs releases: name a release tag"*.

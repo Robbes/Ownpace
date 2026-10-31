@@ -30,10 +30,26 @@
 # (apps/worker/trigger.config.ts, 0146 T14). Dependabot keeps the suffix when it moves the
 # tag. scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts holds
 # the three FROM lines to one string and the tag to a named Debian release.
-FROM node:24.22.1-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea AS base
+#
+# NODE 26 since 2026-10-31 (workplan 0119 §2.4): LTS ("Lithium") since
+# 2026-10-28, Debian 13.7 again, the tag's index pushed 2026-10-28 23:41 UTC.
+# A major moves by hand, with the distroless line below, `engines`, CI's
+# setup-node and the tasks' runtime, in one pull request
+# (scripts/a-gate-on-a-version-nothing-ships.unit.test.ts).
+#
+# COREPACK FROM NPM. The Node image ships no corepack since Node 25, so
+# `corepack enable` alone stops the build at "corepack: command not found".
+# The stage installs corepack 0.36.0 (npm's latest, 2026-08-28) first, then
+# enables it, which runs the pnpm package.json's `packageManager` names, as
+# before. `--omit=dev`: an npm install in a stage the runtime takes files from
+# is held to production dependencies
+# (scripts/an-image-that-shipped-what-it-never-runs.unit.test.ts); corepack has
+# none. The same line in all three Dockerfiles, and nothing moves its version
+# but a person (scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts).
+FROM node:26.13.0-trixie-slim@sha256:e4db4c914bf8ad241bd24804fc25d272d89bad97e68cdc8a1414862790a02c39 AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable
+RUN npm install -g --omit=dev corepack@0.36.0 && corepack enable
 WORKDIR /app
 
 FROM base AS deps
@@ -93,7 +109,8 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
  && chmod -R u=rwX,go=rX /app
 
 # THE RUNTIME IS DISTROLESS (workplan 0146 T13): Google's
-# gcr.io/distroless/nodejs24-debian13 at its `nonroot` tag, by digest. Debian
+# gcr.io/distroless/nodejs26-debian13 (nodejs24-debian13 until 2026-10-31) at
+# its `nonroot` tag, by digest. Debian
 # 13.7 with fourteen packages (libc6, libssl3t64, libstdc++6, ca-certificates,
 # tzdata and the like) and Node, and nothing else: no shell, no coreutils, no
 # package manager, no perl, util-linux or ncurses. On 2026-10-25 Trivy 0.76.1
@@ -102,7 +119,10 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 # removed until T13, read 0 and 43 (none with a fix), and Debian 12's
 # `node:24.22.1-slim` 1 and 61. On that day its /nodejs/bin/node was the base
 # stage's /usr/local/bin/node byte for byte (sha256 e32e2d16... on amd64,
-# c8c57216... on arm64).
+# c8c57216... on arm64). At Node 26.13.0 they are again one file, and
+# nodejs.org's own binary, read out of both images' layers on 2026-10-31
+# (0adde40d... on amd64, 66f4a883... on arm64); this digest was uploaded
+# 2026-10-28 21:35 UTC.
 #
 # THE SAME NODE VERSION AS THE FROM NODE LINE ABOVE, CHECKED, NOT ASSUMED. The
 # managed tasks build on that line (apps/worker/trigger.config.ts, 0146 T14), and
@@ -135,7 +155,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 # moves. The tag names no Node version; the image's name names the major, so a
 # new Node major is a new name, which is an edit somebody makes.
 # scripts/an-api-image-with-nothing-to-exec.unit.test.ts holds all of the above.
-FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:cb606325b7ec4af55462cb0b424a53b452a5b4a894ffe841fcf1048d216fb9f8 AS runtime
+FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:a51c5d631b90e1b298e17a88a307b77f0b959b47de942d033acce0c96be3fb83 AS runtime
 ENV NODE_ENV=production
 # Surfaced by GET /version (buildIdentity in @openmig/core).
 ARG GIT_SHA=unknown

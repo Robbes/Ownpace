@@ -461,8 +461,8 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
-          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
 
       - name: Build both Trigger.dev images as managed.yml names them, and keep upstream's configuration
         env:

@@ -4,6 +4,18 @@
 
 ## Status — 2026-10-31 (update this block at the end of every session)
 
+**2026-10-31, late evening: the alpha.4 deploy has a prerequisite on live's host, Node 26.**
+Docs only, here. The owner decided Node 26 for alpha.4, with `engines` at `>=26` (0119 §3
+item 7, taken, and 0119's Status of the same day). `deploy-live.sh` runs `pnpm install`, the
+task deploy and the site build on the host's own Node, and pnpm only warns when that Node is
+below `engines`, so nothing stops a deploy from a host left on 24. **Still the owner's, before
+deploying alpha.4:** live's host (the machine the OTA stack shares) runs Node 26 with
+`libatomic1`, and pnpm installed from npm, since Node 26 ships no corepack. The readings and
+the steps are in `managed-bring-up.md`, *The deploy to alpha.4 needs Node 26 on the host
+first*, and `release.md` §5 lists it with the deploy's other checks. The same machine's
+self-hosted runner needs `libatomic1` before the pull request's E2E runs there. Whether the
+first invitation waits for alpha.4 stays the owner's open choice (the entry below).
+
 **2026-10-31: live runs `v0.2.0-alpha.3`, and the owner's readings of 2026-10-29 (T5).** Docs
 only. Every *Today* cell that said live runs `v0.2.0-alpha.2` now says it runs `v0.2.0-alpha.3`
 since the owner's deploy of 2026-10-30. The cells for 0130, 0131, 0134, 0135, 0136 and 0146

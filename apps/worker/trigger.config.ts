@@ -27,10 +27,12 @@ import { defineConfig } from '@trigger.dev/sdk';
  * THE TASKS BUILD ON THE API IMAGE'S OWN BASE (workplan 0146 T14; issue #1669
  * before it).
  *
- * The CLI builds the task image on the base image it names for `node-24`:
- * `triggerdotdev/node:24-bookworm@sha256:3cdc8242…` at 4.8.1 and 4.8.3, Debian
- * 12 with busybox, git and openssl added, read by Trivy 0.76.1 on 2026-10-26 at
- * 1 critical and 83 high findings (at 4.7.6's `…@sha256:d2d0c018…`, 14 and 119).
+ * The CLI builds the task image on the base image it names for the runtime:
+ * for `node-24`, `triggerdotdev/node:24-bookworm@sha256:3cdc8242…` at 4.8.1
+ * and 4.8.3, Debian 12 with busybox, git and openssl added, read by Trivy
+ * 0.76.1 on 2026-10-26 at 1 critical and 83 high findings (at 4.7.6's
+ * `…@sha256:d2d0c018…`, 14 and 119); for `node-26` at 4.8.3,
+ * `triggerdotdev/node:26-bookworm@sha256:e319f113…`, Debian 12 again.
  * From #1689 a deploy here copied the API image's Node binary over it. Now a
  * deploy builds the tasks on the image `apps/api/Dockerfile` builds FROM: the
  * extension below sets the build manifest's `image.base` to that line's image,
@@ -38,8 +40,10 @@ import { defineConfig } from '@trigger.dev/sdk';
  * stage starts from. So the tasks run that image's own Node binary, with no
  * copy, and its Debian; Dependabot moves the line, and nothing else moves
  * either. On `node:24.22.1-trixie-slim@sha256:43b9ba11…` (Debian 13.7, where
- * #1708 puts that line), the runtime stage reads 0 critical and 43 high, none
- * with a fix (the same scan; 0146 T14 has the figures).
+ * #1708 puts that line), the runtime stage read 0 critical and 43 high, none
+ * with a fix (the same scan; 0146 T14 has the figures). The line is
+ * `node:26.13.0-trixie-slim@sha256:e4db4c91…` since 2026-10-31 (Debian 13.7,
+ * Node 26 LTS; workplan 0119 §2.4).
  *
  * Since workplan 0146 T13 that line is the API's BUILD stage: the API runs on
  * distroless, with a Node of its own pinned by a digest that moves apart from
@@ -79,8 +83,8 @@ import { defineConfig } from '@trigger.dev/sdk';
  * The CLI's build stage does run `npm i` (the externals below), and with a
  * layer and no build base named it builds that stage FROM the runtime base,
  * where npm is gone. So the build stage is named: `TASK_BUILD_IMAGE`, the
- * CLI's own build image for `node-24`, which also brings python3, make and g++
- * prebuilt instead of installing them with apt. The layer runs in both stages
+ * CLI's own build image for the runtime's major, which also brings python3,
+ * make and g++ prebuilt instead of installing them with apt. The layer runs in both stages
  * (the CLI replays it on a build base), and the removal runs only where there
  * is no C++ compiler: every `-build` image has one, and the runtime base has
  * none. Only `node_modules` and `index.json` leave the build stage.
@@ -101,15 +105,20 @@ import { defineConfig } from '@trigger.dev/sdk';
 const TASK_BASE = 'task-base';
 
 /**
- * The CLI's own build-stage image for `node-24` at trigger.dev 4.8.1 and 4.8.3
- * (`BUILD_IMAGE` in `dist/esm/deploy/buildImage.js`; pushed 2026-10-22): its
- * runtime image with python3, make and g++. It moves with the CLI, read from
- * the new version's `buildImage.js` (workplan 0119 §2; the version gate fails
- * on a CLI move until it is read again); a stale one still builds, since only
- * `node_modules` and `index.json` leave the stage.
+ * The CLI's own build-stage image for `node-26` at trigger.dev 4.8.3
+ * (`BUILD_IMAGE['node-26']` in `dist/esm/deploy/buildImage.js`; Docker Hub's
+ * `26-bookworm-build-20261021-000000-40f241b`, pushed 2026-10-22 08:03 UTC,
+ * Node 26.12.1 in its amd64 and arm64 configs): its runtime image with
+ * python3, make and g++. It was `node-24`'s, `…@sha256:34a3f455…`, until the
+ * runtime moved to 26 on 2026-10-31. It moves with the CLI and with the
+ * runtime's major, read from the new version's `buildImage.js` (workplan 0119
+ * §2; the version gate fails on a CLI move until it is read again, and on a
+ * major this image does not name); a stale one still builds, since only
+ * `node_modules` and `index.json` leave the stage, and the tasks run the
+ * runtime stage's Node, not this one's.
  */
 const TASK_BUILD_IMAGE =
-  'triggerdotdev/node:24-bookworm-build@sha256:34a3f4554d1684e078b104bd2b7ba6743776ad9002ebceef707dee91fa629c41';
+  'triggerdotdev/node:26-bookworm-build@sha256:86d5a599fc69a81e15c1276440702144cd3d857258fdaf78f8c9b864768c1ab9';
 
 /** The roots trigger.dev 4.8.1 and 4.8.3 distrust in their own images (`EMSIGN_COMPROMISE_DISTRUSTED_ROOTS`). */
 const DISTRUSTED_ROOTS = ['emSign_ECC_Root_CA_-_G3', 'emSign_Root_CA_-_C1', 'emSign_ECC_Root_CA_-_C3', 'Comodo_AAA_Services_root'];
@@ -198,17 +207,18 @@ export default defineConfig({
   // exactly that point). The deployment's real project was already fixed by
   // the CLI before the indexer runs; the fallback string is never acted on.
   project: process.env.TRIGGER_PROJECT_REF ?? 'proj_ref_set_at_deploy_time',
-  // The Node the task image is built on (workplan 0146 T6). 24 is the images'
+  // The Node the task image is built on (workplan 0146 T6). 26 is the images'
   // Node major (the api and selfhost images run it; the web image builds on
   // it), and scripts/a-gate-on-a-version-nothing-ships.unit.test.ts holds the
-  // two together. It is set explicitly because without it the CLI takes the
-  // server project's default runtime, or else its own `node`, which in the
-  // 4.5.16 CLI is triggerdotdev/node:21-bookworm: the tasks ran Node 21 until
-  // this line.
-  // For node-24 the CLI would build on triggerdotdev/node:24-bookworm; the
+  // two together; it was 24 until 2026-10-31 (workplan 0119 §2.4). It is set
+  // explicitly because without it the CLI takes the server project's default
+  // runtime, or else its own `node`, which in the 4.5.16 CLI is
+  // triggerdotdev/node:21-bookworm (in 4.8.3, triggerdotdev/node:24-bookworm):
+  // the tasks ran Node 21 until this line.
+  // For node-26 the CLI would build on triggerdotdev/node:26-bookworm; the
   // extension below names the API image's base instead, and the build stage
   // image for this major. A change here takes a task re-deploy.
-  runtime: 'node-24',
+  runtime: 'node-26',
   // What a run logs stays in its container's output, and out of Trigger.dev's
   // own database (workplan 0134, open question 3 (a)). Upstream's interceptor
   // copies every `console.*` line of a run into the plane's store, where it

@@ -11,10 +11,14 @@
  *
  * ## Node: every `actions/setup-node` asks for the major the images run
  *
- * The three app images build `FROM node:24.x-trixie-slim`, `package.json`
- * declares `"engines": { "node": ">=24" }`, and eight `setup-node` steps asked
- * for `'24'`. The managed gate (`e2e-managed.yml`) and the live-target lane
- * (`e2e-live-target.yml`) asked for `22` — found 2026-09-24. The managed gate
+ * The three app images built `FROM node:24.x-trixie-slim`, `package.json`
+ * declared `"engines": { "node": ">=24" }`, and eight `setup-node` steps asked
+ * for `'24'`. (All three moved to 26 together on 2026-10-31, with the API's
+ * distroless runtime, the tasks' runtime and all 27 `setup-node` steps, when
+ * Node 26 was LTS: workplan 0119 §2.4. This file is why they move in one
+ * pull request: a pin left on 24 fails here.) The managed gate
+ * (`e2e-managed.yml`) and the live-target lane (`e2e-live-target.yml`) asked
+ * for `22` — found 2026-09-24. The managed gate
  * stayed green, because the api runs in its own Node 24 image (and the web is
  * built in one) whatever the runner has. What ran on 22 was everything that
  * gate runs on the HOST: the seed, the Trigger.dev deploy CLI and the smoke —
@@ -605,7 +609,7 @@ describe("the tasks build on the API image's own base", () => {
       [
         `apps/worker deploys with trigger.dev ${sdk}, and ${TASK_CONFIG} keeps three things read from ${CLI_READ_AT}'s`,
         '`dist/esm/deploy/` by hand. Read each again in the new version and carry it over, then set CLI_READ_AT:',
-        "  - `buildImage.js`'s `BUILD_IMAGE['node-24']`, into the config's TASK_BUILD_IMAGE;",
+        `  - \`buildImage.js\`'s \`BUILD_IMAGE['${String(taskConfig.runtime)}']\`, into the config's TASK_BUILD_IMAGE;`,
         "  - `buildImage.js`'s `EMSIGN_COMPROMISE_DISTRUSTED_ROOTS`, into the config's DISTRUSTED_ROOTS and CLI_DISTRUSTED_ROOTS here;",
         `  - \`emsignRejectedIntermediates.js\`, into ${REJECTED_DIR}/ and CLI_REJECTED_SHA256 here.`,
       ].join('\n'),

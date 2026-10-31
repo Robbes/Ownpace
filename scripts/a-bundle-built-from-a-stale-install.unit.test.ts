@@ -20,7 +20,11 @@
  *     it reaches for the instance or the CLI.
  *  2. A failed install stops it there, with nothing after it tried.
  *  3. Without `pnpm` on PATH it refuses by name, rather than bundling from
- *     whatever is installed.
+ *     whatever is installed, and names how to get the pnpm `packageManager`
+ *     names from npm. It said `corepack enable` until the Node line moved to
+ *     26 (2026-10-31, workplan 0119 §2.4): Node 25 and later ship no corepack,
+ *     so on the Node `engines` asks for that hint named a command that is not
+ *     there.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -152,7 +156,10 @@ describe('deploy-tasks.sh installs before it bundles', () => {
 
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('pnpm is not on PATH');
-    expect(r.stderr).toContain('corepack enable');
+    const { packageManager } = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { packageManager: string };
+    expect(packageManager).toMatch(/^pnpm@\d+\.\d+\.\d+$/);
+    expect(r.stderr).toContain(`npm install -g ${packageManager}`);
+    expect(r.stderr).not.toContain('corepack enable');
     expect(r.calls).toEqual([]);
   });
 });

@@ -14,7 +14,8 @@
  * developer's machine. The CLI that builds the task images is pinned to the
  * SDK's version, but `trigger.config.ts` named no runtime, so the CLI built
  * them on its default, which in 4.5.16 is Node 21. The import resolved locally
- * and failed there. The config has named `node-24` since workplan 0146 T6.
+ * and failed there. The config has named the images' major since workplan 0146 T6
+ * (`node-24`, and `node-26` since 2026-10-31).
  *
  * WHY IT WAITED TO BITE. Every task imports `@openmig/connectors`, and the
  * archive reader comes with it — so the break was present from the moment that
