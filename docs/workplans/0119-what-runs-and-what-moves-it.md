@@ -57,9 +57,101 @@ v4.8.1 it was cut from. Corrected on review: `images.yml`'s comment said the pro
 reverse proxy's 502; asked by IP, the request's Host matches no site address, so Caddy answers it
 itself, an empty 200 with its Server header, and never proxies, as the run got. The comment says so
 now, and the guard's stub answers as that run did (200) as well as with the proxy's 502, and
-refuses a step that waits for the 502. Owed: E2E (managed) on the branch, whose smoke asks the same
-front; live takes it from the tag that carries it, and the front restarts once there
+refuses a step that waits for the 502. E2E (managed) on the branch, whose smoke asks the same front, was green: run 41248446953 on
+`1b86b798`, 2026-10-31 22:30–22:39 UTC; live takes it from the tag that carries it, and the front restarts once there
 (`managed-bring-up.md`, *The dashboard's TLS front is a build here too*).
+
+**2026-10-31, evening: both Postgres builds take brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from
+Alpine at build, on upstream's rebuild of 2026-10-26, until PostgreSQL 18.7 carries them
+(alpha.4, #1758).** The RUN that takes them is temporary: it comes out with the move to an 18.7
+image (due about 2026-11-12) whose base carries both fixes, and its own check fails the build of
+any base that already carries one, so that move's pull request says when. The image scan of
+`e1b21aac` (Security Scan run 41130684117, 2026-10-30) read `postgres-managed` (Alpine 3.24.3) and
+`postgres-selfhost` (Alpine 3.24.2) at 1 critical, 1 high and 2 fixable each. Read again here with
+Trivy v0.76.1 (database of 2026-10-30 19:07 UTC), remote image source, on the bases `10a5c69a…`
+(linux/arm64 and linux/amd64) and `77f58511…` (linux/arm64), gosu set aside since both builds
+remove it: CVE-2026-111497 in brotli-libs 1.2.0-r1 (critical, an out-of-bounds write in brotli's
+decoder, fixed in 1.2.1-r0), CVE-2026-92392 in libcurl 8.22.0-r0 (high, a use-after-free in HTTP/2
+uploads, fixed in 8.23.0-r0), and nothing else. No digest clears them: Docker Hub pushed the
+`18.6-alpine` index `10a5c69a…` (Dependabot's #1744 and #1745, carried by draft #1750) on
+2026-10-26 04:10 UTC over amd64 and arm64 images it had pushed on 2026-10-22, and 18.7 is due
+2026-11-12. In the amd64 image, its layers fetched from the registry and checked by digest, only
+`/usr/local/lib/libpq-oauth-18.so` links libcurl and only libcurl links brotli's decoder. Nothing
+here connects to Postgres with OAuth, so nothing the stacks or the appliance run loads either: this
+clears two findings, not a hole anybody here could reach, as the webapp's dompurify did (#1742).
+- **The RUN.** Both Dockerfiles gain the same one. It refuses a base whose brotli-libs or libcurl
+  is no older than the fixed version (upstream then carries the fix, and the package comes out of
+  the RUN), runs `apk add --no-cache brotli-libs=1.2.1-r0 libcurl=8.23.0-r0` against the base's
+  own repositories, which apk checks against the index Alpine signs with the keys in the base, and
+  refuses unless exactly those two packages changed, to exactly those versions. Exact versions and
+  no floor: the name is the hash of the instruction lines, and a floor would let a later day build
+  something else under it. libcurl is upgraded, not removed: `.postgresql-rundeps` needs
+  `so:libcurl.so.4`. aports' `3.24-stable` branch has curl 8.23.0-r0 and brotli 1.2.1-r0, whose
+  secfixes name the two CVEs (read on GitHub's mirror of aports). Alpine's package mirror,
+  pkgs.alpinelinux.org and its secdb are refused by this session's network, so the packages' push
+  dates were not read, and `build (postgres)` on the pull request and the image scan on the branch
+  are the proof that v3.24/main serves them. Both are security fixes, so the three-day floor's
+  exception applies to them (CONTRIBUTING.md); the FROM passed its floor on 2026-10-29 04:10 UTC.
+  The RUN's own logic ran here on the extracted amd64 base in a chroot, with apk 3.0.8's
+  `apk version -t` and the install stood in for: it passed when the two moved, and failed when a
+  third package moved, when the install failed, when the base's libcurl was already 8.23.0-r0, and
+  when its brotli-libs was newer than 1.2.1-r0.
+- **What it reverses, and what it costs.** 0146 T15 decided against `apk upgrade brotli-libs` in
+  the build on 2026-10-26: *"it would reach Alpine's mirrors at every build and make the image a
+  function of the day it was built."* The finding was a high then, and a rebuild of 18.6-alpine was
+  expected to clear it; it is critical now, and the rebuild did not. Exact versions answer the
+  second reason. The first is the cost, stated in both Dockerfiles, `docs/managed-bring-up.md` and
+  `docs/selfhost-quickstart.md`: every build of these images now fetches two packages from
+  `dl-cdn.alpinelinux.org`, once per machine and name. That is the box's `up` where the name is
+  missing, and an appliance's first `up` after the move; before, the build needed the base alone.
+  Alpine keeps only the newest build of a package in a stable branch, so once it moves either one,
+  a machine without the name cannot build it, anywhere; the way on is a pull request that moves
+  the version, or the FROM to an 18.7 that carries both. aports' `3.24-stable` still read curl
+  8.23.0-r0 and brotli 1.2.1-r0 on 2026-10-31, so nothing is broken yet. The review of #1758 asked
+  for that failure in the operator's words, and it has them: when `apk add` fails, the RUN prints,
+  after apk's own error, that the two versions could not be installed, that a machine which cannot
+  reach `dl-cdn.alpinelinux.org` should be let reach it and run the same command again, and that
+  otherwise the mirror no longer serves them and this release's database image can no longer be
+  built: *"update Ownpace to its newest release"*, pointing at the self-host quickstart's new
+  Troubleshooting entry. The CHANGELOG line says the same. **For the owner to weigh:** two
+  findings nothing here can reach are cleared now, against an appliance build that will stop
+  building once Alpine moves either package, which a release before 18.7 lands would then have to
+  answer with a new release; the alternative is to wait for 18.7 and take neither.
+- **The name and the guard.** One name for both builds, since the two FROMs meet:
+  `localhost/postgres:18.6-alpine-1af6bb314e8d` (`27f5dc218723` until the failure message moved
+  it) on `managed.yml`'s `postgres` and `trigger-db`, `dev.yml`'s and
+  `deploy/selfhost/compose.yml`'s, by the `sed` the guard printed. `a-database-started-as-root`
+  now also refuses an `apk add` without exact versions or without `--no-cache`, with any other
+  option (`--upgrade`, another repository, `--allow-untrusted`), and any apk subcommand but `add`
+  and `version -t`. It reads apk wherever the shell could run it: the review found six forms the
+  first reading let past (`/sbin/apk add`, after `if`, `{` or `!`, inside `sh -c '…'`, after
+  `xargs`), and each is now a refusal it is tested on, as is a heredoc; put back the first
+  reading's pattern and that test fails at `/sbin/apk`. And it runs the RUN itself, on a stand-in
+  apk and package database: the two versions taken and nothing left in `/tmp`; apk's failure
+  followed by the operator's message and exit 1; a third package moved, and a base whose libcurl
+  is 8.23.0-r0 already, each refused, the latter before any install. Without the `|| { … }` the
+  failure case fails the test.
+- **The base, read again for the appliance.** From `/lib/apk/db/installed` in the amd64
+  package layers fetched from Docker Hub: `77f58511…` has Alpine 3.24.2-r0 and musl 1.2.6-r2,
+  `10a5c69a…` has 3.24.3-r0 and musl 1.2.6-r3, with OpenSSL 3.5.8 to 3.5.9, zlib, tzdata, c-ares,
+  libldap and nghttp2 moved too, and ICU 78.1-r0 in both, so the database's collation is
+  untouched; the appliance Dockerfile's header said "the same Alpine and musl" and now says this.
+- **Proven.** Both builds took the two packages from v3.24/main and passed the RUN's checks on the
+  pull request (at `12c0ae9c`): `build (postgres)` built it on linux/amd64 (apk: *"Upgrading
+  brotli-libs (1.2.0-r1 -> 1.2.1-r0)"*, *"Upgrading libcurl (8.22.0-r0 -> 8.23.0-r0)"*) and
+  started both compose files' databases as uid 70, and Security Scan run 41163493604, dispatched
+  with the image scans, built each Dockerfile on linux/arm64 and scanned it. Its *Image scan
+  report* job (124426552404) reads `postgres-managed` and `postgres-selfhost`, both
+  `localhost/postgres:18.6-alpine-27f5dc218723` on Alpine 3.24.3, at **0 critical, 0 high and 0
+  fixable**. Trivy's `rootfs` scan of the extracted amd64 base reads 25 findings at every
+  severity, all in the two packages and all fixable (1 critical, 1 high, 1 medium, 22 low), and 0
+  with its package database at the two new versions. It supersedes #1744, #1745 and #1750, so
+  every Postgres on the box (postgres and trigger-db) and the appliance's is rebuilt and recreated
+  once, not twice.
+- **On today's main.** The branch merged `main` at `42efbe21` (#1755's Trigger.dev v4.8.3, #1761,
+  #1764), so it builds v4.8.3 as the OTA stack runs it: an E2E (managed) of a branch on v4.8.1
+  would meet migrations that only go one way. Owed before merge: E2E (managed) and E2E
+  (self-hosted) on this branch's head.
 
 **2026-10-31: Trigger.dev v4.8.1 → v4.8.3, before its three-day floor, on the owner's waiver
 (alpha.4, issue #1738)**, on the branch `claude/ownpace-public-readiness-y7orc6-trigger-4-8-3`.
@@ -1412,8 +1504,8 @@ is who moves it after T1.
 | `node` (24-trixie-slim; 24-slim until 0146 T12) | `apps/api` (its build stage only, since 0146 T13), `apps/web`, `apps/selfhost` Dockerfiles; the managed tasks, which build on it (`apps/worker/trigger.config.ts`, 0146 T14, #1716); the Windows payload's node.exe follows `apps/selfhost` | 24.22.1-trixie-slim by index digest `43b9ba11…`, Debian 13.7 (0146 T12, 2026-10-25; 24.22.1-slim, Debian 12.15, from 2026-10-21, the October security release; digest `6f7b03f7…` with no tag at the audit, 24.20.0-slim from T2) | 24.22.1-trixie-slim (Node released 2026-10-20); the tag's digest moves as more architectures land (ppc64le at 17:39 UTC on 2026-10-21) and Dependabot offers each move | current: the pin is the tag's index | Dependabot `docker`, which keeps the `-trixie-slim` suffix and moves the payload with it since 2026-10-21; the Debian release by hand | **T2** — and T1 gives it its tag; Debian 13, and no package manager in the api and selfhost runtimes, from 0146 T12 |
 | `gcr.io/distroless/nodejs24-debian13` (`nonroot`) | `apps/api/Dockerfile`'s runtime stage, since 0146 T13 | the `nonroot` tag by index digest `cb606325…`, Debian 13.7 and Node 24.22.1 (uploaded 2026-10-23 23:31 UTC) | the tag's index, as read 2026-10-25 23:40 UTC | current | Dependabot `docker`, digest moves only (the tag names no version); a new Node major or Debian is a new image name, by hand. Its Node version must be the `node` row's: the managed smoke stops otherwise | **0146 T13**: no shell, `printenv` or package manager, Node at `/nodejs/bin/node` off PATH; 0 critical and 0 high (Trivy 0.76.1, 2026-10-25) |
 | `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.31.8-alpine-slim by digest `f45171d3…` (2026-10-25, 0146 T12a: the same nginx package and base layers as -alpine, without its dynamic modules, curl and the 51 packages they bring; 1.31.8-alpine `1ef7ca94…` from 2026-10-23, 1.31.7-alpine `892bb215…` the day before that, 1.27-alpine at the audit, 1.30-alpine from T2, `1.31-alpine` floating from #813, which no build or `up` ever pulled again) | 1.31.8-alpine-slim, its index pushed 2026-10-24 19:51 UTC to add riscv64 over the amd64 and arm64 images pushed 2026-10-22 01:50 UTC; 1.31.8 itself: four bug fixes and one change (changes.xml, 2026-10-21) on Alpine 3.24.3, which fixes the two high CVEs 1.31.7's image carries on 3.24.2 (libexpat CVE-2026-77214, libx11 CVE-2026-88806); 1.31.7 (2026-10-14) fixed five: CVE-2026-15176, CVE-2026-93479, CVE-2026-95101, CVE-2026-97629 and CVE-2026-97205 | current | Dependabot `docker` for the Dockerfile; `www.yml` by hand after it, and the pin watch (0146 T8) says when the two differ | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows; -alpine-slim since 2026-10-25 (0146 T12a), because nothing here loads what -alpine adds and the scan counts it |
-| `postgres` (self-host) | `deploy/selfhost/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `deploy/selfhost/compose.yml` since 0146 T15b (#1719, merged 2026-10-28, `fb0fea2e`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing) | 18.6-alpine by digest `77f58511…` (Dependabot's move of 2026-09-24 to a rebuild of the tag; `d3e1620b…` from T2, digest `9a8afca5…` = 18.4-alpine with no tag at the audit) | 18.6-alpine, rebuilt 2026-10-22 as `898c60cb…`, which the managed stacks pin, and again 2026-10-26 as `10a5c69a…` (inside the three-day floor) | the same release; Dependabot offers the rebuild | Dependabot `docker` on `/deploy/selfhost/postgres` (its own entry, no major; `docker-compose` before T15b, which now ignores `localhost/postgres`), whose PR fails `a-database-started-as-root` until compose.yml's image line moves, and prints the `sed` that moves it | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
-| `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (#1717, merged 2026-10-28, `6f9af7f2`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.6-alpine by digest `898c60cb…` (2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13); 18.7 is due 2026-11-12 | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and prints the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8) | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
+| `postgres` (self-host) | `deploy/selfhost/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `deploy/selfhost/compose.yml` since 0146 T15b (#1719, merged 2026-10-28, `fb0fea2e`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); since 2026-10-31 the build also takes brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions, the base's only findings once gosu is gone (Status, 2026-10-31) | 18.6-alpine by digest `10a5c69a…` (upstream's rebuild of 2026-10-26, the managed stacks' base too, since 2026-10-31, from Dependabot's #1744; `77f58511…` from its move of 2026-09-24 before that; `d3e1620b…` from T2, digest `9a8afca5…` = 18.4-alpine with no tag at the audit) | 18.6 (2026-08-13), newest digest `10a5c69a…`; 18.7 is due 2026-11-12 | current | Dependabot `docker` on `/deploy/selfhost/postgres` (its own entry, no major; `docker-compose` before T15b, which now ignores `localhost/postgres`), whose PR fails `a-database-started-as-root` until compose.yml's image line moves, and prints the `sed` that moves it; a base that already carries brotli-libs 1.2.1-r0 or libcurl 8.23.0-r0 fails the build until the RUN drops that package, and a version Alpine's mirror no longer serves fails it until the RUN's version moves, in a PR of its own | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
+| `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (#1717, merged 2026-10-28, `6f9af7f2`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); since 2026-10-31 the build also takes brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions, the base's only findings once gosu is gone (Status, 2026-10-31); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.6-alpine by digest `10a5c69a…` (upstream's rebuild of 2026-10-26, since 2026-10-31, from Dependabot's #1745; `898c60cb…` from 2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13), newest digest `10a5c69a…`; 18.7 is due 2026-11-12 | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and prints the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8); a base that already carries brotli-libs 1.2.1-r0 or libcurl 8.23.0-r0 fails the build until the RUN drops that package, and a version Alpine's mirror no longer serves fails it until the RUN's version moves, in a PR of its own | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
 | `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
 | `redis` | `managed.yml` | 7.4.12-bookworm by digest `b6b6e3dc…` (2026-10-30, a security release, before its floor under the floor's exception: Status, 2026-10-30); before it 7.4.11-bookworm by digest `44960b31…` (2026-10-22; `7.4-bookworm` floating from 2026-10-21, `7-alpine` on Alpine 3.21 before) | 8.8.2-alpine | one major | owner for a major; a 7.4 patch by hand when the pin watch lists it | **§3** — the licence changed at 7.4, which is the line this is pinned on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
 | `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`; since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0); since 2026-10-30, an alpha.3 addition, the webapp's build also puts dompurify 3.4.17's files, fetched by the sha512 npm published, in place of 3.4.13's, which nothing here loads: 2 to 1 | v4.8.3 (2026-10-31, before its three-day floor on the owner's waiver: Status, 2026-10-31; v4.8.1 from 2026-10-25, v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.3 (2026-10-30) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; v4.8.3 six Prisma migrations and ClickHouse 055 and 056; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and it reads no file in `deploy/compose` |

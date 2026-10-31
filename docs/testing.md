@@ -73,10 +73,11 @@ publish only 8080, 993 and 465, and the IMAP client connects to 993 with
 The optional `deploy/compose/dev.yml` stack (Postgres + Nextcloud) remains available for manual
 exploration, but the integration suite does not depend on it. Its Postgres is `managed.yml`'s
 build, so its first `up` builds `deploy/compose/postgres` (a few seconds: the official image with
-gosu removed). `dev.yml` does **not** include
-Stalwart — its two-phase startup can't be expressed as one `docker compose` service; bring it up
-with `deploy/selfhost/setup-stalwart.sh` instead (joins `dev.yml`'s `ownpace_dev-network`, so it's
-reachable from anything else on that network too).
+gosu removed, and Alpine's brotli-libs and libcurl updates taken at exact versions from
+`dl-cdn.alpinelinux.org`, which the machine must reach until PostgreSQL 18.7 carries them).
+`dev.yml` does **not** include Stalwart — its two-phase startup can't be expressed as one
+`docker compose` service; bring it up with `deploy/selfhost/setup-stalwart.sh` instead (joins
+`dev.yml`'s `ownpace_dev-network`, so it's reachable from anything else on that network too).
 
 ### UI smoke (requires Chromium, no Docker)
 ```bash

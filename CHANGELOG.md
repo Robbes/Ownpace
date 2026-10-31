@@ -15,6 +15,25 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   removed, where Trivy reads 0 critical and 7 high instead of 1 and 9; the 7
   are in Caddy's own binary and wait for a Caddy release. Caddy, its
   configuration and its certificate are unchanged.
+- **Both Postgres builds take Alpine's brotli-libs 1.2.1-r0 and libcurl
+  8.23.0-r0, which clears their critical** (workplan 0119): with gosu gone,
+  `postgres:18.6-alpine` still read 1 critical and 1 high, CVE-2026-111497
+  in brotli's decoder and CVE-2026-92392 in libcurl's HTTP/2 uploads, and no
+  digest of the tag fixes them before 18.7. One RUN in each Dockerfile takes
+  exactly those two versions from Alpine's signed repository and refuses
+  anything else, so the scan reads 0 and 0; only libpq-oauth links libcurl,
+  and nothing here connects with OAuth. Both builds also move to upstream's
+  rebuild of 2026-10-26 (`10a5c69a…`) and share the name
+  `localhost/postgres:18.6-alpine-1af6bb314e8d`, so every Postgres, the
+  appliance's too, is rebuilt and restarted once. **Building these images
+  now needs Alpine's mirror, `dl-cdn.alpinelinux.org`, as well as Docker
+  Hub**: the box's next `up`, and an appliance's first `up` after the
+  update. The RUN is temporary, until PostgreSQL 18.7 (due about
+  2026-11-12) carries both fixes. Alpine serves only the newest build of a
+  package, so once it moves either one, a machine without the image can no
+  longer build this release's database: the build then says so, and tells an
+  appliance's operator to update Ownpace to its newest release (the
+  self-host quickstart's Troubleshooting).
 
 ### Changed
 
@@ -30,6 +49,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   `--no-browser`, as the bring-up and `deploy-tasks.sh` now print it: without
   it, CLI 4.8.3 on a machine that can open a browser takes the approval on its
   own `127.0.0.1`, which a browser on another machine cannot reach.
+- **Live's deploy refuses a host on its reachable-hosts list, and Mollie's key
+  during the Alpha** (workplans 0136 T2 and 0131 §3 T3, #1752): `deploy-live.sh`
+  refuses live's settings, in the deploy and its dry run, while
+  `OWNPACE_REACHABLE_HOSTS` names a host, whatever the stage, and while
+  `MOLLIE_API_KEY` is set and the stage is the Alpha, each read as the app
+  reads it. Mollie's live key goes in with the switch that ends the Alpha
+  (`docs/ending-the-alpha.md`, step 4). Both refusals first apply at the
+  deploy after the one that moves live onto this release: `deploy-live.sh`
+  runs its copy from before the checkout moves.
 
 ### Fixed
 
