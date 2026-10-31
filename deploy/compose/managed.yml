@@ -740,7 +740,8 @@ services:
   # RSA parameters in a JWK went unbounded, so a crafted key could cost
   # excessive CPU). No build with that fix is three days old: the first,
   # 0dab2f9fee1c… (-r1), went out as `latest` about 03:00 UTC on 2026-10-29.
-  # Inside this one (its apk databases, both architectures): Wolfi's `minio`
+  # The image scan on this move's branch (Security Scan run 41233436294)
+  # reads 0 critical and 0 high in this one, linux/arm64. Inside this one (its apk databases, both architectures): Wolfi's `minio`
   # 0.20261023.200651-r2, the same fork release, RELEASE.2026-10-23T20-06-51Z
   # at the same commit (76c06ff1), rebuilt with Go modules moved and no source
   # patch: go-jose 4.1.6 (-r1), and golang.org/x/net 0.62.0 and x/crypto

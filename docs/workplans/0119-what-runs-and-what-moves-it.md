@@ -43,6 +43,15 @@ the branch `claude/ownpace-public-readiness-y7orc6-minio-3b6e40c3`.
   without `--issue`), `chainguard/minio` is current and one row is behind: `axllent/mailpit`
   v1.33.0, pushed 2026-10-31 02:30 UTC, whose floor ends 2026-11-03 02:30 UTC. So the issue
   stays open after this move, for Mailpit.
+- **Proved on the branch.** The image scan, Security Scan run 41233436294, dispatched with
+  `image_scans` on `5fbcaec8` (Trivy 0.76.1, linux/arm64), reads `minio`
+  (`chainguard/minio:latest@sha256:3b6e40c30ecd…`, wolfi) at 0 critical, 0 high, 0 with a fix,
+  where run 41164463793 read `268d68a2…` at 0, 1 and 1. The
+  guards that read these files pass (`a-service-that-phones-home`,
+  `an-object-store-with-a-maintainer`, `a-pin-that-knows-it-is-behind`,
+  `an-image-nobody-scanned`, `a-float-nothing-ever-pulled`), and the first two are red with the
+  old digest left in the guard's pin, or the new one's prefix cut from the comment. E2E
+  (managed) on the branch is owed before it merges.
 
 **2026-10-31: Trigger.dev v4.8.1 → v4.8.3, before its three-day floor, on the owner's waiver
 (alpha.4, issue #1738)**, on the branch `claude/ownpace-public-readiness-y7orc6-trigger-4-8-3`.
