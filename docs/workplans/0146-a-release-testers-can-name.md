@@ -1181,6 +1181,8 @@ builds on, merged before it as `afe17fef`), after the alpha.2 tag, once E2E (man
   the build: it would reach Alpine's mirrors at every build and make the image a function of the
   day it was built. A Debian base: it collates text differently from the musl the databases were
   made under.
+  *Revisited 2026-10-31:* both builds take brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 at exact
+  versions, until PostgreSQL 18.7 carries them (0119 Status, #1758).
 
 **2026-10-25: T12a, the web image's nginx on -alpine-slim, built for alpha.3, merged as #1707 (`53fb6453`) on 2026-10-28.** (Numbered T12 until 2026-10-27, when the alpha.3 landing rehearsal found #1708's Node task numbered T12 as well; this one, named in the fewest places, became T12a.)
 1.31.8-alpine's one finding in the scan, brotli-libs CVE-2026-111497 (high, fixed in
