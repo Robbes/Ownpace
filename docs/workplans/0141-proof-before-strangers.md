@@ -4,6 +4,15 @@
 
 ## Status — 2026-10-31 (update this block at the end of every session)
 
+**2026-10-31, build: T9 (b), the gate's fixture**, on branch
+`claude/ownpace-public-readiness-y7orc6-organiser-canary-nightly`, not merged. The managed gate's
+fresh set gains event 3, organised by the demo target account's own address, and the smoke reads
+its copy and asks the target's server whether it matches that organiser. It is dated next January,
+because Nextcloud invites nobody to an event already past, a condition T9 did not name. Until now
+the catcher's silence held for event 1 only because a third party organised it. What was built,
+the guard and the mutations are in T9 (b). It waits for its first E2E (managed) run; (a), the
+owner's sitting, is unchanged.
+
 **2026-10-31, recorded: the owner's waiver merged as #1741, and used once, for
 alpha.3 (T14).** #1741 merged on 2026-10-30 (`7e2fbbbe`): Release's
 `waive_nights`, for `v0.2.0-alpha.3` alone, which amends decision 9 (0146)
@@ -445,7 +454,7 @@ for the card says so.
 | T6 A second Google account, and Drive's open live items | ⏳ **Owner**, with a tester's agreement | §3. **After.** Whole-domain delegation is 🅿️ **Parked (trigger: a Workspace the owner administers, or a tester who asks for it)**. |
 | T7 Soverin as a target | ✅ **done** in #1215, merged 2026-09-27 (the runbook's corrections, (a)); ⏳ **Owner** (the sitting, and its source: open question 9) — *was:* ⏳ **Owner** | §3. 0105 T3's sitting. Its step H needs a correction first. **Before a tester who picks the Soverin card.** |
 | T8 Nextcloud and JMAP targets beyond our own servers | 📋 **Proposed** (the JMAP legs); ⏳ **Owner** (a hosted Nextcloud); ✅ (c) **Built 2026-09-27**, as 0149 T1 to T3 | §3. **After.** Until then, a tester's contacts and files go to CardDAV or WebDAV rather than JMAP. |
-| T9 The organiser canary (0103 T3) | ⏳ **Owner**; the gate's fixture 📋 **Proposed** | §3. **Before the first invitation**, because nearly every tester moves a calendar. |
+| T9 The organiser canary (0103 T3) | 🔨 **(b), the gate's fixture, built 2026-10-31** on branch `claude/ownpace-public-readiness-y7orc6-organiser-canary-nightly`, not merged: fresh event 3, organised by the demo target's own address and dated next January, its copy and the target's address set read by the smoke, the catcher searched after the sync and after the take-back; no E2E (managed) run has carried it yet; ⏳ **Owner** ((a), the sitting) — *was:* ⏳ **Owner**; the gate's fixture 📋 **Proposed** | §3. **Before the first invitation**, because nearly every tester moves a calendar. |
 | T10 Shared mailboxes: Partial until one is copied | ✅ **(a), the move, done** in #1187, merged 2026-09-26 (`d7c4ebde`, `6402cd93`; decided 2026-09-25 by the owner); ⏳ **Owner** (0027 T0's consent run, after) — *was:* 🔨 **Decided 2026-09-25 (owner) and built on branch `claude/ownpace-public-readiness-y7orc6-shared-mailboxes-partial`, not merged** (the move, (a)) | §3. **Before a tester on a Microsoft card.** |
 | T11 The detectors and the permission report tell a Connect-with-Microsoft tester the truth | 📋 **Proposed**; the minimum 🔨 built 2026-09-27, merged as #1246; the credential model (open question 7) parked 2026-09-27 | §3. The finding was checked again on 2026-09-24. The true sentence goes in **before the first Microsoft 365 tester**. Per-tenant credentials come **after**, with an ADR. |
 | T12 The managed journey in a browser | ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ✅ **done** in #1646, merged 2026-10-21 (the fixture cases, (b)); ⏳ **Owner** (the walk); 📋 **Proposed** (the real-API journey, (c), after) — *was:* ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) | §3. The two-stranger walk happens on `ownpace-live` **before the first invitation**. The real-API journey comes **after**, in the gate on the OTA stack; it was parked on 0132 T8, which 0132 D7 superseded. |
@@ -941,7 +950,7 @@ appliance nightly's three apply legs show it for our own Nextcloud and Stalwart 
 scheduled run after #1210. For a Nextcloud we do not run, the rows (b)'s first run writes show it.
 Until then, a missing or weak version there means nothing is removed: the removal fails closed.
 
-### T9 — the organiser canary (owner, before the first invitation; the gate's fixture proposed)
+### T9 — the organiser canary (owner, before the first invitation; the gate's fixture built, not merged)
 
 **Why it matters.** A person moving their own domain keeps their address. On the target, the event's
 organiser is then the target account's own address. RFC 6638's implicit scheduling acts for the
@@ -975,6 +984,41 @@ itself would schedule (`seed-demo-dav-content.sh`:470-478). **Guard:** a rule in
 `scripts/the-mail-nobody-should-get.unit.test.ts`: the smoke seeds an event whose `ORGANIZER` is the
 target account's own address. It fails today, because T2's fixture has only a third-party
 organiser (0103:20; `seed-demo-dav-content.sh`:483).
+
+**(b), as built (2026-10-31, on branch
+`claude/ownpace-public-readiness-y7orc6-organiser-canary-nightly`, not merged).**
+
+- **The address.** `setup-managed-demo.sh` gives `tenant-b-target` the email
+  `tenant-b-target@demo.openmigrate.test` (`occ user:setting … settings email`), at every bring-up
+  the nightly runs. The source account gets none.
+- **The event.** `seed-demo-dav-content.sh --fresh` seeds event 3 when it is given an organising
+  account (`SEED_DAV_ORGANISER_USER`/`_PASSWORD`; the smoke names `tenant-b-target`). Before its
+  first write it reads that account's address from the server, in the property Sabre matches an
+  `ORGANIZER` against (`calendar-user-address-set`). It refuses when there is none, and when the
+  source carries the same address. Event 3 carries no `SCHEDULE-AGENT` and has the same
+  tag-addressed attendee as event 1, so the catcher's two searches cover both. `--remove` takes it
+  back on both accounts, and `CANARY_RE` spares it from the apply half, as it spares event 1.
+- **One condition this section did not name: the date.** Nextcloud sends no invitation for an
+  event whose last occurrence is past (`IMipPlugin::schedule` at v35.0.2: *"don't send out mails
+  for events that already took place"*). Events 1 and 2 are dated January 2026, so an event 3 dated
+  like them would be silent by inability too. It is dated 6 January of the year after the run.
+- **The check.** The smoke reads event 3's copy off the target and unfolds it. The organiser line
+  and every attendee line must carry `SCHEDULE-AGENT=CLIENT`, and the attendee must be this run's
+  canary. Then it asks the target's server for its `calendar-user-address-set`, and the copy's
+  organiser must be in it. Any of these failing fails the run, before the catcher is searched.
+- **Guard.** `scripts/the-mail-nobody-should-get.unit.test.ts` has four new text rules:
+  - the smoke names the target as organiser, and the seeder reads the server's address set;
+  - the bring-up gives the target an address, and the source none;
+  - the smoke's check of the copy;
+  - `CANARY_RE` spares event 3, and not event 2.
+
+  It also runs the seeder three times against a stub server: event 3's bytes and date, and the two
+  refusals, each with nothing written. And it runs the smoke's check block ten times: folded lines,
+  capitals, an unmatched organiser, an unreadable set, a missing copy and the rest.
+  `seed-demo-dav-content.unit.test.ts` counts event 3 among what `--remove` deletes. Each piece was
+  removed once, and a test went red each time.
+- **Not yet seen on a real stack.** No E2E (managed) run has carried it; the first one is its
+  proof. An update (step 4's second attendee) is not in the gate: it stays the sitting's, (a).
 
 ### T10 — shared mailboxes: Partial until one is copied
 

@@ -4,6 +4,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **The nightly managed gate proves that a meeting the target account organises
+  itself invites nobody** (workplan 0141 T9 (b), the organiser canary): each
+  fresh set now carries an event 3 organised by the demo target account's own
+  address, dated next January, with the canary attendee. There the target's
+  server is the organiser's, so without `SCHEDULE-AGENT=CLIENT` it would mail
+  the attendee on the copy and on the take-back; the catcher stayed silent for
+  event 1 only because its organiser is a third party. The demo bring-up gives
+  `tenant-b-target` an address, the seeder refuses before writing when the
+  target has none or the source shares it, and the smoke reads the copy and
+  asks the target's server whether it matches its organiser.
+
 ### Fixed
 
 - **follow-redirects 1.16.2 closes a third high advisory** (GHSA-mrwp-f3q8-3g9p,
