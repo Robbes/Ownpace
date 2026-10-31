@@ -383,7 +383,10 @@ takes the machine's own public address from the optional secret
 `EXPOSURE_PROBE_HOST`. It also asks `app.`, `id.`, `status.` and
 `www.ownpace.eu` for the page a visitor asks first, and fails while NetBird's
 sign-in answers one of them instead of the service (workplan 0139, item 8;
-*After the script: the owner's steps*, step 5). A port the front answers by
+*After the script: the owner's steps*, step 5). And it asks live's form that
+founds an organisation, `/ui/login/register/org` at `id.ownpace.eu`, and fails
+unless it answers 404, a redirect included (workplan 0135 T1): the smoke asks
+that page on the OTA stack, and never runs on live. A port the front answers by
 itself, which never reaches the machine, goes in the optional repository
 variable `EXPOSURE_PROBE_FRONT_PORTS`, and only after a capture on the machine
 during a probe run has shown that nothing arrives (workplan 0132 T3 (c), the
@@ -4164,6 +4167,10 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    the account, your laptop on the mesh or the machine, NetBird may let a
    request through its SSO without a sign-in page, so a browser there proves
    nothing, and the probe runs on a GitHub-hosted runner.
+   It also fails while `https://id.ownpace.eu/ui/login/register/org`, the form
+   that founds an organisation, answers anything but 404 (workplan 0135 T1):
+   read `disallowPublicOrgRegistration` back on live, and set it if it reads
+   false, with workplan 0135 §4, T0 step 1.
    If a port answers on the production names' addresses that nothing of yours
    publishes, find out first whether the front sends it anywhere. In NetBird's
    dashboard, look for a TCP, TLS or UDP service whose public port is that

@@ -59,6 +59,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   deploy after the one that moves live onto this release: `deploy-live.sh`
   runs its copy from before the checkout moves.
 
+### Added
+
+- **The outside probe asks whether anybody can found an organisation at live's
+  sign-in service** (workplan 0135 T1, the ask 0132 T3 records): every dispatch
+  of *Exposure probe* asks `https://id.ownpace.eu/ui/login/register/org`
+  without following a redirect, and fails unless it answers 404, the answer
+  once `disallowPublicOrgRegistration` holds. A 2xx is the form served; a
+  redirect is not the refusal, and is named by its host, never its query;
+  NetBird's own page fails whatever its status; any other status, and no
+  answer at all, fail, as the discovery document's do. No dispatch input or
+  repository variable makes it a note. The smoke asks the same page on the OTA
+  instance every night and never runs on live, so a Zitadel upgrade or a
+  setting that served the form again on live went unseen until now.
+
 ### Fixed
 
 - **follow-redirects 1.16.2 closes a third high advisory** (GHSA-mrwp-f3q8-3g9p,
