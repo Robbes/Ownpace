@@ -2,7 +2,22 @@
 
 > **In one line:** Making the alpha's no-backups decision true on `ownpace-live`: `BACKUP_RETENTION_DAYS` equal to the days a pre-deploy copy is kept, so the erasure sentence says so, alpha-conditions wording, a runbook note on a lost machine, an off-machine `.env` copy, and a design for drilled database backups.
 
-## Status — 2026-10-29 (update this block at the end of every session)
+## Status — 2026-10-31 (update this block at the end of every session)
+
+**2026-10-31, recorded: T0 step 3 read back on live, and no copy kept there (the owner,
+2026-10-29 to 2026-10-31).**
+
+- **Step 3.** On 2026-10-29, on alpha.2, the owner read `BACKUP_RETENTION_DAYS` on live, in its
+  `.env` and in its API container: 7 in both (PASS). Live runs `v0.2.0-alpha.3` since
+  2026-10-30, whose API is distroless, so step 3's `exec api printenv` no longer answers there;
+  the bring-up guide reads it with `docker container inspect` (#1710).
+- **Step 4, the copies.** Neither of live's copies could be proven, since no migration has run
+  on live, and the owner removed both by hand (0132's Status, 2026-10-31). The copy taken
+  before alpha.2 (2026-10-27 20:56 UTC) went on 2026-10-30, before alpha.3's deploy, so that
+  the deploy would take a fresh one of alpha.2. That one, taken at 2026-10-30 23:30 UTC with the
+  task runner's database (6 files), went early on 2026-10-31 (UTC), at the owner's request. The
+  copy directory is empty, and `COPY_DELETE_WHEN_PROVEN` is `true` again.
+- **T4** stays as the owner chose on 2026-10-29: not now.
 
 **2026-10-04: the alpha note no longer carries the backup sentence; both mails keep it.** The
 owner gave the note new words, a welcome, and chose *"Welcome only"* (0131 D4's amendment). So
@@ -321,7 +336,7 @@ runbook's recipe and `docs/deployment.md` as fixed in #1137.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner's steps on the reference machine | ⏳ **Owner** | §3. `BACKUP_RETENTION_DAYS` in live's `.env` (`~/.persistent/ownpace-live/.env`, which live's checkout links to), set when 0132 T1b seeds it and read back from live's API container: N, the most days a copy made before a deploy is kept (open question 1 (b), 2026-09-28), and `0` only while no copy is taken. A copy older than N days deleted, whether or not a deploy followed it (by the daily duties since 0139's copy before an update, built 2026-09-28, not merged; by hand again whenever their timer is not active, 2026-09-29). T4's copies, if the owner takes them. Dates and outcomes go in this block, never values. |
+| T0 The owner's steps on the reference machine | ⏳ **Owner**; step 3 read back on live 2026-10-29: 7 in its `.env` and API container (Status, 2026-10-31) | §3. `BACKUP_RETENTION_DAYS` in live's `.env` (`~/.persistent/ownpace-live/.env`, which live's checkout links to), set when 0132 T1b seeds it and read back from live's API container: N, the most days a copy made before a deploy is kept (open question 1 (b), 2026-09-28), and `0` only while no copy is taken. A copy older than N days deleted, whether or not a deploy followed it (by the daily duties since 0139's copy before an update, built 2026-09-28, not merged; by hand again whenever their timer is not active, 2026-09-29). T4's copies, if the owner takes them. Dates and outcomes go in this block, never values. |
 | T1 The erasure sentence says there are no backups | ✅ **done** in #1214, merged 2026-09-27: (a) the wording and (b) the start-up check, a warning in production and fatal with the alpha setting on (open question 4, the owner's answer still owed). (c), the check of the Trigger.dev store, done 2026-09-27, merged as #1240: it found tester data, and open question 3 was answered (a) the same day. That (a) ✅ **done** in #1267, merged 2026-09-28 (`871f2d50`): a run's error, discovery's output and its logs leave Trigger.dev a reference and a category — *was:* (c)'s (a) built 2026-09-28, not merged; 📋 Decided 2026-09-24 (D1) for the setting and the wording; the start-up check 📋 Proposed | §3. The close response then says *"This deployment keeps no backups"*. The comments that say the reference deployment keeps seven days are corrected. The code default stays 7, for the reason §3 gives. (a) is the wording, (b) the start-up check, (c) *A check before the sentence is trusted*. |
 | T2 The alpha conditions say it, in Dutch first | 📋 **Decided 2026-09-24** (D1, D2, D3); one sentence added 2026-09-28 for the dump before each deploy (open question 1 (b)) | §3. A paragraph drafted here for 0139's lawyer's pass. 0131 T1's note carries the short form. *(2026-10-04: since the owner's welcome (0131 D4's amendment), both Alpha mails carry the short form, and the conditions §6 the full one. The tester guide names the one copy before an update, but not its 7 days. The note is the owner's welcome only.)* |
 | T3 What a lost machine costs, written down | ✅ **done** in #1238, merged 2026-09-27: the runbook's section, ADR-0020 amended, the downgrade refusal, no squash in the alpha — *was:* 📋 **Proposed** | §3. A runbook section for the owner. ADR-0020's operative rule is amended to what is built. No squash of either migration chain during the alpha. |

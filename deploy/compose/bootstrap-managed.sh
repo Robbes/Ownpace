@@ -1876,13 +1876,21 @@ phase_login() {
     return 0
   fi
 
+  # --no-browser, BECAUSE THE BROWSER IS USUALLY ON ANOTHER MACHINE. From CLI
+  # 4.8.3 a login that can open a browser itself (Linux with xdg-open, macOS)
+  # waits for the approval on this machine's 127.0.0.1, and the page sends the
+  # approving browser there: a browser on a laptop gets no code, the login
+  # times out after ten minutes, and `login --code` refuses it. With
+  # --no-browser the page shows a code to paste, wherever the browser runs
+  # (managed-bring-up.md, step 7; workplan 0119, 2026-10-31).
   cat <<EOF
 
     The deploy CLI is not logged in on this machine under the profile
-    '${profile}'. Run this yourself — it opens a browser and waits for you,
-    which is why the script does not run it for you:
+    '${profile}'. Run this yourself — it prints an address to open in a
+    browser, on this machine or another, and waits for the code the page
+    shows, which is why the script does not run it for you:
 
-      npx -y trigger.dev@${cli_version} login -a ${url} --profile ${profile}
+      npx -y trigger.dev@${cli_version} login -a ${url} --profile ${profile} --no-browser
 
     Note the address is the PLAIN http api origin, not the https front. The
     CLI follows the server-advertised API origin and must not meet a
