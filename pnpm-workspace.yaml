@@ -49,8 +49,10 @@ overrides:
   "semver@>=7.0.0 <7.5.2": ^7.5.2
   # ws CVE-2026-48779 + CVE-2026-45736, fixed in 8.21.0; engine.io-client asks for ~8.21.0.
   "ws@>=8.0.0 <8.21.0": ^8.21.0
-  # Bare on purpose (set 2026-07-09 with ws): lifts @trigger.dev/core's exact 4.7.5 within 4.x.
-  socket.io-client: ^4.8.0
+  # socket.io-client is no longer overridden (2026-10-31, Trigger.dev v4.8.3). A bare
+  # `socket.io-client: ^4.8.0` stood here from 2026-07-09 to lift @trigger.dev/core's exact
+  # 4.7.5 within 4.x; core pins 4.8.4 exactly since 4.8.2, so that reason is gone, and the
+  # override would only have held the tree on 4.8.3 below the version core asks for.
   # No CVE of its own. Set with ws (2026-07-09): socket.io-client's engine.io-client was on 6.5.x.
   "engine.io-client@<6.6.0": ^6.6.0
   # @opentelemetry/core CVE-2026-54285: every version below 2.8.0 (1.x too), fixed only in 2.8.0.
@@ -236,7 +238,14 @@ overrides:
   # PRODUCTION by the scanner's reading: axios, a runtime dependency of apps/web, holds it. One
   # copy in the tree (1.16.0). 1.16.1 was published 2026-10-01, well before the 3-day cooldown
   # below, so no minimumReleaseAgeExclude entry is needed.
-  "follow-redirects@<1.16.1": ^1.16.1
+  #
+  # 2026-10-31. Raised to 1.16.2 for a third HIGH advisory, the gate red on main and on every
+  # pull request again (the tree, not the diff):
+  #   GHSA-mrwp-f3q8-3g9p  cross-realm sensitiveHeaders arrays are discarded, so custom
+  #                        credential headers can follow a redirect (>=1.16.0 <=1.16.1)
+  # 1.16.2 changes one check, `instanceof Array` to `Array.isArray`. Published 2026-10-25 21:32
+  # UTC, past the cooldown below since 2026-10-28, so again no minimumReleaseAgeExclude entry.
+  "follow-redirects@<1.16.2": ^1.16.2
   #
   # libxmljs2 is NOT INSTALLED, on purpose. It is optional for the CycloneDX SBOM tool (an
   # optional dependency of cyclonedx-npm and an optional peer of cyclonedx-library), which uses it
@@ -300,3 +309,13 @@ minimumReleaseAgeExclude:
   - socket.io-parser@4.2.7
   - js-yaml@4.3.2
   - esbuild@0.25.12
+  # 2026-10-31. Trigger.dev v4.8.3, taken before its three-day floor on the owner's waiver of
+  # that day: "I waive the wait for v4.8.3, just go with it." It covers v4.8.3 and nothing
+  # else, so these name the two v4.8.3 packages the lockfile installs and no transitive one
+  # (every package v4.8.3 newly requires is older than the floor). npm published core at
+  # 12:24:49 UTC and sdk at 12:25:21 UTC on 2026-10-30, and the deploy CLI, which npx fetches
+  # outside this floor, at 12:25:49 UTC, so the floor passes 2026-11-02 12:26 UTC: after it
+  # both entries may be removed. The next Trigger.dev move must remove them: the guard
+  # a-gate-that-was-never-switched-on fails on an entry the lockfile no longer installs.
+  - "@trigger.dev/core@4.8.3"
+  - "@trigger.dev/sdk@4.8.3"

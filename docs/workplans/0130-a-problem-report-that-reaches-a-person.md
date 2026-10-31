@@ -2,7 +2,20 @@
 
 > **In one line:** Report a problem on managed: `POST /api/problem-reports` files a Zammad ticket, or mails the support mailbox (the alpha), with facts from our records and the browser shown before sending; linked from the `unknown` failure remedy; the same for *Report this link*; plus privacy wording.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-10-31 (update this block at the end of every session)
+
+**2026-10-31, recorded: on live, the report form names the support mailbox (`REPORT_MAIL_TO`
+set; the owner, 2026-10-29).** On alpha.2, the owner found `REPORT_MAIL_TO` empty on live, with `NOTIFY_TO`
+`support@ownpace.eu`. So a report already reached support@ through
+T5's fallback, but the form did not name the mailbox: the preview gives addresses only when
+`REPORT_MAIL_TO` names them, and otherwise says *"Goes to the Ownpace support team."* (T6, the
+entry *T6 Part A, the review's seven findings fixed*, below). At 21:36 UTC on 2026-10-29 the
+owner set `REPORT_MAIL_TO=support@ownpace.eu`, recreated the API alone with `--no-deps` (the
+bring-up guide's step 8f recreates it with `up -d --wait api`) and confirmed it; the read-back
+after the fix passed. Live runs
+`v0.2.0-alpha.3` since 2026-10-30 (0132's Status, 2026-10-31). Still the owner's and not
+recorded: step 8f's test report from live through the public name, with a screenshot near 5 MB,
+its arrival in the support mailbox, and the Reply check in Proton's client.
 
 **2026-09-28: main's legal revision merged in (#1317).** main now carries privacy policy v1.2,
 still marked draft. Its §4.5 has a *Reporting a problem* paragraph of its own, and its §9 a row for
