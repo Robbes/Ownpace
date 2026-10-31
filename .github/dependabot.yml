@@ -14,8 +14,10 @@
 # this, and keeps an issue open while one is behind. This file moves cosign-installer, and the
 # cosign it installs only while no step names one.
 # The ones of those this file sees too are the databases' build, whose pin is the FROM of
-# deploy/compose/postgres/Dockerfile (its entry below), and the Docker socket proxy's since
-# 2026-10-30, the FROM of deploy/compose/docker-socket-proxy/Dockerfile (its entry below). The appliance's PostgreSQL is a build
+# deploy/compose/postgres/Dockerfile (its entry below), the Docker socket proxy's since
+# 2026-10-30, the FROM of deploy/compose/docker-socket-proxy/Dockerfile (its entry below), and
+# the dashboard's TLS front's since 2026-10-31, the FROM of deploy/compose/caddy/Dockerfile (its
+# entry below). The appliance's PostgreSQL is a build
 # too since 0146 T15b, and its pin, the FROM of deploy/selfhost/postgres/Dockerfile, is this
 # file's alone (its entry below): the pin watch reads neither deploy/selfhost/compose.yml nor
 # that Dockerfile (in deploy/selfhost it reads only setup-stalwart.sh's Stalwart pin).
@@ -201,6 +203,35 @@ updates:
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
     commit-message:
       prefix: chore(socket-proxy)
+
+  # The Trigger.dev dashboard's TLS front (deploy/compose/caddy/Dockerfile,
+  # workplan 0119, 2026-10-31): Caddy's official image with curl removed, and
+  # the libraries only curl pulled in, which managed.yml builds as
+  # `localhost/caddy:<tag>-<12 hex>`, the hex being the hash of the
+  # Dockerfile's instructions. This pull request, a newer Caddy 2 or a new
+  # digest in the FROM, fails twice on purpose. Its build stops with "re-read
+  # the header", because the RUN checks the packages it removes at the versions
+  # the header read and `caddy version` at the FROM's release: read the new
+  # image's packages and its scan, and move those with the header. That moves
+  # the name, and scripts/a-package-the-front-never-runs.unit.test.ts fails
+  # until managed.yml's image line moves too; the failure prints the `sed`.
+  # Push both to the pull request's branch, and dispatch E2E (managed) on it.
+  # Every Caddy 2 release and digest: Caddy keeps no older minor line, so its
+  # fixes ship in the newest release, and the pin watch compares within 2 too.
+  # A major is the owner's.
+  - package-ecosystem: docker
+    directory: "/deploy/compose/caddy"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: caddy
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: chore(caddy)
 
   # The self-host stack's images (workplan 0119 T1). Dependabot's compose fetcher
   # reads only the files directly in a directory whose names match
