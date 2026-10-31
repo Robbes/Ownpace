@@ -28,8 +28,8 @@ notices.
 - **Targets:** a Soverin account (mail, calendars, contacts, tasks), a
   Nextcloud account (calendars, contacts, files, tasks), JMAP (mail, contacts,
   files; its calendars are parked), and plain IMAP, CalDAV, CardDAV and WebDAV.
-- **Signing in** goes through an identity provider, and Ownpace holds no
-  password (ADR-0042). The owner lets each tester in with a grant link.
+- **Signing in** goes through an identity provider, and Ownpace keeps no
+  sign-in password (ADR-0042). The owner lets each tester in with a grant link.
 - **A migration is silent:** nothing it writes may make a target send mail or
   a notification (ADR-0043).
 - **Billing:** invoices are numbered and written by the accounting system,

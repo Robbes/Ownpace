@@ -99,7 +99,6 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..'
 const MIGRATIONS_PATH = 'packages/ledger/migrations';
 const HEAD_MIGRATIONS = join(REPO_ROOT, 'packages', 'ledger', 'migrations');
 
-
 function git(...args: string[]): string {
   return execFileSync('git', args, {
     cwd: REPO_ROOT,
