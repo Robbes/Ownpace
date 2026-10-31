@@ -119,7 +119,8 @@
  *    the default at the new version and moves the row. A new release is exactly
  *    where a new report appears: Zitadel's ping arrived with v4. A row whose
  *    fact was read for a whole major line records that line instead, and is
- *    compared by repository and major: Caddy's (Caddy 2 has no telemetry) and
+ *    compared by repository and major: Caddy's (Caddy 2 has no telemetry; a
+ *    build here since 2026-10-31, so its row reads the FROM's line) and
  *    Nextcloud's (read at `stable34`, and at `v35.0.2` when the demo moved),
  *    whose images are pinned by tag and digest since 2026-10-22, so that a
  *    patch or a rebuild the pin watch asks for does not fail here, and another
@@ -666,13 +667,16 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
     holds: (svc) => exactly(environmentOf(svc), 'MP_DISABLE_VERSION_CHECK', 'true'),
   },
   'deploy/compose/managed.yml:trigger-tls': {
-    readAt: 'caddy:2',
-    line: true,
+    readAt: 'build',
     why:
       'Caddy 2 has no telemetry (its repository names it only for the opt-in `tracing` directive), and its one ' +
       'default that leaves the machine is automatic HTTPS, which asks a public certificate authority; `tls internal` ' +
-      'in the mounted Caddyfile is the switch',
+      'in the mounted Caddyfile is the switch. Built here since 2026-10-31 from the official caddy image, with curl ' +
+      'removed and nothing added, so the fact is read for the FROM\'s major line, `caddy:2`',
     holds: (svc, entry) => {
+      const { from, problems } = builtFrom(svc, entry);
+      if (problems.length) return problems;
+      if (from === undefined || lineOf(from) !== 'caddy:2') return [`built FROM ${String(from)}, and the fact was read for caddy:2: read what it sends by default`];
       const file = mountsOf(svc).find((m) => m.target === '/etc/caddy/Caddyfile');
       if (!file) return ['no Caddyfile is mounted at /etc/caddy/Caddyfile, so the image default runs'];
       return caddyProblems(read(`${dirname(entry.file)}/${file.source.replace(/^\.\//, '')}`));
