@@ -54,8 +54,8 @@ import {
   versionsOf,
   type Chain,
   type ReleaseMigrators,
-} from './upgrade-from-a-release.ts';
-import { readReleaseLine, rootVersion, startingPoints } from '../../ledger/src/release-line.ts';
+} from './__tests__/upgrade-from-a-release.ts';
+import { readReleaseLine, rootVersion, startingPoints } from '../../ledger/src/__tests__/release-line.ts';
 
 const ADMIN_URL = process.env.TEST_DATABASE_URL;
 if (!ADMIN_URL) {

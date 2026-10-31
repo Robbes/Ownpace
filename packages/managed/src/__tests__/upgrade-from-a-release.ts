@@ -11,7 +11,11 @@
  * - `migrate-upgrade.integration.test.ts` runs the same proof on Postgres 18,
  *   the server the managed edition runs, from the newest release.
  *
- * Nothing here is imported by anything that ships. It reads git (`git show`,
+ * Nothing here is imported by anything that ships, which is why it sits in
+ * `__tests__`, beside `apps/api`'s helpers: the image guard
+ * (`an-image-that-shipped-what-it-never-runs`) reads every other file under
+ * `src` as runtime source, and this one imports the release's migrators by a
+ * computed path. It reads git (`git show`,
  * `git ls-tree`) and writes the release's two chains and its two migrators
  * into a temp tree the caller makes and removes. Every function takes the
  * release it reads as `ref`.
@@ -24,8 +28,8 @@ import { dirname, join, posix, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { LedgerDriver, RunMigrationsResult } from '@openmig/ledger';
 
-// packages/managed/src -> repo root
-export const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+// packages/managed/src/__tests__ -> repo root
+export const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 
 /**
  * The two chains, in the order the API applies them: the shared one first,

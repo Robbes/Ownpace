@@ -11,8 +11,8 @@ merged. For alpha.4.
 - **One file names the line (T3, T4).** `scripts/release-line.json`: `preReleaseEndedAt`
   `v0.2.0-alpha.1`, `releases` (rc.1 and the three alphas, in SemVer order) and, per chain, the
   oldest release an upgrade is still proved from (rc.1 for the ledger chain, alpha.1 for the
-  managed one, the first with a managed chain). `scripts/release-line.mjs` is the one reading of
-  it the tests share. The fold adds the version it folds as the last of `releases`; until
+  managed one, the first with a managed chain). `packages/ledger/src/__tests__/release-line.ts` is
+  the one reading of it the tests share. The fold adds the version it folds as the last of `releases`; until
   Release tags it, that entry is the release being prepared (`docs/release.md` §1).
 - **T4, the unit legs.** Both unit gates, and the managed chain's new Postgres leg, start from
   their chain's oldest supported release and the newest release, or from `UPGRADE_FROM_REF`
@@ -25,8 +25,9 @@ merged. For alpha.4.
   managed proof's database half on Postgres: the release's chains by the release's own
   migrators, then this build's, compared with a fresh install on every catalogue line, a
   further run, and the release's migrators refusing. The machinery both legs share moved,
-  unchanged, from the unit file into `packages/managed/src/upgrade-from-a-release.ts`, taking the
-  release as a parameter. The integration job now checks out with `fetch-depth: 0`, as the unit
+  unchanged, from the unit file into `packages/managed/src/__tests__/upgrade-from-a-release.ts`,
+  taking the release as a parameter (in `__tests__`, as `apps/api`'s helpers are, because the
+  image guard reads every other file under `src` as runtime source). The integration job now checks out with `fetch-depth: 0`, as the unit
   job does. Run here against a local Postgres 16 (CI's is 18): 10 of 10; with
   `ALTER TABLE public.tenant ADD COLUMN …` appended to applied managed 0040, both legs red on
   `columns`, as expected.

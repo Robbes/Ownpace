@@ -19,7 +19,7 @@
  * `scripts/release-line.json` lists every release and, per chain, the
  * oldest one an upgrade is still proved from. Both unit gates and the
  * managed chain's Postgres leg start from that oldest one and from the
- * newest release (`packages/ledger/src/release-line.ts`, `startingPoints`), or from
+ * newest release (`packages/ledger/src/__tests__/release-line.ts`, `startingPoints`), or from
  * `UPGRADE_FROM_REF` alone when it is set. This guard holds the list to the
  * repository's tags:
  *
@@ -40,7 +40,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readReleaseLine, releasedOnly, rootVersion, startingPoints, type ReleaseLine } from '../packages/ledger/src/release-line.ts';
+import { readReleaseLine, releasedOnly, rootVersion, startingPoints, type ReleaseLine } from '../packages/ledger/src/__tests__/release-line.ts';
 import { compareSemVer, parseSemVer } from './release-names-agree.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -124,7 +124,7 @@ describe('the release line holds every release tag, and nothing that is not one'
 describe('the upgrade gates read their starting points from the release line', () => {
   it.each(GATES)('$file starts from the $chain chain’s points, or UPGRADE_FROM_REF alone', ({ file, chain }) => {
     const text = read(file);
-    expect(text).toMatch(/from '(?:\.\/|\.\.\/\.\.\/ledger\/src\/)release-line\.ts'/);
+    expect(text).toMatch(/from '(?:\.\/|\.\.\/\.\.\/ledger\/src\/)__tests__\/release-line\.ts'/);
     expect(text).toMatch(new RegExp(`startingPoints\\(readReleaseLine\\(REPO_ROOT\\), '${chain}', \\{\\s*fromRef: process\\.env\\.UPGRADE_FROM_REF,`));
     expect(text, `${file} still writes a release of its own`).not.toMatch(/process\.env\.UPGRADE_FROM_REF \|\|/);
   });

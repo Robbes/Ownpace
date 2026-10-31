@@ -2264,6 +2264,10 @@ reading a file drops off its entry by itself.
 
 - [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
 
+### `packages/ledger/src/__tests__/release-line.ts`
+
+- [every-release-is-a-starting-point](../scripts/every-release-is-a-starting-point.unit.test.ts) — EVERY RELEASE IS A STARTING POINT: the upgrade gates a pull request runs started from rc.1 (the shared chain) and alpha.1 (the managed chain) alone, so three releases later no pull request proved an upgrade from the release `ownpace-live…
+
 ### `packages/ledger/src/direct-url.ts`
 
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
@@ -2282,10 +2286,6 @@ reading a file drops off its entry by itself.
 ### `packages/ledger/src/migrate.ts`
 
 - [a-chain-that-only-grows](../scripts/a-chain-that-only-grows.unit.test.ts) — A CHAIN THAT ONLY GROWS: nothing said when pre-release ended, so nothing refused a squash, an edit or a deletion of a migration a release had shipped, and the squash script's own advice was to drop a database that would not start (workpl…
-
-### `packages/ledger/src/release-line.ts`
-
-- [every-release-is-a-starting-point](../scripts/every-release-is-a-starting-point.unit.test.ts) — EVERY RELEASE IS A STARTING POINT: the upgrade gates a pull request runs started from rc.1 (the shared chain) and alpha.1 (the managed chain) alone, so three releases later no pull request proved an upgrade from the release `ownpace-live…
 
 ### `packages/ledger/src/retention.ts`
 
@@ -5909,8 +5909,8 @@ EVERY RELEASE IS A STARTING POINT: the upgrade gates a pull request runs started
 
 Reads:
 
+- `packages/ledger/src/__tests__/release-line.ts`
 - `packages/ledger/src/migrate-upgrade.unit.test.ts`
-- `packages/ledger/src/release-line.ts`
 - `packages/managed/src/migrate-upgrade.integration.test.ts`
 - `packages/managed/src/migrate-upgrade.unit.test.ts`
 - `scripts/release-line.json`

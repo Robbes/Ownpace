@@ -73,8 +73,8 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readReleaseLine, releasedOnly, rootVersion } from '../packages/ledger/src/release-line.ts';
-import { sqlWithoutComments } from '../packages/managed/src/upgrade-from-a-release.ts';
+import { readReleaseLine, releasedOnly, rootVersion } from '../packages/ledger/src/__tests__/release-line.ts';
+import { sqlWithoutComments } from '../packages/managed/src/__tests__/upgrade-from-a-release.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (path: string): string => readFileSync(join(ROOT, path), 'utf8');

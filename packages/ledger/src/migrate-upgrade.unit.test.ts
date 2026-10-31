@@ -68,7 +68,7 @@ import { fileURLToPath } from 'node:url';
 import { pgliteDriver } from './pglite-driver.ts';
 import { runMigrations } from './migrate.ts';
 import type { LedgerDriver } from './driver.ts';
-import { readReleaseLine, rootVersion, startingPoints } from './release-line.ts';
+import { readReleaseLine, rootVersion, startingPoints } from './__tests__/release-line.ts';
 
 /**
  * Temp directories this file makes, and the removal that used to be missing.

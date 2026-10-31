@@ -88,7 +88,7 @@
  * `fetch-depth: 0`). The managed edition runs Postgres, so the same proof
  * runs there too, from the newest release, in
  * `migrate-upgrade.integration.test.ts`. Both read the release through
- * `upgrade-from-a-release.ts`, which holds what the two legs share.
+ * `__tests__/upgrade-from-a-release.ts`, which holds what the two legs share.
  *
  * FROM WHICH RELEASES (0146 T4). From each that `scripts/release-line.json`
  * names: the managed chain's oldest supported release, `v0.2.0-alpha.1`, the
@@ -132,8 +132,8 @@ import {
   versionsOf,
   type Chain,
   type ReleaseMigrators,
-} from './upgrade-from-a-release.ts';
-import { readReleaseLine, rootVersion, startingPoints } from '../../ledger/src/release-line.ts';
+} from './__tests__/upgrade-from-a-release.ts';
+import { readReleaseLine, rootVersion, startingPoints } from '../../ledger/src/__tests__/release-line.ts';
 
 /**
  * Temp directories this file makes, and the removal that used to be missing.

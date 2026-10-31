@@ -30,7 +30,8 @@
  * the one reading of it the tests share: both upgrade gates, the managed
  * chain's Postgres leg, and the guards in `scripts/`. It lives here rather
  * than in `scripts/` because a relative import from a package's `src` must
- * name a file in a package (`runs-without-a-transpiler.unit.test.ts`).
+ * name a file in a package (`runs-without-a-transpiler.unit.test.ts`), and
+ * in `__tests__` because nothing that ships may load it.
  */
 
 import { readFileSync } from 'node:fs';
