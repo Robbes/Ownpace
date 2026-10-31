@@ -4,6 +4,23 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **Both Postgres builds take Alpine's brotli-libs 1.2.1-r0 and libcurl
+  8.23.0-r0, which clears their critical** (workplan 0119): with gosu gone,
+  `postgres:18.6-alpine` still read 1 critical and 1 high, CVE-2026-111497
+  in brotli's decoder and CVE-2026-92392 in libcurl's HTTP/2 uploads, and no
+  digest of the tag fixes them before 18.7. One RUN in each Dockerfile takes
+  exactly those two versions from Alpine's signed repository and refuses
+  anything else, so the scan reads 0 and 0; only libpq-oauth links libcurl,
+  and nothing here connects with OAuth. Both builds also move to upstream's
+  rebuild of 2026-10-26 (`10a5c69a…`) and share the name
+  `localhost/postgres:18.6-alpine-27f5dc218723`, so every Postgres, the
+  appliance's too, is rebuilt and restarted once. **Building these images
+  now needs Alpine's mirror, `dl-cdn.alpinelinux.org`, as well as Docker
+  Hub**: the box's next `up`, and an appliance's first `up` after the
+  update.
+
 ### Fixed
 
 - **follow-redirects 1.16.2 closes a third high advisory** (GHSA-mrwp-f3q8-3g9p,

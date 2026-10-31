@@ -50,7 +50,17 @@
  *    files or images the hash does not cover), and `build:` is the bare
  *    directory (args, a target or a Dockerfile of its own would be inputs the
  *    name does not carry). The context holds the Dockerfile alone, and nothing
- *    reads it but the builder;
+ *    reads it but the builder. What the build reads from outside it is the
+ *    base, by its digest, and since 2026-10-31 (workplan 0119) two packages
+ *    from Alpine's signed repository, brotli-libs and libcurl for two
+ *    findings no digest of the base had fixed, as deploy/compose/goaccess's
+ *    `apk add` takes its packages from the same repository. Each at the
+ *    exact version the instruction line names, so the line still says what
+ *    is built, or the build fails: an `apk add` here takes `--no-cache` and
+ *    `name=version-rN` and nothing else (no floor, no `--upgrade`, which
+ *    moves the named packages' dependencies too, and no other repository or
+ *    an unsigned one), and apk does nothing else here but compare versions
+ *    (no `upgrade`, `update`, `del` or `fix`);
  *  - Dependabot reads the Dockerfile, in a docker entry of its own that never
  *    offers a major (pg_upgrade is the owner's): a new digest or 18.x of the
  *    base arrives as its pull request, which fails here until the three names
@@ -205,6 +215,63 @@ function dockerfileProblems(text: string): string[] {
       problems.push(`\`${line}\` reads files or an image the image's name does not hash, so they could change under the same name. Write what it needs into an instruction line`);
     }
   }
+  problems.push(...apkProblems(text));
+  return problems;
+}
+
+/** Each RUN instruction, its continued lines joined as the builder joins them, comment lines left out. */
+function runInstructions(text: string): string[] {
+  const runs: string[] = [];
+  let current: string | null = null;
+  for (const line of text.split('\n')) {
+    if (current === null) {
+      if (!/^RUN\s/i.test(line)) continue;
+      current = '';
+    } else if (/^\s*#/.test(line)) {
+      continue;
+    }
+    const continued = /\\\s*$/.test(line);
+    current += line.replace(/\\\s*$/, '');
+    if (!continued) {
+      runs.push(current);
+      current = null;
+    }
+  }
+  if (current !== null) runs.push(current);
+  return runs;
+}
+
+/**
+ * What the Dockerfile asks of apk that the image's name would not say: a
+ * package without its exact version, an option that reaches further than the
+ * named versions, or a subcommand that changes what is installed by the day.
+ */
+function apkProblems(text: string): string[] {
+  const problems: string[] = [];
+  for (const run of runInstructions(text)) {
+    // apk where a command starts: the line's start, after ; & | ( or a shell keyword.
+    for (const m of run.matchAll(/(?:^RUN\s+|[;&|(]\s*|\b(?:then|do|else)\s+)apk\s+(\S+)([^;&|)]*)/g)) {
+      const [subcommand, rest] = [m[1]!, m[2]!];
+      if (subcommand === 'version') continue;
+      if (subcommand !== 'add') {
+        problems.push(`\`apk ${subcommand}\` changes what is installed by what Alpine's mirror holds that day, which the image's name does not say. Name each package at its exact version in an \`apk add --no-cache\``);
+        continue;
+      }
+      const words = rest.trim().split(/\s+/).filter(Boolean).map((w) => w.replace(/^(['"])(.*)\1$/, '$2'));
+      const options = words.filter((w) => w.startsWith('-'));
+      const packages = words.filter((w) => !w.startsWith('-'));
+      for (const option of options.filter((o) => o !== '--no-cache')) {
+        problems.push(`\`apk add ${option}\`: an option beyond --no-cache reaches past the versions the line names (--upgrade moves their dependencies too; a repository of its own, or an unsigned one, is a source the name does not carry)`);
+      }
+      if (!options.includes('--no-cache')) problems.push('`apk add` without --no-cache leaves the index it fetched in the image');
+      if (!packages.length) problems.push('`apk add` names no package');
+      for (const pkg of packages) {
+        if (!/^[a-z0-9][a-z0-9._+-]*=\d[0-9a-z._]*-r\d+$/.test(pkg)) {
+          problems.push(`\`apk add\` takes \`${pkg}\`, not one exact version (\`name=1.2.3-r0\`): a floor, or no version, builds whatever Alpine's mirror holds that day under the same name`);
+        }
+      }
+    }
+  }
   return problems;
 }
 
@@ -315,6 +382,20 @@ describe('the Postgres of the deploy/compose stacks starts as uid 70, from an im
     for (const line of ['COPY postgresql.conf /etc/postgresql/', 'ADD https://example.org/x.tar.gz /tmp/', 'COPY --from=busybox:1.37 /bin/busybox /bin/', 'RUN --mount=type=bind,target=/src true']) {
       expect(dockerfileProblems(real.replace(/^(USER 70:70)$/m, `${line}\n$1`)), line).toEqual([expect.stringContaining(`\`${line}\` reads files or an image`)]);
     }
+    // Alpine's packages (0119, 2026-10-31): each at the exact version the line names, and nothing that moves with the day.
+    const pinned = 'apk add --no-cache brotli-libs=1.2.1-r0 libcurl=8.23.0-r0;';
+    expect(real, 'the Dockerfile no longer takes the two packages this guard was written for').toContain(pinned);
+    const apk = (to: string) => dockerfileProblems(real.replace(pinned, to));
+    expect(apk("apk add --no-cache 'brotli-libs>=1.2.1-r0' libcurl=8.23.0-r0;")).toEqual([expect.stringContaining('takes `brotli-libs>=1.2.1-r0`, not one exact version')]);
+    expect(apk('apk add --no-cache brotli-libs libcurl=8.23.0-r0;')).toEqual([expect.stringContaining('takes `brotli-libs`, not one exact version')]);
+    expect(apk('apk add --no-cache brotli-libs=1.2.1-r0 libcurl~8.23;')).toEqual([expect.stringContaining('takes `libcurl~8.23`, not one exact version')]);
+    for (const option of ['--upgrade', '-u', '--repository=https://dl-cdn.alpinelinux.org/alpine/edge/main', '--allow-untrusted']) {
+      expect(apk(`apk add --no-cache ${option} brotli-libs=1.2.1-r0 libcurl=8.23.0-r0;`), option).toEqual([expect.stringContaining(`\`apk add ${option}\`: an option beyond --no-cache`)]);
+    }
+    expect(apk('apk add brotli-libs=1.2.1-r0 libcurl=8.23.0-r0;')).toEqual(['`apk add` without --no-cache leaves the index it fetched in the image']);
+    expect(apk('apk upgrade --no-cache;')).toEqual([expect.stringContaining('`apk upgrade` changes what is installed')]);
+    expect(apk(`apk update && ${pinned}`)).toEqual([expect.stringContaining('`apk update` changes what is installed')]);
+    expect(dockerfileProblems(real.replace(/^(USER 70:70)$/m, 'RUN apk add --no-cache zlib\n$1')), 'a RUN of its own').toEqual([expect.stringContaining('takes `zlib`, not one exact version')]);
     // USER moved above the rm: the build's rm would run as uid 70, and fail.
     const moved = real.replace(/^USER 70:70\n/m, '').replace(/^(RUN rm \/usr\/local\/bin\/gosu)$/m, 'USER 70:70\n$1');
     expect(dockerfileProblems(moved)).toEqual(['USER 70:70 comes before the rm, which needs root']);

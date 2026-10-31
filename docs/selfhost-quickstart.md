@@ -271,11 +271,13 @@ docker compose -f deploy/selfhost/compose.yml up -d
 
 The first start builds the database's image, which takes a few seconds:
 compose pulls the official `postgres:18.6-alpine` image by the digest
-`deploy/selfhost/postgres/Dockerfile` pins, removes gosu from it (the one
-critical finding a scanner reports in that image, which needs gosu only to
-drop from root), and starts it as PostgreSQL's own user, uid 70. No registry
-serves the built image's name, so nothing ever pulls it, and no login is
-needed. Then Postgres comes up and passes its healthcheck → the app applies
+`deploy/selfhost/postgres/Dockerfile` pins, removes gosu from it (a critical
+finding a scanner reports in that image, which needs gosu only to drop from
+root), takes two of Alpine's security updates at exact versions (brotli-libs
+and libcurl, which the database server does not load) from Alpine's mirror,
+`dl-cdn.alpinelinux.org`, and starts it as PostgreSQL's own user, uid 70. So
+the first start needs Docker Hub and Alpine's mirror. No registry serves the
+built image's name, so nothing ever pulls it, and no login is needed. Then Postgres comes up and passes its healthcheck → the app applies
 the ledger migrations under an advisory lock → the app becomes healthy. Check
 it:
 
