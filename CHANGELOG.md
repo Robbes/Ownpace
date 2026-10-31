@@ -24,7 +24,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   `OWNPACE_REACHABLE_HOSTS` names a host, whatever the stage, and while
   `MOLLIE_API_KEY` is set and the stage is the Alpha, each read as the app
   reads it. Mollie's live key goes in with the switch that ends the Alpha
-  (`docs/ending-the-alpha.md`, step 4).
+  (`docs/ending-the-alpha.md`, step 4). Both refusals first apply at the
+  deploy after the one that moves live onto this release: `deploy-live.sh`
+  runs its copy from before the checkout moves.
 
 ### Fixed
 

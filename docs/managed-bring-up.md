@@ -4246,10 +4246,12 @@ it says which and logs nothing; fix it and run it again with `--resume`.
 
 **Not part of the stand-up: the books and payments.** Live runs the alpha,
 which invoices nobody, so the script sets no `MONEYBIRD_*` key and no
-`MOLLIE_API_KEY`, and live runs without them. They come before the alpha ends:
-*8i. The books and payments* above, with live's own Moneybird administration
-and Mollie's live key, and [ending-the-alpha.md](./ending-the-alpha.md) for
-when.
+`MOLLIE_API_KEY`, and live runs without them. They come before the alpha ends,
+all but Mollie's live key: *8i. The books and payments* above, with live's own
+Moneybird administration, and [ending-the-alpha.md](./ending-the-alpha.md) for
+when. Mollie's live key goes in with the switch that ends the alpha (*The
+switch*, step 4), since `deploy-live.sh` refuses live's `.env` with
+`MOLLIE_API_KEY` set while its stage is `alpha`.
 
 ## Live's daily duties
 
