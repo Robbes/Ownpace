@@ -72,7 +72,9 @@ export const docUrl = (path) => `${RAW_REPOSITORY_URL}/main/${path}`;
 
 /**
  * The selection, by topic, in the order `llms.txt` lists it. `title` is the
- * document's own first `# ` heading, word for word.
+ * document's own first `# ` heading, word for word. The guard spells the
+ * paths out as well, so a document added or dropped here changes it in the
+ * same pull request.
  */
 export const MAINTAINED_DOCS = [
   {

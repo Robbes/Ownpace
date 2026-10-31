@@ -21,7 +21,9 @@
  *
  *  1. every document the list names is in this tree, a Markdown file by a
  *     plain path, under the title the list gives it, which is its own first
- *     `# ` heading word for word;
+ *     `# ` heading word for word; and the list is the fourteen spelled out
+ *     here, so a document dropped from it is a change made twice, and
+ *     the lessons index names this guard under each but the root README;
  *  2. `llms.txt` links each one, in the build for the Alpha and the one
  *     without, after the site's pages, one section per topic, by that title,
  *     at the repository's own raw Markdown on `main`, with no notes after it,
@@ -107,13 +109,29 @@ describe('1. every document llms.txt links is in this tree, under its own first 
       'The Alpha',
     ]);
     for (const { topic, docs: listed } of MAINTAINED_DOCS) expect(listed.length, `${topic} lists nothing`).toBeGreaterThan(0);
-    // The vacuity check: a list of nothing passes every check above.
-    expect(MAINTAINED_DOCS.flatMap((t) => t.docs).length).toBeGreaterThanOrEqual(10);
-    // The source of truth and the security policy are the two an assistant
-    // should not be without.
-    const paths = MAINTAINED_DOCS.flatMap((t) => t.docs.map((d) => d.path));
-    expect(paths).toContain('docs/architecture/solution-architecture.md');
-    expect(paths).toContain('SECURITY.md');
+    // The selection, spelled out. Two reasons it is written twice. A document
+    // dropped from the list passes the check, which only reads what is listed,
+    // so the drop is made here as well, on purpose. And the lessons index
+    // lists a guard under the paths it spells out, so each document listed
+    // here is a file whose entry names this guard: whoever is about to rename
+    // or retitle one finds, before they do, that llms.txt links it. (The root
+    // README's basename is ambiguous, so the index cannot place it.)
+    expect(MAINTAINED_DOCS.flatMap((t) => t.docs.map((d) => d.path))).toEqual([
+      'README.md',
+      'docs/feature-matrix.md',
+      'docs/adr/OPERATIVE.md',
+      'docs/architecture/solution-architecture.md',
+      'docs/rollback-mechanisms.md',
+      'SECURITY.md',
+      'docs/rls-guide.md',
+      'docs/breach-procedure.md',
+      'docs/selfhost-quickstart.md',
+      'docs/windows-appliance-runbook.md',
+      'docs/selfhost-ending-the-service.md',
+      'docs/workplans/0131-the-alpha-and-who-is-let-in.md',
+      'docs/workplans/0134-no-backups-during-the-alpha-said-truthfully.md',
+      'CHANGELOG.md',
+    ]);
   });
 
   it("reads a document's first heading past an HTML comment and a fenced block, and not inside them", () => {
@@ -208,7 +226,8 @@ describe('3. a document renamed, removed or retitled fails the check, naming it'
         topic: 'One',
         docs: [
           { path: '../outside.md', title: 'Outside' },
-          { path: 'deploy/compose/managed.yml', title: 'A stack' },
+          // No such file: a real one here would index this guard under it in LESSONS.md.
+          { path: 'deploy/compose/a-stack.yml', title: 'A stack' },
           { path: 'README.md', title: 'Own [pace]' },
         ],
       },
@@ -217,7 +236,7 @@ describe('3. a document renamed, removed or retitled fails the check, naming it'
     ];
     expect(docProblems(root, list).map((p) => `${p.path}: ${p.what}`)).toEqual([
       '../outside.md: is not a Markdown file by a plain path inside the repository',
-      'deploy/compose/managed.yml: is not a Markdown file by a plain path inside the repository',
+      'deploy/compose/a-stack.yml: is not a Markdown file by a plain path inside the repository',
       'README.md: has the title "Own [pace]", which cannot be a link\'s text',
       'README.md: opens with "# Ownpace", and the list gives it "Own [pace]"',
       ': the topic "One" twice',

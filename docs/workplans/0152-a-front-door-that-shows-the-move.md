@@ -35,7 +35,10 @@ the service) and *The Alpha* (0131, 0134, `CHANGELOG.md`). The list is `MAINTAIN
   `git archive <tag> site package.json`, where no document is; the build reads the list, never
   the documents.
 - **Guard:** `scripts/a-doc-an-assistant-is-sent-to.unit.test.ts`, 10 cases: the real tree passes
-  the check, over the five topics; the heading read past a comment and a fence; `llms.txt` holding
+  the check, over the five topics and the fourteen paths spelled out, so a document dropped from
+  the list is a change made twice and `docs/LESSONS.md` names the guard under thirteen of them
+  (the root README's basename is ambiguous, so the index cannot place it); the heading read past a
+  comment and a fence; `llms.txt` holding
   exactly the list after the pages, in the Alpha's build and the other, at the raw address on
   `main`, no notes, no `/blob/`; the raw address derived, not written again; the check naming a
   rename, a removal, a retitling, a path out of the repository, a title no link can carry and a
@@ -43,11 +46,18 @@ the service) and *The Alpha* (0131, 0134, `CHANGELOG.md`). The list is `MAINTAIN
   installed, exit 1 then 0; the step in `docs-hygiene` with no `needs` or `if`, and the check's
   imports Node's own and the two site modules; and the build on a copy of `site/` alone writing the
   same `llms.txt`. `site/a-page-that-names-its-address-in-full.unit.test.ts` reads the
-  documentation's sections after the languages'. Thirteen mutations, each caught: the build without
+  documentation's sections after the languages'. Fourteen mutations, each caught: the build without
   the sections; GitHub's `blob` page; a tag for `main`; a listed path renamed; a title that is not
   the heading; the step out of `docs-hygiene`; the check ignoring the heading, a missing file, a
   path out of the repository or a fence; the check importing a package; the build reading a
-  document; and notes after each link.
+  document; notes after each link; and a document dropped from the list.
+- **`README.md`, the first document listed, says what is true now.** Its opening line said
+  "starting with **O365 → Soverin / Nextcloud** (Proton later)"; it now names the six kinds of
+  account the *Leaving…* pages cover and the four destinations the home page's *Where to* does,
+  and says Proton is deferred (ADR-0025). Its *Get it* pulled `0.1.0-rc.1` from the pre-rename
+  path; it now pulls `ownpace-selfhost:0.2.0-alpha.3`, which that tag's images run published and
+  signed on 2026-10-30, and keeps rc.1's path as a note. The Windows zip is from `v0.2.0-alpha.1`
+  on, and the SBOM line names alpha.1 as the release without one, as the releases page shows.
 
 **2026-10-30: T5 (c) is built: every page names its address and its other language's in full,
 and `llms.txt` lists them** (branch `claude/ownpace-public-readiness-y7orc6-site-search-metadata`;
