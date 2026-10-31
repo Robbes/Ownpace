@@ -798,4 +798,29 @@ describe('waiting for the page', () => {
     await ready;
     expect(screen.getByRole('heading', { level: 1, name: 'Anna Jansen' })).toBeInTheDocument();
   });
+
+  /**
+   * And it waits on each of the two reads, not only on the people. Every mock
+   * above answers in the same turn, so no case before this one would see the
+   * rows' read dropped from `answered`, and a case whose list or status
+   * answered after the people would then look at a page still drawing (#1760's
+   * review). Here one read never answers, and the wait must say which.
+   */
+  it.each([
+    ['people', '/people/p-anna', () => peopleMock.mockReturnValue(new Promise(() => undefined))],
+    ['mappings', '/people/p-anna', () => listMock.mockReturnValue(new Promise(() => undefined))],
+    [
+      'status',
+      '/people/implicit',
+      () => {
+        edition.selfhost = true;
+        peopleMock.mockResolvedValue(implicitPeople([{ id: 'mail', status: 'active' }]));
+        vi.mocked(fetchStatus).mockReturnValue(new Promise(() => undefined));
+      },
+    ],
+  ] as const)('fails, and names it, while the %s read has not answered', async (read, path, holdIt) => {
+    holdIt();
+    renderAt(path);
+    await expect(answered()).rejects.toThrow(`the ${read} read has not answered: pending`);
+  });
 });

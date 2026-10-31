@@ -29,6 +29,13 @@ Node ran the wait's timer first.
   heading. The spinner draws one too (*Migrations*), so main's test passed even with `PaceLine`
   changed to draw the Free line on a paid tier. It now waits for the person's name, and the same
   change turns it red.
+- **A wait that could not fail on its rows (#1760's review).** Every mock answers in the same
+  turn, so `answered()` with the rows' read taken out of it left all 38 cases green, and a case
+  whose list or status answered after the people would have looked at a page still drawing.
+  *Fails, and names it, while the … read has not answered* holds back one read at a time (the
+  people, the list, the appliance's status) and expects the wait to fail naming it. Taking the
+  rows' read out turns the list's and the status's cases red; taking the people's out turns the
+  people's red.
 - **Proved by:** the file run 30 times on one core shared with four busy loops and three other
   web test files run in a loop, with coverage on, as CI runs it, and main's file run under the
   same load after every second run: this file passed 30 runs of 30, main's failed 15 of 15,
