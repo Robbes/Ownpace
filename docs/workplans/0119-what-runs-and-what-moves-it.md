@@ -9,8 +9,13 @@
 It skips v4.8.2: one move, one way, one window on the OTA stack.
 - **The decision, recorded as the owner gave it.** 2026-10-31, about 01:30 UTC: *"straight to
   v4.8.3, asap"*; about 01:40 UTC: *"I waive the wait for v4.8.3, just go with it."* It is not
-  the floor's security-fix exception: neither release names an advisory. It covers v4.8.3 and
-  nothing else: the two npm packages the lockfile installs at that version (`@trigger.dev/core`
+  the floor's security-fix exception, because no finding open here is cleared by the move:
+  v4.8.2 names GHSA-96hv-2xvq-fx4p (high) and GHSA-58qx-3vcg-4xpx (moderate), both of `ws`
+  below 8.21.0, which core's old socket.io-client pin held at 8.17.1 (core's and the CLI's
+  `CHANGELOG.md`, 4.8.2), and this tree's `ws@>=8.0.0 <8.21.0` override has installed 8.21.3
+  all along; core 4.8.2's refusal of metadata keys that reach `__proto__` names no advisory, and
+  v4.8.3 names none. So the move is taken on the owner's waiver. It covers v4.8.3 and nothing
+  else: the two npm packages the lockfile installs at that version (`@trigger.dev/core`
   and `@trigger.dev/sdk`), the deploy CLI `deploy-tasks.sh` fetches with `npx`
   (`trigger.dev@4.8.3`), and ghcr's `v4.8.3` of `trigger.dev` and `supervisor`, by index digest
   (`54aa67fa…` and `60808dde…`, each linux/amd64 and linux/arm64 with attestations). npm
@@ -62,9 +67,13 @@ It skips v4.8.2: one move, one way, one window on the OTA stack.
   this repository: the query dashboard APIs refuse run and public tokens (nothing here calls
   them); the legacy `clickhouse` event store is retired and `EVENT_REPOSITORY_V1_REROUTE_ENABLED`
   defaults on (only for the store this stack does not use); CLI and MCP logins are single use
-  and bound to the machine that started them, a code to paste when the browser runs on another
-  machine, every login minting its own token (the `login` phase, documented in
-  `managed-bring-up.md`; tokens minted before stay valid, so the E2E's `TRIGGER_ACCESS_TOKEN`
+  and bound to the machine that started them, every login minting its own token. A CLI that can
+  open a browser itself (Linux with `xdg-open`, macOS, Windows) takes the approval on its own
+  `127.0.0.1`, which a browser on another machine cannot reach (no code, a ten-minute wait, and
+  `login --code` refused); only a login started with `--no-browser` or `--no-wait`, or on Linux
+  without `xdg-open`, shows a code to paste. So the login line `bootstrap-managed.sh`,
+  `deploy-tasks.sh` and `managed-bring-up.md` print now carries `--no-browser` (tokens minted
+  before stay valid, so the E2E's `TRIGGER_ACCESS_TOKEN`
   and its restored profile file, and live's remembered token, are untouched; CLIs before 4.8.3
   log in until `CLI_LOGIN_LEGACY_UNTIL`, 2027-01-01 by default); the legacy Bun runtime is
   deprecated (the tasks run `node`). The SDK prefers short-lived run tokens for `triggerTask`,
@@ -110,10 +119,16 @@ It skips v4.8.2: one move, one way, one window on the OTA stack.
   41159641513 dispatched on the branch: `localhost/trigger.dev:v4.8.3-b0cce1eaa578` (Debian
   12.15) 1 critical, 136 high, 80 with a fix, where v4.8.1's build read 1, 137 and 81 (#1742);
   `localhost/supervisor:v4.8.3-f44827c552a6` (Alpine 3.24.3) 0, 25 and 25, as at v4.8.1. The
-  critical left is zlib1g's, which Debian has not fixed. Which high left the webapp could not be
-  read here (the SARIF artifact and code scanning are outside this session's access); upstream's
-  lockfile moved socket.io-client 4.7.5 to 4.8.4, engine.io-client 6.5.3 to 6.6.7,
-  xmlhttprequest-ssl 2.0.0 to 2.1.2 and `@trigger.dev/platform` 1.3.1 to 1.5.0. goose v3.27.1,
+  critical left is zlib1g's, which Debian has not fixed. `main`'s own v4.8.1 build, scanned five
+  hours earlier (Security Scan run 41130684117, 2026-10-30 21:25 UTC), read 1, 137 and 81 too.
+  Which fixable high left the webapp is not identified: the SARIF artifact, the job logs and code
+  scanning are outside this session's access. Upstream's lockfile moved socket.io-client 4.7.5
+  to 4.8.4, engine.io-client 6.5.3 to 6.6.7, xmlhttprequest-ssl 2.0.0 to 2.1.2 and
+  `@trigger.dev/platform` 1.3.1 to 1.5.0, and none of those, nor `@trigger.dev/core` 4.8.1, has
+  an advisory in npm's database (its bulk advisory endpoint, asked 2026-10-31); `docker/Dockerfile`
+  is byte-identical, but its runner stage runs `apt-get upgrade` as it builds, a week later for
+  v4.8.3's image, so a Debian package that build took newer is the likelier source, unproven.
+  goose v3.27.1,
   pnpm 10.33.2 and systeminformation 5.31.7 are the same at v4.8.3, so what they contribute is
   unchanged. Owed: the owner's window on the OTA stack (the pull request's body has its steps: the hold
   and the drain, a verified dump of `triggerdb` and a copy of ClickHouse's volume with the
@@ -121,6 +136,25 @@ It skips v4.8.2: one move, one way, one window on the OTA stack.
   branch, and the merge within the hour. Live takes it from the alpha.4 tag after
   `TRIGGER_IMAGE_TAG=v4.8.3` in its `.env`; `deploy-live.sh` calls that deploy one-way and its
   copy holds the `triggerdb` dump.
+- **Corrected on review, the same day.** The login guidance first said a browser on another
+  machine is shown a code; read again in v4.8.3's `commands/login.ts`, `utilities/linux.ts` and
+  the consent route, that holds only for a login started without the loopback listener, so the
+  printed login lines now carry `--no-browser` (above). The waiver's reason first said neither
+  release names an advisory; v4.8.2 names two (above). The exclude entries' comment first said
+  they expire by themselves; the release-age guard fails on them once the lockfile moves past
+  4.8.3, so the next move removes them. The review's points on the window itself came after it
+  had run cleanly, and are kept for the next one: a room check before the ClickHouse copy, a way
+  out of a step 2 that stops partway, a check that no E2E (managed) is queued or running in place
+  of a clock window (the last three nightlies started between 09:54 and 10:18 UTC), and the
+  persisted `.env`'s directory derived as the gate derives it,
+  `${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/<project>}`.
+- **The owner's window on the OTA stack, 2026-10-31.** The hold and the drain; at 05:12 UTC the
+  verified dump of `triggerdb`, `…-before-v4.8.3.sql.gz` (169 MB on disk, 2.4 GB of SQL), the
+  copy of ClickHouse's volume (394 MB) and the persisted `.env` at `TRIGGER_IMAGE_TAG=v4.8.3`,
+  with the plane stopped. `main`'s nightly E2E (managed) that morning (run 41190363814, 09:51
+  UTC) stopped at its bring-up, as the window says it must once the `.env` names v4.8.3, before
+  anything started. E2E (managed) on this branch, which is the upgrade, its migrations
+  included: run 41228139989, dispatched 18:11 UTC on `a0e077b1`.
 
 **2026-10-31, recorded: live runs alpha.3's pins.** The owner deployed `v0.2.0-alpha.3` (tagged
 2026-10-30 on `e1b21aac`) to live on 2026-10-30, with `TRIGGER_IMAGE_TAG=v4.8.1` set in live's

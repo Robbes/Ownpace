@@ -315,6 +315,7 @@ minimumReleaseAgeExclude:
   # (every package v4.8.3 newly requires is older than the floor). npm published core at
   # 12:24:49 UTC and sdk at 12:25:21 UTC on 2026-10-30, and the deploy CLI, which npx fetches
   # outside this floor, at 12:25:49 UTC, so the floor passes 2026-11-02 12:26 UTC: after it
-  # both entries may be removed, and they expire by themselves once the tree moves past 4.8.3.
+  # both entries may be removed. The next Trigger.dev move must remove them: the guard
+  # a-gate-that-was-never-switched-on fails on an entry the lockfile no longer installs.
   - "@trigger.dev/core@4.8.3"
   - "@trigger.dev/sdk@4.8.3"

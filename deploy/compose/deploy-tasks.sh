@@ -23,11 +23,13 @@ set -euo pipefail
 #        docker compose -f deploy/compose/managed.yml up -d api
 #   4. CLI login, ONCE — and once means once, since the token is remembered:
 #        npx -y trigger.dev@<version> logout --profile <name>     # if a stale one exists
-#        npx -y trigger.dev@<version> login -a http://localhost:${TRIGGER_PORT:-3090} --profile <name>
+#        npx -y trigger.dev@<version> login -a http://localhost:${TRIGGER_PORT:-3090} --profile <name> --no-browser
 #      where <name> is TRIGGER_CLI_PROFILE (default openmig) — a SETTING, not
 #      a constant, and one that cannot move a login that already exists under
 #      another name. This script prints the exact pinned commands, with the
-#      name filled in, if you are not logged in.
+#      name filled in, if you are not logged in. --no-browser because from CLI
+#      4.8.3 only such a login shows a code to paste, which works wherever the
+#      browser runs (docs/managed-bring-up.md, step 7).
 #
 #      LOGOUT COMES FIRST when there is anything to log out of. The profile
 #      lives at ~/.config/trigger/config.json, on the HOST, and outlives the
@@ -195,7 +197,7 @@ if ! trigger_cli_logged_in "${CLI_VERSION}" "${PROFILE}"; then
   # exactly the loop; the failure table has carried the remedy since 2026-08-31
   # and nothing pointed an operator at it from here.
   echo "               npx -y trigger.dev@${CLI_VERSION} logout --profile ${PROFILE}" >&2
-  echo "               npx -y trigger.dev@${CLI_VERSION} login -a ${TRIGGER_URL} --profile ${PROFILE}" >&2
+  echo "               npx -y trigger.dev@${CLI_VERSION} login -a ${TRIGGER_URL} --profile ${PROFILE} --no-browser" >&2
   echo "[deploy-tasks] (logout FIRST: login short-circuits on a stale token and reports success.)" >&2
   echo "[deploy-tasks] Then this script remembers the token, and no browser is needed again:" >&2
   echo "               ./deploy/compose/trigger-remember-token.sh" >&2

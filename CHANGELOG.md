@@ -14,8 +14,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   ClickHouse ones, which drop a search table and its view this stack never
   filled. A stack whose `.env` sets `TRIGGER_IMAGE_TAG` sets `v4.8.3` there
   first, with no run executing and after the backup, or its bring-up stops at
-  the `trigger` phase. A new `trigger.dev login` finishes with a code from the
-  browser when the browser runs on another machine.
+  the `trigger` phase. A new `trigger.dev login` is started with
+  `--no-browser`, as the bring-up and `deploy-tasks.sh` now print it: without
+  it, CLI 4.8.3 on a machine that can open a browser takes the approval on its
+  own `127.0.0.1`, which a browser on another machine cannot reach.
 
 ### Fixed
 

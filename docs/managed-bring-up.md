@@ -32,7 +32,7 @@ What the script does instead is make it the *only* human step:
 | **Find the magic link in the logs** | script (`trigger-magic-link.sh`) |
 | **Open it, name an organisation, name a project** | **you** |
 | Read the project ref and production key back out of the instance | script (`trigger-credentials.sh`) |
-| Log the deploy CLI in (opens a browser) | you, one command |
+| Log the deploy CLI in (approved in a browser) | you, one command |
 | Build and start the API and web app | script |
 | Upload the task runtime environment, deploy the tasks | script |
 | Prove an enqueue becomes a runner on this machine | script (`smoke-managed.sh`) |
@@ -887,7 +887,7 @@ so there is one version number and it lives where it already lived.
 ```bash
 # If this machine has logged in before, log OUT first — see the box below.
 npx -y trigger.dev@<version> logout --profile openmig
-npx -y trigger.dev@<version> login -a http://localhost:3090 --profile openmig
+npx -y trigger.dev@<version> login -a http://localhost:3090 --profile openmig --no-browser
 ```
 
 **Once means once, because the token is remembered.** The next
@@ -928,8 +928,8 @@ one browser round trip from agreeing (2026-08-31). The refusal prints the name
 in use and the default as two separate lines for exactly this reason.
 
 The script prints the exact line with the version filled in and stops, because
-the command opens a browser and waits for you. Note the address is the plain
-**http api origin**, not the https front.
+the command waits for you to approve the login in a browser. Note the address
+is the plain **http api origin**, not the https front.
 
 **The URL it then asks you to open is on the https front**
 (`TRIGGER_LOGIN_ORIGIN`, the `trigger-tls` service), which serves a
@@ -937,12 +937,24 @@ self-signed certificate — and one browser has been seen to fail there where
 another succeeds. See the failure table.
 
 **From 4.8.3 a login is single-use and bound to the terminal that started
-it** (Trigger.dev v4.8.3, workplan 0119). The browser's approval goes back to
-the CLI over `http://127.0.0.1`, which works only when the browser runs on the
-same machine. When it runs on another, the page shows a code instead: paste it
-into the terminal that is waiting, or finish with `npx -y
-trigger.dev@<version> login --code <code> --profile <name>`. Every login now
-mints a token of its own; the tokens minted before stay valid, so a remembered
+it** (Trigger.dev v4.8.3, workplan 0119), and how the approval comes back
+depends on how the login was started. Without `--no-browser`, a CLI that can
+open a browser itself (on macOS, on Windows, or on Linux with `xdg-open`)
+listens on a port of `http://127.0.0.1`, and the page sends the approving
+browser there: that works only when the browser runs on the same machine. A
+browser on another machine is sent to its own loopback and shown no code, the
+terminal waits out the login's ten minutes, and `login --code` then refuses,
+because the CLI never saves a login of that kind. The page shows a code to
+paste only for a login started without that listener: with `--no-browser` or
+`--no-wait`, or on Linux without `xdg-open` (`commands/login.ts` and
+`utilities/linux.ts` of the CLI, and the webapp's
+`account.authorization-code.$authorizationCode/route.tsx`, at v4.8.3). So the
+command above, and the one the `login` phase and `deploy-tasks.sh` print,
+carry `--no-browser`: it prints the address, you open it in a browser here or
+on another machine, and you paste the code the page shows into the terminal
+that is waiting. If that terminal is gone, finish within the ten minutes with
+`npx -y trigger.dev@<version> login --code <code> --profile <name>`. Every
+login now mints a token of its own; the tokens minted before stay valid, so a remembered
 `TRIGGER_ACCESS_TOKEN` and a persisted profile keep working across the move.
 A CLI older than 4.8.3 can still log in until the webapp's
 `CLI_LOGIN_LEGACY_UNTIL`, 2027-01-01 by default, which `managed.yml` does not
@@ -4527,7 +4539,7 @@ journal of whatever ran it), 2 refused.
 | --- | --- | --- |
 | `pgbouncer` logs `could not open auth_file … Permission denied`, then `no such user: pgbouncer_auth` | `userlist.txt` was written 0600 by the host user; PgBouncer reads it as a different user inside the container, finds no users, and rejects every login | `chmod 644 deploy/compose/pgbouncer/userlist.txt`, then force-recreate. `ensure-env-secrets.sh` now writes 644 and `--only data` repairs the mode |
 | The seed or a host-run script talks to the wrong Postgres | On a shared host, `localhost:5432` may belong to something else entirely — this stack's Postgres is published wherever `POSTGRES_PORT` says | The `demo` phase asks `docker compose port postgres 5432` rather than trusting a default. For your own commands, do the same |
-| `deploy-tasks.sh` proceeds past its own login check and then fails with `Unable to validate existing personal access token` / `Invalid or Missing Access Token` | `whoami` exits 0 whether or not you are actually logged in — confirmed from the CLI's own source, an auth failure returns data rather than throwing. A stale profile (e.g. left over after `reset-trigger.sh`) passes the check and only fails once `deploy` tries to use it | `npx -y trigger.dev@<version> login -a http://localhost:${TRIGGER_PORT:-3090} --profile <profile>`, then re-run. Fixed at the source in `trigger-cli-lib.sh`, which both scripts now use instead of trusting the exit code |
+| `deploy-tasks.sh` proceeds past its own login check and then fails with `Unable to validate existing personal access token` / `Invalid or Missing Access Token` | `whoami` exits 0 whether or not you are actually logged in — confirmed from the CLI's own source, an auth failure returns data rather than throwing. A stale profile (e.g. left over after `reset-trigger.sh`) passes the check and only fails once `deploy` tries to use it | `npx -y trigger.dev@<version> login -a http://localhost:${TRIGGER_PORT:-3090} --profile <profile> --no-browser`, then re-run. Fixed at the source in `trigger-cli-lib.sh`, which both scripts now use instead of trusting the exit code |
 | `deploy-tasks.sh` says **`Not logged in`** while `trigger.dev login` answers **`You are already logged in`** | The instance's database was destroyed (a wipe, `down -v`, a rename cutover) but the CLI profile at `~/.config/trigger/config.json` is on the HOST and survived it. `login` sees a token in the profile and short-circuits without validating it against the instance, so it reports success for a token whose account no longer exists; `trigger_cli_logged_in()` reads `whoami`'s output properly and correctly says no. **`login` alone cannot fix this** — it never gets far enough to replace the token | `npx -y trigger.dev@<version> logout --profile <profile>` **first**, then `login` as above. If `logout` also short-circuits, delete the profile's entry from `~/.config/trigger/config.json`. **Until 2026-08-31 this symptom had a SECOND cause with the same appearance**: the detector piped `whoami`'s output into `grep -q`, which exits at the first match, so under `set -o pipefail` a long-enough answer killed the producer with SIGPIPE and the pipeline returned 141 for a match that had SUCCEEDED. Verified and fixed — it now reads from a here-string — so on a current checkout this row's cause is the only one left |
 | `trigger-supervisor` is `Restarting`, its log says **`Unable to read worker token from file: EACCES … /home/node/shared/worker_token`**, and `up` aborts with `container <project>-trigger-supervisor is unhealthy` | trigger-api bootstraps the worker token into the shared volume as **root, mode 0600**; the supervisor reads it as **node**. On a FRESH `trigger_shared` volume — first install, or after a `down -v` — it cannot open its own credential. Everything else reports healthy, so the stack looks fine while dequeuing nothing | `docker compose -f deploy/compose/managed.yml exec -u 0 trigger-api chown node:node /home/node/shared/worker_token`, then `docker compose -f deploy/compose/managed.yml restart trigger-supervisor`. **chown, not `chmod 644`** — the token is a credential and root bypasses permissions anyway. `bootstrap-managed.sh`'s `trigger` phase now does this between trigger-api and the supervisor, so a fresh volume no longer needs the manual step |
 | `set-task-env.sh` fails **`Invalid or Missing API key`** against a `proj_…` ref that looks right | Same cause, other credential: `TRIGGER_PROJECT_REF` and `TRIGGER_SECRET_KEY` in `.env` belong to the destroyed instance. `bootstrap-managed.sh`'s `account` phase **short-circuits when both are already set** (it cannot tell a stale value from a good one), so re-running bring-up never replaces them | `./deploy/compose/trigger-credentials.sh --write` — it reads the ref and the prod key out of the INSTANCE and upserts both, overwriting whatever `.env` held. Then re-run `set-task-env.sh` |
