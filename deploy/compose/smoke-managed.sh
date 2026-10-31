@@ -1101,7 +1101,10 @@ else
 fi
 
 # TRIGGER-TLS publishes a port, so the host's own curl is enough — no exec, no
-# assumption about what is inside the Caddy image.
+# assumption about what is inside the Caddy image. Since 2026-10-31 that image
+# is built here without curl (deploy/compose/caddy, workplan 0119): a probe
+# inside it naming curl would now certainly fail, which is one more reason
+# this asks from the host.
 #
 # BY IP, NOT BY NAME, and that is load-bearing. The Caddyfile's site address is
 # `{$TRIGGER_TLS_HOST}:3443`, which on a real box is the machine's VPN address,
