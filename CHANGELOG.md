@@ -15,11 +15,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   anything else, so the scan reads 0 and 0; only libpq-oauth links libcurl,
   and nothing here connects with OAuth. Both builds also move to upstream's
   rebuild of 2026-10-26 (`10a5c69a…`) and share the name
-  `localhost/postgres:18.6-alpine-27f5dc218723`, so every Postgres, the
+  `localhost/postgres:18.6-alpine-1af6bb314e8d`, so every Postgres, the
   appliance's too, is rebuilt and restarted once. **Building these images
   now needs Alpine's mirror, `dl-cdn.alpinelinux.org`, as well as Docker
   Hub**: the box's next `up`, and an appliance's first `up` after the
-  update.
+  update. The RUN is temporary, until PostgreSQL 18.7 (due about
+  2026-11-12) carries both fixes. Alpine serves only the newest build of a
+  package, so once it moves either one, a machine without the image can no
+  longer build this release's database: the build then says so, and tells an
+  appliance's operator to update Ownpace to its newest release (the
+  self-host quickstart's Troubleshooting).
 
 ### Changed
 

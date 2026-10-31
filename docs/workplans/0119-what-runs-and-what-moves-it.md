@@ -4,9 +4,12 @@
 
 ## Status — 2026-10-31 (update this block at the end of every session)
 
-**2026-10-31, later: both Postgres builds take brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from
-Alpine at build, on upstream's rebuild of 2026-10-26 (alpha.4).** The image scan of `e1b21aac`
-(Security Scan run 41130684117, 2026-10-30) read `postgres-managed` (Alpine 3.24.3) and
+**2026-10-31, evening: both Postgres builds take brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from
+Alpine at build, on upstream's rebuild of 2026-10-26, until PostgreSQL 18.7 carries them
+(alpha.4, #1758).** The RUN that takes them is temporary: it comes out with the move to an 18.7
+image (due about 2026-11-12) whose base carries both fixes, and its own check fails the build of
+any base that already carries one, so that move's pull request says when. The image scan of
+`e1b21aac` (Security Scan run 41130684117, 2026-10-30) read `postgres-managed` (Alpine 3.24.3) and
 `postgres-selfhost` (Alpine 3.24.2) at 1 critical, 1 high and 2 fixable each. Read again here with
 Trivy v0.76.1 (database of 2026-10-30 19:07 UTC), remote image source, on the bases `10a5c69a…`
 (linux/arm64 and linux/amd64) and `77f58511…` (linux/arm64), gosu set aside since both builds
@@ -45,25 +48,53 @@ clears two findings, not a hole anybody here could reach, as the webapp's dompur
   `dl-cdn.alpinelinux.org`, once per machine and name. That is the box's `up` where the name is
   missing, and an appliance's first `up` after the move; before, the build needed the base alone.
   Alpine keeps only the newest build of a package in a stable branch, so once it moves either one,
-  a machine without the name cannot build it, and the build says so; the way on is a pull request
-  that moves the version, or the FROM to an 18.7 that carries both.
+  a machine without the name cannot build it, anywhere; the way on is a pull request that moves
+  the version, or the FROM to an 18.7 that carries both. aports' `3.24-stable` still read curl
+  8.23.0-r0 and brotli 1.2.1-r0 on 2026-10-31, so nothing is broken yet. The review of #1758 asked
+  for that failure in the operator's words, and it has them: when `apk add` fails, the RUN prints,
+  after apk's own error, that the two versions could not be installed, that a machine which cannot
+  reach `dl-cdn.alpinelinux.org` should be let reach it and run the same command again, and that
+  otherwise the mirror no longer serves them and this release's database image can no longer be
+  built: *"update Ownpace to its newest release"*, pointing at the self-host quickstart's new
+  Troubleshooting entry. The CHANGELOG line says the same. **For the owner to weigh:** two
+  findings nothing here can reach are cleared now, against an appliance build that will stop
+  building once Alpine moves either package, which a release before 18.7 lands would then have to
+  answer with a new release; the alternative is to wait for 18.7 and take neither.
 - **The name and the guard.** One name for both builds, since the two FROMs meet:
-  `localhost/postgres:18.6-alpine-27f5dc218723` on `managed.yml`'s `postgres` and `trigger-db`,
-  `dev.yml`'s and `deploy/selfhost/compose.yml`'s, by the `sed` the guard printed.
-  `a-database-started-as-root` now also refuses an `apk add` without exact versions or without
-  `--no-cache`, with any other option (`--upgrade`, another repository, `--allow-untrusted`), and
-  any apk subcommand but `add` and `version`. Expected after: 0 critical, 0 high, 0 fixable for
-  both images. Trivy's `rootfs` scan of the extracted amd64 base reads 25 findings at every
+  `localhost/postgres:18.6-alpine-1af6bb314e8d` (`27f5dc218723` until the failure message moved
+  it) on `managed.yml`'s `postgres` and `trigger-db`, `dev.yml`'s and
+  `deploy/selfhost/compose.yml`'s, by the `sed` the guard printed. `a-database-started-as-root`
+  now also refuses an `apk add` without exact versions or without `--no-cache`, with any other
+  option (`--upgrade`, another repository, `--allow-untrusted`), and any apk subcommand but `add`
+  and `version -t`. It reads apk wherever the shell could run it: the review found six forms the
+  first reading let past (`/sbin/apk add`, after `if`, `{` or `!`, inside `sh -c '…'`, after
+  `xargs`), and each is now a refusal it is tested on, as is a heredoc; put back the first
+  reading's pattern and that test fails at `/sbin/apk`. And it runs the RUN itself, on a stand-in
+  apk and package database: the two versions taken and nothing left in `/tmp`; apk's failure
+  followed by the operator's message and exit 1; a third package moved, and a base whose libcurl
+  is 8.23.0-r0 already, each refused, the latter before any install. Without the `|| { … }` the
+  failure case fails the test.
+- **The base, read again for the appliance.** From `/lib/apk/db/installed` in the amd64
+  package layers fetched from Docker Hub: `77f58511…` has Alpine 3.24.2-r0 and musl 1.2.6-r2,
+  `10a5c69a…` has 3.24.3-r0 and musl 1.2.6-r3, with OpenSSL 3.5.8 to 3.5.9, zlib, tzdata, c-ares,
+  libldap and nghttp2 moved too, and ICU 78.1-r0 in both, so the database's collation is
+  untouched; the appliance Dockerfile's header said "the same Alpine and musl" and now says this.
+- **Proven.** Both builds took the two packages from v3.24/main and passed the RUN's checks on the
+  pull request (at `12c0ae9c`): `build (postgres)` built it on linux/amd64 (apk: *"Upgrading
+  brotli-libs (1.2.0-r1 -> 1.2.1-r0)"*, *"Upgrading libcurl (8.22.0-r0 -> 8.23.0-r0)"*) and
+  started both compose files' databases as uid 70, and Security Scan run 41163493604, dispatched
+  with the image scans, built each Dockerfile on linux/arm64 and scanned it. Its *Image scan
+  report* job (124426552404) reads `postgres-managed` and `postgres-selfhost`, both
+  `localhost/postgres:18.6-alpine-27f5dc218723` on Alpine 3.24.3, at **0 critical, 0 high and 0
+  fixable**. Trivy's `rootfs` scan of the extracted amd64 base reads 25 findings at every
   severity, all in the two packages and all fixable (1 critical, 1 high, 1 medium, 22 low), and 0
-  with its package database at the two new versions; the built image's own count is the image
-  scan's on the branch. Both builds took the two packages from v3.24/main and passed the RUN's
-  checks on the pull request (#1758, at `12c0ae9c`): `build (postgres)` built it on linux/amd64
-  and started both compose files' databases as uid 70, and Security Scan run 41163493604,
-  dispatched with the image scans, built each Dockerfile on linux/arm64 and scanned it
-  (`postgres-managed`, `postgres-selfhost`). That run's reports are its artifacts and code
-  scanning, which this session's network cannot read, so the after-counts are read there. It supersedes #1744, #1745 and #1750, so every Postgres on the box (postgres and
-  trigger-db) and the appliance's is rebuilt and recreated once, not twice. Owed before merge:
-  E2E (managed) and E2E (self-hosted) on the branch.
+  with its package database at the two new versions. It supersedes #1744, #1745 and #1750, so
+  every Postgres on the box (postgres and trigger-db) and the appliance's is rebuilt and recreated
+  once, not twice.
+- **On today's main.** The branch merged `main` at `42efbe21` (#1755's Trigger.dev v4.8.3, #1761,
+  #1764), so it builds v4.8.3 as the OTA stack runs it: an E2E (managed) of a branch on v4.8.1
+  would meet migrations that only go one way. Owed before merge: E2E (managed) and E2E
+  (self-hosted) on this branch's head.
 
 **2026-10-31: Trigger.dev v4.8.1 → v4.8.3, before its three-day floor, on the owner's waiver
 (alpha.4, issue #1738)**, on the branch `claude/ownpace-public-readiness-y7orc6-trigger-4-8-3`.

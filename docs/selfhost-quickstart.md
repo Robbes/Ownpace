@@ -276,10 +276,11 @@ finding a scanner reports in that image, which needs gosu only to drop from
 root), takes two of Alpine's security updates at exact versions (brotli-libs
 and libcurl, which the database server does not load) from Alpine's mirror,
 `dl-cdn.alpinelinux.org`, and starts it as PostgreSQL's own user, uid 70. So
-the first start needs Docker Hub and Alpine's mirror. No registry serves the
-built image's name, so nothing ever pulls it, and no login is needed. Then Postgres comes up and passes its healthcheck → the app applies
-the ledger migrations under an advisory lock → the app becomes healthy. Check
-it:
+the first start needs Docker Hub and Alpine's mirror (see Troubleshooting if
+that build stops). No registry serves the built image's name, so nothing ever
+pulls it, and no login is needed. Then Postgres comes up and passes its
+healthcheck → the app applies the ledger migrations under an advisory lock →
+the app becomes healthy. Check it:
 
 ```sh
 curl -s http://127.0.0.1:8081/healthz          # {"status":"ok"}
@@ -858,6 +859,21 @@ docker compose -f deploy/selfhost/compose.yml down -v       # ALSO delete the DB
   packages), or run that one `up -d` with `DOCKER_BUILDKIT=0` in front, which
   builds with the engine's classic builder where the engine still has one:
   the Dockerfile needs nothing BuildKit adds.
+- **`up` stops while it builds the database's image, saying `Alpine's
+  brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 could not be installed`:** the
+  build takes those two of Alpine's packages, at exactly those versions, from
+  Alpine's mirror. If this machine cannot reach `dl-cdn.alpinelinux.org` (a
+  firewall, a proxy, no network), let it, and run `up -d` again. If it can,
+  Alpine's mirror no longer serves those versions: it keeps only the newest
+  build of a package, so this release's database image can no longer be
+  built on a machine that does not have it yet (a new install, an update that
+  moves its name, or after `docker image prune -a`). Update Ownpace to its
+  newest release (*Upgrades*, above: back up, check out its tag, pull, `up -d`),
+  which takes newer versions or a PostgreSQL image that carries them; if
+  yours is the newest already, the next release moves them. A machine that
+  already has the image keeps running it, and nothing here removes it. The
+  build takes these two packages only until PostgreSQL 18.7 (due about
+  2026-11-12) carries their fixes.
 - **The database exits with `exec: gosu: not found`:** something starts the
   database as root (a `user:` on the `postgres` service, or `-u 0` on a `run`
   that starts the server rather than another command). Remove it: the image

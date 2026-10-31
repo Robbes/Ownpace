@@ -60,7 +60,16 @@
  *    `name=version-rN` and nothing else (no floor, no `--upgrade`, which
  *    moves the named packages' dependencies too, and no other repository or
  *    an unsigned one), and apk does nothing else here but compare versions
- *    (no `upgrade`, `update`, `del` or `fix`);
+ *    (no `upgrade`, `update`, `del` or `fix`). apk is read wherever the shell
+ *    could run it, by its path, after `if`, `{`, `!`, `xargs` or a quote, and
+ *    in a heredoc, not only where a command starts (the review of #1758,
+ *    2026-10-31, got six such forms past the first reading). The RUN is run
+ *    here too, on a stand-in apk: it takes the two versions and nothing else,
+ *    refuses a base that carries a fix already, and when apk cannot install
+ *    them says what to do in words an appliance's operator can act on (reach
+ *    Alpine's mirror, or update Ownpace to its newest release), since Alpine
+ *    keeps only the newest build of a package and a release's exact versions
+ *    stop being served. The RUN is temporary, until PostgreSQL 18.7;
  *  - Dependabot reads the Dockerfile, in a docker entry of its own that never
  *    offers a major (pg_upgrade is the owner's): a new digest or 18.x of the
  *    base arrives as its pull request, which fails here until the three names
@@ -219,40 +228,57 @@ function dockerfileProblems(text: string): string[] {
   return problems;
 }
 
-/** Each RUN instruction, its continued lines joined as the builder joins them, comment lines left out. */
-function runInstructions(text: string): string[] {
-  const runs: string[] = [];
+/**
+ * Each instruction, its continued lines joined as the builder joins them,
+ * comment lines left out; a heredoc's lines come one by one, so whatever runs
+ * in one is read too.
+ */
+function instructionLines(text: string): string[] {
+  const lines: string[] = [];
   let current: string | null = null;
   for (const line of text.split('\n')) {
-    if (current === null) {
-      if (!/^RUN\s/i.test(line)) continue;
-      current = '';
-    } else if (/^\s*#/.test(line)) {
-      continue;
-    }
+    if (/^\s*#/.test(line) || (current === null && !line.trim())) continue;
     const continued = /\\\s*$/.test(line);
-    current += line.replace(/\\\s*$/, '');
+    current = (current ?? '') + line.replace(/\\\s*$/, '');
     if (!continued) {
-      runs.push(current);
+      lines.push(current);
       current = null;
     }
   }
-  if (current !== null) runs.push(current);
-  return runs;
+  if (current !== null) lines.push(current);
+  return lines;
 }
+
+/**
+ * apk wherever the shell could run it: as a word of its own, bare or by its
+ * path (`/sbin/apk`), after anything but a word, a dot or a hyphen, so after
+ * `RUN`, `;`, `&&`, `|`, `(`, `{`, `!`, `if`, `xargs` or a quote alike. A
+ * path through apk's own directories (`/lib/apk/db/installed`) is no command:
+ * `apk` there is followed by a slash.
+ */
+const APK_COMMAND = /(?:^|[^\w.-])(?:\/[\w./-]*\/)?apk\s+(\S+)([^;&|)}]*)/g;
 
 /**
  * What the Dockerfile asks of apk that the image's name would not say: a
  * package without its exact version, an option that reaches further than the
  * named versions, or a subcommand that changes what is installed by the day.
+ * Anything the line does not let it read as one of the two forms it allows,
+ * `apk add --no-cache name=1.2.3-r0 …` and `apk version -t`, is refused, so a
+ * message the RUN prints must not say "apk" before a space.
  */
 function apkProblems(text: string): string[] {
   const problems: string[] = [];
-  for (const run of runInstructions(text)) {
-    // apk where a command starts: the line's start, after ; & | ( or a shell keyword.
-    for (const m of run.matchAll(/(?:^RUN\s+|[;&|(]\s*|\b(?:then|do|else)\s+)apk\s+(\S+)([^;&|)]*)/g)) {
+  for (const line of instructionLines(text)) {
+    for (const m of line.matchAll(APK_COMMAND)) {
       const [subcommand, rest] = [m[1]!, m[2]!];
-      if (subcommand === 'version') continue;
+      if (subcommand === 'version') {
+        if (!/^\s+(-t|--test)\s/.test(rest)) problems.push(`\`apk version${rest.trimEnd()}\`: apk compares versions here with \`-t\` and does nothing else`);
+        continue;
+      }
+      if (subcommand.startsWith('-')) {
+        problems.push(`\`apk ${subcommand}\`: an option before the subcommand, where this guard does not read it. Write \`apk add --no-cache name=1.2.3-r0\``);
+        continue;
+      }
       if (subcommand !== 'add') {
         problems.push(`\`apk ${subcommand}\` changes what is installed by what Alpine's mirror holds that day, which the image's name does not say. Name each package at its exact version in an \`apk add --no-cache\``);
         continue;
@@ -264,7 +290,7 @@ function apkProblems(text: string): string[] {
         problems.push(`\`apk add ${option}\`: an option beyond --no-cache reaches past the versions the line names (--upgrade moves their dependencies too; a repository of its own, or an unsigned one, is a source the name does not carry)`);
       }
       if (!options.includes('--no-cache')) problems.push('`apk add` without --no-cache leaves the index it fetched in the image');
-      if (!packages.length) problems.push('`apk add` names no package');
+      if (!packages.length) problems.push('`apk add` names no package on its line (a list piped or read in is one the name does not say)');
       for (const pkg of packages) {
         if (!/^[a-z0-9][a-z0-9._+-]*=\d[0-9a-z._]*-r\d+$/.test(pkg)) {
           problems.push(`\`apk add\` takes \`${pkg}\`, not one exact version (\`name=1.2.3-r0\`): a floor, or no version, builds whatever Alpine's mirror holds that day under the same name`);
@@ -273,6 +299,72 @@ function apkProblems(text: string): string[] {
     }
   }
   return problems;
+}
+
+/**
+ * A stand-in for apk in the RUN's shell: `version -t` compares as apk does
+ * for the versions the tests give it, and `add` either takes the named
+ * versions into the package database, takes one package more besides
+ * (`more`), or fails as apk fails when the mirror no longer serves a version
+ * (`unserved`). Every call is logged.
+ */
+const APK_STUB = String.raw`const fs = require('node:fs');
+const [command, ...args] = process.argv.slice(2);
+fs.appendFileSync(process.env.APK_STUB_LOG, [command, ...args].join(' ') + '\n');
+if (command === 'version' && args[0] === '-t') {
+  const c = args[1].localeCompare(args[2], 'en', { numeric: true });
+  process.stdout.write(c < 0 ? '<\n' : c > 0 ? '>\n' : '=\n');
+  process.exit(0);
+}
+if (command === 'add') {
+  if (process.env.APK_STUB_MODE === 'unserved') {
+    process.stderr.write('ERROR: unable to select packages:\n  libcurl-8.23.0-r0:\n    breaks: world[libcurl=8.23.0-r0]\n');
+    process.exit(1);
+  }
+  const pins = args.filter((a) => !a.startsWith('-'));
+  if (process.env.APK_STUB_MODE === 'more') pins.push('zlib=1.3.2-r2');
+  let db = fs.readFileSync(process.env.APK_STUB_DB, 'utf8');
+  for (const pin of pins) {
+    const [name, version] = pin.split('=');
+    db = db.replace(new RegExp('^(P:' + name + '\\nV:).*$', 'm'), '$1' + version);
+  }
+  fs.writeFileSync(process.env.APK_STUB_DB, db);
+  process.exit(0);
+}
+process.stderr.write('the stand-in apk has no ' + command + '\n');
+process.exit(2);
+`;
+
+/** The base's packages as the RUN reads them, from /lib/apk/db/installed. */
+const BASE_PACKAGES = { 'brotli-libs': '1.2.0-r1', libcurl: '8.22.0-r0', musl: '1.2.6-r3', zlib: '1.3.2-r1' };
+
+/**
+ * Runs the Dockerfile's package RUN as the builder hands it to /bin/sh, on a
+ * package database of `base` and the stand-in apk: what it exited with, what
+ * it said, what it asked apk and what it left installed.
+ */
+function runPackages(dockerfile: string, mode: 'ok' | 'more' | 'unserved', base: Record<string, string> = BASE_PACKAGES) {
+  const runs = instructionLines(dockerfile).filter((l) => /^RUN\s/.test(l) && /\bapk add\b/.test(l));
+  expect(runs, 'no single RUN takes the packages').toHaveLength(1);
+  const dir = mkdtempSync(join(tmpdir(), 'apk-run-'));
+  try {
+    mkdirSync(join(dir, 'bin'));
+    mkdirSync(join(dir, 'tmp'));
+    writeFileSync(join(dir, 'bin/package.json'), '{"type":"commonjs"}\n');
+    writeFileSync(join(dir, 'bin/apk'), `#!${process.execPath}\n${APK_STUB}`, { mode: 0o755 });
+    writeFileSync(join(dir, 'installed'), Object.entries(base).map(([name, version]) => `P:${name}\nV:${version}\nA:x86_64\n`).join('\n'));
+    const script = runs[0]!.replace(/^RUN\s+/, '').replaceAll('/tmp/', `${join(dir, 'tmp')}/`).replaceAll('/lib/apk/db/installed', join(dir, 'installed'));
+    expect(script, 'the RUN no longer reads the package database or writes /tmp').not.toContain('/lib/apk/');
+    writeFileSync(join(dir, 'log'), '');
+    const ran = spawnSync('sh', ['-c', script], {
+      encoding: 'utf8',
+      env: { PATH: `${join(dir, 'bin')}:${process.env['PATH'] ?? ''}`, LC_ALL: 'C', APK_STUB_MODE: mode, APK_STUB_DB: join(dir, 'installed'), APK_STUB_LOG: join(dir, 'log') },
+    });
+    const installed = Object.fromEntries([...readFileSync(join(dir, 'installed'), 'utf8').matchAll(/^P:(.+)\nV:(.+)$/gm)].map((m) => [m[1]!, m[2]!]));
+    return { status: ran.status, stderr: ran.stderr, asked: readFileSync(join(dir, 'log'), 'utf8'), installed, left: readdirSync(join(dir, 'tmp')) };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 /** The 1-based line of a service's `image:` in a compose file's text. */
@@ -383,22 +475,75 @@ describe('the Postgres of the deploy/compose stacks starts as uid 70, from an im
       expect(dockerfileProblems(real.replace(/^(USER 70:70)$/m, `${line}\n$1`)), line).toEqual([expect.stringContaining(`\`${line}\` reads files or an image`)]);
     }
     // Alpine's packages (0119, 2026-10-31): each at the exact version the line names, and nothing that moves with the day.
-    const pinned = 'apk add --no-cache brotli-libs=1.2.1-r0 libcurl=8.23.0-r0;';
+    const pinned = 'apk add --no-cache brotli-libs=1.2.1-r0 libcurl=8.23.0-r0 ||';
     expect(real, 'the Dockerfile no longer takes the two packages this guard was written for').toContain(pinned);
     const apk = (to: string) => dockerfileProblems(real.replace(pinned, to));
-    expect(apk("apk add --no-cache 'brotli-libs>=1.2.1-r0' libcurl=8.23.0-r0;")).toEqual([expect.stringContaining('takes `brotli-libs>=1.2.1-r0`, not one exact version')]);
-    expect(apk('apk add --no-cache brotli-libs libcurl=8.23.0-r0;')).toEqual([expect.stringContaining('takes `brotli-libs`, not one exact version')]);
-    expect(apk('apk add --no-cache brotli-libs=1.2.1-r0 libcurl~8.23;')).toEqual([expect.stringContaining('takes `libcurl~8.23`, not one exact version')]);
+    expect(apk("apk add --no-cache 'brotli-libs>=1.2.1-r0' libcurl=8.23.0-r0 ||")).toEqual([expect.stringContaining('takes `brotli-libs>=1.2.1-r0`, not one exact version')]);
+    expect(apk('apk add --no-cache brotli-libs libcurl=8.23.0-r0 ||')).toEqual([expect.stringContaining('takes `brotli-libs`, not one exact version')]);
+    expect(apk('apk add --no-cache brotli-libs=1.2.1-r0 libcurl~8.23 ||')).toEqual([expect.stringContaining('takes `libcurl~8.23`, not one exact version')]);
     for (const option of ['--upgrade', '-u', '--repository=https://dl-cdn.alpinelinux.org/alpine/edge/main', '--allow-untrusted']) {
-      expect(apk(`apk add --no-cache ${option} brotli-libs=1.2.1-r0 libcurl=8.23.0-r0;`), option).toEqual([expect.stringContaining(`\`apk add ${option}\`: an option beyond --no-cache`)]);
+      expect(apk(`apk add --no-cache ${option} brotli-libs=1.2.1-r0 libcurl=8.23.0-r0 ||`), option).toEqual([expect.stringContaining(`\`apk add ${option}\`: an option beyond --no-cache`)]);
     }
-    expect(apk('apk add brotli-libs=1.2.1-r0 libcurl=8.23.0-r0;')).toEqual(['`apk add` without --no-cache leaves the index it fetched in the image']);
-    expect(apk('apk upgrade --no-cache;')).toEqual([expect.stringContaining('`apk upgrade` changes what is installed')]);
+    expect(apk('apk add brotli-libs=1.2.1-r0 libcurl=8.23.0-r0 ||')).toEqual(['`apk add` without --no-cache leaves the index it fetched in the image']);
+    expect(apk('apk upgrade --no-cache ||')).toEqual([expect.stringContaining('`apk upgrade` changes what is installed')]);
     expect(apk(`apk update && ${pinned}`)).toEqual([expect.stringContaining('`apk update` changes what is installed')]);
-    expect(dockerfileProblems(real.replace(/^(USER 70:70)$/m, 'RUN apk add --no-cache zlib\n$1')), 'a RUN of its own').toEqual([expect.stringContaining('takes `zlib`, not one exact version')]);
+    expect(dockerfileProblems(real.replace('$(apk version -t ', '$(apk version ')), 'a version that is no comparison').toEqual([expect.stringContaining('`apk version "$have" "$fixed"`: apk compares versions here with `-t`')]);
+    // Every way the shell could run apk, in a RUN of its own (the review of #1758, 2026-10-31).
+    const added = (run: string) => dockerfileProblems(real.replace(/^(USER 70:70)$/m, `${run}\n$1`));
+    for (const [run, problem] of [
+      ['RUN apk add --no-cache zlib', 'takes `zlib`, not one exact version'],
+      ['RUN /sbin/apk add --no-cache zlib', 'takes `zlib`, not one exact version'],
+      ['RUN if apk add --no-cache zlib; then true; fi', 'takes `zlib`, not one exact version'],
+      ['RUN { apk add --no-cache zlib; }', 'takes `zlib`, not one exact version'],
+      ["RUN sh -c 'apk add --no-cache zlib'", "takes `zlib'`, not one exact version"],
+      ['RUN ! apk upgrade --no-cache', '`apk upgrade` changes what is installed'],
+      ['RUN echo zlib | xargs apk add --no-cache', '`apk add` names no package on its line'],
+      ['RUN apk --no-cache add zlib', '`apk --no-cache`: an option before the subcommand'],
+      ['RUN true && \\\n    apk del libcurl', '`apk del` changes what is installed'],
+      ['RUN <<EOF\napk upgrade\nEOF', '`apk upgrade` changes what is installed'],
+    ] as const) {
+      expect(added(run), run).toEqual([expect.stringContaining(problem)]);
+    }
+    // Paths through apk's own directories are no command.
+    expect(added('RUN test -s /lib/apk/db/installed && test -d /etc/apk/keys')).toEqual([]);
     // USER moved above the rm: the build's rm would run as uid 70, and fail.
     const moved = real.replace(/^USER 70:70\n/m, '').replace(/^(RUN rm \/usr\/local\/bin\/gosu)$/m, 'USER 70:70\n$1');
     expect(dockerfileProblems(moved)).toEqual(['USER 70:70 comes before the rm, which needs root']);
+  });
+
+  it("the packages' RUN takes exactly the two versions, and says what to do when it cannot (the review of #1758)", () => {
+    for (const file of [DOCKERFILE, APPLIANCE_DOCKERFILE]) {
+      const dockerfile = read(file);
+      const ok = runPackages(dockerfile, 'ok');
+      expect(ok.stderr, file).toBe('');
+      expect(ok.status, file).toBe(0);
+      expect(ok.asked, file).toContain('add --no-cache brotli-libs=1.2.1-r0 libcurl=8.23.0-r0\n');
+      expect(ok.installed, file).toEqual({ ...BASE_PACKAGES, 'brotli-libs': '1.2.1-r0', libcurl: '8.23.0-r0' });
+      expect(ok.left, `${file}: the RUN leaves files in /tmp`).toEqual([]);
+      // Alpine's mirror no longer serves a version, or cannot be reached: apk's error, then the
+      // build's own words for whoever runs it, an appliance's operator above all.
+      const unserved = runPackages(dockerfile, 'unserved');
+      expect(unserved.status, file).toBe(1);
+      expect(unserved.stderr, file).toContain('ERROR: unable to select packages:');
+      const said = unserved.stderr.slice(unserved.stderr.indexOf('breaks: world'));
+      for (const words of [
+        "Alpine's brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 could not be installed",
+        "cannot reach Alpine's mirror, dl-cdn.alpinelinux.org",
+        'the mirror no longer serves those versions',
+        'update Ownpace to its newest release (docs/selfhost-quickstart.md, Troubleshooting)',
+      ]) {
+        expect(said, `${file}: the failure does not say "${words}"`).toContain(words);
+      }
+      expect(unserved.stderr, file).not.toContain('changed more than');
+      // Anything else moved, or the base carries a fix already.
+      const more = runPackages(dockerfile, 'more');
+      expect(more.status, file).toBe(1);
+      expect(more.stderr, file).toContain('The install changed more than brotli-libs and libcurl');
+      const fixed = runPackages(dockerfile, 'ok', { ...BASE_PACKAGES, libcurl: '8.23.0-r0' });
+      expect(fixed.status, file).toBe(1);
+      expect(fixed.stderr, file).toContain("The base's libcurl is '8.23.0-r0', not older than 8.23.0-r0: upstream's image carries that fix.");
+      expect(fixed.asked, `${file}: it installed before it refused`).not.toMatch(/^add /m);
+    }
   });
 
   it('every Postgres the deploy/compose files run is that build, by the name its instructions give it', () => {

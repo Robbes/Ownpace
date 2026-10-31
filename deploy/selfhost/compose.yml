@@ -44,7 +44,7 @@ services:
     # which Dependabot moves (its own `docker` entry). `never`: no registry
     # serves this name, so `docker compose pull` passes it by, and `up` builds
     # it when it is missing without asking one.
-    image: localhost/postgres:18.6-alpine-27f5dc218723
+    image: localhost/postgres:18.6-alpine-1af6bb314e8d
     build: ./postgres
     pull_policy: never
     container_name: ownpace-selfhost-db

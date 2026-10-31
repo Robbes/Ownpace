@@ -42,18 +42,25 @@
 # own `docker` entry, never a major). E2E (self-hosted) runs nightly and on
 # dispatch, never on a pull request, so it is dispatched on that pull
 # request's branch before it merges.
-# The same Alpine and musl, so the database's collation is untouched.
+# The move from 77f58511… took Alpine 3.24.2 to 3.24.3: musl 1.2.6-r2 to
+# 1.2.6-r3, OpenSSL 3.5.8 to 3.5.9 and a few libraries more, with ICU at
+# 78.1-r0 in both, so the database's collation is untouched.
 #
-# TWO OF ALPINE'S SECURITY UPDATES (workplan 0119, 2026-10-31): brotli-libs
-# 1.2.1-r0 (CVE-2026-111497, critical) and libcurl 8.23.0-r0 (CVE-2026-92392,
-# high), the base's only findings once gosu is gone, which no digest of
-# 18.6-alpine carries yet. The RUN takes exactly those versions from Alpine's
-# signed repository, fails before it installs once the base carries either
-# fix, fails when the mirror no longer serves them, and fails unless those two
-# packages are all it changed. Nothing the appliance runs loads either (only
-# libpq-oauth links libcurl). An appliance's first `up` after the release
-# that moves the name now reaches Alpine's mirror (dl-cdn.alpinelinux.org) as
-# well as Docker Hub. deploy/compose/postgres/Dockerfile's header has the rest.
+# TWO OF ALPINE'S SECURITY UPDATES (workplan 0119, 2026-10-31), UNTIL
+# POSTGRESQL 18.7 CARRIES THEM: brotli-libs 1.2.1-r0 (CVE-2026-111497,
+# critical) and libcurl 8.23.0-r0 (CVE-2026-92392, high), the base's only
+# findings once gosu is gone, which no digest of 18.6-alpine carries yet. The
+# RUN is temporary, until an 18.7 image (due about 2026-11-12) whose base
+# carries both. It takes exactly those versions from Alpine's signed
+# repository, fails before it installs once the base carries either fix, and
+# fails unless those two packages are all it changed. When apk cannot install
+# them it fails with a message for the appliance's operator: reach Alpine's
+# mirror, or, once the mirror no longer serves those versions, update Ownpace
+# to its newest release (docs/selfhost-quickstart.md, Troubleshooting).
+# Nothing the appliance runs loads either (only libpq-oauth links libcurl).
+# An appliance's first `up` after the release that moves the name now reaches
+# Alpine's mirror (dl-cdn.alpinelinux.org) as well as Docker Hub.
+# deploy/compose/postgres/Dockerfile's header has the rest.
 #
 # THE NAME. compose.yml builds this as `localhost/postgres:<base tag>-<12
 # hex>`, the hex being the SHA-256 of this file's instruction lines (comments
@@ -88,7 +95,10 @@ RUN set -eu; \
       fi; \
     done; \
     installed > /tmp/apk-before; \
-    apk add --no-cache brotli-libs=1.2.1-r0 libcurl=8.23.0-r0; \
+    apk add --no-cache brotli-libs=1.2.1-r0 libcurl=8.23.0-r0 || { \
+      echo "Alpine's brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 could not be installed (the error above). If this machine cannot reach Alpine's mirror, dl-cdn.alpinelinux.org, let it and run the same command again. If it can, the mirror no longer serves those versions, and this release's database image can no longer be built: update Ownpace to its newest release (docs/selfhost-quickstart.md, Troubleshooting)." >&2; \
+      exit 1; \
+    }; \
     installed > /tmp/apk-after; \
     added="$(awk 'NR == FNR { was[$0] = 1; next } !($0 in was)' /tmp/apk-before /tmp/apk-after)"; \
     gone="$(awk 'NR == FNR { now[$0] = 1; next } !($0 in now) { sub(/=.*/, ""); print }' /tmp/apk-after /tmp/apk-before)"; \

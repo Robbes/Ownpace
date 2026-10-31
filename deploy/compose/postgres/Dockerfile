@@ -39,8 +39,11 @@
 # pull request moves the name below too.
 #
 # TWO OF ALPINE'S SECURITY UPDATES, TAKEN AT BUILD (workplan 0119,
-# 2026-10-31). With gosu gone, Trivy v0.76.1 reads two findings in the base,
-# on arm64 and amd64 alike, and both have a fix in Alpine 3.24:
+# 2026-10-31), UNTIL POSTGRESQL 18.7 CARRIES THEM. This RUN is temporary: it
+# comes out with the move to an 18.7 image (due about 2026-11-12) whose base
+# carries both fixes, and the check below says when that is. With gosu gone,
+# Trivy v0.76.1 reads two findings in the base, on arm64 and amd64 alike, and
+# both have a fix in Alpine 3.24:
 #   - brotli-libs 1.2.0-r1, CVE-2026-111497 (critical, an out-of-bounds write
 #     in brotli's decoder), fixed in 1.2.1-r0;
 #   - libcurl 8.22.0-r0, CVE-2026-92392 (high, a use-after-free in HTTP/2
@@ -62,11 +65,15 @@
 #     than its fixed version. Upstream's image carries that fix then: take the
 #     package out of the RUN, and the RUN and this paragraph out once it names
 #     none. Dependabot's pull request that moves the FROM is where that shows;
-#   - when the mirror cannot serve those exact versions. Alpine keeps only the
-#     newest build of a package in a stable branch, so once it moves either
-#     one, a machine without this name cannot build it. Move the version in a
-#     pull request of its own, which moves the name, or the FROM to a base
-#     that carries the fix;
+#   - when apk cannot install those exact versions, with a message of its own
+#     after apk's, for whoever runs the build: an appliance's operator as much
+#     as this box's. Either the machine cannot reach Alpine's mirror, and the
+#     same command goes through once it can, or the mirror no longer serves
+#     those versions. Alpine keeps only the newest build of a package in a
+#     stable branch, so once it moves either one, a machine without this name
+#     cannot build it, anywhere: an appliance then updates Ownpace to its
+#     newest release, and here a pull request of its own moves the version,
+#     which moves the name, or the FROM to a base that carries the fix;
 #   - after it installs, unless exactly those two packages changed, to exactly
 #     those versions, and nothing else was installed, upgraded or removed.
 # What it costs: a build reaches Alpine's mirror (dl-cdn.alpinelinux.org) as
@@ -128,7 +135,10 @@ RUN set -eu; \
       fi; \
     done; \
     installed > /tmp/apk-before; \
-    apk add --no-cache brotli-libs=1.2.1-r0 libcurl=8.23.0-r0; \
+    apk add --no-cache brotli-libs=1.2.1-r0 libcurl=8.23.0-r0 || { \
+      echo "Alpine's brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 could not be installed (the error above). If this machine cannot reach Alpine's mirror, dl-cdn.alpinelinux.org, let it and run the same command again. If it can, the mirror no longer serves those versions, and this release's database image can no longer be built: update Ownpace to its newest release (docs/selfhost-quickstart.md, Troubleshooting)." >&2; \
+      exit 1; \
+    }; \
     installed > /tmp/apk-after; \
     added="$(awk 'NR == FNR { was[$0] = 1; next } !($0 in was)' /tmp/apk-before /tmp/apk-after)"; \
     gone="$(awk 'NR == FNR { now[$0] = 1; next } !($0 in now) { sub(/=.*/, ""); print }' /tmp/apk-after /tmp/apk-before)"; \
