@@ -154,7 +154,10 @@ It skips v4.8.2: one move, one way, one window on the OTA stack.
   with the plane stopped. `main`'s nightly E2E (managed) that morning (run 41190363814, 09:51
   UTC) stopped at its bring-up, as the window says it must once the `.env` names v4.8.3, before
   anything started. E2E (managed) on this branch, which is the upgrade, its migrations
-  included: run 41228139989, dispatched 18:11 UTC on `a0e077b1`.
+  included: run 41228139989 (18:11 UTC, `a0e077b1`) brought the plane up on v4.8.3 healthy and ran
+  its tasks, and failed only because a platform hold opened at 05:11 UTC was still open (every
+  failed check was a `platform_held` refusal); the owner cleared it, and run 41230207394 (18:36
+  UTC, `90d3c068`) was green.
 
 **2026-10-31, recorded: live runs alpha.3's pins.** The owner deployed `v0.2.0-alpha.3` (tagged
 2026-10-30 on `e1b21aac`) to live on 2026-10-30, with `TRIGGER_IMAGE_TAG=v4.8.1` set in live's
