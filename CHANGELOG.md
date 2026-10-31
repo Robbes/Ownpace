@@ -52,6 +52,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **The outside probe asks whether anybody can found an organisation at live's
+  sign-in service** (workplan 0135 T1, the ask 0132 T3 records): every dispatch
+  of *Exposure probe* asks `https://id.ownpace.eu/ui/login/register/org`
+  without following a redirect, and fails unless it answers 404, the answer
+  once `disallowPublicOrgRegistration` holds. A 2xx is the form served; a
+  redirect is not the refusal, and is named by its host, never its query;
+  NetBird's own page fails whatever its status; any other status, and no
+  answer at all, fail, as the discovery document's do. No dispatch input or
+  repository variable makes it a note. The smoke asks the same page on the OTA
+  instance every night and never runs on live, so a Zitadel upgrade or a
+  setting that served the form again on live went unseen until now.
 - **The public site's `llms.txt` links the maintained documentation** (ADR-0029;
   workplan 0152 T5 (c)): after the site's pages, five sections, *What it is*,
   *How data moves*, *Security and privacy*, *Self-hosting* and *The Alpha*,
