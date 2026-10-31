@@ -371,9 +371,13 @@ case "$method" in
       # own_addresses() (0141 T9 (b)): a principal's calendar-user-address-set,
       # shaped as Nextcloud answers it. ADDR_<user, with - as _> is the mailto:
       # entry; unset, the set holds the principal's own URL alone, as it does
-      # for an account with no email.
+      # for an account with no email. PROPFIND_FAIL=<user> makes that one
+      # principal's PROPFIND fail as \`curl --fail\` does on an HTTP error
+      # (exit 22, no body): a server that did not answer, which must never
+      # read as an account with no address.
       principals/users/*)
         who="\${path#principals/users/}"; who="\${who%/}"
+        if [ -n "\${PROPFIND_FAIL:-}" ] && [ "$who" = "$PROPFIND_FAIL" ]; then exit 22; fi
         var="ADDR_$(printf '%s' "$who" | tr -c 'A-Za-z0-9' '_')"
         printf '<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav"><d:response><d:href>/remote.php/dav/principals/users/%s/</d:href><d:propstat><d:prop><cal:calendar-user-address-set>' "$who"
         if [ -n "\${!var:-}" ]; then printf '<d:href>mailto:%s</d:href>' "\${!var}"; fi
@@ -546,6 +550,34 @@ esac
           'invite the attendee at seed time, from bytes with no SCHEDULE-AGENT',
       ).not.toBe(0);
       expect(r.stderr).toContain(`tenant-b-source carries ${TARGET_ADDRESS}`);
+      expect(existsSync(join(r.dir, 'manifest.txt')), 'refused AFTER something was written').toBe(false);
+    } finally {
+      rmSync(r.dir, { recursive: true, force: true });
+    }
+  });
+
+  // A PROPFIND that failed is not an account with no address (own_addresses()
+  // returns non-zero, and both callers refuse on it). Read as "no address",
+  // the target's failure would refuse with the wrong reason, and the SOURCE's
+  // would skip the shared-address refusal altogether: event 3 would then be
+  // seeded into an account that may match its organiser, which schedules at
+  // seed time from bytes with no SCHEDULE-AGENT.
+  it.each([
+    ['tenant-b-source', 't9srcunread'],
+    ['tenant-b-target', 't9tgtunread'],
+  ])('refuses before the first write when %s’s address set cannot be read', (who, tag) => {
+    const r = refusedSeed(['--fresh', tag], {
+      ...ORGANISER,
+      ADDR_tenant_b_target: TARGET_ADDRESS,
+      PROPFIND_FAIL: who,
+    });
+    try {
+      expect(
+        r.status,
+        'a server that did not answer must stop the seed, not read as an account\n' +
+          'with no address',
+      ).not.toBe(0);
+      expect(r.stderr).toContain(`could not read ${who}'s calendar-user-address-set`);
       expect(existsSync(join(r.dir, 'manifest.txt')), 'refused AFTER something was written').toBe(false);
     } finally {
       rmSync(r.dir, { recursive: true, force: true });

@@ -474,8 +474,8 @@ if [ "$REMOVE_ONLY" = "1" ]; then
     # The organiser canary, event 3 (0141 T9 (b)), seeded once per set like
     # the big file. Always asked for: a set seeded without an organiser has no
     # event 3, and its DELETE answers 404, which is success here. On the
-    # TARGET this is the delete that would CANCEL to its attendee, because
-    # there the account organises it; dav() sends Schedule-Reply: F.
+    # TARGET a bare DELETE of it would CANCEL to its attendee, because there
+    # the account organises it; dav() sends Schedule-Reply: F, which stops it.
     own_spec=""
     [ "$n" = "1" ] && own_spec="${CAL}openmig-demo-event-${SUFFIX}3.ics"
     for spec in "${CAL}openmig-demo-event-${SUFFIX}${n}.ics" \
@@ -548,9 +548,11 @@ fi
 # so on the target most of their own meetings are organised by the account that
 # holds them, and that is the case in which RFC 6638 makes the target's server
 # the sender: a server that ignored SCHEDULE-AGENT=CLIENT would invite the
-# attendee on the sync's PUT and CANCEL on the take-back's DELETE. Event 1's
-# organiser is a third party, which no server schedules for, so until event 3
-# the gate's silence held whether or not the writer neutralised.
+# attendee on the sync's PUT. Event 1's organiser is a third party, which no
+# server schedules for, so until event 3 the gate's silence held whether or
+# not the writer neutralised. The take-back's DELETE is not re-proved by it:
+# dav() sends Schedule-Reply: F, and that header alone keeps Nextcloud from
+# sending a CANCEL (0103 T5), so silence after it belongs to the header.
 #
 # Two conditions decide whether this proves anything, and both are checked
 # here, from the server's own answer, before the first write:

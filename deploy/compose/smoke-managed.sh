@@ -5455,8 +5455,12 @@ fi
 # whether or not the writer neutralised. Event 3's organiser is the target
 # account's own address (0141 T9 (b), the organiser canary): there the
 # target's server IS the organiser's, so without SCHEDULE-AGENT=CLIENT it
-# would invite the attendee on the sync's PUT and CANCEL on the take-back's
-# DELETE, and the catcher hears it. The bytes are read for both, and for event
+# would invite the attendee on the sync's PUT, and the catcher would hear it.
+# The take-back is another matter: its DELETE carries Schedule-Reply: F, and
+# that header alone keeps Nextcloud from sending a CANCEL (Sabre's
+# beforeUnbind returns before it builds one; 0103 T5), so the catcher's
+# silence after it proves the header, not the copy's neutralising. Event 3
+# re-proves the PUT half only. The bytes are read for both, and for event
 # 3 the server is also asked whether the copy's organiser is an address it
 # matches, or its silence is by inability. It is the demo Nextcloud, ours,
 # armed; a target we do not run is 0141 T7's and T9 (a)'s sitting. And on a
