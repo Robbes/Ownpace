@@ -28,9 +28,9 @@ import { defineConfig } from '@trigger.dev/sdk';
  * before it).
  *
  * The CLI builds the task image on the base image it names for `node-24`:
- * `triggerdotdev/node:24-bookworm@sha256:3cdc8242…` at 4.8.1, Debian 12 with
- * busybox, git and openssl added, read by Trivy 0.76.1 on 2026-10-26 at 1
- * critical and 83 high findings (at 4.7.6's `…@sha256:d2d0c018…`, 14 and 119).
+ * `triggerdotdev/node:24-bookworm@sha256:3cdc8242…` at 4.8.1 and 4.8.3, Debian
+ * 12 with busybox, git and openssl added, read by Trivy 0.76.1 on 2026-10-26 at
+ * 1 critical and 83 high findings (at 4.7.6's `…@sha256:d2d0c018…`, 14 and 119).
  * From #1689 a deploy here copied the API image's Node binary over it. Now a
  * deploy builds the tasks on the image `apps/api/Dockerfile` builds FROM: the
  * extension below sets the build manifest's `image.base` to that line's image,
@@ -47,7 +47,7 @@ import { defineConfig } from '@trigger.dev/sdk';
  * smoke's preflights stop when the API container's Node is not this line's
  * x.y.z (deploy/compose/smoke-managed.sh, `dockerfile_node`).
  *
- * The manifest is where the CLI keeps a custom base. 4.8.1's documented way to
+ * The manifest is where the CLI keeps a custom base. 4.8.3's documented way to
  * fill it is an instance setting, `DEPLOY_BASE_IMAGES` on the webapp, which
  * would name the image in `managed.yml` too, a second place for it to move;
  * an instance setting is laid over this one, and `managed.yml` sets none
@@ -62,7 +62,7 @@ import { defineConfig } from '@trigger.dev/sdk';
  * under `--use-openssl-ca`. Not busybox or git: the controller forks only
  * `process.execPath`, `@trigger.dev/core` spawns nothing, and no task runs a
  * binary (AGENTS.md: the engines are JS-native). And it makes the CLI's trust
- * edits as the CLI writes them at 4.8.1: four roots distrusted in
+ * edits as the CLI writes them at 4.8.1 and 4.8.3: four roots distrusted in
  * `/etc/ca-certificates.conf` (Debian 13's `20250419+deb13u1` already drops two
  * of them, the emSign ECC G3 and Comodo AAA roots; emSign C1 and ECC C3 it
  * still ships), the eight eMudhra intermediates the CLI rejects, kept in
@@ -101,7 +101,7 @@ import { defineConfig } from '@trigger.dev/sdk';
 const TASK_BASE = 'task-base';
 
 /**
- * The CLI's own build-stage image for `node-24` at trigger.dev 4.8.1
+ * The CLI's own build-stage image for `node-24` at trigger.dev 4.8.1 and 4.8.3
  * (`BUILD_IMAGE` in `dist/esm/deploy/buildImage.js`; pushed 2026-10-22): its
  * runtime image with python3, make and g++. It moves with the CLI, read from
  * the new version's `buildImage.js` (workplan 0119 §2; the version gate fails
@@ -111,7 +111,7 @@ const TASK_BASE = 'task-base';
 const TASK_BUILD_IMAGE =
   'triggerdotdev/node:24-bookworm-build@sha256:34a3f4554d1684e078b104bd2b7ba6743776ad9002ebceef707dee91fa629c41';
 
-/** The roots trigger.dev 4.8.1 distrusts in its own images (`EMSIGN_COMPROMISE_DISTRUSTED_ROOTS`). */
+/** The roots trigger.dev 4.8.1 and 4.8.3 distrust in their own images (`EMSIGN_COMPROMISE_DISTRUSTED_ROOTS`). */
 const DISTRUSTED_ROOTS = ['emSign_ECC_Root_CA_-_G3', 'emSign_Root_CA_-_C1', 'emSign_ECC_Root_CA_-_C3', 'Comodo_AAA_Services_root'];
 
 /** Where the CLI puts the intermediates it rejects (`EMSIGN_REJECT_DIR`), and where this repository keeps them. */
