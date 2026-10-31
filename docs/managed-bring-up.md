@@ -32,7 +32,7 @@ What the script does instead is make it the *only* human step:
 | **Find the magic link in the logs** | script (`trigger-magic-link.sh`) |
 | **Open it, name an organisation, name a project** | **you** |
 | Read the project ref and production key back out of the instance | script (`trigger-credentials.sh`) |
-| Log the deploy CLI in (opens a browser) | you, one command |
+| Log the deploy CLI in (approved in a browser) | you, one command |
 | Build and start the API and web app | script |
 | Upload the task runtime environment, deploy the tasks | script |
 | Prove an enqueue becomes a runner on this machine | script (`smoke-managed.sh`) |
@@ -887,7 +887,7 @@ so there is one version number and it lives where it already lived.
 ```bash
 # If this machine has logged in before, log OUT first — see the box below.
 npx -y trigger.dev@<version> logout --profile openmig
-npx -y trigger.dev@<version> login -a http://localhost:3090 --profile openmig
+npx -y trigger.dev@<version> login -a http://localhost:3090 --profile openmig --no-browser
 ```
 
 **Once means once, because the token is remembered.** The next
@@ -928,13 +928,37 @@ one browser round trip from agreeing (2026-08-31). The refusal prints the name
 in use and the default as two separate lines for exactly this reason.
 
 The script prints the exact line with the version filled in and stops, because
-the command opens a browser and waits for you. Note the address is the plain
-**http api origin**, not the https front.
+the command waits for you to approve the login in a browser. Note the address
+is the plain **http api origin**, not the https front.
 
 **The URL it then asks you to open is on the https front**
 (`TRIGGER_LOGIN_ORIGIN`, the `trigger-tls` service), which serves a
 self-signed certificate — and one browser has been seen to fail there where
 another succeeds. See the failure table.
+
+**From 4.8.3 a login is single-use and bound to the terminal that started
+it** (Trigger.dev v4.8.3, workplan 0119), and how the approval comes back
+depends on how the login was started. Without `--no-browser`, a CLI that can
+open a browser itself (on macOS, on Windows, or on Linux with `xdg-open`)
+listens on a port of `http://127.0.0.1`, and the page sends the approving
+browser there: that works only when the browser runs on the same machine. A
+browser on another machine is sent to its own loopback and shown no code, the
+terminal waits out the login's ten minutes, and `login --code` then refuses,
+because the CLI never saves a login of that kind. The page shows a code to
+paste only for a login started without that listener: with `--no-browser` or
+`--no-wait`, or on Linux without `xdg-open` (`commands/login.ts` and
+`utilities/linux.ts` of the CLI, and the webapp's
+`account.authorization-code.$authorizationCode/route.tsx`, at v4.8.3). So the
+command above, and the one the `login` phase and `deploy-tasks.sh` print,
+carry `--no-browser`: it prints the address, you open it in a browser here or
+on another machine, and you paste the code the page shows into the terminal
+that is waiting. If that terminal is gone, finish within the ten minutes with
+`npx -y trigger.dev@<version> login --code <code> --profile <name>`. Every
+login now mints a token of its own; the tokens minted before stay valid, so a remembered
+`TRIGGER_ACCESS_TOKEN` and a persisted profile keep working across the move.
+A CLI older than 4.8.3 can still log in until the webapp's
+`CLI_LOGIN_LEGACY_UNTIL`, 2027-01-01 by default, which `managed.yml` does not
+set.
 
 **Verify:** `npx -y trigger.dev@<version> whoami --profile <name>` — and read
 its OUTPUT, not its exit code, which is 0 either way (below).
@@ -3097,8 +3121,8 @@ refuses a `COMPOSE_FILE` in the shell.
 
 | Service | What it sent by default | The switch | Read at |
 |---|---|---|---|
-| `trigger-api` | PostHog from the server at every sign-in (the user's id, email and name) and when a user, an organisation or a project is created; and PostHog in the dashboard's browser, which identifies the signed-in user by id and email, under Trigger.dev's own project key | `TRIGGER_TELEMETRY_DISABLED: "1"` stops the server's half only. `POSTHOG_PROJECT_KEY: ""` stops the browser's: the key defaults to Trigger.dev's, and the dashboard starts PostHog whenever it is not empty | `apps/webapp/app/services/telemetry.server.ts`, `services/postAuth.server.ts`, `app/root.tsx`, `app/hooks/usePostHog.ts`, `app/env.server.ts` at v4.5.16, and again at v4.7.2, v4.7.6 and v4.8.1 |
-| `trigger-api`, its entrypoint | Prisma's checkpoint to `checkpoint.prisma.io` at every start, from the `prisma migrate deploy` the entrypoint runs: the version, OS, architecture, Node, CI, the command, hashes of the project's and the CLI's paths, the schema's providers and a stored random signature | `CHECKPOINT_DISABLE: "1"`, the only thing the CLI and its client check | `docker/scripts/entrypoint.sh` at v4.5.16, v4.7.2, v4.7.6 and v4.8.1; `packages/cli/src/CLI.ts` and `utils/checkpoint.ts` at prisma 6.14.0; checkpoint-client 1.1.33 |
+| `trigger-api` | PostHog from the server at every sign-in (the user's id, email and name) and when a user, an organisation or a project is created; and PostHog in the dashboard's browser, which identifies the signed-in user by id and email, under Trigger.dev's own project key | `TRIGGER_TELEMETRY_DISABLED: "1"` stops the server's half only. `POSTHOG_PROJECT_KEY: ""` stops the browser's: the key defaults to Trigger.dev's, and the dashboard starts PostHog whenever it is not empty | `apps/webapp/app/services/telemetry.server.ts`, `services/postAuth.server.ts`, `app/root.tsx`, `app/hooks/usePostHog.ts`, `app/env.server.ts` at v4.5.16, and again at v4.7.2, v4.7.6, v4.8.1 and v4.8.3 |
+| `trigger-api`, its entrypoint | Prisma's checkpoint to `checkpoint.prisma.io` at every start, from the `prisma migrate deploy` the entrypoint runs: the version, OS, architecture, Node, CI, the command, hashes of the project's and the CLI's paths, the schema's providers and a stored random signature | `CHECKPOINT_DISABLE: "1"`, the only thing the CLI and its client check | `docker/scripts/entrypoint.sh` at v4.5.16, v4.7.2, v4.7.6, v4.8.1 and v4.8.3; `packages/cli/src/CLI.ts` and `utils/checkpoint.ts` at prisma 6.14.0; checkpoint-client 1.1.33 |
 | `zitadel` | A "service ping" once a day to `zitadel.com`: the version, each instance's id, creation date and domains, and its count of users, organisations and projects | `ZITADEL_SERVICEPING_ENABLED: "false"`; `ZITADEL_TELEMETRY_ENABLED: "false"` too, which ships off | `cmd/defaults.yaml` at v4.19.2 (*"It's enabled by default"*) |
 | `clickhouse` | A report on every crash and logical error to `crash.clickhouse.com` | `clickhouse-no-crash-reports.xml`, mounted into `config.d`, sets both off; the `config.xml` the image ships sets them on. It is the only file ClickHouse merges that speaks of crash reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d` and `conf.d`, in sorted order, so a later one would win | `programs/server/config.xml`, `src/Daemon/CrashWriter.cpp`, `src/Common/Config/ConfigProcessor.cpp` at `v26.2.19.43-stable` |
 | `minio` | A release check to `dl.min.io` at every start, its User-Agent carrying the OS, architecture, version and CPU | `MINIO_UPDATE: "off"`; `MINIO_CALLHOME_ENABLE: "off"` too, which ships off | `cmd/server-main.go`, `cmd/common-main.go`, `cmd/update.go`, `internal/config/callhome/callhome.go` at `chainguard-forks/minio`'s `RELEASE.2026-09-22T19-25-18Z`, and again at `RELEASE.2026-10-23T20-06-51Z`, where none of the four changed, Chainguard's build since workplan 0146 T7 (first read at `RELEASE.2025-05-24T17-08-30Z`, the Bitnami image it replaced) |
@@ -3124,7 +3148,11 @@ refused (`scripts/a-service-that-phones-home.unit.test.ts`). v4.8.1 changes none
 of those files but `env.server.ts`, whose new keys name no host, and
 `app/root.tsx`, by one line that hands the page `PUBLIC_APP_ORIGIN`, this
 stack's own address; it runs the webapp on Node 24.22.1, and its supervisor
-preloads the same CA filter.
+preloads the same CA filter. v4.8.3 changes `app/root.tsx` again, to hand the
+page an admin origin from `ADDITIONAL_LOGIN_ORIGINS` when that is set (it is
+not here) and `APP_ORIGIN` otherwise, and `env.server.ts`, whose new keys name
+no third party; the entrypoint, the Dockerfile and the other three files are
+v4.8.1's.
 
 `trigger-tls` has no telemetry; its one default that leaves the machine is
 automatic HTTPS, which asks a public certificate authority, and
@@ -3216,9 +3244,12 @@ on an arm64 runner and scans what it built, under the name it always had,
 `goaccess`.
 
 The deploy CLI, which runs on the host, was read only this far: at 4.5.16,
-4.7.2, 4.7.6 and 4.8.1 its `src/telemetry/tracing.ts` is gone, and no exporter
-of its own was found; its one PostHog client (4.5.16 had none) is the MCP
-server's feedback tool (`src/mcp/telemetry.ts`), which `deploy` never starts.
+4.7.2, 4.7.6, 4.8.1 and 4.8.3 its `src/telemetry/tracing.ts` is gone, and no
+exporter of its own was found; its one PostHog client (4.5.16 had none) is the
+MCP server's feedback tool (`src/mcp/telemetry.ts`), which `deploy` never
+starts. The one host 4.8.3's `dist/esm` names that 4.8.1's did not is
+`http://127.0.0.1`, the loopback its new login listens on for the browser's
+answer.
 The integration tests' throwaway Nextcloud and Stalwart, which Testcontainers
 starts on a CI runner, are not switched.
 
@@ -4508,7 +4539,7 @@ journal of whatever ran it), 2 refused.
 | --- | --- | --- |
 | `pgbouncer` logs `could not open auth_file … Permission denied`, then `no such user: pgbouncer_auth` | `userlist.txt` was written 0600 by the host user; PgBouncer reads it as a different user inside the container, finds no users, and rejects every login | `chmod 644 deploy/compose/pgbouncer/userlist.txt`, then force-recreate. `ensure-env-secrets.sh` now writes 644 and `--only data` repairs the mode |
 | The seed or a host-run script talks to the wrong Postgres | On a shared host, `localhost:5432` may belong to something else entirely — this stack's Postgres is published wherever `POSTGRES_PORT` says | The `demo` phase asks `docker compose port postgres 5432` rather than trusting a default. For your own commands, do the same |
-| `deploy-tasks.sh` proceeds past its own login check and then fails with `Unable to validate existing personal access token` / `Invalid or Missing Access Token` | `whoami` exits 0 whether or not you are actually logged in — confirmed from the CLI's own source, an auth failure returns data rather than throwing. A stale profile (e.g. left over after `reset-trigger.sh`) passes the check and only fails once `deploy` tries to use it | `npx -y trigger.dev@<version> login -a http://localhost:${TRIGGER_PORT:-3090} --profile <profile>`, then re-run. Fixed at the source in `trigger-cli-lib.sh`, which both scripts now use instead of trusting the exit code |
+| `deploy-tasks.sh` proceeds past its own login check and then fails with `Unable to validate existing personal access token` / `Invalid or Missing Access Token` | `whoami` exits 0 whether or not you are actually logged in — confirmed from the CLI's own source, an auth failure returns data rather than throwing. A stale profile (e.g. left over after `reset-trigger.sh`) passes the check and only fails once `deploy` tries to use it | `npx -y trigger.dev@<version> login -a http://localhost:${TRIGGER_PORT:-3090} --profile <profile> --no-browser`, then re-run. Fixed at the source in `trigger-cli-lib.sh`, which both scripts now use instead of trusting the exit code |
 | `deploy-tasks.sh` says **`Not logged in`** while `trigger.dev login` answers **`You are already logged in`** | The instance's database was destroyed (a wipe, `down -v`, a rename cutover) but the CLI profile at `~/.config/trigger/config.json` is on the HOST and survived it. `login` sees a token in the profile and short-circuits without validating it against the instance, so it reports success for a token whose account no longer exists; `trigger_cli_logged_in()` reads `whoami`'s output properly and correctly says no. **`login` alone cannot fix this** — it never gets far enough to replace the token | `npx -y trigger.dev@<version> logout --profile <profile>` **first**, then `login` as above. If `logout` also short-circuits, delete the profile's entry from `~/.config/trigger/config.json`. **Until 2026-08-31 this symptom had a SECOND cause with the same appearance**: the detector piped `whoami`'s output into `grep -q`, which exits at the first match, so under `set -o pipefail` a long-enough answer killed the producer with SIGPIPE and the pipeline returned 141 for a match that had SUCCEEDED. Verified and fixed — it now reads from a here-string — so on a current checkout this row's cause is the only one left |
 | `trigger-supervisor` is `Restarting`, its log says **`Unable to read worker token from file: EACCES … /home/node/shared/worker_token`**, and `up` aborts with `container <project>-trigger-supervisor is unhealthy` | trigger-api bootstraps the worker token into the shared volume as **root, mode 0600**; the supervisor reads it as **node**. On a FRESH `trigger_shared` volume — first install, or after a `down -v` — it cannot open its own credential. Everything else reports healthy, so the stack looks fine while dequeuing nothing | `docker compose -f deploy/compose/managed.yml exec -u 0 trigger-api chown node:node /home/node/shared/worker_token`, then `docker compose -f deploy/compose/managed.yml restart trigger-supervisor`. **chown, not `chmod 644`** — the token is a credential and root bypasses permissions anyway. `bootstrap-managed.sh`'s `trigger` phase now does this between trigger-api and the supervisor, so a fresh volume no longer needs the manual step |
 | `set-task-env.sh` fails **`Invalid or Missing API key`** against a `proj_…` ref that looks right | Same cause, other credential: `TRIGGER_PROJECT_REF` and `TRIGGER_SECRET_KEY` in `.env` belong to the destroyed instance. `bootstrap-managed.sh`'s `account` phase **short-circuits when both are already set** (it cannot tell a stale value from a good one), so re-running bring-up never replaces them | `./deploy/compose/trigger-credentials.sh --write` — it reads the ref and the prod key out of the INSTANCE and upserts both, overwriting whatever `.env` held. Then re-run `set-task-env.sh` |
@@ -5845,7 +5876,7 @@ never reads as "nothing newer", nor as an older newest.
 > moved, move with it, tag and digest, in the same pull request, proven by
 > E2E (managed) on its branch; ClickHouse's data moves forward only. The weekly
 > pin watch says the same while the two differ (its ClickHouse issue, workplan
-> 0146 T8). At v4.7.6, v4.7.7 and v4.8.1 both say `26.2.19.43@sha256:c2f26055…`.
+> 0146 T8). At v4.7.6, v4.7.7, v4.8.1 and v4.8.3 both say `26.2.19.43@sha256:c2f26055…`.
 > ClickHouse's `SECURITY.md` has not supported 26.2 since its last patch
 > (2026-05-21); the owner accepted that for the Alpha on 2026-10-23, with the
 > exposure and the revisit triggers in workplan 0119 §3 item 9.

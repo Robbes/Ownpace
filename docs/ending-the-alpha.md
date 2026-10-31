@@ -146,7 +146,10 @@ hold (step 3), because the privacy policy promises it for the end of the Alpha.
    That history is in every store the task runner writes, not in its own database alone
    (as read at Trigger.dev v4.7.2; not read again at v4.7.6, so its ClickHouse migrations 049 to
    054, webhook tables among them, are not checked against this list; v4.8.1 adds no migration of
-   either kind):
+   either kind; v4.8.3 adds six Prisma migrations, columns, an index and the drop of a table only
+   the logs-search projector wrote, and ClickHouse 055 and 056, which change a setting of
+   `task_events_search_v2` and drop `task_events_search_v1` with its view, both filled only by
+   the ClickHouse event store this stack does not use, so the list below holds):
    - **`triggerdb`**, its database: the runs, their payloads, outputs and errors, and their log
      events (`EVENT_REPOSITORY_DEFAULT_STORE` is not set, so they are kept there).
    - **ClickHouse**, although runs are not copied there (`RUN_REPLICATION_ENABLED` is not set,

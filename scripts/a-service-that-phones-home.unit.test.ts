@@ -10,8 +10,8 @@
  * read at the version this repository pins; five are switched off, and
  * Nextcloud is not yet:
  *
- *  - TRIGGER.DEV'S WEBAPP (read at v4.7.2, and again at v4.7.6 and v4.8.1),
- *    three ways.
+ *  - TRIGGER.DEV'S WEBAPP (read at v4.7.2, and again at v4.7.6, v4.8.1 and
+ *    v4.8.3), three ways.
  *    Its server's PostHog identified
  *    the user by id, email and name at every sign-in (`services/postAuth.server.ts`
  *    calls `telemetry.user.identify`, `services/telemetry.server.ts`) and sent
@@ -44,7 +44,14 @@
  *    v4.8.1 (read 2026-10-25) none of the files named here changed but
  *    `env.server.ts`, whose new keys (a snapshot TTL, an alert query limit)
  *    name no host; the webapp image runs Node 24.22.1, where it ran 24.18.0,
- *    and prisma 6.14.0, pnpm 10.33.2 and goose v3.27.1 are unchanged.
+ *    and prisma 6.14.0, pnpm 10.33.2 and goose v3.27.1 are unchanged. At
+ *    v4.8.3 (read 2026-10-31) telemetry.server.ts, postAuth.server.ts,
+ *    usePostHog.ts, the entrypoint and the Dockerfile are v4.8.1's; root.tsx
+ *    hands the page an admin origin from `ADDITIONAL_LOGIN_ORIGINS` when it is
+ *    set (it is not here) and `APP_ORIGIN` otherwise; and `env.server.ts`'s new
+ *    keys (login origins and checks, queue and webhook metrics, a deployment
+ *    index store that falls back to `OBJECT_STORE_*` and is off by default,
+ *    ClickHouse reader limits) name no third party.
  *  - ZITADEL (v4.19.2) sends a "service ping" once a day to
  *    `https://zitadel.com/api/ping`: the version, and the id, creation date and
  *    domains of every instance, and with `ResourceCount` the number of users,
@@ -181,7 +188,7 @@
  * trigger-supervisor's builds refuse it), but a container keeps the environment
  * it was started with until a deploy recreates it, which is why
  * `docs/managed-bring-up.md`, *Nothing phones home*, has the check to run on the
- * machine. The deploy CLI, which runs on the host: at 4.7.2, 4.7.6 and 4.8.1
+ * machine. The deploy CLI, which runs on the host: at 4.7.2, 4.7.6, 4.8.1 and 4.8.3
  * `packages/cli-v3/src/telemetry/tracing.ts` is gone, and `handleTelemetry` in
  * `src/cli/common.ts` only runs the command, so no exporter of its own was
  * found; its one PostHog client is the MCP server's feedback tool
@@ -365,7 +372,7 @@ export const WEBAPP_KEYS: Readonly<Record<string, string>> = Object.freeze({
   SESSION_SECRET: 'a secret; names no host',
   MAGIC_LINK_SECRET: 'a secret; names no host',
   ENCRYPTION_KEY: 'a secret; names no host',
-  LOGIN_SECRET: 'a secret; names no host, and env.server.ts at v4.7.2, v4.7.6 and v4.8.1 does not read it',
+  LOGIN_SECRET: 'a secret; names no host, and env.server.ts at v4.7.2, v4.7.6, v4.8.1 and v4.8.3 does not read it',
   MANAGED_WORKER_SECRET: 'a secret; names no host',
   APP_ORIGIN: "the dashboard's own origin",
   LOGIN_ORIGIN: "the dashboard's own origin",
@@ -556,7 +563,7 @@ interface Row {
  * held to the Dockerfile's FROM, without its digest: a version move is still
  * a re-read.
  */
-const TRIGGER_WEBAPP = 'ghcr.io/triggerdotdev/trigger.dev:v4.8.1';
+const TRIGGER_WEBAPP = 'ghcr.io/triggerdotdev/trigger.dev:v4.8.3';
 const ZITADEL = 'ghcr.io/zitadel/zitadel:v4.20.0';
 const CLICKHOUSE =
   'clickhouse/clickhouse-server:26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd';
@@ -619,7 +626,7 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
     why:
       "PostHog from the server at every sign-in (id, email, name) and on user, organisation and project creation, PostHog in " +
       "the dashboard's browser with the signed-in user's id and email, and Prisma's checkpoint to checkpoint.prisma.io at every " +
-      'start (telemetry.server.ts, postAuth.server.ts, usePostHog.ts, env.server.ts, docker/scripts/entrypoint.sh at v4.7.2, v4.7.6 and v4.8.1; ' +
+      'start (telemetry.server.ts, postAuth.server.ts, usePostHog.ts, env.server.ts, docker/scripts/entrypoint.sh at v4.7.2, v4.7.6, v4.8.1 and v4.8.3; ' +
       'prisma 6.14.0 CLI.ts and utils/checkpoint.ts); built here from that image, with files deleted and nothing added that runs',
     holds: (svc, entry) => {
       const { from, problems } = builtFrom(svc, entry);
@@ -737,7 +744,7 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
   'deploy/compose/managed.yml:trigger-supervisor': {
     readAt: 'build',
     why:
-      "its settings at v4.7.2, v4.7.6 and v4.8.1 (apps/supervisor/src/env.ts; the entrypoint.sh it has since v4.7.7 only preloads " +
+      "its settings at v4.7.2, v4.7.6, v4.8.1 and v4.8.3 (apps/supervisor/src/env.ts; the entrypoint.sh it has since v4.7.7 only preloads " +
       "the local distrust-cas.cjs) have no analytics or error report; it sends its traces to the webapp's " +
       'own /otel and serves its metrics on its own loopback; built here from ghcr.io/triggerdotdev/supervisor with a copy of pnpm deleted (0146 T16)',
     holds: (svc, entry) => {

@@ -78,7 +78,7 @@
  *    were read in (`read_at`), which must be the FROM's tag, and refuses an
  *    image of another version; and it pins the entrypoint read there by its
  *    SHA-256, since who runs pnpm is decided there. A path that did not move
- *    across releases (depot and esbuild did not, from 4.7.6 to 4.8.1) proves
+ *    across releases (depot and esbuild did not, from 4.7.6 to 4.8.3) proves
  *    nothing about the code that reaches it, so a version move is red until
  *    someone reads the reasons again;
  *  - REMOVED below, each path with why nothing runs it, equals what the
@@ -147,7 +147,7 @@ const REMOVED: Readonly<Record<Name, readonly Removal[]>> = {
     {
       path: `${PNPM}/@depot+cli-$plat@0.0.1-cli.2.80.0/node_modules/@depot/cli-$plat/bin/depot`,
       why: "depot's Go binary: the webapp runs it only for `depot push`, with DEPOT_TOKEN and DEPOT_ORG_ID set (DEPOT_REGION has a default), neither of which trigger-api has",
-      evidence: 'finalizeDeploymentV2.server.ts and remoteImageBuilder.server.ts at v4.8.1; @depot/cli lib/main.js (depot, depotBinaryPath, generateBinPath)',
+      evidence: 'finalizeDeploymentV2.server.ts and remoteImageBuilder.server.ts at v4.8.1 and v4.8.3; @depot/cli lib/main.js (depot, depotBinaryPath, generateBinPath)',
     },
     {
       path: `${PNPM}/@depot+cli@0.0.1-cli.2.80.0/node_modules/@depot/cli/bin/depot`,
@@ -157,7 +157,7 @@ const REMOVED: Readonly<Record<Name, readonly Removal[]>> = {
     {
       path: `${PNPM}/@esbuild+$plat@0.23.0/node_modules/@esbuild/$plat/bin/esbuild`,
       why: "esbuild's Go binary, spawned only by a build, transform or context call; it is installed for the trigger.dev CLI, which nothing in the image runs",
-      evidence: 'esbuild 0.23.0 lib/main.js (ensureServiceIsRunning); packages/cli-v3 and internal-packages/dashboard-agent package.json at v4.8.1',
+      evidence: 'esbuild 0.23.0 lib/main.js (ensureServiceIsRunning); packages/cli-v3 and internal-packages/dashboard-agent package.json at v4.8.1 and v4.8.3',
     },
     {
       path: `${PNPM}/esbuild@0.23.0/node_modules/esbuild/bin/esbuild`,
@@ -167,24 +167,24 @@ const REMOVED: Readonly<Record<Name, readonly Removal[]>> = {
     {
       path: '/root/.cache/node/corepack/v1/pnpm/10.33.2/dist/node_modules/tar',
       why: "tar 7.5.13 in the copy of pnpm trigger-api runs: only pnpm's bundled node-gyp requires it (to unpack Node's headers for a native build), and the entrypoint's pnpm runs three migration scripts and installs nothing (the owner, 2026-10-27)",
-      evidence: 'pnpm 10.33.2 dist: require(\'tar\') only in node_modules/node-gyp/lib/install.js, none in pnpm.cjs or worker.js; docker/scripts/entrypoint.sh at v4.8.1; corepack 0.36.0 installVersion reads .corepack only',
+      evidence: 'pnpm 10.33.2 dist: require(\'tar\') only in node_modules/node-gyp/lib/install.js, none in pnpm.cjs or worker.js; docker/scripts/entrypoint.sh at v4.8.1 and v4.8.3; corepack 0.36.0 installVersion reads .corepack only',
     },
     {
       path: '/home/node/.cache/node/corepack/v1/pnpm/10.33.2',
       why: "node's copy of pnpm, with tar 7.5.13 in it: trigger-api runs as root (managed.yml), so every pnpm of the entrypoint runs root's copy",
-      evidence: "docker/Dockerfile and docker/scripts/entrypoint.sh at v4.8.1; managed.yml `user: root`; corepack 0.36.0 (Node 24.22.1's) getCorepackHomeFolder and installVersion",
+      evidence: "docker/Dockerfile and docker/scripts/entrypoint.sh at v4.8.1 and v4.8.3; managed.yml `user: root`; corepack 0.36.0 (Node 24.22.1's) getCorepackHomeFolder and installVersion",
     },
   ],
   supervisor: [
     {
       path: '/root/.cache/node/corepack/v1/pnpm/10.33.2',
       why: "root's copy of pnpm, with tar 7.5.13 in it: trigger-supervisor runs as the image's node (no `user:`), whose copy its CMD runs",
-      evidence: "apps/supervisor/Containerfile and entrypoint.sh at v4.8.1; managed.yml (no `user:`); corepack 0.36.0 (Node 24.22.1's) getCorepackHomeFolder and installVersion",
+      evidence: "apps/supervisor/Containerfile and entrypoint.sh at v4.8.1 and v4.8.3; managed.yml (no `user:`); corepack 0.36.0 (Node 24.22.1's) getCorepackHomeFolder and installVersion",
     },
     {
       path: '/home/node/.cache/node/corepack/v1/pnpm/10.33.2/dist/node_modules/tar',
       why: "tar 7.5.13 in the copy of pnpm the supervisor runs: only pnpm's bundled node-gyp requires it (to unpack Node's headers for a native build), and the CMD runs `node dist/index.js` through pnpm and installs nothing (the owner, 2026-10-27)",
-      evidence: "pnpm 10.33.2 dist: require('tar') only in node_modules/node-gyp/lib/install.js, none in pnpm.cjs or worker.js; apps/supervisor/package.json's start at v4.8.1; corepack 0.36.0 installVersion reads .corepack only",
+      evidence: "pnpm 10.33.2 dist: require('tar') only in node_modules/node-gyp/lib/install.js, none in pnpm.cjs or worker.js; apps/supervisor/package.json's start at v4.8.1 and v4.8.3; corepack 0.36.0 installVersion reads .corepack only",
     },
   ],
 };
@@ -225,7 +225,7 @@ const REPLACED: Readonly<Record<Name, readonly Replacement[]>> = {
       why:
         "GHSA-cg2g-xh64-v4q7 (critical) and GHSA-mrv2-3pqr-j5jr (high) in 3.4.13, both fixed in 3.4.17; nothing here loads it: posthog-js's entry points carry no DOMPurify, and streamdown 2.5.0 imports no mermaid without the @streamdown/mermaid plugin, which the webapp does not install",
       evidence:
-        "npm's advisories for dompurify; the 3.4.13 and 3.4.17 tarballs (the same 24 file names, entry points and exports; package.json differs only in its version, scripts and devDependencies; the type declarations in one import's order, and the CJS ones drop `export { _default as default }`); upstream's pnpm-lock.yaml, app/hooks/usePostHog.ts and app/components/code/StreamdownRenderer.tsx at v4.8.1; posthog-js 1.407.3 dist/main.js, dist/module.js and lib/src/extensions/product-tours; streamdown 2.5.0 dist",
+        "npm's advisories for dompurify; the 3.4.13 and 3.4.17 tarballs (the same 24 file names, entry points and exports; package.json differs only in its version, scripts and devDependencies; the type declarations in one import's order, and the CJS ones drop `export { _default as default }`); upstream's pnpm-lock.yaml, app/hooks/usePostHog.ts and app/components/code/StreamdownRenderer.tsx at v4.8.1 and v4.8.3; posthog-js 1.407.3 dist/main.js, dist/module.js and lib/src/extensions/product-tours; streamdown 2.5.0 dist",
     },
   ],
   supervisor: [],
@@ -609,7 +609,7 @@ function treeOf(name: Name, plat: string): Tree {
     return {
       files: {
         '/app/package.json': '{"packageManager":"pnpm@10.33.2"}\n',
-        '/app/packages/core/package.json': '{"version":"4.8.1"}\n',
+        '/app/packages/core/package.json': '{"version":"4.8.3"}\n',
         [ENTRYPOINT.supervisor]: STAND_IN_ENTRYPOINT,
         ...corepack('/root'),
         ...corepack('/home/node'),
@@ -623,7 +623,7 @@ function treeOf(name: Name, plat: string): Tree {
     ...dompurify,
     files: {
       '/triggerdotdev/package.json': '{"packageManager":"pnpm@10.33.2"}\n',
-      '/triggerdotdev/packages/core/package.json': '{"version":"4.8.1"}\n',
+      '/triggerdotdev/packages/core/package.json': '{"version":"4.8.3"}\n',
       [ENTRYPOINT['trigger.dev']]: STAND_IN_ENTRYPOINT,
       ...pkg(`${PNPM}/@depot+cli@0.0.1-cli.2.80.0/node_modules/@depot/cli`),
       ...pkg(`${PNPM}/esbuild@0.23.0/node_modules/esbuild`),
@@ -835,7 +835,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
     };
     expect(swap(/^(FROM \S+)@sha256:[0-9a-f]{64}$/m, '$1')).toEqual([expect.stringContaining('carries no tag and digest')]);
     expect(swap(/^FROM ghcr\.io\/triggerdotdev\/trigger\.dev:/m, 'FROM ghcr.io/someone/trigger.dev:')).toEqual([expect.stringContaining('not ghcr.io/triggerdotdev/trigger.dev')]);
-    expect(swap(/^ARG TRIGGER_IMAGE_TAG$/m, 'ARG TRIGGER_IMAGE_TAG=v4.8.1')).toEqual([expect.stringContaining('not one `ARG TRIGGER_IMAGE_TAG` with no default')]);
+    expect(swap(/^ARG TRIGGER_IMAGE_TAG$/m, 'ARG TRIGGER_IMAGE_TAG=v4.8.3')).toEqual([expect.stringContaining('not one `ARG TRIGGER_IMAGE_TAG` with no default')]);
     expect(swap(/^USER root$/m, 'USER node')).toContainEqual(expect.stringContaining('the removing RUN runs as node, not root'));
     expect(swap(/\n# Upstream's own user, which this image keeps\.\nUSER node\n/, '\n')).toEqual([
       expect.stringContaining('its last USER is root'),
@@ -852,9 +852,9 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
     expect(shapeProblems('trigger.dev', `# syntax=docker/dockerfile:1\n${real}`)).toEqual([expect.stringContaining('is a parser directive')]);
     // Read at one release, the FROM's, and refused before anything is removed at any other.
     expect(swap(/^ {4}read_at=v[\d.]+; \\\n/m, '')).toEqual(['the removing RUN names no read_at, the release its reasons were read in']);
-    expect(swap(/^( {4}read_at=)v[\d.]+;/m, '$1v4.8.0;')).toEqual([expect.stringContaining('read_at is v4.8.0, and the FROM is v4.8.1')]);
+    expect(swap(/^( {4}read_at=)v[\d.]+;/m, '$1v4.8.0;')).toEqual([expect.stringContaining('read_at is v4.8.0, and the FROM is v4.8.3')]);
     // What `trigger-version.sh pin` does: the FROM moves, read_at stays, and this says to read again.
-    expect(swap(/^(FROM \S+:)v[\d.]+@/m, '$1v4.9.0@')).toEqual([expect.stringContaining('read_at is v4.8.1, and the FROM is v4.9.0: read the header')]);
+    expect(swap(/^(FROM \S+:)v[\d.]+@/m, '$1v4.9.0@')).toEqual([expect.stringContaining('read_at is v4.8.3, and the FROM is v4.9.0: read the header')]);
     expect(swap(/^ {4}\[ "\$core" = "\$read_at" \] \|\| fail [^\n]*\n/m, '')).toEqual([
       'the removing RUN does not refuse an image of another version than read_at before it removes anything',
     ]);
@@ -905,7 +905,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
     for (const plat of name === 'trigger.dev' ? PLATFORMS : (['linux-arm64'] as const)) {
       it(`${name} on ${plat}: removes REMOVED and nothing else, keeps the copy its service runs, and proves both users`, () => {
         withSandbox(treeOf(name, plat), (box) => {
-          const run = build(dockerfiles[name], box, { plat, tag: 'v4.8.1' });
+          const run = build(dockerfiles[name], box, { plat, tag: 'v4.8.3' });
           expect(run.status, run.out).toBe(0);
           expect(removedBy(box, run)).toEqual(REMOVED[name].map((r) => expand(r.path, plat)).sort());
           const home = name === 'trigger.dev' ? '/root' : '/home/node';
@@ -934,9 +934,9 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
         expect(build(dockerfiles[name], box, { plat: 'linux-x64', tag: '' }).status).toBe(0);
       });
       withSandbox(treeOf(name, 'linux-x64'), (box) => {
-        const run = build(dockerfiles[name], box, { plat: 'linux-x64', tag: 'v4.8.2' });
+        const run = build(dockerfiles[name], box, { plat: 'linux-x64', tag: 'v4.9.0' });
         expect(run.status).not.toBe(0);
-        expect(run.out).toContain('the .env names TRIGGER_IMAGE_TAG=v4.8.2, and this checkout builds Trigger.dev v4.8.1');
+        expect(run.out).toContain('the .env names TRIGGER_IMAGE_TAG=v4.9.0, and this checkout builds Trigger.dev v4.8.3');
         expect(removedBy(box, run), name).toEqual([]);
       });
     }
@@ -947,11 +947,11 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
       const tree = treeOf(name, 'linux-x64');
       const core = name === 'trigger.dev' ? '/triggerdotdev/packages/core/package.json' : '/app/packages/core/package.json';
       // The .env agrees with the image (or names nothing): the release still is not the one read.
-      for (const tag of ['', 'v4.8.2']) {
-        withSandbox({ ...tree, files: { ...tree.files, [core]: '{"version":"4.8.2"}\n' } }, (box) => {
+      for (const tag of ['', 'v4.9.0']) {
+        withSandbox({ ...tree, files: { ...tree.files, [core]: '{"version":"4.9.0"}\n' } }, (box) => {
           const run = build(dockerfiles[name], box, { plat: 'linux-x64', tag });
           expect(run.status, `${name}, TRIGGER_IMAGE_TAG=${tag}`).not.toBe(0);
-          expect(run.out).toContain(`was read in Trigger.dev v4.8.1's source, and this image is v4.8.2`);
+          expect(run.out).toContain(`was read in Trigger.dev v4.8.3's source, and this image is v4.9.0`);
           expect(run.out).toContain('then move read_at');
           expect(removedBy(box, run), name).toEqual([]);
         });
@@ -960,7 +960,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
       withSandbox(tree, (box) => {
         const run = build(dockerfiles[name], box, { plat: 'linux-x64', pinnedEntrypoint: true });
         expect(run.status, name).not.toBe(0);
-        expect(run.out).toContain(`${box.fs}${ENTRYPOINT[name]} is not the one read at v4.8.1`);
+        expect(run.out).toContain(`${box.fs}${ENTRYPOINT[name]} is not the one read at v4.8.3`);
         expect(removedBy(box, run), name).toEqual([]);
       });
     }
@@ -1002,7 +1002,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
         };
         expect(JSON.stringify(without), `${path} is not in the stand-in`).not.toBe(JSON.stringify(tree));
         withSandbox(without, (box) => {
-          const run = build(dockerfiles[name], box, { plat, tag: 'v4.8.1' });
+          const run = build(dockerfiles[name], box, { plat, tag: 'v4.8.3' });
           expect(run.status, `${name} built without ${path}`).not.toBe(0);
           expect(run.out, `${name} without ${path} did not say which`).toContain(`${box.fs}${named}`);
           expect(removedBy(box, run), `${name} removed something before it failed without ${path}`).toEqual([]);
@@ -1055,7 +1055,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
       const tree = treeOf(name, 'linux-arm64');
       const worker = `${COPY(name === 'trigger.dev' ? '/root' : '/home/node')}/dist/worker.js`;
       withSandbox({ ...tree, files: { ...tree.files, [worker]: 'const tar = require("tar");\n' } }, (box) => {
-        const run = build(dockerfiles[name], box, { tag: 'v4.8.1' });
+        const run = build(dockerfiles[name], box, { tag: 'v4.8.3' });
         expect(run.status, name).not.toBe(0);
         expect(run.out).toContain(`${box.fs}${worker}`);
         expect(run.out).toContain("not by node-gyp's lib/install.js alone");
@@ -1499,9 +1499,9 @@ describe('managed.yml runs the two builds by the names their content gives them'
   });
 
   it('refuses a FROM at another version than the defaults, a wider build, a pull, a fetch of pnpm and a moved home', () => {
-    const fromMoved = dockerfiles.supervisor.replace(/^FROM (\S+):v[\d.]+@/m, 'FROM $1:v4.8.2@');
+    const fromMoved = dockerfiles.supervisor.replace(/^FROM (\S+):v[\d.]+@/m, 'FROM $1:v4.9.0@');
     expect(composeProblems(managedText, { ...dockerfiles, supervisor: fromMoved }, workerManifest)).toContainEqual(
-      expect.stringContaining('deploy/compose/supervisor/Dockerfile builds on v4.8.2, and deploy/compose/managed.yml pins v4.8.1'),
+      expect.stringContaining('deploy/compose/supervisor/Dockerfile builds on v4.9.0, and deploy/compose/managed.yml pins v4.8.3'),
     );
     const swap = (from: string | RegExp, to: string) => {
       const text = managedText.replace(from, to);
@@ -1522,7 +1522,7 @@ describe('managed.yml runs the two builds by the names their content gives them'
     }
     // The pulled image back, with nothing else: refused, with what to run instead.
     expect(swap(/image: localhost\/supervisor:(\$\{TRIGGER_IMAGE_TAG:-v[\d.]+\})-[0-9a-f]{12}/, 'image: ghcr.io/triggerdotdev/supervisor:$1')).toEqual([
-      expect.stringContaining('trigger-supervisor runs ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.1}, not localhost/supervisor:'),
+      expect.stringContaining('trigger-supervisor runs ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.3}, not localhost/supervisor:'),
     ]);
   });
 });
