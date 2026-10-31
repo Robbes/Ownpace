@@ -30,7 +30,7 @@
 # (apps/worker/trigger.config.ts, 0146 T14). Dependabot keeps the suffix when it moves the
 # tag. scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts holds
 # the three FROM lines to one string and the tag to a named Debian release.
-FROM node:24.22.1-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea AS base
+FROM node:24.22.2-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
@@ -102,7 +102,8 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 # removed until T13, read 0 and 43 (none with a fix), and Debian 12's
 # `node:24.22.1-slim` 1 and 61. On that day its /nodejs/bin/node was the base
 # stage's /usr/local/bin/node byte for byte (sha256 e32e2d16... on amd64,
-# c8c57216... on arm64).
+# c8c57216... on arm64). At Node 24.22.2 they are again one file, read out of
+# both images' layers on 2026-10-31 (904a6d34... on amd64, b4855de8... on arm64).
 #
 # THE SAME NODE VERSION AS THE FROM NODE LINE ABOVE, CHECKED, NOT ASSUMED. The
 # managed tasks build on that line (apps/worker/trigger.config.ts, 0146 T14), and
@@ -135,7 +136,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 # moves. The tag names no Node version; the image's name names the major, so a
 # new Node major is a new name, which is an edit somebody makes.
 # scripts/an-api-image-with-nothing-to-exec.unit.test.ts holds all of the above.
-FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:cb606325b7ec4af55462cb0b424a53b452a5b4a894ffe841fcf1048d216fb9f8 AS runtime
+FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:a6c34457f6da4295807e051411c7783739c65b997a324fed14e4fa292615ae91 AS runtime
 ENV NODE_ENV=production
 # Surfaced by GET /version (buildIdentity in @openmig/core).
 ARG GIT_SHA=unknown

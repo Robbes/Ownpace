@@ -2,7 +2,50 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-10-30 (update this block at the end of every session)
+## Status — 2026-10-31 (update this block at the end of every session)
+
+**2026-10-31: Node 24.22.2 in every image, the build stages and the API's distroless runtime
+together (alpha.4; supersedes Dependabot's #1746).** #1746 (opened 2026-10-30 12:22 UTC) moves
+only the API's runtime, `gcr.io/distroless/nodejs24-debian13:nonroot`, from `cb606325…` to
+`a6c34457…`, the `nonroot` tag's index since GCR's upload of 2026-10-28 21:34 UTC (its tag list).
+That image's Node is v24.22.2, the version string in `/nodejs/bin/node` read out of its largest
+layer on amd64 and arm64; `cb606325…` carries v24.22.1. The managed smoke's preflights stop when
+the API container's Node is not the version of `apps/api/Dockerfile`'s `FROM node` line
+(`api_node` and `dockerfile_node`, 0146 T13a), so #1746 alone goes red at its E2E (managed), and
+the line moves with it. All three `FROM node` lines, which `a-base-image-that-carried-what-nothing-runs`
+holds to one string, move to `node:24.22.2-trixie-slim@sha256:54f84b4c…`, Docker Hub's index for
+the tag (last pushed 2026-10-28 23:40:16 UTC; amd64, arm64, ppc64le and s390x with their
+attestations; `NODE_VERSION=24.22.2` in the amd64 and arm64 configs; Debian 13.7), and the
+distroless line to #1746's digest. The two Nodes are one file again: `/usr/local/bin/node` and
+`/nodejs/bin/node` hash to `904a6d34…` on amd64 and `b4855de8…` on arm64, read out of both images'
+layers.
+- **What follows without an edit.** The managed tasks build on the API's `FROM node` line
+  (`apps/worker/trigger.config.ts`), so the `tasks` phase of E2E (managed) deploys them on
+  24.22.2, the slow first deploy after a move (`managed-bring-up.md`). The Windows payload's
+  node.exe is the version of `apps/selfhost/Dockerfile`'s line (`package-appliance.mjs
+  --with-node`); nodejs.org's `SHASUMS256.txt` for v24.22.2 lists `win-x64/node.exe` as
+  `1c331340…` and `win-arm64/node.exe` as `e2d6e75a…`. `TASK_BUILD_IMAGE` stays: only
+  `node_modules` and `index.json` leave that stage.
+- **What 24.22.2 is.** Node 24.22.2 'Krypton' (LTS): nodejs.org's dist index dates it 2026-10-27
+  with `security: false`, OpenSSL 3.5.9 and V8 13.6.233.17 as in 24.22.1; its changelog entry,
+  dated 2026-10-28, lists five V8 backports (786c1c2d88d4, 1a0089053443, c9c0abfa51f0,
+  ebd15783b7ba, 853553fe755c) and `stream: keep async context of parked writes`. Not a security
+  release.
+- **Measured** (Trivy 0.76.1, its database of 2026-10-29, `--image-src remote`, linux/arm64 and
+  linux/amd64 alike): `node:24.22.1-trixie-slim@43b9ba11…`, the current pin, and
+  `node:24.22.2-trixie-slim@54f84b4c…` read the same 179 findings, 0 critical and 49 high, 17 with
+  a fix (6 high), on Debian 13.7. The 43 Debian highs have no fix; every finding with one is under
+  npm's own `node_modules` (brace-expansion 5.0.9, undici 6.28.0, ip-address 10.5.0,
+  postcss-selector-parser 7.1.4), which the selfhost and task runtimes remove, the API's
+  distroless runtime never had and the web image's nginx stage never copies. Distroless
+  `cb606325…` and `a6c34457…` read the same 31 findings, 0 critical, 0 high, none with a fix. So
+  this clears no finding: it is a lifecycle move, and it lets Dependabot's digest move land.
+- **The floor, with no exception** (nothing is cleared). The node index passes its three days at
+  2026-10-31 23:41 UTC and the distroless one at 21:35 UTC, so the merge waits for 23:41 UTC. If
+  Docker Hub pushes the tag's index again before then (as on 2026-10-21, when an architecture
+  landed), the pin stays the digest read here, whose three days count from its own push. Owed
+  before the merge: CI, then E2E (managed) and E2E (self-hosted) on the branch, one at a time; the
+  self-hosted run proves the appliance image on 24.22.2. #1746 closes as superseded at the merge.
 
 **2026-10-30: the Docker socket proxy is built here, on HAProxy 3.4.7 (alpha.3, #1740).** The
 image scan of 2026-10-29 (Security Scan run 40843566092) read `tecnativa/docker-socket-proxy:v0.5.0`
@@ -1158,8 +1201,8 @@ is who moves it after T1.
 
 | Image | Where | Pinned | Newest | Distance | Moves by | Decision |
 |---|---|---|---|---|---|---|
-| `node` (24-trixie-slim; 24-slim until 0146 T12) | `apps/api` (its build stage only, since 0146 T13), `apps/web`, `apps/selfhost` Dockerfiles; the managed tasks, which build on it (`apps/worker/trigger.config.ts`, 0146 T14, #1716); the Windows payload's node.exe follows `apps/selfhost` | 24.22.1-trixie-slim by index digest `43b9ba11…`, Debian 13.7 (0146 T12, 2026-10-25; 24.22.1-slim, Debian 12.15, from 2026-10-21, the October security release; digest `6f7b03f7…` with no tag at the audit, 24.20.0-slim from T2) | 24.22.1-trixie-slim (Node released 2026-10-20); the tag's digest moves as more architectures land (ppc64le at 17:39 UTC on 2026-10-21) and Dependabot offers each move | current: the pin is the tag's index | Dependabot `docker`, which keeps the `-trixie-slim` suffix and moves the payload with it since 2026-10-21; the Debian release by hand | **T2** — and T1 gives it its tag; Debian 13, and no package manager in the api and selfhost runtimes, from 0146 T12 |
-| `gcr.io/distroless/nodejs24-debian13` (`nonroot`) | `apps/api/Dockerfile`'s runtime stage, since 0146 T13 | the `nonroot` tag by index digest `cb606325…`, Debian 13.7 and Node 24.22.1 (uploaded 2026-10-23 23:31 UTC) | the tag's index, as read 2026-10-25 23:40 UTC | current | Dependabot `docker`, digest moves only (the tag names no version); a new Node major or Debian is a new image name, by hand. Its Node version must be the `node` row's: the managed smoke stops otherwise | **0146 T13**: no shell, `printenv` or package manager, Node at `/nodejs/bin/node` off PATH; 0 critical and 0 high (Trivy 0.76.1, 2026-10-25) |
+| `node` (24-trixie-slim; 24-slim until 0146 T12) | `apps/api` (its build stage only, since 0146 T13), `apps/web`, `apps/selfhost` Dockerfiles; the managed tasks, which build on it (`apps/worker/trigger.config.ts`, 0146 T14, #1716); the Windows payload's node.exe follows `apps/selfhost` | 24.22.2-trixie-slim by index digest `54f84b4c…`, Debian 13.7 (2026-10-31, with the distroless row's digest, which must carry the same Node: Status, 2026-10-31; 24.22.1-trixie-slim by `43b9ba11…` from 0146 T12, 2026-10-25; 24.22.1-slim, Debian 12.15, from 2026-10-21, the October security release; digest `6f7b03f7…` with no tag at the audit, 24.20.0-slim from T2) | 24.22.2-trixie-slim (Node released 2026-10-27, not a security release; the tag's index pushed 2026-10-28 23:40 UTC); the tag's digest moves as more architectures land (ppc64le at 17:39 UTC on 2026-10-21) and Dependabot offers each move | current: the pin is the tag's index | Dependabot `docker`, which keeps the `-trixie-slim` suffix and moves the payload with it since 2026-10-21; the Debian release by hand | **T2** — and T1 gives it its tag; Debian 13, and no package manager in the api and selfhost runtimes, from 0146 T12 |
+| `gcr.io/distroless/nodejs24-debian13` (`nonroot`) | `apps/api/Dockerfile`'s runtime stage, since 0146 T13 | the `nonroot` tag by index digest `a6c34457…`, Debian 13.7 and Node 24.22.2 (uploaded 2026-10-28 21:34 UTC; taken 2026-10-31 with the `node` row's 24.22.2, superseding Dependabot's #1746; `cb606325…`, Node 24.22.1, uploaded 2026-10-23 23:31 UTC, from 0146 T13) | the tag's index, as read 2026-10-31 01:05 UTC | current | Dependabot `docker`, digest moves only (the tag names no version); a new Node major or Debian is a new image name, by hand. Its Node version must be the `node` row's: the managed smoke stops otherwise | **0146 T13**: no shell, `printenv` or package manager, Node at `/nodejs/bin/node` off PATH; 0 critical and 0 high (Trivy 0.76.1, 2026-10-25, and again at `a6c34457…` on 2026-10-31) |
 | `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.31.8-alpine-slim by digest `f45171d3…` (2026-10-25, 0146 T12a: the same nginx package and base layers as -alpine, without its dynamic modules, curl and the 51 packages they bring; 1.31.8-alpine `1ef7ca94…` from 2026-10-23, 1.31.7-alpine `892bb215…` the day before that, 1.27-alpine at the audit, 1.30-alpine from T2, `1.31-alpine` floating from #813, which no build or `up` ever pulled again) | 1.31.8-alpine-slim, its index pushed 2026-10-24 19:51 UTC to add riscv64 over the amd64 and arm64 images pushed 2026-10-22 01:50 UTC; 1.31.8 itself: four bug fixes and one change (changes.xml, 2026-10-21) on Alpine 3.24.3, which fixes the two high CVEs 1.31.7's image carries on 3.24.2 (libexpat CVE-2026-77214, libx11 CVE-2026-88806); 1.31.7 (2026-10-14) fixed five: CVE-2026-15176, CVE-2026-93479, CVE-2026-95101, CVE-2026-97629 and CVE-2026-97205 | current | Dependabot `docker` for the Dockerfile; `www.yml` by hand after it, and the pin watch (0146 T8) says when the two differ | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows; -alpine-slim since 2026-10-25 (0146 T12a), because nothing here loads what -alpine adds and the scan counts it |
 | `postgres` (self-host) | `deploy/selfhost/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `deploy/selfhost/compose.yml` since 0146 T15b (#1719, merged 2026-10-28, `fb0fea2e`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing) | 18.6-alpine by digest `77f58511…` (Dependabot's move of 2026-09-24 to a rebuild of the tag; `d3e1620b…` from T2, digest `9a8afca5…` = 18.4-alpine with no tag at the audit) | 18.6-alpine, rebuilt 2026-10-22 as `898c60cb…`, which the managed stacks pin, and again 2026-10-26 as `10a5c69a…` (inside the three-day floor) | the same release; Dependabot offers the rebuild | Dependabot `docker` on `/deploy/selfhost/postgres` (its own entry, no major; `docker-compose` before T15b, which now ignores `localhost/postgres`), whose PR fails `a-database-started-as-root` until compose.yml's image line moves, and prints the `sed` that moves it | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
 | `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (#1717, merged 2026-10-28, `6f9af7f2`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.6-alpine by digest `898c60cb…` (2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13); 18.7 is due 2026-11-12 | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and prints the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8) | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
@@ -1221,7 +1264,8 @@ which for a current SHA is never. T2 sets the three labels to the truth.
 ### 2.4 Runtimes
 
 Node 24 everywhere it matters: `engines` says `>=24`, CI installs `24`, the images run
-24.22.1 (24.20.0 at the audit), and the Windows payload ships the self-host image's version.
+24.22.2 (24.20.0 at the audit, 24.22.1 from 2026-10-21), and the Windows payload ships the
+self-host image's version.
 pnpm 11.28.9 (11.22.0 at the audit), moved by hand: Dependabot never touches `packageManager`,
 so a bump is the newest pnpm 11 that is three days old (`latest-11` once it is), then
 `pnpm install` to show the lockfile unchanged. PostgreSQL 18 on both stacks; PGlite (npm) current. Prisma current.

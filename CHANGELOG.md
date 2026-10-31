@@ -4,6 +4,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **Every image runs Node 24.22.2** (workplan 0119; supersedes Dependabot's
+  #1746): the api, web and selfhost images build on
+  `node:24.22.2-trixie-slim`, and the API's distroless runtime moves to the
+  digest that carries the same Node, as the managed smoke requires of the
+  two. 24.22.2 is an LTS patch of V8 fixes and one stream fix, not a
+  security release, and Trivy reads the same findings in both images as on
+  24.22.1: none critical, and none high in the API's runtime. The managed
+  tasks and the Windows payload's node.exe follow it; the first task deploy
+  after it is the slow one. Nothing a stack sets changes.
+
 ## [0.2.0-alpha.3] - 2026-10-30
 
 A tester's grant mail now opens registration with the address it was sent to
