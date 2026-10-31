@@ -4,6 +4,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **The public site's `llms.txt` links the maintained documentation** (ADR-0029;
+  workplan 0152 T5 (c)): after the site's pages, five sections, *What it is*,
+  *How data moves*, *Security and privacy*, *Self-hosting* and *The Alpha*,
+  with fourteen documents between them, among them the solution architecture,
+  the feature matrix, `SECURITY.md`, the self-host quickstart and the Alpha's
+  workplans. Each is linked by its own first heading, with no notes, at its
+  Markdown on `main` on `raw.githubusercontent.com`, which an assistant reads
+  without running GitHub's page script. The list is `MAINTAINED_DOCS` in
+  `site/maintained-docs.mjs`, and the build reads nothing outside `site/`, as
+  live's deploy needs. `node scripts/llms-docs.mjs --check`, a new step of
+  CI's `docs-hygiene`, which runs on every change, fails a document renamed,
+  removed or retitled without the list, so the pull request breaks rather than
+  the link. `scripts/a-doc-an-assistant-is-sent-to.unit.test.ts` holds it.
+
 ### Fixed
 
 - **follow-redirects 1.16.2 closes a third high advisory** (GHSA-mrwp-f3q8-3g9p,
