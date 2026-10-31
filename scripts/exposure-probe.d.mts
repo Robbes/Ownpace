@@ -11,6 +11,8 @@ export declare const PRODUCTION_NAMES: readonly string[];
 export declare const OTA_NAMES: readonly string[];
 export declare const ISSUER: string;
 export declare const DISCOVERY: string;
+/** The form that founds an organisation at live's issuer, which answers 404 once 0135 T1 holds. */
+export declare const ORG_REGISTRATION: string;
 export declare const OTA_MODES: readonly string[];
 /** The production site's name (workplan 0139 T10), tried only on live's front. */
 export declare const SITE_NAME: string;
@@ -98,6 +100,12 @@ export declare function signInVerdict(
   page: SignInPage,
   answer: PageAnswer,
 ): { readonly kind: 'itself' | 'signin' | 'silent' | 'other'; readonly words: string };
+
+/** What the form that founds an organisation answered: `closed` for a 404 only, with the words the log prints. */
+export declare function orgRegistrationVerdict(answer: PageAnswer): {
+  readonly kind: 'closed' | 'open';
+  readonly words: string;
+};
 
 /** The configuration from the workflow's environment, or why it cannot run. */
 export declare function probeConfig(
