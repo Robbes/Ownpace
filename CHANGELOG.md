@@ -21,6 +21,21 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   Hub**: the box's next `up`, and an appliance's first `up` after the
   update.
 
+### Changed
+
+- **Trigger.dev is v4.8.3, taken before its three-day floor on the owner's
+  waiver** (workplan 0119, issue #1738): *"I waive the wait for v4.8.3, just
+  go with it"* (2026-10-31). It skips v4.8.2. The webapp and the supervisor
+  are still built here without the files nothing runs, now on v4.8.3, and the
+  tasks deploy with CLI 4.8.3. It is one way: six Prisma migrations and two
+  ClickHouse ones, which drop a search table and its view this stack never
+  filled. A stack whose `.env` sets `TRIGGER_IMAGE_TAG` sets `v4.8.3` there
+  first, with no run executing and after the backup, or its bring-up stops at
+  the `trigger` phase. A new `trigger.dev login` is started with
+  `--no-browser`, as the bring-up and `deploy-tasks.sh` now print it: without
+  it, CLI 4.8.3 on a machine that can open a browser takes the approval on its
+  own `127.0.0.1`, which a browser on another machine cannot reach.
+
 ### Fixed
 
 - **follow-redirects 1.16.2 closes a third high advisory** (GHSA-mrwp-f3q8-3g9p,
