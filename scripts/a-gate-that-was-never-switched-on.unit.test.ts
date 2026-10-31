@@ -46,6 +46,9 @@
  * `recharts@3.10.0` against 3.10.1, `engine.io@6.6.7` against nothing at all.
  * Harmless individually, and collectively the reason nobody could tell which
  * exemptions were still load-bearing. A list that prunes itself stays readable.
+ * A scoped package's lockfile keys are quoted (`'@scope/name@1.2.3':`), and
+ * until the first scoped entry (2026-10-31) the check read only unquoted keys,
+ * so it called that entry a fossil; it now reads both shapes.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -114,16 +117,34 @@ describe('the release-age gate, and the list that outlived it', () => {
   });
 
   it('names only versions the lockfile actually installs, so the list cannot fossilise', () => {
-    const stale = (workspace.minimumReleaseAgeExclude ?? []).filter((entry) => {
-      const { name, version } = splitEntry(entry);
-      return !new RegExp(`^  ${escapeForRegExp(`${name}@${version}`)}[:(]`, 'm').test(lockfile);
-    });
+    const stale = (workspace.minimumReleaseAgeExclude ?? []).filter((entry) => !lockfileInstalls(lockfile, entry));
     expect(
       stale,
       `these exemptions name versions that are not in pnpm-lock.yaml, so they exempt nothing ` +
         `and only obscure the entries that do: ${stale.join(', ')}. Delete them — a versioned ` +
         'entry is meant to expire when the tree moves past it.',
     ).toEqual([]);
+  });
+
+  it('reads a scoped entry the way the lockfile writes it, quoted, and still refuses one it does not install', () => {
+    // YAML quotes a key that starts with `@`, so a scoped package's lines open
+    // with a quote: `  '@trigger.dev/core@4.8.3':` and its snapshot
+    // `  '@trigger.dev/core@4.8.3(zod@4.6.7)':`. Matched unquoted, the first
+    // scoped entry on the list (2026-10-31) read as a fossil.
+    const lines = [
+      "  '@scope/pkg@1.2.3':",
+      '    resolution: {integrity: sha512-x}',
+      "  '@scope/pkg@1.2.3(zod@4.6.7)':",
+      '  plain@2.0.0:',
+      '  plain@2.0.1(react@19.3.1):',
+    ].join('\n');
+    expect(lockfileInstalls(lines, '@scope/pkg@1.2.3')).toBe(true);
+    expect(lockfileInstalls(lines, 'plain@2.0.0')).toBe(true);
+    expect(lockfileInstalls(lines, 'plain@2.0.1')).toBe(true);
+    expect(lockfileInstalls(lines, '@scope/pkg@1.2.4')).toBe(false);
+    expect(lockfileInstalls(lines, '@scope/pkg@1.2')).toBe(false);
+    expect(lockfileInstalls(lines, 'plain@2.0')).toBe(false);
+    expect(lockfileInstalls(lines, '@other/pkg@1.2.3')).toBe(false);
   });
 
   it('and the workspace file explains the unit, because the error message will not', () => {
@@ -135,6 +156,17 @@ describe('the release-age gate, and the list that outlived it', () => {
     expect(raw).toContain('4320');
   });
 });
+
+/**
+ * Whether a lockfile has a package or snapshot line for `name@version`: the key at
+ * two spaces' indent, quoted when it starts with `@` as YAML writes it, then `:`
+ * for the package or `(` for a snapshot with its peers.
+ */
+function lockfileInstalls(text: string, entry: string): boolean {
+  const { name, version } = splitEntry(entry);
+  const spec = escapeForRegExp(`${name}@${version}`);
+  return new RegExp(`^  (?:${spec}[:(]|'${spec}['(])`, 'm').test(text);
+}
 
 /** Escape a package spec for use inside a RegExp (versions carry dots and plus signs). */
 function escapeForRegExp(s: string): string {
