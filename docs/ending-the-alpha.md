@@ -37,7 +37,7 @@ reading the stage fails that guard until it has a line here.
 | Compose: `deploy/compose/managed.yml` | `${OWNPACE_STAGE:-}` from live's `.env` | Handed to the api's environment and, as `VITE_OWNPACE_STAGE`, to the web image's build. | The same, empty. The api takes it when its container is recreated; the web only when its image is rebuilt. |
 | The task environment: `deploy/compose/set-task-env.sh` | the value in live's `.env` | Uploaded to the tasks. | **Deleted** from the tasks; it prints `deleted OWNPACE_STAGE: no stage is set, so the hold at the data ceiling is on`. A task container inherits nothing from compose, so nothing else reaches it. |
 | The env check: `deploy/compose/ensure-env-secrets.sh` | `env_value` from the stack's `.env`, as the bring-up's env phase and the gate's Fill step run it | A blank `BACKUP_RETENTION_DAYS` is written as `0` off live, where no copy is kept, so the API can start; on live it writes nothing and names 7 (workplan 0134). | Nothing: the API only warns about a blank line, and a value written during the alpha stays. |
-| The live deploy: `deploy/compose/deploy-live.sh` | `env_value` from live's `.env` (`SITE_STAGE`) | Hands `alpha` to the site build. | Hands it an empty stage. |
+| The live deploy: `deploy/compose/deploy-live.sh` | `env_value` from live's `.env` (`SITE_STAGE`); and, for its refusal, as Compose hands it to the api, trimmed and in any case | Hands `alpha` to the site build, and refuses a `.env` that sets `MOLLIE_API_KEY` (workplan 0131 §3 T3). | Hands it an empty stage, and takes Mollie's key. Its refusal of a host in `OWNPACE_REACHABLE_HOSTS` holds after the alpha too (workplan 0136 T2). |
 | The OTA site: `deploy/compose/www.yml` | the OTA stack's `.env` | `alpha`, as live's: the tester guide and the line, as on live's site. | Emptied on the OTA stack first, as the rehearsal. |
 
 ## Before: what must be true first
@@ -92,8 +92,10 @@ the owner's job.
      safe on live. None of the sandbox's ids carry over;
    - **`MONEYBIRD_DELIVERY=email`**, so that Moneybird e-mails each invoice;
    - **the outside-EU rate**, or none, as the accountant answers;
-   - **Mollie's onboarding of the business finished**, and its `live_` key as `MOLLIE_API_KEY`,
-     with `API_URL` live's public https address, where Mollie confirms each payment;
+   - **Mollie's onboarding of the business finished**, and its `live_` key ready to go in as
+     `MOLLIE_API_KEY` with the stage's change in step 4, not before: while the stage is `alpha`,
+     `deploy-live.sh` refuses live's `.env` with that key set (workplan 0131 §3 T3). `API_URL` is
+     live's public https address, where Mollie confirms each payment;
    - **the financial account Mollie pays out from**, made in live's administration, as
      `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE`, and the accountant's answer on how Moneybird's own
      link to Mollie matches the payments and refunds Ownpace books there;
@@ -227,6 +229,16 @@ hold (step 3), because the privacy policy promises it for the end of the Alpha.
    ```bash
    ./deploy/compose/env-upsert.sh ~/.persistent/ownpace-live/.env OWNPACE_STAGE=
    grep -n '^OWNPACE_STAGE' ~/.persistent/ownpace-live/.env    # OWNPACE_STAGE=
+   ```
+
+   **And Mollie's live key** (*Before*, step 2), in the same change: `deploy-live.sh` takes it once
+   the stage is empty, and refused it while the stage was `alpha`. It is a secret, so it goes in on
+   standard input, as in *8i. The books and payments* in
+   [managed-bring-up.md](./managed-bring-up.md):
+
+   ```bash
+   read -rs -p 'Mollie API key: ' v; echo
+   printf 'MOLLIE_API_KEY=%s\n' "$v" | ./deploy/compose/env-upsert.sh --stdin ~/.persistent/ownpace-live/.env; unset v
    ```
 
    **And name the first month invoiced**, the month the switch happens in, once the invoice can

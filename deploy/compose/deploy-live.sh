@@ -135,7 +135,14 @@
 #       owner, 2026-10-04), or that sets any sign-in provider's key
 #       (LIVE_REFUSED_SIGN_IN_KEYS, stack-kind.sh: live's sign-in page offers
 #       email and password only, privacy §4.4, §7 and §8; the owner,
-#       ops-social-signin (a)). All named at once, by key, before the fetch and
+#       ops-social-signin (a)), or whose OWNPACE_REACHABLE_HOSTS names a host
+#       (live's list stays empty, workplan 0136 T2, as stand-up-live.sh
+#       refuses it), or that sets MOLLIE_API_KEY while its OWNPACE_STAGE is
+#       the Alpha's (nothing is charged during the Alpha, and live keeps the
+#       key empty until it ends: workplan 0131 §3 T3 and T5). Those three are
+#       read as Compose hands them to the app (env_as_the_app_reads, below):
+#       KEY="" is empty, OWNPACE_STAGE="Alpha" is the Alpha. All named at
+#       once, by key, before the fetch and
 #       before any docker call. "true" in double quotes is refused: env_value
 #       keeps the quotes. With them, any line that sets a key in a form the
 #       script does not read and the bring-up does (indented, a space before
@@ -331,6 +338,24 @@ usage() {
   exit 2
 }
 
+# env_as_the_app_reads <key> — a value of live's .env as Compose hands it to
+# the containers and bash sources it: env_value's (env-read.sh), without one
+# pair of surrounding double quotes, which env_value keeps and neither of the
+# other two does. So KEY="" and KEY='' are empty here, as they are to the app,
+# and KEY="alpha" is alpha. The reading db-roles.sh's db_roles_env and
+# shipped-passwords.sh's shipped_password_bare make of the lines they judge.
+# What the keys it is asked for do is what the api and the tasks do with them,
+# so they are judged as the app gets them; the sign-in keys in main are judged
+# as setup-zitadel.sh reads them instead, double quotes and all.
+env_as_the_app_reads() {
+  local value
+  value="$(env_value "$ENV_FILE" "$1")"
+  if [ "${#value}" -ge 2 ] && [ "${value:0:1}" = '"' ] && [ "${value: -1}" = '"' ]; then
+    value="${value:1:${#value}-2}"
+  fi
+  printf '%s' "$value"
+}
+
 # The whole run is one function, read by bash before any of it runs: the
 # checkout below replaces this very file with the tag's copy.
 main() {
@@ -418,6 +443,35 @@ main() {
     unready+=("Leave every sign-in provider's key empty:" \
       "  ./deploy/compose/env-upsert.sh deploy/compose/.env${sign_in_empty}" \
       "  A provider added before stays configured at the identity provider; with every key empty, the deploy's setup-zitadel.sh turns 'External IDP allowed' off, which takes its button off the sign-in page (docs/managed-bring-up.md, §8b).")
+  # Live's list of hosts inside our own networks stays empty (workplan 0136
+  # T2): a name on it is let through the rule for a host a tester types, for
+  # every organisation on the deployment, and it is there for the demo, which
+  # live never has (0132 T1b). stand-up-live.sh refuses it at the first
+  # bring-up; this refuses it at every deploy after, whatever the stage, since
+  # that rule is not the Alpha's. Read as the app reads the list
+  # (reachableHostsFrom, packages/shared/src/reachable-host.ts): a name is
+  # whatever is left between the commas and the whitespace, so
+  # OWNPACE_REACHABLE_HOSTS= and ="" name none.
+  if [[ "$(env_as_the_app_reads OWNPACE_REACHABLE_HOSTS)" =~ [^[:space:],] ]]; then
+    unready+=("OWNPACE_REACHABLE_HOSTS: names a host. Live's list stays empty (workplan 0136 T2): every name on it is let through the rule for a host inside our own networks, for every organisation on live, and it is there for the demo's hosts, which live never has (workplan 0132 T1b). Empty it:" \
+      "  ./deploy/compose/env-upsert.sh deploy/compose/.env OWNPACE_REACHABLE_HOSTS=" \
+      "  With it empty, the deploy's set-task-env.sh deletes it from the tasks' environment too.")
+  fi
+  # No payment key during the Alpha (workplan 0131 §3 T3, and T5's step 6 for
+  # the owner): nothing is charged while it runs, and live keeps
+  # MOLLIE_API_KEY empty until it ends, when Mollie's live key goes in with
+  # the switch (docs/ending-the-alpha.md, The switch, step 4). The stage as
+  # the app reads it (alphaFrom, holdsAtCeiling): alpha, trimmed, in any case.
+  # The key as the api reads it: set when anything is left.
+  local stage
+  stage="$(env_as_the_app_reads OWNPACE_STAGE)"
+  stage="${stage#"${stage%%[![:space:]]*}"}"
+  stage="${stage%"${stage##*[![:space:]]}"}"
+  if [ "${stage,,}" = alpha ] && [ -n "$(env_as_the_app_reads MOLLIE_API_KEY)" ]; then
+    unready+=("MOLLIE_API_KEY: set, and live's stage is the Alpha (OWNPACE_STAGE=alpha). Nothing is charged during the Alpha, and live keeps Mollie's key empty until it ends (workplan 0131 §3 T3 and T5): it is the key the api takes payments with and the tasks refund with (docs/managed-bring-up.md, 8i). Empty it:" \
+      "  ./deploy/compose/env-upsert.sh deploy/compose/.env MOLLIE_API_KEY=" \
+      "  Mollie's live key goes in with the switch that ends the Alpha, in the same change that empties OWNPACE_STAGE (docs/ending-the-alpha.md, The switch, step 4).")
+  fi
   if [ "${#unready[@]}" -gt 0 ]; then
     refuse "live's .env is not ready for a deploy. Each line names a key, never its value:" "${unready[@]}"
   fi
