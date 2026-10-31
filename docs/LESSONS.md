@@ -1410,6 +1410,7 @@ reading a file drops off its entry by itself.
 - [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts) — A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [seed-demo-dav-content](../scripts/seed-demo-dav-content.unit.test.ts) — The demo's DAV content, and the two ways seeding it goes quietly wrong.
+- [the-mail-nobody-should-get](../scripts/the-mail-nobody-should-get.unit.test.ts) — THE MAIL NOBODY SHOULD GET (workplan 0103 T2, ADR-0043).
 
 ### `deploy/compose/setup-zitadel.sh`
 
@@ -6561,6 +6562,7 @@ Reads:
 
 - `deploy/compose/managed.yml`
 - `deploy/compose/seed-demo-dav-content.sh`
+- `deploy/compose/setup-managed-demo.sh`
 - `deploy/compose/smoke-managed.sh`
 - `docs/dav-sync.md`
 

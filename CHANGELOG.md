@@ -86,6 +86,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   removed or retitled without the list, so the pull request breaks rather than
   the link. `scripts/a-doc-an-assistant-is-sent-to.unit.test.ts` holds it.
 
+### Added
+
+- **The nightly managed gate proves that copying a meeting the target account
+  organises itself invites nobody** (workplan 0141 T9 (b), the organiser
+  canary): each fresh set now carries an event 3 organised by the demo target
+  account's own address, dated next January, with the canary attendee. There
+  the target's server is the organiser's, so without `SCHEDULE-AGENT=CLIENT`
+  the sync's PUT would invite the attendee; event 1's silence held whatever the
+  writer did, because its organiser is a third party. The take-back is not
+  re-proved by it: its DELETE sends `Schedule-Reply: F`, which alone keeps
+  Nextcloud from sending a CANCEL (0103 T5). The demo bring-up gives
+  `tenant-b-target` an address, the seeder refuses before writing when the
+  target has none, when the source shares it, or when either account's
+  addresses cannot be read, and the smoke reads the copy and asks the target's
+  server whether it matches its organiser.
+
 ### Fixed
 
 - **follow-redirects 1.16.2 closes a third high advisory** (GHSA-mrwp-f3q8-3g9p,
