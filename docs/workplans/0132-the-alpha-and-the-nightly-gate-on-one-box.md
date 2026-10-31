@@ -2,7 +2,64 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-10-29 (update this block at the end of every session)
+## Status — 2026-10-31 (update this block at the end of every session)
+
+**2026-10-30/31: live runs `v0.2.0-alpha.3`, and neither copy before an update is kept (T6,
+T9).** The owner deployed it on 2026-10-30, before any tester (the owner: *"No one is in the
+alpha yet."*), pasting checked blocks one at a time. Times are UTC. No values.
+
+- **The deploy log (T6 step 9).** 2026-10-30, `v0.2.0-alpha.3`: took at 23:44:35 UTC; one-way.
+  The tag is tag object `b0d01c09…` on `e1b21aac` (#1740), cut by Release run 41066208430 (#16),
+  which its message names. The owner waived its counted nights, for this version alone (0141
+  T14; 0146's decision 9, amended for `v0.2.0-alpha.3` only by the owner's answer of 2026-10-30,
+  in #1741, merged as `7e2fbbbe`). The acceptance is the tag message's own line: *Nights waived
+  by Robbes, in their words: "I approve alpha.3 tag now, we skip the waiting days. No one is in
+  the alpha yet."* That citation belongs here, in the repository's record, and not in live's
+  `deploys.log`, which scripts read.
+- **Read-only checks first.** Live's checkout at `v0.2.0-alpha.2`, clean; both box timers
+  (`ownpace-box-duties`, `ownpace-box-checks`) active; in live's `.env`,
+  `TRIGGER_IMAGE_TAG=v4.7.6`, `WWW_LIVE=true` and no `COPY_DELETE_WHEN_PROVEN` line;
+  `deploys.log`'s last line alpha.2's took of 2026-10-28T06:21:26Z; the four images the stack
+  builds on the machine already there (the OTA stack's E2E had built them on the shared daemon);
+  npm, Docker Hub, ghcr.io, gcr.io and deb.debian.org reachable; both databases' data files owned
+  by `postgres`.
+- **The hold (T6 step 2)** went on at about 23:12 UTC. The owner's first block read one hold,
+  302 s old, and 0 passes in flight (T6 step 3).
+- **The copy taken before alpha.2, removed by hand.** It was not proven: no migration had run on
+  live, so no pass could prove alpha.2's update (the entry of 2026-10-27 to 2026-10-29). Its note
+  read `taken=2026-10-27T20:56Z`, `before=v0.2.0-alpha.2`, `from=v0.2.0-alpha.1`. Had it stayed,
+  `take` would have kept it in place of a new one (the same entry). The owner chose to remove it
+  by hand (*"you deploy alpha 3 and remove alpha 2"*), so that the alpha.3 deploy would take a
+  fresh copy of alpha.2 as its way back: 7 files, the rollback rehearsal's
+  `since-the-copy-<stamp>.sql` among them; the directory kept, empty, mode 700. This replaces
+  the entry below's wait for that copy to expire (about 2026-11-02 19:56 UTC), and T9's *For the
+  owner* step 1 with it.
+- **The two runs (T6 steps 3 to 7; 0146 T13).** `TRIGGER_IMAGE_TAG=v4.8.1` was set first. The
+  dry run exited 0: one-way, its reason *cannot be compared … on the Trigger.dev pin*, a take
+  that would include `triggerdb`. Run 1, alpha.2's `deploy-live.sh`: the copy taken at
+  2026-10-30T23:30:32Z, `before=v0.2.0-alpha.3`, `from=v0.2.0-alpha.2` (`f62bcbe2`), 6 files,
+  `triggerdb` among them; did-not-take at 23:34:53Z with the `NODE_ENV` line alone under it, as
+  expected; the site and the exposure check passed. `apps/worker/package.json` was unchanged and
+  the tree clean. Run 2, alpha.3's own script: *the deploy took* at 23:44:35Z, exit 0, its
+  comparison reading *v4.7.6 -> v4.8.1*. It says that only after `/api/version` and
+  `/version.json` both name the tag's version and commit (`deploy-live.sh`, step 7).
+  `COPY_DELETE_WHEN_PROVEN=false` was set right after, as the bring-up guide's *The deploy from
+  alpha.2 to alpha.3 runs twice* says.
+- **The checks after it.** `www-live` ok; no container unhealthy, starting or restarting;
+  `trigger-docker-proxy` on `localhost/docker-socket-proxy:3.4.7-alpine-86292f1f80d6`, the
+  supervisor at v4.8.1, Redis 7.4.12, MinIO `268d68a2…`; the task deployment's row
+  `current|20261030.2|DEPLOYED|4.8.1|4.8.1|24.22.1|2026-10-30 23:44`; the tick
+  `COMPLETED_SUCCESSFULLY` on 4.8.1; the copy's 6 files.
+- **The lift (T6 step 8)** at about 23:57 UTC. The owner's check after it, between about 00:10
+  and 00:20 UTC on 2026-10-31, read `yes|0|-1|0`, and the box checks' timer was active.
+- **Alpha.2's copy, removed by hand too.** The owner: *"After successfully done that, we remove
+  alpha 2"*. The copy taken at 2026-10-30T23:30:32Z went by hand, 6 files, between about 00:00
+  and 00:10 UTC on 2026-10-31; `COPY_DELETE_WHEN_PROVEN` is back to `true`, and the copy
+  directory is empty. No migration has run on live, so `live-pass-check.sh` and the *Update
+  proven* mail (T9's *For the owner*, steps 5 and 6) do not apply, and nothing has proven the
+  update. **The way back from alpha.3 is forward only:** a fix, a new tag and a deploy (0146
+  T5, *Rollback, stated plainly*). The bring-up guide asked to keep this copy until the task
+  runner had run real work for a few days (0146 T16); the owner chose otherwise.
 
 **2026-10-27 to 2026-10-29: live runs `v0.2.0-alpha.2` with the site, `www.ownpace.eu` is
 routed to it, and the outside probe passes (T0, T1e, T3, T6, T9).** The owner's steps (the
