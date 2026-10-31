@@ -105,6 +105,14 @@ const NOT_REQUIRABLE = new Map([
       "PR touching none of those paths the workflow never runs and the context is never reported. A PR " +
       "that moves the proxy's Dockerfile or its files does run it, and E2E (managed) builds the image anyway.",
   ],
+  // images.yml's build of deploy/compose/caddy (workplan 0119, 2026-10-31):
+  // the same workflow, so the same `paths:` filter silences it.
+  [
+    'build (caddy)',
+    'images.yml carries a `paths:` filter on its pull_request trigger (deploy/** among them), so on a ' +
+      "PR touching none of those paths the workflow never runs and the context is never reported. A PR " +
+      "that moves the TLS front's Dockerfile does run it, and E2E (managed) builds the image anyway.",
+  ],
   // security-scan.yml's image jobs (0146 T8, scan half). Their `if:` runs them on
   // schedule and workflow_dispatch only, so a pull request reports them skipped,
   // the matrix job under its unexpanded name. The scan is report-only by design:

@@ -6,6 +6,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The Trigger.dev dashboard's TLS front is built here without curl**
+  (workplan 0119): `caddy:2.11.7-alpine`, Caddy's newest release, carries
+  curl, which its upstream adds and nothing on this stack runs, and curl's
+  libraries carried the image's one critical finding (brotli-libs) and two of
+  its highs (curl and libcurl). `deploy/compose/caddy` builds the same image,
+  at the same digest, with curl and the eight libraries only curl needed
+  removed, where Trivy reads 0 critical and 7 high instead of 1 and 9; the 7
+  are in Caddy's own binary and wait for a Caddy release. Caddy, its
+  configuration and its certificate are unchanged.
 - **Both Postgres builds take Alpine's brotli-libs 1.2.1-r0 and libcurl
   8.23.0-r0, which clears their critical** (workplan 0119): with gosu gone,
   `postgres:18.6-alpine` still read 1 critical and 1 high, CVE-2026-111497
@@ -69,6 +78,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   (`docs/ending-the-alpha.md`, step 4). Both refusals first apply at the
   deploy after the one that moves live onto this release: `deploy-live.sh`
   runs its copy from before the checkout moves.
+
+### Added
+
+- **The outside probe asks whether anybody can found an organisation at live's
+  sign-in service** (workplan 0135 T1, the ask 0132 T3 records): every dispatch
+  of *Exposure probe* asks `https://id.ownpace.eu/ui/login/register/org`
+  without following a redirect, and fails unless it answers 404, the answer
+  once `disallowPublicOrgRegistration` holds. A 2xx is the form served; a
+  redirect is not the refusal, and is named by its host, never its query;
+  NetBird's own page fails whatever its status; any other status, and no
+  answer at all, fail, as the discovery document's do. No dispatch input or
+  repository variable makes it a note. The smoke asks the same page on the OTA
+  instance every night and never runs on live, so a Zitadel upgrade or a
+  setting that served the form again on live went unseen until now.
 
 ### Fixed
 

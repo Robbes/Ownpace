@@ -390,7 +390,10 @@ takes the machine's own public address from the optional secret
 `EXPOSURE_PROBE_HOST`. It also asks `app.`, `id.`, `status.` and
 `www.ownpace.eu` for the page a visitor asks first, and fails while NetBird's
 sign-in answers one of them instead of the service (workplan 0139, item 8;
-*After the script: the owner's steps*, step 5). A port the front answers by
+*After the script: the owner's steps*, step 5). And it asks live's form that
+founds an organisation, `/ui/login/register/org` at `id.ownpace.eu`, and fails
+unless it answers 404, a redirect included (workplan 0135 T1): the smoke asks
+that page on the OTA stack, and never runs on live. A port the front answers by
 itself, which never reaches the machine, goes in the optional repository
 variable `EXPOSURE_PROBE_FRONT_PORTS`, and only after a capture on the machine
 during a probe run has shown that nothing arrives (workplan 0132 T3 (c), the
@@ -4171,6 +4174,10 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    the account, your laptop on the mesh or the machine, NetBird may let a
    request through its SSO without a sign-in page, so a browser there proves
    nothing, and the probe runs on a GitHub-hosted runner.
+   It also fails while `https://id.ownpace.eu/ui/login/register/org`, the form
+   that founds an organisation, answers anything but 404 (workplan 0135 T1):
+   read `disallowPublicOrgRegistration` back on live, and set it if it reads
+   false, with workplan 0135 §4, T0 step 1.
    If a port answers on the production names' addresses that nothing of yours
    publishes, find out first whether the front sends it anywhere. In NetBird's
    dashboard, look for a TCP, TLS or UDP service whose public port is that
@@ -4785,6 +4792,39 @@ Docker, and what it may not, is unchanged.
 - **Rolling back to a tag before this runs upstream's image again**,
   `tecnativa/docker-socket-proxy:v0.5.0`, with the same environment; `up`
   pulls it when the machine no longer has it.
+
+**The dashboard's TLS front is a build here too** (workplan 0119, 2026-10-31).
+`trigger-tls`, the Caddy in front of the Trigger.dev dashboard, runs
+`localhost/caddy:<base tag>-<12 hex>`, which compose builds from
+`deploy/compose/caddy`: Caddy's official `caddy:2.11.7-alpine` at the digest it
+ran before, with curl removed and the eight libraries only curl pulled in.
+Those carried the image's one critical finding and two of its highs. Caddy
+itself, its Caddyfile, its volumes and its ports are as they were, and nothing
+on this stack runs curl in that container: it has no healthcheck, and the smoke
+asks it from the host.
+
+- **The first `up` builds it, and the front restarts once.** The bring-up's
+  trigger phase (`up_wait … trigger-tls`) finds no image of that name and
+  builds it, pulling the pinned Caddy base from Docker Hub when the machine
+  does not have it, and needing no network for the removal, then recreates the front
+  because its image changed: the OTA stack at the E2E (managed) run of the
+  branch or the next nightly gate, live inside `deploy-live.sh`'s hold and
+  drain, from the tag. A browser on the dashboard sees the front drop for the
+  few seconds of the restart. Its certificate and its local authority live in
+  the `trigger_tls_data` volume, which stays, so the browser's exception still
+  holds. `pull_policy: never`, as for the databases.
+- **Moving it.** A newer Caddy 2, or a rebuild of its tag, is Dependabot's pull
+  request (the directory's own entry). Its build stops with "re-read the
+  header": the Dockerfile checks the packages it removes at the versions its
+  header read, and asks `caddy version` for the FROM's release. Read the new
+  image's packages and scan, move those and the header, and then
+  `scripts/a-package-the-front-never-runs.unit.test.ts` prints the `sed` that
+  moves `managed.yml`'s image line. `build (caddy)` (`images.yml`) builds it,
+  starts it with `trigger-tls.Caddyfile` and asks it for TLS on 3443, and its
+  E2E (managed) is dispatched like any pin's. A major is the owner's call.
+- **Rolling back to a tag before this runs upstream's image again**,
+  `caddy:2.11.7-alpine` by the same digest; `up` pulls it when the machine no
+  longer has it.
 
 ### A Nextcloud major on the OTA stack
 
