@@ -26,7 +26,7 @@
     "@azure/msal-node": "^7.1.1",
     "@trigger.dev/core": "4.8.3",
     "@trigger.dev/sdk": "4.8.3",
-    "croner": "^10.0.1",
+    "croner": "^11.0.0",
     "jmap-jam": "^0.13.8"
   },
   "devDependencies": {
