@@ -46,12 +46,18 @@ the branch `claude/ownpace-public-readiness-y7orc6-minio-3b6e40c3`.
 - **Proved on the branch.** The image scan, Security Scan run 41233436294, dispatched with
   `image_scans` on `5fbcaec8` (Trivy 0.76.1, linux/arm64), reads `minio`
   (`chainguard/minio:latest@sha256:3b6e40c30ecd…`, wolfi) at 0 critical, 0 high, 0 with a fix,
-  where run 41164463793 read `268d68a2…` at 0, 1 and 1. The
-  guards that read these files pass (`a-service-that-phones-home`,
-  `an-object-store-with-a-maintainer`, `a-pin-that-knows-it-is-behind`,
-  `an-image-nobody-scanned`, `a-float-nothing-ever-pulled`), and the first two are red with the
-  old digest left in the guard's pin, or the new one's prefix cut from the comment. E2E
-  (managed) on the branch is owed before it merges.
+  where run 41164463793 read `268d68a2…` at 0, 1 and 1. The guards that read these files pass
+  (`a-service-that-phones-home`, `an-object-store-with-a-maintainer`,
+  `a-pin-that-knows-it-is-behind`, `an-image-nobody-scanned`, `a-float-nothing-ever-pulled`), and
+  the first two are red with the old digest left in the guard's pin, or the new one's prefix cut
+  from the comment. E2E (managed) run 41240747301, dispatched on the branch at `ca44caca` before
+  `main` was merged in, was green from 20:50 to 20:59 UTC on the OTA stack, on Trigger.dev v4.8.3:
+  the bring-up pulled `3b6e40c3…` and recreated `minio` and `minio-init` on the volume the stack
+  already had (it created none), `minio` healthy within six seconds and `minio-init` exiting once
+  `store/packets` was there; the smoke's verdict *verify: done apply: applied*; and its last
+  listing shows `trigger-minio` on `chainguard/minio:latest@sha256:3b6e40c30ecd…` and
+  `trigger-api` on `localhost/trigger.dev:v4.8.3-b0cce1eaa578`, each *Up 7 minutes (healthy)*,
+  with no container unhealthy.
 
 **2026-10-31: the dashboard's TLS front is Caddy 2.11.7 built here without curl, which clears its
 critical (alpha.4).** `trigger-tls` runs `caddy:2.11.7-alpine` by index digest `eb4d35b7…`, the pin
@@ -1567,7 +1573,7 @@ is who moves it after T1.
 | `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.19.2 (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.19.2 | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason | 1.38 (1.38.0) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.38.0 (2026-10-30, a day before its floor under the security-fix exception: Status, 2026-10-29 and 2026-10-30; before it v5.37.0 from 2026-10-21) | v5.38.0 (2026-10-28) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
-| `axllent/mailpit` | `managed.yml` | v1.32.0 by digest (2026-10-25, for CVE-2026-111943 in v1.31.6's Go, 0146 T11 (a); v1.31.6 from 2026-10-21, v1.31.1 from T2) | v1.32.0 (2026-10-22), digest `0790692b…` | current | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
+| `axllent/mailpit` | `managed.yml` | v1.32.0 by digest (2026-10-25, for CVE-2026-111943 in v1.31.6's Go, 0146 T11 (a); v1.31.6 from 2026-10-21, v1.31.1 from T2) | v1.33.0 (2026-10-31, pushed 02:30 UTC), digest `9b3a463b…` | one minor, inside its three-day floor until 2026-11-03 02:30 UTC (Status, 2026-10-31) | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
 | `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 35.0.2-apache by digest `e0b1a2af…`, upstream's rebuild of 2026-10-28 (Docker Hub push 16:51 UTC) on Debian's snapshot of 2026-10-27, with `libbrotli1` 1.1.0-2+deb13u1 for the critical CVE-2026-111497, taken 2026-10-30, a day before its floor, under the security-fix exception (Status, 2026-10-29 and 2026-10-30); before it `89af7ee7…` since 2026-10-28 (T5; #1720, `3d2f129e`, the owner's OK of 2026-10-26 for alpha.3; the OTA volume upgraded by E2E (managed) run 40774398411); before it 34.0.5-apache by digest `1f9212ad…` (2026-10-25, upstream's rebuild of 2026-10-23 with `session.upload_progress.enabled=0`, PHP's mitigation for CVE-2026-115560; `9dbdc711…` from 2026-10-22, `34-apache` floating before, never pulled) | 35.0.2 (2026-10-15) on PHP 8.5.12; 35.0.3 due 2026-11-12 | current | by hand, in its own PR, when the pin watch lists a newer 35.x (34.x before the move) or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and its database and refuses an older image on them, so a bad move is fixed forward or put back from a copy taken before it (`managed-bring-up.md`, *Updating a running deployment* and *A Nextcloud major on the OTA stack*) |
 | `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 34.0.5-apache by digest `1f9212ad…` (PHP 8.5.12) since 2026-10-28, flipped in the pull request that moved the demo (T5; #1720, `3d2f129e`, after E2E (managed) run 40774398411 upgraded the OTA volume); before it 35.0.2-apache by digest `89af7ee7…` from 2026-10-26, 35.0.1 from 2026-10-25 | 34.0.5; 34.0.6 due 2026-11-12 | current | by hand; the pin watch reads no workflow file (§4) | a CI fixture: the other major customers may run (35 while the demo ran 34, 34 since), never deployed |
 | `ghcr.io/robbes/ownpace-selfhost` | `deploy/selfhost/compose.yml` | `edge` | ours | — | `images.yml` | — |

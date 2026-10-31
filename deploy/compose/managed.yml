@@ -745,22 +745,23 @@ services:
   # RSA parameters in a JWK went unbounded, so a crafted key could cost
   # excessive CPU). No build with that fix is three days old: the first,
   # 0dab2f9fee1c… (-r1), went out as `latest` about 03:00 UTC on 2026-10-29.
-  # The image scan on this move's branch (Security Scan run 41233436294)
-  # reads 0 critical and 0 high in this one, linux/arm64. Inside this one (its apk databases, both architectures): Wolfi's `minio`
-  # 0.20261023.200651-r2, the same fork release, RELEASE.2026-10-23T20-06-51Z
-  # at the same commit (76c06ff1), rebuilt with Go modules moved and no source
-  # patch: go-jose 4.1.6 (-r1), and golang.org/x/net 0.62.0 and x/crypto
-  # 0.58.0 for CVE-2026-78661 (-r2); `mc` 0.20250813.083541-r27, and bash as
-  # /bin/sh. The fork's release before it, RELEASE.2026-09-22T19-25-18Z in
-  # d88920d6a50b… (2026-10-22, #1692), differs from this one in go.mod and
-  # go.sum (nine modules, golang.org/x/net 0.60.0, x/crypto 0.57.0 and
-  # klauspost/compress 1.18.7 among them) and in its VulnCheck workflow's Go:
-  # no line under cmd/ or internal/ changed. The weekly pin watch (idp-pin-watch.mjs) says when `latest` has
-  # moved on; a move is a pull request with the new digest's scan read and
-  # E2E (managed) on its branch. Trigger.dev's own digest from its move of
-  # 2026-09-28 still resolved on 2026-10-24, so an old digest stays pullable
-  # for weeks at least; if the free image goes, build the fork's tag here
-  # (0119 §3 item 5).
+  # The image scan on this move's branch (Security Scan run 41233436294) reads
+  # 0 critical and 0 high in this one, linux/arm64. Inside this one (its apk
+  # databases, both architectures): Wolfi's `minio` 0.20261023.200651-r2, the
+  # same fork release, RELEASE.2026-10-23T20-06-51Z at the same commit
+  # (76c06ff1), rebuilt with Go modules moved and no source patch: go-jose
+  # 4.1.6 (-r1), and golang.org/x/net 0.62.0 and x/crypto 0.58.0 for
+  # CVE-2026-78661 (-r2); `mc` 0.20250813.083541-r27, and bash as /bin/sh. The
+  # fork's release before it, RELEASE.2026-09-22T19-25-18Z in d88920d6a50b…
+  # (2026-10-22, #1692), differs from this one in go.mod and go.sum (nine
+  # modules, golang.org/x/net 0.60.0, x/crypto 0.57.0 and klauspost/compress
+  # 1.18.7 among them) and in its VulnCheck workflow's Go: no line under cmd/
+  # or internal/ changed. The weekly pin watch (idp-pin-watch.mjs) says when
+  # `latest` has moved on; a move is a pull request with the new digest's scan
+  # read and E2E (managed) on its branch. Trigger.dev's own digest from its
+  # move of 2026-09-28 still resolved on 2026-10-24, so an old digest stays
+  # pullable for weeks at least; if the free image goes, build the fork's tag
+  # here (0119 §3 item 5).
   #
   # NOT A TAG SWAP. Each difference was read off the image itself (its config
   # and last layer, both architectures) and Chainguard's locked config
