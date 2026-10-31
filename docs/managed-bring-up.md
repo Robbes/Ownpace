@@ -4620,8 +4620,13 @@ the user gosu dropped to, it never does. What that means for you:
   their image changed: the OTA stack at the E2E (managed) run of the branch or
   the next nightly gate, live inside `deploy-live.sh`'s hold and drain, from the
   tag. The build pulls the pinned base when the machine does not have it (as
-  `up` pulled the image before), runs one `rm`, and needs no package mirror.
-  The services say `pull_policy: never`, since no registry serves the name:
+  `up` pulled the image before), runs one `rm`, and since 2026-10-31 takes two
+  of Alpine's security updates, brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0, at
+  exactly those versions, from Alpine's mirror (`dl-cdn.alpinelinux.org`), so
+  the box must reach it as well as Docker Hub, as the visit count's GoAccess
+  build already does. Once Alpine's mirror stops serving those exact versions,
+  a machine without the name cannot build it, and says so: the Dockerfile's
+  header says what to move. The services say `pull_policy: never`, since no registry serves the name:
   `docker compose pull` passes them by, and `up` builds without asking one.
 - **After that it is built again only when the Dockerfile changes**, which
   changes the name, **as long as nothing asks for a build.** `up --build`

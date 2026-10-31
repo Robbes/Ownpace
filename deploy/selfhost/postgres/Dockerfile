@@ -32,16 +32,28 @@
 #     (scripts/package-appliance.mjs, ADR-0027) run no Postgres server, and
 #     build nothing here.
 #
-# THE BASE IS THE APPLIANCE'S OWN PIN, by exact version and index digest: the
-# digest compose.yml ran until this file, so removing gosu is the only change
-# an appliance's first `up` makes to its database. The managed stacks' newer
-# rebuild of the same tag (898c60cb…, pushed 2026-10-22, past the three-day
-# floor) was weighed and left: a new base is a move of its own, which
-# Dependabot offers for this directory (its own `docker` entry, never a major),
-# as it moved this pin on 2026-09-24. E2E (self-hosted) runs nightly and on
+# THE BASE IS THE APPLIANCE'S OWN PIN, by exact version and index digest.
+# Until 2026-10-31 it was the digest compose.yml ran before this file
+# (77f58511…), so removing gosu was the only change an appliance's first `up`
+# made to its database. Since then it is upstream's rebuild of 2026-10-26
+# (10a5c69a…), the managed stacks' base too, taken with the RUN below, so the
+# two Dockerfiles have the same instructions and build under one name. A new
+# base is a move of its own, which Dependabot offers for this directory (its
+# own `docker` entry, never a major). E2E (self-hosted) runs nightly and on
 # dispatch, never on a pull request, so it is dispatched on that pull
 # request's branch before it merges.
 # The same Alpine and musl, so the database's collation is untouched.
+#
+# TWO OF ALPINE'S SECURITY UPDATES (workplan 0119, 2026-10-31): brotli-libs
+# 1.2.1-r0 (CVE-2026-111497, critical) and libcurl 8.23.0-r0 (CVE-2026-92392,
+# high), the base's only findings once gosu is gone, which no digest of
+# 18.6-alpine carries yet. The RUN takes exactly those versions from Alpine's
+# signed repository, fails before it installs once the base carries either
+# fix, fails when the mirror no longer serves them, and fails unless those two
+# packages are all it changed. Nothing the appliance runs loads either (only
+# libpq-oauth links libcurl). An appliance's first `up` after the release
+# that moves the name now reaches Alpine's mirror (dl-cdn.alpinelinux.org) as
+# well as Docker Hub. deploy/compose/postgres/Dockerfile's header has the rest.
 #
 # THE NAME. compose.yml builds this as `localhost/postgres:<base tag>-<12
 # hex>`, the hex being the SHA-256 of this file's instruction lines (comments
@@ -56,11 +68,35 @@
 # stacks share. scripts/a-database-started-as-root.unit.test.ts holds the
 # image line to the hash, prints the `sed` that moves it, and holds this file
 # to deploy/compose/postgres/Dockerfile's instructions but for the FROM; no
-# parser directive, COPY, ADD or --mount, which the hash would not cover.
+# parser directive, COPY, ADD or --mount, which the hash would not cover, and
+# no package but at the exact version the instruction line names.
 FROM postgres:18.6-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
 
 # A plain rm: a base without gosu fails here, and this file has nothing left to do.
 RUN rm /usr/local/bin/gosu
+
+# brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0, exactly, from Alpine's signed
+# repository, and nothing else (the header above).
+RUN set -eu; \
+    installed() { awk '/^P:/ { name = substr($0, 3) } /^V:/ { print name "=" substr($0, 3) }' /lib/apk/db/installed | sort; }; \
+    for pin in brotli-libs=1.2.1-r0 libcurl=8.23.0-r0; do \
+      name="${pin%%=*}"; fixed="${pin#*=}"; \
+      have="$(installed | awk -F= -v name="$name" '$1 == name { print $2 }')"; \
+      if [ -z "$have" ] || [ "$(apk version -t "$have" "$fixed")" != '<' ]; then \
+        echo "The base's ${name} is '${have}', not older than ${fixed}: upstream's image carries that fix. Take ${name} out of this RUN, and the RUN and its paragraph in the header out once it names none." >&2; \
+        exit 1; \
+      fi; \
+    done; \
+    installed > /tmp/apk-before; \
+    apk add --no-cache brotli-libs=1.2.1-r0 libcurl=8.23.0-r0; \
+    installed > /tmp/apk-after; \
+    added="$(awk 'NR == FNR { was[$0] = 1; next } !($0 in was)' /tmp/apk-before /tmp/apk-after)"; \
+    gone="$(awk 'NR == FNR { now[$0] = 1; next } !($0 in now) { sub(/=.*/, ""); print }' /tmp/apk-after /tmp/apk-before)"; \
+    rm /tmp/apk-before /tmp/apk-after; \
+    if [ "$added" != "$(printf 'brotli-libs=1.2.1-r0\nlibcurl=8.23.0-r0')" ] || [ "$gone" != "$(printf 'brotli-libs\nlibcurl')" ]; then \
+      echo "The install changed more than brotli-libs and libcurl, or took other versions of them. Installed: $(echo $added). Replaced or removed: $(echo $gone)." >&2; \
+      exit 1; \
+    fi
 
 # uid 70's home is /var/lib/postgresql, the data volume. An interactive psql or
 # shell in the container would leave its history there, kept for as long as the

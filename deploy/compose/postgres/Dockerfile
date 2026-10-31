@@ -38,6 +38,43 @@
 # scan (scripts/image-scan.mjs) builds this file and scans what it built. That
 # pull request moves the name below too.
 #
+# TWO OF ALPINE'S SECURITY UPDATES, TAKEN AT BUILD (workplan 0119,
+# 2026-10-31). With gosu gone, Trivy v0.76.1 reads two findings in the base,
+# on arm64 and amd64 alike, and both have a fix in Alpine 3.24:
+#   - brotli-libs 1.2.0-r1, CVE-2026-111497 (critical, an out-of-bounds write
+#     in brotli's decoder), fixed in 1.2.1-r0;
+#   - libcurl 8.22.0-r0, CVE-2026-92392 (high, a use-after-free in HTTP/2
+#     uploads), fixed in 8.23.0-r0.
+# Upstream's rebuild of 2026-10-26, the FROM above, re-pushed the index over
+# the same images of 2026-10-22, and 18.7 is due 2026-11-12, so no move of the
+# pin clears them yet. Only libpq-oauth (/usr/local/lib/libpq-oauth-18.so, the
+# client's OAuth flow) links libcurl, and only libcurl links brotli's decoder.
+# Nothing here connects with OAuth, so nothing these stacks run loads either:
+# the RUN clears two findings, not a hole anybody here could reach. It
+# upgrades both and deletes nothing, because the image's .postgresql-rundeps
+# needs so:libcurl.so.4.
+#
+# The RUN takes them from Alpine's own repository, the base's
+# /etc/apk/repositories, which apk checks against the index Alpine signs with
+# the keys in the base, at the exact versions it names: never a floor, so a
+# later day cannot build anything else under the same name. It fails loudly
+#   - before it installs, when the base's brotli-libs or libcurl is no older
+#     than its fixed version. Upstream's image carries that fix then: take the
+#     package out of the RUN, and the RUN and this paragraph out once it names
+#     none. Dependabot's pull request that moves the FROM is where that shows;
+#   - when the mirror cannot serve those exact versions. Alpine keeps only the
+#     newest build of a package in a stable branch, so once it moves either
+#     one, a machine without this name cannot build it. Move the version in a
+#     pull request of its own, which moves the name, or the FROM to a base
+#     that carries the fix;
+#   - after it installs, unless exactly those two packages changed, to exactly
+#     those versions, and nothing else was installed, upgraded or removed.
+# What it costs: a build reaches Alpine's mirror (dl-cdn.alpinelinux.org) as
+# well as Docker Hub. That is once per machine and name (THE NAME, below):
+# the box's `up` where the name is missing, and an appliance's first `up`
+# after the release that moves it. Until 2026-10-31 the build needed the base
+# alone.
+#
 # THE NAME. managed.yml and dev.yml build this as
 # `localhost/postgres:<base tag>-<12 hex>`, a name no registry serves, so the
 # services say `pull_policy: never`. `up` builds an image only when the machine
@@ -53,6 +90,10 @@
 # no parser directive (`# syntax=`, `# escape=`: a comment to the hash, an
 # instruction to the builder) and no COPY, ADD or --mount (they read files the
 # hash does not cover), and `build:` names this directory and nothing more.
+# What the build reads from outside them is the base, by its digest, and the
+# RUN's two packages, from Alpine's signed repository at the exact versions
+# the instruction line names (as deploy/compose/goaccess's `apk add` takes
+# its packages from the same repository); the RUN refuses anything else.
 #
 # THE APPLIANCE'S COPY. deploy/selfhost/postgres/Dockerfile is this file on
 # the appliance's own base (workplan 0146 T15b): compose builds
@@ -73,6 +114,29 @@ FROM postgres:18.6-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b201
 
 # A plain rm: a base without gosu fails here, and this file has nothing left to do.
 RUN rm /usr/local/bin/gosu
+
+# brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0, exactly, from Alpine's signed
+# repository, and nothing else (TWO OF ALPINE'S SECURITY UPDATES, above).
+RUN set -eu; \
+    installed() { awk '/^P:/ { name = substr($0, 3) } /^V:/ { print name "=" substr($0, 3) }' /lib/apk/db/installed | sort; }; \
+    for pin in brotli-libs=1.2.1-r0 libcurl=8.23.0-r0; do \
+      name="${pin%%=*}"; fixed="${pin#*=}"; \
+      have="$(installed | awk -F= -v name="$name" '$1 == name { print $2 }')"; \
+      if [ -z "$have" ] || [ "$(apk version -t "$have" "$fixed")" != '<' ]; then \
+        echo "The base's ${name} is '${have}', not older than ${fixed}: upstream's image carries that fix. Take ${name} out of this RUN, and the RUN and its paragraph in the header out once it names none." >&2; \
+        exit 1; \
+      fi; \
+    done; \
+    installed > /tmp/apk-before; \
+    apk add --no-cache brotli-libs=1.2.1-r0 libcurl=8.23.0-r0; \
+    installed > /tmp/apk-after; \
+    added="$(awk 'NR == FNR { was[$0] = 1; next } !($0 in was)' /tmp/apk-before /tmp/apk-after)"; \
+    gone="$(awk 'NR == FNR { now[$0] = 1; next } !($0 in now) { sub(/=.*/, ""); print }' /tmp/apk-after /tmp/apk-before)"; \
+    rm /tmp/apk-before /tmp/apk-after; \
+    if [ "$added" != "$(printf 'brotli-libs=1.2.1-r0\nlibcurl=8.23.0-r0')" ] || [ "$gone" != "$(printf 'brotli-libs\nlibcurl')" ]; then \
+      echo "The install changed more than brotli-libs and libcurl, or took other versions of them. Installed: $(echo $added). Replaced or removed: $(echo $gone)." >&2; \
+      exit 1; \
+    fi
 
 # uid 70's home is /var/lib/postgresql, the data volume. An interactive psql or
 # shell in the container would leave its history there, kept for as long as the
