@@ -56,7 +56,12 @@ clears two findings, not a hole anybody here could reach, as the webapp's dompur
   both images. Trivy's `rootfs` scan of the extracted amd64 base reads 25 findings at every
   severity, all in the two packages and all fixable (1 critical, 1 high, 1 medium, 22 low), and 0
   with its package database at the two new versions; the built image's own count is the image
-  scan's on the branch. It supersedes #1744, #1745 and #1750, so every Postgres on the box (postgres and
+  scan's on the branch. Both builds took the two packages from v3.24/main and passed the RUN's
+  checks on the pull request (#1758, at `12c0ae9c`): `build (postgres)` built it on linux/amd64
+  and started both compose files' databases as uid 70, and Security Scan run 41163493604,
+  dispatched with the image scans, built each Dockerfile on linux/arm64 and scanned it
+  (`postgres-managed`, `postgres-selfhost`). That run's reports are its artifacts and code
+  scanning, which this session's network cannot read, so the after-counts are read there. It supersedes #1744, #1745 and #1750, so every Postgres on the box (postgres and
   trigger-db) and the appliance's is rebuilt and recreated once, not twice. Owed before merge:
   E2E (managed) and E2E (self-hosted) on the branch.
 
