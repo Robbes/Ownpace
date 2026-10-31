@@ -5632,14 +5632,19 @@ binaries (each under both of its names) and node's copy of pnpm in the webapp,
 root's copy of pnpm in the supervisor, and, the owner's decision of
 2026-10-27, tar from the copy each service does run (only pnpm's bundled
 node-gyp requires it, to build a native add-on, and these containers install
-nothing). The webapp's build also replaces dompurify 3.4.13's files with
+nothing). Since 2026-10-31 the rest of node-gyp's tree goes from that copy
+too, and npm, which Node bundles and nothing here runs, from both images:
+twelve fixable high findings in each, under the same one risk. The webapp's
+build also replaces dompurify 3.4.13's files with
 3.4.17's, the release that fixes the critical GHSA-cg2g-xh64-v4q7: it fetches
 the tarball from the npm registry when it builds, refuses it unless its sha512
 is the one npm published, and proves nothing else in the image changed
 (nothing here loads dompurify; its header says why). The image scan's critical
 findings go from 8 to 1 (zlib1g, which Debian has not fixed) and from 2 to 0.
 The one risk accepted: a `pnpm install` inside `trigger-api` or
-`trigger-supervisor` that builds a native add-on would fail. Each Dockerfile's
+`trigger-supervisor` that builds a native add-on, or a package script there
+that calls node-gyp, would fail; and neither container has `npm` or `npx`
+any more. Each Dockerfile's
 header says why each file is safe to delete, and why the webapp keeps root's
 copy of pnpm and the supervisor node's: `trigger-api` runs `user: root`,
 `trigger-supervisor` as the image's node. `managed.yml` names them
