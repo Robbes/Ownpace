@@ -4,6 +4,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **Live's deploy refuses a host on its reachable-hosts list, and Mollie's key
+  during the Alpha** (workplans 0136 T2 and 0131 §3 T3): `deploy-live.sh`
+  refuses live's settings, in the deploy and its dry run, while
+  `OWNPACE_REACHABLE_HOSTS` names a host, whatever the stage, and while
+  `MOLLIE_API_KEY` is set and the stage is the Alpha, each read as the app
+  reads it. Mollie's live key goes in with the switch that ends the Alpha
+  (`docs/ending-the-alpha.md`, step 4).
+
 ## [0.2.0-alpha.3] - 2026-10-30
 
 A tester's grant mail now opens registration with the address it was sent to
