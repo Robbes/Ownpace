@@ -19,6 +19,30 @@ v4.8.1*, and its dry run called the deploy one-way. Neither copy before an updat
 live, so its way back from these pins is forward only (0146 T16). MinIO's newer `latest` stays
 a pull request for alpha.4 (the entry *what alpha.3 moves, folded*, below).
 
+**2026-10-31: follow-redirects 1.16.2, which clears GHSA-mrwp-f3q8-3g9p, a high the advisory gate
+fails on (alpha.4).** Security Scan failed at its advisory gate on `main` at `35e1234b` (run
+41151543161, 2026-10-31 00:41 UTC), where the failure also skipped the Trivy step, so nothing was
+uploaded to code scanning, and on every pull request after it: #1746 (run 41151574423), #1748 at
+`fd4238e9` (run 41151791918) and #1749. The scan of `e1b21aac` had passed at 21:23 UTC the evening
+before (run 41130684117). Measured on `main` with `pnpm audit --audit-level=moderate --json`, read
+by `node scripts/audit-advisories.mjs --fail-at=high`, the gate's own two steps: 3 advisories, 1
+high and 2 moderate, exit 1. The high is GHSA-mrwp-f3q8-3g9p in follow-redirects >=1.16.0
+<=1.16.1: a `sensitiveHeaders` array made in another realm fails `instanceof Array` and is replaced
+by an empty one, so custom credential headers follow a redirect to another host. 1.16.2 fixes it;
+the two tarballs differ in that one check (`Array.isArray`), the version and the README, which now
+says the package's maintenance is paused until it is funded. npm published 1.16.2 on 2026-10-25
+21:32 UTC, so its three-day floor passed on 2026-10-28 21:32 UTC: a security fix, but no
+exception is needed. The override of 2026-10-21 (#1647) in `pnpm-workspace.yaml` moves from
+`<1.16.1` to `<1.16.2`, and `pnpm install` moved the lockfile's two entries for it, the package
+and its snapshot under axios 1.21.0 (`apps/web`), and nothing else, with the sha512 of the tarball
+npm serves. After it the same two steps read 2 advisories, 0 high, exit 0, and `pnpm audit --prod`
+reads none (1 high before). The two left are dev-only moderates fixed only in new majors, which
+the gate warns of and passes: GHSA-g3hv-75wg-m249 in minimatch 10.2.6, 9.0.9 and 5.1.9 (80 paths,
+through eslint, typescript-eslint and testcontainers; fixed in 11.0.1) and GHSA-3g3m-2fjr-6pw4 in
+glob 10.5.0 (testcontainers > archiver-utils; fixed in 14.0.2). The web bundle `vite build` makes
+from this tree carries axios and no follow-redirects: axios's `browser` field maps its http
+adapter to `null.js`. CI only; no E2E.
+
 **2026-10-30: the Docker socket proxy is built here, on HAProxy 3.4.7 (alpha.3, #1740).** The
 image scan of 2026-10-29 (Security Scan run 40843566092) read `tecnativa/docker-socket-proxy:v0.5.0`
 at 0 critical and 6 high on Alpine 3.24.1, all 6 fixed in newer Alpine packages. Docker Hub pushed
