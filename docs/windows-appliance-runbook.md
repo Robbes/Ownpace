@@ -108,7 +108,12 @@ self-host image's Node: `scripts/package-appliance.mjs` reads the
 `FROM node:<x.y.z>-slim` line of `apps/selfhost/Dockerfile` and refuses one
 without an exact version. Dependabot's image PR moves both, so a bump is still
 a visible edit somebody reviews, not a silent float. (Until 2026-10-21 it was a
-constant of its own, `v24.19.0`, which nothing moved.)
+constant of its own, `v24.19.0`, which nothing moved.) The Node line moved to 26
+on 2026-10-31 (workplan 0119 §2.4), and with it `node.exe`: 100,097,864 bytes
+(95.5 MiB) at 26.13.0 against 93,915,464 at 24.22.1, so the payload grows by about
+6 MB. Node 26 keeps Windows x64 at Tier 1 (its `BUILDING.md`); its `node.exe` had
+not yet run on Windows here when it moved, and the Windows 11 check of the first
+zip built on it is the owner's.
 
 The download is **checksum-verified** against the release's own
 `SHASUMS256.txt`, and a mismatch stops the build. We would be shipping somebody

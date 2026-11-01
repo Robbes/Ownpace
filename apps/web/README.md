@@ -28,7 +28,7 @@ appliance serves the same app under `/ui` via the `build:selfhost` bundle.
 
 ### Prerequisites
 
-- Node.js 24+
+- Node.js 26+
 - pnpm package manager
 - Running API server (see `apps/api`)
 

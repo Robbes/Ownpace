@@ -2,7 +2,45 @@
 
 > **In one line:** Umbrella for the managed alpha: its decisions (free, invite-only, Dutch, no backups), an alpha note on pages and grant mail, experimental labels on `SOURCE_CARDS`, Billing wording, end-of-alpha fate, go/no-go list for 0132 to 0150 and 0152 to 0154.
 
-## Status — 2026-10-31 (update this block at the end of every session)
+## Status — 2026-11-01 (update this block at the end of every session)
+
+**2026-11-01: what has to be Node 26 for the alpha.4 deploy is the shell it runs from, not
+the machine.** Docs here; the refusal is in `deploy-live.sh` and `stand-up-live.sh` on the
+same branch (0119's Status of the same day). `deploy-live.sh` runs `pnpm install`, the task
+deploy and the site build on the `node` first on the `PATH` of the shell it is run from, and
+live's timers run no Node, so only that node has to be 26; a system Node another service on
+the host runs on stays where it is. The entry below said to move the host's Node (NodeSource's
+line from `node_24.x` to `node_26.x`, `sudo npm install -g pnpm`), which on a host where
+another service runs on the system's Node would move that service too, and is not needed.
+**Still the owner's, before deploying alpha.4,** in the shell they deploy from, as themselves
+(not under `sudo`, whose `secure_path` finds the system's node), in `~/ownpace-live`: (a)
+`command -v node` and `node -v` name a Node 26 (one of their own, put first on their `PATH`
+with nvm, fnm or a tarball in a directory they own, when the system's is 24); (b) `pnpm -v`
+says `packageManager`'s version, `pnpm@11.28.9` at alpha.4 (any pnpm that runs it there is
+enough; installing it into their own Node 26 needs no `sudo`); (c)
+`dpkg-query -W -f='${Status} ${Version}\n' libatomic1` says `install ok installed` (Node 26's
+binaries need it). **For the alpha.4 deploy that reading is the check:**
+the deploy runs alpha.3's `deploy-live.sh`, the copy in the checkout before it moves, which
+reads no Node. From the deploy after alpha.4 the script refuses a node below the tag's
+`engines` itself, naming its path and version. The steps are in `managed-bring-up.md`, *The
+Node in the shell you deploy from*, and `release.md` §5 lists them with the deploy's other
+checks. The same machine's self-hosted runner needs `libatomic1` before the pull request's E2E
+runs there.
+
+**2026-10-31, late evening: the alpha.4 deploy has a prerequisite on live's host, Node 26.**
+Docs only, here. The owner decided Node 26 for alpha.4, with `engines` at `>=26` (0119 §3
+item 7, taken, and 0119's Status of the same day). `deploy-live.sh` runs `pnpm install`, the
+task deploy and the site build on the host's own Node, and pnpm only warns when that Node is
+below `engines`, so nothing stops a deploy from a host left on 24. The owner's steps this
+entry gave for the host are corrected by the entry above (2026-11-01): the shell the deploy
+runs from is what moves to Node 26, not the system's Node. **And after it, before inviting
+anyone:** Node 26's `fetch` offers HTTP/2, and no gate reaches Google's APIs, Dropbox or Box
+(E2E (managed) builds their consent URLs and never opens them), while the o365 lane reaches
+Graph only through its own client, not the product's connectors. So the first HTTP/2 traffic
+from the product's connectors to those four is a migration on live after the alpha.4 deploy.
+One small migration from each of those the owner has an account with (a Microsoft one
+through the product too) is that proof, and it is best had before a tester's. Whether the
+first invitation waits for alpha.4 stays the owner's open choice (the entry below).
 
 **2026-10-31: 0135's *Today* cell says the exposure probe asks live's organisation sign-up page
 (T5).** Docs only, with 0135 T1's outside check, on branch

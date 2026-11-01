@@ -25,6 +25,12 @@
  * deploy-live.sh runs with `--dry-run`, which stops before the checkout, with
  * `docker` and `psql` stubbed to report an open hold and nothing in flight.
  *
+ * The node a release asks for (release_tag_node, workplan 0119: the move to
+ * Node 26) is the library's too, and stand-up-live.sh calls it: deploy-live.sh
+ * must refuse a node below the tag's `engines.node`, and an `engines.node` it
+ * cannot read, in the library's words, line for line, and say what the
+ * library says when it passes.
+ *
  * A tag that differs here from origin is the one case where only the verdict
  * is compared: deploy-live.sh refuses it at its fetch, whose words are its
  * own, and the library refuses it at the same fetch in the harness below.
@@ -103,7 +109,15 @@ function writeExec(path: string, text: string): void {
   chmodSync(path, 0o755);
 }
 
-const pkg = (version: string): string => `${JSON.stringify({ name: 'ownpace', version, private: true }, null, 2)}\n`;
+const pkg = (version: string, engines?: unknown): string =>
+  `${JSON.stringify(engines === undefined ? { name: 'ownpace', version, private: true } : { name: 'ownpace', version, private: true, engines: { node: engines } }, null, 2)}\n`;
+
+/** How a case's release is cut: lightweight, left off origin, or asking for a node (engines.node). */
+interface ReleaseOpts {
+  lightweight?: boolean;
+  push?: boolean;
+  engines?: unknown;
+}
 
 interface Stage {
   root: string;
@@ -116,7 +130,7 @@ interface Stage {
  * v0.2.0-alpha.1 is the release the checkout holds. `setup` adds whatever the
  * case needs on top, through the helpers it is handed.
  */
-function stage(setup: (s: Stage, h: { release: (tag: string, version: string, opts?: { lightweight?: boolean; push?: boolean }) => void }) => void): Stage {
+function stage(setup: (s: Stage, h: { release: (tag: string, version: string, opts?: ReleaseOpts) => void }) => void): Stage {
   const root = mkdtempSync(join(tmpdir(), 'release-rule-'));
   tempDirs.push(root);
   const origin = join(root, 'origin.git');
@@ -151,8 +165,8 @@ function stage(setup: (s: Stage, h: { release: (tag: string, version: string, op
   git(root, work, 'push', '-q', 'origin', 'main', 'refs/tags/v0.2.0-alpha.1');
 
   const s: Stage = { root, work, bin: join(root, 'bin'), commit };
-  const release = (tag: string, version: string, opts: { lightweight?: boolean; push?: boolean } = {}) => {
-    writeFileSync(join(work, 'package.json'), pkg(version));
+  const release = (tag: string, version: string, opts: ReleaseOpts = {}) => {
+    writeFileSync(join(work, 'package.json'), pkg(version, opts.engines));
     writeFileSync(join(work, 'RELEASE'), `${tag}\n`);
     git(root, work, 'add', '-A');
     git(root, work, 'commit', '-q', '-m', `release ${tag}`);
@@ -232,7 +246,7 @@ printf 'release: %s %s\\n' "$RELEASE_TAG_COMMIT" "$RELEASE_TAG_VERSION"
   };
 }
 
-type Case = [string, (s: Stage, h: { release: (tag: string, version: string, opts?: { lightweight?: boolean; push?: boolean }) => void }) => string, 'release' | 'refused' | 'refused, at the fetch'];
+type Case = [string, (s: Stage, h: { release: (tag: string, version: string, opts?: ReleaseOpts) => void }) => string, 'release' | 'refused' | 'refused, at the fetch'];
 
 const CASES: Case[] = [
   ['an annotated v… tag on origin whose package.json agrees', (_s, h) => (h.release('v0.2.0-alpha.2', '0.2.0-alpha.2'), 'v0.2.0-alpha.2'), 'release'],
@@ -276,6 +290,72 @@ const CASES: Case[] = [
     'refused, at the fetch',
   ],
 ];
+
+/**
+ * The node half of the library, the way deploy-live.sh asks it: origin,
+ * fetch, then release_tag_node on the tag's commit (workplan 0119, the move to
+ * Node 26), with the PATH the case gives.
+ */
+function viaLibraryNode(s: Stage, tag: string, path: string): Verdict {
+  const copy = `${s.work}-copy`;
+  cpSync(s.work, copy, { recursive: true });
+  const harness = `set -euo pipefail
+. "$1/deploy/compose/release-tag.sh"
+release_tag_on_origin "$1" "$2" || { echo 'refused: on origin'; exit 1; }
+git -C "$1" fetch -q --tags origin 2>/dev/null || { echo 'refused: at the fetch'; exit 1; }
+if ! release_tag_node "$1" "$2" "$(git -C "$1" rev-parse "refs/tags/$2^{commit}")"; then
+  printf 'refused: %s\\n' "\${RELEASE_TAG_WHY[0]}"; [ "\${#RELEASE_TAG_WHY[@]}" -eq 1 ] || printf '  %s\\n' "\${RELEASE_TAG_WHY[@]:1}"; exit 1
+fi
+printf 'node: %s\\n' "$RELEASE_TAG_NODE"
+`;
+  const r = spawnSync('bash', ['-c', harness, 'harness', copy, tag], { encoding: 'utf8', env: { ...env(s), PATH: path }, timeout: 60_000 });
+  const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+  return { accepted: r.status === 0, first: /refused: (.*)/.exec(out)?.[1] ?? '', lines: refusalLines(out, 'refused: '), out };
+}
+
+/** A node that answers `-v` with `version`, and hands everything else to this test's node. */
+function nodeSaying(s: Stage, version: string): string {
+  const dir = join(s.root, `node-${version}`);
+  writeExec(
+    join(dir, 'node'),
+    `#!/usr/bin/env bash\nif [ "$#" -eq 1 ] && { [ "$1" = -v ] || [ "$1" = --version ]; }; then echo '${version}'; exit 0; fi\nexec '${process.execPath}' "$@"\n`,
+  );
+  return dir;
+}
+
+describe("deploy-live.sh refuses a node below the tag's engines in the library's words, line for line (stand-up-live.sh calls the same function)", () => {
+  it.each([
+    ['a node below the major the tag asks for', '>=26', 'v24.11.1', false],
+    ['an engines.node the library cannot read', '^26', 'v26.13.0', false],
+    ['a node at the major the tag asks for', '>=26', 'v26.0.0', true],
+    ['a tag that asks for no node', undefined, 'v24.11.1', true],
+  ] as const)(
+    '%s',
+    (_label, engines, version, accepted) => {
+      const s = stage((_st, h) => h.release('v0.2.0-alpha.2', '0.2.0-alpha.2', { engines }));
+      const path = `${nodeSaying(s, version)}:${env(s).PATH}`;
+      const lib = viaLibraryNode(s, 'v0.2.0-alpha.2', path);
+      const r = spawnSync(join(s.work, 'deploy', 'compose', 'deploy-live.sh'), ['--dry-run', 'v0.2.0-alpha.2'], {
+        cwd: s.work,
+        encoding: 'utf8',
+        env: { ...env(s), PATH: path },
+        timeout: 60_000,
+      });
+      const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+      expect(r.status === 0, `deploy-live.sh:\n${out}`).toBe(accepted);
+      expect(lib.accepted, `release-tag.sh:\n${lib.out}`).toBe(accepted);
+      if (accepted) {
+        const said = /^node: (.*)$/m.exec(lib.out)?.[1] ?? '';
+        expect(said, lib.out).toMatch(/^Node: /);
+        expect(out).toContain(`[deploy-live] ${said}`);
+      } else {
+        expect(lib.lines.length, lib.out).toBeGreaterThan(1);
+        expect(refusalLines(out, '[deploy-live] refused: '), out).toEqual(lib.lines);
+      }
+    },
+    CASE_MS,
+  );
+});
 
 describe('deploy-live.sh and release-tag.sh take the same tags, and refuse the rest in the same words', () => {
   it.each(CASES)(

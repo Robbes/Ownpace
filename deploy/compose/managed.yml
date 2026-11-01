@@ -512,6 +512,10 @@ services:
       start_period: 120s
     networks:
       - ownpace-network
+      # ClickHouse's one network, which only this service shares with it: see
+      # `trigger-event-store` at the bottom of this file. The entrypoint's
+      # goose migrations and every CLICKHOUSE_URL above go over it.
+      - trigger-event-store
 
   # Task-event store the webapp actually queries (see the CLICKHOUSE comment
   # above), with its own <16GB-RAM tuning file.
@@ -583,8 +587,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    # ON ONE NETWORK, WHICH ONLY ITS ONE CLIENT SHARES (2026-11-01, workplan
+    # 0119 §3 item 9). Not ownpace-network: see `trigger-event-store` at the
+    # bottom of this file for why, and what reaches it now.
     networks:
-      - ownpace-network
+      - trigger-event-store
 
   # Where `trigger deploy` pushes task images and the host's docker daemon
   # pulls them from (0018 T3). Bound to 127.0.0.1 ON PURPOSE: both consumers
@@ -2141,6 +2148,52 @@ networks:
   # `internal`: it carries a name, not traffic to anywhere; gatus reaches the
   # world over ownpace-network as before.
   status-probe:
+    driver: bridge
+    internal: true
+  # TWO MEMBERS, AND NO WAY OUT: ClickHouse and its one client, trigger-api
+  # (2026-11-01, workplan 0119 §3 item 9). CVE-2026-116366 (GHSA-qhgw-ghp3-xh36,
+  # critical, CWE-190, published 2026-10-30) lets "an unauthenticated user with
+  # network access" run code on a ClickHouse server, and it is fixed only in
+  # 26.3.62.3-lts, 26.8.36.3-lts, 26.9.27.3-stable and 26.10.3.7-stable. The
+  # clickhouse service above runs 26.2, which ClickHouse's SECURITY.md lists as
+  # unsupported, so no fix will come for it, and Trigger.dev still pins it at
+  # v4.8.3. Moving the version is the owner's decision (§3 item 9). Who can
+  # reach the server is this file's, and until this network it was everybody:
+  # every service on ownpace-network, the internet-facing ones included (the
+  # web app, the API, the identity provider, the demo Nextcloud), and every
+  # task run, which the supervisor starts on ownpace-network
+  # (DOCKER_RUNNER_NETWORKS).
+  #
+  # Now a name that resolves only here. trigger-api is the one service that
+  # talks to ClickHouse over a network: its CLICKHOUSE_URL and
+  # RUN_REPLICATION_CLICKHOUSE_URL, the readers upstream points at the first
+  # when their own URL is unset (the runs list, events, queries: env.server.ts
+  # at v4.8.3), and its entrypoint's goose migrations, which stop its start
+  # when they cannot reach the server. Everything else that asks ClickHouse
+  # anything runs clickhouse-client inside its container and needs no network:
+  # the health check above, and `docker compose exec` in rotate-db-passwords.sh
+  # and in docs/ending-the-alpha.md's checks. Task runs send their metrics to
+  # trigger-api (/otel), and trigger-api writes them.
+  #
+  # `internal`: no route off the machine either. ClickHouse needs none: its
+  # crash reports are switched off (clickhouse-no-crash-reports.xml), and the
+  # schema Trigger.dev migrates (internal-packages/clickhouse/schema at v4.8.3)
+  # names no URL, S3, remote or dictionary source. trigger-api still reaches
+  # the world, and publishes its port, over ownpace-network, as gatus does
+  # beside status-probe. `scripts/a-store-every-container-could-reach.unit.test.ts`
+  # holds the members, the flag and ClickHouse's one network; the smoke asks
+  # ClickHouse from trigger-api, and finds no such name from the API container.
+  #
+  # What this stops: a plain request to ClickHouse from any other container,
+  # or one forged through the web app, the API, Zitadel or Nextcloud (an
+  # SSRF). They have no name and no route to it. What it does not stop:
+  # trigger-docker-proxy, above, is on ownpace-network with POST, NETWORKS and
+  # CONTAINERS and no authentication, so code running in any container there,
+  # every task run included, can still attach itself or a new container to
+  # this network through the Docker API (workplan 0136 §1, "What shares the
+  # network"). 0136 T4, which takes the proxy off every network a
+  # tenant-facing process joins, closes that.
+  trigger-event-store:
     driver: bridge
     internal: true
 

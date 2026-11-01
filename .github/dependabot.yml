@@ -100,6 +100,13 @@ updates:
       # Node line CI installs, when the next LTS line is current (workplan 0119
       # §2.4). Dependabot's first run offered 26-slim, the Current line, three
       # times in one morning; that is not a decision a green tick may take.
+      # 24 to 26 was such a move, by hand, on 2026-10-31, three days after 26
+      # became LTS: with it went the API's distroless image, whose NAME carries
+      # the major (nodejs26-debian13), the tasks' runtime and build image, every
+      # setup-node step, `engines`, and the corepack the base stages now install
+      # from npm (`corepack@x.y.z` in a RUN, which no updater here reads; it
+      # moves by hand, 0119 §2.4). The next is 27, LTS from 2027-10-20
+      # (nodejs/Release schedule.json, read 2026-10-31).
       - dependency-name: node
         update-types: ["version-update:semver-major"]
     groups:
