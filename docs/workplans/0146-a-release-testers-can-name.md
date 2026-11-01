@@ -8,7 +8,7 @@
 alpha.4), built as draft #1763** on branch
 `claude/ownpace-public-readiness-y7orc6-trigger-images-without-npm-and-node-gyp`, first from
 `main` at `52f0275f` (v4.8.1), then with `main` at `5f160df5` and `008fa74f` merged in (v4.8.3,
-#1755 and #1761), and at `e103699f` (below). The image scan of C (Security Scan run
+#1755 and #1761), and at `ae64b64f` (below). The image scan of C (Security Scan run
 41130684117, Trivy 0.76.1, linux/arm64, 2026-10-30) read
 `localhost/trigger.dev:v4.8.1-d467cf5da6ef` at 1 critical, 137 high, 81 with a fix, and
 `localhost/supervisor:v4.8.1-072042d10128` at 0, 25 and 25; #1755's (run 41159641513,
@@ -120,9 +120,11 @@ alpha.4), built as draft #1763** on branch
   `trigger-supervisor` up and healthy under those names, and the verdict *"verify: done apply:
   applied"*, SMOKE PASS. So the entrypoint's migrations and the supervisor's CMD, both `pnpm
   run`s, ran without node-gyp's tree and without npm.
-- **On `main` at `e103699f`.** The branch merged `main` again (#1764, #1758, #1752, #1753,
-  #1757, #1759, #1756). None of them touches either Dockerfile, the guard or the two services'
-  lines in `managed.yml`; the CHANGELOG and 0119's Status entries kept both sides.
+- **On `main` at `ae64b64f`.** The branch merged `main` again, at `e103699f` (#1764, #1758,
+  #1752, #1753, #1757, #1759, #1756) and then at `ae64b64f` (#1772, the billing test's fix for
+  the first hours of a month, which failed both integration jobs on the first merge). None of
+  them touches either Dockerfile, the guard or the two services' lines in `managed.yml`; the
+  CHANGELOG and 0119's Status entries kept both sides.
 
 **2026-10-31: T16's two builds move to Trigger.dev v4.8.3** (0119's Status entry of that day,
 issue #1738), before its three-day floor on the owner's waiver. Both Dockerfiles were read again
