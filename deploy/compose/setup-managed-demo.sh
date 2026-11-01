@@ -141,6 +141,24 @@ NEXTCLOUD_SOURCE_USER=tenant-b-source NEXTCLOUD_SOURCE_PASSWORD=tenant_b_source_
 NEXTCLOUD_TARGET_USER=tenant-b-target NEXTCLOUD_TARGET_PASSWORD=tenant_b_target_pw \
   "${REPO_ROOT}/deploy/selfhost/setup-nextcloud-users.sh"
 
+# TENANT B'S TARGET ACCOUNT HAS AN ADDRESS OF ITS OWN (workplan 0141 T9 (b)).
+# The managed gate's organiser canary is an event whose ORGANIZER is this
+# account's own address: what a person moving their own domain brings along,
+# and the one case in which RFC 6638 makes the target's server the sender.
+# Nextcloud matches an ORGANIZER against the account's
+# calendar-user-address-set, which the account's email fills, so without one
+# the server has nothing to match and the canary proves nothing. The source
+# account gets none on purpose: it holds the same event, and an account that
+# matched its organiser would schedule at seed time (seed-demo-dav-content.sh
+# refuses to seed it then). A `.test` address, which reaches nobody, and the
+# demo Nextcloud's mail goes to the catcher anyway (managed.yml, SMTP_HOST).
+# Converges: Nextcloud raises its change event, and its mail, only for an
+# address that differs from the one the account has.
+DEMO_TARGET_ADDRESS="tenant-b-target@demo.openmigrate.test"
+docker exec -u www-data "${NEXTCLOUD_CONTAINER}" \
+  php occ user:setting tenant-b-target settings email "${DEMO_TARGET_ADDRESS}"
+echo "[setup-managed-demo] tenant-b-target's own address: ${DEMO_TARGET_ADDRESS} (the organiser canary's, 0141 T9)"
+
 # CONTENT, not just accounts (workplan 0084 "what is still owed").
 #
 # `setup-nextcloud-users.sh` above provisions ACCOUNTS — grep it for PUT and

@@ -52,6 +52,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import {
   NETBIRD_ASSETS,
+  ORG_REGISTRATION,
   PRODUCTION_NAMES,
   SIGN_IN_PAGES,
   SITE_NAME,
@@ -98,6 +99,8 @@ const TO_NETBIRD: PageAnswer = {
 /** NetBird's own page, for a password or a PIN: 401, its assets under /__netbird__/. */
 const NETBIRD_PAGE: PageAnswer = { status: 401, netbird: true };
 const ITSELF: PageAnswer = { status: 200, netbird: false };
+/** The form that founds an organisation, closed: exposure-probe.unit.test.ts asks it the other ways. */
+const FORM_CLOSED: PageAnswer = { status: 404, netbird: false };
 
 interface Fake {
   pages?: Record<string, PageAnswer>;
@@ -116,7 +119,7 @@ function fakeIo(fake: Fake = {}): { io: ProbeIo; lines: string[]; asked: string[
     issuer: async () => ({ issuer: 'https://id.ownpace.eu' }),
     page: async (url) => {
       asked.push(url);
-      return fake.pages?.[url] ?? ITSELF;
+      return fake.pages?.[url] ?? (url === ORG_REGISTRATION ? FORM_CLOSED : ITSELF);
     },
     print: (line) => lines.push(line),
   };
@@ -150,7 +153,7 @@ describe('a name that answers itself', () => {
   it('passes, each of the four asked once, and says what answered', async () => {
     const { io, lines, asked } = fakeIo();
     expect(await runProbe(REQUIRED, io), lines.join('\n')).toBe(0);
-    expect([...asked].sort()).toEqual(FOUR.map(([n]) => urlOf(n)).sort());
+    expect(asked.filter((u) => u !== ORG_REGISTRATION).sort()).toEqual(FOUR.map(([n]) => urlOf(n)).sort());
     for (const [name, , what] of FOUR) {
       const said = lineFor(lines, name);
       expect(said, name).toHaveLength(1);

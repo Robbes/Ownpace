@@ -441,6 +441,16 @@ jobs:
         # conflict on purpose (0099), are in
         # scripts/a-conflict-left-in-a-file.unit.test.ts.
         run: node scripts/conflict-markers.mjs --check
+      - name: Every document llms.txt links is in the tree, under its own heading
+        # HERE for the same reason: the public site's llms.txt links the
+        # maintained documentation on main (ADR-0029, site/maintained-docs.mjs),
+        # and the change that renames, removes or retitles one of those is
+        # often docs-only, which `detect-changes` skips `unit-tests` for. Run
+        # here, the rename fails its own pull request instead of turning the
+        # link dead. Not in site/build.mjs, which live's deploy runs on an
+        # archive of site/ alone. Plain node, no install. The guard is
+        # scripts/a-doc-an-assistant-is-sent-to.unit.test.ts.
+        run: node scripts/llms-docs.mjs --check
 
   fixture-uuid-check:
     name: fixture-uuid-check

@@ -119,7 +119,8 @@
  *    the default at the new version and moves the row. A new release is exactly
  *    where a new report appears: Zitadel's ping arrived with v4. A row whose
  *    fact was read for a whole major line records that line instead, and is
- *    compared by repository and major: Caddy's (Caddy 2 has no telemetry) and
+ *    compared by repository and major: Caddy's (Caddy 2 has no telemetry; a
+ *    build here since 2026-10-31, so its row reads the FROM's line) and
  *    Nextcloud's (read at `stable34`, and at `v35.0.2` when the demo moved),
  *    whose images are pinned by tag and digest since 2026-10-22, so that a
  *    patch or a rebuild the pin watch asks for does not fail here, and another
@@ -568,14 +569,17 @@ const CLICKHOUSE =
   'clickhouse/clickhouse-server:26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd';
 /**
  * Chainguard's MinIO (0146 T7): `latest` by the index digest it had on
- * 2026-10-25, taken 2026-10-28. Its server is the fork's
- * `RELEASE.2026-10-23T20-06-51Z`, whose cmd/ and internal/ are those of
+ * 2026-10-30, taken 2026-10-31 under the floor's security-fix exception
+ * (CVE-2026-116587, 0119 Status). Its server is the fork's
+ * `RELEASE.2026-10-23T20-06-51Z` at the same commit as the digest before it,
+ * Wolfi's rebuilds -r1 and -r2 moving Go modules alone (go-jose 4.1.6,
+ * golang.org/x/net 0.62.0); its cmd/ and internal/ are those of
  * `RELEASE.2026-09-22T19-25-18Z`, read at that tag of `chainguard-forks/minio`
  * (the two differ in go.mod, go.sum and a CI workflow alone); its mc is
  * `RELEASE.2025-08-13T08-35-41Z`.
  */
 const MINIO =
-  'chainguard/minio:latest@sha256:268d68a2a3b6fc65f905a61f84d7eab6345ce6bff14f551e2b028ec31e6a1341';
+  'chainguard/minio:latest@sha256:3b6e40c30ecd5cea627e382ff0b82ca841f58c52294578787043ee80c8ef7c82';
 const MAILPIT =
   'axllent/mailpit:v1.32.0@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498';
 /**
@@ -666,13 +670,16 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
     holds: (svc) => exactly(environmentOf(svc), 'MP_DISABLE_VERSION_CHECK', 'true'),
   },
   'deploy/compose/managed.yml:trigger-tls': {
-    readAt: 'caddy:2',
-    line: true,
+    readAt: 'build',
     why:
       'Caddy 2 has no telemetry (its repository names it only for the opt-in `tracing` directive), and its one ' +
       'default that leaves the machine is automatic HTTPS, which asks a public certificate authority; `tls internal` ' +
-      'in the mounted Caddyfile is the switch',
+      'in the mounted Caddyfile is the switch. Built here since 2026-10-31 from the official caddy image, with curl ' +
+      'removed and nothing added, so the fact is read for the FROM\'s major line, `caddy:2`',
     holds: (svc, entry) => {
+      const { from, problems } = builtFrom(svc, entry);
+      if (problems.length) return problems;
+      if (from === undefined || lineOf(from) !== 'caddy:2') return [`built FROM ${String(from)}, and the fact was read for caddy:2: read what it sends by default`];
       const file = mountsOf(svc).find((m) => m.target === '/etc/caddy/Caddyfile');
       if (!file) return ['no Caddyfile is mounted at /etc/caddy/Caddyfile, so the image default runs'];
       return caddyProblems(read(`${dirname(entry.file)}/${file.source.replace(/^\.\//, '')}`));

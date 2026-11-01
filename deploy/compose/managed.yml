@@ -103,6 +103,11 @@ name: ownpace-managed
 # entry, patches and digests only). Its name ends in the hash of that file's instructions, as the
 # databases' does, and a pull request that changes them fails a-tag-upstream-never-rebuilds until
 # the name moves with it. `up` builds it where the name is missing.
+# trigger-tls runs a local build too since 2026-10-31 (workplan 0119): Caddy's official image at
+# its pinned digest with curl removed, whose pin is the FROM of deploy/compose/caddy/Dockerfile by
+# tag and digest, which Dependabot reads (its own entry, never a major). Its name ends in the hash
+# of that file's instructions, and a pull request that changes them fails
+# a-package-the-front-never-runs until the name moves with it. `up` builds it where it is missing.
 # scripts/a-float-nothing-ever-pulled.unit.test.ts refuses a new float; busybox's one-shot
 # chown is the one it names, with its reason.
 #
@@ -137,7 +142,7 @@ services:
     # registry serves this name, so `docker compose pull` passes it by rather
     # than failing on it, and `up` builds it when it is missing without first
     # asking whatever answers on this host's port 443 for it.
-    image: localhost/postgres:18.6-alpine-6b2d97623fb5
+    image: localhost/postgres:18.6-alpine-1af6bb314e8d
     build: ./postgres
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-db
@@ -253,7 +258,7 @@ services:
   # Trigger.dev Backend
   trigger-db:
     # The same build as postgres above.
-    image: localhost/postgres:18.6-alpine-6b2d97623fb5
+    image: localhost/postgres:18.6-alpine-1af6bb314e8d
     build: ./postgres
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-db
@@ -729,24 +734,34 @@ services:
   #
   # THE PIN. Chainguard's free tier publishes `latest` and `latest-dev` and
   # nothing else, rebuilt about daily, so this is `latest` by an index digest:
-  # 268d68a2a3b6…, built 2026-10-25 01:49 UTC and pushed as `latest` at 14:29
-  # UTC that day, with linux/amd64 and linux/arm64 in it, taken on 2026-10-28
-  # once it was three days old, as a release this repository takes should be
-  # (CONTRIBUTING.md). Not the newest `latest` (e70b2b1e74d7…, pushed
-  # 2026-10-27), on purpose. Trivy 0.76.1 read no finding of any severity in
-  # it on 2026-10-28, on both architectures. Inside (their apk databases):
-  # Wolfi's `minio` 0.20261023.200651-r0 (the fork's
-  # RELEASE.2026-10-23T20-06-51Z), `mc` 0.20250813.083541-r27, and bash as
-  # /bin/sh. The fork's release before it, RELEASE.2026-09-22T19-25-18Z in
-  # d88920d6a50b… (2026-10-22, #1692), differs from this one in go.mod and
-  # go.sum (nine modules, golang.org/x/net 0.60.0, x/crypto 0.57.0 and
-  # klauspost/compress 1.18.7 among them) and in its VulnCheck workflow's Go:
-  # no line under cmd/ or internal/ changed. The weekly pin watch (idp-pin-watch.mjs) says when `latest` has
-  # moved on; a move is a pull request with the new digest's scan read and
-  # E2E (managed) on its branch. Trigger.dev's own digest from its move of
-  # 2026-09-28 still resolved on 2026-10-24, so an old digest stays pullable
-  # for weeks at least; if the free image goes, build the fork's tag here
-  # (0119 §3 item 5).
+  # 3b6e40c30ecd…, built 2026-10-29 14:33 UTC and pushed as `latest` on
+  # 2026-10-30 at 01:13 UTC, with linux/amd64 and linux/arm64 in it, taken on
+  # 2026-10-31, before its three-day floor (2026-11-02 01:13 UTC), under the
+  # floor's one exception, a security fix (CONTRIBUTING.md). The digest before
+  # it, 268d68a2a3b6… (built 2026-10-25, taken 2026-10-28, #1726), carries
+  # Wolfi's `minio` 0.20261023.200651-r0, whose server links go-jose 4.1.4:
+  # the image scan of 2026-10-31 read one high in it, with a fix, and Wolfi's
+  # -r1 moves go-jose to 4.1.6 for CVE-2026-116587 (GHSA-mgcc-cww5-fp2q;
+  # RSA parameters in a JWK went unbounded, so a crafted key could cost
+  # excessive CPU). No build with that fix is three days old: the first,
+  # 0dab2f9fee1c… (-r1), went out as `latest` about 03:00 UTC on 2026-10-29.
+  # The image scan on this move's branch (Security Scan run 41233436294) reads
+  # 0 critical and 0 high in this one, linux/arm64. Inside this one (its apk
+  # databases, both architectures): Wolfi's `minio` 0.20261023.200651-r2, the
+  # same fork release, RELEASE.2026-10-23T20-06-51Z at the same commit
+  # (76c06ff1), rebuilt with Go modules moved and no source patch: go-jose
+  # 4.1.6 (-r1), and golang.org/x/net 0.62.0 and x/crypto 0.58.0 for
+  # CVE-2026-78661 (-r2); `mc` 0.20250813.083541-r27, and bash as /bin/sh. The
+  # fork's release before it, RELEASE.2026-09-22T19-25-18Z in d88920d6a50b…
+  # (2026-10-22, #1692), differs from this one in go.mod and go.sum (nine
+  # modules, golang.org/x/net 0.60.0, x/crypto 0.57.0 and klauspost/compress
+  # 1.18.7 among them) and in its VulnCheck workflow's Go: no line under cmd/
+  # or internal/ changed. The weekly pin watch (idp-pin-watch.mjs) says when
+  # `latest` has moved on; a move is a pull request with the new digest's scan
+  # read and E2E (managed) on its branch. Trigger.dev's own digest from its
+  # move of 2026-09-28 still resolved on 2026-10-24, so an old digest stays
+  # pullable for weeks at least; if the free image goes, build the fork's tag
+  # here (0119 §3 item 5).
   #
   # NOT A TAG SWAP. Each difference was read off the image itself (its config
   # and last layer, both architectures) and Chainguard's locked config
@@ -766,7 +781,7 @@ services:
   #     minio-init below makes `packets`.
   # `scripts/an-object-store-with-a-maintainer.unit.test.ts` holds all of it.
   minio:
-    image: chainguard/minio:latest@sha256:268d68a2a3b6fc65f905a61f84d7eab6345ce6bff14f551e2b028ec31e6a1341
+    image: chainguard/minio:latest@sha256:3b6e40c30ecd5cea627e382ff0b82ca841f58c52294578787043ee80c8ef7c82
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio
     restart: unless-stopped
     logging: *logging
@@ -843,7 +858,7 @@ services:
   # (getDependencyCondition, pkg/compose/start.go, v2.20.0 to v5.6.1). The
   # bring-up names it beside `minio` all the same, so a failure prints its log.
   minio-init:
-    image: chainguard/minio:latest@sha256:268d68a2a3b6fc65f905a61f84d7eab6345ce6bff14f551e2b028ec31e6a1341
+    image: chainguard/minio:latest@sha256:3b6e40c30ecd5cea627e382ff0b82ca841f58c52294578787043ee80c8ef7c82
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio-init
     restart: "no"
     logging: *logging
@@ -871,8 +886,18 @@ services:
   # site address (else Caddy has no certificate to present) and default_sni
   # (IP-connecting browsers send no SNI). Set TRIGGER_TLS_HOST in .env to the
   # address browsers actually use (e.g. the machine's VPN IP).
+  #
+  # Built here since 2026-10-31 (workplan 0119): Caddy's official image at the
+  # digest it ran before, with curl removed and the libraries only curl pulled
+  # in, which carried the image's one critical finding and two of its highs.
+  # Nothing here runs curl in it: no healthcheck, no exec, and the smoke asks
+  # the front from the host. deploy/compose/caddy/Dockerfile says what it
+  # removes, why the name carries the hash of its instructions, and how it
+  # moves. `never`, as for the databases: no registry serves this name.
   trigger-tls:
-    image: caddy:2.11.7-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
+    image: localhost/caddy:2.11.7-alpine-ed5425a7da36
+    build: ./caddy
+    pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls
     restart: unless-stopped
     logging: *logging
