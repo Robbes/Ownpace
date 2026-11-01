@@ -2747,8 +2747,9 @@ is beside each; none is urgent tonight.
      security release came from no public branch), so the image itself was read: its
      `config.xml` is byte for byte `v26.3.60.2-lts`'s, and its own `config.d` file and
      entrypoint are 26.2.19.43's.
-   - **The ten "Backward Incompatible Change" entries of 26.3 and its patches, none reaching
-     this stack.** `hypothesis` skip indexes, `detectProgrammingLanguage`,
+   - **Every "Backward Incompatible Change" entry of 26.3 and its patches (the major's ten,
+     and nine patch notes that have such a section), none reaching this stack** but the
+     on-disk one below. `hypothesis` skip indexes, `detectProgrammingLanguage`,
      `mergeTreeAnalyzeIndexes`, MySQL type mapping and TLS host checks, named-collection
      overrides, dynamic disks, `File` renames and `CREATE TABLE AS` credentials: Trigger.dev's
      56 migrations and its ClickHouse package use none. `NOT`'s precedence: the package's one
