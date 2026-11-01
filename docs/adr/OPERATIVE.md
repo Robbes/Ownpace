@@ -538,7 +538,7 @@ live in [README.md](./README.md), the register.
 - Migrations are **hand-written numbered SQL files**, one per change: `packages/ledger/migrations` for the shared chain, `packages/managed/migrations` for the managed-only one (ADR-0036).
 - **`runMigrations`** applies them at startup, linearly, under a Postgres advisory lock, recording each filename in `schema_migrations`; the appliance and the worker both call it. Nothing applies a migration by hand.
 - **Drizzle Kit authors and applies nothing here.** `pnpm db:generate` and `pnpm db:migrate` refuse (`scripts/how-migrations-are-authored.mjs`), and `drizzle.config.ts` points its `out` at a throwaway directory so the tool cannot write into a chain. Drizzle the ORM is untouched, and `schema-matches-migrations.unit.test.ts` compares it against the chain on every run.
-- Pre-release only, `scripts/squash-migrations.sh` folds the chain into `0001_baseline.sql` — by dumping an applied database, never by hand-merging SQL.
+- **Pre-release ended with `v0.2.0-alpha.1`** (tagged 2026-10-06; `scripts/release-line.json`'s `preReleaseEndedAt`): both chains only grow. A migration a release shipped is never edited, renamed, squashed or deleted; a change is a new file. `scripts/a-chain-that-only-grows.unit.test.ts` holds it, and `scripts/squash-migrations.sh`, which made `0001_baseline.sql` by dumping an applied database, refuses.
 - Nothing may sort below a chain's baseline; `scripts/a-command-the-docs-told-you-to-run.unit.test.ts` enforces it, because the runner applies files in sorted order.
 
 ## [ADR-0046: A rendering is compared by its parts, not by its bytes](./0046-a-rendering-is-compared-by-its-parts.md)
