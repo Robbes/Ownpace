@@ -394,7 +394,8 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   `packages/ledger/migrations`, then `packages/managed/migrations` renumbered above it, staged as
   one directory in the order a managed deployment applies them — with Atlas against a disposable
   dockerized Postgres and fails on destructive schema changes — runs only when either migration
-  directory (or the workflow) changes;
+  directory (or the workflow) changes, on a pull request on hosted amd64 and arm64 (the Atlas
+  each runs is its own download, pinned by its SHA-256; 2026-11-01) and on a push on the Spark;
   **`commit-convention`** (2026-09-21) reads the commit subjects a pull request ADDS and requires
   the Conventional Commits prefix CONTRIBUTING.md and the pull-request template both already
   mandated. Measured the day it was built: two of the last two hundred subjects on `main`

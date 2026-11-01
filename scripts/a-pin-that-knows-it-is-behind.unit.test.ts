@@ -39,14 +39,18 @@
  * the tag today, read with a HEAD, and is behind when the two differ.
  */
 
-import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { afterAll, describe, it, expect } from 'vitest';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { tmpdir } from 'node:os';
 import { gzipSync } from 'node:zlib';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import {
   ATLAS_ARCHES,
+  ATLAS_HOST,
   ATLAS_IMAGE,
   ATLAS_NOTE,
   ATLAS_WORKFLOW,
@@ -662,6 +666,151 @@ const cosignDefault = (): Record<string, string> =>
 const ATLAS = atlasPin(REAL.read(ATLAS_WORKFLOW)!);
 const ATLAS_TAG = `${ATLAS.version.slice(1)}-community`;
 
+/**
+ * THE ATLAS STEP, RUN (review of 2026-11-01). `atlasPin` reads the step's
+ * text, and a text can say `exit 1` beside a comparison that no longer feeds
+ * it: deleting `refused=1`, comparing `"$seen"` with itself, or dropping the
+ * `exit 1` after the version check each left it, and CI, green, while a wrong
+ * sum installed the download and ran it. So the step's real `run:` is run
+ * here, under bash as the runner runs a step with no `shell:`, with `curl`
+ * and `uname` stubbed on the PATH: `curl` serves a stand-in for each
+ * architecture's release from ATLAS_HOST and nothing from anywhere else, and
+ * the stand-in prints the version it is told to and leaves a mark that it ran.
+ */
+const atlasScratch = mkdtempSync(join(tmpdir(), 'atlas-step-'));
+afterAll(() => rmSync(atlasScratch, { recursive: true, force: true }));
+const STUBS = join(atlasScratch, 'bin');
+mkdirSync(STUBS);
+for (const [name, body] of Object.entries({
+  curl: [
+    '#!/bin/sh',
+    'out= url= prev=',
+    'for a in "$@"; do',
+    '  [ "$prev" = -o ] && out="$a"',
+    '  case "$a" in *://*) url="$a" ;; esac',
+    '  prev="$a"',
+    'done',
+    'printf \'%s\\n\' "$url" >> "$STUB_FETCHED"',
+    'case "$url" in "$STUB_HOST"atlas/*) name="${url##*/}" ;; *) echo "curl: (6) Could not resolve host: $url" >&2; exit 6 ;; esac',
+    '[ -f "$STUB_SERVED/$name" ] || { echo "curl: (22) The requested URL returned error: 404" >&2; exit 22; }',
+    '[ -n "$out" ] && cp "$STUB_SERVED/$name" "$out"',
+  ],
+  uname: ['#!/bin/sh', 'case "$1" in -m) echo "$STUB_MACHINE" ;; *) echo Linux ;; esac'],
+})) {
+  writeFileSync(join(STUBS, name), `${body.join('\n')}\n`);
+  chmodSync(join(STUBS, name), 0o755);
+}
+/** The bytes served for each architecture: fixed, so each has one sum. */
+const STAND_IN = Object.fromEntries(
+  ATLAS_ARCHES.map((arch) => [
+    arch,
+    `#!/bin/sh\n# Not Atlas: the linux/${arch} stand-in a-pin-that-knows-it-is-behind serves.\n: > "$STUB_RAN"\nprintf '%s\\n' "$STUB_SAYS" 'https://github.com/ariga/atlas/releases/latest'\n`,
+  ]),
+) as Record<'amd64' | 'arm64', string>;
+const STAND_IN_SHA256 = Object.fromEntries(
+  ATLAS_ARCHES.map((arch) => [`ATLAS_SHA256_${arch.toUpperCase()}`, createHash('sha256').update(STAND_IN[arch as 'amd64' | 'arm64']).digest('hex')]),
+);
+
+/** The `run:` and `env:` of the one step of `workflow` that downloads from ATLAS_HOST. */
+function atlasStep(workflow: string): { run: string; env: Record<string, string> } {
+  type Step = { run?: unknown; env?: Record<string, unknown>; shell?: unknown };
+  const jobs = (parseYaml(workflow) as { jobs?: Record<string, { steps?: Step[] }> }).jobs ?? {};
+  const steps = Object.values(jobs).flatMap((job) => (job.steps ?? []).filter((s) => typeof s.run === 'string' && s.run.includes(ATLAS_HOST)));
+  if (steps.length !== 1) throw new Error(`${steps.length} steps of ${ATLAS_WORKFLOW} download from ${ATLAS_HOST}; one installs Atlas`);
+  const step = steps[0]!;
+  if (step.shell !== undefined) throw new Error(`the Atlas step names shell: ${String(step.shell)}; this runs it as a step with none`);
+  if ((step.run as string).includes('${{')) throw new Error('the Atlas step carries a ${{ }} expression, which this does not render');
+  return { run: step.run as string, env: Object.fromEntries(Object.entries(step.env ?? {}).map(([k, v]) => [k, String(v)])) };
+}
+
+interface Ran {
+  readonly status: number | null;
+  /** The file at RUNNER_TEMP/atlas-bin/atlas afterwards, if any. */
+  readonly installed: string | undefined;
+  /** Whether a stand-in was executed. */
+  readonly ran: boolean;
+  readonly onPath: boolean;
+  readonly fetched: string[];
+  readonly log: string;
+}
+
+/** Run the step on `machine` (what `uname -m` says), with these sums in its env and a stand-in that says `says`. */
+function runAtlasStep(step: { run: string; env: Record<string, string> }, machine: string, sums: Record<string, string>, says: string): Ran {
+  const dir = mkdtempSync(join(atlasScratch, 'run-'));
+  const temp = join(dir, 'runner-temp');
+  const served = join(dir, 'served');
+  mkdirSync(temp);
+  mkdirSync(served);
+  for (const arch of ATLAS_ARCHES) writeFileSync(join(served, `atlas-community-linux-${arch}-${step.env.ATLAS_VERSION}`), STAND_IN[arch as 'amd64' | 'arm64']);
+  const files = { script: join(dir, 'step.sh'), path: join(dir, 'GITHUB_PATH'), ran: join(dir, 'ran'), fetched: join(dir, 'fetched') };
+  writeFileSync(files.script, step.run);
+  writeFileSync(files.path, '');
+  writeFileSync(files.fetched, '');
+  const r = spawnSync('bash', ['-e', files.script], {
+    encoding: 'utf8',
+    timeout: 20_000,
+    env: {
+      PATH: `${STUBS}:${process.env.PATH ?? '/usr/bin:/bin'}`,
+      HOME: dir,
+      ...step.env,
+      ...sums,
+      RUNNER_TEMP: temp,
+      GITHUB_PATH: files.path,
+      STUB_HOST: ATLAS_HOST,
+      STUB_SERVED: served,
+      STUB_MACHINE: machine,
+      STUB_SAYS: says,
+      STUB_RAN: files.ran,
+      STUB_FETCHED: files.fetched,
+    },
+  });
+  const bin = join(temp, 'atlas-bin', 'atlas');
+  return {
+    status: r.status,
+    installed: existsSync(bin) ? readFileSync(bin, 'utf8') : undefined,
+    ran: existsSync(files.ran),
+    onPath: readFileSync(files.path, 'utf8').split('\n').includes(join(temp, 'atlas-bin')),
+    fetched: readFileSync(files.fetched, 'utf8').split('\n').filter(Boolean),
+    log: `${r.stdout}${r.stderr}`.trim(),
+  };
+}
+
+/**
+ * What the Atlas step of `workflow` does that it must not, run on both
+ * machines: install and run anything but the native release when both
+ * architectures' bytes are the pinned ones (and fetch both), finish with
+ * anything installed, run or on the PATH when either sum is wrong, accept a
+ * binary that calls itself another version, or install anything on a machine
+ * no release is pinned for. Empty when the step is right.
+ */
+function atlasStepFaults(workflow: string): string[] {
+  const step = atlasStep(workflow);
+  const version = step.env.ATLAS_VERSION;
+  const release = `atlas community version ${version}`;
+  const urls = ATLAS_ARCHES.map((arch) => `${ATLAS_HOST}atlas/atlas-community-linux-${arch}-${version}`);
+  const faults: string[] = [];
+  for (const [machine, arch] of [['x86_64', 'amd64'], ['aarch64', 'arm64']] as const) {
+    const ok = runAtlasStep(step, machine, STAND_IN_SHA256, release);
+    if (!(ok.status === 0 && ok.installed === STAND_IN[arch] && ok.ran && ok.onPath && ok.fetched.join(' ') === urls.join(' '))) {
+      faults.push(`installs no release on ${machine}: exit ${ok.status}, fetched ${ok.fetched.join(' ') || 'nothing'}\n${ok.log}`);
+    }
+    const wrongs = [...ATLAS_ARCHES.map((a) => [`ATLAS_SHA256_${a.toUpperCase()}`]), ATLAS_ARCHES.map((a) => `ATLAS_SHA256_${a.toUpperCase()}`)];
+    for (const wrong of wrongs) {
+      // A wrong sum is the pin ci.yml commits: the stand-in is not those bytes.
+      const sums = { ...STAND_IN_SHA256, ...Object.fromEntries(wrong.map((name) => [name, step.env[name] ?? ''])) };
+      const r = runAtlasStep(step, machine, sums, release);
+      if (r.status === 0 || r.installed !== undefined || r.ran || r.onPath) {
+        faults.push(`goes on past a wrong ${wrong.join(' and ')} on ${machine}: exit ${r.status}, installed ${r.installed !== undefined}, ran ${r.ran}\n${r.log}`);
+      }
+    }
+    const canary = runAtlasStep(step, machine, STAND_IN_SHA256, 'atlas community version v1.3.1-f851298-canary');
+    if (canary.status === 0) faults.push(`accepts a binary that calls itself v1.3.1-f851298-canary on ${machine}\n${canary.log}`);
+  }
+  const other = runAtlasStep(step, 'riscv64', STAND_IN_SHA256, release);
+  if (other.status === 0 || other.installed !== undefined) faults.push(`installs something on riscv64, which no release is pinned for: exit ${other.status}`);
+  return faults;
+}
+
 /** The GoAccess release `deploy/compose/goaccess/Dockerfile` builds (#1675), read from its own line. */
 const GOACCESS_RELEASE = /^# GoAccess (v\d+(?:\.\d+)+)$/m.exec(REAL.read(GOACCESS_DOCKERFILE) ?? '')?.[1] ?? 'no release named';
 /** The docker-socket-proxy release trigger-docker-proxy is built from (2026-10-30), read from its own line. */
@@ -972,7 +1121,9 @@ describe('the routine pins, in one summary issue', () => {
  * and compares both before anything is made executable, and checks that what
  * it installed calls itself that release. This holds the real step to that with
  * `atlasPin`, each refusal by a mutation of it, and the row that says when a
- * newer release is listed.
+ * newer release is listed. `atlasPin` reads text, so the step is also RUN
+ * (`atlasStepFaults`), and each way a review found to keep the text and lose
+ * the refusal is a mutation that must fail it.
  */
 describe('the Atlas CLI migration-lint runs: a named release, checked by its sha256 first', () => {
   const ci = REAL.read(ATLAS_WORKFLOW)!;
@@ -987,9 +1138,14 @@ describe('the Atlas CLI migration-lint runs: a named release, checked by its sha
     expect(ATLAS.version).toMatch(/^v\d+\.\d+\.\d+$/);
     expect(Object.keys(ATLAS.sha256).sort()).toEqual([...ATLAS_ARCHES].sort());
     for (const arch of ATLAS_ARCHES) expect(ATLAS.sha256[arch as 'amd64' | 'arm64']).toMatch(/^[0-9a-f]{64}$/);
-    // The two machines the job lands on: the self-hosted arm64 runner for a push, hosted amd64 for a pull request.
-    expect(ci).toContain(
-      "  migration-lint:\n    name: migration-lint\n    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}",
+    // The machines the job lands on: the self-hosted arm64 runner for a push; hosted amd64 AND arm64 for a
+    // pull request, so the arm64 binary has run before the owner's machine runs it (review of 2026-11-01).
+    type Job = { 'runs-on'?: unknown; strategy?: { 'fail-fast'?: unknown; matrix?: { runner?: unknown } } };
+    const job = (parseYaml(ci) as { jobs: Record<string, Job> }).jobs['migration-lint'];
+    expect(job?.['runs-on']).toBe('${{ matrix.runner }}');
+    expect(job?.strategy?.['fail-fast']).toBe(false);
+    expect(job?.strategy?.matrix?.runner).toBe(
+      "${{ github.event_name == 'push' && fromJSON('[\"self-hosted\"]') || fromJSON('[\"ubuntu-24.04\",\"ubuntu-24.04-arm\"]') }}",
     );
   });
 
@@ -1009,6 +1165,46 @@ describe('the Atlas CLI migration-lint runs: a named release, checked by its sha
     expect(() => atlasPin(mutate(/\n +\[ "\$refused" = 0 \] \|\| exit 1/, ''))).toThrow(/executable before its sha256 is read/);
     expect(() => atlasPin(mutate(/\n +seen="\$\(sha256sum "\$download"\)"/, ''))).toThrow(/never reads a sha256/);
     expect(() => atlasPin(mutate('"atlas community version $ATLAS_VERSION"', '"atlas"'))).toThrow(/calls itself the release named/);
+  });
+
+  it('refuses a step that compares with anything but the pinned sum, fetches from elsewhere, or makes another file executable', () => {
+    expect(() => atlasPin(mutate('if [ "$seen" = "$pinned" ]; then', 'if true; then'))).toThrow(/never compares the sum it read/);
+    expect(() => atlasPin(mutate('pinned="$ATLAS_SHA256_AMD64"', 'pinned="$(curl -sSfL "https://atlasbinaries.example/atlas-${ATLAS_VERSION}.sha256")"'))).toThrow(
+      /fetches from somewhere other than/,
+    );
+    expect(() => atlasPin(mutate('pinned="$ATLAS_SHA256_ARM64"', 'pinned="$(cat "$RUNNER_TEMP/arm64.sha256")"'))).toThrow(/pinned sum is not only/);
+    const install = /\n( +)install -m 0755 "\$RUNNER_TEMP\/atlas-\$ATLAS_VERSION-linux-\$native"/;
+    expect(() => atlasPin(mutate(install, '\n$1curl -sSfL -o "$RUNNER_TEMP/x" https://mirror.example/atlas\n$1install -m 0755 "$RUNNER_TEMP/x"'))).toThrow(
+      /fetches from somewhere other than/,
+    );
+    expect(() => atlasPin(mutate(install, '\n$1curl -sSfL -o "$RUNNER_TEMP/x" "$ATLAS_MIRROR"\n$1install -m 0755 "$RUNNER_TEMP/x"'))).toThrow(
+      /fetches something that is not the release/,
+    );
+    expect(() => atlasPin(mutate(install, '\n$1install -m 0755 "$RUNNER_TEMP/atlas-$ATLAS_VERSION-linux-amd64"'))).toThrow(
+      /makes executable something other than the file it hashed/,
+    );
+  });
+
+  it('runs: the native release when both sums are the pinned ones, and nothing when either is not or it calls itself another version', () => {
+    expect(atlasStepFaults(ci)).toEqual([]);
+  });
+
+  it('runs: a mismatch that no longer stops it, or a version check that no longer fails, fails it, each by a mutation of the real step', () => {
+    const faults = (from: string | RegExp, to: string): string => atlasStepFaults(mutate(from, to)).join('\n');
+    // A wrong sum is reported, and the step goes on to install and run it.
+    expect(faults(/\n +refused=1\n/, '\n')).toMatch(/goes on past a wrong ATLAS_SHA256_AMD64 on x86_64/);
+    expect(faults('if [ "$seen" = "$pinned" ]', 'if [ "$seen" = "$seen" ]')).toMatch(/goes on past a wrong ATLAS_SHA256_ARM64 on aarch64/);
+    expect(faults('if [ "$seen" = "$pinned" ]', 'if true')).toMatch(/goes on past a wrong ATLAS_SHA256_AMD64 and ATLAS_SHA256_ARM64/);
+    expect(faults(/\n +\[ "\$refused" = 0 \] \|\| exit 1/, '')).toMatch(/goes on past a wrong ATLAS_SHA256_ARM64 on x86_64/);
+    // Each sum compared with the other architecture's pin.
+    expect(faults('pinned="$ATLAS_SHA256_AMD64"; else pinned="$ATLAS_SHA256_ARM64"', 'pinned="$ATLAS_SHA256_ARM64"; else pinned="$ATLAS_SHA256_AMD64"')).toMatch(
+      /installs no release on x86_64/,
+    );
+    // The version check that no longer stops it.
+    expect(faults(/if \[ "\$\{said/, 'if false && [ "${said')).toMatch(/accepts a binary that calls itself v1\.3\.1-f851298-canary on x86_64/);
+    expect(faults(/(does not call itself community \$ATLAS_VERSION\."\n) +exit 1\n/, '$1')).toMatch(/accepts a binary that calls itself v1\.3\.1-f851298-canary on aarch64/);
+    // The other architecture's binary installed.
+    expect(faults('linux-$native" "$RUNNER_TEMP/atlas-bin/atlas"', 'linux-amd64" "$RUNNER_TEMP/atlas-bin/atlas"')).toMatch(/installs no release on aarch64/);
   });
 
   it('is a routine pin, current while the community image lists no newer release of its shape and major', async () => {

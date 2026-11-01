@@ -542,13 +542,17 @@ export function stepsUsing(workflow, action) {
 /**
  * The Atlas `migration-lint` installs, read from the one step of `workflow`
  * that downloads from ATLAS_HOST: `{ version, sha256: { amd64, arm64 }, line }`.
- * Throws for anything the step must not be (workplan 0119, 2026-11-01): a
- * download whose name carries no `${ATLAS_VERSION}`, or says `latest`; a
- * version that is not a release (`v1.3.6`); an architecture with no 64-digit
- * sum; a download made executable (`chmod`, `install -m`) before a
- * `sha256sum` has read it and a failed comparison has stopped the step; or no
- * check that the binary calls itself the release named. The guard holds the
- * real step with this, and the Atlas row reads its version with it.
+ * Throws for a step not of the shape it must have (workplan 0119,
+ * 2026-11-01): a download whose name carries no `${ATLAS_VERSION}`, or says
+ * `latest`; a fetch from anywhere but ATLAS_HOST, or into anything but the
+ * file it hashes; a version that is not a release (`v1.3.6`); an architecture
+ * with no 64-digit sum; a sum compared with anything but the pinned one in
+ * `env:`; a file made executable (`chmod`, `install -m`) that is not the one
+ * hashed, or before a `sha256sum` has read it with an `exit 1` between; or no
+ * check that the binary calls itself the release named. This reads the
+ * step's TEXT, so it cannot see whether a mismatch really stops it: the guard
+ * also runs the step's `run:` under bash for that. The Atlas row reads its
+ * version with this.
  */
 export function atlasPin(workflow) {
   const lines = workflow.split('\n');
@@ -586,6 +590,42 @@ export function atlasPin(workflow) {
     sha256[arch] = sum;
   }
   if (sha256.amd64 === sha256.arm64) throw new Error('the Atlas step pins one sha256 for two architectures');
+  // Every fetch is the release from ATLAS_HOST, into the file the loop hashes;
+  // the sum it is compared with is the pinned one; and what is made
+  // executable is that same file, for the native architecture.
+  const logical = [];
+  for (const text of code) {
+    const last = logical.length - 1;
+    if (last >= 0 && logical[last].endsWith('\\')) logical[last] = `${logical[last].slice(0, -1).trimEnd()} ${text.trim()}`;
+    else logical.push(text.trim());
+  }
+  for (const text of code) {
+    for (const [url] of text.matchAll(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'`]+/gi)) {
+      if (!url.startsWith(ATLAS_HOST)) throw new Error(`the Atlas step fetches from somewhere other than ${ATLAS_HOST}: ${url}`);
+    }
+  }
+  const hashed = '"$RUNNER_TEMP/atlas-$ATLAS_VERSION-linux-$arch"';
+  const native = hashed.replace('$arch', '$native');
+  const has = (statement) => logical.some((text) => text === statement || text.startsWith(`${statement};`));
+  if (!has(`download=${hashed}`)) throw new Error(`the Atlas step does not download each architecture to download=${hashed}`);
+  for (const text of logical.filter((t) => /\b(?:curl|wget)\b/.test(t))) {
+    if (!text.includes(ATLAS_HOST) || !/\s-o "\$download"\s/.test(text)) {
+      throw new Error(`the Atlas step fetches something that is not the release into "$download": ${text}`);
+    }
+  }
+  for (const text of logical.filter((t) => /\bsha256sum\b/.test(t))) {
+    if (text !== 'seen="$(sha256sum "$download")"') throw new Error(`the Atlas step hashes something other than "$download": ${text}`);
+  }
+  const pins = [...code.join('\n').matchAll(/\bpinned=([^\s;]*)/g)].map((m) => m[1]);
+  const fromEnv = ATLAS_ARCHES.map((arch) => `"$ATLAS_SHA256_${arch.toUpperCase()}"`);
+  if (pins.some((value) => !fromEnv.includes(value)) || !fromEnv.every((value) => pins.includes(value))) {
+    throw new Error(`the Atlas step's pinned sum is not only ${fromEnv.join(' or ')}: pinned=${pins.join(', pinned=') || 'nothing'}`);
+  }
+  if (!has('if [ "$seen" = "$pinned" ]; then')) throw new Error('the Atlas step never compares the sum it read ("$seen") with the pinned one ("$pinned")');
+  for (const text of logical.filter((t) => /\bchmod\b|\binstall\s+-m\b/.test(t))) {
+    const made = /\bchmod\s+\S+\s+(\S+)/.exec(text)?.[1] ?? /\binstall\s+-m\s+\S+\s+(\S+)/.exec(text)?.[1];
+    if (made !== native) throw new Error(`the Atlas step makes executable something other than the file it hashed, ${native}: ${text}`);
+  }
   const first = (re) => code.findIndex((text) => re.test(text));
   const read = first(/\bsha256sum\b/);
   const runnable = first(/\bchmod\b|\binstall\s+-m\b/);
