@@ -1241,7 +1241,10 @@ never learns anybody used Google.
 **Not on `ownpace-live`.** Live's sign-in page offers email and password only,
 as privacy §4.4, §7 and §8 say (the owner, ops-social-signin (a)), so
 `stand-up-live.sh` and `deploy-live.sh` refuse live's `.env` while any of the
-keys below holds a value (`LIVE_REFUSED_SIGN_IN_KEYS`, `stack-kind.sh`). A
+keys below holds a value (`LIVE_REFUSED_SIGN_IN_KEYS`, `stack-kind.sh`). So
+does `setup-zitadel.sh` itself, run by hand or by `bootstrap-managed.sh`,
+before it generates a secret or starts anything; its `--print`,
+`--token-only` and `--count-organisations` add no provider and still run. A
 provider added there before stays configured at the identity provider; with
 every key empty, the next stand-up or deploy turns "External IDP allowed" off,
 which hides its button (*Emptying a pair removes less than it looks like*,
