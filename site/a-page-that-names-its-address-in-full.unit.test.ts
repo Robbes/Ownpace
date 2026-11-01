@@ -24,7 +24,11 @@
  *    site's own links, in its own language's section, by its own title and
  *    description, and nothing else: not the Alpha's conditions and guide,
  *    which no such page links (`UNLISTED` in `build.mjs`), and no address
- *    that is not a page; the build writes it at the site's root;
+ *    that is not a page; the build writes it at the site's root; after the
+ *    pages come the maintained documentation's sections (`MAINTAINED_DOCS`
+ *    in `maintained-docs.mjs`), each line a link with no notes, which
+ *    `scripts/a-doc-an-assistant-is-sent-to.unit.test.ts` holds to the list
+ *    and the list to the tree;
  *  - a test build carries the same links and the same `llms.txt` as a
  *    `--public` one, and keeps its `noindex`;
  *  - the site's own address is written once, in `security-txt.mjs`, and the
@@ -80,6 +84,12 @@ async function built(alpha: boolean): Promise<Built> {
 async function site(): Promise<string> {
   const m = (await import('./security-txt.mjs')) as unknown as { PUBLIC_SITE_URL: string };
   return m.PUBLIC_SITE_URL;
+}
+
+/** The topics of the documentation `llms.txt` lists after the pages, from `maintained-docs.mjs`. */
+async function topics(): Promise<string[]> {
+  const m = (await import('./maintained-docs.mjs')) as unknown as { MAINTAINED_DOCS: { topic: string }[] };
+  return m.MAINTAINED_DOCS.map((t) => t.topic);
 }
 
 /** The locales, the default one, and each one's own name, from `copy.mjs`. */
@@ -279,13 +289,14 @@ describe("every page names itself in each language it exists in (0152 T5 (c))", 
 
 /**
  * `llms.txt`, read as llmstxt.org reads it: a `#` title, a `>` summary, and
- * `##` sections of `- [title](url): description`. Any other line fails, so
- * nothing can be written into it that the pages do not say.
+ * `##` sections of `- [title](url): description`, the description optional
+ * (a document's line has none). Any other line fails, so nothing can be
+ * written into it that the pages or the list do not say.
  */
 interface Llms {
   title: string;
   summary: string[];
-  sections: { name: string; entries: { title: string; url: string; description: string }[] }[];
+  sections: { name: string; entries: { title: string; url: string; description: string | undefined }[] }[];
   stray: string[];
 }
 function parseLlms(txt: string): Llms {
@@ -296,11 +307,11 @@ function parseLlms(txt: string): Llms {
     if (line === '') continue;
     const quote = /^> (.+)$/.exec(line);
     const heading = /^## (.+)$/.exec(line);
-    const entry = /^- \[([^\]]+)\]\((\S+)\): (.+)$/.exec(line);
+    const entry = /^- \[([^\]]+)\]\((\S+)\)(?:: (.+))?$/.exec(line);
     if (quote && out.sections.length === 0) out.summary.push(quote[1]!);
     else if (heading) out.sections.push({ name: heading[1]!, entries: [] });
     else if (entry && out.sections.length > 0)
-      out.sections.at(-1)!.entries.push({ title: entry[1]!, url: entry[2]!, description: entry[3]! });
+      out.sections.at(-1)!.entries.push({ title: entry[1]!, url: entry[2]!, description: entry[3] });
     else out.stray.push(line);
   }
   return out;
@@ -326,9 +337,21 @@ describe('llms.txt lists every page a visitor reaches, by its own words (ADR-002
       expect(parsed.title, "llms.txt's title is not the name the header shows").toBe(brand);
       expect(parsed.summary, "llms.txt's summary is not the home page's description").toEqual([descriptionOf(home)]);
 
-      expect(parsed.sections.map((s) => s.name), 'a section per language, by its own name').toEqual(all.map(name));
+      // A section per language, by its own name, and after them the
+      // documentation's, by topic, whose lines are links with no notes.
+      expect(parsed.sections.map((s) => s.name), 'a section per language, then the documentation').toEqual([
+        ...all.map(name),
+        ...(await topics()),
+      ]);
+      for (const section of parsed.sections.slice(all.length)) {
+        expect(section.entries.length, `${section.name} lists no document`).toBeGreaterThan(0);
+        for (const entry of section.entries) {
+          expect(entry.url.startsWith(`${origin}/`), `${section.name}: ${entry.url} is on the site, not in the documentation`).toBe(false);
+          expect(entry.description, `${section.name}: ${entry.url} has notes after its link`).toBeUndefined();
+        }
+      }
       const listed: string[] = [];
-      for (const [i, section] of parsed.sections.entries()) {
+      for (const [i, section] of parsed.sections.slice(0, all.length).entries()) {
         const locale = all[i]!;
         for (const entry of section.entries) {
           const page = pages.find((p) => own(p) === entry.url);
@@ -386,7 +409,11 @@ describe('the build writes llms.txt at the root, and every address in it is a fi
     const written = readFileSync(join(dist, 'llms.txt'), 'utf8');
     expect(written, 'the llms.txt written is not the one the module renders').toBe((await built(true)).llms);
 
-    const urls = parseLlms(written).sections.flatMap((s) => s.entries.map((e) => e.url));
+    // The pages: the sections before the documentation's.
+    const { all } = await locales();
+    const urls = parseLlms(written)
+      .sections.slice(0, all.length)
+      .flatMap((s) => s.entries.map((e) => e.url));
     for (const url of urls) {
       expect(url.startsWith(`${origin}/`), `${url} is not on ${origin}`).toBe(true);
       const path = url.slice(origin.length);

@@ -92,6 +92,35 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   repository variable makes it a note. The smoke asks the same page on the OTA
   instance every night and never runs on live, so a Zitadel upgrade or a
   setting that served the form again on live went unseen until now.
+- **The public site's `llms.txt` links the maintained documentation** (ADR-0029;
+  workplan 0152 T5 (c)): after the site's pages, five sections, *What it is*,
+  *How data moves*, *Security and privacy*, *Self-hosting* and *The Alpha*,
+  with fourteen documents between them, among them the solution architecture,
+  the feature matrix, `SECURITY.md`, the self-host quickstart and the Alpha's
+  workplans. Each is linked by its own first heading, with no notes, at its
+  Markdown on `main` on `raw.githubusercontent.com`, which an assistant reads
+  without running GitHub's page script. The list is `MAINTAINED_DOCS` in
+  `site/maintained-docs.mjs`, and the build reads nothing outside `site/`, as
+  live's deploy needs. `node scripts/llms-docs.mjs --check`, a new step of
+  CI's `docs-hygiene`, which runs on every change, fails a document renamed,
+  removed or retitled without the list, so the pull request breaks rather than
+  the link. `scripts/a-doc-an-assistant-is-sent-to.unit.test.ts` holds it.
+
+### Added
+
+- **The nightly managed gate proves that copying a meeting the target account
+  organises itself invites nobody** (workplan 0141 T9 (b), the organiser
+  canary): each fresh set now carries an event 3 organised by the demo target
+  account's own address, dated next January, with the canary attendee. There
+  the target's server is the organiser's, so without `SCHEDULE-AGENT=CLIENT`
+  the sync's PUT would invite the attendee; event 1's silence held whatever the
+  writer did, because its organiser is a third party. The take-back is not
+  re-proved by it: its DELETE sends `Schedule-Reply: F`, which alone keeps
+  Nextcloud from sending a CANCEL (0103 T5). The demo bring-up gives
+  `tenant-b-target` an address, the seeder refuses before writing when the
+  target has none, when the source shares it, or when either account's
+  addresses cannot be read, and the smoke reads the copy and asks the target's
+  server whether it matches its organiser.
 
 ### Fixed
 
