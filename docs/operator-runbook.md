@@ -801,6 +801,14 @@ gone. Steps 4, 6 and 10 do each of them again; do not skip them.
    ./deploy/compose/trigger-version.sh restore "$C"/triggerdb-<stamp>-before-<tag>.sql.gz --yes
    ```
 
+   **ClickHouse's volume, only when the update moved the ClickHouse pin** (`deploy-live.sh`
+   named that move, and said the copy holds no ClickHouse volume): the copy is not in `$C`,
+   because the copy before an update never takes a volume. It is the one taken by hand before
+   the deploy, `ownpace-live_clickhouse_data_v2_before_26_3` for the move to 26.3: restore it
+   now with the *Back to 26.2* block of `docs/managed-bring-up.md`, *Moving ClickHouse*, with
+   `cd ~/ownpace-live` in place of its first `cd` and without its last line. Without it, step
+   9 starts the older ClickHouse on parts it cannot read.
+
 9. **Deploy the release that ran before**, the note's `from=`, the hold still on. When the copy
    held the task runner's database (step 8 ran), first set live's `TRIGGER_IMAGE_TAG` back to
    the Trigger.dev pin of that release. `.env`'s value wins over the release's own default: left
@@ -836,7 +844,9 @@ gone. Steps 4, 6 and 10 do each of them again; do not skip them.
 11. **Lift the hold, watch a pass complete** (`./deploy/compose/live-pass-check.sh` starts one),
     then `./deploy/compose/copy-before-update.sh delete`: the rollback is the update the copy now
     proves. The box checks leave this copy to you: the since-the-copy file beside it is not in
-    its note.
+    its note. When step 8 restored ClickHouse's volume, its copy goes now too, still by day 6:
+    nothing deletes it on its own. The removal block of `docs/managed-bring-up.md`, *Moving
+    ClickHouse*, with `cd ~/ownpace-live` in place of its first `cd` and `want=26.2.19.43`.
 
 Step 5's command was rehearsed on 2026-09-28 against Postgres 16 with both migration chains
 applied, after a simulated update (a column, a table and a row added): with a session still

@@ -212,11 +212,15 @@
 #       first deploy by this script, it is the only one).
 #
 # It is ONE-WAY when, between any of them and the new tag, a file in either
-# migration chain was added, changed or removed, or the Trigger.dev or
-# identity-provider image pin in managed.yml moved: the API refuses an older
-# build against a migrated schema (migrate.ts), and both planes migrate their
-# own schemas one way (0119, 0135). Otherwise it is REVERSIBLE. A commit this
-# clone does not have cannot be compared, and is called one-way, and so is
+# migration chain was added, changed or removed, or the Trigger.dev,
+# identity-provider or ClickHouse image pin in managed.yml moved: the API
+# refuses an older build against a migrated schema (migrate.ts), both planes
+# migrate their own schemas one way (0119, 0135), and ClickHouse writes parts
+# its older release cannot read (26.3 over 26.2, 0119 §3 item 9). When the
+# ClickHouse pin moves it also says that the copy below holds no ClickHouse
+# volume, which is copied by hand first (docs/managed-bring-up.md, "Moving
+# ClickHouse"). Otherwise it is REVERSIBLE. A commit this clone does not have
+# cannot be compared, and is called one-way, and so is
 # what ran before the log's first line when no deploy has taken yet and that
 # first deploy was one-way over it: the log does not name it. The error errs
 # towards no way back.
@@ -998,7 +1002,7 @@ differences() {
       *) echo "changes ${file}" ;;
     esac
   done <<<"$changed"
-  for line in 'Trigger.dev' 'identity provider:zitadel\/zitadel'; do
+  for line in 'Trigger.dev' 'identity provider:zitadel\/zitadel' 'ClickHouse:clickhouse\/clickhouse-server'; do
     if [ "$line" = Trigger.dev ]; then
       old_pins="$(trigger_pin "$base")"
       new_pins="$(trigger_pin "$new")"
@@ -1043,10 +1047,13 @@ compare_releases() {
   if [ "${#over[@]}" -gt 0 ]; then
     say "one-way: after ${tag}, deploying a tag this stack ran before is no way back."
     printf '    %s\n' "${over[@]}"
-    say "  The API refuses an older build against a migrated schema, and the Trigger.dev and identity-provider planes migrate their own schemas one way (workplan 0146 T5)."
+    say "  The API refuses an older build against a migrated schema, the Trigger.dev and identity-provider planes migrate their own schemas one way (workplan 0146 T5), and ClickHouse writes parts its older release cannot read (0119 §3 item 9)."
     say "  The way back, if this tag misbehaves, is forward: a fix, a new tag, this script. The copy this script takes right before its checkout (copy-before-update.sh) is the only other, until day 6."
+    if grep -q '^  moves the ClickHouse pin ' <<<"$(printf '%s\n' "${over[@]}")"; then
+      say "  That copy holds no ClickHouse volume, and this tag moves the ClickHouse pin: copy the volume by hand before this deploy, as docs/managed-bring-up.md (Moving ClickHouse, on live) says, or the way back starts the older ClickHouse on parts it cannot read."
+    fi
   else
-    say "reversible: over each of those, ${tag} adds, changes or removes no migration file in either chain, and moves neither the Trigger.dev nor the identity-provider pin in managed.yml."
+    say "reversible: over each of those, ${tag} adds, changes or removes no migration file in either chain, and moves none of the Trigger.dev, identity-provider and ClickHouse pins in managed.yml."
     say "  If it misbehaves, ${back:-the release that ran before it} can be deployed again with this script."
   fi
 }

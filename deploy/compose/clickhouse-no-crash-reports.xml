@@ -5,7 +5,9 @@
      parties nobody had named.
 
      The config.xml this image ships (programs/server/config.xml at
-     v26.2.19.43-stable) sets
+     v26.2.19.43-stable; read again for 26.3.62.3 on 2026-11-01, the file in
+     the image itself, which is byte for byte v26.3.60.2-lts's: 26.3.62.3 has
+     no public tag) sets
 
          <send_crash_reports>
              <enabled>true</enabled>
@@ -15,8 +17,11 @@
      so on a crash, and on a logical error, the server posts a report to
      ClickHouse, Inc. The code's own default is off: src/Daemon/CrashWriter.cpp
      reads send_crash_reports.enabled with `false`, and BaseDaemon.cpp reads
-     send_logical_errors the same way. It is the shipped file that turns both
-     on, so a file in config.d, merged over it, turns both off again.
+     send_logical_errors the same way (both unchanged at v26.3.60.2-lts but
+     for a macOS build guard). It is the shipped file that turns both on, so a
+     file in config.d, merged over it, turns both off again. The image's own
+     config.d/docker_related_config.xml, merged too, says nothing of crash
+     reports at either version.
 
      A file of its own rather than a line in clickhouse-override.xml, which is
      upstream's tuning verbatim and says so.

@@ -72,7 +72,7 @@ export interface Row {
   pin?: string;
   newest?: string;
   state: State;
-  /** What the table shows instead of the state, when the state reads wrong (the TypeScript split). */
+  /** What the table shows instead of the state, when the state reads wrong (the TypeScript split; ClickHouse `intended`, or `ahead` of Trigger.dev's pin). */
   shown?: string;
   notes?: string[];
   error?: string;
@@ -160,6 +160,8 @@ export declare function securityFloor(index: unknown, major: number): { version:
 export declare function readTriggerPin(compose: string, workerManifest: string): string;
 export declare function triggerBody(result: Pick<PinResult, 'pin' | 'newest'>): string;
 export declare function clickhouseSupport(securityMd: string, tag: string): string;
+/** A difference from Trigger.dev's ClickHouse pin that is on purpose, for this exact pair of `tag@digest` (0119 §3 item 9), or null. */
+export declare const CLICKHOUSE_INTENDED: { ours: string; theirs: string; why: string } | null;
 
 export declare function zitadelRow(repo: Repo, net: Net): Promise<Row>;
 export declare function triggerRow(repo: Repo, net: Net): Promise<Row>;

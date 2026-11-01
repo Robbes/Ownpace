@@ -4,6 +4,46 @@
 
 ## Status — 2026-11-01 (update this block at the end of every session)
 
+**2026-11-01: ClickHouse 26.3.62.3, option 1 of §3 item 9, built as a draft that waits for the
+owner's decision (security, CVE-2026-116366)**, as draft #1782 on the branch
+`claude/ownpace-public-readiness-y7orc6-clickhouse-26-3`. Not merged and not E2E-tested: E2E
+(managed) moves the OTA stack's ClickHouse one way, so it runs only in the owner's window, after
+the volume copy (`managed-bring-up.md`, *Moving ClickHouse*). The options put to the owner, and
+what was read for option 1, are in §3 item 9; the decision there is still the owner's.
+- **The pin:** `clickhouse/clickhouse-server:26.3.62.3@sha256:de3e47c6…` in `managed.yml`, its
+  index read from Docker Hub's registry and from mirror.gcr.io (the same digest; the body
+  hashes to it), amd64 `6eb24df1…` and arm64 `e96970f8…`, pushed 2026-10-26 15:12 UTC.
+- **What phones home, read again:** `scripts/a-service-that-phones-home.unit.test.ts` pins the
+  new reference, and `clickhouse-no-crash-reports.xml`'s reading names the image's own
+  `config.xml` (byte for byte `v26.3.60.2-lts`'s; 26.3.62.3 has no public tag): crash reports
+  are on there as in 26.2.19.43, and the file still turns both off.
+- **The pin watch:** its ClickHouse row would have kept an issue open for a difference made on
+  purpose. `CLICKHOUSE_INTENDED` records it for the one pair, the stack's 26.3.62.3 against
+  Trigger.dev's 26.2.19.43, tag and digest: `intended` in the table with the reason, no issue,
+  and an issue again, naming the record, when either moves. `a-pin-that-knows-it-is-behind`
+  holds the record to `managed.yml`'s pin and to the comment above it, and the three cases (4
+  new tests).
+- **Live's deploy:** `deploy-live.sh` called a tag that moves only the ClickHouse pin
+  *reversible*; going back from it starts 26.2 on parts 26.3 wrote. It is one-way now, names the
+  move, and says that the copy before the update holds no ClickHouse volume (that copy is three
+  database dumps: the app's, the sign-in service's, `triggerdb` with `--trigger`), so live
+  copies the volume by hand first. `a-deploy-from-a-named-tag` has the case (218 tests).
+  `docs/operator-runbook.md`'s rollback restores the volume before its step 9.
+- **Corrected:** §3 item 9 said 26.2 lacks 26.3.10's lower HTTP header limits; 26.2.17.31
+  backported them, and 26.2.19.43 has them.
+- **Corrected on review, the same day.** Once Trigger.dev moved, the pin watch's issue said to
+  follow upstream's new pin even when it was older than the stack's: a re-pushed 26.2.19.43,
+  which cannot read 26.3's parts, or an older 26.3 patch without the fix. A stack tag newer than
+  upstream's is now `ahead` in the table, and its issue says the older pin is not followed (2
+  new cases; the case of another stack pin reads `ahead` too). In *Moving ClickHouse*: no clock
+  window, but nothing queued or in progress in E2E (managed) before the copy and before the
+  dispatch (the nightlies started between 09:51 and 10:41 UTC, 2026-10-28 to 2026-11-01); the
+  hold lifted before the dispatch, since a run under it fails on `platform_held` as #1755's
+  first did; a way out of a step 3 that stops partway; live's steps take the room check too, the
+  deploy's own pulls and builds counted; and the copy's removal after a rollback, here and in
+  the runbook's step 11, where it is otherwise never deleted. Trigger.dev v4.8.3 has 55
+  ClickHouse migrations, numbered to 056 (029 does not exist), not 56; and §3 item 9 now names
+  the release that has no note, and the setting that would keep 26.2's format.
 **2026-11-01: the Windows payload's `node.exe` is checked against a sum committed here, and that
 sum is the one the release was signed with (alpha.4, supply chain; §2.5's follow-up)**, on the
 branch `claude/ownpace-public-readiness-y7orc6-windows-node-verified`, a draft. Until this,
@@ -2093,7 +2133,7 @@ is who moves it after T1.
 | `redis` | `managed.yml` | 7.4.12-bookworm by digest `b6b6e3dc…` (2026-10-30, a security release, before its floor under the floor's exception: Status, 2026-10-30); before it 7.4.11-bookworm by digest `44960b31…` (2026-10-22; `7.4-bookworm` floating from 2026-10-21, `7-alpine` on Alpine 3.21 before) | 8.8.2-alpine | one major | owner for a major; a 7.4 patch by hand when the pin watch lists it | **§3** — the licence changed at 7.4, which is the line this is pinned on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
 | `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`; since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0); since 2026-10-30, an alpha.3 addition, the webapp's build also puts dompurify 3.4.17's files, fetched by the sha512 npm published, in place of 3.4.13's, which nothing here loads: 2 to 1; since 2026-10-31 (alpha.4, #1763, merged 2026-11-01) both builds also remove npm, which Node bundles and nothing here runs, and the rest of node-gyp's tree in the copy each service runs, under tar's risk: twelve fixable highs in each image (Status, 2026-10-31, later) | v4.8.3 (2026-10-31, before its three-day floor on the owner's waiver: Status, 2026-10-31; v4.8.1 from 2026-10-25, v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.3 (2026-10-30) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; v4.8.3 six Prisma migrations and ClickHouse 055 and 056; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and it reads no file in `deploy/compose` |
 | `triggerdotdev/node` (26-bookworm-build since 2026-10-31; 24-bookworm-build before) | `apps/worker/trigger.config.ts` (`TASK_BUILD_IMAGE`, the tasks' build stage; 0146 T14, #1716) | by digest `86d5a599…`, trigger.dev 4.8.3's `BUILD_IMAGE['node-26']` (Docker Hub's `26-bookworm-build-20261021-000000-40f241b`, pushed 2026-10-22 08:03 UTC; Node 26.12.1; `34a3f455…`, 4.8.1's and 4.8.3's `node-24`, pushed the same morning, before) | what the pinned CLI names for the config's runtime | none while they agree | by hand, with each Trigger.dev move and each Node major, read from the CLI's `deploy/buildImage.js` (the Status entries of 2026-10-26 and 2026-10-31) | not shipped: only `node_modules` and `index.json` leave the stage, so a stale one still builds; its Node is not the tasks' |
-| `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8) | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`); 26.2 is out of ClickHouse's support, **accepted for the Alpha** (§3 item 9). Since 2026-11-01 (CVE-2026-116366, critical, no 26.2 fix) on an internal network only `trigger-api` shares (#1774, merged 2026-11-01, §3 item 9; a container on `ownpace-network` can still join it through the socket proxy until 0136 T4; the version move is the owner's) |
+| `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest; 26.3.62.3-lts by digest `de3e47c6…` in #1782, §3 item 9's option 1, a draft that waits for the owner's decision (2026-11-01) | 26.3.62.3 (2026-10-26), the nearest supported line with the fix for CVE-2026-116366; 26.2 has none | behind, on purpose until the owner decides | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8), unless the pair is recorded as intended (`CLICKHOUSE_INTENDED`, on option 1's branch); one way, the volume copied first (`managed-bring-up.md`, *Moving ClickHouse*, on that branch) | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`); 26.2 is out of ClickHouse's support, **accepted for the Alpha** (§3 item 9). Since 2026-11-01 (CVE-2026-116366, critical, no 26.2 fix) on an internal network only `trigger-api` shares (#1774, merged 2026-11-01, §3 item 9; a container on `ownpace-network` can still join it through the socket proxy until 0136 T4; the version move is the owner's: options 1 to 3 in §3 item 9, 1 built as a draft) |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
 | `haproxy` (the Docker socket proxy's base; `tecnativa/docker-socket-proxy:v0.5.0` itself until 2026-10-30) | `deploy/compose/docker-socket-proxy/Dockerfile`'s FROM, built as `localhost/docker-socket-proxy:<tag>-<hash>` by `managed.yml` (`trigger-docker-proxy`) since 2026-10-30: upstream's v0.5.0 Dockerfile, `haproxy.cfg` and entrypoint byte for byte (commit `2e118a0c`), the base the only change; `pull_policy: never`, built only where the name is missing | 3.4.7-alpine by index digest `2caaf8b1…` (pushed 2026-10-24 17:56 UTC, Alpine 3.24.3, taken 2026-10-30; 0 critical and 0 high built, Security Scan run 41012325563); before it upstream's image, built once on 2026-07-27 on 3.4.2-alpine (Alpine 3.24.1), 0 critical and 6 high on 2026-10-29 | 3.4.7 (2026-10-24); docker-socket-proxy v0.5.0 (2026-07-27) | current | Dependabot `docker`, its own entry, for 3.4 patches and digests; a docker-socket-proxy release by hand, when the pin watch's summary issue lists it (against upstream's tags) | another HAProxy line (3.5, 3.6) is the owner's, taken with a docker-socket-proxy release; Dependabot ignores HAProxy's minors and majors |
 | `chainguard/minio` (0146 T7, #1692; `bitnamilegacy/minio` 2025.5.24-debian-12-r5 until alpha.2) | `managed.yml` (`minio`, `minio-init`) | `latest` by index digest `3b6e40c3…` (built 2026-10-29, pushed as `latest` 2026-10-30 01:13 UTC, taken 2026-10-31, before its floor, under the security-fix exception: it clears CVE-2026-116587, a high in the go-jose 4.1.4 that Wolfi's `minio` 0.20261023.200651-r0 links, fixed in -r1; Status, 2026-10-31). The same fork release as before it, RELEASE.2026-10-23T20-06-51Z, as Wolfi's rebuild -r2; before it `268d68a2…` (built 2026-10-25, taken 2026-10-28, #1726) and `d88920d6…`, the fork's RELEASE.2026-09-22T19-25-18Z, from #1692 | `latest` `3b6e40c3…` (pushed 2026-10-30 01:13 UTC; still `latest` on 2026-10-31) | current | by hand when the pin watch says `latest` was rebuilt, once three days old (0146 T8) | **§3, taken 2026-10-23** — Chainguard's maintained build replaced the frozen Bitnami image in alpha.2 (item 5) |
@@ -2703,6 +2743,66 @@ is beside each; none is urgent tonight.
    that any container on `ownpace-network` can still reach by that Docker API route until
    0136 T4 is built.
 
+   **The options as put to the owner, 2026-11-01:** (1) 26.3.62.3-lts, the nearest supported
+   line that carries the fix, **recommended**; (2) 26.8.36.3-lts; (3) wait for Trigger.dev to
+   move its pin, isolated on 26.2 meanwhile. **The owner's decision: not given yet.** Option 1
+   is built, as draft #1782 that waits for it, on the branch
+   `claude/ownpace-public-readiness-y7orc6-clickhouse-26-3`; it implements option 1 **if** the
+   owner takes it, and is merged only then. It pins
+   `clickhouse/clickhouse-server:26.3.62.3@sha256:de3e47c6…` (amd64 and arm64; Docker Hub push
+   2026-10-26 15:12 UTC, its three-day floor passed 2026-10-29; the digest read from Docker
+   Hub's registry and from mirror.gcr.io, the same), and records the difference from
+   Trigger.dev's pin as intended for that exact pair (`CLICKHOUSE_INTENDED` in
+   `scripts/idp-pin-watch.mjs`), so the pin watch reads `intended` instead of keeping an issue
+   open, and compares again when either side moves. What was read for it, with its evidence in
+   the branch's pull request:
+
+   - **26.3.62.3 has no public source tag** (the newest 26.3 tag is `v26.3.60.2-lts`; the
+     security release came from no public branch), so the image itself was read: its
+     `config.xml` is byte for byte `v26.3.60.2-lts`'s, and its own `config.d` file and
+     entrypoint are 26.2.19.43's.
+   - **Every "Backward Incompatible Change" entry of 26.3 and its patches (the major's ten,
+     and nine patch notes that have such a section), none reaching this stack** but the
+     on-disk one below. `hypothesis` skip indexes, `detectProgrammingLanguage`,
+     `mergeTreeAnalyzeIndexes`, MySQL type mapping and TLS host checks, named-collection
+     overrides, dynamic disks, `File` renames and `CREATE TABLE AS` credentials: Trigger.dev's
+     55 migrations (numbered to 056) and its ClickHouse package use none. `NOT`'s precedence: the package's one
+     `NOT` is `NOT has(…)` with nothing after it, and its query language prints `not(…)`,
+     `isNull(…)`, `like(…)`, `plus(…)` and the like as calls, its one infix form being
+     `x [NOT] BETWEEN a AND b`. Async inserts on by default: already so in 26.2.19.43
+     (`async_insert` true in its `Settings.cpp`), and Trigger.dev passes its own for task runs.
+     Skip-index file names and projection metadata: downgrade only. Every setting the
+     migrations name (`enable_json_type`, obsolete and accepted in both, `ttl_only_drop_parts`,
+     `index_granularity`, `non_replicated_deduplication_window`,
+     `materialize_ttl_recalculate_only`, `exclude_materialize_skip_indexes_on_merge`) exists at
+     `v26.3.60.2-lts`, so a fresh volume migrates; live, still on v4.8.1 until alpha.4, runs
+     055 and 056 under 26.3 if both land in one tag. **26.3.14.49 has no published release
+     note** (no `docs/changelogs` file on master, and no note compares against 26.3.13.31), so
+     its 112 commits were read by their titles instead: bug and security fixes, library bumps
+     (mariadb, libxml2, postgres, krb5, curl), and #99085's setting for a function applied to a
+     `Variant` or `Dynamic` value of the wrong type (throw, the default); none changes a format
+     or the syntax, or removes anything this stack uses.
+   - **The three files mounted into `config.d`:** every name (`logger.level`,
+     `mark_cache_size`, `concurrent_threads_soft_limit_num`, the four profile settings, the
+     eleven system logs) is declared with the same meaning at `v26.3.60.2-lts`, the set of
+     system logs the shipped `config.xml` turns on is 26.2.19.43's, and `send_crash_reports`
+     is the same block, read by the same code. The shipped file's one other change:
+     `allow_impersonate_user` is now `true`, which needs a second user to impersonate; this
+     stack has one.
+   - **On disk:** 26.2 to 26.3 upgrades in place ("Upgrade is safe"); back is not ("downgrade
+     is not", `propagate_types_serialization_versions_to_nested_types`, and Trigger.dev's
+     JSON and `Array(String)` columns are nested types). It is treated as one way: the volume
+     copy taken first is the way back (`managed-bring-up.md`, *Moving ClickHouse*). The setting
+     has an off switch, `propagate_types_serialization_versions_to_nested_types` set to 0 under
+     `merge_tree` in a `config.d` file, with which 26.3 writes nested types as 26.2 does; the
+     two other downgrade-only changes do not reach this schema. Not set, and no downgrade run to
+     prove it: **an option for the owner**, and until it is taken and a 26.3 to 26.2 downgrade is
+     proven with it, the move stays one way.
+   - **Corrected:** "Also not in 26.2: 26.3.10's lower limits on HTTP headers before
+     authentication", above, is wrong. 26.2.17.31 backported them, and 26.2.19.43 carries
+     `http_max_fields` 1000, `http_max_field_name_size` 4096, `http_max_request_header_size`
+     and `http_headers_read_timeout` (its `Settings.cpp` and `SettingsChangesHistory.cpp`).
+
 
 10. **Hardened images (Docker Hardened Images, Chainguard, distroless) — NOT NOW, 2026-10-26.**
     The owner asked whether the stacks already run hardened images. They do in one place:
@@ -2763,7 +2863,8 @@ is beside each; none is urgent tonight.
   pin, 26.2, has been out of ClickHouse's support since 2026-05-21: accepted for the Alpha, with
   its revisit triggers (§3 item 9). One fired on 2026-11-01 (CVE-2026-116366): the server is on
   a network only `trigger-api` shares (#1774, merged 2026-11-01), which a container on `ownpace-network` can
-  still join through the socket proxy until 0136 T4, and the version move waits for the owner.
+  still join through the socket proxy until 0136 T4, and the version move waits for the owner:
+  option 1, 26.3.62.3, is built as draft #1782 for that decision (§3 item 9, 2026-11-01).
 - **Whether Dependabot reads `${TRIGGER_IMAGE_TAG:-v4.5.12}`** correctly is not tested here;
   those two lines are ignored by name, so the answer does not matter for them.
 - **The three actions behind by a patch or a minor** are left to Monday's group rather than
