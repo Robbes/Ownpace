@@ -4,6 +4,49 @@
 
 ## Status — 2026-11-01 (update this block at the end of every session)
 
+**2026-11-01, later: CI's remaining floating downloads are named releases, checked by their
+SHA-256 or digest (alpha.4, supply chain, CI only)**, on the branch
+`claude/ownpace-public-readiness-y7orc6-ci-floating-pins`, the follow-ups §2.5 listed after #1773.
+(1) **stalwart-cli**: `ci.yml`'s integration tests, `e2e.yml` and `e2e-managed.yml` piped
+`releases/latest/download/stalwart-cli-installer.sh` to `sh`. Upstream's installer is
+cargo-dist's: it picks `stalwart-cli-<arch>-unknown-linux-gnu.tar.xz` on glibc 2.35 or later
+(every runner here; `main`'s logs read `downloading stalwart-cli 1.0.14 x86_64-unknown-linux-gnu`
+and `aarch64-unknown-linux-gnu`) and checks it against a sum it carries itself. The three now
+carry one step, word for word, that fetches release v1.0.14's archive for both architectures from
+`github.com/stalwartlabs/cli/releases/download/v1.0.14/`, refuses either whose SHA-256 is not the
+one in its `env:` (x86_64 `78584b23…`, aarch64 `a30f0c1a…`) before anything is unpacked, unpacks
+and installs the native binary only, and fails unless it prints `stalwart-cli 1.0.14`; three
+attempts per download, as before. The sums are the ones the release's `sha256.sum`, each
+archive's `.sha256`, `dist-manifest.json` and its installer all give, and the archives downloaded
+here hash to them (all one host: GitHub's release API and Sigstore's log are not reachable from
+this session, so the second channel is the pull request's own CI printing both sums). v1.0.14's
+assets were uploaded 2026-10-25 18:14 UTC (git tag `c1083410`; npm 18:15 UTC), three days old on
+2026-10-28. The server stays at v0.16.27 (ADR-0022), and `docs/stalwart-integration-fix.md`'s
+"1.0.13" and its install line say what CI runs now. (2) **Atlas's dev database**:
+`docker://postgres/18/dev`, Docker Hub's floating `18`, is now
+`docker://postgres/18.6-alpine@sha256:10a5c69a…/dev`, the stacks' base by tag and digest: Atlas's
+docker driver (`FromURL` and `PostgreSQL` in `cmd/atlas/internal/docker` at v1.3.6's commit
+`ed994a77898e`, read in its source) takes the path's first part as the tag and passes
+`postgres:<tag>` to `docker run`, and the database is the last part because it holds no `:`.
+`a-gate-on-a-version-nothing-ships` holds it to `deploy/compose/postgres/Dockerfile`'s FROM and
+prints the `sed` when Dependabot moves the FROM. (3) **binfmt and BuildKit** in `images.yml`'s
+`build` job: `image: docker.io/tonistiigi/binfmt:qemu-v10.2.3@sha256:400a4873…` (what `latest`
+named, pushed 2026-06-08) and `driver-opts: image=moby/buildkit:v0.33.1@sha256:cec9f139…` (what
+`buildx-stable-1` named, pushed 2026-09-30; v0.34.1 is newer and not in that channel), both read
+from the registry by digest. QEMU now registers on a pull request too, so the pin runs before the
+merge push that publishes. (4) **The second-major fixture** `nextcloud:34.0.5-apache` moves from
+`1f9212ad…` to upstream's rebuild `515c072e…` (Docker Hub push 2026-10-28 16:51 UTC, past its
+floor 2026-10-31 16:51 UTC; the same digest on mirror.gcr.io), whose first fourteen layers are
+the demo's 35.0.2 `e0b1a2af…`'s, with libbrotli's fix for the critical CVE-2026-111497. (5) **The
+pin watch** has three rows more (stalwart-cli against upstream's git tags, every copy together;
+binfmt and BuildKit against the digest their channel names today), and
+`a-pin-that-knows-it-is-behind` holds the stalwart-cli step as it holds Atlas's, by its text
+(`stalwartCliPin`) and by running it with `curl`, `uname` and `sleep` stubbed, and holds every
+workflow to the rule: no `releases/latest`, no `docker://` image without a digest, no action
+image without a release tag and its digest (`actionImages`); each rule mutation-checked.
+**Not proved here:** E2E (self-hosted) and E2E (managed) were not dispatched; their copies of the
+step are the integration tests' word for word, and main's next nights run them first.
+
 **2026-11-01: the Atlas CLI that CI's migration lint runs is release v1.3.6, checked by its
 SHA-256 for both architectures before anything runs it (alpha.4, supply chain)**, on the branch
 `claude/ownpace-public-readiness-y7orc6-atlas-pin`, draft #1773. `migration-lint` downloaded
@@ -1650,7 +1693,7 @@ is who moves it after T1.
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.38.0 (2026-10-30, a day before its floor under the security-fix exception: Status, 2026-10-29 and 2026-10-30; before it v5.37.0 from 2026-10-21) | v5.38.0 (2026-10-28) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
 | `axllent/mailpit` | `managed.yml` | v1.32.0 by digest (2026-10-25, for CVE-2026-111943 in v1.31.6's Go, 0146 T11 (a); v1.31.6 from 2026-10-21, v1.31.1 from T2) | v1.33.0 (2026-10-31, pushed 02:30 UTC), digest `9b3a463b…` | one minor, inside its three-day floor until 2026-11-03 02:30 UTC (Status, 2026-10-31) | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
 | `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 35.0.2-apache by digest `e0b1a2af…`, upstream's rebuild of 2026-10-28 (Docker Hub push 16:51 UTC) on Debian's snapshot of 2026-10-27, with `libbrotli1` 1.1.0-2+deb13u1 for the critical CVE-2026-111497, taken 2026-10-30, a day before its floor, under the security-fix exception (Status, 2026-10-29 and 2026-10-30); before it `89af7ee7…` since 2026-10-28 (T5; #1720, `3d2f129e`, the owner's OK of 2026-10-26 for alpha.3; the OTA volume upgraded by E2E (managed) run 40774398411); before it 34.0.5-apache by digest `1f9212ad…` (2026-10-25, upstream's rebuild of 2026-10-23 with `session.upload_progress.enabled=0`, PHP's mitigation for CVE-2026-115560; `9dbdc711…` from 2026-10-22, `34-apache` floating before, never pulled) | 35.0.2 (2026-10-15) on PHP 8.5.12; 35.0.3 due 2026-11-12 | current | by hand, in its own PR, when the pin watch lists a newer 35.x (34.x before the move) or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and its database and refuses an older image on them, so a bad move is fixed forward or put back from a copy taken before it (`managed-bring-up.md`, *Updating a running deployment* and *A Nextcloud major on the OTA stack*) |
-| `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 34.0.5-apache by digest `1f9212ad…` (PHP 8.5.12) since 2026-10-28, flipped in the pull request that moved the demo (T5; #1720, `3d2f129e`, after E2E (managed) run 40774398411 upgraded the OTA volume); before it 35.0.2-apache by digest `89af7ee7…` from 2026-10-26, 35.0.1 from 2026-10-25 | 34.0.5; 34.0.6 due 2026-11-12 | current | by hand; the pin watch reads no workflow file (§4) | a CI fixture: the other major customers may run (35 while the demo ran 34, 34 since), never deployed |
+| `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 34.0.5-apache by digest `515c072e…` since 2026-11-01, upstream's rebuild of 2026-10-28 (Docker Hub push 16:51 UTC, three days old on 2026-10-31; what `34-apache` named that day, read on mirror.gcr.io and Docker Hub), whose Debian and PHP 8.5.12 layers are the same blobs as the demo's 35.0.2 `e0b1a2af…`, with libbrotli's fix for the critical CVE-2026-111497; before it `1f9212ad…` (PHP 8.5.12) from 2026-10-28, flipped in the pull request that moved the demo (T5; #1720, `3d2f129e`, after E2E (managed) run 40774398411 upgraded the OTA volume); before it 35.0.2-apache by digest `89af7ee7…` from 2026-10-26, 35.0.1 from 2026-10-25 | 34.0.5; 34.0.6 due 2026-11-12 | current | by hand; the pin watch reads no workflow file (§4) | a CI fixture: the other major customers may run (35 while the demo ran 34, 34 since), never deployed |
 | `ghcr.io/robbes/ownpace-selfhost` | `deploy/selfhost/compose.yml` | `edge` | ours | — | `images.yml` | — |
 
 Ignored by name in the new Dependabot entries, so that a green tick cannot make these
@@ -1706,16 +1749,17 @@ so a bump is the newest pnpm 11 that is three days old (`latest-11` once it is),
 |---|---|---|---|---|---|---|
 | Atlas CLI, community edition | `.github/workflows/ci.yml`, `migration-lint`, which runs when a migration or `ci.yml` changes: on hosted amd64 and arm64 for a pull request (since 2026-11-01), on the self-hosted arm64 runner for a push to `main` | v1.3.6 from `atlasbinaries.com` by name, each architecture checked by its SHA-256 before anything is made executable (amd64 `bb6e8167…`, arm64 `723e4cac…`), then by the version it prints; the sums are those of `/atlas` in `arigaio/atlas:1.3.6-community@sha256:66a344bf…`, read through the registry's digests (2026-11-01). Before it `atlas-community-linux-<arch>-latest`, with no version and no checksum: a canary of upstream's master (`v1.3.1-f851298-canary` on `main` at 00:14 UTC that day) | v1.3.6 (Docker Hub, 2026-10-27 13:03 UTC): Ariga's official build (`-tags=official`, version v1.3.6), whose Go build information names upstream commit `ed994a77898e` of 2026-10-21, clean for amd64 while arm64 reports `vcs.modified=true`. Upstream's git tags stop at v1.3.0 (2026-07-29), so the release list is the community image's tags | current | by hand, when the pin watch's summary issue lists a newer `<version>-community` three days old (`scripts/idp-pin-watch.mjs`, its Atlas row): the version and both sums in one pull request, as the step's header says; Dependabot cannot see a URL in a `run:` | CI only, never deployed; a new major is read like any other major, with its lint output compared |
 
-Not in this table yet, and floating: the `stalwart-cli` the integration tests and both E2E gates
-install from its newest release by its installer script (`ci.yml`, `e2e.yml`, `e2e-managed.yml`);
-the dev database Atlas starts for the lint, `docker://postgres/18/dev`, a Docker Hub tag with
-no digest; and the two images `images.yml`'s `build` job pulls through its actions' defaults, in
-the job that holds `packages: write` and `id-token: write` and pushes and signs the published
-images: `docker/setup-qemu-action` runs `docker.io/tonistiigi/binfmt:latest` with `--privileged`
-(on anything but a pull request), and `docker/setup-buildx-action`'s `docker-container` driver pulls
-`moby/buildkit:buildx-stable-1` (both seen in `main`'s run 41266242136, 2026-11-01). The follow-up
-for those two: `image: docker.io/tonistiigi/binfmt:<version>@sha256:…` on the one and
-`driver-opts: image=moby/buildkit:<version>@sha256:…` on the other, each with a pin-watch row.
+| stalwart-cli | `.github/workflows/ci.yml` (`integration-tests`: hosted amd64 and arm64 for a pull request, the self-hosted arm64 runner for a push), `e2e.yml` and `e2e-managed.yml` (the self-hosted runner, nightly and on dispatch): one step, word for word in the three | v1.0.14 from its GitHub release by name, `stalwart-cli-<arch>-unknown-linux-gnu.tar.xz` for x86_64 (`78584b23…`) and aarch64 (`a30f0c1a…`), each checked by its SHA-256 before anything is unpacked, then by the version the binary prints; the sums are the ones the release's `sha256.sum`, each file's `.sha256`, `dist-manifest.json` and its installer all give (2026-11-01). Before it `releases/latest/download/stalwart-cli-installer.sh` piped to `sh`, which installed whatever release was newest (1.0.14 since 2026-10-25, 1.0.13 before) | v1.0.14 (git tag `c1083410`, release assets uploaded 2026-10-25 18:14 UTC, npm 18:15 UTC; three days old on 2026-10-28) | current | by hand, when the pin watch's summary issue lists a newer release three days old (`scripts/idp-pin-watch.mjs`, its stalwart-cli row, against upstream's git tags): the version and both sums in all three workflows in one pull request, as `ci.yml`'s step header says; Dependabot cannot see a URL in a `run:` | CI and the E2E gates only, never deployed. Not the server pin, which is the owner's (ADR-0022) and stays at v0.16.27 |
+| Atlas's dev database (`postgres`) | `.github/workflows/ci.yml`, `migration-lint`'s `--dev-url`, the disposable database Atlas replays both migration chains into | `docker://postgres/18.6-alpine@sha256:10a5c69a…/dev`: the base `deploy/compose/postgres/Dockerfile` builds the stacks' Postgres on, tag and index digest (2026-11-01). Atlas's docker driver (`FromURL` at v1.3.6's commit) takes the path's first part as the tag and runs `docker run … postgres:<tag>`, so a tag carrying `@sha256:` reaches `docker run` whole. Before it `docker://postgres/18/dev`, Docker Hub's floating `18` (Debian) | the stacks' FROM, which Dependabot moves | current | with the FROM: Dependabot's pull request for `deploy/compose/postgres/Dockerfile` fails `a-gate-on-a-version-nothing-ships` until the dev URL moves too, and the failure prints the `sed` | CI only; the major is the deployments' (that guard's older rule) |
+| binfmt (`tonistiigi/binfmt`) | `.github/workflows/images.yml`, `build`: `docker/setup-qemu-action`'s `image` input, run with `--privileged` in the job that holds `packages: write` and `id-token: write`; on a pull request too since 2026-11-01, so a moved pin runs before the merge push that publishes | `qemu-v10.2.3@sha256:400a4873…` (2026-11-01), what `latest` named that day (pushed 2026-06-08). Before it the action's default, `docker.io/tonistiigi/binfmt:latest` | `latest` = `qemu-v10.2.3` | current | by hand, when the pin watch's summary issue says `latest` names another digest (its row compares the two): the tag that carries that digest, three days old | CI only: the emulators the published images' arm64 builds run under |
+| BuildKit (`moby/buildkit`) | `.github/workflows/images.yml`, `build`: `docker/setup-buildx-action`'s `driver-opts: image=…` for its `docker-container` driver, in the same job | `v0.33.1@sha256:cec9f139…` (2026-11-01), what `buildx-stable-1`, buildx's own default and Docker's stable channel, named that day (pushed 2026-09-30). Before it that default | `buildx-stable-1` = v0.33.1; v0.34.1 is the newest release (2026-10-20), not yet in the stable channel | current | by hand, when the pin watch's summary issue says `buildx-stable-1` names another digest: the release that carries it, three days old | CI only: what builds every published image. The channel, not the newest release, because the channel is the build Docker stands behind for buildx |
+
+What these replaced, as recorded here on 2026-11-01 before the change: `stalwart-cli` from its
+newest release by its installer script, the dev database from `docker://postgres/18/dev`, binfmt's
+`latest` with `--privileged` (on anything but a pull request) and BuildKit's `buildx-stable-1` (both
+seen in `main`'s run 41266242136). `a-pin-that-knows-it-is-behind` holds every workflow to the
+rule since then: no code line downloads from `releases/latest`, every `docker://` dev database
+carries a digest, and every image an action runs from an input is a release tag and its digest.
 
 Checked, but only against its own host: the `node.exe` the Windows appliance payload ships
 (`scripts/package-appliance.mjs`, `windows-payload.yml`) is the version `apps/selfhost/Dockerfile`

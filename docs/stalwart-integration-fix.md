@@ -67,8 +67,9 @@ repository:
   capabilities v0.16.10 lists; nothing here reads either.
 
 Proved in the session that made the change, on x86_64 with a local Docker daemon:
-`setup-stalwart.sh` at v0.16.27 with `stalwart-cli` 1.0.13 (the installer's `latest`, which CI
-already ran against v0.16.10): five upserts, then IMAPS and a JMAP session as the plan's
+`setup-stalwart.sh` at v0.16.27 with `stalwart-cli` 1.0.13 (the installer's `latest` that
+morning, which CI had run against v0.16.10; CI took 1.0.14 when it was released at 18:14 UTC that
+day, and has named it since 2026-11-01, by release and SHA-256: "Provisioning" below): five upserts, then IMAPS and a JMAP session as the plan's
 accounts; the eleven integration files that use Stalwart and not Nextcloud
 (`SKIP_NEXTCLOUD=true`), 44 tests passed; the spike, which still reads `recurrenceRules` refused
 on all three rungs (0031 T1 stays parked); and one data volume made at v0.16.10, then taken to
@@ -101,8 +102,18 @@ Phase 2 (serving): new container, SAME config.json, SAME data volume, NO recover
   normal mode → IMAP/JMAP listeners start automatically with the provisioned accounts present.
 
 ## Provisioning (stalwart-cli as a HOST binary, not a container)
-Install: curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/stalwartlabs/cli/releases/latest/download/stalwart-cli-installer.sh | sh
+Install the release CI runs: v1.0.14 since 2026-11-01, `STALWART_CLI_VERSION` in the "Install
+stalwart-cli" step of `ci.yml` (integration-tests), `e2e.yml` and `e2e-managed.yml`, one step word
+for word, which fetches `stalwart-cli-<arch>-unknown-linux-gnu.tar.xz` from that release and
+refuses it unless its SHA-256 is the one pinned beside the version (workplan 0119). Until then
+all three piped `releases/latest/download/stalwart-cli-installer.sh` to `sh`, whatever release
+was newest. By hand, that release's own installer, which checks the archive against the sum it
+carries:
+  curl --proto '=https' --tlsv1.2 -LsSf \
+    https://github.com/stalwartlabs/cli/releases/download/v1.0.14/stalwart-cli-installer.sh | sh
+The CLI is not the server pin above: it moves by hand when the pin watch's summary issue lists a
+newer release (`scripts/idp-pin-watch.mjs`, its stalwart-cli row), the version and both sums in
+all three workflows together.
 Run via child_process.execFile against the container's HOST-MAPPED 8080 port, with an explicit
 timeout. stalwart-cli speaks only JMAP; there is no /auth/login or /api/v1/* REST API.
 

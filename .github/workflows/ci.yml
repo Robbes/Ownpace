@@ -603,9 +603,22 @@ jobs:
           # --latest 999 = lint the whole directory every time. The set is
           # small, the replay is seconds, and it keeps the job deterministic
           # instead of depending on git-base resolution.
+          #
+          # THE DEV DATABASE IS THE POSTGRES THE STACKS RUN, BY DIGEST
+          # (workplan 0119, 2026-11-01): the base `deploy/compose/postgres/
+          # Dockerfile` builds on, tag and index digest. It was
+          # `docker://postgres/18/dev` until then: Docker Hub's floating `18`
+          # (Debian), whichever build it named the day a runner pulled it.
+          # Atlas's docker driver takes the path's first part as the tag and
+          # runs `docker run … postgres:<tag>` (FromURL and PostgreSQL in its
+          # cmd/atlas/internal/docker, at v1.3.6's commit), and a tag that
+          # carries `@sha256:` reaches `docker run` whole. The last part is the
+          # database because it holds no `:`. A Dependabot pull request that
+          # moves that FROM fails `a-gate-on-a-version-nothing-ships` until
+          # this line moves too; the failure prints the `sed` that moves it.
           atlas migrate lint \
             --dir "file://$staged" \
-            --dev-url "docker://postgres/18/dev?search_path=public" \
+            --dev-url "docker://postgres/18.6-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5/dev?search_path=public" \
             --latest 999
 
   lint:
@@ -859,45 +872,101 @@ jobs:
           docker --version
           docker compose version
       - name: Install stalwart-cli
+        # A NAMED RELEASE, CHECKED BY ITS SHA-256 BEFORE ANYTHING RUNS IT
+        # (workplan 0119, 2026-11-01). Until then this piped
+        # `releases/latest/download/stalwart-cli-installer.sh` to `sh`: a
+        # script that names no version until it is fetched, which then
+        # downloaded and installed whatever release was newest that hour (the
+        # installer checks the archive against a sum it carries itself, so
+        # nothing here ever named the bytes). Now it fetches the release below
+        # for BOTH architectures the job runs on (the hosted amd64 and arm64
+        # runners for a pull request, the self-hosted arm64 runner for a push),
+        # refuses either whose SHA-256 is not the one pinned here, and only
+        # then unpacks the native one, installs it, and checks that it calls
+        # itself that release. Both are checked on every run, so a wrong arm64
+        # pin fails its own pull request. ci.yml, e2e.yml and e2e-managed.yml
+        # carry this step word for word; `a-pin-that-knows-it-is-behind` holds
+        # the three together and RUNS this `run:` under bash, with `curl`,
+        # `uname` and `sleep` stubbed, and fails if a wrong sum for either
+        # architecture, or a binary that calls itself another version, does
+        # not stop it with nothing installed.
+        #
+        # WHICH FILE: `stalwart-cli-<arch>-unknown-linux-gnu.tar.xz`, the one
+        # upstream's installer picked on every runner here (glibc 2.35 or
+        # later; the logs read `downloading stalwart-cli 1.0.14
+        # x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`). Its
+        # SHA-256 is the one upstream's `sha256.sum`, the file's own
+        # `.sha256`, `dist-manifest.json` and the installer of that release
+        # all give (read 2026-11-01). Released 2026-10-25 18:14 UTC, past the
+        # three-day floor (CONTRIBUTING.md) on 2026-10-28. The server pin is
+        # another matter (ADR-0022, docs/stalwart-integration-fix.md).
+        #
         # Retried, because a single network blip here fails the whole
         # integration suite before one test has run. 2026-08-04: GitHub's
         # release CDN answered 502 for the binary and the job died at 27
-        # seconds — the second third-party-download flake of that day, after
-        # cosign/Rekor in the images workflow, which is what made this worth
-        # absorbing rather than re-running by hand each time.
+        # seconds. THREE ATTEMPTS, THEN FAIL LOUD: a persistent outage still
+        # fails the job, with the attempts it made stated (hard rule 9), and a
+        # wrong sum is never retried.
         #
-        # THREE ATTEMPTS, THEN FAIL LOUD. The installer's own message says a
-        # failure "may be a standard network error, but it may also indicate
-        # that stalwart-cli's release process is not working", and those need
-        # telling apart: a retry absorbs the first and must not hide the
-        # second. A persistent outage still fails the job, with the attempts
-        # it made stated (hard rule 9).
+        # TO MOVE IT: a newer release three days old, when the pin watch's
+        # summary issue lists it (`scripts/idp-pin-watch.mjs`, its stalwart-cli
+        # row); its two sums from that release's `sha256.sum` (or let this step
+        # fail once: it prints the sum it saw for each architecture); all three
+        # values in all three workflows in one pull request, and the version
+        # line read in both integration-tests legs' logs.
+        env:
+          STALWART_CLI_VERSION: v1.0.14
+          STALWART_CLI_SHA256_AMD64: 78584b238422b0201a7bd223ed95b3c1a7fb8735ad3fa8c884d818a66fd1bc65
+          STALWART_CLI_SHA256_ARM64: a30f0c1a0fb8a7ee8bc42fd0e699802e4c51257a53dbd681c4d91ddb6759792b
         run: |
           set -euo pipefail
-          for attempt in 1 2 3; do
-            if curl --proto '=https' --tlsv1.2 -LsSf \
-                 https://github.com/stalwartlabs/cli/releases/latest/download/stalwart-cli-installer.sh | sh; then
-              installed=yes
-              break
+          case "$(uname -m)" in
+            x86_64) native=x86_64 ;;
+            aarch64) native=aarch64 ;;
+            *) echo "::error::No stalwart-cli is pinned for $(uname -m): only x86_64 and aarch64."; exit 1 ;;
+          esac
+          refused=0
+          for arch in x86_64 aarch64; do
+            if [ "$arch" = x86_64 ]; then pinned="$STALWART_CLI_SHA256_AMD64"; else pinned="$STALWART_CLI_SHA256_ARM64"; fi
+            download="$RUNNER_TEMP/stalwart-cli-$STALWART_CLI_VERSION-$arch-unknown-linux-gnu.tar.xz"
+            rm -f "$download"
+            for attempt in 1 2 3; do
+              if curl --proto '=https' --tlsv1.2 -sSfL -o "$download" \
+                  "https://github.com/stalwartlabs/cli/releases/download/${STALWART_CLI_VERSION}/stalwart-cli-${arch}-unknown-linux-gnu.tar.xz"; then
+                break
+              fi
+              echo "::warning::stalwart-cli $STALWART_CLI_VERSION linux/$arch: download attempt $attempt failed"
+              if [ "$attempt" = 3 ]; then
+                echo "::error::stalwart-cli $STALWART_CLI_VERSION could not be downloaded after 3 attempts. This is not a test failure: no test ran. Either GitHub's release download is unavailable or the release no longer serves this file."
+                exit 1
+              fi
+              # 5s, then 15s: long enough for a CDN blip, short enough that a
+              # real outage is reported inside a minute.
+              sleep $((attempt * 10 - 5))
+            done
+            seen="$(sha256sum "$download")"
+            seen="${seen%% *}"
+            if [ "$seen" = "$pinned" ]; then
+              echo "stalwart-cli $STALWART_CLI_VERSION linux/$arch: sha256 $seen, as pinned."
+            else
+              echo "::error::stalwart-cli $STALWART_CLI_VERSION linux/$arch is not the build this workflow pins: its sha256 is $seen, and the pin is $pinned. Nothing was run."
+              refused=1
             fi
-            echo "::warning::stalwart-cli install attempt $attempt failed"
-            # 5s, then 15s. Long enough for a CDN blip, short enough that a
-            # real outage is reported inside a minute rather than five.
-            [ "$attempt" -lt 3 ] && sleep $((attempt * 10 - 5))
           done
-          if [ "${installed:-no}" != yes ]; then
-            echo "::error::stalwart-cli could not be installed after 3 attempts."
-            echo "This is not a test failure: no test ran. Either the download is"
-            echo "unavailable (check https://github.com/stalwartlabs/cli/releases)"
-            echo "or its release process is broken."
+          [ "$refused" = 0 ] || exit 1
+          unpacked="$RUNNER_TEMP/stalwart-cli-unpacked"
+          rm -rf "$unpacked"
+          mkdir -p "$unpacked" "$RUNNER_TEMP/stalwart-cli-bin"
+          tar -xJf "$RUNNER_TEMP/stalwart-cli-$STALWART_CLI_VERSION-$native-unknown-linux-gnu.tar.xz" -C "$unpacked" \
+            --no-same-owner --strip-components 1 "stalwart-cli-$native-unknown-linux-gnu/stalwart-cli"
+          install -m 0755 "$unpacked/stalwart-cli" "$RUNNER_TEMP/stalwart-cli-bin/stalwart-cli"
+          echo "$RUNNER_TEMP/stalwart-cli-bin" >> "$GITHUB_PATH"
+          said="$("$RUNNER_TEMP/stalwart-cli-bin/stalwart-cli" --version)"
+          echo "$said"
+          if [ "$said" != "stalwart-cli ${STALWART_CLI_VERSION#v}" ]; then
+            echo "::error::The stalwart-cli this step installed does not call itself ${STALWART_CLI_VERSION#v}."
             exit 1
           fi
-          # Add cargo bin to PATH for this step and future steps
-          export PATH="$HOME/.cargo/bin:$PATH"
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-          # Verify installation
-          which stalwart-cli
-          stalwart-cli --version
       - name: Run integration tests (Testcontainers spins up Postgres/Stalwart/Nextcloud)
         id: integration-tests
         run: pnpm test:integration

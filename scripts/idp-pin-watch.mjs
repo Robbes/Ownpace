@@ -70,7 +70,13 @@
  *                      copy together, and the Atlas release ci.yml's
  *                      migration-lint downloads and checks by its sha256
  *                      (2026-11-01), against the community image's tags on
- *                      Docker Hub (`ATLAS_WORKFLOW` says why not git's).
+ *                      Docker Hub (`ATLAS_WORKFLOW` says why not git's); the
+ *                      stalwart-cli release the integration tests and both
+ *                      E2E gates install the same way, its three copies
+ *                      together, against upstream's git tags; and the binfmt
+ *                      and BuildKit images images.yml's build job names in its
+ *                      actions' inputs, each against the digest of the channel
+ *                      its action ran before (`ACTION_IMAGES`).
  *                      cosign-installer's default is a status line only. Any
  *                      other image a script in deploy/compose runs is not
  *                      compared; today there is none (db-roles.sh reads its
@@ -225,6 +231,45 @@ export const ATLAS_ARCHES = ['amd64', 'arm64'];
 /** Said beside the Atlas row when it is behind: the three values move together. */
 export const ATLAS_NOTE =
   "move ATLAS_VERSION and both ATLAS_SHA256_* in ci.yml's install step together (it says where each sum is read), once the release is three days old";
+
+/**
+ * The stalwart-cli the integration tests and both E2E gates install (workplan
+ * 0119, 2026-11-01): a named release, with a SHA-256 for each architecture a
+ * runner here has, set in the `env:` of one step that the three workflows
+ * carry word for word. Until that day each piped
+ * `releases/latest/download/stalwart-cli-installer.sh` to `sh`, which named no
+ * version until it ran. Upstream tags every release in git, so the row
+ * compares the release with upstream's git tags. Dependabot cannot see a URL
+ * in a `run:`. The server is another pin, and the owner's (STALWART_RULE).
+ */
+export const STALWART_CLI_FILES = ['.github/workflows/ci.yml', '.github/workflows/e2e.yml', '.github/workflows/e2e-managed.yml'];
+export const STALWART_CLI_HOST = 'https://github.com/stalwartlabs/cli/releases/download/';
+export const STALWART_CLI_UPSTREAM = 'https://github.com/stalwartlabs/cli';
+/** Each architecture's sum, by the name `uname -m` gives it, which is the release's own. */
+export const STALWART_CLI_ARCHES = { AMD64: 'x86_64', ARM64: 'aarch64' };
+/** Said beside the stalwart-cli row when it is behind: the three values move together, in all three files. */
+export const STALWART_CLI_NOTE =
+  "move STALWART_CLI_VERSION and both STALWART_CLI_SHA256_* together in the install step of ci.yml, e2e.yml and e2e-managed.yml (ci.yml's says where each sum is read), once the release is three days old";
+
+/**
+ * The images two actions in images.yml run, named in their inputs (workplan
+ * 0119, 2026-11-01), each with the channel it ran before it was named:
+ * setup-qemu-action's `image` defaults to binfmt's `latest`, and buildx starts
+ * BuildKit from `buildx-stable-1` for the `docker-container` driver when no
+ * `image=` driver option names one (buildx's own default, so no action.yml
+ * says it). Dependabot moves the actions and never an image in their inputs.
+ * The row compares the pin's digest with the one the channel names today, as
+ * the `latest` of a store is compared, because the channel is what says which
+ * build upstream stands behind.
+ */
+export const ACTION_IMAGES_WORKFLOW = '.github/workflows/images.yml';
+export const ACTION_IMAGES = [
+  { action: 'docker/setup-qemu-action', input: 'image', repo: 'tonistiigi/binfmt', channel: 'latest' },
+  { action: 'docker/setup-buildx-action', input: 'driver-opts', option: 'image', repo: 'moby/buildkit', channel: 'buildx-stable-1' },
+];
+/** Said beside an action's image whose channel names another build. */
+export const channelNote = (spec) =>
+  `\`${spec.channel}\`, the channel ${spec.action} ran before its image was named, names another build: find the release tag that carries that digest, three days old, and move \`${spec.input}\` in images.yml, tag and digest, in a pull request whose build legs run it`;
 
 const IMAGE_LINE = /^\s*image:\s*ghcr\.io\/zitadel\/zitadel:(\S+)\s*$/gm;
 const RELEASE = /^v(\d+)\.(\d+)\.(\d+)$/;
@@ -540,6 +585,44 @@ export function stepsUsing(workflow, action) {
 }
 
 /**
+ * The one step of `workflow` whose code downloads from `host` (a pinned
+ * download, workplan 0119, 2026-11-01): its first line's index, its code
+ * lines (no blank line, no comment), the same with each `\\`-continued line
+ * joined to the next, and the values its `env:` gives the names that start
+ * with `prefix`. Read by indentation, as `stepsUsing` is: the step runs from
+ * its `- ` opener to the next one at that column. Throws when no step, or more
+ * than one, downloads from `host`.
+ */
+function downloadStep(workflow, host, prefix, tool) {
+  const lines = workflow.split('\n');
+  const isCode = (text) => text.trim() !== '' && !text.trim().startsWith('#');
+  const urls = lines.flatMap((text, i) => (isCode(text) && text.includes(host) ? [i] : []));
+  if (urls.length === 0) throw new Error(`no step downloads from ${host}`);
+  // The step around the first download: up to its `- ` opener, down to the next one at that column.
+  let start = urls[0];
+  while (start > 0 && !/^\s*- (?:name|uses|run|id):/.test(lines[start])) start--;
+  const indent = /^(\s*)- /.exec(lines[start])?.[1] ?? '';
+  let end = start + 1;
+  while (end < lines.length && !lines[end].startsWith(`${indent}- `) && !(isCode(lines[end]) && lines[end].search(/\S/) < indent.length)) end++;
+  if (urls.some((i) => i >= end)) throw new Error(`more than one step downloads from ${host}; one installs ${tool}`);
+  const code = lines.slice(start, end).filter(isCode);
+  const name = new RegExp(`^\\s+(${prefix}[A-Z0-9_]+):\\s*['"]?([^'"\\s#]+)['"]?\\s*(?:#.*)?$`);
+  const env = Object.fromEntries(
+    code.flatMap((text) => {
+      const m = name.exec(text);
+      return m ? [[m[1], m[2]]] : [];
+    }),
+  );
+  const logical = [];
+  for (const text of code) {
+    const last = logical.length - 1;
+    if (last >= 0 && logical[last].endsWith('\\')) logical[last] = `${logical[last].slice(0, -1).trimEnd()} ${text.trim()}`;
+    else logical.push(text.trim());
+  }
+  return { start, code, logical, env };
+}
+
+/**
  * The Atlas `migration-lint` installs, read from the one step of `workflow`
  * that downloads from ATLAS_HOST: `{ version, sha256: { amd64, arm64 }, line }`.
  * Throws for a step not of the shape it must have (workplan 0119,
@@ -555,25 +638,7 @@ export function stepsUsing(workflow, action) {
  * version with this.
  */
 export function atlasPin(workflow) {
-  const lines = workflow.split('\n');
-  const isCode = (text) => text.trim() !== '' && !text.trim().startsWith('#');
-  const urls = lines.flatMap((text, i) => (isCode(text) && text.includes(ATLAS_HOST) ? [i] : []));
-  if (urls.length === 0) throw new Error(`no step downloads from ${ATLAS_HOST}`);
-  // The step around the first download: up to its `- ` opener, down to the next one at that column.
-  let start = urls[0];
-  while (start > 0 && !/^\s*- (?:name|uses|run|id):/.test(lines[start])) start--;
-  const indent = /^(\s*)- /.exec(lines[start])?.[1] ?? '';
-  let end = start + 1;
-  while (end < lines.length && !lines[end].startsWith(`${indent}- `) && !(isCode(lines[end]) && lines[end].search(/\S/) < indent.length)) end++;
-  if (urls.some((i) => i >= end)) throw new Error(`more than one step downloads from ${ATLAS_HOST}; one installs Atlas`);
-  const step = lines.slice(start, end);
-  const code = step.filter(isCode);
-  const env = Object.fromEntries(
-    code.flatMap((text) => {
-      const m = /^\s+(ATLAS_[A-Z0-9_]+):\s*['"]?([^'"\s#]+)['"]?\s*(?:#.*)?$/.exec(text);
-      return m ? [[m[1], m[2]]] : [];
-    }),
-  );
+  const { start, code, logical, env } = downloadStep(workflow, ATLAS_HOST, 'ATLAS_', 'Atlas');
   const version = env.ATLAS_VERSION;
   if (!/^v\d+\.\d+\.\d+$/.test(version ?? '')) {
     throw new Error(`the Atlas step names no release in ATLAS_VERSION (${version ?? 'unset'}); a release is v<major>.<minor>.<patch>`);
@@ -593,12 +658,6 @@ export function atlasPin(workflow) {
   // Every fetch is the release from ATLAS_HOST, into the file the loop hashes;
   // the sum it is compared with is the pinned one; and what is made
   // executable is that same file, for the native architecture.
-  const logical = [];
-  for (const text of code) {
-    const last = logical.length - 1;
-    if (last >= 0 && logical[last].endsWith('\\')) logical[last] = `${logical[last].slice(0, -1).trimEnd()} ${text.trim()}`;
-    else logical.push(text.trim());
-  }
   for (const text of code) {
     for (const [url] of text.matchAll(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'`]+/gi)) {
       if (!url.startsWith(ATLAS_HOST)) throw new Error(`the Atlas step fetches from somewhere other than ${ATLAS_HOST}: ${url}`);
@@ -638,6 +697,129 @@ export function atlasPin(workflow) {
     throw new Error('the Atlas step never checks that what it installed calls itself the release named');
   }
   return { version, sha256, line: start + 1 };
+}
+
+/**
+ * The stalwart-cli a workflow installs, read from its one step that downloads
+ * from STALWART_CLI_HOST: `{ version, sha256: { amd64, arm64 }, line }`
+ * (workplan 0119, 2026-11-01). Throws for a step not of the shape it must
+ * have: an installer piped to a shell, or anything from `releases/latest`; a
+ * fetch from anywhere but STALWART_CLI_HOST, of a name without
+ * `${STALWART_CLI_VERSION}`, or into anything but the file it hashes; a
+ * version that is not a release (`v1.0.14`); an architecture with no 64-digit
+ * sum, or one sum for both; a sum compared with anything but the pinned one in
+ * `env:`; an archive unpacked that is not the native one hashed, or a file
+ * made executable (`chmod`, `install -m`) that is not the binary unpacked from
+ * it; anything unpacked or made executable before a `sha256sum` has read the
+ * downloads with an `exit 1` between; or no check that the binary calls itself
+ * the release named. Text only, like `atlasPin`: the guard also runs the
+ * step's `run:` under bash. The stalwart-cli row reads its version with this.
+ */
+export function stalwartCliPin(workflow) {
+  // An installer piped to a shell, or `releases/latest`, anywhere in the file: what this replaced.
+  for (const text of workflow.split('\n').filter((line) => !/^\s*#/.test(line))) {
+    if (/stalwartlabs\/cli\/releases\/latest\b|stalwart-cli-installer/.test(text)) {
+      throw new Error(`stalwart-cli is installed from its newest release or by its installer, not a named release checked by its sha256: ${text.trim()}`);
+    }
+  }
+  const { start, code, logical, env } = downloadStep(workflow, STALWART_CLI_HOST, 'STALWART_CLI_', 'stalwart-cli');
+  const version = env.STALWART_CLI_VERSION;
+  if (!/^v\d+\.\d+\.\d+$/.test(version ?? '')) {
+    throw new Error(`the stalwart-cli step names no release in STALWART_CLI_VERSION (${version ?? 'unset'}); a release is v<major>.<minor>.<patch>`);
+  }
+  const sha256 = {};
+  for (const [name, arch] of Object.entries(STALWART_CLI_ARCHES)) {
+    const sum = env[`STALWART_CLI_SHA256_${name}`];
+    if (!/^[0-9a-f]{64}$/.test(sum ?? '')) throw new Error(`the stalwart-cli step pins no sha256 for linux/${arch} (STALWART_CLI_SHA256_${name})`);
+    sha256[name.toLowerCase()] = sum;
+  }
+  if (sha256.amd64 === sha256.arm64) throw new Error('the stalwart-cli step pins one sha256 for two architectures');
+  for (const text of logical) {
+    if (/\|\s*(?:sudo\s+)?(?:ba|da|z)?sh\b/.test(text)) throw new Error(`the stalwart-cli step pipes something to a shell: ${text}`);
+    for (const [url] of text.matchAll(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'`]+/gi)) {
+      if (!url.startsWith(STALWART_CLI_HOST)) throw new Error(`the stalwart-cli step fetches from somewhere other than ${STALWART_CLI_HOST}: ${url}`);
+      if (!url.startsWith(`${STALWART_CLI_HOST}\${STALWART_CLI_VERSION}/`)) {
+        throw new Error(`the stalwart-cli step downloads a name with no version: ${url} (it must be under ${STALWART_CLI_HOST}\${STALWART_CLI_VERSION}/)`);
+      }
+    }
+  }
+  const archive = (arch) => `"$RUNNER_TEMP/stalwart-cli-$STALWART_CLI_VERSION-$${arch}-unknown-linux-gnu.tar.xz"`;
+  const has = (statement) => logical.some((text) => text === statement || text.startsWith(`${statement};`));
+  if (!has(`download=${archive('arch')}`)) throw new Error(`the stalwart-cli step does not download each architecture to download=${archive('arch')}`);
+  for (const text of logical.filter((t) => /\b(?:curl|wget)\b/.test(t))) {
+    if (!text.includes(STALWART_CLI_HOST) || !/\s-o "\$download"\s/.test(text)) {
+      throw new Error(`the stalwart-cli step fetches something that is not the release into "$download": ${text}`);
+    }
+  }
+  for (const text of logical.filter((t) => /\bsha256sum\b/.test(t))) {
+    if (text !== 'seen="$(sha256sum "$download")"') throw new Error(`the stalwart-cli step hashes something other than "$download": ${text}`);
+  }
+  const pins = [...code.join('\n').matchAll(/\bpinned=([^\s;]*)/g)].map((m) => m[1]);
+  const fromEnv = Object.keys(STALWART_CLI_ARCHES).map((name) => `"$STALWART_CLI_SHA256_${name}"`);
+  if (pins.some((value) => !fromEnv.includes(value)) || !fromEnv.every((value) => pins.includes(value))) {
+    throw new Error(`the stalwart-cli step's pinned sum is not only ${fromEnv.join(' or ')}: pinned=${pins.join(', pinned=') || 'nothing'}`);
+  }
+  if (!has('if [ "$seen" = "$pinned" ]; then')) throw new Error('the stalwart-cli step never compares the sum it read ("$seen") with the pinned one ("$pinned")');
+  // `tar` as a command: the archive's own name ends in `.tar.xz`.
+  const TAR = /(?:^|[;&|(]\s*)tar\s/;
+  for (const text of logical.filter((t) => TAR.test(t.trim()))) {
+    if (!text.startsWith(`tar -xJf ${archive('native')} `)) throw new Error(`the stalwart-cli step unpacks something other than the archive it hashed, ${archive('native')}: ${text}`);
+  }
+  for (const text of logical.filter((t) => /\bchmod\b|\binstall\s+-m\b/.test(t))) {
+    const made = /\bchmod\s+\S+\s+(\S+)/.exec(text)?.[1] ?? /\binstall\s+-m\s+\S+\s+(\S+)/.exec(text)?.[1];
+    if (made !== '"$unpacked/stalwart-cli"') throw new Error(`the stalwart-cli step makes executable something other than the binary it unpacked from the archive it hashed: ${text}`);
+  }
+  const first = (re) => code.findIndex((text) => re.test(text));
+  const read = first(/\bsha256sum\b/);
+  const unpacked = code.findIndex((text) => TAR.test(text.trim()) || /\bchmod\b|\binstall\s+-m\b/.test(text));
+  if (read < 0) throw new Error('the stalwart-cli step never reads a sha256 of what it downloads');
+  if (unpacked < 0) throw new Error('the stalwart-cli step unpacks nothing, so it cannot be what installs stalwart-cli');
+  if (!(read < unpacked && code.slice(read, unpacked).some((text) => /\bexit 1\b/.test(text)))) {
+    throw new Error('the stalwart-cli step unpacks or makes executable its download before its sha256 is read and a mismatch has stopped it');
+  }
+  if (!code.some((text) => text.includes('"stalwart-cli ${STALWART_CLI_VERSION#v}"'))) {
+    throw new Error('the stalwart-cli step never checks that what it installed calls itself the release named');
+  }
+  return { version, sha256, line: start + 1 };
+}
+
+/** A tag that names a release: three numbers, and no channel word. */
+const RELEASE_TAG = /\d+\.\d+\.\d+/;
+const CHANNEL_WORD = /(?:^|[-_.])(?:latest|stable|nightly|master|main|edge|dev|rc\d*|beta|alpha)(?=$|[-_.\d])/i;
+
+/**
+ * Every image an action in `workflow` runs from an input (workplan 0119,
+ * 2026-11-01): ACTION_IMAGES' actions, and any other step whose `with:` has an
+ * `image` input or an `image=` in `driver-opts`. Each as
+ * `{ action, input, ref, repo, tag, digest }`. Throws for one of those actions
+ * left to its default (setup-buildx-action's only when its driver is the
+ * default `docker-container`), and for any image not named by a release tag
+ * and its digest: `latest`, `buildx-stable-1` or a bare digest are channels,
+ * which run whatever upstream pushed under them last.
+ */
+export function actionImages(workflow) {
+  const found = [];
+  const uses = [...new Set([...workflow.matchAll(/^\s*(?:- )?uses:\s*([A-Za-z0-9_.-]+\/[A-Za-z0-9_./-]+)@[0-9a-f]{40}/gm)].map((m) => m[1]))];
+  for (const action of uses) {
+    const spec = ACTION_IMAGES.find((s) => s.action === action);
+    for (const step of stepsUsing(workflow, action)) {
+      const opts = (step.with['driver-opts'] ?? '').split(/[,\n]/).map((o) => o.trim());
+      const named = [
+        ...(step.with.image !== undefined ? [{ input: 'image', ref: step.with.image }] : []),
+        ...opts.filter((o) => o.startsWith('image=')).map((o) => ({ input: 'driver-opts', ref: o.slice('image='.length) })),
+      ];
+      const defaulted = spec && named.length === 0 && (spec.action !== 'docker/setup-buildx-action' || ['', 'docker-container'].includes(step.with.driver ?? ''));
+      if (defaulted) throw new Error(`${action} names no image in \`${spec.input}\`, so it runs its default, \`${spec.repo}:${spec.channel}\``);
+      for (const { input, ref } of named) {
+        const image = parseRef(ref);
+        if (!/^sha256:[0-9a-f]{64}$/.test(image.digest) || !RELEASE_TAG.test(image.tag) || CHANNEL_WORD.test(image.tag)) {
+          throw new Error(`${action} runs ${ref} (\`${input}\`), which is not a release tag and its digest: <image>:<x.y.z>@sha256:<64 hex>`);
+        }
+        found.push({ action, input, ...image });
+      }
+    }
+  }
+  return found;
 }
 
 /** The default an action's `action.yml` gives one of its `inputs:`. */
@@ -1178,6 +1360,34 @@ export async function routineRows(repo, net) {
     const state = stateOf(version, newest);
     return { pin: version, newest, state, ...(state === 'behind' ? { notes: [ATLAS_NOTE] } : {}) };
   }]);
+
+  // stalwart-cli: what the integration tests and both E2E gates install, by
+  // release and its sha256 (2026-11-01), every copy together, against
+  // upstream's git tags.
+  jobs.push(['stalwart-cli', STALWART_CLI_FILES.join(', '), async () => {
+    const pins = STALWART_CLI_FILES.map((file) => stalwartCliPin(need(repo, file)));
+    const versions = [...new Set(pins.map((p) => p.version))].sort(compareParts);
+    const disagree = versions.length > 1 || new Set(pins.map((p) => `${p.sha256.amd64} ${p.sha256.arm64}`)).size > 1;
+    const newest = newestLike(versions[0], tagsOf(await net.lsRemote(STALWART_CLI_UPSTREAM)));
+    const state = disagree ? 'behind' : stateOf(versions[0], newest);
+    const notes = [...(disagree ? ['the copies disagree'] : []), ...(state === 'behind' ? [STALWART_CLI_NOTE] : [])];
+    return { pin: versions.join(' / '), newest, state, ...(notes.length ? { notes } : {}) };
+  }]);
+
+  // binfmt and BuildKit: the images images.yml's build job runs through its
+  // actions' inputs (2026-11-01), against the build the channel each action
+  // ran before names today.
+  for (const spec of ACTION_IMAGES) {
+    jobs.push([spec.repo, ACTION_IMAGES_WORKFLOW, async () => {
+      const named = actionImages(need(repo, ACTION_IMAGES_WORKFLOW)).filter((i) => i.action === spec.action && registryOf(i.repo).name === spec.repo);
+      if (named.length === 0) throw new Error(`${ACTION_IMAGES_WORKFLOW} runs no ${spec.action} that names ${spec.repo}`);
+      const pins = [...new Set(named.map((i) => `${i.tag}@${i.digest}`))];
+      if (pins.length > 1) throw new Error(`${ACTION_IMAGES_WORKFLOW} names ${spec.repo} as ${pins.join(' and ')}; one build`);
+      const now = await registryDigest(net, spec.repo, spec.channel);
+      const state = now === named[0].digest ? 'current' : 'behind';
+      return { pin: pins[0], newest: `${spec.channel}@${now}`, state, ...(state === 'behind' ? { notes: [channelNote(spec)] } : {}) };
+    }]);
+  }
 
   const rows = [];
   for (const [name, where, job] of jobs) rows.push(await settle(job, { name, where }));

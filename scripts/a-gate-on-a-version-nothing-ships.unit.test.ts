@@ -152,6 +152,15 @@
  * deploys can pass a migration the real one refuses, and refuse one it
  * accepts. (PGlite, the appliance's embedded alternative, carries its own
  * engine version inside an npm package; it is not what this compares.)
+ *
+ * The major was right and the build still floated (workplan 0119,
+ * 2026-11-01): `docker://postgres/18/dev` is Docker Hub's `18`, Debian, a
+ * different build every time upstream rebuilt it, while the stacks build on
+ * `postgres:18.6-alpine` by its index digest. So the dev URL names that base
+ * itself, tag and digest (Atlas's docker driver hands the whole tag to `docker
+ * run`), and this holds it to `deploy/compose/postgres/Dockerfile`'s FROM: a
+ * Dependabot pull request that moves the FROM fails here, printing the `sed`
+ * that moves the dev URL with it.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -162,7 +171,7 @@ import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { resolveBuildRuntime } from '@trigger.dev/core/v3/build';
 import type { BuildContext, BuildExtension, BuildLayer } from '@trigger.dev/core/v3/build';
-import { TASK_ON_API_IMAGE } from './idp-pin-watch.mjs';
+import { TASK_ON_API_IMAGE, dockerfileBase } from './idp-pin-watch.mjs';
 import taskConfig from '../apps/worker/trigger.config.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -343,6 +352,29 @@ describe('every Trivy the scans run is one somebody named', () => {
  */
 const DEPLOYMENTS = ['deploy/compose/managed.yml', 'deploy/selfhost/compose.yml'];
 
+/** The managed stacks' Postgres build, whose FROM is the dev database migration-lint replays onto. */
+const STACKS_POSTGRES = 'deploy/compose/postgres/Dockerfile';
+
+/**
+ * What is wrong with ci.yml's dev databases, against the FROM of the
+ * Dockerfile the stacks build their Postgres from: each must be that base's
+ * tag and index digest, and there must be one. Empty when right.
+ */
+function devUrlFaults(ci: string, dockerfile: string): string[] {
+  const base = dockerfileBase(dockerfile);
+  if (base.repo !== 'postgres') return [`${STACKS_POSTGRES} builds on ${base.ref}, not the official postgres image`];
+  const pinned = `${base.tag}@${base.digest}`;
+  const tags = [...ci.matchAll(/--dev-url\s+"docker:\/\/postgres\/([^/"\s]+)\/[^"]*"/g)].map((m) => m[1]!);
+  if (tags.length === 0) return ['ci.yml names no --dev-url "docker://postgres/…"'];
+  return tags
+    .filter((tag) => tag !== pinned)
+    .map(
+      (tag) =>
+        `migration-lint's dev database postgres:${tag} is not ${STACKS_POSTGRES}'s FROM (${base.ref}). Move it with: ` +
+        `sed -i 's#docker://postgres/[^/"]*/dev#docker://postgres/${pinned}/dev#' .github/workflows/ci.yml`,
+    );
+}
+
 describe('migration-lint replays onto the Postgres major the deployments run', () => {
   const deployed = DEPLOYMENTS.flatMap((file) => {
     const image = (parseYaml(read(file)) as { services?: { postgres?: { image?: unknown } } }).services?.postgres
@@ -352,9 +384,9 @@ describe('migration-lint replays onto the Postgres major the deployments run', (
     const m = typeof image === 'string' ? /^(?:localhost\/)?postgres:(\d+)[.\-@]/.exec(image) : null;
     return m ? [{ file, major: Number(m[1]) }] : [];
   });
-  const linted = [...read('.github/workflows/ci.yml').matchAll(/--dev-url\s+"docker:\/\/postgres\/(\d+)\//g)].map(
-    (m) => Number(m[1]),
-  );
+  // The tag part of each dev URL: `18.6-alpine@sha256:…` since 2026-11-01, `18` before.
+  const devTags = [...read('.github/workflows/ci.yml').matchAll(/--dev-url\s+"docker:\/\/postgres\/(\d[^/"\s]*)\/[^"]*"/g)].map((m) => m[1]!);
+  const linted = devTags.map((tag) => Number(/^\d+/.exec(tag)![0]));
 
   it('found the deployments and the lint', () => {
     // Vacuity guard: an image line or a dev-url rewritten past these regexes
@@ -376,6 +408,26 @@ describe('migration-lint replays onto the Postgres major the deployments run', (
       linted.filter((major) => major !== shipped),
       `the deployments run postgres ${shipped}; migration-lint replays the chain on another major`,
     ).toEqual([]);
+  });
+
+  it('every dev database is the image the stacks build on, by tag and digest (0119, 2026-11-01)', () => {
+    expect(devUrlFaults(read('.github/workflows/ci.yml'), read(STACKS_POSTGRES))).toEqual([]);
+  });
+
+  it('refuses a dev URL that floats, or names another build than the stacks run, each by a mutation of the real line', () => {
+    const ci = read('.github/workflows/ci.yml');
+    const base = dockerfileBase(read(STACKS_POSTGRES));
+    const pinned = `${base.tag}@${base.digest}`;
+    expect(ci, `ci.yml's dev URL is not docker://postgres/${pinned}/dev`).toContain(`docker://postgres/${pinned}/dev`);
+    for (const tag of ['18', '18-alpine', base.tag, `18.6@${base.digest}`, `${base.tag}@sha256:${'0'.repeat(64)}`]) {
+      const faults = devUrlFaults(ci.replace(`docker://postgres/${pinned}/dev`, `docker://postgres/${tag}/dev`), read(STACKS_POSTGRES));
+      expect(faults.join('\n'), tag).toMatch(/is not deploy\/compose\/postgres\/Dockerfile's FROM .*sed -i/);
+    }
+    // And the other way round: the FROM moved by Dependabot, the dev URL left behind.
+    const moved = read(STACKS_POSTGRES).replace(base.digest, `sha256:${'1'.repeat(64)}`);
+    expect(devUrlFaults(ci, moved).join('\n')).toMatch(new RegExp(`docker://postgres/${base.tag}@sha256:${'1'.repeat(64)}/dev`));
+    // No dev URL at all is not a pass.
+    expect(devUrlFaults(ci.replaceAll('--dev-url', '--url'), read(STACKS_POSTGRES))).toEqual(['ci.yml names no --dev-url "docker://postgres/…"']);
   });
 });
 

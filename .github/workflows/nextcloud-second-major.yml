@@ -94,15 +94,20 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      # 34.0.5-apache by upstream's rebuild of 2026-10-23 17:17 UTC (also what
-      # `34-apache` named on 2026-10-26), the digest the demo, the dev stack and
-      # the integration tier pinned before they moved to 35.0.2 (#1678, 0119
-      # §4), on PHP 8.5.12 like 35.0.2's. The leg ran 35.0.1 from 2026-10-25
+      # 34.0.5-apache by upstream's rebuild of 2026-10-28 (Docker Hub push
+      # 16:51 UTC, three days old on 2026-10-31; what `34-apache` and `34.0.5`
+      # name on 2026-11-01, read on mirror.gcr.io and Docker Hub alike). Its
+      # Debian and PHP 8.5.12 layers, the first fourteen, are the same blobs
+      # as the demo's 35.0.2 pin `e0b1a2af…`, the rebuild that took libbrotli's
+      # fix for the critical CVE-2026-111497 (0119, Status of 2026-10-30).
+      # Before it `1f9212ad…`, the rebuild of 2026-10-23 17:17 UTC, the digest
+      # the demo, the dev stack and the integration tier pinned before they
+      # moved to 35.0.2 (#1678, 0119 §4). The leg ran 35.0.1 from 2026-10-25
       # and 35.0.2 from 2026-10-26, and flipped to 34 in the pull request that
       # moved the demo (workplan 0119, T5). By hand: Dependabot reads no
       # workflow env, and the pin watch reads no workflow file, so 34.0.6 (due
       # 2026-11-12) is nobody's to report until a row reads this line.
-      NEXTCLOUD_IMAGE: nextcloud:34.0.5-apache@sha256:1f9212adecae32010cdbf137d7e0db78d08c696dc3e77f1eddcbf902d10209b4
+      NEXTCLOUD_IMAGE: nextcloud:34.0.5-apache@sha256:515c072ea1cf82ece3503f301fdf75dd5a7148abcc8fa10aaefd5ec56643b703
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

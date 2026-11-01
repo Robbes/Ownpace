@@ -34,6 +34,26 @@ export declare const ATLAS_NOTE: string;
 /** The Atlas release migration-lint installs, and its sha256 for each architecture; throws for a step that may not run. */
 export declare function atlasPin(workflow: string): { version: string; sha256: Record<'amd64' | 'arm64', string>; line: number };
 
+export declare const STALWART_CLI_FILES: string[];
+export declare const STALWART_CLI_HOST: string;
+export declare const STALWART_CLI_UPSTREAM: string;
+export declare const STALWART_CLI_ARCHES: Record<'AMD64' | 'ARM64', string>;
+export declare const STALWART_CLI_NOTE: string;
+/** The stalwart-cli release a workflow installs, and its sha256 for each architecture; throws for a step that may not run. */
+export declare function stalwartCliPin(workflow: string): { version: string; sha256: Record<'amd64' | 'arm64', string>; line: number };
+export interface ActionImageSpec {
+  action: string;
+  input: string;
+  option?: string;
+  repo: string;
+  channel: string;
+}
+export declare const ACTION_IMAGES_WORKFLOW: string;
+export declare const ACTION_IMAGES: ActionImageSpec[];
+export declare function channelNote(spec: ActionImageSpec): string;
+/** Every image an action in a workflow runs from an input; throws for one left to its default or not pinned by release tag and digest. */
+export declare function actionImages(workflow: string): Array<{ action: string; input: string; ref: string; repo: string; tag: string; digest: string }>;
+
 export type State = 'current' | 'behind' | 'ahead' | 'error';
 
 export interface PinResult {
