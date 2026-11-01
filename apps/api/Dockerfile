@@ -156,7 +156,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 # moves. The tag names no Node version; the image's name names the major, so a
 # new Node major is a new name, which is an edit somebody makes.
 # scripts/an-api-image-with-nothing-to-exec.unit.test.ts holds all of the above.
-FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:a51c5d631b90e1b298e17a88a307b77f0b959b47de942d033acce0c96be3fb83 AS runtime
+FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:9b945e92c1b5463a4b75f11e8417515e4bea7355f6adfd79ec220fbbe905dda8 AS runtime
 ENV NODE_ENV=production
 # Surfaced by GET /version (buildIdentity in @openmig/core).
 ARG GIT_SHA=unknown
