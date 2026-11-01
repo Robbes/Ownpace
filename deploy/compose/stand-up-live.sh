@@ -36,6 +36,12 @@
 #       here, annotated, package.json's version); a tag without deploy-live.sh,
 #       exposure-check.sh, box-duties.sh, stack-kind.sh and
 #       copy-before-update.sh
+#   a node on this shell's PATH below what the tag's package.json asks for
+#       (engines.node: ">=N" or ">=N.N.N"; none, not checked; any other form,
+#       refused as unread), no node on the PATH, or one whose `node -v` fails
+#       or says no version: the bring-up's pnpm install and task deploy run on
+#       it, and pnpm only warns below `engines` (release_tag_node, the words
+#       deploy-live.sh refuses it in)
 #   a working tree that is not clean
 #   a deploy log with a line in it: live stands, and deploy-live.sh is the way
 #   <project>_postgres_data already there, unless --resume says this is a
@@ -367,6 +373,13 @@ main() {
     refuse "HEAD (${head}) is at no tag named v…. ${RELEASE_SENTENCE}." \
       "Check out the release live is to run: git fetch --tags origin && git checkout --detach <tag>"
   fi
+  # The node this shell runs the bring-up's install and task deploy on
+  # (deploy-tasks.sh, from bootstrap-managed.sh): at least what the tag's
+  # package.json asks for, in deploy-live.sh's words (release_tag_node,
+  # release-tag.sh). pnpm only warns below `engines`. Before the version is
+  # read below, which needs node itself; the tags here are one commit's, HEAD.
+  release_tag_node "$REPO_ROOT" "${tags_text//$'\n'/, }" "$head" || refuse "${RELEASE_TAG_WHY[@]}"
+  local node_said="$RELEASE_TAG_NODE"
   # Of the tags here, the one package.json names, when there are several.
   head_version="$(release_tag_version_at "$REPO_ROOT" "$head")" || head_version=''
   while IFS= read -r t; do
@@ -381,6 +394,7 @@ main() {
   # What it must carry: release-tag.sh's list, which deploy-live.sh asks too.
   release_tag_carries "$REPO_ROOT" "$tag" "$commit" || refuse "${RELEASE_TAG_WHY[@]}"
   say "${tag} is an annotated release tag on origin, at ${commit}, version ${version}"
+  say "$node_said"
 
   # ---- Stood up already? ----------------------------------------------------------
   local deploy_log="${persist}/deploys.log"

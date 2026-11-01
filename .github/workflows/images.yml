@@ -61,6 +61,16 @@ jobs:
       matrix:
         image: [api, web, selfhost]
     steps:
+      # The Node the check below runs on, the major the images run. On a tag
+      # only, the one run that calls Node here; first, because the check comes
+      # straight after the checkout (a-release-that-names-itself). Without it
+      # the check ran the hosted image's default, a version nobody chose
+      # (a-gate-on-a-version-nothing-ships, 2026-11-01).
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # THE TAG, THE VERSION AND THE CHANGELOG NAME ONE RELEASE (workplan 0146
@@ -461,8 +471,8 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
-          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
 
       - name: Build both Trigger.dev images as managed.yml names them, and keep upstream's configuration
         env:

@@ -39,13 +39,21 @@
  * the tag today, read with a HEAD, and is behind when the two differ.
  */
 
-import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { afterAll, describe, it, expect } from 'vitest';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { tmpdir } from 'node:os';
 import { gzipSync } from 'node:zlib';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import {
+  ATLAS_ARCHES,
+  ATLAS_HOST,
+  ATLAS_IMAGE,
+  ATLAS_NOTE,
+  ATLAS_WORKFLOW,
   COMPARED_ELSEWHERE,
   COMPOSE,
   COMPOSE_FILES,
@@ -60,6 +68,7 @@ import {
   TITLES,
   WINDOW_DAYS,
   actionDefault,
+  atlasPin,
   baseImageOf,
   builtImage,
   builtNote,
@@ -336,20 +345,31 @@ function tgz(files: Record<string, string>): Buffer {
 }
 
 const D24 = `sha256:d2d0c018${'0'.repeat(56)}`;
-const D24_NEW = `sha256:9e9e9e9e${'0'.repeat(56)}`;
-const buildImageJs = (node24: string) =>
+/**
+ * The stand-in CLI's `node-26` base, which the tasks' row reads: the config
+ * names `runtime: 'node-26'` since the Node line moved to 26 (2026-10-31,
+ * workplan 0119 §2.4). Before that these cases read a `node-24` row, and a
+ * stand-in CLI without a row for the config's runtime failed them all with
+ * "names no image for node-26". The digests are stand-ins, the shape is
+ * trigger.dev 4.8.3's `buildImage.js`.
+ */
+const D26 = `sha256:e319f113${'0'.repeat(56)}`;
+const D26_NEW = `sha256:9e9e9e9e${'0'.repeat(56)}`;
+const buildImageJs = (node26: string) =>
   [
     'export const BASE_IMAGE = {',
     `    bun: "triggerdotdev/bun:1.3-node20-bookworm@sha256:${'a'.repeat(64)}",`,
     `    node: "triggerdotdev/node:24-bookworm@${D24}",`,
     `    "node-22": "triggerdotdev/node:22-bookworm@sha256:${'b'.repeat(64)}",`,
-    `    "node-24": "triggerdotdev/node:24-bookworm@${node24}",`,
+    `    "node-24": "triggerdotdev/node:24-bookworm@${D24}",`,
+    `    "node-26": "triggerdotdev/node:26-bookworm@${node26}",`,
     '};',
     'export const BUILD_IMAGE = {',
     `    "node-24": "triggerdotdev/node:24-bookworm-build@sha256:${'c'.repeat(64)}",`,
+    `    "node-26": "triggerdotdev/node:26-bookworm-build@sha256:${'e'.repeat(64)}",`,
     '};',
   ].join('\n');
-const cliTarball = (node24: string) => tgz({ 'package/package.json': '{}', 'package/dist/esm/deploy/buildImage.js': buildImageJs(node24) });
+const cliTarball = (node26: string) => tgz({ 'package/package.json': '{}', 'package/dist/esm/deploy/buildImage.js': buildImageJs(node26) });
 
 /** Docker Hub as the task image's Node is read from it: an index, its amd64 manifest, the config. */
 const taskImageRegistry = (digest: string, node: string): Array<[RegExp, Answer]> => [
@@ -553,41 +573,52 @@ describe("ClickHouse, against what Trigger.dev's own compose pins", () => {
 describe("the tasks' Node, against Node's newest security release", () => {
   const cli = JSON.parse(REAL.read('apps/worker/package.json')!).dependencies['@trigger.dev/sdk'] as string;
   const config = REAL.read('apps/worker/trigger.config.ts')!;
-  const net = (latest: string, latestDigest: string, latestNode = '24.18.0') =>
+  const net = (latest: string, latestDigest: string, latestNode = '26.12.0') =>
     fakeNet({
       bytes: [
-        [new RegExp(`trigger\\.dev-${cli.replace(/\./g, '\\.')}\\.tgz$`), cliTarball(D24)],
+        [new RegExp(`trigger\\.dev-${cli.replace(/\./g, '\\.')}\\.tgz$`), cliTarball(D26)],
         [new RegExp(`trigger\\.dev-${latest.replace(/\./g, '\\.')}\\.tgz$`), cliTarball(latestDigest)],
       ],
-      json: [TOKEN, NODE_INDEX, ...taskImageRegistry(D24, '24.18.0'), ...taskImageRegistry(D24_NEW, latestNode)],
+      json: [
+        TOKEN,
+        NODE_INDEX,
+        ...taskImageRegistry(D24, '24.18.0'),
+        ...taskImageRegistry(D26, '26.12.0'),
+        ...taskImageRegistry(D26_NEW, latestNode),
+      ],
       npm: (args) => (args.join(' ') === 'view trigger.dev version' ? `${latest}\n` : ''),
     });
 
   it("reads the CLI's base image as text from its tarball, never running it", () => {
-    const js = fileInTgz(cliTarball(D24), 'package/dist/esm/deploy/buildImage.js');
+    const js = fileInTgz(cliTarball(D26), 'package/dist/esm/deploy/buildImage.js');
+    expect(baseImageOf(js, 'node-26')).toBe(`triggerdotdev/node:26-bookworm@${D26}`);
     expect(baseImageOf(js, 'node-24')).toBe(`triggerdotdev/node:24-bookworm@${D24}`);
     expect(baseImageOf(js, 'node')).toBe(`triggerdotdev/node:24-bookworm@${D24}`);
-    expect(() => baseImageOf(js, 'node-26')).toThrow(/no image for node-26/);
-    expect(() => fileInTgz(cliTarball(D24), 'package/missing.js')).toThrow(/not in the package/);
+    expect(() => baseImageOf(js, 'node-28')).toThrow(/no image for node-28/);
+    expect(() => fileInTgz(cliTarball(D26), 'package/missing.js')).toThrow(/not in the package/);
   });
 
   it("reads the image's Node from its amd64 config, and the floor from nodejs.org's index", async () => {
-    expect(await nodeVersionOf(net('9.9.9', D24_NEW), `triggerdotdev/node:24-bookworm@${D24}`)).toBe('24.18.0');
+    expect(await nodeVersionOf(net('9.9.9', D26_NEW), `triggerdotdev/node:24-bookworm@${D24}`)).toBe('24.18.0');
+    expect(await nodeVersionOf(net('9.9.9', D26_NEW), `triggerdotdev/node:26-bookworm@${D26}`)).toBe('26.12.0');
     expect(securityFloor(NODE_INDEX[1], 24)).toEqual({ version: '24.22.1', date: '2026-10-20' });
+    expect(securityFloor(NODE_INDEX[1], 26)).toEqual({ version: '26.12.1', date: '2026-10-21' });
     expect(() => securityFloor([], 24)).toThrow(/no security release/);
   });
 
-  it('is behind on 24.18.0 below 24.22.1, and names the pinned CLI, the newest CLI and the floor', async () => {
-    const row = await taskNodeRow(withFiles({ 'apps/worker/trigger.config.ts': config.replace(TASK_ON_API_IMAGE, '') }), net('9.9.9', D24));
-    expect(row).toMatchObject({ pin: '24.18.0', newest: '24.22.1', state: 'behind' });
+  it('is behind on 26.12.0 below 26.12.1, and names the pinned CLI, the newest CLI and the floor', async () => {
+    // The config's own runtime, read as the row reads it: the stand-in CLI's row for it is D26.
+    expect(/\bruntime:\s*['"]([^'"]+)['"]/.exec(config)?.[1]).toBe('node-26');
+    const row = await taskNodeRow(withFiles({ 'apps/worker/trigger.config.ts': config.replace(TASK_ON_API_IMAGE, '') }), net('9.9.9', D26));
+    expect(row).toMatchObject({ pin: '26.12.0', newest: '26.12.1', state: 'behind' });
     expect(row.body).toContain(`trigger.dev ${cli}`);
-    expect(row.body).toContain('**24.22.1**');
-    expect(row.body).toMatch(/trigger\.dev 9\.9\.9, still builds on Node 24\.18\.0: upstream has not republished/);
+    expect(row.body).toContain('**26.12.1**');
+    expect(row.body).toMatch(/trigger\.dev 9\.9\.9, still builds on Node 26\.12\.0: upstream has not republished/);
   });
 
   it('says a Trigger.dev move fixes it once the newest CLI builds on a Node at the floor', async () => {
-    const row = await taskNodeRow(withFiles({ 'apps/worker/trigger.config.ts': config.replace(TASK_ON_API_IMAGE, '') }), net('9.9.9', D24_NEW, '24.22.1'));
-    expect(row.body).toMatch(/trigger\.dev 9\.9\.9, builds on Node 24\.22\.1: moving Trigger\.dev to it/);
+    const row = await taskNodeRow(withFiles({ 'apps/worker/trigger.config.ts': config.replace(TASK_ON_API_IMAGE, '') }), net('9.9.9', D26_NEW, '26.12.1'));
+    expect(row.body).toMatch(/trigger\.dev 9\.9\.9, builds on Node 26\.12\.1: moving Trigger\.dev to it/);
   });
 
   it("stops, and closes its issue, once the tasks build on the API image's base", async () => {
@@ -653,6 +684,155 @@ const COSIGN_NAMED = COSIGN_STEPS[0]?.with['cosign-release'];
 const cosignDefault = (): Record<string, string> =>
   Object.fromEntries(COSIGN_FILES.map((file) => [file, REAL.read(file)!.replace(/\n( +)with:\n(?:\1 {2}#.*\n)*\1 {2}cosign-release: .*(?=\n)/g, '')]));
 
+/** The Atlas release migration-lint installs (0119, 2026-11-01), and its tag on the community image. */
+const ATLAS = atlasPin(REAL.read(ATLAS_WORKFLOW)!);
+const ATLAS_TAG = `${ATLAS.version.slice(1)}-community`;
+
+/**
+ * THE ATLAS STEP, RUN (review of 2026-11-01). `atlasPin` reads the step's
+ * text, and a text can say `exit 1` beside a comparison that no longer feeds
+ * it: deleting `refused=1`, comparing `"$seen"` with itself, or dropping the
+ * `exit 1` after the version check each left it, and CI, green, while a wrong
+ * sum installed the download and ran it. So the step's real `run:` is run
+ * here, under bash as the runner runs a step with no `shell:`, with `curl`
+ * and `uname` stubbed on the PATH: `curl` serves a stand-in for each
+ * architecture's release from ATLAS_HOST and nothing from anywhere else, and
+ * the stand-in prints the version it is told to and leaves a mark that it ran.
+ */
+const atlasScratch = mkdtempSync(join(tmpdir(), 'atlas-step-'));
+afterAll(() => rmSync(atlasScratch, { recursive: true, force: true }));
+const STUBS = join(atlasScratch, 'bin');
+mkdirSync(STUBS);
+for (const [name, body] of Object.entries({
+  curl: [
+    '#!/bin/sh',
+    'out= url= prev=',
+    'for a in "$@"; do',
+    '  [ "$prev" = -o ] && out="$a"',
+    '  case "$a" in *://*) url="$a" ;; esac',
+    '  prev="$a"',
+    'done',
+    'printf \'%s\\n\' "$url" >> "$STUB_FETCHED"',
+    'case "$url" in "$STUB_HOST"atlas/*) name="${url##*/}" ;; *) echo "curl: (6) Could not resolve host: $url" >&2; exit 6 ;; esac',
+    '[ -f "$STUB_SERVED/$name" ] || { echo "curl: (22) The requested URL returned error: 404" >&2; exit 22; }',
+    '[ -n "$out" ] && cp "$STUB_SERVED/$name" "$out"',
+  ],
+  uname: ['#!/bin/sh', 'case "$1" in -m) echo "$STUB_MACHINE" ;; *) echo Linux ;; esac'],
+})) {
+  writeFileSync(join(STUBS, name), `${body.join('\n')}\n`);
+  chmodSync(join(STUBS, name), 0o755);
+}
+/** The bytes served for each architecture: fixed, so each has one sum. */
+const STAND_IN = Object.fromEntries(
+  ATLAS_ARCHES.map((arch) => [
+    arch,
+    `#!/bin/sh\n# Not Atlas: the linux/${arch} stand-in a-pin-that-knows-it-is-behind serves.\n: > "$STUB_RAN"\nprintf '%s\\n' "$STUB_SAYS" 'https://github.com/ariga/atlas/releases/latest'\n`,
+  ]),
+) as Record<'amd64' | 'arm64', string>;
+const STAND_IN_SHA256 = Object.fromEntries(
+  ATLAS_ARCHES.map((arch) => [`ATLAS_SHA256_${arch.toUpperCase()}`, createHash('sha256').update(STAND_IN[arch as 'amd64' | 'arm64']).digest('hex')]),
+);
+
+/** The `run:` and `env:` of the one step of `workflow` that downloads from ATLAS_HOST. */
+function atlasStep(workflow: string): { run: string; env: Record<string, string> } {
+  type Step = { run?: unknown; env?: Record<string, unknown>; shell?: unknown };
+  const jobs = (parseYaml(workflow) as { jobs?: Record<string, { steps?: Step[] }> }).jobs ?? {};
+  const steps = Object.values(jobs).flatMap((job) => (job.steps ?? []).filter((s) => typeof s.run === 'string' && s.run.includes(ATLAS_HOST)));
+  if (steps.length !== 1) throw new Error(`${steps.length} steps of ${ATLAS_WORKFLOW} download from ${ATLAS_HOST}; one installs Atlas`);
+  const step = steps[0]!;
+  if (step.shell !== undefined) throw new Error(`the Atlas step names shell: ${String(step.shell)}; this runs it as a step with none`);
+  if ((step.run as string).includes('${{')) throw new Error('the Atlas step carries a ${{ }} expression, which this does not render');
+  return { run: step.run as string, env: Object.fromEntries(Object.entries(step.env ?? {}).map(([k, v]) => [k, String(v)])) };
+}
+
+interface Ran {
+  readonly status: number | null;
+  /** The file at RUNNER_TEMP/atlas-bin/atlas afterwards, if any. */
+  readonly installed: string | undefined;
+  /** Whether a stand-in was executed. */
+  readonly ran: boolean;
+  readonly onPath: boolean;
+  readonly fetched: string[];
+  readonly log: string;
+}
+
+/** Run the step on `machine` (what `uname -m` says), with these sums in its env and a stand-in that says `says`. */
+function runAtlasStep(step: { run: string; env: Record<string, string> }, machine: string, sums: Record<string, string>, says: string): Ran {
+  const dir = mkdtempSync(join(atlasScratch, 'run-'));
+  const temp = join(dir, 'runner-temp');
+  const served = join(dir, 'served');
+  mkdirSync(temp);
+  mkdirSync(served);
+  for (const arch of ATLAS_ARCHES) writeFileSync(join(served, `atlas-community-linux-${arch}-${step.env.ATLAS_VERSION}`), STAND_IN[arch as 'amd64' | 'arm64']);
+  const files = { script: join(dir, 'step.sh'), path: join(dir, 'GITHUB_PATH'), ran: join(dir, 'ran'), fetched: join(dir, 'fetched') };
+  writeFileSync(files.script, step.run);
+  writeFileSync(files.path, '');
+  writeFileSync(files.fetched, '');
+  const r = spawnSync('bash', ['-e', files.script], {
+    encoding: 'utf8',
+    timeout: 20_000,
+    env: {
+      PATH: `${STUBS}:${process.env.PATH ?? '/usr/bin:/bin'}`,
+      HOME: dir,
+      ...step.env,
+      ...sums,
+      RUNNER_TEMP: temp,
+      GITHUB_PATH: files.path,
+      STUB_HOST: ATLAS_HOST,
+      STUB_SERVED: served,
+      STUB_MACHINE: machine,
+      STUB_SAYS: says,
+      STUB_RAN: files.ran,
+      STUB_FETCHED: files.fetched,
+    },
+  });
+  const bin = join(temp, 'atlas-bin', 'atlas');
+  return {
+    status: r.status,
+    installed: existsSync(bin) ? readFileSync(bin, 'utf8') : undefined,
+    ran: existsSync(files.ran),
+    onPath: readFileSync(files.path, 'utf8').split('\n').includes(join(temp, 'atlas-bin')),
+    fetched: readFileSync(files.fetched, 'utf8').split('\n').filter(Boolean),
+    log: `${r.stdout}${r.stderr}`.trim(),
+  };
+}
+
+/**
+ * What the Atlas step of `workflow` does that it must not, run on both
+ * machines: install and run anything but the native release when both
+ * architectures' bytes are the pinned ones (and fetch both), finish with
+ * anything installed, run or on the PATH when either sum is wrong, accept a
+ * binary that calls itself another version, or install anything on a machine
+ * no release is pinned for. Empty when the step is right.
+ */
+function atlasStepFaults(workflow: string): string[] {
+  const step = atlasStep(workflow);
+  const version = step.env.ATLAS_VERSION;
+  const release = `atlas community version ${version}`;
+  const urls = ATLAS_ARCHES.map((arch) => `${ATLAS_HOST}atlas/atlas-community-linux-${arch}-${version}`);
+  const faults: string[] = [];
+  for (const [machine, arch] of [['x86_64', 'amd64'], ['aarch64', 'arm64']] as const) {
+    const ok = runAtlasStep(step, machine, STAND_IN_SHA256, release);
+    if (!(ok.status === 0 && ok.installed === STAND_IN[arch] && ok.ran && ok.onPath && ok.fetched.join(' ') === urls.join(' '))) {
+      faults.push(`installs no release on ${machine}: exit ${ok.status}, fetched ${ok.fetched.join(' ') || 'nothing'}\n${ok.log}`);
+    }
+    const wrongs = [...ATLAS_ARCHES.map((a) => [`ATLAS_SHA256_${a.toUpperCase()}`]), ATLAS_ARCHES.map((a) => `ATLAS_SHA256_${a.toUpperCase()}`)];
+    for (const wrong of wrongs) {
+      // A wrong sum is the pin ci.yml commits: the stand-in is not those bytes.
+      const sums = { ...STAND_IN_SHA256, ...Object.fromEntries(wrong.map((name) => [name, step.env[name] ?? ''])) };
+      const r = runAtlasStep(step, machine, sums, release);
+      if (r.status === 0 || r.installed !== undefined || r.ran || r.onPath) {
+        faults.push(`goes on past a wrong ${wrong.join(' and ')} on ${machine}: exit ${r.status}, installed ${r.installed !== undefined}, ran ${r.ran}\n${r.log}`);
+      }
+    }
+    const canary = runAtlasStep(step, machine, STAND_IN_SHA256, 'atlas community version v1.3.1-f851298-canary');
+    if (canary.status === 0) faults.push(`accepts a binary that calls itself v1.3.1-f851298-canary on ${machine}\n${canary.log}`);
+  }
+  const other = runAtlasStep(step, 'riscv64', STAND_IN_SHA256, release);
+  if (other.status === 0 || other.installed !== undefined) faults.push(`installs something on riscv64, which no release is pinned for: exit ${other.status}`);
+  return faults;
+}
+
 /** The GoAccess release `deploy/compose/goaccess/Dockerfile` builds (#1675), read from its own line. */
 const GOACCESS_RELEASE = /^# GoAccess (v\d+(?:\.\d+)+)$/m.exec(REAL.read(GOACCESS_DOCKERFILE) ?? '')?.[1] ?? 'no release named';
 /** The docker-socket-proxy release trigger-docker-proxy is built from (2026-10-30), read from its own line. */
@@ -675,6 +855,9 @@ function registry(newer: Record<string, string> = {}): Stubs {
     }
   }
   for (const file of STALWART_FILES) for (const m of (REAL.read(file) ?? '').matchAll(/stalwartlabs\/stalwart:(v[\d.]+)/g)) pins.set('stalwartlabs/stalwart', [m[1]!]);
+  // The Atlas release ci.yml installs, as the community image's tag, beside tags of other shapes
+  // and another major that its row must never take for a newer release.
+  pins.set(ATLAS_IMAGE, [ATLAS_TAG, 'latest-community', '1.99.0-community-alpine', '1.99.0-extended', '2.0.0-community']);
   return {
     json: [
       TOKEN,
@@ -950,18 +1133,135 @@ describe('the routine pins, in one summary issue', () => {
   });
 });
 
+/**
+ * THE ATLAS CLI CI DOWNLOADED BY ITS `-latest` NAME (workplan 0119, 2026-11-01).
+ * `migration-lint` in `.github/workflows/ci.yml` fetched
+ * `atlas-community-linux-<arch>-latest` with no version and no checksum, and ran it, on the owner's machine for a main push.
+ * That name is a canary build of upstream's master (CI printed
+ * `v1.3.1-f851298-canary`), not a release. The step now names a release in
+ * `ATLAS_VERSION`, pins a sha256 for both architectures the job runs on, reads
+ * and compares both before anything is made executable, and checks that what
+ * it installed calls itself that release. This holds the real step to that with
+ * `atlasPin`, each refusal by a mutation of it, and the row that says when a
+ * newer release is listed. `atlasPin` reads text, so the step is also RUN
+ * (`atlasStepFaults`), and each way a review found to keep the text and lose
+ * the refusal is a mutation that must fail it.
+ */
+describe('the Atlas CLI migration-lint runs: a named release, checked by its sha256 first', () => {
+  const ci = REAL.read(ATLAS_WORKFLOW)!;
+  /** ci.yml with one change, which must be a change. */
+  const mutate = (from: string | RegExp, to: string): string => {
+    const next = ci.replace(from, to);
+    expect(next, `${String(from)} is not in ${ATLAS_WORKFLOW}`).not.toBe(ci);
+    return next;
+  };
+
+  it('names a release and a sha256 for each architecture the job runs on', () => {
+    expect(ATLAS.version).toMatch(/^v\d+\.\d+\.\d+$/);
+    expect(Object.keys(ATLAS.sha256).sort()).toEqual([...ATLAS_ARCHES].sort());
+    for (const arch of ATLAS_ARCHES) expect(ATLAS.sha256[arch as 'amd64' | 'arm64']).toMatch(/^[0-9a-f]{64}$/);
+    // The machines the job lands on: the self-hosted arm64 runner for a push; hosted amd64 AND arm64 for a
+    // pull request, so the arm64 binary has run before the owner's machine runs it (review of 2026-11-01).
+    type Job = { 'runs-on'?: unknown; strategy?: { 'fail-fast'?: unknown; matrix?: { runner?: unknown } } };
+    const job = (parseYaml(ci) as { jobs: Record<string, Job> }).jobs['migration-lint'];
+    expect(job?.['runs-on']).toBe('${{ matrix.runner }}');
+    expect(job?.strategy?.['fail-fast']).toBe(false);
+    expect(job?.strategy?.matrix?.runner).toBe(
+      "${{ github.event_name == 'push' && fromJSON('[\"self-hosted\"]') || fromJSON('[\"ubuntu-24.04\",\"ubuntu-24.04-arm\"]') }}",
+    );
+  });
+
+  it("refuses the canary's name, a version that is no release, a missing or shared sum, a download run before it is checked, and no version check", () => {
+    expect(() => atlasPin(mutate('-${ATLAS_VERSION}"', '-latest"'))).toThrow(/downloads a name with no version/);
+    expect(() => atlasPin(mutate('linux-${arch}-${ATLAS_VERSION}"', 'linux-${arch}"'))).toThrow(/downloads a name with no version/);
+    expect(() => atlasPin(mutate(/ATLAS_VERSION: v\d+\.\d+\.\d+/, 'ATLAS_VERSION: latest'))).toThrow(/names no release/);
+    expect(() => atlasPin(mutate(/\n +ATLAS_SHA256_ARM64: [0-9a-f]{64}/, ''))).toThrow(/no sha256 for linux\/arm64/);
+    expect(() => atlasPin(mutate(`ATLAS_SHA256_ARM64: ${ATLAS.sha256.arm64}`, `ATLAS_SHA256_ARM64: ${ATLAS.sha256.amd64}`))).toThrow(
+      /one sha256 for two architectures/,
+    );
+    // Made executable before the loop that reads the sums.
+    const install = /\n( +install -m 0755 [^\n]+)/.exec(ci)![1]!;
+    const early = mutate(`\n${install}`, '').replace(/\n( +)for arch in amd64 arm64; do/, (all, space: string) => `\n${space}${install.trim()}${all}`);
+    expect(() => atlasPin(early)).toThrow(/executable before its sha256 is read/);
+    // Read, but a mismatch no longer stops the step.
+    expect(() => atlasPin(mutate(/\n +\[ "\$refused" = 0 \] \|\| exit 1/, ''))).toThrow(/executable before its sha256 is read/);
+    expect(() => atlasPin(mutate(/\n +seen="\$\(sha256sum "\$download"\)"/, ''))).toThrow(/never reads a sha256/);
+    expect(() => atlasPin(mutate('"atlas community version $ATLAS_VERSION"', '"atlas"'))).toThrow(/calls itself the release named/);
+  });
+
+  it('refuses a step that compares with anything but the pinned sum, fetches from elsewhere, or makes another file executable', () => {
+    expect(() => atlasPin(mutate('if [ "$seen" = "$pinned" ]; then', 'if true; then'))).toThrow(/never compares the sum it read/);
+    expect(() => atlasPin(mutate('pinned="$ATLAS_SHA256_AMD64"', 'pinned="$(curl -sSfL "https://atlasbinaries.example/atlas-${ATLAS_VERSION}.sha256")"'))).toThrow(
+      /fetches from somewhere other than/,
+    );
+    expect(() => atlasPin(mutate('pinned="$ATLAS_SHA256_ARM64"', 'pinned="$(cat "$RUNNER_TEMP/arm64.sha256")"'))).toThrow(/pinned sum is not only/);
+    const install = /\n( +)install -m 0755 "\$RUNNER_TEMP\/atlas-\$ATLAS_VERSION-linux-\$native"/;
+    expect(() => atlasPin(mutate(install, '\n$1curl -sSfL -o "$RUNNER_TEMP/x" https://mirror.example/atlas\n$1install -m 0755 "$RUNNER_TEMP/x"'))).toThrow(
+      /fetches from somewhere other than/,
+    );
+    expect(() => atlasPin(mutate(install, '\n$1curl -sSfL -o "$RUNNER_TEMP/x" "$ATLAS_MIRROR"\n$1install -m 0755 "$RUNNER_TEMP/x"'))).toThrow(
+      /fetches something that is not the release/,
+    );
+    expect(() => atlasPin(mutate(install, '\n$1install -m 0755 "$RUNNER_TEMP/atlas-$ATLAS_VERSION-linux-amd64"'))).toThrow(
+      /makes executable something other than the file it hashed/,
+    );
+  });
+
+  it('runs: the native release when both sums are the pinned ones, and nothing when either is not or it calls itself another version', () => {
+    expect(atlasStepFaults(ci)).toEqual([]);
+  });
+
+  it('runs: a mismatch that no longer stops it, or a version check that no longer fails, fails it, each by a mutation of the real step', () => {
+    const faults = (from: string | RegExp, to: string): string => atlasStepFaults(mutate(from, to)).join('\n');
+    // A wrong sum is reported, and the step goes on to install and run it.
+    expect(faults(/\n +refused=1\n/, '\n')).toMatch(/goes on past a wrong ATLAS_SHA256_AMD64 on x86_64/);
+    expect(faults('if [ "$seen" = "$pinned" ]', 'if [ "$seen" = "$seen" ]')).toMatch(/goes on past a wrong ATLAS_SHA256_ARM64 on aarch64/);
+    expect(faults('if [ "$seen" = "$pinned" ]', 'if true')).toMatch(/goes on past a wrong ATLAS_SHA256_AMD64 and ATLAS_SHA256_ARM64/);
+    expect(faults(/\n +\[ "\$refused" = 0 \] \|\| exit 1/, '')).toMatch(/goes on past a wrong ATLAS_SHA256_ARM64 on x86_64/);
+    // Each sum compared with the other architecture's pin.
+    expect(faults('pinned="$ATLAS_SHA256_AMD64"; else pinned="$ATLAS_SHA256_ARM64"', 'pinned="$ATLAS_SHA256_ARM64"; else pinned="$ATLAS_SHA256_AMD64"')).toMatch(
+      /installs no release on x86_64/,
+    );
+    // The version check that no longer stops it.
+    expect(faults(/if \[ "\$\{said/, 'if false && [ "${said')).toMatch(/accepts a binary that calls itself v1\.3\.1-f851298-canary on x86_64/);
+    expect(faults(/(does not call itself community \$ATLAS_VERSION\."\n) +exit 1\n/, '$1')).toMatch(/accepts a binary that calls itself v1\.3\.1-f851298-canary on aarch64/);
+    // The other architecture's binary installed.
+    expect(faults('linux-$native" "$RUNNER_TEMP/atlas-bin/atlas"', 'linux-amd64" "$RUNNER_TEMP/atlas-bin/atlas"')).toMatch(/installs no release on aarch64/);
+  });
+
+  it('is a routine pin, current while the community image lists no newer release of its shape and major', async () => {
+    const { rows } = await routineRows(REAL, fakeNet(registry()));
+    expect(rows.find((r) => r.name === 'Atlas')).toEqual({ name: 'Atlas', where: ATLAS_WORKFLOW, pin: ATLAS.version, newest: ATLAS.version, state: 'current' });
+  });
+
+  it('is behind when a newer community release is listed, and says the three values move together', async () => {
+    const newer = ATLAS_TAG.replace(/^(\d+)\.(\d+)\.(\d+)/, (_all, major: string, minor: string, patch: string) => `${major}.${minor}.${Number(patch) + 9}`);
+    const { rows, status } = await routineRows(REAL, fakeNet(registry({ [ATLAS_IMAGE]: newer })));
+    const release = `v${newer.replace(/-community$/, '')}`;
+    expect(rows.find((r) => r.name === 'Atlas')).toMatchObject({ pin: ATLAS.version, newest: release, state: 'behind', notes: [ATLAS_NOTE] });
+    expect(summaryOf(rows, status).body).toContain(`- \`Atlas\` (${ATLAS_WORKFLOW}): ${ATLAS.version}, newest **${release}**; ${ATLAS_NOTE}`);
+  });
+
+  it('is never current when the step cannot be read', async () => {
+    const canary = withFiles({ [ATLAS_WORKFLOW]: mutate('-${ATLAS_VERSION}"', '-latest"') });
+    const row = (await routineRows(canary, fakeNet(registry()))).rows.find((r) => r.name === 'Atlas');
+    expect(row).toMatchObject({ state: 'error' });
+    expect(row?.error).toMatch(/downloads a name with no version/);
+  });
+});
+
 describe('the whole watch, one issue per row', () => {
   const everything = (): Net => {
     const base = registry();
     return fakeNet({
       ...base,
-      json: [...base.json!, NODE_INDEX, ...taskImageRegistry(D24, '24.18.0')],
+      json: [...base.json!, NODE_INDEX, ...taskImageRegistry(D26, '26.12.0')],
       text: [
         ...base.text!,
         [/triggerdotdev\/trigger\.dev\/.+\/docker\/docker-compose\.yml$/, `services:\n  clickhouse:\n    image: ${readImages(MANAGED).find((i) => i.repo === 'clickhouse/clickhouse-server')!.ref}\n`],
         [/SECURITY\.md$/, '| 26.2 | ❌ |\n'],
       ],
-      bytes: [[/trigger\.dev-.+\.tgz$/, cliTarball(D24)]],
+      bytes: [[/trigger\.dev-.+\.tgz$/, cliTarball(D26)]],
       lsRemote: { ...base.lsRemote, 'https://github.com/zitadel/zitadel.git': lsRemote(readPin(MANAGED)) },
       probe: () => '',
       npm: (args) => {

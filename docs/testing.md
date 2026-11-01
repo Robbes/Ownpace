@@ -394,7 +394,8 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   `packages/ledger/migrations`, then `packages/managed/migrations` renumbered above it, staged as
   one directory in the order a managed deployment applies them — with Atlas against a disposable
   dockerized Postgres and fails on destructive schema changes — runs only when either migration
-  directory (or the workflow) changes;
+  directory (or the workflow) changes, on a pull request on hosted amd64 and arm64 (the Atlas
+  each runs is its own download, pinned by its SHA-256; 2026-11-01) and on a push on the Spark;
   **`commit-convention`** (2026-09-21) reads the commit subjects a pull request ADDS and requires
   the Conventional Commits prefix CONTRIBUTING.md and the pull-request template both already
   mandated. Measured the day it was built: two of the last two hundred subjects on `main`
@@ -484,7 +485,9 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   TypeScript split's exit. Each of those keeps one issue open while it is behind, says a newer
   release in a comment, and closes the issue when the pin catches up. Every other image line of
   `managed.yml`, `dev.yml` and `www.yml` (Dependabot reads no file in `deploy/compose`), the
-  busybox copies in its scripts, Stalwart's copies, GoAccess and the Trivy the scan runs share one
+  busybox copies in its scripts, Stalwart's copies, GoAccess, the Trivy the scan runs and the Atlas
+  release `ci.yml`'s migration-lint downloads by URL and checks by its SHA-256 (against the community
+  image's tags on Docker Hub, since upstream's git tags stop at v1.3.0; 2026-11-01) share one
   summary issue; another image a script there runs is not compared (none today: `db-roles.sh`
   reads its client from `managed.yml`). Against a registry a tag is compared, never a digest: a
   rebuild under the same tag is the image scan's to report. The exception is `www.yml`'s nginx,

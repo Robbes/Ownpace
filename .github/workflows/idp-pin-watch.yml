@@ -8,7 +8,8 @@
 # 2026-09-21, and a week later a person reading release notes is what found
 # it. For the same reason the managed stacks' other images, Trigger.dev, the
 # tasks' Node, packageManager and the Trivy the scan runs had nothing watching
-# them either.
+# them either, and since 2026-11-01 it also reads the Atlas release ci.yml's
+# migration-lint downloads by URL and checks by its sha256.
 #
 # Once a week, and on demand, scripts/idp-pin-watch.mjs reads each pin from the
 # checkout and compares it with its upstream, without a token: git ls-remote,
@@ -59,8 +60,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
-          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
       - name: Compare, and keep one issue open while the pin is behind
         env:
           GH_TOKEN: ${{ github.token }}

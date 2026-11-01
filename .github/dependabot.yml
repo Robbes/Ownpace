@@ -10,7 +10,8 @@
 # WHAT THIS FILE DOES NOT SEE is scripts/idp-pin-watch.mjs's (workplan 0146 T8): every image
 # line of deploy/compose's managed.yml, dev.yml and www.yml, the busybox and GoAccess copies in
 # its scripts, Trigger.dev, the tasks' Node, `packageManager`, the Trivy the scan runs, the
-# cosign images.yml and release.yml name, and the TypeScript split. It runs on Mondays after
+# cosign images.yml and release.yml name, the Atlas release ci.yml's migration-lint downloads
+# by URL and checks by its sha256 (2026-11-01), and the TypeScript split. It runs on Mondays after
 # this, and keeps an issue open while one is behind. This file moves cosign-installer, and the
 # cosign it installs only while no step names one.
 # The ones of those this file sees too are the databases' build, whose pin is the FROM of
@@ -99,6 +100,13 @@ updates:
       # Node line CI installs, when the next LTS line is current (workplan 0119
       # §2.4). Dependabot's first run offered 26-slim, the Current line, three
       # times in one morning; that is not a decision a green tick may take.
+      # 24 to 26 was such a move, by hand, on 2026-10-31, three days after 26
+      # became LTS: with it went the API's distroless image, whose NAME carries
+      # the major (nodejs26-debian13), the tasks' runtime and build image, every
+      # setup-node step, `engines`, and the corepack the base stages now install
+      # from npm (`corepack@x.y.z` in a RUN, which no updater here reads; it
+      # moves by hand, 0119 §2.4). The next is 27, LTS from 2027-10-20
+      # (nodejs/Release schedule.json, read 2026-10-31).
       - dependency-name: node
         update-types: ["version-update:semver-major"]
     groups:

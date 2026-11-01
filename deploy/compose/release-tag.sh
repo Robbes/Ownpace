@@ -51,6 +51,34 @@
 #       true when <commit> has every file in RELEASE_TAG_MUST_CARRY under
 #       deploy/compose/.
 #
+# AND THE NODE THAT INSTALLS IT (workplan 0119, the move to Node 26 in
+# alpha.4). deploy-live.sh runs `pnpm install --frozen-lockfile`, the task
+# deploy and the site build on this host, and stand-up-live.sh's bring-up runs
+# the install and the task deploy (deploy-tasks.sh): all on the node first on
+# the PATH of the shell the script runs in. pnpm only warns when that node is
+# below the release's `engines` (`WARN Unsupported engine`; the repository
+# sets no engineStrict, the owner's to decide) and installs all the same, and
+# the deploy goes straight on from the install to the rebuild, so nothing else
+# stops a shell whose node is too old. Both scripts refuse it, in the same
+# words, before anything moves: deploy-live.sh after its fetch, so that it
+# reads the TAG's package.json, not the checkout's, and before it reads the
+# version with node; stand-up-live.sh before it reads the version too.
+#
+#   release_tag_node <repo-root> <tag> <commit>
+#       true when <commit>'s root package.json asks for no node (no
+#       engines.node; a commit without a package.json is refused by the
+#       version check instead), or asks for ">=N" or ">=N.N.N" and the node
+#       first on PATH (`command -v node`, `node -v`) is that version or later.
+#       Refuses an engines.node in any other form, which it cannot read and
+#       does not guess at; an engines it cannot read whole (more than one
+#       "engines" key in the file, an object inside engines, or node named
+#       twice); no node on PATH; a `node -v` that fails (a Node 25
+#       or later binary without libatomic1 does) or says no version; and a
+#       node below what the tag asks for, naming the node's path and version
+#       and the tag's engines. It reads package.json without node, which may
+#       be what is wrong: a plain read of the engines block. Sets
+#       RELEASE_TAG_NODE to the line to say when it passes.
+#
 # On a refusal each returns 1 with RELEASE_TAG_WHY holding the lines to print:
 # the sentence first, then what to do. Neither prints anything itself, and
 # neither exits: the caller refuses in its own words around these.
@@ -66,6 +94,7 @@ RELEASE_TAG_WHY=()
 RELEASE_TAG_REMOTE_OBJECT=''
 RELEASE_TAG_COMMIT=''
 RELEASE_TAG_VERSION=''
+RELEASE_TAG_NODE=''
 
 # release_tag_on_origin <repo-root> <tag>
 release_tag_on_origin() {
@@ -147,8 +176,97 @@ release_tag_carries() {
   return 1
 }
 
+# release_tag_node <repo-root> <tag> <commit>
+release_tag_node() {
+  local root="$1" tag="$2" commit="$3" text block='' unread want node_path said rc=0 major
+  local re_engines='"engines"[[:space:]]*:'
+  local re_block='"engines"[[:space:]]*:[[:space:]]*\{([^}]*)\}'
+  local re_key='"node"[[:space:]]*:'
+  local re_value='"node"[[:space:]]*:[[:space:]]*"([^"]*)"'
+  local re_want='^>=[[:space:]]*([0-9]+)(\.([0-9]+)\.([0-9]+))?$'
+  local re_have='^v([0-9]+)\.([0-9]+)\.([0-9]+)'
+  local -a need=() have=() tail=()
+  RELEASE_TAG_WHY=()
+  RELEASE_TAG_NODE=''
+  # No package.json at the commit: no engines to read here, and the version
+  # check that follows refuses the tag ("says version 'none'").
+  if ! text="$(git -C "$root" show "${commit}:package.json" 2>/dev/null)"; then
+    RELEASE_TAG_NODE="Node: ${tag} has no root package.json to ask for one (the version check says more)"
+    return 0
+  fi
+  if ! [[ "$text" =~ $re_engines ]]; then
+    RELEASE_TAG_NODE="Node: ${tag} asks for none (no engines in its package.json), so the node on this shell's PATH is not checked"
+    return 0
+  fi
+  # The read below takes the first "engines" key and stops at the first }, so
+  # it holds only for one engines, of plain strings, naming node once. Any
+  # other shape (an engines nested under another key, an object inside
+  # engines, node given twice, where JSON keeps the last) could be read as
+  # asking for no node or the wrong one, so it is refused as unread instead.
+  unread=''
+  if [[ "${text#*"${BASH_REMATCH[0]}"}" =~ $re_engines ]]; then
+    unread='more than one "engines" key, and a read without node cannot tell which is the root one'
+  elif ! [[ "$text" =~ $re_block ]] || [[ "${BASH_REMATCH[1]}" == *'{'* ]]; then
+    unread='not an object of plain strings'
+  else
+    block="${BASH_REMATCH[1]}"
+    if [[ "$block" =~ $re_key ]] && [[ "${block#*"${BASH_REMATCH[0]}"}" =~ $re_key ]]; then
+      unread='engines.node more than once'
+    fi
+  fi
+  if [ -n "$unread" ]; then
+    RELEASE_TAG_WHY=("${tag}'s package.json has an engines this script cannot read (${unread}), so it cannot say which Node the release asks for, and it does not guess."
+      "Keep one engines in the root package.json on main, of plain strings, with engines.node written once as \">=N\" (scripts/a-gate-on-a-version-nothing-ships.unit.test.ts holds it so), and cut a new release (docs/release.md §2).")
+    return 1
+  fi
+  if ! [[ "$block" =~ $re_key ]]; then
+    RELEASE_TAG_NODE="Node: ${tag} asks for none (no engines.node in its package.json), so the node on this shell's PATH is not checked"
+    return 0
+  fi
+  want=''
+  [[ "$block" =~ $re_value ]] && want="${BASH_REMATCH[1]}"
+  want="${want#"${want%%[![:space:]]*}"}"
+  want="${want%"${want##*[![:space:]]}"}"
+  if ! [[ "$want" =~ $re_want ]]; then
+    RELEASE_TAG_WHY=("${tag}'s package.json asks for Node '${want:-not a string}' (engines.node), a form this script cannot read: it reads \">=N\" and \">=N.N.N\", and does not guess at the rest."
+      "Write engines.node as \">=N\" in the root package.json on main (scripts/a-gate-on-a-version-nothing-ships.unit.test.ts holds it so) and cut a new release (docs/release.md §2).")
+    return 1
+  fi
+  need=("$((10#${BASH_REMATCH[1]}))" "$((10#${BASH_REMATCH[3]:-0}))" "$((10#${BASH_REMATCH[4]:-0}))")
+  major="${need[0]}"
+  # The same three lines after each refusal about the node itself, in both
+  # scripts' words (docs/managed-bring-up.md has the section they name).
+  tail=("pnpm install, the task deploy and, on a deploy, the site build run on this host, on the node first on this shell's PATH. pnpm only warns when that node is below engines (WARN Unsupported engine) and installs all the same, so nothing else would stop it."
+    "Put a Node ${major} first on the PATH of the shell you run this from, and read it there: command -v node; node -v (docs/managed-bring-up.md, The Node in the shell you deploy from). A system Node another service on the host uses can stay as it is."
+    "Run this as yourself, not under sudo: sudo sets PATH to its secure_path, the system's own directories, so the node it finds is the system's, not the one in your shell.")
+  if ! node_path="$(command -v node)"; then
+    RELEASE_TAG_WHY=("there is no node on this shell's PATH, and ${tag} asks for Node ${want} (engines in its package.json)." "${tail[@]}")
+    return 1
+  fi
+  said="$(node -v 2>&1)" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    RELEASE_TAG_WHY=("node -v failed (exit ${rc}) for ${node_path}, the node first on this shell's PATH, so its version cannot be read, and ${tag} asks for Node ${want} (engines in its package.json). It said: ${said%%$'\n'*}"
+      "A Node 25 or later binary stops this way on a host without libatomic1 (error while loading shared libraries: libatomic.so.1): sudo apt-get install libatomic1, then run this again." "${tail[@]}")
+    return 1
+  fi
+  said="${said%%$'\n'*}"
+  if ! [[ "$said" =~ $re_have ]]; then
+    RELEASE_TAG_WHY=("node -v for ${node_path}, the node first on this shell's PATH, said '${said}', not a version this script can read (vN.N.N), and ${tag} asks for Node ${want} (engines in its package.json)." "${tail[@]}")
+    return 1
+  fi
+  have=("$((10#${BASH_REMATCH[1]}))" "$((10#${BASH_REMATCH[2]}))" "$((10#${BASH_REMATCH[3]}))")
+  if [ "${have[0]}" -lt "${need[0]}" ] ||
+    { [ "${have[0]}" -eq "${need[0]}" ] && { [ "${have[1]}" -lt "${need[1]}" ] ||
+      { [ "${have[1]}" -eq "${need[1]}" ] && [ "${have[2]}" -lt "${need[2]}" ]; }; }; }; then
+    RELEASE_TAG_WHY=("the node first on this shell's PATH is ${said} (${node_path}), and ${tag} asks for Node ${want} (engines in its package.json)." "${tail[@]}")
+    return 1
+  fi
+  RELEASE_TAG_NODE="Node: ${node_path} is ${said}, and ${tag} asks for ${want} (engines in its package.json)"
+}
+
 # release_tag_version_at <repo-root> <commit> — the root package.json's
-# version at that commit, or nothing. node is there: the bring-up needs it.
+# version at that commit, or nothing. node is there: the bring-up needs it,
+# and both scripts ask release_tag_node about it before they read this.
 release_tag_version_at() {
   git -C "$1" show "${2}:package.json" 2>/dev/null | node -e '
     let s = "";
