@@ -11,8 +11,9 @@ after #1773.
 (1) **stalwart-cli**: `ci.yml`'s integration tests, `e2e.yml` and `e2e-managed.yml` piped
 `releases/latest/download/stalwart-cli-installer.sh` to `sh`. Upstream's installer is
 cargo-dist's: it picks `stalwart-cli-<arch>-unknown-linux-gnu.tar.xz` on glibc 2.35 or later
-(every runner here; `main`'s logs read `downloading stalwart-cli 1.0.14 x86_64-unknown-linux-gnu`
-and `aarch64-unknown-linux-gnu`) and checks it against a sum it carries itself. The three now
+(every runner here: the hosted pull-request runs' logs, #1773's for one, read `downloading
+stalwart-cli 1.0.14 x86_64-unknown-linux-gnu`, and `main`'s self-hosted run reads
+`aarch64-unknown-linux-gnu`) and checks it against a sum it carries itself. The three now
 carry one step, word for word, that fetches release v1.0.14's archive for both architectures from
 `github.com/stalwartlabs/cli/releases/download/v1.0.14/`, refuses either whose SHA-256 is not the
 one in its `env:` (x86_64 `78584b23…`, aarch64 `a30f0c1a…`) before anything is unpacked, unpacks
@@ -60,6 +61,23 @@ from `515c072e…`, 36 of 36 tests. **Not proved here:** E2E (self-hosted) and E
 not dispatched; their copies of the step are the integration tests' word for word, and main's
 next nights run them first, as the merge push is the first self-hosted run of the step and of the
 dev database.
+**Review round** (same day): the two install hints a developer reads besides the fix doc,
+`setup-stalwart.sh`'s header and the error `packages/testing/src/testcontainers-setup.ts` throws
+when it finds no stalwart-cli, still piped `releases/latest`'s installer to `sh`; both name
+v1.0.14's installer now, and `a-pin-that-knows-it-is-behind` holds all three to the workflows'
+release (`STALWART_CLI_HINTS`, also named in the row's note). The workflow rule missed a file
+named for its channel in any workflow but `ci.yml`: Atlas's old
+`atlas-community-linux-amd64-latest` download, added to `security-scan.yml`, passed every test.
+It now also refuses any URL with a `latest` path segment or a `-latest`/`_latest` name, and any
+`npx` without `--yes=false`: the SBOM step's `npx -y @cyclonedx/cyclonedx-npm` ran the lockfile's
+6.0.1 only because `pnpm install` came first, and would have installed npm's newest had the
+devDependency gone. `--yes=false` runs that copy or fails. Not `pnpm exec`, the obvious
+alternative: it sets `npm_execpath` to pnpm, and cyclonedx-npm 6.0.1, run that way here, stopped
+with `Unexpected npmJsPath` (exit 254), where `npx --yes=false` wrote a bill of 1146 components,
+and in an empty project refused with `npx canceled due to missing packages and no YES option`.
+Each rule is mutation-checked: the Atlas line in `security-scan.yml`, either hint put back on
+`releases/latest`, the SBOM step back on `-y`, and a fourth file naming the installer each fail
+the guard, and so does either new rule taken out of it.
 
 **2026-11-01: the Atlas CLI that CI's migration lint runs is release v1.3.6, checked by its
 SHA-256 for both architectures before anything runs it (alpha.4, supply chain)**, on the branch
@@ -1763,7 +1781,7 @@ so a bump is the newest pnpm 11 that is three days old (`latest-11` once it is),
 |---|---|---|---|---|---|---|
 | Atlas CLI, community edition | `.github/workflows/ci.yml`, `migration-lint`, which runs when a migration or `ci.yml` changes: on hosted amd64 and arm64 for a pull request (since 2026-11-01), on the self-hosted arm64 runner for a push to `main` | v1.3.6 from `atlasbinaries.com` by name, each architecture checked by its SHA-256 before anything is made executable (amd64 `bb6e8167…`, arm64 `723e4cac…`), then by the version it prints; the sums are those of `/atlas` in `arigaio/atlas:1.3.6-community@sha256:66a344bf…`, read through the registry's digests (2026-11-01). Before it `atlas-community-linux-<arch>-latest`, with no version and no checksum: a canary of upstream's master (`v1.3.1-f851298-canary` on `main` at 00:14 UTC that day) | v1.3.6 (Docker Hub, 2026-10-27 13:03 UTC): Ariga's official build (`-tags=official`, version v1.3.6), whose Go build information names upstream commit `ed994a77898e` of 2026-10-21, clean for amd64 while arm64 reports `vcs.modified=true`. Upstream's git tags stop at v1.3.0 (2026-07-29), so the release list is the community image's tags | current | by hand, when the pin watch's summary issue lists a newer `<version>-community` three days old (`scripts/idp-pin-watch.mjs`, its Atlas row): the version and both sums in one pull request, as the step's header says; Dependabot cannot see a URL in a `run:` | CI only, never deployed; a new major is read like any other major, with its lint output compared |
 
-| stalwart-cli | `.github/workflows/ci.yml` (`integration-tests`: hosted amd64 and arm64 for a pull request, the self-hosted arm64 runner for a push), `e2e.yml` and `e2e-managed.yml` (the self-hosted runner, nightly and on dispatch): one step, word for word in the three | v1.0.14 from its GitHub release by name, `stalwart-cli-<arch>-unknown-linux-gnu.tar.xz` for x86_64 (`78584b23…`) and aarch64 (`a30f0c1a…`), each checked by its SHA-256 before anything is unpacked, then by the version the binary prints; the sums are the ones the release's `sha256.sum`, each file's `.sha256`, `dist-manifest.json` and its installer all give (2026-11-01). Before it `releases/latest/download/stalwart-cli-installer.sh` piped to `sh`, which installed whatever release was newest (1.0.14 since 2026-10-25, 1.0.13 before) | v1.0.14 (git tag `c1083410`, release assets uploaded 2026-10-25 18:14 UTC, npm 18:15 UTC; three days old on 2026-10-28) | current | by hand, when the pin watch's summary issue lists a newer release three days old (`scripts/idp-pin-watch.mjs`, its stalwart-cli row, against upstream's git tags): the version and both sums in all three workflows in one pull request, as `ci.yml`'s step header says; Dependabot cannot see a URL in a `run:` | CI and the E2E gates only, never deployed. Not the server pin, which is the owner's (ADR-0022) and stays at v0.16.27 |
+| stalwart-cli | `.github/workflows/ci.yml` (`integration-tests`: hosted amd64 and arm64 for a pull request, the self-hosted arm64 runner for a push), `e2e.yml` and `e2e-managed.yml` (the self-hosted runner, nightly and on dispatch): one step, word for word in the three | v1.0.14 from its GitHub release by name, `stalwart-cli-<arch>-unknown-linux-gnu.tar.xz` for x86_64 (`78584b23…`) and aarch64 (`a30f0c1a…`), each checked by its SHA-256 before anything is unpacked, then by the version the binary prints; the sums are the ones the release's `sha256.sum`, each file's `.sha256`, `dist-manifest.json` and its installer all give (2026-11-01). Before it `releases/latest/download/stalwart-cli-installer.sh` piped to `sh`, which installed whatever release was newest (1.0.14 since 2026-10-25, 1.0.13 before) | v1.0.14 (git tag `c1083410`, release assets uploaded 2026-10-25 18:14 UTC, npm 18:15 UTC; three days old on 2026-10-28) | current | by hand, when the pin watch's summary issue lists a newer release three days old (`scripts/idp-pin-watch.mjs`, its stalwart-cli row, against upstream's git tags): the version and both sums in all three workflows in one pull request, as `ci.yml`'s step header says, and the release in the three install hints a developer reads (`STALWART_CLI_HINTS`: the fix doc, `setup-stalwart.sh`, `testcontainers-setup.ts`), which the guard holds to it; Dependabot cannot see a URL in a `run:` | CI and the E2E gates only, never deployed. Not the server pin, which is the owner's (ADR-0022) and stays at v0.16.27 |
 | Atlas's dev database (`postgres`) | `.github/workflows/ci.yml`, `migration-lint`'s `--dev-url`, the disposable database Atlas replays both migration chains into | `docker://postgres/18.6-alpine@sha256:10a5c69a…/dev`: the base `deploy/compose/postgres/Dockerfile` builds the stacks' Postgres on, tag and index digest (2026-11-01). Atlas's docker driver (`FromURL` at v1.3.6's commit) takes the path's first part as the tag and runs `docker run … postgres:<tag>`, so a tag carrying `@sha256:` reaches `docker run` whole. Before it `docker://postgres/18/dev`, Docker Hub's floating `18` (Debian) | the stacks' FROM, which Dependabot moves | current | with the FROM: Dependabot's pull request for `deploy/compose/postgres/Dockerfile` fails `a-gate-on-a-version-nothing-ships` until the dev URL moves too, and the failure prints the `sed` | CI only; the major is the deployments' (that guard's older rule) |
 | binfmt (`tonistiigi/binfmt`) | `.github/workflows/images.yml`, `build`: `docker/setup-qemu-action`'s `image` input, run with `--privileged` in the job that holds `packages: write` and `id-token: write`; on a pull request too since 2026-11-01, so a moved pin runs before the merge push that publishes | `qemu-v10.2.3@sha256:400a4873…` (2026-11-01), what `latest` named that day (pushed 2026-06-08). Before it the action's default, `docker.io/tonistiigi/binfmt:latest` | `latest` = `qemu-v10.2.3` | current | by hand, when the pin watch's summary issue says `latest` names another digest (its row compares the two): the tag that carries that digest, three days old | CI only: the emulators the published images' arm64 builds run under |
 | BuildKit (`moby/buildkit`) | `.github/workflows/images.yml`, `build`: `docker/setup-buildx-action`'s `driver-opts: image=…` for its `docker-container` driver, in the same job | `v0.33.1@sha256:cec9f139…` (2026-11-01), what `buildx-stable-1`, buildx's own default and Docker's stable channel, named that day (pushed 2026-09-30). Before it that default | `buildx-stable-1` = v0.33.1; v0.34.1 is the newest release (2026-10-20), not yet in the stable channel | current | by hand, when the pin watch's summary issue says `buildx-stable-1` names another digest: the release that carries it, three days old | CI only: what builds every published image. The channel, not the newest release, because the channel is the build Docker stands behind for buildx |
@@ -1772,8 +1790,10 @@ What these replaced, as recorded here on 2026-11-01 before the change: `stalwart
 newest release by its installer script, the dev database from `docker://postgres/18/dev`, binfmt's
 `latest` with `--privileged` (on anything but a pull request) and BuildKit's `buildx-stable-1` (both
 seen in `main`'s run 41266242136). `a-pin-that-knows-it-is-behind` holds every workflow to the
-rule since then: no code line downloads from `releases/latest`, every `docker://` dev database
-carries a digest, and every image an action runs from an input is a release tag and its digest.
+rule since then: no code line downloads from `releases/latest` or a URL whose path or file name
+says `latest`, every `docker://` dev database carries a digest, every image an action runs from an
+input is a release tag and its digest, and every `npx` is `--yes=false`, which runs the lockfile's
+copy or fails (the SBOM step's `cyclonedx-npm`, `npx -y` until #1777's review).
 
 Checked, but only against its own host: the `node.exe` the Windows appliance payload ships
 (`scripts/package-appliance.mjs`, `windows-payload.yml`) is the version `apps/selfhost/Dockerfile`

@@ -75,9 +75,14 @@ notices.
   on 2026-11-01, and registers the emulators on a pull request too, so a moved
   pin runs before the push that publishes. The weekly pin watch says when a
   newer stalwart-cli is tagged, or either channel names another build, and its
-  guard refuses a `releases/latest` download, a `docker://` image without a
-  digest, or an action image without a release tag and its digest in any
-  workflow. The second-Nextcloud-major CI fixture moves to upstream's rebuild
+  guard refuses a `releases/latest` download or a file named `-latest`, a
+  `docker://` image without a digest, an action image without a release tag
+  and its digest, or an `npx` that may install from npm, in any workflow. The
+  SBOM step runs the lockfile's `cyclonedx-npm` with `npx --yes=false`, which
+  fails rather than fetch npm's newest; it was `npx -y`. The install line
+  `setup-stalwart.sh` and the integration setup's missing-CLI error print for
+  a developer names v1.0.14's installer too, held to the workflows' release.
+  The second-Nextcloud-major CI fixture moves to upstream's rebuild
   of `nextcloud:34.0.5-apache` (2026-10-28), with libbrotli's fix for the
   critical CVE-2026-111497.
 - **CI's migration lint runs Atlas v1.3.6, checked by its SHA-256 before it

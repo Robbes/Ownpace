@@ -247,9 +247,16 @@ export const STALWART_CLI_HOST = 'https://github.com/stalwartlabs/cli/releases/d
 export const STALWART_CLI_UPSTREAM = 'https://github.com/stalwartlabs/cli';
 /** Each architecture's sum, by the name `uname -m` gives it, which is the release's own. */
 export const STALWART_CLI_ARCHES = { AMD64: 'x86_64', ARM64: 'aarch64' };
-/** Said beside the stalwart-cli row when it is behind: the three values move together, in all three files. */
+/**
+ * Where a developer reads how to install stalwart-cli by hand: each names the
+ * release CI runs, by that release's own installer (`releases/download/<v>/`),
+ * and moves with it. Until 2026-11-01 the last two still piped
+ * `releases/latest`'s installer to `sh` after the workflows had stopped.
+ */
+export const STALWART_CLI_HINTS = ['docs/stalwart-integration-fix.md', 'deploy/selfhost/setup-stalwart.sh', 'packages/testing/src/testcontainers-setup.ts'];
+/** Said beside the stalwart-cli row when it is behind: the three values move together, in all three files, and the hints with them. */
 export const STALWART_CLI_NOTE =
-  "move STALWART_CLI_VERSION and both STALWART_CLI_SHA256_* together in the install step of ci.yml, e2e.yml and e2e-managed.yml (ci.yml's says where each sum is read), once the release is three days old";
+  "move STALWART_CLI_VERSION and both STALWART_CLI_SHA256_* together in the install step of ci.yml, e2e.yml and e2e-managed.yml (ci.yml's says where each sum is read), and the release in the install line of docs/stalwart-integration-fix.md, deploy/selfhost/setup-stalwart.sh and packages/testing/src/testcontainers-setup.ts, once the release is three days old";
 
 /**
  * The images two actions in images.yml run, named in their inputs (workplan

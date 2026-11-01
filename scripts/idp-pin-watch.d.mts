@@ -38,6 +38,7 @@ export declare const STALWART_CLI_FILES: string[];
 export declare const STALWART_CLI_HOST: string;
 export declare const STALWART_CLI_UPSTREAM: string;
 export declare const STALWART_CLI_ARCHES: Record<'AMD64' | 'ARM64', string>;
+export declare const STALWART_CLI_HINTS: string[];
 export declare const STALWART_CLI_NOTE: string;
 /** The stalwart-cli release a workflow installs, and its sha256 for each architecture; throws for a step that may not run. */
 export declare function stalwartCliPin(workflow: string): { version: string; sha256: Record<'amd64' | 'arm64', string>; line: number };

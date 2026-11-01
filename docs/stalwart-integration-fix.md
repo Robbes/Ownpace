@@ -113,7 +113,10 @@ carries:
     https://github.com/stalwartlabs/cli/releases/download/v1.0.14/stalwart-cli-installer.sh | sh
 The CLI is not the server pin above: it moves by hand when the pin watch's summary issue lists a
 newer release (`scripts/idp-pin-watch.mjs`, its stalwart-cli row), the version and both sums in
-all three workflows together.
+all three workflows together, and the release in this install line, in `setup-stalwart.sh`'s
+header and in the error `packages/testing/src/testcontainers-setup.ts` throws when it finds no
+stalwart-cli (`STALWART_CLI_HINTS`: `a-pin-that-knows-it-is-behind` fails while one names
+another release).
 Run via child_process.execFile against the container's HOST-MAPPED 8080 port, with an explicit
 timeout. stalwart-cli speaks only JMAP; there is no /auth/login or /api/v1/* REST API.
 

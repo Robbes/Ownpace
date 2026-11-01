@@ -257,10 +257,18 @@ jobs:
         # step below silently not fire — the workflow would go green having
         # published nothing (the 0025 T3 soft-fail shape). Fatal on tags,
         # warning elsewhere.
+        #
+        # The lockfile's cyclonedx-npm (a root devDependency, installed
+        # above), never npm's newest: `--yes=false` makes npx fail instead of
+        # installing when it is missing, where `-y` (this step until
+        # 2026-11-01) and a bare npx on CI install whatever npm names newest
+        # (workplan 0119 §2.5). Not `pnpm exec`: it sets `npm_execpath` to
+        # pnpm, and cyclonedx-npm, which runs `npm ls` through that variable,
+        # then stops with `Unexpected npmJsPath`.
         env:
           IS_RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/') }}
         run: |
-          if ! npx -y @cyclonedx/cyclonedx-npm --output-format JSON --output-file bom.json --ignore-npm-errors; then
+          if ! npx --yes=false @cyclonedx/cyclonedx-npm --output-format JSON --output-file bom.json --ignore-npm-errors; then
             if [ "$IS_RELEASE_TAG" = "true" ]; then
               echo "::error::SBOM generation failed on a release tag — without bom.json the release would silently not be created"
               exit 1

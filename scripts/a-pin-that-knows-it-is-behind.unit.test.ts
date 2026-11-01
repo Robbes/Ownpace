@@ -45,9 +45,10 @@
  * build job ran binfmt's `latest` and BuildKit's `buildx-stable-1` through
  * its actions' defaults. Each is a release named by its sha256 or digest now,
  * with a row here. This holds the stalwart-cli step as it holds Atlas's, by its
- * text and by running it, and every workflow to the rule: no `releases/latest`,
- * no `docker://` image without a digest, no action image without a release tag
- * and its digest.
+ * text and by running it, the install hints a developer reads to its release,
+ * and every workflow to the rule: no `releases/latest` and no file or path
+ * named `latest`, no `docker://` image without a digest, no action image
+ * without a release tag and its digest, and no `npx` that may install.
  */
 
 import { afterAll, describe, it, expect } from 'vitest';
@@ -79,6 +80,7 @@ import {
   SOCKET_PROXY_UPSTREAM,
   STALWART_CLI_ARCHES,
   STALWART_CLI_FILES,
+  STALWART_CLI_HINTS,
   STALWART_CLI_HOST,
   STALWART_CLI_NOTE,
   STALWART_CLI_UPSTREAM,
@@ -967,16 +969,45 @@ function stalwartStepFaults(workflow: string): string[] {
 }
 
 /**
+ * What the install hints a developer reads (STALWART_CLI_HINTS) say that CI
+ * does not (#1777's review, 2026-11-01): a hint with no stalwart-cli release
+ * URL at all, or one that is not `version`'s own installer, which is how two
+ * of them went on piping `releases/latest`'s installer to `sh` after the
+ * workflows had stopped. Empty when every hint names `version`.
+ */
+function stalwartCliHintFaults(repo: Repo, version: string): string[] {
+  const installer = `${STALWART_CLI_HOST}${version}/stalwart-cli-installer.sh`;
+  return STALWART_CLI_HINTS.flatMap((file) => {
+    const text = repo.read(file);
+    if (text === null) return [`${file} is not there`];
+    const urls = [...text.matchAll(/https:\/\/github\.com\/stalwartlabs\/cli\/releases\/[^\s'"`\\]+/g)].map((m) => m[0]);
+    if (urls.length === 0) return [`${file} names no stalwart-cli release to install`];
+    return urls.filter((url) => url !== installer).map((url) => `${file} installs ${url}, not the release CI runs (${installer})`);
+  });
+}
+
+/**
  * What in a workflow's code fetches a moving target (0119, 2026-11-01): a
- * `releases/latest` or `latest/download` URL, which names whatever upstream
- * published last, and a `docker://` dev database (Atlas's) whose image carries
- * no digest. Each offending line, with its number. Comments are not code.
+ * `releases/latest` or `latest/download` URL, or any URL with a `latest` path
+ * segment or a `-latest`/`_latest` file name (Atlas's canary, #1773), which
+ * names whatever upstream published last; a `docker://` dev database (Atlas's)
+ * whose image carries no digest; and an `npx` that may install from npm
+ * whatever it names newest when the package is not already installed (every
+ * `npx` but `--yes=false`, which runs the lockfile's copy or fails: on CI,
+ * npx assumes yes). Each offending line, with its number. Comments are not
+ * code.
  */
 function floatingFetches(workflow: string): string[] {
   return workflow.split('\n').flatMap((text, i) => {
     if (/^\s*#/.test(text)) return [];
     const found: string[] = [];
-    if (/\/releases\/latest\b|\/latest\/download\//.test(text)) found.push(`line ${i + 1} downloads upstream's newest release, whatever it is: ${text.trim()}`);
+    const named = [...text.matchAll(/\bhttps?:\/\/[^\s"'`]+/g)].filter(([url]) => /[/_-]latest(?=[/._?#-]|$)/i.test(url));
+    if (/\/releases\/latest\b|\/latest\/download\//.test(text) || named.length > 0) {
+      found.push(`line ${i + 1} downloads upstream's newest release, whatever it is: ${text.trim()}`);
+    }
+    if (/(?:^|[\s;&|(!])npx\s/.test(text) && !/(?:^|[\s;&|(!])npx\s+--yes=false\s/.test(text)) {
+      found.push(`line ${i + 1} runs npx, which installs from npm whatever it names newest when the package is missing; --yes=false runs the lockfile's copy or fails: ${text.trim()}`);
+    }
     for (const [url] of text.matchAll(/\bdocker(?:\+[a-z]+)?:\/\/[^\s"']+/g)) {
       if (!/@sha256:[0-9a-f]{64}(?:\/|$)/.test(url)) found.push(`line ${i + 1} starts a dev database from an image with no digest: ${url}`);
     }
@@ -1534,6 +1565,34 @@ describe('the stalwart-cli CI installs: a named release, checked by its sha256 f
     const row = (await routineRows(latest, fakeNet(registry()))).rows.find((r) => r.name === 'stalwart-cli');
     expect(row).toMatchObject({ state: 'error' });
   });
+
+  it("names the workflows' release in every install hint a developer reads, by that release's own installer", () => {
+    expect(STALWART_CLI_HINTS.length).toBe(3);
+    expect(stalwartCliHintFaults(REAL, STALWART_CLI.version)).toEqual([]);
+    // Every tracked file that names the installer is one of them; the workflows, which name
+    // it only in a comment on what they replaced, the records, and this watch are not hints.
+    const told = spawnSync('git', ['grep', '-l', '-F', 'stalwart-cli-installer.sh', '--', '.', ':!.github/workflows', ':!docs/workplans', ':!scripts', ':!CHANGELOG.md'], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    });
+    expect(told.status, told.stderr).toBe(0);
+    expect(told.stdout.split('\n').filter(Boolean).sort()).toEqual([...STALWART_CLI_HINTS].sort());
+  });
+
+  it('refuses a hint left on `releases/latest`, on another release, or with no release at all, each by a mutation of the real file', () => {
+    const hint = (file: string, from: string | RegExp, to: string): string[] => {
+      const real = REAL.read(file)!;
+      const next = real.replace(from, to);
+      expect(next, `${String(from)} is not in ${file}`).not.toBe(real);
+      return stalwartCliHintFaults(withFiles({ [file]: next }), STALWART_CLI.version);
+    };
+    const pinned = `/releases/download/${STALWART_CLI.version}/`;
+    expect(hint('deploy/selfhost/setup-stalwart.sh', pinned, '/releases/latest/download/').join('\n')).toMatch(/setup-stalwart\.sh installs .*releases\/latest\/download/);
+    expect(hint('packages/testing/src/testcontainers-setup.ts', pinned, '/releases/download/v1.0.13/').join('\n')).toMatch(/testcontainers-setup\.ts installs .*v1\.0\.13/);
+    expect(hint('docs/stalwart-integration-fix.md', /\n +https:\/\/github\.com\/stalwartlabs\/cli\/[^\n]+/, '')).toEqual(['docs/stalwart-integration-fix.md names no stalwart-cli release to install']);
+    // A workflow moved alone leaves every hint behind it.
+    expect(stalwartCliHintFaults(REAL, 'v1.0.99')).toHaveLength(3);
+  });
 });
 
 /**
@@ -1543,10 +1602,13 @@ describe('the stalwart-cli CI installs: a named release, checked by its sha256 f
  * build job ran binfmt's `latest` and BuildKit's `buildx-stable-1` through
  * its actions' defaults, in the job that pushes and signs the published
  * images. Each is pinned now. This holds every workflow to it: no code line
- * downloads from `releases/latest`, every `docker://` dev database carries a
- * digest, and every action that runs an image from an input names a release
- * tag and its digest (`actionImages`), which also feeds the two rows that say
- * when the channel moved.
+ * downloads from `releases/latest` or a URL whose path or file name says
+ * `latest` (the Atlas download #1773 replaced passed in any workflow but
+ * ci.yml until #1777's review), every `docker://` dev database carries a
+ * digest, every `npx` is `--yes=false` (the SBOM step's was `-y`), and every
+ * action that runs an image from an input names a release tag and its digest
+ * (`actionImages`), which also feeds the two rows that say when the channel
+ * moved.
  */
 describe('what CI fetches names its release: no `releases/latest`, no floating dev database, no image left to an action', () => {
   it('found the workflows, and none fetches a moving target', () => {
@@ -1566,6 +1628,25 @@ describe('what CI fetches names its release: no `releases/latest`, no floating d
     expect(atlas).not.toBe(ci);
     expect(() => atlasPin(atlas)).toThrow(/downloads a name with no version/);
     expect(floatingFetches('# from releases/latest until 2026-11-01, see docker://postgres/18/dev\n')).toEqual([]);
+  });
+
+  it("refuses a file named `-latest` or under a `latest` path, and an npx that may install, in any workflow, by a mutation of the real one (#1777's review)", () => {
+    const file = '.github/workflows/security-scan.yml';
+    const scan = REAL.read(file)!;
+    const sbom = /\n( +)if ! npx --yes=false @cyclonedx\/cyclonedx-npm /;
+    expect(sbom.test(scan), `the SBOM step's npx is not in ${file}`).toBe(true);
+    const mutate = (to: string): string => scan.replace(sbom, (all, indent: string) => `\n${indent}${to}${all}`);
+    // The download #1773 replaced, word for word, in a workflow atlasPin never reads.
+    const atlas = 'curl -sSf -o /tmp/atlas https://atlasbinaries.com/atlas/atlas-community-linux-amd64-latest && chmod +x /tmp/atlas';
+    expect(floatingFetches(mutate(atlas)).join('\n')).toMatch(/newest release, whatever it is: curl -sSf -o \/tmp\/atlas https:\/\/atlasbinaries\.com/);
+    for (const url of ['https://example.org/tool_latest.tar.gz', 'https://example.org/latest/tool', 'https://example.org/tool-LATEST?arch=amd64']) {
+      expect(floatingFetches(mutate(`curl -sSfLO ${url}`)), url).toHaveLength(1);
+    }
+    // A release whose name only contains the word is not a channel.
+    expect(floatingFetches(mutate('curl -sSfLO https://example.org/v1.2.3/latestish-1.2.3.tar.gz'))).toEqual([]);
+    expect(floatingFetches(scan.replace('npx --yes=false @cyclonedx', 'npx -y @cyclonedx')).join('\n')).toMatch(/runs npx, which installs from npm/);
+    expect(floatingFetches(scan.replace('npx --yes=false @cyclonedx', 'npx @cyclonedx')).join('\n')).toMatch(/runs npx, which installs from npm/);
+    expect(floatingFetches(scan.replace('npx --yes=false @cyclonedx', 'npx --yes @cyclonedx')).join('\n')).toMatch(/runs npx, which installs from npm/);
   });
 
   it('reads both action images from images.yml, each by a release tag and its digest, and every other workflow without fault', () => {
