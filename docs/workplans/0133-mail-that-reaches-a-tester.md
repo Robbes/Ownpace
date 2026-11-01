@@ -2,7 +2,15 @@
 
 > **In one line:** Real mail for testers on `ownpace-live`: an EU SMTP relay with SPF, DKIM and DMARC for the API, tasks and Zitadel (`setup-zitadel.sh`), Mailpit kept on the OTA stack, no tester before the relay (the by-hand procedure kept, unused), relay as sub-processor.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-11-01 (update this block at the end of every session)
+
+**2026-11-01, records: T5 was done.** Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-e9-records`. T5's
+row still said *Proposed*. The relay was named in #1317, merged 2026-09-28 at 22:02 UTC
+(`df74a08f`): Proton AG, in Switzerland, in privacy §7 and §8 and in `subprocessors.md`
+(`site/legal/privacy.md`:1185, `site/legal/privacy.nl.md`:558,
+`site/legal/subprocessors.md`:121), which the owner confirmed the same day
+(`site/legal/README.md`:306), and live has published those texts since 2026-10-28 (0139 T10).
+The row says so now.
 
 **2026-09-28, latest: the DMARC report address, added by the owner.** The owner, the same day: *"DMARC record was added"*, the step the entry below left to them: `rua=mailto:support@ownpace.eu` in the domain's DMARC record, so aggregate reports reach the mailbox that already takes `NOTIFY_TO` and `REPORT_MAIL_TO`. Not read back from here: this session's network refuses DNS-over-HTTPS, so the record's text is the owner's word. To confirm it on any machine: `dig +short TXT _dmarc.ownpace.eu` shows `rua=mailto:support@ownpace.eu` beside `p=quarantine`. The first aggregate reports arrive within a day of mail being sent; the support mailbox's retention (until resolved, then 6 months, privacy §9 as drafted in #1317) covers them as it covers any mail there.
 
@@ -261,7 +269,7 @@ recipe that lists one tester's mail by recipient, and with when the interim ends
 | T2 The identity provider sends with the relay's login, over TLS, and follows `.env` | 📋 **Decided 2026-09-24** (D1); item 1 ✅ **done** in #1137, merged 2026-09-24; item 5 ✅ **done** in #1245, merged 2026-09-27 (`requireTLS` with a login); items 2 to 4 ✅ **done** in #1249, merged 2026-09-27 (TLS for any relay but the catcher, one provider updated in place, the guide) — *was:* items 2 to 4 🔨 built 2026-09-27, not merged | §3. The provider is created with `SMTP_USER` and `SMTP_PASSWORD` since #1137. Left: TLS for any relay that is not the catcher, and the existing provider updated rather than reported as "already configured". |
 | T3 Both senders point at the relay, and Mailpit runs only where something needs it | 📋 **Decided 2026-09-24** (D1, D5) for the switch on `ownpace-live`, and for no Mailpit there once the relay is set; (b) and (c) ✅ **done** in #1260, merged 2026-09-28: the gating and the `.invalid` note — *was:* 🔨 **(b) and (c) built 2026-09-27, not merged**; before that **Proposed** for how the bring-up gates Mailpit | §3. Live's `.env` only; the OTA stack keeps `SMTP_HOST=mailpit`. Waits on T0, T2, 0132 T1 and T1b to T1d, and 0135 T0. |
 | T4 One outside mailbox, walked end to end | 📋 **Proposed**; the owner walks it after T3, and before the first invitation (open question 1, answered 2026-09-28) | §3. On `ownpace-live`, at `app.ownpace.eu` and `id.ownpace.eu`. Request, knock notice, grant mail, identity-provider verification, first sign-in, Join. Headers checked at two mail providers. |
-| T5 The relay named as a sub-processor | 📋 **Proposed**; carried by 0139 | §3. Fills `«EMAIL_PROVIDER»` and `«EMAIL_REGION»` in three legal pages. |
+| T5 The relay named as a sub-processor | ✅ **Done** in #1317, merged 2026-09-28 (`df74a08f`), carried by 0139: Proton AG, in Switzerland, fills both tokens in privacy §7 and §8 and in `subprocessors.md` (`site/legal/privacy.md`:1185, `site/legal/privacy.nl.md`:558, `site/legal/subprocessors.md`:121), confirmed by the owner on 2026-09-28 (`site/legal/README.md`:306), on live since 2026-10-28 (0139 T10); corrected 2026-11-01 — *was:* 📋 **Proposed**; carried by 0139 | §3. Fills `«EMAIL_PROVIDER»` and `«EMAIL_REGION»` in three legal pages. |
 | T6 A password on Mailpit's web page | 🅿️ **Parked (trigger: a second person on the mesh, or Mailpit's page on a name or port a tester can reach)** | §3. `MP_UI_AUTH_FILE` is named in two docs and not passed to the container. |
 
 ## 1. What there is today

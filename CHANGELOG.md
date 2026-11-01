@@ -175,6 +175,11 @@ notices.
   (`docs/ending-the-alpha.md`, step 4). Both refusals first apply at the
   deploy after the one that moves live onto this release: `deploy-live.sh`
   runs its copy from before the checkout moves.
+- **croner 11.0.0** (from 10.0.1, #1764), and Dependabot's five minor and
+  patch updates (#1771): @azure/msal-node 7.1.2, @electric-sql/pglite 0.5.13,
+  react-router 8.5.1, lucide-react 1.63.0 and @types/node 26.6.6. No call site
+  changes: the scheduler and `sync-due` use `new Cron`, `nextRun`, `resume` and
+  `stop`, which croner 11 keeps.
 
 ### Added
 
@@ -202,9 +207,6 @@ notices.
   CI's `docs-hygiene`, which runs on every change, fails a document renamed,
   removed or retitled without the list, so the pull request breaks rather than
   the link. `scripts/a-doc-an-assistant-is-sent-to.unit.test.ts` holds it.
-
-### Added
-
 - **The nightly managed gate proves that copying a meeting the target account
   organises itself invites nobody** (workplan 0141 T9 (b), the organiser
   canary): each fresh set now carries an event 3 organised by the demo target

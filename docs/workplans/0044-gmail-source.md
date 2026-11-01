@@ -2,14 +2,20 @@
 
 > **In one line:** Gmail as a first-class mail source over IMAP with XOAUTH2: `gmail-source-factory.ts` on Drive's OAuth client and `GOOGLE_MAIL_REFRESH_TOKEN`, All Mail/Starred/Important views dropped, in both editions, the config parser, create API and wizard.
 
-## Status — 2026-08-16 (update this block at the end of every session)
+## Status — 2026-11-01 (update this block at the end of every session)
+
+**2026-11-01, index pass (0147 T3):** T4 said *Waiting on the owner*, and since 2026-09-22 it
+has not been true: `gmail` has run against the owner's own Google account routinely, and is ✅
+in the feature matrix since that day (`docs/feature-matrix.md`:10-14, :479). The runbook's
+Stage 5 (`docs/owner-test-runbook.md`:277) records no result. A second account is 0141 T6, the
+owner's. On the branch `claude/ownpace-public-readiness-y7orc6-e9-records`.
 
 | Task | Status | Evidence |
 |---|---|---|
 | T1 the shared factory: token, transport, view filter | ✅ **Done 2026-08-16** | `gmail-source-factory.ts`: `GoogleTokenProvider` with the `https://mail.google.com/` scope handed to `ImapFlowSource` as its `tokenProvider` (mints per connect, refreshes on auth error), fixed endpoint `imap.gmail.com:993`, build-time refusals in each edition's vocabulary. `GmailFolderView` drops `\All`/`\Flagged`/`\Important` by RAW LIST attribute — which required `MailFolder.listAttributes`, because `specialUse` folds all three to `'normal'` and the NAMES are localised. 11 unit tests; the filter, the refusal wording per edition, the scope, and the explicit 3-method delegation are each pinned. |
 | T2 both editions wired through the same factory | ✅ **Done 2026-08-16** | Appliance: `buildSourceConnector` case `'gmail'` reading `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_MAIL_REFRESH_TOKEN` (its own variable — a Drive-consented token answers `invalid_scope`); a top-level gmail source joins the no-domains-block → mail-only fallback (`isTopLevelMailSource`), so a minimal mapping file runs mail instead of silently nothing. Managed: `buildSourceConnectorFromCredentials` branch with the STORED names; `connection.kind = 'gmail'` (migration 0012, schema-pg enum). Tests at both seams. |
 | T3 the doors: config parser, create API, wizard | ✅ **Done 2026-08-16** | Shared `GmailSource {type, user}` + parse branch (one field; credentials never in a file). API: `sourceType` enum + `sourceKindFor` + config blob `{type:'gmail', user}` + superRefine (three Google credentials named, `sourceDomainRefusal('gmail')`) + the Drive secret-encryption branch widened to both Google types. Wizard: fifth source card pinning email + a mail-capable target, Google credential fields shared with Drive, EN/NL strings. `SOURCE_TYPE_DOMAINS.gmail = ['email']` with a per-type refusal sentence (Drive's wording unchanged — its tests still pin 'Drive API only'). Create-coherence, target-domains, config and wizard tests extended. |
-| T4 an owner runs it | ⏳ **Waiting on the owner** | Stage 5 of `docs/owner-test-runbook.md` (added by this workplan): a real Gmail account through either edition. The view-filter's behaviour against Google's real LIST response and the first-connect XOAUTH2 handshake are the two things only reality can prove. |
+| T4 an owner runs it | ✅ **Corrected 2026-11-01 (0147 T3): run on the owner's own account (feature matrix, 2026-09-22)**; a second account is 0141 T6 — *was:* ⏳ **Waiting on the owner** | Stage 5 of `docs/owner-test-runbook.md` (added by this workplan): a real Gmail account through either edition. The view-filter's behaviour against Google's real LIST response and the first-connect XOAUTH2 handshake are the two things only reality can prove. |
 
 ## What this is
 
