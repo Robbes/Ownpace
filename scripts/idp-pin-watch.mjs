@@ -66,8 +66,11 @@
  *                      release trigger-docker-proxy is built from against
  *                      upstream's git tags (its base, HAProxy, is compared
  *                      within its line, `LINES`), the Trivy the Security
- *                      Scan runs, and the cosign the workflows name, every
- *                      copy together.
+ *                      Scan runs, the cosign the workflows name, every
+ *                      copy together, and the Atlas release ci.yml's
+ *                      migration-lint downloads and checks by its sha256
+ *                      (2026-11-01), against the community image's tags on
+ *                      Docker Hub (`ATLAS_WORKFLOW` says why not git's).
  *                      cosign-installer's default is a status line only. Any
  *                      other image a script in deploy/compose runs is not
  *                      compared; today there is none (db-roles.sh reads its
@@ -203,6 +206,25 @@ export const STALWART_FILES = [
  * with it, and release.yml's verify job checks those signatures with it.
  */
 export const COSIGN_FILES = ['.github/workflows/images.yml', '.github/workflows/release.yml'];
+
+/**
+ * The Atlas CLI `migration-lint` downloads (workplan 0119, 2026-11-01): a
+ * named release, with a SHA-256 for each architecture the job runs on, set in
+ * the `env:` of its install step. Until that day the step fetched
+ * `atlas-community-linux-<arch>-latest`, which is a canary build of upstream's
+ * master branch and not a release, with no checksum, and ran it, on the
+ * owner's machine for a main push. Upstream's git tags stop at v1.3.0 while
+ * its releases go on (1.3.6 on 2026-10-27), so the release list this row
+ * reads is the community image's tags on Docker Hub, `<version>-community`,
+ * which carry every release. Dependabot cannot see a URL in a `run:`.
+ */
+export const ATLAS_WORKFLOW = '.github/workflows/ci.yml';
+export const ATLAS_HOST = 'https://atlasbinaries.com/';
+export const ATLAS_IMAGE = 'arigaio/atlas';
+export const ATLAS_ARCHES = ['amd64', 'arm64'];
+/** Said beside the Atlas row when it is behind: the three values move together. */
+export const ATLAS_NOTE =
+  "move ATLAS_VERSION and both ATLAS_SHA256_* in ci.yml's install step together (it says where each sum is read), once the release is three days old";
 
 const IMAGE_LINE = /^\s*image:\s*ghcr\.io\/zitadel\/zitadel:(\S+)\s*$/gm;
 const RELEASE = /^v(\d+)\.(\d+)\.(\d+)$/;
@@ -515,6 +537,107 @@ export function stepsUsing(workflow, action) {
     steps.push({ sha: m[2], version: m[3] ?? '', with: inputs });
   });
   return steps;
+}
+
+/**
+ * The Atlas `migration-lint` installs, read from the one step of `workflow`
+ * that downloads from ATLAS_HOST: `{ version, sha256: { amd64, arm64 }, line }`.
+ * Throws for a step not of the shape it must have (workplan 0119,
+ * 2026-11-01): a download whose name carries no `${ATLAS_VERSION}`, or says
+ * `latest`; a fetch from anywhere but ATLAS_HOST, or into anything but the
+ * file it hashes; a version that is not a release (`v1.3.6`); an architecture
+ * with no 64-digit sum; a sum compared with anything but the pinned one in
+ * `env:`; a file made executable (`chmod`, `install -m`) that is not the one
+ * hashed, or before a `sha256sum` has read it with an `exit 1` between; or no
+ * check that the binary calls itself the release named. This reads the
+ * step's TEXT, so it cannot see whether a mismatch really stops it: the guard
+ * also runs the step's `run:` under bash for that. The Atlas row reads its
+ * version with this.
+ */
+export function atlasPin(workflow) {
+  const lines = workflow.split('\n');
+  const isCode = (text) => text.trim() !== '' && !text.trim().startsWith('#');
+  const urls = lines.flatMap((text, i) => (isCode(text) && text.includes(ATLAS_HOST) ? [i] : []));
+  if (urls.length === 0) throw new Error(`no step downloads from ${ATLAS_HOST}`);
+  // The step around the first download: up to its `- ` opener, down to the next one at that column.
+  let start = urls[0];
+  while (start > 0 && !/^\s*- (?:name|uses|run|id):/.test(lines[start])) start--;
+  const indent = /^(\s*)- /.exec(lines[start])?.[1] ?? '';
+  let end = start + 1;
+  while (end < lines.length && !lines[end].startsWith(`${indent}- `) && !(isCode(lines[end]) && lines[end].search(/\S/) < indent.length)) end++;
+  if (urls.some((i) => i >= end)) throw new Error(`more than one step downloads from ${ATLAS_HOST}; one installs Atlas`);
+  const step = lines.slice(start, end);
+  const code = step.filter(isCode);
+  const env = Object.fromEntries(
+    code.flatMap((text) => {
+      const m = /^\s+(ATLAS_[A-Z0-9_]+):\s*['"]?([^'"\s#]+)['"]?\s*(?:#.*)?$/.exec(text);
+      return m ? [[m[1], m[2]]] : [];
+    }),
+  );
+  const version = env.ATLAS_VERSION;
+  if (!/^v\d+\.\d+\.\d+$/.test(version ?? '')) {
+    throw new Error(`the Atlas step names no release in ATLAS_VERSION (${version ?? 'unset'}); a release is v<major>.<minor>.<patch>`);
+  }
+  for (const text of code.filter((t) => t.includes(ATLAS_HOST))) {
+    if (/latest/i.test(text) || !/-\$\{ATLAS_VERSION\}["']?\s*$/.test(text)) {
+      throw new Error(`the Atlas step downloads a name with no version: ${text.trim()} (it must end in -\${ATLAS_VERSION})`);
+    }
+  }
+  const sha256 = {};
+  for (const arch of ATLAS_ARCHES) {
+    const sum = env[`ATLAS_SHA256_${arch.toUpperCase()}`];
+    if (!/^[0-9a-f]{64}$/.test(sum ?? '')) throw new Error(`the Atlas step pins no sha256 for linux/${arch} (ATLAS_SHA256_${arch.toUpperCase()})`);
+    sha256[arch] = sum;
+  }
+  if (sha256.amd64 === sha256.arm64) throw new Error('the Atlas step pins one sha256 for two architectures');
+  // Every fetch is the release from ATLAS_HOST, into the file the loop hashes;
+  // the sum it is compared with is the pinned one; and what is made
+  // executable is that same file, for the native architecture.
+  const logical = [];
+  for (const text of code) {
+    const last = logical.length - 1;
+    if (last >= 0 && logical[last].endsWith('\\')) logical[last] = `${logical[last].slice(0, -1).trimEnd()} ${text.trim()}`;
+    else logical.push(text.trim());
+  }
+  for (const text of code) {
+    for (const [url] of text.matchAll(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'`]+/gi)) {
+      if (!url.startsWith(ATLAS_HOST)) throw new Error(`the Atlas step fetches from somewhere other than ${ATLAS_HOST}: ${url}`);
+    }
+  }
+  const hashed = '"$RUNNER_TEMP/atlas-$ATLAS_VERSION-linux-$arch"';
+  const native = hashed.replace('$arch', '$native');
+  const has = (statement) => logical.some((text) => text === statement || text.startsWith(`${statement};`));
+  if (!has(`download=${hashed}`)) throw new Error(`the Atlas step does not download each architecture to download=${hashed}`);
+  for (const text of logical.filter((t) => /\b(?:curl|wget)\b/.test(t))) {
+    if (!text.includes(ATLAS_HOST) || !/\s-o "\$download"\s/.test(text)) {
+      throw new Error(`the Atlas step fetches something that is not the release into "$download": ${text}`);
+    }
+  }
+  for (const text of logical.filter((t) => /\bsha256sum\b/.test(t))) {
+    if (text !== 'seen="$(sha256sum "$download")"') throw new Error(`the Atlas step hashes something other than "$download": ${text}`);
+  }
+  const pins = [...code.join('\n').matchAll(/\bpinned=([^\s;]*)/g)].map((m) => m[1]);
+  const fromEnv = ATLAS_ARCHES.map((arch) => `"$ATLAS_SHA256_${arch.toUpperCase()}"`);
+  if (pins.some((value) => !fromEnv.includes(value)) || !fromEnv.every((value) => pins.includes(value))) {
+    throw new Error(`the Atlas step's pinned sum is not only ${fromEnv.join(' or ')}: pinned=${pins.join(', pinned=') || 'nothing'}`);
+  }
+  if (!has('if [ "$seen" = "$pinned" ]; then')) throw new Error('the Atlas step never compares the sum it read ("$seen") with the pinned one ("$pinned")');
+  for (const text of logical.filter((t) => /\bchmod\b|\binstall\s+-m\b/.test(t))) {
+    const made = /\bchmod\s+\S+\s+(\S+)/.exec(text)?.[1] ?? /\binstall\s+-m\s+\S+\s+(\S+)/.exec(text)?.[1];
+    if (made !== native) throw new Error(`the Atlas step makes executable something other than the file it hashed, ${native}: ${text}`);
+  }
+  const first = (re) => code.findIndex((text) => re.test(text));
+  const read = first(/\bsha256sum\b/);
+  const runnable = first(/\bchmod\b|\binstall\s+-m\b/);
+  if (read < 0) throw new Error('the Atlas step never reads a sha256 of what it downloads');
+  if (runnable < 0) throw new Error('the Atlas step makes nothing executable, so it cannot be what installs Atlas');
+  if (!(read < runnable && code.slice(read, runnable).some((text) => /\bexit 1\b/.test(text)))) {
+    throw new Error('the Atlas step makes its download executable before its sha256 is read and a mismatch has stopped it');
+  }
+  if (!code.some((text) => text.includes('atlas community version $ATLAS_VERSION'))) {
+    throw new Error('the Atlas step never checks that what it installed calls itself the release named');
+  }
+  return { version, sha256, line: start + 1 };
 }
 
 /** The default an action's `action.yml` gives one of its `inputs:`. */
@@ -1044,6 +1167,17 @@ export async function routineRows(repo, net) {
       return { pin: pin.join(' / '), newest, state, notes: pin.length > 1 ? ['the copies disagree'] : [] };
     }]);
   }
+
+  // Atlas: the CLI migration-lint downloads by release and checks by its
+  // sha256 (2026-11-01). Its release list is the community image's tags on
+  // Docker Hub, since upstream's git tags stop at v1.3.0 (ATLAS_WORKFLOW).
+  jobs.push(['Atlas', ATLAS_WORKFLOW, async () => {
+    const { version } = atlasPin(need(repo, ATLAS_WORKFLOW));
+    const tag = `${version.slice(1)}-community`;
+    const newest = `v${newestLike(tag, await tagsFor(ATLAS_IMAGE)).replace(/-community$/, '')}`;
+    const state = stateOf(version, newest);
+    return { pin: version, newest, state, ...(state === 'behind' ? { notes: [ATLAS_NOTE] } : {}) };
+  }]);
 
   const rows = [];
   for (const [name, where, job] of jobs) rows.push(await settle(job, { name, where }));

@@ -2,7 +2,51 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-10-31 (update this block at the end of every session)
+## Status — 2026-11-01 (update this block at the end of every session)
+
+**2026-11-01: the Atlas CLI that CI's migration lint runs is release v1.3.6, checked by its
+SHA-256 for both architectures before anything runs it (alpha.4, supply chain)**, on the branch
+`claude/ownpace-public-readiness-y7orc6-atlas-pin`, draft #1773. `migration-lint` downloaded
+`atlas-community-linux-<arch>-latest` with no version and no checksum and ran it, on the owner's
+own machine for a push to `main`; that name is a canary of upstream's master, not a release (the
+last run on `main`, `e103699f` at 00:14 UTC today, printed `v1.3.1-f851298-canary`). Upstream's
+git tags stop at v1.3.0 (2026-07-29), but its releases go on: the community image on Docker Hub
+lists `1.3.1-community` to `1.3.6-community`, the last pushed 2026-10-27 13:03 UTC, three days old
+since 2026-10-30. Read through the registry's own digests, its index `66a344bf…` holds a linux/amd64
+manifest `22086c9b…` and a linux/arm64 `1f7cf5b5…`, and the last layer of each is `/atlas`
+alone: Ariga's official build (`-tags=official`, version v1.3.6, the Apache 2.0 licence text),
+whose Go build information (read with `go version -m`, not run) names upstream commit
+`ed994a77898e` (2026-10-21, a pseudo-version of `ariga.io/atlas` on proxy.golang.org). That is
+clean for amd64; the arm64 build reports a modified tree (`+dirty`, `vcs.modified=true`), and the
+image's SLSA provenance names Ariga's own build repository, so both channels carry one output of
+Ariga's pipeline and only the amd64 binary says it is that public commit as published. Their
+SHA-256 are `bb6e8167…` and `723e4cac…`. The step now fetches `atlas-community-linux-<arch>-v1.3.6`
+for both architectures, compares each with its pinned sum (in the step's `env:`), stops before
+anything is executable if either differs, installs the native one, and checks that it prints
+`atlas community version v1.3.6`; a pull request runs the job on hosted amd64 and arm64 (a matrix,
+as `integration-tests` has; a push stays one run on the self-hosted runner). **Proved on the
+branch:** CI run 41267596791 on `964392ad` (`ci-complete` success, 03:18 UTC): `migration-lint`
+(hosted amd64) printed `Atlas v1.3.6 linux/amd64: sha256 bb6e8167…, as pinned.`, the same for
+arm64, and `atlas community version v1.3.6`: the bytes `atlasbinaries.com` serves are the image's,
+by both channels. The lint read what the canary read on `main`: 121 versions ok, 3 with warnings
+(the three MF101 unique-index notes), 368 schema changes. (Run 41267185989 on `9ee6477a`, cited
+here first, passed `migration-lint` and was then cancelled by the next push.) The pin watch has an
+Atlas row that compares the release with the community image's tags (§2.5), and
+`a-pin-that-knows-it-is-behind` holds the step two ways. `atlasPin` reads its text: a name with no
+version, a version that is no release, a missing or shared sum, a fetch from another host or into
+another file, a sum compared with anything but the pinned one, a file made executable that is not
+the one hashed, or no version check. And the guard RUNS the step's `run:` under bash with `curl`
+and `uname` stubbed: on both machines the pinned bytes are installed and run, a wrong sum for either
+architecture leaves nothing installed or run, and a binary that calls itself
+`v1.3.1-f851298-canary` fails it. **Review of 2026-11-01:** the first guard read text only, and
+deleting `refused=1`, comparing `"$seen"` with itself, or dropping the version check's `exit 1`
+left it green while a wrong sum installed and ran (the reviewer ran the step); each of those, and
+three ways round the pin (a sum fetched at run time, a comparison that is always true, a second
+download), is now a mutation that fails it. **Not proved here:** the first run of the arm64
+binary is this pull request's hosted arm64 leg (the pull request names the run); on the
+self-hosted runner it is the merge push. Still floating, as follow-ups (§2.5): the dev database
+Atlas starts, `stalwart-cli`, and the binfmt and BuildKit images `images.yml`'s build pulls; and
+the Windows payload's `node.exe` is checked only against a sum list from its own host.
 
 **2026-10-31, later: npm and node-gyp's tree out of both Trigger.dev builds (0146 T16, for
 alpha.4), built as draft #1763**, now on v4.8.3 (0146's Status entry of the same name has the
@@ -1655,6 +1699,30 @@ Node 24 everywhere it matters: `engines` says `>=24`, CI installs `24`, the imag
 pnpm 11.28.9 (11.22.0 at the audit), moved by hand: Dependabot never touches `packageManager`,
 so a bump is the newest pnpm 11 that is three days old (`latest-11` once it is), then
 `pnpm install` to show the lockfile unchanged. PostgreSQL 18 on both stacks; PGlite (npm) current. Prisma current.
+
+### 2.5 Binaries CI downloads (from 2026-11-01)
+
+| Tool | Where | Pinned | Newest | Distance | Moves by | Decision |
+|---|---|---|---|---|---|---|
+| Atlas CLI, community edition | `.github/workflows/ci.yml`, `migration-lint`, which runs when a migration or `ci.yml` changes: on hosted amd64 and arm64 for a pull request (since 2026-11-01), on the self-hosted arm64 runner for a push to `main` | v1.3.6 from `atlasbinaries.com` by name, each architecture checked by its SHA-256 before anything is made executable (amd64 `bb6e8167…`, arm64 `723e4cac…`), then by the version it prints; the sums are those of `/atlas` in `arigaio/atlas:1.3.6-community@sha256:66a344bf…`, read through the registry's digests (2026-11-01). Before it `atlas-community-linux-<arch>-latest`, with no version and no checksum: a canary of upstream's master (`v1.3.1-f851298-canary` on `main` at 00:14 UTC that day) | v1.3.6 (Docker Hub, 2026-10-27 13:03 UTC): Ariga's official build (`-tags=official`, version v1.3.6), whose Go build information names upstream commit `ed994a77898e` of 2026-10-21, clean for amd64 while arm64 reports `vcs.modified=true`. Upstream's git tags stop at v1.3.0 (2026-07-29), so the release list is the community image's tags | current | by hand, when the pin watch's summary issue lists a newer `<version>-community` three days old (`scripts/idp-pin-watch.mjs`, its Atlas row): the version and both sums in one pull request, as the step's header says; Dependabot cannot see a URL in a `run:` | CI only, never deployed; a new major is read like any other major, with its lint output compared |
+
+Not in this table yet, and floating: the `stalwart-cli` the integration tests and both E2E gates
+install from its newest release by its installer script (`ci.yml`, `e2e.yml`, `e2e-managed.yml`);
+the dev database Atlas starts for the lint, `docker://postgres/18/dev`, a Docker Hub tag with
+no digest; and the two images `images.yml`'s `build` job pulls through its actions' defaults, in
+the job that holds `packages: write` and `id-token: write` and pushes and signs the published
+images: `docker/setup-qemu-action` runs `docker.io/tonistiigi/binfmt:latest` with `--privileged`
+(on anything but a pull request), and `docker/setup-buildx-action`'s `docker-container` driver pulls
+`moby/buildkit:buildx-stable-1` (both seen in `main`'s run 41266242136, 2026-11-01). The follow-up
+for those two: `image: docker.io/tonistiigi/binfmt:<version>@sha256:…` on the one and
+`driver-opts: image=moby/buildkit:<version>@sha256:…` on the other, each with a pin-watch row.
+
+Checked, but only against its own host: the `node.exe` the Windows appliance payload ships
+(`scripts/package-appliance.mjs`, `windows-payload.yml`) is the version `apps/selfhost/Dockerfile`
+names, compared with the `SHASUMS256.txt` fetched from the same `nodejs.org` release directory at
+build time, with no signature checked and no sum committed. The follow-up: check
+`SHASUMS256.txt.sig` against the Node release keys, or commit each platform's sum beside the
+version so the two move together.
 
 ## 3. The owner's decisions
 
