@@ -57,8 +57,9 @@ measured: a `PATH` with another node first lost it under `sudo`).
   pnpm that runs `packageManager`'s version, as step 4 says), and the owner's libatomic1
   reading is `dpkg-query -W -f='${Status} ${Version}\n' libatomic1`, which prints the status
   and version only, where `dpkg -s` prints maintainers' email addresses too (step 1,
-  `release.md` §5, 0131). main's #1763 (`a94dd5b3`) was merged in; 0119's image table kept
-  main's Trigger.dev row and this branch's `triggerdotdev/node` row.
+  `release.md` §5, 0131). main was merged in twice: #1763 (`a94dd5b3`), where 0119's image
+  table kept main's Trigger.dev row and this branch's `triggerdotdev/node` row, then #1766
+  (`479f9230`), where CHANGELOG `[Unreleased]` kept both Changed entries.
 - **Not for the alpha.4 deploy itself.** `deploy-live.sh`'s whole run is one function bash reads
   before the checkout replaces the file with the tag's copy, so the deploy to alpha.4 runs
   alpha.3's copy, which reads no Node. For that deploy the owner's reading in the deploy shell

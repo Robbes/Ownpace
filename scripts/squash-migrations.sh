@@ -14,11 +14,15 @@
 # construction, and this script then PROVES it: it applies the generated baseline
 # to a second database and refuses unless the two dumps are byte-identical.
 #
-# ONLY SAFE PRE-RELEASE. Squashing rewrites history the migration runner keys on
-# (`schema_migrations.version` is the filename), so any database that already
-# recorded the old chain will trip the runner's downgrade guard and refuse to
-# start. That is the correct outcome — such a database must be dropped and
-# recreated. Do not run this once real data exists anywhere.
+# ONLY SAFE PRE-RELEASE, AND PRE-RELEASE HAS ENDED: IT REFUSES. Squashing
+# rewrites history the migration runner keys on (`schema_migrations.version` is
+# the filename), so any database that already recorded the old chain will trip
+# the runner's downgrade guard and refuse to start. Before any release that was
+# a shrug: such a database was dropped and recreated. Since the tag
+# `scripts/release-line.json` names as `preReleaseEndedAt` (v0.2.0-alpha.1),
+# real data exists, and a database that holds it is restored from a backup,
+# never dropped (workplan 0146 T3, ADR-0045). The script refuses below, before
+# it reads anything; the rest stays as the record of how the baseline was made.
 #
 # Usage:
 #   ADMIN_URL='postgres://postgres@127.0.0.1:5432' scripts/squash-migrations.sh          # dry run
@@ -34,6 +38,27 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# PRE-RELEASE ENDED, SO THIS REFUSES (workplan 0146 T3, ADR-0045). The tag
+# `scripts/release-line.json` names as `preReleaseEndedAt` was the last moment a
+# squash was safe: from it on, databases that hold real data recorded the
+# chain's filenames, and a squash would make every one of them refuse to start
+# (the runner's downgrade guard), with no way back but a restore. It refuses
+# before it reads ADMIN_URL or starts anything. What follows stays as the
+# record of how 0001_baseline.sql was made.
+ended="(the tag scripts/release-line.json names)"
+if [[ -r "$REPO_ROOT/scripts/release-line.json" ]]; then
+  release_line="$(<"$REPO_ROOT/scripts/release-line.json")"
+  if [[ $release_line =~ \"preReleaseEndedAt\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
+    ended="${BASH_REMATCH[1]}"
+  fi
+fi
+echo "refused: pre-release ended with $ended, so no migration chain is squashed again (ADR-0045)." >&2
+echo "         Both chains only grow: a change to an applied migration is a new numbered file." >&2
+echo "         A database that holds real data recorded the old chain's filenames; a squash would" >&2
+echo "         make the runner refuse it, and its way back is a restore, never a drop." >&2
+exit 1
+
 MIGRATIONS_DIR="$REPO_ROOT/packages/ledger/migrations"
 BASELINE_NAME="0001_baseline.sql"
 

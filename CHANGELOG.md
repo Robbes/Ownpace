@@ -4,6 +4,57 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+**Since `v0.1.0-rc.1`, for a reader new to the Alpha** (workplan 0146 T1). The
+sections of alpha.1 to alpha.3 below list what each one changed, and alpha.1's
+stops at mid-August 2026. This is what the Alpha is, grouped by what a tester
+notices.
+
+- **The Alpha.** The managed edition, run by the owner, free and by invitation,
+  for 10 to 20 people over a few weeks, in Dutch. It takes no backups. What each
+  source and target can migrate is in the [feature matrix](docs/feature-matrix.md),
+  with its open gaps in one table; testers have the Dutch tester guide.
+- **Sources**, proven or experimental as the screen labels them
+  (`SOURCE_PROOFS` in `packages/shared/src/front-door.ts`, read on 2026-10-31;
+  the fold reads it again):
+  - proven: Gmail, Google Calendar, Google Contacts and Google Drive, and the
+    Google account's calendars, contacts and files, on the owner's own account;
+    an IMAP server, on one this project runs;
+  - experimental, built, and not yet proven by a recorded run against a real
+    account of its kind: the Google account's mail and Tasks, and Google's
+    whole-domain option; Microsoft 365 over IMAP and over Graph, the Microsoft
+    365 account's mail, calendars, contacts, OneDrive and To Do, and a shared
+    mailbox; Apple (iCloud); Dropbox; Box; and an export archive (Google Photos
+    Takeout, or Apple's Data and Privacy export), offered and labelled on
+    managed too.
+- **Targets:** a Soverin account (mail, calendars, contacts, tasks), a
+  Nextcloud account (calendars, contacts, files, tasks), JMAP (mail, contacts,
+  files; its calendars are parked), and plain IMAP, CalDAV, CardDAV and WebDAV.
+- **Signing in** goes through an identity provider, and Ownpace keeps no
+  sign-in password (ADR-0042). The owner lets each tester in from the access
+  queue: a tester asks with *Request access* on the sign-in page, and the mail
+  that follows says where to sign in and carries no token (workplan 0131). A
+  tester can send each person they migrate a grant link, which the tester
+  hands out and Ownpace never does (ADR-0035, ADR-0050).
+- **A migration is silent:** nothing it writes may make a target send mail or
+  a notification (ADR-0043).
+- **Billing:** invoices are numbered and written by the accounting system,
+  never by this product (ADR-0044), and nothing is charged during the Alpha
+  (workplan 0131 T3).
+- **For whoever runs it:** a Log page over the audit log and the app's errors
+  and warnings (workplan 0129), and a problem report a tester sends from the
+  app, which reaches a person and names the build it came from (workplans 0130
+  and 0146 T2).
+
+**What is not in it:**
+
+- No backups during the Alpha (workplan 0134): a database lost is lost.
+- Every source marked experimental above: built and tested, and not yet
+  proven by a recorded run against a real account of its kind.
+- A signed Windows payload: the zip is unsigned, as rc.1's was, and Windows
+  warns before it runs (workplan 0025 T6, deferred to `v0.1.0`).
+- An appliance tester: the appliance at this tag is the same code, and the
+  Alpha tests the managed edition.
+
 ### Security
 
 - **The Trigger.dev webapp and supervisor built here lose npm and pnpm's
@@ -95,13 +146,24 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   asks for (`engines.node`), none at all, or an `engines` they cannot read
   (an `engines.node` other than `>=N` or `>=N.N.N`, more than one `engines`
   key in the file, an object inside it, or `node` given twice), naming the
-  node's path and version (`release_tag_node` in `release-tag.sh`). The deploy to this release runs alpha.3's
-  `deploy-live.sh`, which has no such check, so for it the reading in the
+  node's path and version (`release_tag_node` in `release-tag.sh`). The
+  deploy to this release runs alpha.3's `deploy-live.sh`, which has no such
+  check, so for it the reading in the
   deploy shell (`command -v node`, `node -v`) is the check; the refusal guards
   the deploys after it. The steps are in `managed-bring-up.md`, *The Node in
   the shell you deploy from*. The first task
   deploy and the first CI lint after the move are slow, as nothing is cached
   for 26 yet. Nothing a stack's `.env` sets changes.
+- **Pre-release has ended, and no migration a release shipped changes again**
+  (workplan 0146 T3, ADR-0045): pre-release ended with `v0.2.0-alpha.1`, the
+  first tag `ownpace-live` ran. `scripts/squash-migrations.sh` refuses before
+  it reads anything, naming ADR-0045 and the tag; ADR-0045's operative rule,
+  `pnpm db:generate`'s refusal, the README and `docs/release.md` say both
+  chains only grow; and the runner's downgrade refusal no longer names a squash
+  as a cause. `scripts/a-chain-that-only-grows.unit.test.ts` holds every file
+  either chain shipped in a release from alpha.1 on, byte for byte as the
+  newest such release shipped it. `scripts/release-line.json` names the tag
+  and lists every release; the fold adds each new one.
 - **Trigger.dev is v4.8.3, taken before its three-day floor on the owner's
   waiver** (workplan 0119, issue #1738): *"I waive the wait for v4.8.3, just
   go with it"* (2026-10-31). It skips v4.8.2. The webapp and the supervisor
@@ -166,6 +228,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   target has none, when the source shares it, or when either account's
   addresses cannot be read, and the smoke reads the copy and asks the target's
   server whether it matches its organiser.
+- **Every pull request proves the upgrade from the release live runs, on both
+  chains, and on Postgres too** (workplan 0146 T4): each upgrade gate starts
+  from its chain's oldest supported release and from the newest release in
+  `scripts/release-line.json`, where a pull request proved rc.1 and alpha.1
+  alone and only Release's preflight proved the release before. The managed
+  chain's proof also runs in the integration suite on Postgres 18, which the
+  managed edition runs, and the integration job checks out with tags for it.
+  `scripts/every-release-is-a-starting-point.unit.test.ts` fails every pull
+  request once a release tag exists that the list leaves out.
 
 ### Fixed
 

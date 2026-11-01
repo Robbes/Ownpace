@@ -22,6 +22,11 @@ stay `0.0.0` deliberately — they are never published individually). The
 `scripts/a-release-that-names-itself.unit.test.ts`, so the bump below names
 both.
 
+**Pre-release ended with `v0.2.0-alpha.1`** (ADR-0045, workplan 0146 T3): a
+migration a release shipped is never edited, renamed, squashed or deleted, and
+`scripts/squash-migrations.sh` refuses. `scripts/release-line.json` names that
+tag and lists every release; the fold adds the new one (below).
+
 ## 1. Before the tag
 
 **Release checks these** (its `preflight` job, `scripts/release-preflight.mjs`;
@@ -56,7 +61,12 @@ one line per check, `pass` or `refuse`, every reason at once):
   not exist at C is "not exercised", and the preflight refuses. The line for
   each chain gives its migration count at the release before and at C.
   `two-chains.unit.test.ts` is not an upgrade proof and is not counted: it
-  adopts a database that predates the managed chain. By hand, after
+  adopts a database that predates the managed chain. On a pull request, with
+  no `UPGRADE_FROM_REF`, each gate starts from two releases: its chain's
+  oldest supported one and the newest one in `scripts/release-line.json`
+  (workplan 0146 T4), and the managed chain's proof runs on Postgres 18 as
+  well, in the integration suite
+  (`packages/managed/src/migrate-upgrade.integration.test.ts`). By hand, after
   `git fetch origin tag <previous-tag>`:
   - **the shared chain's gate:**
     `UPGRADE_FROM_REF=<previous-tag> pnpm vitest run --project unit packages/ledger/src/migrate-upgrade.unit.test.ts`,
@@ -84,7 +94,12 @@ one line per check, `pass` or `refuse`, every reason at once):
 
 - [ ] **The fold**: rename `[Unreleased]` to the version and the date (the day
       the pull request merges, in your own time zone), and start a fresh empty
-      `[Unreleased]` above it. The release body links to this section: it is
+      `[Unreleased]` above it. In the same pull request, add the version's tag
+      (`v<X.Y.Z>`) as the last of `releases` in `scripts/release-line.json`:
+      until Release tags it, it is the release being prepared, and from the
+      tag on it is every upgrade gate's newest starting point.
+      `every-release-is-a-starting-point.unit.test.ts` fails every pull request
+      once a `v*` tag exists that the list leaves out. The release body links to this section: it is
       the release's prose. It is a pull request like any other, and it merges
       **last**: it is C, its own push run is the CI that counts, and **the
       freeze** starts with it (0141 T14 says what the freeze is). Merge it

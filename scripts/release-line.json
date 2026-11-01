@@ -1,0 +1,8 @@
+{
+  "preReleaseEndedAt": "v0.2.0-alpha.1",
+  "releases": ["v0.1.0-rc.1", "v0.2.0-alpha.1", "v0.2.0-alpha.2", "v0.2.0-alpha.3"],
+  "oldestSupported": {
+    "ledger": "v0.1.0-rc.1",
+    "managed": "v0.2.0-alpha.1"
+  }
+}
