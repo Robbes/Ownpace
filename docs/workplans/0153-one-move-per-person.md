@@ -2,7 +2,44 @@
 
 > **In one line:** The Migrations page lists people: one flow (who, from where, what, to where) takes a person from one or more old accounts to a new home and creates their migrations underneath, and protocols, kinds and ids stay off screen until needed. Four faults the audit found go first.
 
-## Status — 2026-10-05 (update this block at the end of every session)
+## Status — 2026-10-31 (update this block at the end of every session)
+
+**2026-10-31: a person's page's tests wait for its reads, then look.** The first test of
+`Person.unit.test.tsx` failed twice on main's CI, on 2026-10-28 (run 40691552058) and on
+2026-10-30 (run 40999177255, `9c341f62`). `findByRole` gave up on the person's name while the
+page still showed its spinner, though both mocked reads had answered. A `findBy*` starts its
+one-second clock and then looks once, straight away. The reads' answers are microtasks, so they
+wait behind that look, and React Query hands an answer to React in a `setTimeout(…, 0)` that it
+sets only then. In a fresh file the look is a cold role query: 103 ms on an idle machine, and
+more than a second on a loaded one. Then the hand-over fell due after the wait's own timer, and
+Node ran the wait's timer first.
+
+- **The fix.** Every case that draws a person's page first waits for `answered()`: the people and
+  the migrations' rows (the list on managed, the status on the appliance), as React Query's cache
+  holds them. Its look reads the cache, and its own timers always fall due after the hand-over,
+  so the page is drawn when it returns and every look after it finds it. A read that never
+  answers fails it within the second, by name. No timeout is longer. A first version only made
+  the look cheap (a `querySelector` for the name); under load a case it had not touched still
+  failed once in four, because the answers still came behind the wait's first look.
+- **A case that makes it certain.** *Finds the person drawn though the runner stalls past the
+  wait's own second* starts the wait and then holds the event loop for 1.2 seconds, as the cold
+  look did. It passes with `answered()`; with main's `findByRole` in its place it failed 3 runs
+  of 3, with CI's own message.
+- **A test that could not fail.** *Says nothing of a pace on a paid tier* waited for any level-1
+  heading. The spinner draws one too (*Migrations*), so main's test passed even with `PaceLine`
+  changed to draw the Free line on a paid tier. It now waits for the person's name, and the same
+  change turns it red.
+- **A wait that could not fail on its rows (#1760's review).** Every mock answers in the same
+  turn, so `answered()` with the rows' read taken out of it left all 38 cases green, and a case
+  whose list or status answered after the people would have looked at a page still drawing.
+  *Fails, and names it, while the … read has not answered* holds back one read at a time (the
+  people, the list, the appliance's status) and expects the wait to fail naming it. Taking the
+  rows' read out turns the list's and the status's cases red; taking the people's out turns the
+  people's red.
+- **Proved by:** the file run 30 times on one core shared with four busy loops and three other
+  web test files run in a loop, with coverage on, as CI runs it, and main's file run under the
+  same load after every second run: this file passed 30 runs of 30, main's failed 15 of 15,
+  each time at the line CI failed on (147) with CI's own message.
 
 **2026-10-05, later: *Omvat:* where the Dutch said *Draagt:*.** The owner: *"Change the Dutch
 "draagt" into "Omvat""*. The line *Aanmelding controleren* writes under a card said *Draagt:
@@ -1294,7 +1331,7 @@ person, and a flow that fills it.
 | T2 ADR-0050: a move is a person's migrations | ✅ **ADR-0050 accepted 2026-09-28 (#1327), amended the same night: *person*. The tables and `/api/people` built, with the appliance's implicit person (#1332)** | §3. A `person` row and `person_migration` in `packages/managed/migrations` (0031). The appliance answers one implicit person. The billed unit (a path) and the migration (a mapping) do not change. Deleting a person deletes no migration. |
 | T3 The Migrations page lists people | ✅ **Built: the page lists people (#1341); it is the landing page, the Dashboard is gone, and the menu is the drawing's (#1343); the menu counts beside *Needs you* what waits (#1346); each row's stage and line come from the progress read (0154 T1 (b) and (d), #1422)** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
 | T4 *Start a migration*: who, from where, what, to where | ✅ **Built (#1372, #1378), with *Someone else* by a grant link (#1386), one per person since T5 (b); screen 6 says how long (0154 T3 (a)). The owner's four questions answered and built (open question 5), every card reached through `/start` (#1462), and the wizard retired (D5)** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
-| T5 A page per person | ✅ **Built: the person, their migrations, their rows and their steps (#1353, with 0154 T1, T2 and T4); one link per person, in T5 (b)'s four slices (#1394, #1396, #1401, #1408), with *Report this link* (#1402), asking again (#1407), start when granted (#1409), and what waits for their grant (#1413)** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
+| T5 A page per person | ✅ **Built: the person, their migrations, their rows and their steps (#1353, with 0154 T1, T2 and T4); one link per person, in T5 (b)'s four slices (#1394, #1396, #1401, #1408), with *Report this link* (#1402), asking again (#1407), start when granted (#1409), and what waits for their grant (#1413)** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. Its tests wait for the page's reads (`answered()`) before they look (2026-10-31, #1760; Status). |
 | T6 Words a family reads | ✅ **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, the schedule folded last; the wizard's own step names went with it (D5). The Dutch says *migratie* everywhere the product speaks, with two guards (#1342). (c)'s two guards built (#1347)** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
 | T7 Defaults a family can pass | ✅ **(a) to (f) built inside T4 (#1378); the wizard's progress line too (#1383)** | §3. Buttons that look like buttons, with the reason in text. A Soverin sign-in in two visible fields. A Nextcloud address, not a DAV URL. Business-only fields only on the business path. The limit blamed on the side that has it. Tiles and icons: `tiles.svg`, `icons.svg`. |
 | T8 The appliance shows its person's page | ✅ **Built: its landing once every migration has started, Review & confirm until then; the page's rows from `/status`; *Migrations* first in its menu** | §3. The same page, fed by the appliance's one implicit grouping. No list or create screen (0034 stands). |

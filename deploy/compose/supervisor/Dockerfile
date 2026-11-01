@@ -1,7 +1,9 @@
 # Trigger.dev's supervisor as upstream publishes it, by tag and index digest,
 # with root's copy of pnpm deleted, which never runs in this stack, and tar
 # deleted from node's, which runs (workplan 0146 T16; the owner's decisions of
-# 2026-10-26, "Both", and of 2026-10-27, tar out of the copy that runs). The
+# 2026-10-26, "Both", and of 2026-10-27, tar out of the copy that runs); since
+# 2026-10-31 also npm and the rest of node-gyp's tree in node's copy, under
+# tar's one risk (THE HIGHS NOTHING RUNS, below). The
 # header of deploy/compose/trigger.dev/Dockerfile says the rest, and all of it
 # holds here: the name and its hash, the version argument, read_at, what may
 # not be in this file, how it fails when upstream moves, and the way out.
@@ -22,6 +24,32 @@
 # dist/index.js`, and installs nothing. The one risk, accepted by the owner
 # on 2026-10-27: a `pnpm install` inside this container that builds a native
 # add-on would fail. So 2 become 0.
+#
+# THE HIGHS NOTHING RUNS, as the webapp's header says them (since 2026-10-31).
+# The image scan of the image built here at v4.8.3, Security Scan run
+# 41159641513 (Trivy 0.76.1, linux/arm64, 2026-10-31), read 0 critical and 25
+# high findings, all 25 with a fix, as at v4.8.1 (run 41130684117). Twelve are
+# in the two trees the webapp's build removes for the same reasons, and this
+# one removes them too:
+#   - npm 11.19.1, which node:24.22.1-alpine bundles, under
+#     /usr/local/lib/node_modules/npm, with Node's links /usr/local/bin/npm and
+#     /usr/local/bin/npx: brace-expansion 5.0.9 (2 highs) and undici 6.28.0 (4).
+#     The CMD runs pnpm, through corepack 0.36.0's shim, which stays; the
+#     script it runs is `node dist/index.js`; the entrypoint runs dumb-init; the
+#     healthcheck is `node -e` fetch; nothing execs into the container, and
+#     the supervisor's source spawns nothing.
+#   - node-gyp's tree in node's copy of pnpm, the one that runs:
+#     /home/node/.cache/node/corepack/v1/pnpm/10.33.2/dist/node_modules (tar
+#     went first) and dist/node-gyp-bin: brace-expansion 2.1.0 (5 highs) and
+#     ip-address 10.1.0 (1). Without them the CMD's `pnpm run` runs its script
+#     as before; only a script that calls node-gyp, or an install that builds
+#     a native add-on, would fail, tar's risk again.
+# So 25 become about 13: what is left is pnpm 10.33.2 itself (11) and the rest
+# of what runs. The first RUN checks, before it removes anything, what the
+# webapp's checks: that the copy names only the three packages of its
+# dist/node_modules read, that npm is Node's 11.19.1 with no npmrc and only its
+# two links, and that corepack is 0.36.0; and the last RUN proves as node that
+# pnpm 10.33.2 starts offline and runs a command in the supervisor's package.
 #
 # THE USER COUPLING, the webapp's the other way round. No `user:` here, so this
 # removes root's copy and proves node's starts offline. Upstream's own compose
@@ -61,29 +89,46 @@ RUN set -eu; \
     [ "$pm" = pnpm@10.33.2 ] || fail "the image names $pm, not pnpm@10.33.2, so corepack keeps pnpm at other paths."; \
     unused=/root/.cache/node/corepack/v1/pnpm/10.33.2; \
     kept=/home/node/.cache/node/corepack/v1/pnpm/10.33.2; \
-    kept_tar="$kept/dist/node_modules/tar"; \
+    kept_modules="$kept/dist/node_modules"; \
+    kept_gyp_bin="$kept/dist/node-gyp-bin"; \
+    npm_dir=/usr/local/lib/node_modules/npm; \
+    npm_link=/usr/local/bin/npm; \
+    npx_link=/usr/local/bin/npx; \
+    corepack_dir=/usr/local/lib/node_modules/corepack; \
     [ -f "$unused/.corepack" ] || fail "$unused/.corepack is not there: root's copy of pnpm is not where it was."; \
     [ -d "$unused/dist/node_modules/tar" ] || fail "$unused/dist/node_modules/tar is not there: root's copy of pnpm no longer carries tar."; \
     [ -f "$kept/.corepack" ] || fail "$kept/.corepack is not there: node's copy of pnpm, which the supervisor runs, is not where it was."; \
-    [ -d "$kept_tar" ] || fail "$kept_tar is not there: node's copy of pnpm no longer carries tar where pnpm 10.33.2 did."; \
-    users="$(find "$kept/dist" -path "$kept_tar" -prune -o -type f -exec sh -c 'for f; do ! grep -qE "(require\(|from ).tar[^a-z_-]" "$f" || echo "$f"; done' sh {} +)"; \
-    [ "$users" = "$kept/dist/node_modules/node-gyp/lib/install.js" ] || fail "in $kept/dist, tar is required by: ${users:-nothing}, not by node-gyp's lib/install.js alone, which the removal of $kept_tar was read for."; \
-    rm -r "$unused" "$kept_tar"; \
-    [ ! -e "$unused" ] || fail "$unused is still there."; \
-    [ ! -e "$kept_tar" ] || fail "$kept_tar is still there."; \
+    [ -f "$kept_modules/node-gyp/bin/node-gyp.js" ] || fail "$kept_modules/node-gyp/bin/node-gyp.js is not there: node's copy of pnpm no longer carries node-gyp where pnpm 10.33.2 did."; \
+    [ -d "$kept_gyp_bin" ] || fail "$kept_gyp_bin is not there: node's copy of pnpm no longer carries node-gyp's shim where pnpm 10.33.2 did."; \
+    names="$(cd "$kept_modules" && for d in *; do case "$d" in @*) for p in "$d"/*; do printf '%s|' "$p"; done ;; *) printf '%s|' "$d" ;; esac; done | sed 's/[.]/\\./g')"; \
+    named="$(find "$kept" -path "$kept_modules" -prune -o -type f -name '*js' -exec grep -HoE "(require(\.resolve)?\(|import\(|resolveFrom\([^,()]*, *)[\"'](${names%|})(/[^\"']*)?[\"']" {} + | tr -d "\"'" | LC_ALL=C sort | tr '\n' ' ')"; \
+    [ "$named" = "$kept/bin/pnpm.cjs:require(v8-compile-cache $kept/dist/pnpm.cjs:require.resolve(picomatch $kept/dist/pnpm.cjs:resolveFrom(__dirname, node-gyp/bin/node-gyp " ] || fail "in $kept, outside $kept_modules, these name a package inside it: ${named:-none}; this file was read for three, each in a try: bin/pnpm.cjs's v8-compile-cache, and dist/pnpm.cjs's picomatch and node-gyp/bin/node-gyp."; \
+    [ -f "$npm_dir/package.json" ] || fail "$npm_dir is not there: Node's npm is not where Node 24.22.1 puts it."; \
+    [ "$(node -p "require('$npm_dir/package.json').version")" = 11.19.1 ] || fail "$npm_dir is not npm 11.19.1, Node 24.22.1's, which this file was read for."; \
+    [ ! -e "$npm_dir/npmrc" ] || fail "$npm_dir/npmrc is there: pnpm reads it as its builtin configuration (@pnpm/npm-conf), so without npm pnpm would be configured otherwise."; \
+    [ "$(readlink "$npm_link")" = ../lib/node_modules/npm/bin/npm-cli.js ] || fail "$npm_link is not Node's link to npm's bin/npm-cli.js."; \
+    [ "$(readlink "$npx_link")" = ../lib/node_modules/npm/bin/npx-cli.js ] || fail "$npx_link is not Node's link to npm's bin/npx-cli.js."; \
+    into="$(find /usr/local/bin -type l -exec sh -c 'for link; do case "$(readlink -f "$link")" in "$0"/*) echo "$link" ;; esac; done' "$(readlink -f "$npm_dir")" {} + | LC_ALL=C sort | tr '\n' ' ')"; \
+    [ "$into" = "$npm_link $npx_link " ] || fail "these link into $npm_dir: ${into:-nothing}, not npm and npx alone."; \
+    [ "$(node -p "require('$corepack_dir/package.json').version")" = 0.36.0 ] || fail "$corepack_dir is not corepack 0.36.0, Node 24.22.1's, which runs every pnpm here."; \
+    rm "$npm_link" "$npx_link"; \
+    rm -r "$unused" "$kept_modules" "$kept_gyp_bin" "$npm_dir"; \
+    for p in "$unused" "$kept_modules" "$kept_gyp_bin" "$npm_dir" "$npm_link" "$npx_link"; do { [ ! -e "$p" ] && [ ! -L "$p" ]; } || fail "$p is still there."; done; \
     [ -f "$kept/.corepack" ] || fail "$kept/.corepack went with the removal."; \
+    [ "$(node -p "require('$corepack_dir/package.json').version")" = 0.36.0 ] || fail "corepack 0.36.0 went with npm."; \
     if (cd /app && COREPACK_ENABLE_NETWORK=0 pnpm --version) >/dev/null 2>&1; then \
       fail "as root, pnpm still starts offline, so a copy is left that this file removes, or corepack reads another home."; \
     fi; \
-    echo "$me: removed root's copy of pnpm and tar from node's; as root, pnpm does not start offline, as it should not: the supervisor runs as node."
+    echo "$me: removed root's copy of pnpm, node-gyp's tree from node's and npm; corepack 0.36.0 stays, and as root pnpm does not start offline, as it should not: the supervisor runs as node."
 
 # Upstream's own user, which this image keeps.
 USER node
 
 # As node, the user the supervisor runs as, the kept copy starts offline and,
-# without its tar, runs a command in the supervisor's package as the CMD does.
+# without node-gyp's tree (tar was in it), runs a command in the supervisor's
+# package as the CMD does.
 RUN set -eu; \
     me=deploy/compose/supervisor/Dockerfile; \
     [ "$(cd /app && COREPACK_ENABLE_NETWORK=0 pnpm --version)" = 10.33.2 ] || { echo "$me: as node, the user trigger-supervisor runs as, pnpm 10.33.2 does not start offline." >&2; exit 1; }; \
-    (cd /app && COREPACK_ENABLE_NETWORK=0 pnpm --fail-if-no-match --filter supervisor exec node -e 0) || { echo "$me: as node, pnpm without tar does not run a command in the supervisor's package offline, as its CMD needs." >&2; exit 1; }; \
+    (cd /app && COREPACK_ENABLE_NETWORK=0 pnpm --fail-if-no-match --filter supervisor exec node -e 0) || { echo "$me: as node, pnpm without node-gyp's tree does not run a command in the supervisor's package offline, as its CMD needs." >&2; exit 1; }; \
     echo "$me: as node, pnpm 10.33.2 starts and runs a workspace command offline."

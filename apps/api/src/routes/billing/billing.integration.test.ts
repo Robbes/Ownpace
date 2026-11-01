@@ -131,11 +131,20 @@ describe('Billing Route Isolation', () => {
       // Compute and sync operations are DERIVED from the run ledger (0121 T3):
       // there is no `usage_metric` row to seed, because nothing writes one.
       // Ten hours in one closed pass — the route reads what actually ran.
-      const startedAt = new Date(now.getTime() - 10 * 60 * 60 * 1000);
+      //
+      // The pass starts at the top of the CURRENT UTC month, the month the
+      // route meters (by `created_at`, `deriveComputeForPeriod`). It started
+      // ten hours before `now` until 2026-11-01, which put it in the PREVIOUS
+      // month for the first ten hours of every month: this test read 0 hours
+      // and went red on every branch at 00:10 UTC that day. During those hours
+      // the pass now finishes later than `now`; the meter reads the two
+      // timestamps' difference, not the clock.
+      const startedAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      const finishedAt = new Date(startedAt.getTime() + 10 * 60 * 60 * 1000);
       await superuserPool.query(`
         INSERT INTO run (id, tenant_id, mapping_id, kind, trigger, status, stats, started_at, finished_at, created_at)
         VALUES ($1, $2, NULL, 'incremental', 'schedule', 'succeeded', '{}'::jsonb, $3, $4, $3)
-      `, [randomUUID(), API_TENANT_A, startedAt, now]);
+      `, [randomUUID(), API_TENANT_A, startedAt, finishedAt]);
 
       const response = await request
         .get('/api/billing/usage')

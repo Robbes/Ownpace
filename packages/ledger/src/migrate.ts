@@ -158,20 +158,23 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<RunM
       // Downgrade guard: refuse if the DB carries a version newer than we ship.
       // Its advice never says to drop the database (workplan 0134 T3). Only the
       // ledger's items can be rebuilt from a target; what sits beside them
-      // cannot, and on a managed stack that is every organisation.
+      // cannot, and on a managed stack that is every organisation. Nor does it
+      // name a squash as a cause any more: pre-release ended with the first
+      // alpha tag, and the squash script refuses (workplan 0146 T3, ADR-0045).
       const highestApplied = [...alreadyApplied].sort().pop();
       if (highestApplied && highestApplied > highestKnown) {
         throw new Error(
           `Database schema version ${highestApplied} is newer than this build understands ` +
             `(highest known: ${highestKnown}). Refusing to start rather than guess.\n` +
-            'Either this build is older than the database (upgrade the application), or the ' +
-            'migration chain was SQUASHED and this database still records the pre-squash ' +
-            'filenames — see scripts/squash-migrations.sh, which is never run once real data ' +
-            'exists. Do not drop this database to get past this. The ledger\'s items can be ' +
-            'rebuilt from the target (ADR-0020), but the connections and their stored ' +
-            'credentials, the migrations and their settings, and on a managed stack the ' +
-            'organisations and the audit log, cannot: a database that holds real data is ' +
-            'restored from a backup, never dropped.',
+            'Either this build is older than the database: deploy the release the database ' +
+            'was last migrated by, or a newer one. Or a migration a release shipped was ' +
+            'renamed or removed after it shipped: that is a defect in the build, which ' +
+            'scripts/a-chain-that-only-grows.unit.test.ts exists to refuse, and the fix is a ' +
+            'build that carries the file again (ADR-0045). Do not drop this database to get ' +
+            'past this. The ledger\'s items can be rebuilt from the target (ADR-0020), but ' +
+            'the connections and their stored credentials, the migrations and their ' +
+            'settings, and on a managed stack the organisations and the audit log, cannot: ' +
+            'a database that holds real data is restored from a backup, never dropped.',
         );
       }
 

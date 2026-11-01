@@ -34,6 +34,11 @@
 #   dump-idp.sh and             on live write only into that copy's
 #   trigger-version.sh          directory, and trigger-version.sh refuses its
 #                               drill there (0139: stack_may_be_live)
+#   setup-zitadel.sh            refuses, on live, a run that would add a
+#                               sign-in provider while any of its keys holds
+#                               a value; --print and the two timer modes are
+#                               not refused (0140 T10: stack_may_be_live,
+#                               live_sign_in_keys_set)
 #
 # Each of them reads the marker's name from here, so it is spelled once. Live's
 # .env carries the line
@@ -78,11 +83,12 @@ LIVE_ORG_NAME=Ownpace
 # emptying every pair only hides the buttons, on its next run
 # (docs/managed-bring-up.md, §8b). So stand-up-live.sh and deploy-live.sh
 # refuse live's .env while any of them does (live_sign_in_keys_set), before a
-# button reaches a tester. They are every IDP_* key managed.env.example
-# declares but IDP_UPSTREAM_CALLBACK_URL, the identity provider's own return
-# address, which setup-zitadel.sh writes; the two scripts' guards read the
-# list from the example, so a provider added there fails them until it is
-# added here.
+# button reaches a tester, and setup-zitadel.sh refuses it itself, run by hand
+# or by bootstrap-managed.sh, in every run that reaches the providers. They
+# are every IDP_* key managed.env.example declares but
+# IDP_UPSTREAM_CALLBACK_URL, the identity provider's own return address, which
+# setup-zitadel.sh writes; the three scripts' guards read the list from the
+# example, so a provider added there fails them until it is added here.
 LIVE_REFUSED_SIGN_IN_KEYS=(
   IDP_GOOGLE_CLIENT_ID IDP_GOOGLE_CLIENT_SECRET
   IDP_MICROSOFT_CLIENT_ID IDP_MICROSOFT_CLIENT_SECRET IDP_MICROSOFT_TENANT
