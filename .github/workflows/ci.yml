@@ -27,8 +27,10 @@
 # runners (`ubuntu-24.04-arm`) are generally available for PUBLIC repositories,
 # 4 vCPU, free — the same tier as the amd64 ones — so `integration-tests` now
 # runs on BOTH architectures on every pull request, and arm64 is exercised
-# before merge rather than after. See that job for why it is the only one
-# matrixed: it is the only one that runs real containers.
+# before merge rather than after. See that job for why it was the only one
+# matrixed: it is the only one that runs real containers. `migration-lint` is
+# the other since 2026-11-01: the Atlas it runs is a different download on
+# each architecture, and the arm64 one runs on a hosted runner before merge.
 #
 # This also removes arm64 as a reason to keep CI on the box that runs
 # production — see the operator runbook, "This box also runs CI".
@@ -470,8 +472,18 @@ jobs:
           ./scripts/check-fixture-uuid-collisions.sh
 
   migration-lint:
-    name: migration-lint
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
+    name: migration-lint (${{ matrix.runner }})
+    # BOTH ARCHITECTURES ON A PULL REQUEST (workplan 0119, 2026-11-01). The
+    # Atlas this job runs is a different download for amd64 and arm64, and a
+    # push runs it on the self-hosted arm64 runner. Until then a pull request
+    # ran the amd64 one only, so the first run of a new arm64 binary was the
+    # merge push, on the owner's machine. As in integration-tests: a push stays
+    # one self-hosted run, and `fail-fast: false` keeps the other leg's result.
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: ${{ github.event_name == 'push' && fromJSON('["self-hosted"]') || fromJSON('["ubuntu-24.04","ubuntu-24.04-arm"]') }}
     needs: detect-changes
     # ADR-0017's last unbuilt bullet, decided KEEP + BUILD by the owner
     # (2026-08-02, workplan 0021 T5): Atlas replays every migration against a
@@ -488,14 +500,85 @@ jobs:
         # migration directory — the first one (migration 0005, 2026-08-03)
         # failed here on the sudo prompt, not on the migration. The download
         # host is the same one the installer itself resolves to.
+        #
+        # A NAMED RELEASE, CHECKED BY ITS SHA-256 BEFORE ANYTHING RUNS IT
+        # (workplan 0119, 2026-11-01). Until then this fetched
+        # `atlas-community-linux-<arch>-latest`, with no version and no
+        # checksum, and ran it: on the owner's machine for a main push, and
+        # that name is a CANARY build of upstream's master branch, not a
+        # release (CI printed `v1.3.1-f851298-canary`). Now it fetches the
+        # release below for BOTH architectures the job runs on (the
+        # self-hosted runner is arm64, the hosted one amd64), refuses either
+        # whose SHA-256 is not the one pinned here, and only then makes the
+        # native one executable and prints its version, which must be the
+        # release named. Both are checked on every run so that a wrong arm64
+        # pin fails its own pull request, not the next main push that touches
+        # a migration, on the owner's machine; and a pull request runs this
+        # job on hosted arm64 as well, so the arm64 binary has printed its
+        # version before that machine runs it. `a-pin-that-knows-it-is-behind`
+        # RUNS this `run:` under bash, with `curl` and `uname` stubbed, and
+        # fails if a wrong sum for either architecture, or a binary that calls
+        # itself another version, does not stop it with nothing installed.
+        #
+        # WHERE THE SUMS COME FROM. Each is the SHA-256 of `/atlas` in the
+        # same release's community image on Docker Hub,
+        # `arigaio/atlas:1.3.6-community@sha256:66a344bff417fa22820c13742eb45c6d0b6f630f2f0f402273d520347198417a`
+        # (linux/amd64 manifest `22086c9b…`, linux/arm64 `1f7cf5b5…`), read
+        # through the registry's own digests, layer by layer. So a run that
+        # passes here has two channels agreeing on the bytes, both carrying
+        # one output of Ariga's own build (`-tags=official`, version v1.3.6).
+        # Its Go build information names upstream commit `ed994a77898e`
+        # (2026-10-21): clean for amd64, while the arm64 build reports a
+        # modified tree (`vcs.modified=true`), so only the amd64 one says it
+        # is that commit as published. Docker Hub listed the tag on
+        # 2026-10-27 13:03 UTC, past the three-day floor (CONTRIBUTING.md) on
+        # 2026-10-30. Upstream's git tags stop at v1.3.0, so the release list
+        # is the image's tags, and that is what the pin watch reads
+        # (`scripts/idp-pin-watch.mjs`, its Atlas row; Dependabot cannot see
+        # a URL in a `run:`).
+        #
+        # TO MOVE IT: a newer `<version>-community` tag, three days old; read
+        # `/atlas` out of its amd64 and arm64 images the same way (or let this
+        # step fail once: it prints the sum it saw for each architecture), set
+        # all three values below in one pull request, and read the version
+        # line in both of its migration-lint legs' logs.
+        env:
+          ATLAS_VERSION: v1.3.6
+          ATLAS_SHA256_AMD64: bb6e81678b18335c911717e62677c742f8328737533825b9af57a2917a649b56
+          ATLAS_SHA256_ARM64: 723e4cac76d56cc1a6ea6e4fa9696f466be9ede6e7d450c4e750ca3195c7b067
         run: |
-          arch="$(uname -m)"
-          case "$arch" in x86_64) arch=amd64 ;; aarch64) arch=arm64 ;; esac
-          curl -sSf -o "$RUNNER_TEMP/atlas" \
-            "https://atlasbinaries.com/atlas/atlas-community-linux-${arch}-latest"
-          chmod +x "$RUNNER_TEMP/atlas"
-          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/atlas" version
+          set -euo pipefail
+          case "$(uname -m)" in
+            x86_64) native=amd64 ;;
+            aarch64) native=arm64 ;;
+            *) echo "::error::No Atlas is pinned for $(uname -m): only amd64 and arm64."; exit 1 ;;
+          esac
+          refused=0
+          for arch in amd64 arm64; do
+            if [ "$arch" = amd64 ]; then pinned="$ATLAS_SHA256_AMD64"; else pinned="$ATLAS_SHA256_ARM64"; fi
+            download="$RUNNER_TEMP/atlas-$ATLAS_VERSION-linux-$arch"
+            rm -f "$download"
+            curl --proto '=https' --tlsv1.2 -sSfL --retry 3 -o "$download" \
+              "https://atlasbinaries.com/atlas/atlas-community-linux-${arch}-${ATLAS_VERSION}"
+            seen="$(sha256sum "$download")"
+            seen="${seen%% *}"
+            if [ "$seen" = "$pinned" ]; then
+              echo "Atlas $ATLAS_VERSION linux/$arch: sha256 $seen, as pinned."
+            else
+              echo "::error::Atlas $ATLAS_VERSION linux/$arch is not the build this workflow pins: its sha256 is $seen, and the pin is $pinned. Nothing was run."
+              refused=1
+            fi
+          done
+          [ "$refused" = 0 ] || exit 1
+          mkdir -p "$RUNNER_TEMP/atlas-bin"
+          install -m 0755 "$RUNNER_TEMP/atlas-$ATLAS_VERSION-linux-$native" "$RUNNER_TEMP/atlas-bin/atlas"
+          echo "$RUNNER_TEMP/atlas-bin" >> "$GITHUB_PATH"
+          said="$("$RUNNER_TEMP/atlas-bin/atlas" version)"
+          echo "$said"
+          if [ "${said%%$'\n'*}" != "atlas community version $ATLAS_VERSION" ]; then
+            echo "::error::The Atlas this step installed does not call itself community $ATLAS_VERSION."
+            exit 1
+          fi
       - name: Lint all migrations against a disposable dev database
         run: |
           # BOTH chains, replayed as ONE directory in the order a managed
@@ -751,7 +834,7 @@ jobs:
   # product actually deploys to.
   #
   # The other jobs are not matrixed because their work is architecture-neutral
-  # TypeScript. Note what that claim is NOT: this file said until 2026-08-11
+  # TypeScript, `migration-lint` apart (it says why). Note what that claim is NOT: this file said until 2026-08-11
   # that "the workspace declares no native dependency", which was true of the
   # MANIFESTS and false of the TREE — `better-sqlite3` (via drizzle-orm) and
   # `libxmljs2` (via the CycloneDX SBOM tool) were both installed and both

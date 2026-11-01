@@ -8,7 +8,8 @@
 # 2026-09-21, and a week later a person reading release notes is what found
 # it. For the same reason the managed stacks' other images, Trigger.dev, the
 # tasks' Node, packageManager and the Trivy the scan runs had nothing watching
-# them either.
+# them either, and since 2026-11-01 it also reads the Atlas release ci.yml's
+# migration-lint downloads by URL and checks by its sha256.
 #
 # Once a week, and on demand, scripts/idp-pin-watch.mjs reads each pin from the
 # checkout and compares it with its upstream, without a token: git ls-remote,
