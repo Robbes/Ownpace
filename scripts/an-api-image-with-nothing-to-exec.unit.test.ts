@@ -408,8 +408,9 @@ describe('nothing execs into the API container but Node, by its path', () => {
 
   it("finds the smoke's probes and the doc's recipe (vacuity)", () => {
     const smoke = execs.filter((e) => e.file === 'deploy/compose/smoke-managed.sh');
-    // Three probes through $API_NODE, and api_node trying each path.
-    expect(smoke.filter((e) => e.program === '$API_NODE').length).toBe(3);
+    // Four probes through $API_NODE (the fourth, since 2026-11-01, finds no
+    // `clickhouse` from the API container), and api_node trying each path.
+    expect(smoke.filter((e) => e.program === '$API_NODE').length).toBe(4);
     expect(smoke.some((e) => e.program === '$p')).toBe(true);
     expect(execs.some((e) => e.file === 'docs/managed-bring-up.md' && e.program === NODE_PATH)).toBe(true);
     expect(execs.some((e) => e.file === 'docs/TROUBLESHOOTING.md' && e.how === 'run')).toBe(true);

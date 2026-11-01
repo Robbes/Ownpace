@@ -507,7 +507,7 @@ Docker daemon are kept apart by names, so every name follows the project:
 |---|---|---|
 | Containers | `<project>-db`, `<project>-api`, `<project>-idp`, `<project>-trigger-api`, … | `ownpace-managed-db` |
 | Volumes | `<project>_<volume>` | `ownpace-managed_zitadel_machinekey` |
-| Networks, the task runs' included | `<project>_ownpace-network`, `<project>_status-probe` | `ownpace-managed_ownpace-network` |
+| Networks, the task runs' included | `<project>_ownpace-network`, `<project>_status-probe`, `<project>_trigger-event-store` | `ownpace-managed_ownpace-network` |
 | The persisted `.env` and the Trigger.dev dumps | `~/.persistent/<project>/` | `~/.persistent/ownpace-managed/` |
 
 So a command reaches a stack in one of two ways, and never by a fixed name:
@@ -820,6 +820,26 @@ Brings up `trigger-db`, `trigger-redis`, `clickhouse`, `minio`,
 started. `minio-init`, a one-shot, makes MinIO's `packets` bucket once `minio`
 answers its health check, and `trigger-api` starts only after it has exited 0
 (workplan 0146 T7).
+
+**ClickHouse is on a network of its own, which only `trigger-api` shares**
+(2026-11-01, workplan 0119 §3 item 9). `<project>_trigger-event-store` is
+`internal`: it has no route off the machine, and nothing else on the stack can
+resolve the name `clickhouse`. The server runs 26.2, which has no fix for
+CVE-2026-116366 (unauthenticated code execution for anybody who can reach it),
+so the network is what protects it until the owner moves the version.
+`trigger-api` reaches it there for its migrations and its `CLICKHOUSE_URL`, and
+keeps `ownpace-network` for everything else. To ask ClickHouse something, run
+`clickhouse-client` inside its container with `docker compose exec`, as
+`rotate-db-passwords.sh` does; a container started on
+`<project>_ownpace-network` has no name or route to it, by design. That stops
+a plain request, or one forged through the web app, the API, Zitadel or
+Nextcloud. It does not stop code running in a container on `ownpace-network`, a
+task run included, from attaching itself or a new container to
+`trigger-event-store` through `trigger-docker-proxy`, which lets `POST`,
+`NETWORKS` and `CONTAINERS` through with no authentication (workplan 0136 §1,
+*What shares the network*); 0136 T4, which takes the proxy off every network a
+tenant-facing process joins, closes that. The smoke asks from both sides
+(*clickhouse, and who can reach it*).
 
 `trigger-db` comes up first, on its own. Then the phase sets its role
 `trigger` to `.env`'s `TRIGGER_DB_PASSWORD` (`managed.yml`'s fallback when the
@@ -3146,7 +3166,7 @@ refuses a `COMPOSE_FILE` in the shell.
 | `trigger-api` | PostHog from the server at every sign-in (the user's id, email and name) and when a user, an organisation or a project is created; and PostHog in the dashboard's browser, which identifies the signed-in user by id and email, under Trigger.dev's own project key | `TRIGGER_TELEMETRY_DISABLED: "1"` stops the server's half only. `POSTHOG_PROJECT_KEY: ""` stops the browser's: the key defaults to Trigger.dev's, and the dashboard starts PostHog whenever it is not empty | `apps/webapp/app/services/telemetry.server.ts`, `services/postAuth.server.ts`, `app/root.tsx`, `app/hooks/usePostHog.ts`, `app/env.server.ts` at v4.5.16, and again at v4.7.2, v4.7.6, v4.8.1 and v4.8.3 |
 | `trigger-api`, its entrypoint | Prisma's checkpoint to `checkpoint.prisma.io` at every start, from the `prisma migrate deploy` the entrypoint runs: the version, OS, architecture, Node, CI, the command, hashes of the project's and the CLI's paths, the schema's providers and a stored random signature | `CHECKPOINT_DISABLE: "1"`, the only thing the CLI and its client check | `docker/scripts/entrypoint.sh` at v4.5.16, v4.7.2, v4.7.6, v4.8.1 and v4.8.3; `packages/cli/src/CLI.ts` and `utils/checkpoint.ts` at prisma 6.14.0; checkpoint-client 1.1.33 |
 | `zitadel` | A "service ping" once a day to `zitadel.com`: the version, each instance's id, creation date and domains, and its count of users, organisations and projects | `ZITADEL_SERVICEPING_ENABLED: "false"`; `ZITADEL_TELEMETRY_ENABLED: "false"` too, which ships off | `cmd/defaults.yaml` at v4.19.2 (*"It's enabled by default"*) |
-| `clickhouse` | A report on every crash and logical error to `crash.clickhouse.com` | `clickhouse-no-crash-reports.xml`, mounted into `config.d`, sets both off; the `config.xml` the image ships sets them on. It is the only file ClickHouse merges that speaks of crash reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d` and `conf.d`, in sorted order, so a later one would win | `programs/server/config.xml`, `src/Daemon/CrashWriter.cpp`, `src/Common/Config/ConfigProcessor.cpp` at `v26.2.19.43-stable` |
+| `clickhouse` | A report on every crash and logical error to `crash.clickhouse.com` | `clickhouse-no-crash-reports.xml`, mounted into `config.d`, sets both off; the `config.xml` the image ships sets them on. It is the only file ClickHouse merges that speaks of crash reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d` and `conf.d`, in sorted order, so a later one would win. Since 2026-11-01 its one network, `trigger-event-store`, is `internal` too, so a report would have no route out | `programs/server/config.xml`, `src/Daemon/CrashWriter.cpp`, `src/Common/Config/ConfigProcessor.cpp` at `v26.2.19.43-stable` |
 | `minio` | A release check to `dl.min.io` at every start, its User-Agent carrying the OS, architecture, version and CPU | `MINIO_UPDATE: "off"`; `MINIO_CALLHOME_ENABLE: "off"` too, which ships off | `cmd/server-main.go`, `cmd/common-main.go`, `cmd/update.go`, `internal/config/callhome/callhome.go` at `chainguard-forks/minio`'s `RELEASE.2026-09-22T19-25-18Z`, and again at `RELEASE.2026-10-23T20-06-51Z`, where none of the four changed, Chainguard's build since workplan 0146 T7 (first read at `RELEASE.2025-05-24T17-08-30Z`, the Bitnami image it replaced) |
 | `mailpit` (the test stack's catcher; live runs none) | A release check to GitHub whenever its page asks for the server's info | `MP_DISABLE_VERSION_CHECK: "true"` | `internal/stats/stats.go`, `cmd/root.go` at v1.31.6, and again at v1.32.0 |
 | `nextcloud` (the demo's DAV target, on the OTA stack every night; and `dev.yml`'s) | Its version, PHP version and install time to `updates.nextcloud.com`, the app store at `apps.nextcloud.com`, the announcements feed at `pushfeed.nextcloud.com`, and a connectivity check to four public sites | **None yet.** `updatechecker`, `appstoreenabled` and `has_internet_connection` stay on, Nextcloud's defaults; see *What is left on, and where*, below | `config/config.sample.php` and `apps/settings/lib/SetupChecks/InternetConnectivity.php` at `stable34`, and again at `v35.0.2` when the demo moved to 35 (workplan 0119 T5); `lib/Cron/Crawler.php` in nextcloud_announcements at `stable34` and `stable35` |
@@ -4135,7 +4155,7 @@ port, because its fix lists it), and a production name that does not resolve.
 7. The checks: `/api/version` at `app.ownpace.eu` names the tag's commit and
    version, `/api/ready` answers 200, `/api/auth/mode` answers `managed`,
    `NODE_ENV` is `production` in the api container, `id.ownpace.eu` names
-   itself as the issuer, live's two networks exist and share no container with
+   itself as the issuer, live's three networks exist and share no container with
    the OTA stack's, and `exposure-check.sh` passes. Run it in daytime: the
    appliance nightly's dev Nextcloud publishes on every interface while it
    runs.
@@ -4636,6 +4656,16 @@ journal of whatever ran it), 2 refused.
 > the `.env` beside `www.yml` and run `docker compose -f deploy/compose/www.yml
 > up -d` from the updated checkout. See *Which address a port answers on*, under
 > the ports table in *Before you start*.
+
+**ClickHouse's network changes once, with no step of yours** (2026-11-01,
+workplan 0119 §3 item 9). The first `up` from a checkout that carries it
+creates `<project>_trigger-event-store`, moves `clickhouse` onto it and off
+`ownpace-network`, and recreates `clickhouse` and `trigger-api`, because their
+networks changed. No volume is touched: ClickHouse starts again on
+`clickhouse_data_v2` and `clickhouse_logs`, and `trigger-api` on
+`trigger_shared`. No network is external or made by hand, so nothing has to be
+removed first. As at any recreation of `clickhouse`, `trigger-api` cannot reach
+it for the seconds between the two, within the same `up`.
 
 **The stores' and the fronts' images move with the checkout, never with a
 `docker pull`** (workplan 0119 §4, 2026-10-22). Both databases, Trigger.dev's
