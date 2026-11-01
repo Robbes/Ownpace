@@ -11,10 +11,16 @@
  *
  * ## Node: every `actions/setup-node` asks for the major the images run
  *
- * The three app images build `FROM node:24.x-trixie-slim`, `package.json`
- * declares `"engines": { "node": ">=24" }`, and eight `setup-node` steps asked
- * for `'24'`. The managed gate (`e2e-managed.yml`) and the live-target lane
- * (`e2e-live-target.yml`) asked for `22` — found 2026-09-24. The managed gate
+ * The three app images built `FROM node:24.x-trixie-slim`, `package.json`
+ * declared `"engines": { "node": ">=24" }`, and eight `setup-node` steps asked
+ * for `'24'`. (All three moved to 26 together on 2026-10-31, with the API's
+ * distroless runtime, the tasks' runtime and all 27 `setup-node` steps, when
+ * Node 26 was LTS: workplan 0119 §2.4. This file is why they move in one
+ * pull request: a pin left on 24 fails here, `engines` among them since
+ * 2026-11-01. Until then nothing here read `engines`, and the move's own
+ * review found `>=24` passing every case beside images on 26.) The managed gate
+ * (`e2e-managed.yml`) and the live-target lane (`e2e-live-target.yml`) asked
+ * for `22` — found 2026-09-24. The managed gate
  * stayed green, because the api runs in its own Node 24 image (and the web is
  * built in one) whatever the runner has. What ran on 22 was everything that
  * gate runs on the HOST: the seed, the Trigger.dev deploy CLI and the smoke —
@@ -26,6 +32,32 @@
  * A `setup-node` step with no `node-version` at all is refused too: it runs
  * whatever Node the runner image happens to carry, which is a version nobody
  * chose.
+ *
+ * So is a step that runs Node, pnpm, npm or npx with no `setup-node` step
+ * before it in its job: the same version nobody chose, and one the walk over
+ * `setup-node` steps cannot see, since there is no step to walk. Found
+ * 2026-11-01 in the Node 26 move's review: ci.yml's `commit-convention` and
+ * images.yml's `build` (its release check, on a tag) had no `setup-node` at
+ * all, and the release checks of `security-scan` and windows-payload's
+ * `build` ran before theirs. Each now sets Node up first; the three release
+ * checks' come before the checkout, since a-release-that-names-itself holds
+ * the check straight after it.
+ *
+ * `engines` in the root `package.json` (the one package here that declares
+ * it) names the same major, as `>=<major>`. It is what a host that runs the
+ * steps by hand is told: live's deploy runs `pnpm install`, the task deploy
+ * and the site build on the host's own Node, and pnpm compares that Node with
+ * `engines`.
+ *
+ * deploy-live.sh and stand-up-live.sh read that `engines.node` themselves, to
+ * refuse a host Node below it (`release_tag_node` in
+ * `deploy/compose/release-tag.sh`), and read it without node, since node may
+ * be what is wrong. Such a read can disagree with JSON.parse: #1767's third
+ * review found an `engines` nested under another key, or an object inside
+ * `engines`, read as asking for no node. The script refuses those shapes as
+ * unread now; this file holds the root `package.json` to one it reads, and
+ * runs the script's own read on it to say the same `engines.node` as
+ * JSON.parse, so the two cannot drift apart without failing here.
  *
  * ## Node: and the newest release of that major, on a runner that keeps its cache
  *
@@ -164,7 +196,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { createHash, X509Certificate } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -177,7 +211,7 @@ import taskConfig from '../apps/worker/trigger.config.ts';
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => readFileSync(join(REPO_ROOT, p), 'utf8');
 
-type Step = { uses?: string; with?: Record<string, unknown> };
+type Step = { uses?: string; run?: string; name?: string; with?: Record<string, unknown> };
 type Workflow = { jobs?: Record<string, { steps?: Step[] }> };
 
 /**
@@ -219,6 +253,35 @@ function setupNodeSteps(): ReadonlyArray<{ where: string; version: string | unde
 }
 
 /**
+ * A shell line that starts Node, pnpm, npm or npx: at the start of a line, or
+ * after `;`, `&`, `|`, `(`, `$(`, `then`, `do` or `else`. A `node` handed to
+ * `docker run` or `docker compose exec` is an argument, not a command, and
+ * runs in the container's own Node, so it does not count.
+ */
+const RUNS_NODE = /(?:^|[;&|(]|\$\(|\b(?:then|do|else)\b)\s*(?:node|pnpm|npm|npx)(?=\s|$)/m;
+
+/**
+ * Every step, in every job of every workflow, that runs Node with no
+ * `setup-node` step before it in the same job.
+ */
+function nodeBeforeSetupNode(): ReadonlyArray<string> {
+  return readdirSync(join(REPO_ROOT, '.github/workflows'))
+    .filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'))
+    .flatMap((file) => {
+      const workflow = parseYaml(read(`.github/workflows/${file}`)) as Workflow;
+      return Object.entries(workflow.jobs ?? {}).flatMap(([job, { steps }]) => {
+        const all = steps ?? [];
+        const setupAt = all.findIndex((s) => typeof s.uses === 'string' && s.uses.startsWith('actions/setup-node@'));
+        return all.flatMap((s, i) =>
+          typeof s.run === 'string' && RUNS_NODE.test(s.run) && (setupAt === -1 || setupAt > i)
+            ? [`.github/workflows/${file} job ${job}, step ${i + 1} (${s.name ?? s.run.trim().split('\n')[0]})`]
+            : [],
+        );
+      });
+    });
+}
+
+/**
  * The two workflows that asked for 22. Named so a scan that stops finding
  * them fails here instead of passing on less.
  */
@@ -227,12 +290,15 @@ const ANCHORS = ['.github/workflows/e2e-managed.yml', '.github/workflows/e2e-liv
 /**
  * Every `setup-node` step there is, by workflow and job: the nine that can run
  * on the Spark (ci.yml's five on a push, the four E2E lanes), the three that
- * run on hosted runners only, and Security Scan's. Named rather than counted,
+ * run on hosted runners only, Security Scan's, and the two added 2026-11-01
+ * to jobs that ran Node without one (ci.yml's `commit-convention`, images.yml's
+ * `build`). Named rather than counted,
  * so a walk that stops seeing one fails here and says which, while a new
  * workflow's step needs no number raised (it is still held to everything
  * below).
  */
 const STEP_ANCHORS = [
+  '.github/workflows/ci.yml job commit-convention',
   '.github/workflows/ci.yml job docs-hygiene',
   '.github/workflows/ci.yml job lint',
   '.github/workflows/ci.yml job unit-tests',
@@ -246,6 +312,7 @@ const STEP_ANCHORS = [
   '.github/workflows/idp-pin-watch.yml job watch',
   '.github/workflows/windows-payload.yml job build',
   '.github/workflows/security-scan.yml job security-scan',
+  '.github/workflows/images.yml job build',
 ];
 
 describe('every gate runs the Node major the images ship', () => {
@@ -287,6 +354,65 @@ describe('every gate runs the Node major the images ship', () => {
     expect(
       wrong,
       `the images run Node ${shipped}; a gate on another major checks something nothing ships`,
+    ).toEqual([]);
+  });
+
+  it('package.json engines asks for that major, so a host running the steps by hand is told the Node the gates ran', () => {
+    const { engines } = JSON.parse(read('package.json')) as { engines?: { node?: unknown } };
+    expect(
+      engines?.node,
+      `the images run Node ${images[0]!.major}; package.json's engines.node must be ">=${images[0]!.major}"`,
+    ).toBe(`>=${images[0]!.major}`);
+  });
+
+  it("the deploy's own read of the root package.json, without node, finds the engines.node JSON.parse does", () => {
+    const text = read('package.json');
+    const { engines } = JSON.parse(text) as { engines?: Record<string, unknown> };
+    expect(text.match(/"engines"\s*:/g), 'one "engines" key in the file, the root one').toHaveLength(1);
+    expect(
+      Object.entries(engines ?? {}).filter(([, v]) => typeof v !== 'string'),
+      'every engines value a plain string',
+    ).toEqual([]);
+    // release_tag_node on a commit of this package.json, with a node on the
+    // PATH that says the images' major: it must pass and name what JSON.parse reads.
+    const root = mkdtempSync(join(tmpdir(), 'engines-read-'));
+    try {
+      const repo = join(root, 'repo');
+      const bin = join(root, 'bin');
+      mkdirSync(repo);
+      mkdirSync(bin);
+      writeFileSync(join(bin, 'node'), `#!/usr/bin/env bash\necho 'v${images[0]!.major}.0.0'\n`);
+      chmodSync(join(bin, 'node'), 0o755);
+      writeFileSync(join(repo, 'package.json'), text);
+      const gitEnv = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.invalid', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.invalid' };
+      for (const args of [['init', '-q'], ['add', 'package.json'], ['commit', '-q', '-m', 'package.json']]) {
+        const g = spawnSync('git', args, { cwd: repo, encoding: 'utf8', env: gitEnv });
+        expect(g.status, `git ${args.join(' ')}: ${g.stderr}`).toBe(0);
+      }
+      const r = spawnSync(
+        'bash',
+        ['-c', '. "$1"; if release_tag_node "$2" v0 HEAD; then printf "%s\\n" "$RELEASE_TAG_NODE"; else printf "%s\\n" "${RELEASE_TAG_WHY[@]}"; exit 1; fi', 'read', join(REPO_ROOT, 'deploy/compose/release-tag.sh'), repo],
+        { encoding: 'utf8', env: { ...gitEnv, PATH: `${bin}:${process.env.PATH ?? ''}` } },
+      );
+      expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+      expect(r.stdout).toContain(`v0 asks for ${String(engines?.node)} (engines in its package.json)`);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('no job runs Node before a setup-node step has named it', () => {
+    // Vacuity guard: the pattern still sees a plain `node scripts/…` line and
+    // the forms after `&&` and `$(`, and not an argument to `docker`.
+    for (const line of ['node scripts/x.mjs', 'cd a && pnpm install', 'echo "$(npx y)"', 'if x; then npm ci; fi']) {
+      expect(RUNS_NODE.test(line), line).toBe(true);
+    }
+    for (const line of ['docker compose exec api node -e 1', 'echo nodejs', 'apt-get install -y nodejs']) {
+      expect(RUNS_NODE.test(line), line).toBe(false);
+    }
+    expect(
+      nodeBeforeSetupNode(),
+      'these run whatever Node the runner image carries, a version nobody chose: put the setup-node step first',
     ).toEqual([]);
   });
 
@@ -657,7 +783,7 @@ describe("the tasks build on the API image's own base", () => {
       [
         `apps/worker deploys with trigger.dev ${sdk}, and ${TASK_CONFIG} keeps three things read from ${CLI_READ_AT}'s`,
         '`dist/esm/deploy/` by hand. Read each again in the new version and carry it over, then set CLI_READ_AT:',
-        "  - `buildImage.js`'s `BUILD_IMAGE['node-24']`, into the config's TASK_BUILD_IMAGE;",
+        `  - \`buildImage.js\`'s \`BUILD_IMAGE['${String(taskConfig.runtime)}']\`, into the config's TASK_BUILD_IMAGE;`,
         "  - `buildImage.js`'s `EMSIGN_COMPROMISE_DISTRUSTED_ROOTS`, into the config's DISTRUSTED_ROOTS and CLI_DISTRUSTED_ROOTS here;",
         `  - \`emsignRejectedIntermediates.js\`, into ${REJECTED_DIR}/ and CLI_REJECTED_SHA256 here.`,
       ].join('\n'),

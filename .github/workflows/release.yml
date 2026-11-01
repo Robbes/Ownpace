@@ -156,8 +156,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
-          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
 
       # The inputs, main, C, the release before, and C on main's own line,
       # all before a worktree exists: a commit that is not on main is a
@@ -275,8 +275,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
-          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
       # Advisories are read live: alpha.1's commit scanned green on main at
       # 00:55 and red on its tag at 20:01 the same day. So the scan that
       # counts is this one, after the approval, on a branch at exactly C.
@@ -315,8 +315,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
-          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
       - name: Peel the tag, or read the nights and the tag again and cut it on C
         run: node scripts/release-cut-tag.mjs
 
@@ -339,8 +339,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
-          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
       # It makes the release, with its body and bom.json. If it goes red after
       # its attach step (Trivy or the SARIF upload), the release page exists
       # while nothing else is published: the half-published state of
@@ -367,8 +367,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
-          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
       - name: Dispatch images.yml on the tag and wait
         run: node scripts/release-dispatch.mjs publish --workflow images.yml
 
@@ -391,8 +391,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
-          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
       - name: Dispatch windows-payload.yml on the tag and wait
         run: node scripts/release-dispatch.mjs publish --workflow windows-payload.yml --input platform=win-x64
 
@@ -414,8 +414,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
-          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
@@ -442,8 +442,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
-          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
       - name: Make rehearsal-<run number> at main's head, and see Security Scan refuse it
         run: node scripts/release-dispatch.mjs rehearse-tag
       - name: Delete the rehearsal tag

@@ -334,6 +334,13 @@ jobs:
           # has neither the base tip nor the branch's own history, and the
           # script would fail with git's error instead of a verdict.
           fetch-depth: 0
+      # The Node the images run, like every job that runs Node. Without it the
+      # script ran the hosted image's default, a version nobody chose
+      # (a-gate-on-a-version-nothing-ships, 2026-11-01).
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
       - name: Judge the commit subjects this branch adds
         # THROUGH `env:`, not interpolated into the script. These two are
         # GitHub-generated SHAs today and therefore safe, and the moment
@@ -396,8 +403,8 @@ jobs:
           echo "No case collisions found."
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
-          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
       - name: Generated docs match the tree that generates them
         # HERE rather than only in `unit-tests`, and the distinction cost a red
         # main on 2026-09-10.
@@ -631,8 +638,8 @@ jobs:
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
-          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
           # This was the ONE node job without it (found 2026-08-11), and the
           # worst one to be missing: everything downstream `needs: lint`, so a
           # cold `pnpm install` here delayed the entire workflow, not just this
@@ -658,6 +665,19 @@ jobs:
           restore-keys: |
             eslint-${{ runner.os }}-${{ hashFiles('eslint.config.js', 'pnpm-lock.yaml') }}-
       - name: Lint & typecheck
+        # A heap named, not the runner's default (2026-10-31, the move to Node
+        # 26, workplan 0119 §2.4). The lint is type-aware, and ESLint keys each
+        # cache entry on `process.version` (lint-result-cache.js), which the key
+        # above does not carry: the first lint on a new Node finds every entry
+        # stale and lints the whole repository cold. Cold, with the default
+        # heap, it ran out of memory after about 104 s on a machine whose
+        # default was about 2.1 GB, on Node 24 and 26 alike ("Ineffective
+        # mark-compacts near heap limit"), and passed with a larger one. The
+        # hosted and self-hosted runners' defaults passed it cold on 24; 4 GB
+        # says what it needs instead of hoping the next runner's default is
+        # as large.
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: |
           pnpm lint
           pnpm typecheck   # tsc (TypeScript 7) --noEmit across the workspace
@@ -706,8 +726,8 @@ jobs:
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
-          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # What the box had when the unit tests began, so a worker killed
@@ -772,8 +792,8 @@ jobs:
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
-          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # playwright-core ships no browsers (that is why it is the dependency —
@@ -863,8 +883,8 @@ jobs:
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
-          check-latest: true # the newest 24.x, not the first one in the runner's tool cache
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Verify Docker is available

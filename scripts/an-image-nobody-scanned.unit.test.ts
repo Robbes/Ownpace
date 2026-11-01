@@ -151,7 +151,13 @@ function tgz(files: Record<string, string>): Buffer {
   return gzipSync(Buffer.concat(blocks));
 }
 
-const TASK_BASE = `triggerdotdev/node:24-bookworm@sha256:${'d'.repeat(64)}`;
+/**
+ * The stand-in CLI's base for the config's runtime, `node-26` since the Node
+ * line moved to 26 (2026-10-31, workplan 0119 §2.4). It was a `node-24` row
+ * until then, and a stand-in CLI with no row for the config's runtime failed
+ * the cases that read it with "names no image for node-26".
+ */
+const TASK_BASE = `triggerdotdev/node:26-bookworm@sha256:${'d'.repeat(64)}`;
 
 /**
  * Where Trivy's SARIF puts an operating-system package's finding: the result's
@@ -169,7 +175,7 @@ function sarifOsLocation(target: string): string {
 }
 const CLI_TARBALL = tgz({
   'package/package.json': '{}',
-  'package/dist/esm/deploy/buildImage.js': `export const BASE_IMAGE = {\n    node: "triggerdotdev/node:22-bookworm",\n    "node-24": "${TASK_BASE}",\n};\n`,
+  'package/dist/esm/deploy/buildImage.js': `export const BASE_IMAGE = {\n    node: "triggerdotdev/node:22-bookworm",\n    "node-24": "triggerdotdev/node:24-bookworm@sha256:${'c'.repeat(64)}",\n    "node-26": "${TASK_BASE}",\n};\n`,
 });
 
 const lsRemote = (...tags: string[]) => tags.map((t, i) => `${i}\trefs/tags/${t}`).join('\n');
@@ -896,7 +902,7 @@ describe('the report job', () => {
     const built: ScanImage = { name: TASK_IMAGE, ref: TASK_BASE, where: 'the CLI', floating: false, build: taskBuildTag(TASK_BASE) };
     const fine = trivyJson({ Family: 'debian', Name: '12.15' });
     const table = summarize([built, IMAGES[0]!], reports({ [`trivy-image-${TASK_IMAGE}.json`]: fine, 'trivy-image-redis.json': fine })).lines.join('\n');
-    expect(table).toContain(`| \`${TASK_IMAGE}\` | \`triggerdotdev/node:24-bookworm@sha256:dddddddddddd…\` (built on) | debian 12.15 |`);
+    expect(table).toContain(`| \`${TASK_IMAGE}\` | \`triggerdotdev/node:26-bookworm@sha256:dddddddddddd…\` (built on) | debian 12.15 |`);
     expect(table).toMatch(/built on\* is scanned as a deploy builds on that reference/);
     // Without a built image, no such line.
     expect(summarize([IMAGES[0]!], reports({ 'trivy-image-redis.json': fine })).lines.join('\n')).not.toContain('built on');

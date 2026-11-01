@@ -42,6 +42,13 @@
  *   `PGPASSWORD` by name. Every stub logs its argv, and `env-upsert.sh` is
  *   wrapped so its argv is logged too. Nor does any bind address or port.
  *
+ *   It refuses, before anything changes, a node on this shell's PATH below
+ *   what the tag's package.json asks for (`engines.node`), no node at all,
+ *   and an `engines.node` it cannot read, in deploy-live.sh's words
+ *   (release_tag_node, release-tag.sh; workplan 0119, the move to Node 26):
+ *   the bring-up's pnpm install and task deploy run on that node, and pnpm
+ *   only warns below `engines`.
+ *
  *   The order is the plan's: the passwords, then preflight, env and data,
  *   the rendered DOCKER_RUNNER_NETWORKS, `app_user` created from
  *   APP_DB_PASSWORD before anything migrates, the password check on live's
@@ -486,7 +493,7 @@ interface StageOptions {
   /** Leave these out of the tag's deploy/compose/. */
   omit?: string[];
   /** The tag: lightweight, not pushed, another package.json version. */
-  tag?: { lightweight?: boolean; push?: boolean; version?: string; name?: string };
+  tag?: { lightweight?: boolean; push?: boolean; version?: string; name?: string; engines?: unknown };
   /** Where HEAD is: the tag (default), the branch, or a commit after the tag. */
   head?: 'tag' | 'branch' | 'untagged';
   /** Volumes that exist before the run. */
@@ -548,7 +555,11 @@ function stage(opts: StageOptions = {}): Stage {
 
   const tagName = opts.tag?.name ?? TAG;
   writeFileSync(join(work, '.gitignore'), '.env\n');
-  writeFileSync(join(work, 'package.json'), `${JSON.stringify({ name: 'ownpace', version: opts.tag?.version ?? VERSION, private: true }, null, 2)}\n`);
+  const pkg = { name: 'ownpace', version: opts.tag?.version ?? VERSION, private: true };
+  writeFileSync(
+    join(work, 'package.json'),
+    `${JSON.stringify(opts.tag?.engines === undefined ? pkg : { ...pkg, engines: { node: opts.tag.engines } }, null, 2)}\n`,
+  );
   mkdirSync(join(work, 'apps', 'worker'), { recursive: true });
   writeFileSync(join(work, 'apps', 'worker', 'package.json'), WORKER_PACKAGE);
   mkdirSync(join(compose, 'systemd'), { recursive: true });
@@ -697,6 +708,37 @@ function run(s: Stage, args: string[] = [], extra: NodeJS.ProcessEnv = {}, via?:
 
 const calls = (s: Stage): string[] => readFileSync(s.log, 'utf8').split('\n').filter(Boolean);
 const called = (s: Stage, what: string): string[] => calls(s).filter((l) => l.startsWith(`${what} `));
+
+/**
+ * A node that answers `-v` with `version` and hands everything else to the
+ * node running this test, in a directory to put first on PATH: the node the
+ * script finds with `command -v node` (workplan 0119, the move to Node 26).
+ */
+function nodeSaying(s: Stage, version: string): { dir: string; node: string } {
+  const dir = join(s.root, `node-${version}`);
+  writeExec(
+    join(dir, 'node'),
+    `#!/usr/bin/env bash\nif [ "$#" -eq 1 ] && { [ "$1" = -v ] || [ "$1" = --version ]; }; then echo '${version}'; exit 0; fi\nexec '${process.execPath}' "$@"\n`,
+  );
+  return { dir, node: join(dir, 'node') };
+}
+
+/** The case's PATH with no node on it: each directory that holds one becomes links to everything else in it. */
+function pathWithoutNode(s: Stage): string {
+  return (s.env.PATH ?? '')
+    .split(':')
+    .filter(Boolean)
+    .map((dir, i) => {
+      if (!existsSync(join(dir, 'node')) && !existsSync(join(dir, 'nodejs'))) return dir;
+      const shadow = join(s.root, `no-node-${i}`);
+      mkdirSync(shadow, { recursive: true });
+      for (const entry of readdirSync(dir)) {
+        if (entry !== 'node' && entry !== 'nodejs') symlinkSync(join(dir, entry), join(shadow, entry));
+      }
+      return shadow;
+    })
+    .join(':');
+}
 const envNow = (s: Stage): string => readFileSync(s.envFile, 'utf8');
 const valueOf = (s: Stage, key: string): string =>
   envNow(s)
@@ -918,6 +960,73 @@ describe('refused before anything changes: the tag live is to run', () => {
       const r = run(s);
       expectRefused(s, r, /not clean/);
       expect(r.out).toContain(name);
+    },
+    CASE_MS,
+  );
+});
+
+// The node this shell runs the bring-up's install and task deploy on
+// (deploy-tasks.sh, from bootstrap-managed.sh): what the tag's package.json
+// asks for, in deploy-live.sh's words (release_tag_node, release-tag.sh;
+// workplan 0119, the move to Node 26). pnpm only warns below `engines`.
+describe("refused before anything changes: a node on this shell's PATH below what the tag asks for (workplan 0119, Node 26)", () => {
+  it(
+    'a node below the major the tag asks for, named by its path and version',
+    () => {
+      const s = stage({ tag: { engines: '>=26' } });
+      const old = nodeSaying(s, 'v24.11.1');
+      const r = run(s, [], { PATH: `${old.dir}:${s.env.PATH}` });
+      expectRefused(s, r, `[stand-up-live] refused: the node first on this shell's PATH is v24.11.1 (${old.node}), and ${TAG} asks for Node >=26 (engines in its package.json).`);
+      expect(r.out).toContain('Put a Node 26 first on the PATH of the shell you run this from, and read it there: command -v node; node -v');
+      expect(r.out).toContain('A system Node another service on the host uses can stay as it is.');
+      expect(r.out).toContain('Run this as yourself, not under sudo');
+      expect(called(s, 'pnpm'), 'dependencies were installed').toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'no node on the PATH at all, said as such, not as a package.json without a version',
+    () => {
+      const s = stage({ tag: { engines: '>=26' } });
+      const r = run(s, [], { PATH: pathWithoutNode(s) });
+      expectRefused(s, r, `[stand-up-live] refused: there is no node on this shell's PATH, and ${TAG} asks for Node >=26 (engines in its package.json).`);
+      expect(r.out).not.toContain("says version 'none'");
+    },
+    CASE_MS,
+  );
+
+  it(
+    'an engines.node it cannot read, never guessed at',
+    () => {
+      const s = stage({ tag: { engines: '^26' } });
+      const fine = nodeSaying(s, 'v26.13.0');
+      const r = run(s, [], { PATH: `${fine.dir}:${s.env.PATH}` });
+      expectRefused(s, r, `[stand-up-live] refused: ${TAG}'s package.json asks for Node '^26' (engines.node), a form this script cannot read`);
+    },
+    CASE_MS,
+  );
+
+  it.each(['v26.0.0', 'v27.1.0'])(
+    'taken: a node at or above the major the tag asks for (%s), said as it passes',
+    (version) => {
+      const s = stage({ tag: { engines: '>=26' } });
+      const fine = nodeSaying(s, version);
+      const r = run(s, [], { PATH: `${fine.dir}:${s.env.PATH}`, STUB_TRIGGER_STOP: 'account' });
+      expectPassed(r, "the node first on this shell's PATH");
+      expect(r.out).toContain(`[stand-up-live] Node: ${fine.node} is ${version}, and ${TAG} asks for >=26 (engines in its package.json)`);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'taken: a tag whose package.json asks for no node, whatever the node',
+    () => {
+      const s = stage();
+      const old = nodeSaying(s, 'v24.11.1');
+      const r = run(s, [], { PATH: `${old.dir}:${s.env.PATH}`, STUB_TRIGGER_STOP: 'account' });
+      expectPassed(r, "the node first on this shell's PATH");
+      expect(r.out).toContain(`[stand-up-live] Node: ${TAG} asks for none (no engines in its package.json), so the node on this shell's PATH is not checked`);
     },
     CASE_MS,
   );

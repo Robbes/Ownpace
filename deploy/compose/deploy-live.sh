@@ -158,6 +158,20 @@
 #       `v`; a tag whose commit's root package.json version is not the tag
 #       without its `v` (it names both). Each says 0146's sentence, "live runs
 #       releases: name a release tag".
+#   a node on this shell's PATH below what the tag's package.json asks for
+#       (engines.node, read from the tag after the fetch, without node: ">=N"
+#       or ">=N.N.N"; a tag without it is not checked, and one in any other
+#       form is refused as unread), no node on the PATH at all, or one whose
+#       `node -v` fails or says no version (release_tag_node, release-tag.sh;
+#       stand-up-live.sh refuses it in the same words). pnpm install, the task
+#       deploy and the site build run on that node, and pnpm only warns below
+#       `engines` and installs: nothing else would stop it. It names the
+#       node's path and version and what the tag asks for. Like every step,
+#       this is the script that started: a deploy run by a copy from before
+#       this check (alpha.3's, deploying alpha.4) does not make it, and the
+#       owner's own reading in the deploy shell (command -v node, node -v) is
+#       the check then (docs/managed-bring-up.md, The Node in the shell you
+#       deploy from).
 #   a tag without any of deploy-live.sh, exposure-check.sh, box-duties.sh,
 #       stack-kind.sh and copy-before-update.sh (release-tag.sh's list, in
 #       stand-up-live.sh's words): live would be left without what deploys,
@@ -557,6 +571,14 @@ main() {
   esac
   local commit version
   commit="$(git -C "$REPO_ROOT" rev-parse "refs/tags/${tag}^{commit}")"
+  # The node this shell runs the tag's install, task deploy and site build on
+  # (release_tag_node, release-tag.sh, which stand-up-live.sh asks in the same
+  # words): at least what the TAG's package.json asks for, read after the
+  # fetch from the tag and not the checkout. pnpm only warns below `engines`,
+  # and this script goes straight on from the install to the rebuild, so this
+  # is the check. Before the version is read below, which needs node itself.
+  release_tag_node "$REPO_ROOT" "$tag" "$commit" || refuse "${RELEASE_TAG_WHY[@]}"
+  local node_said="$RELEASE_TAG_NODE"
   version="$(git -C "$REPO_ROOT" show "${commit}:package.json" 2>/dev/null | json_string version)" || version=''
   if [ "$version" != "${tag#v}" ]; then
     refuse "the root package.json at ${tag} says version '${version:-none}', and the tag says '${tag#v}'. ${RELEASE_SENTENCE}." \
@@ -568,6 +590,7 @@ main() {
   # words).
   release_tag_carries "$REPO_ROOT" "$tag" "$commit" || refuse "${RELEASE_TAG_WHY[@]}"
   say "${tag} is an annotated release tag on origin, at ${commit}, version ${version}"
+  say "$node_said"
 
   # ---- The site at this tag: its own project, a port, no blank in its texts --------
   if [ "$site" = on ]; then
@@ -805,7 +828,8 @@ units_note() {
 }
 
 # json_string <field> — the string value of that field of the JSON object on
-# stdin, or nothing. node is there: the bring-up needs it.
+# stdin, or nothing. node is there: the bring-up needs it, and main asks
+# release_tag_node about it before the first call.
 json_string() {
   node -e '
     let s = "";

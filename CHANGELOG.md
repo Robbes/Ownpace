@@ -163,6 +163,45 @@ notices.
 
 ### Changed
 
+- **Everything runs Node 26, the LTS line since 2026-10-28** (workplan 0119,
+  the owner's decision of 2026-10-31; supersedes #1754 and Dependabot's
+  #1746, which moved 24 a patch). The api, web and selfhost images build on
+  `node:26.13.0-trixie-slim`, the API runs on `distroless/nodejs26-debian13`
+  with the same Node binary, the managed tasks deploy as `node-26` on the
+  API's base, the Windows payload ships node.exe 26.13.0 (about 6 MB larger),
+  CI and every workflow install 26, and `engines` asks for `>=26`. Node 26
+  ships no corepack, so the images install corepack 0.36.0 from npm to bring
+  pnpm. Node 26's fetch offers HTTP/2 to the servers it calls, and the owner
+  accepted that: Google's APIs take it, Microsoft's sign-in stays on HTTP/1.1,
+  and an error's status text over HTTP/2 has no reason phrase. No gate reaches
+  Google's APIs, Dropbox or Box through the product, and the Microsoft lane
+  reaches Graph through its own client, so a migration on live after this
+  release is the first to use HTTP/2 with them: the owner runs one from their
+  own accounts before inviting anyone. The API logs
+  one `ExperimentalWarning` about `localStorage` at start, from a library the
+  Trigger.dev SDK loads, and each task process is expected to; nothing behaves
+  differently. **Before deploying this release, the shell the deploy runs
+  from needs Node 26 first on its `PATH`, with `libatomic1`, and a pnpm that
+  runs `packageManager`'s version**: the deploy runs `pnpm install`, the task
+  deploy and the site build on the node `command -v node` names in that shell,
+  and pnpm only warns when that node is too old and the deploy goes on. A
+  system Node another service on the host runs on stays as it is: a Node 26 of
+  the deploying user's own (nvm, fnm, or a tarball in a directory they own)
+  goes first on their `PATH`, pnpm installs into it without `sudo`, and the
+  deploy runs as that user, not under `sudo`, whose `secure_path` finds the
+  system's node. `deploy-live.sh` and `stand-up-live.sh` now refuse, before
+  anything moves, a node on that `PATH` below what the tag's `package.json`
+  asks for (`engines.node`), none at all, or an `engines` they cannot read
+  (an `engines.node` other than `>=N` or `>=N.N.N`, more than one `engines`
+  key in the file, an object inside it, or `node` given twice), naming the
+  node's path and version (`release_tag_node` in `release-tag.sh`). The
+  deploy to this release runs alpha.3's `deploy-live.sh`, which has no such
+  check, so for it the reading in the
+  deploy shell (`command -v node`, `node -v`) is the check; the refusal guards
+  the deploys after it. The steps are in `managed-bring-up.md`, *The Node in
+  the shell you deploy from*. The first task
+  deploy and the first CI lint after the move are slow, as nothing is cached
+  for 26 yet. Nothing a stack's `.env` sets changes.
 - **Pre-release has ended, and no migration a release shipped changes again**
   (workplan 0146 T3, ADR-0045): pre-release ended with `v0.2.0-alpha.1`, the
   first tag `ownpace-live` ran. `scripts/squash-migrations.sh` refuses before

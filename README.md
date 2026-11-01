@@ -32,9 +32,11 @@ Published builds — no toolchain needed:
 ## Quickstart (from source)
 
 ### Prerequisites
-- Node.js 24 (the version CI and the images use; `engines` allows newer)
-- pnpm 11 — `corepack enable pnpm` on Node 24; Node 25+ no longer ships Corepack, so run
-  `npm install -g corepack` first (or install pnpm directly)
+- Node.js 26 (the version CI and the images use; `engines` asks for `>=26`). On Linux the
+  official Node 26 binaries need `libatomic1` (`sudo apt-get install libatomic1` on Debian
+  and Ubuntu); the images carry it.
+- pnpm 11, from npm: Node 25 and later ship no Corepack, so `npm install -g pnpm@11`; inside
+  the repository it switches itself to the version `package.json`'s `packageManager` names
 - Docker (for integration tests and dev stack)
 
 ### Installation
@@ -43,8 +45,8 @@ Published builds — no toolchain needed:
 git clone https://github.com/Robbes/Ownpace.git
 cd Ownpace
 
-# Install dependencies
-corepack enable pnpm
+# Install dependencies (pnpm from npm: Node 26 ships no corepack)
+npm install -g pnpm@11
 pnpm install
 ```
 
