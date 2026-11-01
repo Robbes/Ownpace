@@ -8,7 +8,7 @@
  * for their grant, what the grant does to it when it lands (start when granted,
  * per person).
  */
-import { render, screen, within } from '@testing-library/react';
+import { getConfig, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -102,9 +102,13 @@ const ANNA = person('p-anna', 'Anna Jansen', [
   { id: 'm-files', status: 'active' },
 ]);
 
-const renderAt = (path = '/people/p-anna') =>
-  render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+/** The client of the page `renderAt` drew last, which `answered` reads. */
+let client: QueryClient;
+
+const renderAt = (path = '/people/p-anna') => {
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path="/people/:personId" element={<Person />} />
@@ -112,6 +116,35 @@ const renderAt = (path = '/people/p-anna') =>
       </MemoryRouter>
     </QueryClientProvider>,
   );
+};
+
+/**
+ * Until the two reads the page waits on before it draws anything have
+ * answered, as React Query's cache holds them: the people, and each
+ * migration's row (the list on managed, the status on the appliance). By the
+ * time this returns, the page has drawn what they said.
+ *
+ * WHY A CASE WAITS FOR THIS BEFORE IT LOOKS. The first case here failed on
+ * main's CI on 2026-10-28 and 2026-10-30: `findByRole` gave up on the person's
+ * name with the spinner still up, though both reads had answered. A `findBy*`
+ * starts its one-second clock and then looks once, at once. The mocked reads
+ * answer in microtasks, which wait behind that look, and React Query hands an
+ * answer to React in a `setTimeout(…, 0)` that it sets from there. In a fresh
+ * file the look is a cold role query (103 ms on an idle machine), so on a busy
+ * runner the hand-over was set more than a second after the clock and fell
+ * due after it, and Node ran the wait's timer first. Here the look reads the
+ * cache. The answers reach it before any timer can run, and its next look, at
+ * its first interval, falls due before its timeout, so it cannot give up with
+ * them in hand. It returns through one more `setTimeout(…, 0)`, set after the
+ * hand-over, so the page is drawn by then, however slow the runner.
+ */
+const answered = () =>
+  waitFor(() => {
+    for (const queryKey of [['people'], edition.selfhost ? ['status'] : ['mappings']]) {
+      const status = client.getQueryState(queryKey)?.status;
+      if (status !== 'success' && status !== 'error') throw new Error(`the ${queryKey[0]} read has not answered: ${status ?? 'not asked'}`);
+    }
+  });
 
 const step = (key: string) => document.querySelector(`[data-step="${key}"]`) as HTMLElement;
 
@@ -144,6 +177,7 @@ beforeEach(() => {
 describe("a person's page (0153 T5)", () => {
   it('says who, where from and where to, one stage, and what waits on them', async () => {
     renderAt();
+    await answered();
     expect(await screen.findByRole('heading', { level: 1, name: 'Anna Jansen' })).toBeInTheDocument();
     expect(screen.getByText('From Google and Dropbox to Soverin and Nextcloud')).toBeInTheDocument();
     // One stage: the least advanced of the two.
@@ -155,6 +189,7 @@ describe("a person's page (0153 T5)", () => {
 
   it("draws each migration's lines, with Details to its own page", async () => {
     renderAt();
+    await answered();
     await screen.findAllByText('Anna mail');
     expect(screen.getByText('Email')).toBeInTheDocument();
     expect(screen.getByText('Files')).toBeInTheDocument();
@@ -170,6 +205,7 @@ describe("a person's page (0153 T5)", () => {
   it('lists the steps before they switch, in cutover order, summed, with a state in words', async () => {
     checksRead({ 'm-mail': { state: 'not_run' }, 'm-files': { state: 'not_passed', at: daysAgo(1) } });
     renderAt();
+    await answered();
     await screen.findByRole('heading', { name: 'Before you switch' });
     await vi.waitFor(() => expect(step('check').textContent).not.toContain('Could not be read'));
     const keys = [...document.querySelectorAll('[data-step]')].map((el) => el.getAttribute('data-step'));
@@ -190,6 +226,7 @@ describe("a person's page (0153 T5)", () => {
 
   it("opens each migration's own page for a step, when the person has several", async () => {
     renderAt();
+    await answered();
     await screen.findByRole('heading', { name: 'Before you switch' });
     const links = within(step('check')).getAllByRole('link');
     expect(links.map((a) => a.getAttribute('href'))).toEqual(['/mappings/m-mail/verify', '/mappings/m-files/verify']);
@@ -197,6 +234,7 @@ describe("a person's page (0153 T5)", () => {
 
   it("says on each migration's link what that migration holds of a queue's step, so the work can be found", async () => {
     renderAt();
+    await answered();
     await screen.findByRole('heading', { name: 'Before you switch' });
     const names = (key: string) => within(step(key)).queryAllByRole('link').map((a) => a.textContent);
     // Only the migrations with work in the queue: a (0) link points at none.
@@ -216,6 +254,7 @@ describe("a person's page (0153 T5)", () => {
     });
     attentionMock.mockResolvedValue({ mappings: [quiet('m-files')] });
     renderAt();
+    await answered();
     await vi.waitFor(() => expect(step('finish').textContent).toContain('Switch to the new system, then end'));
     // Never run: its empty queues are not yet done.
     expect(step('moves').textContent).toContain('None');
@@ -227,6 +266,7 @@ describe("a person's page (0153 T5)", () => {
       mappings: [quiet('m-mail', { deletionsWaiting: 2 }), quiet('m-files', { blindSpots: ['the deletions queue: timeout'] })],
     });
     renderAt();
+    await answered();
     await screen.findByRole('heading', { name: 'Before you switch' });
     const [mail, files] = within(step('deletions')).getAllByRole('link');
     expect(mail).toHaveAccessibleName('Anna mail (2)');
@@ -236,6 +276,7 @@ describe("a person's page (0153 T5)", () => {
   it('links the step itself to the migration, when the person has one', async () => {
     peopleMock.mockResolvedValue({ people: [person('p-anna', 'Anna Jansen', [{ id: 'm-mail', status: 'active' }])], unassigned: [] });
     renderAt();
+    await answered();
     await screen.findByRole('heading', { name: 'Before you switch' });
     expect(within(step('check')).getByRole('link', { name: 'Check' })).toHaveAttribute('href', '/mappings/m-mail/verify');
   });
@@ -244,6 +285,7 @@ describe("a person's page (0153 T5)", () => {
     peopleMock.mockResolvedValue({ people: [person('p-anna', 'Anna Jansen', [{ id: 'm-mail', status: 'active' }])], unassigned: [] });
     checksRead({ 'm-mail': { state: 'passed', at: daysAgo(2) } });
     renderAt();
+    await answered();
     await vi.waitFor(() => expect(step('check').textContent).toContain('Passed 2 days ago'));
     expect(step('check').textContent).toContain('Done');
     expect(step('confirmed').textContent).toContain('Ready to read');
@@ -252,6 +294,7 @@ describe("a person's page (0153 T5)", () => {
   it('says not run, rather than not passed, when no check ran on any of them (0154 T4)', async () => {
     checksRead({ 'm-mail': { state: 'not_run' }, 'm-files': { state: 'not_run' } });
     renderAt();
+    await answered();
     await vi.waitFor(() => expect(step('check').textContent).toContain('Not run yet'));
     expect(step('check').textContent).toContain('Not yet');
   });
@@ -259,6 +302,7 @@ describe("a person's page (0153 T5)", () => {
   /** Hard rule 9: a check nobody could ask about is not one that never ran. */
   it('says the check could not be read, and claims no state, when the progress read failed', async () => {
     renderAt();
+    await answered();
     await screen.findByRole('heading', { name: 'Before you switch' });
     await vi.waitFor(() => expect(step('check').textContent).toContain('Could not be read'));
     expect(step('check').textContent).not.toContain('Not yet');
@@ -270,6 +314,7 @@ describe("a person's page (0153 T5)", () => {
   it('says nothing yet while what waits is still being read, rather than that it could not be', async () => {
     attentionMock.mockReturnValue(new Promise(() => undefined));
     renderAt();
+    await answered();
     await screen.findByRole('heading', { name: 'Before you switch' });
     expect(step('deletions').textContent).not.toContain('Could not be read');
     expect(step('deletions').textContent).not.toContain('None');
@@ -279,6 +324,7 @@ describe("a person's page (0153 T5)", () => {
   it('says a count could not be read, and claims no state, when what waits cannot be read', async () => {
     attentionMock.mockRejectedValue(new Error('the database is unreachable'));
     renderAt();
+    await answered();
     expect(await screen.findByText('Could not count what needs you.')).toBeInTheDocument();
     expect(step('deletions').textContent).toContain('Could not be read');
     expect(step('deletions').textContent).not.toContain('Done');
@@ -296,6 +342,7 @@ describe("a person's page (0153 T5)", () => {
     };
     peopleMock.mockRejectedValue(err);
     renderAt();
+    await answered();
     expect(await screen.findByText('Could not load this person.')).toBeInTheDocument();
     expect(screen.getByText(/Reference 1a2b3c4d/)).toBeInTheDocument();
     expect(screen.queryByText('There is no such person here.')).not.toBeInTheDocument();
@@ -303,6 +350,7 @@ describe("a person's page (0153 T5)", () => {
 
   it('says there is no such person, for an address that names nobody here', async () => {
     renderAt('/people/p-nobody');
+    await answered();
     expect(await screen.findByText('There is no such person here.')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Before you switch' })).not.toBeInTheDocument();
   });
@@ -328,18 +376,21 @@ describe('one heading on every state', () => {
   it('when the people could not be read: Migrations, over what went wrong', async () => {
     peopleMock.mockRejectedValue(new Error('the people read failed'));
     renderAt();
+    await answered();
     expect(await screen.findByText('Could not load this person.')).toBeInTheDocument();
     expect(h1s().map((h) => h.textContent)).toEqual(['Migrations']);
   });
 
   it('for an address that names nobody: Migrations, over the sentence', async () => {
     renderAt('/people/p-nobody');
+    await answered();
     expect(await screen.findByText('There is no such person here.')).toBeInTheDocument();
     expect(h1s().map((h) => h.textContent)).toEqual(['Migrations']);
   });
 
   it('for a person: their name, and only that', async () => {
     renderAt();
+    await answered();
     expect(await screen.findByRole('heading', { level: 1, name: 'Anna Jansen' })).toBeInTheDocument();
     expect(h1s()).toHaveLength(1);
   });
@@ -352,6 +403,7 @@ describe('one heading on every state', () => {
 describe("a person's grant link, on their page", () => {
   it('offers one link for all of their accounts, and says there is none yet', async () => {
     renderAt();
+    await answered();
     const section = await screen.findByRole('region', { name: 'For Anna Jansen' });
     expect(within(section).getByRole('heading', { name: 'One grant link for everything' })).toBeInTheDocument();
     expect(await within(section).findByText('No link yet for this person.')).toBeInTheDocument();
@@ -368,6 +420,7 @@ describe("a person's grant link, on their page", () => {
       distribution: 'Send this to the person yourself.',
     });
     renderAt();
+    await answered();
     const section = await screen.findByRole('region', { name: 'For Anna Jansen' });
     await userEvent.click(within(section).getByRole('button', { name: 'Create grant link' }));
     expect(personLinkApi.issue).toHaveBeenCalledWith('p-anna', 'grant', 7);
@@ -386,6 +439,7 @@ describe("a person's grant link, on their page", () => {
       asksAgain: true,
     });
     renderAt();
+    await answered();
     const section = await screen.findByRole('region', { name: 'For Anna Jansen' });
     await userEvent.click(within(section).getByRole('button', { name: 'Create grant link' }));
     expect(
@@ -405,6 +459,7 @@ describe("a person's grant link, on their page", () => {
       distribution: 'Send this to the person yourself.',
     });
     renderAt();
+    await answered();
     const section = await screen.findByRole('region', { name: 'For Anna Jansen' });
     expect(within(section).getByRole('heading', { name: 'One progress link for everything' })).toBeInTheDocument();
     expect(await within(section).findByText('No progress link yet for this person.')).toBeInTheDocument();
@@ -424,6 +479,7 @@ describe('what waits for their grant, on their page (start when granted, per per
   ] as const)('says beside the migration what their grant does to it: %s', async (then, words) => {
     vi.mocked(personLinkApi.awaiting).mockResolvedValue([{ mappingId: 'm-mail', then }]);
     renderAt();
+    await answered();
     expect(await within(await waitForRow('m-mail')).findByText(words)).toBeInTheDocument();
     expect(personLinkApi.awaiting).toHaveBeenCalledWith('p-anna');
     // Only beside the one that waits.
@@ -432,6 +488,7 @@ describe('what waits for their grant, on their page (start when granted, per per
 
   it('says nothing when nothing of theirs waits', async () => {
     renderAt();
+    await answered();
     await screen.findByRole('heading', { level: 1, name: 'Anna Jansen' });
     await vi.waitFor(() => expect(personLinkApi.awaiting).toHaveBeenCalled());
     expect(document.querySelector('[data-awaiting-grant]')).toBeNull();
@@ -441,6 +498,7 @@ describe('what waits for their grant, on their page (start when granted, per per
   it('says it could not read what waits, rather than that nothing does (hard rule 9)', async () => {
     vi.mocked(personLinkApi.awaiting).mockRejectedValue(new Error('down'));
     renderAt();
+    await answered();
     expect(await screen.findByText('Which of these wait for Anna Jansen to connect could not be read.')).toBeInTheDocument();
     expect(document.querySelector('[data-awaiting-grant]')).toBeNull();
   });
@@ -493,6 +551,7 @@ describe('the appliance’s one person (0153 T8)', () => {
 
   it('shows every migration it is configured with, from its status, named by its file or by where it goes', async () => {
     renderAt('/people/implicit');
+    await answered();
     expect(await screen.findByRole('heading', { level: 1, name: 'Your migrations' })).toBeInTheDocument();
     expect(within(row('mail')).getByText('Mail')).toBeInTheDocument();
     expect(within(row('files')).getByText('Dropbox to WebDAV')).toBeInTheDocument();
@@ -508,6 +567,7 @@ describe('the appliance’s one person (0153 T8)', () => {
 
   it('has no Migrations page to go back to, no Add a migration, and no links', async () => {
     renderAt('/people/implicit');
+    await answered();
     await screen.findByRole('heading', { level: 1, name: 'Your migrations' });
     expect(screen.queryByRole('link', { name: '← Migrations' })).not.toBeInTheDocument();
     expect(screen.queryByText('Add a migration')).not.toBeInTheDocument();
@@ -519,6 +579,7 @@ describe('the appliance’s one person (0153 T8)', () => {
   it('says its status could not be read, rather than that it has no migrations (hard rule 9)', async () => {
     vi.mocked(fetchStatus).mockRejectedValue(new Error('down'));
     renderAt('/people/implicit');
+    await answered();
     expect(await screen.findByText('Could not load this person.')).toBeInTheDocument();
     expect(document.querySelector('[data-migration]')).toBeNull();
   });
@@ -561,6 +622,7 @@ describe('a person’s lines say where each data type is (0154 T1 (b))', () => {
     });
 
     renderAt();
+    await answered();
 
     await screen.findByRole('heading', { level: 1, name: 'Anna Jansen' });
     await vi.waitFor(() => expect(line('m-mail', 'email').getAttribute('data-stage')).toBe('kept_in_step'));
@@ -614,6 +676,7 @@ describe('a person’s lines say where each data type is (0154 T1 (b))', () => {
       });
 
       renderAt('/people/implicit');
+      await answered();
 
       await screen.findByRole('heading', { level: 1, name: 'Your migrations' });
       await vi.waitFor(() => expect(line('mail', 'email').getAttribute('data-stage')).toBe('ready_to_switch'));
@@ -624,6 +687,7 @@ describe('a person’s lines say where each data type is (0154 T1 (b))', () => {
       vi.mocked(fetchVerifyReport).mockResolvedValue({ state: 'never-run' });
 
       renderAt('/people/implicit');
+      await answered();
 
       await screen.findByRole('heading', { level: 1, name: 'Your migrations' });
       await vi.waitFor(() => expect(line('mail', 'email').getAttribute('data-stage')).toBe('kept_in_step'));
@@ -640,6 +704,7 @@ describe("the pace of their migrations (0157 T5)", () => {
   it('on Free: one pass a day for each migration, and a link to the tiers', async () => {
     paceMock.mockResolvedValue({ leastMinutesBetweenPasses: 1440, nextPassAt: { 'm-mail': '2026-10-06T07:12:00.000Z' } });
     renderAt();
+    await answered();
     const line = await screen.findByText(STRINGS.en['pace.free.eachMigration'], { exact: false });
     expect(line.closest('p')).toHaveAttribute('data-pace', 'free');
     expect(screen.getByRole('link', { name: STRINGS.en['pace.free.higher'] })).toHaveAttribute('href', '/billing');
@@ -649,7 +714,10 @@ describe("the pace of their migrations (0157 T5)", () => {
 
   it('says nothing of a pace on a paid tier, or during the alpha', async () => {
     renderAt();
-    expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument();
+    await answered();
+    // Their page, not any level-1 heading: the spinner draws one too
+    // (*Migrations*), with no pace under it either.
+    expect(await screen.findByRole('heading', { level: 1, name: 'Anna Jansen' })).toBeInTheDocument();
     await vi.waitFor(() => expect(paceMock).toHaveBeenCalled());
     expect(screen.queryByText(STRINGS.en['pace.free.eachMigration'], { exact: false })).toBeNull();
   });
@@ -685,6 +753,7 @@ describe('on a phone, a migration draws its two tiles once, under its name (2026
     vi.mocked(personLinkApi.awaiting).mockResolvedValue([{ mappingId: 'm-mail', then: 'ran_before' }]);
 
     renderAt();
+    await answered();
     await screen.findByText('Waits for Anna Jansen to connect again.');
 
     for (const m of [MAIL, FILES, CALENDAR]) {
@@ -703,5 +772,55 @@ describe('on a phone, a migration draws its two tiles once, under its name (2026
     const mail = document.querySelector('[data-app-screen="migrations"] [data-migration="m-mail"]')!;
     const [tiles] = pairsIn(mail).filter((p) => p.classList.contains('sm:hidden'));
     expect(before(tiles!, mail.querySelector('[data-awaiting-grant]')!), 'the pair is below what waits for the grant').toBe(true);
+  });
+});
+
+/**
+ * THE WAIT HOLDS ON A RUNNER THAT STALLS (2026-10-31). What failed on main's
+ * CI, made certain: the page is asked for, its wait begins, and then nothing
+ * else runs for longer than the wait's second, as the cold first look did on a
+ * busy runner. `answered` still sees the page drawn. With
+ * `findByRole('heading', …)` in its place, the case fails every time.
+ */
+describe('waiting for the page', () => {
+  /** Holds the event loop, as a slow look on a busy runner did. */
+  const stall = (ms: number) => {
+    const until = performance.now() + ms;
+    while (performance.now() < until) {
+      // nothing else runs
+    }
+  };
+
+  it('finds the person drawn though the runner stalls past the wait’s own second', async () => {
+    renderAt();
+    const ready = answered();
+    stall(getConfig().asyncUtilTimeout + 200);
+    await ready;
+    expect(screen.getByRole('heading', { level: 1, name: 'Anna Jansen' })).toBeInTheDocument();
+  });
+
+  /**
+   * And it waits on each of the two reads, not only on the people. Every mock
+   * above answers in the same turn, so no case before this one would see the
+   * rows' read dropped from `answered`, and a case whose list or status
+   * answered after the people would then look at a page still drawing (#1760's
+   * review). Here one read never answers, and the wait must say which.
+   */
+  it.each([
+    ['people', '/people/p-anna', () => peopleMock.mockReturnValue(new Promise(() => undefined))],
+    ['mappings', '/people/p-anna', () => listMock.mockReturnValue(new Promise(() => undefined))],
+    [
+      'status',
+      '/people/implicit',
+      () => {
+        edition.selfhost = true;
+        peopleMock.mockResolvedValue(implicitPeople([{ id: 'mail', status: 'active' }]));
+        vi.mocked(fetchStatus).mockReturnValue(new Promise(() => undefined));
+      },
+    ],
+  ] as const)('fails, and names it, while the %s read has not answered', async (read, path, holdIt) => {
+    holdIt();
+    renderAt(path);
+    await expect(answered()).rejects.toThrow(`the ${read} read has not answered: pending`);
   });
 });

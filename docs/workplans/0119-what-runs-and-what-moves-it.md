@@ -32,7 +32,7 @@ left is code that runs (pnpm 10.33.2 itself, 11 highs in each, goose, the webapp
 packages), which stays the owner's question. On `9e5c270e`, Images run 41233684732 passed
 `build (trigger, amd64)` and `build (trigger, arm64)`, and E2E (managed) run 41236579127 was
 green (2026-10-31, 20:29–20:39 UTC), with `trigger-api` and `trigger-supervisor` up and healthy
-from the two new names. The branch has since merged `main` up to `4a342e2d`, which touches
+from the two new names. The branch has since merged `main` up to `ae4ae13e`, which touches
 neither Dockerfile nor their lines in `managed.yml`.
 
 **2026-10-31: the dashboard's TLS front is Caddy 2.11.7 built here without curl, which clears its
