@@ -112,6 +112,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   one copy sits under the web app's axios, whose browser build leaves it out
   of the bundle; the advisory gate had refused `main` and every pull request
   on it since 2026-10-31.
+- **The billing screen's integration test no longer fails for the first ten
+  hours of every month** (workplan 0121): it seeded a ten-hour pass that began
+  ten hours before the test ran. The route meters the current UTC month by
+  when a pass was created, so for those ten hours the pass fell in the month
+  before, the test read 0 hours, and integration tests failed on every pull
+  request from 00:10 UTC on 2026-11-01. The seeded pass now starts at the top
+  of the current month. The route was right, and is unchanged.
 
 ## [0.2.0-alpha.3] - 2026-10-30
 
