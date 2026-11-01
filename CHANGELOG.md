@@ -57,6 +57,24 @@ notices.
 
 ### Security
 
+- **The Trigger.dev webapp and supervisor built here lose npm and pnpm's
+  node-gyp, which nothing here runs** (workplan 0146 T16): twelve fixable high
+  findings in each image were in two trees no process of the stack runs. npm
+  11.19.1, which Node 24.22.1 bundles, carried brace-expansion 5.0.9 and undici
+  6.28.0 (six highs); the node-gyp that the copy of pnpm each service runs
+  ships beside it carried brace-expansion 2.1.0 and ip-address 10.1.0 (six
+  more). Both builds now remove npm with its `npm` and `npx` links, and
+  node-gyp's whole tree with its shim (tar, taken out on 2026-10-27, was part
+  of it). Before removing anything they check that pnpm's own files name only
+  the three packages of that tree that were read, each loaded only in a try,
+  that npm is Node's own and carries no configuration pnpm would read, and that
+  corepack, which starts every pnpm here, stays. On Trigger.dev v4.8.3 the
+  image scan reads the webapp at 1 critical, 124 high and 68 fixable (136 and
+  80 before) and the supervisor at 0, 13 and 13 (25 and 25 before). The one
+  risk is the one accepted for tar: a package script that calls node-gyp, or a
+  `pnpm install` that builds a native add-on, inside these containers would
+  fail. Neither container has `npm` or `npx` any more. Nothing a stack sets
+  changes; the next bring-up builds both images again under their new names.
 - **The Trigger.dev dashboard's TLS front is built here without curl**
   (workplan 0119): `caddy:2.11.7-alpine`, Caddy's newest release, carries
   curl, which its upstream adds and nothing on this stack runs, and curl's
