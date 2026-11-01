@@ -40,12 +40,16 @@ const MAPPING = `${P}d1` as MappingId;
  *
  * It counts by name, and not every backend the database has, because the
  * database is not the reader's alone. On 2026-11-01 (run 41307075837, amd64)
- * the second test read 2 before the loop and 1 for the whole of `SETTLE_MS`
- * after it: a backend that was not the reader's was there when `before` was
- * read and left inside the window, so the count could never return to
- * `before`. An autovacuum worker is one — Postgres lists it under the database
- * it is vacuuming — and so is any session of anything else connected to the
- * same database. Run against `./scripts/local-pg.sh`, a worker present at
+ * the second test read 2 before the loop; after it, no read within
+ * `SETTLE_MS` came back to 2, and the read at the deadline was 1. A backend
+ * that was not the reader's was there when `before` was read and left inside
+ * the window, so the count could get back to `before` only if some other
+ * backend happened to arrive. An autovacuum worker is one — Postgres lists it
+ * under the database it is vacuuming — and so is any session of anything else
+ * connected to the same database. Only a backend already there at `before`
+ * could do it: one that arrived later held the count above `before` until it
+ * left, and the settle loop waited it out, which is why the old count failed
+ * so seldom. Run against `./scripts/local-pg.sh`, a worker present at
  * `before` failed the old count the same way ("expected 2 to be 3", with one
  * idle session of our own beside it), and a second session that closed just
  * after `before` was read failed it as it failed in CI, "expected 1 to be 2"

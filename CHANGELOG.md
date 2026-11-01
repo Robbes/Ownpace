@@ -374,12 +374,13 @@ notices.
   connections, not every connection the test database has**: it counted the
   database's backends before five verification runs and waited for the count
   to come back, so a backend that was not the reader's (an autovacuum worker,
-  or any other session) leaving inside the window left it one short for good.
-  integration-tests failed that way once on amd64 on 2026-11-01 (expected 1 to
-  be 2), and passed on a re-run. The reader's connections now carry an
-  `application_name` only that test uses, and the test waits for those to
-  reach 0. The reader was right, and is unchanged; a reader whose `close()`
-  leaves its pool open still fails the test.
+  or any other session) leaving inside the window left it one short unless
+  another backend happened to arrive. integration-tests failed that way once on
+  amd64 on 2026-11-01 (expected 1 to be 2, after the 5 s wait), and passed on a
+  re-run. The reader's connections now carry an `application_name` only that
+  test uses, and the test waits for those to reach 0. The reader was right,
+  and is unchanged; a reader whose `close()` leaves its pool open still fails
+  the test.
 
 ## [0.2.0-alpha.3] - 2026-10-30
 
