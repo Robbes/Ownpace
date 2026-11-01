@@ -11,7 +11,7 @@ branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-01-later`. Read f
   given, 11:11 to 11:12. The nights picked no commit (*E2E (managed) #319 ended failure: a
   failed or cancelled scheduled run resets the count*), so the checks read `main`'s head,
   `82d0c945` (#1779's merge, 11:10). It ended *8 refused (preflight)*, and each refusal is one
-  the fold or the nights answer:
+  the fold, C's CI (then queued) or the nights answer:
   - `names-agree`: the root `package.json` says `0.2.0-alpha.3`;
   - `openapi-agrees`: `apps/api/docs/openapi.yaml`'s `info.version` is `0.2.0-alpha.3`;
   - `changelog-folded`, twice: `[Unreleased]` still holds 345 lines, and `CHANGELOG.md` has no
@@ -33,7 +33,8 @@ branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-01-later`. Read f
 - **So what is left for the tag:** the fold (the version in `package.json` and `openapi.yaml`,
   `[Unreleased]` into `[0.2.0-alpha.4]`), C's CI green, and two counted nights on C or the
   owner's waiver (0141 T14). From the Node 26 move (0119's Status, 2026-11-01), the o365 lane,
-  which waits for the runner label `spark` (the owner's, 0141 T13), and the owner's Windows 11
+  which waits for the owner's step on the runner label `spark` (0141 T13 (a): add it to the
+  runner, or drop it from `runs-on`), and the owner's Windows 11
   check of a zip on Node 26.13.0 are still open.
 
 **2026-11-01: what merged for alpha.4 overnight, recorded (T1, T3, T4, T7, T16).** Docs only,

@@ -839,7 +839,7 @@ status page.
 | On `ownpace-network` | What it is |
 |---|---|
 | `postgres`, `pgbouncer` | The application database and its pooler |
-| `trigger-db`, `trigger-redis`, `clickhouse`, `minio` | Trigger.dev's database, queue, event store and object store (`clickhouse` since 2026-11-01 on `trigger-event-store`, an `internal` network only `trigger-api` shares, instead: 0119 §3 item 9, draft #1774; the socket proxy can still join a container to it, T4) |
+| `trigger-db`, `trigger-redis`, `clickhouse`, `minio` | Trigger.dev's database, queue, event store and object store (`clickhouse` since 2026-11-01 on `trigger-event-store`, an `internal` network only `trigger-api` shares, instead: 0119 §3 item 9, #1774, merged 2026-11-01, `1be730ec`; the socket proxy can still join a container to it, T4) |
 | `trigger-api`, `trigger-supervisor`, `trigger-registry`, `trigger-tls` | Trigger.dev's control plane |
 | `trigger-docker-proxy` | `tecnativa/docker-socket-proxy` with `CONTAINERS: 1`, `IMAGES: 1`, `NETWORKS: 1`, `VOLUMES: 1`, `POST: 1`, in front of the host's Docker socket (since 2026-10-30 `localhost/docker-socket-proxy`, upstream's v0.5.0 built here on a current HAProxy, with the same environment; workplan 0119) |
 | `zitadel` | The identity provider |

@@ -5,7 +5,7 @@
 ## Status — 2026-11-01 (update this block at the end of every session)
 
 **2026-11-01, records: T9 (b) merged as #1759, and the nightly gate has run it; the O365 lane
-waits for its runner label (T9, T13).** Docs only, on the branch
+is held by its runner label (T9, T13).** Docs only, on the branch
 `claude/ownpace-public-readiness-y7orc6-records-2026-11-01-later`. Read from GitHub on
 2026-11-01; times are UTC.
 - **T9 (b) merged.** The entry below, T9's row and §3's *(b), as built* said the gate's fixture
@@ -24,8 +24,9 @@ waits for its runner label (T9, T13).** Docs only, on the branch
   `[self-hosted, linux, arm64, spark]` (:85), and the self-hosted runner does not carry `spark`,
   so the lane has never run: runs 34019235750 and 34019786577 were cancelled in September, and run
   41273625023, dispatched for #1767, has been queued since 2026-11-01 04:34, while E2E (managed),
-  which asks for `[self-hosted, linux, arm64]`, ran on that runner at 10:41. Adding the label is
-  the owner's step; T13's row says so.
+  which asks for `[self-hosted, linux, arm64]`, ran on that runner at 10:41. The step is the
+  owner's, T13 (a): add `spark` to the runner, or drop it from `runs-on`, the choice #1137 left
+  to the owner; T13's row says so.
 
 **2026-10-31, build: T9 (b), the gate's fixture**, on branch
 `claude/ownpace-public-readiness-y7orc6-organiser-canary-nightly`, merged as #1759 on 2026-10-31 at 23:44 UTC (`8c0654b3`). The managed gate's
@@ -484,7 +485,7 @@ for the card says so.
 | T10 Shared mailboxes: Partial until one is copied | ✅ **(a), the move, done** in #1187, merged 2026-09-26 (`d7c4ebde`, `6402cd93`; decided 2026-09-25 by the owner); ⏳ **Owner** (0027 T0's consent run, after) — *was:* 🔨 **Decided 2026-09-25 (owner) and built on branch `claude/ownpace-public-readiness-y7orc6-shared-mailboxes-partial`, not merged** (the move, (a)) | §3. **Before a tester on a Microsoft card.** |
 | T11 The detectors and the permission report tell a Connect-with-Microsoft tester the truth | 📋 **Proposed**; the minimum 🔨 built 2026-09-27, merged as #1246; the credential model (open question 7) parked 2026-09-27 | §3. The finding was checked again on 2026-09-24. The true sentence goes in **before the first Microsoft 365 tester**. Per-tenant credentials come **after**, with an ADR. |
 | T12 The managed journey in a browser | ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ✅ **done** in #1646, merged 2026-10-21 (the fixture cases, (b)); ⏳ **Owner** (the walk); 📋 **Proposed** (the real-API journey, (c), after) — *was:* ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) | §3. The two-stranger walk happens on `ownpace-live` **before the first invitation**. The real-API journey comes **after**, in the gate on the OTA stack; it was parked on 0132 T8, which 0132 D7 superseded. |
-| T13 The O365 lane and the live-target lane | ⏳ **Owner** (runner label, secrets): `e2e-o365.yml` asks for the label `spark`, which the self-hosted runner does not carry, so run 41273625023 has been queued since 2026-11-01 04:34 UTC and no run has started; adding the label is the owner's step (Status, 2026-11-01); 📋 **Proposed** (code) | §3. **After.** A green run counts only when it ran the product's code against a real account. |
+| T13 The O365 lane and the live-target lane | ⏳ **Owner** (runner label, secrets): `e2e-o365.yml` asks for the label `spark`, which the self-hosted runner does not carry, so run 41273625023 has been queued since 2026-11-01 04:34 UTC and no run has started; the step is the owner's, (a): add `spark` to the runner, or drop it from `runs-on` (Status, 2026-11-01); 📋 **Proposed** (code) | §3. **After.** A green run counts only when it ran the product's code against a real account. |
 | T14 The nightly managed gate's readiness rule | ✅ **Read by code** in #1682, merged 2026-10-23 (`54e4c3d2`): `scripts/release-nights.mjs`, which the Release workflow runs, first read by it on `main` the same day (Release run 1: no commit qualifies yet); both nights on C, every attempt green, and the freeze, the owner's of 2026-10-23, written in §3; ✅ **The owner's waiver** (2026-10-30, for alpha.3), merged as #1741 on 2026-10-30 (`7e2fbbbe`), and **used once, for `v0.2.0-alpha.3`**: Release run 41066208430 (#16) tagged `e1b21aac` with the nights waived, its message quoting the owner (Status, 2026-10-31). Release's `waive_nights`, for a version in `WAIVER_VERSIONS` only (alpha.3) and from a person's account, the rule's refusals as notes that quote it, the commit given, the tag's message saying so, the tag job bound by what the preflight did, nothing else waived (§3); 📋 **Decided 2026-09-27**: two nights, scheduled runs only; **read 2026-09-27: 0 of 2** (the managed gate's #199 and #200 red, the appliance's last four green), and stated in `docs/testing.md` — *was:* 🔨 the waiver built as a draft on branch `claude/ownpace-public-readiness-y7orc6-release-nights-waiver` (2026-10-30); 🔨 **Read by code** on branch `claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged (2026-10-23); ⏳ **Owner** (names N); 📋 **Proposed** (the rule) | §3. Worked out with 0132 T6 step 1. It is read **before the first invitation**, before live's first bring-up from a tag, and again before each later deploy to live. |
 
 ## 1. What there is today
