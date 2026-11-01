@@ -2,7 +2,18 @@
 
 > **In one line:** SSRF defence on managed: connections refuse internal and Docker-network addresses after DNS and on redirects, a demo-host allowlist, probe answers without the remote's body, no archive disk path, the socket proxy off tenant networks.
 
-## Status — 2026-10-31 (update this block at the end of every session)
+## Status — 2026-11-01 (update this block at the end of every session)
+
+**2026-11-01: ClickHouse off `ownpace-network`, and T4 keeps it off the proxy's network (0119 §3
+item 9, draft #1774).** CVE-2026-116366 lets anybody who can reach ClickHouse run code on it, and
+the 26.2 the stacks run gets no fix, so #1774 puts `clickhouse` on `trigger-event-store`, an
+`internal` network only `trigger-api` shares. It takes away the name and the route from every
+other container, which stops a plain request or an SSRF from the API, the web app, Zitadel or
+Nextcloud. It does not stop the socket proxy (§1, *What shares the network*): with `POST`,
+`NETWORKS` and `CONTAINERS` and no authentication on `ownpace-network`, any container there, every
+task run included, can attach itself or a new container to `trigger-event-store`. T4 closes that,
+and now says ClickHouse stays off any network the proxy or the supervisor shares; §1's table
+marks the move.
 
 **2026-10-31: every deploy of live refuses a list that names a host (T2).** Built on branch
 `claude/ownpace-public-readiness-y7orc6-deploy-live-alpha-refusals`, #1752, not merged. T2 says live's
@@ -817,7 +828,7 @@ status page.
 | On `ownpace-network` | What it is |
 |---|---|
 | `postgres`, `pgbouncer` | The application database and its pooler |
-| `trigger-db`, `trigger-redis`, `clickhouse`, `minio` | Trigger.dev's database, queue, event store and object store |
+| `trigger-db`, `trigger-redis`, `clickhouse`, `minio` | Trigger.dev's database, queue, event store and object store (`clickhouse` since 2026-11-01 on `trigger-event-store`, an `internal` network only `trigger-api` shares, instead: 0119 §3 item 9, draft #1774; the socket proxy can still join a container to it, T4) |
 | `trigger-api`, `trigger-supervisor`, `trigger-registry`, `trigger-tls` | Trigger.dev's control plane |
 | `trigger-docker-proxy` | `tecnativa/docker-socket-proxy` with `CONTAINERS: 1`, `IMAGES: 1`, `NETWORKS: 1`, `VOLUMES: 1`, `POST: 1`, in front of the host's Docker socket (since 2026-10-30 `localhost/docker-socket-proxy`, upstream's v0.5.0 built here on a current HAProxy, with the same environment; workplan 0119) |
 | `zitadel` | The identity provider |
@@ -1128,6 +1139,13 @@ the file, so both get them, each under its own project's names (0132 T1):
 | `egress` | `api`, the runners | The way out to the internet. |
 
 - **The socket proxy is on `control` only.** Only the supervisor reaches it.
+- **ClickHouse stays off any network the socket proxy or the supervisor shares** (2026-11-01,
+  0119 §3 item 9). Since #1774 it is on `trigger-event-store`, `internal`, with `trigger-api`
+  alone, because the 26.2 it runs has an unauthenticated code execution with no fix
+  (CVE-2026-116366). So it is not a member of `control` as the table above lists it: it keeps
+  `trigger-event-store`, or the build reconciles the two networks with
+  `scripts/a-store-every-container-could-reach.unit.test.ts`, which fails any member of
+  ClickHouse's network but `trigger-api`.
 - **`trigger-api` and `trigger-supervisor` also join `app`** under the names the API and the
   runners use today. Those two are the ports the product needs from the control plane (to
   trigger tasks and to run them). Whether the runners also need `minio` for large payloads is the

@@ -160,6 +160,26 @@ notices.
   release at the same commit, with Go modules moved and no source changed,
   golang.org/x/net 0.62.0 among them. Nothing a stack sets changes; the next
   bring-up pulls it, and the data volume carries over.
+- **Trigger.dev's ClickHouse is on a network only its one client shares**
+  (workplan 0119 §3 item 9): CVE-2026-116366 (GHSA-qhgw-ghp3-xh36, critical,
+  published 2026-10-30) lets an unauthenticated user with network access run
+  code on a ClickHouse server, and it is fixed only in 26.3.62.3-lts,
+  26.8.36.3-lts, 26.9.27.3-stable and 26.10.3.7-stable. The stack runs 26.2,
+  the version Trigger.dev pins, which ClickHouse no longer supports, so no fix
+  will come for it; moving the version is the owner's decision. Until now
+  every container of the stack could reach it: the web app, the API, the
+  identity provider, the demo Nextcloud and every task run. ClickHouse is now
+  on `trigger-event-store`, an internal network with no route off the machine,
+  shared with `trigger-api` alone, the one service that talks to it. That
+  takes the name and the route away from every other container, so a plain
+  request, or one forged through the web app, the API, Zitadel or Nextcloud,
+  cannot reach it. It does not stop code in a container on `ownpace-network`,
+  a task run included, from attaching itself or a new container to the
+  network through the Docker socket proxy, which workplan 0136 T4 closes.
+  The next bring-up creates the network and recreates `clickhouse` and
+  `trigger-api`; no volume or data is touched. `a-store-every-container-could-reach` holds
+  the members, a service in a member's network namespace among them, and the
+  smoke asks ClickHouse from both sides.
 
 ### Changed
 
@@ -242,6 +262,11 @@ notices.
   (`docs/ending-the-alpha.md`, step 4). Both refusals first apply at the
   deploy after the one that moves live onto this release: `deploy-live.sh`
   runs its copy from before the checkout moves.
+- **croner 11.0.0** (from 10.0.1, #1764), and Dependabot's five minor and
+  patch updates (#1771): @azure/msal-node 7.1.2, @electric-sql/pglite 0.5.13,
+  react-router 8.5.1, lucide-react 1.63.0 and @types/node 26.6.6. No call site
+  changes: the scheduler and `sync-due` use `new Cron`, `nextRun`, `resume` and
+  `stop`, which croner 11 keeps.
 
 ### Added
 
@@ -269,9 +294,6 @@ notices.
   CI's `docs-hygiene`, which runs on every change, fails a document renamed,
   removed or retitled without the list, so the pull request breaks rather than
   the link. `scripts/a-doc-an-assistant-is-sent-to.unit.test.ts` holds it.
-
-### Added
-
 - **The nightly managed gate proves that copying a meeting the target account
   organises itself invites nobody** (workplan 0141 T9 (b), the organiser
   canary): each fresh set now carries an event 3 organised by the demo target

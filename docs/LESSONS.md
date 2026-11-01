@@ -181,6 +181,7 @@ reading a file drops off its entry by itself.
 ### `SECURITY.md`
 
 - [a-doc-an-assistant-is-sent-to](../scripts/a-doc-an-assistant-is-sent-to.unit.test.ts) — A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
+- [a-store-every-container-could-reach](../scripts/a-store-every-container-could-reach.unit.test.ts) — A STORE EVERY CONTAINER COULD REACH (workplan 0119 §3 item 9; CVE-2026-116366, 2026-11-01).
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 
 ### `TRADEMARK.md`
@@ -1236,6 +1237,7 @@ reading a file drops off its entry by itself.
 - [a-sign-in-page-in-our-own-words](../scripts/a-sign-in-page-in-our-own-words.unit.test.ts) — A SIGN-IN PAGE IN OUR OWN WORDS (workplan 0135 T6): the languages, and the mails.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
+- [a-store-every-container-could-reach](../scripts/a-store-every-container-could-reach.unit.test.ts) — A STORE EVERY CONTAINER COULD REACH (workplan 0119 §3 item 9; CVE-2026-116366, 2026-11-01).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-tag-upstream-never-rebuilds](../scripts/a-tag-upstream-never-rebuilds.unit.test.ts) — A TAG UPSTREAM NEVER REBUILDS (workplan 0119, 2026-10-30): the Docker socket proxy ran an image as old as its release, and nothing could move it.
 - [a-visit-count-that-kept-the-visitor](../scripts/a-visit-count-that-kept-the-visitor.unit.test.ts) — A VISIT COUNT THAT KEPT THE VISITOR (the owner, 2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip for now, no netbird api tokens..."*; privacy §4.5, §5 and §9).
@@ -1369,6 +1371,7 @@ reading a file drops off its entry by itself.
 
 - [a-database-that-counts-its-queries](../scripts/a-database-that-counts-its-queries.unit.test.ts) — A DATABASE THAT COUNTS ITS QUERIES (workplan 0143 T8).
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
+- [a-store-every-container-could-reach](../scripts/a-store-every-container-could-reach.unit.test.ts) — A STORE EVERY CONTAINER COULD REACH (workplan 0119 §3 item 9; CVE-2026-116366, 2026-11-01).
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
 - [seed-managed](../scripts/seed-managed.unit.test.ts) — The seed, and the password the volume never heard of.
 
@@ -1648,6 +1651,7 @@ reading a file drops off its entry by itself.
 - [a-probe-that-knows-every-port](../scripts/a-probe-that-knows-every-port.unit.test.ts) — A PROBE THAT KNOWS EVERY PORT (workplan 0132 T3 (c)).
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
+- [a-store-every-container-could-reach](../scripts/a-store-every-container-could-reach.unit.test.ts) — A STORE EVERY CONTAINER COULD REACH (workplan 0119 §3 item 9; CVE-2026-116366, 2026-11-01).
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 - [an-nginx-that-carries-only-what-it-loads](../scripts/an-nginx-that-carries-only-what-it-loads.unit.test.ts) — AN NGINX THAT CARRIES ONLY WHAT IT LOADS (workplan 0146 T12a).
@@ -1815,6 +1819,7 @@ reading a file drops off its entry by itself.
 
 ### `docs/ending-the-alpha.md`
 
+- [a-store-every-container-could-reach](../scripts/a-store-every-container-could-reach.unit.test.ts) — A STORE EVERY CONTAINER COULD REACH (workplan 0119 §3 item 9; CVE-2026-116366, 2026-11-01).
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
 - [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
 - [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
@@ -5387,6 +5392,18 @@ Reads:
 - `deploy/compose/stack-kind.sh`
 - `deploy/compose/stand-up-live.sh`
 - `packages/shared/src/notifications.ts`
+
+### [a-store-every-container-could-reach](../scripts/a-store-every-container-could-reach.unit.test.ts)
+
+A STORE EVERY CONTAINER COULD REACH (workplan 0119 §3 item 9; CVE-2026-116366, 2026-11-01).
+
+Reads:
+
+- `SECURITY.md`
+- `deploy/compose/managed.yml`
+- `deploy/compose/rotate-db-passwords.sh`
+- `deploy/compose/www.yml`
+- `docs/ending-the-alpha.md`
 
 ### [a-stranger-sees-counts-and-states](../scripts/a-stranger-sees-counts-and-states.unit.test.ts)
 

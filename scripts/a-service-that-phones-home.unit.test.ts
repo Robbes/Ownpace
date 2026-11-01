@@ -70,7 +70,11 @@
  *    and it must be the only file ClickHouse merges that speaks of crash
  *    reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d`
  *    and `conf.d`, in sorted order, so a later one wins
- *    (`src/Common/Config/ConfigProcessor.cpp`, `getConfigMergeFiles`).
+ *    (`src/Common/Config/ConfigProcessor.cpp`, `getConfigMergeFiles`). Since
+ *    2026-11-01 its one network, `trigger-event-store`, is `internal`
+ *    (`a-store-every-container-could-reach`), so a report would also have no
+ *    route off the machine. The switch stays, and stays held here: a network
+ *    is one line of a compose file away from having a route again.
  *  - MINIO (Chainguard's build since 0146 T7, the fork's
  *    `RELEASE.2026-10-23T20-06-51Z`, read at `RELEASE.2026-09-22T19-25-18Z`,
  *    whose code it shares; read first at Bitnami's 2025.5.24) asks
@@ -386,8 +390,8 @@ export const WEBAPP_KEYS: Readonly<Record<string, string>> = Object.freeze({
   OBJECT_STORE_BASE_URL: 'minio, on this network',
   OBJECT_STORE_ACCESS_KEY_ID: "minio's user",
   OBJECT_STORE_SECRET_ACCESS_KEY: "minio's password",
-  CLICKHOUSE_URL: 'clickhouse, on this network',
-  RUN_REPLICATION_CLICKHOUSE_URL: 'clickhouse, on this network',
+  CLICKHOUSE_URL: 'clickhouse, on trigger-event-store, the internal network only the two share',
+  RUN_REPLICATION_CLICKHOUSE_URL: 'clickhouse, on trigger-event-store, the internal network only the two share',
   REALTIME_STREAMS_DEFAULT_VERSION: 'v1 is Redis; v2 reaches S2 only with REALTIME_STREAMS_S2_ACCESS_TOKEN, a third party above',
   TRIGGER_BOOTSTRAP_ENABLED: 'writes the worker token to the shared volume',
   TRIGGER_BOOTSTRAP_WORKER_GROUP_NAME: "the worker group's name",
@@ -646,7 +650,9 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
   },
   'deploy/compose/managed.yml:clickhouse': {
     readAt: CLICKHOUSE,
-    why: 'crash and logical-error reports to crash.clickhouse.com (programs/server/config.xml at v26.2.19.43-stable)',
+    why:
+      'crash and logical-error reports to crash.clickhouse.com (programs/server/config.xml at v26.2.19.43-stable); ' +
+      'since 2026-11-01 also on an internal network only, with no route out (a-store-every-container-could-reach)',
     holds: (svc, entry) => {
       const { files, problems } = clickhouseMerged(svc, entry.file);
       return [...problems, ...clickhouseProblems(files)];

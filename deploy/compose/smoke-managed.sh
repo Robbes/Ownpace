@@ -1237,6 +1237,51 @@ else
   fail_at
 fi
 
+# ---------- ClickHouse: its one client reaches it, and nothing else does ----------
+#
+# CVE-2026-116366 (critical: "an unauthenticated user with network access" runs
+# code on the server) has no fix for the 26.2 this stack runs, so since
+# 2026-11-01 ClickHouse is on one network, `trigger-event-store`, which only
+# trigger-api shares (managed.yml, at the bottom; workplan 0119 §3 item 9).
+# `a-store-every-container-could-reach` holds the file to that. These two ask the
+# running stack, from both sides, and each prints what it saw.
+#
+# FROM TRIGGER-API, the one client: `/ping` is ClickHouse's HTTP liveness answer
+# (`Ok.`, no credentials), on the port CLICKHOUSE_URL names. node, because the
+# webapp's own health check runs it there. trigger-api reaching healthy says
+# the same thing less directly: its entrypoint runs goose against CLICKHOUSE_URL
+# under `set -e`, so a webapp that cannot reach ClickHouse never starts.
+#
+# FROM THE API CONTAINER, on ownpace-network with every other service and every
+# task run: the name must not resolve at all. Anything else, an answer, a refused
+# connection or a timeout, means a network it is on knows the name, and fails.
+# Only the error's code is printed: the message of a refused connection carries
+# the address, and this log is public.
+note "clickhouse, and who can reach it (CVE-2026-116366)"
+TRIGGER_API_CONTAINER="${COMPOSE_PROJECT}-trigger-api"
+if docker exec "$TRIGGER_API_CONTAINER" node -e \
+  "fetch('http://clickhouse:8123/ping').then(async r=>{const b=(await r.text()).trim();console.log('clickhouse HTTP '+r.status+' '+b);process.exit(r.status===200&&b==='Ok.'?0:1)}).catch(e=>{console.log('clickhouse unreachable: '+((e.cause&&e.cause.code)||e.name));process.exit(1)})"
+then
+  echo "clickhouse: answers trigger-api, its one client, on trigger-event-store"
+else
+  echo "FAIL: trigger-api cannot reach clickhouse:8123, the address its CLICKHOUSE_URL names."
+  echo "      Its migrations and every run's metrics go there: is trigger-api on"
+  echo "      trigger-event-store, and is clickhouse healthy?"
+  fail_at
+fi
+ch_from_api="$(docker exec "$API_CONTAINER" "$API_NODE" -e \
+  "fetch('http://clickhouse:8123/ping').then(r=>{console.log('answered HTTP '+r.status);process.exit(0)}).catch(e=>{console.log((e.cause&&e.cause.code)||e.name);process.exit(1)})" 2>&1)" && ch_rc=0 || ch_rc=$?
+case "$ch_rc:$ch_from_api" in
+  1:ENOTFOUND|1:EAI_AGAIN)
+    echo "clickhouse: no such name from the API container (${ch_from_api}), so nothing on ownpace-network reaches it" ;;
+  *)
+    echo "FAIL: the API container asked clickhouse:8123 and got '${ch_from_api}' (exit ${ch_rc}), not an unknown name."
+    echo "      Every service on ownpace-network and every task run can then reach a"
+    echo "      ClickHouse with an unauthenticated code execution and no fix"
+    echo "      (CVE-2026-116366): it must be on trigger-event-store alone."
+    fail_at ;;
+esac
+
 # ---------- whoever this stack is willing to believe ----------
 #
 # In MANAGED mode the tokens below come from the provider, through a real
