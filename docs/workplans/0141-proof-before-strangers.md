@@ -2,10 +2,33 @@
 
 > **In one line:** Live-account proofs lifting the experimental tag via a Live proofs table (Microsoft 365, Dropbox, Apple, Google Tasks, Soverin), the organiser canary, shared mailboxes, Microsoft-aware detectors, a managed browser walk, the O365 lane, nightly-gate readiness.
 
-## Status — 2026-10-31 (update this block at the end of every session)
+## Status — 2026-11-01 (update this block at the end of every session)
+
+**2026-11-01, records: T9 (b) merged as #1759, and the nightly gate has run it; the O365 lane
+waits for its runner label (T9, T13).** Docs only, on the branch
+`claude/ownpace-public-readiness-y7orc6-records-2026-11-01-later`. Read from GitHub on
+2026-11-01; times are UTC.
+- **T9 (b) merged.** The entry below, T9's row and §3's *(b), as built* said the gate's fixture
+  was on a branch, not merged, and that no E2E (managed) run had carried it. E2E (managed) run
+  41249879830 was green on the branch at `4ba8f061` (2026-10-31, 22:49 to 23:28), and #1759 merged
+  on 2026-10-31 at 23:44 (`8c0654b3`, after `main` was merged in as `bee7c4c8`). The scheduled E2E
+  (managed) of 2026-11-01, run 41298604750 on `bb452f1a` (10:41 to 10:50, *SMOKE PASS*), is the
+  first night to carry it: *[seed-dav] event smoke-…-3: HTTP 201 (organised by tenant-b-target's
+  own address tenant-b-target@demo.openmigrate.test, on 2027-01-06)*, then *the organiser
+  canary's copy is organised by tenant-b-target@demo.openmigrate.test, tenant-b-target's own
+  address as its server matches it, and carries SCHEDULE-AGENT=CLIENT on its organiser and
+  attendee*, and *nothing addressed to the canary reached the catcher during seed or sync, for
+  the third party's meeting (event 1) or the target's own (event 3)*. (a), the owner's sitting,
+  is unchanged.
+- **T13 (a), the runner label, is still the owner's.** `e2e-o365.yml` asks for
+  `[self-hosted, linux, arm64, spark]` (:85), and the self-hosted runner does not carry `spark`,
+  so the lane has never run: runs 34019235750 and 34019786577 were cancelled in September, and run
+  41273625023, dispatched for #1767, has been queued since 2026-11-01 04:34, while E2E (managed),
+  which asks for `[self-hosted, linux, arm64]`, ran on that runner at 10:41. Adding the label is
+  the owner's step; T13's row says so.
 
 **2026-10-31, build: T9 (b), the gate's fixture**, on branch
-`claude/ownpace-public-readiness-y7orc6-organiser-canary-nightly`, not merged. The managed gate's
+`claude/ownpace-public-readiness-y7orc6-organiser-canary-nightly`, merged as #1759 on 2026-10-31 at 23:44 UTC (`8c0654b3`). The managed gate's
 fresh set gains event 3, organised by the demo target account's own address, and the smoke reads
 its copy and asks the target's server whether it matches that organiser. It is dated next January,
 because Nextcloud invites nobody to an event already past, a condition T9 did not name. Until now
@@ -457,11 +480,11 @@ for the card says so.
 | T6 A second Google account, and Drive's open live items | ⏳ **Owner**, with a tester's agreement | §3. **After.** Whole-domain delegation is 🅿️ **Parked (trigger: a Workspace the owner administers, or a tester who asks for it)**. |
 | T7 Soverin as a target | ✅ **done** in #1215, merged 2026-09-27 (the runbook's corrections, (a)); ⏳ **Owner** (the sitting, and its source: open question 9) — *was:* ⏳ **Owner** | §3. 0105 T3's sitting. Its step H needs a correction first. **Before a tester who picks the Soverin card.** |
 | T8 Nextcloud and JMAP targets beyond our own servers | 📋 **Proposed** (the JMAP legs); ⏳ **Owner** (a hosted Nextcloud); ✅ (c) **Built 2026-09-27**, as 0149 T1 to T3 | §3. **After.** Until then, a tester's contacts and files go to CardDAV or WebDAV rather than JMAP. |
-| T9 The organiser canary (0103 T3) | 🔨 **(b), the gate's fixture, built 2026-10-31** on branch `claude/ownpace-public-readiness-y7orc6-organiser-canary-nightly`, not merged: fresh event 3, organised by the demo target's own address and dated next January, its copy and the target's address set read by the smoke, the catcher searched after the sync (the copy's proof) and after the take-back (where `Schedule-Reply: F` alone silences Nextcloud); no E2E (managed) run has carried it yet; ⏳ **Owner** ((a), the sitting) — *was:* ⏳ **Owner**; the gate's fixture 📋 **Proposed** | §3. **Before the first invitation**, because nearly every tester moves a calendar. |
+| T9 The organiser canary (0103 T3) | ✅ **(b), the gate's fixture, merged** as #1759 on 2026-10-31 (`8c0654b3`), after E2E (managed) run 41249879830 was green on its branch, and first run by the scheduled E2E (managed) of 2026-11-01 (run 41298604750, green; Status, 2026-11-01): fresh event 3, organised by the demo target's own address and dated next January, its copy and the target's address set read by the smoke, the catcher searched after the sync (the copy's proof) and after the take-back (where `Schedule-Reply: F` alone silences Nextcloud); ⏳ **Owner** ((a), the sitting) — *was:* 🔨 (b) built 2026-10-31 on branch `claude/ownpace-public-readiness-y7orc6-organiser-canary-nightly`, not merged, no E2E (managed) run having carried it; ⏳ **Owner**; the gate's fixture 📋 **Proposed** | §3. **Before the first invitation**, because nearly every tester moves a calendar. |
 | T10 Shared mailboxes: Partial until one is copied | ✅ **(a), the move, done** in #1187, merged 2026-09-26 (`d7c4ebde`, `6402cd93`; decided 2026-09-25 by the owner); ⏳ **Owner** (0027 T0's consent run, after) — *was:* 🔨 **Decided 2026-09-25 (owner) and built on branch `claude/ownpace-public-readiness-y7orc6-shared-mailboxes-partial`, not merged** (the move, (a)) | §3. **Before a tester on a Microsoft card.** |
 | T11 The detectors and the permission report tell a Connect-with-Microsoft tester the truth | 📋 **Proposed**; the minimum 🔨 built 2026-09-27, merged as #1246; the credential model (open question 7) parked 2026-09-27 | §3. The finding was checked again on 2026-09-24. The true sentence goes in **before the first Microsoft 365 tester**. Per-tenant credentials come **after**, with an ADR. |
 | T12 The managed journey in a browser | ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ✅ **done** in #1646, merged 2026-10-21 (the fixture cases, (b)); ⏳ **Owner** (the walk); 📋 **Proposed** (the real-API journey, (c), after) — *was:* ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) | §3. The two-stranger walk happens on `ownpace-live` **before the first invitation**. The real-API journey comes **after**, in the gate on the OTA stack; it was parked on 0132 T8, which 0132 D7 superseded. |
-| T13 The O365 lane and the live-target lane | ⏳ **Owner** (runner label, secrets); 📋 **Proposed** (code) | §3. **After.** A green run counts only when it ran the product's code against a real account. |
+| T13 The O365 lane and the live-target lane | ⏳ **Owner** (runner label, secrets): `e2e-o365.yml` asks for the label `spark`, which the self-hosted runner does not carry, so run 41273625023 has been queued since 2026-11-01 04:34 UTC and no run has started; adding the label is the owner's step (Status, 2026-11-01); 📋 **Proposed** (code) | §3. **After.** A green run counts only when it ran the product's code against a real account. |
 | T14 The nightly managed gate's readiness rule | ✅ **Read by code** in #1682, merged 2026-10-23 (`54e4c3d2`): `scripts/release-nights.mjs`, which the Release workflow runs, first read by it on `main` the same day (Release run 1: no commit qualifies yet); both nights on C, every attempt green, and the freeze, the owner's of 2026-10-23, written in §3; ✅ **The owner's waiver** (2026-10-30, for alpha.3), merged as #1741 on 2026-10-30 (`7e2fbbbe`), and **used once, for `v0.2.0-alpha.3`**: Release run 41066208430 (#16) tagged `e1b21aac` with the nights waived, its message quoting the owner (Status, 2026-10-31). Release's `waive_nights`, for a version in `WAIVER_VERSIONS` only (alpha.3) and from a person's account, the rule's refusals as notes that quote it, the commit given, the tag's message saying so, the tag job bound by what the preflight did, nothing else waived (§3); 📋 **Decided 2026-09-27**: two nights, scheduled runs only; **read 2026-09-27: 0 of 2** (the managed gate's #199 and #200 red, the appliance's last four green), and stated in `docs/testing.md` — *was:* 🔨 the waiver built as a draft on branch `claude/ownpace-public-readiness-y7orc6-release-nights-waiver` (2026-10-30); 🔨 **Read by code** on branch `claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged (2026-10-23); ⏳ **Owner** (names N); 📋 **Proposed** (the rule) | §3. Worked out with 0132 T6 step 1. It is read **before the first invitation**, before live's first bring-up from a tag, and again before each later deploy to live. |
 
 ## 1. What there is today
@@ -989,7 +1012,7 @@ target account's own address. It fails today, because T2's fixture has only a th
 organiser (0103:20; `seed-demo-dav-content.sh`:483).
 
 **(b), as built (2026-10-31, on branch
-`claude/ownpace-public-readiness-y7orc6-organiser-canary-nightly`, not merged).**
+`claude/ownpace-public-readiness-y7orc6-organiser-canary-nightly`; merged as #1759 on 2026-10-31, `8c0654b3`).**
 
 - **The address.** `setup-managed-demo.sh` gives `tenant-b-target` the email
   `tenant-b-target@demo.openmigrate.test` (`occ user:setting … settings email`), at every bring-up

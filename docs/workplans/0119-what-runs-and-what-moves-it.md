@@ -4,9 +4,47 @@
 
 ## Status — 2026-11-01 (update this block at the end of every session)
 
+**2026-11-01, later: #1780 and #1779 merged, the first scheduled night on v4.8.3, Node 26 and
+ClickHouse's own network, and the O365 gate waits for a runner label (T3).** Docs only, on the
+branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-01-later`. Read from GitHub on
+2026-11-01; times are UTC.
+- **#1780 merged** at 08:58 (`bb452f1a`, the merge commit's own time; GitHub's `merged_at`
+  reads 09:58:45Z, but the push CI that merge started had jobs ending at 09:00, so that hour is
+  off). `main`'s push CI on it, run 41291082255 (#5145), was green, 08:58 to 09:40, its unit,
+  lint, integration and UI jobs on the self-hosted runner; *unit-tests (all)* passed
+  `a-runtime-only-its-own-host-vouched-for`, 11 of 11, which cannot pass with no `gpgv` on the
+  `PATH` (the review entry below). So `gpgv` is on that runner, and the review entry's owed
+  check is answered; the first entry below now names the merge, and the review entry says so.
+- **#1779 merged** at 11:10 (`82d0c945`): Dependabot's nodemailer 10.2.1 → 10.3.0 and
+  lucide-react 1.63.0 → 1.64.0, after E2E (managed) run 41299980727 (#334) was green on its head
+  `43897413` (11:00 to 11:09). nodemailer 10.3.0 adds an `otp` option for an `OTP-Token` header
+  and encodes a `Content-ID` as a message id; nothing here sets either (`smtp-transport.ts` and
+  `live-target-nightly.ts` are its two importers). `CHANGELOG.md`'s `[Unreleased]` has its
+  *Changed* line.
+- **The night of 2026-11-01**, `main`'s scheduled E2E (managed) run 41298604750 (#333) on
+  `bb452f1a`, 10:41 to 10:50, attempt 1: *verify: done apply: applied*, *SMOKE PASS*, nothing
+  unhealthy. The first scheduled run on Trigger.dev v4.8.3 (#1755), Node 26 (#1767; the API
+  container runs `/nodejs/bin/node v26.13.0`) and ClickHouse on `trigger-event-store` (#1774;
+  it answers `trigger-api` and is no name from the API container). The scheduled run of
+  2026-10-31, 41190363814 (#319) on `52f0275f`, failed in *Bring the stack up* on the version-drift
+  check: the OTA stack's `.env` said v4.8.3 from the owner's window (the entry of 2026-10-31
+  below), and `main` pinned 4.8.1 until #1755. The check did as designed; nothing is owed. It
+  resets the counted nights, which alpha.4's first preflight read (0146's Status, 2026-11-01,
+  later).
+- **The ClickHouse copy from before v4.8.3.** #1755 keeps it until *the move has held*: merged,
+  and `main`'s next nightly green. Run 41298604750 is that night, and the owner has been sent its
+  removal (0132's Status, 2026-11-01, later): **sent, not done**.
+- **The O365 gate (T3, item 6's proof) needs a runner label.** `e2e-o365.yml` runs on
+  `[self-hosted, linux, arm64, spark]` (:85), and the self-hosted runner does not carry `spark`,
+  so the lane has never run: 34019235750 and 34019786577 were cancelled in September, and
+  41273625023, dispatched for #1767, has been queued since 04:34, while E2E (managed), on
+  `[self-hosted, linux, arm64]`, ran on that runner at 10:41. Adding the label is the owner's
+  step (0141 T13 (a)); T3's row and §3 item 6 say so.
+
 **2026-11-01: the Windows payload's `node.exe` is checked against a sum committed here, and that
 sum is the one the release was signed with (alpha.4, supply chain; §2.5's follow-up)**, on the
-branch `claude/ownpace-public-readiness-y7orc6-windows-node-verified`, a draft. Until this,
+branch `claude/ownpace-public-readiness-y7orc6-windows-node-verified`, merged as #1780 on
+2026-11-01 at 08:58 UTC (`bb452f1a`). Until this,
 `scripts/package-appliance.mjs` fetched `SHASUMS256.txt` and `node.exe` from the same
 `nodejs.org` release directory and compared the one with the other, so whatever could change the
 binary could change the list. Now `NODE_RUNTIME_SHA256` in that script holds the SHA-256 of each
@@ -85,7 +123,8 @@ the CHANGELOG and the runbook say `pnpm test` as well as `--with-node`. **Owed, 
 here:** `main`'s push runs unit-tests on the self-hosted runner, a host install with no
 passwordless sudo, so nothing in the workflow can install it there, and no log of it shows
 whether `gpgv` is on it: the owner checks with `command -v gpgv` on that host before this
-merges. (3) **The release's `verify` job** checked the published zip only
+merges. *(Answered 2026-11-01: `main`'s push CI on `bb452f1a`, run 41291082255, passed the guard
+11 of 11 on the self-hosted runner; the entry above.)* (3) **The release's `verify` job** checked the published zip only
 against its own `SHA256SUMS.txt`. `scripts/release-verify.mjs` now also hashes its `node.exe` and
 holds it to the `NODE_RUNTIME_SHA256` entry of `scripts/package-appliance.mjs` for the Node
 `apps/selfhost/Dockerfile` names, both read at COMMIT through the contents API (the job checks
@@ -2054,7 +2093,7 @@ a decision each, §3, for the owner.
 | T0 The audit | ✅ Done 2026-09-06 | §2. Registries queried directly (Docker Hub v2 API, GHCR token + paginated tag list, `git ls-remote` for the actions); `pnpm outdated -r` for npm. |
 | T1 Dependabot learns the images | ✅ Done 2026-09-06 | `docker` over the three Dockerfiles, `docker-compose` over `deploy/compose` and `deploy/selfhost`, weekly, minor+patch grouped, majors one PR each. The one-way images and the deliberate pins are ignored by name (§2.1). `@trigger.dev/*` ignored in npm: it moves through `trigger-version.sh` or not at all. The three digest-only pins (`node@sha256:…` ×3, `postgres@sha256:…`) carry their tag now — same digests, no version moved — because Dependabot compares tags, and a bare digest has nothing to compare. |
 | T2 The safe moves | ✅ Done 2026-09-06 | node 24.20.0-slim (three Dockerfiles), postgres 18.6-alpine (self-host), pgbouncer v1.25.2-p0, mailpit v1.31.1, busybox 1.38 (compose, three scripts, one test, the bring-up doc), nginx 1.30-alpine (web image and www; both on 1.31 since the morning, see the status block); three action version comments set to the tag their SHA is. Stateless, or a fixture, or a patch of a store that upgrades in place. Proved on the branch before merge: **E2E (self-hosted) #189 green** (the postgres and node moves, restart-resume included) and **E2E (managed) #161 green** (pgbouncer in front of the API, mailpit, busybox, nginx behind www), both dispatched at 01:57 UTC; `images.yml` built the three images from the moved FROM lines; the `unit` scripts guards 92 files, 1 567 tests. |
-| T3 The owner's decisions | ⏳ **Owner**, item 9's version move only: #1774 (merged 2026-11-01) records that its revisit trigger fired on 2026-11-01 (CVE-2026-116366); every other item is decided (corrected 2026-11-01, Status) — *was:* 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate that was to prove it has never run to its end: `e2e-o365.yml`'s two runs, 34019235750 and 34019786577 of 2026-09-06, were both cancelled, and the lane is 0141 T13; *was:* the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820; taken 2026-10-31 for alpha.4, item 7, with #1767), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Taken 2026-09-09: Redis (item 3 — **stay on 7.4**, with a revisit trigger) and the release-age gate (item 8 — `minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). Taken 2026-10-23: ClickHouse 26.2 for the Alpha (item 9). Taken 2026-10-31: Trigger.dev v4.8.3 before its three-day floor, *"I waive the wait for v4.8.3, just go with it"*, for v4.8.3 alone (Status, 2026-10-31). The object store (item 5): taken 2026-10-23, *"T7 no, fix already within the alpha"* (0146 T7), and ✅ merged as #1692 on 2026-10-25 (`0029db4a`, E2E (managed) #281 green) — *was:* still the owner's, with a candidate named. Taken 2026-10-26: hardened images, not now (item 10: no `dhi.io` credential before the Alpha; revisit after it). |
+| T3 The owner's decisions | ⏳ **Owner**, item 9's version move only: #1774 (merged 2026-11-01) records that its revisit trigger fired on 2026-11-01 (CVE-2026-116366); every other item is decided (corrected 2026-11-01, Status); item 6's proof, the O365 gate, waits for the owner's step of adding the runner label `spark` (2026-11-01, later, Status) — *was:* 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate that was to prove it has never run to its end: `e2e-o365.yml`'s two runs, 34019235750 and 34019786577 of 2026-09-06, were both cancelled, and the lane is 0141 T13; a third, 41273625023 for #1767, has been queued since 2026-11-01 04:34 UTC, because `e2e-o365.yml` asks for the runner label `spark`, which the self-hosted runner does not carry: adding it is the owner's step; *was:* the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820; taken 2026-10-31 for alpha.4, item 7, with #1767), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Taken 2026-09-09: Redis (item 3 — **stay on 7.4**, with a revisit trigger) and the release-age gate (item 8 — `minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). Taken 2026-10-23: ClickHouse 26.2 for the Alpha (item 9). Taken 2026-10-31: Trigger.dev v4.8.3 before its three-day floor, *"I waive the wait for v4.8.3, just go with it"*, for v4.8.3 alone (Status, 2026-10-31). The object store (item 5): taken 2026-10-23, *"T7 no, fix already within the alpha"* (0146 T7), and ✅ merged as #1692 on 2026-10-25 (`0029db4a`, E2E (managed) #281 green) — *was:* still the owner's, with a candidate named. Taken 2026-10-26: hardened images, not now (item 10: no `dhi.io` credential before the Alpha; revisit after it). |
 | T4 vitest 5 | ✅ Done 2026-09-06 | `vitest` and `@vitest/coverage-v8` 4.1.11 → 5.0.0, every declaring package together. Green on Node 22 (508 files, 6 326 tests) and on Node 24 as CI runs it (509 files, 6 411 tests); the v8 provider loads and reports. Two things the major needed first, found by trying it and landed as their own PR (#810) because they are right under vitest 4 too: the alias map's missing subpath pins — `@openmig/core/archive-reader` and thirteen more, plus a guard — and the exclude patterns in their documented form, since vitest 5 follows pnpm's workspace symlinks when it crawls and a bare `node_modules` matched only the top level. The bump is its own PR, stacked on #810. |
 | T5 The second Nextcloud major in CI | ✅ Done 2026-10-28 | 2026-10-25: `nextcloud-second-major.yml` runs the suites that talk to Nextcloud against 35.0.1 by digest (35.0.2 since 2026-10-26), the setup refuses a Nextcloud that did not start or is not the version named, and the tier has a share suite. Green on its pull request (#1705: 36 tests against 35.0.1, 814 against 34.0.5 on both architectures); merged after the alpha.2 tag, on 2026-10-27 as #1705 (`d6acd430`). Reviewed and `main` merged in the same day; after the fold (#1706), the CHANGELOG bullet back under `[Unreleased]`; on 2026-10-26, once its digest was three days old, 35.0.2 by digest (PHP 8.5.12) (Status). CI only, not one way. 2026-10-26, for alpha.3 on `…-nextcloud-35-demo` (#1678 and #1705 merged), merged 2026-10-28 as #1720 (`3d2f129e`): the demo, the dev stack and the tier to 35.0.2 by digest and the leg to 34.0.5, the major customers who have not upgraded still run; **the owner's OK came on 2026-10-26** ("Yes, in alpha.3", Status), and E2E (managed) run 40774398411 on it (2026-10-28, 21:44–21:52 UTC, `nextcloud:35.0.2` healthy) was the OTA demo's one-way upgrade, after the copies (Status of 2026-10-26; the way back in `managed-bring-up.md`). |
 
@@ -2564,7 +2603,8 @@ is beside each; none is urgent tonight.
    the interactive loopback flow, which the connectors never call: they use the
    client-credential, refresh-token and username-password paths only. The O365 gate
    (`e2e-o365.yml`) on main is the proof, queued for the self-hosted runner. *(2026-11-01:
-   the gate never ran to its end; see T3.)*
+   the gate never ran to its end; it asks for the runner label `spark`, which the self-hosted
+   runner does not carry, and adding it is the owner's step; see T3.)*
    **`nodemailer` 9 → 10** — taken 2026-09-06 (#823). Read first: one breaking change,
    Node 20 or newer, against an `engines` of 24; the rest of the major is the move to
    TypeScript with ESM and CommonJS builds, and the package ships its own types now, so
