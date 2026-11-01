@@ -112,6 +112,20 @@ notices.
   release at the same commit, with Go modules moved and no source changed,
   golang.org/x/net 0.62.0 among them. Nothing a stack sets changes; the next
   bring-up pulls it, and the data volume carries over.
+- **Trigger.dev's ClickHouse is on a network only its one client shares**
+  (workplan 0119 §3 item 9): CVE-2026-116366 (GHSA-qhgw-ghp3-xh36, critical,
+  published 2026-10-30) lets an unauthenticated user with network access run
+  code on a ClickHouse server, and it is fixed only in 26.3.62.3-lts,
+  26.8.36.3-lts, 26.9.27.3-stable and 26.10.3.7-stable. The stack runs 26.2,
+  the version Trigger.dev pins, which ClickHouse no longer supports, so no fix
+  will come for it; moving the version is the owner's decision. Until now
+  every container of the stack could reach it: the web app, the API, the
+  identity provider, the demo Nextcloud and every task run. ClickHouse is now
+  on `trigger-event-store`, an internal network with no route off the machine,
+  shared with `trigger-api` alone, the one service that talks to it. The next
+  bring-up creates the network and recreates `clickhouse` and `trigger-api`;
+  no volume or data is touched. `a-store-every-container-could-reach` holds
+  the members, and the smoke asks ClickHouse from both sides.
 
 ### Changed
 

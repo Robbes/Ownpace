@@ -260,6 +260,7 @@ case "$1" in
       ls)
         echo "ownpace-live_ownpace-network"
         [ -n "\${STUB_NO_STATUS_NET:-}" ] || echo "ownpace-live_status-probe"
+        [ -n "\${STUB_NO_STORE_NET:-}" ] || echo "ownpace-live_trigger-event-store"
         exit 0
         ;;
       inspect)
@@ -1943,6 +1944,7 @@ describe('after it began, a step that fails stops it, says so, and logs nothing'
     ['NODE_ENV in the api is development', { STUB_NODE_ENV: 'development' }, /NODE_ENV/],
     ['the issuer is another', {}, /issuer/, (s) => answer(s, 'id.ownpace.eu/.well-known/openid-configuration', 200, { issuer: 'https://id.ota.example.test' })],
     ["live's status-probe network is missing", { STUB_NO_STATUS_NET: '1' }, /status-probe/],
+    ["live's ClickHouse network is missing", { STUB_NO_STORE_NET: '1' }, /trigger-event-store/],
     ["a live container on the OTA stack's network", { STUB_ON_OTA_NET: 'ownpace-live-api' }, /ownpace-live-api/],
     ['the exposure check finds a port', { STUB_EXPOSURE_EXIT: '1' }, /exposure check/],
   ];

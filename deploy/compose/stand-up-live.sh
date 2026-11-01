@@ -134,7 +134,7 @@
 #   7. The checks, all of them, then the verdict: /api/version at
 #      app.ownpace.eu names the tag's commit and version, /api/ready answers
 #      200, /api/auth/mode answers managed, NODE_ENV is production in the api
-#      container, id.ownpace.eu names itself as the issuer, live's two
+#      container, id.ownpace.eu names itself as the issuer, live's three
 #      networks are there and share no container with the OTA stack's, and
 #      exposure-check.sh passes. Any failure exits 3 and logs nothing.
 #   8. The first line of the deploy log, in deploy-live.sh's format:
@@ -1273,7 +1273,7 @@ run_checks() {
   # Live's networks are its own (D9).
   before="${#_f[@]}"
   if nets="$(docker network ls --filter "name=${COMPOSE_PROJECT}_" --format '{{.Name}}')"; then
-    for n in ownpace-network status-probe; do
+    for n in ownpace-network status-probe trigger-event-store; do
       grep -qx -- "${COMPOSE_PROJECT}_${n}" <<<"$nets" || _f+=("the network ${COMPOSE_PROJECT}_${n} is not there (workplan 0132 D9).")
     done
   else
