@@ -86,10 +86,33 @@ jobs:
           git fetch --no-tags --depth=1 origin '+refs/tags/v*:refs/tags/v*'
           node scripts/release-names-agree.mjs
 
+      # THE TWO IMAGES THESE ACTIONS RUN, BY TAG AND DIGEST (workplan 0119,
+      # 2026-11-01). Left to their defaults, setup-qemu-action ran
+      # `docker.io/tonistiigi/binfmt:latest` with `--privileged`, and
+      # setup-buildx-action's `docker-container` driver started BuildKit from
+      # `moby/buildkit:buildx-stable-1`, buildx's own default: two channels, in
+      # the job that holds `packages: write` and `id-token: write` and pushes
+      # and signs the published images. Each is now the build its channel
+      # named on 2026-11-01: binfmt's `latest` is `qemu-v10.2.3` (pushed
+      # 2026-06-08), BuildKit's `buildx-stable-1` is `v0.33.1` (pushed
+      # 2026-09-30), both past the three-day floor (CONTRIBUTING.md).
+      # Dependabot moves these actions and never an image in their inputs; the
+      # pin watch (`scripts/idp-pin-watch.mjs`, a row each) says when the
+      # channel names another build, and `a-pin-that-knows-it-is-behind`
+      # refuses an image input here without a digest, or on a channel tag.
+      #
+      # QEMU on a pull request too (since 2026-11-01). A pull request builds
+      # linux/amd64 only and needs no emulator, but without this step the
+      # first run of a moved binfmt pin would be the merge push, which
+      # publishes. Registering the emulators takes seconds and changes nothing
+      # a pull request builds.
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-        if: github.event_name != 'pull_request'
+        with:
+          image: docker.io/tonistiigi/binfmt:qemu-v10.2.3@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: image=moby/buildkit:v0.33.1@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea
 
       - name: Log in to ghcr.io
         if: github.event_name != 'pull_request'

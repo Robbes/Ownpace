@@ -18,9 +18,10 @@ set -euo pipefail
 # Uses ONLY the official image (no custom build — docs/stalwart-integration-fix.md's own
 # "Verified Image" finding: a custom image provided no benefit over the official one).
 #
-# Requires: docker, curl, and stalwart-cli on PATH (or STALWART_CLI_PATH set). Install:
+# Requires: docker, curl, and stalwart-cli on PATH (or STALWART_CLI_PATH set). Install the
+# release CI runs (docs/stalwart-integration-fix.md, "Provisioning"), by its own installer:
 #   curl --proto '=https' --tlsv1.2 -LsSf \
-#     https://github.com/stalwartlabs/cli/releases/latest/download/stalwart-cli-installer.sh | sh
+#     https://github.com/stalwartlabs/cli/releases/download/v1.0.14/stalwart-cli-installer.sh | sh
 #
 # Also joins `ownpace_dev-network` (the fixed-name network deploy/compose/dev.yml declares
 # for postgres/nextcloud) under the network alias "stalwart", creating it first if it doesn't

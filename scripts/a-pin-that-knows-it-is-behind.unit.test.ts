@@ -37,6 +37,18 @@
  * say a `latest` is behind, and the watch refused it as a pin with no version
  * to compare. Such a pin is compared with the digest its registry names for
  * the tag today, read with a HEAD, and is behind when the two differ.
+ *
+ * WHAT CI DOWNLOADS (workplan 0119, 2026-11-01). The Atlas CLI came by its
+ * `-latest` name (#1773); the stalwart-cli of the integration tests and both
+ * E2E gates from `releases/latest` by its installer, piped to `sh`; the dev
+ * database Atlas lints against from `docker://postgres/18`; and images.yml's
+ * build job ran binfmt's `latest` and BuildKit's `buildx-stable-1` through
+ * its actions' defaults. Each is a release named by its sha256 or digest now,
+ * with a row here. This holds the stalwart-cli step as it holds Atlas's, by its
+ * text and by running it, the install hints a developer reads to its release,
+ * and every workflow to the rule: no `releases/latest` and no file or path
+ * named `latest`, no `docker://` image without a digest, no action image
+ * without a release tag and its digest, and no `npx` that may install.
  */
 
 import { afterAll, describe, it, expect } from 'vitest';
@@ -49,6 +61,8 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import {
+  ACTION_IMAGES,
+  ACTION_IMAGES_WORKFLOW,
   ATLAS_ARCHES,
   ATLAS_HOST,
   ATLAS_IMAGE,
@@ -64,14 +78,22 @@ import {
   LINES,
   SOCKET_PROXY_DOCKERFILE,
   SOCKET_PROXY_UPSTREAM,
+  STALWART_CLI_ARCHES,
+  STALWART_CLI_FILES,
+  STALWART_CLI_HINTS,
+  STALWART_CLI_HOST,
+  STALWART_CLI_NOTE,
+  STALWART_CLI_UPSTREAM,
   TASK_ON_API_IMAGE,
   TITLES,
   WINDOW_DAYS,
   actionDefault,
+  actionImages,
   atlasPin,
   baseImageOf,
   builtImage,
   builtNote,
+  channelNote,
   clickhouseRow,
   clickhouseSupport,
   compareTags,
@@ -93,6 +115,7 @@ import {
   REBUILD_NOTE,
   routineRows,
   securityFloor,
+  stalwartCliPin,
   stepsUsing,
   summaryOf,
   table,
@@ -713,11 +736,15 @@ for (const [name, body] of Object.entries({
     '  prev="$a"',
     'done',
     'printf \'%s\\n\' "$url" >> "$STUB_FETCHED"',
-    'case "$url" in "$STUB_HOST"atlas/*) name="${url##*/}" ;; *) echo "curl: (6) Could not resolve host: $url" >&2; exit 6 ;; esac',
+    // The first STUB_FAILS fetches fail as a CDN blip does (the stalwart-cli step retries; 2026-11-01).
+    'if [ -n "${STUB_FAILS:-}" ] && [ "$(wc -l < "$STUB_FETCHED")" -le "$STUB_FAILS" ]; then echo "curl: (22) The requested URL returned error: 502" >&2; exit 22; fi',
+    'case "$url" in "$STUB_PREFIX"*) name="${url##*/}" ;; *) echo "curl: (6) Could not resolve host: $url" >&2; exit 6 ;; esac',
     '[ -f "$STUB_SERVED/$name" ] || { echo "curl: (22) The requested URL returned error: 404" >&2; exit 22; }',
     '[ -n "$out" ] && cp "$STUB_SERVED/$name" "$out"',
   ],
   uname: ['#!/bin/sh', 'case "$1" in -m) echo "$STUB_MACHINE" ;; *) echo Linux ;; esac'],
+  // The stalwart-cli step waits between attempts; here it only says it would.
+  sleep: ['#!/bin/sh', 'printf \'%s\\n\' "$1" >> "${STUB_SLEPT:-/dev/null}"'],
 })) {
   writeFileSync(join(STUBS, name), `${body.join('\n')}\n`);
   chmodSync(join(STUBS, name), 0o755);
@@ -778,7 +805,7 @@ function runAtlasStep(step: { run: string; env: Record<string, string> }, machin
       ...sums,
       RUNNER_TEMP: temp,
       GITHUB_PATH: files.path,
-      STUB_HOST: ATLAS_HOST,
+      STUB_PREFIX: `${ATLAS_HOST}atlas/`,
       STUB_SERVED: served,
       STUB_MACHINE: machine,
       STUB_SAYS: says,
@@ -833,6 +860,186 @@ function atlasStepFaults(workflow: string): string[] {
   return faults;
 }
 
+/** The stalwart-cli release the three workflows install (0119, 2026-11-01), as ci.yml names it. */
+const STALWART_CLI = stalwartCliPin(REAL.read('.github/workflows/ci.yml')!);
+/** `uname -m` on each runner, which is also the release's name for the architecture. */
+const STALWART_MACHINES = Object.values(STALWART_CLI_ARCHES);
+
+/**
+ * THE STALWART-CLI STEP, RUN (0119, 2026-11-01), as the Atlas step is above:
+ * its real `run:` under bash, with `curl`, `uname` and `sleep` stubbed. `curl`
+ * serves, for each architecture, a stand-in archive shaped like the
+ * release's (`stalwart-cli-<arch>-unknown-linux-gnu/stalwart-cli` beside a
+ * README), from STALWART_CLI_HOST at the release only; the stand-in binary
+ * prints the version it is told to and leaves a mark that it ran.
+ */
+const STALWART_STAND_IN = Object.fromEntries(
+  STALWART_MACHINES.map((arch) => {
+    const dir = mkdtempSync(join(atlasScratch, `stalwart-${arch}-`));
+    const top = `stalwart-cli-${arch}-unknown-linux-gnu`;
+    mkdirSync(join(dir, top));
+    writeFileSync(join(dir, top, 'README.md'), `Not stalwart-cli: the linux/${arch} stand-in a-pin-that-knows-it-is-behind serves.\n`);
+    writeFileSync(join(dir, top, 'stalwart-cli'), `#!/bin/sh\n# linux/${arch}\n: > "$STUB_RAN"\nprintf '%s\\n' "$STUB_SAYS"\n`);
+    chmodSync(join(dir, top, 'stalwart-cli'), 0o755);
+    const made = spawnSync('tar', ['-cJf', join(dir, 'archive.tar.xz'), '-C', dir, top], { encoding: 'utf8' });
+    if (made.status !== 0) throw new Error(`tar could not make the stand-in archive: ${made.stderr}`);
+    const bytes = readFileSync(join(dir, 'archive.tar.xz'));
+    return [arch, { bytes, binary: readFileSync(join(dir, top, 'stalwart-cli'), 'utf8'), sha256: createHash('sha256').update(bytes).digest('hex') }];
+  }),
+) as Record<string, { bytes: Buffer; binary: string; sha256: string }>;
+const STALWART_STAND_IN_SHA256 = Object.fromEntries(
+  Object.entries(STALWART_CLI_ARCHES).map(([name, arch]) => [`STALWART_CLI_SHA256_${name}`, STALWART_STAND_IN[arch]!.sha256]),
+);
+
+/** The `run:` and `env:` of the one step of `workflow` that downloads from STALWART_CLI_HOST. */
+function stalwartStep(workflow: string): { run: string; env: Record<string, string> } {
+  type Step = { run?: unknown; env?: Record<string, unknown>; shell?: unknown };
+  const jobs = (parseYaml(workflow) as { jobs?: Record<string, { steps?: Step[] }> }).jobs ?? {};
+  const steps = Object.values(jobs).flatMap((job) => (job.steps ?? []).filter((s) => typeof s.run === 'string' && s.run.includes(STALWART_CLI_HOST)));
+  if (steps.length !== 1) throw new Error(`${steps.length} steps download from ${STALWART_CLI_HOST}; one installs stalwart-cli`);
+  const step = steps[0]!;
+  if (step.shell !== undefined) throw new Error(`the stalwart-cli step names shell: ${String(step.shell)}; this runs it as a step with none`);
+  if ((step.run as string).includes('${{')) throw new Error('the stalwart-cli step carries a ${{ }} expression, which this does not render');
+  return { run: step.run as string, env: Object.fromEntries(Object.entries(step.env ?? {}).map(([k, v]) => [k, String(v)])) };
+}
+
+/** Run the stalwart-cli step on `machine`, with these sums, a stand-in that says `says`, and the first `fails` fetches failing. */
+function runStalwartStep(step: { run: string; env: Record<string, string> }, machine: string, sums: Record<string, string>, says: string, fails = 0): Ran & { slept: string[] } {
+  const dir = mkdtempSync(join(atlasScratch, 'stalwart-run-'));
+  const temp = join(dir, 'runner-temp');
+  const served = join(dir, 'served');
+  mkdirSync(temp);
+  mkdirSync(served);
+  for (const arch of STALWART_MACHINES) writeFileSync(join(served, `stalwart-cli-${arch}-unknown-linux-gnu.tar.xz`), STALWART_STAND_IN[arch]!.bytes);
+  const files = { script: join(dir, 'step.sh'), path: join(dir, 'GITHUB_PATH'), ran: join(dir, 'ran'), fetched: join(dir, 'fetched'), slept: join(dir, 'slept') };
+  writeFileSync(files.script, step.run);
+  for (const file of [files.path, files.fetched, files.slept]) writeFileSync(file, '');
+  const r = spawnSync('bash', ['-e', files.script], {
+    encoding: 'utf8',
+    timeout: 20_000,
+    env: {
+      PATH: `${STUBS}:${process.env.PATH ?? '/usr/bin:/bin'}`,
+      HOME: dir,
+      ...step.env,
+      ...sums,
+      RUNNER_TEMP: temp,
+      GITHUB_PATH: files.path,
+      STUB_PREFIX: `${STALWART_CLI_HOST}${step.env.STALWART_CLI_VERSION}/`,
+      STUB_SERVED: served,
+      STUB_MACHINE: machine,
+      STUB_SAYS: says,
+      STUB_RAN: files.ran,
+      STUB_FETCHED: files.fetched,
+      STUB_SLEPT: files.slept,
+      ...(fails ? { STUB_FAILS: String(fails) } : {}),
+    },
+  });
+  const bin = join(temp, 'stalwart-cli-bin', 'stalwart-cli');
+  return {
+    status: r.status,
+    installed: existsSync(bin) ? readFileSync(bin, 'utf8') : undefined,
+    ran: existsSync(files.ran),
+    onPath: readFileSync(files.path, 'utf8').split('\n').includes(join(temp, 'stalwart-cli-bin')),
+    fetched: readFileSync(files.fetched, 'utf8').split('\n').filter(Boolean),
+    slept: readFileSync(files.slept, 'utf8').split('\n').filter(Boolean),
+    log: `${r.stdout}${r.stderr}`.trim(),
+  };
+}
+
+/**
+ * What the stalwart-cli step of `workflow` does that it must not, run on both
+ * machines: install and run anything but the native release when both
+ * architectures' archives are the pinned ones (and fetch both); finish with
+ * anything installed, run or on the PATH when either sum is wrong; accept a
+ * binary that calls itself another version; give up on one failed fetch, or
+ * go on after three; or install anything on a machine no release is pinned
+ * for. Empty when the step is right.
+ */
+function stalwartStepFaults(workflow: string): string[] {
+  const step = stalwartStep(workflow);
+  const version = step.env.STALWART_CLI_VERSION;
+  const release = `stalwart-cli ${version?.replace(/^v/, '')}`;
+  const urls = STALWART_MACHINES.map((arch) => `${STALWART_CLI_HOST}${version}/stalwart-cli-${arch}-unknown-linux-gnu.tar.xz`);
+  const names = Object.keys(STALWART_CLI_ARCHES).map((name) => `STALWART_CLI_SHA256_${name}`);
+  const faults: string[] = [];
+  for (const machine of STALWART_MACHINES) {
+    const ok = runStalwartStep(step, machine, STALWART_STAND_IN_SHA256, release);
+    if (!(ok.status === 0 && ok.installed === STALWART_STAND_IN[machine]!.binary && ok.ran && ok.onPath && ok.fetched.join(' ') === urls.join(' '))) {
+      faults.push(`installs no release on ${machine}: exit ${ok.status}, fetched ${ok.fetched.join(' ') || 'nothing'}\n${ok.log}`);
+    }
+    for (const wrong of [...names.map((n) => [n]), names]) {
+      // A wrong sum is the pin the workflow commits: the stand-in is not those bytes.
+      const sums = { ...STALWART_STAND_IN_SHA256, ...Object.fromEntries(wrong.map((name) => [name, step.env[name] ?? ''])) };
+      const r = runStalwartStep(step, machine, sums, release);
+      if (r.status === 0 || r.installed !== undefined || r.ran || r.onPath) {
+        faults.push(`goes on past a wrong ${wrong.join(' and ')} on ${machine}: exit ${r.status}, installed ${r.installed !== undefined}, ran ${r.ran}\n${r.log}`);
+      }
+    }
+    const other = runStalwartStep(step, machine, STALWART_STAND_IN_SHA256, 'stalwart-cli 1.0.99');
+    if (other.status === 0) faults.push(`accepts a binary that calls itself stalwart-cli 1.0.99 on ${machine}\n${other.log}`);
+  }
+  // A CDN blip on the first two fetches is absorbed; three in a row stop the step with nothing installed.
+  const blip = runStalwartStep(step, 'x86_64', STALWART_STAND_IN_SHA256, release, 2);
+  if (!(blip.status === 0 && blip.ran && blip.slept.join(' ') === '5 15')) faults.push(`does not ride out two failed fetches: exit ${blip.status}, slept ${blip.slept.join(' ') || 'never'}\n${blip.log}`);
+  const outage = runStalwartStep(step, 'x86_64', STALWART_STAND_IN_SHA256, release, 3);
+  if (outage.status === 0 || outage.installed !== undefined || outage.ran || outage.fetched.length !== 3) {
+    faults.push(`goes on after three failed fetches: exit ${outage.status}, fetched ${outage.fetched.length} times\n${outage.log}`);
+  }
+  const riscv = runStalwartStep(step, 'riscv64', STALWART_STAND_IN_SHA256, release);
+  if (riscv.status === 0 || riscv.installed !== undefined) faults.push(`installs something on riscv64, which no release is pinned for: exit ${riscv.status}`);
+  return faults;
+}
+
+/**
+ * What the install hints a developer reads (STALWART_CLI_HINTS) say that CI
+ * does not (#1777's review, 2026-11-01): a hint with no stalwart-cli release
+ * URL at all, or one that is not `version`'s own installer, which is how two
+ * of them went on piping `releases/latest`'s installer to `sh` after the
+ * workflows had stopped. Empty when every hint names `version`.
+ */
+function stalwartCliHintFaults(repo: Repo, version: string): string[] {
+  const installer = `${STALWART_CLI_HOST}${version}/stalwart-cli-installer.sh`;
+  return STALWART_CLI_HINTS.flatMap((file) => {
+    const text = repo.read(file);
+    if (text === null) return [`${file} is not there`];
+    const urls = [...text.matchAll(/https:\/\/github\.com\/stalwartlabs\/cli\/releases\/[^\s'"`\\]+/g)].map((m) => m[0]);
+    if (urls.length === 0) return [`${file} names no stalwart-cli release to install`];
+    return urls.filter((url) => url !== installer).map((url) => `${file} installs ${url}, not the release CI runs (${installer})`);
+  });
+}
+
+/**
+ * What in a workflow's code fetches a moving target (0119, 2026-11-01): a
+ * `releases/latest` or `latest/download` URL, or any URL with a `latest` path
+ * segment or a `-latest`/`_latest` file name (Atlas's canary, #1773), which
+ * names whatever upstream published last; a `docker://` dev database (Atlas's)
+ * whose image carries no digest; and an `npx` that may install from npm
+ * whatever it names newest when the package is not already installed (every
+ * `npx` but `--yes=false`, which runs the lockfile's copy or fails: on CI,
+ * npx assumes yes). Each offending line, with its number. Comments are not
+ * code.
+ */
+function floatingFetches(workflow: string): string[] {
+  return workflow.split('\n').flatMap((text, i) => {
+    if (/^\s*#/.test(text)) return [];
+    const found: string[] = [];
+    const named = [...text.matchAll(/\bhttps?:\/\/[^\s"'`]+/g)].filter(([url]) => /[/_-]latest(?=[/._?#-]|$)/i.test(url));
+    if (/\/releases\/latest\b|\/latest\/download\//.test(text) || named.length > 0) {
+      found.push(`line ${i + 1} downloads upstream's newest release, whatever it is: ${text.trim()}`);
+    }
+    if (/(?:^|[\s;&|(!])npx\s/.test(text) && !/(?:^|[\s;&|(!])npx\s+--yes=false\s/.test(text)) {
+      found.push(`line ${i + 1} runs npx, which installs from npm whatever it names newest when the package is missing; --yes=false runs the lockfile's copy or fails: ${text.trim()}`);
+    }
+    for (const [url] of text.matchAll(/\bdocker(?:\+[a-z]+)?:\/\/[^\s"']+/g)) {
+      if (!/@sha256:[0-9a-f]{64}(?:\/|$)/.test(url)) found.push(`line ${i + 1} starts a dev database from an image with no digest: ${url}`);
+    }
+    return found;
+  });
+}
+
+/** Every workflow file, by path. */
+const WORKFLOWS = REAL.list('.github/workflows').filter((name) => /\.ya?ml$/.test(name)).map((name) => `.github/workflows/${name}`);
+
 /** The GoAccess release `deploy/compose/goaccess/Dockerfile` builds (#1675), read from its own line. */
 const GOACCESS_RELEASE = /^# GoAccess (v\d+(?:\.\d+)+)$/m.exec(REAL.read(GOACCESS_DOCKERFILE) ?? '')?.[1] ?? 'no release named';
 /** The docker-socket-proxy release trigger-docker-proxy is built from (2026-10-30), read from its own line. */
@@ -858,6 +1065,11 @@ function registry(newer: Record<string, string> = {}): Stubs {
   // The Atlas release ci.yml installs, as the community image's tag, beside tags of other shapes
   // and another major that its row must never take for a newer release.
   pins.set(ATLAS_IMAGE, [ATLAS_TAG, 'latest-community', '1.99.0-community-alpine', '1.99.0-extended', '2.0.0-community']);
+  // The channel each action image ran before it was named (0119, 2026-11-01) names the pinned build.
+  for (const image of actionImages(REAL.read(ACTION_IMAGES_WORKFLOW)!)) {
+    const spec = ACTION_IMAGES.find((s) => s.action === image.action)!;
+    digests.set(`${registryOf(spec.repo).name}:${spec.channel}`, image.digest);
+  }
   return {
     json: [
       TOKEN,
@@ -883,6 +1095,8 @@ function registry(newer: Record<string, string> = {}): Stubs {
       'https://github.com/sigstore/cosign': lsRemote('v3.0.6', ...(COSIGN_NAMED ? [COSIGN_NAMED] : []), ...(newer.cosign ? [newer.cosign] : [])),
       // docker-socket-proxy's releases as upstream tags them, up to the one the Dockerfile builds.
       [SOCKET_PROXY_UPSTREAM]: lsRemote('v0.1.0', 'v0.4.2', SOCKET_PROXY_RELEASE, ...(newer.socketProxy ? [newer.socketProxy] : [])),
+      // stalwart-cli's releases as upstream tags them, up to the one the workflows install, and another major.
+      [STALWART_CLI_UPSTREAM]: lsRemote('v1.0.9', 'v1.0.10', STALWART_CLI.version, 'v2.0.0', ...(newer.stalwartCli ? [newer.stalwartCli] : [])),
     },
   };
 }
@@ -1247,6 +1461,264 @@ describe('the Atlas CLI migration-lint runs: a named release, checked by its sha
     const row = (await routineRows(canary, fakeNet(registry()))).rows.find((r) => r.name === 'Atlas');
     expect(row).toMatchObject({ state: 'error' });
     expect(row?.error).toMatch(/downloads a name with no version/);
+  });
+});
+
+/**
+ * THE STALWART-CLI CI INSTALLED FROM `releases/latest` (workplan 0119,
+ * 2026-11-01). `ci.yml`'s integration tests and both E2E gates piped
+ * `releases/latest/download/stalwart-cli-installer.sh` to `sh`: a script that
+ * named no version until it was fetched, and installed whatever release was
+ * newest that hour, on the owner's machine for a main push and every night.
+ * The three now carry one step, word for word, that names a release, pins a
+ * sha256 for both architectures, reads and compares both before anything is
+ * unpacked, and checks that what it installed calls itself that release. This
+ * holds the three to that step with `stalwartCliPin`, each refusal by a
+ * mutation of the real one, RUNS it (`stalwartStepFaults`), each way to keep
+ * the text and lose the refusal being a mutation that must fail it, and holds
+ * the row that says when a newer release is tagged.
+ */
+describe('the stalwart-cli CI installs: a named release, checked by its sha256 first, the same in every workflow', () => {
+  // e2e.yml's copy, which the mutations below can reach: ci.yml's Atlas step comes first and reads alike.
+  const ci = REAL.read('.github/workflows/e2e.yml')!;
+  /** e2e.yml with one change, which must be a change. */
+  const mutate = (from: string | RegExp, to: string): string => {
+    const next = ci.replace(from, to);
+    expect(next, `${String(from)} is not in e2e.yml`).not.toBe(ci);
+    return next;
+  };
+
+  it('names a release and a sha256 for each architecture, and every workflow that installs it carries the same step', () => {
+    expect(STALWART_CLI.version).toMatch(/^v\d+\.\d+\.\d+$/);
+    expect(STALWART_CLI.sha256.amd64).toMatch(/^[0-9a-f]{64}$/);
+    expect(STALWART_CLI.sha256.arm64).toMatch(/^[0-9a-f]{64}$/);
+    const reference = stalwartStep(REAL.read('.github/workflows/ci.yml')!);
+    // Every workflow that names stalwart-cli in its code installs it by this step, and none is missing from the row.
+    const installing = WORKFLOWS.filter((file) => REAL.read(file)!.split('\n').some((l) => !/^\s*#/.test(l) && /stalwartlabs\/cli\b/.test(l)));
+    expect(installing.sort()).toEqual([...STALWART_CLI_FILES].sort());
+    for (const file of STALWART_CLI_FILES) {
+      expect(stalwartCliPin(REAL.read(file)!), file).toEqual({ ...STALWART_CLI, line: expect.any(Number) });
+      expect(stalwartStep(REAL.read(file)!), file).toEqual(reference);
+    }
+  });
+
+  it('refuses the installer, `releases/latest`, a version that is no release, a missing or shared sum, and no version check', () => {
+    const installer = "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/stalwartlabs/cli/releases/latest/download/stalwart-cli-installer.sh | sh";
+    expect(() => stalwartCliPin(mutate(/\n( +)set -euo pipefail\n( +)case "\$\(uname -m\)"/, `\n$1${installer}\n$1set -euo pipefail\n$2case "$(uname -m)"`))).toThrow(
+      /from its newest release or by its installer/,
+    );
+    expect(() => stalwartCliPin(mutate('/download/${STALWART_CLI_VERSION}/', '/latest/download/'))).toThrow(/newest release or by its installer|no version/);
+    expect(() => stalwartCliPin(mutate('/download/${STALWART_CLI_VERSION}/', '/download/v1.0.14/'))).toThrow(/downloads a name with no version/);
+    expect(() => stalwartCliPin(mutate(/STALWART_CLI_VERSION: v\d+\.\d+\.\d+/, 'STALWART_CLI_VERSION: latest'))).toThrow(/names no release/);
+    expect(() => stalwartCliPin(mutate(/\n +STALWART_CLI_SHA256_ARM64: [0-9a-f]{64}/, ''))).toThrow(/no sha256 for linux\/aarch64/);
+    expect(() =>
+      stalwartCliPin(mutate(`STALWART_CLI_SHA256_ARM64: ${STALWART_CLI.sha256.arm64}`, `STALWART_CLI_SHA256_ARM64: ${STALWART_CLI.sha256.amd64}`)),
+    ).toThrow(/one sha256 for two architectures/);
+    expect(() => stalwartCliPin(mutate('"stalwart-cli ${STALWART_CLI_VERSION#v}"', '"stalwart-cli"'))).toThrow(/calls itself the release named/);
+    expect(() => stalwartCliPin(mutate(/\n +seen="\$\(sha256sum "\$download"\)"/, ''))).toThrow(/never reads a sha256/);
+  });
+
+  it('refuses a comparison with anything but the pinned sum, a fetch from elsewhere or into another file, a pipe to a shell, and another file unpacked or installed', () => {
+    expect(() => stalwartCliPin(mutate('if [ "$seen" = "$pinned" ]; then', 'if true; then'))).toThrow(/never compares the sum it read/);
+    expect(() => stalwartCliPin(mutate('pinned="$STALWART_CLI_SHA256_ARM64"', 'pinned="$(cat "$RUNNER_TEMP/arm64.sha256")"'))).toThrow(/pinned sum is not only/);
+    expect(() =>
+      stalwartCliPin(mutate('pinned="$STALWART_CLI_SHA256_AMD64"', 'pinned="$(curl -sSfL https://example.org/stalwart-cli.sha256)"')),
+    ).toThrow(/fetches from somewhere other than/);
+    const install = /\n( +)install -m 0755 "\$unpacked\/stalwart-cli"/;
+    expect(() => stalwartCliPin(mutate(install, '\n$1curl -sSfL -o "$RUNNER_TEMP/x" "$MIRROR"\n$1install -m 0755 "$unpacked/stalwart-cli"'))).toThrow(
+      /fetches something that is not the release/,
+    );
+    expect(() => stalwartCliPin(mutate(install, '\n$1install -m 0755 "$RUNNER_TEMP/stalwart-cli-bin/other"'))).toThrow(/makes executable something other than/);
+    expect(() => stalwartCliPin(mutate('-$native-unknown-linux-gnu.tar.xz" -C', '-x86_64-unknown-linux-gnu.tar.xz" -C'))).toThrow(
+      /unpacks something other than the archive it hashed/,
+    );
+    expect(() => stalwartCliPin(mutate(/\n( +)\[ "\$refused" = 0 \] \|\| exit 1/, '\n$1curl -sSfL "${STUFF}" | sh'))).toThrow(/pipes something to a shell/);
+    // Unpacked before the loop that reads the sums.
+    const tar = /\n( +tar -xJf [^\n]+\n +--no-same-owner[^\n]+)/.exec(ci)![1]!;
+    const early = mutate(`\n${tar}`, '').replace(/\n( +)refused=0\n/, (all) => `\n${tar}${all}`);
+    expect(() => stalwartCliPin(early)).toThrow(/before its sha256 is read/);
+    expect(() => stalwartCliPin(mutate(/\n +\[ "\$refused" = 0 \] \|\| exit 1/, ''))).toThrow(/before its sha256 is read/);
+  });
+
+  it('runs: the native release when both sums are the pinned ones, after a blip, and nothing when either is not, it calls itself another version, or the download is down', () => {
+    expect(stalwartStepFaults(ci)).toEqual([]);
+  });
+
+  it('runs: a mismatch that no longer stops it, or a version check that no longer fails, fails it, each by a mutation of the real step', () => {
+    const faults = (from: string | RegExp, to: string): string => stalwartStepFaults(mutate(from, to)).join('\n');
+    expect(faults(/\n +refused=1\n/, '\n')).toMatch(/goes on past a wrong STALWART_CLI_SHA256_AMD64 on x86_64/);
+    expect(faults('if [ "$seen" = "$pinned" ]', 'if [ "$seen" = "$seen" ]')).toMatch(/goes on past a wrong STALWART_CLI_SHA256_ARM64 on aarch64/);
+    expect(faults(/\n +\[ "\$refused" = 0 \] \|\| exit 1/, '')).toMatch(/goes on past a wrong STALWART_CLI_SHA256_ARM64 on x86_64/);
+    expect(
+      faults('pinned="$STALWART_CLI_SHA256_AMD64"; else pinned="$STALWART_CLI_SHA256_ARM64"', 'pinned="$STALWART_CLI_SHA256_ARM64"; else pinned="$STALWART_CLI_SHA256_AMD64"'),
+    ).toMatch(/installs no release on x86_64/);
+    expect(faults(/if \[ "\$said" != /, 'if false && [ "$said" != ')).toMatch(/accepts a binary that calls itself stalwart-cli 1\.0\.99 on x86_64/);
+    expect(faults(/(does not call itself \$\{STALWART_CLI_VERSION#v\}\."\n) +exit 1\n/, '$1')).toMatch(/accepts a binary that calls itself stalwart-cli 1\.0\.99 on aarch64/);
+    expect(faults('-$native-unknown-linux-gnu.tar.xz" -C', '-x86_64-unknown-linux-gnu.tar.xz" -C')).toMatch(/installs no release on aarch64/);
+    // The retry: none at all, or one that waits for nothing between attempts.
+    expect(faults('for attempt in 1 2 3; do', 'for attempt in 1; do')).toMatch(/does not ride out two failed fetches/);
+    expect(faults(/\n +sleep \$\(\(attempt \* 10 - 5\)\)\n/, '\n')).toMatch(/does not ride out two failed fetches: exit 0, slept never/);
+  });
+
+  it('is a routine pin, current while upstream tags no newer release of its major', async () => {
+    const { rows } = await routineRows(REAL, fakeNet(registry()));
+    expect(rows.find((r) => r.name === 'stalwart-cli')).toEqual({
+      name: 'stalwart-cli',
+      where: STALWART_CLI_FILES.join(', '),
+      pin: STALWART_CLI.version,
+      newest: STALWART_CLI.version,
+      state: 'current',
+    });
+  });
+
+  it('is behind when a newer release is tagged, says the three values move together, and holds the copies together', async () => {
+    const newer = STALWART_CLI.version.replace(/(\d+)$/, (patch) => String(Number(patch) + 9));
+    const { rows, status } = await routineRows(REAL, fakeNet(registry({ stalwartCli: newer })));
+    expect(rows.find((r) => r.name === 'stalwart-cli')).toMatchObject({ pin: STALWART_CLI.version, newest: newer, state: 'behind', notes: [STALWART_CLI_NOTE] });
+    expect(summaryOf(rows, status).body).toContain(`- \`stalwart-cli\` (${STALWART_CLI_FILES.join(', ')}): ${STALWART_CLI.version}, newest **${newer}**; ${STALWART_CLI_NOTE}`);
+    const older = withFiles({ '.github/workflows/e2e.yml': REAL.read('.github/workflows/e2e.yml')!.replace(`STALWART_CLI_VERSION: ${STALWART_CLI.version}`, 'STALWART_CLI_VERSION: v1.0.10') });
+    const row = (await routineRows(older, fakeNet(registry()))).rows.find((r) => r.name === 'stalwart-cli');
+    expect(row).toMatchObject({ pin: `v1.0.10 / ${STALWART_CLI.version}`, state: 'behind' });
+    expect(row?.notes).toContain('the copies disagree');
+  });
+
+  it('is never current when a step cannot be read', async () => {
+    const latest = withFiles({ '.github/workflows/e2e-managed.yml': REAL.read('.github/workflows/e2e-managed.yml')!.replace('/download/${STALWART_CLI_VERSION}/', '/latest/download/') });
+    const row = (await routineRows(latest, fakeNet(registry()))).rows.find((r) => r.name === 'stalwart-cli');
+    expect(row).toMatchObject({ state: 'error' });
+  });
+
+  it("names the workflows' release in every install hint a developer reads, by that release's own installer", () => {
+    expect(STALWART_CLI_HINTS.length).toBe(3);
+    expect(stalwartCliHintFaults(REAL, STALWART_CLI.version)).toEqual([]);
+    // Every tracked file that names the installer is one of them; the workflows, which name
+    // it only in a comment on what they replaced, the records, and this watch are not hints.
+    const told = spawnSync('git', ['grep', '-l', '-F', 'stalwart-cli-installer.sh', '--', '.', ':!.github/workflows', ':!docs/workplans', ':!scripts', ':!CHANGELOG.md'], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    });
+    expect(told.status, told.stderr).toBe(0);
+    expect(told.stdout.split('\n').filter(Boolean).sort()).toEqual([...STALWART_CLI_HINTS].sort());
+  });
+
+  it('refuses a hint left on `releases/latest`, on another release, or with no release at all, each by a mutation of the real file', () => {
+    const hint = (file: string, from: string | RegExp, to: string): string[] => {
+      const real = REAL.read(file)!;
+      const next = real.replace(from, to);
+      expect(next, `${String(from)} is not in ${file}`).not.toBe(real);
+      return stalwartCliHintFaults(withFiles({ [file]: next }), STALWART_CLI.version);
+    };
+    const pinned = `/releases/download/${STALWART_CLI.version}/`;
+    expect(hint('deploy/selfhost/setup-stalwart.sh', pinned, '/releases/latest/download/').join('\n')).toMatch(/setup-stalwart\.sh installs .*releases\/latest\/download/);
+    expect(hint('packages/testing/src/testcontainers-setup.ts', pinned, '/releases/download/v1.0.13/').join('\n')).toMatch(/testcontainers-setup\.ts installs .*v1\.0\.13/);
+    expect(hint('docs/stalwart-integration-fix.md', /\n +https:\/\/github\.com\/stalwartlabs\/cli\/[^\n]+/, '')).toEqual(['docs/stalwart-integration-fix.md names no stalwart-cli release to install']);
+    // A workflow moved alone leaves every hint behind it.
+    expect(stalwartCliHintFaults(REAL, 'v1.0.99')).toHaveLength(3);
+  });
+});
+
+/**
+ * WHAT CI FETCHES NAMES ITS RELEASE (workplan 0119, 2026-11-01). Atlas came by
+ * its `-latest` name (#1773), stalwart-cli from `releases/latest`, the dev
+ * database Atlas lints against from `docker://postgres/18`, and images.yml's
+ * build job ran binfmt's `latest` and BuildKit's `buildx-stable-1` through
+ * its actions' defaults, in the job that pushes and signs the published
+ * images. Each is pinned now. This holds every workflow to it: no code line
+ * downloads from `releases/latest` or a URL whose path or file name says
+ * `latest` (the Atlas download #1773 replaced passed in any workflow but
+ * ci.yml until #1777's review), every `docker://` dev database carries a
+ * digest, every `npx` is `--yes=false` (the SBOM step's was `-y`), and every
+ * action that runs an image from an input names a release tag and its digest
+ * (`actionImages`), which also feeds the two rows that say when the channel
+ * moved.
+ */
+describe('what CI fetches names its release: no `releases/latest`, no floating dev database, no image left to an action', () => {
+  it('found the workflows, and none fetches a moving target', () => {
+    expect(WORKFLOWS.length).toBeGreaterThan(10);
+    expect(WORKFLOWS.flatMap((file) => floatingFetches(REAL.read(file)!).map((f) => `${file}: ${f}`))).toEqual([]);
+  });
+
+  it('refuses each of the three it replaced, by a mutation of the real line, and leaves a comment alone', () => {
+    const ci = REAL.read('.github/workflows/ci.yml')!;
+    const dev = /--dev-url "(docker:\/\/postgres\/[^/"]+\/dev)/.exec(ci)![1]!;
+    expect(floatingFetches(ci.replace(dev, 'docker://postgres/18/dev')).join('\n')).toMatch(/image with no digest: docker:\/\/postgres\/18\/dev/);
+    expect(floatingFetches(ci.replace(dev, 'docker+postgres://_/postgres:18.6-alpine/dev')).join('\n')).toMatch(/image with no digest/);
+    const step = REAL.read('.github/workflows/e2e.yml')!;
+    const url = /https:\/\/github\.com\/stalwartlabs\/cli\/releases\/download\/\$\{STALWART_CLI_VERSION\}\//;
+    expect(floatingFetches(step.replace(url, 'https://github.com/stalwartlabs/cli/releases/latest/download/')).join('\n')).toMatch(/newest release, whatever it is/);
+    const atlas = ci.replace(/atlas-community-linux-\$\{arch\}-\$\{ATLAS_VERSION\}/, 'atlas-community-linux-${arch}-latest');
+    expect(atlas).not.toBe(ci);
+    expect(() => atlasPin(atlas)).toThrow(/downloads a name with no version/);
+    expect(floatingFetches('# from releases/latest until 2026-11-01, see docker://postgres/18/dev\n')).toEqual([]);
+  });
+
+  it("refuses a file named `-latest` or under a `latest` path, and an npx that may install, in any workflow, by a mutation of the real one (#1777's review)", () => {
+    const file = '.github/workflows/security-scan.yml';
+    const scan = REAL.read(file)!;
+    const sbom = /\n( +)if ! npx --yes=false @cyclonedx\/cyclonedx-npm /;
+    expect(sbom.test(scan), `the SBOM step's npx is not in ${file}`).toBe(true);
+    const mutate = (to: string): string => scan.replace(sbom, (all, indent: string) => `\n${indent}${to}${all}`);
+    // The download #1773 replaced, word for word, in a workflow atlasPin never reads.
+    const atlas = 'curl -sSf -o /tmp/atlas https://atlasbinaries.com/atlas/atlas-community-linux-amd64-latest && chmod +x /tmp/atlas';
+    expect(floatingFetches(mutate(atlas)).join('\n')).toMatch(/newest release, whatever it is: curl -sSf -o \/tmp\/atlas https:\/\/atlasbinaries\.com/);
+    for (const url of ['https://example.org/tool_latest.tar.gz', 'https://example.org/latest/tool', 'https://example.org/tool-LATEST?arch=amd64']) {
+      expect(floatingFetches(mutate(`curl -sSfLO ${url}`)), url).toHaveLength(1);
+    }
+    // A release whose name only contains the word is not a channel.
+    expect(floatingFetches(mutate('curl -sSfLO https://example.org/v1.2.3/latestish-1.2.3.tar.gz'))).toEqual([]);
+    expect(floatingFetches(scan.replace('npx --yes=false @cyclonedx', 'npx -y @cyclonedx')).join('\n')).toMatch(/runs npx, which installs from npm/);
+    expect(floatingFetches(scan.replace('npx --yes=false @cyclonedx', 'npx @cyclonedx')).join('\n')).toMatch(/runs npx, which installs from npm/);
+    expect(floatingFetches(scan.replace('npx --yes=false @cyclonedx', 'npx --yes @cyclonedx')).join('\n')).toMatch(/runs npx, which installs from npm/);
+  });
+
+  it('reads both action images from images.yml, each by a release tag and its digest, and every other workflow without fault', () => {
+    for (const file of WORKFLOWS) expect(() => actionImages(REAL.read(file)!), file).not.toThrow();
+    const named = actionImages(REAL.read(ACTION_IMAGES_WORKFLOW)!);
+    expect(named.map((i) => [i.action, registryOf(i.repo).name])).toEqual(ACTION_IMAGES.map((s) => [s.action, s.repo]));
+    for (const image of named) {
+      expect(image.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+      expect(image.tag).toMatch(/\d+\.\d+\.\d+/);
+    }
+  });
+
+  it('refuses an action image left to its default, a channel tag, or a tag with no digest, each by a mutation of images.yml', () => {
+    const images = REAL.read(ACTION_IMAGES_WORKFLOW)!;
+    const [qemu, buildkit] = actionImages(images);
+    const mutate = (from: string | RegExp, to: string): string => {
+      const next = images.replace(from, to);
+      expect(next, String(from)).not.toBe(images);
+      return next;
+    };
+    expect(() => actionImages(mutate(/\n +with:\n +image: docker\.io\/tonistiigi\/binfmt:\S+/, ''))).toThrow(/names no image in `image`, so it runs its default, `tonistiigi\/binfmt:latest`/);
+    expect(() => actionImages(mutate(/\n +with:\n +driver-opts: image=moby\/buildkit:\S+/, ''))).toThrow(/names no image in `driver-opts`, so it runs its default, `moby\/buildkit:buildx-stable-1`/);
+    expect(() => actionImages(mutate(qemu!.ref, `docker.io/tonistiigi/binfmt:latest@${qemu!.digest}`))).toThrow(/not a release tag and its digest/);
+    expect(() => actionImages(mutate(buildkit!.ref, `moby/buildkit:buildx-stable-1@${buildkit!.digest}`))).toThrow(/not a release tag and its digest/);
+    expect(() => actionImages(mutate(buildkit!.ref, `moby/buildkit:${buildkit!.tag}`))).toThrow(/not a release tag and its digest/);
+    expect(() => actionImages(mutate(qemu!.ref, `docker.io/tonistiigi/binfmt@${qemu!.digest}`))).toThrow(/not a release tag and its digest/);
+    expect(() => actionImages(mutate(buildkit!.ref, `moby/buildkit:v0.34.0-rc1@${buildkit!.digest}`))).toThrow(/not a release tag and its digest/);
+    // The docker driver starts no BuildKit container, so it needs no image.
+    expect(actionImages(mutate(/driver-opts: image=moby\/buildkit:\S+/, 'driver: docker')).map((i) => i.action)).toEqual(['docker/setup-qemu-action']);
+  });
+
+  it("is a routine pin each, current while the channel the action ran names the pinned build, behind when it names another", async () => {
+    const named = actionImages(REAL.read(ACTION_IMAGES_WORKFLOW)!);
+    const { rows } = await routineRows(REAL, fakeNet(registry()));
+    for (const spec of ACTION_IMAGES) {
+      const image = named.find((i) => i.action === spec.action)!;
+      expect(rows.find((r) => r.name === spec.repo)).toEqual({
+        name: spec.repo,
+        where: ACTION_IMAGES_WORKFLOW,
+        pin: `${image.tag}@${image.digest}`,
+        newest: `${spec.channel}@${image.digest}`,
+        state: 'current',
+      });
+    }
+    const moved = `sha256:${'7'.repeat(64)}`;
+    const after = await routineRows(REAL, fakeNet(registry({ [`moby/buildkit:${ACTION_IMAGES[1]!.channel}`]: moved })));
+    const buildkit = after.rows.find((r) => r.name === 'moby/buildkit');
+    expect(buildkit).toMatchObject({ newest: `buildx-stable-1@${moved}`, state: 'behind', notes: [channelNote(ACTION_IMAGES[1]!)] });
+    expect(after.rows.find((r) => r.name === 'tonistiigi/binfmt')).toMatchObject({ state: 'current' });
+    expect(summaryOf(after.rows, after.status).body).toContain(`- \`moby/buildkit\` (${ACTION_IMAGES_WORKFLOW}): `);
   });
 });
 
