@@ -13,8 +13,11 @@ today.** Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-e9-rec
 - **T3 corrected.** Its row said *In progress*. Every item in §3 has the owner's decision, and
   item 10's (2026-10-26, hardened images not now) was missing from the row. The proof it named
   for `@azure/msal-node` 6, the O365 gate *queued for the self-hosted runner*, never came:
-  `e2e-o365.yml` has two runs, 34019235750 and 34019786577, both dispatched 2026-09-06 and both
-  cancelled, and the lane is 0141 T13, the owner's. Node 26, declined on 2026-09-06, the owner
+  `e2e-o365.yml` had two runs, 34019235750 and 34019786577, both dispatched 2026-09-06 and both
+  cancelled (read 04:30 UTC), and the lane is 0141 T13, the owner's. A third, run 41273625023,
+  dispatched for #1767 at 04:34 UTC, is queued for the self-hosted runner; if it finishes, it is
+  the first O365 gate to run to its end, on `@azure/msal-node` 7.1.2 and Node 26, not the 6
+  that #819 took. Its result goes in #1767 or the next records pass. Node 26, declined on 2026-09-06, the owner
   took on 2026-10-31 for alpha.4 (item 7, recorded with #1767, open on 2026-11-01). Item 9 is
   the owner's again: draft #1774 records that its revisit trigger fired on 2026-11-01
   (CVE-2026-116366, which no 26.2 release fixes) and leaves the version move to the owner. So
@@ -2102,7 +2105,8 @@ is beside each; none is urgent tonight.
 6. **`@azure/msal-node` 5 → 6** — taken 2026-09-06 (#819). Its one breaking change removes
    the interactive loopback flow, which the connectors never call: they use the
    client-credential, refresh-token and username-password paths only. The O365 gate
-   (`e2e-o365.yml`) on main is the proof, queued for the self-hosted runner.
+   (`e2e-o365.yml`) on main is the proof, queued for the self-hosted runner. *(2026-11-01:
+   the gate never ran to its end; see T3.)*
    **`nodemailer` 9 → 10** — taken 2026-09-06 (#823). Read first: one breaking change,
    Node 20 or newer, against an `engines` of 24; the rest of the major is the move to
    TypeScript with ESM and CommonJS builds, and the package ships its own types now, so
@@ -2110,7 +2114,8 @@ is beside each; none is urgent tonight.
    the SMTP transport against Stalwart; the E2E gates follow when the runner is back.
 7. **Node 26 in the images** — declined 2026-09-06. It is the Current line, not LTS until
    October; CI installs 24 and `engines` says `>=24`. The runtime's major moves by hand
-   with both, when the next LTS line is current, and Dependabot is told (#820).
+   with both, when the next LTS line is current, and Dependabot is told (#820). *(2026-10-31:
+   taken for alpha.4, #1767.)*
 8. **The release-age gate that was never switched on — TAKEN 2026-09-09: three days.**
    `pnpm-workspace.yaml` carried a `minimumReleaseAgeExclude` list of fourteen entries,
    maintained entry by entry since 2026-08-18 (#443), one annotated *"Dependabot-pinned major

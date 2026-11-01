@@ -14,11 +14,13 @@ entries' first lines name the merge.
   (`a94dd5b3`), after E2E (managed) run 41236579127 on its branch.
 - #1766, T1's *since rc.1* part of `[Unreleased]` and T3 and T4's unit and Postgres legs, at
   02:13 UTC (`479f9230`).
-- Merged the same night and recorded in their own plans: #1772 (0121, the billing test, 00:40
-  UTC), #1771 (Dependabot's five npm updates, 00:53 UTC), #1760 (0153 T5, 01:08 UTC), #1765
-  (0140 T10, 02:41 UTC) and #1773 (0119, the Atlas pin, 04:13 UTC). `CHANGELOG.md`'s
-  `[Unreleased]` lacked #1771's line, and croner 11.0.0's (#1764, merged 2026-10-31), and held
-  two *Added* sections; it has both lines and one *Added* now.
+- Merged the same night and recorded in their own plans: #1760 (0153 T5, 01:08 UTC), #1765
+  (0140 T10, 02:41 UTC) and #1773 (0119, the Atlas pin, 04:13 UTC). Recorded in `CHANGELOG.md`'s
+  `[Unreleased]` only: #1772 (the billing test, 00:40 UTC; a test-only fix, so nothing in 0121
+  changes), its *Fixed* line, and #1771 (Dependabot's five npm updates, 00:53 UTC), its
+  *Changed* line, which this entry's branch adds. `[Unreleased]` lacked #1771's line, and
+  croner 11.0.0's (#1764, merged 2026-10-31), and held two *Added* sections; it has both lines
+  and one *Added* now.
 
 **2026-10-31, later: T1, T3 and T4's unit and Postgres legs built**, as draft #1766 on branch
 `claude/ownpace-public-readiness-y7orc6-release-record-0146`, from `main` at `008fa74f`, not

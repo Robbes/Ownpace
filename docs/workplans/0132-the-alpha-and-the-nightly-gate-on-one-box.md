@@ -11,11 +11,12 @@
   is not there as empty, and refuses an empty one before it asks Docker anything: exit 2,
   *"refused, nothing was started: LIVE_PASS_CHECK_MIGRATION in live's .env is empty"*
   (`deploy/compose/live-pass-check.sh`:116-119). Nothing else reads it: `deploy-live.sh` names it
-  in its closing words only (:778), and the box checks prove an update by any initial copy or
-  incremental pass of any migration that succeeds after the lift
-  (`deploy/compose/copy-before-update.sh`, `proof_read`), whoever started it. So after a deploy
-  the update is proven by the first such pass the tick runs, or, while live holds no migration,
-  its copy goes after day 6, as before T9.
+  in its closing words only (:778), and the box checks prove an update by T9 (a)'s rule
+  (`deploy/compose/copy-before-update.sh`, `auto_read`): a succeeded initial copy or
+  incremental pass that started after the deploy, of a migration with a data type completed
+  since the pass began, no hold on, and an hour after the hold was last lifted, whoever started
+  the pass. So after a deploy the update is proven by the first such pass the tick runs, or,
+  while live holds no migration, its copy goes after day 6, as before T9.
   **Nothing is owed:** step 3 matters once a migration of the owner's own runs on live (none had,
   by the entry of 2026-10-31), and then only for a pass on demand. T9's row says so.
 - **The host's Docker** on the machine that runs live, the OTA stack and the self-hosted runner
