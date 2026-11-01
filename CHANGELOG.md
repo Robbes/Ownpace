@@ -50,12 +50,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   it, CLI 4.8.3 on a machine that can open a browser takes the approval on its
   own `127.0.0.1`, which a browser on another machine cannot reach.
 - **The identity provider's setup refuses a sign-in provider's key on live
-  too** (workplan 0140 T10): `setup-zitadel.sh`, run by hand or by the
-  bring-up run by hand, stops on live's settings before anything moves while
-  a Google, Microsoft, GitHub or Apple sign-in key holds a value, as the
-  stand-up and the deploy already do, so live's sign-in page stays email and
-  password only. The provisioning token's daily clock and the organisation
-  count still run.
+  too** (workplan 0140 T10): like the stand-up and the deploy,
+  `setup-zitadel.sh` stops on live's settings while a Google, Microsoft,
+  GitHub or Apple sign-in key holds a value, so live's sign-in page stays
+  email and password only. It stops before it generates a secret, starts
+  anything or asks the identity provider anything; a bring-up run by hand
+  reaches it only in its `app` phase, after the phases before it have run
+  and the identity provider has started. The provisioning token's daily
+  clock and the organisation count still run.
 - **Live's deploy refuses a host on its reachable-hosts list, and Mollie's key
   during the Alpha** (workplans 0136 T2 and 0131 §3 T3, #1752): `deploy-live.sh`
   refuses live's settings, in the deploy and its dry run, while
