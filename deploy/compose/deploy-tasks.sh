@@ -127,10 +127,18 @@ echo "[deploy-tasks] CLI/SDK version: ${CLI_VERSION}  instance: ${TRIGGER_URL}  
 # `--frozen-lockfile`: the lockfile decides. One that disagrees with a
 # package.json stops the deploy here instead of being rewritten on a server.
 # When nothing changed it takes seconds, so it runs every time.
+#
+# Without pnpm the hint names the way to get it on the Node `engines` asks for.
+# It said `corepack enable` until 2026-10-31, when the Node line moved to 26
+# (workplan 0119 §2.4): Node 25 and later ship no corepack, so that command is
+# not there to run, and pnpm comes from npm, at the version package.json's
+# `packageManager` names.
 if ! command -v pnpm >/dev/null 2>&1; then
+  PACKAGE_MANAGER="$(node -p "require('${REPO_ROOT}/package.json').packageManager")"
   echo "[deploy-tasks] ERROR: pnpm is not on PATH. The tasks are bundled from this" >&2
-  echo "               checkout's node_modules, and pnpm installs them. Install it" >&2
-  echo "               (corepack enable), then re-run this script." >&2
+  echo "               checkout's node_modules, and pnpm installs them. Node 26 ships" >&2
+  echo "               no corepack: install it from npm" >&2
+  echo "               (npm install -g ${PACKAGE_MANAGER}), then re-run this script." >&2
   exit 1
 fi
 echo "[deploy-tasks] installing this checkout's packages (pnpm install --frozen-lockfile)..."

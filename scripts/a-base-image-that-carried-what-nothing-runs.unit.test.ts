@@ -44,6 +44,22 @@
  *    and `healthcheck` of every compose service built from its Dockerfile
  *    (`deploy/selfhost/compose.yml`'s `app`), in every compose file of its
  *    directory, overrides included. That is what makes 3 safe.
+ * 5. The one RUN that brings pnpm to the stage built FROM that line is one
+ *    string in all three files: `npm install -g --omit=dev corepack@<x.y.z>
+ *    && corepack enable`, the version exact. The Node image ships no corepack
+ *    since Node 25 ("build: stop distributing Corepack", CHANGELOG_V25), so
+ *    when the line moved to `node:26.13.0-trixie-slim` on 2026-10-31 (workplan
+ *    0119 §2.4) the bare `RUN corepack enable` the three stages had stopped
+ *    every build at `corepack: command not found`. The corepack that replaces
+ *    it is a pin nothing else moves: Dependabot's docker updater reads FROM
+ *    lines, never a RUN, and its npm updater never reads a Dockerfile. So it
+ *    moves by hand, in all three at once (0119 §2.4), and three copies that
+ *    drift would build three images with three package managers. `--omit=dev`
+ *    is what `an-image-that-shipped-what-it-never-runs` asks of an npm install
+ *    in a stage the API's runtime takes files from (corepack has no
+ *    dependencies, so it installs the same thing). The selfhost runtime
+ *    removes what it installs with the rest (3): `/usr/local/lib/node_modules`
+ *    and the corepack, pnpm, pnpx, yarn and yarnpkg links.
  *
  * The api's runtime stage did the same until 0146 T13 put it on distroless
  * (`gcr.io/distroless/nodejs24-debian13:nonroot`), which carries Node and no
@@ -74,7 +90,11 @@ const NODE_RUNTIMES = ['apps/selfhost/Dockerfile'];
  * under /usr/local/lib/node_modules, the npm, npx, corepack, yarn and yarnpkg
  * links in /usr/local/bin, and yarn 1 in /opt/yarn-v1.22.22. `corepack enable`
  * adds the pnpm and pnpx links and points yarn's at itself. `nodejs` is a link
- * to node, and stays.
+ * to node, and stays. `node:26.13.0-trixie-slim` (read 2026-10-31, both
+ * architectures) has only npm under /usr/local/lib/node_modules and the npm
+ * and npx links, no corepack and no yarn; the base stage's
+ * `npm install -g --omit=dev corepack@…` puts corepack there, with its
+ * corepack, pnpm, pnpx, yarn and yarnpkg links, so the list is the same.
  *
  * The global-modules directory is removed whole, not npm and corepack in it by
  * name. Named, a base stage that installs a package manager with
@@ -180,6 +200,50 @@ describe('one Node base, on a named Debian release', () => {
       // 2026-10-25, Debian 13's 0 and 48, with the same Node binary in both.
       expect(m![1], `${dockerfile}: ${image} is Debian 12`).not.toBe('bookworm');
     }
+  });
+});
+
+/** The RUN, in the stage built FROM the Node line, that brings corepack and enables it. */
+const COREPACK_SETUP = /^npm install -g --omit=dev corepack@(\d+\.\d+\.\d+) && corepack enable$/;
+
+describe('one pnpm, brought one way, where the Node image ships no corepack', () => {
+  const setups = readdirSync(join(ROOT, 'apps'))
+    .map((app) => `apps/${app}/Dockerfile`)
+    .filter((p) => existsSync(join(ROOT, p)))
+    .flatMap((dockerfile) =>
+      stagesOf(read(dockerfile))
+        .filter((s) => s.base.startsWith('node:'))
+        .map((s) => ({
+          dockerfile,
+          runs: s.body.filter((i) => i.op === 'RUN' && /\bcorepack\b/.test(i.args)).map((i) => i.args),
+        })),
+    );
+
+  it('each stage built FROM the Node line has one RUN that names corepack (vacuity)', () => {
+    expect(setups.map((s) => s.dockerfile).sort()).toEqual(['apps/api/Dockerfile', 'apps/selfhost/Dockerfile', 'apps/web/Dockerfile']);
+    for (const { dockerfile, runs } of setups) expect(runs, dockerfile).toHaveLength(1);
+  });
+
+  it('installs corepack from npm at an exact version, then enables it, in one string in all three', () => {
+    for (const { dockerfile, runs } of setups) {
+      // A bare `corepack enable` is a command the Node 26 image has not got.
+      expect(runs[0], `${dockerfile}: corepack comes from npm, at x.y.z, with --omit=dev`).toMatch(COREPACK_SETUP);
+    }
+    expect(new Set(setups.map((s) => s.runs[0])), JSON.stringify(setups, null, 2)).toHaveProperty('size', 1);
+  });
+
+  it('refuses the shapes that slip', () => {
+    for (const run of [
+      'corepack enable',
+      'npm install -g corepack && corepack enable',
+      'npm install -g corepack@latest && corepack enable',
+      'npm install -g corepack@0.36.0 && corepack enable',
+      'npm install -g --omit=dev corepack@^0.36.0 && corepack enable',
+      'npm install -g --omit=dev corepack@0.36.0',
+    ]) {
+      expect(run, run).not.toMatch(COREPACK_SETUP);
+    }
+    expect('npm install -g --omit=dev corepack@0.36.0 && corepack enable').toMatch(COREPACK_SETUP);
   });
 });
 

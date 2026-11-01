@@ -91,7 +91,7 @@ operative bullets points into it; never bulk-read `docs/adr/`, and never `docs/a
 (the frozen record of consolidated ADRs, ADR-0051). Statuses live in the register
 (`docs/adr/README.md`). After amending an operative section, regenerate:
 `node scripts/adr-operative.mjs --write` — it refuses a section over budget (ADR-0051).**
-- TypeScript, Node 24, pnpm workspaces monorepo (ADR-0002); Apache-2.0 (ADR-0001).
+- TypeScript, Node 26 (24 until 2026-10-31; workplan 0119 §2.4), pnpm workspaces monorepo (ADR-0002); Apache-2.0 (ADR-0001).
 - `Scheduler` interface: in-process croner (self-host) / Trigger.dev (managed) (ADR-0004).
 - Ledger: **Postgres everywhere** — managed Postgres+RLS (managed) / bundled small Postgres (self-host), one schema (ADR-0016, **ADR-0023** supersedes the SQLite option in ADR-0010); self-host may run embedded PGlite instead of a Postgres server (ADR-0028); migrations are hand-written numbered SQL applied at startup by `runMigrations` (ADR-0045) and linted by Atlas in CI (ADR-0017). **No SQLite** — do not reintroduce a second dialect.
 - Engines: **JS-native, all of them. No Perl, no Python, no external binaries.** JMAP writer (jmap-jam) for JMAP; `imapflow` for IMAP; DAV (CalDAV/CardDAV/WebDAV) is this repository's own client over `fetch` (`packages/connectors`, `packages/engines`) — no `webdav` or `ical.js` package is installed. The imapsync/vdirsyncer/rclone shell-outs this line used to name are **gone** — see ADR-0019's update note, "there are no shell-out engines left", and ADR-0007's status line (ADR-0007/0018/0019).

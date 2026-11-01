@@ -367,6 +367,26 @@ on and the drain done. The steps, and what the script refuses and checks, are
 in [managed-bring-up.md](./managed-bring-up.md#updating-a-running-deployment),
 *`ownpace-live`: a release tag, with `deploy-live.sh`*.
 
+- [ ] **From `v0.2.0-alpha.4` on, the shell you deploy from runs Node 26**
+      (workplan 0119 §2.4, the owner's decision of 2026-10-31). In that shell,
+      as yourself, in `~/ownpace-live`: `command -v node` names the node the
+      deploy runs on and `node -v` says `v26.x`; `pnpm -v` says the version
+      `package.json`'s `packageManager` names (any pnpm that runs it there is
+      enough; Node 26 ships no corepack);
+      `dpkg-query -W -f='${Status} ${Version}\n' libatomic1` says
+      `install ok installed`. A system Node another service on the host runs on stays as
+      it is: a Node 26 of your own (nvm, fnm, or the tarball in a directory
+      you own) goes first on your `PATH`, and pnpm installs into it without
+      `sudo`. Run the deploy in that shell, as yourself, not under `sudo`,
+      whose `secure_path` finds the system's node. The script runs `pnpm
+      install`, the task deploy and the site build on that node, and pnpm
+      only warns (`Unsupported engine`) below `engines` and goes straight on
+      to the rebuild. **For the deploy to alpha.4 the reading is the check:**
+      that deploy runs alpha.3's `deploy-live.sh`, which reads no Node. From
+      the deploy after it, the script refuses a node below the tag's
+      `engines` by itself, before anything moves, naming the node's path and
+      version. The readings and the steps are in
+      [managed-bring-up.md](./managed-bring-up.md#the-node-in-the-shell-you-deploy-from).
 - [ ] The tag is the one §2 made: annotated, on origin, and the root
       `package.json` at its commit says the tag without its `v`. The script
       refuses anything else: *"live runs releases: name a release tag"*.

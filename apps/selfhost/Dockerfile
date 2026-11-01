@@ -41,12 +41,14 @@
 # without one. Dependabot's image bump therefore moves both.
 #
 # Debian 13 ("trixie"), named in the tag, as in apps/api/Dockerfile, which says
-# why.
+# why. Node 26 since 2026-10-31, and the corepack that brings pnpm comes from npm
+# because the Node 26 image ships none: apps/api/Dockerfile says why, and the
+# line is the same string in all three Dockerfiles.
 
-FROM node:24.22.1-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea AS base
+FROM node:26.13.0-trixie-slim@sha256:e4db4c914bf8ad241bd24804fc25d272d89bad97e68cdc8a1414862790a02c39 AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable
+RUN npm install -g --omit=dev corepack@0.36.0 && corepack enable
 WORKDIR /app
 
 # ---- build: install the whole workspace (packages ship TS source) ----

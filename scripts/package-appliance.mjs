@@ -149,7 +149,7 @@ function buildIdentity() {
  * a terminal. An installer that also has to detect, prompt for or side-install
  * Node is a terminal-shaped problem wearing a dialog box, and the owner settled
  * it on 2026-08-06: the payload carries its own runtime. `node.exe` for win-x64
- * is ~93 MB, so this is OPT-IN — a Linux dev build has a perfectly good Node
+ * is ~100 MB (100.1 MB at 26.13.0, 93.9 MB at 24.22.1), so this is OPT-IN — a Linux dev build has a perfectly good Node
  * already and should not pay for a download it will never run.
  *
  * Pinned rather than floating, and pinned in ONE place: the version is the one
@@ -268,7 +268,7 @@ function parseArgs(argv) {
   // `--ui` exists so the packaging test does not have to run a Vite build to
   // check that a payload assembles and boots. Real invocations leave it alone.
   let ui = join(REPO, 'apps/web/dist-selfhost');
-  // Opt-in, because it is a ~93 MB download and only a shipped Windows payload
+  // Opt-in, because it is a ~100 MB download and only a shipped Windows payload
   // needs it. See NODE_RUNTIMES.
   let withNode = null;
   for (let i = 0; i < argv.length; i++) {

@@ -30,8 +30,10 @@ ERROR: Cannot find module 'pnpm'
 # `npm install -g pnpm` now installs pnpm 12
 npm install -g pnpm@11
 
-# Or use corepack (bundled with Node 24): from the repository root, this
-# installs exactly the version package.json's "packageManager" names
+# Or corepack, which Node 26 no longer bundles (Node 25 stopped shipping it):
+# install it from npm first. From the repository root, this installs exactly
+# the version package.json's "packageManager" names
+npm install -g corepack@0.36.0
 corepack enable pnpm
 corepack install
 ```

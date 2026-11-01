@@ -14,6 +14,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import {
+  graphApiError,
   decodeJwtToken,
   isTokenReadOnly,
   hasReadScopes,
@@ -21,6 +22,31 @@ import {
   IdempotencyTracker,
   type TokenClaims,
 } from './o365-scenario.ts';
+
+// ============================================================================
+// Graph refusals, over HTTP/2 too
+// ============================================================================
+
+describe('graphApiError', () => {
+  it('names the status and Graph\'s own code and message when there is no reason phrase, as over HTTP/2', async () => {
+    const body = JSON.stringify({
+      error: { code: 'ErrorAccessDenied', message: 'Access is denied.', innerError: { 'request-id': 'r-1', date: 'd' } },
+    });
+    const err = await graphApiError(new Response(body, { status: 403 }));
+    expect(err.message).toBe('Graph API error: HTTP 403: ErrorAccessDenied — Access is denied.');
+    expect(err.message).not.toContain('r-1');
+  });
+
+  it('keeps the reason phrase when the server sent one, as over HTTP/1.1', async () => {
+    const err = await graphApiError(new Response('{"error":{"code":"InvalidAuthenticationToken"}}', { status: 401, statusText: 'Unauthorized' }));
+    expect(err.message).toBe('Graph API error: HTTP 401 Unauthorized: InvalidAuthenticationToken');
+  });
+
+  it('quotes the first 300 characters of a body that is not Graph\'s error document', async () => {
+    const err = await graphApiError(new Response('<html>' + 'x'.repeat(500), { status: 502 }));
+    expect(err.message).toBe(`Graph API error: HTTP 502: <html>${'x'.repeat(294)}`);
+  });
+});
 
 // ============================================================================
 // JWT Token Decoding Tests
