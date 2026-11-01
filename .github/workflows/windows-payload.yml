@@ -88,9 +88,17 @@ jobs:
           pnpm --filter @openmig/web build:selfhost
           test -f apps/web/dist-selfhost/index.html
 
-      # `--with-node` downloads the runtime from nodejs.org and verifies it
-      # against the release's own SHASUMS256.txt. A mismatch is a hard stop, not
-      # a warning: this is somebody else's binary that we ship to customers.
+      # `--with-node` downloads the runtime from nodejs.org and checks it
+      # against a SHA-256 COMMITTED in scripts/package-appliance.mjs
+      # (NODE_RUNTIME_SHA256), never against a list fetched from the host that
+      # served the binary (workplan 0119 §2.5, 2026-11-01). Before it fetches
+      # anything, gpgv (on the runner image) checks that the release's own
+      # SHASUMS256.txt, committed in scripts/node-release/ beside the pinned
+      # Node.js release keyring, is signed and gives that same sum. The log
+      # names the sum and the signing key. A version with no committed sum, a
+      # sum the signed list does not give, or bytes that do not hash to it
+      # each stop the build: this is somebody else's binary that we ship to
+      # customers. `a-runtime-only-its-own-host-vouched-for` holds all of it.
       - name: Stage the payload
         run: |
           node scripts/package-appliance.mjs \
