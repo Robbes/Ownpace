@@ -335,7 +335,9 @@ services:
     # deploy/compose/trigger.dev/Dockerfile, whose FROM is the pin, by tag and
     # digest, takes out the depot and esbuild binaries, node's copy of pnpm and
     # the tar in root's (only pnpm's node-gyp needs it; the owner, 2026-10-27),
-    # and says why nothing here runs them. It also replaces dompurify 3.4.13's
+    # since 2026-10-31 the rest of node-gyp's tree in root's copy and npm
+    # (Node's, which nothing here runs; tar's one risk again), and says why
+    # nothing here runs them. It also replaces dompurify 3.4.13's
     # files with 3.4.17's, fetched from the npm registry and refused unless their
     # sha512 is the one npm published (nothing here loads dompurify; the copy
     # the scan reads is the fixed one). The name is the version (the .env's
@@ -346,7 +348,7 @@ services:
     # why). `user: root` decides which copy of pnpm the entrypoint runs, and so
     # which one the Dockerfile may delete:
     # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
-    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-b0cce1eaa578
+    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-0df1cbbe547c
     build:
       context: ./trigger.dev
       args:
@@ -659,10 +661,10 @@ services:
   # was before 0018: bootstrap env vars with no consumer.
   trigger-supervisor:
     # Built here as trigger-api is (deploy/compose/supervisor/Dockerfile):
-    # upstream's image without root's copy of pnpm, and without the tar in
-    # node's. No `user:`, so it runs as the image's node, whose copy its CMD
-    # runs and the Dockerfile keeps.
-    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.3}-f44827c552a6
+    # upstream's image without root's copy of pnpm, without node-gyp's tree
+    # (tar was in it) in node's, and without npm. No `user:`, so it runs as the
+    # image's node, whose copy its CMD runs and the Dockerfile keeps.
+    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.3}-d56a201c0e1f
     build:
       context: ./supervisor
       args:
