@@ -299,6 +299,10 @@ notices.
   react-router 8.5.1, lucide-react 1.63.0 and @types/node 26.6.6. No call site
   changes: the scheduler and `sync-due` use `new Cron`, `nextRun`, `resume` and
   `stop`, which croner 11 keeps.
+- **nodemailer 10.3.0 and lucide-react 1.64.0** (from 10.2.1 and 1.63.0,
+  Dependabot, #1779). nodemailer 10.3.0 adds an `otp` option for an
+  `OTP-Token` header and encodes a `Content-ID` header as a message id; nothing
+  here sets either, so no call site changes.
 
 ### Added
 

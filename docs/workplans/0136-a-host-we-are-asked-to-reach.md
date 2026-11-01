@@ -4,8 +4,18 @@
 
 ## Status — 2026-11-01 (update this block at the end of every session)
 
+**2026-11-01, later, records: #1752 and #1774 were merged.** Docs only, on the branch
+`claude/ownpace-public-readiness-y7orc6-records-2026-11-01-later`. The two entries below, and
+T2's row, called them a draft or not merged. #1752, `deploy-live.sh`'s refusal of a list that
+names a host (T2), merged on 2026-10-31 at 22:47 UTC (`fca784f7`); it binds from the deploy
+after the one to a tag carrying it, as its entry says, and no tag carries it yet (alpha.3 was
+tagged on `e1b21aac` on 2026-10-30). #1774, ClickHouse on `trigger-event-store`, merged on
+2026-11-01 at 06:18 UTC (`1be730ec`), after E2E (managed) run 41277378511 was green on its
+branch; the scheduled E2E (managed) of 2026-11-01 (run 41298604750) read *no such name from the
+API container (ENOTFOUND)* on the OTA stack. T4 is unchanged.
+
 **2026-11-01: ClickHouse off `ownpace-network`, and T4 keeps it off the proxy's network (0119 §3
-item 9, draft #1774).** CVE-2026-116366 lets anybody who can reach ClickHouse run code on it, and
+item 9, #1774, merged 2026-11-01 at 06:18 UTC, `1be730ec`).** CVE-2026-116366 lets anybody who can reach ClickHouse run code on it, and
 the 26.2 the stacks run gets no fix, so #1774 puts `clickhouse` on `trigger-event-store`, an
 `internal` network only `trigger-api` shares. It takes away the name and the route from every
 other container, which stops a plain request or an SSRF from the API, the web app, Zitadel or
@@ -16,7 +26,8 @@ and now says ClickHouse stays off any network the proxy or the supervisor shares
 marks the move.
 
 **2026-10-31: every deploy of live refuses a list that names a host (T2).** Built on branch
-`claude/ownpace-public-readiness-y7orc6-deploy-live-alpha-refusals`, #1752, not merged. T2 says live's
+`claude/ownpace-public-readiness-y7orc6-deploy-live-alpha-refusals`, #1752, merged 2026-10-31 at
+22:47 UTC (`fca784f7`). T2 says live's
 `OWNPACE_REACHABLE_HOSTS` stays empty; `stand-up-live.sh` refused a list at the first bring-up, and
 nothing refused one after it, so a name written into live's `.env` would have reached live's API
 and tasks with the next deploy. `deploy-live.sh` now refuses it, in the deploy and the dry run,
@@ -710,7 +721,7 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 | Task | Status | Notes |
 |---|---|---|
 | T1 Refuse internal addresses after DNS, on every connection and every redirect | ✅ **done**, merged 2026-09-27: (a)'s three slices (the rule, #1216; every client of a tenant's host going through it, #1223; the rule switched on in the managed API and tasks, #1230) and (b) (the bring-up's network check, #1224); the refusal's Dutch came with T3's screens, merged as #1234; advised before the first invitation (D1) — *was:* 🔨 **Built 2026-09-27**, the third slice not merged | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
-| T2 An operator allowlist for the demo targets | ✅ **done** in #1230, merged 2026-09-27 (`55ee81c8`), with T1 (a)'s third slice; read empty on live, in its `.env` and API container, 2026-10-29 (Status, 2026-10-31); `deploy-live.sh` refuses live's `.env` when the list names a host, at every deploy after the one to a tag carrying that refusal (2026-10-31, built on branch `claude/ownpace-public-readiness-y7orc6-deploy-live-alpha-refusals`, #1752, not merged; Status) — *was:* 🔨 **Built 2026-09-27** with T1 (a)'s third slice, not merged; 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
+| T2 An operator allowlist for the demo targets | ✅ **done** in #1230, merged 2026-09-27 (`55ee81c8`), with T1 (a)'s third slice; read empty on live, in its `.env` and API container, 2026-10-29 (Status, 2026-10-31); `deploy-live.sh` refuses live's `.env` when the list names a host, at every deploy after the one to a tag carrying that refusal (#1752, merged 2026-10-31, `fca784f7`; Status, 2026-10-31; *was:* built on branch `claude/ownpace-public-readiness-y7orc6-deploy-live-alpha-refusals`, not merged) — *was:* 🔨 **Built 2026-09-27** with T1 (a)'s third slice, not merged; 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
 | T3 A probe answer that says what happened, not what the remote said | ✅ **done**: the answer merged as #1227, the limit as #1228, the screens' half as #1234; the second step (the failures a pass records in our words on the failures queue and the routes beside it, the Check page's report and the apply receipts among them) in #1499, merged 2026-10-05 (`59f04be1`); a share's refusal on apply, in our words in English and Dutch, in #1606, merged 2026-10-16 (`1fc3c0bd`); the Sharing page says a folder press's refused rows, under the folder and in each row, in #1645, merged 2026-10-21 (`f04ec785`) — *was:* the share's refusal on apply not yet (Status, 2026-10-05); the second step 🔨 built 2026-10-05, not merged; the failures route to come; 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
 | T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
 | T5 No archive "disk" path on the managed edition | ✅ **done** in #1175, merged 2026-09-25; before the first invitation — *was:* 📋 Decided 2026-09-24 (0148 D10) | §3. Five doors refuse it before anything opens the path (add, test-connection, create including a reuse, the stored-row Test, rotation), with a sentence that names the folder in the destination's files (0148 D11). The gate's archive fixture step breaks with it and returns with 0148 T9, which is stacked on this task. The owner first chose to hide the managed archive card (0148 D3), then to label it (0148 D10). |
@@ -828,7 +839,7 @@ status page.
 | On `ownpace-network` | What it is |
 |---|---|
 | `postgres`, `pgbouncer` | The application database and its pooler |
-| `trigger-db`, `trigger-redis`, `clickhouse`, `minio` | Trigger.dev's database, queue, event store and object store (`clickhouse` since 2026-11-01 on `trigger-event-store`, an `internal` network only `trigger-api` shares, instead: 0119 §3 item 9, draft #1774; the socket proxy can still join a container to it, T4) |
+| `trigger-db`, `trigger-redis`, `clickhouse`, `minio` | Trigger.dev's database, queue, event store and object store (`clickhouse` since 2026-11-01 on `trigger-event-store`, an `internal` network only `trigger-api` shares, instead: 0119 §3 item 9, #1774, merged 2026-11-01, `1be730ec`; the socket proxy can still join a container to it, T4) |
 | `trigger-api`, `trigger-supervisor`, `trigger-registry`, `trigger-tls` | Trigger.dev's control plane |
 | `trigger-docker-proxy` | `tecnativa/docker-socket-proxy` with `CONTAINERS: 1`, `IMAGES: 1`, `NETWORKS: 1`, `VOLUMES: 1`, `POST: 1`, in front of the host's Docker socket (since 2026-10-30 `localhost/docker-socket-proxy`, upstream's v0.5.0 built here on a current HAProxy, with the same environment; workplan 0119) |
 | `zitadel` | The identity provider |
