@@ -250,7 +250,7 @@ describe('--remove takes one --fresh set back (0100)', () => {
     }
   };
 
-  it('deletes exactly the ten paths --fresh writes, and nothing else', () => {
+  it('deletes exactly the eleven paths --fresh writes, and nothing else', () => {
     // NINE since 0120 T6 added the one file above the streaming threshold.
     // It is in this list for a reason larger than arithmetic: `--fresh` runs
     // whenever the gate finds nothing eligible, and that file is tens of
@@ -263,6 +263,13 @@ describe('--remove takes one --fresh set back (0100)', () => {
     // subject. That is also why the file inside it is not listed separately:
     // deleting a child after its parent is gone answers 404, which this
     // script reads as success and would hide a folder that never went.
+    //
+    // ELEVEN since 2026-10-31 added event 3, the organiser canary (workplan
+    // 0141 T9 (b)), which a set seeded with an organiser carries. It is asked
+    // for whether or not this set had one: a 404 is what an absent one
+    // answers, and that is success here. On the TARGET it is the one delete
+    // that would CANCEL to its attendee, because there the account organises
+    // it, so leaving it behind would also leave the gate's riskiest copy.
     const r = run({ VERIFY_ANSWER: '' }, ['--remove', 'tag-1']);
     expect(r.status).toBe(0);
     const paths = deleted().map((u) => u.replace(/^.*remote\.php\/dav\//, ''));
@@ -272,6 +279,7 @@ describe('--remove takes one --fresh set back (0100)', () => {
         'addressbooks/users/tenant-b-source/contacts/openmig-demo-contact-tag-1-2.vcf',
         'calendars/tenant-b-source/personal/openmig-demo-event-tag-1-1.ics',
         'calendars/tenant-b-source/personal/openmig-demo-event-tag-1-2.ics',
+        'calendars/tenant-b-source/personal/openmig-demo-event-tag-1-3.ics',
         // The task pair (0113 T7), in the VTODO-only collection rather than
         // beside the events. A `--fresh` set that seeded four domains and
         // took back three would grow the demo source by a task a night.
@@ -294,7 +302,7 @@ describe('--remove takes one --fresh set back (0100)', () => {
     // the other three domains are still taken back, and nothing is created.
     const r = run({ VERIFY_ANSWER: '', TASK_LIST_ANSWER: '404' }, ['--remove', 'tag-9']);
     expect(r.status).toBe(0);
-    expect(deleted()).toHaveLength(8);
+    expect(deleted()).toHaveLength(9);
     expect(deleted().join('\n')).not.toContain('openmig-demo-task-');
     expect(existsSync(join(dir, 'mkcalendar.txt'))).toBe(false);
   });
@@ -382,7 +390,11 @@ describe('--remove takes one --fresh set back (0100)', () => {
     );
     expect(r.status).toBe(0);
     expect(deleted().every((u) => u.includes('tenant-b-target'))).toBe(true);
-    expect(deleted()).toHaveLength(10);
+    expect(deleted()).toHaveLength(11);
+    expect(
+      deleted(),
+      'the target copy of the organiser canary is the one a bare DELETE would CANCEL from',
+    ).toContain('http://localhost/remote.php/dav/calendars/tenant-b-target/personal/openmig-demo-event-tag-5-3.ics');
   });
 });
 

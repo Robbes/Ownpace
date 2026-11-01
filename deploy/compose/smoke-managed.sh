@@ -1101,7 +1101,10 @@ else
 fi
 
 # TRIGGER-TLS publishes a port, so the host's own curl is enough — no exec, no
-# assumption about what is inside the Caddy image.
+# assumption about what is inside the Caddy image. Since 2026-10-31 that image
+# is built here without curl (deploy/compose/caddy, workplan 0119): a probe
+# inside it naming curl would now certainly fail, which is one more reason
+# this asks from the host.
 #
 # BY IP, NOT BY NAME, and that is load-bearing. The Caddyfile's site address is
 # `{$TRIGGER_TLS_HOST}:3443`, which on a real box is the machine's VPN address,
@@ -1925,7 +1928,9 @@ FIXTURE_RE="openmig-demo-(event|contact|file|task)-[0-9]+[.][a-z]+$"
 # unproven byte-check. Five other fresh items per seed stay disposable. The
 # prepare wait loop polls pick_disposable itself, so wait and pick carry this
 # exclusion by construction, not by agreement (the run-#18 lesson).
-CANARY_RE="openmig-demo-event-.+-1[.]ics$"
+# Fresh event 3 is the ORGANISER canary (0141 T9 (b)), read off the target the
+# same way and after the same half, so it is spared for the same reason.
+CANARY_RE="openmig-demo-event-.+-[13][.]ics$"
 HREF_EXPR="coalesce(source_ref_href, source_ref->>'href', '')"
 
 pick_disposable() {
@@ -2067,7 +2072,11 @@ if [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
   # timestamp+pid inside a subprocess and prints it; parsing that back out of
   # the log would be a second source of truth for one string.
   BALANCE_TAG="smoke-$(date -u +%Y%m%dT%H%M%SZ)-$$"
-  if "$SCRIPT_DIR/seed-demo-dav-content.sh" --fresh "$BALANCE_TAG"; then
+  # THE TARGET ACCOUNT NAMED AS EVENT 3'S ORGANISER (0141 T9 (b)): the seeder
+  # reads that account's own address from the server and refuses, before it
+  # writes anything, when there is none to match or the source shares it.
+  if SEED_DAV_ORGANISER_USER="$TARGET_DAV_USER" SEED_DAV_ORGANISER_PASSWORD="$TARGET_DAV_PASSWORD" \
+     "$SCRIPT_DIR/seed-demo-dav-content.sh" --fresh "$BALANCE_TAG"; then
     echo "prepare: DAV source seeded with fresh, never-tombstoned natural keys (tag ${BALANCE_TAG})"
   else
     echo "prepare: SEEDING FAILED — the diagnosis below will say what the ledger holds."
@@ -5443,9 +5452,21 @@ fi
 #      seed or sync. (And nothing after removal — the CANCEL side — checked
 #      after balance below.)
 #
-# WHAT THIS DOES AND DOES NOT PROVE. The canary's organiser is a third party,
-# as most of a migrated mailbox's meetings are; the owner-as-organiser case on
-# an armed server is T3's per-target measurement, not this fixture. And on a
+# WHAT THIS DOES AND DOES NOT PROVE. Two events carry the canary attendee.
+# Event 1's organiser is a third party, as most of a migrated mailbox's
+# meetings are, and no server schedules for those, so its silence alone held
+# whether or not the writer neutralised. Event 3's organiser is the target
+# account's own address (0141 T9 (b), the organiser canary): there the
+# target's server IS the organiser's, so without SCHEDULE-AGENT=CLIENT it
+# would invite the attendee on the sync's PUT, and the catcher would hear it.
+# The take-back is another matter: its DELETE carries Schedule-Reply: F, and
+# that header alone keeps Nextcloud from sending a CANCEL (Sabre's
+# beforeUnbind returns before it builds one; 0103 T5), so the catcher's
+# silence after it proves the header, not the copy's neutralising. Event 3
+# re-proves the PUT half only. The bytes are read for both, and for event
+# 3 the server is also asked whether the copy's organiser is an address it
+# matches, or its silence is by inability. It is the demo Nextcloud, ours,
+# armed; a target we do not run is 0141 T7's and T9 (a)'s sitting. And on a
 # run where prepare seeded nothing there is no canary, so the checks say so
 # and stand down — the writer-side rules in CI cover every run regardless.
 # MEASURED, NOT TRUSTED (0103 T3). One OPTIONS request asks the target
@@ -5553,6 +5574,62 @@ if [ -n "$BALANCE_TAG" ]; then
       fail_at
     fi
   fi
+
+  # THE ORGANISER CANARY'S COPY (0141 T9 (b)). Read like event 1's and held to
+  # more: the organiser line must carry SCHEDULE-AGENT=CLIENT as well as every
+  # attendee line, and the organiser must be an address the target's server
+  # matches for this account. That is asked of the server now, in the property
+  # Sabre's scheduling reads (calendar-user-address-set): the seeder checked it
+  # before it wrote, and a copy whose organiser the account no longer matches
+  # would make the silence below one by inability, so it reads as unproven.
+  # Unfolded first (RFC 5545 §3.1): a server may fold a long line anywhere,
+  # the address included.
+  own_href="remote.php/dav/calendars/${TARGET_DAV_USER}/personal/openmig-demo-event-${BALANCE_TAG}-3.ics"
+  own_copy="$(curl -fsS -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" \
+    "${NC}/${own_href}" 2>/dev/null || true)"
+  own_copy="$(tr -d '\r' <<<"$own_copy" \
+    | awk 'NR > 1 && /^[ \t]/ { line = line substr($0, 2); next } NR > 1 { print line } { line = $0 } END { if (NR) print line }')"
+  if [ -z "$own_copy" ]; then
+    echo "could not read the organiser canary's copy at ${own_href}. Either prepare"
+    echo "seeded no event 3 (its [seed-dav] lines above say why), or the sync never"
+    echo "copied it; the apply half cannot have consumed it (CANARY_RE spares it)."
+    fail_at "the organiser canary's copy is not on the target, so its silence is unproven (0141 T9 (b))"
+  else
+    own_org="$(grep -i '^ORGANIZER[;:]' <<<"$own_copy" || true)"
+    own_att="$(grep -i '^ATTENDEE[;:]' <<<"$own_copy" || true)"
+    own_addr="$(sed -n 's/^.*[Mm][Aa][Ii][Ll][Tt][Oo]://p' <<<"$own_org" | tr '[:upper:]' '[:lower:]')"
+    if [ -z "$own_org" ] || [ -z "$own_att" ] \
+       || grep -qv 'SCHEDULE-AGENT=CLIENT' <<<"${own_org}"$'\n'"${own_att}" \
+       || ! grep -qF "openmig-attendee-${BALANCE_TAG}@example.invalid" <<<"$own_att"; then
+      echo "the organiser canary's copy on the target is MISSING its organiser, the attendee,"
+      echo "or the neutralising on one of them:"
+      grep -iE '^(ATTENDEE|ORGANIZER)[;:]' <<<"$own_copy" | awk 'NR<=4 {print "    " $0}'
+      echo "  Here the target account IS the organiser, so a line without SCHEDULE-AGENT=CLIENT"
+      echo "  is one its own server mails from (0103 T1, ADR-0043)."
+      fail_at "the organiser canary's copy is not neutralised (0141 T9 (b))"
+    elif ! own_set_body="$(curl -fsS -X PROPFIND -H 'Depth: 0' \
+        -H 'Content-Type: application/xml; charset=utf-8' \
+        -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" \
+        --data-binary '<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><c:calendar-user-address-set/></d:prop></d:propfind>' \
+        "${NC}/remote.php/dav/principals/users/${TARGET_DAV_USER}/")"; then
+      echo "could not read ${TARGET_DAV_USER}'s calendar-user-address-set, so whether the"
+      echo "server matches the organiser canary's organiser is unknown (unmeasured, not safe)."
+      fail_at "the target's own addresses could not be read (0141 T9 (b))"
+    else
+      own_set="$(grep -o 'mailto:[^<"]*' <<<"$own_set_body" | sed 's/^mailto://' | tr '[:upper:]' '[:lower:]' || true)"
+      if [ -n "$own_addr" ] && grep -qxF "$own_addr" <<<"$own_set"; then
+        echo "the organiser canary's copy is organised by ${own_addr}, ${TARGET_DAV_USER}'s own"
+        echo "  address as its server matches it, and carries SCHEDULE-AGENT=CLIENT on its organiser"
+        echo "  and attendee: the case a server schedules for, neutralised on real bytes"
+      else
+        echo "the organiser canary's organiser (${own_addr:-none}) is not an address the target's"
+        echo "server matches for ${TARGET_DAV_USER} (${own_set//$'\n'/, }). The server then"
+        echo "schedules nothing for it, and its silence below is by inability. The demo bring-up"
+        echo "gives the account its address (setup-managed-demo.sh)."
+        fail_at "the organiser canary's organiser is not the target's own address (0141 T9 (b))"
+      fi
+    fi
+  fi
   sched_mail="$(curl -fsS --get "${MAILPIT}/api/v1/search" \
     --data-urlencode "query=openmig-attendee-${BALANCE_TAG}" | jq -r '.messages_count // 0')"
   if [ "${sched_mail:-0}" -gt 0 ]; then
@@ -5560,7 +5637,8 @@ if [ -n "$BALANCE_TAG" ]; then
     echo "  Importing a calendar must never invite its attendees (ADR-0043)."
     fail_at
   else
-    echo "nothing addressed to the canary reached the catcher during seed or sync"
+    echo "nothing addressed to the canary reached the catcher during seed or sync,"
+    echo "  for the third party's meeting (event 1) or the target's own (event 3)"
   fi
 
   # ---------- the moment, pressed (0104 T2, final stage) ----------

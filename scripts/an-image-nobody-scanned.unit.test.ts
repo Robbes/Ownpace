@@ -414,6 +414,15 @@ describe('which images it scans', () => {
     expect(proxy?.floating).toBe(false);
     expect(REAL.read('deploy/compose/docker-socket-proxy/Dockerfile')).toMatch(/^FROM haproxy:/m);
     expect(images.filter((i) => /socket-proxy/.test(i.name)).map((i) => i.name), 'one scan of the proxy, under its old name').toEqual(['docker-socket-proxy']);
+    // The dashboard's TLS front built here without curl (2026-10-31) keeps the
+    // name, and so the category and the issue, that `caddy` had.
+    const front = images.find((i) => i.name === 'caddy');
+    expect(front?.ref, 'the TLS front is pulled from a registry again').toMatch(/^localhost\/caddy:\d+\.\d+\.\d+-alpine-[0-9a-f]{12}$/);
+    expect(front?.context).toBe('deploy/compose/caddy');
+    expect(front?.where).toBe('deploy/compose/managed.yml');
+    expect(front?.floating).toBe(false);
+    expect(REAL.read('deploy/compose/caddy/Dockerfile')).toMatch(/^FROM caddy:/m);
+    expect(images.filter((i) => /caddy/.test(i.name)).map((i) => i.name), 'one scan of the front, under its old name').toEqual(['caddy']);
     // Every other image is pulled, and carries no context.
     for (const image of images.filter((i) => !i.ref.startsWith(BUILT_HERE))) expect(image.context, image.name).toBeUndefined();
     // And the Postgres images built here are these two. Other images built
