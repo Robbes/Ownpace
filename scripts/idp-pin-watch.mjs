@@ -41,7 +41,11 @@
  *   ClickHouse        managed.yml's image against the one Trigger.dev's own
  *                      `docker/docker-compose.yml` pins at that newest tag,
  *                      with the line's row in ClickHouse's SECURITY.md as
- *                      text. Its own issue, while the two differ.
+ *                      text. Its own issue, while the two differ, unless the
+ *                      difference is recorded as intended for that exact pair
+ *                      (`CLICKHOUSE_INTENDED`, 0119 §3 item 9): then it is
+ *                      `intended` in the table, with the reason, and opens
+ *                      nothing until either side moves.
  *   the tasks' Node    the Node in the base image the pinned Trigger.dev CLI
  *                      names, against Node's newest security release, while
  *                      `trigger.config.ts` does not build the tasks on the
@@ -1036,6 +1040,26 @@ export function clickhouseSupport(securityMd, tag) {
 
 const refText = (image) => `${image.tag}${image.digest ? `@${image.digest}` : ''}`;
 
+/**
+ * A DIFFERENCE FROM TRIGGER.DEV'S CLICKHOUSE PIN THAT IS ON PURPOSE, recorded
+ * in workplan 0119 §3 item 9 (option 1, 2026-11-01). Trigger.dev v4.8.3 pins
+ * 26.2.19.43, which ClickHouse no longer supports, and CVE-2026-116366 has no
+ * 26.2 fix; the stack runs the nearest supported line that carries it.
+ *
+ * It holds for this exact pair and nothing else: the row reads it as current
+ * (no issue, `intended` in the table, the reason as a note) only while
+ * managed.yml pins `ours` AND Trigger.dev's compose pins `theirs`, tag and
+ * digest. When Trigger.dev moves, the row compares again and opens its issue,
+ * saying the record was for the old pin; when the stack moves, this moves in
+ * the same change (`a-pin-that-knows-it-is-behind` fails until it does).
+ * `null` when the stack follows Trigger.dev's pin again.
+ */
+export const CLICKHOUSE_INTENDED = {
+  ours: '26.3.62.3@sha256:de3e47c64078aa196dae2349e048fc98ba81947f651f5c20e06e46baea8ae40a',
+  theirs: '26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd',
+  why: "on purpose (workplan 0119 §3 item 9): Trigger.dev's 26.2 is out of ClickHouse's support and has no fix for CVE-2026-116366, and 26.3.62.3 is the nearest supported line that does",
+};
+
 export async function clickhouseRow(repo, net, trigger) {
   if (trigger?.state === 'error' || !trigger?.newest) throw new Error('the Trigger.dev row named no tag to read its compose file at');
   const repoName = 'clickhouse/clickhouse-server';
@@ -1054,14 +1078,34 @@ export async function clickhouseRow(repo, net, trigger) {
   }
   const pin = refText(ours[0]);
   const want = refText(theirs[0]);
+  const intended = CLICKHOUSE_INTENDED;
+  if (intended && pin === intended.ours && want === intended.theirs) {
+    return {
+      pin,
+      newest: want,
+      state: 'current',
+      shown: 'intended',
+      where: COMPOSE,
+      notes: [support, `differs from Trigger.dev's pin ${intended.why}`],
+      closing: `The stack differs from Trigger.dev's ClickHouse pin ${intended.why}. That difference is recorded (\`CLICKHOUSE_INTENDED\` in \`scripts/idp-pin-watch.mjs\`), for this pair only: the stack's ${pin} against Trigger.dev's ${want}. Either moving opens this again.`,
+    };
+  }
+  // A record that names the stack's pin but not Trigger.dev's: upstream moved under it.
+  const recorded = intended && pin === intended.ours ? intended.theirs : undefined;
   const body = [
     `The stack runs ClickHouse **${pin}** (\`${COMPOSE}\`), and Trigger.dev **${trigger.newest}**'s own \`docker/docker-compose.yml\` pins **${want}**.`,
     '',
     `${support}.`,
+    ...(recorded
+      ? [
+          '',
+          `The stack differs from Trigger.dev's pin ${intended.why}. That was recorded against Trigger.dev's **${recorded}**, and Trigger.dev now pins ${want}, so the record no longer holds: read what upstream moved to, then follow it, or record the difference again (\`CLICKHOUSE_INTENDED\` in \`scripts/idp-pin-watch.mjs\`, and workplan 0119 §3 item 9).`,
+        ]
+      : []),
     '',
-    "Trigger.dev's ClickHouse migrations are written against the ClickHouse its own compose file pins, and the v4.5.12 upgrade crash-looped on one it did not expect (docs/managed-bring-up.md, *Upgrading Trigger.dev*). So this pin follows upstream's, tag and digest, with the Trigger.dev move or in a pull request of its own, proven by E2E (managed) on its branch, and live takes it from a release tag. ClickHouse's data moves forward only.",
+    "Trigger.dev's ClickHouse migrations are written against the ClickHouse its own compose file pins, and the v4.5.12 upgrade crash-looped on one it did not expect (docs/managed-bring-up.md, *Upgrading Trigger.dev*). So this pin follows upstream's, tag and digest, with the Trigger.dev move or in a pull request of its own, proven by E2E (managed) on its branch, and live takes it from a release tag. ClickHouse's data moves forward only: *Moving ClickHouse* in docs/managed-bring-up.md copies the volume first.",
     '',
-    'This issue stays open while the two differ, also when the stack differs on purpose; record that decision in workplan 0119 §3. It is kept by `.github/workflows/idp-pin-watch.yml`.',
+    'This issue stays open while the two differ, unless the difference is recorded as intended for this exact pair (`CLICKHOUSE_INTENDED`, with its decision in workplan 0119 §3). It is kept by `.github/workflows/idp-pin-watch.yml`.',
   ].join('\n');
   return {
     pin,

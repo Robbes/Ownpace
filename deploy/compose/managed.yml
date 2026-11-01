@@ -539,11 +539,24 @@ services:
   #
   # `bitnamilegacy` is what its name says: Bitnami stopped publishing there,
   # and its newest ClickHouse is 25.7.5. It can never reach what upstream
-  # needs, so this follows THEIR pin exactly — same image, same digest, as
+  # needs, so this followed THEIR pin exactly — same image, same digest, as
   # read from trigger.dev's own docker/docker-compose.yml at v4.5.12. What
   # they test against is the only version this stack has evidence about.
+  #
+  # AHEAD OF THEIR PIN ON PURPOSE: option 1 of workplan 0119 §3 item 9, which
+  # lands only on the owner's decision there. Trigger.dev v4.8.3 still pins
+  # 26.2.19.43, a line ClickHouse no longer
+  # supports, and CVE-2026-116366 (critical: code execution with no password)
+  # has no 26.2 fix. 26.3.62.3 is the nearest supported line that carries it.
+  # Read against v4.8.3's 56 migrations, its queries and the settings it
+  # passes before the move (docs/managed-bring-up.md, "Moving ClickHouse"): no
+  # incompatibility reaches them. The data moves ONE WAY: 26.3 writes parts
+  # 26.2 cannot read (Trigger.dev's JSON and Array columns), so the way back
+  # is the volume copy taken first. The pin watch records the difference
+  # (CLICKHOUSE_INTENDED in scripts/idp-pin-watch.mjs) and says so again when
+  # either side moves.
   clickhouse:
-    image: clickhouse/clickhouse-server:26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd
+    image: clickhouse/clickhouse-server:26.3.62.3@sha256:de3e47c64078aa196dae2349e048fc98ba81947f651f5c20e06e46baea8ae40a
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-clickhouse
     restart: unless-stopped
     logging: *logging

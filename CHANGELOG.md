@@ -57,6 +57,21 @@ notices.
 
 ### Security
 
+- **ClickHouse 26.3.62.3, the first release on a supported line with the fix
+  for CVE-2026-116366** (critical: code execution on the server for anybody
+  who reaches it, with no password; workplan 0119 §3 item 9, option 1, which
+  merges only on the owner's decision there). The managed stacks ran
+  26.2.19.43, the ClickHouse Trigger.dev v4.8.3 pins, on a line ClickHouse no
+  longer supports and which gets no fix. `managed.yml` pins
+  `clickhouse/clickhouse-server:26.3.62.3` by its index digest (amd64 and
+  arm64), ahead of Trigger.dev's pin on purpose. Read before the move: every
+  backward-incompatible change of 26.3 and its patches against Trigger.dev's
+  56 migrations, its queries and the settings it passes, and the three files
+  mounted into `config.d`; none reaches them. The move is one way (26.3 writes
+  parts 26.2 cannot read), so each stack copies ClickHouse's volume first
+  (`docs/managed-bring-up.md`, *Moving ClickHouse*), live by hand: the copy
+  before an update holds no volume.
+
 - **The Windows payload's `node.exe` is checked against a SHA-256 committed in
   this repository, and that sum is the one the Node.js release was signed
   with** (workplan 0119 §2.5): the build fetched `node.exe` and the
@@ -214,6 +229,17 @@ notices.
   smoke asks ClickHouse from both sides.
 
 ### Changed
+
+- **The pin watch can record a difference from Trigger.dev's ClickHouse pin as
+  intended**, for one exact pair of tag and digest (`CLICKHOUSE_INTENDED`):
+  its row then reads `intended`, with the reason, and keeps no issue open,
+  until either side moves. It kept an issue open for any difference, a
+  deliberate one included.
+- **`deploy-live.sh` calls a tag that moves the ClickHouse pin one-way**, names
+  the move, and says the copy before the update holds no ClickHouse volume. It
+  called such a tag reversible, and going back to it would have started the
+  older ClickHouse on parts it cannot read. The operator runbook's rollback
+  restores the volume first.
 
 - **Everything runs Node 26, the LTS line since 2026-10-28** (workplan 0119,
   the owner's decision of 2026-10-31; supersedes #1754 and Dependabot's

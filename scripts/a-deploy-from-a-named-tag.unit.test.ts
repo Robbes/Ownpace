@@ -96,9 +96,12 @@
  *   no statement it sends the database writes anything.
  *
  *   It calls a one-way deploy reversible. A migration file added to either
- *   chain, or a Trigger.dev or identity-provider pin moved in `managed.yml`,
- *   since the tag that is running, makes it one-way; neither makes it
- *   reversible (0146 T5). "The tag that is running" is the last deploy the
+ *   chain, or a Trigger.dev, identity-provider or ClickHouse pin moved in
+ *   `managed.yml`, since the tag that is running, makes it one-way; none makes
+ *   it reversible (0146 T5). ClickHouse joined on 2026-11-01 (0119 §3 item 9):
+ *   26.3 writes parts 26.2 cannot read, the verdict called a tag that moved
+ *   only that pin reversible, and the copy before the update holds no
+ *   ClickHouse volume, which it now says when that pin moves. "The tag that is running" is the last deploy the
  *   log says took. It is not the only thing compared: a deploy that did not
  *   take since may have run its bring-up, and its API applies its migrations
  *   when it starts, so going back to the running tag after one is one-way too
@@ -554,6 +557,8 @@ interface Release {
   trigger?: string;
   /** Move the identity provider's pin in managed.yml to this version. */
   zitadel?: string;
+  /** Move ClickHouse's pin in managed.yml to this tag (the digest stays; the verdict reads the line). */
+  clickhouse?: string;
   /** Tag it without -a. */
   lightweight?: boolean;
   /** Push the tag to origin (default true). */
@@ -702,11 +707,13 @@ function pathWithoutNode(s: Stage): string {
  * have had: ghcr's image, or the build here since 0146 T16
  * (`localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v…}-<hash>`).
  */
-function movePin(yml: string, which: 'trigger' | 'zitadel', to: string): string {
+function movePin(yml: string, which: 'trigger' | 'zitadel' | 'clickhouse', to: string): string {
   const moved =
     which === 'trigger'
       ? yml.replace(/((?:ghcr\.io\/triggerdotdev|localhost)\/(?:trigger\.dev|supervisor):\$\{TRIGGER_IMAGE_TAG:-)v[0-9.]+\}/g, `$1${to}}`)
-      : yml.replace(/(ghcr\.io\/zitadel\/zitadel:)v[0-9.]+/g, `$1${to}`);
+      : which === 'zitadel'
+        ? yml.replace(/(ghcr\.io\/zitadel\/zitadel:)v[0-9.]+/g, `$1${to}`)
+        : yml.replace(/(clickhouse\/clickhouse-server:)[0-9.]+/g, `$1${to}`);
   if (moved === yml) throw new Error(`managed.yml carries no ${which} pin this fixture knows how to move`);
   return moved;
 }
@@ -789,6 +796,7 @@ function stage(opts: StageOptions = {}): Stage {
     let yml = readFileSync(join(r.builtTrigger ? COMPOSE_DIR : compose, 'managed.yml'), 'utf8');
     if (r.trigger) yml = movePin(yml, 'trigger', r.trigger);
     if (r.zitadel) yml = movePin(yml, 'zitadel', r.zitadel);
+    if (r.clickhouse) yml = movePin(yml, 'clickhouse', r.clickhouse);
     if (r.triggerBuild) yml = moveTriggerBuild(yml);
     if (r.noTriggerPin) {
       // Every image line that carries the version default, in either form.
@@ -2166,6 +2174,7 @@ describe('before the hold is lifted it says whether the deploy can be undone (01
     ['a migration file in the managed chain', { ...NEXT, managed: '0002_a_table.sql' }, /packages\/managed\/migrations\/0002_a_table\.sql/],
     ['the Trigger.dev pin moved', { ...NEXT, trigger: 'v4.9.9' }, /Trigger\.dev[\s\S]*v4\.9\.9/],
     ['the identity provider pin moved', { ...NEXT, zitadel: 'v4.99.1' }, /identity provider[\s\S]*v4\.99\.1/],
+    ['the ClickHouse pin moved', { ...NEXT, clickhouse: '26.99.1.1' }, /moves the ClickHouse pin in managed\.yml: clickhouse\/clickhouse-server:[0-9.]+@sha256:[0-9a-f]{64} -> clickhouse\/clickhouse-server:26\.99\.1\.1@/],
   ];
 
   it.each(ONE_WAY)(
@@ -2178,6 +2187,10 @@ describe('before the hold is lifted it says whether the deploy can be undone (01
       expect(r.out).not.toMatch(/\breversible\b/);
       expect(r.out).toMatch(names);
       expect(deployLines(s)[0]!.split('\t')[4]).toBe('one-way');
+      // The copy before the update holds no ClickHouse volume (0119 §3 item 9): said when, and only when, that pin moved.
+      const handCopy = /That copy holds no ClickHouse volume, and this tag moves the ClickHouse pin: copy the volume by hand before this deploy/;
+      if (release.clickhouse) expect(r.out).toMatch(handCopy);
+      else expect(r.out).not.toMatch(handCopy);
     },
     CASE_MS,
   );

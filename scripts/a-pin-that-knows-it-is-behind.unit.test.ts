@@ -58,6 +58,17 @@
  * newest commit with the blob id, and is held here to the module's own pin,
  * to the committed file, and to never reading a pin or an answer it cannot
  * parse as current.
+ *
+ * A CLICKHOUSE AHEAD OF TRIGGER.DEV'S ON PURPOSE (workplan 0119 §3 item 9,
+ * option 1, 2026-11-01). The ClickHouse row kept an issue open "also when the
+ * stack differs on purpose", so moving to 26.3.62.3 for CVE-2026-116366, while
+ * Trigger.dev still pins 26.2.19.43, would have kept a nag open that nobody
+ * could act on, until it read as noise. `CLICKHOUSE_INTENDED` records the
+ * difference for one exact pair, tag and digest on both sides: the row reads
+ * `intended` and opens nothing while both hold, and compares again, naming the
+ * record, the moment either moves. This holds that the record names
+ * managed.yml's own pin, that managed.yml's comment names it, and each of
+ * those three cases.
  */
 
 import { afterAll, describe, it, expect } from 'vitest';
@@ -105,6 +116,7 @@ import {
   builtImage,
   builtNote,
   channelNote,
+  CLICKHOUSE_INTENDED,
   clickhouseRow,
   clickhouseSupport,
   compareTags,
@@ -596,10 +608,16 @@ describe("ClickHouse, against what Trigger.dev's own compose pins", () => {
   });
 
   it('is current when upstream pins the same tag and digest, whatever SECURITY.md says', async () => {
-    const net = fakeNet({ text: [upstream(ours.ref), [/SECURITY\.md$/, security]] });
-    const row = await clickhouseRow(REAL, net, trigger);
-    expect(row.state).toBe('current');
-    expect(row.notes?.[0]).toMatch(/is not supported/);
+    const line = ours.tag.split('.').slice(0, 2).join('.');
+    const unsupported = security.replace(new RegExp(`^\\| ${line.replace('.', '\\.')} \\| ✔️ \\|$`, 'm'), `| ${line} | ❌ |`);
+    expect(unsupported).not.toBe(security);
+    for (const [md, said] of [[security, 'is supported'], [unsupported, 'is not supported']] as const) {
+      const net = fakeNet({ text: [upstream(ours.ref), [/SECURITY\.md$/, md]] });
+      const row = await clickhouseRow(REAL, net, trigger);
+      expect(row.state).toBe('current');
+      expect(row.shown).toBeUndefined();
+      expect(row.notes?.[0]).toContain(`ClickHouse ${line} ${said}`);
+    }
   });
 
   it('differs when upstream moved, and says the support line and the route in the issue', async () => {
@@ -607,8 +625,64 @@ describe("ClickHouse, against what Trigger.dev's own compose pins", () => {
     const row = await clickhouseRow(REAL, net, trigger);
     expect(row.state).toBe('behind');
     expect(row.body).toContain(`pins **26.8.1.1@sha256:${'1'.repeat(64)}**`);
-    expect(row.body).toContain('ClickHouse 26.2 is not supported');
+    expect(row.body).toContain(`ClickHouse ${ours.tag.split('.').slice(0, 2).join('.')} is supported`);
     expect(row.body).toMatch(/E2E \(managed\) on its branch/);
+    expect(row.body).toContain('*Moving ClickHouse*');
+  });
+
+  // 0119 §3 item 9, option 1 (2026-11-01): ahead of Trigger.dev's 26.2 on purpose.
+  const intended = CLICKHOUSE_INTENDED!;
+  const recordedPair = fakeNet({ text: [upstream(`clickhouse/clickhouse-server:${intended.theirs}`), [/SECURITY\.md$/, security]] });
+
+  it("records the difference for the pin managed.yml carries, so the two move together, and managed.yml's comment names it", () => {
+    expect(intended).not.toBeNull();
+    expect(`${ours.tag}@${ours.digest}`).toBe(intended.ours);
+    expect(intended.theirs).not.toBe(intended.ours);
+    expect(intended.why).toMatch(/0119 §3 item 9/);
+    // The comment above the image line is where a reader of the pin learns it is ahead on purpose.
+    const above = MANAGED.slice(0, MANAGED.indexOf(`clickhouse/clickhouse-server:${intended.ours}`));
+    expect(above.slice(above.lastIndexOf('\n  clickhouse:') - 1500)).toContain('CLICKHOUSE_INTENDED');
+  });
+
+  it('is intended, not behind, while the stack and Trigger.dev pin exactly the recorded pair: no issue, the reason as a note', async () => {
+    const row = await clickhouseRow(REAL, recordedPair, trigger);
+    expect(row.state).toBe('current');
+    expect(row.shown).toBe('intended');
+    expect(row.notes?.[0]).toMatch(/^ClickHouse 26\.3 is supported/);
+    expect(row.notes?.[1]).toMatch(/differs from Trigger\.dev's pin on purpose \(workplan 0119 §3 item 9\)/);
+    // An issue left open from before the record is closed, saying why; none is opened.
+    const { gh, calls } = fakeGh([{ number: 41, title: TITLES.clickhouse, body: 'old', state: 'open' }]);
+    expect(keepIssue(row, gh, TITLES.clickhouse)).toBe('closed');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.slice(0, 3)).toEqual(['issue', 'close', '41']);
+    expect(calls[0]!.at(-1)).toMatch(/on purpose[\s\S]*CLICKHOUSE_INTENDED[\s\S]*Either moving opens this again/);
+    const none = fakeGh([]);
+    expect(keepIssue(row, none.gh, TITLES.clickhouse)).toBe('untouched');
+    expect(none.calls).toEqual([]);
+    // The table says intended, never current, with the reason under it.
+    const shown = table({ issues: [{ ...row, key: 'clickhouse', name: 'ClickHouse' }], routine: [], status: [] });
+    expect(shown).toMatch(/^ClickHouse\s+26\.3\.62\.3@sha256:de3e47c6…\s+26\.2\.19\.43@sha256:c2f26055…\s+intended$/m);
+    expect(shown).toMatch(/differs from Trigger\.dev's pin on purpose/);
+  });
+
+  it('compares again when Trigger.dev moves under the record, and says the record was for its old pin', async () => {
+    const moved = `26.3.70.1@sha256:${'2'.repeat(64)}`;
+    const net = fakeNet({ text: [upstream(`clickhouse/clickhouse-server:${moved}`), [/SECURITY\.md$/, security]] });
+    const row = await clickhouseRow(REAL, net, trigger);
+    expect(row.state).toBe('behind');
+    expect(row.shown).toBeUndefined();
+    expect(row.body).toContain(`recorded against Trigger.dev's **${intended.theirs}**`);
+    expect(row.body).toContain(`Trigger.dev now pins ${moved}, so the record no longer holds`);
+  });
+
+  it('holds for the recorded pin alone: another stack pin against the same upstream is behind, with no word of a record', async () => {
+    const other = `26.3.99.9@sha256:${'3'.repeat(64)}`;
+    const yml = MANAGED.replace(`clickhouse/clickhouse-server:${intended.ours}`, `clickhouse/clickhouse-server:${other}`);
+    expect(yml).not.toBe(MANAGED);
+    const row = await clickhouseRow(withFiles({ [COMPOSE]: yml }), recordedPair, trigger);
+    expect(row.state).toBe('behind');
+    expect(row.shown).toBeUndefined();
+    expect(row.body).not.toContain('recorded against');
   });
 
   it('reads nothing when the Trigger.dev row named no tag', async () => {

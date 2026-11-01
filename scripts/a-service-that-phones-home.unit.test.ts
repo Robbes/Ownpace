@@ -62,11 +62,17 @@
  *    release has carried the ping (read at v4.0.0, v4.6.2 and v4.17.1), so the
  *    OTA stack's provider has sent it since it first started, as far as the
  *    machine let it out.
- *  - CLICKHOUSE (26.2.19.43) sends a crash report, and a report on a logical
+ *  - CLICKHOUSE (26.3.62.3) sends a crash report, and a report on a logical
  *    error, to `https://crash.clickhouse.com/`: the `config.xml` the image
- *    ships (`programs/server/config.xml` at `v26.2.19.43-stable`) sets
- *    `send_crash_reports.enabled` true, although the code's own default is
- *    false (`src/Daemon/CrashWriter.cpp`). A file in `config.d` turns it off,
+ *    ships sets `send_crash_reports.enabled` true, although the code's own
+ *    default is false (`src/Daemon/CrashWriter.cpp`). Read at
+ *    `v26.2.19.43-stable`, and again for 26.3.62.3 on 2026-11-01 (workplan 0119
+ *    §3 item 9): that release has no public tag, so the `config.xml` was read
+ *    out of the image itself, and is byte for byte `v26.3.60.2-lts`'s, whose
+ *    `CrashWriter.cpp`, `BaseDaemon.cpp` and `ConfigProcessor.cpp` read the
+ *    keys and merge `config.d` as 26.2.19.43's did, and the URLs it names
+ *    outside comments are 26.2.19.43's, the same eight. A file in `config.d`
+ *    turns it off,
  *    and it must be the only file ClickHouse merges that speaks of crash
  *    reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d`
  *    and `conf.d`, in sorted order, so a later one wins
@@ -570,7 +576,7 @@ interface Row {
 const TRIGGER_WEBAPP = 'ghcr.io/triggerdotdev/trigger.dev:v4.8.3';
 const ZITADEL = 'ghcr.io/zitadel/zitadel:v4.20.0';
 const CLICKHOUSE =
-  'clickhouse/clickhouse-server:26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd';
+  'clickhouse/clickhouse-server:26.3.62.3@sha256:de3e47c64078aa196dae2349e048fc98ba81947f651f5c20e06e46baea8ae40a';
 /**
  * Chainguard's MinIO (0146 T7): `latest` by the index digest it had on
  * 2026-10-30, taken 2026-10-31 under the floor's security-fix exception
@@ -651,7 +657,8 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
   'deploy/compose/managed.yml:clickhouse': {
     readAt: CLICKHOUSE,
     why:
-      'crash and logical-error reports to crash.clickhouse.com (programs/server/config.xml at v26.2.19.43-stable); ' +
+      'crash and logical-error reports to crash.clickhouse.com (programs/server/config.xml at v26.2.19.43-stable, ' +
+      "and the image's own for 26.3.62.3, byte for byte v26.3.60.2-lts's); " +
       'since 2026-11-01 also on an internal network only, with no route out (a-store-every-container-could-reach)',
     holds: (svc, entry) => {
       const { files, problems } = clickhouseMerged(svc, entry.file);
