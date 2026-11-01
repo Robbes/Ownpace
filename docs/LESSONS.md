@@ -883,6 +883,7 @@ reading a file drops off its entry by itself.
 - [a-pull-that-never-came-back](../scripts/a-pull-that-never-came-back.unit.test.ts) — A PULL THAT NEVER CAME BACK (live's deploy of alpha.2, 2026-10-28).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
+- [a-sign-in-button-added-by-hand](../scripts/a-sign-in-button-added-by-hand.unit.test.ts) — A SIGN-IN BUTTON ADDED BY HAND (workplan 0140 T10, the follow-up its Status of 2026-10-21 left open).
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
@@ -923,6 +924,7 @@ reading a file drops off its entry by itself.
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-search-kept-past-its-year](../scripts/a-search-kept-past-its-year.unit.test.ts) — A SEARCH KEPT PAST ITS YEAR (privacy §4.5 and §9; the owner's privacy-search-records (a), 2026-09-28: 12 months).
+- [a-sign-in-button-added-by-hand](../scripts/a-sign-in-button-added-by-hand.unit.test.ts) — A SIGN-IN BUTTON ADDED BY HAND (workplan 0140 T10, the follow-up its Status of 2026-10-21 left open).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 
@@ -969,6 +971,7 @@ reading a file drops off its entry by itself.
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-pull-that-never-came-back](../scripts/a-pull-that-never-came-back.unit.test.ts) — A PULL THAT NEVER CAME BACK (live's deploy of alpha.2, 2026-10-28).
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
+- [a-sign-in-button-added-by-hand](../scripts/a-sign-in-button-added-by-hand.unit.test.ts) — A SIGN-IN BUTTON ADDED BY HAND (workplan 0140 T10, the follow-up its Status of 2026-10-21 left open).
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-tag-that-already-pointed-elsewhere](../scripts/a-tag-that-already-pointed-elsewhere.unit.test.ts) — A TAG THAT ALREADY POINTED ELSEWHERE: a release tag is what `deploy-live.sh` trusts, and the workflow that cuts it has to know, at the moment it cuts it, that the name is free or already its own at the same commit, and that what it prove…
@@ -1090,6 +1093,7 @@ reading a file drops off its entry by itself.
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
+- [a-sign-in-button-added-by-hand](../scripts/a-sign-in-button-added-by-hand.unit.test.ts) — A SIGN-IN BUTTON ADDED BY HAND (workplan 0140 T10, the follow-up its Status of 2026-10-21 left open).
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
@@ -1159,6 +1163,7 @@ reading a file drops off its entry by itself.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
+- [a-sign-in-button-added-by-hand](../scripts/a-sign-in-button-added-by-hand.unit.test.ts) — A SIGN-IN BUTTON ADDED BY HAND (workplan 0140 T10, the follow-up its Status of 2026-10-21 left open).
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
@@ -1428,6 +1433,7 @@ reading a file drops off its entry by itself.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 - [a-second-factor-for-the-keys](../scripts/a-second-factor-for-the-keys.unit.test.ts) — A SECOND FACTOR OFFERED, AND A LOCK AFTER TEN WRONG PASSWORDS (workplan 0135 T4).
+- [a-sign-in-button-added-by-hand](../scripts/a-sign-in-button-added-by-hand.unit.test.ts) — A SIGN-IN BUTTON ADDED BY HAND (workplan 0140 T10, the follow-up its Status of 2026-10-21 left open).
 - [a-sign-in-page-in-our-own-words](../scripts/a-sign-in-page-in-our-own-words.unit.test.ts) — A SIGN-IN PAGE IN OUR OWN WORDS (workplan 0135 T6): the languages, and the mails.
 - [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts) — AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
@@ -1517,6 +1523,7 @@ reading a file drops off its entry by itself.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
+- [a-sign-in-button-added-by-hand](../scripts/a-sign-in-button-added-by-hand.unit.test.ts) — A SIGN-IN BUTTON ADDED BY HAND (workplan 0140 T10, the follow-up its Status of 2026-10-21 left open).
 - [a-sign-in-page-in-our-own-words](../scripts/a-sign-in-page-in-our-own-words.unit.test.ts) — A SIGN-IN PAGE IN OUR OWN WORDS (workplan 0135 T6): the languages, and the mails.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
@@ -1538,6 +1545,7 @@ reading a file drops off its entry by itself.
 - [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts) — A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
+- [a-sign-in-button-added-by-hand](../scripts/a-sign-in-button-added-by-hand.unit.test.ts) — A SIGN-IN BUTTON ADDED BY HAND (workplan 0140 T10, the follow-up its Status of 2026-10-21 left open).
 - [a-sign-in-page-in-our-own-words](../scripts/a-sign-in-page-in-our-own-words.unit.test.ts) — A SIGN-IN PAGE IN OUR OWN WORDS (workplan 0135 T6): the languages, and the mails.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
@@ -5257,6 +5265,21 @@ Reads:
 - `docs/managed-bring-up.md`
 - `docs/stalwart-integration-fix.md`
 - `scripts/a-demo-on-a-real-address.unit.test.ts`
+
+### [a-sign-in-button-added-by-hand](../scripts/a-sign-in-button-added-by-hand.unit.test.ts)
+
+A SIGN-IN BUTTON ADDED BY HAND (workplan 0140 T10, the follow-up its Status of 2026-10-21 left open).
+
+Reads:
+
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/box-duties.sh`
+- `deploy/compose/deploy-live.sh`
+- `deploy/compose/env-upsert.sh`
+- `deploy/compose/managed.env.example`
+- `deploy/compose/setup-zitadel.sh`
+- `deploy/compose/stack-kind.sh`
+- `deploy/compose/stand-up-live.sh`
 
 ### [a-sign-in-in-front-of-the-front-door](../scripts/a-sign-in-in-front-of-the-front-door.unit.test.ts)
 
