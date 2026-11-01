@@ -569,14 +569,17 @@ const CLICKHOUSE =
   'clickhouse/clickhouse-server:26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd';
 /**
  * Chainguard's MinIO (0146 T7): `latest` by the index digest it had on
- * 2026-10-25, taken 2026-10-28. Its server is the fork's
- * `RELEASE.2026-10-23T20-06-51Z`, whose cmd/ and internal/ are those of
+ * 2026-10-30, taken 2026-10-31 under the floor's security-fix exception
+ * (CVE-2026-116587, 0119 Status). Its server is the fork's
+ * `RELEASE.2026-10-23T20-06-51Z` at the same commit as the digest before it,
+ * Wolfi's rebuilds -r1 and -r2 moving Go modules alone (go-jose 4.1.6,
+ * golang.org/x/net 0.62.0); its cmd/ and internal/ are those of
  * `RELEASE.2026-09-22T19-25-18Z`, read at that tag of `chainguard-forks/minio`
  * (the two differ in go.mod, go.sum and a CI workflow alone); its mc is
  * `RELEASE.2025-08-13T08-35-41Z`.
  */
 const MINIO =
-  'chainguard/minio:latest@sha256:268d68a2a3b6fc65f905a61f84d7eab6345ce6bff14f551e2b028ec31e6a1341';
+  'chainguard/minio:latest@sha256:3b6e40c30ecd5cea627e382ff0b82ca841f58c52294578787043ee80c8ef7c82';
 const MAILPIT =
   'axllent/mailpit:v1.32.0@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498';
 /**
