@@ -84,6 +84,13 @@ updates:
   # `image:tag@sha256:…`: Dependabot compares tags and moves the digest with the
   # tag, and a bare digest has no version to compare. Minor+patch grouped; a
   # major (a new Node line) is its own PR, because `engines` and CI must follow.
+  # A new Node VERSION in apps/selfhost/Dockerfile (a patch too, never a
+  # digest-only move) is also the Windows payload's node.exe, whose sums are
+  # committed (workplan 0119 §2.5, 2026-11-01), and this cannot move them:
+  # `a-runtime-only-its-own-host-vouched-for` fails the pull request until the
+  # release's signed SHASUMS256.txt and .sig and the two node.exe sums are
+  # pushed to it (scripts/package-appliance.mjs, above NODE_RUNTIME_SHA256, and
+  # docs/windows-appliance-runbook.md give the commands).
   - package-ecosystem: docker
     directories:
       - "/apps/api"
