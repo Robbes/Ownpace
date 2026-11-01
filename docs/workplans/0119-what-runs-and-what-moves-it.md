@@ -2,7 +2,7 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-10-31 (update this block at the end of every session)
+## Status — 2026-11-01 (update this block at the end of every session)
 
 **2026-10-31, late evening: Node 26 everywhere, in alpha.4 (§3 item 7, taken; the owner:
 *"Node 26 in alpha.4, engines to 26, accept HTTP/2"*).** On the branch
@@ -50,11 +50,24 @@ maintenance until 2028-04-30, so nothing forced the move, and the owner chose to
   and 24 over HTTP/1.1; `login.microsoftonline.com` agrees no protocol (HTTP/1.1 stays),
   Google's OAuth and API hosts accept h2, and Graph, Dropbox, Box and the DNS-over-HTTPS
   resolvers were not reachable from that session. A 128 MiB streamed upload held the same
-  memory over h2. The tenant-host path is unchanged (its own undici dispatcher forces
-  HTTP/1.1). Over h2 a response has no reason phrase, so `dns-verify-only.ts`'s
-  `HTTP <status>: <statusText>` error loses its text; cosmetic. The owner accepted the
-  default; no global dispatcher sets `allowH2: false`. The o365 lane and E2E (managed) are
-  where it is proven against real providers.
+  memory over h2. The tenant-host path does not change with Node, and it was already h2:
+  it runs the undici of our own lockfile (8.12.3), whose `Dispatcher1Wrapper` sets
+  `allowH2: false` per request, but the connector `buildConnector({})` builds reads only its
+  own default, true, so its TLS offers h2 and the client speaks what the server picks
+  (measured 2026-11-01 with `tenantFetch` and the rule on, against a loopback server that
+  prefers h2: HTTP/2 on 24.22.1 and on 26.13.0; the impact report and this entry had said it
+  forced HTTP/1.1, and `buildConnector({ allowH2: false })` is what would). Over h2 a
+  response has no reason phrase: `dns-verify-only.ts`'s `HTTP <status>: <statusText>` error
+  loses its text (cosmetic), and the o365 lane's Graph errors, which said `statusText` alone,
+  now carry the status and Graph's own code and message (`graphApiError` in
+  `test/e2e/o365-scenario.ts`). The owner accepted the default; no global dispatcher sets
+  `allowH2: false`. **No gate proves h2 against those providers through the product.**
+  E2E (managed) builds Google's, Dropbox's and Microsoft's consent URLs from placeholder
+  clients and never opens them, nothing reaches Box, and the o365 lane reaches Graph through
+  its own `fetch` and `@azure/msal-node`, never the product's Graph, Google Drive, Dropbox or
+  Box sources. So the product's first h2 traffic to Google, Dropbox and Box, and its Graph
+  connectors' on 26, is a migration on live after the alpha.4 deploy (0131 records the owner
+  step that makes the first one the owner's own).
 - **One `ExperimentalWarning` per process that loads the Trigger.dev SDK.** `@electric-sql/client`
   1.0.14 (under `@trigger.dev/sdk`) reads `localStorage` at load, and Node 26 warns
   *"localStorage is not available because --localstorage-file was not provided"*: once in
@@ -83,11 +96,33 @@ maintenance until 2028-04-30, so nothing forced the move, and the owner chose to
   schedule), the first lint on 26 cold in 1 min 43 s with the 4 GB heap, integration on
   ubuntu-24.04 and ubuntu-24.04-arm; images.yml built api, web and selfhost on linux/amd64,
   its log showing `npm install -g --omit=dev corepack@0.36.0` add 1 package and corepack
-  fetch pnpm 11.28.9; windows-payload run 41250312341 fetched node.exe v26.13.0 (95.5 MB) and
+  fetch pnpm 11.28.9; windows-payload run 41250312341 fetched node.exe v26.13.0 (95.5 MiB, 100.1 MB) and
   uploaded `ownpace-appliance-win-x64-20cfed4a…` (50.8 MB zipped; the owner's Windows 11
   check of it is owed); Security Scan with `image_scans`, run 41250313842, read the tasks'
   base built from the branch, `node:26.13.0-trixie-slim` with the config's layer, at Debian
   13.7, 0 critical, 43 high, none with a fix: the figures of the 24.22.1 base it replaces.
+- **Review, 2026-11-01, on #1767.** (1) Nothing held `engines`: `>=24` passed every guard
+  beside images on 26. `a-gate-on-a-version-nothing-ships` now holds it to `>=<the images'
+  major>` (mutation-checked: `>=24`, `26` and no `engines` each fail it). (2) Four jobs ran
+  Node before any `setup-node`, on the runner image's default: ci.yml's `commit-convention`
+  and images.yml's `build` had none, and the release checks of `security-scan` and
+  windows-payload's `build` ran before theirs. Each now sets up 26 first (the three release
+  checks' before the checkout, since the check must come straight after it; images.yml's on
+  a tag only, the one run that calls Node there), and the same guard fails a step that runs
+  `node`, `pnpm`, `npm` or `npx` with no `setup-node` before it in its job. (3) The host
+  steps in `managed-bring-up.md`: the tarball runs in a subshell that stops at a checksum
+  that does not match, before anything is removed (tried with a stand-in prefix and a
+  wrong checksum: `FAILED`, nothing removed); fnm's own verbs (`fnm default 26`); a
+  distribution `nodejs` package, removed and replaced by NodeSource's own setup script or
+  the tarball; Volta named as not covered; pnpm at `packageManager`'s version; NodeSource's
+  `node_26.x` stated from its `setup_26.x`; and the deploy's `Unsupported engine` warning
+  no longer called a stop, since the deploy goes straight on to the rebuild. (4) The
+  tenant-host comment in `reachable-host.ts`, and the HTTP/2 bullet above, said that path
+  stayed on HTTP/1.1; measured, it does not, and has not on 24 either. (5) The o365 lane's
+  Graph errors carry the status and Graph's words. (6) `node:24-alpine` in
+  `dropbox-native-inventory.mjs`'s usage line is `node:26-alpine`. Not changed: the
+  distroless pin (its tag's newer digest is a tzdata rebuild inside its floor, the row
+  above) and `engineStrict`, the owner's to decide.
 - **Still owed on the pull request:** any arm64 image (E2E self-hosted builds and
   runs the selfhost image there; E2E managed builds the api and web there, deploys the tasks
   as `node-26` for the first time and runs the host steps on the runner's Node 26), the o365
@@ -1595,7 +1630,7 @@ is who moves it after T1.
 | Image | Where | Pinned | Newest | Distance | Moves by | Decision |
 |---|---|---|---|---|---|---|
 | `node` (26-trixie-slim since 2026-10-31; 24-trixie-slim from 0146 T12; 24-slim before) | `apps/api` (its build stage only, since 0146 T13), `apps/web`, `apps/selfhost` Dockerfiles; the managed tasks, which build on it (`apps/worker/trigger.config.ts`, 0146 T14, #1716); the Windows payload's node.exe follows `apps/selfhost` | 26.13.0-trixie-slim by index digest `e4db4c91…`, Debian 13.7 (2026-10-31, the move to Node 26: Status, 2026-10-31; 24.22.1-trixie-slim by `43b9ba11…` from 0146 T12, 2026-10-25; 24.22.1-slim, Debian 12.15, from 2026-10-21, the October security release; digest `6f7b03f7…` with no tag at the audit, 24.20.0-slim from T2) | 26.13.0-trixie-slim (Node 26.13.0 'Lithium', LTS from 2026-10-28; the tag's index pushed 2026-10-28 23:41 UTC); the tag's digest moves as more architectures land (ppc64le at 17:39 UTC on 2026-10-21) and Dependabot offers each move | current: the pin is the tag's index | Dependabot `docker`, which keeps the `-trixie-slim` suffix and moves the payload with it since 2026-10-21, minor and patch only; the major and the Debian release by hand (§2.4) | **T2** — and T1 gives it its tag; Debian 13, and no package manager in the api and selfhost runtimes, from 0146 T12; Node 26 from 2026-10-31, with corepack 0.36.0 from npm in the build stages (§2.4) |
-| `gcr.io/distroless/nodejs26-debian13` (`nonroot`; `nodejs24-debian13` until 2026-10-31) | `apps/api/Dockerfile`'s runtime stage, since 0146 T13 | the `nonroot` tag by index digest `a51c5d63…`, Debian 13 and Node 26.13.0, nodejs.org's binary byte for byte on amd64 and arm64 (uploaded 2026-10-28 21:35 UTC; taken 2026-10-31 with the `node` row's 26.13.0; `nodejs24-debian13` by `cb606325…`, Node 24.22.1, uploaded 2026-10-23 23:31 UTC, from 0146 T13) | the tag's index, as read 2026-10-31 22:30 UTC | current | Dependabot `docker`, digest moves only (the tag names no version); a new Node major or Debian is a new image name, by hand. Its Node version must be the `node` row's: the managed smoke stops otherwise | **0146 T13**: no shell, `printenv` or package manager, Node at `/nodejs/bin/node` off PATH; 0 critical and 0 high (Trivy 0.76.1, 2026-10-25) |
+| `gcr.io/distroless/nodejs26-debian13` (`nonroot`; `nodejs24-debian13` until 2026-10-31) | `apps/api/Dockerfile`'s runtime stage, since 0146 T13 | the `nonroot` tag by index digest `a51c5d63…`, Debian 13 and Node 26.13.0, nodejs.org's binary byte for byte on amd64 and arm64 (uploaded 2026-10-28 21:35 UTC; taken 2026-10-31 with the `node` row's 26.13.0; `nodejs24-debian13` by `cb606325…`, Node 24.22.1, uploaded 2026-10-23 23:31 UTC, from 0146 T13) | the tag's index, as read 2026-10-31 22:30 UTC; `nonroot` moved on to `9b945e92…` at 2026-10-31 23:45 UTC, a rebuild whose amd64 image differs only in the two tzdata layers (`tzdata`, `tzdata-legacy`; the Node layer `0036073a…` the same), past its floor at 2026-11-03 23:45 UTC, read 2026-11-01 | current: the tag's newest is a tzdata rebuild inside its floor | Dependabot `docker`, digest moves only (the tag names no version); a new Node major or Debian is a new image name, by hand. Its Node version must be the `node` row's: the managed smoke stops otherwise | **0146 T13**: no shell, `printenv` or package manager, Node at `/nodejs/bin/node` off PATH; 0 critical and 0 high (Trivy 0.76.1, 2026-10-25) |
 | `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.31.8-alpine-slim by digest `f45171d3…` (2026-10-25, 0146 T12a: the same nginx package and base layers as -alpine, without its dynamic modules, curl and the 51 packages they bring; 1.31.8-alpine `1ef7ca94…` from 2026-10-23, 1.31.7-alpine `892bb215…` the day before that, 1.27-alpine at the audit, 1.30-alpine from T2, `1.31-alpine` floating from #813, which no build or `up` ever pulled again) | 1.31.8-alpine-slim, its index pushed 2026-10-24 19:51 UTC to add riscv64 over the amd64 and arm64 images pushed 2026-10-22 01:50 UTC; 1.31.8 itself: four bug fixes and one change (changes.xml, 2026-10-21) on Alpine 3.24.3, which fixes the two high CVEs 1.31.7's image carries on 3.24.2 (libexpat CVE-2026-77214, libx11 CVE-2026-88806); 1.31.7 (2026-10-14) fixed five: CVE-2026-15176, CVE-2026-93479, CVE-2026-95101, CVE-2026-97629 and CVE-2026-97205 | current | Dependabot `docker` for the Dockerfile; `www.yml` by hand after it, and the pin watch (0146 T8) says when the two differ | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows; -alpine-slim since 2026-10-25 (0146 T12a), because nothing here loads what -alpine adds and the scan counts it |
 | `postgres` (self-host) | `deploy/selfhost/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `deploy/selfhost/compose.yml` since 0146 T15b (#1719, merged 2026-10-28, `fb0fea2e`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); since 2026-10-31 the build also takes brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions, the base's only findings once gosu is gone (Status, 2026-10-31) | 18.6-alpine by digest `10a5c69a…` (upstream's rebuild of 2026-10-26, the managed stacks' base too, since 2026-10-31, from Dependabot's #1744; `77f58511…` from its move of 2026-09-24 before that; `d3e1620b…` from T2, digest `9a8afca5…` = 18.4-alpine with no tag at the audit) | 18.6 (2026-08-13), newest digest `10a5c69a…`; 18.7 is due 2026-11-12 | current | Dependabot `docker` on `/deploy/selfhost/postgres` (its own entry, no major; `docker-compose` before T15b, which now ignores `localhost/postgres`), whose PR fails `a-database-started-as-root` until compose.yml's image line moves, and prints the `sed` that moves it; a base that already carries brotli-libs 1.2.1-r0 or libcurl 8.23.0-r0 fails the build until the RUN drops that package, and a version Alpine's mirror no longer serves fails it until the RUN's version moves, in a PR of its own | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
 | `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (#1717, merged 2026-10-28, `6f9af7f2`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); since 2026-10-31 the build also takes brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions, the base's only findings once gosu is gone (Status, 2026-10-31); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.6-alpine by digest `10a5c69a…` (upstream's rebuild of 2026-10-26, since 2026-10-31, from Dependabot's #1745; `898c60cb…` from 2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13), newest digest `10a5c69a…`; 18.7 is due 2026-11-12 | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and prints the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8); a base that already carries brotli-libs 1.2.1-r0 or libcurl 8.23.0-r0 fails the build until the RUN drops that package, and a version Alpine's mirror no longer serves fails it until the RUN's version moves, in a PR of its own | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
@@ -1663,7 +1698,9 @@ audit, 24.22.1 from 2026-10-21), the API's distroless runtime carries the same b
 tasks deploy as `node-26`, and the Windows payload ships the self-host image's version.
 The major moves by hand, all of it in one pull request, when the next LTS line is current
 (§3 item 7); `a-gate-on-a-version-nothing-ships` fails a pull request that leaves one pin
-behind. The next is 27, LTS from 2027-10-20 (nodejs/Release `schedule.json`); 26 is
+behind, `engines` among them (a case of its own since 2026-11-01: until then nothing read
+it), and fails a job that runs Node, pnpm, npm or npx before a `setup-node` step has named
+the major. The next is 27, LTS from 2027-10-20 (nodejs/Release `schedule.json`); 26 is
 maintained until 2029-04-30, and 24 until 2028-04-30.
 **corepack 0.36.0, from npm, in the three images' build stages** (since 2026-10-31): Node 25
 and later ship no corepack, so each stage built on the `node` image runs `npm install -g
@@ -1674,8 +1711,13 @@ updater no Dockerfile. It moves by hand, in all three at once
 `latest` for corepack is three days old and its `engines` admits the images' Node, or when
 the pnpm `packageManager` names needs a newer one. 0.36.0 is npm's `latest`, published
 2026-08-28, `engines` `^22.22.2 || ^24.15.0 || >=26.0.0`. A host (live's, the OTA stack's,
-a developer's) installs pnpm from npm instead (`npm install -g pnpm@11`), and on Linux needs
-`libatomic1`, which the official Node binaries link against since 25.
+a developer's) installs pnpm from npm instead, and on Linux needs `libatomic1`, which the
+official Node binaries link against since 25. Live's host and the OTA stack's take the
+`packageManager` version (`npm install -g "$(node -p "require('./package.json').packageManager")"`
+from the checkout): a bare `pnpm@11` took 11.28.10 on 2026-11-01, published 2026-10-30
+15:30 UTC and inside the floor, and the launcher is what then switches to the checkout's
+version. A developer's `npm install -g pnpm@11` (README, CONTRIBUTING) is left as it is:
+inside the checkout it switches itself to `packageManager`'s.
 pnpm 11.28.9 (11.22.0 at the audit), moved by hand: Dependabot never touches `packageManager`,
 so a bump is the newest pnpm 11 that is three days old (`latest-11` once it is), then
 `pnpm install` to show the lockfile unchanged. PostgreSQL 18 on both stacks; PGlite (npm) current. Prisma current.

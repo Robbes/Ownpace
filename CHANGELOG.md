@@ -47,13 +47,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   ships no corepack, so the images install corepack 0.36.0 from npm to bring
   pnpm. Node 26's fetch offers HTTP/2 to the servers it calls, and the owner
   accepted that: Google's APIs take it, Microsoft's sign-in stays on HTTP/1.1,
-  and an error's status text over HTTP/2 has no reason phrase. The API logs
+  and an error's status text over HTTP/2 has no reason phrase. No gate reaches
+  Google's APIs, Dropbox or Box through the product, and the Microsoft lane
+  reaches Graph through its own client, so a migration on live after this
+  release is the first to use HTTP/2 with them: the owner runs one from their
+  own accounts before inviting anyone. The API logs
   one `ExperimentalWarning` about `localStorage` at start, from a library the
   Trigger.dev SDK loads, and each task process is expected to; nothing behaves
   differently. **Before deploying this release, live's host needs Node 26,
-  `libatomic1` and pnpm installed from npm**: the deploy runs `pnpm install`,
-  the task deploy and the site build on the host's own Node, and pnpm only
-  warns when that Node is too old. The steps are in `managed-bring-up.md`,
+  `libatomic1` and pnpm installed from npm at `packageManager`'s version**:
+  the deploy runs `pnpm install`, the task deploy and the site build on the
+  host's own Node, and pnpm only warns when that Node is too old and the
+  deploy goes on, so the host is read before the deploy, not during it. The
+  steps are in `managed-bring-up.md`,
   *The deploy to alpha.4 needs Node 26 on the host first*. The first task
   deploy and the first CI lint after the move are slow, as nothing is cached
   for 26 yet. Nothing a stack's `.env` sets changes.

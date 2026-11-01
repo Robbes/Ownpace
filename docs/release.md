@@ -355,10 +355,12 @@ in [managed-bring-up.md](./managed-bring-up.md#updating-a-running-deployment),
 - [ ] **From `v0.2.0-alpha.4` on, live's host runs Node 26** (workplan 0119
       §2.4, the owner's decision of 2026-10-31), before the deploy: `node -v`
       says `v26.x`, `libatomic1` is installed, and `pnpm` is installed from
-      npm, since Node 26 ships no corepack. The script runs `pnpm install`,
+      npm at the version `package.json`'s `packageManager` names, since Node
+      26 ships no corepack. The script runs `pnpm install`,
       the task deploy and the site build on the host's Node, and pnpm only
-      warns (`Unsupported engine`) when that Node is below `engines`, so
-      nothing stops a host left on 24. The readings and the steps, for each way
+      warns (`Unsupported engine`) when that Node is below `engines`, and
+      goes straight on to the rebuild, so nothing stops a host left on 24:
+      the reading before the deploy is the check. The readings and the steps, for each way
       Node can be installed, are in
       [managed-bring-up.md](./managed-bring-up.md#the-deploy-to-alpha4-needs-node-26-on-the-host-first).
 - [ ] The tag is the one §2 made: annotated, on origin, and the root

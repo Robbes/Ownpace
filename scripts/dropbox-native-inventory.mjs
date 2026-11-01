@@ -40,7 +40,7 @@
  * a migration's token has. The appliance's three variables work too:
  * DROPBOX_APP_KEY, DROPBOX_APP_SECRET and DROPBOX_REFRESH_TOKEN. A host
  * without Node can run it in a container that has it, reading the script
- * from stdin: `docker run --rm -i -e DROPBOX_ACCESS_TOKEN node:24-alpine node
+ * from stdin: `docker run --rm -i -e DROPBOX_ACCESS_TOKEN node:26-alpine node
  * --input-type=module - < scripts/dropbox-native-inventory.mjs`.
  *
  * `.mjs` for the reason `audit-advisories.mjs` gives: it runs on a bare

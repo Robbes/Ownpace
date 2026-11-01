@@ -10,10 +10,19 @@ item 7, taken, and 0119's Status of the same day). `deploy-live.sh` runs `pnpm i
 task deploy and the site build on the host's own Node, and pnpm only warns when that Node is
 below `engines`, so nothing stops a deploy from a host left on 24. **Still the owner's, before
 deploying alpha.4:** live's host (the machine the OTA stack shares) runs Node 26 with
-`libatomic1`, and pnpm installed from npm, since Node 26 ships no corepack. The readings and
-the steps are in `managed-bring-up.md`, *The deploy to alpha.4 needs Node 26 on the host
-first*, and `release.md` §5 lists it with the deploy's other checks. The same machine's
-self-hosted runner needs `libatomic1` before the pull request's E2E runs there. Whether the
+`libatomic1`, and pnpm installed from npm at `packageManager`'s version, since Node 26 ships
+no corepack, and reads it again before running `deploy-live.sh`: the deploy goes straight on
+from the install to the rebuild, so its warning comes too late to act on. The readings and
+the steps (NodeSource, the distribution's package, nvm, fnm and the tarball) are in
+`managed-bring-up.md`, *The deploy to alpha.4 needs Node 26 on the host first*, and
+`release.md` §5 lists it with the deploy's other checks. The same machine's self-hosted runner
+needs `libatomic1` before the pull request's E2E runs there. **And after it, before inviting
+anyone:** Node 26's `fetch` offers HTTP/2, and no gate reaches Google's APIs, Dropbox or Box
+(E2E (managed) builds their consent URLs and never opens them), while the o365 lane reaches
+Graph only through its own client, not the product's connectors. So the first HTTP/2 traffic
+from the product's connectors to those four is a migration on live after the alpha.4 deploy.
+One small migration from each of those the owner has an account with (a Microsoft one
+through the product too) is that proof, and it is best had before a tester's. Whether the
 first invitation waits for alpha.4 stays the owner's open choice (the entry below).
 
 **2026-10-31: 0135's *Today* cell says the exposure probe asks live's organisation sign-up page

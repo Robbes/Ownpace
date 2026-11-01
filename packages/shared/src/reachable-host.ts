@@ -52,17 +52,30 @@ import type { Dispatcher, buildConnector as UndiciBuildConnector } from 'undici'
 // file, which the root TypeScript program includes; undici ships none for
 // these paths.
 //
-// THE ADAPTER, since undici 8. Node's own `fetch` is the undici Node bundles
-// (6 in Node 22, 7 in Node 24), and it drives a dispatcher with the first
-// handler API: `onConnect`, `onHeaders`, `onData`, `onComplete`. undici 8's
-// Agent takes only the second (`onRequestStart` and the rest) and refuses the
-// first as `invalid onRequestStart method`, so with the rule on every request
-// to a tenant's host failed as "fetch failed", and a refusal read as the
-// provider's (Dependabot's #1281). `Dispatcher1Wrapper` is undici's own bridge
-// for exactly this caller: it is what undici 8 installs for older fetches in
-// the global slot they read. It wraps a first-API handler, passes a second-API
-// one through, and keeps such a request on HTTP/1.1, which Node's `fetch` asked
-// for anyway.
+// THE ADAPTER, since undici 8. Node's own `fetch` is the undici Node bundles.
+// Up to Node 24 that was undici 6 or 7, which drives a dispatcher with the
+// first handler API (`onConnect`, `onHeaders`, `onData`, `onComplete`);
+// undici 8's Agent takes only the second (`onRequestStart` and the rest) and
+// refuses the first as `invalid onRequestStart method`, so with the rule on
+// every request to a tenant's host failed as "fetch failed", and a refusal
+// read as the provider's (Dependabot's #1281). `Dispatcher1Wrapper` is
+// undici's own bridge for exactly this caller: it is what undici 8 installs
+// for older fetches in the global slot they read. It wraps a first-API
+// handler and passes a second-API one through. Node 26's `fetch` is undici 8
+// itself (8.12.2 in 26.13.0) and drives the second API.
+//
+// THE PROTOCOL is HTTP/2 wherever the tenant's server prefers it, and was
+// before Node 26. The wrapper's `dispatch` sets `allowH2: false` on every
+// request, and the Agent then makes an HTTP/1.1-only Client, but that Client
+// hands the flag to a connector of ours, and the connector `buildConnector({})`
+// returns reads only its own `allowH2`, which defaults to true: its TLS offers
+// `http/1.1` and `h2`, and the Client speaks whatever the server picks.
+// Measured 2026-11-01 with `tenantFetch` and the rule on, against a loopback
+// server offering both: HTTP/2 on Node 26.13.0 and on 24.22.1 alike, since
+// this is the undici in our own lockfile and not Node's. Node 26's own `fetch`
+// now offers h2 too, and the owner accepted HTTP/2 for it (workplan 0119,
+// 2026-10-31). `buildConnector({ allowH2: false })` would hold this path to
+// HTTP/1.1 (measured the same way); nobody has asked for that.
 import Agent from 'undici/lib/dispatcher/agent.js';
 import buildConnector from 'undici/lib/core/connect.js';
 import Dispatcher1Wrapper from 'undici/lib/dispatcher/dispatcher1-wrapper.js';
@@ -275,7 +288,8 @@ export function refuseInternalAddresses(
     allow: new Set([...(options.allow ?? [])].map((name) => name.toLowerCase().replace(/\.$/, ''))),
     resolve: options.resolve ?? resolveAll,
   };
-  // Wrapped for Node's own `fetch`, which speaks the first handler API (see the imports above).
+  // Wrapped for a Node whose own `fetch` speaks the first handler API (24 and
+  // before); Node 26's passes through it (see the imports above).
   const dispatcher = new Dispatcher1Wrapper(new Agent({ connect: checkedConnector(rule, buildConnector({})) }));
   const mine = { rule, dispatcher };
   active = mine;

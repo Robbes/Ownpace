@@ -332,6 +332,13 @@ jobs:
           # has neither the base tip nor the branch's own history, and the
           # script would fail with git's error instead of a verdict.
           fetch-depth: 0
+      # The Node the images run, like every job that runs Node. Without it the
+      # script ran the hosted image's default, a version nobody chose
+      # (a-gate-on-a-version-nothing-ships, 2026-11-01).
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
       - name: Judge the commit subjects this branch adds
         # THROUGH `env:`, not interpolated into the script. These two are
         # GitHub-generated SHAs today and therefore safe, and the moment

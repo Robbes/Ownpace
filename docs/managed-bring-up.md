@@ -122,9 +122,11 @@ are **not** product-named and keep their names; nothing above touches them.
   since 2026-10-31 (workplan 0119 §2.4): `engines` asks for `>=26`, and every
   gate runs the host steps on 26. The official Linux binaries of Node 25 and
   later are linked against `libatomic.so.1`, which a host may not have, and
-  Node 25 and later ship **no corepack**, so pnpm comes from npm
-  (`npm install -g pnpm@11`; inside the checkout it switches itself to the
-  version `package.json`'s `packageManager` names). A host still on 24: see
+  Node 25 and later ship **no corepack**, so pnpm comes from npm, at the
+  version `package.json`'s `packageManager` names (from the checkout:
+  `npm install -g "$(node -p "require('./package.json').packageManager")"`),
+  not a bare `pnpm@11`, which takes whatever was published last, inside the
+  repository's three-day floor or not. A host still on 24: see
   [*The deploy to alpha.4 needs Node 26 on the host first*](#the-deploy-to-alpha4-needs-node-26-on-the-host-first).
 - `openssl`, `curl`, `git`.
 - **~15 GB free disk.** ClickHouse, MinIO, the Trigger.dev images, the task
@@ -5390,13 +5392,21 @@ corepack. Live and the OTA stack share the machine, so this is one change for
 both, and for the self-hosted runner if it is the same machine: setup-node
 installs its own Node 26 there, and that one needs `libatomic1` too.
 
-**Nothing refuses a host left on 24.** pnpm 11.28.9 does not stop an install
-whose `engines` the running Node falls outside: it prints
-`WARN Unsupported engine: wanted: {"node":">=26"}` and installs (measured
-2026-10-31; the repository sets no `engineStrict`). The deploy would then run
-its host steps on a Node no gate runs, which is the gap
-`scripts/a-gate-on-a-version-nothing-ships.unit.test.ts` was written about.
-Read the warning as a stop.
+**Nothing refuses a host left on 24, so step 5, before the deploy, is the
+check.** pnpm 11.28.9 does not stop an install whose `engines` the running
+Node falls outside: it prints `WARN Unsupported engine: wanted:
+{"node":">=26"}` and installs, exit 0 (measured 2026-10-31 and again
+2026-11-01 on a stand-in project; the repository sets no `engineStrict`).
+`deploy-live.sh` goes straight on from that install to the bring-up, which
+redeploys the tasks and rebuilds the images, so a warning seen in its output
+is seen after the deploy has gone on, running its host steps on a Node no
+gate runs (the gap `scripts/a-gate-on-a-version-nothing-ships.unit.test.ts`
+was written about). Do steps 1 to 5 first, and run `deploy-live.sh
+v0.2.0-alpha.4` only once step 5 reads 26. (`engineStrict: true` in
+`pnpm-workspace.yaml` would turn that install into a refusal, exit 1 on
+24.22.1 and 0 on 26.13.0, and the deploy would end "did not take" before
+anything was rebuilt; it would also refuse a developer's machine on 24. The
+repository has not taken it: the owner's to decide.)
 
 **1. Read what the host has.** None of these prints a secret or an address:
 
@@ -5407,12 +5417,15 @@ command -v node pnpm corepack # where each comes from; corepack prints nothing o
 dpkg -s libatomic1 | grep -E '^(Status|Version):'
 uname -m                      # aarch64 or x86_64, for the tarball variant below
 dpkg -S "$(readlink -f "$(command -v node)")" 2>/dev/null || echo "node is not from a Debian package"
+apt-cache policy nodejs | grep -c deb.nodesource.com  # a count, no addresses: above 0 is NodeSource's
 ```
 
-The last line says how Node was installed: a package named `nodejs` from
-NodeSource's repository (`apt-cache policy nodejs` names `deb.nodesource.com`),
-or no package (a tarball under `/usr/local`, or a version manager when the path
-is under your home directory: `~/.nvm`, `~/.local/share/fnm`, `~/.volta`).
+The `dpkg -S` line says how Node was installed. A package named `nodejs`
+comes from NodeSource's repository when the last line counts above 0, and from
+the distribution when it counts 0. No package means
+a tarball under `/usr/local`, or a version manager when the path is under
+your home directory: `~/.nvm` or `~/.local/share/fnm` (both below), or
+`~/.volta`, which these steps do not cover.
 
 **2. `libatomic1`**, whichever way Node is installed:
 
@@ -5431,36 +5444,61 @@ sudo apt-get update && sudo apt-get install -y libatomic1
   sudo apt-get update && sudo apt-get install -y nodejs
   ```
 
-  Node 26 carries no corepack, so a `pnpm` that `corepack enable` made no
-  longer runs: step 4 puts pnpm back. Whether NodeSource publishes `node_26.x`
-  was not read when this was written (its repository was not reachable from
-  there): if `apt-get update` fails on that line, put `node_24.x` back and take
-  the tarball below.
-- **nvm** (or fnm, the same verbs): `nvm install 26 && nvm alias default 26`,
-  then open a new shell. Global packages are per version: step 4 is needed in
-  the new one.
+  `node_26.x` is the line NodeSource's own setup script for 26 writes:
+  `scripts/deb/setup_26.x` in `nodesource/distributions` (there since
+  2026-05-05; `setup_lts.x` points at 26 since 2026-10-29) writes
+  `URIs: https://deb.nodesource.com/node_26.x` with `Suites: nodistro` into
+  `nodesource.sources` (read 2026-11-01; the repository itself was not
+  reachable from where this was written). If `apt-get update` fails on that
+  line all the same, put `node_24.x` back and take the tarball below. Node 26
+  carries no corepack, so a `pnpm` that `corepack enable` made no longer runs:
+  step 4 puts pnpm back.
+- **The distribution's own `nodejs` package** (the count is 0) is an older major on current Debian and
+  Ubuntu. Remove it and its `npm`, then add NodeSource's repository with its
+  own script, which installs `apt-transport-https`, `ca-certificates`, `curl`
+  and `gnupg`, fetches NodeSource's signing key, writes the `nodesource.sources`
+  above and pins `nodejs` to NodeSource; read it before you run it:
+
+  ```bash
+  sudo apt-get remove -y nodejs npm
+  cd "$(mktemp -d)"
+  curl -fsSLo setup_26.x https://deb.nodesource.com/setup_26.x
+  less setup_26.x
+  sudo bash setup_26.x && sudo apt-get install -y nodejs
+  ```
+
+  Or, after the same `apt-get remove`, the tarball below.
+- **nvm:** `nvm install 26 && nvm alias default 26`. **fnm** puts the version
+  first: `fnm install 26 && fnm default 26`. Then open a new shell and do
+  steps 4 and 5 there: global packages are per version, so step 4 is needed
+  in the new one.
 - **The official tarball under `/usr/local`.** From nodejs.org, checked against
   its `SHASUMS256.txt`, for the architecture `uname -m` named (`arm64` for
   `aarch64`, `x64` for `x86_64`). A tarball unpacked over another leaves the
   old one's files behind, so 24's npm and corepack go first; the new tarball
-  brings its own npm, and no corepack:
+  brings its own npm, and no corepack. The block runs in a subshell that stops
+  at the first failure, so a download whose checksum does not match removes
+  nothing and installs nothing; `node_26_installed` at the end is the only
+  sign it ran through:
 
   ```bash
-  cd "$(mktemp -d)"
-  ARCH=arm64   # or x64
-  curl -fsSLO "https://nodejs.org/dist/v26.13.0/node-v26.13.0-linux-${ARCH}.tar.xz"
-  curl -fsSLO https://nodejs.org/dist/v26.13.0/SHASUMS256.txt
-  grep " node-v26.13.0-linux-${ARCH}.tar.xz\$" SHASUMS256.txt | sha256sum -c -   # must say OK
-  sudo rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack
-  sudo tar -xJf "node-v26.13.0-linux-${ARCH}.tar.xz" -C /usr/local --strip-components=1
+  ( set -euo pipefail
+    cd "$(mktemp -d)"
+    ARCH=arm64   # or x64
+    curl -fsSLO "https://nodejs.org/dist/v26.13.0/node-v26.13.0-linux-${ARCH}.tar.xz"
+    curl -fsSLO https://nodejs.org/dist/v26.13.0/SHASUMS256.txt
+    grep " node-v26.13.0-linux-${ARCH}.tar.xz\$" SHASUMS256.txt | sha256sum -c -
+    sudo rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack
+    sudo tar -xJf "node-v26.13.0-linux-${ARCH}.tar.xz" -C /usr/local --strip-components=1
+    echo node_26_installed )
   ```
-- **The distribution's own `nodejs` package** is an older major on current
-  Debian and Ubuntu (`apt-cache policy nodejs` says which); if that is what
-  `dpkg -S` names, take one of the three above instead.
 
-**4. pnpm, from npm.** First the links `corepack enable` made beside the old
-Node, which now point at a corepack that is gone (npm will not write its own
-`pnpm` over a file it did not make); then pnpm. With `sudo` where npm's global
+**4. pnpm, from npm, at the version the checkout names.** First the links
+`corepack enable` made beside the old Node, which now point at a corepack that
+is gone (npm will not write its own `pnpm` over a file it did not make); then
+pnpm, at `package.json`'s `packageManager` (`pnpm@11.28.9` at alpha.3 and
+alpha.4), which is past the repository's three-day floor where a bare
+`pnpm@11` takes whatever was published last. With `sudo` where npm's global
 prefix is a system directory (NodeSource, the tarball), without it under a
 version manager:
 
@@ -5468,7 +5506,9 @@ version manager:
 BIN="$(dirname "$(command -v node)")"
 find "$BIN" -maxdepth 1 -lname '*corepack*'            # lists them: corepack, pnpm, pnpx, yarn, yarnpkg
 sudo find "$BIN" -maxdepth 1 -lname '*corepack*' -delete
-sudo npm install -g pnpm@11                              # or, under a version manager: npm install -g pnpm@11
+cd ~/ownpace-live
+PNPM="$(node -p "require('./package.json').packageManager")" && echo "$PNPM"   # pnpm@11.28.9
+sudo npm install -g "$PNPM"                              # under a version manager: npm install -g "$PNPM"
 ```
 
 **5. Read it again,** from `~/ownpace-live`:
@@ -5481,8 +5521,7 @@ ldd "$(command -v node)" | grep libatomic # resolves to a file, not "not found"
 
 Nothing in `deploy-live.sh` prints the host's Node: it runs the bring-up from
 its `data` phase, after the `preflight` that prints `node $(node -v), pnpm
-$(pnpm -v)`. So step 5 is the reading, and `pnpm install` printing no
-`Unsupported engine` is the deploy's own. The OTA stack's nightly gate runs on
+$(pnpm -v)`. So step 5 is the reading. The OTA stack's nightly gate runs on
 the runner's own Node, not this one, but anything run by hand in
 `~/ownpace-managed` uses it.
 

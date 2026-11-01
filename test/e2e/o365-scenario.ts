@@ -382,6 +382,31 @@ export interface O365FileItem {
   isFolder: boolean;
 }
 
+/**
+ * A Graph refusal as the lane's log should read it: the status, the reason
+ * phrase when there is one, and Graph's own code and message (or the body's
+ * first 300 characters, when it is not Graph's error document). It said
+ * `statusText` alone, and over HTTP/2, which Node 26's `fetch` offers and
+ * Graph may pick, a response has no reason phrase: a refusal in the lane meant
+ * to prove Graph on 26 would have read `Graph API error: ` and nothing else.
+ * `innerError` (request ids and a date) stays out, as the product's own
+ * `graph-refusal.ts` leaves it out.
+ */
+export async function graphApiError(response: Response): Promise<Error> {
+  const body = await response.text();
+  let words = body.slice(0, 300);
+  try {
+    const { error } = JSON.parse(body) as { error?: { code?: unknown; message?: unknown } };
+    const code = typeof error?.code === 'string' ? error.code : '';
+    const message = typeof error?.message === 'string' ? error.message.slice(0, 300) : '';
+    if (code || message) words = [code, message].filter(Boolean).join(' — ');
+  } catch {
+    // Not JSON: the body's own first characters, as above.
+  }
+  const reason = response.statusText ? ` ${response.statusText}` : '';
+  return new Error(`Graph API error: HTTP ${response.status}${reason}${words ? `: ${words}` : ''}`);
+}
+
 export class O365GraphClient {
   private tokenProvider: O365TokenProvider;
   private baseUrl: string;
@@ -405,7 +430,7 @@ export class O365GraphClient {
       headers: await this.getHeaders(),
     });
     if (!response.ok) {
-      throw new Error(`Graph API error: ${response.statusText}`);
+      throw await graphApiError(response);
     }
     return response.json() as Promise<Record<string, unknown>>;
   }
@@ -415,7 +440,7 @@ export class O365GraphClient {
       headers: await this.getHeaders(),
     });
     if (!response.ok) {
-      throw new Error(`Graph API error: ${response.statusText}`);
+      throw await graphApiError(response);
     }
     const data = (await response.json()) as GraphListResponse;
     return data.value.map((folder: Record<string, unknown>) => ({
@@ -433,7 +458,7 @@ export class O365GraphClient {
       { headers: await this.getHeaders() }
     );
     if (!response.ok) {
-      throw new Error(`Graph API error: ${response.statusText}`);
+      throw await graphApiError(response);
     }
     const data = (await response.json()) as GraphListResponse;
     return data.value.map((msg: Record<string, unknown>) => ({
@@ -452,7 +477,7 @@ export class O365GraphClient {
       headers: await this.getHeaders(),
     });
     if (!response.ok) {
-      throw new Error(`Graph API error: ${response.statusText}`);
+      throw await graphApiError(response);
     }
     const data = (await response.json()) as GraphListResponse;
     return data.value.map((cal: Record<string, unknown>) => ({
@@ -468,7 +493,7 @@ export class O365GraphClient {
       { headers: await this.getHeaders() }
     );
     if (!response.ok) {
-      throw new Error(`Graph API error: ${response.statusText}`);
+      throw await graphApiError(response);
     }
     const data = (await response.json()) as GraphListResponse;
     return data.value.map((evt: Record<string, unknown>) => ({
@@ -487,7 +512,7 @@ export class O365GraphClient {
       headers: await this.getHeaders(),
     });
     if (!response.ok) {
-      throw new Error(`Graph API error: ${response.statusText}`);
+      throw await graphApiError(response);
     }
     const data = (await response.json()) as GraphListResponse;
     return data.value.map((folder: Record<string, unknown>) => ({
@@ -503,7 +528,7 @@ export class O365GraphClient {
       { headers: await this.getHeaders() }
     );
     if (!response.ok) {
-      throw new Error(`Graph API error: ${response.statusText}`);
+      throw await graphApiError(response);
     }
     const data = (await response.json()) as GraphListResponse;
     return data.value.map((contact: Record<string, unknown>) => ({
@@ -521,7 +546,7 @@ export class O365GraphClient {
       headers: await this.getHeaders(),
     });
     if (!response.ok) {
-      throw new Error(`Graph API error: ${response.statusText}`);
+      throw await graphApiError(response);
     }
     const data = (await response.json()) as GraphListResponse;
     return data.value.map((item: Record<string, unknown>) => ({

@@ -16,7 +16,9 @@
  * for `'24'`. (All three moved to 26 together on 2026-10-31, with the API's
  * distroless runtime, the tasks' runtime and all 27 `setup-node` steps, when
  * Node 26 was LTS: workplan 0119 §2.4. This file is why they move in one
- * pull request: a pin left on 24 fails here.) The managed gate
+ * pull request: a pin left on 24 fails here, `engines` among them since
+ * 2026-11-01. Until then nothing here read `engines`, and the move's own
+ * review found `>=24` passing every case beside images on 26.) The managed gate
  * (`e2e-managed.yml`) and the live-target lane (`e2e-live-target.yml`) asked
  * for `22` — found 2026-09-24. The managed gate
  * stayed green, because the api runs in its own Node 24 image (and the web is
@@ -30,6 +32,22 @@
  * A `setup-node` step with no `node-version` at all is refused too: it runs
  * whatever Node the runner image happens to carry, which is a version nobody
  * chose.
+ *
+ * So is a step that runs Node, pnpm, npm or npx with no `setup-node` step
+ * before it in its job: the same version nobody chose, and one the walk over
+ * `setup-node` steps cannot see, since there is no step to walk. Found
+ * 2026-11-01 in the Node 26 move's review: ci.yml's `commit-convention` and
+ * images.yml's `build` (its release check, on a tag) had no `setup-node` at
+ * all, and the release checks of `security-scan` and windows-payload's
+ * `build` ran before theirs. Each now sets Node up first; the three release
+ * checks' come before the checkout, since a-release-that-names-itself holds
+ * the check straight after it.
+ *
+ * `engines` in the root `package.json` (the one package here that declares
+ * it) names the same major, as `>=<major>`. It is what a host that runs the
+ * steps by hand is told: live's deploy runs `pnpm install`, the task deploy
+ * and the site build on the host's own Node, and pnpm compares that Node with
+ * `engines`.
  *
  * ## Node: and the newest release of that major, on a runner that keeps its cache
  *
@@ -172,7 +190,7 @@ import taskConfig from '../apps/worker/trigger.config.ts';
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => readFileSync(join(REPO_ROOT, p), 'utf8');
 
-type Step = { uses?: string; with?: Record<string, unknown> };
+type Step = { uses?: string; run?: string; name?: string; with?: Record<string, unknown> };
 type Workflow = { jobs?: Record<string, { steps?: Step[] }> };
 
 /**
@@ -214,6 +232,35 @@ function setupNodeSteps(): ReadonlyArray<{ where: string; version: string | unde
 }
 
 /**
+ * A shell line that starts Node, pnpm, npm or npx: at the start of a line, or
+ * after `;`, `&`, `|`, `(`, `$(`, `then`, `do` or `else`. A `node` handed to
+ * `docker run` or `docker compose exec` is an argument, not a command, and
+ * runs in the container's own Node, so it does not count.
+ */
+const RUNS_NODE = /(?:^|[;&|(]|\$\(|\b(?:then|do|else)\b)\s*(?:node|pnpm|npm|npx)(?=\s|$)/m;
+
+/**
+ * Every step, in every job of every workflow, that runs Node with no
+ * `setup-node` step before it in the same job.
+ */
+function nodeBeforeSetupNode(): ReadonlyArray<string> {
+  return readdirSync(join(REPO_ROOT, '.github/workflows'))
+    .filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'))
+    .flatMap((file) => {
+      const workflow = parseYaml(read(`.github/workflows/${file}`)) as Workflow;
+      return Object.entries(workflow.jobs ?? {}).flatMap(([job, { steps }]) => {
+        const all = steps ?? [];
+        const setupAt = all.findIndex((s) => typeof s.uses === 'string' && s.uses.startsWith('actions/setup-node@'));
+        return all.flatMap((s, i) =>
+          typeof s.run === 'string' && RUNS_NODE.test(s.run) && (setupAt === -1 || setupAt > i)
+            ? [`.github/workflows/${file} job ${job}, step ${i + 1} (${s.name ?? s.run.trim().split('\n')[0]})`]
+            : [],
+        );
+      });
+    });
+}
+
+/**
  * The two workflows that asked for 22. Named so a scan that stops finding
  * them fails here instead of passing on less.
  */
@@ -222,12 +269,15 @@ const ANCHORS = ['.github/workflows/e2e-managed.yml', '.github/workflows/e2e-liv
 /**
  * Every `setup-node` step there is, by workflow and job: the nine that can run
  * on the Spark (ci.yml's five on a push, the four E2E lanes), the three that
- * run on hosted runners only, and Security Scan's. Named rather than counted,
+ * run on hosted runners only, Security Scan's, and the two added 2026-11-01
+ * to jobs that ran Node without one (ci.yml's `commit-convention`, images.yml's
+ * `build`). Named rather than counted,
  * so a walk that stops seeing one fails here and says which, while a new
  * workflow's step needs no number raised (it is still held to everything
  * below).
  */
 const STEP_ANCHORS = [
+  '.github/workflows/ci.yml job commit-convention',
   '.github/workflows/ci.yml job docs-hygiene',
   '.github/workflows/ci.yml job lint',
   '.github/workflows/ci.yml job unit-tests',
@@ -241,6 +291,7 @@ const STEP_ANCHORS = [
   '.github/workflows/idp-pin-watch.yml job watch',
   '.github/workflows/windows-payload.yml job build',
   '.github/workflows/security-scan.yml job security-scan',
+  '.github/workflows/images.yml job build',
 ];
 
 describe('every gate runs the Node major the images ship', () => {
@@ -282,6 +333,29 @@ describe('every gate runs the Node major the images ship', () => {
     expect(
       wrong,
       `the images run Node ${shipped}; a gate on another major checks something nothing ships`,
+    ).toEqual([]);
+  });
+
+  it('package.json engines asks for that major, so a host running the steps by hand is told the Node the gates ran', () => {
+    const { engines } = JSON.parse(read('package.json')) as { engines?: { node?: unknown } };
+    expect(
+      engines?.node,
+      `the images run Node ${images[0]!.major}; package.json's engines.node must be ">=${images[0]!.major}"`,
+    ).toBe(`>=${images[0]!.major}`);
+  });
+
+  it('no job runs Node before a setup-node step has named it', () => {
+    // Vacuity guard: the pattern still sees a plain `node scripts/…` line and
+    // the forms after `&&` and `$(`, and not an argument to `docker`.
+    for (const line of ['node scripts/x.mjs', 'cd a && pnpm install', 'echo "$(npx y)"', 'if x; then npm ci; fi']) {
+      expect(RUNS_NODE.test(line), line).toBe(true);
+    }
+    for (const line of ['docker compose exec api node -e 1', 'echo nodejs', 'apt-get install -y nodejs']) {
+      expect(RUNS_NODE.test(line), line).toBe(false);
+    }
+    expect(
+      nodeBeforeSetupNode(),
+      'these run whatever Node the runner image carries, a version nobody chose: put the setup-node step first',
     ).toEqual([]);
   });
 
