@@ -2,14 +2,21 @@
 
 > **In one line:** Google Calendar and Contacts as sources over the existing CalDAV and CardDAV connectors, which gain Bearer OAuth with per-request token minting, plus `google-dav-source-factory.ts`, per-product refresh tokens and two wizard cards.
 
-## Status — 2026-08-16 (update this block at the end of every session)
+## Status — 2026-11-01 (update this block at the end of every session)
+
+**2026-11-01, index pass (0147 T3):** T4 said *Waiting on the owner*, and since 2026-09-22 it
+has not been true: `google-calendar` and `google-contacts` have run against the owner's own
+Google account routinely, and are ✅ in the feature matrix since that day
+(`docs/feature-matrix.md`:10-14, :480-481). The runbook's Stage 6
+(`docs/owner-test-runbook.md`:308) records no result. A second account is 0141 T6, the
+owner's. On the branch `claude/ownpace-public-readiness-y7orc6-e9-records`.
 
 | Task | Status | Evidence |
 |---|---|---|
 | T1 Bearer capability in the DAV connectors | ✅ **Done 2026-08-16** | `tokenProvider?: TokenProvider` on `CalDAVSourceConfig`/`CardDAVSourceConfig`; `authorizationHeader()` (now async) answers `Bearer <token>` minted per request — cached until expiry, which is what keeps a pass alive past Google's one-hour token — and Basic byte-for-byte as before for every password server. Unit tests both connectors, including the Bearer mint. |
 | T2 the factories and both editions | ✅ **Done 2026-08-16** | `google-dav-source-factory.ts`: per-product scopes (`auth/calendar`, `auth/carddav`), fixed principal URLs (`apidata.googleusercontent.com/caldav/v2/{user}/user/`, `www.googleapis.com/carddav/v1/principals/{user}/`), per-product env variables (`GOOGLE_CALENDAR_REFRESH_TOKEN`, `GOOGLE_CONTACTS_REFRESH_TOKEN` — a consent is per product, and the variable names keep that visible), refusals in each edition's vocabulary. Appliance: `buildDomainDeps` calendar/contact branches. Managed: `buildDomainDepsFromMapping` branches on `connection.kind` (`google_calendar`/`google_contacts`, migration `0015`). |
 | T3 the doors | ✅ **Done 2026-08-16** | Shared `GoogleCalendarSource`/`GoogleContactsSource` (one field, like gmail) + parse; source-domain matrix rows with per-product refusal prose; API sourceType enum + kinds + config blobs + superRefine naming each product's scope + the Google secret branch; two wizard cards (calendar pins `caldav` — the one calendar-capable target; contacts keeps jmap/carddav), EN/NL. Tests at every seam. Also fixed while here: the web client's create-response schema still listed only the ORIGINAL three source types, so every successful Google create threw client-side (wizard never navigated; a retry created a duplicate chain). |
-| T4 an owner runs it | ⏳ **Waiting on the owner** | Stage 6 of `docs/owner-test-runbook.md`: Google's principal URLs answering the discovery walk, and its sync-token dialect, are the two things only reality proves. The connectors are proven against RFC-shaped servers; Google's dialect is the unknown, stated rather than assumed. |
+| T4 an owner runs it | ✅ **Corrected 2026-11-01 (0147 T3): run on the owner's own account (feature matrix, 2026-09-22)**; a second account is 0141 T6 — *was:* ⏳ **Waiting on the owner** | Stage 6 of `docs/owner-test-runbook.md`: Google's principal URLs answering the discovery walk, and its sync-token dialect, are the two things only reality proves. The connectors are proven against RFC-shaped servers; Google's dialect is the unknown, stated rather than assumed. |
 
 ## What this is
 
