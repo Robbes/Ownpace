@@ -6,7 +6,8 @@
 
 **2026-11-01, later: CI's remaining floating downloads are named releases, checked by their
 SHA-256 or digest (alpha.4, supply chain, CI only)**, on the branch
-`claude/ownpace-public-readiness-y7orc6-ci-floating-pins`, the follow-ups §2.5 listed after #1773.
+`claude/ownpace-public-readiness-y7orc6-ci-floating-pins`, draft #1777, the follow-ups §2.5 listed
+after #1773.
 (1) **stalwart-cli**: `ci.yml`'s integration tests, `e2e.yml` and `e2e-managed.yml` piped
 `releases/latest/download/stalwart-cli-installer.sh` to `sh`. Upstream's installer is
 cargo-dist's: it picks `stalwart-cli-<arch>-unknown-linux-gnu.tar.xz` on glibc 2.35 or later
@@ -44,8 +45,21 @@ binfmt and BuildKit against the digest their channel names today), and
 (`stalwartCliPin`) and by running it with `curl`, `uname` and `sleep` stubbed, and holds every
 workflow to the rule: no `releases/latest`, no `docker://` image without a digest, no action
 image without a release tag and its digest (`actionImages`); each rule mutation-checked.
-**Not proved here:** E2E (self-hosted) and E2E (managed) were not dispatched; their copies of the
-step are the integration tests' word for word, and main's next nights run them first.
+**Proved on the branch** (head `41f12643`, every job that uses each tool ran): CI run 41274029480,
+`ci-complete` success (04:55 UTC). `integration-tests (ubuntu-24.04)` and `(ubuntu-24.04-arm)` each
+printed `stalwart-cli v1.0.14 linux/x86_64: sha256 78584b23…, as pinned.`, the same for aarch64,
+and `stalwart-cli 1.0.14`, provisioned Stalwart with it and passed 824 tests in 97 files: the
+bytes GitHub's release CDN serves are the ones the release's own sums name, on both runners.
+`migration-lint` on both legs started the dev database from
+`postgres/18.6-alpine@sha256:10a5c69a…` and read what `main` reads: 121 versions ok, 3 with
+warnings, 368 schema changes, 3 diagnostics. Images run 41274029470, success: `build (api)`,
+`(web)` and `(selfhost)` each pulled binfmt by its digest, which printed `binfmt/e29e7d7
+qemu/v10.2.3`, and started BuildKit from `moby/buildkit:v0.33.1@sha256:cec9f139…` (`BuildKit
+version: v0.33.1`). Nextcloud second major run 41274029455, success: `Nextcloud 34.0.5 answered`
+from `515c072e…`, 36 of 36 tests. **Not proved here:** E2E (self-hosted) and E2E (managed) were
+not dispatched; their copies of the step are the integration tests' word for word, and main's
+next nights run them first, as the merge push is the first self-hosted run of the step and of the
+dev database.
 
 **2026-11-01: the Atlas CLI that CI's migration lint runs is release v1.3.6, checked by its
 SHA-256 for both architectures before anything runs it (alpha.4, supply chain)**, on the branch
