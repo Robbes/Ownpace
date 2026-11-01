@@ -26,6 +26,13 @@ export declare const SOCKET_PROXY_UPSTREAM: string;
 export declare const LINES: Record<string, number>;
 export declare const TASK_ON_API_IMAGE: RegExp;
 export declare const COSIGN_FILES: string[];
+export declare const ATLAS_WORKFLOW: string;
+export declare const ATLAS_HOST: string;
+export declare const ATLAS_IMAGE: string;
+export declare const ATLAS_ARCHES: string[];
+export declare const ATLAS_NOTE: string;
+/** The Atlas release migration-lint installs, and its sha256 for each architecture; throws for a step that may not run. */
+export declare function atlasPin(workflow: string): { version: string; sha256: Record<'amd64' | 'arm64', string>; line: number };
 
 export type State = 'current' | 'behind' | 'ahead' | 'error';
 

@@ -46,6 +46,10 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import {
+  ATLAS_ARCHES,
+  ATLAS_IMAGE,
+  ATLAS_NOTE,
+  ATLAS_WORKFLOW,
   COMPARED_ELSEWHERE,
   COMPOSE,
   COMPOSE_FILES,
@@ -60,6 +64,7 @@ import {
   TITLES,
   WINDOW_DAYS,
   actionDefault,
+  atlasPin,
   baseImageOf,
   builtImage,
   builtNote,
@@ -653,6 +658,10 @@ const COSIGN_NAMED = COSIGN_STEPS[0]?.with['cosign-release'];
 const cosignDefault = (): Record<string, string> =>
   Object.fromEntries(COSIGN_FILES.map((file) => [file, REAL.read(file)!.replace(/\n( +)with:\n(?:\1 {2}#.*\n)*\1 {2}cosign-release: .*(?=\n)/g, '')]));
 
+/** The Atlas release migration-lint installs (0119, 2026-11-01), and its tag on the community image. */
+const ATLAS = atlasPin(REAL.read(ATLAS_WORKFLOW)!);
+const ATLAS_TAG = `${ATLAS.version.slice(1)}-community`;
+
 /** The GoAccess release `deploy/compose/goaccess/Dockerfile` builds (#1675), read from its own line. */
 const GOACCESS_RELEASE = /^# GoAccess (v\d+(?:\.\d+)+)$/m.exec(REAL.read(GOACCESS_DOCKERFILE) ?? '')?.[1] ?? 'no release named';
 /** The docker-socket-proxy release trigger-docker-proxy is built from (2026-10-30), read from its own line. */
@@ -675,6 +684,9 @@ function registry(newer: Record<string, string> = {}): Stubs {
     }
   }
   for (const file of STALWART_FILES) for (const m of (REAL.read(file) ?? '').matchAll(/stalwartlabs\/stalwart:(v[\d.]+)/g)) pins.set('stalwartlabs/stalwart', [m[1]!]);
+  // The Atlas release ci.yml installs, as the community image's tag, beside tags of other shapes
+  // and another major that its row must never take for a newer release.
+  pins.set(ATLAS_IMAGE, [ATLAS_TAG, 'latest-community', '1.99.0-community-alpine', '1.99.0-extended', '2.0.0-community']);
   return {
     json: [
       TOKEN,
@@ -947,6 +959,76 @@ describe('the routine pins, in one summary issue', () => {
     const { gh, calls } = fakeGh([OTHER, { number: 9, title: TITLES.routine, body: 'x', state: 'open' }]);
     expect(keepIssue(summary, gh, TITLES.routine)).toBe('untouched');
     expect(calls).toEqual([]);
+  });
+});
+
+/**
+ * THE ATLAS CLI CI DOWNLOADED BY ITS `-latest` NAME (workplan 0119, 2026-11-01).
+ * `migration-lint` in `.github/workflows/ci.yml` fetched
+ * `atlas-community-linux-<arch>-latest` with no version and no checksum, and ran it, on the owner's machine for a main push.
+ * That name is a canary build of upstream's master (CI printed
+ * `v1.3.1-f851298-canary`), not a release. The step now names a release in
+ * `ATLAS_VERSION`, pins a sha256 for both architectures the job runs on, reads
+ * and compares both before anything is made executable, and checks that what
+ * it installed calls itself that release. This holds the real step to that with
+ * `atlasPin`, each refusal by a mutation of it, and the row that says when a
+ * newer release is listed.
+ */
+describe('the Atlas CLI migration-lint runs: a named release, checked by its sha256 first', () => {
+  const ci = REAL.read(ATLAS_WORKFLOW)!;
+  /** ci.yml with one change, which must be a change. */
+  const mutate = (from: string | RegExp, to: string): string => {
+    const next = ci.replace(from, to);
+    expect(next, `${String(from)} is not in ${ATLAS_WORKFLOW}`).not.toBe(ci);
+    return next;
+  };
+
+  it('names a release and a sha256 for each architecture the job runs on', () => {
+    expect(ATLAS.version).toMatch(/^v\d+\.\d+\.\d+$/);
+    expect(Object.keys(ATLAS.sha256).sort()).toEqual([...ATLAS_ARCHES].sort());
+    for (const arch of ATLAS_ARCHES) expect(ATLAS.sha256[arch as 'amd64' | 'arm64']).toMatch(/^[0-9a-f]{64}$/);
+    // The two machines the job lands on: the self-hosted arm64 runner for a push, hosted amd64 for a pull request.
+    expect(ci).toContain(
+      "  migration-lint:\n    name: migration-lint\n    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}",
+    );
+  });
+
+  it("refuses the canary's name, a version that is no release, a missing or shared sum, a download run before it is checked, and no version check", () => {
+    expect(() => atlasPin(mutate('-${ATLAS_VERSION}"', '-latest"'))).toThrow(/downloads a name with no version/);
+    expect(() => atlasPin(mutate('linux-${arch}-${ATLAS_VERSION}"', 'linux-${arch}"'))).toThrow(/downloads a name with no version/);
+    expect(() => atlasPin(mutate(/ATLAS_VERSION: v\d+\.\d+\.\d+/, 'ATLAS_VERSION: latest'))).toThrow(/names no release/);
+    expect(() => atlasPin(mutate(/\n +ATLAS_SHA256_ARM64: [0-9a-f]{64}/, ''))).toThrow(/no sha256 for linux\/arm64/);
+    expect(() => atlasPin(mutate(`ATLAS_SHA256_ARM64: ${ATLAS.sha256.arm64}`, `ATLAS_SHA256_ARM64: ${ATLAS.sha256.amd64}`))).toThrow(
+      /one sha256 for two architectures/,
+    );
+    // Made executable before the loop that reads the sums.
+    const install = /\n( +install -m 0755 [^\n]+)/.exec(ci)![1]!;
+    const early = mutate(`\n${install}`, '').replace(/\n( +)for arch in amd64 arm64; do/, (all, space: string) => `\n${space}${install.trim()}${all}`);
+    expect(() => atlasPin(early)).toThrow(/executable before its sha256 is read/);
+    // Read, but a mismatch no longer stops the step.
+    expect(() => atlasPin(mutate(/\n +\[ "\$refused" = 0 \] \|\| exit 1/, ''))).toThrow(/executable before its sha256 is read/);
+    expect(() => atlasPin(mutate(/\n +seen="\$\(sha256sum "\$download"\)"/, ''))).toThrow(/never reads a sha256/);
+    expect(() => atlasPin(mutate('"atlas community version $ATLAS_VERSION"', '"atlas"'))).toThrow(/calls itself the release named/);
+  });
+
+  it('is a routine pin, current while the community image lists no newer release of its shape and major', async () => {
+    const { rows } = await routineRows(REAL, fakeNet(registry()));
+    expect(rows.find((r) => r.name === 'Atlas')).toEqual({ name: 'Atlas', where: ATLAS_WORKFLOW, pin: ATLAS.version, newest: ATLAS.version, state: 'current' });
+  });
+
+  it('is behind when a newer community release is listed, and says the three values move together', async () => {
+    const newer = ATLAS_TAG.replace(/^(\d+)\.(\d+)\.(\d+)/, (_all, major: string, minor: string, patch: string) => `${major}.${minor}.${Number(patch) + 9}`);
+    const { rows, status } = await routineRows(REAL, fakeNet(registry({ [ATLAS_IMAGE]: newer })));
+    const release = `v${newer.replace(/-community$/, '')}`;
+    expect(rows.find((r) => r.name === 'Atlas')).toMatchObject({ pin: ATLAS.version, newest: release, state: 'behind', notes: [ATLAS_NOTE] });
+    expect(summaryOf(rows, status).body).toContain(`- \`Atlas\` (${ATLAS_WORKFLOW}): ${ATLAS.version}, newest **${release}**; ${ATLAS_NOTE}`);
+  });
+
+  it('is never current when the step cannot be read', async () => {
+    const canary = withFiles({ [ATLAS_WORKFLOW]: mutate('-${ATLAS_VERSION}"', '-latest"') });
+    const row = (await routineRows(canary, fakeNet(registry()))).rows.find((r) => r.name === 'Atlas');
+    expect(row).toMatchObject({ state: 'error' });
+    expect(row?.error).toMatch(/downloads a name with no version/);
   });
 });
 

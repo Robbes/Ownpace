@@ -57,6 +57,21 @@ notices.
 
 ### Security
 
+- **CI's migration lint runs Atlas v1.3.6, checked by its SHA-256 before it
+  runs, not a canary fetched by its `-latest` name** (workplan 0119): the
+  `migration-lint` job downloaded `atlas-community-linux-<arch>-latest` with no
+  version and no checksum, and ran it, on the owner's own machine for a push to
+  `main`. That name is a canary build of upstream's master branch, not a
+  release (CI printed `v1.3.1-f851298-canary`). The job now fetches release
+  v1.3.6 for both architectures it runs on (amd64 for pull requests, arm64 for
+  pushes), compares each with the SHA-256 pinned beside it, and stops before
+  anything is made executable if either differs; it then checks that the
+  binary calls itself `atlas community version v1.3.6`. The pinned sums are
+  those of the same release's community image on Docker Hub, read through the
+  registry's own digests, so a passing run has two channels agreeing on the
+  bytes. The weekly pin watch says when a newer release is listed, and its
+  guard refuses a step that downloads by a name with no version, misses an
+  architecture's sum, or runs the download before checking it.
 - **The Trigger.dev webapp and supervisor built here lose npm and pnpm's
   node-gyp, which nothing here runs** (workplan 0146 T16): twelve fixable high
   findings in each image were in two trees no process of the stack runs. npm

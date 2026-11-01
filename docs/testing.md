@@ -484,7 +484,9 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   TypeScript split's exit. Each of those keeps one issue open while it is behind, says a newer
   release in a comment, and closes the issue when the pin catches up. Every other image line of
   `managed.yml`, `dev.yml` and `www.yml` (Dependabot reads no file in `deploy/compose`), the
-  busybox copies in its scripts, Stalwart's copies, GoAccess and the Trivy the scan runs share one
+  busybox copies in its scripts, Stalwart's copies, GoAccess, the Trivy the scan runs and the Atlas
+  release `ci.yml`'s migration-lint downloads by URL and checks by its SHA-256 (against the community
+  image's tags on Docker Hub, since upstream's git tags stop at v1.3.0; 2026-11-01) share one
   summary issue; another image a script there runs is not compared (none today: `db-roles.sh`
   reads its client from `managed.yml`). Against a registry a tag is compared, never a digest: a
   rebuild under the same tag is the image scan's to report. The exception is `www.yml`'s nginx,
