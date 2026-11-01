@@ -202,6 +202,7 @@ function fakeNet(tags = TAGS): Net & { asked: string[] } {
       asked.push(url);
       return tags;
     },
+    head: refuse,
     digest: refuse,
     npm: refuse,
     probe: refuse,

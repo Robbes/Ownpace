@@ -49,6 +49,15 @@
  * and every workflow to the rule: no `releases/latest` and no file or path
  * named `latest`, no `docker://` image without a digest, no action image
  * without a release tag and its digest, and no `npx` that may install.
+ *
+ * THE NODE.JS RELEASE KEYRING (#1780's review, 2026-11-01). The Windows
+ * payload's `node.exe` check reads a copy of nodejs/release-keys' active
+ * keyring pinned by commit and blob id (`NODE_RELEASE_KEYS`), which moved only
+ * when a build met a releaser it lacked: a key retired, revoked or given a new
+ * expiry upstream reached nothing. Its row compares the file at upstream's
+ * newest commit with the blob id, and is held here to the module's own pin,
+ * to the committed file, and to never reading a pin or an answer it cannot
+ * parse as current.
  */
 
 import { afterAll, describe, it, expect } from 'vitest';
@@ -76,6 +85,8 @@ import {
   STALWART_FILES,
   GOACCESS_DOCKERFILE,
   LINES,
+  NODE_RELEASE_KEYS_FILE,
+  NODE_RELEASE_KEYS_NOTE,
   SOCKET_PROXY_DOCKERFILE,
   SOCKET_PROXY_UPSTREAM,
   STALWART_CLI_ARCHES,
@@ -99,6 +110,7 @@ import {
   compareTags,
   comparePin,
   fileInTgz,
+  gitBlobId,
   issueBody,
   keepIssue,
   newestLike,
@@ -108,6 +120,7 @@ import {
   readImages,
   readPin,
   readTriggerPin,
+  releaseKeysPin,
   TRIGGER_BUILDS,
   registryDigest,
   registryOf,
@@ -127,6 +140,7 @@ import {
   type Repo,
   type Row,
 } from './idp-pin-watch.mjs';
+import { NODE_RELEASE_KEYRING, NODE_RELEASE_KEYS } from './package-appliance.mjs';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MANAGED_YML = readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8');
@@ -295,6 +309,8 @@ describe('the one issue', () => {
 // Every pin Dependabot cannot see (workplan 0146 T8).
 
 const REAL = repoReader(REPO_ROOT);
+/** The Node.js release keyring committed for the Windows payload's node.exe check (2026-11-01). */
+const RELEASE_KEYRING = readFileSync(NODE_RELEASE_KEYRING);
 /** The real checkout, with some files replaced (null: not there). */
 const withFiles = (over: Record<string, string | null>): Repo => ({
   read: (rel) => (Object.hasOwn(over, rel) ? (over[rel] ?? null) : REAL.read(rel)),
@@ -308,6 +324,7 @@ interface Stubs {
   bytes?: Array<[RegExp, Answer]>;
   digest?: Array<[RegExp, Answer]>;
   lsRemote?: Record<string, string>;
+  head?: Record<string, string>;
   npm?: (args: string[]) => string;
   probe?: (pin: string) => string;
 }
@@ -334,6 +351,12 @@ function fakeNet(stubs: Stubs = {}): Net & { asked: string[] } {
       const listed = stubs.lsRemote?.[url];
       if (listed === undefined) throw new Error(`nothing stubbed for ${url}`);
       return listed;
+    },
+    head: async (url) => {
+      asked.push(`${url} HEAD`);
+      const named = stubs.head?.[url];
+      if (named === undefined) throw new Error(`nothing stubbed for ${url} HEAD`);
+      return named;
     },
     npm: async (args) => {
       if (!stubs.npm) throw new Error('npm is not stubbed');
@@ -1084,6 +1107,9 @@ function registry(newer: Record<string, string> = {}): Stubs {
         return newer[`${name}:${tag}`] ?? digests.get(`${name}:${tag}`) ?? new Error(`no digest stubbed for ${name}:${tag}`);
       }],
     ],
+    // nodejs/release-keys, its newest commit the one pinned, holding the committed keyring.
+    head: { [NODE_RELEASE_KEYS.repo]: `${NODE_RELEASE_KEYS.commit}\tHEAD\n` },
+    bytes: [[/^https:\/\/raw\.githubusercontent\.com\/nodejs\/release-keys\//, RELEASE_KEYRING]],
     text: [
       [/trivy-action\/[0-9a-f]{40}\/action\.yaml$/, "inputs:\n  version:\n    default: 'v0.70.0'\n"],
       [/cosign-installer\/[0-9a-f]{40}\/action\.yml$/, "inputs:\n  cosign-release:\n    default: 'v3.0.6'\n"],
@@ -1465,6 +1491,58 @@ describe('the Atlas CLI migration-lint runs: a named release, checked by its sha
 });
 
 /**
+ * THE NODE.JS RELEASE KEYRING NOTHING WATCHED (#1780's review, 2026-11-01).
+ * The Windows payload's `node.exe` check verifies the release's signed
+ * `SHASUMS256.txt` with a copy of nodejs/release-keys'
+ * `gpg-only-active-keys/pubring.kbx` at a named commit (`NODE_RELEASE_KEYS`).
+ * A build notices only a releaser the copy lacks; a key retired, revoked or
+ * given a new expiry upstream (two such commits came in the ten days before
+ * the pin) reached nothing. Its row compares the file at upstream's newest
+ * commit with the blob id the pin records.
+ */
+describe('the Node.js release keyring, against the file at upstream\'s newest commit', () => {
+  const PACKAGER = REAL.read(NODE_RELEASE_KEYS_FILE)!;
+  const NEWER = 'f'.repeat(40);
+  const row = async (repo: Repo, stubs: Stubs) => (await routineRows(repo, fakeNet({ ...registry(), ...stubs }))).rows.find((r) => r.name === 'Node.js release keys');
+
+  it('reads the pin as scripts/package-appliance.mjs exports it, and the committed keyring is its blob', () => {
+    expect(releaseKeysPin(PACKAGER)).toEqual({ ...NODE_RELEASE_KEYS });
+    expect(gitBlobId(RELEASE_KEYRING)).toBe(NODE_RELEASE_KEYS.blob);
+  });
+
+  it('is current while upstream\'s newest commit holds the same file, whatever that commit is, and reads it at that commit', async () => {
+    const net = fakeNet({ ...registry(), head: { [NODE_RELEASE_KEYS.repo]: `${NEWER}\tHEAD\n` } });
+    const found = (await routineRows(REAL, net)).rows.find((r) => r.name === 'Node.js release keys');
+    expect(found).toMatchObject({ where: NODE_RELEASE_KEYS_FILE, state: 'current', newest: `${NEWER} (blob ${NODE_RELEASE_KEYS.blob.slice(0, 12)})` });
+    expect(net.asked).toContain(`https://raw.githubusercontent.com/nodejs/release-keys/${NEWER}/${NODE_RELEASE_KEYS.path}`);
+  });
+
+  it('is behind when upstream\'s file differs (a key retired, revoked, or given a new expiry), naming the newer commit and the route', async () => {
+    const retired = Buffer.concat([RELEASE_KEYRING.subarray(0, 1000), RELEASE_KEYRING.subarray(1001)]);
+    const stubs = { head: { [NODE_RELEASE_KEYS.repo]: `${NEWER}\tHEAD\n` }, bytes: [[/raw\.githubusercontent\.com\/nodejs\/release-keys\//, retired]] as Array<[RegExp, Answer]> };
+    const { rows, status } = await routineRows(REAL, fakeNet({ ...registry(), ...stubs }));
+    const found = rows.find((r) => r.name === 'Node.js release keys');
+    expect(found).toMatchObject({ state: 'behind', newest: `${NEWER} (blob ${gitBlobId(retired).slice(0, 12)})`, notes: [NODE_RELEASE_KEYS_NOTE] });
+    expect(summaryOf(rows, status).body).toContain(`- \`Node.js release keys\` (${NODE_RELEASE_KEYS_FILE}): ${NODE_RELEASE_KEYS.commit} `);
+    expect(summaryOf(rows, status).body).toContain(`newest **${NEWER} (blob `);
+  });
+
+  it('is behind when the recorded blob id is not the file upstream holds, and never current on a pin or an answer it cannot read', async () => {
+    const pinned = (from: string, to: string) => {
+      expect(PACKAGER).toContain(from);
+      return withFiles({ [NODE_RELEASE_KEYS_FILE]: PACKAGER.replace(from, to) });
+    };
+    expect(await row(pinned(`blob: '${NODE_RELEASE_KEYS.blob}'`, `blob: '${'0'.repeat(40)}'`), {})).toMatchObject({ state: 'behind' });
+    expect(await row(pinned(`commit: '${NODE_RELEASE_KEYS.commit}'`, "commit: 'main'"), {})).toMatchObject({ state: 'error', error: expect.stringMatching(/names no commit: main/) });
+    expect(await row(pinned('export const NODE_RELEASE_KEYS = {', 'export const NODE_KEYS = {'), {})).toMatchObject({ state: 'error', error: expect.stringMatching(/has no NODE_RELEASE_KEYS/) });
+    expect(await row(pinned(`path: '${NODE_RELEASE_KEYS.path}'`, "path: '../pubring.kbx'"), {})).toMatchObject({ state: 'error', error: expect.stringMatching(/names no path/) });
+    expect(await row(REAL, { head: { [NODE_RELEASE_KEYS.repo]: '' } })).toMatchObject({ state: 'error', error: expect.stringMatching(/named no commit for HEAD/) });
+    expect(await row(REAL, { head: {} })).toMatchObject({ state: 'error' });
+    expect(await row(REAL, { bytes: [[/raw\.githubusercontent\.com/, new Error('raw.githubusercontent.com answered 404')]] as Array<[RegExp, Answer]> })).toMatchObject({ state: 'error' });
+  });
+});
+
+/**
  * THE STALWART-CLI CI INSTALLED FROM `releases/latest` (workplan 0119,
  * 2026-11-01). `ci.yml`'s integration tests and both E2E gates piped
  * `releases/latest/download/stalwart-cli-installer.sh` to `sh`: a script that
@@ -1733,7 +1811,7 @@ describe('the whole watch, one issue per row', () => {
         [/triggerdotdev\/trigger\.dev\/.+\/docker\/docker-compose\.yml$/, `services:\n  clickhouse:\n    image: ${readImages(MANAGED).find((i) => i.repo === 'clickhouse/clickhouse-server')!.ref}\n`],
         [/SECURITY\.md$/, '| 26.2 | ❌ |\n'],
       ],
-      bytes: [[/trigger\.dev-.+\.tgz$/, cliTarball(D26)]],
+      bytes: [...base.bytes!, [/trigger\.dev-.+\.tgz$/, cliTarball(D26)]],
       lsRemote: { ...base.lsRemote, 'https://github.com/zitadel/zitadel.git': lsRemote(readPin(MANAGED)) },
       probe: () => '',
       npm: (args) => {

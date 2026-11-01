@@ -258,15 +258,15 @@ export function verifySha256(bytes, expected, what) {
  * when it has no sum here for a platform in NODE_RUNTIMES, or another version
  * sits beside it, so a Node move cannot ship an unchecked runtime.
  *
- * WHERE THE SUMS COME FROM, for v26.13.0 (read 2026-11-01): the release's
- * `SHASUMS256.txt`, whose signature gpgv verified with the keyring (good, by
- * primary key `C82FA3AE1CBEDC6BE46B9360C43CEC45C17AB93C`, made 2026-10-28
- * 13:00:50 UTC); the clear-signed copy of the same list in the release
- * announcement, `apps/site/pages/en/blog/release/v26.13.0.md` in
- * github.com/nodejs/nodejs.org (good, by the same key, and the same 34 lines);
- * and the SHA-256 of each `node.exe` downloaded and hashed here (100,097,864
- * bytes for win-x64, 88,331,080 for win-arm64). They are of `node.exe`, not of
- * the release's `.zip`.
+ * WHERE THE SUMS COME FROM, for whichever version is pinned: the release's
+ * `SHASUMS256.txt`, whose signature gpgv verifies with the keyring; the
+ * clear-signed copy of the same list in the release announcement,
+ * `apps/site/pages/en/blog/release/<version>.md` in
+ * github.com/nodejs/nodejs.org; and the SHA-256 of each `node.exe` downloaded
+ * and hashed. They are of `node.exe`, not of the release's `.zip`. What each
+ * read gave for the version pinned (its signer, the signature's time, the
+ * sizes) is in the pull request that pinned it and in workplan 0119's Status,
+ * not here, where it would outlive the next move.
  *
  * TO MOVE NODE (Dependabot's image pull request for apps/selfhost/Dockerfile,
  * or by hand), in that same pull request, from the repository root:
@@ -274,13 +274,17 @@ export function verifySha256(bytes, expected, what) {
  *   v=v26.14.0   # the version the Dockerfile's FROM line now names
  *   curl -fsSLo scripts/node-release/SHASUMS256.txt "https://nodejs.org/dist/$v/SHASUMS256.txt"
  *   curl -fsSLo scripts/node-release/SHASUMS256.txt.sig "https://nodejs.org/dist/$v/SHASUMS256.txt.sig"
- *   gpgv --keyring "$PWD/scripts/node-release/release-keys.kbx" \
+ *   gpgv --status-fd 1 --keyring "$PWD/scripts/node-release/release-keys.kbx" \
  *     scripts/node-release/SHASUMS256.txt.sig scripts/node-release/SHASUMS256.txt
  *   grep -E ' win-(x64|arm64)/node\.exe$' scripts/node-release/SHASUMS256.txt
  *
- * and replace the entry below with `$v` and those two sums. gpgv must say
- * `Good signature`; a key it does not have means NODE_RELEASE_KEYS moves first.
- * docs/windows-appliance-runbook.md says the same for a maintainer.
+ * and replace the entry below with `$v` and those two sums. gpgv's status
+ * lines must hold `[GNUPG:] GOODSIG`; its `Good signature` text alone is not
+ * enough, since gpgv prints it for a revoked key and an expired one too, and
+ * `a-runtime-only-its-own-host-vouched-for` reads the status lines on the pull
+ * request as verifyNodeReleaseSignature does. A key it does not have means
+ * NODE_RELEASE_KEYS moves first. docs/windows-appliance-runbook.md says the
+ * same for a maintainer.
  */
 export const NODE_RUNTIME_SHA256 = {
   'v26.13.0': {
@@ -324,7 +328,11 @@ export const NODE_RELEASE_DIR = join(REPO, 'scripts/node-release');
  * anybody can compare with `git rev-parse <commit>:<path>` in a clone of that
  * repository, and the guard compares with the file. A release signed by a key
  * not in it (a new releaser) is refused: take the file at a newer commit of
- * that repository, and move the commit and the blob id below with it.
+ * that repository, and move the commit and the blob id below with it. Upstream
+ * also retires keys and moves expiry dates in that file (twice in the ten days
+ * before this pin), which no build here would notice: `scripts/idp-pin-watch.mjs`
+ * compares the file at upstream's newest commit with the blob id below once a
+ * week, and its summary issue names that commit when they differ.
  */
 export const NODE_RELEASE_KEYS = {
   repo: 'https://github.com/nodejs/release-keys',
@@ -340,8 +348,18 @@ export const NODE_RELEASE_KEYRING = join(NODE_RELEASE_DIR, 'release-keys.kbx');
  *
  * `gpgv` reads only the keyring it is given, under an empty GNUPGHOME, so no
  * key of the machine's own counts. Exactly one signature, good and valid, or
- * it throws: a missing `gpgv`, an unknown key, a bad, expired or revoked
- * signature, or a second signature each stop the build.
+ * it throws: a missing `gpgv`, an unknown key, a bad or expired signature, a
+ * revoked key, or a second signature each stop the build, each saying which.
+ *
+ * A KEY THAT HAS EXPIRED SINCE IT SIGNED is good (#1780's review): four of
+ * the eight keys in the pinned keyring carry an expiry date, and once one has
+ * passed, gpgv reports a list that key signed while it was valid as
+ * `EXPKEYSIG`, with exit 0 and a VALIDSIG, never `GOODSIG`. Refusing that
+ * would turn every pull request and the tag build red on that date with
+ * nothing in the repository changed. So it passes when the signature was made
+ * before every expiry gpgv names for it (`KEYEXPIRED`), which is OpenPGP's
+ * rule, and is refused when it was made at or after one, or when either time
+ * cannot be read.
  */
 export function verifyNodeReleaseSignature(shasums, signature, { keyring = NODE_RELEASE_KEYRING, gpgv = 'gpgv' } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'openmig-node-sig-'));
@@ -362,18 +380,43 @@ export function verifyNodeReleaseSignature(shasums, signature, { keyring = NODE_
       );
     }
     const status = run.stdout.split('\n').filter((l) => l.startsWith('[GNUPG:] '));
-    const count = (word) => status.filter((l) => l.split(' ')[1] === word).length;
-    const valid = status.filter((l) => l.split(' ')[1] === 'VALIDSIG');
-    if (run.status !== 0 || count('NEWSIG') !== 1 || count('GOODSIG') !== 1 || valid.length !== 1) {
+    const lines = (word) => status.filter((l) => l.split(' ')[1] === word);
+    const count = (word) => lines(word).length;
+    const valid = lines('VALIDSIG');
+    const where = relative(REPO, resolve(keyring)) || keyring;
+    const said = `(gpgv exit ${run.status}):\n${(run.stdout + run.stderr).trim()}`;
+    // VALIDSIG <fingerprint> <date> <signature time> … <primary key fingerprint>
+    const fields = valid.length === 1 ? valid[0].trim().split(' ') : [];
+    const signer = fields[fields.length - 1];
+    const one = run.status === 0 && count('NEWSIG') === 1 && valid.length === 1;
+    if (one && count('GOODSIG') === 1) return signer;
+    if (one && count('GOODSIG') === 0 && count('EXPKEYSIG') === 1 && count('REVKEYSIG') === 0 && count('EXPSIG') === 0) {
+      const time = (text) => (/^\d+$/.test(text ?? '') ? Number(text) : NaN);
+      const at = (t) => (Number.isFinite(t) ? new Date(t * 1000).toISOString() : 'an unreadable time');
+      const made = time(fields[4]);
+      const expired = lines('KEYEXPIRED').map((l) => time(l.trim().split(' ')[2]));
+      if (Number.isFinite(made) && expired.length > 0 && expired.every((t) => Number.isFinite(t) && made < t)) return signer;
       throw new Error(
-        `SHASUMS256.txt's signature does not verify with ${relative(REPO, resolve(keyring)) || keyring} ` +
-          `(gpgv exit ${run.status}):\n${(run.stdout + run.stderr).trim()}\n\n` +
-          'Refusing to trust its sums. A release signed by a key not in the pinned keyring needs the ' +
-          'keyring moved (see NODE_RELEASE_KEYS); anything else is a list nobody signed.',
+        `SHASUMS256.txt's signature was made ${at(made)} by ${signer}, whose key in ${where} expired ` +
+          `${expired.map(at).join(' and ') || 'at a time gpgv did not name'}: not before its expiry ${said}\n\n` +
+          'Refusing to trust its sums: a key signs nothing once it has expired. If nodejs/release-keys has ' +
+          "since moved that key's expiry, move NODE_RELEASE_KEYS to that commit (the pin watch's summary " +
+          'issue names it).',
       );
     }
-    const fields = valid[0].trim().split(' ');
-    return fields[fields.length - 1];
+    if (count('REVKEYSIG') > 0) {
+      throw new Error(
+        `SHASUMS256.txt is signed by a key ${where} holds as revoked ${said}\n\n` +
+          'Refusing to trust its sums: a revoked releaser key vouches for nothing, whenever it signed. ' +
+          "Pin a release signed by another releaser's key.",
+      );
+    }
+    throw new Error(
+      `SHASUMS256.txt's signature does not verify with ${where} ${said}\n\n` +
+        'Refusing to trust its sums. NO_PUBKEY above is a key not in the pinned keyring, a new releaser: ' +
+        'move NODE_RELEASE_KEYS to a newer nodejs/release-keys commit. BADSIG is a list or a .sig that is ' +
+        'not what was signed. EXPSIG is a signature past its own expiry. Anything else is in the status lines above.',
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

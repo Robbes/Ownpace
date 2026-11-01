@@ -37,6 +37,9 @@ Published builds — no toolchain needed:
   and Ubuntu); the images carry it.
 - pnpm 11, from npm: Node 25 and later ship no Corepack, so `npm install -g pnpm@11`; inside
   the repository it switches itself to the version `package.json`'s `packageManager` names
+- GnuPG's `gpgv`, for `pnpm test` and for staging the Windows payload: it checks the signature
+  on the Node.js release list the payload's `node.exe` is pinned to (`sudo apt-get install gpgv`
+  on Debian and Ubuntu; Homebrew's `gnupg` on macOS)
 - Docker (for integration tests and dev stack)
 
 ### Installation

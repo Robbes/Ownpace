@@ -2,8 +2,12 @@
 
 ## Getting started
 
-You need **Node 26+** and **pnpm**. That is all `pnpm test` needs. Node 25 and later ship
-no Corepack, so pnpm comes from npm (`npm install -g pnpm@11`; inside the repository it
+You need **Node 26+**, **pnpm** and GnuPG's **`gpgv`**. That is all `pnpm test` needs.
+`gpgv` checks the signature on the Node.js release list the Windows payload's `node.exe` is
+pinned to (`scripts/a-runtime-only-its-own-host-vouched-for.unit.test.ts`; without it four of
+that guard's tests fail with *Could not run gpgv*): Debian and Ubuntu install it with apt
+(`sudo apt-get install gpgv`), macOS with Homebrew's `gnupg`. Node 25 and later ship no
+Corepack, so pnpm comes from npm (`npm install -g pnpm@11`; inside the repository it
 switches itself to the version `package.json`'s `packageManager` names), and on Linux the
 official Node binaries need `libatomic1` (`sudo apt-get install libatomic1` on Debian and
 Ubuntu). The integration and

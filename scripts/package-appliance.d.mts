@@ -46,7 +46,9 @@ export const NODE_RELEASE_KEYS: { readonly repo: string; readonly commit: string
 
 /**
  * Verify a detached signature over a `SHASUMS256.txt` with `gpgv` and a
- * keyring; returns the signer's primary key fingerprint, or throws.
+ * keyring; returns the signer's primary key fingerprint, or throws. A key
+ * that expired after it signed is good; one that expired before, or was
+ * revoked, is refused.
  */
 export function verifyNodeReleaseSignature(
   shasums: Uint8Array,

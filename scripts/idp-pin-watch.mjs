@@ -76,7 +76,13 @@
  *                      together, against upstream's git tags; and the binfmt
  *                      and BuildKit images images.yml's build job names in its
  *                      actions' inputs, each against the digest of the channel
- *                      its action ran before (`ACTION_IMAGES`).
+ *                      its action ran before (`ACTION_IMAGES`); and the
+ *                      Node.js release keyring the Windows payload's
+ *                      `node.exe` check reads (`NODE_RELEASE_KEYS` in
+ *                      scripts/package-appliance.mjs, 2026-11-01), the file
+ *                      at nodejs/release-keys' newest commit against the git
+ *                      blob id it records, so a key retired, revoked, added
+ *                      or given a new expiry upstream is named here.
  *                      cosign-installer's default is a status line only. Any
  *                      other image a script in deploy/compose runs is not
  *                      compared; today there is none (db-roles.sh reads its
@@ -277,6 +283,21 @@ export const ACTION_IMAGES = [
 /** Said beside an action's image whose channel names another build. */
 export const channelNote = (spec) =>
   `\`${spec.channel}\`, the channel ${spec.action} ran before its image was named, names another build: find the release tag that carries that digest, three days old, and move \`${spec.input}\` in images.yml, tag and digest, in a pull request whose build legs run it`;
+
+/**
+ * The Node.js release keyring the Windows payload's `node.exe` check reads
+ * (workplan 0119 §2.5, 2026-11-01; #1780's review): `NODE_RELEASE_KEYS` in
+ * scripts/package-appliance.mjs names the nodejs/release-keys commit, path and
+ * git blob id of `scripts/node-release/release-keys.kbx`. A build notices only
+ * a releaser the file does not hold. Upstream also retires keys and moves
+ * expiry dates in it (twice in the ten days before the pin), and nothing else
+ * would say so, so the row compares the file at upstream's newest commit with
+ * the blob id recorded.
+ */
+export const NODE_RELEASE_KEYS_FILE = 'scripts/package-appliance.mjs';
+/** Said beside the release keys row when upstream's file differs. */
+export const NODE_RELEASE_KEYS_NOTE =
+  "read what that commit changed, then take its gpg-only-active-keys/pubring.kbx into scripts/node-release/release-keys.kbx and move NODE_RELEASE_KEYS' commit and blob with it (docs/windows-appliance-runbook.md); a-runtime-only-its-own-host-vouched-for then checks the committed SHASUMS256.txt with it";
 
 const IMAGE_LINE = /^\s*image:\s*ghcr\.io\/zitadel\/zitadel:(\S+)\s*$/gm;
 const RELEASE = /^v(\d+)\.(\d+)\.(\d+)$/;
@@ -891,6 +912,28 @@ export function securityFloor(index, major) {
 
 // ------------------------------------------------------------- rows ------
 
+/**
+ * `NODE_RELEASE_KEYS` as scripts/package-appliance.mjs writes it:
+ * `{ repo, commit, path, blob }`, read as text like `atlasPin`, or a refusal
+ * for one that is missing or malformed.
+ */
+export function releaseKeysPin(text) {
+  const block = /^export const NODE_RELEASE_KEYS = \{$([\s\S]*?)^\};$/m.exec(text ?? '');
+  if (!block) throw new Error(`${NODE_RELEASE_KEYS_FILE} has no NODE_RELEASE_KEYS`);
+  const field = (name) => new RegExp(`^  ${name}: '([^']*)',?$`, 'm').exec(block[1])?.[1];
+  const pin = { repo: field('repo'), commit: field('commit'), path: field('path'), blob: field('blob') };
+  if (!/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/.test(pin.repo ?? '')) throw new Error(`NODE_RELEASE_KEYS names no GitHub repository: ${pin.repo}`);
+  if (!/^[0-9a-f]{40}$/.test(pin.commit ?? '')) throw new Error(`NODE_RELEASE_KEYS names no commit: ${pin.commit}`);
+  if (!/^[0-9a-f]{40}$/.test(pin.blob ?? '')) throw new Error(`NODE_RELEASE_KEYS names no git blob id: ${pin.blob}`);
+  if (!/^[\w.-]+(\/[\w.-]+)*$/.test(pin.path ?? '') || pin.path.split('/').includes('..')) throw new Error(`NODE_RELEASE_KEYS names no path: ${pin.path}`);
+  return pin;
+}
+
+/** A file's git blob id, as `git hash-object` gives it. */
+export function gitBlobId(bytes) {
+  return createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+}
+
 const need = (repo, rel) => {
   const text = repo.read(rel);
   if (text === null) throw new Error(`${rel} is not in this checkout`);
@@ -1396,6 +1439,23 @@ export async function routineRows(repo, net) {
     }]);
   }
 
+  // The Node.js release keyring the Windows payload's node.exe check reads
+  // (2026-11-01, #1780's review): the file at upstream's newest commit against
+  // the blob id NODE_RELEASE_KEYS records.
+  jobs.push(['Node.js release keys', NODE_RELEASE_KEYS_FILE, async () => {
+    const pin = releaseKeysPin(need(repo, NODE_RELEASE_KEYS_FILE));
+    const head = /^([0-9a-f]{40})\tHEAD$/m.exec(await net.head(pin.repo))?.[1];
+    if (!head) throw new Error(`${pin.repo} named no commit for HEAD`);
+    const blob = gitBlobId(await net.bytes(`https://raw.githubusercontent.com/${new URL(pin.repo).pathname.slice(1)}/${head}/${pin.path}`));
+    const state = blob === pin.blob ? 'current' : 'behind';
+    return {
+      pin: `${pin.commit} (${pin.path}, blob ${pin.blob.slice(0, 12)})`,
+      newest: `${head} (blob ${blob.slice(0, 12)})`,
+      state,
+      ...(state === 'behind' ? { notes: [NODE_RELEASE_KEYS_NOTE] } : {}),
+    };
+  }]);
+
   const rows = [];
   for (const [name, where, job] of jobs) rows.push(await settle(job, { name, where }));
 
@@ -1581,6 +1641,7 @@ export function realNet(root) {
       return res.headers.get('docker-content-digest') ?? '';
     },
     lsRemote: async (url) => run('git', ['ls-remote', '--tags', '--refs', url]),
+    head: async (url) => run('git', ['ls-remote', url, 'HEAD']),
     npm: async (args) => run('npm', args, ['ignore', 'pipe', 'inherit']),
     probe: async (pin) => run('bash', [join(root, 'deploy/compose/trigger-version.sh'), 'probe', pin], ['ignore', 'pipe', 'inherit']),
   };

@@ -40,7 +40,12 @@
  * - The signature, with the real `gpgv` and the committed keyring: good on
  *   the committed list, by the key that signed it; refused with one byte of
  *   the list changed, with an empty keyring, with the signature given twice,
- *   and with no `gpgv` to run.
+ *   and with no `gpgv` to run. With two throwaway keys (#1780's review): a
+ *   list signed by a key BEFORE that key expired is good, on any date after,
+ *   since four of the eight keys in the pinned keyring carry an expiry date
+ *   and gpgv answers EXPKEYSIG, never GOODSIG, once it has passed; a list
+ *   signed after its key's expiry, and one signed by a revoked key, are
+ *   refused, each saying so, and neither error calls the list unsigned.
  * - The keyring is the file it says it is: its git blob id is the one
  *   `NODE_RELEASE_KEYS` records for that path at that commit upstream.
  */
@@ -250,14 +255,14 @@ describe('the release keys are pinned, and gpgv checks with them alone', () => {
     const text = SHASUMS.toString('utf-8');
     const changed = Buffer.from(text.replace(/^([0-9a-f])/, (c) => (c === '0' ? '1' : '0')));
     expect(changed.equals(SHASUMS)).toBe(false);
-    expect(() => verifyNodeReleaseSignature(changed, SIGNATURE)).toThrow(/does not verify[\s\S]*BADSIG/);
+    expect(() => verifyNodeReleaseSignature(changed, SIGNATURE)).toThrow(/does not verify[\s\S]*\[GNUPG:\] BADSIG /);
 
     const dir = mkdtempSync(join(tmpdir(), 'openmig-empty-keyring-'));
     try {
       mkdirSync(join(dir, 'k'));
       const empty = join(dir, 'k', 'empty.kbx');
       writeFileSync(empty, '');
-      expect(() => verifyNodeReleaseSignature(SHASUMS, SIGNATURE, { keyring: empty })).toThrow(/NO_PUBKEY/);
+      expect(() => verifyNodeReleaseSignature(SHASUMS, SIGNATURE, { keyring: empty })).toThrow(/\[GNUPG:\] NO_PUBKEY /);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -266,5 +271,46 @@ describe('the release keys are pinned, and gpgv checks with them alone', () => {
     expect(() => verifyNodeReleaseSignature(SHASUMS, SIGNATURE, { gpgv: join(REPO, 'no-such-gpgv') })).toThrow(
       /Could not run .*no-such-gpgv[\s\S]*not optional/,
     );
+  });
+
+  /**
+   * Two throwaway keys, made for this test with `gpg --faked-system-time` and
+   * their secret halves discarded (#1780's review): EXPIRED, created 2024-01-01
+   * and given an expiry of 2025-01-31, which signed LIST on 2024-06-01 (before)
+   * and on 2025-03-01 (after; the key had no expiry yet when it signed, and was
+   * given one later); and REVOKED, which signed LIST on 2024-06-01 and was then
+   * revoked. Today gpgv says EXPKEYSIG, or REVKEYSIG, with exit 0, a VALIDSIG
+   * and `Good signature` for all three, and GOODSIG for none.
+   */
+  const THROWAWAY_KEYS = Buffer.from(
+    'mDMEZZIAgBYJKwYBBAHaRw8BAQdAUIyx5ng6CmTCCojiaRmHuW2Flxa98wla+qCGn0zf7cq0KkV4cGlyZWQgVGVzdCBLZXkgPGV4cGlyZWRAZXhhbXBsZS5pbnZhbGlkPoiZBBMWCgBBAhsDBQsJCAcCAiICBhUKCQgLAgQWAgMBAh4HAheAFiEEBKJdra091n4j5NE/qXkxZ3Y8GAEFAmWTUgAFCQIKusAACgkQqXkxZ3Y8GAE4MQEAiLeb4tAzuMq/k61UUlEGEF2XPPx8C2ywpjTNB2PhhRgBALYpn147YZcS1Eh9yHdCrxA8R4zy8A3qlFXyPnyqSnMAmDMEZZIAgBYJKwYBBAHaRw8BAQdAMDrS825jwfCYJCfSJloVZncbbT9TWyyFmtOQkuuanlaIeAQgFgoAIBYhBGW37LHsUYxgAdwgwGfQroYBhnSaBQJlkgCAAh0AAAoJEGfQroYBhnSaylUA/R0QEiAwMdIHfq2/VJwMDwYNPz1KXxhUvGaxEnZb/u8gAQDwjSawq0YBr5VI3ttJVdTRErVZZdmduZlmVZvnapLcCLQqUmV2b2tlZCBUZXN0IEtleSA8cmV2b2tlZEBleGFtcGxlLmludmFsaWQ+iJMEExYKADsWIQRlt+yx7FGMYAHcIMBn0K6GAYZ0mgUCZZIAgAIbAwULCQgHAgIiAgYVCgkICwIEFgIDAQIeBwIXgAAKCRBn0K6GAYZ0mnElAQDvOjkGdnk6AKvoBHkCZPSPriA6Jv6DluYLhQwTTniOGAD/ZDZWHV2zpn5ZHuWfdKTovWDbn+Ss9qIf8nH1hCp9SAA=',
+    'base64',
+  );
+  const EXPIRED = '04A25DADAD3DD67E23E4D13FA9793167763C1801';
+  const REVOKED = '65B7ECB1EC518C6001DC20C067D0AE860186749A';
+  const LIST = Buffer.from(`${'ab'.repeat(32)}  node-v0.0.0-test.tar.gz\n`);
+  const SIGNED = {
+    before: 'iHUEABYKAB0WIQQEol2trT3WfiPk0T+peTFndjwYAQUCZlpkgAAKCRCpeTFndjwYASaOAQC8p6Bc1BvlQVGw3e0OO5HO4C9eFJOZVkOsjUJueR33wgD/ZlLNaxCXkDLKI/8gIorKwiVs3fGfnspq08tRNXrLfAc=',
+    after: 'iHUEABYKAB0WIQQEol2trT3WfiPk0T+peTFndjwYAQUCZ8JOAAAKCRCpeTFndjwYAaWoAQDRokLt2j5xMJ9n+216KnvUirs5PbrFWy8akiRW0OR5qwEA3EwyZ8VrbHh8IFEAVabTEfrZP8SKLKYL+A8o5pokMQo=',
+    revoked: 'iHUEABYKAB0WIQRlt+yx7FGMYAHcIMBn0K6GAYZ0mgUCZlpkgQAKCRBn0K6GAYZ0mvhCAQCZlqPJY+MbfH9iRi1SXRGy23fZMuTmXYPdY/zxi62ybwEAnHUqkNyCwalZwvAn4fWh6Pzhna3kogKPJ+0aRktxHg0=',
+  };
+
+  it('takes a list signed before its key expired, and refuses one signed after, or by a revoked key, saying which', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'openmig-throwaway-keyring-'));
+    try {
+      const keyring = join(dir, 'throwaway.gpg');
+      writeFileSync(keyring, THROWAWAY_KEYS);
+      const check = (which: keyof typeof SIGNED, list = LIST) =>
+        () => verifyNodeReleaseSignature(list, Buffer.from(SIGNED[which], 'base64'), { keyring });
+      // Signed 2024-06-01, expired 2025-01-31: good on every date after, as it was the day it was made.
+      expect(check('before')()).toBe(EXPIRED);
+      expect(check('before', Buffer.from(LIST.toString().replace('ab', 'ac')))).toThrow(/does not verify[\s\S]*\[GNUPG:\] BADSIG /);
+      expect(check('after')).toThrow(
+        new RegExp(`made 2025-03-01T00:00:00\\.000Z by ${EXPIRED}, whose key in .* expired 2025-01-31T12:00:00\\.000Z: not before its expiry[\\s\\S]*\\[GNUPG:\\] EXPKEYSIG `),
+      );
+      expect(check('revoked')).toThrow(new RegExp(`signed by a key .* holds as revoked[\\s\\S]*\\[GNUPG:\\] REVKEYSIG [\\s\\S]*${REVOKED}`));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

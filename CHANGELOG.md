@@ -75,8 +75,18 @@ notices.
   `a-runtime-only-its-own-host-vouched-for` fails a pull request that moves
   the Dockerfile's Node without the sums, so Dependabot's next Node pull
   request needs the new list and sums pushed to it (the runbook gives the
-  commands). Staging a payload with `--with-node` now needs `gpgv` on the
-  machine.
+  commands). `pnpm test` and staging a payload with `--with-node` now need
+  GnuPG's `gpgv` on the machine (README and CONTRIBUTING list it). A list
+  signed by a releaser key that has expired since is still good when it was
+  signed before that expiry, since four of the keyring's eight keys carry
+  one and refusing it would turn every pull request red on that date; one
+  signed after its key expired, or by a revoked key, is refused, saying so.
+  The release's `verify` job now also holds the published zip's `node.exe` to
+  the sum the tagged commit pins, read at that commit, where it checked the
+  zip only against its own `SHA256SUMS.txt`. And the weekly pin watch compares
+  the pinned keyring with the same file at nodejs/release-keys' newest commit,
+  so a key retired, revoked or given a new expiry upstream is listed in its
+  summary issue.
 
 - **CI's other floating downloads are named releases, checked by their
   SHA-256 or digest: stalwart-cli, the dev database Atlas lints against, and
