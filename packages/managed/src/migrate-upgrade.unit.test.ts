@@ -86,8 +86,8 @@
  * ON PGLITE, as the shared gate runs, so it gates every pull request in the
  * unit project with nothing but git (`ci.yml` checks out with
  * `fetch-depth: 0`). The managed edition runs Postgres, so the same proof
- * runs there too, from the newest release, in
- * `migrate-upgrade.integration.test.ts`. Both read the release through
+ * runs there too, from the same starting points (the managed chain's oldest
+ * supported release and the newest), in `migrate-upgrade.integration.test.ts`. Both read the release through
  * `__tests__/upgrade-from-a-release.ts`, which holds what the two legs share.
  *
  * FROM WHICH RELEASES (0146 T4). From each that `scripts/release-line.json`

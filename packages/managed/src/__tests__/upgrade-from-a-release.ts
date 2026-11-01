@@ -9,7 +9,8 @@
  *   every pull request, from each starting point `scripts/release-line.json`
  *   names; its header says what is proved and why each piece is as it is.
  * - `migrate-upgrade.integration.test.ts` runs the same proof on Postgres 18,
- *   the server the managed edition runs, from the newest release.
+ *   the server the managed edition runs, from the same starting points (the
+ *   managed chain's oldest supported release and the newest).
  *
  * Nothing here is imported by anything that ships, which is why it sits in
  * `__tests__`, beside `apps/api`'s helpers: the image guard

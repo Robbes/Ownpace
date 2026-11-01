@@ -42,7 +42,10 @@ merged. For alpha.4.
   `OPERATIVE.md` is regenerated. The runner's downgrade refusal names the two causes that remain
   (a build older than the database; a shipped file renamed or removed, a defect) and no squash;
   the shared gate's refusal case asserts that. `pnpm db:generate`'s refusal, `README.md`'s
-  *Status* and `release.md` say it.
+  *Status* and `release.md` say it. The amendment and the guard's header say what the runner
+  sees: its downgrade guard compares only a database's highest recorded name, so a missing
+  newest file is refused, an earlier one removed goes unnoticed and one renamed is applied
+  again (review of #1766).
 - **T3's choice on comments.** T3 left the build to choose between (a) byte equality with managed
   0006 and 0008 put back to alpha.1's bytes, and (b) comments allowed. (a) as written cannot hold
   any more: #1650's notes in 0006 and 0008 shipped in alpha.2 and alpha.3, so alpha.1's bytes
@@ -68,7 +71,11 @@ merged. For alpha.4.
   `SOURCE_PROOFS` reads on 2026-10-31 (the fold reads it again), the targets, signing in, silence,
   billing, the operator's Log page and problem report, and what is not in it. The pricing line
   and the *209 commits* introduction it names were corrected in alpha.1's section already. Its
-  content is the owner's to read, and no guard checks it.
+  content is the owner's to read, and no guard checks it. After review: the owner lets each
+  tester in from the access queue, and a grant link is what a tester sends the people they
+  migrate (ADR-0035, ADR-0050), not how a tester gets in; *experimental* means not yet proven
+  by a recorded run, since `SOURCE_PROOFS` notes an unrecorded run of *Via IMAP* and a
+  measurement of the Microsoft 365 account's mail.
 - **Not in this:** the container drill from the alpha tag, at the next release (`release.md`);
   `two-chains.unit.test.ts`, which still reads `UPGRADE_FROM_REF`; wiring `release-line.json`
   into Release's preflight.

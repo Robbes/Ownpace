@@ -87,9 +87,14 @@ ADR-0017's bullet in place and superseding it:
 The fourth operative bullet said *"Pre-release only, `scripts/squash-migrations.sh` folds the
 chain into `0001_baseline.sql`"*, and nothing said when pre-release ended. It ended with
 `v0.2.0-alpha.1`, tagged on 2026-10-06: the first tag `ownpace-live` ran, and the moment a
-database holding real data could exist. From it on a squash, an edit or a deletion of an applied
-migration strands every such database: the runner records names, never content, so an edit
-reaches fresh installs only, and a missing name makes the downgrade guard refuse.
+database holding real data could exist. From it on a squash, an edit, a rename or a deletion of
+an applied migration leaves every such database refused, or out of step with a fresh install,
+with no way back but a restore. The runner records names, never content, and
+its downgrade guard compares only the highest name a database recorded with the build's highest
+file. So an edit reaches fresh installs only; a squash, or a missing newest name, makes the
+downgrade guard refuse; and a missing earlier name goes unnoticed by the runner if the file was
+removed, or is applied again under its new name if it was renamed. That is why
+`a-chain-that-only-grows` refuses every one of them before a build ships.
 
 - The bullet now says so, and the script refuses before it reads anything.
 - `scripts/a-chain-that-only-grows.unit.test.ts` holds both chains: every file of every release

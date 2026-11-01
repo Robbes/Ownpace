@@ -19,17 +19,22 @@ notices.
   - proven: Gmail, Google Calendar, Google Contacts and Google Drive, and the
     Google account's calendars, contacts and files, on the owner's own account;
     an IMAP server, on one this project runs;
-  - experimental, built and not yet run against a real account of its kind:
-    the Google account's mail and Tasks, and Google's whole-domain option;
-    Microsoft 365 over IMAP and over Graph, the Microsoft 365 account's mail,
-    calendars, contacts, OneDrive and To Do, and a shared mailbox; Apple
-    (iCloud); Dropbox; Box; and an export archive (Google Photos Takeout, or
-    Apple's Data and Privacy export), offered and labelled on managed too.
+  - experimental, built, and not yet proven by a recorded run against a real
+    account of its kind: the Google account's mail and Tasks, and Google's
+    whole-domain option; Microsoft 365 over IMAP and over Graph, the Microsoft
+    365 account's mail, calendars, contacts, OneDrive and To Do, and a shared
+    mailbox; Apple (iCloud); Dropbox; Box; and an export archive (Google Photos
+    Takeout, or Apple's Data and Privacy export), offered and labelled on
+    managed too.
 - **Targets:** a Soverin account (mail, calendars, contacts, tasks), a
   Nextcloud account (calendars, contacts, files, tasks), JMAP (mail, contacts,
   files; its calendars are parked), and plain IMAP, CalDAV, CardDAV and WebDAV.
 - **Signing in** goes through an identity provider, and Ownpace keeps no
-  sign-in password (ADR-0042). The owner lets each tester in with a grant link.
+  sign-in password (ADR-0042). The owner lets each tester in from the access
+  queue: a tester asks with *Request access* on the sign-in page, and the mail
+  that follows says where to sign in and carries no token (workplan 0131). A
+  tester can send each person they migrate a grant link, which the tester
+  hands out and Ownpace never does (ADR-0035, ADR-0050).
 - **A migration is silent:** nothing it writes may make a target send mail or
   a notification (ADR-0043).
 - **Billing:** invoices are numbered and written by the accounting system,
@@ -43,8 +48,8 @@ notices.
 **What is not in it:**
 
 - No backups during the Alpha (workplan 0134): a database lost is lost.
-- Every source marked experimental above: built and tested, and not yet run
-  against a real account of its kind.
+- Every source marked experimental above: built and tested, and not yet
+  proven by a recorded run against a real account of its kind.
 - A signed Windows payload: the zip is unsigned, as rc.1's was, and Windows
   warns before it runs (workplan 0025 T6, deferred to `v0.1.0`).
 - An appliance tester: the appliance at this tag is the same code, and the

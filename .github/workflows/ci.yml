@@ -514,7 +514,8 @@ jobs:
           ls "$staged"
           # atlas.sum is generated here, not committed: lint requires the
           # integrity file to exist, while append-only migration discipline is
-          # enforced by review and scripts/squash-migrations.sh.
+          # enforced by scripts/a-chain-that-only-grows.unit.test.ts (workplan
+          # 0146 T3, ADR-0045).
           atlas migrate hash --dir "file://$staged"
           # --latest 999 = lint the whole directory every time. The set is
           # small, the replay is seconds, and it keeps the job deterministic

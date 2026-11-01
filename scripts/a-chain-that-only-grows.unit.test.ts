@@ -5,10 +5,13 @@
  *
  * ## Why it matters
  *
- * The migrator records a migration's NAME and never reads that file again.
- * So an edit to a file a release applied reaches fresh installs only, and a
- * squash or a deletion leaves every database that recorded the old names
- * refused by the downgrade guard. Before any release that was a shrug: drop
+ * The migrator records a migration's NAME and never reads that file again,
+ * and its downgrade guard compares only the highest name a database recorded
+ * with the build's highest file. So an edit to a file a release applied
+ * reaches fresh installs only; a squash, or the newest file deleted, leaves
+ * every database that recorded the old names refused by that guard; and an
+ * earlier file deleted goes unnoticed, while one renamed is applied again
+ * under its new name. Before any release that was a shrug: drop
  * the database and start again. From `v0.2.0-alpha.1` on, `ownpace-live` ran
  * a release, and a managed database holds organisations, stored credentials
  * and the audit log, none of which a target rebuilds.
