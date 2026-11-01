@@ -4,6 +4,155 @@
 
 ## Status — 2026-10-31 (update this block at the end of every session)
 
+**2026-10-31: the dashboard's TLS front is Caddy 2.11.7 built here without curl, which clears its
+critical (alpha.4).** `trigger-tls` runs `caddy:2.11.7-alpine` by index digest `eb4d35b7…`, the pin
+of 2026-10-22. The image scan of `e1b21aac` (Security Scan run 41130684117, dispatched on
+2026-10-30) is where the critical was counted: its report's row reads `caddy:2.11.7-alpine@sha256:eb4d35b7452d…`,
+Alpine 3.23.7, 1 critical, 9 high, 9 fixable on linux/arm64, and names the critical, CVE-2026-111497
+in brotli-libs 1.2.0-r0. Read again on 2026-10-31 with Trivy v0.76.1 and its database of 2026-10-30, as
+the image scan reads (vulnerabilities, high and critical), from the registry's own blobs of the two
+platform images the index names (linux/arm64 `cc447f14…`, linux/amd64 `04913b1d…`, each layer
+checked against its digest and the two scanned as OCI layouts): 1 critical, 9 high and 9 fixable
+on Alpine 3.23.7, the same on both. Three are Alpine's: CVE-2026-111497, critical, in brotli-libs
+1.2.0-r0 (fixed in 1.2.1-r0), and CVE-2026-92392, high, in curl and libcurl 8.22.0-r0 (fixed in
+8.23.0-r0). All three come in with curl. Upstream's Dockerfile adds it, `apk add --no-cache
+ca-certificates curl libcap mailcap` (caddy-docker's `2.11/alpine/Dockerfile` since its commit
+`f760f9dc` of 2026-01-16, which gives no reason), and the image's history carries that line. Read
+from the image's `/lib/apk/db/installed`, only libcurl needs brotli-libs, c-ares, libidn2, libpsl,
+nghttp2-libs and zstd-libs, and only libidn2 and libpsl need libunistring. Upstream will not move
+it: v2.11.7 is Caddy's newest tag (`git ls-remote`), and Docker Hub's index for the tag, re-pushed
+on 2026-10-30 (`e70b164d…` now), differs from the pinned one in its riscv64 image alone, so its
+linux/amd64 and linux/arm64 images are the builds of 2026-10-21 the pin names. Nothing on the
+stack runs curl in that container: it has no healthcheck, nothing in the repository runs `exec` in
+it, and the smoke asks the front from the host. Caddy is one statically linked Go binary.
+`deploy/compose/caddy/Dockerfile` is the same FROM and one RUN, which checks curl, libcurl and
+brotli-libs at those versions and otherwise stops with "re-read the header", runs `apk del
+--no-network curl`, and proves the nine packages gone, ca-certificates, libcap and mailcap kept, no
+curl on the PATH, and `caddy version` at v2.11.7. `managed.yml` runs it as
+`localhost/caddy:2.11.7-alpine-ed5425a7da36`, `build: ./caddy`, `pull_policy: never`, built by the
+bring-up's `up` where the name is missing. Dependabot reads the directory in an entry of its own
+(every Caddy 2 release and digest, a major ignored: Caddy keeps no older minor line, so its fixes
+ship in the newest release, and the pin watch compares within 2 as well); the pin watch compares
+its FROM; the image scan builds it under the name `caddy`, as before; images.yml's `build (caddy)`
+builds it on a pull request, starts it with `trigger-tls.Caddyfile` and asks it by IP for TLS on
+3443; `scripts/a-package-the-front-never-runs.unit.test.ts` holds all of it. **Measured after,
+built** (the pull request at `fadf0cd9`): Images run 41161101247's `build (caddy)` built the
+directory on linux/amd64, where `apk del` purged exactly curl, libcurl, libpsl, nghttp2-libs,
+zstd-libs, brotli-libs, c-ares, libidn2 and libunistring and every proof in the RUN held, and the
+probe printed `trigger-tls: TLS terminated on 127.0.0.1:3443 by Caddy (HTTP 200)`; Security Scan
+run 41161126144, dispatched on the branch, built it on linux/arm64 and its report reads
+`localhost/caddy:2.11.7-alpine-ed5425a7da36` (built from `deploy/compose/caddy`), Alpine 3.23.7,
+**0 critical, 7 high, 6 fixable**, and names no critical for caddy. Those are the counts read before
+the first build, without a Docker daemon, from the two platform images with one more layer that
+does to apk's database what `apk del` does and removes the nine packages' files: 0, 7 and 6 on both
+platforms. The report counts the highs without naming them, and that reading names all seven, in
+the Caddy binary: go-jose/v4 v4.1.5 and go-jose/v3 v3.0.5 (CVE-2026-116587, fixed in
+4.1.6, none for v3), x/net v0.59.0 (CVE-2026-78669, fixed in 0.60.0), and the Go standard library
+v1.26.8 (CVE-2026-111943, CVE-2026-78667, CVE-2026-78669, CVE-2026-97031). Those wait for a Caddy
+release. The three-day floor does not apply: no upstream release or digest is taken, the base is
+the digest the stacks already run, and the removal fetches nothing. The branch was brought current
+with `main` at `42efbe21` by a merge the same evening, so it carries #1755's Trigger.dev v4.8.3,
+whose migrations are one way, and an E2E (managed) on it runs the OTA stack's v4.8.3 and never the
+v4.8.1 it was cut from. Corrected on review: `images.yml`'s comment said the probe gets the
+reverse proxy's 502; asked by IP, the request's Host matches no site address, so Caddy answers it
+itself, an empty 200 with its Server header, and never proxies, as the run got. The comment says so
+now, and the guard's stub answers as that run did (200) as well as with the proxy's 502, and
+refuses a step that waits for the 502. E2E (managed) on the branch, whose smoke asks the same front, was green: run 41248446953 on
+`1b86b798`, 2026-10-31 22:30–22:39 UTC; live takes it from the tag that carries it, and the front restarts once there
+(`managed-bring-up.md`, *The dashboard's TLS front is a build here too*).
+
+**2026-10-31, evening: both Postgres builds take brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from
+Alpine at build, on upstream's rebuild of 2026-10-26, until PostgreSQL 18.7 carries them
+(alpha.4, #1758).** The RUN that takes them is temporary: it comes out with the move to an 18.7
+image (due about 2026-11-12) whose base carries both fixes, and its own check fails the build of
+any base that already carries one, so that move's pull request says when. The image scan of
+`e1b21aac` (Security Scan run 41130684117, 2026-10-30) read `postgres-managed` (Alpine 3.24.3) and
+`postgres-selfhost` (Alpine 3.24.2) at 1 critical, 1 high and 2 fixable each. Read again here with
+Trivy v0.76.1 (database of 2026-10-30 19:07 UTC), remote image source, on the bases `10a5c69a…`
+(linux/arm64 and linux/amd64) and `77f58511…` (linux/arm64), gosu set aside since both builds
+remove it: CVE-2026-111497 in brotli-libs 1.2.0-r1 (critical, an out-of-bounds write in brotli's
+decoder, fixed in 1.2.1-r0), CVE-2026-92392 in libcurl 8.22.0-r0 (high, a use-after-free in HTTP/2
+uploads, fixed in 8.23.0-r0), and nothing else. No digest clears them: Docker Hub pushed the
+`18.6-alpine` index `10a5c69a…` (Dependabot's #1744 and #1745, carried by draft #1750) on
+2026-10-26 04:10 UTC over amd64 and arm64 images it had pushed on 2026-10-22, and 18.7 is due
+2026-11-12. In the amd64 image, its layers fetched from the registry and checked by digest, only
+`/usr/local/lib/libpq-oauth-18.so` links libcurl and only libcurl links brotli's decoder. Nothing
+here connects to Postgres with OAuth, so nothing the stacks or the appliance run loads either: this
+clears two findings, not a hole anybody here could reach, as the webapp's dompurify did (#1742).
+- **The RUN.** Both Dockerfiles gain the same one. It refuses a base whose brotli-libs or libcurl
+  is no older than the fixed version (upstream then carries the fix, and the package comes out of
+  the RUN), runs `apk add --no-cache brotli-libs=1.2.1-r0 libcurl=8.23.0-r0` against the base's
+  own repositories, which apk checks against the index Alpine signs with the keys in the base, and
+  refuses unless exactly those two packages changed, to exactly those versions. Exact versions and
+  no floor: the name is the hash of the instruction lines, and a floor would let a later day build
+  something else under it. libcurl is upgraded, not removed: `.postgresql-rundeps` needs
+  `so:libcurl.so.4`. aports' `3.24-stable` branch has curl 8.23.0-r0 and brotli 1.2.1-r0, whose
+  secfixes name the two CVEs (read on GitHub's mirror of aports). Alpine's package mirror,
+  pkgs.alpinelinux.org and its secdb are refused by this session's network, so the packages' push
+  dates were not read, and `build (postgres)` on the pull request and the image scan on the branch
+  are the proof that v3.24/main serves them. Both are security fixes, so the three-day floor's
+  exception applies to them (CONTRIBUTING.md); the FROM passed its floor on 2026-10-29 04:10 UTC.
+  The RUN's own logic ran here on the extracted amd64 base in a chroot, with apk 3.0.8's
+  `apk version -t` and the install stood in for: it passed when the two moved, and failed when a
+  third package moved, when the install failed, when the base's libcurl was already 8.23.0-r0, and
+  when its brotli-libs was newer than 1.2.1-r0.
+- **What it reverses, and what it costs.** 0146 T15 decided against `apk upgrade brotli-libs` in
+  the build on 2026-10-26: *"it would reach Alpine's mirrors at every build and make the image a
+  function of the day it was built."* The finding was a high then, and a rebuild of 18.6-alpine was
+  expected to clear it; it is critical now, and the rebuild did not. Exact versions answer the
+  second reason. The first is the cost, stated in both Dockerfiles, `docs/managed-bring-up.md` and
+  `docs/selfhost-quickstart.md`: every build of these images now fetches two packages from
+  `dl-cdn.alpinelinux.org`, once per machine and name. That is the box's `up` where the name is
+  missing, and an appliance's first `up` after the move; before, the build needed the base alone.
+  Alpine keeps only the newest build of a package in a stable branch, so once it moves either one,
+  a machine without the name cannot build it, anywhere; the way on is a pull request that moves
+  the version, or the FROM to an 18.7 that carries both. aports' `3.24-stable` still read curl
+  8.23.0-r0 and brotli 1.2.1-r0 on 2026-10-31, so nothing is broken yet. The review of #1758 asked
+  for that failure in the operator's words, and it has them: when `apk add` fails, the RUN prints,
+  after apk's own error, that the two versions could not be installed, that a machine which cannot
+  reach `dl-cdn.alpinelinux.org` should be let reach it and run the same command again, and that
+  otherwise the mirror no longer serves them and this release's database image can no longer be
+  built: *"update Ownpace to its newest release"*, pointing at the self-host quickstart's new
+  Troubleshooting entry. The CHANGELOG line says the same. **For the owner to weigh:** two
+  findings nothing here can reach are cleared now, against an appliance build that will stop
+  building once Alpine moves either package, which a release before 18.7 lands would then have to
+  answer with a new release; the alternative is to wait for 18.7 and take neither.
+- **The name and the guard.** One name for both builds, since the two FROMs meet:
+  `localhost/postgres:18.6-alpine-1af6bb314e8d` (`27f5dc218723` until the failure message moved
+  it) on `managed.yml`'s `postgres` and `trigger-db`, `dev.yml`'s and
+  `deploy/selfhost/compose.yml`'s, by the `sed` the guard printed. `a-database-started-as-root`
+  now also refuses an `apk add` without exact versions or without `--no-cache`, with any other
+  option (`--upgrade`, another repository, `--allow-untrusted`), and any apk subcommand but `add`
+  and `version -t`. It reads apk wherever the shell could run it: the review found six forms the
+  first reading let past (`/sbin/apk add`, after `if`, `{` or `!`, inside `sh -c '…'`, after
+  `xargs`), and each is now a refusal it is tested on, as is a heredoc; put back the first
+  reading's pattern and that test fails at `/sbin/apk`. And it runs the RUN itself, on a stand-in
+  apk and package database: the two versions taken and nothing left in `/tmp`; apk's failure
+  followed by the operator's message and exit 1; a third package moved, and a base whose libcurl
+  is 8.23.0-r0 already, each refused, the latter before any install. Without the `|| { … }` the
+  failure case fails the test.
+- **The base, read again for the appliance.** From `/lib/apk/db/installed` in the amd64
+  package layers fetched from Docker Hub: `77f58511…` has Alpine 3.24.2-r0 and musl 1.2.6-r2,
+  `10a5c69a…` has 3.24.3-r0 and musl 1.2.6-r3, with OpenSSL 3.5.8 to 3.5.9, zlib, tzdata, c-ares,
+  libldap and nghttp2 moved too, and ICU 78.1-r0 in both, so the database's collation is
+  untouched; the appliance Dockerfile's header said "the same Alpine and musl" and now says this.
+- **Proven.** Both builds took the two packages from v3.24/main and passed the RUN's checks on the
+  pull request (at `12c0ae9c`): `build (postgres)` built it on linux/amd64 (apk: *"Upgrading
+  brotli-libs (1.2.0-r1 -> 1.2.1-r0)"*, *"Upgrading libcurl (8.22.0-r0 -> 8.23.0-r0)"*) and
+  started both compose files' databases as uid 70, and Security Scan run 41163493604, dispatched
+  with the image scans, built each Dockerfile on linux/arm64 and scanned it. Its *Image scan
+  report* job (124426552404) reads `postgres-managed` and `postgres-selfhost`, both
+  `localhost/postgres:18.6-alpine-27f5dc218723` on Alpine 3.24.3, at **0 critical, 0 high and 0
+  fixable**. Trivy's `rootfs` scan of the extracted amd64 base reads 25 findings at every
+  severity, all in the two packages and all fixable (1 critical, 1 high, 1 medium, 22 low), and 0
+  with its package database at the two new versions. It supersedes #1744, #1745 and #1750, so
+  every Postgres on the box (postgres and trigger-db) and the appliance's is rebuilt and recreated
+  once, not twice.
+- **On today's main.** The branch merged `main` at `42efbe21` (#1755's Trigger.dev v4.8.3, #1761,
+  #1764), so it builds v4.8.3 as the OTA stack runs it: an E2E (managed) of a branch on v4.8.1
+  would meet migrations that only go one way. Owed before merge: E2E (managed) and E2E
+  (self-hosted) on this branch's head.
+
 **2026-10-31: Trigger.dev v4.8.1 → v4.8.3, before its three-day floor, on the owner's waiver
 (alpha.4, issue #1738)**, on the branch `claude/ownpace-public-readiness-y7orc6-trigger-4-8-3`.
 It skips v4.8.2: one move, one way, one window on the OTA stack.
@@ -1355,8 +1504,8 @@ is who moves it after T1.
 | `node` (24-trixie-slim; 24-slim until 0146 T12) | `apps/api` (its build stage only, since 0146 T13), `apps/web`, `apps/selfhost` Dockerfiles; the managed tasks, which build on it (`apps/worker/trigger.config.ts`, 0146 T14, #1716); the Windows payload's node.exe follows `apps/selfhost` | 24.22.1-trixie-slim by index digest `43b9ba11…`, Debian 13.7 (0146 T12, 2026-10-25; 24.22.1-slim, Debian 12.15, from 2026-10-21, the October security release; digest `6f7b03f7…` with no tag at the audit, 24.20.0-slim from T2) | 24.22.1-trixie-slim (Node released 2026-10-20); the tag's digest moves as more architectures land (ppc64le at 17:39 UTC on 2026-10-21) and Dependabot offers each move | current: the pin is the tag's index | Dependabot `docker`, which keeps the `-trixie-slim` suffix and moves the payload with it since 2026-10-21; the Debian release by hand | **T2** — and T1 gives it its tag; Debian 13, and no package manager in the api and selfhost runtimes, from 0146 T12 |
 | `gcr.io/distroless/nodejs24-debian13` (`nonroot`) | `apps/api/Dockerfile`'s runtime stage, since 0146 T13 | the `nonroot` tag by index digest `cb606325…`, Debian 13.7 and Node 24.22.1 (uploaded 2026-10-23 23:31 UTC) | the tag's index, as read 2026-10-25 23:40 UTC | current | Dependabot `docker`, digest moves only (the tag names no version); a new Node major or Debian is a new image name, by hand. Its Node version must be the `node` row's: the managed smoke stops otherwise | **0146 T13**: no shell, `printenv` or package manager, Node at `/nodejs/bin/node` off PATH; 0 critical and 0 high (Trivy 0.76.1, 2026-10-25) |
 | `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.31.8-alpine-slim by digest `f45171d3…` (2026-10-25, 0146 T12a: the same nginx package and base layers as -alpine, without its dynamic modules, curl and the 51 packages they bring; 1.31.8-alpine `1ef7ca94…` from 2026-10-23, 1.31.7-alpine `892bb215…` the day before that, 1.27-alpine at the audit, 1.30-alpine from T2, `1.31-alpine` floating from #813, which no build or `up` ever pulled again) | 1.31.8-alpine-slim, its index pushed 2026-10-24 19:51 UTC to add riscv64 over the amd64 and arm64 images pushed 2026-10-22 01:50 UTC; 1.31.8 itself: four bug fixes and one change (changes.xml, 2026-10-21) on Alpine 3.24.3, which fixes the two high CVEs 1.31.7's image carries on 3.24.2 (libexpat CVE-2026-77214, libx11 CVE-2026-88806); 1.31.7 (2026-10-14) fixed five: CVE-2026-15176, CVE-2026-93479, CVE-2026-95101, CVE-2026-97629 and CVE-2026-97205 | current | Dependabot `docker` for the Dockerfile; `www.yml` by hand after it, and the pin watch (0146 T8) says when the two differ | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows; -alpine-slim since 2026-10-25 (0146 T12a), because nothing here loads what -alpine adds and the scan counts it |
-| `postgres` (self-host) | `deploy/selfhost/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `deploy/selfhost/compose.yml` since 0146 T15b (#1719, merged 2026-10-28, `fb0fea2e`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing) | 18.6-alpine by digest `77f58511…` (Dependabot's move of 2026-09-24 to a rebuild of the tag; `d3e1620b…` from T2, digest `9a8afca5…` = 18.4-alpine with no tag at the audit) | 18.6-alpine, rebuilt 2026-10-22 as `898c60cb…`, which the managed stacks pin, and again 2026-10-26 as `10a5c69a…` (inside the three-day floor) | the same release; Dependabot offers the rebuild | Dependabot `docker` on `/deploy/selfhost/postgres` (its own entry, no major; `docker-compose` before T15b, which now ignores `localhost/postgres`), whose PR fails `a-database-started-as-root` until compose.yml's image line moves, and prints the `sed` that moves it | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
-| `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (#1717, merged 2026-10-28, `6f9af7f2`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.6-alpine by digest `898c60cb…` (2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13); 18.7 is due 2026-11-12 | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and prints the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8) | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
+| `postgres` (self-host) | `deploy/selfhost/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `deploy/selfhost/compose.yml` since 0146 T15b (#1719, merged 2026-10-28, `fb0fea2e`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); since 2026-10-31 the build also takes brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions, the base's only findings once gosu is gone (Status, 2026-10-31) | 18.6-alpine by digest `10a5c69a…` (upstream's rebuild of 2026-10-26, the managed stacks' base too, since 2026-10-31, from Dependabot's #1744; `77f58511…` from its move of 2026-09-24 before that; `d3e1620b…` from T2, digest `9a8afca5…` = 18.4-alpine with no tag at the audit) | 18.6 (2026-08-13), newest digest `10a5c69a…`; 18.7 is due 2026-11-12 | current | Dependabot `docker` on `/deploy/selfhost/postgres` (its own entry, no major; `docker-compose` before T15b, which now ignores `localhost/postgres`), whose PR fails `a-database-started-as-root` until compose.yml's image line moves, and prints the `sed` that moves it; a base that already carries brotli-libs 1.2.1-r0 or libcurl 8.23.0-r0 fails the build until the RUN drops that package, and a version Alpine's mirror no longer serves fails it until the RUN's version moves, in a PR of its own | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
+| `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (#1717, merged 2026-10-28, `6f9af7f2`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); since 2026-10-31 the build also takes brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions, the base's only findings once gosu is gone (Status, 2026-10-31); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.6-alpine by digest `10a5c69a…` (upstream's rebuild of 2026-10-26, since 2026-10-31, from Dependabot's #1745; `898c60cb…` from 2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13), newest digest `10a5c69a…`; 18.7 is due 2026-11-12 | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and prints the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8); a base that already carries brotli-libs 1.2.1-r0 or libcurl 8.23.0-r0 fails the build until the RUN drops that package, and a version Alpine's mirror no longer serves fails it until the RUN's version moves, in a PR of its own | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
 | `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
 | `redis` | `managed.yml` | 7.4.12-bookworm by digest `b6b6e3dc…` (2026-10-30, a security release, before its floor under the floor's exception: Status, 2026-10-30); before it 7.4.11-bookworm by digest `44960b31…` (2026-10-22; `7.4-bookworm` floating from 2026-10-21, `7-alpine` on Alpine 3.21 before) | 8.8.2-alpine | one major | owner for a major; a 7.4 patch by hand when the pin watch lists it | **§3** — the licence changed at 7.4, which is the line this is pinned on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
 | `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`; since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0); since 2026-10-30, an alpha.3 addition, the webapp's build also puts dompurify 3.4.17's files, fetched by the sha512 npm published, in place of 3.4.13's, which nothing here loads: 2 to 1 | v4.8.3 (2026-10-31, before its three-day floor on the owner's waiver: Status, 2026-10-31; v4.8.1 from 2026-10-25, v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.3 (2026-10-30) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; v4.8.3 six Prisma migrations and ClickHouse 055 and 056; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and it reads no file in `deploy/compose` |
@@ -1365,7 +1514,7 @@ is who moves it after T1.
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
 | `haproxy` (the Docker socket proxy's base; `tecnativa/docker-socket-proxy:v0.5.0` itself until 2026-10-30) | `deploy/compose/docker-socket-proxy/Dockerfile`'s FROM, built as `localhost/docker-socket-proxy:<tag>-<hash>` by `managed.yml` (`trigger-docker-proxy`) since 2026-10-30: upstream's v0.5.0 Dockerfile, `haproxy.cfg` and entrypoint byte for byte (commit `2e118a0c`), the base the only change; `pull_policy: never`, built only where the name is missing | 3.4.7-alpine by index digest `2caaf8b1…` (pushed 2026-10-24 17:56 UTC, Alpine 3.24.3, taken 2026-10-30; 0 critical and 0 high built, Security Scan run 41012325563); before it upstream's image, built once on 2026-07-27 on 3.4.2-alpine (Alpine 3.24.1), 0 critical and 6 high on 2026-10-29 | 3.4.7 (2026-10-24); docker-socket-proxy v0.5.0 (2026-07-27) | current | Dependabot `docker`, its own entry, for 3.4 patches and digests; a docker-socket-proxy release by hand, when the pin watch's summary issue lists it (against upstream's tags) | another HAProxy line (3.5, 3.6) is the owner's, taken with a docker-socket-proxy release; Dependabot ignores HAProxy's minors and majors |
 | `chainguard/minio` (0146 T7, #1692; `bitnamilegacy/minio` 2025.5.24-debian-12-r5 until alpha.2) | `managed.yml` (`minio`, `minio-init`) | `latest` by index digest `268d68a2…` (built 2026-10-25, pushed as `latest` 14:29 UTC, taken 2026-10-28: the fork's RELEASE.2026-10-23T20-06-51Z; `d88920d6…`, its RELEASE.2026-09-22T19-25-18Z, from #1692) | `latest` `e70b2b1e…` (pushed 2026-10-27) | three rebuilds since (pushed 2026-10-26 17:11, 2026-10-27 01:51 and 21:51 UTC), none yet three days old | by hand when the pin watch says `latest` was rebuilt, once three days old (0146 T8) | **§3, taken 2026-10-23** — Chainguard's maintained build replaced the frozen Bitnami image in alpha.2 (item 5) |
-| `caddy` | `managed.yml` | 2.11.7-alpine by digest `eb4d35b7…` (2026-10-22; `2-alpine` floating before, never pulled, 2.11.4 when recorded) | 2.11.7 | current | by hand, in its own PR, when the pin watch lists a newer 2.x or the image scan counts fixable findings | **pinned 2026-10-22** (§4); a major is the owner's. The move from 2.11.4 crosses the breaking changes 2.11.6 lists (in the code since 2.11.5): request headers capped at 16 KiB (431 above it), one-minute idle read and write timeouts, header names with a `.` dropped. Checked against `trigger-tls.Caddyfile` (`default_sni`, `tls internal`, `reverse_proxy trigger-api:3000` over HTTP), which sets none of them; the path to watch after the nightly is the dashboard over the mesh |
+| `caddy` | `deploy/compose/caddy/Dockerfile`'s FROM, built as `localhost/caddy:<tag>-<hash>` by `managed.yml` (`trigger-tls`) since 2026-10-31: upstream's image with curl removed, and the eight libraries only curl needed; `pull_policy: never`, built only where the name is missing (`managed.yml` itself until then) | 2.11.7-alpine by digest `eb4d35b7…` (2026-10-22; `2-alpine` floating before, never pulled, 2.11.4 when recorded); 1 critical, 9 high and 9 fixable as pulled (Security Scan run 41130684117), 0, 7 and 6 built (Security Scan run 41161126144, linux/arm64; the Status entry of 2026-10-31) | 2.11.7 | current | Dependabot `docker`, its own entry since 2026-10-31, every 2.x release and digest; its build stops with "re-read the header" until the packages it removes are read again (before it: by hand, when the pin watch listed a newer 2.x or the image scan counted fixable findings) | **pinned 2026-10-22** (§4); a major is the owner's, and Dependabot ignores it. The move from 2.11.4 crosses the breaking changes 2.11.6 lists (in the code since 2.11.5): request headers capped at 16 KiB (431 above it), one-minute idle read and write timeouts, header names with a `.` dropped. Checked against `trigger-tls.Caddyfile` (`default_sni`, `tls internal`, `reverse_proxy trigger-api:3000` over HTTP), which sets none of them; the path to watch after the nightly is the dashboard over the mesh |
 | `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.19.2 (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.19.2 | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason | 1.38 (1.38.0) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.38.0 (2026-10-30, a day before its floor under the security-fix exception: Status, 2026-10-29 and 2026-10-30; before it v5.37.0 from 2026-10-21) | v5.38.0 (2026-10-28) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
@@ -1378,7 +1527,8 @@ Ignored by name in the new Dependabot entries, so that a green tick cannot make 
 decisions: the two Trigger.dev images and Zitadel (one way), ClickHouse and the object
 store (deliberate pins), and the majors of `postgres`, `redis`, `registry`, `nextcloud`
 and `caddy`; and since 2026-10-30 HAProxy's minors and majors in the Docker socket proxy's
-entry, because its line is the one the docker-socket-proxy release chose.
+entry, because its line is the one the docker-socket-proxy release chose. Caddy's major is
+ignored again since 2026-10-31, in the entry for `deploy/compose/caddy`, the front's build.
 
 *2026-10-21 (workplan 0146 T8): the `docker-compose` entry for `deploy/compose` never read a
 file. Dependabot's compose fetcher reads only names like `compose.yml`, and `managed.yml`,

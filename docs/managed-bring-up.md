@@ -383,7 +383,10 @@ takes the machine's own public address from the optional secret
 `EXPOSURE_PROBE_HOST`. It also asks `app.`, `id.`, `status.` and
 `www.ownpace.eu` for the page a visitor asks first, and fails while NetBird's
 sign-in answers one of them instead of the service (workplan 0139, item 8;
-*After the script: the owner's steps*, step 5). A port the front answers by
+*After the script: the owner's steps*, step 5). And it asks live's form that
+founds an organisation, `/ui/login/register/org` at `id.ownpace.eu`, and fails
+unless it answers 404, a redirect included (workplan 0135 T1): the smoke asks
+that page on the OTA stack, and never runs on live. A port the front answers by
 itself, which never reaches the machine, goes in the optional repository
 variable `EXPOSURE_PROBE_FRONT_PORTS`, and only after a capture on the machine
 during a probe run has shown that nothing arrives (workplan 0132 T3 (c), the
@@ -658,7 +661,8 @@ for live's new volumes with a list of its own, the same five.
   a dashboard opened from a laptop `TRIGGER_TLS_BIND`: see *Which address a port
   answers on*. Every phase that runs Compose refuses a bind that is a name,
   `0.0.0.0` or a comment, naming the key.
-- `OWNPACE_REACHABLE_HOSTS` — empty, and on live it stays empty. The API and
+- `OWNPACE_REACHABLE_HOSTS` — empty, and on live it stays empty: `stand-up-live.sh`
+  and `deploy-live.sh` refuse live's `.env` when it names a host. The API and
   every task run refuse to connect to a host a tester typed when it resolves
   inside this service's own network, except for the exact names this lists
   (workplan 0136 T1, T2). An entry admits that name for every organisation on
@@ -2445,7 +2449,9 @@ Invoices go through two services, each with its keys in `.env`:
 **None of this is needed for the alpha**, which invoices nobody. With none of
 these keys set, nothing is asked of either service and everything else runs.
 Live sets them before the alpha ends ([ending-the-alpha.md](./ending-the-alpha.md),
-*Before*, step 2). The OTA stack uses a Moneybird **sandbox** administration
+*Before*, step 2), all but Mollie's key, which goes in with the switch that
+ends it (*The switch*, step 4): while live's stage is `alpha`, `deploy-live.sh`
+refuses its `.env` with `MOLLIE_API_KEY` set (workplan 0131 §3 T3). The OTA stack uses a Moneybird **sandbox** administration
 and Mollie's **test mode**, and is where the proofs in step 6 run.
 
 Run each command below from the stack's own checkout: `./deploy/compose/.env`
@@ -4164,6 +4170,10 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    the account, your laptop on the mesh or the machine, NetBird may let a
    request through its SSO without a sign-in page, so a browser there proves
    nothing, and the probe runs on a GitHub-hosted runner.
+   It also fails while `https://id.ownpace.eu/ui/login/register/org`, the form
+   that founds an organisation, answers anything but 404 (workplan 0135 T1):
+   read `disallowPublicOrgRegistration` back on live, and set it if it reads
+   false, with workplan 0135 §4, T0 step 1.
    If a port answers on the production names' addresses that nothing of yours
    publishes, find out first whether the front sends it anywhere. In NetBird's
    dashboard, look for a TCP, TLS or UDP service whose public port is that
@@ -4246,10 +4256,12 @@ it says which and logs nothing; fix it and run it again with `--resume`.
 
 **Not part of the stand-up: the books and payments.** Live runs the alpha,
 which invoices nobody, so the script sets no `MONEYBIRD_*` key and no
-`MOLLIE_API_KEY`, and live runs without them. They come before the alpha ends:
-*8i. The books and payments* above, with live's own Moneybird administration
-and Mollie's live key, and [ending-the-alpha.md](./ending-the-alpha.md) for
-when.
+`MOLLIE_API_KEY`, and live runs without them. They come before the alpha ends,
+all but Mollie's live key: *8i. The books and payments* above, with live's own
+Moneybird administration, and [ending-the-alpha.md](./ending-the-alpha.md) for
+when. Mollie's live key goes in with the switch that ends the alpha (*The
+switch*, step 4), since `deploy-live.sh` refuses live's `.env` with
+`MOLLIE_API_KEY` set while its stage is `alpha`.
 
 ## Live's daily duties
 
@@ -4654,9 +4666,16 @@ the user gosu dropped to, it never does. What that means for you:
   their image changed: the OTA stack at the E2E (managed) run of the branch or
   the next nightly gate, live inside `deploy-live.sh`'s hold and drain, from the
   tag. The build pulls the pinned base when the machine does not have it (as
-  `up` pulled the image before), runs one `rm`, and needs no package mirror.
-  The services say `pull_policy: never`, since no registry serves the name:
-  `docker compose pull` passes them by, and `up` builds without asking one.
+  `up` pulled the image before), runs one `rm`, and since 2026-10-31 takes two
+  of Alpine's security updates, brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0, at
+  exactly those versions, from Alpine's mirror (`dl-cdn.alpinelinux.org`), so
+  the box must reach it as well as Docker Hub, as the visit count's GoAccess
+  build already does. Once Alpine's mirror stops serving those exact versions,
+  a machine without the name cannot build it, and says so: the Dockerfile's
+  header says what to move. That RUN is temporary, until PostgreSQL 18.7 (due
+  about 2026-11-12) carries both fixes. The services say `pull_policy:
+  never`, since no registry serves the name: `docker compose pull` passes
+  them by, and `up` builds without asking one.
 - **After that it is built again only when the Dockerfile changes**, which
   changes the name, **as long as nothing asks for a build.** `up --build`
   builds every service in its scope that has a `build:`, dependencies
@@ -4769,6 +4788,39 @@ Docker, and what it may not, is unchanged.
 - **Rolling back to a tag before this runs upstream's image again**,
   `tecnativa/docker-socket-proxy:v0.5.0`, with the same environment; `up`
   pulls it when the machine no longer has it.
+
+**The dashboard's TLS front is a build here too** (workplan 0119, 2026-10-31).
+`trigger-tls`, the Caddy in front of the Trigger.dev dashboard, runs
+`localhost/caddy:<base tag>-<12 hex>`, which compose builds from
+`deploy/compose/caddy`: Caddy's official `caddy:2.11.7-alpine` at the digest it
+ran before, with curl removed and the eight libraries only curl pulled in.
+Those carried the image's one critical finding and two of its highs. Caddy
+itself, its Caddyfile, its volumes and its ports are as they were, and nothing
+on this stack runs curl in that container: it has no healthcheck, and the smoke
+asks it from the host.
+
+- **The first `up` builds it, and the front restarts once.** The bring-up's
+  trigger phase (`up_wait … trigger-tls`) finds no image of that name and
+  builds it, pulling the pinned Caddy base from Docker Hub when the machine
+  does not have it, and needing no network for the removal, then recreates the front
+  because its image changed: the OTA stack at the E2E (managed) run of the
+  branch or the next nightly gate, live inside `deploy-live.sh`'s hold and
+  drain, from the tag. A browser on the dashboard sees the front drop for the
+  few seconds of the restart. Its certificate and its local authority live in
+  the `trigger_tls_data` volume, which stays, so the browser's exception still
+  holds. `pull_policy: never`, as for the databases.
+- **Moving it.** A newer Caddy 2, or a rebuild of its tag, is Dependabot's pull
+  request (the directory's own entry). Its build stops with "re-read the
+  header": the Dockerfile checks the packages it removes at the versions its
+  header read, and asks `caddy version` for the FROM's release. Read the new
+  image's packages and scan, move those and the header, and then
+  `scripts/a-package-the-front-never-runs.unit.test.ts` prints the `sed` that
+  moves `managed.yml`'s image line. `build (caddy)` (`images.yml`) builds it,
+  starts it with `trigger-tls.Caddyfile` and asks it for TLS on 3443, and its
+  E2E (managed) is dispatched like any pin's. A major is the owner's call.
+- **Rolling back to a tag before this runs upstream's image again**,
+  `caddy:2.11.7-alpine` by the same digest; `up` pulls it when the machine no
+  longer has it.
 
 ### A Nextcloud major on the OTA stack
 
@@ -5224,7 +5276,13 @@ marker (`STACK_KIND=production`, `stack-kind.sh`) or without `WEB_URL`; a
 `ALERT_ENABLED` is not exactly `true` (workplan 0142 T0: testers are on live,
 so nobody deploys it without alerts), or that sets a sign-in provider's `IDP_*`
 key (live's sign-in page offers email and password only: privacy §4.4, §7 and
-§8, ops-social-signin (a)), all named at once, by key, before the
+§8, ops-social-signin (a)), or whose `OWNPACE_REACHABLE_HOSTS` names a host
+(live's list stays empty, workplan 0136 T2, whatever the stage), or that sets
+`MOLLIE_API_KEY` while its `OWNPACE_STAGE` is `alpha` (nothing is charged during
+the Alpha, and live keeps the key empty until it ends: workplan 0131 §3 T3; it
+goes in with the switch, [ending-the-alpha.md](./ending-the-alpha.md) step 4),
+those three read as Compose hands them to the app (`KEY=""` is empty,
+`OWNPACE_STAGE="Alpha"` is the Alpha), all named at once, by key, before the
 fetch and any docker call, with any line that sets a key in a form the script
 does not read and the bring-up does (indented, a space before `=`, or `:`), by
 line and key, as the stand-up refuses it;

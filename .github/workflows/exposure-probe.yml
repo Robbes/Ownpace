@@ -18,6 +18,10 @@
 # one of them instead of the service (workplan 0139, item 8: off on all four
 # before the first invitation). Asked from here because a request over the
 # NetBird tunnel may pass that sign-in unseen.
+# And it asks id.ownpace.eu for /ui/login/register/org, the form that founds an
+# organisation, without following a redirect, and fails unless it answers 404
+# (workplan 0135 T1): the smoke asks that page on the OTA instance every night,
+# and never runs on live.
 # scripts/exposure-probe.mjs says how, and scripts/exposure-probe-ports.mjs
 # derives the port list from managed.yml, www.yml and setup-managed-demo.sh:
 # no port is written in this file.
