@@ -4,6 +4,52 @@
 
 ## Status — 2026-11-01 (update this block at the end of every session)
 
+**2026-11-01: the Node that has to be 26 is the one first on the deploy shell's `PATH`, and
+`deploy-live.sh` and `stand-up-live.sh` refuse one below the tag's `engines`.** On #1767's
+branch, `claude/ownpace-public-readiness-y7orc6-node-26`, after main's #1771 and #1772 were
+merged into it. The owner read live's host: the shell they deploy from already has a Node 26
+of their own first on its `PATH`, and a pnpm that runs `packageManager`'s version, with
+`libatomic1` installed; the system's Node is an older major, and another service on the host
+runs on it, so it stays where it is. The host steps this branch had written (NodeSource's line from `node_24.x`
+to `node_26.x`, `sudo npm install -g pnpm`) would have moved that service's Node, and are not
+needed: `deploy-live.sh` runs `pnpm install`, the task deploy and the site build on the `node`
+first on the `PATH` of the shell it runs in, and live's timers start no Node on the host (the
+daily duties, the box checks and the mail on a failed run, and every script they call, read
+2026-11-01). So, corrected in `managed-bring-up.md` (the section is now *The Node in the shell
+you deploy from*, its links with it), `release.md` §5, 0131, the CHANGELOG entry and the
+bullet below: what must be 26 is the deploy shell's `node`, read there with `command -v node`
+and `node -v`; a system Node another service runs on stays, a Node 26 of the user's own (nvm,
+fnm, a tarball in a directory they own; the tarball still in a subshell that stops at a
+checksum that does not match) goes first on their `PATH`, and moving NodeSource's line is only
+for a host where nothing else runs on the system's Node; any pnpm that runs `packageManager`'s
+version in `~/ownpace-live` is enough, and installing it into the user's own Node needs no
+`sudo`; `libatomic1` stays; the deploy runs as that user, not under `sudo`, whose
+`secure_path` finds the system's node (Ubuntu 24.04's `/etc/sudoers`, from sudo
+1.9.15p5-3ubuntu5.24.04.4: `Defaults secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"`;
+measured: a `PATH` with another node first lost it under `sudo`).
+- **The refusal.** `release_tag_node` in `release-tag.sh`, which both scripts source and call
+  before anything moves (and before the version read that needs node itself): it reads
+  `engines.node` from the tag's `package.json` without node, after `deploy-live.sh`'s fetch;
+  takes `>=N` and `>=N.N.N`, compared whole; skips a tag without one; refuses any other form as
+  unread, no `node` on the `PATH`, a `node -v` that fails (a Node 26 binary without
+  `libatomic1` does), and a node below it, naming `command -v node`'s path, `node -v`'s
+  version and the tag's `engines`, that pnpm only warns, and what to do. `deploy-live.sh`
+  refuses in `--dry-run` too; `stand-up-live.sh` runs the bring-up's install and task deploy
+  on the same node, so it refuses the same, in the same words.
+- **Not for the alpha.4 deploy itself.** `deploy-live.sh`'s whole run is one function bash reads
+  before the checkout replaces the file with the tag's copy, so the deploy to alpha.4 runs
+  alpha.3's copy, which reads no Node. For that deploy the owner's reading in the deploy shell
+  (`command -v node`, `node -v`) is the check, and the docs say so; the refusal guards every
+  deploy after it.
+- **Proved.** On Node 26.13.0, with `--maxWorkers=2`: `a-deploy-from-a-named-tag`,
+  `a-first-bring-up-of-live`, `one-rule-for-a-release-tag` and
+  `no-pipeline-its-own-consumer-can-kill`, the guards that read these scripts; the new cases
+  drive both scripts with a node that answers `-v` as told, and a `PATH` with no node on it.
+  Mutation-checked: without the call in `deploy-live.sh`, its 14 new cases fail (10 in the
+  deploy's guard, 4 in the one-rule guard); without it in `stand-up-live.sh`, its 6; with the
+  major's comparison turned round, the 5 that tell below from above fail; with the minor's, the
+  2 `>=N.N.N` cases it decides.
+
 **2026-10-31, late evening: Node 26 everywhere, in alpha.4 (§3 item 7, taken; the owner:
 *"Node 26 in alpha.4, engines to 26, accept HTTP/2"*).** On the branch
 `claude/ownpace-public-readiness-y7orc6-node-26`, from `main` at `6fb5ad12`; it supersedes
@@ -80,14 +126,15 @@ maintenance until 2028-04-30, so nothing forced the move, and the owner chose to
   on the host's own Node. pnpm 11.28.9 does not refuse a project whose `engines` the running
   Node falls outside: it prints `WARN Unsupported engine` and installs (measured today on a
   stand-in project with `engines` `>=26`, exit 0; with `engineStrict: true` it exits 1), and
-  the repository sets no `engineStrict`. So nothing stops a host left on 24, and it would run
-  the host steps on a Node no gate runs. The owner moves live's host (the machine the OTA
-  stack shares) to Node 26 with `libatomic1`, and pnpm from npm, before deploying alpha.4:
-  `managed-bring-up.md`, *The deploy to alpha.4 needs Node 26 on the host first*, has the
-  readings and the steps for NodeSource, nvm and the tarball; `release.md` §5 lists it.
-  `libatomic1` matters to the self-hosted runner too: setup-node's Node 26 there is the
-  official linux-arm64 binary, `NEEDED libatomic.so.1`. Neither `deploy-live.sh` nor
-  `stand-up-live.sh` reads the host's Node version, so neither changed.
+  the repository sets no `engineStrict`. So nothing stops a shell left on 24, and it would run
+  the host steps on a Node no gate runs. Corrected 2026-11-01 (the entry above): what the owner
+  puts on Node 26, with `libatomic1` and a pnpm at `packageManager`'s version, is the shell
+  they deploy from, not the system's Node, which another service on the host runs on;
+  `managed-bring-up.md`, *The Node in the shell you deploy from*, has the readings and the
+  steps; `release.md` §5 lists it. `libatomic1` matters to the self-hosted runner too:
+  setup-node's Node 26 there is the official linux-arm64 binary, `NEEDED libatomic.so.1`.
+  Since 2026-11-01 `deploy-live.sh` and `stand-up-live.sh` read the node on the `PATH` and
+  refuse one below the tag's `engines` (the entry above), from the deploy after alpha.4.
 - **Proved on #1767 at `20cfed4a`, 2026-10-31.** Locally on Node 26.13.0: `pnpm install
   --frozen-lockfile` (lockfile unchanged), lint and typecheck exit 0, and the whole unit
   project, 1079 files, 16232 passed and 33 skipped (the guards under `scripts/` failed 3 cases

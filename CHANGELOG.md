@@ -54,13 +54,24 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   own accounts before inviting anyone. The API logs
   one `ExperimentalWarning` about `localStorage` at start, from a library the
   Trigger.dev SDK loads, and each task process is expected to; nothing behaves
-  differently. **Before deploying this release, live's host needs Node 26,
-  `libatomic1` and pnpm installed from npm at `packageManager`'s version**:
-  the deploy runs `pnpm install`, the task deploy and the site build on the
-  host's own Node, and pnpm only warns when that Node is too old and the
-  deploy goes on, so the host is read before the deploy, not during it. The
-  steps are in `managed-bring-up.md`,
-  *The deploy to alpha.4 needs Node 26 on the host first*. The first task
+  differently. **Before deploying this release, the shell the deploy runs
+  from needs Node 26 first on its `PATH`, with `libatomic1`, and a pnpm that
+  runs `packageManager`'s version**: the deploy runs `pnpm install`, the task
+  deploy and the site build on the node `command -v node` names in that shell,
+  and pnpm only warns when that node is too old and the deploy goes on. A
+  system Node another service on the host runs on stays as it is: a Node 26 of
+  the deploying user's own (nvm, fnm, or a tarball in a directory they own)
+  goes first on their `PATH`, pnpm installs into it without `sudo`, and the
+  deploy runs as that user, not under `sudo`, whose `secure_path` finds the
+  system's node. `deploy-live.sh` and `stand-up-live.sh` now refuse, before
+  anything moves, a node on that `PATH` below what the tag's `package.json`
+  asks for (`engines.node`), none at all, or an `engines.node` they cannot
+  read, naming the node's path and version (`release_tag_node` in
+  `release-tag.sh`). The deploy to this release runs alpha.3's
+  `deploy-live.sh`, which has no such check, so for it the reading in the
+  deploy shell (`command -v node`, `node -v`) is the check; the refusal guards
+  the deploys after it. The steps are in `managed-bring-up.md`, *The Node in
+  the shell you deploy from*. The first task
   deploy and the first CI lint after the move are slow, as nothing is cached
   for 26 yet. Nothing a stack's `.env` sets changes.
 - **Trigger.dev is v4.8.3, taken before its three-day floor on the owner's

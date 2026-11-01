@@ -117,8 +117,9 @@ are **not** product-named and keep their names; nothing above touches them.
 **Host**
 
 - Linux with **Docker** and **Docker Compose v2** (`docker compose version`).
-- **Node 26+**, with **`libatomic1`**, and **pnpm** (the seed, the deploy CLI,
-  the site build and the smoke run on the host, not in a container). Node 26
+- **Node 26+** first on your shell's `PATH`, with **`libatomic1`**, and **pnpm**
+  (the seed, the deploy CLI, the site build and the smoke run on the host, not
+  in a container). Node 26
   since 2026-10-31 (workplan 0119 §2.4): `engines` asks for `>=26`, and every
   gate runs the host steps on 26. The official Linux binaries of Node 25 and
   later are linked against `libatomic.so.1`, which a host may not have, and
@@ -126,8 +127,10 @@ are **not** product-named and keep their names; nothing above touches them.
   version `package.json`'s `packageManager` names (from the checkout:
   `npm install -g "$(node -p "require('./package.json').packageManager")"`),
   not a bare `pnpm@11`, which takes whatever was published last, inside the
-  repository's three-day floor or not. A host still on 24: see
-  [*The deploy to alpha.4 needs Node 26 on the host first*](#the-deploy-to-alpha4-needs-node-26-on-the-host-first).
+  repository's three-day floor or not. What has to be 26 is the `node` first on
+  the `PATH` of the shell you run the scripts from (`command -v node`, `node
+  -v`); a system Node another service on the host runs on stays as it is. See
+  [*The Node in the shell you deploy from*](#the-node-in-the-shell-you-deploy-from).
 - `openssl`, `curl`, `git`.
 - **~15 GB free disk.** ClickHouse, MinIO, the Trigger.dev images, the task
   registry and the built API/web images add up; running out midway leaves a
@@ -4074,7 +4077,9 @@ a value: `--with-demo`; a shell started with tracing on, or with `COMPOSE_FILE`,
 lacks `STACK_KIND=production` or `COMPOSE_PROJECT_NAME=ownpace-live`; a `HEAD` on
 a branch, at no `v…` tag, or at a tag that is not a release by the rule
 `deploy-live.sh` applies (`release-tag.sh`); a tag without `deploy-live.sh`,
-`exposure-check.sh`, `box-duties.sh` and `stack-kind.sh`; a working tree that is
+`exposure-check.sh`, `box-duties.sh` and `stack-kind.sh`; a `node` on the
+shell's `PATH` below the tag's `engines.node`, or none, in `deploy-live.sh`'s
+words (*The Node in the shell you deploy from*); a working tree that is
 not clean; a deploy log with a line in it (live stands: use `deploy-live.sh`);
 live's database volume already there without `--resume`; and, all listed at
 once, a line of live's `.env` that sets a key in a form Compose reads and the
@@ -5298,7 +5303,12 @@ working tree that is not clean; a ref that is not a tag, a tag not on origin, a
 lightweight tag, a tag not named `v…`, and a tag whose commit's root
 `package.json` version is not the tag without its `v` (it names both, and says
 *"live runs releases: name a release tag"*); a tag without the five scripts
-live is deployed, checked and kept by (`release-tag.sh`'s list); a database it
+live is deployed, checked and kept by (`release-tag.sh`'s list); a `node` on
+the shell's `PATH` below what the tag's `package.json` asks for (`engines.node`,
+read from the tag after the fetch), no `node` at all, one whose `node -v` fails,
+or an `engines.node` it cannot read (*The Node in the shell you deploy from*,
+below; from the deploy after alpha.4, since the deploy runs the script the
+checkout had before it moved); a database it
 cannot read; no open hold; a pass still in flight; a hold less than five minutes old, since a pass
 queued just before it is in no count until it starts; a deploy log it cannot
 append to; and a copy before the update that `copy-before-update.sh take`
@@ -5380,64 +5390,113 @@ is added to that file by hand.
 script has run only against the stubs in its guard,
 `scripts/a-deploy-from-a-named-tag.unit.test.ts`.
 
-#### The deploy to alpha.4 needs Node 26 on the host first
+#### The Node in the shell you deploy from
 
 From `v0.2.0-alpha.4` on, the repository is on Node 26 (workplan 0119 §2.4,
 the owner's decision of 2026-10-31): the images, the tasks, every gate, and
-`engines` (`>=26`). `deploy-live.sh` runs `pnpm install --frozen-lockfile`,
-the bring-up's `data` phase with the task deploy, and the site build **on the
-host**, on whatever Node the host has. So before the first deploy of alpha.4,
-live's host runs Node 26 with `libatomic1`, and a pnpm that does not come from
-corepack. Live and the OTA stack share the machine, so this is one change for
-both, and for the self-hosted runner if it is the same machine: setup-node
-installs its own Node 26 there, and that one needs `libatomic1` too.
+`engines` (`>=26`). The containers bring their own Node. Three steps of
+`deploy-live.sh` run on the host instead: `pnpm install --frozen-lockfile`,
+the task deploy in the bring-up's `data` phase (`deploy-tasks.sh`, which
+bundles the tasks here with the Trigger.dev CLI), and the site build (`node
+site/build.mjs`); `stand-up-live.sh`'s bring-up runs the first two. Each runs
+on **the `node` first on the `PATH` of the shell you run the script from**, and
+that one is what has to be 26. Nothing else on the machine has to move for it:
 
-**Nothing refuses a host left on 24, so step 5, before the deploy, is the
-check.** pnpm 11.28.9 does not stop an install whose `engines` the running
-Node falls outside: it prints `WARN Unsupported engine: wanted:
-{"node":">=26"}` and installs, exit 0 (measured 2026-10-31 and again
-2026-11-01 on a stand-in project; the repository sets no `engineStrict`).
-`deploy-live.sh` goes straight on from that install to the bring-up, which
-redeploys the tasks and rebuilds the images, so a warning seen in its output
-is seen after the deploy has gone on, running its host steps on a Node no
-gate runs (the gap `scripts/a-gate-on-a-version-nothing-ships.unit.test.ts`
-was written about). Do steps 1 to 5 first, and run `deploy-live.sh
-v0.2.0-alpha.4` only once step 5 reads 26. (`engineStrict: true` in
-`pnpm-workspace.yaml` would turn that install into a refusal, exit 1 on
-24.22.1 and 0 on 26.13.0, and the deploy would end "did not take" before
-anything was rebuilt; it would also refuse a developer's machine on 24. The
-repository has not taken it: the owner's to decide.)
+- live's timers (the daily duties, the box checks and the mail on a failed run)
+  run shell scripts that start no Node on the host;
+- a **system Node**, the distribution's `nodejs` or NodeSource's, that another
+  service on the host runs on **stays where it is**. Do not switch it for this:
+  put a Node 26 of your own first on your own `PATH` (step 3);
+- the OTA stack's nightly gate runs on the self-hosted runner's own Node, which
+  setup-node installs (it needs `libatomic1` too, step 2); a command you run by
+  hand in `~/ownpace-managed` runs on your shell's, as a deploy does.
 
-**1. Read what the host has.** None of these prints a secret or an address:
+**What stops a Node below 26.** pnpm does not: pnpm 11.28.9 does not stop an
+install whose `engines` the running Node falls outside. It prints `WARN
+Unsupported engine: wanted: {"node":">=26"}` and installs, exit 0 (measured
+2026-10-31 and again 2026-11-01 on a stand-in project; the repository sets no
+`engineStrict`, which is the owner's to decide), and the deploy goes straight
+on from that install to the bring-up, which redeploys the tasks and rebuilds the
+images. **From the deploy after alpha.4, `deploy-live.sh` refuses it itself**,
+before anything moves and in `--dry-run` too: after its fetch it reads
+`engines.node` from the tag's own `package.json` (`>=N`, or `>=N.N.N`; a tag
+without one is not checked, and one in any other form is refused as unread),
+and refuses a `node` on the `PATH` below it, no `node` at all, or one whose
+`node -v` fails (a Node 26 binary without `libatomic1` does), naming the path
+`command -v node` gave, the version `node -v` said and what the tag asks for.
+`stand-up-live.sh` refuses the same, in the same words (`release_tag_node` in
+`release-tag.sh`). **The deploy to alpha.4 itself is not covered:** the whole
+run of `deploy-live.sh` is one function that bash reads before the checkout
+replaces the file with the tag's copy, so the deploy of alpha.4 runs alpha.3's
+copy, which reads no Node. For that deploy, **your reading in step 1 and step
+5, in the shell you deploy from, is the check.**
 
-```bash
-node -v                       # v24.x today; v26.x after
-pnpm -v                       # run outside a checkout: the global pnpm's own version
-command -v node pnpm corepack # where each comes from; corepack prints nothing on 26
-dpkg -s libatomic1 | grep -E '^(Status|Version):'
-uname -m                      # aarch64 or x86_64, for the tarball variant below
-dpkg -S "$(readlink -f "$(command -v node)")" 2>/dev/null || echo "node is not from a Debian package"
-apt-cache policy nodejs | grep -c deb.nodesource.com  # a count, no addresses: above 0 is NodeSource's
-```
-
-The `dpkg -S` line says how Node was installed. A package named `nodejs`
-comes from NodeSource's repository when the last line counts above 0, and from
-the distribution when it counts 0. No package means
-a tarball under `/usr/local`, or a version manager when the path is under
-your home directory: `~/.nvm` or `~/.local/share/fnm` (both below), or
-`~/.volta`, which these steps do not cover.
-
-**2. `libatomic1`**, whichever way Node is installed:
+**1. Read what the shell you deploy from has.** As yourself (not under `sudo`),
+in the shell you will run `deploy-live.sh` from, in `~/ownpace-live`. None of
+these prints a secret or an address:
 
 ```bash
-sudo apt-get update && sudo apt-get install -y libatomic1
+command -v node        # the node the deploy runs on: the first on this shell's PATH
+node -v                # v26.x is what alpha.4 asks for
+pnpm -v                # in ~/ownpace-live: the version pnpm runs here
+node -p "require('./package.json').packageManager"   # what pnpm -v should say, pnpm@11.28.9 at alpha.4
+dpkg -s libatomic1     # Status: install ok installed
+uname -m               # aarch64 or x86_64, for the tarball in step 3
 ```
 
-**3. Node 26**, the way it is installed now:
+If `node -v` says `v26.x`, `pnpm -v` says the `packageManager` version and
+`libatomic1` is installed, nothing needs to change: go to step 5. If `command -v
+node` names the system's node (`/usr/bin/node`, `/usr/local/bin/node`) at
+`v24.x`, leave that one and do step 3: a Node 26 of your own goes in front of it
+on your `PATH`.
 
-- **NodeSource (apt).** Move its repository line from 24 to 26 and upgrade.
-  The file is `/etc/apt/sources.list.d/nodesource.list` or `nodesource.sources`
-  (`grep -l nodesource /etc/apt/sources.list.d/*`):
+**2. `libatomic1`.** The official Linux binaries of Node 25 and later are
+linked against `libatomic.so.1`, and setup-node's Node 26 on the self-hosted
+runner is one of them. It stays installed whichever way your Node 26 comes, and
+installing it changes no other service's Node:
+
+```bash
+sudo apt-get update && sudo apt-get install -y libatomic1   # only when dpkg -s says it is not installed
+```
+
+**3. A Node 26 first on your own `PATH`**, without touching the system's. Any
+one of these; none needs `sudo`:
+
+- **nvm:** `nvm install 26 && nvm alias default 26`. **fnm:** `fnm install 26
+  && fnm default 26`. Then open a new shell; global packages are per version,
+  so step 4 is done in it.
+- **The official tarball, into a directory you own**, checked against
+  nodejs.org's `SHASUMS256.txt`, for the architecture `uname -m` named (`arm64`
+  for `aarch64`, `x64` for `x86_64`). The block runs in a subshell that stops at
+  the first failure, so a download whose checksum does not match removes nothing
+  and installs nothing; `node_26_installed` at the end is the only sign it ran
+  through:
+
+  ```bash
+  ( set -euo pipefail
+    PREFIX="$HOME/.local/node-26"   # a directory you own; replaced as a whole
+    ARCH=arm64                      # or x64
+    cd "$(mktemp -d)"
+    curl -fsSLO "https://nodejs.org/dist/v26.13.0/node-v26.13.0-linux-${ARCH}.tar.xz"
+    curl -fsSLO https://nodejs.org/dist/v26.13.0/SHASUMS256.txt
+    grep " node-v26.13.0-linux-${ARCH}.tar.xz\$" SHASUMS256.txt | sha256sum -c -
+    rm -rf "$PREFIX" && mkdir -p "$PREFIX"
+    tar -xJf "node-v26.13.0-linux-${ARCH}.tar.xz" -C "$PREFIX" --strip-components=1
+    echo node_26_installed )
+  ```
+
+  Then put it first on your `PATH`, in the file your shell reads at login
+  (`~/.bashrc` or `~/.profile`), and open a new shell:
+
+  ```bash
+  export PATH="$HOME/.local/node-26/bin:$PATH"
+  ```
+
+- **Only on a host where nothing else runs on the system's Node**, it can move
+  instead. With **NodeSource** (`apt-cache policy nodejs | grep -c
+  deb.nodesource.com` counts above 0; a count, so no mirror's address is
+  printed), move its repository line from 24 to 26 and upgrade; the file is
+  `/etc/apt/sources.list.d/nodesource.list` or `nodesource.sources`:
 
   ```bash
   sudo sed -i 's/node_24\.x/node_26.x/' /etc/apt/sources.list.d/nodesource.*
@@ -5446,84 +5505,67 @@ sudo apt-get update && sudo apt-get install -y libatomic1
 
   `node_26.x` is the line NodeSource's own setup script for 26 writes:
   `scripts/deb/setup_26.x` in `nodesource/distributions` (there since
-  2026-05-05; `setup_lts.x` points at 26 since 2026-10-29) writes
-  `URIs: https://deb.nodesource.com/node_26.x` with `Suites: nodistro` into
-  `nodesource.sources` (read 2026-11-01; the repository itself was not
-  reachable from where this was written). If `apt-get update` fails on that
-  line all the same, put `node_24.x` back and take the tarball below. Node 26
-  carries no corepack, so a `pnpm` that `corepack enable` made no longer runs:
-  step 4 puts pnpm back.
-- **The distribution's own `nodejs` package** (the count is 0) is an older major on current Debian and
-  Ubuntu. Remove it and its `npm`, then add NodeSource's repository with its
-  own script, which installs `apt-transport-https`, `ca-certificates`, `curl`
-  and `gnupg`, fetches NodeSource's signing key, writes the `nodesource.sources`
-  above and pins `nodejs` to NodeSource; read it before you run it:
+  2026-05-05; `setup_lts.x` points at 26 since 2026-10-29) writes `URIs:
+  https://deb.nodesource.com/node_26.x` with `Suites: nodistro` into
+  `nodesource.sources` (read 2026-11-01). If `apt-get update` fails on that line
+  all the same, put `node_24.x` back and take one of the three above. The
+  **distribution's own `nodejs`** is an older major on current Debian and
+  Ubuntu; on such a host, `sudo apt-get remove -y nodejs npm`, then NodeSource's
+  script (read it before you run it: it installs `apt-transport-https`,
+  `ca-certificates`, `curl` and `gnupg`, fetches NodeSource's signing key, writes
+  `nodesource.sources` and pins `nodejs` to NodeSource):
 
   ```bash
-  sudo apt-get remove -y nodejs npm
   cd "$(mktemp -d)"
   curl -fsSLo setup_26.x https://deb.nodesource.com/setup_26.x
   less setup_26.x
   sudo bash setup_26.x && sudo apt-get install -y nodejs
   ```
 
-  Or, after the same `apt-get remove`, the tarball below.
-- **nvm:** `nvm install 26 && nvm alias default 26`. **fnm** puts the version
-  first: `fnm install 26 && fnm default 26`. Then open a new shell and do
-  steps 4 and 5 there: global packages are per version, so step 4 is needed
-  in the new one.
-- **The official tarball under `/usr/local`.** From nodejs.org, checked against
-  its `SHASUMS256.txt`, for the architecture `uname -m` named (`arm64` for
-  `aarch64`, `x64` for `x86_64`). A tarball unpacked over another leaves the
-  old one's files behind, so 24's npm and corepack go first; the new tarball
-  brings its own npm, and no corepack. The block runs in a subshell that stops
-  at the first failure, so a download whose checksum does not match removes
-  nothing and installs nothing; `node_26_installed` at the end is the only
-  sign it ran through:
+  A system Node moved to 26 carries no corepack, so a `pnpm` that `corepack
+  enable` made beside it no longer runs: `find "$(dirname "$(command -v node)")"
+  -maxdepth 1 -lname '*corepack*'` lists those links, and `sudo find … -delete`
+  with the same arguments removes them before step 4.
 
-  ```bash
-  ( set -euo pipefail
-    cd "$(mktemp -d)"
-    ARCH=arm64   # or x64
-    curl -fsSLO "https://nodejs.org/dist/v26.13.0/node-v26.13.0-linux-${ARCH}.tar.xz"
-    curl -fsSLO https://nodejs.org/dist/v26.13.0/SHASUMS256.txt
-    grep " node-v26.13.0-linux-${ARCH}.tar.xz\$" SHASUMS256.txt | sha256sum -c -
-    sudo rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack
-    sudo tar -xJf "node-v26.13.0-linux-${ARCH}.tar.xz" -C /usr/local --strip-components=1
-    echo node_26_installed )
-  ```
-
-**4. pnpm, from npm, at the version the checkout names.** First the links
-`corepack enable` made beside the old Node, which now point at a corepack that
-is gone (npm will not write its own `pnpm` over a file it did not make); then
-pnpm, at `package.json`'s `packageManager` (`pnpm@11.28.9` at alpha.3 and
-alpha.4), which is past the repository's three-day floor where a bare
-`pnpm@11` takes whatever was published last. With `sudo` where npm's global
-prefix is a system directory (NodeSource, the tarball), without it under a
-version manager:
+**4. pnpm at the `packageManager` version, in that shell.** Node 26 ships no
+corepack. Any `pnpm` on that shell's `PATH` that runs the version
+`package.json`'s `packageManager` names when you call it in `~/ownpace-live` is
+enough, whatever installed it: `pnpm -v` there reads it (a pnpm that switches
+itself to that version says so there too). Otherwise install that version, not
+a bare `pnpm@11`, which takes whatever was published last, inside the
+repository's three-day floor or not. Into a Node of your own (nvm, fnm, the
+tarball above) this needs no `sudo`:
 
 ```bash
-BIN="$(dirname "$(command -v node)")"
-find "$BIN" -maxdepth 1 -lname '*corepack*'            # lists them: corepack, pnpm, pnpx, yarn, yarnpkg
-sudo find "$BIN" -maxdepth 1 -lname '*corepack*' -delete
 cd ~/ownpace-live
-PNPM="$(node -p "require('./package.json').packageManager")" && echo "$PNPM"   # pnpm@11.28.9
-sudo npm install -g "$PNPM"                              # under a version manager: npm install -g "$PNPM"
+PNPM="$(node -p "require('./package.json').packageManager")" && echo "$PNPM"   # pnpm@11.28.9 at alpha.4
+npm install -g "$PNPM"
 ```
 
-**5. Read it again,** from `~/ownpace-live`:
+Only a system-wide install, into a Node under `/usr` or `/usr/local`, needs
+`sudo npm install -g "$PNPM"`; on a host where another service runs on the
+system's Node, that is not one to make.
+
+**5. Read it again, in the shell you deploy from,** in `~/ownpace-live`, as
+yourself:
 
 ```bash
+command -v node                           # your Node 26, not the system's
 node -v                                   # v26.13.0, or a later 26.x
 pnpm -v                                   # the packageManager version, 11.28.9 at alpha.4
 ldd "$(command -v node)" | grep libatomic # resolves to a file, not "not found"
 ```
 
-Nothing in `deploy-live.sh` prints the host's Node: it runs the bring-up from
-its `data` phase, after the `preflight` that prints `node $(node -v), pnpm
-$(pnpm -v)`. So step 5 is the reading. The OTA stack's nightly gate runs on
-the runner's own Node, not this one, but anything run by hand in
-`~/ownpace-managed` uses it.
+Then run `./deploy/compose/deploy-live.sh v0.2.0-alpha.4` **in this same shell,
+as yourself, not under `sudo`**: `sudo` sets `PATH` to its `secure_path` (on
+Ubuntu 24.04, `/etc/sudoers` says
+`/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin`), so
+under it the `node` found is the system's, not the one in your shell. For the
+deploy to alpha.4 this reading is the whole check: alpha.3's script, and its
+`--dry-run`, read no Node. From the next deploy on, alpha.4's own
+`deploy-live.sh`, run from the checkout at alpha.4, says `Node: <path> is
+v26.x, and <tag> asks for >=26` as it passes, and refuses a shell below what
+the tag asks for.
 
 ### The OTA stack: the nightly gate, or a pull
 

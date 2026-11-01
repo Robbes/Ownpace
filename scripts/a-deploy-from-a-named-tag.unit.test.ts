@@ -68,6 +68,16 @@
  *   copy's backstop, and the next deploy without a copy: refused before
  *   anything moves, in stand-up-live.sh's words.
  *
+ *   It installs the tag on a node below the one the tag asks for (workplan
+ *   0119, the move to Node 26 in alpha.4). pnpm only warns when the node is
+ *   below `engines` and installs all the same, and the script goes straight
+ *   on from the install to the rebuild. So it reads `engines.node` from the
+ *   TAG's package.json after the fetch, without node, and refuses before
+ *   anything moves, in a dry run too, in release-tag.sh's words: a node on
+ *   the PATH below it (">=N" and ">=N.N.N" read whole), no node at all, a
+ *   `node -v` that fails, and an `engines.node` in a form it cannot read.
+ *   A tag that asks for none is not checked.
+ *
  *   It says a deploy took when it did not. After the bring-up it asks the app
  *   at the origin in `WEB_URL`: `/api/version` must name the tag's commit AND
  *   its version (0146 T5: a right commit with the wrong version is a deploy
@@ -167,6 +177,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { rm } from 'node:fs/promises';
@@ -565,6 +576,8 @@ interface Release {
   units?: Record<string, string>;
   /** deploy-live.sh at this commit, in place of the one the commit before it carries. */
   script?: string;
+  /** The root package.json's engines.node at this commit (default: no engines at all). */
+  engines?: unknown;
 }
 
 interface Stage {
@@ -635,8 +648,44 @@ function writeExec(path: string, text: string): void {
   chmodSync(path, 0o755);
 }
 
-function packageJson(version: string): string {
-  return `${JSON.stringify({ name: 'ownpace', version, private: true }, null, 2)}\n`;
+function packageJson(version: string, engines?: unknown): string {
+  const pkg = engines === undefined ? { name: 'ownpace', version, private: true } : { name: 'ownpace', version, private: true, engines: { node: engines } };
+  return `${JSON.stringify(pkg, null, 2)}\n`;
+}
+
+/**
+ * A node that answers `-v` with `version` and hands everything else to the
+ * node running this test, first on a PATH of its own: the node the script
+ * finds with `command -v node` (workplan 0119, the move to Node 26).
+ */
+function nodeSaying(s: Stage, version: string): { dir: string; node: string } {
+  const dir = join(s.root, `node-${version}`);
+  writeExec(
+    join(dir, 'node'),
+    `#!/usr/bin/env bash\nif [ "$#" -eq 1 ] && { [ "$1" = -v ] || [ "$1" = --version ]; }; then echo '${version}'; exit 0; fi\nexec '${process.execPath}' "$@"\n`,
+  );
+  return { dir, node: join(dir, 'node') };
+}
+
+/**
+ * The case's PATH with no node on it: each directory that holds one is
+ * replaced by a directory of links to everything else in it, so git, bash
+ * and the stubs are all still there.
+ */
+function pathWithoutNode(s: Stage): string {
+  return (s.env.PATH ?? '')
+    .split(':')
+    .filter(Boolean)
+    .map((dir, i) => {
+      if (!existsSync(join(dir, 'node')) && !existsSync(join(dir, 'nodejs'))) return dir;
+      const shadow = join(s.root, `no-node-${i}`);
+      mkdirSync(shadow, { recursive: true });
+      for (const entry of readdirSync(dir)) {
+        if (entry !== 'node' && entry !== 'nodejs') symlinkSync(join(dir, entry), join(shadow, entry));
+      }
+      return shadow;
+    })
+    .join(':');
 }
 
 /**
@@ -725,7 +774,7 @@ function stage(opts: StageOptions = {}): Stage {
   git(root, work, 'push', '-q', 'origin', 'main', `refs/tags/${RUNNING.tag}`);
 
   for (const r of opts.releases ?? []) {
-    writeFileSync(join(work, 'package.json'), packageJson(r.version ?? r.tag.replace(/^v/, '')));
+    writeFileSync(join(work, 'package.json'), packageJson(r.version ?? r.tag.replace(/^v/, ''), r.engines));
     if (r.ledger) writeFileSync(join(work, 'packages', 'ledger', 'migrations', r.ledger), 'SELECT 2;\n');
     if (r.managed) writeFileSync(join(work, 'packages', 'managed', 'migrations', r.managed), 'SELECT 2;\n');
     let yml = readFileSync(join(r.builtTrigger ? COMPOSE_DIR : compose, 'managed.yml'), 'utf8');
@@ -1468,6 +1517,147 @@ describe("live's .env admits no host inside our networks, and sets no payment ke
 // ---------------------------------------------------------------------------
 // The deploy
 // ---------------------------------------------------------------------------
+
+// The node this shell installs the tag with (workplan 0119, the move to Node
+// 26 in alpha.4). pnpm only warns when the node is below `engines`, and the
+// deploy goes straight on from the install to the rebuild, so the script
+// refuses it itself, before anything moves, in a dry run too. What it reads is
+// the TAG's package.json, after the fetch: the checkout here (the running
+// release) asks for no node at all.
+describe("the node on this shell's PATH: what the tag's package.json asks for, or refused before anything moves (workplan 0119, Node 26)", () => {
+  const ASKS = { ...NEXT, engines: '>=26' };
+
+  it(
+    'a node below the major the tag asks for: refused, naming its path, its version and the engines, with nothing moved',
+    () => {
+      const s = stage({ releases: [ASKS] });
+      const old = nodeSaying(s, 'v24.11.1');
+      for (const args of [[NEXT.tag], ['--dry-run', NEXT.tag]]) {
+        const r = run(s, args, { PATH: `${old.dir}:${s.env.PATH}` });
+        expect(r.status, `${args.join(' ')}:\n${r.out}`).toBe(1);
+        expect(r.out).toContain(`[deploy-live] refused: the node first on this shell's PATH is v24.11.1 (${old.node}), and ${NEXT.tag} asks for Node >=26 (engines in its package.json).`);
+        expect(r.out).toContain('pnpm only warns when that node is below engines (WARN Unsupported engine)');
+        expect(r.out).toContain('Put a Node 26 first on the PATH of the shell you run this from, and read it there: command -v node; node -v');
+        expect(r.out).toContain('docs/managed-bring-up.md, The Node in the shell you deploy from');
+        expect(r.out).toContain('A system Node another service on the host uses can stay as it is.');
+        expect(r.out).toContain('Run this as yourself, not under sudo');
+        expect(r.out).toContain('The checkout and the stack are as they were.');
+        // After the fetch, which reads the tag; before the version, the hold and the copy.
+        expect(r.out).toContain('fetching tags');
+        expect(r.out).not.toContain('is an annotated release tag on origin');
+        expectNothingChanged(s, r.out);
+        expect(called(s, 'copy-before-update'), 'a copy was taken for a deploy that is refused').toEqual([]);
+      }
+    },
+    CASE_MS,
+  );
+
+  it.each(['v26.0.0', 'v27.1.0'])(
+    'a node at or above the major the tag asks for (%s) passes, says so, and the deploy takes',
+    (version) => {
+      const s = stage({ releases: [ASKS] });
+      const fine = nodeSaying(s, version);
+      const r = run(s, [NEXT.tag], { PATH: `${fine.dir}:${s.env.PATH}` });
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toContain(`[deploy-live] Node: ${fine.node} is ${version}, and ${NEXT.tag} asks for >=26 (engines in its package.json)`);
+      expect(r.out).not.toContain('refused');
+      expect(head(s)).toBe(s.commit[NEXT.tag]);
+      expect(called(s, 'pnpm')).toEqual(['pnpm install --frozen-lockfile']);
+      expect(r.out).toMatch(/the deploy took/);
+    },
+    CASE_MS,
+  );
+
+  it.each([
+    ['v26.0.9', '>=26.1.0', false],
+    ['v26.1.0', '>=26.1.0', true],
+    ['v25.99.99', '>=26.0.0', false],
+    ['v26.2.0', '>=26.1.5', true],
+  ] as const)(
+    'the ">=N.N.N" form is read whole: %s against %s',
+    (version, engines, passes) => {
+      const s = stage({ releases: [{ ...NEXT, engines }] });
+      const node = nodeSaying(s, version);
+      const r = run(s, ['--dry-run', NEXT.tag], { PATH: `${node.dir}:${s.env.PATH}` });
+      if (passes) {
+        expect(r.status, r.out).toBe(0);
+        expect(r.out).toContain(`[deploy-live] Node: ${node.node} is ${version}, and ${NEXT.tag} asks for ${engines}`);
+      } else {
+        expect(r.status, r.out).toBe(1);
+        expect(r.out).toContain(`[deploy-live] refused: the node first on this shell's PATH is ${version} (${node.node}), and ${NEXT.tag} asks for Node ${engines}`);
+        expectNothingChanged(s, r.out);
+      }
+    },
+    CASE_MS,
+  );
+
+  it(
+    'a tag whose package.json asks for no node: not checked, whatever the node, and the deploy takes',
+    () => {
+      const s = stage({ releases: [NEXT] });
+      const old = nodeSaying(s, 'v24.11.1');
+      const r = run(s, [NEXT.tag], { PATH: `${old.dir}:${s.env.PATH}` });
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toContain(`[deploy-live] Node: ${NEXT.tag} asks for none (no engines in its package.json), so the node on this shell's PATH is not checked`);
+      expect(r.out).toMatch(/the deploy took/);
+    },
+    CASE_MS,
+  );
+
+  it.each([
+    ['a range', '^26'],
+    ['a major alone', '26'],
+    ['two bounds', '>=26 <28'],
+    ['a number, not a string', 26],
+  ] as const)(
+    'an engines.node it cannot read (%s): refused as unread, never guessed at, with nothing moved',
+    (_label, engines) => {
+      const s = stage({ releases: [{ ...NEXT, engines }] });
+      const fine = nodeSaying(s, 'v26.13.0');
+      for (const args of [[NEXT.tag], ['--dry-run', NEXT.tag]]) {
+        const r = run(s, args, { PATH: `${fine.dir}:${s.env.PATH}` });
+        expect(r.status, `${args.join(' ')}:\n${r.out}`).toBe(1);
+        expect(r.out).toContain(`[deploy-live] refused: ${NEXT.tag}'s package.json asks for Node '${typeof engines === 'string' ? engines : 'not a string'}' (engines.node), a form this script cannot read`);
+        expect(r.out).toContain('Write engines.node as ">=N" in the root package.json on main');
+        expectNothingChanged(s, r.out);
+      }
+    },
+    CASE_MS,
+  );
+
+  it(
+    'no node on the PATH at all: refused, saying so, with nothing moved',
+    () => {
+      const s = stage({ releases: [ASKS] });
+      const r = run(s, ['--dry-run', NEXT.tag], { PATH: pathWithoutNode(s) });
+      expect(r.status, r.out).toBe(1);
+      expect(r.out).toContain(`[deploy-live] refused: there is no node on this shell's PATH, and ${NEXT.tag} asks for Node >=26 (engines in its package.json).`);
+      expect(r.out).toContain('Put a Node 26 first on the PATH of the shell you run this from');
+      expect(r.out, 'the version was read, with a node that is not there').not.toContain("says version 'none'");
+      expectNothingChanged(s, r.out);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'a node that does not start (a Node 26 binary without libatomic1): refused with what it said, with nothing moved',
+    () => {
+      const s = stage({ releases: [ASKS] });
+      const dir = join(s.root, 'node-without-libatomic');
+      writeExec(
+        join(dir, 'node'),
+        "#!/usr/bin/env bash\necho 'node: error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory' >&2\nexit 127\n",
+      );
+      const r = run(s, ['--dry-run', NEXT.tag], { PATH: `${dir}:${s.env.PATH}` });
+      expect(r.status, r.out).toBe(1);
+      expect(r.out).toContain(`[deploy-live] refused: node -v failed (exit 127) for ${join(dir, 'node')}, the node first on this shell's PATH`);
+      expect(r.out).toContain('It said: node: error while loading shared libraries: libatomic.so.1');
+      expect(r.out).toContain('sudo apt-get install libatomic1');
+      expectNothingChanged(s, r.out);
+    },
+    CASE_MS,
+  );
+});
 
 describe('a deploy that took', () => {
   it(
