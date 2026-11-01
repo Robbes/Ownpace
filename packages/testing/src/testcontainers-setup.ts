@@ -247,7 +247,8 @@ function getStalwartCliPath(): string {
     'stalwart-cli not found. Please either:\n' +
     '  1. Install stalwart-cli and ensure it\'s on PATH, or\n' +
     '  2. Set the STALWART_CLI_PATH environment variable to the full path of the binary.\n' +
-    'To install: curl --proto \'=https\' --tlsv1.2 -LsSf https://github.com/stalwartlabs/cli/releases/latest/download/stalwart-cli-installer.sh | sh'
+    'To install the release CI runs (the "Install stalwart-cli" step of .github/workflows/ci.yml): ' +
+    'curl --proto \'=https\' --tlsv1.2 -LsSf https://github.com/stalwartlabs/cli/releases/download/v1.0.14/stalwart-cli-installer.sh | sh'
   );
 }
 

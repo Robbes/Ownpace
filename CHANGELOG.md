@@ -57,6 +57,34 @@ notices.
 
 ### Security
 
+- **CI's other floating downloads are named releases, checked by their
+  SHA-256 or digest: stalwart-cli, the dev database Atlas lints against, and
+  the emulator and BuildKit images the image build runs** (workplan 0119):
+  the integration tests and both E2E gates piped stalwart-cli's
+  `releases/latest` installer to `sh`, whatever release was newest that hour;
+  they now fetch release v1.0.14 for both architectures, refuse either archive
+  whose SHA-256 is not the one pinned beside it before anything is unpacked,
+  and check the version the binary prints, by one step the three workflows
+  carry word for word. The migration lint's dev database was Docker Hub's
+  floating `postgres:18`; it is now the base the stacks build their Postgres
+  on, `postgres:18.6-alpine` by its digest, and a Dependabot move of that base
+  fails until the lint's copy moves with it. The image build, in the job that
+  pushes and signs the published images, ran binfmt's `latest` (privileged)
+  and BuildKit's `buildx-stable-1` through its actions' defaults; it now names
+  `qemu-v10.2.3` and v0.33.1, each by digest, the builds those channels named
+  on 2026-11-01, and registers the emulators on a pull request too, so a moved
+  pin runs before the push that publishes. The weekly pin watch says when a
+  newer stalwart-cli is tagged, or either channel names another build, and its
+  guard refuses a `releases/latest` download or a file named `-latest`, a
+  `docker://` image without a digest, an action image without a release tag
+  and its digest, or an `npx` that may install from npm, in any workflow. The
+  SBOM step runs the lockfile's `cyclonedx-npm` with `npx --yes=false`, which
+  fails rather than fetch npm's newest; it was `npx -y`. The install line
+  `setup-stalwart.sh` and the integration setup's missing-CLI error print for
+  a developer names v1.0.14's installer too, held to the workflows' release.
+  The second-Nextcloud-major CI fixture moves to upstream's rebuild
+  of `nextcloud:34.0.5-apache` (2026-10-28), with libbrotli's fix for the
+  critical CVE-2026-111497.
 - **CI's migration lint runs Atlas v1.3.6, checked by its SHA-256 before it
   runs, not a canary fetched by its `-latest` name** (workplan 0119): the
   `migration-lint` job downloaded `atlas-community-linux-<arch>-latest` with no

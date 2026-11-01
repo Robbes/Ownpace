@@ -393,7 +393,8 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   bleed); **`migration-lint`** (ADR-0017, built 2026-08-02) replays BOTH migration chains —
   `packages/ledger/migrations`, then `packages/managed/migrations` renumbered above it, staged as
   one directory in the order a managed deployment applies them — with Atlas against a disposable
-  dockerized Postgres and fails on destructive schema changes — runs only when either migration
+  dockerized Postgres (the base the stacks build on, `deploy/compose/postgres/Dockerfile`'s FROM
+  by tag and digest, since 2026-11-01) and fails on destructive schema changes — runs only when either migration
   directory (or the workflow) changes, on a pull request on hosted amd64 and arm64 (the Atlas
   each runs is its own download, pinned by its SHA-256; 2026-11-01) and on a push on the Spark;
   **`commit-convention`** (2026-09-21) reads the commit subjects a pull request ADDS and requires
@@ -485,9 +486,12 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   TypeScript split's exit. Each of those keeps one issue open while it is behind, says a newer
   release in a comment, and closes the issue when the pin catches up. Every other image line of
   `managed.yml`, `dev.yml` and `www.yml` (Dependabot reads no file in `deploy/compose`), the
-  busybox copies in its scripts, Stalwart's copies, GoAccess, the Trivy the scan runs and the Atlas
+  busybox copies in its scripts, Stalwart's copies, GoAccess, the Trivy the scan runs, the Atlas
   release `ci.yml`'s migration-lint downloads by URL and checks by its SHA-256 (against the community
-  image's tags on Docker Hub, since upstream's git tags stop at v1.3.0; 2026-11-01) share one
+  image's tags on Docker Hub, since upstream's git tags stop at v1.3.0; 2026-11-01), the stalwart-cli
+  release `ci.yml`, `e2e.yml` and `e2e-managed.yml` install the same way (against upstream's git
+  tags), and the binfmt and BuildKit images `images.yml` names in its actions' inputs (against the
+  digest of the channel each action ran before, `latest` and `buildx-stable-1`) share one
   summary issue; another image a script there runs is not compared (none today: `db-roles.sh`
   reads its client from `managed.yml`). Against a registry a tag is compared, never a digest: a
   rebuild under the same tag is the image scan's to report. The exception is `www.yml`'s nginx,
@@ -591,8 +595,11 @@ true.
 Runners: on a pull request every `ci.yml` job is GitHub-hosted, with integration on both
 `ubuntu-24.04` and `ubuntu-24.04-arm` for every code-changing pull request; after merge to `main`
 the same jobs run on the self-hosted arm64 Spark. Image builds are GitHub-hosted, and e2e runs only
-on the Spark. The Spark runner executes trusted workflows only. Both the `integration-tests` job
-and `e2e.yml` install `stalwart-cli` as a host binary for their respective provisioning phases.
+on the Spark. The Spark runner executes trusted workflows only. The `integration-tests` job,
+`e2e.yml` and `e2e-managed.yml` install `stalwart-cli` as a host binary for their provisioning
+phases, by one step word for word: a named release (v1.0.14), each architecture's archive checked
+by its SHA-256 before anything is unpacked, and the version the binary prints (2026-11-01; until
+then the installer of whatever release was newest, piped to `sh`).
 
 **The second Nextcloud major** (workplan 0119, Status of 2026-10-25 and of 2026-10-26). The
 integration tier, the dev stack and the demo run Nextcloud 35 from the pull request that moved them

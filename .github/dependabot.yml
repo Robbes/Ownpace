@@ -11,7 +11,10 @@
 # line of deploy/compose's managed.yml, dev.yml and www.yml, the busybox and GoAccess copies in
 # its scripts, Trigger.dev, the tasks' Node, `packageManager`, the Trivy the scan runs, the
 # cosign images.yml and release.yml name, the Atlas release ci.yml's migration-lint downloads
-# by URL and checks by its sha256 (2026-11-01), and the TypeScript split. It runs on Mondays after
+# by URL and checks by its sha256 (2026-11-01), the stalwart-cli release ci.yml, e2e.yml and
+# e2e-managed.yml install the same way, the binfmt and BuildKit images images.yml's build job
+# names in the inputs of setup-qemu-action and setup-buildx-action (the `github-actions` entry
+# moves those actions, never an image in their inputs; 2026-11-01), and the TypeScript split. It runs on Mondays after
 # this, and keeps an issue open while one is behind. This file moves cosign-installer, and the
 # cosign it installs only while no step names one.
 # The ones of those this file sees too are the databases' build, whose pin is the FROM of
@@ -143,7 +146,10 @@ updates:
   # Dockerfile's instructions. So this pull request, a new digest or 18.x in the
   # FROM, fails scripts/a-database-started-as-root.unit.test.ts until those
   # three image lines move too; the failure prints the `sed` that moves them.
-  # Push that to the pull request's branch. An entry of its own, so that pull
+  # Since 2026-11-01 it also fails scripts/a-gate-on-a-version-nothing-ships
+  # until ci.yml's migration-lint dev database, this FROM by tag and digest,
+  # moves with it; that failure prints its `sed` too.
+  # Push both to the pull request's branch. An entry of its own, so that pull
   # request holds no other image back. Its E2E (managed) is dispatched as for
   # any pin of managed.yml. A major is pg_upgrade, and the owner's (0119 §2.1).
   - package-ecosystem: docker

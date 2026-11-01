@@ -131,16 +131,68 @@ jobs:
 
       # --with-demo provisions a real Stalwart mail backend (setup-managed-demo.sh ->
       # setup-stalwart.sh), which needs stalwart-cli on PATH. Identical to e2e.yml's own
-      # step of the same name — keep the two in sync rather than letting them drift, the
-      # same reason the seed command in 0087 was consolidated into one script instead of
-      # being copied into every place that needed it.
+      # step of the same name, and to ci.yml's (since 2026-11-01 a guard holds the three
+      # together) — the same reason the seed command in 0087 was consolidated into one
+      # script instead of being copied into every place that needed it.
       - name: Install stalwart-cli
+        # A named release, checked by its SHA-256 for both architectures before
+        # anything is unpacked or run (workplan 0119, 2026-11-01): ci.yml's
+        # integration-tests step word for word, `run:` and `env:`, which says
+        # where the sums come from and how the pin moves.
+        # `a-pin-that-knows-it-is-behind` holds the copies together.
+        env:
+          STALWART_CLI_VERSION: v1.0.14
+          STALWART_CLI_SHA256_AMD64: 78584b238422b0201a7bd223ed95b3c1a7fb8735ad3fa8c884d818a66fd1bc65
+          STALWART_CLI_SHA256_ARM64: a30f0c1a0fb8a7ee8bc42fd0e699802e4c51257a53dbd681c4d91ddb6759792b
         run: |
-          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/stalwartlabs/cli/releases/latest/download/stalwart-cli-installer.sh | sh
-          export PATH="$HOME/.cargo/bin:$PATH"
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-          which stalwart-cli
-          stalwart-cli --version
+          set -euo pipefail
+          case "$(uname -m)" in
+            x86_64) native=x86_64 ;;
+            aarch64) native=aarch64 ;;
+            *) echo "::error::No stalwart-cli is pinned for $(uname -m): only x86_64 and aarch64."; exit 1 ;;
+          esac
+          refused=0
+          for arch in x86_64 aarch64; do
+            if [ "$arch" = x86_64 ]; then pinned="$STALWART_CLI_SHA256_AMD64"; else pinned="$STALWART_CLI_SHA256_ARM64"; fi
+            download="$RUNNER_TEMP/stalwart-cli-$STALWART_CLI_VERSION-$arch-unknown-linux-gnu.tar.xz"
+            rm -f "$download"
+            for attempt in 1 2 3; do
+              if curl --proto '=https' --tlsv1.2 -sSfL -o "$download" \
+                  "https://github.com/stalwartlabs/cli/releases/download/${STALWART_CLI_VERSION}/stalwart-cli-${arch}-unknown-linux-gnu.tar.xz"; then
+                break
+              fi
+              echo "::warning::stalwart-cli $STALWART_CLI_VERSION linux/$arch: download attempt $attempt failed"
+              if [ "$attempt" = 3 ]; then
+                echo "::error::stalwart-cli $STALWART_CLI_VERSION could not be downloaded after 3 attempts. This is not a test failure: no test ran. Either GitHub's release download is unavailable or the release no longer serves this file."
+                exit 1
+              fi
+              # 5s, then 15s: long enough for a CDN blip, short enough that a
+              # real outage is reported inside a minute.
+              sleep $((attempt * 10 - 5))
+            done
+            seen="$(sha256sum "$download")"
+            seen="${seen%% *}"
+            if [ "$seen" = "$pinned" ]; then
+              echo "stalwart-cli $STALWART_CLI_VERSION linux/$arch: sha256 $seen, as pinned."
+            else
+              echo "::error::stalwart-cli $STALWART_CLI_VERSION linux/$arch is not the build this workflow pins: its sha256 is $seen, and the pin is $pinned. Nothing was run."
+              refused=1
+            fi
+          done
+          [ "$refused" = 0 ] || exit 1
+          unpacked="$RUNNER_TEMP/stalwart-cli-unpacked"
+          rm -rf "$unpacked"
+          mkdir -p "$unpacked" "$RUNNER_TEMP/stalwart-cli-bin"
+          tar -xJf "$RUNNER_TEMP/stalwart-cli-$STALWART_CLI_VERSION-$native-unknown-linux-gnu.tar.xz" -C "$unpacked" \
+            --no-same-owner --strip-components 1 "stalwart-cli-$native-unknown-linux-gnu/stalwart-cli"
+          install -m 0755 "$unpacked/stalwart-cli" "$RUNNER_TEMP/stalwart-cli-bin/stalwart-cli"
+          echo "$RUNNER_TEMP/stalwart-cli-bin" >> "$GITHUB_PATH"
+          said="$("$RUNNER_TEMP/stalwart-cli-bin/stalwart-cli" --version)"
+          echo "$said"
+          if [ "$said" != "stalwart-cli ${STALWART_CLI_VERSION#v}" ]; then
+            echo "::error::The stalwart-cli this step installed does not call itself ${STALWART_CLI_VERSION#v}."
+            exit 1
+          fi
 
       - name: Restore the one-time setup (checkout's own clean would destroy it)
         # The CLI login is the SAME class of gap as .env, found one phase later
